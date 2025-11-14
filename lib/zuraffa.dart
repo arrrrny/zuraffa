@@ -10,6 +10,7 @@ export 'src/entity_generator.dart';
 export 'src/build_runner.dart';
 export 'src/file_writer.dart';
 export 'src/generator.dart';
+export 'src/build_yaml_generator.dart';
 
 // Coming soon:
 // export 'src/usecase.dart';

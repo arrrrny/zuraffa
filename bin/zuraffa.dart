@@ -126,6 +126,10 @@ Future<void> _handleCreate(List<String> args) async {
       print('  ✓ $file');
     }
 
+    if (result.buildYamlCreated) {
+      print('\n🔧 Created build.yaml for Morphy configuration');
+    }
+
     if (result.buildRunnerResult != null && result.buildRunnerResult!.success) {
       print('\n🔨 Generated ${result.buildRunnerResult!.generatedFiles.length} .g.dart file(s):');
       for (final file in result.buildRunnerResult!.generatedFiles) {

@@ -178,6 +178,50 @@ void main() {
 
       expect(needsGeneration, true); // .g.dart doesn't exist yet
     });
+
+    test('should create build.yaml automatically', () async {
+      final json = {'id': '1', 'name': 'Test'};
+
+      // Generate entities
+      final result = await generator.generateFromJson(
+        json,
+        entityName: 'Product',
+        runBuildRunner: false,
+      );
+
+      expect(result.buildYamlCreated, true);
+
+      // Verify build.yaml was written
+      final fileWriter = FileWriter(testProjectPath);
+      final buildYamlExists = await fileWriter.fileExists('build.yaml');
+      expect(buildYamlExists, true);
+
+      // Verify content
+      final buildYamlContent = await fileWriter.readFile('build.yaml');
+      expect(buildYamlContent, contains('morphy_builder'));
+      expect(buildYamlContent, contains('lib/src/domain/entities/*.dart'));
+      expect(buildYamlContent, contains('generate_json: true'));
+    });
+
+    test('should not recreate build.yaml if already configured', () async {
+      final json = {'id': '1', 'name': 'Test'};
+
+      // First generation - creates build.yaml
+      final result1 = await generator.generateFromJson(
+        json,
+        entityName: 'Product',
+        runBuildRunner: false,
+      );
+      expect(result1.buildYamlCreated, true);
+
+      // Second generation - should not recreate
+      final result2 = await generator.generateFromJson(
+        json,
+        entityName: 'Order',
+        runBuildRunner: false,
+      );
+      expect(result2.buildYamlCreated, false);
+    });
   });
 
   group('Integration Test: File Paths', () {

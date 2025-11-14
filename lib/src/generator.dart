@@ -2,6 +2,7 @@ import 'json_parser.dart';
 import 'entity_generator.dart';
 import 'build_runner.dart';
 import 'file_writer.dart';
+import 'build_yaml_generator.dart';
 
 /// Main generator that orchestrates the entire code generation pipeline
 ///
@@ -12,12 +13,14 @@ class ZuraffaGenerator {
   late final MorphyEntityGenerator _entityGenerator;
   late final BuildRunnerManager _buildRunner;
   late final FileWriter _fileWriter;
+  late final BuildYamlGenerator _buildYamlGenerator;
 
   ZuraffaGenerator(this.projectPath) {
     _jsonParser = JsonParser();
     _entityGenerator = MorphyEntityGenerator();
     _buildRunner = BuildRunnerManager(projectPath);
     _fileWriter = FileWriter(projectPath);
+    _buildYamlGenerator = BuildYamlGenerator();
   }
 
   /// Generate entities from JSON file
@@ -47,6 +50,34 @@ class ZuraffaGenerator {
       onProgress?.call('  - $file');
     }
 
+    // Step 3.5: Ensure build.yaml exists
+    onProgress?.call('🔧 Checking build.yaml...');
+    bool buildYamlCreated = false;
+    final buildYamlPath = 'build.yaml';
+
+    try {
+      final exists = await _fileWriter.fileExists(buildYamlPath);
+      String? existingContent;
+
+      if (exists) {
+        existingContent = await _fileWriter.readFile(buildYamlPath);
+      }
+
+      if (_buildYamlGenerator.needsBuildYaml(existingContent)) {
+        final newContent = existingContent != null
+            ? _buildYamlGenerator.mergeBuildYaml(existingContent)
+            : _buildYamlGenerator.generateBuildYaml();
+
+        await _fileWriter.writeFile(buildYamlPath, newContent);
+        buildYamlCreated = true;
+        onProgress?.call('✓ Created/Updated build.yaml');
+      } else {
+        onProgress?.call('✓ build.yaml already configured');
+      }
+    } catch (e) {
+      onProgress?.call('⚠ Could not update build.yaml: $e');
+    }
+
     // Step 4: Run build_runner if requested
     BuildRunnerResult? buildResult;
     if (runBuildRunner) {
@@ -71,6 +102,7 @@ class ZuraffaGenerator {
       schema: schema,
       entityFiles: writtenFiles,
       buildRunnerResult: buildResult,
+      buildYamlCreated: buildYamlCreated,
     );
   }
 
@@ -108,11 +140,13 @@ class GenerationResult {
   final EntitySchema schema;
   final List<String> entityFiles;
   final BuildRunnerResult? buildRunnerResult;
+  final bool buildYamlCreated;
 
   GenerationResult({
     required this.schema,
     required this.entityFiles,
     this.buildRunnerResult,
+    this.buildYamlCreated = false,
   });
 
   bool get success =>
@@ -125,6 +159,7 @@ class GenerationResult {
     buffer.writeln('Generation Result:');
     buffer.writeln('  Entity: ${schema.name}');
     buffer.writeln('  Files Created: ${entityFiles.length}');
+    buffer.writeln('  Build YAML: ${buildYamlCreated ? 'created' : 'already exists'}');
     buffer.writeln('  Build Runner: ${buildRunnerResult?.success ?? 'skipped'}');
     if (buildRunnerResult != null) {
       buffer.writeln('  Generated: ${buildRunnerResult!.generatedFiles.length} .g.dart files');
