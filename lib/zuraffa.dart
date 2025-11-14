@@ -4,7 +4,11 @@
 /// and zero boilerplate.
 library zuraffa;
 
-// Core exports will go here as we build
+// Phase 1: JSON parsing and entity generation
+export 'src/json_parser.dart';
+export 'src/entity_generator.dart';
+
+// Coming soon:
 // export 'src/usecase.dart';
 // export 'src/result.dart';
 // export 'src/di.dart';
