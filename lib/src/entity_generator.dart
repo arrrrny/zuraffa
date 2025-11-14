@@ -8,7 +8,7 @@ import 'json_parser.dart';
 /// - Add @Morphy(generateJson: true) annotation
 class MorphyEntityGenerator {
   /// Generate entity file content
-  String generateEntity(EntitySchema schema) {
+  String generateEntity(EntitySchema schema, {List<String>? referencedEntities}) {
     final buffer = StringBuffer();
 
     // Header comment
@@ -18,6 +18,20 @@ class MorphyEntityGenerator {
 
     // Import morphy annotation
     buffer.writeln("import 'package:zikzak_morphy/zikzak_morphy.dart';");
+
+    // Import referenced entities (other Morphy entities)
+    if (referencedEntities != null && referencedEntities.isNotEmpty) {
+      for (final entityName in referencedEntities) {
+        final fileName = _toSnakeCase(entityName);
+        buffer.writeln("import '$fileName.dart';");
+      }
+    }
+
+    buffer.writeln();
+
+    // Part directive for generated file
+    final fileName = _toSnakeCase(schema.name);
+    buffer.writeln("part '$fileName.morphy.dart';");
     buffer.writeln();
 
     // Annotation (use @Morphy with config, not @morphy)
@@ -83,12 +97,38 @@ class MorphyEntityGenerator {
     ).substring(1); // Remove leading underscore
   }
 
+  /// Extract entity references from schema fields
+  List<String> _extractReferencedEntities(EntitySchema schema) {
+    final referenced = <String>{};
+
+    for (final field in schema.fields) {
+      // Skip primitives
+      const primitives = ['String', 'int', 'double', 'bool', 'DateTime', 'dynamic'];
+
+      if (primitives.contains(field.type)) continue;
+
+      // Handle List<Entity>
+      if (field.type.startsWith('List<')) {
+        final innerType = _extractListType(field.type);
+        if (!primitives.contains(innerType)) {
+          referenced.add(innerType);
+        }
+      } else {
+        // Direct entity reference
+        referenced.add(field.type);
+      }
+    }
+
+    return referenced.toList();
+  }
+
   /// Generate all entity files (main + nested)
   Map<String, String> generateAllEntities(EntitySchema schema) {
     final files = <String, String>{};
 
-    // Generate main entity
-    files[getFilePath(schema.name)] = generateEntity(schema);
+    // Generate main entity with references
+    final referencedEntities = _extractReferencedEntities(schema);
+    files[getFilePath(schema.name)] = generateEntity(schema, referencedEntities: referencedEntities);
 
     // Generate nested entities recursively
     for (final nested in schema.nestedEntities) {
