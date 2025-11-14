@@ -69,7 +69,7 @@ class MorphyEntityGenerator {
 
   /// Generate file path for entity
   String getFilePath(String entityName) {
-    return 'lib/domain/entities/${_toSnakeCase(entityName)}.dart';
+    return 'lib/src/domain/entities/${_toSnakeCase(entityName)}.dart';
   }
 
   /// Convert PascalCase to snake_case
