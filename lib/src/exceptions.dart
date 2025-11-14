@@ -107,6 +107,26 @@ class BuildRunnerException extends ZuraffaException {
       : super(message, hint: hint, cause: cause);
 
   factory BuildRunnerException.executionFailed(int exitCode, String stderr) {
+    // Detect Flutter SDK corruption issues
+    if (stderr.contains("'Offset' isn't a type") ||
+        stderr.contains('Method not found: \'clampDouble\'') ||
+        stderr.contains('packages/flutter/lib/src/')) {
+      return BuildRunnerException(
+        'build_runner failed due to Flutter SDK issues',
+        hint: '⚠️  Your Flutter SDK appears to be corrupted or has version conflicts.\n\n'
+            'Quick fix (run these commands in your project directory):\n'
+            '  1. flutter clean\n'
+            '  2. flutter pub cache repair\n'
+            '  3. flutter pub get\n'
+            '  4. Try zuraffa generate again\n\n'
+            'If that doesn\'t work:\n'
+            '  1. flutter upgrade\n'
+            '  2. flutter doctor -v\n\n'
+            'This is a Flutter SDK issue, not a zuraffa bug.',
+        cause: stderr,
+      );
+    }
+
     return BuildRunnerException(
       'build_runner failed with exit code $exitCode',
       hint: 'Check the error output below and ensure you have '

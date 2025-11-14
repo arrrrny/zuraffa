@@ -5,6 +5,19 @@ All notable changes to the Zuraffa project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.6] - 2025-11-14
+
+### Fixed
+- **LocalProductDataSource update now uses upsert pattern**: The `update()` method now saves the entity to cache even if it doesn't exist yet (upsert behavior), fixing the bug where `setString` wasn't called when updating a non-existent entity. This ensures all local datasource tests pass correctly.
+
+### Added
+- **v0.4.0 State Management Foundation (Preview)**: Added core primitives for zero-dependency reactive state management including ZuraffaRef, ZuraffaNotifier, ZuraffaWidget, ZuraffaScope, and provider types. See `lib/src/state/` for the new state management system (experimental, not yet documented).
+
+## [0.3.5] - 2025-11-14
+
+### Improved
+- **Better error handling for Flutter SDK issues**: Zuraffa now detects when build_runner fails due to Flutter SDK corruption (e.g., `'Offset' isn't a type`, `Method not found: 'clampDouble'`) and provides clear instructions to fix the SDK rather than showing confusing error messages.
+
 ## [Unreleased]
 
 ### Phase 1 - Core Package Setup

@@ -21,3 +21,6 @@ export 'src/usecase_generator.dart';
 export 'src/datasource_generator.dart';
 export 'src/repository_generator.dart';
 export 'src/fullstack_generator.dart';
+
+// Phase 3: State Management (v0.4.0+)
+export 'src/state/state.dart';
