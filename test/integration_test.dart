@@ -40,7 +40,7 @@ void main() {
 
       expect(result.success, true);
       expect(result.entityFiles.length, 1);
-      expect(result.entityFiles[0], 'lib/domain/entities/product.dart');
+      expect(result.entityFiles[0], 'lib/src/domain/entities/product.dart');
 
       // Verify file was written
       final fileWriter = FileWriter(testProjectPath);
@@ -86,25 +86,25 @@ void main() {
       // Main entity
       expect(
         result.entityFiles,
-        contains('lib/domain/entities/price_comparison.dart'),
+        contains('lib/src/domain/entities/price_comparison.dart'),
       );
 
       // Nested entity
       expect(
         result.entityFiles,
-        contains('lib/domain/entities/result.dart'),
+        contains('lib/src/domain/entities/result.dart'),
       );
 
       // Deeply nested entity
       expect(
         result.entityFiles,
-        contains('lib/domain/entities/shipping.dart'),
+        contains('lib/src/domain/entities/shipping.dart'),
       );
 
       // Verify main entity content
       final fileWriter = FileWriter(testProjectPath);
       final mainContent = await fileWriter.readFile(
-        'lib/domain/entities/price_comparison.dart',
+        'lib/src/domain/entities/price_comparison.dart',
       );
 
       expect(mainContent, contains('abstract class \$PriceComparison'));
@@ -113,7 +113,7 @@ void main() {
 
       // Verify nested entity content
       final resultContent = await fileWriter.readFile(
-        'lib/domain/entities/result.dart',
+        'lib/src/domain/entities/result.dart',
       );
 
       expect(resultContent, contains('abstract class \$Result'));
@@ -186,17 +186,17 @@ void main() {
 
       expect(
         generator.getFilePath('Product'),
-        'lib/domain/entities/product.dart',
+        'lib/src/domain/entities/product.dart',
       );
 
       expect(
         generator.getFilePath('PriceComparison'),
-        'lib/domain/entities/price_comparison.dart',
+        'lib/src/domain/entities/price_comparison.dart',
       );
 
       expect(
         generator.getFilePath('OrderItem'),
-        'lib/domain/entities/order_item.dart',
+        'lib/src/domain/entities/order_item.dart',
       );
     });
   });

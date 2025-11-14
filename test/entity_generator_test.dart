@@ -134,9 +134,9 @@ void main() {
       final files = generator.generateAllEntities(schema);
 
       expect(files.length, 2);
-      expect(files.keys, contains('lib/domain/entities/order.dart'));
-      expect(files.keys, contains('lib/domain/entities/customer.dart'));
-      expect(files['lib/domain/entities/customer.dart'], contains('abstract class \$Customer'));
+      expect(files.keys, contains('lib/src/domain/entities/order.dart'));
+      expect(files.keys, contains('lib/src/domain/entities/customer.dart'));
+      expect(files['lib/src/domain/entities/customer.dart'], contains('abstract class \$Customer'));
     });
   });
 
@@ -177,18 +177,18 @@ void main() {
       expect(files.length, 3);
 
       // Main entity
-      final mainEntity = files['lib/domain/entities/price_comparison.dart']!;
+      final mainEntity = files['lib/src/domain/entities/price_comparison.dart']!;
       expect(mainEntity, contains('abstract class \$PriceComparison'));
       expect(mainEntity, contains('List<\$Result> get results;')); // $ in List
 
       // Nested entity
-      final resultEntity = files['lib/domain/entities/result.dart']!;
+      final resultEntity = files['lib/src/domain/entities/result.dart']!;
       expect(resultEntity, contains('abstract class \$Result'));
       expect(resultEntity, contains('\$Shipping get shipping;')); // $ for nested
       expect(resultEntity, contains('DateTime get lastChecked;')); // No $ for DateTime
 
       // Deeply nested entity
-      final shippingEntity = files['lib/domain/entities/shipping.dart']!;
+      final shippingEntity = files['lib/src/domain/entities/shipping.dart']!;
       expect(shippingEntity, contains('abstract class \$Shipping'));
       expect(shippingEntity, contains('double get cost;'));
       expect(shippingEntity, contains('int get estimatedDays;'));
@@ -197,9 +197,9 @@ void main() {
 
   group('MorphyEntityGenerator - File Paths', () {
     test('should convert PascalCase to snake_case for file paths', () {
-      expect(generator.getFilePath('Product'), 'lib/domain/entities/product.dart');
-      expect(generator.getFilePath('PriceComparison'), 'lib/domain/entities/price_comparison.dart');
-      expect(generator.getFilePath('OrderItem'), 'lib/domain/entities/order_item.dart');
+      expect(generator.getFilePath('Product'), 'lib/src/domain/entities/product.dart');
+      expect(generator.getFilePath('PriceComparison'), 'lib/src/domain/entities/price_comparison.dart');
+      expect(generator.getFilePath('OrderItem'), 'lib/src/domain/entities/order_item.dart');
     });
   });
 }
