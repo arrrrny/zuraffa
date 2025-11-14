@@ -12,6 +12,8 @@ dependencies:
   args: ^2.4.0           # CLI argument parsing
   meta: ^1.10.0          # Annotations
   path: ^1.8.0           # File path manipulation
+  flutter:               # For state management widgets (optional - CLI works without it)
+    sdk: flutter
 
 executables:
   zuraffa:               # Make 'zuraffa' available globally
