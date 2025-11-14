@@ -7,7 +7,7 @@ import 'package:zuraffa/zuraffa.dart';
 import 'package:zuraffa/src/exceptions.dart';
 import 'package:zuraffa/src/preflight.dart';
 
-const version = '0.2.2';
+const version = '0.3.0';
 
 void main(List<String> arguments) async {
   if (arguments.isEmpty) {
@@ -209,7 +209,7 @@ Future<void> _handleGenerate(List<String> args) async {
   // Parse args
   final parser = ArgParser()
     ..addOption('from-json', abbr: 'j', help: 'JSON file path', mandatory: true)
-    ..addFlag('full-stack', help: 'Generate complete stack (entities/datasources/repository/usecases)', defaultsTo: true)
+    ..addFlag('crud', help: 'Include Create/Update/Delete usecases (default: Get/GetProducts only)', defaultsTo: false)
     ..addFlag('no-build-runner', help: 'Skip build_runner', defaultsTo: false)
     ..addFlag('verbose', abbr: 'v', help: 'Verbose output', defaultsTo: false);
 
@@ -256,6 +256,7 @@ Future<void> _handleGenerate(List<String> args) async {
     json,
     entityName: entityName,
     runBuildRunner: !results['no-build-runner'],
+    includeCrud: results['crud'] as bool,
     onProgress: (msg) => print(msg),
   );
 
@@ -283,6 +284,11 @@ Future<void> _handleGenerate(List<String> args) async {
       print('    ✓ $file');
     }
 
+    print('\n  🧪 Tests (${result.testFiles.length}):');
+    for (final file in result.testFiles) {
+      print('    ✓ $file');
+    }
+
     if (result.buildYamlCreated) {
       print('\n  🔧 Created build.yaml');
     }
@@ -295,6 +301,8 @@ Future<void> _handleGenerate(List<String> args) async {
     print('   Entity: ${result.entityName}');
     print('   Pattern: Result<T, Failure>');
     print('   Cache: First (network → local)');
+    print('   Tests: ${result.testFiles.length} files (TDD Ready!)');
+    print('\n💡 Run: dart test');
   } else {
     if (result.buildRunnerResult != null && !result.buildRunnerResult!.success) {
       throw BuildRunnerException.executionFailed(
@@ -318,15 +326,16 @@ Commands:
   generate <EntityName> --from-json <file>
     Generate complete Clean Architecture stack (RECOMMENDED!)
     --from-json, -j <file>    JSON file path (required)
-    --full-stack              Generate all layers (default: true)
+    --crud                    Include Create/Update/Delete usecases
     --no-build-runner         Skip build_runner
     --verbose, -v             Verbose output
 
-    Generates:
+    Generates by default:
       ✓ Entity (with Morphy)
       ✓ DataSources (Remote/Local/Mock)
       ✓ Repository (cache-first logic)
-      ✓ UseCases (Get/GetAll/Create/Update/Delete)
+      ✓ UseCases (Get/GetProducts with ProductFilter)
+      ✓ With --crud: Create/Update/Delete usecases
 
   create entity <name> [options]
     Generate entities only
@@ -342,6 +351,9 @@ Commands:
 Examples:
   # 🚀 Full-stack generation (ONE COMMAND!)
   zuraffa generate Product --from-json product.json
+
+  # Full-stack with CRUD operations
+  zuraffa generate Product --from-json product.json --crud
 
   # Entity only
   zuraffa create entity Product --from-json product.json

@@ -1,0 +1,7 @@
+{
+  "id": "prod-123",
+  "name": "Test Product",
+  "price": 29.99,
+  "inStock": true,
+  "tags": ["electronics", "gadgets"]
+}

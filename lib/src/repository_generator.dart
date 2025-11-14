@@ -14,12 +14,13 @@ class RepositoryGenerator {
 
     buffer.writeln("import 'package:zuraffa/zuraffa.dart';");
     buffer.writeln("import '../entities/${_toSnakeCase(entityName)}.dart';");
+    buffer.writeln("import '../usecases/${_toSnakeCase(entityName)}_filter.dart';");
     buffer.writeln();
 
     buffer.writeln('/// Abstract Repository for $entityName');
     buffer.writeln('abstract class ${entityName}Repository {');
     buffer.writeln('  Future<Result<$entityName, AppFailure>> getById(String id);');
-    buffer.writeln('  Future<Result<List<$entityName>, AppFailure>> getAll();');
+    buffer.writeln('  Future<Result<List<$entityName>, AppFailure>> getAll(${entityName}Filter filter);');
     buffer.writeln('  Future<Result<$entityName, AppFailure>> create($entityName entity);');
     buffer.writeln('  Future<Result<$entityName, AppFailure>> update($entityName entity);');
     buffer.writeln('  Future<Result<void, AppFailure>> delete(String id);');
@@ -40,6 +41,7 @@ class RepositoryGenerator {
     buffer.writeln("import 'package:zuraffa/zuraffa.dart';");
     buffer.writeln("import '../../domain/entities/${_toSnakeCase(entityName)}.dart';");
     buffer.writeln("import '../../domain/repositories/${_toSnakeCase(entityName)}_repository.dart';");
+    buffer.writeln("import '../../domain/usecases/${_toSnakeCase(entityName)}_filter.dart';");
     buffer.writeln("import '../datasources/${_toSnakeCase(entityName)}_datasource.dart';");
     buffer.writeln();
 
@@ -80,9 +82,9 @@ class RepositoryGenerator {
     buffer.writeln('  }');
     buffer.writeln();
 
-    // getAll with cache-first
+    // getAll with cache-first and filter
     buffer.writeln('  @override');
-    buffer.writeln('  Future<Result<List<$entityName>, AppFailure>> getAll() async {');
+    buffer.writeln('  Future<Result<List<$entityName>, AppFailure>> getAll(${entityName}Filter filter) async {');
     buffer.writeln('    try {');
     buffer.writeln('      // Try remote first');
     buffer.writeln('      final remote = await remoteDataSource.getAll();');
@@ -90,11 +92,13 @@ class RepositoryGenerator {
     buffer.writeln('      for (final item in remote) {');
     buffer.writeln('        await localDataSource.update(item);');
     buffer.writeln('      }');
+    buffer.writeln('      // TODO: Apply filter to remote results');
     buffer.writeln('      return Success(remote);');
     buffer.writeln('    } catch (e) {');
     buffer.writeln('      // Network failed, try cache');
     buffer.writeln('      try {');
     buffer.writeln('        final cached = await localDataSource.getAll();');
+    buffer.writeln('        // TODO: Apply filter to cached results');
     buffer.writeln('        return Success(cached);');
     buffer.writeln('      } catch (cacheError) {');
     buffer.writeln('        return Failure(NetworkFailure(e.toString()));');
