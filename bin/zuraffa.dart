@@ -7,7 +7,7 @@ import 'package:zuraffa/zuraffa.dart';
 import 'package:zuraffa/src/exceptions.dart';
 import 'package:zuraffa/src/preflight.dart';
 
-const version = '0.1.3';
+const version = '0.2.0';
 
 void main(List<String> arguments) async {
   if (arguments.isEmpty) {
@@ -19,6 +19,9 @@ void main(List<String> arguments) async {
 
   try {
     switch (command) {
+      case 'generate':
+        await _handleGenerate(arguments.skip(1).toList());
+        break;
       case 'create':
         await _handleCreate(arguments.skip(1).toList());
         break;
@@ -195,6 +198,115 @@ Future<void> _handleCreate(List<String> args) async {
   }
 }
 
+Future<void> _handleGenerate(List<String> args) async {
+  if (args.isEmpty) {
+    print('❌ Usage: zuraffa generate <EntityName> --from-json <file> [options]');
+    exit(1);
+  }
+
+  final entityName = args[0];
+
+  // Parse args
+  final parser = ArgParser()
+    ..addOption('from-json', abbr: 'j', help: 'JSON file path', mandatory: true)
+    ..addFlag('full-stack', help: 'Generate complete stack (entities/datasources/repository/usecases)', defaultsTo: true)
+    ..addFlag('no-build-runner', help: 'Skip build_runner', defaultsTo: false)
+    ..addFlag('verbose', abbr: 'v', help: 'Verbose output', defaultsTo: false);
+
+  final results = parser.parse(args.skip(1));
+
+  // Read JSON
+  final jsonPath = results['from-json'] as String;
+  final file = File(jsonPath);
+
+  if (!await file.exists()) {
+    throw FileException.notFound(jsonPath);
+  }
+
+  print('📖 Reading JSON from: $jsonPath');
+
+  Map<String, dynamic> json;
+  try {
+    final jsonString = await file.readAsString();
+    final decoded = jsonDecode(jsonString);
+
+    if (decoded is! Map<String, dynamic>) {
+      throw JsonParseException.notAnObject(decoded);
+    }
+
+    json = decoded;
+  } on FormatException catch (e) {
+    throw JsonParseException.invalidJson(e);
+  } on FileSystemException catch (e) {
+    throw FileException.cannotRead(jsonPath, e);
+  }
+
+  // Generate full-stack
+  print('\n🦒 Zuraffa v$version - Full-Stack Generator\n');
+
+  final projectPath = Directory.current.path;
+
+  // Pre-flight checks
+  final preflight = PreflightChecker(projectPath);
+  await preflight.quickCheck();
+
+  final generator = FullStackGenerator(projectPath);
+
+  final result = await generator.generateFromJson(
+    json,
+    entityName: entityName,
+    runBuildRunner: !results['no-build-runner'],
+    onProgress: (msg) => print(msg),
+  );
+
+  if (result.success) {
+    print('\n✅ Full-stack generation complete!\n');
+    print('📦 Generated ${result.totalFiles} files:\n');
+
+    print('  📄 Entities (${result.entityFiles.length}):');
+    for (final file in result.entityFiles) {
+      print('    ✓ $file');
+    }
+
+    print('\n  🌐 DataSources (${result.datasourceFiles.length}):');
+    for (final file in result.datasourceFiles) {
+      print('    ✓ $file');
+    }
+
+    print('\n  🗄️  Repositories (${result.repositoryFiles.length}):');
+    for (final file in result.repositoryFiles) {
+      print('    ✓ $file');
+    }
+
+    print('\n  ⚙️  UseCases (${result.usecaseFiles.length}):');
+    for (final file in result.usecaseFiles) {
+      print('    ✓ $file');
+    }
+
+    if (result.buildYamlCreated) {
+      print('\n  🔧 Created build.yaml');
+    }
+
+    if (result.buildRunnerResult != null && result.buildRunnerResult!.success) {
+      print('\n  🔨 Generated ${result.buildRunnerResult!.generatedFiles.length} .g.dart file(s)');
+    }
+
+    print('\n🎉 Done! Your full-stack Clean Architecture is ready.');
+    print('   Entity: ${result.entityName}');
+    print('   Pattern: Result<T, Failure>');
+    print('   Cache: First (network → local)');
+  } else {
+    if (result.buildRunnerResult != null && !result.buildRunnerResult!.success) {
+      throw BuildRunnerException.executionFailed(
+        result.buildRunnerResult!.exitCode,
+        result.buildRunnerResult!.stderr,
+      );
+    }
+
+    throw ZuraffaException('Full-stack generation failed');
+  }
+}
+
 void _printHelp() {
   print('''
 🦒 Zuraffa v$version
@@ -203,7 +315,21 @@ AI-First Clean Architecture for Flutter
 Usage: zuraffa <command> [options]
 
 Commands:
+  generate <EntityName> --from-json <file>
+    Generate complete Clean Architecture stack (RECOMMENDED!)
+    --from-json, -j <file>    JSON file path (required)
+    --full-stack              Generate all layers (default: true)
+    --no-build-runner         Skip build_runner
+    --verbose, -v             Verbose output
+
+    Generates:
+      ✓ Entity (with Morphy)
+      ✓ DataSources (Remote/Local/Mock)
+      ✓ Repository (cache-first logic)
+      ✓ UseCases (Get/GetAll/Create/Update/Delete)
+
   create entity <name> [options]
+    Generate entities only
     --from-json, -j <file>    Read JSON from file
     --interactive, -i          Paste JSON interactively
     --name, -n <name>         Entity name (optional)
@@ -214,14 +340,14 @@ Commands:
   version, --version, -v      Show version
 
 Examples:
-  # From JSON file
+  # 🚀 Full-stack generation (ONE COMMAND!)
+  zuraffa generate Product --from-json product.json
+
+  # Entity only
   zuraffa create entity Product --from-json product.json
 
   # Interactive mode
   zuraffa create entity --interactive
-
-  # Custom name
-  zuraffa create entity --from-json api-response.json --name PriceComparison
 
 Documentation: https://github.com/arrrrny/zuraffa
 For Humanity. For ZikZak. For AI Agents. 🦒

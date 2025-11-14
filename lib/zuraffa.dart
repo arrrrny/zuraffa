@@ -13,7 +13,11 @@ export 'src/generator.dart';
 export 'src/build_yaml_generator.dart';
 export 'src/exceptions.dart';
 
-// Coming soon:
-// export 'src/usecase.dart';
-// export 'src/result.dart';
-// export 'src/di.dart';
+// Phase 2: Full-stack generation
+export 'src/result.dart';
+export 'src/failures.dart';
+export 'src/usecase.dart';
+export 'src/usecase_generator.dart';
+export 'src/datasource_generator.dart';
+export 'src/repository_generator.dart';
+export 'src/fullstack_generator.dart';
