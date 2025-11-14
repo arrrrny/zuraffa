@@ -252,19 +252,23 @@ Future<void> _handleGenerate(List<String> args) async {
   await preflight.quickCheck();
 
   final generator = FullStackGenerator(projectPath);
-  final isValueObject = results['value-object'] as bool;
+  final isValueObjectFlag = results['value-object'] as bool;
 
   final result = await generator.generateFromJson(
     json,
     entityName: entityName,
     runBuildRunner: !results['no-build-runner'],
     includeCrud: results['crud'] as bool,
-    isValueObject: isValueObject,
+    isValueObject: isValueObjectFlag,
     onProgress: (msg) => print(msg),
   );
 
+  // Determine if it's actually a value object (auto-detected or forced)
+  final hasIdField = result.schema.fields.any((f) => f.name == 'id' && (f.type == 'String' || f.type == 'int'));
+  final isActuallyValueObject = isValueObjectFlag || !hasIdField;
+
   if (result.success) {
-    if (isValueObject) {
+    if (isActuallyValueObject) {
       print('\n✅ Value Object generation complete!\n');
       print('📦 Generated ${result.totalFiles} files:\n');
 
@@ -359,19 +363,24 @@ Commands:
     Generate complete Clean Architecture stack (RECOMMENDED!)
     --from-json, -j <file>    JSON file path (required)
     --crud                    Include Create/Update/Delete usecases
-    --value-object            Generate as Value Object (no id, no repo/usecases)
+    --value-object            Force Value Object (even if id exists)
     --no-build-runner         Skip build_runner
     --verbose, -v             Verbose output
 
-    Generates by default (Entity):
+    🎯 Auto-Detection (AI-First!):
+      • JSON with id field (String/int) → Entity (full stack)
+      • JSON without id field → Value Object (entity + tests)
+      • --value-object flag → Force Value Object
+
+    Entity (auto-detected if id exists):
       ✓ Entity (with Morphy, requires id field)
       ✓ DataSources (Remote/Local/Mock)
       ✓ Repository (cache-first logic)
       ✓ UseCases (Get/GetProducts with ProductFilter)
       ✓ With --crud: Create/Update/Delete usecases
 
-    With --value-object:
-      ✓ Value Object (with Morphy, no id required)
+    Value Object (auto-detected if no id):
+      ✓ Value Object (with Morphy, no id needed)
       ✓ Tests only (no repository/usecases)
 
   create entity <name> [options]
@@ -386,16 +395,20 @@ Commands:
   version, --version, -v      Show version
 
 Examples:
-  # 🚀 Full-stack Entity generation (ONE COMMAND!)
+  # 🚀 Auto-detect Entity (JSON has id field)
   zuraffa generate Product --from-json product.json
+  # → Generates full stack (Entity detected!)
+
+  # 🧬 Auto-detect Value Object (JSON has NO id field)
+  zuraffa generate Review --from-json review.json
+  # → Generates only entity + tests (Value Object detected!)
+
+  # Force Value Object (even if JSON has id)
+  zuraffa generate Address --from-json address.json --value-object
+  # → Ignores id field, generates Value Object
 
   # Full-stack with CRUD operations
   zuraffa generate Product --from-json product.json --crud
-
-  # 🧬 Value Object (no id, immutable data structure)
-  zuraffa generate Address --from-json address.json --value-object
-  zuraffa generate Money --from-json money.json --value-object
-  zuraffa generate Review --from-json review.json --value-object
 
   # Entity only
   zuraffa create entity Product --from-json product.json

@@ -104,16 +104,18 @@ class MorphyEntityGenerator {
   void _validateSchema(EntitySchema schema, {bool isValueObject = false}) {
     // Check for required 'id' field (only for entities, not value objects)
     if (!isValueObject) {
-      final hasId = schema.fields.any((f) => f.name == 'id' && f.type == 'String');
+      // Accept both String and int for id
+      final hasId = schema.fields.any((f) => f.name == 'id' && (f.type == 'String' || f.type == 'int'));
       if (!hasId) {
         throw Exception(
-          '❌ Entity ${schema.name} must have a String id field.\n\n'
+          '❌ Entity ${schema.name} must have an id field (String or int).\n\n'
           'Zuraffa requires all entities to have an identifier for:\n'
           '  - Cache management in repositories\n'
           '  - Data synchronization\n'
           '  - Testing and mocking\n\n'
           'Add an "id" field to your JSON:\n'
-          '  {"id": "unique-id", ...rest of fields}\n\n'
+          '  {"id": "unique-id", ...rest of fields}     // String id\n'
+          '  {"id": 123, ...rest of fields}              // int id\n\n'
           'Or use --value-object flag if this is a Value Object:\n'
           '  zuraffa generate ${schema.name} --from-json file.json --value-object\n\n'
           'See MORPHY_GUIDE.md for more details.',

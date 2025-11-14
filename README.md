@@ -65,53 +65,60 @@ dart test  # All tests pass! ✅
 
 ---
 
-## 🧬 Entities vs Value Objects
+## 🧬 Entities vs Value Objects (Auto-Detected!)
+
+Zuraffa is **opinionated and smart** - it automatically detects whether to generate an Entity or Value Object based on your JSON:
+
+**🎯 Auto-Detection Rules:**
+- ✅ **Has `id` field** (String or int) → **Entity** (full CRUD stack)
+- ✅ **No `id` field** → **Value Object** (just entity + tests)
+- ✅ **`--value-object` flag** → **Force Value Object** (even if `id` exists)
 
 Zuraffa supports both **Morphy Entities** and **Morphy Value Objects** following Domain-Driven Design principles:
 
-### Entities (Default)
+### Entities (Auto-Detected)
 
 Objects with **identity** - tracked and cached:
 
 ```bash
+# JSON with id → Auto-generates Entity
 zuraffa generate Product --from-json product.json
 ```
-
-**Requirements:**
-- ✅ Must have `id` field
-- ✅ Full CRUD stack generated
-- ✅ Repository + DataSources + UseCases
 
 **Example JSON:**
 ```json
 {
-  "id": "prod-123",           // ← Required!
+  "id": "prod-123",           // ← Auto-detected as Entity!
   "name": "Wireless Headphones",
   "price": 99.99
 }
 ```
 
+**Generates:**
+- ✅ Full CRUD stack (Repository + DataSources + UseCases)
+- ✅ Cache-first logic
+- ✅ Comprehensive tests
+
 **Use for:** Product, User, Order, Customer - anything that needs tracking and CRUD operations.
 
-### Value Objects (New!)
+**Supported `id` types:** `String` or `int`
+
+### Value Objects (Auto-Detected)
 
 Objects **without identity** - just immutable data structures:
 
 ```bash
-zuraffa generate Address --from-json address.json --value-object
-zuraffa generate Money --from-json money.json --value-object
-zuraffa generate Review --from-json review.json --value-object
-```
+# JSON without id → Auto-generates Value Object
+zuraffa generate Address --from-json address.json
 
-**Features:**
-- ✅ No `id` field required
-- ✅ Only entity + tests generated
-- ✅ Can be used as types within Entities
+# Or force Value Object even if id exists
+zuraffa generate Address --from-json address.json --value-object
+```
 
 **Example JSON:**
 ```json
 {
-  "rating": 5,
+  "rating": 5,                  // ← No id = Auto-detected as Value Object!
   "title": "Excellent!",
   "comment": "Great product",
   "reviewerName": "John Doe",
@@ -119,13 +126,35 @@ zuraffa generate Review --from-json review.json --value-object
 }
 ```
 
+**Generates:**
+- ✅ Only entity + tests (no repository/usecases)
+- ✅ Can be used as types within Entities
+- ✅ Immutable data structures
+
 **Use for:** Address, Money, Rating, Review, Color, Coordinates - data structures that don't need their own repositories.
 
-**Why This Is Powerful:**
+### Why This Is Powerful
+
+- 🎯 **AI-First**: Zuraffa makes the right decision automatically
+- 🧬 **DDD Principles**: Entities have lifecycle, Value Objects don't
 - 🔹 **Entities** = Domain objects with lifecycle (Create, Read, Update, Delete)
 - 🔹 **Value Objects** = Domain data without lifecycle (just immutable types)
 - 🔹 Both use `@Morphy(generateJson: true)` - same serialization power!
 - 🔹 Compose Value Objects inside Entities for rich domain models
+- 🎚️ **Override**: Use `--value-object` flag to force Value Object generation
+
+### Future: .env Configuration
+
+Coming in v0.4.0+, configure Zuraffa behavior with `.env`:
+
+```bash
+# .env (future feature)
+ENFORCE_ID=true          # Require id field for all entities (strict mode)
+AUTO_DETECT=true         # Auto-detect Entity vs Value Object (default)
+DEFAULT_ID_TYPE=String   # String or int
+```
+
+Stay opinionated while staying flexible! 🦒
 
 ---
 

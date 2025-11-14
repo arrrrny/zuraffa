@@ -74,19 +74,31 @@ class FullStackGenerator {
     onProgress?.call('📊 Parsing JSON...');
     final schema = _jsonParser.parseJson(json, entityName: entityName);
     final finalEntityName = schema.name;
-    onProgress?.call('✓ Detected entity: $finalEntityName\n');
+
+    // Auto-detect: If --value-object not specified, check for id field
+    final hasIdField = schema.fields.any((f) => f.name == 'id' && (f.type == 'String' || f.type == 'int'));
+    final shouldBeValueObject = isValueObject || !hasIdField;
+
+    if (isValueObject && hasIdField) {
+      onProgress?.call('✓ Detected entity: $finalEntityName (has id field)\n');
+      onProgress?.call('  💡 --value-object flag: Forcing Value Object generation\n');
+    } else if (shouldBeValueObject) {
+      onProgress?.call('✓ Detected value object: $finalEntityName (no id field)\n');
+    } else {
+      onProgress?.call('✓ Detected entity: $finalEntityName (has id field)\n');
+    }
 
     final allFiles = <String, String>{};
 
     // Step 2: Generate entities
-    if (isValueObject) {
+    if (shouldBeValueObject) {
       onProgress?.call('📝 Generating value object...');
     } else {
       onProgress?.call('📝 Generating entities...');
     }
-    final entityFiles = _entityGenerator.generateAllEntities(schema, isValueObject: isValueObject);
+    final entityFiles = _entityGenerator.generateAllEntities(schema, isValueObject: shouldBeValueObject);
     allFiles.addAll(entityFiles);
-    if (isValueObject) {
+    if (shouldBeValueObject) {
       onProgress?.call('✓ Generated ${entityFiles.length} value object file(s)\n');
     } else {
       onProgress?.call('✓ Generated ${entityFiles.length} entity file(s)\n');
@@ -97,7 +109,7 @@ class FullStackGenerator {
     final repositoryFiles = <String, String>{};
     final usecaseFiles = <String, String>{};
 
-    if (!isValueObject) {
+    if (!shouldBeValueObject) {
       // Step 3: Generate datasources
       onProgress?.call('🌐 Generating datasources...');
       datasourceFiles.addAll({
@@ -165,7 +177,7 @@ class FullStackGenerator {
     testFiles[entityTestPath] = entityTestContent;
 
     // Only generate datasource/repository/usecase tests for entities (not value objects)
-    if (!isValueObject) {
+    if (!shouldBeValueObject) {
       // DataSource tests
       final datasourceTestPaths = _dataSourceTestGenerator.getFilePaths(finalEntityName);
       testFiles['test/data/datasources/remote_${_toSnakeCase(finalEntityName)}_datasource_test.dart'] =
