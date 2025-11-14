@@ -210,6 +210,7 @@ Future<void> _handleGenerate(List<String> args) async {
   final parser = ArgParser()
     ..addOption('from-json', abbr: 'j', help: 'JSON file path', mandatory: true)
     ..addFlag('crud', help: 'Include Create/Update/Delete usecases (default: Get/GetProducts only)', defaultsTo: false)
+    ..addFlag('value-object', help: 'Generate as Value Object (no id required, no repository/usecases)', defaultsTo: false)
     ..addFlag('no-build-runner', help: 'Skip build_runner', defaultsTo: false)
     ..addFlag('verbose', abbr: 'v', help: 'Verbose output', defaultsTo: false);
 
@@ -251,58 +252,89 @@ Future<void> _handleGenerate(List<String> args) async {
   await preflight.quickCheck();
 
   final generator = FullStackGenerator(projectPath);
+  final isValueObject = results['value-object'] as bool;
 
   final result = await generator.generateFromJson(
     json,
     entityName: entityName,
     runBuildRunner: !results['no-build-runner'],
     includeCrud: results['crud'] as bool,
+    isValueObject: isValueObject,
     onProgress: (msg) => print(msg),
   );
 
   if (result.success) {
-    print('\n✅ Full-stack generation complete!\n');
-    print('📦 Generated ${result.totalFiles} files:\n');
+    if (isValueObject) {
+      print('\n✅ Value Object generation complete!\n');
+      print('📦 Generated ${result.totalFiles} files:\n');
 
-    print('  📄 Entities (${result.entityFiles.length}):');
-    for (final file in result.entityFiles) {
-      print('    ✓ $file');
+      print('  📄 Value Object (${result.entityFiles.length}):');
+      for (final file in result.entityFiles) {
+        print('    ✓ $file');
+      }
+
+      print('\n  🧪 Tests (${result.testFiles.length}):');
+      for (final file in result.testFiles) {
+        print('    ✓ $file');
+      }
+
+      if (result.buildYamlCreated) {
+        print('\n  🔧 Created build.yaml');
+      }
+
+      if (result.buildRunnerResult != null && result.buildRunnerResult!.success) {
+        print('\n  🔨 Generated ${result.buildRunnerResult!.generatedFiles.length} .g.dart file(s)');
+      }
+
+      print('\n🎉 Done! Your Value Object is ready.');
+      print('   Value Object: ${result.entityName}');
+      print('   Type: Immutable data structure (no id)');
+      print('   Tests: ${result.testFiles.length} files (TDD Ready!)');
+      print('\n💡 Run: dart test');
+    } else {
+      print('\n✅ Full-stack generation complete!\n');
+      print('📦 Generated ${result.totalFiles} files:\n');
+
+      print('  📄 Entities (${result.entityFiles.length}):');
+      for (final file in result.entityFiles) {
+        print('    ✓ $file');
+      }
+
+      print('\n  🌐 DataSources (${result.datasourceFiles.length}):');
+      for (final file in result.datasourceFiles) {
+        print('    ✓ $file');
+      }
+
+      print('\n  🗄️  Repositories (${result.repositoryFiles.length}):');
+      for (final file in result.repositoryFiles) {
+        print('    ✓ $file');
+      }
+
+      print('\n  ⚙️  UseCases (${result.usecaseFiles.length}):');
+      for (final file in result.usecaseFiles) {
+        print('    ✓ $file');
+      }
+
+      print('\n  🧪 Tests (${result.testFiles.length}):');
+      for (final file in result.testFiles) {
+        print('    ✓ $file');
+      }
+
+      if (result.buildYamlCreated) {
+        print('\n  🔧 Created build.yaml');
+      }
+
+      if (result.buildRunnerResult != null && result.buildRunnerResult!.success) {
+        print('\n  🔨 Generated ${result.buildRunnerResult!.generatedFiles.length} .g.dart file(s)');
+      }
+
+      print('\n🎉 Done! Your full-stack Clean Architecture is ready.');
+      print('   Entity: ${result.entityName}');
+      print('   Pattern: Result<T, Failure>');
+      print('   Cache: First (network → local)');
+      print('   Tests: ${result.testFiles.length} files (TDD Ready!)');
+      print('\n💡 Run: dart test');
     }
-
-    print('\n  🌐 DataSources (${result.datasourceFiles.length}):');
-    for (final file in result.datasourceFiles) {
-      print('    ✓ $file');
-    }
-
-    print('\n  🗄️  Repositories (${result.repositoryFiles.length}):');
-    for (final file in result.repositoryFiles) {
-      print('    ✓ $file');
-    }
-
-    print('\n  ⚙️  UseCases (${result.usecaseFiles.length}):');
-    for (final file in result.usecaseFiles) {
-      print('    ✓ $file');
-    }
-
-    print('\n  🧪 Tests (${result.testFiles.length}):');
-    for (final file in result.testFiles) {
-      print('    ✓ $file');
-    }
-
-    if (result.buildYamlCreated) {
-      print('\n  🔧 Created build.yaml');
-    }
-
-    if (result.buildRunnerResult != null && result.buildRunnerResult!.success) {
-      print('\n  🔨 Generated ${result.buildRunnerResult!.generatedFiles.length} .g.dart file(s)');
-    }
-
-    print('\n🎉 Done! Your full-stack Clean Architecture is ready.');
-    print('   Entity: ${result.entityName}');
-    print('   Pattern: Result<T, Failure>');
-    print('   Cache: First (network → local)');
-    print('   Tests: ${result.testFiles.length} files (TDD Ready!)');
-    print('\n💡 Run: dart test');
   } else {
     if (result.buildRunnerResult != null && !result.buildRunnerResult!.success) {
       throw BuildRunnerException.executionFailed(
@@ -327,15 +359,20 @@ Commands:
     Generate complete Clean Architecture stack (RECOMMENDED!)
     --from-json, -j <file>    JSON file path (required)
     --crud                    Include Create/Update/Delete usecases
+    --value-object            Generate as Value Object (no id, no repo/usecases)
     --no-build-runner         Skip build_runner
     --verbose, -v             Verbose output
 
-    Generates by default:
-      ✓ Entity (with Morphy)
+    Generates by default (Entity):
+      ✓ Entity (with Morphy, requires id field)
       ✓ DataSources (Remote/Local/Mock)
       ✓ Repository (cache-first logic)
       ✓ UseCases (Get/GetProducts with ProductFilter)
       ✓ With --crud: Create/Update/Delete usecases
+
+    With --value-object:
+      ✓ Value Object (with Morphy, no id required)
+      ✓ Tests only (no repository/usecases)
 
   create entity <name> [options]
     Generate entities only
@@ -349,11 +386,16 @@ Commands:
   version, --version, -v      Show version
 
 Examples:
-  # 🚀 Full-stack generation (ONE COMMAND!)
+  # 🚀 Full-stack Entity generation (ONE COMMAND!)
   zuraffa generate Product --from-json product.json
 
   # Full-stack with CRUD operations
   zuraffa generate Product --from-json product.json --crud
+
+  # 🧬 Value Object (no id, immutable data structure)
+  zuraffa generate Address --from-json address.json --value-object
+  zuraffa generate Money --from-json money.json --value-object
+  zuraffa generate Review --from-json review.json --value-object
 
   # Entity only
   zuraffa create entity Product --from-json product.json
