@@ -191,8 +191,10 @@ class DataSourceGenerator {
     buffer.writeln('    final index = all.indexWhere((e) => e.id == entity.id);');
     buffer.writeln('    if (index != -1) {');
     buffer.writeln('      all[index] = entity;');
-    buffer.writeln('      await _saveAll(all);');
+    buffer.writeln('    } else {');
+    buffer.writeln('      all.add(entity); // Upsert: add if not found');
     buffer.writeln('    }');
+    buffer.writeln('    await _saveAll(all);');
     buffer.writeln('    return entity;');
     buffer.writeln('  }');
     buffer.writeln();

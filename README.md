@@ -4,7 +4,7 @@
 
 > Generate production-ready Flutter code from JSON with TDD, 100% test coverage, and zero boilerplate.
 
-[![Version](https://img.shields.io/badge/version-0.3.5-blue.svg)](https://github.com/arrrrny/zuraffa)
+[![Version](https://img.shields.io/badge/version-0.3.6-blue.svg)](https://github.com/arrrrny/zuraffa)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ## 🎯 What is Zuraffa?
