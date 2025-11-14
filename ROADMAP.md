@@ -143,10 +143,109 @@ sealed class Result<S, F> {  // Already exists!
 
 ### Features
 
+#### 1. State Notifiers with Lifecycle Safety
+
+```dart
+@zuraffa
+class TodoListNotifier extends ZuraffaNotifier<List<Todo>> {
+  @override
+  List<Todo> build() => [];
+
+  Future<void> addTodo(String title) async {
+    // Post the new todo to the server
+    final newTodo = await api.addTodo(title);
+
+    // Check if the provider is still mounted
+    // after the async operation
+    if (!ref.mounted) return;
+
+    // If it is, update the state
+    state = [...state, newTodo];
+  }
+
+  void removeTodo(String id) {
+    state = state.where((todo) => todo.id != id).toList();
+  }
+}
+```
+
+**Why ref.mounted matters:**
+- Prevents updating disposed providers
+- Avoids memory leaks from async operations
+- Safer than manual lifecycle management
+
+#### 2. Automatic Retry Logic
+
+**Per-Provider Configuration:**
+
+```dart
+// Define custom retry strategy
+Duration retry(int retryCount, Object error) {
+  if (error is SomeSpecificError) return null; // Don't retry
+  if (retryCount > 5) return null;              // Max 5 retries
+
+  return Duration(seconds: retryCount * 2);     // Exponential backoff
+}
+
+@Zuraffa(retry: retry)
+Future<Result<Product, AppFailure>> getProduct(String id) async {
+  // Automatically retries on failure!
+  final product = await _repository.getById(id);
+  return Success(product);
+}
+```
+
+**Global Retry Configuration:**
+
+```dart
+void main() {
+  runApp(
+    ZuraffaScope(
+      // Global retry configuration
+      retry: (retryCount, error) {
+        if (error is NetworkFailure) return Duration(seconds: retryCount * 2);
+        if (error is ServerFailure && retryCount > 3) return null;
+        return Duration(seconds: 1);
+      },
+      child: MyApp(),
+    ),
+  );
+}
+```
+
+#### 3. ZuraffaScope & Container
+
+```dart
+// Root of your app
+void main() {
+  runApp(
+    ZuraffaScope(
+      // Global configuration
+      retry: defaultRetryStrategy,
+      observers: [LoggingObserver()],
+      overrides: [
+        // Override for testing
+        productRepositoryProvider.overrideWith(mockRepository),
+      ],
+      child: MyApp(),
+    ),
+  );
+}
+
+// Access the container anywhere
+final container = ZuraffaScope.containerOf(context);
+final product = container.read(getProductProvider('id'));
+```
+
+#### 4. Core Features Summary
+
 - **Zero external dependencies** (no riverpod, no provider, no bloc)
 - **Automatic rebuilds** with ref.watch()
 - **Provider composition** (providers can watch other providers)
 - **Loading/Error states** built into Result<T, F>
+- **Lifecycle safety** with ref.mounted checks
+- **Automatic retries** with exponential backoff
+- **Global configuration** via ZuraffaScope
 - **100% test coverage** for all generated providers
 - **Morphy-powered state classes** (not Freezed!)
 
@@ -510,6 +609,172 @@ Want to help build the future of Flutter state management?
 > "Why choose between Riverpod and BLoC when AI can generate the perfect solution for your exact use case?"
 
 > "TDD isn't a practice. It's the default."
+
+---
+
+## 📋 v0.4.0 Implementation Checklist
+
+### Phase 1: Core Primitives (Week 1-2)
+
+#### ZuraffaRef & Lifecycle
+- [ ] `abstract class ZuraffaRef`
+  - [ ] `T read<T>(ProviderBase<T> provider)`
+  - [ ] `T watch<T>(ProviderBase<T> provider)`
+  - [ ] `bool get mounted` - lifecycle check
+  - [ ] `void invalidate(ProviderBase provider)` - force refresh
+
+#### ZuraffaNotifier Base Class
+- [ ] `abstract class ZuraffaNotifier<T>`
+  - [ ] `T build()` - initial state
+  - [ ] `T get state` - current state
+  - [ ] `set state(T value)` - update state + notify
+  - [ ] `ZuraffaRef get ref` - access to ref
+  - [ ] `void dispose()` - cleanup
+
+#### Provider Base Classes
+- [ ] `abstract class ProviderBase<T>`
+  - [ ] ID generation
+  - [ ] State storage
+  - [ ] Listener management
+- [ ] `class ZuraffaProvider<T, P>` - Simple providers
+- [ ] `class ZuraffaNotifierProvider<T>` - Stateful notifiers
+- [ ] `class ZuraffaFutureProvider<T>` - Async providers
+
+### Phase 2: Retry Logic (Week 3)
+
+#### Retry Strategy
+- [ ] `typedef RetryStrategy = Duration? Function(int retryCount, Object error)`
+- [ ] Default exponential backoff implementation
+- [ ] Per-provider retry configuration
+- [ ] Global retry configuration
+
+#### Retry Execution
+- [ ] Retry wrapper for Future providers
+- [ ] Retry count tracking
+- [ ] Error type filtering
+- [ ] Max retry limit
+- [ ] Delay between retries
+
+### Phase 3: ZuraffaScope & Container (Week 4)
+
+#### ZuraffaScope Widget
+- [ ] `class ZuraffaScope extends InheritedWidget`
+  - [ ] Global retry configuration
+  - [ ] Observer support
+  - [ ] Provider overrides (for testing)
+  - [ ] `static ZuraffaContainer containerOf(BuildContext)`
+
+#### ZuraffaContainer
+- [ ] `class ZuraffaContainer`
+  - [ ] Provider instance storage
+  - [ ] Dependency graph
+  - [ ] `T read<T>(ProviderBase<T>)` - one-time read
+  - [ ] `void listen<T>()` - subscribe to changes
+  - [ ] `void dispose()` - cleanup all providers
+
+### Phase 4: ZuraffaWidget (Week 5)
+
+#### Widget Base Class
+- [ ] `abstract class ZuraffaWidget extends StatelessWidget`
+  - [ ] Automatic ZuraffaRef injection
+  - [ ] `Widget build(BuildContext, ZuraffaRef)`
+  - [ ] Automatic subscription management
+  - [ ] Dispose on unmount
+
+#### Rebuild Optimization
+- [ ] Track provider dependencies per widget
+- [ ] Only rebuild when watched providers change
+- [ ] Batch updates
+
+### Phase 5: Code Generation (Week 6-7)
+
+#### @zuraffa Annotation
+- [ ] `class Zuraffa` annotation class
+  - [ ] `RetryStrategy? retry` parameter
+  - [ ] `Duration? cache` parameter (future)
+
+#### Generator Infrastructure
+- [ ] Provider code generator
+  - [ ] Scan for @zuraffa annotations
+  - [ ] Generate provider definitions
+  - [ ] Generate notifier classes
+  - [ ] Generate tests
+- [ ] CLI integration
+  - [ ] `zuraffa generate providers` command
+  - [ ] Watch mode for development
+
+#### Generated Code Templates
+- [ ] Simple provider template
+- [ ] Notifier provider template
+- [ ] Future provider template
+- [ ] Family provider template
+- [ ] Test template for each type
+
+### Phase 6: Testing (Week 8)
+
+#### Test Generators
+- [ ] Provider test generator
+  - [ ] Test state initialization
+  - [ ] Test state updates
+  - [ ] Test ref.mounted checks
+  - [ ] Test retry logic
+- [ ] Integration test generator
+  - [ ] Test provider composition
+  - [ ] Test ZuraffaScope overrides
+
+#### Manual Tests
+- [ ] Unit tests for all primitives
+- [ ] Integration tests for full flow
+- [ ] Performance tests
+- [ ] Memory leak tests
+
+### Phase 7: Documentation (Week 9)
+
+#### API Documentation
+- [ ] ZuraffaRef API docs
+- [ ] ZuraffaNotifier API docs
+- [ ] ZuraffaScope API docs
+- [ ] Retry strategy guide
+- [ ] Migration guide from v0.3.0
+
+#### Examples
+- [ ] Simple counter example
+- [ ] Todo list with API
+- [ ] Shopping cart with retry
+- [ ] Real-time chat example
+
+### Phase 8: Release (Week 10)
+
+- [ ] Final bug fixes
+- [ ] Performance optimization
+- [ ] README update
+- [ ] CHANGELOG for v0.4.0
+- [ ] Release blog post
+- [ ] Tag and publish v0.4.0
+
+---
+
+## 🎯 v0.4.0 Success Criteria
+
+### Must Have
+- ✅ ZuraffaRef with read/watch
+- ✅ ZuraffaNotifier with lifecycle safety
+- ✅ Automatic retry (per-provider + global)
+- ✅ ZuraffaScope & Container
+- ✅ @zuraffa code generation
+- ✅ 100% test coverage for generated code
+- ✅ Zero external dependencies
+
+### Nice to Have
+- Provider families (can wait for v0.5.0)
+- Persistent caching (can wait for v0.5.0)
+- DevTools integration (can wait for v1.0.0)
+
+### Performance Targets
+- Provider lookup: <1ms
+- State update: <5ms
+- Widget rebuild: <10ms
+- No memory leaks
 
 ---
 
