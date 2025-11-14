@@ -30,7 +30,7 @@ class EntityTestGenerator {
     buffer.writeln("    final sampleJson = {");
     for (final field in schema.fields) {
       final value = _getSampleValue(field);
-      buffer.writeln("      '${field.jsonKey}': $value,");
+      buffer.writeln("      '${field.name}': $value,");
     }
     buffer.writeln("    };");
     buffer.writeln();
@@ -54,7 +54,7 @@ class EntityTestGenerator {
     buffer.writeln("      final json = entity.toJson();");
     buffer.writeln();
     for (final field in schema.fields) {
-      buffer.writeln("      expect(json['${field.jsonKey}'], entity.${field.name});");
+      buffer.writeln("      expect(json['${field.name}'], entity.${field.name});");
     }
     buffer.writeln("    });");
     buffer.writeln();
