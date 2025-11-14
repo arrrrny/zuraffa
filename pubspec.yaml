@@ -1,0 +1,21 @@
+name: zuraffa
+description: AI-First Clean Architecture State Management for Flutter. Generate production-ready code from JSON with TDD, 100% test coverage, and zero boilerplate.
+version: 0.1.0
+homepage: https://github.com/arrrrny/zuraffa
+repository: https://github.com/arrrrny/zuraffa
+issue_tracker: https://github.com/arrrrny/zuraffa/issues
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  args: ^2.4.0           # CLI argument parsing
+  meta: ^1.10.0          # Annotations
+  path: ^1.8.0           # File path manipulation
+
+executables:
+  zuraffa:               # Make 'zuraffa' available globally
+
+dev_dependencies:
+  test: ^1.24.0
+  lints: ^3.0.0
