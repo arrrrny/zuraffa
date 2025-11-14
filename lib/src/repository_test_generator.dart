@@ -229,7 +229,7 @@ class RepositoryTestGenerator {
         final entityName = innerType.substring(1);
         final nestedSchema = parentSchema.nestedEntities.firstWhere(
           (e) => e.name == entityName,
-          orElse: () => EntitySchema(name: entityName, fields: []),
+          orElse: () => EntitySchema(name: entityName, fields: [], nestedEntities: []),
         );
         if (nestedSchema.fields.isEmpty) return "[{}]";
         return '[${_generateNestedJson(nestedSchema, idSuffix: idSuffix)}]';
@@ -248,7 +248,7 @@ class RepositoryTestGenerator {
       final entityName = field.type.substring(1);
       final nestedSchema = parentSchema.nestedEntities.firstWhere(
         (e) => e.name == entityName,
-        orElse: () => EntitySchema(name: entityName, fields: []),
+        orElse: () => EntitySchema(name: entityName, fields: [], nestedEntities: []),
       );
       if (nestedSchema.fields.isEmpty) return "{}";
       return _generateNestedJson(nestedSchema, idSuffix: idSuffix);

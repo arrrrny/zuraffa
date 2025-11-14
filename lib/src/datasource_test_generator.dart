@@ -271,7 +271,7 @@ class DataSourceTestGenerator {
         final entityName = innerType.substring(1);
         final nestedSchema = parentSchema.nestedEntities.firstWhere(
           (e) => e.name == entityName,
-          orElse: () => EntitySchema(name: entityName, fields: []),
+          orElse: () => EntitySchema(name: entityName, fields: [], nestedEntities: []),
         );
 
         if (nestedSchema.fields.isEmpty) {
@@ -296,7 +296,7 @@ class DataSourceTestGenerator {
       final entityName = field.type.substring(1);
       final nestedSchema = parentSchema.nestedEntities.firstWhere(
         (e) => e.name == entityName,
-        orElse: () => EntitySchema(name: entityName, fields: []),
+        orElse: () => EntitySchema(name: entityName, fields: [], nestedEntities: []),
       );
 
       if (nestedSchema.fields.isEmpty) {
