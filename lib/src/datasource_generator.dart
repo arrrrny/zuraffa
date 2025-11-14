@@ -12,7 +12,7 @@ class DataSourceGenerator {
     buffer.writeln('// DO NOT EDIT - Regenerate with: zuraffa generate $entityName');
     buffer.writeln();
 
-    buffer.writeln("import '../entities/${_toSnakeCase(entityName)}.dart';");
+    buffer.writeln("import '../../domain/entities/${_toSnakeCase(entityName)}.dart';");
     buffer.writeln();
 
     buffer.writeln('/// Abstract DataSource for $entityName');
@@ -47,7 +47,7 @@ class DataSourceGenerator {
 
     buffer.writeln("import 'dart:convert';");
     buffer.writeln("import 'package:http/http.dart' as http;");
-    buffer.writeln("import '../entities/${_toSnakeCase(entityName)}.dart';");
+    buffer.writeln("import '../../domain/entities/${_toSnakeCase(entityName)}.dart';");
     buffer.writeln("import '${_toSnakeCase(entityName)}_datasource.dart';");
     buffer.writeln();
 
@@ -147,7 +147,7 @@ class DataSourceGenerator {
 
     buffer.writeln("import 'dart:convert';");
     buffer.writeln("import 'package:shared_preferences/shared_preferences.dart';");
-    buffer.writeln("import '../entities/${_toSnakeCase(entityName)}.dart';");
+    buffer.writeln("import '../../domain/entities/${_toSnakeCase(entityName)}.dart';");
     buffer.writeln("import '${_toSnakeCase(entityName)}_datasource.dart';");
     buffer.writeln();
 
@@ -223,7 +223,7 @@ class DataSourceGenerator {
     buffer.writeln('// DO NOT EDIT - Regenerate with: zuraffa generate $entityName');
     buffer.writeln();
 
-    buffer.writeln("import '../entities/${_toSnakeCase(entityName)}.dart';");
+    buffer.writeln("import '../../domain/entities/${_toSnakeCase(entityName)}.dart';");
     buffer.writeln("import '${_toSnakeCase(entityName)}_datasource.dart';");
     buffer.writeln();
 
