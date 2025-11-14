@@ -7,6 +7,9 @@ library zuraffa;
 // Phase 1: JSON parsing and entity generation
 export 'src/json_parser.dart';
 export 'src/entity_generator.dart';
+export 'src/build_runner.dart';
+export 'src/file_writer.dart';
+export 'src/generator.dart';
 
 // Coming soon:
 // export 'src/usecase.dart';
