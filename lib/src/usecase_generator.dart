@@ -63,7 +63,7 @@ class UseCaseGenerator {
   String _inferUseCaseName(String entityName, UseCaseType type) {
     return switch (type) {
       UseCaseType.get => 'Get${entityName}UseCase',
-      UseCaseType.getAll => 'Get${entityName}sUseCase',  // Get Products (not GetAllProducts)
+      UseCaseType.getAll => 'Get${entityName}ListUseCase',  // GetProductList (clear naming)
       UseCaseType.create => 'Create${entityName}UseCase',
       UseCaseType.update => 'Update${entityName}UseCase',
       UseCaseType.delete => 'Delete${entityName}UseCase',

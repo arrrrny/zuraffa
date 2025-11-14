@@ -1,4 +1,5 @@
 import 'usecase_generator.dart';
+import 'json_parser.dart';
 
 /// Generates test files for usecases
 ///
@@ -8,7 +9,7 @@ import 'usecase_generator.dart';
 /// - Result handling (Success/Failure)
 class UseCaseTestGenerator {
   /// Generate usecase test
-  String generateUseCaseTest(String entityName, UseCaseType type, String packageName) {
+  String generateUseCaseTest(String entityName, UseCaseType type, String packageName, EntitySchema schema) {
     final useCaseName = _inferUseCaseName(entityName, type);
     final buffer = StringBuffer();
 
@@ -52,16 +53,16 @@ class UseCaseTestGenerator {
     // Generate specific tests based on type
     switch (type) {
       case UseCaseType.get:
-        _generateGetTests(buffer, entityName);
+        _generateGetTests(buffer, entityName, schema);
         break;
       case UseCaseType.getAll:
-        _generateGetAllTests(buffer, entityName);
+        _generateGetAllTests(buffer, entityName, schema);
         break;
       case UseCaseType.create:
-        _generateCreateTests(buffer, entityName);
+        _generateCreateTests(buffer, entityName, schema);
         break;
       case UseCaseType.update:
-        _generateUpdateTests(buffer, entityName);
+        _generateUpdateTests(buffer, entityName, schema);
         break;
       case UseCaseType.delete:
         _generateDeleteTests(buffer, entityName);
@@ -74,9 +75,10 @@ class UseCaseTestGenerator {
     return buffer.toString();
   }
 
-  void _generateGetTests(StringBuffer buffer, String entityName) {
+  void _generateGetTests(StringBuffer buffer, String entityName, EntitySchema schema) {
+    final sampleJson = _generateSampleJson(schema);
     buffer.writeln("    test('returns Success when repository succeeds', () async {");
-    buffer.writeln("      final entity = $entityName.fromJson({'id': 'test-1', 'name': 'Test'});");
+    buffer.writeln("      final entity = $entityName.fromJson($sampleJson);");
     buffer.writeln("      when(() => mockRepository.getById(any()))");
     buffer.writeln("          .thenAnswer((_) async => Success(entity));");
     buffer.writeln();
@@ -101,11 +103,13 @@ class UseCaseTestGenerator {
     buffer.writeln("    });");
   }
 
-  void _generateGetAllTests(StringBuffer buffer, String entityName) {
+  void _generateGetAllTests(StringBuffer buffer, String entityName, EntitySchema schema) {
+    final sampleJson = _generateSampleJson(schema);
+    final sampleJson2 = _generateSampleJson(schema, idSuffix: '2');
     buffer.writeln("    test('returns Success with list when repository succeeds', () async {");
     buffer.writeln("      final entities = [");
-    buffer.writeln("        $entityName.fromJson({'id': 'test-1', 'name': 'Test 1'}),");
-    buffer.writeln("        $entityName.fromJson({'id': 'test-2', 'name': 'Test 2'}),");
+    buffer.writeln("        $entityName.fromJson($sampleJson),");
+    buffer.writeln("        $entityName.fromJson($sampleJson2),");
     buffer.writeln("      ];");
     buffer.writeln("      final filter = ${entityName}Filter();");
     buffer.writeln("      when(() => mockRepository.getAll(any()))");
@@ -132,9 +136,10 @@ class UseCaseTestGenerator {
     buffer.writeln("    });");
   }
 
-  void _generateCreateTests(StringBuffer buffer, String entityName) {
+  void _generateCreateTests(StringBuffer buffer, String entityName, EntitySchema schema) {
+    final sampleJson = _generateSampleJson(schema);
     buffer.writeln("    test('returns Success when repository creates successfully', () async {");
-    buffer.writeln("      final entity = $entityName.fromJson({'id': 'test-1', 'name': 'New'});");
+    buffer.writeln("      final entity = $entityName.fromJson($sampleJson);");
     buffer.writeln("      when(() => mockRepository.create(any()))");
     buffer.writeln("          .thenAnswer((_) async => Success(entity));");
     buffer.writeln();
@@ -146,7 +151,7 @@ class UseCaseTestGenerator {
     buffer.writeln();
 
     buffer.writeln("    test('returns Failure when repository fails', () async {");
-    buffer.writeln("      final entity = $entityName.fromJson({'id': 'test-1', 'name': 'New'});");
+    buffer.writeln("      final entity = $entityName.fromJson($sampleJson);");
     buffer.writeln("      when(() => mockRepository.create(any()))");
     buffer.writeln("          .thenAnswer((_) async => Failure(ServerFailure('Server error')));");
     buffer.writeln();
@@ -156,9 +161,10 @@ class UseCaseTestGenerator {
     buffer.writeln("    });");
   }
 
-  void _generateUpdateTests(StringBuffer buffer, String entityName) {
+  void _generateUpdateTests(StringBuffer buffer, String entityName, EntitySchema schema) {
+    final sampleJson = _generateSampleJson(schema);
     buffer.writeln("    test('returns Success when repository updates successfully', () async {");
-    buffer.writeln("      final entity = $entityName.fromJson({'id': 'test-1', 'name': 'Updated'});");
+    buffer.writeln("      final entity = $entityName.fromJson($sampleJson);");
     buffer.writeln("      when(() => mockRepository.update(any()))");
     buffer.writeln("          .thenAnswer((_) async => Success(entity));");
     buffer.writeln();
@@ -170,7 +176,7 @@ class UseCaseTestGenerator {
     buffer.writeln();
 
     buffer.writeln("    test('returns Failure when repository fails', () async {");
-    buffer.writeln("      final entity = $entityName.fromJson({'id': 'test-1', 'name': 'Updated'});");
+    buffer.writeln("      final entity = $entityName.fromJson($sampleJson);");
     buffer.writeln("      when(() => mockRepository.update(any()))");
     buffer.writeln("          .thenAnswer((_) async => Failure(ServerFailure('Server error')));");
     buffer.writeln();
@@ -211,11 +217,87 @@ class UseCaseTestGenerator {
   String _inferUseCaseName(String entityName, UseCaseType type) {
     return switch (type) {
       UseCaseType.get => 'Get${entityName}UseCase',
-      UseCaseType.getAll => 'Get${entityName}sUseCase',
+      UseCaseType.getAll => 'Get${entityName}ListUseCase',
       UseCaseType.create => 'Create${entityName}UseCase',
       UseCaseType.update => 'Update${entityName}UseCase',
       UseCaseType.delete => 'Delete${entityName}UseCase',
     };
+  }
+
+  /// Generate sample JSON for testing based on EntitySchema
+  String _generateSampleJson(EntitySchema schema, {String idSuffix = '1'}) {
+    final buffer = StringBuffer();
+    buffer.write('{');
+
+    final fields = <String>[];
+    for (final field in schema.fields) {
+      final value = _getSampleValue(field, schema, idSuffix: idSuffix);
+      fields.add("'${field.name}': $value");
+    }
+
+    buffer.write(fields.join(', '));
+    buffer.write('}');
+    return buffer.toString();
+  }
+
+  /// Get sample value for field type
+  String _getSampleValue(FieldSchema field, EntitySchema parentSchema, {String idSuffix = '1'}) {
+    if (field.type.startsWith('List<')) {
+      final innerType = field.type.substring(5, field.type.length - 1);
+      if (innerType.startsWith(r'$')) {
+        // List of nested entities
+        final entityName = innerType.substring(1);
+        final nestedSchema = parentSchema.nestedEntities.firstWhere(
+          (e) => e.name == entityName,
+          orElse: () => EntitySchema(name: entityName, fields: [], nestedEntities: []),
+        );
+        if (nestedSchema.fields.isEmpty) return "[{}]";
+        return '[${_generateNestedJson(nestedSchema, idSuffix: idSuffix)}]';
+      } else {
+        // List of primitives
+        return switch (innerType) {
+          'String' => "['test$idSuffix']",
+          'int' => '[$idSuffix]',
+          'double' => '[$idSuffix.5]',
+          'bool' => '[true]',
+          _ => '[]',
+        };
+      }
+    } else if (field.type.startsWith(r'$')) {
+      // Nested entity
+      final entityName = field.type.substring(1);
+      final nestedSchema = parentSchema.nestedEntities.firstWhere(
+        (e) => e.name == entityName,
+        orElse: () => EntitySchema(name: entityName, fields: [], nestedEntities: []),
+      );
+      if (nestedSchema.fields.isEmpty) return "{}";
+      return _generateNestedJson(nestedSchema, idSuffix: idSuffix);
+    } else {
+      // Primitive
+      return switch (field.type) {
+        'String' => field.name == 'id' ? "'test-$idSuffix'" : "'test ${field.name} $idSuffix'",
+        'int' => field.name == 'id' ? idSuffix : '42',
+        'double' => '3.14',
+        'bool' => 'true',
+        _ => 'null',
+      };
+    }
+  }
+
+  /// Generate JSON for nested entity
+  String _generateNestedJson(EntitySchema schema, {String idSuffix = '1'}) {
+    final buffer = StringBuffer();
+    buffer.write('{');
+
+    final fields = <String>[];
+    for (final field in schema.fields) {
+      final value = _getSampleValue(field, schema, idSuffix: idSuffix);
+      fields.add("'${field.name}': $value");
+    }
+
+    buffer.write(fields.join(', '));
+    buffer.write('}');
+    return buffer.toString();
   }
 
   String _toSnakeCase(String input) {

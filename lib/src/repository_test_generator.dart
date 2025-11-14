@@ -28,7 +28,13 @@ class RepositoryTestGenerator {
     buffer.writeln("class Mock${entityName}DataSource extends Mock implements ${entityName}DataSource {}");
     buffer.writeln();
 
+    final sampleJson = _generateSampleJson(schema);
     buffer.writeln("void main() {");
+    buffer.writeln("  setUpAll(() {");
+    buffer.writeln("    // Register fallback values for mocktail");
+    buffer.writeln("    registerFallbackValue($entityName.fromJson($sampleJson));");
+    buffer.writeln("  });");
+    buffer.writeln();
     buffer.writeln("  group('$className', () {");
     buffer.writeln("    late Mock${entityName}DataSource mockRemoteDataSource;");
     buffer.writeln("    late Mock${entityName}DataSource mockLocalDataSource;");
@@ -46,7 +52,6 @@ class RepositoryTestGenerator {
     buffer.writeln();
 
     // Test getById - success from remote
-    final sampleJson = _generateSampleJson(schema);
     buffer.writeln("    group('getById', () {");
     buffer.writeln("      test('returns Success from remote and caches', () async {");
     buffer.writeln("        final entity = $entityName.fromJson($sampleJson);");

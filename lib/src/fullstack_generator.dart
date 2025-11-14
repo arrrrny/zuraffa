@@ -215,9 +215,9 @@ class FullStackGenerator {
 
       final usecaseCount = usecaseTypes.length;
       if (includeCrud) {
-        onProgress?.call('✓ Generated $usecaseCount use cases + filter (Get/GetProducts/Create/Update/Delete)\n');
+        onProgress?.call('✓ Generated $usecaseCount use cases + filter (Get/GetList/Create/Update/Delete)\n');
       } else {
-        onProgress?.call('✓ Generated $usecaseCount use cases + filter (Get/GetProducts with filtering)\n');
+        onProgress?.call('✓ Generated $usecaseCount use cases + filter (Get/GetList with filtering)\n');
         onProgress?.call('  💡 Add --crud flag to also generate Create/Update/Delete\n');
       }
     }
@@ -254,7 +254,7 @@ class FullStackGenerator {
 
       for (final type in usecaseTypes) {
         final testPath = _useCaseTestGenerator.getFilePath(finalEntityName, type);
-        final testContent = _useCaseTestGenerator.generateUseCaseTest(finalEntityName, type, packageName);
+        final testContent = _useCaseTestGenerator.generateUseCaseTest(finalEntityName, type, packageName, schema);
         testFiles[testPath] = testContent;
       }
     }
