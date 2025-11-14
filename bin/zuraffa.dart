@@ -4,6 +4,8 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:args/args.dart';
 import 'package:zuraffa/zuraffa.dart';
+import 'package:zuraffa/src/exceptions.dart';
+import 'package:zuraffa/src/preflight.dart';
 
 const version = '0.1.0';
 
@@ -35,10 +37,18 @@ void main(List<String> arguments) async {
         _printHelp();
         exit(1);
     }
+  } on ZuraffaException catch (e) {
+    // Formatted error from our exception classes
+    print(e.toString());
+    exit(1);
   } catch (e, stack) {
-    print('❌ Error: $e');
+    // Unexpected errors
+    print('❌ Unexpected Error: $e');
     if (arguments.contains('--verbose')) {
+      print('\n📋 Stack Trace:');
       print(stack);
+    } else {
+      print('💡 Run with --verbose for more details');
     }
     exit(1);
   }
@@ -83,13 +93,25 @@ Future<void> _handleCreate(List<String> args) async {
     final file = File(jsonPath);
 
     if (!await file.exists()) {
-      print('❌ File not found: $jsonPath');
-      exit(1);
+      throw FileException.notFound(jsonPath);
     }
 
     print('📖 Reading JSON from: $jsonPath');
-    final jsonString = await file.readAsString();
-    json = jsonDecode(jsonString) as Map<String, dynamic>;
+
+    try {
+      final jsonString = await file.readAsString();
+      final decoded = jsonDecode(jsonString);
+
+      if (decoded is! Map<String, dynamic>) {
+        throw JsonParseException.notAnObject(decoded);
+      }
+
+      json = decoded;
+    } on FormatException catch (e) {
+      throw JsonParseException.invalidJson(e);
+    } on FileSystemException catch (e) {
+      throw FileException.cannotRead(jsonPath, e);
+    }
 
   } else if (results['interactive'] == true) {
     // Interactive mode
@@ -99,17 +121,40 @@ Future<void> _handleCreate(List<String> args) async {
     while ((line = stdin.readLineSync()) != null) {
       lines.add(line!); // line is guaranteed non-null here
     }
-    json = jsonDecode(lines.join('\n')) as Map<String, dynamic>;
+
+    final jsonString = lines.join('\n');
+    if (jsonString.trim().isEmpty) {
+      throw JsonParseException.emptyJson();
+    }
+
+    try {
+      final decoded = jsonDecode(jsonString);
+      if (decoded is! Map<String, dynamic>) {
+        throw JsonParseException.notAnObject(decoded);
+      }
+      json = decoded;
+    } on FormatException catch (e) {
+      throw JsonParseException.invalidJson(e);
+    }
 
   } else {
-    print('❌ Please provide JSON via --from-json or --interactive');
-    exit(1);
+    throw ZuraffaException(
+      'Please provide JSON via --from-json or --interactive',
+      hint: 'Examples:\n'
+          '  zuraffa create entity Product --from-json product.json\n'
+          '  zuraffa create entity --interactive',
+    );
   }
 
   // Generate
   print('\n🦒 Zuraffa v$version\n');
 
   final projectPath = Directory.current.path;
+
+  // Pre-flight checks
+  final preflight = PreflightChecker(projectPath);
+  await preflight.quickCheck();
+
   final generator = ZuraffaGenerator(projectPath);
 
   final result = await generator.generateFromJson(
@@ -139,12 +184,14 @@ Future<void> _handleCreate(List<String> args) async {
 
     print('\n🎉 Done! Your entities are ready to use.');
   } else {
-    print('\n❌ Generation failed');
     if (result.buildRunnerResult != null && !result.buildRunnerResult!.success) {
-      print('Build runner errors:');
-      print(result.buildRunnerResult!.stderr);
+      throw BuildRunnerException.executionFailed(
+        result.buildRunnerResult!.exitCode,
+        result.buildRunnerResult!.stderr,
+      );
     }
-    exit(1);
+
+    throw ZuraffaException('Generation failed with unknown error');
   }
 }
 
