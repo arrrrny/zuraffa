@@ -23,4 +23,6 @@ export 'src/repository_generator.dart';
 export 'src/fullstack_generator.dart';
 
 // Phase 3: State Management (v0.4.0+)
-export 'src/state/state.dart';
+// Note: State management widgets are temporarily disabled to avoid Flutter SDK conflicts
+// when zuraffa is used as a path dependency. Will be re-enabled in v0.4.0 as separate package.
+// export 'src/state/state.dart';
