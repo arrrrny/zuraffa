@@ -11,6 +11,7 @@ import 'datasource_test_generator.dart';
 import 'repository_test_generator.dart';
 import 'usecase_test_generator.dart';
 import 'package_name_reader.dart';
+import 'config.dart';
 
 /// Full-stack generator that creates complete Clean Architecture setup
 ///
@@ -60,31 +61,85 @@ class FullStackGenerator {
     bool isValueObject = false,  // NEW: Value Objects don't need id or full stack
     void Function(String)? onProgress,
   }) async {
+    // Step 0: Load configuration from .env
+    final config = ZuraffaConfig.load(projectPath);
+
     if (isValueObject) {
       onProgress?.call('🧬 Starting Value Object generation...\n');
     } else {
       onProgress?.call('🚀 Starting full-stack generation...\n');
     }
 
-    // Step 0: Get package name from pubspec.yaml
+    // Get package name from pubspec.yaml
     final packageName = await PackageNameReader.getPackageName(projectPath);
     onProgress?.call('✓ Package: $packageName\n');
+
+    // Show config if .env exists
+    if (config.enforceId || !config.autoDetect) {
+      onProgress?.call('  📝 .env config: enforceId=${config.enforceId}, autoDetect=${config.autoDetect}\n');
+    }
 
     // Step 1: Parse JSON and generate entities
     onProgress?.call('📊 Parsing JSON...');
     final schema = _jsonParser.parseJson(json, entityName: entityName);
     final finalEntityName = schema.name;
 
-    // Auto-detect: If --value-object not specified, check for id field
+    // Auto-detect: If --value-object not specified and autoDetect enabled, check for id field
     final hasIdField = schema.fields.any((f) => f.name == 'id' && (f.type == 'String' || f.type == 'int'));
-    final shouldBeValueObject = isValueObject || !hasIdField;
 
-    if (isValueObject && hasIdField) {
+    // Apply configuration logic
+    bool shouldBeValueObject;
+
+    if (config.enforceId) {
+      // ENFORCE_ID=true: ALL entities must have id (no Value Objects allowed)
+      if (!hasIdField) {
+        throw Exception(
+          '❌ ENFORCE_ID is enabled in .env\n\n'
+          'Entity $finalEntityName must have an id field (String or int).\n'
+          'All entities are required to have identity when ENFORCE_ID=true.\n\n'
+          'Options:\n'
+          '  1. Add an "id" field to your JSON\n'
+          '  2. Set ENFORCE_ID=false in .env to allow Value Objects\n'
+          '  3. Remove .env to use default (flexible) mode',
+        );
+      }
+      shouldBeValueObject = false; // Force entity generation
       onProgress?.call('✓ Detected entity: $finalEntityName (has id field)\n');
-      onProgress?.call('  💡 --value-object flag: Forcing Value Object generation\n');
-    } else if (shouldBeValueObject) {
-      onProgress?.call('✓ Detected value object: $finalEntityName (no id field)\n');
+      onProgress?.call('  📝 ENFORCE_ID=true: Entity mode enforced\n');
+
+    } else if (isValueObject) {
+      // Explicit --value-object flag overrides everything
+      shouldBeValueObject = true;
+      if (hasIdField) {
+        onProgress?.call('✓ Detected entity: $finalEntityName (has id field)\n');
+        onProgress?.call('  💡 --value-object flag: Forcing Value Object generation\n');
+      } else {
+        onProgress?.call('✓ Detected value object: $finalEntityName (no id field)\n');
+      }
+
+    } else if (config.autoDetect) {
+      // AUTO_DETECT=true: Smart detection based on id field
+      shouldBeValueObject = !hasIdField;
+      if (shouldBeValueObject) {
+        onProgress?.call('✓ Auto-detected value object: $finalEntityName (no id field)\n');
+      } else {
+        onProgress?.call('✓ Auto-detected entity: $finalEntityName (has id field)\n');
+      }
+
     } else {
+      // AUTO_DETECT=false: Require explicit flag for Value Objects
+      if (!hasIdField && !isValueObject) {
+        throw Exception(
+          '❌ AUTO_DETECT is disabled in .env\n\n'
+          'Entity $finalEntityName has no id field.\n'
+          'When AUTO_DETECT=false, you must explicitly specify --value-object flag.\n\n'
+          'Options:\n'
+          '  1. Add --value-object flag: zuraffa generate $finalEntityName --from-json file.json --value-object\n'
+          '  2. Set AUTO_DETECT=true in .env to enable auto-detection\n'
+          '  3. Add an "id" field to your JSON',
+        );
+      }
+      shouldBeValueObject = isValueObject;
       onProgress?.call('✓ Detected entity: $finalEntityName (has id field)\n');
     }
 

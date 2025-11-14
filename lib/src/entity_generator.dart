@@ -247,6 +247,11 @@ class MorphyEntityGenerator {
   }
 
   /// Generate all entity files (main + nested)
+  ///
+  /// For nested entities:
+  /// - If parent is a Value Object (isValueObject=true), all nested are Value Objects
+  /// - If parent is an Entity (isValueObject=false), nested auto-detect based on id field
+  /// - Auto-detection: Has id field → Entity, No id field → Value Object
   Map<String, String> generateAllEntities(EntitySchema schema, {bool isValueObject = false}) {
     final files = <String, String>{};
 
@@ -254,9 +259,16 @@ class MorphyEntityGenerator {
     final referencedEntities = _extractReferencedEntities(schema);
     files[getFilePath(schema.name)] = generateEntity(schema, referencedEntities: referencedEntities, isValueObject: isValueObject);
 
-    // Generate nested entities recursively (nested entities are also value objects if parent is)
+    // Generate nested entities recursively with auto-detection
     for (final nested in schema.nestedEntities) {
-      files.addAll(generateAllEntities(nested, isValueObject: isValueObject));
+      // Auto-detect for nested entities: check if they have id field
+      final hasIdField = nested.fields.any((f) => f.name == 'id' && (f.type == 'String' || f.type == 'int'));
+
+      // If parent is Value Object, all nested are Value Objects
+      // Otherwise, auto-detect based on id field presence
+      final shouldBeValueObject = isValueObject || !hasIdField;
+
+      files.addAll(generateAllEntities(nested, isValueObject: shouldBeValueObject));
     }
 
     return files;
