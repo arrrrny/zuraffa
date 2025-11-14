@@ -16,8 +16,11 @@ class MorphyEntityGenerator {
     buffer.writeln('// DO NOT EDIT - Regenerate with: zuraffa create entity ${schema.name}');
     buffer.writeln();
 
-    // Annotation
-    buffer.writeln('@morphy');
+    // Import morphy annotation
+    buffer.writeln("import 'package:zikzak_morphy/zikzak_morphy.dart';");
+    buffer.writeln();
+
+    // Annotation (use @Morphy with config, not @morphy)
     buffer.writeln('@Morphy(generateJson: true)');
 
     // Class declaration with $ prefix
