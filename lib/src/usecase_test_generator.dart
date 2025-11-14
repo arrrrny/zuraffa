@@ -31,6 +31,13 @@ class UseCaseTestGenerator {
     buffer.writeln();
 
     buffer.writeln("void main() {");
+    if (type == UseCaseType.getAll) {
+      buffer.writeln("  setUpAll(() {");
+      buffer.writeln("    // Register fallback values for mocktail");
+      buffer.writeln("    registerFallbackValue(${entityName}Filter());");
+      buffer.writeln("  });");
+      buffer.writeln();
+    }
     buffer.writeln("  group('$useCaseName', () {");
     buffer.writeln("    late Mock${entityName}Repository mockRepository;");
     buffer.writeln("    late $useCaseName useCase;");

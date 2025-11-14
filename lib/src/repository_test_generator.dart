@@ -1,3 +1,5 @@
+import 'json_parser.dart';
+
 /// Generates test files for repositories
 ///
 /// Tests:
@@ -6,7 +8,7 @@
 /// - All CRUD operations
 class RepositoryTestGenerator {
   /// Generate repository test
-  String generateRepositoryTest(String entityName, String packageName) {
+  String generateRepositoryTest(String entityName, String packageName, EntitySchema schema) {
     final className = 'Data${entityName}Repository';
     final buffer = StringBuffer();
 
@@ -44,9 +46,10 @@ class RepositoryTestGenerator {
     buffer.writeln();
 
     // Test getById - success from remote
+    final sampleJson = _generateSampleJson(schema);
     buffer.writeln("    group('getById', () {");
     buffer.writeln("      test('returns Success from remote and caches', () async {");
-    buffer.writeln("        final entity = $entityName.fromJson({'id': 'test-1', 'name': 'Test'});");
+    buffer.writeln("        final entity = $entityName.fromJson($sampleJson);");
     buffer.writeln("        when(() => mockRemoteDataSource.getById(any()))");
     buffer.writeln("            .thenAnswer((_) async => entity);");
     buffer.writeln("        when(() => mockLocalDataSource.update(any()))");
@@ -66,7 +69,7 @@ class RepositoryTestGenerator {
 
     // Test getById - fallback to cache
     buffer.writeln("      test('falls back to cache on network failure', () async {");
-    buffer.writeln("        final cachedEntity = $entityName.fromJson({'id': 'test-1', 'name': 'Cached'});");
+    buffer.writeln("        final cachedEntity = $entityName.fromJson($sampleJson);");
     buffer.writeln("        when(() => mockRemoteDataSource.getById(any()))");
     buffer.writeln("            .thenThrow(Exception('Network error'));");
     buffer.writeln("        when(() => mockLocalDataSource.getById(any()))");
@@ -97,11 +100,12 @@ class RepositoryTestGenerator {
     buffer.writeln();
 
     // Test getAll
+    final sampleJson2 = _generateSampleJson(schema, idSuffix: '2');
     buffer.writeln("    group('getAll', () {");
     buffer.writeln("      test('returns Success from remote and caches all items', () async {");
     buffer.writeln("        final entities = [");
-    buffer.writeln("          $entityName.fromJson({'id': 'test-1', 'name': 'Test 1'}),");
-    buffer.writeln("          $entityName.fromJson({'id': 'test-2', 'name': 'Test 2'}),");
+    buffer.writeln("          $entityName.fromJson($sampleJson),");
+    buffer.writeln("          $entityName.fromJson($sampleJson2),");
     buffer.writeln("        ];");
     buffer.writeln("        final filter = ${entityName}Filter();");
     buffer.writeln("        when(() => mockRemoteDataSource.getAll())");
@@ -122,7 +126,7 @@ class RepositoryTestGenerator {
 
     buffer.writeln("      test('falls back to cache on network failure', () async {");
     buffer.writeln("        final cachedEntities = [");
-    buffer.writeln("          $entityName.fromJson({'id': 'test-1', 'name': 'Cached'}),");
+    buffer.writeln("          $entityName.fromJson($sampleJson),");
     buffer.writeln("        ];");
     buffer.writeln("        final filter = ${entityName}Filter();");
     buffer.writeln("        when(() => mockRemoteDataSource.getAll())");
@@ -140,7 +144,7 @@ class RepositoryTestGenerator {
     // Test create
     buffer.writeln("    group('create', () {");
     buffer.writeln("      test('creates in remote and local', () async {");
-    buffer.writeln("        final entity = $entityName.fromJson({'id': 'test-1', 'name': 'New'});");
+    buffer.writeln("        final entity = $entityName.fromJson($sampleJson);");
     buffer.writeln("        when(() => mockRemoteDataSource.create(any()))");
     buffer.writeln("            .thenAnswer((_) async => entity);");
     buffer.writeln("        when(() => mockLocalDataSource.create(any()))");
@@ -158,7 +162,7 @@ class RepositoryTestGenerator {
     // Test update
     buffer.writeln("    group('update', () {");
     buffer.writeln("      test('updates in remote and local', () async {");
-    buffer.writeln("        final entity = $entityName.fromJson({'id': 'test-1', 'name': 'Updated'});");
+    buffer.writeln("        final entity = $entityName.fromJson($sampleJson);");
     buffer.writeln("        when(() => mockRemoteDataSource.update(any()))");
     buffer.writeln("            .thenAnswer((_) async => entity);");
     buffer.writeln("        when(() => mockLocalDataSource.update(any()))");
@@ -198,6 +202,82 @@ class RepositoryTestGenerator {
   /// Get file path for repository test
   String getFilePath(String entityName) {
     return 'test/data/repositories/data_${_toSnakeCase(entityName)}_repository_test.dart';
+  }
+
+  /// Generate sample JSON for testing based on EntitySchema
+  String _generateSampleJson(EntitySchema schema, {String idSuffix = '1'}) {
+    final buffer = StringBuffer();
+    buffer.write('{');
+
+    final fields = <String>[];
+    for (final field in schema.fields) {
+      final value = _getSampleValue(field, schema, idSuffix: idSuffix);
+      fields.add("'${field.name}': $value");
+    }
+
+    buffer.write(fields.join(', '));
+    buffer.write('}');
+    return buffer.toString();
+  }
+
+  /// Get sample value for field type
+  String _getSampleValue(FieldSchema field, EntitySchema parentSchema, {String idSuffix = '1'}) {
+    if (field.type.startsWith('List<')) {
+      final innerType = field.type.substring(5, field.type.length - 1);
+      if (innerType.startsWith(r'$')) {
+        // List of nested entities
+        final entityName = innerType.substring(1);
+        final nestedSchema = parentSchema.nestedEntities.firstWhere(
+          (e) => e.name == entityName,
+          orElse: () => EntitySchema(name: entityName, fields: []),
+        );
+        if (nestedSchema.fields.isEmpty) return "[{}]";
+        return '[${_generateNestedJson(nestedSchema, idSuffix: idSuffix)}]';
+      } else {
+        // List of primitives
+        return switch (innerType) {
+          'String' => "['test$idSuffix']",
+          'int' => '[$idSuffix]',
+          'double' => '[$idSuffix.5]',
+          'bool' => '[true]',
+          _ => '[]',
+        };
+      }
+    } else if (field.type.startsWith(r'$')) {
+      // Nested entity
+      final entityName = field.type.substring(1);
+      final nestedSchema = parentSchema.nestedEntities.firstWhere(
+        (e) => e.name == entityName,
+        orElse: () => EntitySchema(name: entityName, fields: []),
+      );
+      if (nestedSchema.fields.isEmpty) return "{}";
+      return _generateNestedJson(nestedSchema, idSuffix: idSuffix);
+    } else {
+      // Primitive
+      return switch (field.type) {
+        'String' => field.name == 'id' ? "'test-$idSuffix'" : "'test ${field.name} $idSuffix'",
+        'int' => field.name == 'id' ? idSuffix : '42',
+        'double' => '3.14',
+        'bool' => 'true',
+        _ => 'null',
+      };
+    }
+  }
+
+  /// Generate JSON for nested entity
+  String _generateNestedJson(EntitySchema schema, {String idSuffix = '1'}) {
+    final buffer = StringBuffer();
+    buffer.write('{');
+
+    final fields = <String>[];
+    for (final field in schema.fields) {
+      final value = _getSampleValue(field, schema, idSuffix: idSuffix);
+      fields.add("'${field.name}': $value");
+    }
+
+    buffer.write(fields.join(', '));
+    buffer.write('}');
+    return buffer.toString();
   }
 
   String _toSnakeCase(String input) {

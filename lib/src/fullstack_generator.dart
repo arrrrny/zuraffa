@@ -236,15 +236,15 @@ class FullStackGenerator {
       // DataSource tests
       final datasourceTestPaths = _dataSourceTestGenerator.getFilePaths(finalEntityName);
       testFiles['test/data/datasources/remote_${_toSnakeCase(finalEntityName)}_datasource_test.dart'] =
-          _dataSourceTestGenerator.generateRemoteDataSourceTest(finalEntityName, packageName);
+          _dataSourceTestGenerator.generateRemoteDataSourceTest(finalEntityName, packageName, schema);
       testFiles['test/data/datasources/local_${_toSnakeCase(finalEntityName)}_datasource_test.dart'] =
-          _dataSourceTestGenerator.generateLocalDataSourceTest(finalEntityName, packageName);
+          _dataSourceTestGenerator.generateLocalDataSourceTest(finalEntityName, packageName, schema);
       testFiles['test/data/datasources/mock_${_toSnakeCase(finalEntityName)}_datasource_test.dart'] =
-          _dataSourceTestGenerator.generateMockDataSourceTest(finalEntityName, packageName);
+          _dataSourceTestGenerator.generateMockDataSourceTest(finalEntityName, packageName, schema);
 
       // Repository tests
       final repositoryTestPath = _repositoryTestGenerator.getFilePath(finalEntityName);
-      final repositoryTestContent = _repositoryTestGenerator.generateRepositoryTest(finalEntityName, packageName);
+      final repositoryTestContent = _repositoryTestGenerator.generateRepositoryTest(finalEntityName, packageName, schema);
       testFiles[repositoryTestPath] = repositoryTestContent;
 
       // UseCase tests
