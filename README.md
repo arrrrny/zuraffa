@@ -65,6 +65,70 @@ dart test  # All tests pass! ✅
 
 ---
 
+## 🧬 Entities vs Value Objects
+
+Zuraffa supports both **Morphy Entities** and **Morphy Value Objects** following Domain-Driven Design principles:
+
+### Entities (Default)
+
+Objects with **identity** - tracked and cached:
+
+```bash
+zuraffa generate Product --from-json product.json
+```
+
+**Requirements:**
+- ✅ Must have `id` field
+- ✅ Full CRUD stack generated
+- ✅ Repository + DataSources + UseCases
+
+**Example JSON:**
+```json
+{
+  "id": "prod-123",           // ← Required!
+  "name": "Wireless Headphones",
+  "price": 99.99
+}
+```
+
+**Use for:** Product, User, Order, Customer - anything that needs tracking and CRUD operations.
+
+### Value Objects (New!)
+
+Objects **without identity** - just immutable data structures:
+
+```bash
+zuraffa generate Address --from-json address.json --value-object
+zuraffa generate Money --from-json money.json --value-object
+zuraffa generate Review --from-json review.json --value-object
+```
+
+**Features:**
+- ✅ No `id` field required
+- ✅ Only entity + tests generated
+- ✅ Can be used as types within Entities
+
+**Example JSON:**
+```json
+{
+  "rating": 5,
+  "title": "Excellent!",
+  "comment": "Great product",
+  "reviewerName": "John Doe",
+  "createdAt": "2025-11-14T12:00:00Z"
+}
+```
+
+**Use for:** Address, Money, Rating, Review, Color, Coordinates - data structures that don't need their own repositories.
+
+**Why This Is Powerful:**
+- 🔹 **Entities** = Domain objects with lifecycle (Create, Read, Update, Delete)
+- 🔹 **Value Objects** = Domain data without lifecycle (just immutable types)
+- 🔹 Both use `@Morphy(generateJson: true)` - same serialization power!
+- 🔹 Compose Value Objects inside Entities for rich domain models
+
+---
+
 ## 📦 What Gets Generated?
 
 ### Default Generation (Read-Only)
