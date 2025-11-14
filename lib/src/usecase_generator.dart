@@ -16,6 +16,8 @@ class UseCaseGenerator {
     final useCaseName = customName ?? _inferUseCaseName(entityName, type);
     final methodName = _inferMethodName(type);
     final repositoryName = '${entityName}Repository';
+    final returnType = _getReturnType(entityName, type);
+    final paramsType = _getParamsType(entityName, type);
     final buffer = StringBuffer();
 
     // Header comment
@@ -25,12 +27,16 @@ class UseCaseGenerator {
 
     // Imports
     buffer.writeln("import 'package:zuraffa/zuraffa.dart';");
-    buffer.writeln("import '../../domain/entities/${_toSnakeCase(entityName)}.dart';");
-    buffer.writeln("import '../../domain/repositories/${_toSnakeCase(entityName)}_repository.dart';");
+    buffer.writeln("import '../entities/${_toSnakeCase(entityName)}.dart';");
+    buffer.writeln("import '../repositories/${_toSnakeCase(entityName)}_repository.dart';");
     buffer.writeln();
 
     // Class declaration
-    buffer.writeln('class $useCaseName extends ${_getUseCaseBase(type)} {');
+    final baseClass = type == UseCaseType.getAll
+        ? 'NoParamsUseCase<$returnType>'
+        : 'UseCase<$returnType, $paramsType>';
+
+    buffer.writeln('class $useCaseName extends $baseClass {');
     buffer.writeln('  final $repositoryName repository;');
     buffer.writeln();
     buffer.writeln('  $useCaseName(this.repository);');
@@ -38,7 +44,7 @@ class UseCaseGenerator {
 
     // Execute method
     buffer.writeln('  @override');
-    buffer.writeln('  Future<Result<${_getReturnType(entityName, type)}, AppFailure>> execute(${_getParams(entityName, type)}) async {');
+    buffer.writeln('  Future<Result<$returnType, AppFailure>> execute(${_getExecuteParams(entityName, type)}) async {');
     buffer.writeln('    return await repository.$methodName(${_getRepositoryArgs(type)});');
     buffer.writeln('  }');
     buffer.writeln('}');
@@ -75,11 +81,13 @@ class UseCaseGenerator {
   }
 
   /// Get use case base class
-  String _getUseCaseBase(UseCaseType type) {
-    return switch (type) {
-      UseCaseType.getAll => 'NoParamsUseCase<List<${'entityPlaceholder'}>>',
-      _ => 'UseCase<${'returnPlaceholder'}, ${'paramsPlaceholder'}>',
-    };
+  String _getUseCaseBase(String entityName, UseCaseType type) {
+    final returnType = _getReturnType(entityName, type);
+    final paramsType = _getParamsType(entityName, type);
+
+    return type == UseCaseType.getAll
+        ? 'NoParamsUseCase<$returnType>'
+        : 'UseCase<$returnType, $paramsType>';
   }
 
   /// Get return type for use case
@@ -93,8 +101,19 @@ class UseCaseGenerator {
     };
   }
 
+  /// Get params type for use case
+  String _getParamsType(String entityName, UseCaseType type) {
+    return switch (type) {
+      UseCaseType.get => 'String',
+      UseCaseType.getAll => 'NoParams',
+      UseCaseType.create => entityName,
+      UseCaseType.update => entityName,
+      UseCaseType.delete => 'String',
+    };
+  }
+
   /// Get parameters for execute method
-  String _getParams(String entityName, UseCaseType type) {
+  String _getExecuteParams(String entityName, UseCaseType type) {
     return switch (type) {
       UseCaseType.get => 'String id',
       UseCaseType.getAll => 'NoParams params',

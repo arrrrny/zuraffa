@@ -7,7 +7,7 @@ import 'package:zuraffa/zuraffa.dart';
 import 'package:zuraffa/src/exceptions.dart';
 import 'package:zuraffa/src/preflight.dart';
 
-const version = '0.2.0';
+const version = '0.2.1';
 
 void main(List<String> arguments) async {
   if (arguments.isEmpty) {
