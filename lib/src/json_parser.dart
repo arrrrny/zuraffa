@@ -43,9 +43,10 @@ class JsonParser {
             isPrimitive: false,
           ));
         } else {
-          final firstItem = list[0] as Map<String, dynamic>;
           final itemEntityName = _singularize(_toPascalCase(key));
-          final itemSchema = parseJson(firstItem, entityName: itemEntityName);
+
+          // Parse all items and merge schemas to get accurate type inference
+          final itemSchema = _parseListItems(list, itemEntityName);
           nestedEntities.add(itemSchema);
 
           fields.add(FieldSchema(
@@ -115,14 +116,21 @@ class JsonParser {
         return 'List<_NestedObject>';
       }
 
-      // Check if all items have same type
-      final allSameType = value.every((item) => _inferType(item) == firstItemType);
+      // Get types of all items
+      final itemTypes = value.map((item) => _inferType(item)).toSet();
 
-      if (allSameType) {
+      // If all same type, use that type
+      if (itemTypes.length == 1) {
         return 'List<$firstItemType>';
-      } else {
-        return 'List<dynamic>'; // Mixed types
       }
+
+      // Special case: mix of int and double → use double (more general)
+      if (itemTypes.contains('int') && itemTypes.contains('double') && itemTypes.length == 2) {
+        return 'List<double>';
+      }
+
+      // Mixed types
+      return 'List<dynamic>';
     }
 
     if (value is Map<String, dynamic>) {
@@ -165,6 +173,93 @@ class JsonParser {
       return plural.substring(0, plural.length - 1);
     }
     return plural;
+  }
+
+  /// Parse list items and merge schemas to get accurate type inference
+  /// Checks all items, not just the first one
+  EntitySchema _parseListItems(List list, String entityName) {
+    // Collect field info from ALL items
+    final Map<String, Set<String>> fieldTypes = {};
+    final Map<String, bool> fieldNullability = {};
+
+    for (final item in list) {
+      if (item is! Map<String, dynamic>) continue;
+
+      for (final entry in item.entries) {
+        final key = entry.key;
+        final value = entry.value;
+
+        // Track nullability
+        fieldNullability[key] = fieldNullability[key] ?? false;
+        if (value == null) {
+          fieldNullability[key] = true;
+        }
+
+        // Track type
+        final type = _inferType(value);
+        fieldTypes[key] = fieldTypes[key] ?? <String>{};
+        fieldTypes[key]!.add(type);
+      }
+    }
+
+    // Build fields from merged data
+    final fields = <FieldSchema>[];
+    final nestedEntities = <EntitySchema>[];
+
+    for (final key in fieldTypes.keys) {
+      final types = fieldTypes[key]!;
+      final isNullable = fieldNullability[key]!;
+
+      // Determine final type
+      String finalType;
+      if (types.length == 1) {
+        finalType = types.first;
+      } else if (types.contains('int') && types.contains('double') && types.length == 2) {
+        // Mix of int and double → use double
+        finalType = 'double';
+      } else {
+        // Mixed types
+        finalType = 'dynamic';
+      }
+
+      // Handle nested objects
+      if (finalType == '_NestedObject') {
+        final nestedEntityName = _toPascalCase(key);
+        // Get first non-null nested object to parse
+        final nestedItem = list.firstWhere(
+          (item) => item is Map && item[key] is Map,
+          orElse: () => null,
+        );
+
+        if (nestedItem != null) {
+          final nestedSchema = parseJson(
+            nestedItem[key] as Map<String, dynamic>,
+            entityName: nestedEntityName,
+          );
+          nestedEntities.add(nestedSchema);
+
+          fields.add(FieldSchema(
+            name: key,
+            type: nestedEntityName,
+            isNullable: isNullable,
+            isPrimitive: false,
+          ));
+        }
+      } else {
+        fields.add(FieldSchema(
+          name: key,
+          type: finalType,
+          isNullable: isNullable,
+          isPrimitive: true,
+        ));
+      }
+    }
+
+    return EntitySchema(
+      name: entityName,
+      fields: fields,
+      nestedEntities: nestedEntities,
+    );
   }
 }
 

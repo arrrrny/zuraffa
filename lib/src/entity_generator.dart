@@ -29,9 +29,10 @@ class MorphyEntityGenerator {
 
     buffer.writeln();
 
-    // Part directive for generated file
+    // Part directives for generated files
     final fileName = _toSnakeCase(schema.name);
     buffer.writeln("part '$fileName.morphy.dart';");
+    buffer.writeln("part '$fileName.g.dart';");
     buffer.writeln();
 
     // Annotation (use @Morphy with config, not @morphy)
