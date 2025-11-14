@@ -6,7 +6,7 @@
 /// - Mock datasource basic functionality
 class DataSourceTestGenerator {
   /// Generate remote datasource test
-  String generateRemoteDataSourceTest(String entityName) {
+  String generateRemoteDataSourceTest(String entityName, String packageName) {
     final className = 'Remote${entityName}DataSource';
     final buffer = StringBuffer();
 
@@ -18,8 +18,8 @@ class DataSourceTestGenerator {
     buffer.writeln("import 'package:mocktail/mocktail.dart';");
     buffer.writeln("import 'package:http/http.dart' as http;");
     buffer.writeln("import 'dart:convert';");
-    buffer.writeln("import 'package:${_getPackageName()}/src/domain/entities/${_toSnakeCase(entityName)}.dart';");
-    buffer.writeln("import 'package:${_getPackageName()}/src/data/datasources/remote_${_toSnakeCase(entityName)}_datasource.dart';");
+    buffer.writeln("import 'package:$packageName/src/domain/entities/${_toSnakeCase(entityName)}.dart';");
+    buffer.writeln("import 'package:$packageName/src/data/datasources/remote_${_toSnakeCase(entityName)}_datasource.dart';");
     buffer.writeln();
 
     buffer.writeln("class MockHttpClient extends Mock implements http.Client {}");
@@ -96,7 +96,7 @@ class DataSourceTestGenerator {
   }
 
   /// Generate local datasource test
-  String generateLocalDataSourceTest(String entityName) {
+  String generateLocalDataSourceTest(String entityName, String packageName) {
     final className = 'Local${entityName}DataSource';
     final buffer = StringBuffer();
 
@@ -108,8 +108,8 @@ class DataSourceTestGenerator {
     buffer.writeln("import 'package:mocktail/mocktail.dart';");
     buffer.writeln("import 'package:shared_preferences/shared_preferences.dart';");
     buffer.writeln("import 'dart:convert';");
-    buffer.writeln("import 'package:${_getPackageName()}/src/domain/entities/${_toSnakeCase(entityName)}.dart';");
-    buffer.writeln("import 'package:${_getPackageName()}/src/data/datasources/local_${_toSnakeCase(entityName)}_datasource.dart';");
+    buffer.writeln("import 'package:$packageName/src/domain/entities/${_toSnakeCase(entityName)}.dart';");
+    buffer.writeln("import 'package:$packageName/src/data/datasources/local_${_toSnakeCase(entityName)}_datasource.dart';");
     buffer.writeln();
 
     buffer.writeln("class MockSharedPreferences extends Mock implements SharedPreferences {}");
@@ -173,7 +173,7 @@ class DataSourceTestGenerator {
   }
 
   /// Generate mock datasource test
-  String generateMockDataSourceTest(String entityName) {
+  String generateMockDataSourceTest(String entityName, String packageName) {
     final className = 'Mock${entityName}DataSource';
     final buffer = StringBuffer();
 
@@ -182,8 +182,8 @@ class DataSourceTestGenerator {
     buffer.writeln();
 
     buffer.writeln("import 'package:test/test.dart';");
-    buffer.writeln("import 'package:${_getPackageName()}/src/domain/entities/${_toSnakeCase(entityName)}.dart';");
-    buffer.writeln("import 'package:${_getPackageName()}/src/data/datasources/mock_${_toSnakeCase(entityName)}_datasource.dart';");
+    buffer.writeln("import 'package:$packageName/src/domain/entities/${_toSnakeCase(entityName)}.dart';");
+    buffer.writeln("import 'package:$packageName/src/data/datasources/mock_${_toSnakeCase(entityName)}_datasource.dart';");
     buffer.writeln();
 
     buffer.writeln("void main() {");
@@ -240,9 +240,5 @@ class DataSourceTestGenerator {
           (match) => '_${match.group(0)!.toLowerCase()}',
         )
         .substring(1);
-  }
-
-  String _getPackageName() {
-    return 'app'; // Placeholder
   }
 }

@@ -6,7 +6,7 @@
 /// - All CRUD operations
 class RepositoryTestGenerator {
   /// Generate repository test
-  String generateRepositoryTest(String entityName) {
+  String generateRepositoryTest(String entityName, String packageName) {
     final className = 'Data${entityName}Repository';
     final buffer = StringBuffer();
 
@@ -17,10 +17,10 @@ class RepositoryTestGenerator {
     buffer.writeln("import 'package:test/test.dart';");
     buffer.writeln("import 'package:mocktail/mocktail.dart';");
     buffer.writeln("import 'package:zuraffa/zuraffa.dart';");
-    buffer.writeln("import 'package:${_getPackageName()}/src/domain/entities/${_toSnakeCase(entityName)}.dart';");
-    buffer.writeln("import 'package:${_getPackageName()}/src/domain/usecases/${_toSnakeCase(entityName)}_filter.dart';");
-    buffer.writeln("import 'package:${_getPackageName()}/src/data/datasources/${_toSnakeCase(entityName)}_datasource.dart';");
-    buffer.writeln("import 'package:${_getPackageName()}/src/data/repositories/data_${_toSnakeCase(entityName)}_repository.dart';");
+    buffer.writeln("import 'package:$packageName/src/domain/entities/${_toSnakeCase(entityName)}.dart';");
+    buffer.writeln("import 'package:$packageName/src/domain/usecases/${_toSnakeCase(entityName)}_filter.dart';");
+    buffer.writeln("import 'package:$packageName/src/data/datasources/${_toSnakeCase(entityName)}_datasource.dart';");
+    buffer.writeln("import 'package:$packageName/src/data/repositories/data_${_toSnakeCase(entityName)}_repository.dart';");
     buffer.writeln();
 
     buffer.writeln("class Mock${entityName}DataSource extends Mock implements ${entityName}DataSource {}");
@@ -207,9 +207,5 @@ class RepositoryTestGenerator {
           (match) => '_${match.group(0)!.toLowerCase()}',
         )
         .substring(1);
-  }
-
-  String _getPackageName() {
-    return 'app'; // Placeholder
   }
 }

@@ -10,6 +10,7 @@ import 'entity_test_generator.dart';
 import 'datasource_test_generator.dart';
 import 'repository_test_generator.dart';
 import 'usecase_test_generator.dart';
+import 'package_name_reader.dart';
 
 /// Full-stack generator that creates complete Clean Architecture setup
 ///
@@ -59,6 +60,10 @@ class FullStackGenerator {
     void Function(String)? onProgress,
   }) async {
     onProgress?.call('🚀 Starting full-stack generation...\n');
+
+    // Step 0: Get package name from pubspec.yaml
+    final packageName = await PackageNameReader.getPackageName(projectPath);
+    onProgress?.call('✓ Package: $packageName\n');
 
     // Step 1: Parse JSON and generate entities
     onProgress?.call('📊 Parsing JSON...');
@@ -138,27 +143,27 @@ class FullStackGenerator {
 
     // Entity tests
     final entityTestPath = _entityTestGenerator.getFilePath(finalEntityName);
-    final entityTestContent = _entityTestGenerator.generateEntityTest(finalEntityName, schema);
+    final entityTestContent = _entityTestGenerator.generateEntityTest(finalEntityName, schema, packageName);
     testFiles[entityTestPath] = entityTestContent;
 
     // DataSource tests
     final datasourceTestPaths = _dataSourceTestGenerator.getFilePaths(finalEntityName);
     testFiles['test/data/datasources/remote_${_toSnakeCase(finalEntityName)}_datasource_test.dart'] =
-        _dataSourceTestGenerator.generateRemoteDataSourceTest(finalEntityName);
+        _dataSourceTestGenerator.generateRemoteDataSourceTest(finalEntityName, packageName);
     testFiles['test/data/datasources/local_${_toSnakeCase(finalEntityName)}_datasource_test.dart'] =
-        _dataSourceTestGenerator.generateLocalDataSourceTest(finalEntityName);
+        _dataSourceTestGenerator.generateLocalDataSourceTest(finalEntityName, packageName);
     testFiles['test/data/datasources/mock_${_toSnakeCase(finalEntityName)}_datasource_test.dart'] =
-        _dataSourceTestGenerator.generateMockDataSourceTest(finalEntityName);
+        _dataSourceTestGenerator.generateMockDataSourceTest(finalEntityName, packageName);
 
     // Repository tests
     final repositoryTestPath = _repositoryTestGenerator.getFilePath(finalEntityName);
-    final repositoryTestContent = _repositoryTestGenerator.generateRepositoryTest(finalEntityName);
+    final repositoryTestContent = _repositoryTestGenerator.generateRepositoryTest(finalEntityName, packageName);
     testFiles[repositoryTestPath] = repositoryTestContent;
 
     // UseCase tests
     for (final type in usecaseTypes) {
       final testPath = _useCaseTestGenerator.getFilePath(finalEntityName, type);
-      final testContent = _useCaseTestGenerator.generateUseCaseTest(finalEntityName, type);
+      final testContent = _useCaseTestGenerator.generateUseCaseTest(finalEntityName, type, packageName);
       testFiles[testPath] = testContent;
     }
 

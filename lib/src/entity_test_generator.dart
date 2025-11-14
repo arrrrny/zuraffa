@@ -8,7 +8,7 @@ import 'json_parser.dart';
 /// - Required 'id' field
 class EntityTestGenerator {
   /// Generate entity test file
-  String generateEntityTest(String entityName, EntitySchema schema) {
+  String generateEntityTest(String entityName, EntitySchema schema, String packageName) {
     final buffer = StringBuffer();
 
     // Header
@@ -18,7 +18,7 @@ class EntityTestGenerator {
 
     // Imports
     buffer.writeln("import 'package:test/test.dart';");
-    buffer.writeln("import 'package:${_getPackageName()}/src/domain/entities/${_toSnakeCase(entityName)}.dart';");
+    buffer.writeln("import 'package:$packageName/src/domain/entities/${_toSnakeCase(entityName)}.dart';");
     buffer.writeln();
 
     // Test group
@@ -143,11 +143,5 @@ class EntityTestGenerator {
           (match) => '_${match.group(0)!.toLowerCase()}',
         )
         .substring(1);
-  }
-
-  String _getPackageName() {
-    // This will be the consuming project's package name
-    // We'll need to pass this from the generator
-    return 'app'; // Default placeholder
   }
 }

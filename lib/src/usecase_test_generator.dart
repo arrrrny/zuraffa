@@ -8,7 +8,7 @@ import 'usecase_generator.dart';
 /// - Result handling (Success/Failure)
 class UseCaseTestGenerator {
   /// Generate usecase test
-  String generateUseCaseTest(String entityName, UseCaseType type) {
+  String generateUseCaseTest(String entityName, UseCaseType type, String packageName) {
     final useCaseName = _inferUseCaseName(entityName, type);
     final buffer = StringBuffer();
 
@@ -19,12 +19,12 @@ class UseCaseTestGenerator {
     buffer.writeln("import 'package:test/test.dart';");
     buffer.writeln("import 'package:mocktail/mocktail.dart';");
     buffer.writeln("import 'package:zuraffa/zuraffa.dart';");
-    buffer.writeln("import 'package:${_getPackageName()}/src/domain/entities/${_toSnakeCase(entityName)}.dart';");
-    buffer.writeln("import 'package:${_getPackageName()}/src/domain/repositories/${_toSnakeCase(entityName)}_repository.dart';");
+    buffer.writeln("import 'package:$packageName/src/domain/entities/${_toSnakeCase(entityName)}.dart';");
+    buffer.writeln("import 'package:$packageName/src/domain/repositories/${_toSnakeCase(entityName)}_repository.dart';");
     if (type == UseCaseType.getAll) {
-      buffer.writeln("import 'package:${_getPackageName()}/src/domain/usecases/${_toSnakeCase(entityName)}_filter.dart';");
+      buffer.writeln("import 'package:$packageName/src/domain/usecases/${_toSnakeCase(entityName)}_filter.dart';");
     }
-    buffer.writeln("import 'package:${_getPackageName()}/src/domain/usecases/${_toSnakeCase(useCaseName)}.dart';");
+    buffer.writeln("import 'package:$packageName/src/domain/usecases/${_toSnakeCase(useCaseName)}.dart';");
     buffer.writeln();
 
     buffer.writeln("class Mock${entityName}Repository extends Mock implements ${entityName}Repository {}");
@@ -218,9 +218,5 @@ class UseCaseTestGenerator {
           (match) => '_${match.group(0)!.toLowerCase()}',
         )
         .substring(1);
-  }
-
-  String _getPackageName() {
-    return 'app'; // Placeholder
   }
 }
