@@ -97,7 +97,7 @@ Future<void> _handleCreate(List<String> args) async {
     final lines = <String>[];
     String? line;
     while ((line = stdin.readLineSync()) != null) {
-      lines.add(line);
+      lines.add(line!); // line is guaranteed non-null here
     }
     json = jsonDecode(lines.join('\n')) as Map<String, dynamic>;
 

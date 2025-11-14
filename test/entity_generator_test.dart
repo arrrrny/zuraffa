@@ -65,7 +65,7 @@ void main() {
   });
 
   group('MorphyEntityGenerator - Lists', () {
-    test('should handle List of primitives without $', () {
+    test('should handle List of primitives without \$', () {
       final schema = EntitySchema(
         name: 'Product',
         fields: [
@@ -82,7 +82,7 @@ void main() {
       expect(code, isNot(contains('List<\$String>'))); // No $ for primitives in List
     });
 
-    test('should handle List of entities with $', () {
+    test('should handle List of entities with \$', () {
       final schema = EntitySchema(
         name: 'Order',
         fields: [
@@ -98,7 +98,7 @@ void main() {
   });
 
   group('MorphyEntityGenerator - Nested Entities', () {
-    test('should use $ prefix for nested entity references', () {
+    test('should use \$ prefix for nested entity references', () {
       final schema = EntitySchema(
         name: 'Order',
         fields: [
