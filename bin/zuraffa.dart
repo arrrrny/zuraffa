@@ -1,11 +1,13 @@
 #!/usr/bin/env dart
 
 import 'dart:io';
+import 'dart:convert';
+import 'package:args/args.dart';
+import 'package:zuraffa/zuraffa.dart';
 
-void main(List<String> arguments) {
-  print('🦒 Zuraffa v0.1.0');
-  print('AI-First Clean Architecture for Flutter\n');
+const version = '0.1.0';
 
+void main(List<String> arguments) async {
   if (arguments.isEmpty) {
     _printHelp();
     exit(0);
@@ -13,54 +15,164 @@ void main(List<String> arguments) {
 
   final command = arguments[0];
 
-  switch (command) {
-    case 'init':
-      print('🚧 Coming soon: zuraffa init <project_name>');
-      break;
-    case 'create':
-      print('🚧 Coming soon: zuraffa create usecase <name> --from-json <file>');
-      break;
-    case 'test':
-      print('🚧 Coming soon: zuraffa test generate <file>');
-      break;
-    case 'help':
-    case '--help':
-    case '-h':
-      _printHelp();
-      break;
-    case 'version':
-    case '--version':
-    case '-v':
-      print('Zuraffa version 0.1.0');
-      break;
-    default:
-      print('❌ Unknown command: $command\n');
-      _printHelp();
+  try {
+    switch (command) {
+      case 'create':
+        await _handleCreate(arguments.skip(1).toList());
+        break;
+      case 'help':
+      case '--help':
+      case '-h':
+        _printHelp();
+        break;
+      case 'version':
+      case '--version':
+      case '-v':
+        print('🦒 Zuraffa v$version');
+        break;
+      default:
+        print('❌ Unknown command: $command\n');
+        _printHelp();
+        exit(1);
+    }
+  } catch (e, stack) {
+    print('❌ Error: $e');
+    if (arguments.contains('--verbose')) {
+      print(stack);
+    }
+    exit(1);
+  }
+}
+
+Future<void> _handleCreate(List<String> args) async {
+  if (args.isEmpty) {
+    print('❌ Usage: zuraffa create entity <name> [options]');
+    exit(1);
+  }
+
+  final subcommand = args[0];
+
+  if (subcommand != 'entity') {
+    print('❌ Unknown subcommand: $subcommand');
+    print('Available: entity');
+    exit(1);
+  }
+
+  // Parse args
+  final parser = ArgParser()
+    ..addOption('from-json', abbr: 'j', help: 'JSON file path')
+    ..addOption('name', abbr: 'n', help: 'Entity name')
+    ..addFlag('interactive', abbr: 'i', help: 'Interactive mode (paste JSON)')
+    ..addFlag('no-build-runner', help: 'Skip build_runner', defaultsTo: false)
+    ..addFlag('verbose', abbr: 'v', help: 'Verbose output', defaultsTo: false);
+
+  final results = parser.parse(args.skip(1));
+
+  // Get entity name
+  String? entityName = results['name'];
+  if (entityName == null && results.rest.isNotEmpty) {
+    entityName = results.rest[0];
+  }
+
+  // Get JSON
+  Map<String, dynamic>? json;
+
+  if (results['from-json'] != null) {
+    // Read from file
+    final jsonPath = results['from-json'] as String;
+    final file = File(jsonPath);
+
+    if (!await file.exists()) {
+      print('❌ File not found: $jsonPath');
       exit(1);
+    }
+
+    print('📖 Reading JSON from: $jsonPath');
+    final jsonString = await file.readAsString();
+    json = jsonDecode(jsonString) as Map<String, dynamic>;
+
+  } else if (results['interactive'] == true) {
+    // Interactive mode
+    print('📋 Paste your JSON (press Ctrl+D when done):');
+    final lines = <String>[];
+    String? line;
+    while ((line = stdin.readLineSync()) != null) {
+      lines.add(line);
+    }
+    json = jsonDecode(lines.join('\n')) as Map<String, dynamic>;
+
+  } else {
+    print('❌ Please provide JSON via --from-json or --interactive');
+    exit(1);
+  }
+
+  // Generate
+  print('\n🦒 Zuraffa v$version\n');
+
+  final projectPath = Directory.current.path;
+  final generator = ZuraffaGenerator(projectPath);
+
+  final result = await generator.generateFromJson(
+    json,
+    entityName: entityName,
+    runBuildRunner: !results['no-build-runner'],
+    onProgress: (msg) => print(msg),
+  );
+
+  if (result.success) {
+    print('\n✅ Generation complete!\n');
+    print('📄 Created ${result.entityFiles.length} entity file(s):');
+    for (final file in result.entityFiles) {
+      print('  ✓ $file');
+    }
+
+    if (result.buildRunnerResult != null && result.buildRunnerResult!.success) {
+      print('\n🔨 Generated ${result.buildRunnerResult!.generatedFiles.length} .g.dart file(s):');
+      for (final file in result.buildRunnerResult!.generatedFiles) {
+        print('  ✓ $file');
+      }
+    }
+
+    print('\n🎉 Done! Your entities are ready to use.');
+  } else {
+    print('\n❌ Generation failed');
+    if (result.buildRunnerResult != null && !result.buildRunnerResult!.success) {
+      print('Build runner errors:');
+      print(result.buildRunnerResult!.stderr);
+    }
+    exit(1);
   }
 }
 
 void _printHelp() {
   print('''
+🦒 Zuraffa v$version
+AI-First Clean Architecture for Flutter
+
 Usage: zuraffa <command> [options]
 
 Commands:
-  init <name>              Create a new Flutter project with Zuraffa
-  create usecase <name>    Generate UseCase from JSON
-    --from-json <file>     Use JSON file as input
-    --from-api <url>       Fetch JSON from API endpoint
-  create feature <name>    Generate complete feature (multiple UseCases)
-    --interactive          Interactive mode (paste JSON)
-  test generate <file>     Generate tests for existing code
-  help                     Show this help message
-  version                  Show version
+  create entity <name> [options]
+    --from-json, -j <file>    Read JSON from file
+    --interactive, -i          Paste JSON interactively
+    --name, -n <name>         Entity name (optional)
+    --no-build-runner         Skip running build_runner
+    --verbose, -v             Show detailed output
+
+  help, --help, -h            Show this help
+  version, --version, -v      Show version
 
 Examples:
-  zuraffa init zikzak
-  zuraffa create usecase GetProduct --from-json product.json
-  zuraffa create feature shopping-cart --interactive
-  zuraffa test generate lib/domain/usecases/get_product_usecase.dart
+  # From JSON file
+  zuraffa create entity Product --from-json product.json
+
+  # Interactive mode
+  zuraffa create entity --interactive
+
+  # Custom name
+  zuraffa create entity --from-json api-response.json --name PriceComparison
 
 Documentation: https://github.com/arrrrny/zuraffa
+For Humanity. For ZikZak. For AI Agents. 🦒
 ''');
 }
