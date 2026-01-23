@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:zuraffa/src/zfa_cli.dart' as zfa show version;
+
 /// MCP Server for Zuraffa CLI
 ///
 /// This server implements the Model Context Protocol to expose
@@ -140,7 +142,7 @@ class ZuraffaMcpServer {
         },
         'serverInfo': {
           'name': 'zfa-mcp-server',
-          'version': '1.0.0',
+          'version': zfa.version,
         },
       },
       'id': id,
@@ -165,7 +167,7 @@ class ZuraffaMcpServer {
   /// Generate tool definition
   Map<String, dynamic> _generateToolDefinition() {
     return {
-      'name': 'zuraffa_generate',
+      'name': 'generate',
       'description':
           'Generate Clean Architecture code for Flutter projects including UseCases, Repositories, Views, Presenters, Controllers, State objects, and Data layers. Use --state with --vpc for automatic state management, or --vpc alone for custom controller implementation.',
       'inputSchema': {
@@ -265,7 +267,7 @@ class ZuraffaMcpServer {
   /// Schema tool definition
   Map<String, dynamic> _schemaToolDefinition() {
     return {
-      'name': 'zuraffa_schema',
+      'name': 'schema',
       'description':
           'Get the JSON schema for FCA configuration validation. Useful for AI agents to validate configs before generation.',
       'inputSchema': {
@@ -278,7 +280,7 @@ class ZuraffaMcpServer {
   /// Validate tool definition
   Map<String, dynamic> _validateToolDefinition() {
     return {
-      'name': 'zuraffa_validate',
+      'name': 'validate',
       'description':
           'Validate a JSON configuration file against the FCA schema',
       'inputSchema': {
@@ -304,13 +306,13 @@ class ZuraffaMcpServer {
       String result;
 
       switch (toolName) {
-        case 'zuraffa_generate':
+        case 'generate':
           result = await _runGenerateCommand(args);
           break;
-        case 'zuraffa_schema':
+        case 'schema':
           result = await _runSchemaCommand();
           break;
-        case 'zuraffa_validate':
+        case 'validate':
           result = await _runValidateCommand(args);
           break;
         default:
@@ -396,7 +398,7 @@ class ZuraffaMcpServer {
   /// Run the validate command
   Future<String> _runValidateCommand(Map<String, dynamic> args) async {
     // Write config to temp file
-    final tempFile = File('.fca_mcp_temp_config.json');
+    final tempFile = File('.zfa_mcp_temp_config.json');
     try {
       await tempFile.writeAsString(jsonEncode(args['config']));
 

@@ -38,7 +38,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 ```json
 {
   "mcpServers": {
-    "flutter-clean-architecture": {
+    "zuraffa": {
       "command": "zuraffa_mcp_server",
       "args": [],
       "cwd": "/path/to/your/flutter/project"
@@ -105,7 +105,7 @@ Generate Clean Architecture code for your Flutter project.
 **Example:**
 ```json
 {
-  "name": "zuraffa_generate",
+  "name": "generate",
   "arguments": {
     "name": "Product",
     "methods": ["get", "getList", "create"],
