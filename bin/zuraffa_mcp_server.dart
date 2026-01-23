@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:zuraffa/src/zfa_cli.dart' as zfa show version;
+
 /// MCP Server for Zuraffa CLI
 ///
 /// This server implements the Model Context Protocol to expose
@@ -140,7 +142,7 @@ class ZuraffaMcpServer {
         },
         'serverInfo': {
           'name': 'zfa-mcp-server',
-          'version': '1.0.0',
+          'version': zfa.version,
         },
       },
       'id': id,
