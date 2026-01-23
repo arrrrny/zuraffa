@@ -185,7 +185,8 @@ class StateGenerator {
 
     final equalityBody = <String>[];
     if (needsListField) {
-      equalityBody.add(' &&\n          $entityCamel}List == other.$entityCamel}List');
+      equalityBody
+          .add(' &&\n          $entityCamel}List == other.$entityCamel}List');
     }
     equalityBody.add(' &&\n          error == other.error');
 

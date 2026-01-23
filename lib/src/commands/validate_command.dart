@@ -11,7 +11,8 @@ class ValidateCommand {
 
     final file = File(args[0]);
     if (!file.existsSync()) {
-      print(jsonEncode({'valid': false, 'error': 'File not found: ${args[0]}'}));
+      print(
+          jsonEncode({'valid': false, 'error': 'File not found: ${args[0]}'}));
       exit(1);
     }
 

@@ -124,7 +124,8 @@ class GenerateCommand {
       ..addFlag('state', help: 'Generate State object', defaultsTo: false)
       ..addOption('output',
           abbr: 'o', help: 'Output directory', defaultsTo: 'lib/src')
-      ..addOption('format', help: 'Output format: json,text', defaultsTo: 'text')
+      ..addOption('format',
+          help: 'Output format: json,text', defaultsTo: 'text')
       ..addFlag('dry-run',
           help: 'Preview without writing files', defaultsTo: false)
       ..addFlag('force', help: 'Overwrite existing files', defaultsTo: false)

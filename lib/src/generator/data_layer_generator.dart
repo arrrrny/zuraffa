@@ -38,10 +38,12 @@ class DataLayerGenerator {
           methods.add('  Future<List<$entityName>> getList();');
           break;
         case 'create':
-          methods.add('  Future<$entityName> create($entityName $entityCamel);');
+          methods
+              .add('  Future<$entityName> create($entityName $entityCamel);');
           break;
         case 'update':
-          methods.add('  Future<$entityName> update($entityName $entityCamel);');
+          methods
+              .add('  Future<$entityName> update($entityName $entityCamel);');
           break;
         case 'delete':
           methods.add('  Future<void> delete(${config.idType} id);');
