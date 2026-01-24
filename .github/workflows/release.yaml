@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  flutter_version: "3.38.x"
+  java_version: "21.x"
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get tag name
+        id: get_tag
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Get tag message
+        id: get_tag_message
+        run: |
+          TAG="${{ steps.get_tag.outputs.tag }}"
+          MESSAGE=$(git tag -l "$TAG" --format='%(contents)')
+          # Remove empty lines and add newline if message exists
+          if [ -n "$MESSAGE" ]; then
+            echo "message=$MESSAGE" >> $GITHUB_OUTPUT
+          else
+            echo "message=Release $TAG" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Extract changelog entry
+        id: changelog
+        run: |
+          TAG="${{ steps.get_tag.outputs.tag }}"
+          VERSION="${TAG#v}"
+
+          # Extract the changelog entry for this version
+          CHANGELOG_ENTRY=$(awk -v version="$VERSION" '
+            BEGIN { found=0; content="" }
+            /^## \['"$VERSION"'\]/ { found=1; next }
+            found && /^## \[/ { exit }
+            found { content = content $0 "\n" }
+            END { print content }
+          ' CHANGELOG.md)
+
+          if [ -z "$CHANGELOG_ENTRY" ]; then
+            echo "entry=No changelog entry found for version $VERSION." >> $GITHUB_OUTPUT
+          else
+            # Use multiline output format
+            {
+              echo "entry<<EOF"
+              echo "$CHANGELOG_ENTRY"
+              echo "EOF"
+            } >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_tag.outputs.tag }}
+          name: Release ${{ steps.get_tag.outputs.tag }}
+          body: |
+            ${{ steps.get_tag_message.outputs.message }}
+
+            ${{ steps.changelog.outputs.entry }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
