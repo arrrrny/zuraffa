@@ -7,14 +7,32 @@
 set -e
 
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 <version> [description]"
+    echo "Usage: $0 <version> [description] [--type]"
     echo "Example: $0 1.2.0 \"Add new features and bug fixes\""
+    echo "Types: --feat, --fix, --docs, --style, --refactor, --perf, --test, --build, --ci, --chore, --revert, --change (default)"
     exit 1
 fi
 
 VERSION="$1"
 DESCRIPTION="${2:-Release $VERSION}"
+TYPE="change"
 
+# Parse optional type argument
+shift 2 2>/dev/null || true
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --feat|--fix|--docs|--style|--refactor|--perf|--test|--build|--ci|--chore|--revert|--change)
+            TYPE="${1#--}"
+            shift
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
+# Capitalize the type for CHANGELOG
+TYPE_CAPITALIZED=$(echo "$TYPE" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PACKAGE_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PACKAGE_DIR"
@@ -60,13 +78,26 @@ echo "  ✓ Example version updated"
 
 # Step 2: Update CHANGELOG.md
 echo "📝 Updating CHANGELOG.md..."
+
+# Check if [Unreleased] section exists, if not add it
+if ! grep -q "^## \[Unreleased\]" CHANGELOG.md; then
+    echo "  ⚠️  No [Unreleased] section found, adding it..."
+    # Insert ## [Unreleased] at the top of the file
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "1s/^/## [Unreleased]\\n\\n/" CHANGELOG.md
+    else
+        sed -i "1s/^/## [Unreleased]\n\n/" CHANGELOG.md
+    fi
+fi
+
+# Insert new version after [Unreleased]
 if [[ "$OSTYPE" == "darwin"* ]]; then
     # macOS sed syntax
     sed -i '' "/^## \[Unreleased\]/a\\
 \\
 ## [$VERSION] - $DATE\\
 \\
-### Changed\\
+### $TYPE_CAPITALIZED\\
 - $DESCRIPTION
 " CHANGELOG.md
 else
@@ -75,7 +106,7 @@ else
 \\
 ## [$VERSION] - $DATE\\
 \\
-### Changed\\
+### $TYPE_CAPITALIZED\\
 - $DESCRIPTION
 " CHANGELOG.md
 fi
@@ -102,7 +133,7 @@ if command -v gh &> /dev/null; then
 - Update CHANGELOG.md
 
 Please review and merge this PR to master before proceeding with the release tag and publication."
-    
+
     if gh pr list --head "$CURRENT_BRANCH" --json number | grep -q "\"number\""; then
         echo "  ⚠️  PR already exists for branch $CURRENT_BRANCH"
     else
