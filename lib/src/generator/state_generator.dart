@@ -27,16 +27,19 @@ class StateGenerator {
     final filePath =
         path.join(outputDir, 'presentation', 'pages', entitySnake, fileName);
 
+    final needsListField =
+        config.methods.any((m) => ['getList', 'watchList'].contains(m));
+
     final imports = <String>["import 'package:zuraffa/zuraffa.dart';"];
-    imports.add(
-        "import '../../../domain/entities/$entitySnake/$entitySnake.dart';");
+
+    if (needsListField) {
+      imports.add(
+          "import '../../../domain/entities/$entitySnake/$entitySnake.dart';");
+    }
 
     final stateFields = <String>[];
     final stateConstructorParams = <String>[];
     final stateCopyWithParams = <String>[];
-
-    final needsListField = config.methods.any((m) =>
-        ['getList', 'create', 'update', 'delete', 'watchList'].contains(m));
 
     stateFields.add('  /// The current error, if any');
     stateFields.add('  final AppFailure? error;');
@@ -150,7 +153,7 @@ class StateGenerator {
 
     final hashCodeParts = <String>[];
     if (needsListField) {
-      hashCodeParts.add('$entityCamel}List.hashCode');
+      hashCodeParts.add('${entityCamel}List.hashCode');
     }
     hashCodeParts.add('error.hashCode');
     for (final method in config.methods) {
@@ -180,13 +183,13 @@ class StateGenerator {
     }
 
     final toStringBody = needsListField
-        ? '$stateName($entityCamel}List: \${${entityCamel}List.length}, isLoading: \$isLoading, error: \$error)'
+        ? '$stateName(${entityCamel}List: \${${entityCamel}List.length}, isLoading: \$isLoading, error: \$error)'
         : '$stateName(isLoading: \$isLoading, error: \$error)';
 
     final equalityBody = <String>[];
     if (needsListField) {
       equalityBody
-          .add(' &&\n          $entityCamel}List == other.$entityCamel}List');
+          .add(' &&\n          ${entityCamel}List == other.${entityCamel}List');
     }
     equalityBody.add(' &&\n          error == other.error');
 
@@ -246,7 +249,7 @@ ${stateFields.join('\n')}
 
     if (needsListField) {
       parts.add(
-          '$entityCamel}List: $entityCamel}List ?? this.$entityCamel}List,');
+          '${entityCamel}List: ${entityCamel}List ?? this.${entityCamel}List,');
     }
     parts.add('error: clearError ? null : (error ?? this.error),');
 
