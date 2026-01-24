@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [1.4.0] - 2026-01-24
+
+### Feat
+- Added --subdirectory flag to zfa cli
+
 ## [1.3.3] - 2026-01-24
 
 ### Chore

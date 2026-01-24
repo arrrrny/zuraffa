@@ -33,12 +33,23 @@ class VpcGenerator {
     final entityCamel = config.nameCamel;
     final presenterName = '${entityName}Presenter';
     final fileName = '${entitySnake}_presenter.dart';
-    final filePath =
-        path.join(outputDir, 'presentation', 'pages', entitySnake, fileName);
+
+    final presenterPathParts = <String>[outputDir, 'presentation', 'pages'];
+    if (config.subdirectory != null && config.subdirectory!.isNotEmpty) {
+      presenterPathParts.add(config.subdirectory!);
+    }
+    presenterPathParts.add(entitySnake);
+    final presenterDirPath = path.joinAll(presenterPathParts);
+    final filePath = path.join(presenterDirPath, fileName);
+
+    final relativePath =
+        config.subdirectory != null && config.subdirectory!.isNotEmpty
+            ? '../../../'
+            : '../../';
 
     final imports = <String>[
       "import 'package:zuraffa/zuraffa.dart';",
-      "import '../../../domain/entities/$entitySnake/$entitySnake.dart';",
+      "import '$relativePath../domain/entities/$entitySnake/$entitySnake.dart';",
     ];
 
     final repoFields = <String>[];
@@ -49,7 +60,7 @@ class VpcGenerator {
           StringUtils.camelToSnake(repo.replaceAll('Repository', ''));
       final repoCamel = StringUtils.pascalToCamel(repo);
       imports.add(
-          "import '../../../domain/repositories/${repoSnake}_repository.dart';");
+          "import '$relativePath../domain/repositories/${repoSnake}_repository.dart';");
       repoFields.add('  final $repo $repoCamel;');
       repoParams.add('required this.$repoCamel');
     }
@@ -65,8 +76,12 @@ class VpcGenerator {
       final useCaseSnake = StringUtils.camelToSnake(
           useCaseInfo.className.replaceAll('UseCase', ''));
 
+      final subdirectoryPart =
+          config.subdirectory != null && config.subdirectory!.isNotEmpty
+              ? '${config.subdirectory!}/'
+              : '';
       useCaseImports.add(
-          "import '../../../domain/usecases/$entitySnake/${useCaseSnake}_usecase.dart';");
+          "import '$relativePath../domain/usecases/$subdirectoryPart/$entitySnake/${useCaseSnake}_usecase.dart';");
       useCaseFields.add(
           '  late final ${useCaseInfo.className} _${useCaseInfo.fieldName};');
 
@@ -119,8 +134,17 @@ ${presenterMethods.join('\n\n')}
     final presenterName = '${entityName}Presenter';
     final stateName = '${entityName}State';
     final fileName = '${entitySnake}_controller.dart';
-    final filePath =
-        path.join(outputDir, 'presentation', 'pages', entitySnake, fileName);
+    String relativePath = '../../';
+
+    final controllerPathParts = <String>[outputDir, 'presentation', 'pages'];
+    if (config.subdirectory != null && config.subdirectory!.isNotEmpty) {
+      controllerPathParts.add(config.subdirectory!);
+      relativePath += '../';
+    }
+
+    controllerPathParts.add(entitySnake);
+    final controllerDirPath = path.joinAll(controllerPathParts);
+    final filePath = path.join(controllerDirPath, fileName);
 
     final withState = config.generateState;
 
@@ -293,8 +317,10 @@ ${withState ? '''      (result) {
     }
 
     if (config.methods.any((m) => m == 'create' || m == 'update')) {
-      imports.add(
-          "import '../../../domain/entities/$entitySnake/$entitySnake.dart';");
+      final entityPath =
+          '$relativePath../domain/entities/$entitySnake/$entitySnake.dart';
+
+      imports.add("import '$entityPath';");
     }
 
     final content = '''
@@ -339,8 +365,16 @@ ${methods.join('\n\n')}
     final controllerName = '${entityName}Controller';
     final presenterName = '${entityName}Presenter';
     final fileName = '${entitySnake}_view.dart';
-    final filePath =
-        path.join(outputDir, 'presentation', 'pages', entitySnake, fileName);
+    String relativePath = '../../';
+
+    final viewPathParts = <String>[outputDir, 'presentation', 'pages'];
+    if (config.subdirectory != null && config.subdirectory!.isNotEmpty) {
+      relativePath += '../';
+      viewPathParts.add(config.subdirectory!);
+    }
+    viewPathParts.add(entitySnake);
+    final viewDirPath = path.joinAll(viewPathParts);
+    final filePath = path.join(viewDirPath, fileName);
 
     final repoImports = <String>[];
     final repoFields = <String>[];
@@ -352,7 +386,7 @@ ${methods.join('\n\n')}
           StringUtils.camelToSnake(repo.replaceAll('Repository', ''));
       final repoCamel = StringUtils.pascalToCamel(repo);
       repoImports.add(
-          "import '../../../domain/repositories/${repoSnake}_repository.dart';");
+          "import '$relativePath../domain/repositories/${repoSnake}_repository.dart';");
       repoFields.add('  final $repo $repoCamel;');
       repoConstructorParams.add('required this.$repoCamel');
       repoPresenterParams.add('$repoCamel: $repoCamel');

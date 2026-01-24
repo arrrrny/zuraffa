@@ -24,8 +24,13 @@ class StateGenerator {
     final entityCamel = config.nameCamel;
     final stateName = '${entityName}State';
     final fileName = '${entitySnake}_state.dart';
-    final filePath =
-        path.join(outputDir, 'presentation', 'pages', entitySnake, fileName);
+    final statePathParts = <String>[outputDir, 'presentation', 'pages'];
+    if (config.subdirectory != null && config.subdirectory!.isNotEmpty) {
+      statePathParts.add(config.subdirectory!);
+    }
+    statePathParts.add(entitySnake);
+    final stateDirPath = path.joinAll(statePathParts);
+    final filePath = path.join(stateDirPath, fileName);
 
     final needsListField =
         config.methods.any((m) => ['getList', 'watchList'].contains(m));
@@ -33,8 +38,11 @@ class StateGenerator {
     final imports = <String>["import 'package:zuraffa/zuraffa.dart';"];
 
     if (needsListField) {
-      imports.add(
-          "import '../../../domain/entities/$entitySnake/$entitySnake.dart';");
+      final entityPath =
+          config.subdirectory != null && config.subdirectory!.isNotEmpty
+              ? '../../../../domain/entities/$entitySnake/$entitySnake.dart'
+              : '../../../domain/entities/$entitySnake/$entitySnake.dart';
+      imports.add("import '$entityPath';");
     }
 
     final stateFields = <String>[];

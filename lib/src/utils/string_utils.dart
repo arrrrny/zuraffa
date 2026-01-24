@@ -27,4 +27,9 @@ class StringUtils {
 
     return finalText;
   }
+
+  static String snakeToPath(String input) {
+    if (input.isEmpty) return '';
+    return input.replaceAll('_', '/');
+  }
 }
