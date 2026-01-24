@@ -87,19 +87,47 @@ git add pubspec.yaml CHANGELOG.md lib/src/zfa_cli.dart example/pubspec.yaml
 git commit -m "chore: release $VERSION"
 echo "  ✓ Changes committed"
 
-# Step 4: Create and push git tag
+# Step 4: Create PR to master
+if command -v gh &> /dev/null; then
+    echo "🔄 Creating pull request to master..."
+    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+    PR_BODY="Release $VERSION
+
+**Description:** $DESCRIPTION
+
+**Date:** $DATE
+
+**Changes:**
+- Bump version to $VERSION
+- Update CHANGELOG.md
+
+Please review and merge this PR to master before proceeding with the release tag and publication."
+    
+    if gh pr view "$CURRENT_BRANCH" &> /dev/null; then
+        echo "  ⚠️  PR already exists for branch $CURRENT_BRANCH"
+    else
+        gh pr create --base master --head "$CURRENT_BRANCH" --title "chore: release $VERSION" --body "$PR_BODY"
+        echo "  ✓ PR created from $CURRENT_BRANCH to master"
+    fi
+else
+    echo "⚠️  GitHub CLI (gh) not found. Skipping PR creation."
+    echo "   Please create a PR to master manually:"
+    echo "   https://github.com/$(git config --get remote.origin.url | sed 's/.*github.com[:/]\(.*\)\.git/\1/')/compare/master...$CURRENT_BRANCH"
+fi
+
+# Step 5: Create and push git tag
 echo "🏷️  Creating git tag..."
 git tag -a "v$VERSION" -m "Release $VERSION"
 git push origin "$(git rev-parse --abbrev-ref HEAD)"
 git push origin "v$VERSION"
 echo "  ✓ Tag v$VERSION pushed"
 
-# Step 5: Run tests
+# Step 6: Run tests
 echo "🧪 Running tests..."
 flutter test
 echo "  ✓ Tests passed"
 
-# Step 6: Publish to pub.dev
+# Step 7: Publish to pub.dev
 echo "📦 Publishing to pub.dev..."
 dart pub publish --force
 
