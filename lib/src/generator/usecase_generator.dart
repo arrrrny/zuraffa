@@ -36,6 +36,7 @@ class UseCaseGenerator {
     final entitySnake = config.nameSnake;
     final entityCamel = config.nameCamel;
     final repoName = config.effectiveRepos.first;
+    String relativePath = '../';
 
     String className;
     String baseClass;
@@ -116,6 +117,7 @@ class UseCaseGenerator {
     ];
     if (config.subdirectory != null && config.subdirectory!.isNotEmpty) {
       usecasePathParts.add(config.subdirectory!);
+      relativePath += '../';
     }
     usecasePathParts.add(entitySnake);
     final usecaseDirPath = path.joinAll(usecasePathParts);
@@ -126,15 +128,11 @@ class UseCaseGenerator {
     ];
     if (needsEntityImport) {
       final entityPath =
-          config.subdirectory != null && config.subdirectory!.isNotEmpty
-              ? '../../entities/$entitySnake/$entitySnake.dart'
-              : '../entities/$entitySnake/$entitySnake.dart';
+          '$relativePath../entities/$entitySnake/$entitySnake.dart';
       imports.add("import '$entityPath';");
     }
-    final repoPath = config.subdirectory != null &&
-            config.subdirectory!.isNotEmpty
-        ? '../../repositories/${StringUtils.camelToSnake(repoName.replaceAll('Repository', ''))}_repository.dart'
-        : '../repositories/${StringUtils.camelToSnake(repoName.replaceAll('Repository', ''))}_repository.dart';
+    final repoPath =
+        '$relativePath../repositories/${StringUtils.camelToSnake(repoName.replaceAll('Repository', ''))}_repository.dart';
     imports.add("import '$repoPath';");
 
     String executeMethod;
@@ -235,10 +233,12 @@ $executeMethod
     final entityImports = _getPotentialEntityImports([paramsType, returnsType]);
     for (final entityImport in entityImports) {
       final entitySnake = StringUtils.camelToSnake(entityImport);
+      final entityFolder = StringUtils.snakeToPath(entitySnake);
+
       final entityPath =
           config.subdirectory != null && config.subdirectory!.isNotEmpty
-              ? '../../entities/$entitySnake/$entitySnake.dart'
-              : '../entities/$entitySnake/$entitySnake.dart';
+              ? '../../entities/$entityFolder/$entitySnake.dart'
+              : '../entities/$entityFolder/$entitySnake.dart';
       repoImports.add("import '$entityPath';");
     }
 
