@@ -2,10 +2,10 @@ import 'dart:async';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
-import 'package:logging/logging.dart';
 
 import '../core/cancel_token.dart';
 import '../core/failure.dart';
+import '../core/loggable.dart';
 import '../core/result.dart';
 
 /// State of a [BackgroundUseCase] execution.
@@ -120,17 +120,12 @@ class _BackgroundMessage<T> {
 ///   );
 /// });
 /// ```
-abstract class BackgroundUseCase<T, Params> {
-  late final Logger _logger = Logger(runtimeType.toString());
-
+abstract class BackgroundUseCase<T, Params> with Loggable {
   BackgroundUseCaseState _state = BackgroundUseCaseState.idle;
   Isolate? _isolate;
   ReceivePort? _receivePort;
   StreamController<Result<T, AppFailure>>? _controller;
   final List<StreamSubscription<dynamic>> _subscriptions = [];
-
-  /// Logger instance for this BackgroundUseCase
-  Logger get logger => _logger;
 
   /// Current execution state
   BackgroundUseCaseState get state => _state;
@@ -165,7 +160,7 @@ abstract class BackgroundUseCase<T, Params> {
   }) {
     // Check for cancellation before starting
     if (cancelToken?.isCancelled ?? false) {
-      _logger.info('$runtimeType cancelled before starting');
+      logger.info('$runtimeType cancelled before starting');
       return Stream.value(Result.failure(
         CancellationFailure(
             cancelToken?.cancelReason ?? 'Operation was cancelled'),
@@ -174,7 +169,7 @@ abstract class BackgroundUseCase<T, Params> {
 
     // If already running, return the existing stream
     if (isRunning && _controller != null) {
-      _logger.warning(
+      logger.warning(
           '$runtimeType is already running, returning existing stream');
       return _controller!.stream;
     }
@@ -237,17 +232,16 @@ abstract class BackgroundUseCase<T, Params> {
 
       // Check if we were cancelled/disposed while spawning
       if (!isRunning) {
-        _logger
-            .info('$runtimeType was cancelled during spawn, killing isolate');
+        logger.info('$runtimeType was cancelled during spawn, killing isolate');
         _isolate?.kill(priority: Isolate.immediate);
         _isolate = null;
         return;
       }
 
       _state = BackgroundUseCaseState.calculating;
-      _logger.fine('$runtimeType isolate spawned successfully');
+      logger.fine('$runtimeType isolate spawned successfully');
     } catch (e, stackTrace) {
-      _logger.severe('$runtimeType failed to spawn isolate', e, stackTrace);
+      logger.severe('$runtimeType failed to spawn isolate', e, stackTrace);
       _controller?.add(Result.failure(AppFailure.from(e, stackTrace)));
       _stop();
     }
@@ -263,7 +257,7 @@ abstract class BackgroundUseCase<T, Params> {
           ? StackTrace.fromString(stackTraceString)
           : null;
 
-      _logger.warning('$runtimeType isolate error', error, stackTrace);
+      logger.warning('$runtimeType isolate error', error, stackTrace);
       _controller?.add(Result.failure(AppFailure.from(error, stackTrace)));
       _stop();
       return;
@@ -271,7 +265,7 @@ abstract class BackgroundUseCase<T, Params> {
 
     // Handle null (isolate exit signal)
     if (message == null) {
-      _logger.fine('$runtimeType isolate exited');
+      logger.fine('$runtimeType isolate exited');
       _stop();
       return;
     }
@@ -279,13 +273,13 @@ abstract class BackgroundUseCase<T, Params> {
     // Handle our message type
     if (message is _BackgroundMessage) {
       if (message.isDone) {
-        _logger.fine('$runtimeType task completed');
+        logger.fine('$runtimeType task completed');
         _stop();
         return;
       }
 
       if (message.error != null) {
-        _logger.warning(
+        logger.warning(
             '$runtimeType task error', message.error, message.stackTrace);
         _controller?.add(Result.failure(
           AppFailure.from(message.error!, message.stackTrace),
@@ -299,7 +293,7 @@ abstract class BackgroundUseCase<T, Params> {
         if (message.data is T) {
           _controller?.add(Result.success(message.data as T));
         } else {
-          _logger.severe(
+          logger.severe(
             '$runtimeType received data of wrong type: '
             'expected $Type, got ${message.data.runtimeType}',
           );
@@ -331,7 +325,7 @@ abstract class BackgroundUseCase<T, Params> {
       _controller?.close();
     }
 
-    _logger.fine('$runtimeType stopped');
+    logger.fine('$runtimeType stopped');
   }
 
   /// Override this method to provide the background task.
@@ -367,7 +361,7 @@ abstract class BackgroundUseCase<T, Params> {
 
     _controller = null;
 
-    _logger.info('$runtimeType disposed');
+    logger.info('$runtimeType disposed');
   }
 }
 

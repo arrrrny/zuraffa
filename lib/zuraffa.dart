@@ -129,6 +129,9 @@ export 'src/core/cancel_token.dart';
 /// NoParams sentinel for parameterless UseCases
 export 'src/core/no_params.dart';
 
+/// Loggable mixin for logging capabilities
+export 'src/core/loggable.dart';
+
 // ============================================================
 // Domain - Business Logic
 // ============================================================
@@ -182,9 +185,48 @@ export 'src/utils/test_utils.dart';
 // Framework Configuration
 // ============================================================
 
+/// Log levels for Zuraffa framework logging.
+enum ZuraffaLogLevel {
+  all,
+  finest,
+  finer,
+  fine,
+  config,
+  info,
+  warning,
+  severe,
+  shout,
+  off,
+}
+
 /// Global configuration and utilities for Zuraffa.
 class Zuraffa {
   Zuraffa._();
+
+  static Level _toLevel(ZuraffaLogLevel level) {
+    switch (level) {
+      case ZuraffaLogLevel.all:
+        return Level.ALL;
+      case ZuraffaLogLevel.finest:
+        return Level.FINEST;
+      case ZuraffaLogLevel.finer:
+        return Level.FINER;
+      case ZuraffaLogLevel.fine:
+        return Level.FINE;
+      case ZuraffaLogLevel.config:
+        return Level.CONFIG;
+      case ZuraffaLogLevel.info:
+        return Level.INFO;
+      case ZuraffaLogLevel.warning:
+        return Level.WARNING;
+      case ZuraffaLogLevel.severe:
+        return Level.SEVERE;
+      case ZuraffaLogLevel.shout:
+        return Level.SHOUT;
+      case ZuraffaLogLevel.off:
+        return Level.OFF;
+    }
+  }
 
   /// Retrieve a [Controller] from the widget tree.
   ///
@@ -227,19 +269,25 @@ class Zuraffa {
   ///   Zuraffa.enableLogging();
   ///   runApp(MyApp());
   /// }
+  ///
+  /// // With custom log level
+  /// void main() {
+  ///   Zuraffa.enableLogging(level: ZuraffaLogLevel.warning);
+  ///   runApp(MyApp());
+  /// }
   /// ```
   static void enableLogging({
-    Level level = Level.ALL,
+    ZuraffaLogLevel level = ZuraffaLogLevel.all,
     void Function(LogRecord record)? onRecord,
   }) {
-    Logger.root.level = level;
+    Logger.root.level = _toLevel(level);
     Logger.root.onRecord.listen(onRecord ?? _defaultLogHandler);
     Logger.root.info('Zuraffa logging enabled');
   }
 
   /// Disable logging.
   static void disableLogging() {
-    Logger.root.level = Level.OFF;
+    Logger.root.level = _toLevel(ZuraffaLogLevel.off);
   }
 
   static void _defaultLogHandler(LogRecord record) {

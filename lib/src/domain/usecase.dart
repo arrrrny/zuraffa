@@ -1,10 +1,10 @@
 import 'dart:async';
 
-import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
 
 import '../core/cancel_token.dart';
 import '../core/failure.dart';
+import '../core/loggable.dart';
 import '../core/result.dart';
 
 /// Base UseCase class for Clean Architecture.
@@ -48,12 +48,7 @@ import '../core/result.dart';
 /// - Throw [AppFailure] subclasses for expected errors
 /// - Any other exception is automatically wrapped in [UnknownFailure]
 /// - [CancelledException] is converted to [CancellationFailure]
-abstract class UseCase<T, Params> {
-  late final Logger _logger = Logger(runtimeType.toString());
-
-  /// Logger instance for this UseCase
-  Logger get logger => _logger;
-
+abstract class UseCase<T, Params> with Loggable {
   /// Execute the use case with the given [params].
   ///
   /// Prefer using the call syntax: `await useCase(params)`
@@ -72,16 +67,16 @@ abstract class UseCase<T, Params> {
 
       final value = await execute(params, cancelToken);
 
-      _logger.fine('$runtimeType completed successfully');
+      logger.fine('$runtimeType completed successfully');
       return Result.success(value);
     } on CancelledException catch (e) {
-      _logger.info('$runtimeType was cancelled: ${e.message}');
+      logger.info('$runtimeType was cancelled: ${e.message}');
       return Result.failure(CancellationFailure(e.message));
     } on AppFailure catch (e) {
-      _logger.warning('$runtimeType failed with AppFailure: $e');
+      logger.warning('$runtimeType failed with AppFailure: $e');
       return Result.failure(e);
     } catch (e, stackTrace) {
-      _logger.severe('$runtimeType failed unexpectedly', e, stackTrace);
+      logger.severe('$runtimeType failed unexpectedly', e, stackTrace);
       return Result.failure(AppFailure.from(e, stackTrace));
     }
   }

@@ -1,11 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
 
 import '../core/cancel_token.dart';
 import '../core/failure.dart';
+import '../core/loggable.dart';
 import '../core/result.dart';
 import '../domain/usecase.dart';
 
@@ -137,8 +137,7 @@ mixin StatefulController<S> on Controller {
 /// }
 /// ```
 abstract class Controller
-    with WidgetsBindingObserver, RouteAware, ChangeNotifier {
-  late final Logger _logger;
+    with WidgetsBindingObserver, RouteAware, ChangeNotifier, Loggable {
   late GlobalKey<State<StatefulWidget>> _globalKey;
 
   bool _isMounted = true;
@@ -149,12 +148,8 @@ abstract class Controller
 
   /// Create a new Controller.
   Controller() {
-    _logger = Logger(runtimeType.toString());
     initListeners();
   }
-
-  /// Logger instance for this controller
-  Logger get logger => _logger;
 
   /// Whether this controller is still mounted and active
   bool get isMounted => _isMounted;
@@ -422,7 +417,7 @@ abstract class Controller
     }
     _subscriptions.clear();
 
-    _logger.info('$runtimeType disposed');
+    logger.info('$runtimeType disposed');
 
     super.dispose();
   }

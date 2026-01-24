@@ -132,6 +132,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-01-24
+
+### Changed
+- CI chores
+
+## [1.2.0] - 2026-01-24
+
+### Changed
+- Exposed Loggable mixin and added to generated DataRepos
+
 ### Planned Features
 
 - Web support for BackgroundUseCase
