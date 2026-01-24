@@ -108,17 +108,34 @@ class UseCaseGenerator {
     final fileSnake =
         StringUtils.camelToSnake(className.replaceAll('UseCase', ''));
     final fileName = '${fileSnake}_usecase.dart';
-    final filePath =
-        path.join(outputDir, 'domain', 'usecases', entitySnake, fileName);
+
+    final usecasePathParts = <String>[
+      outputDir,
+      'domain',
+      'usecases',
+    ];
+    if (config.subdirectory != null && config.subdirectory!.isNotEmpty) {
+      usecasePathParts.add(config.subdirectory!);
+    }
+    usecasePathParts.add(entitySnake);
+    final usecaseDirPath = path.joinAll(usecasePathParts);
+    final filePath = path.join(usecaseDirPath, fileName);
 
     final imports = <String>[
       "import 'package:zuraffa/zuraffa.dart';",
     ];
     if (needsEntityImport) {
-      imports.add("import '../../entities/$entitySnake/$entitySnake.dart';");
+      final entityPath =
+          config.subdirectory != null && config.subdirectory!.isNotEmpty
+              ? '../../entities/$entitySnake/$entitySnake.dart'
+              : '../entities/$entitySnake/$entitySnake.dart';
+      imports.add("import '$entityPath';");
     }
-    imports.add(
-        "import '../../repositories/${StringUtils.camelToSnake(repoName.replaceAll('Repository', ''))}_repository.dart';");
+    final repoPath = config.subdirectory != null &&
+            config.subdirectory!.isNotEmpty
+        ? '../../repositories/${StringUtils.camelToSnake(repoName.replaceAll('Repository', ''))}_repository.dart'
+        : '../repositories/${StringUtils.camelToSnake(repoName.replaceAll('Repository', ''))}_repository.dart';
+    imports.add("import '$repoPath';");
 
     String executeMethod;
     if (isStream) {
@@ -172,7 +189,13 @@ $executeMethod
     final className = '${config.name}UseCase';
     final classSnake = StringUtils.camelToSnake(config.name);
     final fileName = '${classSnake}_usecase.dart';
-    final filePath = path.join(outputDir, 'domain', 'usecases', fileName);
+
+    final usecasePathParts = <String>[outputDir, 'domain', 'usecases'];
+    if (config.subdirectory != null && config.subdirectory!.isNotEmpty) {
+      usecasePathParts.add(config.subdirectory!);
+    }
+    final usecaseDirPath = path.joinAll(usecasePathParts);
+    final filePath = path.join(usecaseDirPath, fileName);
 
     final paramsType = config.paramsType ?? 'NoParams';
     final returnsType = config.returnsType ?? 'void';
@@ -199,9 +222,24 @@ $executeMethod
     for (final repo in config.effectiveRepos) {
       final repoSnake =
           StringUtils.camelToSnake(repo.replaceAll('Repository', ''));
-      repoImports.add("import '../repositories/${repoSnake}_repository.dart';");
+      final repoPath =
+          config.subdirectory != null && config.subdirectory!.isNotEmpty
+              ? '../../repositories/${repoSnake}_repository.dart'
+              : '../repositories/${repoSnake}_repository.dart';
+      repoImports.add("import '$repoPath';");
       repoFields.add('  final $repo _${StringUtils.pascalToCamel(repo)};');
       repoParams.add('this._${StringUtils.pascalToCamel(repo)}');
+    }
+
+    // Auto-import potential entity types from params and returns
+    final entityImports = _getPotentialEntityImports([paramsType, returnsType]);
+    for (final entityImport in entityImports) {
+      final entitySnake = StringUtils.camelToSnake(entityImport);
+      final entityPath =
+          config.subdirectory != null && config.subdirectory!.isNotEmpty
+              ? '../../entities/$entitySnake/$entitySnake.dart'
+              : '../entities/$entitySnake/$entitySnake.dart';
+      repoImports.add("import '$entityPath';");
     }
 
     String executeMethod;
@@ -329,4 +367,26 @@ $executeMethod
         throw ArgumentError('Unknown method: $method');
     }
   }
+}
+
+Set<String> _getPotentialEntityImports(List<String> types) {
+  final entityNames = <String>{};
+
+  for (final type in types) {
+    final regex = RegExp(r'[A-Z][a-zA-Z0-9_]*');
+    final matches = regex.allMatches(type);
+    for (final match in matches) {
+      final name = match.group(0);
+      if (name != null &&
+          name != 'List' &&
+          name != 'Map' &&
+          name != 'Set' &&
+          name != 'NoParams' &&
+          !RegExp(r'^(int|double|bool|String|void|dynamic)$').hasMatch(name)) {
+        entityNames.add(name);
+      }
+    }
+  }
+
+  return entityNames;
 }

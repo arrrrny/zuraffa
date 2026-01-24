@@ -17,6 +17,7 @@ class GeneratorConfig {
   final bool generateData;
   final bool generateDataSource;
   final bool generateState;
+  final String? subdirectory;
 
   GeneratorConfig({
     required this.name,
@@ -35,6 +36,7 @@ class GeneratorConfig {
     this.generateData = false,
     this.generateDataSource = false,
     this.generateState = false,
+    this.subdirectory,
   });
 
   factory GeneratorConfig.fromJson(Map<String, dynamic> json, String name) {
@@ -55,6 +57,7 @@ class GeneratorConfig {
       generateData: json['data'] == true,
       generateDataSource: json['datasource'] == true,
       generateState: json['state'] == true,
+      subdirectory: json['subdirectory'],
     );
   }
 

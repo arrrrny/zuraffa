@@ -62,6 +62,7 @@ class GenerateCommand {
         generateData: results['data'] == true,
         generateDataSource: results['datasource'] == true,
         generateState: results['state'] == true,
+        subdirectory: results['subdirectory'],
       );
     }
 
@@ -122,6 +123,8 @@ class GenerateCommand {
       ..addFlag('datasource',
           help: 'Generate DataSource only', defaultsTo: false)
       ..addFlag('state', help: 'Generate State object', defaultsTo: false)
+      ..addOption('subdirectory',
+          help: 'Subdirectory to organize files (e.g., products, orders)')
       ..addOption('output',
           abbr: 'o', help: 'Output directory', defaultsTo: 'lib/src')
       ..addOption('format',
@@ -162,6 +165,7 @@ VPC LAYER:
   --observer            Generate Observer class
 
 INPUT/OUTPUT:
+  --subdirectory=<dir>  Subdirectory to organize files (e.g., products, orders)
   -j, --from-json       JSON configuration file
   --from-stdin          Read JSON from stdin
   -o, --output          Output directory (default: lib/src)
