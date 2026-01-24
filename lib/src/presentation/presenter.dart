@@ -1,10 +1,10 @@
 import 'dart:async';
 
-import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
 
 import '../core/cancel_token.dart';
 import '../core/failure.dart';
+import '../core/loggable.dart';
 import '../core/result.dart';
 import '../domain/usecase.dart';
 import '../domain/stream_usecase.dart';
@@ -56,17 +56,12 @@ import '../domain/stream_usecase.dart';
 ///   }
 /// }
 /// ```
-abstract class Presenter {
-  late final Logger _logger = Logger(runtimeType.toString());
-
+abstract class Presenter with Loggable {
   final List<dynamic> _useCases = [];
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   final List<CancelToken> _activeTokens = [];
 
   bool _isDisposed = false;
-
-  /// Logger instance for this presenter
-  Logger get logger => _logger;
 
   /// Whether this presenter has been disposed
   bool get isDisposed => _isDisposed;
@@ -221,7 +216,7 @@ abstract class Presenter {
     }
     _useCases.clear();
 
-    _logger.info('$runtimeType disposed');
+    logger.info('$runtimeType disposed');
   }
 
   void _checkNotDisposed() {

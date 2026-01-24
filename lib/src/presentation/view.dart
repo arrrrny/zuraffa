@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
 import 'package:provider/provider.dart';
 
+import '../core/loggable.dart';
 import 'controller.dart';
 
 /// A Clean Architecture View.
@@ -109,7 +109,7 @@ abstract class CleanView extends StatefulWidget {
 /// }
 /// ```
 abstract class CleanViewState<P extends CleanView, Con extends Controller>
-    extends State<P> {
+    extends State<P> with Loggable {
   /// The Controller for this view.
   ///
   /// Access this to call Controller methods or read state.
@@ -131,12 +131,9 @@ abstract class CleanViewState<P extends CleanView, Con extends Controller>
   final GlobalKey<State<StatefulWidget>> globalKey =
       GlobalKey<State<StatefulWidget>>();
 
-  late final Logger _logger;
-
   /// Create a [CleanViewState] with the given [controller].
   CleanViewState(this.controller) {
     controller.initController(globalKey);
-    _logger = Logger('$runtimeType');
   }
 
   /// Override this to build your view.
@@ -170,7 +167,7 @@ abstract class CleanViewState<P extends CleanView, Con extends Controller>
   @mustCallSuper
   void initState() {
     super.initState();
-    _logger.fine('initState');
+    logger.fine('initState');
 
     // Register for app lifecycle events
     WidgetsBinding.instance.addObserver(controller);
@@ -183,14 +180,14 @@ abstract class CleanViewState<P extends CleanView, Con extends Controller>
   @mustCallSuper
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _logger.fine('didChangeDependencies');
+    logger.fine('didChangeDependencies');
 
     // Subscribe to route events if observer is provided
     if (widget.routeObserver != null) {
       final route = ModalRoute.of(context);
       if (route != null) {
         widget.routeObserver!.subscribe(controller, route);
-        _logger.fine('Subscribed to route observer');
+        logger.fine('Subscribed to route observer');
       }
     }
 
@@ -211,7 +208,7 @@ abstract class CleanViewState<P extends CleanView, Con extends Controller>
   @override
   @mustCallSuper
   void deactivate() {
-    _logger.fine('deactivate');
+    logger.fine('deactivate');
     controller.onDeactivated();
     super.deactivate();
   }
@@ -219,7 +216,7 @@ abstract class CleanViewState<P extends CleanView, Con extends Controller>
   @override
   @mustCallSuper
   void reassemble() {
-    _logger.fine('reassemble');
+    logger.fine('reassemble');
     controller.onReassembled();
     super.reassemble();
   }
@@ -227,7 +224,7 @@ abstract class CleanViewState<P extends CleanView, Con extends Controller>
   @override
   @mustCallSuper
   void dispose() {
-    _logger.fine('dispose');
+    logger.fine('dispose');
 
     // Unregister from app lifecycle events
     WidgetsBinding.instance.removeObserver(controller);

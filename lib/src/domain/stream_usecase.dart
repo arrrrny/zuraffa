@@ -1,10 +1,10 @@
 import 'dart:async';
 
-import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
 
 import '../core/cancel_token.dart';
 import '../core/failure.dart';
+import '../core/loggable.dart';
 import '../core/result.dart';
 
 /// A UseCase for streaming/reactive operations.
@@ -47,13 +47,9 @@ import '../core/result.dart';
 /// - Errors in the stream are wrapped in [AppFailure] and emitted as [Failure]
 /// - [CancelledException] is converted to [CancellationFailure]
 /// - The stream completes after emitting a failure
-abstract class StreamUseCase<T, Params> {
-  late final Logger _logger = Logger(runtimeType.toString());
+abstract class StreamUseCase<T, Params> with Loggable {
   StreamSubscription<T>? _subscription;
   final List<StreamSubscription<dynamic>> _subscriptions = [];
-
-  /// Logger instance for this StreamUseCase
-  Logger get logger => _logger;
 
   /// Execute the use case with the given [params].
   ///
@@ -66,7 +62,7 @@ abstract class StreamUseCase<T, Params> {
   }) async* {
     // Check for cancellation before starting
     if (cancelToken?.isCancelled ?? false) {
-      _logger.info('$runtimeType cancelled before starting');
+      logger.info('$runtimeType cancelled before starting');
       yield Result.failure(
         CancellationFailure(
             cancelToken?.cancelReason ?? 'Operation was cancelled'),
@@ -85,7 +81,7 @@ abstract class StreamUseCase<T, Params> {
       await for (final value in stream) {
         // Check for cancellation between values
         if (cancelToken?.isCancelled ?? false) {
-          _logger.info('$runtimeType cancelled during execution');
+          logger.info('$runtimeType cancelled during execution');
           yield Result.failure(
             CancellationFailure(
                 cancelToken?.cancelReason ?? 'Operation was cancelled'),
@@ -96,15 +92,15 @@ abstract class StreamUseCase<T, Params> {
         yield Result.success(value);
       }
 
-      _logger.fine('$runtimeType stream completed successfully');
+      logger.fine('$runtimeType stream completed successfully');
     } on CancelledException catch (e) {
-      _logger.info('$runtimeType was cancelled: ${e.message}');
+      logger.info('$runtimeType was cancelled: ${e.message}');
       yield Result.failure(CancellationFailure(e.message));
     } on AppFailure catch (e) {
-      _logger.warning('$runtimeType failed with AppFailure: $e');
+      logger.warning('$runtimeType failed with AppFailure: $e');
       yield Result.failure(e);
     } catch (e, stackTrace) {
-      _logger.severe('$runtimeType failed unexpectedly', e, stackTrace);
+      logger.severe('$runtimeType failed unexpectedly', e, stackTrace);
       yield Result.failure(AppFailure.from(e, stackTrace));
     }
   }
@@ -169,7 +165,7 @@ abstract class StreamUseCase<T, Params> {
     }
     _subscriptions.clear();
 
-    _logger.info('$runtimeType disposed');
+    logger.info('$runtimeType disposed');
   }
 }
 
