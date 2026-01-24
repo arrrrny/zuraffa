@@ -42,9 +42,10 @@ class VpcGenerator {
     final presenterDirPath = path.joinAll(presenterPathParts);
     final filePath = path.join(presenterDirPath, fileName);
 
-    final relativePath = config.subdirectory != null && config.subdirectory!.isNotEmpty
-        ? '../../'
-        : '../';
+    final relativePath =
+        config.subdirectory != null && config.subdirectory!.isNotEmpty
+            ? '../../'
+            : '../';
 
     final imports = <String>[
       "import 'package:zuraffa/zuraffa.dart';",
@@ -369,9 +370,10 @@ ${methods.join('\n\n')}
     final repoConstructorParams = <String>[];
     final repoPresenterParams = <String>[];
 
-    final relativePath = config.subdirectory != null && config.subdirectory!.isNotEmpty
-        ? '../../'
-        : '../';
+    final relativePath =
+        config.subdirectory != null && config.subdirectory!.isNotEmpty
+            ? '../../'
+            : '../';
 
     for (final repo in config.effectiveRepos) {
       final repoSnake =

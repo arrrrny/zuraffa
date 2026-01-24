@@ -33,9 +33,10 @@ class DataLayerGenerator {
     final dataSourceDirPath = path.joinAll(dataSourcePathParts);
     final filePath = path.join(dataSourceDirPath, fileName);
 
-    final relativePath = config.subdirectory != null && config.subdirectory!.isNotEmpty
-        ? '../../../'
-        : '../../';
+    final relativePath =
+        config.subdirectory != null && config.subdirectory!.isNotEmpty
+            ? '../../../'
+            : '../../';
 
     final methods = <String>[];
 
@@ -98,13 +99,15 @@ ${methods.join('\n')}
     final fileName = 'data_${entitySnake}_repository.dart';
     final filePath = path.join(outputDir, 'data', 'repositories', fileName);
 
-    final relativePath = config.subdirectory != null && config.subdirectory!.isNotEmpty
-        ? '../'
-        : '';
+    final relativePath =
+        config.subdirectory != null && config.subdirectory!.isNotEmpty
+            ? '../'
+            : '';
 
-    final dataSourcePath = config.subdirectory != null && config.subdirectory!.isNotEmpty
-        ? 'data_sources/${config.subdirectory}/'
-        : 'data_sources/';
+    final dataSourcePath =
+        config.subdirectory != null && config.subdirectory!.isNotEmpty
+            ? 'data_sources/${config.subdirectory}/'
+            : 'data_sources/';
 
     final methods = <String>[];
 
