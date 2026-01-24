@@ -103,7 +103,7 @@ if command -v gh &> /dev/null; then
 
 Please review and merge this PR to master before proceeding with the release tag and publication."
     
-    if gh pr view "$CURRENT_BRANCH" &> /dev/null; then
+    if gh pr list --head "$CURRENT_BRANCH" --json number | grep -q "\"number\""; then
         echo "  ⚠️  PR already exists for branch $CURRENT_BRANCH"
     else
         gh pr create --base master --head "$CURRENT_BRANCH" --title "chore: release $VERSION" --body "$PR_BODY"
