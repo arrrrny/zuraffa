@@ -129,6 +129,9 @@ export 'src/core/cancel_token.dart';
 /// NoParams sentinel for parameterless UseCases
 export 'src/core/no_params.dart';
 
+/// Params class for map-based parameters
+export 'src/core/params.dart';
+
 /// InitializationParams for repository and data source initialization
 export 'src/core/initialization_params.dart';
 

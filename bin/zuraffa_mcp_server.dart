@@ -216,6 +216,11 @@ class ZuraffaMcpServer {
             'type': 'boolean',
             'description': 'Generate DataSource only',
           },
+          'init': {
+            'type': 'boolean',
+            'description':
+                'Generate initialize method for repository and datasource',
+          },
           'id_type': {
             'type': 'string',
             'description':
@@ -365,6 +370,7 @@ class ZuraffaMcpServer {
     if (args['state'] == true) cliArgs.add('--state');
     if (args['data'] == true) cliArgs.add('--data');
     if (args['datasource'] == true) cliArgs.add('--datasource');
+    if (args['init'] == true) cliArgs.add('--init');
     if (args['id_type'] != null) cliArgs.add('--id-type=${args['id_type']}');
 
     // Custom UseCase options
