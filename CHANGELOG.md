@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [1.4.1] - 2026-01-26
+
+### Feat
+- Added InitializationParams and --init flag to cli
+
 ## [1.4.0] - 2026-01-24
 
 ### Feat
