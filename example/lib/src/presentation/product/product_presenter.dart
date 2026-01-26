@@ -34,26 +34,26 @@ class ProductPresenter extends Presenter {
   }
 
   Future<Result<Product, AppFailure>> getProduct(String id) {
-    return execute(_getProduct, id);
+    return _getProduct.call(id);
   }
 
   Future<Result<List<Product>, AppFailure>> getProductList() {
-    return execute(_getProductList, const NoParams());
+    return _getProductList.call(const NoParams());
   }
 
   Future<Result<Product, AppFailure>> createProduct(Product product) {
-    return execute(_createProduct, product);
+    return _createProduct.call(product);
   }
 
   Future<Result<Product, AppFailure>> updateProduct(Product product) {
-    return execute(_updateProduct, product);
+    return _updateProduct.call(product);
   }
 
   Future<Result<void, AppFailure>> deleteProduct(String id) {
-    return execute(_deleteProduct, id);
+    return _deleteProduct.call(id);
   }
 
   Stream<Result<List<Product>, AppFailure>> watchProductList() {
-    return executeStream(_watchProductList, const NoParams());
+    return _watchProductList.call(const NoParams());
   }
 }

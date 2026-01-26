@@ -138,6 +138,9 @@ export 'src/core/initialization_params.dart';
 /// Loggable mixin for logging capabilities
 export 'src/core/loggable.dart';
 
+/// FailureHandler mixin for handling failures
+export 'src/core/failure_handler.dart';
+
 // ============================================================
 // Domain - Business Logic
 // ============================================================

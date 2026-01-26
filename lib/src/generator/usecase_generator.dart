@@ -306,7 +306,7 @@ $executeMethod
           fieldName: 'get$entityName',
           presenterMethod:
               '''  Future<Result<$entityName, AppFailure>> get$entityName(String id) {
-    return execute(_get$entityName, id);
+    return _get$entityName.call(id);
   }''',
         );
       case 'getList':
@@ -315,7 +315,7 @@ $executeMethod
           fieldName: 'get${entityName}List',
           presenterMethod:
               '''  Future<Result<List<$entityName>, AppFailure>> get${entityName}List() {
-    return execute(_get${entityName}List, const NoParams());
+    return _get${entityName}List.call(const NoParams());
   }''',
         );
       case 'create':
@@ -324,7 +324,7 @@ $executeMethod
           fieldName: 'create$entityName',
           presenterMethod:
               '''  Future<Result<$entityName, AppFailure>> create$entityName($entityName $entityCamel) {
-    return execute(_create$entityName, $entityCamel);
+    return _create$entityName.call($entityCamel);
   }''',
         );
       case 'update':
@@ -333,7 +333,7 @@ $executeMethod
           fieldName: 'update$entityName',
           presenterMethod:
               '''  Future<Result<$entityName, AppFailure>> update$entityName($entityName $entityCamel) {
-    return execute(_update$entityName, $entityCamel);
+    return _update$entityName.call($entityCamel);
   }''',
         );
       case 'delete':
@@ -342,7 +342,7 @@ $executeMethod
           fieldName: 'delete$entityName',
           presenterMethod:
               '''  Future<Result<void, AppFailure>> delete$entityName(String id) {
-    return execute(_delete$entityName, id);
+    return _delete$entityName.call(id);
   }''',
         );
       case 'watch':
@@ -351,7 +351,7 @@ $executeMethod
           fieldName: 'watch$entityName',
           presenterMethod:
               '''  Stream<Result<$entityName, AppFailure>> watch$entityName(String? id) {
-    return executeStream(_watch$entityName, id);
+    return _watch$entityName.call(id);
   }''',
         );
       case 'watchList':
@@ -360,7 +360,7 @@ $executeMethod
           fieldName: 'watch${entityName}List',
           presenterMethod:
               '''  Stream<Result<List<$entityName>, AppFailure>> watch${entityName}List() {
-    return executeStream(_watch${entityName}List, const NoParams());
+    return _watch${entityName}List.call(const NoParams());
   }''',
         );
       default:
