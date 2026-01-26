@@ -88,7 +88,7 @@ class GenerateCommand {
       print(jsonEncode(result.toJson()));
     } else if (verbose && !quiet) {
       for (final file in result.files) {
-        print('\n--- ' + file.path + ' ---');
+        print('\n--- ${file.path} ---');
         print(file.content ?? '');
       }
       CliLogger.printResult(result);
