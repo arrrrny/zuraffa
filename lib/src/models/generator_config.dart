@@ -17,6 +17,7 @@ class GeneratorConfig {
   final bool generateData;
   final bool generateDataSource;
   final bool generateState;
+  final bool generateInit;
   final String? subdirectory;
 
   GeneratorConfig({
@@ -36,6 +37,7 @@ class GeneratorConfig {
     this.generateData = false,
     this.generateDataSource = false,
     this.generateState = false,
+    this.generateInit = false,
     this.subdirectory,
   });
 
@@ -57,6 +59,7 @@ class GeneratorConfig {
       generateData: json['data'] == true,
       generateDataSource: json['datasource'] == true,
       generateState: json['state'] == true,
+      generateInit: json['init'] == true,
       subdirectory: json['subdirectory'],
     );
   }

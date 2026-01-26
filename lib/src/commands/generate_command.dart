@@ -62,6 +62,7 @@ class GenerateCommand {
         generateData: results['data'] == true,
         generateDataSource: results['datasource'] == true,
         generateState: results['state'] == true,
+        generateInit: results['init'] == true,
         subdirectory: results['subdirectory'],
       );
     }
@@ -85,6 +86,12 @@ class GenerateCommand {
 
     if (format == 'json') {
       print(jsonEncode(result.toJson()));
+    } else if (verbose && !quiet) {
+      for (final file in result.files) {
+        print('\n--- ' + file.path + ' ---');
+        print(file.content ?? '');
+      }
+      CliLogger.printResult(result);
     } else if (!quiet) {
       CliLogger.printResult(result);
     }
@@ -122,6 +129,9 @@ class GenerateCommand {
       ..addFlag('observer', help: 'Generate Observer', defaultsTo: false)
       ..addFlag('datasource',
           help: 'Generate DataSource only', defaultsTo: false)
+      ..addFlag('init',
+          help: 'Generate initialize method for repository and datasource',
+          defaultsTo: false)
       ..addFlag('state', help: 'Generate State object', defaultsTo: false)
       ..addOption('subdirectory',
           help: 'Subdirectory to organize files (e.g., products, orders)')
@@ -148,6 +158,7 @@ ENTITY-BASED GENERATION:
   -r, --repository      Generate repository interface
   -d, --data            Generate data repository + data source
   --datasource          Generate data source only
+  --init                Generate initialize method for repository and datasource
   --id-type=<type>      ID type for entity (default: String)
 
 CUSTOM USECASE:
