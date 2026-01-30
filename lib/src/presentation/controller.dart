@@ -98,7 +98,7 @@ mixin StatefulController<S> on Controller {
 ///        _getAllProducts = GetAllProductsUseCase(repository);
 ///
 ///   Future<void> loadProduct(String id) async {
-///     final result = await execute(_getProduct, id);
+///     final result = await _getProduct.call(id);
 ///     // Handle result...
 ///   }
 /// }
@@ -121,7 +121,7 @@ mixin StatefulController<S> on Controller {
 ///   Future<void> loadProduct(String id) async {
 ///     updateState(viewState.copyWith(isGetting: true));
 ///
-///     final result = await execute(_getProduct, id);
+///     final result = await _getProduct.call(id);
 ///
 ///     result.fold(
 ///       (product) => updateState(viewState.copyWith(

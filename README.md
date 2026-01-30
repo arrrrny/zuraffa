@@ -216,7 +216,7 @@ class ProductController extends Controller {
   Future<void> loadProducts() async {
     _setState(_viewState.copyWith(isLoading: true));
 
-    final result = await execute(_getProducts, const NoParams());
+    final result = await _getProducts.call(const NoParams());
 
     result.fold(
       (products) => _setState(_viewState.copyWith(

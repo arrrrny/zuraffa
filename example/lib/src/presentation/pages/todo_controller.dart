@@ -79,7 +79,7 @@ class TodoController extends Controller {
 
     _setState(_viewState.copyWith(isCreating: true, clearError: true));
 
-    final result = await execute(_createTodo, title);
+    final result = await _createTodo.call(title);
 
     result.fold(
       (todo) {
@@ -95,7 +95,7 @@ class TodoController extends Controller {
 
   /// Toggle the completion status of a todo.
   Future<void> toggleTodo(int id) async {
-    final result = await execute(_toggleTodo, id);
+    final result = await _toggleTodo.call(id);
 
     result.fold(
       (todo) {
@@ -111,7 +111,7 @@ class TodoController extends Controller {
 
   /// Delete a todo by ID.
   Future<void> deleteTodo(int id) async {
-    final result = await execute(_deleteTodo, id);
+    final result = await _deleteTodo.call(id);
 
     result.fold(
       (_) {

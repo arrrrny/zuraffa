@@ -26,15 +26,15 @@ import '../domain/stream_usecase.dart';
 /// class CheckoutPresenter extends Presenter {
 ///   Future<Result<Order, AppFailure>> checkout(Cart cart) async {
 ///     // Step 1: Validate cart
-///     final validation = await execute(validateCartUseCase, cart);
+///     final validation = await validateCartUseCase.call(cart);
 ///     if (validation.isFailure) return validation.mapFailure((f) => f);
 ///
 ///     // Step 2: Process payment
-///     final payment = await execute(processPaymentUseCase, cart.total);
+///     final payment = await processPaymentUseCase.call(cart.total);
 ///     if (payment.isFailure) return payment.mapFailure((f) => f);
 ///
 ///     // Step 3: Create order
-///     return execute(createOrderUseCase, CreateOrderParams(
+///     return createOrderUseCase.call(CreateOrderParams(
 ///       cart: cart,
 ///       paymentId: payment.getOrThrow().id,
 ///     ));
@@ -115,7 +115,7 @@ abstract class Presenter with Loggable {
   /// Example:
   /// ```dart
   /// Future<Result<User, AppFailure>> getUser(String id) async {
-  ///   return execute(getUserUseCase, id);
+  ///   return getUserUseCase.call(id);
   /// }
   /// ```
   @protected
@@ -135,7 +135,7 @@ abstract class Presenter with Loggable {
   /// Example:
   /// ```dart
   /// Stream<Result<List<Product>, AppFailure>> watchProducts(String category) {
-  ///   return executeStream(watchProductsUseCase, category);
+  ///   return watchProductsUseCase.call(category);
   /// }
   /// ```
   @protected
