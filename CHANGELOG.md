@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [1.5.0] - 2026-01-30
+
+### Fix
+- mcp server connection fix
+
 ## [1.4.2] - 2026-01-27
 
 ### Change
