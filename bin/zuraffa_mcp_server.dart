@@ -145,7 +145,6 @@ class ZuraffaMcpServer {
         'capabilities': {
           'tools': {'listChanged': true},
           'resources': {'subscribe': true, 'listChanged': true},
-          'prompts': {},
         },
         'serverInfo': {
           'name': 'zfa-mcp-server',
