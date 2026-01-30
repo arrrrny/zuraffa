@@ -367,11 +367,11 @@ class ProductPresenter extends Presenter {
   }
 
   Future<Result<Product, AppFailure>> getProduct(String id) {
-    return execute(_getProduct, id);
+    return _getProduct.call(id);
   }
 
   Future<Result<List<Product>, AppFailure>> getProductList() {
-    return execute(_getProductList, const NoParams());
+    return _getProductList.call(const NoParams());
   }
 }
 ```

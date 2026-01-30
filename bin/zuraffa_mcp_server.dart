@@ -70,7 +70,10 @@ class ZuraffaMcpServer {
         try {
           final request = jsonDecode(line) as Map<String, dynamic>;
           final response = await handleRequest(request);
-          stdout.writeln(jsonEncode(response));
+          // Only send response if it's not a notification (notifications have id == null)
+          if (response != null) {
+            stdout.writeln(jsonEncode(response));
+          }
         } catch (e, stackTrace) {
           stderr.writeln('Error processing request: $e\n$stackTrace');
           final errorResponse = {
@@ -101,7 +104,7 @@ class ZuraffaMcpServer {
   }
 
   /// Handle incoming JSON-RPC requests
-  Future<Map<String, dynamic>> handleRequest(
+  Future<Map<String, dynamic>?> handleRequest(
       Map<String, dynamic> request) async {
     final method = request['method'] as String?;
     final id = request['id'];
@@ -125,6 +128,10 @@ class ZuraffaMcpServer {
       case 'ping':
         return _success(id, {'pong': true});
       default:
+        // Don't respond to unknown notifications (id == null)
+        if (id == null) {
+          return null;
+        }
         return _error(id, -32601, 'Method not found: $method');
     }
   }
@@ -138,7 +145,6 @@ class ZuraffaMcpServer {
         'capabilities': {
           'tools': {'listChanged': true},
           'resources': {'subscribe': true, 'listChanged': true},
-          'prompts': {},
         },
         'serverInfo': {
           'name': 'zfa-mcp-server',
@@ -215,6 +221,11 @@ class ZuraffaMcpServer {
           'datasource': {
             'type': 'boolean',
             'description': 'Generate DataSource only',
+          },
+          'init': {
+            'type': 'boolean',
+            'description':
+                'Generate initialize method for repository and datasource',
           },
           'id_type': {
             'type': 'string',
@@ -365,6 +376,7 @@ class ZuraffaMcpServer {
     if (args['state'] == true) cliArgs.add('--state');
     if (args['data'] == true) cliArgs.add('--data');
     if (args['datasource'] == true) cliArgs.add('--datasource');
+    if (args['init'] == true) cliArgs.add('--init');
     if (args['id_type'] != null) cliArgs.add('--id-type=${args['id_type']}');
 
     // Custom UseCase options

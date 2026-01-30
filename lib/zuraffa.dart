@@ -129,8 +129,17 @@ export 'src/core/cancel_token.dart';
 /// NoParams sentinel for parameterless UseCases
 export 'src/core/no_params.dart';
 
+/// Params class for map-based parameters
+export 'src/core/params.dart';
+
+/// InitializationParams for repository and data source initialization
+export 'src/core/initialization_params.dart';
+
 /// Loggable mixin for logging capabilities
 export 'src/core/loggable.dart';
+
+/// FailureHandler mixin for handling failures
+export 'src/core/failure_handler.dart';
 
 // ============================================================
 // Domain - Business Logic

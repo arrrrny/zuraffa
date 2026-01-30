@@ -21,6 +21,7 @@ class FileUtils {
         path: filePath,
         type: type,
         action: 'skipped',
+        content: content,
       );
     }
 
@@ -38,6 +39,7 @@ class FileUtils {
       path: filePath,
       type: type,
       action: exists ? 'overwritten' : 'created',
+      content: content,
     );
   }
 
