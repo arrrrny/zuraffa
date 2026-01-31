@@ -1,4 +1,4 @@
-## [Unreleased]
+## [1.8.0] - 2026-01-31
 
 ### Added
 - **New Failure Types**: Added `StateFailure`, `TypeFailure`, `UnimplementedFailure`, `UnsupportedFailure`, and `PlatformFailure` to `AppFailure` for granular error handling.
