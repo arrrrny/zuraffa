@@ -4,14 +4,14 @@ import 'package:zuraffa/zuraffa.dart';
 import '../../entities/product/product.dart';
 import '../../repositories/product_repository.dart';
 
-class CreateProductUseCase extends UseCase<Product, Product> {
+class WatchProductUseCase extends StreamUseCase<Product, QueryParams<String>> {
   final ProductRepository _repository;
 
-  CreateProductUseCase(this._repository);
+  WatchProductUseCase(this._repository);
 
   @override
-  Future<Product> execute(Product params, CancelToken? cancelToken) async {
+  Stream<Product> execute(QueryParams<String> params, CancelToken? cancelToken) {
     cancelToken?.throwIfCancelled();
-    return _repository.create(params);
+    return _repository.watch(params.query);
   }
 }

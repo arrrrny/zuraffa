@@ -75,8 +75,6 @@ class VpcGenerator {
           useCaseGenerator.getUseCaseInfo(method, entityName, entityCamel);
       final useCaseSnake = StringUtils.camelToSnake(
           useCaseInfo.className.replaceAll('UseCase', ''));
-      print('Generating use case: ${useCaseInfo.className}');
-      print(config.subdirectory);
       final subdirectoryPart =
           config.subdirectory != null && config.subdirectory!.isNotEmpty
               ? '/${config.subdirectory!}'

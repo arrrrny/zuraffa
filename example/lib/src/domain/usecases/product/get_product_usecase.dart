@@ -4,14 +4,14 @@ import 'package:zuraffa/zuraffa.dart';
 import '../../entities/product/product.dart';
 import '../../repositories/product_repository.dart';
 
-class GetProductUseCase extends UseCase<Product, String> {
+class GetProductUseCase extends UseCase<Product, QueryParams<String>> {
   final ProductRepository _repository;
 
   GetProductUseCase(this._repository);
 
   @override
-  Future<Product> execute(String id, CancelToken? cancelToken) async {
+  Future<Product> execute(QueryParams<String> params, CancelToken? cancelToken) async {
     cancelToken?.throwIfCancelled();
-    return _repository.get(id);
+    return _repository.get(params.query);
   }
 }
