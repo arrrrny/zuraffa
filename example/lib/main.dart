@@ -1,7 +1,8 @@
+import 'package:example/src/data/data_sources/todo/in_memory_todo_datasource.dart';
+import 'package:example/src/data/repositories/data_todo_repository.dart';
+import 'package:example/src/presentation/pages/todo/todo_view.dart';
 import 'package:flutter/material.dart';
 import 'package:zuraffa/zuraffa.dart';
-
-import 'src/presentation/pages/todo_page.dart';
 
 void main() {
   // Enable framework logging in debug mode
@@ -26,13 +27,14 @@ class CleanArchitectureExampleApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Clean Architecture Demo',
+      title: 'Zuraffa Clean Architecture Demo',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: const TodoPage(),
+      home: TodoView(
+          todoRepository: DataTodoRepository(InMemoryTodoDataSource())),
     );
   }
 }

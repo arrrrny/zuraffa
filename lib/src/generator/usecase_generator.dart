@@ -35,7 +35,6 @@ class UseCaseGenerator {
   Future<GeneratedFile> generateForMethod(String method) async {
     final entityName = config.name;
     final entitySnake = config.nameSnake;
-    final entityCamel = config.nameCamel;
     final repoName = config.effectiveRepos.first;
     String relativePath = '../';
 
@@ -51,7 +50,8 @@ class UseCaseGenerator {
     switch (method) {
       case 'get':
         className = 'Get${entityName}UseCase';
-        baseClass = 'UseCase<$entityName, QueryParams<${config.queryFieldType}>>';
+        baseClass =
+            'UseCase<$entityName, QueryParams<${config.queryFieldType}>>';
         paramsType = 'QueryParams<${config.queryFieldType}>';
         returnType = entityName;
         executeBody = 'return _repository.get(params.query);';
@@ -72,11 +72,12 @@ class UseCaseGenerator {
         break;
       case 'update':
         className = 'Update${entityName}UseCase';
-        final dataType = config.useMorphy ? '${entityName}Patch' : 'Partial<$entityName>';
+        final dataType =
+            config.useMorphy ? '${entityName}Patch' : 'Partial<$entityName>';
         baseClass = 'UseCase<$entityName, UpdateParams<$dataType>>';
         paramsType = 'UpdateParams<$dataType>';
         returnType = entityName;
-        
+
         if (config.useMorphy) {
           executeBody = 'return _repository.update(params);';
         } else {
@@ -84,7 +85,7 @@ class UseCaseGenerator {
           final validationCall = fields.isNotEmpty
               ? 'params.validate([${fields.map((f) => "'$f'").join(', ')}]);'
               : '// params.validate([]); // TODO: List valid fields for partial update';
-              
+
           executeBody = '''$validationCall
     return _repository.update(params);''';
         }
@@ -99,7 +100,8 @@ class UseCaseGenerator {
         break;
       case 'watch':
         className = 'Watch${entityName}UseCase';
-        baseClass = 'StreamUseCase<$entityName, QueryParams<${config.queryFieldType}>>';
+        baseClass =
+            'StreamUseCase<$entityName, QueryParams<${config.queryFieldType}>>';
         paramsType = 'QueryParams<${config.queryFieldType}>';
         returnType = entityName;
         executeBody = 'return _repository.watch(params.query);';
@@ -340,7 +342,8 @@ $executeMethod
   }''',
         );
       case 'update':
-        final updateDataType = config.useMorphy ? '${entityName}Patch' : 'Partial<$entityName>';
+        final updateDataType =
+            config.useMorphy ? '${entityName}Patch' : 'Partial<$entityName>';
         return UseCaseInfo(
           className: 'Update${entityName}UseCase',
           fieldName: 'update$entityName',
@@ -363,7 +366,7 @@ $executeMethod
           className: 'Watch${entityName}UseCase',
           fieldName: 'watch$entityName',
           presenterMethod:
-              '''  Stream<Result<$entityName, AppFailure>> watch$entityName(${config.queryFieldType}? ${config.queryField}) {
+              '''  Stream<Result<$entityName, AppFailure>> watch$entityName(${config.queryFieldType} ${config.queryField}) {
     return _watch$entityName.call(QueryParams(${config.queryField}));
   }''',
         );
@@ -386,7 +389,8 @@ $executeMethod
       // Try to find the entity file in common Clean Architecture locations
       final possiblePaths = [
         // Standard: lib/src/domain/entities/todo/todo.dart (folder per entity)
-        path.join(outputDir, 'domain', 'entities', entitySnake, '$entitySnake.dart'),
+        path.join(
+            outputDir, 'domain', 'entities', entitySnake, '$entitySnake.dart'),
         // Flat: lib/src/domain/entities/todo.dart
         path.join(outputDir, 'domain', 'entities', '$entitySnake.dart'),
       ];
@@ -402,7 +406,8 @@ $executeMethod
 
       if (file == null) {
         if (verbose) {
-          print('  ℹ Entity file for $entitySnake not found, skipping auto-validation');
+          print(
+              '  ℹ Entity file for $entitySnake not found, skipping auto-validation');
         }
         return [];
       }
@@ -411,15 +416,20 @@ $executeMethod
       // Regex to find fields (usually final or non-static members)
       // Matches both 'final int id;' and 'String? name;'
       // but avoids methods and static members.
-      final regex = RegExp(r'^\s+(?:final\s+)?(?:[\w<>,?!\s]+)\s+(\w+)\s*;', multiLine: true);
+      final regex = RegExp(r'^\s+(?:final\s+)?(?:[\w<>,?!\s]+)\s+(\w+)\s*;',
+          multiLine: true);
       final matches = regex.allMatches(content);
 
-      final fields = matches.map((m) => m.group(1)!).where((f) => f != 'hashCode').toList();
-      
+      final fields = matches
+          .map((m) => m.group(1)!)
+          .where((f) => f != 'hashCode')
+          .toList();
+
       if (verbose && fields.isNotEmpty) {
-        print('  ✓ Automatically extracted fields for validation: ${fields.join(', ')}');
+        print(
+            '  ✓ Automatically extracted fields for validation: ${fields.join(', ')}');
       }
-      
+
       return fields;
     } catch (e) {
       if (verbose) print('  ⚠️ Error extracting fields: $e');

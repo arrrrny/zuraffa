@@ -62,7 +62,7 @@ class DataLayerGenerator {
           methods.add('  Future<void> delete(DeleteParams<$entityName> params);');
           break;
         case 'watch':
-          methods.add('  Stream<$entityName> watch(${config.queryFieldType}? ${config.queryField});');
+          methods.add('  Stream<$entityName> watch(${config.queryFieldType} ${config.queryField});');
           break;
         case 'watchList':
           methods.add('  Stream<List<$entityName>> watchList(ListQueryParams params);');
@@ -173,7 +173,7 @@ ${methods.join('\n')}
         case 'watch':
           methods.add('''
   @override
-  Stream<$entityName> watch(${config.queryFieldType}? ${config.queryField}) {
+  Stream<$entityName> watch(${config.queryFieldType} ${config.queryField}) {
     return _dataSource.watch(${config.queryField});
   }''');
           break;

@@ -262,7 +262,7 @@ ${withState ? '''    result.fold(
           break;
         case 'watch':
           methods.add('''
-  void watch$entityName(${config.queryFieldType}? ${config.queryField}) {
+  void watch$entityName(${config.queryFieldType} ${config.queryField}) {
 ${withState ? "    updateState(viewState.copyWith(isWatching: true));" : ""}
     _presenter.watch$entityName(${config.queryField}).listen(
 ${withState ? '''      (result) {

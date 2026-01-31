@@ -43,4 +43,14 @@ class Todo {
   @override
   String toString() =>
       'Todo(id: $id, title: $title, isCompleted: $isCompleted)';
+
+  /// Converts this Todo to a JSON map that can be used as Partial<Todo>.
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'isCompleted': isCompleted,
+      'createdAt': createdAt.toIso8601String(),
+    };
+  }
 }

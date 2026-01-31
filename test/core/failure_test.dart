@@ -380,6 +380,11 @@ void main() {
           TimeoutFailure('test'),
           CancellationFailure('test'),
           UnknownFailure('test'),
+          PlatformFailure('test'),
+          StateFailure('test'),
+          TypeFailure('test'),
+          UnimplementedFailure('test'),
+          UnsupportedFailure('test'),
         ];
 
         for (final failure in failures) {
@@ -395,6 +400,11 @@ void main() {
             TimeoutFailure() => 'timeout',
             CancellationFailure() => 'cancellation',
             UnknownFailure() => 'unknown',
+            PlatformFailure() => 'platform',
+            StateFailure() => 'state',
+            TypeFailure() => 'type',
+            UnimplementedFailure() => 'unimplemented',
+            UnsupportedFailure() => 'unsupported',
           };
           expect(type, isNotEmpty);
         }

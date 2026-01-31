@@ -1,3 +1,21 @@
+## [Unreleased]
+
+### Added
+- **New Failure Types**: Added `StateFailure`, `TypeFailure`, `UnimplementedFailure`, `UnsupportedFailure`, and `PlatformFailure` to `AppFailure` for granular error handling.
+
+### Changed
+- **FailureHandler**: 
+  - Now uses a `switch` statement for improved performance and readability.
+  - Correctly maps `PlatformException` (Flutter) to `PlatformFailure`.
+  - Maps `MissingPluginException` to `UnsupportedFailure`.
+  - Maps `ArgumentError`, `RangeError`, `FormatException` to `ValidationFailure`.
+  - Maps `ConcurrentModificationError`, `StateError`, `StackOverflowError` to `StateFailure`.
+- **Generated Repositories**: Fixed missing `zuraffa` import in generated repository files.
+
+
+### Fixed
+- **TodoDataSource**: Updated `InMemoryTodoDataSource` to fully implement the interface.
+
 ## [1.7.0] - 2026-01-31
 ### Added
 - **Typed Updates (`--morphy`)**: New flag to generate update operations using typed Patch objects (e.g., `CustomerPatch`) instead of Map-based partials.

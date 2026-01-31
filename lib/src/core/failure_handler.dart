@@ -1,3 +1,8 @@
+import 'dart:async';
+import 'package:flutter/services.dart';
+
+import 'package:zuraffa/zuraffa.dart';
+
 import '../core/loggable.dart';
 
 import 'failure.dart';
@@ -25,14 +30,92 @@ mixin FailureHandler on Loggable {
   /// This method uses the AppFailure.from factory to intelligently
   /// classify the error based on its type and message.
   AppFailure handleError(Object error, [StackTrace? stackTrace]) {
-    if (error is ArgumentError) {
-      return validationFailure(
-        error.message.toString(),
-        cause: error,
-        stackTrace: stackTrace,
-      );
-    }
-    return AppFailure.from(error, stackTrace ?? StackTrace.current);
+    return switch (error) {
+      // Validation Failures
+      IndexError e => validationFailure(
+          'Index out of bounds',
+          cause: error,
+          stackTrace: stackTrace,
+        ),
+      RangeError e => validationFailure(
+          'Value out of range: ${e.message}',
+          cause: error,
+          stackTrace: stackTrace,
+        ),
+      ArgumentError e => validationFailure(
+          e.message.toString(),
+          cause: error,
+          stackTrace: stackTrace,
+        ),
+      FormatException e => validationFailure(
+          e.message,
+          cause: error,
+          stackTrace: stackTrace,
+        ),
+
+      // Timeout Failures
+      TimeoutException e => timeoutFailure(
+          e.message ?? 'Operation timed out',
+          timeout: e.duration,
+          cause: error,
+        ),
+
+      // Cancellation Failures
+      CancelledException e => cancellationFailure(e.message),
+
+      // Platform Failures
+      PlatformException e => platformFailure(
+          e.message ?? 'Platform error occurred',
+          code: e.code,
+          details: e.details,
+          cause: error,
+        ),
+      MissingPluginException e => unsupportedFailure(
+          e.message ?? 'Plugin not found',
+          cause: error,
+        ),
+
+      // State Failures
+      StateError e => stateFailure(e.message, cause: error),
+      ConcurrentModificationError() => stateFailure(
+          'Concurrent modification detected',
+          cause: error,
+        ),
+      StackOverflowError() => stateFailure(
+          'Stack overflow',
+          cause: error,
+        ),
+      OutOfMemoryError() => stateFailure(
+          'Out of memory',
+          cause: error,
+        ),
+
+      // Type Failures
+      TypeError() => typeFailure(
+          'Type error: $error',
+          cause: error,
+        ),
+      // NoSuchMethodError usually indicates a type/logic issue
+      NoSuchMethodError() => typeFailure(
+          'No such method: $error',
+          cause: error,
+        ),
+
+      // Unimplemented Failures
+      UnimplementedError e => unimplementedFailure(
+          e.message ?? 'Feature not implemented',
+          cause: error,
+        ),
+
+      // Unsupported Failures
+      UnsupportedError e => unsupportedFailure(
+          e.message ?? 'Operation not supported',
+          cause: error,
+        ),
+
+      // Fallback
+      _ => AppFailure.from(error, stackTrace ?? StackTrace.current),
+    };
   }
 
   /// Create a server failure
@@ -178,6 +261,68 @@ mixin FailureHandler on Loggable {
     String message = 'Operation was cancelled',
   ]) {
     return CancellationFailure(message);
+  }
+
+  /// Create a platform failure
+  ///
+  /// Use when a platform-specific error occurs.
+  PlatformFailure platformFailure(
+    String message, {
+    String? code,
+    dynamic details,
+    Object? cause,
+  }) {
+    return PlatformFailure(
+      message,
+      code: code,
+      details: details,
+      stackTrace: StackTrace.current,
+      cause: cause,
+    );
+  }
+
+  /// Create a state failure
+  ///
+  /// Use when the application is in an invalid state.
+  StateFailure stateFailure(String message, {Object? cause}) {
+    return StateFailure(
+      message,
+      stackTrace: StackTrace.current,
+      cause: cause,
+    );
+  }
+
+  /// Create a type failure
+  ///
+  /// Use when a value has an unexpected type.
+  TypeFailure typeFailure(String message, {Object? cause}) {
+    return TypeFailure(
+      message,
+      stackTrace: StackTrace.current,
+      cause: cause,
+    );
+  }
+
+  /// Create an unimplemented failure
+  ///
+  /// Use when a feature is not implemented.
+  UnimplementedFailure unimplementedFailure(String message, {Object? cause}) {
+    return UnimplementedFailure(
+      message,
+      stackTrace: StackTrace.current,
+      cause: cause,
+    );
+  }
+
+  /// Create an unsupported failure
+  ///
+  /// Use when an operation is not supported.
+  UnsupportedFailure unsupportedFailure(String message, {Object? cause}) {
+    return UnsupportedFailure(
+      message,
+      stackTrace: StackTrace.current,
+      cause: cause,
+    );
   }
 
   /// Create an unknown failure
