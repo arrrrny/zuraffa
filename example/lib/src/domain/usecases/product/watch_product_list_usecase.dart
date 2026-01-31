@@ -4,13 +4,16 @@ import 'package:zuraffa/zuraffa.dart';
 import '../../entities/product/product.dart';
 import '../../repositories/product_repository.dart';
 
-class WatchProductListUseCase extends StreamUseCase<List<Product>, NoParams> {
+class WatchProductListUseCase
+    extends StreamUseCase<List<Product>, ListQueryParams> {
   final ProductRepository _repository;
 
   WatchProductListUseCase(this._repository);
 
   @override
-  Stream<List<Product>> execute(NoParams params, CancelToken? cancelToken) {
-    return _repository.watchList();
+  Stream<List<Product>> execute(
+      ListQueryParams params, CancelToken? cancelToken) {
+    cancelToken?.throwIfCancelled();
+    return _repository.watchList(params);
   }
 }

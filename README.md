@@ -39,34 +39,48 @@ flutter pub get
 
 ### 1. Generate Code with the CLI
 
-The easiest way to get started is using the `zfa` CLI:
+The easiest way to get started is using the `zfa` CLI. **One command generates your entire feature:**
 
 ```bash
 # Activate the CLI
 dart pub global activate zuraffa
 
-# Generate a complete feature with UseCases, Repository, Controller, and View
-zfa generate Product --methods=get,getList,create,update,delete --repository --vpc
+# Generate a complete feature with one line of code
+# This creates 14 files: UseCases, Repository, DataSource, Presenter, Controller, State, and View
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state
 
 # Or use the shorter alias
-dart run zuraffa:zfa generate Product --methods=get,getList --repository
+dart run zuraffa:zfa generate Product --methods=get,getList --repository --vpc --state
 ```
 
-### 2. Use a Controller
+**That's it!** One command generates:
+- ✅ Domain layer (UseCases + Repository interface)
+- ✅ Data layer (DataRepository + DataSource)
+- ✅ Presentation layer (View, Presenter, Controller, State)
+
+### 2. Use the Generated Code
 
 ```dart
-class ProductPage extends CleanView {
+class ProductView extends CleanView {
+  final ProductRepository productRepository;
+
+  const ProductView({super.key, required this.productRepository});
+
   @override
-  State<ProductPage> createState() => _ProductPageState();
+  State<ProductView> createState() => _ProductViewState(
+    ProductController(
+      ProductPresenter(productRepository: productRepository),
+    ),
+  );
 }
 
-class _ProductPageState extends CleanViewState<ProductPage, ProductController> {
-  _ProductPageState() : super(ProductController(repository: getIt()));
+class _ProductViewState extends CleanViewState<ProductView, ProductController> {
+  _ProductViewState(super.controller);
 
   @override
   void onInitState() {
     super.onInitState();
-    controller.loadProducts();
+    controller.getProductList();
   }
 
   @override
@@ -80,9 +94,9 @@ class _ProductPageState extends CleanViewState<ProductPage, ProductController> {
             return const CircularProgressIndicator();
           }
           return ListView.builder(
-            itemCount: controller.viewState.products.length,
+            itemCount: controller.viewState.productList.length,
             itemBuilder: (context, index) {
-              final product = controller.viewState.products[index];
+              final product = controller.viewState.productList[index];
               return ListTile(title: Text(product.name));
             },
           );
@@ -93,6 +107,32 @@ class _ProductPageState extends CleanViewState<ProductPage, ProductController> {
 }
 ```
 
+### Generated Output Example
+
+```
+✅ Generated 14 files for Product
+
+  ⟳ lib/src/domain/repositories/product_repository.dart
+  ⟳ lib/src/domain/usecases/product/get_product_usecase.dart
+  ✓ lib/src/domain/usecases/product/watch_product_usecase.dart
+  ⟳ lib/src/domain/usecases/product/create_product_usecase.dart
+  ⟳ lib/src/domain/usecases/product/update_product_usecase.dart
+  ⟳ lib/src/domain/usecases/product/delete_product_usecase.dart
+  ⟳ lib/src/domain/usecases/product/get_product_list_usecase.dart
+  ⟳ lib/src/domain/usecases/product/watch_product_list_usecase.dart
+  ✓ lib/src/presentation/pages/product/product_presenter.dart
+  ✓ lib/src/presentation/pages/product/product_controller.dart
+  ✓ lib/src/presentation/pages/product/product_view.dart
+  ✓ lib/src/presentation/pages/product/product_state.dart
+  ⟳ lib/src/data/data_sources/product/product_data_source.dart
+  ⟳ lib/src/data/repositories/data_product_repository.dart
+
+📝 Next steps:
+   • Create a DataSource that implements ProductDataSource in data layer
+   • Register repositories with DI container
+   • Implement TODO sections in generated usecases
+```
+
 ## Core Concepts
 
 ### Result Type
@@ -100,11 +140,11 @@ class _ProductPageState extends CleanViewState<ProductPage, ProductController> {
 All operations return `Result<T, AppFailure>` for type-safe error handling:
 
 ```dart
-final result = await getUserUseCase('user-123');
+final result = await getProductUseCase('product-123');
 
 // Pattern matching with fold
 result.fold(
-  (user) => showUser(user),
+  (product) => showProduct(product),
   (failure) => showError(failure),
 );
 
@@ -155,20 +195,20 @@ Uses `Partial<T>` (a `Map<String, dynamic>`) to send only changed fields. The ge
 
 ```dart
 // Generated UpdateUseCase
-// params.validate(['id', 'name', 'status']); <-- Auto-generated from Entity
-await updateCustomer(id: '123', data: {'name': 'New Name'});
+// params.validate(['id', 'name', 'price']); <-- Auto-generated from Entity
+await updateProduct(id: '123', data: {'name': 'New Product Name'});
 ```
 
 #### 2. Typed Updates with Morphy (`--morphy`)
 If you use [Morphy](https://pub.dev/packages/morphy) or similar tools, you can use typed Patch objects for full type safety.
 
 ```bash
-zfa generate Customer --methods=update --morphy
+zfa generate Product --methods=update --morphy
 ```
 
 ```dart
 // Generated with --morphy
-await updateCustomer(id: '123', data: CustomerPatch(name: 'New Name'));
+await updateProduct(id: '123', data: ProductPatch(name: 'New Product Name'));
 ```
 
 ### UseCase Types
@@ -178,14 +218,14 @@ await updateCustomer(id: '123', data: CustomerPatch(name: 'New Name'));
 For operations that return once:
 
 ```dart
-class GetUserUseCase extends UseCase<User, String> {
-  final UserRepository _repository;
+class GetProductUseCase extends UseCase<Product, String> {
+  final ProductRepository _repository;
 
-  GetUserUseCase(this._repository);
+  GetProductUseCase(this._repository);
 
   @override
-  Future<User> execute(String userId, CancelToken? cancelToken) async {
-    return _repository.getUser(userId);
+  Future<Product> execute(String productId, CancelToken? cancelToken) async {
+    return _repository.getProduct(productId);
   }
 }
 ```
@@ -224,62 +264,132 @@ class ProcessImageUseCase extends BackgroundUseCase<ProcessedImage, ImageParams>
 }
 ```
 
-### Controller
+### Controller with State
 
-Manages UI state and coordinates UseCases:
+Controllers use `StatefulController<T>` with immutable state objects:
 
 ```dart
-class ProductController extends Controller {
-  final GetProductsUseCase _getProducts;
+class ProductController extends Controller with StatefulController<ProductState> {
+  final ProductPresenter _presenter;
 
-  ProductState _viewState = const ProductState();
-  ProductState get viewState => _viewState;
+  ProductController(this._presenter) : super();
 
-  ProductController({required ProductRepository repository})
-      : _getProducts = GetProductsUseCase(repository);
+  @override
+  ProductState createInitialState() => const ProductState();
 
-  Future<void> loadProducts() async {
-    _setState(_viewState.copyWith(isLoading: true));
-
-    final result = await _getProducts.call(const NoParams());
+  Future<void> getProductList() async {
+    updateState(viewState.copyWith(isGettingList: true));
+    final result = await _presenter.getProductList();
 
     result.fold(
-      (products) => _setState(_viewState.copyWith(
-        products: products,
-        isLoading: false,
+      (list) => updateState(viewState.copyWith(
+        isGettingList: false,
+        productList: list,
       )),
-      (failure) => _setState(_viewState.copyWith(
+      (failure) => updateState(viewState.copyWith(
+        isGettingList: false,
         error: failure,
-        isLoading: false,
       )),
     );
   }
 
-  void _setState(ProductState newState) {
-    _viewState = newState;
-    refreshUI();
+  Future<void> createProduct(Product product) async {
+    updateState(viewState.copyWith(isCreating: true));
+    final result = await _presenter.createProduct(product);
+
+    result.fold(
+      (created) => updateState(viewState.copyWith(
+        isCreating: false,
+        productList: [...viewState.productList, created],
+      )),
+      (failure) => updateState(viewState.copyWith(
+        isCreating: false,
+        error: failure,
+      )),
+    );
   }
+}
+```
+
+### State
+
+Immutable state classes are auto-generated with the `--state` flag:
+
+```dart
+class ProductState {
+  final AppFailure? error;
+  final List<Product> productList;
+  final Product? product;
+  final bool isGetting;
+  final bool isCreating;
+  final bool isUpdating;
+  final bool isDeleting;
+  final bool isGettingList;
+
+  const ProductState({
+    this.error,
+    this.productList = const [],
+    this.product,
+    this.isGetting = false,
+    this.isCreating = false,
+    this.isUpdating = false,
+    this.isDeleting = false,
+    this.isGettingList = false,
+  });
+
+  ProductState copyWith({...}) => ...;
+
+  bool get isLoading => isGetting || isCreating || isUpdating || isDeleting || isGettingList;
+  bool get hasError => error != null;
 }
 ```
 
 ### CleanView
 
-Base class for views with automatic lifecycle management:
+Base class for views with automatic lifecycle management. Views are pure UI and delegate all business logic to the Controller:
 
 ```dart
-class ProductPage extends CleanView {
+class ProductView extends CleanView {
+  final ProductRepository productRepository;
+
+  const ProductView({super.key, required this.productRepository});
+
   @override
-  State<ProductPage> createState() => _ProductPageState();
+  State<ProductView> createState() => _ProductViewState(
+    ProductController(
+      ProductPresenter(productRepository: productRepository),
+    ),
+  );
 }
 
-class _ProductPageState extends CleanViewState<ProductPage, ProductController> {
-  _ProductPageState() : super(ProductController(repository: getIt()));
+class _ProductViewState extends CleanViewState<ProductView, ProductController> {
+  _ProductViewState(super.controller);
+
+  @override
+  void onInitState() {
+    super.onInitState();
+    controller.getProductList();
+  }
 
   @override
   Widget get view {
     return Scaffold(
       key: globalKey, // Important: use globalKey on root widget
-      body: YourBodyWidget(),
+      appBar: AppBar(title: const Text('Products')),
+      body: ControlledWidgetBuilder<ProductController>(
+        builder: (context, controller) {
+          if (controller.viewState.isLoading) {
+            return const CircularProgressIndicator();
+          }
+          return ListView.builder(
+            itemCount: controller.viewState.productList.length,
+            itemBuilder: (context, index) {
+              final product = controller.viewState.productList[index];
+              return ListTile(title: Text(product.name));
+            },
+          );
+        },
+      ),
     );
   }
 }
@@ -301,37 +411,53 @@ dart run zuraffa:zfa
 
 ### Basic Usage
 
+**One command generates your entire feature:**
+
 ```bash
-# Generate UseCases for an entity
+# Generate everything at once - Domain, Data, and Presentation layers
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state
+
+# Or generate incrementally:
+
+# Generate UseCases + Repository interface
 zfa generate Product --methods=get,getList,create,update,delete --repository
 
-# Add presentation layer (View, Presenter, Controller)
-zfa generate Product --methods=get,getList --repository --vpc
+# Add presentation layer (View, Presenter, Controller, State)
+zfa generate Product --methods=get,getList,create,update,delete --repository --vpc --state
 
 # Add data layer (DataRepository + DataSource)
-zfa generate Product --methods=get,getList --repository --data
+zfa generate Product --methods=get,getList,create,update,delete --repository --data
 
 # Use typed patches for updates (Morphy support)
 zfa generate Product --methods=update --morphy
 
-# Generate everything at once
-zfa generate Product --methods=get,getList,create --repository --vpc --data
-
 # Custom UseCase
-zfa generate ProcessOrder --repos=OrderRepo,PaymentRepo --params=OrderRequest --returns=OrderResult
+zfa generate PublishProduct --repos=ProductRepository,CategoryRepository --params=PublishProductRequest --returns=PublishedProduct
 ```
 
 ### Available Methods
 
-| Method   | UseCase Type      | Description                     |
-|----------|-------------------|---------------------------------|
-| `get`    | UseCase           | Get single entity by ID         |
-| `getList`| UseCase           | Get all entities                |
-| `create` | UseCase           | Create new entity               |
-| `update` | UseCase           | Update existing entity          |
-| `delete` | CompletableUseCase| Delete entity by ID             |
-| `watch`  | StreamUseCase     | Watch single entity             |
-| `watchList`| StreamUseCase   | Watch all entities              |
+| Method     | UseCase Type       | Description                     |
+|------------|-------------------|---------------------------------|
+| `get`      | UseCase           | Get single entity by ID         |
+| `getList`  | UseCase           | Get all entities                |
+| `create`   | UseCase           | Create new entity               |
+| `update`   | UseCase           | Update existing entity          |
+| `delete`   | CompletableUseCase| Delete entity by ID             |
+| `watch`    | StreamUseCase     | Watch single entity             |
+| `watchList`| StreamUseCase     | Watch all entities              |
+
+### CLI Flags
+
+| Flag           | Description                                           |
+|----------------|-------------------------------------------------------|
+| `--repository` | Generate repository interface                         |
+| `--data`       | Generate DataRepository and DataSource                |
+| `--vpc`        | Generate View, Presenter, and Controller              |
+| `--state`      | Generate immutable State class                        |
+| `--morphy`     | Use typed Patch objects for updates                   |
+| `--force`      | Overwrite existing files                              |
+| `--format=json`| Output JSON for AI/IDE integration                    |
 
 ### AI/JSON Integration
 
@@ -375,7 +501,7 @@ For complete MCP documentation, see [MCP_SERVER.md](MCP_SERVER.md).
 
 ## Project Structure
 
-Recommended folder structure for Clean Architecture:
+Recommended folder structure for Clean Architecture (auto-generated by `zfa`):
 
 ```
 lib/
@@ -387,23 +513,36 @@ lib/
     │   └── utils/               # Helpers, extensions
     │
     ├── data/                    # Data layer
-    │   ├── datasources/         # Remote and local data sources
-    │   ├── models/              # DTOs, JSON serialization
+    │   ├── data_sources/        # Remote and local data sources
+    │   │   └── product/
+    │   │       └── product_data_source.dart
     │   └── repositories/        # Repository implementations
+    │       └── data_product_repository.dart
     │
     ├── domain/                  # Domain layer (pure Dart)
     │   ├── entities/            # Business objects
+    │   │   └── product/
+    │   │       └── product.dart
     │   ├── repositories/        # Repository interfaces
+    │   │   └── product_repository.dart
     │   └── usecases/            # Business logic
+    │       └── product/
+    │           ├── get_product_usecase.dart
+    │           ├── create_product_usecase.dart
+    │           └── ...
     │
     └── presentation/            # Presentation layer
-        ├── pages/               # Full-screen views
-        │   ├── home/
-        │   │   ├── home_page.dart
-        │   │   ├── home_controller.dart
-        │   │   └── home_state.dart
-        │   └── ...
-        └── widgets/             # Reusable widgets
+        └── pages/               # Full-screen views
+            └── product/
+                ├── product_view.dart
+                ├── product_presenter.dart
+                ├── product_controller.dart
+                └── product_state.dart
+```
+
+**All of this is generated with a single command:**
+```bash
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state
 ```
 
 ## Advanced Features
@@ -417,10 +556,10 @@ Cooperative cancellation for long-running operations:
 final cancelToken = CancelToken();
 
 // Use with a use case
-final result = await getUserUseCase(userId, cancelToken: cancelToken);
+final result = await getProductUseCase(productId, cancelToken: cancelToken);
 
 // Cancel when needed
-cancelToken.cancel('User navigated away');
+cancelToken.cancel('Product page closed');
 
 // Create with timeout
 final timeoutToken = CancelToken.timeout(const Duration(seconds: 30));
