@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [1.6.2] - 2026-01-31
+
+### Fix
+- Subdirectory path issue on generated data repository
+
 ## [1.6.1] - 2026-01-31
 
 ### Fix
