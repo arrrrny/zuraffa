@@ -542,6 +542,7 @@ zfa generate ProcessCheckout --repos=CartRepository,PaymentRepository --params=C
 | `--cache-policy` | Cache expiration: daily, restart, ttl (default: daily) |
 | `--cache-storage` | Local storage hint: hive, sqlite, shared_preferences |
 | `--subfolder`  | Organize under a subfolder (e.g., `--subfolder=auth`) |
+| `--init`       | Add initialize method & isInitialized stream to repos |
 | `--force`      | Overwrite existing files                              |
 | `--dry-run`    | Preview what would be generated without writing files |
 | `--test`       | Generate unit tests for each UseCase                  |
