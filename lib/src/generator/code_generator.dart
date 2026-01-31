@@ -147,9 +147,7 @@ class CodeGenerator {
       if (config.effectiveRepos.isNotEmpty) {
         nextSteps.add('Register repositories with DI container');
       }
-      if (files.any((f) =>
-          f.type == 'usecase' &&
-          (config.useCaseType == 'background' || config.isCustomUseCase))) {
+      if (files.any((f) => f.type == 'usecase' && (!config.isEntityBased))) {
         nextSteps.add('Implement TODO sections in generated usecases');
       }
 
