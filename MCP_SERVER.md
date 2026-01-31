@@ -1,4 +1,4 @@
-# FCA MCP Server
+# ZFA MCP Server
 
 The `zuraffa_mcp_server` is a Model Context Protocol (MCP) server that exposes the Zuraffa CLI functionality as MCP tools, enabling seamless integration with AI-powered development environments like Claude Desktop, Cursor, and VS Code.
 
@@ -117,7 +117,7 @@ Generate Clean Architecture code for your Flutter project.
 
 ### zuraffa_schema
 
-Get the JSON schema for FCA configuration validation.
+Get the JSON schema for ZFA configuration validation.
 
 **Parameters:** None
 

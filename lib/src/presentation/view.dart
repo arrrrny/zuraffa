@@ -159,6 +159,24 @@ abstract class CleanViewState<P extends CleanView, Con extends Controller>
   /// ```
   Widget get view;
 
+  /// Called when the state is initialized.
+  ///
+  /// Override this method to perform initialization tasks when the
+  /// state is first created, after the controller has been initialized.
+  ///
+  /// Remember to call `super.onInitState()` when overriding.
+  ///
+  /// Example:
+  /// ```dart
+  /// @override
+  /// void onInitState() {
+  ///   super.onInitState();
+  ///   controller.loadData();
+  /// }
+  /// ```
+  @protected
+  void onInitState() {}
+
   // ============================================================
   // Flutter Lifecycle
   // ============================================================
@@ -174,6 +192,9 @@ abstract class CleanViewState<P extends CleanView, Con extends Controller>
 
     // Notify controller
     controller.onInitState();
+
+    // Call the overridable onInitState method
+    onInitState();
   }
 
   @override

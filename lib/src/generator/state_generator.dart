@@ -32,12 +32,15 @@ class StateGenerator {
     final stateDirPath = path.joinAll(statePathParts);
     final filePath = path.join(stateDirPath, fileName);
 
-    final needsListField =
+    final needsEntityListField =
         config.methods.any((m) => ['getList', 'watchList'].contains(m));
+
+    final needsEntityField = config.methods
+        .any((m) => ['get', 'watch', 'create' 'update', 'delete'].contains(m));
 
     final imports = <String>["import 'package:zuraffa/zuraffa.dart';"];
 
-    if (needsListField) {
+    if (needsEntityListField || needsEntityField) {
       final entityPath =
           config.subdirectory != null && config.subdirectory!.isNotEmpty
               ? '../../../../domain/entities/$entitySnake/$entitySnake.dart'
@@ -55,11 +58,18 @@ class StateGenerator {
     stateCopyWithParams.add('AppFailure? error');
     stateCopyWithParams.add('bool clearError = false');
 
-    if (needsListField) {
+    if (needsEntityListField) {
       stateFields.add('  /// The list of $entityName entities');
       stateFields.add('  final List<$entityName> ${entityCamel}List;');
       stateConstructorParams.add('this.${entityCamel}List = const []');
       stateCopyWithParams.add('List<$entityName>? ${entityCamel}List');
+    }
+
+    if (needsEntityField) {
+      stateFields.add('  /// The single $entityName entity');
+      stateFields.add('  final $entityName? $entityCamel;');
+      stateConstructorParams.add('this.$entityCamel');
+      stateCopyWithParams.add('$entityName? $entityCamel');
     }
 
     for (final method in config.methods) {
@@ -160,8 +170,11 @@ class StateGenerator {
     }
 
     final hashCodeParts = <String>[];
-    if (needsListField) {
+    if (needsEntityListField) {
       hashCodeParts.add('${entityCamel}List.hashCode');
+    }
+    if (needsEntityField) {
+      hashCodeParts.add('$entityCamel.hashCode');
     }
     hashCodeParts.add('error.hashCode');
     for (final method in config.methods) {
@@ -190,14 +203,25 @@ class StateGenerator {
       }
     }
 
-    final toStringBody = needsListField
-        ? '$stateName(${entityCamel}List: \${${entityCamel}List.length}, isLoading: \$isLoading, error: \$error)'
-        : '$stateName(isLoading: \$isLoading, error: \$error)';
+    String toStringBody = '$stateName(isLoading: \$isLoading, error: \$error)';
+    if (needsEntityListField && needsEntityField) {
+      toStringBody =
+          '$stateName(${entityCamel}List: \${${entityCamel}List.length}, $entityCamel: \$$entityCamel, isLoading: \$isLoading, error: \$error)';
+    } else if (needsEntityListField) {
+      toStringBody =
+          '$stateName(${entityCamel}List: \${${entityCamel}List.length}, isLoading: \$isLoading, error: \$error)';
+    } else if (needsEntityField) {
+      toStringBody =
+          '$stateName($entityCamel: \$$entityCamel, isLoading: \$isLoading, error: \$error)';
+    }
 
     final equalityBody = <String>[];
-    if (needsListField) {
+    if (needsEntityListField) {
       equalityBody
           .add(' &&\n          ${entityCamel}List == other.${entityCamel}List');
+    }
+    if (needsEntityField) {
+      equalityBody.add(' &&\n          $entityCamel == other.$entityCamel');
     }
     equalityBody.add(' &&\n          error == other.error');
 
@@ -218,7 +242,11 @@ ${stateFields.join('\n')}
   $stateName copyWith({
     ${stateCopyWithParams.join(',\n    ')},
   }) {
-    return $stateName(${_generateCopyWithBody(needsListField, entityCamel)});
+    return $stateName(${_generateCopyWithBody(
+      needsEntityListField: needsEntityListField,
+      needsEntityField: needsEntityField,
+      entityCamel: entityCamel,
+    )});
   }
 
   /// Whether any operation is currently loading
@@ -252,13 +280,21 @@ ${stateFields.join('\n')}
     );
   }
 
-  String _generateCopyWithBody(bool needsListField, String entityCamel) {
+  String _generateCopyWithBody(
+      {required bool needsEntityListField,
+      required bool needsEntityField,
+      required String entityCamel}) {
     final parts = <String>[];
 
-    if (needsListField) {
+    if (needsEntityListField) {
       parts.add(
           '${entityCamel}List: ${entityCamel}List ?? this.${entityCamel}List,');
     }
+
+    if (needsEntityField) {
+      parts.add('$entityCamel: $entityCamel ?? this.$entityCamel,');
+    }
+
     parts.add('error: clearError ? null : (error ?? this.error),');
 
     for (final method in config.methods) {

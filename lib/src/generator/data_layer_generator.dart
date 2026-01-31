@@ -77,7 +77,7 @@ class DataLayerGenerator {
 import 'package:zuraffa/zuraffa.dart';
 import '$relativePath../domain/entities/$entitySnake/$entitySnake.dart';
 
-abstract class $dataSourceName {
+abstract class $dataSourceName with Loggable, FailureHandler {
 ${methods.join('\n')}
 }
 ''';
@@ -184,7 +184,7 @@ import '$relativePath../../domain/entities/$entitySnake/$entitySnake.dart';
 import '$relativePath../../domain/repositories/${entitySnake}_repository.dart';
 import '$relativePath../data_sources/$entitySnake/${entitySnake}_data_source.dart';
 
-class $dataRepoName with Loggable implements $repoName {
+class $dataRepoName with Loggable, FailureHandler implements $repoName {
   final $dataSourceName _dataSource;
 
   $dataRepoName(this._dataSource);

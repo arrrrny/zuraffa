@@ -672,7 +672,7 @@ Run `zfa schema` to get the complete JSON schema.
 
 ## Generated State Object
 
-When using the `--state` flag, FCA generates an immutable state class with granular loading states for each method. This provides better control over UI loading indicators and prevents conflicting states.
+When using the `--state` flag, ZFA generates an immutable state class with granular loading states for each method. This provides better control over UI loading indicators and prevents conflicting states.
 
 ### State Fields
 

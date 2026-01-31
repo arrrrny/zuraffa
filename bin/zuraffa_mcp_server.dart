@@ -280,7 +280,7 @@ class ZuraffaMcpServer {
     return {
       'name': 'schema',
       'description':
-          'Get the JSON schema for FCA configuration validation. Useful for AI agents to validate configs before generation.',
+          'Get the JSON schema for ZFA configuration validation. Useful for AI agents to validate configs before generation.',
       'inputSchema': {
         'type': 'object',
         'properties': {},
@@ -293,7 +293,7 @@ class ZuraffaMcpServer {
     return {
       'name': 'validate',
       'description':
-          'Validate a JSON configuration file against the FCA schema',
+          'Validate a JSON configuration file against the ZFA schema',
       'inputSchema': {
         'type': 'object',
         'properties': {
@@ -615,7 +615,7 @@ class ZuraffaMcpServer {
   /// Perform actual resource listing with timeouts
   Future<List<Map<String, dynamic>>> _doResourceListing(
       List<Map<String, dynamic>> collected) async {
-    // Scan common FCA directories for Dart files (single level only)
+    // Scan common ZFA directories for Dart files (single level only)
     final directories = [
       'lib/src/domain/repositories',
       'lib/src/domain/usecases',
