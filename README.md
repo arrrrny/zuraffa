@@ -26,7 +26,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  zuraffa: ^1.8.0
+  zuraffa: ^1.9.0
 ```
 
 Then run:
@@ -47,7 +47,7 @@ dart pub global activate zuraffa
 
 # Generate a complete feature with one line of code
 # This creates 14 files: UseCases, Repository, DataSource, Presenter, Controller, State, and View
-zfa generate Product --methods=get,watch,create,update,delete,getList,watchList --repository --data --vpc --state --repository
+zfa generate Product --methods=get,watch,create,update,delete,getList,watchList --repository --data --vpc --state --test
 
 # Or use the shorter alias
 dart run zuraffa:zfa generate Product --methods=get,getList --repository --vpc --state
@@ -110,27 +110,35 @@ class _ProductViewState extends CleanViewState<ProductView, ProductController> {
 ### Generated Output Example
 
 ```
-✅ Generated 14 files for Product
+✅ Generated 21 files for Product
 
   ⟳ lib/src/domain/repositories/product_repository.dart
   ⟳ lib/src/domain/usecases/product/get_product_usecase.dart
-  ✓ lib/src/domain/usecases/product/watch_product_usecase.dart
+  ⟳ lib/src/domain/usecases/product/watch_product_usecase.dart
   ⟳ lib/src/domain/usecases/product/create_product_usecase.dart
   ⟳ lib/src/domain/usecases/product/update_product_usecase.dart
   ⟳ lib/src/domain/usecases/product/delete_product_usecase.dart
   ⟳ lib/src/domain/usecases/product/get_product_list_usecase.dart
   ⟳ lib/src/domain/usecases/product/watch_product_list_usecase.dart
-  ✓ lib/src/presentation/pages/product/product_presenter.dart
-  ✓ lib/src/presentation/pages/product/product_controller.dart
-  ✓ lib/src/presentation/pages/product/product_view.dart
-  ✓ lib/src/presentation/pages/product/product_state.dart
+  ⟳ lib/src/presentation/pages/product/product_presenter.dart
+  ⟳ lib/src/presentation/pages/product/product_controller.dart
+  ⟳ lib/src/presentation/pages/product/product_view.dart
+  ⟳ lib/src/presentation/pages/product/product_state.dart
   ⟳ lib/src/data/data_sources/product/product_data_source.dart
   ⟳ lib/src/data/repositories/data_product_repository.dart
+  ✓ test/domain/usecases/product/get_product_usecase_test.dart
+  ✓ test/domain/usecases/product/watch_product_usecase_test.dart
+  ✓ test/domain/usecases/product/create_product_usecase_test.dart
+  ✓ test/domain/usecases/product/update_product_usecase_test.dart
+  ✓ test/domain/usecases/product/delete_product_usecase_test.dart
+  ✓ test/domain/usecases/product/get_product_list_usecase_test.dart
+  ✓ test/domain/usecases/product/watch_product_list_usecase_test.dart
 
 📝 Next steps:
    • Create a DataSource that implements ProductDataSource in data layer
    • Register repositories with DI container
    • Implement TODO sections in generated usecases
+   • Run tests: flutter test 
 ```
 
 ## Core Concepts
@@ -263,6 +271,38 @@ class ProcessImageUseCase extends BackgroundUseCase<ProcessedImage, ImageParams>
   }
 }
 ```
+
+#### CompletableUseCase
+
+For operations that don't return a value (like delete, logout, or clear cache):
+
+```dart
+class DeleteProductUseCase extends CompletableUseCase<String> {
+  final ProductRepository _repository;
+
+  DeleteProductUseCase(this._repository);
+
+  @override
+  Future<void> execute(String productId, CancelToken? cancelToken) async {
+    cancelToken?.throwIfCancelled();
+    await _repository.delete(productId);
+  }
+}
+
+// Usage - returns Result<void, AppFailure>
+final result = await deleteProductUseCase('product-123');
+result.fold(
+  (_) => showSuccess('Product deleted'),
+  (failure) => showError(failure),
+);
+```
+
+`CompletableUseCase` is useful when you only care about whether an operation succeeded or failed, without needing any returned data. Common use cases include:
+- Delete operations
+- Logout/sign out
+- Clear cache
+- Send analytics events
+- Fire-and-forget notifications
 
 ### Controller with State
 
@@ -431,9 +471,48 @@ zfa generate Product --methods=get,getList,create,update,delete --repository --d
 # Use typed patches for updates (Morphy support)
 zfa generate Product --methods=update --morphy
 
-# Custom UseCase
+# Preview what would be generated without writing files
+zfa generate Product --methods=get,getList --repository --dry-run
+
+# Generate with unit tests for each UseCase
+zfa generate Product --methods=get,create,update,delete --repository --test
+
+# Generate in a subfolder (e.g., for auth-related entities)
+zfa generate Session --methods=get,create --repository --subfolder=auth
+
+# Custom UseCase with multiple repositories
 zfa generate PublishProduct --repos=ProductRepository,CategoryRepository --params=PublishProductRequest --returns=PublishedProduct
+
+# Background UseCase for CPU-intensive operations (runs on isolate)
+zfa generate CalculatePrimeNumbers --type=background --params=int --returns=int
 ```
+
+#### Custom UseCase Types
+
+The `--type` flag supports three variants for custom UseCases:
+
+| Type | Description | Use When |
+|------|-------------|----------|
+| `custom` (default) | Standard UseCase with repository dependencies | CRUD operations, business logic |
+| `background` | Runs on a separate isolate | CPU-intensive work (calculations, image processing) |
+| `stream` | Emits multiple values over time | Real-time data, WebSocket, Firebase listeners |
+
+#### Defining Parameter and Return Types
+
+Use `--params` and `--returns` to specify custom types for your UseCase:
+
+```bash
+# Define custom parameter and return types
+zfa generate CalculatePrimeNumbers --type=background --params=int --returns=int
+
+# Complex types with multiple repositories
+zfa generate ProcessCheckout --repos=CartRepository,PaymentRepository --params=CheckoutRequest --returns=OrderConfirmation
+```
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--params` | Input parameter type for the UseCase | `--params=int`, `--params=ProductFilter` |
+| `--returns` | Return type from the UseCase | `--returns=bool`, `--returns=List<Product>` |
 
 ### Available Methods
 
@@ -456,7 +535,10 @@ zfa generate PublishProduct --repos=ProductRepository,CategoryRepository --param
 | `--vpc`        | Generate View, Presenter, and Controller              |
 | `--state`      | Generate immutable State class                        |
 | `--morphy`     | Use typed Patch objects for updates                   |
+| `--subfolder`  | Organize under a subfolder (e.g., `--subfolder=auth`) |
 | `--force`      | Overwrite existing files                              |
+| `--dry-run`    | Preview what would be generated without writing files |
+| `--test`       | Generate unit tests for each UseCase                  |
 | `--format=json`| Output JSON for AI/IDE integration                    |
 
 ### AI/JSON Integration

@@ -22,6 +22,7 @@ class GeneratorConfig {
   final String queryField;
   final String queryFieldType;
   final bool useMorphy;
+  final bool generateTest;
   final String? subdirectory;
 
   GeneratorConfig({
@@ -46,6 +47,7 @@ class GeneratorConfig {
     this.queryField = 'id',
     String? queryFieldType,
     this.useMorphy = false,
+    this.generateTest = false,
     this.subdirectory,
   }) : queryFieldType = queryFieldType ?? idType;
 
@@ -72,6 +74,7 @@ class GeneratorConfig {
       queryField: json['query_field'] ?? 'id',
       queryFieldType: json['query_field_type'],
       useMorphy: json['morphy'] == true || json['useMorphy'] == true,
+      generateTest: json['test'] == true,
       subdirectory: json['subdirectory'],
     );
   }
@@ -79,7 +82,8 @@ class GeneratorConfig {
   bool get isEntityBased => methods.isNotEmpty;
 
   bool get isCustomUseCase =>
-      methods.isEmpty && (repos.isNotEmpty || paramsType != null);
+      methods.isEmpty &&
+      (repos.isNotEmpty || paramsType != null || useCaseType != 'usecase');
 
   List<String> get effectiveRepos {
     if (repos.isNotEmpty) return repos;

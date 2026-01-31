@@ -41,4 +41,14 @@ class Product {
 
   @override
   String toString() => 'Product(id: $id, name: $name, price: $price)';
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'description': description,
+      'price': price,
+      'createdAt': createdAt.toIso8601String(),
+    };
+  }
 }

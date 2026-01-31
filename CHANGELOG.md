@@ -1,10 +1,15 @@
+## [1.9.0] - 2026-01-31
+
+### Added
+- **Test Generation (`--test`)**: New flag to generate unit tests for generated UseCases with comprehensive mock setup and test scenarios.
+
 ## [1.8.0] - 2026-01-31
 
 ### Added
 - **New Failure Types**: Added `StateFailure`, `TypeFailure`, `UnimplementedFailure`, `UnsupportedFailure`, and `PlatformFailure` to `AppFailure` for granular error handling.
 
 ### Changed
-- **FailureHandler**: 
+- **FailureHandler**:
   - Now uses a `switch` statement for improved performance and readability.
   - Correctly maps `PlatformException` (Flutter) to `PlatformFailure`.
   - Maps `MissingPluginException` to `UnsupportedFailure`.
