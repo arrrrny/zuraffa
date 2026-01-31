@@ -430,6 +430,12 @@ class _${viewName}State extends CleanViewState<$viewName, $controllerName> {
   _${viewName}State(super.controller);
 
   @override
+  void onInitState() {
+    super.onInitState();
+    ${config.methods.contains('getList') ? 'controller.get${entityName}List();' : config.methods.contains('watchList') ? 'controller.watch${entityName}List();' : config.methods.contains('get') ? 'controller.get$entityName(/* ${config.queryField} */);' : config.methods.contains('watch') ? 'controller.watch$entityName(/* ${config.queryField} */);' : '// No initial method found'}
+  }
+
+  @override
   Widget get view {
     return Scaffold(
       key: globalKey,
