@@ -298,6 +298,10 @@ class ZuraffaMcpServer {
             'type': 'boolean',
             'description': 'Enable verbose output',
           },
+          'test': {
+            'type': 'boolean',
+            'description': 'Generate unit tests for generated UseCases',
+          },
         },
         'required': ['name'],
       },
@@ -442,6 +446,7 @@ class ZuraffaMcpServer {
     if (args['dry_run'] == true) cliArgs.add('--dry-run');
     if (args['force'] == true) cliArgs.add('--force');
     if (args['verbose'] == true) cliArgs.add('--verbose');
+    if (args['test'] == true) cliArgs.add('--test');
 
     // Always use JSON format for parsing
     cliArgs.add('--format=json');
