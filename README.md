@@ -137,7 +137,6 @@ class _ProductViewState extends CleanViewState<ProductView, ProductController> {
 📝 Next steps:
    • Create a DataSource that implements ProductDataSource in data layer
    • Register repositories with DI container
-   • Implement TODO sections in generated usecases
    • Run tests: flutter test 
 ```
 
