@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Rebuild and reinstall FCA MCP server
+# Rebuild and reinstall ZFA MCP server
 # This script clears the cached snapshots, reactivates the package,
 # and creates wrapper scripts that bypass the noisy pub global run
 
@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PACKAGE_DIR="$(dirname "$SCRIPT_DIR")"
 PUB_BIN="$HOME/.pub-cache/bin"
 
-echo "🔄 Rebuilding FCA..."
+echo "🔄 Rebuilding ZFA..."
 
 # Deactivate if currently active
 echo "📦 Deactivating current installation..."
@@ -83,7 +83,7 @@ chmod +x "$PUB_BIN/zfa"
 # Create zuraffa_mcp_server wrapper (uses dart run for better compatibility)
 cat > "$PUB_BIN/zuraffa_mcp_server" << 'WRAPPER_EOF'
 #!/usr/bin/env bash
-# FCA MCP Server wrapper - uses dart run for compatibility
+# ZFA MCP Server wrapper - uses dart run for compatibility
 exec dart run "PACKAGE_DIR_PLACEHOLDER/bin/zuraffa_mcp_server.dart" "$@"
 WRAPPER_EOF
 

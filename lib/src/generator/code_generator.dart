@@ -120,6 +120,8 @@ class CodeGenerator {
       }
 
       if (config.generateData || config.generateDataSource) {
+        nextSteps.add(
+            'Create a DataSource that implements ${config.name}DataSource in data layer');
         final file = await _dataLayerGenerator.generateDataSource();
         files.add(file);
       }
@@ -129,8 +131,9 @@ class CodeGenerator {
         files.add(file);
       }
 
-      if (config.generateRepository) {
-        nextSteps.add('Implement ${config.name}RepositoryImpl in data layer');
+      if (config.generateRepository &&
+          !(config.generateData || config.generateDataSource)) {
+        nextSteps.add('Implement Data${config.name}Repository in data layer');
       }
       if (config.effectiveRepos.isNotEmpty) {
         nextSteps.add('Register repositories with DI container');

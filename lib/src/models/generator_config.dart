@@ -8,6 +8,7 @@ class GeneratorConfig {
   final String useCaseType;
   final String? paramsType;
   final String? returnsType;
+  final String idField;
   final String idType;
   final bool generateVpc;
   final bool generateView;
@@ -18,6 +19,9 @@ class GeneratorConfig {
   final bool generateDataSource;
   final bool generateState;
   final bool generateInit;
+  final String queryField;
+  final String queryFieldType;
+  final bool useMorphy;
   final String? subdirectory;
 
   GeneratorConfig({
@@ -28,6 +32,7 @@ class GeneratorConfig {
     this.useCaseType = 'usecase',
     this.paramsType,
     this.returnsType,
+    this.idField = 'id',
     this.idType = 'String',
     this.generateVpc = false,
     this.generateView = false,
@@ -38,8 +43,11 @@ class GeneratorConfig {
     this.generateDataSource = false,
     this.generateState = false,
     this.generateInit = false,
+    this.queryField = 'id',
+    String? queryFieldType,
+    this.useMorphy = false,
     this.subdirectory,
-  });
+  }) : queryFieldType = queryFieldType ?? idType;
 
   factory GeneratorConfig.fromJson(Map<String, dynamic> json, String name) {
     return GeneratorConfig(
@@ -50,7 +58,8 @@ class GeneratorConfig {
       useCaseType: json['type'] ?? 'usecase',
       paramsType: json['params'],
       returnsType: json['returns'],
-      idType: json['id_type'] ?? 'String',
+      idField: json['id_field'] ?? 'id',
+      idType: json['id_type'] ?? json['id_field_type'] ?? 'String',
       generateVpc: json['vpc'] == true,
       generateView: json['view'] == true,
       generatePresenter: json['presenter'] == true,
@@ -60,6 +69,9 @@ class GeneratorConfig {
       generateDataSource: json['datasource'] == true,
       generateState: json['state'] == true,
       generateInit: json['init'] == true,
+      queryField: json['query_field'] ?? 'id',
+      queryFieldType: json['query_field_type'],
+      useMorphy: json['morphy'] == true || json['useMorphy'] == true,
       subdirectory: json['subdirectory'],
     );
   }

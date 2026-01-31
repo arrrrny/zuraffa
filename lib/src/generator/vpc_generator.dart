@@ -75,13 +75,14 @@ class VpcGenerator {
           useCaseGenerator.getUseCaseInfo(method, entityName, entityCamel);
       final useCaseSnake = StringUtils.camelToSnake(
           useCaseInfo.className.replaceAll('UseCase', ''));
-
+      print('Generating use case: ${useCaseInfo.className}');
+      print(config.subdirectory);
       final subdirectoryPart =
           config.subdirectory != null && config.subdirectory!.isNotEmpty
-              ? '${config.subdirectory!}/'
+              ? '/${config.subdirectory!}'
               : '';
       useCaseImports.add(
-          "import '$relativePath../domain/usecases/$subdirectoryPart/$entitySnake/${useCaseSnake}_usecase.dart';");
+          "import '$relativePath../domain/usecases$subdirectoryPart/$entitySnake/${useCaseSnake}_usecase.dart';");
       useCaseFields.add(
           '  late final ${useCaseInfo.className} _${useCaseInfo.fieldName};');
 
@@ -154,16 +155,15 @@ ${presenterMethods.join('\n\n')}
       switch (method) {
         case 'get':
           methods.add('''
-  Future<void> get$entityName(String id) async {
+  Future<void> get$entityName(${config.queryFieldType} ${config.queryField}) async {
 ${withState ? "    updateState(viewState.copyWith(isGetting: true));" : ""}
-    final result = await _presenter.get$entityName(id);
+    final result = await _presenter.get$entityName(${config.queryField});
 
 ${withState ? '''    result.fold(
-      (entity) {
-        updateState(viewState.copyWith(
-          isGetting: false,
-        ));
-      },
+      (entity) => updateState(viewState.copyWith(
+        isGetting: false,
+        $entityCamel: entity,
+      )),
       (failure) => updateState(viewState.copyWith(
         isGetting: false,
         error: failure,
@@ -176,9 +176,9 @@ ${withState ? '''    result.fold(
           break;
         case 'getList':
           methods.add('''
-  Future<void> get${entityName}List() async {
+  Future<void> get${entityName}List([ListQueryParams params = const ListQueryParams()]) async {
 ${withState ? "    updateState(viewState.copyWith(isGettingList: true));" : ""}
-    final result = await _presenter.get${entityName}List();
+    final result = await _presenter.get${entityName}List(params);
 
 ${withState ? '''    result.fold(
       (list) => updateState(viewState.copyWith(
@@ -217,15 +217,18 @@ ${withState ? '''    result.fold(
   }''');
           break;
         case 'update':
+          final updateDataType =
+              config.useMorphy ? '${entityName}Patch' : 'Partial<$entityName>';
           methods.add('''
-  Future<void> update$entityName($entityName $entityCamel) async {
+  Future<void> update$entityName(${config.idType} ${config.idField}, $updateDataType data) async {
 ${withState ? "    updateState(viewState.copyWith(isUpdating: true));" : ""}
-    final result = await _presenter.update$entityName($entityCamel);
+    final result = await _presenter.update$entityName(${config.idField}, data);
 
 ${withState ? '''    result.fold(
       (updated) => updateState(viewState.copyWith(
         isUpdating: false,
-        ${entityCamel}List: viewState.${entityCamel}List.map((e) => e.id == updated.id ? updated : e).toList(),
+        ${entityCamel}List: viewState.${entityCamel}List.map((e) => e.${config.queryField} == updated.${config.queryField} ? updated : e).toList(),
+        $entityCamel: viewState.$entityCamel?.${config.queryField} == updated.${config.queryField} ? updated : viewState.$entityCamel,
       )),
       (failure) => updateState(viewState.copyWith(
         isUpdating: false,
@@ -239,14 +242,14 @@ ${withState ? '''    result.fold(
           break;
         case 'delete':
           methods.add('''
-  Future<void> delete$entityName(String id) async {
+  Future<void> delete$entityName(${config.idType} ${config.idField}) async {
 ${withState ? "    updateState(viewState.copyWith(isDeleting: true));" : ""}
-    final result = await _presenter.delete$entityName(id);
+    final result = await _presenter.delete$entityName(${config.idField});
 
 ${withState ? '''    result.fold(
       (_) => updateState(viewState.copyWith(
         isDeleting: false,
-        ${entityCamel}List: viewState.${entityCamel}List.where((e) => e.id != id).toList(),
+        ${entityCamel}List: viewState.${entityCamel}List.where((e) => e.${config.queryField} != ${config.queryField}).toList(),
       )),
       (failure) => updateState(viewState.copyWith(
         isDeleting: false,
@@ -260,12 +263,15 @@ ${withState ? '''    result.fold(
           break;
         case 'watch':
           methods.add('''
-  void watch$entityName(String id) {
+  void watch$entityName(${config.queryFieldType} ${config.queryField}) {
 ${withState ? "    updateState(viewState.copyWith(isWatching: true));" : ""}
-    _presenter.watch$entityName(id).listen(
+    _presenter.watch$entityName(${config.queryField}).listen(
 ${withState ? '''      (result) {
         result.fold(
-          (entity) => updateState(viewState.copyWith(isWatching: false)),
+          (entity) => updateState(viewState.copyWith(
+            isWatching: false,
+            $entityCamel: entity,
+          )),
           (failure) => updateState(viewState.copyWith(
             isWatching: false,
             error: failure,
@@ -282,9 +288,9 @@ ${withState ? '''      (result) {
           break;
         case 'watchList':
           methods.add('''
-  void watch${entityName}List() {
+  void watch${entityName}List([ListQueryParams params = const ListQueryParams()]) {
 ${withState ? "    updateState(viewState.copyWith(isWatchingList: true));" : ""}
-    _presenter.watch${entityName}List().listen(
+    _presenter.watch${entityName}List(params).listen(
 ${withState ? '''      (result) {
         result.fold(
           (list) => updateState(viewState.copyWith(

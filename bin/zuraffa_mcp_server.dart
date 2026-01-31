@@ -10,12 +10,20 @@ import 'package:zuraffa/src/zfa_cli.dart' as zfa show version;
 /// zfa CLI functionality as MCP tools.
 ///
 /// Run with: dart run zuraffa:zuraffa_mcp_server
-void main() async {
-  final server = ZuraffaMcpServer();
+void main(List<String> args) async {
+  // Check for flags passed to the server process itself
+  final useMorphyByDefault =
+      args.contains('--morphy') || args.contains('--always-morphy');
+
+  final server = ZuraffaMcpServer(useMorphyByDefault: useMorphyByDefault);
   await server.run();
 }
 
 class ZuraffaMcpServer {
+  final bool useMorphyByDefault;
+
+  ZuraffaMcpServer({this.useMorphyByDefault = false});
+
   // Cache for resource listings to avoid repeated filesystem scans
   List<Map<String, dynamic>>? _resourcesCache;
   DateTime? _resourcesCacheTime;
@@ -37,6 +45,10 @@ class ZuraffaMcpServer {
       stdin.lineMode = true;
     } catch (_) {
       // Ignore errors in piped context
+    }
+
+    if (useMorphyByDefault) {
+      stderr.writeln('Spawned with default Morphy mode enabled');
     }
 
     // Set up the stream first to ensure it's ready
@@ -227,10 +239,27 @@ class ZuraffaMcpServer {
             'description':
                 'Generate initialize method for repository and datasource',
           },
-          'id_type': {
+          'id_field': {
+            'type': 'string',
+            'description': 'ID field name (default: id)',
+          },
+          'id_field_type': {
             'type': 'string',
             'description':
-                'ID type for entity - ONLY include if user explicitly specifies (default: String)',
+                'ID field type - ONLY include if user explicitly specifies (default: String)',
+          },
+          'query_field': {
+            'type': 'string',
+            'description': 'Query field name for get/watch (default: id)',
+          },
+          'query_field_type': {
+            'type': 'string',
+            'description':
+                'Query field type - ONLY include if user explicitly specifies (default: matches id_field_type)',
+          },
+          'morphy': {
+            'type': 'boolean',
+            'description': 'Use Morphy-style typed patches',
           },
           'repos': {
             'type': 'array',
@@ -280,7 +309,7 @@ class ZuraffaMcpServer {
     return {
       'name': 'schema',
       'description':
-          'Get the JSON schema for FCA configuration validation. Useful for AI agents to validate configs before generation.',
+          'Get the JSON schema for ZFA configuration validation. Useful for AI agents to validate configs before generation.',
       'inputSchema': {
         'type': 'object',
         'properties': {},
@@ -293,7 +322,7 @@ class ZuraffaMcpServer {
     return {
       'name': 'validate',
       'description':
-          'Validate a JSON configuration file against the FCA schema',
+          'Validate a JSON configuration file against the ZFA schema',
       'inputSchema': {
         'type': 'object',
         'properties': {
@@ -377,7 +406,25 @@ class ZuraffaMcpServer {
     if (args['data'] == true) cliArgs.add('--data');
     if (args['datasource'] == true) cliArgs.add('--datasource');
     if (args['init'] == true) cliArgs.add('--init');
-    if (args['id_type'] != null) cliArgs.add('--id-type=${args['id_type']}');
+    if (args['id_field'] != null) {
+      cliArgs.add('--id-field=${args['id_field']}');
+    }
+    if (args['id_field_type'] != null || args['id_type'] != null) {
+      // Support both for backward compatibility
+      cliArgs
+          .add('--id-field-type=${args['id_field_type'] ?? args['id_type']}');
+    }
+    if (args['query_field'] != null) {
+      cliArgs.add('--query-field=${args['query_field']}');
+    }
+    if (args['query_field_type'] != null) {
+      cliArgs.add('--query-field-type=${args['query_field_type']}');
+    }
+
+    // Morphy logic: Explicit flag > Default flag
+    final useMorphy = args['morphy'] == true ||
+        (args['morphy'] == null && useMorphyByDefault);
+    if (useMorphy) cliArgs.add('--morphy');
 
     // Custom UseCase options
     if (args['repos'] != null) {
@@ -615,7 +662,7 @@ class ZuraffaMcpServer {
   /// Perform actual resource listing with timeouts
   Future<List<Map<String, dynamic>>> _doResourceListing(
       List<Map<String, dynamic>> collected) async {
-    // Scan common FCA directories for Dart files (single level only)
+    // Scan common ZFA directories for Dart files (single level only)
     final directories = [
       'lib/src/domain/repositories',
       'lib/src/domain/usecases',

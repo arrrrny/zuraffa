@@ -153,6 +153,43 @@ sealed class AppFailure implements Exception {
     Object? cause,
   }) = UnknownFailure;
 
+  /// Create a state failure
+  const factory AppFailure.state(
+    String message, {
+    StackTrace? stackTrace,
+    Object? cause,
+  }) = StateFailure;
+
+  /// Create a type failure
+  const factory AppFailure.type(
+    String message, {
+    StackTrace? stackTrace,
+    Object? cause,
+  }) = TypeFailure;
+
+  /// Create an unimplemented failure
+  const factory AppFailure.unimplemented(
+    String message, {
+    StackTrace? stackTrace,
+    Object? cause,
+  }) = UnimplementedFailure;
+
+  /// Create an unsupported failure
+  const factory AppFailure.unsupported(
+    String message, {
+    StackTrace? stackTrace,
+    Object? cause,
+  }) = UnsupportedFailure;
+
+  /// Create a platform failure
+  const factory AppFailure.platform(
+    String message, {
+    String? code,
+    dynamic details,
+    StackTrace? stackTrace,
+    Object? cause,
+  }) = PlatformFailure;
+
   @override
   String toString() => '$runtimeType: $message';
 }
@@ -175,11 +212,12 @@ final class ServerFailure extends AppFailure {
   /// Factory that creates a ServerFailure if the error matches,
   /// otherwise returns null
   static ServerFailure? from(Object error, StackTrace? stackTrace) {
-    final message = error.toString().toLowerCase();
+    final message = error.toString().trim().toLowerCase();
 
     // Check for HTTP status codes (must be followed by space, end of line, or common HTTP patterns)
+    // We use a stricter regex to ensure we match "500" as a code, not just part of a string
     final hasStatusCode =
-        RegExp(r'(^|\s)(500|502|503|504)(\s|:|$)').hasMatch(message);
+        RegExp(r'(?:^|\s|:)(500|502|503|504)(?:$|\s|:)').hasMatch(message);
 
     if (hasStatusCode ||
         message.contains('internal server error') ||
@@ -216,14 +254,20 @@ final class NetworkFailure extends AppFailure {
   static NetworkFailure? from(Object error, StackTrace? stackTrace) {
     final message = error.toString().toLowerCase();
 
+    // More precise matching for network errors
+    // We avoid generic words like "connection" unless paired with specific failure modes
     if (message.contains('socketexception') ||
-        message.contains('connection refused') ||
-        message.contains('connection reset') ||
-        message.contains('connection closed') ||
+        (message.contains('connection') &&
+            (message.contains('refused') ||
+                message.contains('reset') ||
+                message.contains('closed') ||
+                message.contains('timeout') ||
+                message.contains('error'))) ||
         message.contains('network is unreachable') ||
         message.contains('no internet') ||
         message.contains('no address associated') ||
-        message.contains('failed host lookup')) {
+        message.contains('failed host lookup') ||
+        message.contains('handshakeexception')) {
       return NetworkFailure(
         error.toString(),
         stackTrace: stackTrace,
@@ -250,11 +294,10 @@ final class CacheFailure extends AppFailure {
   static CacheFailure? from(Object error, StackTrace? stackTrace) {
     final message = error.toString().toLowerCase();
 
-    if (message.contains('cache') ||
-        message.contains('storage') ||
-        message.contains('database') ||
-        message.contains('hiveerror') ||
-        message.contains('shared preferences')) {
+    if (message.contains('hiveerror') ||
+        message.contains('sqflite') ||
+        (message.contains('database') && message.contains('exception')) ||
+        (message.contains('cache') && message.contains('exception'))) {
       return CacheFailure(
         error.toString(),
         stackTrace: stackTrace,
@@ -285,11 +328,12 @@ final class ValidationFailure extends AppFailure {
   static ValidationFailure? from(Object error, StackTrace? stackTrace) {
     final message = error.toString().toLowerCase();
 
-    if (message.contains('invalid') ||
-        message.contains('validation') ||
-        message.contains('format exception') ||
-        message.contains('argument error') ||
-        message.contains('required field')) {
+    // Use strict check for type names in string if possible, or specific phrases
+    if (message.contains('formatexception') ||
+        message.contains('argumenterror') ||
+        message.contains('rangeerror') ||
+        message.contains('invalid argument') ||
+        message.contains('validation failed')) {
       return ValidationFailure(
         error.toString(),
         stackTrace: stackTrace,
@@ -340,11 +384,11 @@ final class NotFoundFailure extends AppFailure {
   static NotFoundFailure? from(Object error, StackTrace? stackTrace) {
     final message = error.toString().toLowerCase();
 
-    // Check for HTTP status code 404 (must be a standalone number)
-    final hasStatusCode = RegExp(r'(^|\s)404(\s|:|$)').hasMatch(message);
+    // Check for HTTP status code 404
+    final hasStatusCode = RegExp(r'(?:^|\s|:)404(?:$|\s|:)').hasMatch(message);
 
     if (hasStatusCode ||
-        message.contains('not found') ||
+        (message.contains('not found') && !message.contains('exception')) ||
         message.contains('does not exist')) {
       return NotFoundFailure(
         error.toString(),
@@ -380,8 +424,8 @@ final class UnauthorizedFailure extends AppFailure {
   static UnauthorizedFailure? from(Object error, StackTrace? stackTrace) {
     final message = error.toString().toLowerCase();
 
-    // Check for HTTP status code 401 (must be a standalone number)
-    final hasStatusCode = RegExp(r'(^|\s)401(\s|:|$)').hasMatch(message);
+    // Check for HTTP status code 401
+    final hasStatusCode = RegExp(r'(?:^|\s|:)401(?:$|\s|:)').hasMatch(message);
 
     if (hasStatusCode ||
         message.contains('unauthorized') ||
@@ -418,8 +462,8 @@ final class ForbiddenFailure extends AppFailure {
   static ForbiddenFailure? from(Object error, StackTrace? stackTrace) {
     final message = error.toString().toLowerCase();
 
-    // Check for HTTP status code 403 (must be a standalone number)
-    final hasStatusCode = RegExp(r'(^|\s)403(\s|:|$)').hasMatch(message);
+    // Check for HTTP status code 403
+    final hasStatusCode = RegExp(r'(?:^|\s|:)403(?:$|\s|:)').hasMatch(message);
 
     if (hasStatusCode || message.contains('forbidden')) {
       return ForbiddenFailure(
@@ -452,8 +496,8 @@ final class ConflictFailure extends AppFailure {
   static ConflictFailure? from(Object error, StackTrace? stackTrace) {
     final message = error.toString().toLowerCase();
 
-    // Check for HTTP status code 409 (must be a standalone number)
-    final hasStatusCode = RegExp(r'(^|\s)409(\s|:|$)').hasMatch(message);
+    // Check for HTTP status code 409
+    final hasStatusCode = RegExp(r'(?:^|\s|:)409(?:$|\s|:)').hasMatch(message);
 
     if (hasStatusCode ||
         message.contains('conflict') ||
@@ -522,6 +566,25 @@ final class CancellationFailure extends AppFailure {
         );
 }
 
+/// Platform failures
+///
+/// Use when a platform-specific error occurs (e.g. Flutter PlatformException).
+final class PlatformFailure extends AppFailure {
+  final String? code;
+  final dynamic details;
+
+  const PlatformFailure(
+    super.message, {
+    this.code,
+    this.details,
+    super.stackTrace,
+    super.cause,
+  });
+
+  @override
+  String toString() => 'PlatformFailure($code): $message';
+}
+
 /// Unknown/generic failures
 ///
 /// Use as a fallback when the error type cannot be determined.
@@ -542,6 +605,50 @@ final class UnknownFailure extends AppFailure {
       cause: error,
     );
   }
+}
+
+/// State failures
+///
+/// Use when the application is in an invalid state for the requested operation.
+final class StateFailure extends AppFailure {
+  const StateFailure(
+    super.message, {
+    super.stackTrace,
+    super.cause,
+  });
+}
+
+/// Type failures
+///
+/// Use when a value has an unexpected type.
+final class TypeFailure extends AppFailure {
+  const TypeFailure(
+    super.message, {
+    super.stackTrace,
+    super.cause,
+  });
+}
+
+/// Unimplemented failures
+///
+/// Use when a requested feature or method is not yet implemented.
+final class UnimplementedFailure extends AppFailure {
+  const UnimplementedFailure(
+    super.message, {
+    super.stackTrace,
+    super.cause,
+  });
+}
+
+/// Unsupported failures
+///
+/// Use when an operation is not supported by the current platform or configuration.
+final class UnsupportedFailure extends AppFailure {
+  const UnsupportedFailure(
+    super.message, {
+    super.stackTrace,
+    super.cause,
+  });
 }
 
 /// Extension to convert exceptions to failures

@@ -4,7 +4,7 @@ class SchemaCommand {
   void execute() {
     final schema = {
       '\$schema': 'http://json-schema.org/draft-07/schema#',
-      'title': 'FCA Generator Configuration',
+      'title': 'ZFA Generator Configuration',
       'type': 'object',
       'properties': {
         'name': {

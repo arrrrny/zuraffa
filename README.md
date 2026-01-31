@@ -26,7 +26,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  zuraffa: ^1.0.0
+  zuraffa: ^1.8.0
 ```
 
 Then run:
@@ -146,6 +146,31 @@ final class CancellationFailure extends AppFailure { ... }
 final class UnknownFailure extends AppFailure { ... }
 ```
 
+### Data Updates
+
+Zuraffa supports two strategies for updating entities:
+
+#### 1. Flexible Partial Updates (Default)
+Uses `Partial<T>` (a `Map<String, dynamic>`) to send only changed fields. The generator automatically adds validation to ensure only valid fields are updated.
+
+```dart
+// Generated UpdateUseCase
+// params.validate(['id', 'name', 'status']); <-- Auto-generated from Entity
+await updateCustomer(id: '123', data: {'name': 'New Name'});
+```
+
+#### 2. Typed Updates with Morphy (`--morphy`)
+If you use [Morphy](https://pub.dev/packages/morphy) or similar tools, you can use typed Patch objects for full type safety.
+
+```bash
+zfa generate Customer --methods=update --morphy
+```
+
+```dart
+// Generated with --morphy
+await updateCustomer(id: '123', data: CustomerPatch(name: 'New Name'));
+```
+
 ### UseCase Types
 
 #### Single-shot UseCase
@@ -216,7 +241,7 @@ class ProductController extends Controller {
   Future<void> loadProducts() async {
     _setState(_viewState.copyWith(isLoading: true));
 
-    final result = await execute(_getProducts, const NoParams());
+    final result = await _getProducts.call(const NoParams());
 
     result.fold(
       (products) => _setState(_viewState.copyWith(
@@ -285,6 +310,9 @@ zfa generate Product --methods=get,getList --repository --vpc
 
 # Add data layer (DataRepository + DataSource)
 zfa generate Product --methods=get,getList --repository --data
+
+# Use typed patches for updates (Morphy support)
+zfa generate Product --methods=update --morphy
 
 # Generate everything at once
 zfa generate Product --methods=get,getList,create --repository --vpc --data

@@ -1,4 +1,74 @@
-## [Unreleased]
+## [1.8.0] - 2026-01-31
+
+### Added
+- **New Failure Types**: Added `StateFailure`, `TypeFailure`, `UnimplementedFailure`, `UnsupportedFailure`, and `PlatformFailure` to `AppFailure` for granular error handling.
+
+### Changed
+- **FailureHandler**: 
+  - Now uses a `switch` statement for improved performance and readability.
+  - Correctly maps `PlatformException` (Flutter) to `PlatformFailure`.
+  - Maps `MissingPluginException` to `UnsupportedFailure`.
+  - Maps `ArgumentError`, `RangeError`, `FormatException` to `ValidationFailure`.
+  - Maps `ConcurrentModificationError`, `StateError`, `StackOverflowError` to `StateFailure`.
+- **Generated Repositories**: Fixed missing `zuraffa` import in generated repository files.
+
+
+### Fixed
+- **TodoDataSource**: Updated `InMemoryTodoDataSource` to fully implement the interface.
+
+## [1.7.0] - 2026-01-31
+### Added
+- **Typed Updates (`--morphy`)**: New flag to generate update operations using typed Patch objects (e.g., `CustomerPatch`) instead of Map-based partials.
+- **Partial Updates**: Default update mechanism now uses `Partial<T>` (Map<String, dynamic>) with automatic field extraction for validation.
+- **Validation**:
+  - `UpdateParams.validate()` automatically checks fields against your entity definition.
+  - `FailureHandler` now catches `ArgumentError` (common in validation) and converts it to `ValidationFailure`.
+- **New Parameter Wrappers**:
+  - `ListQueryParams`: Standardized params for list queries (filtering, sorting, pagination).
+  - `DeleteParams`: Standardized params for delete operations.
+  - `UpdateParams<T>`: Now generic over data type to support both Maps and Patch objects.
+- **CLI Global Flags**:
+  - `--morphy`: Enable Morphy-style patch objects.
+  - `--id-field` & `--id-field-type`: Customize the identifier field name and type (default: 'id', 'String').
+  - `--query-field` & `--query-field-type`: Customize the lookup field definition for `get`/`watch` methods.
+
+### Changed
+- **Scripts**: Updated `publish.sh` to support "promote unreleased" workflow.
+
+## [1.6.2] - 2026-01-31
+
+### Fix
+- Subdirectory path issue on generated data repository
+
+## [1.6.1] - 2026-01-31
+
+### Fix
+- Subdirectory path issue on generated presenters
+
+## [1.6.1] - 2026-01-31
+
+### Fix
+- Subdirectory path issue on generated presenters
+
+## [1.6.0] - 2026-01-31
+
+### Change
+- fixed not overriding onInitState from CleanView, updated state generation to generate entity
+
+## [1.5.0] - 2026-01-30
+
+### Fix
+- mcp server connection fix
+
+## [1.4.2] - 2026-01-27
+
+### Change
+- Release 1.4.2
+
+## [1.4.1] - 2026-01-26
+
+### Feat
+- Added InitializationParams and --init flag to cli
 
 ## [1.5.0] - 2026-01-30
 

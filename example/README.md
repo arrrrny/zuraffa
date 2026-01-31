@@ -85,7 +85,7 @@ class TodoController extends Controller {
   Future<void> createTodo(String title) async {
     _setState(_state.copyWith(isCreating: true));
     
-    final result = await execute(_createTodo, title);
+    final result = await _createTodo.call(title);
     
     result.fold(
       (todo) => _setState(_state.copyWith(isCreating: false)),

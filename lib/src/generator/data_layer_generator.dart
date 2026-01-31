@@ -45,27 +45,32 @@ class DataLayerGenerator {
     for (final method in config.methods) {
       switch (method) {
         case 'get':
-          methods.add('  Future<$entityName> get(${config.idType} id);');
+          methods.add(
+              '  Future<$entityName> get(${config.queryFieldType} ${config.queryField});');
           break;
         case 'getList':
-          methods.add('  Future<List<$entityName>> getList();');
+          methods.add(
+              '  Future<List<$entityName>> getList(ListQueryParams params);');
           break;
         case 'create':
           methods
               .add('  Future<$entityName> create($entityName $entityCamel);');
           break;
         case 'update':
-          methods
-              .add('  Future<$entityName> update($entityName $entityCamel);');
+          methods.add(
+              '  Future<${config.name}> update(UpdateParams<${config.useMorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params);');
           break;
         case 'delete':
-          methods.add('  Future<void> delete(${config.idType} id);');
+          methods
+              .add('  Future<void> delete(DeleteParams<$entityName> params);');
           break;
         case 'watch':
-          methods.add('  Stream<$entityName> watch(${config.idType}? id);');
+          methods.add(
+              '  Stream<$entityName> watch(${config.queryFieldType} ${config.queryField});');
           break;
         case 'watchList':
-          methods.add('  Stream<List<$entityName>> watchList();');
+          methods.add(
+              '  Stream<List<$entityName>> watchList(ListQueryParams params);');
           break;
       }
     }
@@ -77,7 +82,7 @@ class DataLayerGenerator {
 import 'package:zuraffa/zuraffa.dart';
 import '$relativePath../domain/entities/$entitySnake/$entitySnake.dart';
 
-abstract class $dataSourceName {
+abstract class $dataSourceName with Loggable, FailureHandler {
 ${methods.join('\n')}
 }
 ''';
@@ -100,12 +105,23 @@ ${methods.join('\n')}
     final dataRepoName = 'Data${entityName}Repository';
     final dataSourceName = '${entityName}DataSource';
     final fileName = 'data_${entitySnake}_repository.dart';
-    final filePath = path.join(outputDir, 'data', 'repositories', fileName);
+
+    final subdirectoryPart =
+        config.subdirectory != null && config.subdirectory!.isNotEmpty
+            ? '/${config.subdirectory!}'
+            : '';
+
+    final dataRepoPathParts = <String>[outputDir, 'data', 'repositories'];
+    if (config.subdirectory != null && config.subdirectory!.isNotEmpty) {
+      dataRepoPathParts.add(config.subdirectory!);
+    }
+    final dataRepoDirPath = path.joinAll(dataRepoPathParts);
+    final filePath = path.join(dataRepoDirPath, fileName);
 
     final relativePath =
         config.subdirectory != null && config.subdirectory!.isNotEmpty
-            ? '../'
-            : '';
+            ? '../..'
+            : '..';
 
     final methods = <String>[];
 
@@ -126,15 +142,15 @@ ${methods.join('\n')}
         case 'get':
           methods.add('''
   @override
-  Future<$entityName> get(${config.idType} id) {
-    return _dataSource.get(id);
+  Future<$entityName> get(${config.queryFieldType} ${config.queryField}) {
+    return _dataSource.get(${config.queryField});
   }''');
           break;
         case 'getList':
           methods.add('''
   @override
-  Future<List<$entityName>> getList() {
-    return _dataSource.getList();
+  Future<List<$entityName>> getList(ListQueryParams params) {
+    return _dataSource.getList(params);
   }''');
           break;
         case 'create':
@@ -147,29 +163,30 @@ ${methods.join('\n')}
         case 'update':
           methods.add('''
   @override
-  Future<$entityName> update($entityName $entityCamel) {
-    return _dataSource.update($entityCamel);
-  }''');
+  Future<${config.name}> update(UpdateParams<${config.useMorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params) {
+    return _dataSource.update(params);
+  }
+''');
           break;
         case 'delete':
           methods.add('''
   @override
-  Future<void> delete(${config.idType} id) {
-    return _dataSource.delete(id);
+  Future<void> delete(DeleteParams<$entityName> params) {
+    return _dataSource.delete(params);
   }''');
           break;
         case 'watch':
           methods.add('''
   @override
-  Stream<$entityName> watch(${config.idType}? id) {
-    return _dataSource.watch(id);
+  Stream<$entityName> watch(${config.queryFieldType} ${config.queryField}) {
+    return _dataSource.watch(${config.queryField});
   }''');
           break;
         case 'watchList':
           methods.add('''
   @override
-  Stream<List<$entityName>> watchList() {
-    return _dataSource.watchList();
+  Stream<List<$entityName>> watchList(ListQueryParams params) {
+    return _dataSource.watchList(params);
   }''');
           break;
       }
@@ -180,11 +197,11 @@ ${methods.join('\n')}
 // zfa generate $entityName --methods=${config.methods.join(',')} --data
 
 import 'package:zuraffa/zuraffa.dart';
-import '$relativePath../../domain/entities/$entitySnake/$entitySnake.dart';
-import '$relativePath../../domain/repositories/${entitySnake}_repository.dart';
-import '$relativePath../data_sources/$entitySnake/${entitySnake}_data_source.dart';
+import '$relativePath/../domain/entities/$entitySnake/$entitySnake.dart';
+import '$relativePath/../domain/repositories/${entitySnake}_repository.dart';
+import '$relativePath/data_sources$subdirectoryPart/$entitySnake/${entitySnake}_data_source.dart';
 
-class $dataRepoName with Loggable implements $repoName {
+class $dataRepoName with Loggable, FailureHandler implements $repoName {
   final $dataSourceName _dataSource;
 
   $dataRepoName(this._dataSource);
