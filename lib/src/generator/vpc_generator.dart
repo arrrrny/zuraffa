@@ -75,13 +75,14 @@ class VpcGenerator {
           useCaseGenerator.getUseCaseInfo(method, entityName, entityCamel);
       final useCaseSnake = StringUtils.camelToSnake(
           useCaseInfo.className.replaceAll('UseCase', ''));
-
+      print('Generating use case: ${useCaseInfo.className}');
+      print(config.subdirectory);
       final subdirectoryPart =
           config.subdirectory != null && config.subdirectory!.isNotEmpty
-              ? '${config.subdirectory!}/'
+              ? '/${config.subdirectory!}'
               : '';
       useCaseImports.add(
-          "import '$relativePath../domain/usecases/$subdirectoryPart/$entitySnake/${useCaseSnake}_usecase.dart';");
+          "import '$relativePath../domain/usecases$subdirectoryPart/$entitySnake/${useCaseSnake}_usecase.dart';");
       useCaseFields.add(
           '  late final ${useCaseInfo.className} _${useCaseInfo.fieldName};');
 
