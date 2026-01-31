@@ -131,7 +131,8 @@ class CodeGenerator {
       if (config.generateData || config.generateDataSource) {
         if (config.enableCache) {
           // Generate both remote and local datasources
-          final remoteFile = await _dataLayerGenerator.generateRemoteDataSource();
+          final remoteFile =
+              await _dataLayerGenerator.generateRemoteDataSource();
           final localFile = await _dataLayerGenerator.generateLocalDataSource();
           files.add(remoteFile);
           files.add(localFile);
