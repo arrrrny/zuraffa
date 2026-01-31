@@ -40,7 +40,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
   "mcpServers": {
     "zuraffa": {
       "command": "zuraffa_mcp_server",
-      "args": [],
+      "args": ["--morphy"], // Enable Morphy by default for all generations
       "cwd": "/path/to/your/flutter/project"
     }
   }
@@ -93,7 +93,11 @@ Generate Clean Architecture code for your Flutter project.
 | vpc | boolean | No | Generate View, Presenter, Controller |
 | data | boolean | No | Generate data layer (DataRepository + DataSource) |
 | datasource | boolean | No | Generate DataSource only |
-| id_type | string | No | ID type (default: String) |
+| id_field | string | No | ID field name (default: id) |
+| id_field_type | string | No | ID field type (default: String) |
+| query_field | string | No | Query field name for get/watch (default: id) |
+| query_field_type | string | No | Query field type (default: matches id_field_type) |
+| morphy | boolean | No | Use Morphy-style typed patches |
 | repos | array | No | Repository names to inject |
 | params | string | No | Params type (default: NoParams) |
 | returns | string | No | Return type (default: void) |

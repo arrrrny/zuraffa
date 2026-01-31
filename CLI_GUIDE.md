@@ -77,7 +77,11 @@ zfa generate <Name> [options]
 | `--repository` | `-r` | Generate repository interface |
 | `--data` | `-d` | Generate data repository + data source |
 | `--datasource` | | Generate data source only |
-| `--id-type=<type>` | | ID type for entity (default: `String`) |
+| `--id-field=<name>` | | ID field name (default: `id`) |
+| `--id-field-type=<type>` | | ID field type (default: `String`) |
+| `--query-field=<name>` | | Query field name for `get`/`watch` (default: `id`) |
+| `--query-field-type=<type>` | | Query field type (default: matches id-type) |
+| `--morphy` | | Use Morphy-style typed patches |
 
 #### Supported Methods
 

@@ -6,33 +6,40 @@
 
 set -e
 
-if [ $# -lt 1 ]; then
-    echo "Usage: $0 <version> [description] [--type]"
-    echo "Example: $0 1.2.0 \"Add new features and bug fixes\""
-    echo "Types: --feat, --fix, --docs, --style, --refactor, --perf, --test, --build, --ci, --chore, --revert, --change (default)"
-    exit 1
-fi
-
 VERSION="$1"
-DESCRIPTION="${2:-Release $VERSION}"
-TYPE="change"
+PROMOTE_MODE=false
 
-# Parse optional type argument
-shift 2 2>/dev/null || true
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --feat|--fix|--docs|--style|--refactor|--perf|--test|--build|--ci|--chore|--revert|--change)
-            TYPE="${1#--}"
-            shift
-            ;;
-        *)
-            shift
-            ;;
-    esac
-done
-
-# Capitalize the type for CHANGELOG
-TYPE_CAPITALIZED=$(echo "$TYPE" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')
+# Check if we should promote [Unreleased]
+if [ $# -eq 1 ]; then
+    if grep -q "^## \[Unreleased\]" CHANGELOG.md; then
+        echo "✨ Detected [Unreleased] section. Promoting to version $VERSION..."
+        PROMOTE_MODE=true
+    else
+        echo "❌ No description provided and no [Unreleased] section found in CHANGELOG.md."
+        echo "Usage: $0 <version> [description] [--type]"
+        exit 1
+    fi
+else
+    # Parse description and optional type argument
+    DESCRIPTION="${2:-Release $VERSION}"
+    TYPE="change"
+    
+    shift 2 2>/dev/null || true
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --feat|--fix|--docs|--style|--refactor|--perf|--test|--build|--ci|--chore|--revert|--change)
+                TYPE="${1#--}"
+                shift
+                ;;
+            *)
+                shift
+                ;;
+        esac
+    done
+    
+    # Capitalize the type for CHANGELOG
+    TYPE_CAPITALIZED=$(echo "$TYPE" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')
+fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PACKAGE_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PACKAGE_DIR"
@@ -90,25 +97,39 @@ if ! grep -q "^## \[Unreleased\]" CHANGELOG.md; then
     fi
 fi
 
-# Insert new version after [Unreleased]
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    # macOS sed syntax
-    sed -i '' "/^## \[Unreleased\]/a\\
-\\
-## [$VERSION] - $DATE\\
-\\
-### $TYPE_CAPITALIZED\\
-- $DESCRIPTION
-" CHANGELOG.md
+if [ "$PROMOTE_MODE" = true ]; then
+    # Replace [Unreleased] with version and date
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s/^## \[Unreleased\]/## [$VERSION] - $DATE/" CHANGELOG.md
+    else
+        sed -i "s/^## \[Unreleased\]/## [$VERSION] - $DATE/" CHANGELOG.md
+    fi
+    
+    # We still need a description for the commit/PR/Tag messages later
+    # Extract description from the changelog section we just promoted?
+    # Or just use "Release $VERSION" as default since users didn't provide it?
+    DESCRIPTION="Release $VERSION"
 else
-    # Linux sed syntax
-    sed -i "/^## \[Unreleased\]/a\\
+    # Insert new version after [Unreleased]
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS sed syntax
+        sed -i '' "/^## \[Unreleased\]/a\\
 \\
 ## [$VERSION] - $DATE\\
 \\
 ### $TYPE_CAPITALIZED\\
 - $DESCRIPTION
 " CHANGELOG.md
+    else
+        # Linux sed syntax
+        sed -i "/^## \[Unreleased\]/a\\
+\\
+## [$VERSION] - $DATE\\
+\\
+### $TYPE_CAPITALIZED\\
+- $DESCRIPTION
+" CHANGELOG.md
+    fi
 fi
 echo "  ✓ CHANGELOG.md updated"
 

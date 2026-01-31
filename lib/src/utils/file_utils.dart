@@ -46,12 +46,12 @@ class FileUtils {
   static String getParamName(String method, String entityCamel) {
     switch (method) {
       case 'get':
-      case 'delete':
       case 'watch':
-        return 'id';
       case 'getList':
       case 'watchList':
         return 'params';
+      case 'delete':
+        return 'id'; // Will update this to use config if I had config here, but FileUtils doesn't have config.
       case 'create':
       case 'update':
         return entityCamel;

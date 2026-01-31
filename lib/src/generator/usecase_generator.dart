@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:path/path.dart' as path;
 import '../models/generator_config.dart';
 import '../models/generated_file.dart';
@@ -50,62 +51,73 @@ class UseCaseGenerator {
     switch (method) {
       case 'get':
         className = 'Get${entityName}UseCase';
-        baseClass = 'UseCase<$entityName, ${config.idType}>';
-        paramsType = config.idType;
+        baseClass = 'UseCase<$entityName, QueryParams<${config.queryFieldType}>>';
+        paramsType = 'QueryParams<${config.queryFieldType}>';
         returnType = entityName;
-        executeBody = 'return _repository.get(id);';
+        executeBody = 'return _repository.get(params.query);';
         break;
       case 'getList':
         className = 'Get${entityName}ListUseCase';
-        baseClass = 'UseCase<List<$entityName>, NoParams>';
-        paramsType = 'NoParams';
+        baseClass = 'UseCase<List<$entityName>, ListQueryParams>';
+        paramsType = 'ListQueryParams';
         returnType = 'List<$entityName>';
-        executeBody = 'return _repository.getList();';
+        executeBody = 'return _repository.getList(params);';
         break;
       case 'create':
         className = 'Create${entityName}UseCase';
         baseClass = 'UseCase<$entityName, $entityName>';
         paramsType = entityName;
         returnType = entityName;
-        executeBody = 'return _repository.create($entityCamel);';
+        executeBody = 'return _repository.create(params);';
         break;
       case 'update':
         className = 'Update${entityName}UseCase';
-        baseClass = 'UseCase<$entityName, $entityName>';
-        paramsType = entityName;
+        final dataType = config.useMorphy ? '${entityName}Patch' : 'Partial<$entityName>';
+        baseClass = 'UseCase<$entityName, UpdateParams<$dataType>>';
+        paramsType = 'UpdateParams<$dataType>';
         returnType = entityName;
-        executeBody = 'return _repository.update($entityCamel);';
+        
+        if (config.useMorphy) {
+          executeBody = 'return _repository.update(params);';
+        } else {
+          final fields = _extractEntityFields(entitySnake);
+          final validationCall = fields.isNotEmpty
+              ? 'params.validate([${fields.map((f) => "'$f'").join(', ')}]);'
+              : '// params.validate([]); // TODO: List valid fields for partial update';
+              
+          executeBody = '''$validationCall
+    return _repository.update(params);''';
+        }
         break;
       case 'delete':
         className = 'Delete${entityName}UseCase';
-        baseClass = 'CompletableUseCase<${config.idType}>';
-        paramsType = config.idType;
+        baseClass = 'CompletableUseCase<DeleteParams<$entityName>>';
+        paramsType = 'DeleteParams<$entityName>';
         returnType = 'void';
-        executeBody = 'return _repository.delete(id);';
+        executeBody = 'return _repository.delete(params);';
         isCompletable = true;
-        needsEntityImport = false;
         break;
       case 'watch':
         className = 'Watch${entityName}UseCase';
-        baseClass = 'StreamUseCase<$entityName, ${config.idType}?>';
-        paramsType = '${config.idType}?';
+        baseClass = 'StreamUseCase<$entityName, QueryParams<${config.queryFieldType}>>';
+        paramsType = 'QueryParams<${config.queryFieldType}>';
         returnType = entityName;
-        executeBody = 'return _repository.watch(id);';
+        executeBody = 'return _repository.watch(params.query);';
         isStream = true;
         break;
       case 'watchList':
         className = 'Watch${entityName}ListUseCase';
-        baseClass = 'StreamUseCase<List<$entityName>, NoParams>';
-        paramsType = 'NoParams';
+        baseClass = 'StreamUseCase<List<$entityName>, ListQueryParams>';
+        paramsType = 'ListQueryParams';
         returnType = 'List<$entityName>';
-        executeBody = 'return _repository.watchList();';
+        executeBody = 'return _repository.watchList(params);';
         isStream = true;
         break;
       default:
         throw ArgumentError('Unknown method: $method');
     }
 
-    final paramName = FileUtils.getParamName(method, entityCamel);
+    final paramName = 'params';
     final fileSnake =
         StringUtils.camelToSnake(className.replaceAll('UseCase', ''));
     final fileName = '${fileSnake}_usecase.dart';
@@ -305,8 +317,8 @@ $executeMethod
           className: 'Get${entityName}UseCase',
           fieldName: 'get$entityName',
           presenterMethod:
-              '''  Future<Result<$entityName, AppFailure>> get$entityName(String id) {
-    return _get$entityName.call(id);
+              '''  Future<Result<$entityName, AppFailure>> get$entityName(${config.queryFieldType} ${config.queryField}) {
+    return _get$entityName.call(QueryParams(${config.queryField}));
   }''',
         );
       case 'getList':
@@ -314,8 +326,8 @@ $executeMethod
           className: 'Get${entityName}ListUseCase',
           fieldName: 'get${entityName}List',
           presenterMethod:
-              '''  Future<Result<List<$entityName>, AppFailure>> get${entityName}List() {
-    return _get${entityName}List.call(const NoParams());
+              '''  Future<Result<List<$entityName>, AppFailure>> get${entityName}List([ListQueryParams params = const ListQueryParams()]) {
+    return _get${entityName}List.call(params);
   }''',
         );
       case 'create':
@@ -328,12 +340,13 @@ $executeMethod
   }''',
         );
       case 'update':
+        final updateDataType = config.useMorphy ? '${entityName}Patch' : 'Partial<$entityName>';
         return UseCaseInfo(
           className: 'Update${entityName}UseCase',
           fieldName: 'update$entityName',
           presenterMethod:
-              '''  Future<Result<$entityName, AppFailure>> update$entityName($entityName $entityCamel) {
-    return _update$entityName.call($entityCamel);
+              '''  Future<Result<$entityName, AppFailure>> update$entityName(${config.idType} ${config.idField}, $updateDataType data) {
+    return _update$entityName.call(UpdateParams(id: ${config.idField}, data: data));
   }''',
         );
       case 'delete':
@@ -341,8 +354,8 @@ $executeMethod
           className: 'Delete${entityName}UseCase',
           fieldName: 'delete$entityName',
           presenterMethod:
-              '''  Future<Result<void, AppFailure>> delete$entityName(String id) {
-    return _delete$entityName.call(id);
+              '''  Future<Result<void, AppFailure>> delete$entityName(${config.idType} ${config.idField}) {
+    return _delete$entityName.call(DeleteParams(${config.idField}));
   }''',
         );
       case 'watch':
@@ -350,8 +363,8 @@ $executeMethod
           className: 'Watch${entityName}UseCase',
           fieldName: 'watch$entityName',
           presenterMethod:
-              '''  Stream<Result<$entityName, AppFailure>> watch$entityName(String? id) {
-    return _watch$entityName.call(id);
+              '''  Stream<Result<$entityName, AppFailure>> watch$entityName(${config.queryFieldType}? ${config.queryField}) {
+    return _watch$entityName.call(QueryParams(${config.queryField}));
   }''',
         );
       case 'watchList':
@@ -359,12 +372,58 @@ $executeMethod
           className: 'Watch${entityName}ListUseCase',
           fieldName: 'watch${entityName}List',
           presenterMethod:
-              '''  Stream<Result<List<$entityName>, AppFailure>> watch${entityName}List() {
-    return _watch${entityName}List.call(const NoParams());
+              '''  Stream<Result<List<$entityName>, AppFailure>> watch${entityName}List([ListQueryParams params = const ListQueryParams()]) {
+    return _watch${entityName}List.call(params);
   }''',
         );
       default:
         throw ArgumentError('Unknown method: $method');
+    }
+  }
+
+  List<String> _extractEntityFields(String entitySnake) {
+    try {
+      // Try to find the entity file in common Clean Architecture locations
+      final possiblePaths = [
+        // Standard: lib/src/domain/entities/todo/todo.dart (folder per entity)
+        path.join(outputDir, 'domain', 'entities', entitySnake, '$entitySnake.dart'),
+        // Flat: lib/src/domain/entities/todo.dart
+        path.join(outputDir, 'domain', 'entities', '$entitySnake.dart'),
+      ];
+
+      File? file;
+      for (final p in possiblePaths) {
+        final f = File(p);
+        if (f.existsSync()) {
+          file = f;
+          break;
+        }
+      }
+
+      if (file == null) {
+        if (verbose) {
+          print('  ℹ Entity file for $entitySnake not found, skipping auto-validation');
+        }
+        return [];
+      }
+
+      final content = file.readAsStringSync();
+      // Regex to find fields (usually final or non-static members)
+      // Matches both 'final int id;' and 'String? name;'
+      // but avoids methods and static members.
+      final regex = RegExp(r'^\s+(?:final\s+)?(?:[\w<>,?!\s]+)\s+(\w+)\s*;', multiLine: true);
+      final matches = regex.allMatches(content);
+
+      final fields = matches.map((m) => m.group(1)!).where((f) => f != 'hashCode').toList();
+      
+      if (verbose && fields.isNotEmpty) {
+        print('  ✓ Automatically extracted fields for validation: ${fields.join(', ')}');
+      }
+      
+      return fields;
+    } catch (e) {
+      if (verbose) print('  ⚠️ Error extracting fields: $e');
+      return [];
     }
   }
 }

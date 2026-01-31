@@ -53,7 +53,8 @@ class GenerateCommand {
         useCaseType: results['type'],
         paramsType: results['params'],
         returnsType: results['returns'],
-        idType: results['id-type'],
+        idField: results['id-field'] ?? 'id',
+        idType: results['id-field-type'] ?? results['id-type'] ?? 'String',
         generateVpc: results['vpc'] == true,
         generateView: results['view'] == true,
         generatePresenter: results['presenter'] == true,
@@ -63,6 +64,9 @@ class GenerateCommand {
         generateDataSource: results['datasource'] == true,
         generateState: results['state'] == true,
         generateInit: results['init'] == true,
+        queryField: results['query-field'] ?? 'id',
+        queryFieldType: results['query-field-type'],
+        useMorphy: results['morphy'] == true,
         subdirectory: results['subdirectory'],
       );
     }
@@ -119,7 +123,6 @@ class GenerateCommand {
           defaultsTo: 'usecase')
       ..addOption('params', help: 'Params type for custom usecase')
       ..addOption('returns', help: 'Return type for custom usecase')
-      ..addOption('id-type', help: 'ID type for entity', defaultsTo: 'String')
       ..addFlag('vpc',
           help: 'Generate View + Presenter + Controller', defaultsTo: false)
       ..addFlag('view', help: 'Generate View only', defaultsTo: false)
@@ -132,6 +135,12 @@ class GenerateCommand {
       ..addFlag('init',
           help: 'Generate initialize method for repository and datasource',
           defaultsTo: false)
+      ..addOption('id-type', help: 'ID type for entity (deprecated, use --id-field-type)', defaultsTo: 'String')
+      ..addOption('id-field', help: 'ID field name for update/delete (default: id)', defaultsTo: 'id')
+      ..addOption('id-field-type', help: 'ID field type (default: String)', defaultsTo: 'String')
+      ..addOption('query-field', help: 'Query field name for get/watch (default: id)', defaultsTo: 'id')
+      ..addOption('query-field-type', help: 'Query field type (default: matches --id-type)')
+      ..addFlag('morphy', help: 'Use Morphy-style typed patches (e.g. EntityPatch) for updates', defaultsTo: false)
       ..addFlag('state', help: 'Generate State object', defaultsTo: false)
       ..addOption('subdirectory',
           help: 'Subdirectory to organize files (e.g., products, orders)')
@@ -159,7 +168,11 @@ ENTITY-BASED GENERATION:
   -d, --data            Generate data repository + data source
   --datasource          Generate data source only
   --init                Generate initialize method for repository and datasource
-  --id-type=<type>      ID type for entity (default: String)
+  --id-field=<name>     ID field name (default: id)
+  --id-field-type=<t>   ID field type (default: String)
+  --query-field=<name>  Query field name for get/watch (default: id)
+  --query-field-type=<t> Query field type (default: same as id-field-type)
+  --morphy             Use Morphy-style typed patches (e.g. EntityPatch)
 
 CUSTOM USECASE:
   --repos=<list>        Comma-separated repositories to inject

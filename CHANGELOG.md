@@ -1,4 +1,21 @@
 ## [Unreleased]
+### Added
+- **Typed Updates (`--morphy`)**: New flag to generate update operations using typed Patch objects (e.g., `CustomerPatch`) instead of Map-based partials.
+- **Partial Updates**: Default update mechanism now uses `Partial<T>` (Map<String, dynamic>) with automatic field extraction for validation.
+- **Validation**:
+  - `UpdateParams.validate()` automatically checks fields against your entity definition.
+  - `FailureHandler` now catches `ArgumentError` (common in validation) and converts it to `ValidationFailure`.
+- **New Parameter Wrappers**:
+  - `ListQueryParams`: Standardized params for list queries (filtering, sorting, pagination).
+  - `DeleteParams`: Standardized params for delete operations.
+  - `UpdateParams<T>`: Now generic over data type to support both Maps and Patch objects.
+- **CLI Global Flags**:
+  - `--morphy`: Enable Morphy-style patch objects.
+  - `--id-field` & `--id-field-type`: Customize the identifier field name and type (default: 'id', 'String').
+  - `--query-field` & `--query-field-type`: Customize the lookup field definition for `get`/`watch` methods.
+
+### Changed
+- **Scripts**: Updated `publish.sh` to support "promote unreleased" workflow.
 
 ## [1.6.2] - 2026-01-31
 

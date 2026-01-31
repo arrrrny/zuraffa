@@ -25,6 +25,13 @@ mixin FailureHandler on Loggable {
   /// This method uses the AppFailure.from factory to intelligently
   /// classify the error based on its type and message.
   AppFailure handleError(Object error, [StackTrace? stackTrace]) {
+    if (error is ArgumentError) {
+      return validationFailure(
+        error.message.toString(),
+        cause: error,
+        stackTrace: stackTrace,
+      );
+    }
     return AppFailure.from(error, stackTrace ?? StackTrace.current);
   }
 
@@ -73,11 +80,12 @@ mixin FailureHandler on Loggable {
     String message, {
     Map<String, List<String>>? fieldErrors,
     Object? cause,
+    StackTrace? stackTrace,
   }) {
     return ValidationFailure(
       message,
       fieldErrors: fieldErrors,
-      stackTrace: StackTrace.current,
+      stackTrace: stackTrace ?? StackTrace.current,
       cause: cause,
     );
   }

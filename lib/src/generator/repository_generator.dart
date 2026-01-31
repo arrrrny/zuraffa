@@ -33,10 +33,10 @@ class RepositoryGenerator {
     for (final method in config.methods) {
       switch (method) {
         case 'get':
-          methods.add('  Future<${config.name}> get(${config.idType} id);');
+          methods.add('  Future<${config.name}> get(${config.queryFieldType} ${config.queryField});');
           break;
         case 'getList':
-          methods.add('  Future<List<${config.name}>> getList();');
+          methods.add('  Future<List<${config.name}>> getList(ListQueryParams params);');
           break;
         case 'create':
           methods.add(
@@ -44,16 +44,16 @@ class RepositoryGenerator {
           break;
         case 'update':
           methods.add(
-              '  Future<${config.name}> update(${config.name} ${config.nameCamel});');
+              '  Future<${config.name}> update(UpdateParams<${config.useMorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params);');
           break;
         case 'delete':
-          methods.add('  Future<void> delete(${config.idType} id);');
+          methods.add('  Future<void> delete(DeleteParams<${config.name}> params);');
           break;
         case 'watch':
-          methods.add('  Stream<${config.name}> watch(${config.idType}? id);');
+          methods.add('  Stream<${config.name}> watch(${config.queryFieldType}? ${config.queryField});');
           break;
         case 'watchList':
-          methods.add('  Stream<List<${config.name}>> watchList();');
+          methods.add('  Stream<List<${config.name}>> watchList(ListQueryParams params);');
           break;
       }
     }

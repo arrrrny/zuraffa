@@ -135,6 +135,21 @@ export 'src/core/params.dart';
 /// InitializationParams for repository and data source initialization
 export 'src/core/initialization_params.dart';
 
+/// QueryParams for querying a single entity
+export 'src/core/query_params.dart';
+
+/// ListQueryParams for querying a list of entities
+export 'src/core/list_query_params.dart';
+
+/// UpdateParams for updating an entity
+export 'src/core/update_params.dart';
+
+/// DeleteParams for deleting an entity
+export 'src/core/delete_params.dart';
+
+/// Partial type for partial updates
+export 'src/core/partial.dart';
+
 /// Loggable mixin for logging capabilities
 export 'src/core/loggable.dart';
 
