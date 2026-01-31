@@ -6,7 +6,8 @@ import 'product_presenter.dart';
 import 'product_state.dart';
 import '../../../domain/entities/product/product.dart';
 
-class ProductController extends Controller with StatefulController<ProductState> {
+class ProductController extends Controller
+    with StatefulController<ProductState> {
   final ProductPresenter _presenter;
 
   ProductController(this._presenter) : super();
@@ -71,8 +72,11 @@ class ProductController extends Controller with StatefulController<ProductState>
     result.fold(
       (updated) => updateState(viewState.copyWith(
         isUpdating: false,
-        productList: viewState.productList.map((e) => e.id == updated.id ? updated : e).toList(),
-        product: viewState.product?.id == updated.id ? updated : viewState.product,
+        productList: viewState.productList
+            .map((e) => e.id == updated.id ? updated : e)
+            .toList(),
+        product:
+            viewState.product?.id == updated.id ? updated : viewState.product,
       )),
       (failure) => updateState(viewState.copyWith(
         isUpdating: false,
@@ -97,7 +101,8 @@ class ProductController extends Controller with StatefulController<ProductState>
     );
   }
 
-  Future<void> getProductList([ListQueryParams params = const ListQueryParams()]) async {
+  Future<void> getProductList(
+      [ListQueryParams params = const ListQueryParams()]) async {
     updateState(viewState.copyWith(isGettingList: true));
     final result = await _presenter.getProductList(params);
 

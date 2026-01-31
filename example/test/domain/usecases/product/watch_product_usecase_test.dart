@@ -9,6 +9,7 @@ import 'package:example/src/domain/repositories/product_repository.dart';
 import 'package:example/src/domain/usecases/product/watch_product_usecase.dart';
 
 class MockProductRepository extends Mock implements ProductRepository {}
+
 class MockProduct extends Mock implements Product {}
 
 void main() {
@@ -22,12 +23,11 @@ void main() {
 
   group('WatchProductUseCase', () {
     final tProduct = MockProduct();
-    
-    
 
     test('should emit values from repository stream', () async {
       // Arrange
-      when(() => mockRepository.watch(any())).thenAnswer((_) => Stream.value(tProduct));
+      when(() => mockRepository.watch(any()))
+          .thenAnswer((_) => Stream.value(tProduct));
 
       // Act
       final result = useCase(QueryParams('1'));
@@ -43,7 +43,8 @@ void main() {
     test('should emit Failure when repository stream errors', () async {
       // Arrange
       final exception = Exception('Stream Error');
-      when(() => mockRepository.watch(any())).thenAnswer((_) => Stream.error(exception));
+      when(() => mockRepository.watch(any()))
+          .thenAnswer((_) => Stream.error(exception));
 
       // Act
       final result = useCase(const QueryParams('1'));

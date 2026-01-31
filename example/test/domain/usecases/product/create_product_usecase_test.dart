@@ -8,6 +8,7 @@ import 'package:example/src/domain/repositories/product_repository.dart';
 import 'package:example/src/domain/usecases/product/create_product_usecase.dart';
 
 class MockProductRepository extends Mock implements ProductRepository {}
+
 class MockProduct extends Mock implements Product {}
 
 void main() {
@@ -21,12 +22,11 @@ void main() {
 
   group('CreateProductUseCase', () {
     final tProduct = MockProduct();
-    
-    
 
     test('should call repository.create and return result', () async {
       // Arrange
-      when(() => mockRepository.create(any())).thenAnswer((_) async => tProduct);
+      when(() => mockRepository.create(any()))
+          .thenAnswer((_) async => tProduct);
 
       // Act
       final result = await useCase(tProduct);

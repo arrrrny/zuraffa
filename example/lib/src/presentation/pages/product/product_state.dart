@@ -8,22 +8,31 @@ import '../../../domain/entities/product/product.dart';
 class ProductState {
   /// The current error, if any
   final AppFailure? error;
+
   /// The list of Product entities
   final List<Product> productList;
+
   /// The single Product entity
   final Product? product;
+
   /// Whether get operation is in progress
   final bool isGetting;
+
   /// Whether watch operation is in progress
   final bool isWatching;
+
   /// Whether create operation is in progress
   final bool isCreating;
+
   /// Whether update operation is in progress
   final bool isUpdating;
+
   /// Whether delete operation is in progress
   final bool isDeleting;
+
   /// Whether getList operation is in progress
   final bool isGettingList;
+
   /// Whether watchList operation is in progress
   final bool isWatchingList;
 
@@ -55,21 +64,28 @@ class ProductState {
     bool? isWatchingList,
   }) {
     return ProductState(
-    productList: productList ?? this.productList,
-    product: product ?? this.product,
-    error: clearError ? null : (error ?? this.error),
-    isGetting: isGetting ?? this.isGetting,
-    isWatching: isWatching ?? this.isWatching,
-    isCreating: isCreating ?? this.isCreating,
-    isUpdating: isUpdating ?? this.isUpdating,
-    isDeleting: isDeleting ?? this.isDeleting,
-    isGettingList: isGettingList ?? this.isGettingList,
-    isWatchingList: isWatchingList ?? this.isWatchingList,
+      productList: productList ?? this.productList,
+      product: product ?? this.product,
+      error: clearError ? null : (error ?? this.error),
+      isGetting: isGetting ?? this.isGetting,
+      isWatching: isWatching ?? this.isWatching,
+      isCreating: isCreating ?? this.isCreating,
+      isUpdating: isUpdating ?? this.isUpdating,
+      isDeleting: isDeleting ?? this.isDeleting,
+      isGettingList: isGettingList ?? this.isGettingList,
+      isWatchingList: isWatchingList ?? this.isWatchingList,
     );
   }
 
   /// Whether any operation is currently loading
-  bool get isLoading => isGetting || isWatching || isCreating || isUpdating || isDeleting || isGettingList || isWatchingList;
+  bool get isLoading =>
+      isGetting ||
+      isWatching ||
+      isCreating ||
+      isUpdating ||
+      isDeleting ||
+      isGettingList ||
+      isWatchingList;
 
   /// Whether there is an error to display
   bool get hasError => error != null;
@@ -81,7 +97,14 @@ class ProductState {
           runtimeType == other.runtimeType &&
           productList == other.productList &&
           product == other.product &&
-          error == other.error && isGetting == other.isGetting && isWatching == other.isWatching && isCreating == other.isCreating && isUpdating == other.isUpdating && isDeleting == other.isDeleting && isGettingList == other.isGettingList && isWatchingList == other.isWatchingList);
+          error == other.error &&
+          isGetting == other.isGetting &&
+          isWatching == other.isWatching &&
+          isCreating == other.isCreating &&
+          isUpdating == other.isUpdating &&
+          isDeleting == other.isDeleting &&
+          isGettingList == other.isGettingList &&
+          isWatchingList == other.isWatchingList);
 
   @override
   int get hashCode =>
@@ -97,5 +120,6 @@ class ProductState {
       isWatchingList.hashCode;
 
   @override
-  String toString() => 'ProductState(productList: ${productList.length}, product: $product, isLoading: $isLoading, error: $error)';
+  String toString() =>
+      'ProductState(productList: ${productList.length}, product: $product, isLoading: $isLoading, error: $error)';
 }

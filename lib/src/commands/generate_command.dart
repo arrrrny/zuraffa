@@ -131,7 +131,8 @@ class GenerateCommand {
       ..addFlag('controller',
           help: 'Generate Controller only', defaultsTo: false)
       ..addFlag('observer', help: 'Generate Observer', defaultsTo: false)
-      ..addFlag('test', abbr: 't', help: 'Generate Unit Tests', defaultsTo: false)
+      ..addFlag('test',
+          abbr: 't', help: 'Generate Unit Tests', defaultsTo: false)
       ..addFlag('datasource',
           help: 'Generate DataSource only', defaultsTo: false)
       ..addFlag('init',

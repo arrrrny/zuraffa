@@ -6,7 +6,9 @@ import '../../domain/entities/product/product.dart';
 import '../../domain/repositories/product_repository.dart';
 import '../data_sources/product/product_data_source.dart';
 
-class DataProductRepository with Loggable, FailureHandler implements ProductRepository {
+class DataProductRepository
+    with Loggable, FailureHandler
+    implements ProductRepository {
   final ProductDataSource _dataSource;
 
   DataProductRepository(this._dataSource);
@@ -30,7 +32,6 @@ class DataProductRepository with Loggable, FailureHandler implements ProductRepo
   Future<Product> update(UpdateParams<Partial<Product>> params) {
     return _dataSource.update(params);
   }
-
 
   @override
   Future<void> delete(DeleteParams<Product> params) {

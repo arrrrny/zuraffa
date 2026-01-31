@@ -9,6 +9,7 @@ import 'package:example/src/domain/repositories/product_repository.dart';
 import 'package:example/src/domain/usecases/product/get_product_usecase.dart';
 
 class MockProductRepository extends Mock implements ProductRepository {}
+
 class MockProduct extends Mock implements Product {}
 
 void main() {
@@ -22,8 +23,6 @@ void main() {
 
   group('GetProductUseCase', () {
     final tProduct = MockProduct();
-    
-    
 
     test('should call repository.get and return result', () async {
       // Arrange

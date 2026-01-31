@@ -10,7 +10,8 @@ class WatchProductUseCase extends StreamUseCase<Product, QueryParams<String>> {
   WatchProductUseCase(this._repository);
 
   @override
-  Stream<Product> execute(QueryParams<String> params, CancelToken? cancelToken) {
+  Stream<Product> execute(
+      QueryParams<String> params, CancelToken? cancelToken) {
     cancelToken?.throwIfCancelled();
     return _repository.watch(params.query);
   }
