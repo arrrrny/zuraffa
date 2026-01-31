@@ -100,12 +100,23 @@ ${methods.join('\n')}
     final dataRepoName = 'Data${entityName}Repository';
     final dataSourceName = '${entityName}DataSource';
     final fileName = 'data_${entitySnake}_repository.dart';
-    final filePath = path.join(outputDir, 'data', 'repositories', fileName);
+
+    final subdirectoryPart =
+        config.subdirectory != null && config.subdirectory!.isNotEmpty
+            ? '/${config.subdirectory!}'
+            : '';
+
+    final dataRepoPathParts = <String>[outputDir, 'data', 'repositories'];
+    if (config.subdirectory != null && config.subdirectory!.isNotEmpty) {
+      dataRepoPathParts.add(config.subdirectory!);
+    }
+    final dataRepoDirPath = path.joinAll(dataRepoPathParts);
+    final filePath = path.join(dataRepoDirPath, fileName);
 
     final relativePath =
         config.subdirectory != null && config.subdirectory!.isNotEmpty
-            ? '../'
-            : '';
+            ? '../..'
+            : '..';
 
     final methods = <String>[];
 
@@ -180,9 +191,9 @@ ${methods.join('\n')}
 // zfa generate $entityName --methods=${config.methods.join(',')} --data
 
 import 'package:zuraffa/zuraffa.dart';
-import '$relativePath../../domain/entities/$entitySnake/$entitySnake.dart';
-import '$relativePath../../domain/repositories/${entitySnake}_repository.dart';
-import '$relativePath../data_sources/$entitySnake/${entitySnake}_data_source.dart';
+import '$relativePath/../domain/entities/$entitySnake/$entitySnake.dart';
+import '$relativePath/../domain/repositories/${entitySnake}_repository.dart';
+import '$relativePath/data_sources$subdirectoryPart/$entitySnake/${entitySnake}_data_source.dart';
 
 class $dataRepoName with Loggable, FailureHandler implements $repoName {
   final $dataSourceName _dataSource;
