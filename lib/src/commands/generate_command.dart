@@ -67,6 +67,7 @@ class GenerateCommand {
         queryField: results['query-field'] ?? 'id',
         queryFieldType: results['query-field-type'],
         useMorphy: results['morphy'] == true,
+        generateTest: results['test'] == true,
         subdirectory: results['subdirectory'],
       );
     }
@@ -130,6 +131,7 @@ class GenerateCommand {
       ..addFlag('controller',
           help: 'Generate Controller only', defaultsTo: false)
       ..addFlag('observer', help: 'Generate Observer', defaultsTo: false)
+      ..addFlag('test', abbr: 't', help: 'Generate Unit Tests', defaultsTo: false)
       ..addFlag('datasource',
           help: 'Generate DataSource only', defaultsTo: false)
       ..addFlag('init',
@@ -197,6 +199,7 @@ VPC LAYER:
   --controller          Generate Controller only
   --state               Generate State object with granular loading states
   --observer            Generate Observer class
+  -t, --test            Generate Unit Tests
 
 INPUT/OUTPUT:
   --subdirectory=<dir>  Subdirectory to organize files (e.g., products, orders)

@@ -7,6 +7,7 @@ import 'vpc_generator.dart';
 import 'state_generator.dart';
 import 'observer_generator.dart';
 import 'data_layer_generator.dart';
+import 'test_generator.dart';
 
 class CodeGenerator {
   final GeneratorConfig config;
@@ -21,6 +22,7 @@ class CodeGenerator {
   late final StateGenerator _stateGenerator;
   late final ObserverGenerator _observerGenerator;
   late final DataLayerGenerator _dataLayerGenerator;
+  late final TestGenerator _testGenerator;
 
   CodeGenerator({
     required this.config,
@@ -65,6 +67,13 @@ class CodeGenerator {
       verbose: verbose,
     );
     _dataLayerGenerator = DataLayerGenerator(
+      config: config,
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+    _testGenerator = TestGenerator(
       config: config,
       outputDir: outputDir,
       dryRun: dryRun,
@@ -140,6 +149,20 @@ class CodeGenerator {
       }
       if (files.any((f) => f.type == 'usecase')) {
         nextSteps.add('Implement TODO sections in generated usecases');
+      }
+
+      if (config.generateTest && config.isEntityBased) {
+        for (final method in config.methods) {
+          final file = await _testGenerator.generateForMethod(method);
+          files.add(file);
+        }
+        nextSteps.add('Run tests: flutter test ');
+      }
+
+      if (config.generateTest && config.isCustomUseCase) {
+        final file = await _testGenerator.generateCustom();
+        files.add(file);
+        nextSteps.add('Run tests: flutter test ');
       }
 
       return GeneratorResult(

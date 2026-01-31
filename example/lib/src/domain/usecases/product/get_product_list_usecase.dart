@@ -10,8 +10,7 @@ class GetProductListUseCase extends UseCase<List<Product>, ListQueryParams> {
   GetProductListUseCase(this._repository);
 
   @override
-  Future<List<Product>> execute(
-      ListQueryParams params, CancelToken? cancelToken) async {
+  Future<List<Product>> execute(ListQueryParams params, CancelToken? cancelToken) async {
     cancelToken?.throwIfCancelled();
     return _repository.getList(params);
   }
