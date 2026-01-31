@@ -1,4 +1,4 @@
-## [Unreleased]
+## [1.7.0] - 2026-01-31
 ### Added
 - **Typed Updates (`--morphy`)**: New flag to generate update operations using typed Patch objects (e.g., `CustomerPatch`) instead of Map-based partials.
 - **Partial Updates**: Default update mechanism now uses `Partial<T>` (Map<String, dynamic>) with automatic field extraction for validation.
