@@ -24,6 +24,9 @@ class GeneratorConfig {
   final bool useMorphy;
   final bool generateTest;
   final String? subdirectory;
+  final bool enableCache;
+  final String cachePolicy;
+  final String? cacheStorage;
 
   GeneratorConfig({
     required this.name,
@@ -49,6 +52,9 @@ class GeneratorConfig {
     this.useMorphy = false,
     this.generateTest = false,
     this.subdirectory,
+    this.enableCache = false,
+    this.cachePolicy = 'daily',
+    this.cacheStorage,
   }) : queryFieldType = queryFieldType ?? idType;
 
   factory GeneratorConfig.fromJson(Map<String, dynamic> json, String name) {
@@ -76,6 +82,9 @@ class GeneratorConfig {
       useMorphy: json['morphy'] == true || json['useMorphy'] == true,
       generateTest: json['test'] == true,
       subdirectory: json['subdirectory'],
+      enableCache: json['cache'] == true || json['enable_cache'] == true,
+      cachePolicy: json['cache_policy'] ?? 'daily',
+      cacheStorage: json['cache_storage'],
     );
   }
 

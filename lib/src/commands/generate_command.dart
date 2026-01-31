@@ -69,6 +69,9 @@ class GenerateCommand {
         useMorphy: results['morphy'] == true,
         generateTest: results['test'] == true,
         subdirectory: results['subdirectory'],
+        enableCache: results['cache'] == true,
+        cachePolicy: results['cache-policy'] ?? 'daily',
+        cacheStorage: results['cache-storage'],
       );
     }
 
@@ -155,6 +158,14 @@ class GenerateCommand {
           help: 'Use Morphy-style typed patches (e.g. EntityPatch) for updates',
           defaultsTo: false)
       ..addFlag('state', help: 'Generate State object', defaultsTo: false)
+      ..addFlag('cache',
+          help: 'Enable caching with dual datasources (remote + local)',
+          defaultsTo: false)
+      ..addOption('cache-policy',
+          help: 'Cache policy: daily, restart, ttl (default: daily)',
+          defaultsTo: 'daily')
+      ..addOption('cache-storage',
+          help: 'Local storage hint: hive, sqlite, shared_preferences')
       ..addOption('subdirectory',
           help: 'Subdirectory to organize files (e.g., products, orders)')
       ..addOption('output',
@@ -186,6 +197,11 @@ ENTITY-BASED GENERATION:
   --query-field=<name>  Query field name for get/watch (default: id)
   --query-field-type=<t> Query field type (default: same as id-field-type)
   --morphy             Use Morphy-style typed patches (e.g. EntityPatch)
+
+CACHING:
+  --cache              Enable caching with dual datasources (remote + local)
+  --cache-policy=<p>   Cache policy: daily, restart, ttl (default: daily)
+  --cache-storage=<s>  Local storage hint: hive, sqlite, shared_preferences
 
 CUSTOM USECASE:
   --repos=<list>        Comma-separated repositories to inject

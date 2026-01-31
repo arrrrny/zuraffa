@@ -156,6 +156,12 @@ export 'src/core/loggable.dart';
 /// FailureHandler mixin for handling failures
 export 'src/core/failure_handler.dart';
 
+/// CachePolicy abstraction for cache expiration strategies
+export 'src/core/cache_policy.dart';
+
+/// Concrete cache policy implementations (Daily, AppRestart, TTL)
+export 'src/core/cache_policies.dart';
+
 // ============================================================
 // Domain - Business Logic
 // ============================================================
