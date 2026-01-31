@@ -32,7 +32,8 @@ class ProductPresenter extends Presenter {
     _updateProduct = registerUseCase(UpdateProductUseCase(productRepository));
     _deleteProduct = registerUseCase(DeleteProductUseCase(productRepository));
     _getProductList = registerUseCase(GetProductListUseCase(productRepository));
-    _watchProductList = registerUseCase(WatchProductListUseCase(productRepository));
+    _watchProductList =
+        registerUseCase(WatchProductListUseCase(productRepository));
   }
 
   Future<Result<Product, AppFailure>> getProduct(String id) {
@@ -47,7 +48,8 @@ class ProductPresenter extends Presenter {
     return _createProduct.call(product);
   }
 
-  Future<Result<Product, AppFailure>> updateProduct(String id, Partial<Product> data) {
+  Future<Result<Product, AppFailure>> updateProduct(
+      String id, Partial<Product> data) {
     return _updateProduct.call(UpdateParams(id: id, data: data));
   }
 
@@ -55,11 +57,13 @@ class ProductPresenter extends Presenter {
     return _deleteProduct.call(DeleteParams(id));
   }
 
-  Future<Result<List<Product>, AppFailure>> getProductList([ListQueryParams params = const ListQueryParams()]) {
+  Future<Result<List<Product>, AppFailure>> getProductList(
+      [ListQueryParams params = const ListQueryParams()]) {
     return _getProductList.call(params);
   }
 
-  Stream<Result<List<Product>, AppFailure>> watchProductList([ListQueryParams params = const ListQueryParams()]) {
+  Stream<Result<List<Product>, AppFailure>> watchProductList(
+      [ListQueryParams params = const ListQueryParams()]) {
     return _watchProductList.call(params);
   }
 }
