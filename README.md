@@ -47,7 +47,7 @@ dart pub global activate zuraffa
 
 # Generate a complete feature with one line of code
 # This creates 14 files: UseCases, Repository, DataSource, Presenter, Controller, State, and View
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state
+zfa generate Product --methods=get,watch,create,update,delete,getList,watchList --repository --data --vpc --state --repository
 
 # Or use the shorter alias
 dart run zuraffa:zfa generate Product --methods=get,getList --repository --vpc --state
