@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [1.6.1] - 2026-01-31
+
+### Fix
+- Subdirectory path issue on generated presenters
+
 ## [1.6.0] - 2026-01-31
 
 ### Change
