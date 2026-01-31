@@ -146,6 +146,7 @@ class TestGenerator {
   late $mockRepoClass mockRepository;
 
   setUp(() {
+    ${method == 'getList' || method == 'watchList' ? 'registerFallbackValue(const ListQueryParams());\n    ' : ''}
     mockRepository = $mockRepoClass();
     useCase = $className(mockRepository);
   });''';
@@ -442,6 +443,7 @@ void main() {
   ${fields.join('\n  ')}
 
   setUp(() {
+    registerFallbackValue(const ListQueryParams());
     ${setupMocks.join('\n    ')}
     $setupInstantiation
   });
