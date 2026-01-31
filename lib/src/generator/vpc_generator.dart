@@ -160,11 +160,10 @@ ${withState ? "    updateState(viewState.copyWith(isGetting: true));" : ""}
     final result = await _presenter.get$entityName(id);
 
 ${withState ? '''    result.fold(
-      (entity) {
-        updateState(viewState.copyWith(
-          isGetting: false,
-        ));
-      },
+      (entity) => updateState(viewState.copyWith(
+        isGetting: false,
+        $entityCamel: entity,
+      )),
       (failure) => updateState(viewState.copyWith(
         isGetting: false,
         error: failure,
@@ -227,6 +226,7 @@ ${withState ? '''    result.fold(
       (updated) => updateState(viewState.copyWith(
         isUpdating: false,
         ${entityCamel}List: viewState.${entityCamel}List.map((e) => e.id == updated.id ? updated : e).toList(),
+        $entityCamel: viewState.$entityCamel?.id == updated.id ? updated : viewState.$entityCamel,
       )),
       (failure) => updateState(viewState.copyWith(
         isUpdating: false,
@@ -266,7 +266,10 @@ ${withState ? "    updateState(viewState.copyWith(isWatching: true));" : ""}
     _presenter.watch$entityName(id).listen(
 ${withState ? '''      (result) {
         result.fold(
-          (entity) => updateState(viewState.copyWith(isWatching: false)),
+          (entity) => updateState(viewState.copyWith(
+            isWatching: false,
+            $entityCamel: entity,
+          )),
           (failure) => updateState(viewState.copyWith(
             isWatching: false,
             error: failure,
