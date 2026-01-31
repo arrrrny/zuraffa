@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [1.6.0] - 2026-01-31
+
+### Change
+- fixed not overriding onInitState from CleanView, updated state generation to generate entity
+
 ## [1.5.0] - 2026-01-30
 
 ### Fix
