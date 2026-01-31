@@ -40,7 +40,7 @@ void main() {
 
     test('should call repository.watchList and return stream', () async {
       // Arrange
-      final params = ListQueryParams();
+      const params = ListQueryParams();
       final stream = Stream.fromIterable([testTodos]);
       when(() => mockRepository.watchList(params)).thenAnswer((_) => stream);
 
@@ -62,7 +62,7 @@ void main() {
 
     test('should return stream that emits multiple lists', () async {
       // Arrange
-      final params = ListQueryParams();
+      const params = ListQueryParams();
       final updatedTodos = [
         ...testTodos,
         Todo(
@@ -92,7 +92,7 @@ void main() {
 
     test('should return empty list stream when no todos exist', () async {
       // Arrange
-      final params = ListQueryParams();
+      const params = ListQueryParams();
       final stream = Stream.fromIterable([<Todo>[]]);
       when(() => mockRepository.watchList(params)).thenAnswer((_) => stream);
 
@@ -112,7 +112,7 @@ void main() {
     test('should return stream that emits error when repository fails',
         () async {
       // Arrange
-      final params = ListQueryParams();
+      const params = ListQueryParams();
       final exception = Exception('Watch list error');
       final stream = Stream<List<Todo>>.error(exception);
       when(() => mockRepository.watchList(params)).thenAnswer((_) => stream);
@@ -132,7 +132,7 @@ void main() {
 
     test('should respect cancel token', () async {
       // Arrange
-      final params = ListQueryParams();
+      const params = ListQueryParams();
       final cancelToken = CancelToken();
       cancelToken.cancel();
 

@@ -1,3 +1,25 @@
+## [1.10.0] - 2026-02-01
+
+### Added
+- **Caching Support**: New dual datasource pattern for intelligent caching
+  - `--cache` flag to enable caching with remote and local datasources
+  - `--cache-policy` option: `daily`, `restart`, or `ttl` (default: daily)
+  - `--cache-storage` option: `hive` for Hive implementation (more coming soon)
+  - `CachePolicy` abstraction with `DailyCachePolicy`, `AppRestartCachePolicy`, and `TtlCachePolicy`
+  - Automatic cache-aware repository generation with validity checks
+  - Complete Hive implementation when `--cache-storage=hive` is specified
+  - Local datasource with `save()`, `saveAll()`, `get()`, `getList()` methods
+  - Remote datasource for API/external service calls
+  - Cache invalidation support via `CachePolicy.invalidate()`
+
+### Changed
+- Remote and local datasources are now standalone implementations (no abstract interface)
+- Updated to use `hive_ce_flutter` package for Hive support
+
+### Fixed
+- Import paths in generated datasources and repositories
+- Repository imports now correctly use `../../domain/` paths
+
 ## [1.9.0] - 2026-01-31
 
 ### Added

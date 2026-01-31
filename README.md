@@ -19,6 +19,7 @@ A comprehensive Clean Architecture framework for Flutter applications with **Res
 - ✅ **MCP Server**: AI/IDE integration via Model Context Protocol
 - ✅ **Cancellation**: Cooperative cancellation with `CancelToken`
 - ✅ **Fine-grained Rebuilds**: Optimize performance with selective widget updates
+- ✅ **Caching**: Built-in dual datasource pattern with flexible cache policies
 
 ## Installation
 
@@ -26,7 +27,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  zuraffa: ^1.9.0
+  zuraffa: ^1.10.0
 ```
 
 Then run:
@@ -137,7 +138,6 @@ class _ProductViewState extends CleanViewState<ProductView, ProductController> {
 📝 Next steps:
    • Create a DataSource that implements ProductDataSource in data layer
    • Register repositories with DI container
-   • Implement TODO sections in generated usecases
    • Run tests: flutter test 
 ```
 
@@ -471,6 +471,9 @@ zfa generate Product --methods=get,getList,create,update,delete --repository --d
 # Use typed patches for updates (Morphy support)
 zfa generate Product --methods=update --morphy
 
+# Enable caching with dual datasources
+zfa generate Config --methods=get,getList --repository --data --cache --cache-policy=daily
+
 # Preview what would be generated without writing files
 zfa generate Product --methods=get,getList --repository --dry-run
 
@@ -535,7 +538,11 @@ zfa generate ProcessCheckout --repos=CartRepository,PaymentRepository --params=C
 | `--vpc`        | Generate View, Presenter, and Controller              |
 | `--state`      | Generate immutable State class                        |
 | `--morphy`     | Use typed Patch objects for updates                   |
+| `--cache`      | Enable caching with dual datasources (remote + local) |
+| `--cache-policy` | Cache expiration: daily, restart, ttl (default: daily) |
+| `--cache-storage` | Local storage hint: hive, sqlite, shared_preferences |
 | `--subfolder`  | Organize under a subfolder (e.g., `--subfolder=auth`) |
+| `--init`       | Add initialize method & isInitialized stream to repos |
 | `--force`      | Overwrite existing files                              |
 | `--dry-run`    | Preview what would be generated without writing files |
 | `--test`       | Generate unit tests for each UseCase                  |
@@ -715,6 +722,7 @@ flutter run
 ## Documentation
 
 - [CLI Guide](CLI_GUIDE.md) - Complete CLI documentation
+- [Caching Guide](CACHING.md) - Dual datasource caching pattern
 - [MCP Server](MCP_SERVER.md) - MCP server setup and usage
 - [AGENTS.md](AGENTS.md) - Guide for AI coding agents
 - [Contributing](CONTRIBUTING.md) - How to contribute

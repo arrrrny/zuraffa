@@ -129,10 +129,21 @@ class CodeGenerator {
       }
 
       if (config.generateData || config.generateDataSource) {
-        nextSteps.add(
-            'Create a DataSource that implements ${config.name}DataSource in data layer');
-        final file = await _dataLayerGenerator.generateDataSource();
-        files.add(file);
+        if (config.enableCache) {
+          // Generate both remote and local datasources
+          final remoteFile =
+              await _dataLayerGenerator.generateRemoteDataSource();
+          final localFile = await _dataLayerGenerator.generateLocalDataSource();
+          files.add(remoteFile);
+          files.add(localFile);
+          nextSteps.add(
+              'Implement remote and local data sources for ${config.name}');
+        } else {
+          nextSteps.add(
+              'Create a DataSource that implements ${config.name}DataSource in data layer');
+          final file = await _dataLayerGenerator.generateDataSource();
+          files.add(file);
+        }
       }
 
       if (config.generateData) {
@@ -147,7 +158,7 @@ class CodeGenerator {
       if (config.effectiveRepos.isNotEmpty) {
         nextSteps.add('Register repositories with DI container');
       }
-      if (files.any((f) => f.type == 'usecase')) {
+      if (files.any((f) => f.type == 'usecase' && (!config.isEntityBased))) {
         nextSteps.add('Implement TODO sections in generated usecases');
       }
 

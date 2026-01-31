@@ -12,9 +12,15 @@ class MockProductRepository extends Mock implements ProductRepository {}
 
 class MockProduct extends Mock implements Product {}
 
+class FakeDeleteParams extends Fake implements DeleteParams<Product> {}
+
 void main() {
   late DeleteProductUseCase useCase;
   late MockProductRepository mockRepository;
+
+  setUpAll(() {
+    registerFallbackValue(FakeDeleteParams());
+  });
 
   setUp(() {
     mockRepository = MockProductRepository();

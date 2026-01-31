@@ -30,7 +30,7 @@ void main() {
       when(() => mockRepository.get(testId)).thenAnswer((_) async => testTodo);
 
       // Act
-      final result = await useCase(QueryParams(testId));
+      final result = await useCase(const QueryParams(testId));
 
       // Assert
       verify(() => mockRepository.get(testId)).called(1);
@@ -44,7 +44,7 @@ void main() {
       when(() => mockRepository.get(testId)).thenThrow(exception);
 
       // Act
-      final result = await useCase(QueryParams(testId));
+      final result = await useCase(const QueryParams(testId));
 
       // Assert
       verify(() => mockRepository.get(testId)).called(1);
@@ -58,7 +58,7 @@ void main() {
 
       // Act
       final result =
-          await useCase(QueryParams(testId), cancelToken: cancelToken);
+          await useCase(const QueryParams(testId), cancelToken: cancelToken);
 
       // Assert
       expect(result.isFailure, true);
