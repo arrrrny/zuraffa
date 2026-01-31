@@ -70,6 +70,21 @@
 ### Feat
 - Added InitializationParams and --init flag to cli
 
+## [1.5.0] - 2026-01-30
+
+### Fix
+- mcp server connection fix
+
+## [1.4.2] - 2026-01-27
+
+### Change
+- Release 1.4.2
+
+## [1.4.1] - 2026-01-26
+
+### Feat
+- Added InitializationParams and --init flag to cli
+
 ## [1.4.0] - 2026-01-24
 
 ### Feat
