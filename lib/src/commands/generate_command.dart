@@ -135,12 +135,22 @@ class GenerateCommand {
       ..addFlag('init',
           help: 'Generate initialize method for repository and datasource',
           defaultsTo: false)
-      ..addOption('id-type', help: 'ID type for entity (deprecated, use --id-field-type)', defaultsTo: 'String')
-      ..addOption('id-field', help: 'ID field name for update/delete (default: id)', defaultsTo: 'id')
-      ..addOption('id-field-type', help: 'ID field type (default: String)', defaultsTo: 'String')
-      ..addOption('query-field', help: 'Query field name for get/watch (default: id)', defaultsTo: 'id')
-      ..addOption('query-field-type', help: 'Query field type (default: matches --id-type)')
-      ..addFlag('morphy', help: 'Use Morphy-style typed patches (e.g. EntityPatch) for updates', defaultsTo: false)
+      ..addOption('id-type',
+          help: 'ID type for entity (deprecated, use --id-field-type)',
+          defaultsTo: 'String')
+      ..addOption('id-field',
+          help: 'ID field name for update/delete (default: id)',
+          defaultsTo: 'id')
+      ..addOption('id-field-type',
+          help: 'ID field type (default: String)', defaultsTo: 'String')
+      ..addOption('query-field',
+          help: 'Query field name for get/watch (default: id)',
+          defaultsTo: 'id')
+      ..addOption('query-field-type',
+          help: 'Query field type (default: matches --id-type)')
+      ..addFlag('morphy',
+          help: 'Use Morphy-style typed patches (e.g. EntityPatch) for updates',
+          defaultsTo: false)
       ..addFlag('state', help: 'Generate State object', defaultsTo: false)
       ..addOption('subdirectory',
           help: 'Subdirectory to organize files (e.g., products, orders)')

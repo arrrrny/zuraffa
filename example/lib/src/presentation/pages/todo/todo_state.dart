@@ -8,22 +8,31 @@ import '../../../domain/entities/todo/todo.dart';
 class TodoState {
   /// The current error, if any
   final AppFailure? error;
+
   /// The list of Todo entities
   final List<Todo> todoList;
+
   /// The single Todo entity
   final Todo? todo;
+
   /// Whether get operation is in progress
   final bool isGetting;
+
   /// Whether watch operation is in progress
   final bool isWatching;
+
   /// Whether create operation is in progress
   final bool isCreating;
+
   /// Whether update operation is in progress
   final bool isUpdating;
+
   /// Whether delete operation is in progress
   final bool isDeleting;
+
   /// Whether getList operation is in progress
   final bool isGettingList;
+
   /// Whether watchList operation is in progress
   final bool isWatchingList;
 
@@ -55,21 +64,28 @@ class TodoState {
     bool? isWatchingList,
   }) {
     return TodoState(
-    todoList: todoList ?? this.todoList,
-    todo: todo ?? this.todo,
-    error: clearError ? null : (error ?? this.error),
-    isGetting: isGetting ?? this.isGetting,
-    isWatching: isWatching ?? this.isWatching,
-    isCreating: isCreating ?? this.isCreating,
-    isUpdating: isUpdating ?? this.isUpdating,
-    isDeleting: isDeleting ?? this.isDeleting,
-    isGettingList: isGettingList ?? this.isGettingList,
-    isWatchingList: isWatchingList ?? this.isWatchingList,
+      todoList: todoList ?? this.todoList,
+      todo: todo ?? this.todo,
+      error: clearError ? null : (error ?? this.error),
+      isGetting: isGetting ?? this.isGetting,
+      isWatching: isWatching ?? this.isWatching,
+      isCreating: isCreating ?? this.isCreating,
+      isUpdating: isUpdating ?? this.isUpdating,
+      isDeleting: isDeleting ?? this.isDeleting,
+      isGettingList: isGettingList ?? this.isGettingList,
+      isWatchingList: isWatchingList ?? this.isWatchingList,
     );
   }
 
   /// Whether any operation is currently loading
-  bool get isLoading => isGetting || isWatching || isCreating || isUpdating || isDeleting || isGettingList || isWatchingList;
+  bool get isLoading =>
+      isGetting ||
+      isWatching ||
+      isCreating ||
+      isUpdating ||
+      isDeleting ||
+      isGettingList ||
+      isWatchingList;
 
   /// Whether there is an error to display
   bool get hasError => error != null;
@@ -90,7 +106,14 @@ class TodoState {
           runtimeType == other.runtimeType &&
           todoList == other.todoList &&
           todo == other.todo &&
-          error == other.error && isGetting == other.isGetting && isWatching == other.isWatching && isCreating == other.isCreating && isUpdating == other.isUpdating && isDeleting == other.isDeleting && isGettingList == other.isGettingList && isWatchingList == other.isWatchingList);
+          error == other.error &&
+          isGetting == other.isGetting &&
+          isWatching == other.isWatching &&
+          isCreating == other.isCreating &&
+          isUpdating == other.isUpdating &&
+          isDeleting == other.isDeleting &&
+          isGettingList == other.isGettingList &&
+          isWatchingList == other.isWatchingList);
 
   @override
   int get hashCode =>
@@ -106,5 +129,6 @@ class TodoState {
       isWatchingList.hashCode;
 
   @override
-  String toString() => 'TodoState(todoList: ${todoList.length}, todo: $todo, isLoading: $isLoading, error: $error)';
+  String toString() =>
+      'TodoState(todoList: ${todoList.length}, todo: $todo, isLoading: $isLoading, error: $error)';
 }

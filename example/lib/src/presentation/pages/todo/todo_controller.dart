@@ -71,7 +71,9 @@ class TodoController extends Controller with StatefulController<TodoState> {
     result.fold(
       (updated) => updateState(viewState.copyWith(
         isUpdating: false,
-        todoList: viewState.todoList.map((e) => e.id == updated.id ? updated : e).toList(),
+        todoList: viewState.todoList
+            .map((e) => e.id == updated.id ? updated : e)
+            .toList(),
         todo: viewState.todo?.id == updated.id ? updated : viewState.todo,
       )),
       (failure) => updateState(viewState.copyWith(
@@ -97,7 +99,8 @@ class TodoController extends Controller with StatefulController<TodoState> {
     );
   }
 
-  Future<void> getTodoList([ListQueryParams params = const ListQueryParams()]) async {
+  Future<void> getTodoList(
+      [ListQueryParams params = const ListQueryParams()]) async {
     updateState(viewState.copyWith(isGettingList: true));
     final result = await _presenter.getTodoList(params);
 

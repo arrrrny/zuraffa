@@ -7,7 +7,8 @@ import 'package:example/src/domain/usecases/todo/update_todo_usecase.dart';
 
 class MockTodoRepository extends Mock implements TodoRepository {}
 
-class FakeUpdateParams extends Fake implements UpdateParams<Map<String, dynamic>> {}
+class FakeUpdateParams extends Fake
+    implements UpdateParams<Map<String, dynamic>> {}
 
 void main() {
   late UpdateTodoUseCase useCase;

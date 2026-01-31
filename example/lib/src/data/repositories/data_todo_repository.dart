@@ -6,7 +6,9 @@ import '../../domain/entities/todo/todo.dart';
 import '../../domain/repositories/todo_repository.dart';
 import '../data_sources/todo/todo_data_source.dart';
 
-class DataTodoRepository with Loggable, FailureHandler implements TodoRepository {
+class DataTodoRepository
+    with Loggable, FailureHandler
+    implements TodoRepository {
   final TodoDataSource _dataSource;
 
   DataTodoRepository(this._dataSource);
@@ -30,7 +32,6 @@ class DataTodoRepository with Loggable, FailureHandler implements TodoRepository
   Future<Todo> update(UpdateParams<Partial<Todo>> params) {
     return _dataSource.update(params);
   }
-
 
   @override
   Future<void> delete(DeleteParams<Todo> params) {

@@ -217,7 +217,8 @@ ${withState ? '''    result.fold(
   }''');
           break;
         case 'update':
-          final updateDataType = config.useMorphy ? '${entityName}Patch' : 'Partial<$entityName>';
+          final updateDataType =
+              config.useMorphy ? '${entityName}Patch' : 'Partial<$entityName>';
           methods.add('''
   Future<void> update$entityName(${config.idType} ${config.idField}, $updateDataType data) async {
 ${withState ? "    updateState(viewState.copyWith(isUpdating: true));" : ""}

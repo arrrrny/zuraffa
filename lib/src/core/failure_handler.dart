@@ -3,10 +3,6 @@ import 'package:flutter/services.dart';
 
 import 'package:zuraffa/zuraffa.dart';
 
-import '../core/loggable.dart';
-
-import 'failure.dart';
-
 /// Mixin that provides failure handling capabilities to a class.
 ///
 /// This mixin provides convenient methods for creating and handling
@@ -32,7 +28,7 @@ mixin FailureHandler on Loggable {
   AppFailure handleError(Object error, [StackTrace? stackTrace]) {
     return switch (error) {
       // Validation Failures
-      IndexError e => validationFailure(
+      IndexError() => validationFailure(
           'Index out of bounds',
           cause: error,
           stackTrace: stackTrace,

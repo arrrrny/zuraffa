@@ -46,7 +46,7 @@ class ZuraffaMcpServer {
     } catch (_) {
       // Ignore errors in piped context
     }
-  
+
     if (useMorphyByDefault) {
       stderr.writeln('Spawned with default Morphy mode enabled');
     }
@@ -411,8 +411,8 @@ class ZuraffaMcpServer {
     }
     if (args['id_field_type'] != null || args['id_type'] != null) {
       // Support both for backward compatibility
-      cliArgs.add(
-          '--id-field-type=${args['id_field_type'] ?? args['id_type']}');
+      cliArgs
+          .add('--id-field-type=${args['id_field_type'] ?? args['id_type']}');
     }
     if (args['query_field'] != null) {
       cliArgs.add('--query-field=${args['query_field']}');
@@ -420,9 +420,10 @@ class ZuraffaMcpServer {
     if (args['query_field_type'] != null) {
       cliArgs.add('--query-field-type=${args['query_field_type']}');
     }
-    
+
     // Morphy logic: Explicit flag > Default flag
-    final useMorphy = args['morphy'] == true || (args['morphy'] == null && useMorphyByDefault);
+    final useMorphy = args['morphy'] == true ||
+        (args['morphy'] == null && useMorphyByDefault);
     if (useMorphy) cliArgs.add('--morphy');
 
     // Custom UseCase options

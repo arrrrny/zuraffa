@@ -23,14 +23,7 @@ void main() {
   });
 
   group('DeleteTodoUseCase', () {
-    final testTodo = Todo(
-      id: 1,
-      title: 'Todo to Delete',
-      isCompleted: false,
-      createdAt: DateTime(2026, 1, 31),
-    );
-
-    final deleteParams = DeleteParams<Todo>(
+    const deleteParams = DeleteParams<Todo>(
       '1',
     );
 

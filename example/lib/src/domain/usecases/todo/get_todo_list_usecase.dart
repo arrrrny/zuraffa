@@ -10,7 +10,8 @@ class GetTodoListUseCase extends UseCase<List<Todo>, ListQueryParams> {
   GetTodoListUseCase(this._repository);
 
   @override
-  Future<List<Todo>> execute(ListQueryParams params, CancelToken? cancelToken) async {
+  Future<List<Todo>> execute(
+      ListQueryParams params, CancelToken? cancelToken) async {
     cancelToken?.throwIfCancelled();
     return _repository.getList(params);
   }

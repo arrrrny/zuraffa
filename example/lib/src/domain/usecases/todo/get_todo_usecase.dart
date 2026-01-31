@@ -10,7 +10,8 @@ class GetTodoUseCase extends UseCase<Todo, QueryParams<String>> {
   GetTodoUseCase(this._repository);
 
   @override
-  Future<Todo> execute(QueryParams<String> params, CancelToken? cancelToken) async {
+  Future<Todo> execute(
+      QueryParams<String> params, CancelToken? cancelToken) async {
     cancelToken?.throwIfCancelled();
     return _repository.get(params.query);
   }

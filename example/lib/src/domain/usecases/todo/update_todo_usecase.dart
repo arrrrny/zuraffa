@@ -10,7 +10,8 @@ class UpdateTodoUseCase extends UseCase<Todo, UpdateParams<Partial<Todo>>> {
   UpdateTodoUseCase(this._repository);
 
   @override
-  Future<Todo> execute(UpdateParams<Partial<Todo>> params, CancelToken? cancelToken) async {
+  Future<Todo> execute(
+      UpdateParams<Partial<Todo>> params, CancelToken? cancelToken) async {
     cancelToken?.throwIfCancelled();
     params.validate(['id', 'title', 'isCompleted', 'createdAt']);
     return _repository.update(params);

@@ -10,7 +10,8 @@ class DeleteTodoUseCase extends CompletableUseCase<DeleteParams<Todo>> {
   DeleteTodoUseCase(this._repository);
 
   @override
-  Future<void> execute(DeleteParams<Todo> params, CancelToken? cancelToken) async {
+  Future<void> execute(
+      DeleteParams<Todo> params, CancelToken? cancelToken) async {
     cancelToken?.throwIfCancelled();
     return _repository.delete(params);
   }

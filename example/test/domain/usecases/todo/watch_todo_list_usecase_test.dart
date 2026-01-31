@@ -49,13 +49,14 @@ void main() {
 
       // Assert
       expect(result, isA<Stream<Result<List<Todo>, AppFailure>>>());
-      
+
       // Verify stream emits correct value
       await expectLater(
-        result, 
-        emits(isA<Success<List<Todo>, AppFailure>>().having((s) => s.value, 'value', testTodos)),
+        result,
+        emits(isA<Success<List<Todo>, AppFailure>>()
+            .having((s) => s.value, 'value', testTodos)),
       );
-      
+
       verify(() => mockRepository.watchList(params)).called(1);
     });
 
@@ -79,10 +80,12 @@ void main() {
 
       // Assert
       await expectLater(
-        result, 
+        result,
         emitsInOrder([
-          isA<Success<List<Todo>, AppFailure>>().having((s) => s.value, 'value', testTodos),
-          isA<Success<List<Todo>, AppFailure>>().having((s) => s.value, 'value', updatedTodos),
+          isA<Success<List<Todo>, AppFailure>>()
+              .having((s) => s.value, 'value', testTodos),
+          isA<Success<List<Todo>, AppFailure>>()
+              .having((s) => s.value, 'value', updatedTodos),
         ]),
       );
     });
@@ -98,7 +101,7 @@ void main() {
 
       // Assert
       await expectLater(
-        result, 
+        result,
         emits(
           isA<Success<List<Todo>, AppFailure>>()
               .having((s) => s.value, 'value', isEmpty),
@@ -106,7 +109,8 @@ void main() {
       );
     });
 
-    test('should return stream that emits error when repository fails', () async {
+    test('should return stream that emits error when repository fails',
+        () async {
       // Arrange
       final params = ListQueryParams();
       final exception = Exception('Watch list error');
@@ -118,7 +122,7 @@ void main() {
 
       // Assert
       await expectLater(
-        result, 
+        result,
         emits(
           isA<Failure<List<Todo>, AppFailure>>()
               .having((f) => f.error, 'error', isA<UnknownFailure>()),

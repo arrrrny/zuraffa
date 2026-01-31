@@ -56,8 +56,7 @@ void main() {
     test('should return empty list when no todos exist', () async {
       // Arrange
       final params = ListQueryParams();
-      when(() => mockRepository.getList(params))
-          .thenAnswer((_) async => []);
+      when(() => mockRepository.getList(params)).thenAnswer((_) async => []);
 
       // Act
       final result = await useCase(params);

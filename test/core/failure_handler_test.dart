@@ -19,7 +19,8 @@ void main() {
 
   group('FailureHandler', () {
     test('handleError should convert TimeoutException to TimeoutFailure', () {
-      final exception = TimeoutException('Connection timed out', const Duration(seconds: 5));
+      final exception =
+          TimeoutException('Connection timed out', const Duration(seconds: 5));
       final failure = dataSource.handleError(exception);
 
       expect(failure, isA<TimeoutFailure>());
@@ -43,7 +44,8 @@ void main() {
       expect(failure.message, 'Invalid argument');
     });
 
-    test('handleError should convert CancelledException to CancellationFailure', () {
+    test('handleError should convert CancelledException to CancellationFailure',
+        () {
       final exception = CancelledException('Request cancelled');
       final failure = dataSource.handleError(exception);
 
@@ -75,7 +77,9 @@ void main() {
       expect(failure.message, 'Bad state');
     });
 
-    test('handleError should convert UnimplementedError to UnimplementedFailure', () {
+    test(
+        'handleError should convert UnimplementedError to UnimplementedFailure',
+        () {
       final exception = UnimplementedError();
       final failure = dataSource.handleError(exception);
 
@@ -83,7 +87,8 @@ void main() {
       expect(failure.message, 'Feature not implemented');
     });
 
-    test('handleError should convert UnsupportedError to UnsupportedFailure', () {
+    test('handleError should convert UnsupportedError to UnsupportedFailure',
+        () {
       final exception = UnsupportedError('Feature not supported');
       final failure = dataSource.handleError(exception);
 
@@ -115,7 +120,8 @@ void main() {
     });
 
     test('handleError should convert PlatformException to PlatformFailure', () {
-      final exception = PlatformException(code: 'ERROR', message: 'Platform error');
+      final exception =
+          PlatformException(code: 'ERROR', message: 'Platform error');
       final failure = dataSource.handleError(exception);
 
       expect(failure, isA<PlatformFailure>());
@@ -123,7 +129,9 @@ void main() {
       expect(failure.message, 'Platform error');
     });
 
-    test('handleError should convert MissingPluginException to UnsupportedFailure', () {
+    test(
+        'handleError should convert MissingPluginException to UnsupportedFailure',
+        () {
       final exception = MissingPluginException('Plugin not present');
       final failure = dataSource.handleError(exception);
 
@@ -131,7 +139,9 @@ void main() {
       expect(failure.message, 'Plugin not present');
     });
 
-    test('handleError should convert ConcurrentModificationError to StateFailure', () {
+    test(
+        'handleError should convert ConcurrentModificationError to StateFailure',
+        () {
       final exception = ConcurrentModificationError();
       final failure = dataSource.handleError(exception);
 
@@ -139,16 +149,18 @@ void main() {
       expect(failure.message, 'Concurrent modification detected');
     });
 
-    test('handleError should check for NoSuchMethodError and convert to TypeFailure', () {
-       try {
-         // Create a real NoSuchMethodError
-         dynamic d = 1;
-         d.substring(0);
-       } catch (e) {
-         final failure = dataSource.handleError(e);
-         expect(failure, isA<TypeFailure>());
-         expect(failure.message, contains('No such method'));
-       }
+    test(
+        'handleError should check for NoSuchMethodError and convert to TypeFailure',
+        () {
+      try {
+        // Create a real NoSuchMethodError
+        dynamic d = 1;
+        d.substring(0);
+      } catch (e) {
+        final failure = dataSource.handleError(e);
+        expect(failure, isA<TypeFailure>());
+        expect(failure.message, contains('No such method'));
+      }
     });
 
     test('handleError should use AppFailure.from for unknown exceptions', () {

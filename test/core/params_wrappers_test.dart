@@ -44,7 +44,7 @@ void main() {
 
     test('copyWith should allow partial updates and clearing', () {
       const q = ListQueryParams(search: 'old', sortBy: 'old');
-      
+
       final updated = q.copyWith(
         search: 'new',
         clearSort: true,

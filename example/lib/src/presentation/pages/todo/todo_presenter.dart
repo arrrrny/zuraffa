@@ -55,11 +55,13 @@ class TodoPresenter extends Presenter {
     return _deleteTodo.call(DeleteParams(id));
   }
 
-  Future<Result<List<Todo>, AppFailure>> getTodoList([ListQueryParams params = const ListQueryParams()]) {
+  Future<Result<List<Todo>, AppFailure>> getTodoList(
+      [ListQueryParams params = const ListQueryParams()]) {
     return _getTodoList.call(params);
   }
 
-  Stream<Result<List<Todo>, AppFailure>> watchTodoList([ListQueryParams params = const ListQueryParams()]) {
+  Stream<Result<List<Todo>, AppFailure>> watchTodoList(
+      [ListQueryParams params = const ListQueryParams()]) {
     return _watchTodoList.call(params);
   }
 }

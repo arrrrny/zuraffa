@@ -21,7 +21,8 @@ class InMemoryTodoDataSource
     if (initialTodos != null) {
       _todos.addAll(initialTodos);
       if (initialTodos.isNotEmpty) {
-        _nextId = initialTodos.map((t) => t.id).reduce((a, b) => a > b ? a : b) + 1;
+        _nextId =
+            initialTodos.map((t) => t.id).reduce((a, b) => a > b ? a : b) + 1;
       }
     }
   }
@@ -55,7 +56,8 @@ class InMemoryTodoDataSource
     // Apply filtering if needed (e.g., search)
     if (params.search != null && params.search!.isNotEmpty) {
       final query = params.search!.toLowerCase();
-      result = result.where((t) => t.title.toLowerCase().contains(query)).toList();
+      result =
+          result.where((t) => t.title.toLowerCase().contains(query)).toList();
     }
 
     // Apply sorting
@@ -75,7 +77,7 @@ class InMemoryTodoDataSource
     final intId = _parseId(id);
     return _controller.stream.map((todos) {
       final todo = todos.where((t) => t.id == intId).firstOrNull;
-       if (todo == null) {
+      if (todo == null) {
         throw Exception('Todo with id $id not found');
       }
       return todo;
@@ -90,9 +92,10 @@ class InMemoryTodoDataSource
 
       if (params.search != null && params.search!.isNotEmpty) {
         final query = params.search!.toLowerCase();
-        result = result.where((t) => t.title.toLowerCase().contains(query)).toList();
+        result =
+            result.where((t) => t.title.toLowerCase().contains(query)).toList();
       }
-      
+
       return result;
     });
   }
@@ -116,13 +119,13 @@ class InMemoryTodoDataSource
 
     final intId = _parseId(params.id.toString());
     final index = _todos.indexWhere((t) => t.id == intId);
-    
+
     if (index == -1) {
       throw Exception('Todo with id ${params.id} not found');
     }
 
     final currentTodo = _todos[index];
-    
+
     // Apply partial updates
     final newTodo = currentTodo.copyWith(
       title: params.data['title'] as String?,
@@ -142,7 +145,7 @@ class InMemoryTodoDataSource
 
     final intId = _parseId(params.id.toString());
     final index = _todos.indexWhere((t) => t.id == intId);
-    
+
     if (index == -1) {
       throw Exception('Todo with id ${params.id} not found');
     }
@@ -156,6 +159,7 @@ class InMemoryTodoDataSource
     _controller.close();
   }
 }
+
 // Extension for startWith since standard stream doesn't have it easily available without rxdart
 extension StreamStartWith<T> on Stream<T> {
   Stream<T> startWith(T initial) async* {

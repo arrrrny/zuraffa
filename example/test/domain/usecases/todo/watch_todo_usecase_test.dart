@@ -25,7 +25,8 @@ void main() {
       createdAt: DateTime(2026, 1, 31),
     );
 
-    test('should call repository.watch with correct ID and return stream', () async {
+    test('should call repository.watch with correct ID and return stream',
+        () async {
       // Arrange
       final stream = Stream.fromIterable([testTodo]);
       when(() => mockRepository.watch(testId)).thenAnswer((_) => stream);
@@ -35,14 +36,12 @@ void main() {
 
       // Assert
       expect(result, isA<Stream<Result<Todo, AppFailure>>>());
-      
+
       // Verify stream emits correct value wrapped in Success
       await expectLater(
-        result, 
-        emits(isA<Success<Todo, AppFailure>>().having(
-          (s) => s.value, 'value', equals(testTodo)
-        ))
-      );
+          result,
+          emits(isA<Success<Todo, AppFailure>>()
+              .having((s) => s.value, 'value', equals(testTodo))));
       verify(() => mockRepository.watch(testId)).called(1);
     });
 
@@ -57,12 +56,13 @@ void main() {
 
       // Assert
       await expectLater(
-        result, 
-        emitsInOrder([
-          isA<Success<Todo, AppFailure>>().having((s) => s.value, 'value', equals(testTodo)),
-          isA<Success<Todo, AppFailure>>().having((s) => s.value, 'value', equals(updatedTodo)),
-        ])
-      );
+          result,
+          emitsInOrder([
+            isA<Success<Todo, AppFailure>>()
+                .having((s) => s.value, 'value', equals(testTodo)),
+            isA<Success<Todo, AppFailure>>()
+                .having((s) => s.value, 'value', equals(updatedTodo)),
+          ]));
     });
 
     test('should return Failure when repository stream emits error', () async {
@@ -75,10 +75,7 @@ void main() {
       final result = useCase(QueryParams(testId));
 
       // Assert
-      await expectLater(
-        result, 
-        emits(isA<Failure<Todo, AppFailure>>())
-      );
+      await expectLater(result, emits(isA<Failure<Todo, AppFailure>>()));
     });
 
     test('should return CancellationFailure when cancelled', () async {
@@ -90,10 +87,7 @@ void main() {
       final result = useCase(QueryParams(testId), cancelToken: cancelToken);
 
       // Assert
-      await expectLater(
-        result, 
-        emits(isA<Failure<Todo, AppFailure>>())
-      );
+      await expectLater(result, emits(isA<Failure<Todo, AppFailure>>()));
       verifyNever(() => mockRepository.watch(any()));
     });
   });

@@ -45,10 +45,12 @@ class DataLayerGenerator {
     for (final method in config.methods) {
       switch (method) {
         case 'get':
-          methods.add('  Future<$entityName> get(${config.queryFieldType} ${config.queryField});');
+          methods.add(
+              '  Future<$entityName> get(${config.queryFieldType} ${config.queryField});');
           break;
         case 'getList':
-          methods.add('  Future<List<$entityName>> getList(ListQueryParams params);');
+          methods.add(
+              '  Future<List<$entityName>> getList(ListQueryParams params);');
           break;
         case 'create':
           methods
@@ -59,13 +61,16 @@ class DataLayerGenerator {
               '  Future<${config.name}> update(UpdateParams<${config.useMorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params);');
           break;
         case 'delete':
-          methods.add('  Future<void> delete(DeleteParams<$entityName> params);');
+          methods
+              .add('  Future<void> delete(DeleteParams<$entityName> params);');
           break;
         case 'watch':
-          methods.add('  Stream<$entityName> watch(${config.queryFieldType} ${config.queryField});');
+          methods.add(
+              '  Stream<$entityName> watch(${config.queryFieldType} ${config.queryField});');
           break;
         case 'watchList':
-          methods.add('  Stream<List<$entityName>> watchList(ListQueryParams params);');
+          methods.add(
+              '  Stream<List<$entityName>> watchList(ListQueryParams params);');
           break;
       }
     }
