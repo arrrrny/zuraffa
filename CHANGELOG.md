@@ -1,4 +1,4 @@
-## [Unreleased]
+## [1.9.0] - 2026-01-31
 
 ### Added
 - **Test Generation (`--test`)**: New flag to generate unit tests for generated UseCases with comprehensive mock setup and test scenarios.
