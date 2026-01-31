@@ -12,9 +12,15 @@ class MockProductRepository extends Mock implements ProductRepository {}
 
 class MockProduct extends Mock implements Product {}
 
+class FakeListQueryParams extends Fake implements ListQueryParams {}
+
 void main() {
   late GetProductListUseCase useCase;
   late MockProductRepository mockRepository;
+
+  setUpAll(() {
+    registerFallbackValue(FakeListQueryParams());
+  });
 
   setUp(() {
     mockRepository = MockProductRepository();

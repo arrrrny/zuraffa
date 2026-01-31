@@ -32,7 +32,7 @@ void main() {
       when(() => mockRepository.watch(testId)).thenAnswer((_) => stream);
 
       // Act
-      final result = useCase(QueryParams(testId));
+      final result = useCase(const QueryParams(testId));
 
       // Assert
       expect(result, isA<Stream<Result<Todo, AppFailure>>>());
@@ -52,7 +52,7 @@ void main() {
       when(() => mockRepository.watch(testId)).thenAnswer((_) => stream);
 
       // Act
-      final result = useCase(QueryParams(testId));
+      final result = useCase(const QueryParams(testId));
 
       // Assert
       await expectLater(
@@ -72,7 +72,7 @@ void main() {
       when(() => mockRepository.watch(testId)).thenAnswer((_) => stream);
 
       // Act
-      final result = useCase(QueryParams(testId));
+      final result = useCase(const QueryParams(testId));
 
       // Assert
       await expectLater(result, emits(isA<Failure<Todo, AppFailure>>()));
@@ -84,7 +84,8 @@ void main() {
       cancelToken.cancel();
 
       // Act
-      final result = useCase(QueryParams(testId), cancelToken: cancelToken);
+      final result =
+          useCase(const QueryParams(testId), cancelToken: cancelToken);
 
       // Assert
       await expectLater(result, emits(isA<Failure<Todo, AppFailure>>()));

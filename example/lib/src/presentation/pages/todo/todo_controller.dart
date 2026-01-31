@@ -83,9 +83,9 @@ class TodoController extends Controller with StatefulController<TodoState> {
     );
   }
 
-  Future<void> deleteTodo(String id) async {
+  Future<void> deleteTodo(int id) async {
     updateState(viewState.copyWith(isDeleting: true));
-    final result = await _presenter.deleteTodo(id);
+    final result = await _presenter.deleteTodo(id.toString());
 
     result.fold(
       (_) => updateState(viewState.copyWith(

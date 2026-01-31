@@ -43,7 +43,7 @@ class DataLayerGenerator {
     // Original single datasource generation
     final dataSourceName = '${entityName}DataSource';
     final fileName = '${entitySnake}_data_source.dart';
-    String relativePath = '../../';
+    String relativePath = '../../../';
 
     final dataSourcePathParts = <String>[outputDir, 'data', 'data_sources'];
     if (config.subdirectory != null && config.subdirectory!.isNotEmpty) {

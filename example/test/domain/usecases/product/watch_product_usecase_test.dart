@@ -12,9 +12,15 @@ class MockProductRepository extends Mock implements ProductRepository {}
 
 class MockProduct extends Mock implements Product {}
 
+class FakeQueryParams extends Fake implements QueryParams {}
+
 void main() {
   late WatchProductUseCase useCase;
   late MockProductRepository mockRepository;
+
+  setUpAll(() {
+    registerFallbackValue(FakeQueryParams());
+  });
 
   setUp(() {
     mockRepository = MockProductRepository();
@@ -30,7 +36,7 @@ void main() {
           .thenAnswer((_) => Stream.value(tProduct));
 
       // Act
-      final result = useCase(QueryParams('1'));
+      final result = useCase(const QueryParams('1'));
 
       // Assert
       await expectLater(

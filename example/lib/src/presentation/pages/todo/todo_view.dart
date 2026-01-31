@@ -193,7 +193,7 @@ class _TodoViewState extends CleanViewState<TodoView, TodoController> {
         padding: const EdgeInsets.only(right: 16),
         child: const Icon(Icons.delete, color: Colors.white),
       ),
-      onDismissed: (_) => controller.deleteTodo(todo.id.toString()),
+      onDismissed: (_) => controller.deleteTodo(todo.id),
       child: ListTile(
         leading: Checkbox(
           value: todo.isCompleted,

@@ -10,11 +10,18 @@ import 'package:example/src/domain/usecases/product/update_product_usecase.dart'
 
 class MockProductRepository extends Mock implements ProductRepository {}
 
-class MockProduct extends Mock implements Product {}
+class FakeProduct extends Fake implements Product {}
+
+class FakeUpdateParams extends Fake implements UpdateParams<Partial<Product>> {}
 
 void main() {
   late UpdateProductUseCase useCase;
   late MockProductRepository mockRepository;
+
+  setUpAll(() {
+    registerFallbackValue(FakeProduct());
+    registerFallbackValue(FakeUpdateParams());
+  });
 
   setUp(() {
     mockRepository = MockProductRepository();
@@ -22,9 +29,21 @@ void main() {
   });
 
   group('UpdateProductUseCase', () {
-    final tProduct = MockProduct();
+    final tProduct = Product(
+      id: '1',
+      name: 'Test Product',
+      description: 'Test Description',
+      price: 9.99,
+      createdAt: DateTime(2026, 1, 1),
+    );
 
-    final uProduct = tProduct.toJson();
+    final uProduct = <String, dynamic>{
+      'id': '1',
+      'name': 'Updated Product',
+      'description': 'Updated Description',
+      'price': 19.99,
+      'createdAt': DateTime(2026, 1, 1).toIso8601String(),
+    };
 
     test('should call repository.update and return result', () async {
       // Arrange
