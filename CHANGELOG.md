@@ -1,4 +1,4 @@
-## [Unreleased]
+## [1.10.0] - 2026-02-01
 
 ### Added
 - **Caching Support**: New dual datasource pattern for intelligent caching
