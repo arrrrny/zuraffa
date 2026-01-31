@@ -27,7 +27,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  zuraffa: ^1.9.0
+  zuraffa: ^1.10.0
 ```
 
 Then run:
