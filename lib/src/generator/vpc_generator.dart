@@ -49,48 +49,36 @@ class VpcGenerator {
 
     final imports = <String>[
       "import 'package:zuraffa/zuraffa.dart';",
-      "import '$relativePath../domain/entities/$entitySnake/$entitySnake.dart';",
     ];
 
-    final repoFields = <String>[];
-    final repoParams = <String>[];
-
-    for (final repo in config.effectiveRepos) {
-      final repoSnake =
-          StringUtils.camelToSnake(repo.replaceAll('Repository', ''));
-      final repoCamel = StringUtils.pascalToCamel(repo);
-      imports.add(
-          "import '$relativePath../domain/repositories/${repoSnake}_repository.dart';");
-      repoFields.add('  final $repo $repoCamel;');
-      repoParams.add('required this.$repoCamel');
-    }
-
-    final useCaseImports = <String>[];
-    final useCaseFields = <String>[];
-    final useCaseRegistrations = <String>[];
-    final presenterMethods = <String>[];
+    final useCaseInfos = <UseCaseInfo>[];
+    final fields = <String>[];
+    final constructorParams = <String>[];
+    final methods = <String>[];
 
     for (final method in config.methods) {
       final useCaseInfo =
           useCaseGenerator.getUseCaseInfo(method, entityName, entityCamel);
-      final useCaseSnake = StringUtils.camelToSnake(
-          useCaseInfo.className.replaceAll('UseCase', ''));
-      final subdirectoryPart =
-          config.subdirectory != null && config.subdirectory!.isNotEmpty
-              ? '/${config.subdirectory!}'
-              : '';
-      useCaseImports.add(
-          "import '$relativePath../domain/usecases$subdirectoryPart/$entitySnake/${useCaseSnake}_usecase.dart';");
-      useCaseFields.add(
-          '  late final ${useCaseInfo.className} _${useCaseInfo.fieldName};');
+      useCaseInfos.add(useCaseInfo);
+      fields.add('  final ${useCaseInfo.className} _${useCaseInfo.fieldName};');
+      constructorParams
+          .add('required ${useCaseInfo.className} ${useCaseInfo.fieldName}');
+      methods.add(useCaseInfo.presenterMethod);
+    }
 
-      final mainRepo = config.effectiveRepos.isNotEmpty
-          ? StringUtils.pascalToCamel(config.effectiveRepos.first)
-          : 'repository';
-      useCaseRegistrations.add(
-          '    _${useCaseInfo.fieldName} = registerUseCase(${useCaseInfo.className}($mainRepo));');
+    // Add repository imports
+    for (final repo in config.effectiveRepos) {
+      final repoSnake =
+          StringUtils.camelToSnake(repo.replaceAll('Repository', ''));
+      imports.add(
+          "import '$relativePath../domain/repositories/${repoSnake}_repository.dart';");
+    }
 
-      presenterMethods.add(useCaseInfo.presenterMethod);
+    // Add entity import if needed
+    if (config.methods
+        .any((m) => ['create', 'update', 'get', 'watch'].contains(m))) {
+      imports.add(
+          "import '$relativePath../domain/entities/$entitySnake/$entitySnake.dart';");
     }
 
     final content = '''
@@ -98,20 +86,20 @@ class VpcGenerator {
 // zfa generate $entityName --methods=${config.methods.join(',')} --vpc
 
 ${imports.join('\n')}
-${useCaseImports.join('\n')}
 
-class $presenterName extends Presenter {
-${repoFields.join('\n')}
-
-${useCaseFields.join('\n')}
+class $presenterName with Disposable {
+${fields.join('\n')}
 
   $presenterName({
-    ${repoParams.join(',\n    ')},
-  }) {
-${useCaseRegistrations.join('\n')}
-  }
+    ${constructorParams.join(',\n    ')},
+  }) : ${fields.map((f) => '_${f.split(' ').last.replaceAll(';', '')} = ${f.split(' ').last.replaceAll(';', '')}').join(',\n       ')};
 
-${presenterMethods.join('\n\n')}
+${methods.join('\n\n')}
+
+  @override
+  void dispose() {
+    // Dispose resources if needed
+  }
 }
 ''';
 
@@ -133,26 +121,43 @@ ${presenterMethods.join('\n\n')}
     final presenterName = '${entityName}Presenter';
     final stateName = '${entityName}State';
     final fileName = '${entitySnake}_controller.dart';
-    String relativePath = '../../';
+    final withState = config.generateState;
 
     final controllerPathParts = <String>[outputDir, 'presentation', 'pages'];
     if (config.subdirectory != null && config.subdirectory!.isNotEmpty) {
       controllerPathParts.add(config.subdirectory!);
-      relativePath += '../';
     }
-
     controllerPathParts.add(entitySnake);
     final controllerDirPath = path.joinAll(controllerPathParts);
     final filePath = path.join(controllerDirPath, fileName);
-
-    final withState = config.generateState;
 
     final methods = <String>[];
 
     for (final method in config.methods) {
       switch (method) {
         case 'get':
-          methods.add('''
+          if (config.idField == 'null') {
+            methods.add('''
+  Future<void> get$entityName() async {
+${withState ? "    updateState(viewState.copyWith(isGetting: true));" : ""}
+    final result = await _presenter.get$entityName();
+
+${withState ? '''    result.fold(
+      (entity) => updateState(viewState.copyWith(
+        isGetting: false,
+        $entityCamel: entity,
+      )),
+      (failure) => updateState(viewState.copyWith(
+        isGetting: false,
+        error: failure,
+      )),
+    );''' : '''    result.fold(
+      (entity) {},
+      (failure) {},
+    );'''}
+  }''');
+          } else {
+            methods.add('''
   Future<void> get$entityName(${config.queryFieldType} ${config.queryField}) async {
 ${withState ? "    updateState(viewState.copyWith(isGetting: true));" : ""}
     final result = await _presenter.get$entityName(${config.queryField});
@@ -171,6 +176,7 @@ ${withState ? '''    result.fold(
       (failure) {},
     );'''}
   }''');
+          }
           break;
         case 'getList':
           methods.add('''
@@ -260,53 +266,46 @@ ${withState ? '''    result.fold(
   }''');
           break;
         case 'watch':
-          methods.add('''
-  void watch$entityName(${config.queryFieldType} ${config.queryField}) {
-${withState ? "    updateState(viewState.copyWith(isWatching: true));" : ""}
-    _presenter.watch$entityName(${config.queryField}).listen(
-${withState ? '''      (result) {
-        result.fold(
-          (entity) => updateState(viewState.copyWith(
-            isWatching: false,
-            $entityCamel: entity,
-          )),
-          (failure) => updateState(viewState.copyWith(
-            isWatching: false,
-            error: failure,
-          )),
-        );
-      },''' : '''      (result) {
-        result.fold(
-          (entity) {},
-          (failure) {},
-        );
-      },'''}
-    );
+          if (config.idField == 'null') {
+            methods.add('''
+  void watch$entityName() {
+    _presenter.watch$entityName().listen((result) {
+${withState ? '''      result.fold(
+        (entity) => updateState(viewState.copyWith($entityCamel: entity)),
+        (failure) => updateState(viewState.copyWith(error: failure)),
+      );''' : '''      result.fold(
+        (entity) {},
+        (failure) {},
+      );'''}
+    });
   }''');
+          } else {
+            methods.add('''
+  void watch$entityName(${config.queryFieldType} ${config.queryField}) {
+    _presenter.watch$entityName(${config.queryField}).listen((result) {
+${withState ? '''      result.fold(
+        (entity) => updateState(viewState.copyWith($entityCamel: entity)),
+        (failure) => updateState(viewState.copyWith(error: failure)),
+      );''' : '''      result.fold(
+        (entity) {},
+        (failure) {},
+      );'''}
+    });
+  }''');
+          }
           break;
         case 'watchList':
           methods.add('''
   void watch${entityName}List([ListQueryParams params = const ListQueryParams()]) {
-${withState ? "    updateState(viewState.copyWith(isWatchingList: true));" : ""}
-    _presenter.watch${entityName}List(params).listen(
-${withState ? '''      (result) {
-        result.fold(
-          (list) => updateState(viewState.copyWith(
-            isWatchingList: false,
-            ${entityCamel}List: list,
-          )),
-          (failure) => updateState(viewState.copyWith(
-            isWatchingList: false,
-            error: failure,
-          )),
-        );
-      },''' : '''      (result) {
-        result.fold(
-          (list) {},
-          (failure) {},
-        );
-      },'''}
-    );
+    _presenter.watch${entityName}List(params).listen((result) {
+${withState ? '''      result.fold(
+        (list) => updateState(viewState.copyWith(${entityCamel}List: list)),
+        (failure) => updateState(viewState.copyWith(error: failure)),
+      );''' : '''      result.fold(
+        (list) {},
+        (failure) {},
+      );'''}
+    });
   }''');
           break;
       }
@@ -321,9 +320,12 @@ ${withState ? '''      (result) {
     }
 
     if (config.methods.any((m) => m == 'create' || m == 'update')) {
+      final relativePath =
+          config.subdirectory != null && config.subdirectory!.isNotEmpty
+              ? '../../../'
+              : '../../';
       final entityPath =
           '$relativePath../domain/entities/$entitySnake/$entitySnake.dart';
-
       imports.add("import '$entityPath';");
     }
 
@@ -396,6 +398,28 @@ ${methods.join('\n\n')}
       repoPresenterParams.add('$repoCamel: $repoCamel');
     }
 
+    // Determine initial method call
+    String initialMethodCall = '// No initial method found';
+    if (config.methods.contains('getList')) {
+      initialMethodCall = 'controller.get${entityName}List();';
+    } else if (config.methods.contains('watchList')) {
+      initialMethodCall = 'controller.watch${entityName}List();';
+    } else if (config.methods.contains('get')) {
+      if (config.idField == 'null') {
+        initialMethodCall = 'controller.get$entityName();';
+      } else {
+        initialMethodCall =
+            'controller.get$entityName(/* ${config.queryField} */);';
+      }
+    } else if (config.methods.contains('watch')) {
+      if (config.idField == 'null') {
+        initialMethodCall = 'controller.watch$entityName();';
+      } else {
+        initialMethodCall =
+            'controller.watch$entityName(/* ${config.queryField} */);';
+      }
+    }
+
     final content = '''
 // Generated by zfa
 // zfa generate $entityName --methods=${config.methods.join(',')} --vpc
@@ -432,7 +456,7 @@ class _${viewName}State extends CleanViewState<$viewName, $controllerName> {
   @override
   void onInitState() {
     super.onInitState();
-    ${config.methods.contains('getList') ? 'controller.get${entityName}List();' : config.methods.contains('watchList') ? 'controller.watch${entityName}List();' : config.methods.contains('get') ? 'controller.get$entityName(/* ${config.queryField} */);' : config.methods.contains('watch') ? 'controller.watch$entityName(/* ${config.queryField} */);' : '// No initial method found'}
+    $initialMethodCall
   }
 
   @override

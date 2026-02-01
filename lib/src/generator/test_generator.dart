@@ -206,32 +206,52 @@ $testBody
     String arrange;
     String verifyCall;
     String paramsConstructor;
+    String failureArrange;
 
     if (method == 'get') {
-      paramsConstructor = "const QueryParams('1')";
-      arrange =
-          "when(() => mockRepository.get(any())).thenAnswer((_) async => $returnConstructor);";
-      verifyCall = "verify(() => mockRepository.get(any())).called(1);";
+      if (config.idField == 'null') {
+        paramsConstructor = "const NoParams()";
+        arrange =
+            "when(() => mockRepository.get()).thenAnswer((_) async => $returnConstructor);";
+        verifyCall = "verify(() => mockRepository.get()).called(1);";
+        failureArrange =
+            "when(() => mockRepository.get()).thenThrow(exception);";
+      } else {
+        paramsConstructor = "const QueryParams('1')";
+        arrange =
+            "when(() => mockRepository.get(any())).thenAnswer((_) async => $returnConstructor);";
+        verifyCall = "verify(() => mockRepository.get(any())).called(1);";
+        failureArrange =
+            "when(() => mockRepository.get(any())).thenThrow(exception);";
+      }
     } else if (method == 'getList') {
       paramsConstructor = "const ListQueryParams()";
       arrange =
           "when(() => mockRepository.getList(any())).thenAnswer((_) async => $returnConstructor);";
       verifyCall = "verify(() => mockRepository.getList(any())).called(1);";
+      failureArrange =
+          "when(() => mockRepository.getList(any())).thenThrow(exception);";
     } else if (method == 'create') {
       paramsConstructor = "t$entityName";
       arrange =
           "when(() => mockRepository.create(any())).thenAnswer((_) async => $returnConstructor);";
       verifyCall = "verify(() => mockRepository.create(any())).called(1);";
+      failureArrange =
+          "when(() => mockRepository.create(any())).thenThrow(exception);";
     } else if (method == 'update') {
       paramsConstructor = "UpdateParams(id: '1', data: u$entityName)";
       arrange =
           "when(() => mockRepository.update(any())).thenAnswer((_) async => $returnConstructor);";
       verifyCall = "verify(() => mockRepository.update(any())).called(1);";
+      failureArrange =
+          "when(() => mockRepository.update(any())).thenThrow(exception);";
     } else if (method == 'delete') {
       paramsConstructor = "const DeleteParams('1')";
       arrange =
           "when(() => mockRepository.delete(any())).thenAnswer((_) async => {});";
       verifyCall = "verify(() => mockRepository.delete(any())).called(1);";
+      failureArrange =
+          "when(() => mockRepository.delete(any())).thenThrow(exception);";
     } else {
       return '';
     }
@@ -256,7 +276,7 @@ $testBody
     test('should return Failure when repository throws', () async {
       // Arrange
       final exception = Exception('Error');
-      when(() => mockRepository.$method(any())).thenThrow(exception);
+      $failureArrange
 
       // Act
       final result = await useCase($paramsConstructor);
@@ -272,17 +292,31 @@ $testBody
     String arrange;
     String verifyCall;
     String paramsConstructor;
+    String failureArrange;
 
     if (method == 'watch') {
-      paramsConstructor = "QueryParams('1')";
-      arrange =
-          "when(() => mockRepository.watch(any())).thenAnswer((_) => Stream.value($returnConstructor));";
-      verifyCall = "verify(() => mockRepository.watch(any())).called(1);";
+      if (config.idField == 'null') {
+        paramsConstructor = "NoParams()";
+        arrange =
+            "when(() => mockRepository.watch()).thenAnswer((_) => Stream.value($returnConstructor));";
+        verifyCall = "verify(() => mockRepository.watch()).called(1);";
+        failureArrange =
+            "when(() => mockRepository.watch()).thenAnswer((_) => Stream.error(exception));";
+      } else {
+        paramsConstructor = "QueryParams('1')";
+        arrange =
+            "when(() => mockRepository.watch(any())).thenAnswer((_) => Stream.value($returnConstructor));";
+        verifyCall = "verify(() => mockRepository.watch(any())).called(1);";
+        failureArrange =
+            "when(() => mockRepository.watch(any())).thenAnswer((_) => Stream.error(exception));";
+      }
     } else if (method == 'watchList') {
       paramsConstructor = "ListQueryParams()";
       arrange =
           "when(() => mockRepository.watchList(any())).thenAnswer((_) => Stream.value($returnConstructor));";
       verifyCall = "verify(() => mockRepository.watchList(any())).called(1);";
+      failureArrange =
+          "when(() => mockRepository.watchList(any())).thenAnswer((_) => Stream.error(exception));";
     } else {
       return '';
     }
@@ -306,7 +340,7 @@ $testBody
     test('should emit Failure when repository stream errors', () async {
       // Arrange
       final exception = Exception('Stream Error');
-      when(() => mockRepository.$method(any())).thenAnswer((_) => Stream.error(exception));
+      $failureArrange
 
       // Act
       final result = useCase(const $paramsConstructor);

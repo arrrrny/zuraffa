@@ -174,6 +174,7 @@ class ZuraffaMcpServer {
       'result': {
         'tools': [
           _generateToolDefinition(),
+          _initializeToolDefinition(),
           _schemaToolDefinition(),
           _validateToolDefinition(),
         ],
@@ -302,8 +303,59 @@ class ZuraffaMcpServer {
             'type': 'boolean',
             'description': 'Generate unit tests for generated UseCases',
           },
+          'cache': {
+            'type': 'boolean',
+            'description':
+                'Enable caching with dual datasources (remote + local)',
+          },
+          'cache_policy': {
+            'type': 'string',
+            'enum': ['daily', 'restart', 'ttl'],
+            'description':
+                'Cache policy: daily (default), restart (app session only), ttl (time-based)',
+          },
+          'cache_storage': {
+            'type': 'string',
+            'enum': ['hive', 'sqlite', 'shared_preferences'],
+            'description': 'Local storage implementation hint for caching',
+          },
         },
         'required': ['name'],
+      },
+    };
+  }
+
+  /// Initialize tool definition
+  Map<String, dynamic> _initializeToolDefinition() {
+    return {
+      'name': 'initialize',
+      'description':
+          'Initialize a test entity to quickly try out Zuraffa. Creates a sample entity with common fields (id, name, description, price, etc.) to help you get started with Clean Architecture code generation.',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'entity': {
+            'type': 'string',
+            'description': 'Entity name to generate (default: Product)',
+          },
+          'output': {
+            'type': 'string',
+            'description': 'Output directory (default: lib/src)',
+          },
+          'force': {
+            'type': 'boolean',
+            'description': 'Overwrite existing files',
+          },
+          'dry_run': {
+            'type': 'boolean',
+            'description':
+                'Preview what would be generated without writing files',
+          },
+          'verbose': {
+            'type': 'boolean',
+            'description': 'Enable verbose output',
+          },
+        },
       },
     };
   }
@@ -352,6 +404,9 @@ class ZuraffaMcpServer {
       switch (toolName) {
         case 'generate':
           result = await _runGenerateCommand(args);
+          break;
+        case 'initialize':
+          result = await _runInitializeCommand(args);
           break;
         case 'schema':
           result = await _runSchemaCommand();
@@ -448,8 +503,35 @@ class ZuraffaMcpServer {
     if (args['verbose'] == true) cliArgs.add('--verbose');
     if (args['test'] == true) cliArgs.add('--test');
 
+    // Cache options
+    if (args['cache'] == true) cliArgs.add('--cache');
+    if (args['cache_policy'] != null) {
+      cliArgs.add('--cache-policy=${args['cache_policy']}');
+    }
+    if (args['cache_storage'] != null) {
+      cliArgs.add('--cache-storage=${args['cache_storage']}');
+    }
+
     // Always use JSON format for parsing
     cliArgs.add('--format=json');
+
+    return await _runZuraffaProcess(cliArgs);
+  }
+
+  /// Run the initialize command
+  Future<String> _runInitializeCommand(Map<String, dynamic> args) async {
+    final List<String> cliArgs = ['initialize'];
+
+    // Add optional parameters
+    if (args['entity'] != null) {
+      cliArgs.add('--entity=${args['entity']}');
+    }
+    if (args['output'] != null) {
+      cliArgs.add('--output=${args['output']}');
+    }
+    if (args['force'] == true) cliArgs.add('--force');
+    if (args['dry_run'] == true) cliArgs.add('--dry-run');
+    if (args['verbose'] == true) cliArgs.add('--verbose');
 
     return await _runZuraffaProcess(cliArgs);
   }

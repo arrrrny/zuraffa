@@ -1,3 +1,35 @@
+## [1.11.0] - 2026-02-01
+
+### Added
+- **Initialize Command**: New `zfa initialize` command to quickly create sample entities
+  - `--entity` parameter to specify entity name (default: Product)
+  - Creates realistic sample entity with common fields (id, name, description, price, category, isActive, createdAt, updatedAt)
+  - Includes complete implementation with copyWith, equals, hashCode, toString, JSON serialization
+  - Added to MCP server as `initialize` tool for AI agent integration
+  - Updated CLI help and README documentation
+
+- **Singleton Entity Support**: New `--id-field=null` flag for parameterless operations
+  - Generates `get()` and `watch()` methods without ID parameters using `NoParams`
+  - Perfect for singleton entities like app config, user sessions, global settings
+  - Uses fixed `'singleton'` key for Hive storage instead of entity ID
+  - Validation prevents usage with list methods (`getList`, `watchList`)
+
+### Changed
+- **Optimized Repository Imports**: Repository interfaces now conditionally import zuraffa
+  - Only imports `package:zuraffa/zuraffa.dart` when using zuraffa types (ListQueryParams, UpdateParams, DeleteParams)
+  - Simple repositories with only `get()` methods have no zuraffa import
+  - Keeps repository interfaces clean and minimal
+
+- **Improved Local DataSource Generation**: 
+  - No `saveAll()` method generated for singleton entities (`--id-field=null`)
+  - Uses `'singleton'` key for Hive operations instead of entity field access
+
+### Fixed
+- **Test Generation for Singleton Entities**: Fixed mock repository calls in generated tests
+  - Parameterless methods now use `mockRepository.get()` instead of `mockRepository.get(any())`
+  - Fixed both success and failure test scenarios for Future and Stream UseCases
+  - Eliminates "too many arguments" compilation errors
+
 ## [1.10.0] - 2026-02-01
 
 ### Added
