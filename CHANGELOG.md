@@ -1,3 +1,70 @@
+## [1.13.0] - 2026-02-01
+
+### Added
+- **Cache Storage Default**: `--cache` now defaults to `--cache-storage=hive` automatically
+- **Abstract DataSource Generation**: Always generate abstract datasource interface, even with `--cache`
+- **Initialize Method Support**: Added `--init` flag support for cache datasources
+  - Remote and local datasources implement initialize methods when `--init` is used
+  - Data repository delegates initialization to remote datasource
+  - Proper `@override` annotations on all interface implementations
+
+### Fixed
+- **VPC Generator**: Reverted to working presenter generation with proper `Presenter` base class and `registerUseCase()`
+- **Mock Data Generation**:
+  - Respect `--id-field` parameter in mock datasources (e.g., `--id-field=name`)
+  - Use `const Duration()` for DateTime mock values for better performance
+  - Fixed `DeleteParams` usage in mock datasource delete methods
+  - Added proper spacing between generated methods
+  - Fixed List<String> generation to use actual strings instead of `String()` constructors
+  - Fixed duplicate map keys in generated mock data
+  - Improved Morphy entity support - parse generated `.morphy.dart` files for complete field information
+  - Only generate enum imports when entity actually contains enum fields
+  - Exclude primitive types, generics, and enums from nested entity generation
+  - Fixed seeded DateTime generation to remove invalid `const` usage
+- **DataSource Generation**:
+  - Remote and local datasources always include `with Loggable, FailureHandler` mixins
+  - Proper `implements` clause ordering (after `with` mixins)
+  - Added missing `@override` annotations for interface method implementations
+  - Initialize methods properly added to both remote and local datasources when `--init` is used
+- **Entity Analysis**: 
+  - Never use fallback fields - only parse actual entity fields from source files
+  - Improved class regex to handle `extends` and `implements` clauses
+  - Better support for Morphy generated classes with complex inheritance
+
+### Improved
+- **Mock Data Quality**: More realistic and varied mock data generation
+- **Type Safety**: Better handling of complex generic types and nullable fields
+- **Code Generation**: Cleaner generated code with proper formatting and annotations
+
+## [1.12.1] - 2026-02-01
+
+### Fixed
+-  Mock data generation
+- 
+## [1.12.0] - 2026-02-01 
+
+### Added
+- **Mock Data Generation**: Comprehensive mock data generation system
+  - `--mock` flag: Generate mock data files alongside other layers
+  - `--mock-data-only` flag: Generate only mock data files
+  - **Realistic Data**: Type-appropriate values for all field types (String, int, double, bool, DateTime, Object)
+  - **Complex Types**: Full support for `List<T>`, `Map<K,V>`, nullable types
+  - **Nested Entities**: Automatic detection and recursive generation with proper cross-references
+  - **Morphy Support**: Handles `$EntityName` syntax and morphy annotations
+  - **Smart Imports**: Single enum import (`enums/index.dart`) only when needed
+  - **Large Datasets**: Generated methods for performance testing (100+ items)
+  - **Null Safety**: Proper handling of optional fields with realistic null distribution
+
+### Enhanced
+- **Entity Analysis**: Improved entity field parsing with balanced brace matching
+  - Handles complex generic types like `Map<String, String>` correctly
+  - Fixed regex patterns for getter-style fields in abstract classes
+  - Supports unlimited recursion depth for nested entity structures
+
+- **MCP Server**: Added mock generation flags to Model Context Protocol server
+  - `mock` and `mock_data_only` parameters available in MCP tools
+  - Enhanced AI/IDE integration for mock data workflows
+
 ## [1.11.1] - 2026-02-01
 
 ### Fixed
@@ -42,6 +109,20 @@
   - Parameterless methods now use `mockRepository.get()` instead of `mockRepository.get(any())`
   - Fixed both success and failure test scenarios for Future and Stream UseCases
   - Eliminates "too many arguments" compilation errors
+
+## [1.12.0] - 2026-02-01
+
+### Fixed
+- **Background UseCase Generation**: Fixed `--returns` and `--params` parameters for background UseCases
+  - Now properly uses specified return type instead of defaulting to `void`
+  - Generates `context.sendData(result)` to return the processed result
+  - Includes helper `processData()` method with correct type signatures
+  - Auto-imports custom params and returns entity types
+
+- **Custom UseCase File Structure**: Fixed custom UseCases to follow entity naming structure
+  - Now generates in subfolders: `lib/src/domain/usecases/parsing_task/parsing_task_usecase.dart`
+  - Updated import paths to account for subfolder structure (`../../entities/` instead of `../entities/`)
+  - Consistent with entity-based UseCase organization
 
 ## [1.10.0] - 2026-02-01
 

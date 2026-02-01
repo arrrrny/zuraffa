@@ -27,6 +27,8 @@ class GeneratorConfig {
   final bool enableCache;
   final String cachePolicy;
   final String? cacheStorage;
+  final bool generateMock;
+  final bool generateMockDataOnly;
 
   GeneratorConfig({
     required this.name,
@@ -55,6 +57,8 @@ class GeneratorConfig {
     this.enableCache = false,
     this.cachePolicy = 'daily',
     this.cacheStorage,
+    this.generateMock = false,
+    this.generateMockDataOnly = false,
   }) : queryFieldType = queryFieldType ?? idType;
 
   factory GeneratorConfig.fromJson(Map<String, dynamic> json, String name) {
@@ -85,6 +89,9 @@ class GeneratorConfig {
       enableCache: json['cache'] == true || json['enable_cache'] == true,
       cachePolicy: json['cache_policy'] ?? 'daily',
       cacheStorage: json['cache_storage'],
+      generateMock: json['mock'] == true || json['generate_mock'] == true,
+      generateMockDataOnly: json['mock_data_only'] == true ||
+          json['generate_mock_data_only'] == true,
     );
   }
 

@@ -23,24 +23,16 @@ class DataLayerGenerator {
     final entitySnake = config.nameSnake;
     final entityCamel = config.nameCamel;
 
-    // If caching is enabled, don't generate abstract datasource
-    // Remote and local will be concrete implementations
+    // Always generate abstract datasource
+    // If caching is enabled, also generate remote and local implementations
     if (config.enableCache) {
       // Generate remote datasource
       await _generateRemoteDataSource();
       // Generate local datasource
       await _generateLocalDataSource();
-      // Return a dummy result (both are already generated)
-      return GeneratedFile(
-        path:
-            'lib/src/data/data_sources/$entitySnake/${entitySnake}_data_source.dart',
-        content: '// Skipped - using remote and local datasources',
-        type: 'datasource',
-        action: 'skipped',
-      );
     }
 
-    // Original single datasource generation
+    // Generate abstract datasource (always)
     final dataSourceName = '${entityName}DataSource';
     final fileName = '${entitySnake}_data_source.dart';
     String relativePath = '../../../';
@@ -151,17 +143,33 @@ ${methods.join('\n')}
 
     final methods = <String>[];
 
+    if (config.generateInit) {
+      methods.add('''
+  @override
+  Future<void> initialize(InitializationParams params) async {
+    logger.info('Initializing $dataSourceName');
+    // TODO: Initialize remote connection, auth, etc.
+    logger.info('$dataSourceName initialized');
+  }''');
+
+      methods.add('''
+  @override
+  Stream<bool> get isInitialized => Stream.value(true);''');
+    }
+
     for (final method in config.methods) {
       switch (method) {
         case 'get':
           if (config.idField == 'null') {
             methods.add('''
+  @override
   Future<$entityName> get() async {
     // TODO: Implement remote API call
     throw UnimplementedError('Implement remote get');
   }''');
           } else {
             methods.add('''
+  @override
   Future<$entityName> get(${config.queryFieldType} ${config.queryField}) async {
     // TODO: Implement remote API call
     throw UnimplementedError('Implement remote get');
@@ -170,6 +178,7 @@ ${methods.join('\n')}
           break;
         case 'getList':
           methods.add('''
+  @override
   Future<List<$entityName>> getList(ListQueryParams params) async {
     // TODO: Implement remote API call
     throw UnimplementedError('Implement remote getList');
@@ -227,11 +236,12 @@ ${methods.join('\n')}
 
 import 'package:zuraffa/zuraffa.dart';
 import '${relativePath}domain/entities/$entitySnake/$entitySnake.dart';
+import '${entitySnake}_data_source.dart';
 
 /// Remote data source for $entityName.
 ///
 /// Fetches data from external API/service.
-class $dataSourceName with Loggable, FailureHandler {
+class $dataSourceName with Loggable, FailureHandler implements ${entityName}DataSource {
   // TODO: Add HTTP client or API service dependency
   // final ApiClient _apiClient;
   // $dataSourceName(this._apiClient);
@@ -272,6 +282,20 @@ ${methods.join('\n\n')}
         ? '// Using ${config.cacheStorage} for local storage'
         : '// TODO: Choose storage (Hive, SQLite, SharedPreferences, etc.)';
 
+    if (config.generateInit) {
+      methods.add('''
+  @override
+  Future<void> initialize(InitializationParams params) async {
+    logger.info('Initializing $dataSourceName');
+    // TODO: Initialize local storage, open database, etc.
+    logger.info('$dataSourceName initialized');
+  }''');
+
+      methods.add('''
+  @override
+  Stream<bool> get isInitialized => Stream.value(true);''');
+    }
+
     // Generate Hive implementation if specified
     if (config.cacheStorage == 'hive') {
       if (config.idField == 'null') {
@@ -305,6 +329,7 @@ ${methods.join('\n\n')}
           case 'get':
             if (config.idField == 'null') {
               methods.add('''
+  @override
   Future<$entityName> get() async {
     final item = _box.get('$entitySnake');
     if (item == null) {
@@ -314,6 +339,7 @@ ${methods.join('\n\n')}
   }''');
             } else {
               methods.add('''
+  @override
   Future<$entityName> get(${config.queryFieldType} ${config.queryField}) async {
     final item = _box.get(${config.queryField});
     if (item == null) {
@@ -325,6 +351,7 @@ ${methods.join('\n\n')}
             break;
           case 'getList':
             methods.add('''
+  @override
   Future<List<$entityName>> getList(ListQueryParams params) async {
     return _box.values.toList();
   }''');
@@ -357,9 +384,10 @@ ${methods.join('\n\n')}
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:zuraffa/zuraffa.dart';
 import '${relativePath}domain/entities/$entitySnake/$entitySnake.dart';
+import '${entitySnake}_data_source.dart';
 
 /// Local data source for $entityName using Hive.
-class $dataSourceName with Loggable, FailureHandler {
+class $dataSourceName with Loggable, FailureHandler implements ${entityName}DataSource {
   final Box<$entityName> _box;
 
   $dataSourceName(this._box);
@@ -446,11 +474,12 @@ ${methods.join('\n\n')}
 
 import 'package:zuraffa/zuraffa.dart';
 import '${relativePath}domain/entities/$entitySnake/$entitySnake.dart';
+import '${entitySnake}_data_source.dart';
 
 /// Local data source for $entityName.
 ///
 /// $storageComment
-class $dataSourceName with Loggable, FailureHandler {
+class $dataSourceName with Loggable, FailureHandler implements ${entityName}DataSource {
   // TODO: Add storage dependency (Hive, SQLite, etc.)
   // final Box<$entityName> _box;
   // $dataSourceName(this._box);
@@ -489,15 +518,14 @@ ${methods.join('\n\n')}
             ? '/${config.subdirectory!}'
             : '';
 
-    String relativePath = '../../../';
-    final dataSourcePathParts = <String>[outputDir, 'data', 'data_sources'];
+    String relativePath = '../';
+    final dataRepoPathParts = <String>[outputDir, 'data', 'repositories'];
     if (config.subdirectory != null && config.subdirectory!.isNotEmpty) {
-      dataSourcePathParts.add(config.subdirectory!);
+      dataRepoPathParts.add(config.subdirectory!);
       relativePath += '../';
     }
-    dataSourcePathParts.add(entitySnake);
-    final dataSourceDirPath = path.joinAll(dataSourcePathParts);
-    final filePath = path.join(dataSourceDirPath, fileName);
+    final dataRepoDirPath = path.joinAll(dataRepoPathParts);
+    final filePath = path.join(dataRepoDirPath, fileName);
 
     final methods = <String>[];
 
@@ -517,15 +545,27 @@ ${methods.join('\n\n')}
   $dataRepoName(this._dataSource);''';
 
     if (config.generateInit) {
-      methods.add('''
+      if (config.enableCache) {
+        methods.add('''
+  @override
+  Stream<bool> get isInitialized => _remoteDataSource.isInitialized;''');
+
+        methods.add('''
+  @override
+  Future<void> initialize(InitializationParams params) {
+    return _remoteDataSource.initialize(params);
+  }''');
+      } else {
+        methods.add('''
   @override
   Stream<bool> get isInitialized => _dataSource.isInitialized;''');
 
-      methods.add('''
+        methods.add('''
   @override
   Future<void> initialize(InitializationParams params) {
     return _dataSource.initialize(params);
   }''');
+      }
     }
 
     for (final method in config.methods) {

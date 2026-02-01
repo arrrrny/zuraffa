@@ -27,7 +27,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  zuraffa: ^1.11.1
+  zuraffa: ^1.12.0
 ```
 
 Then run:
@@ -451,6 +451,87 @@ class _ProductViewState extends CleanViewState<ProductView, ProductController> {
 }
 ```
 
+## Mock Data Generation
+
+Zuraffa can generate realistic mock data for your entities, perfect for testing, UI previews, and development:
+
+```bash
+# Generate mock data alongside other layers
+zfa generate Product --methods=get,getList,create --repository --vpc --mock
+
+# Generate only mock data files
+zfa generate Product --mock-data-only
+```
+
+### Generated Mock Data
+
+Mock data files provide realistic test data with proper type safety:
+
+```dart
+// Generated: lib/src/data/mock/product_mock_data.dart
+class ProductMockData {
+  static final List<Product> products = [
+    Product(
+      id: 'id 1',
+      name: 'name 1', 
+      description: 'description 1',
+      price: 10.5,
+      category: 'category 1',
+      isActive: true,
+      createdAt: DateTime.now().subtract(Duration(days: 30)),
+      updatedAt: DateTime.now().subtract(Duration(days: 30)),
+    ),
+    Product(
+      id: 'id 2',
+      name: 'name 2',
+      description: 'description 2', 
+      price: 21.0,
+      category: 'category 2',
+      isActive: false,
+      createdAt: DateTime.now().subtract(Duration(days: 60)),
+      updatedAt: DateTime.now().subtract(Duration(days: 60)),
+    ),
+    // ... more items
+  ];
+
+  static Product get sampleProduct => products.first;
+  static List<Product> get sampleList => products;
+  static List<Product> get emptyList => [];
+  
+  // Large dataset for performance testing
+  static List<Product> get largeProductList => List.generate(100, 
+    (index) => _createProduct(index + 1000));
+}
+```
+
+### Features
+
+- ✅ **Realistic data**: Type-appropriate values for all field types
+- ✅ **Nested entities**: Automatic detection and cross-references
+- ✅ **Complex types**: Support for `List<T>`, `Map<K,V>`, nullable types
+- ✅ **Enum handling**: Smart imports only when needed
+- ✅ **Large datasets**: Generated methods for performance testing
+- ✅ **Null safety**: Proper handling of optional fields
+
+### Usage in Tests
+
+```dart
+// Use in unit tests
+test('should process product list', () {
+  final products = ProductMockData.sampleList;
+  final result = processProducts(products);
+  expect(result.length, equals(3));
+});
+
+// Use in widget tests  
+testWidgets('should display product', (tester) async {
+  await tester.pumpWidget(ProductView(
+    product: ProductMockData.sampleProduct,
+  ));
+  expect(find.text('name 1'), findsOneWidget);
+});
+```
+
 ## CLI Tool
 
 Zuraffa includes a powerful CLI tool (`zfa`) for generating boilerplate code.
@@ -502,6 +583,12 @@ This gives you a complete entity to immediately test Zuraffa's code generation c
 ```bash
 # Generate everything at once - Domain, Data, and Presentation layers
 zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state
+
+# Generate with mock data for testing and UI previews
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --mock
+
+# Generate only mock data files
+zfa generate Product --mock-data-only
 
 # Or generate incrementally:
 
@@ -583,6 +670,8 @@ zfa generate ProcessCheckout --repos=CartRepository,PaymentRepository --params=C
 | `--data`       | Generate DataRepository and DataSource                |
 | `--vpc`        | Generate View, Presenter, and Controller              |
 | `--state`      | Generate immutable State class                        |
+| `--mock`       | Generate mock data files alongside other layers       |
+| `--mock-data-only` | Generate only mock data files (no other layers)   |
 | `--morphy`     | Use typed Patch objects for updates                   |
 | `--cache`      | Enable caching with dual datasources (remote + local) |
 | `--cache-policy` | Cache expiration: daily, restart, ttl (default: daily) |
