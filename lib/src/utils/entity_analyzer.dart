@@ -20,11 +20,12 @@ class EntityAnalyzer {
       }
 
       final content = file.readAsStringSync();
-      
+
       // Check if this is a Morphy entity (contains @Morphy annotation)
       if (content.contains('@Morphy')) {
         // Try to parse from the generated .morphy.dart file first
-        final morphyPath = '$outputDir/domain/entities/$entitySnake/$entitySnake.morphy.dart';
+        final morphyPath =
+            '$outputDir/domain/entities/$entitySnake/$entitySnake.morphy.dart';
         final morphyFile = File(morphyPath);
         if (morphyFile.existsSync()) {
           final morphyContent = morphyFile.readAsStringSync();
@@ -33,7 +34,9 @@ class EntityAnalyzer {
             return morphyFields;
           }
           // If parsing the class failed, try parsing all final fields in the file
-          final allFieldsRegex = RegExp(r'final\s+([\w\?<>,\s\[\]]+)\s+(\w+)\s*;', multiLine: true);
+          final allFieldsRegex = RegExp(
+              r'final\s+([\w\?<>,\s\[\]]+)\s+(\w+)\s*;',
+              multiLine: true);
           final allFieldMatches = allFieldsRegex.allMatches(morphyContent);
           final allFields = <String, String>{};
           for (final match in allFieldMatches) {
@@ -48,7 +51,7 @@ class EntityAnalyzer {
           }
         }
       }
-      
+
       // Try both regular name and morphy name ($EntityName)
       var fields = _parseEntityFields(content, entityName);
       if (fields.isEmpty || _hasOnlyDefaultFields(fields)) {

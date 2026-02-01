@@ -83,8 +83,10 @@ class MockGenerator {
       // Check if it's a custom type (PascalCase) and not already processed
       if (baseType.isNotEmpty &&
           baseType[0] == baseType[0].toUpperCase() &&
-          !['String', 'int', 'double', 'bool', 'DateTime', 'Object', 'dynamic'].contains(baseType) &&
-          !baseType.contains('<') && // Exclude generic types like Map<String, dynamic>
+          !['String', 'int', 'double', 'bool', 'DateTime', 'Object', 'dynamic']
+              .contains(baseType) &&
+          !baseType.contains(
+              '<') && // Exclude generic types like Map<String, dynamic>
           !baseType.contains(',') && // Exclude complex types with commas
           !baseType.contains(' ') && // Exclude types with spaces
           !processedEntities.contains(baseType)) {
@@ -110,7 +112,8 @@ class MockGenerator {
               entityFields, outputDir, files, processedEntities,
               dryRun: dryRun, force: force, verbose: verbose);
         } else if (verbose) {
-          print('  → Skipping $baseType (not an entity, enum, or complex type)');
+          print(
+              '  → Skipping $baseType (not an entity, enum, or complex type)');
         }
       }
     }
@@ -418,7 +421,8 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
       // Check if listType is an entity (exclude primitive types)
       if (cleanListType.isNotEmpty &&
           cleanListType[0] == cleanListType[0].toUpperCase() &&
-          !['String', 'int', 'double', 'bool', 'DateTime', 'Object', 'dynamic'].contains(cleanListType)) {
+          !['String', 'int', 'double', 'bool', 'DateTime', 'Object', 'dynamic']
+              .contains(cleanListType)) {
         final entityFields =
             EntityAnalyzer.analyzeEntity(cleanListType, outputDir);
         if (entityFields.isNotEmpty && !_isDefaultFields(entityFields)) {
@@ -430,7 +434,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
         } else {
           // Force generate mock data for this nested entity if it doesn't exist
           // This ensures ListingOffer gets its mock data generated
-          items.add('${cleanListType}MockData.sample${cleanListType}');
+          items.add('${cleanListType}MockData.sample$cleanListType');
           continue;
         }
       }
@@ -540,7 +544,8 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
     // Check if listType is an entity (exclude primitive types)
     if (cleanListType.isNotEmpty &&
         cleanListType[0] == cleanListType[0].toUpperCase() &&
-        !['String', 'int', 'double', 'bool', 'DateTime', 'Object', 'dynamic'].contains(cleanListType)) {
+        !['String', 'int', 'double', 'bool', 'DateTime', 'Object', 'dynamic']
+            .contains(cleanListType)) {
       final entityFields =
           EntityAnalyzer.analyzeEntity(cleanListType, outputDir);
       if (entityFields.isNotEmpty && !_isDefaultFields(entityFields)) {
@@ -548,7 +553,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
         return '[${cleanListType}MockData.${StringUtils.pascalToCamel(cleanListType)}s[seed % 3], ${cleanListType}MockData.${StringUtils.pascalToCamel(cleanListType)}s[(seed + 1) % 3]]';
       } else {
         // Force generate mock data for this nested entity if it doesn't exist
-        return '[${cleanListType}MockData.sample${cleanListType}, ${cleanListType}MockData.sample${cleanListType}]';
+        return '[${cleanListType}MockData.sample$cleanListType, ${cleanListType}MockData.sample$cleanListType]';
       }
     }
 
@@ -583,8 +588,12 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
     // Generate seeded key-value pairs
     final keyValue1 = _generateSeededSimpleValue(keyType, 'key');
     final valueValue1 = _generateSeededSimpleValue(valueType, 'value');
-    final keyValue2 = keyType == 'String' ? "'key2 \$seed'" : _generateSeededSimpleValue(keyType, 'key2');
-    final valueValue2 = valueType == 'String' ? "'value2 \$seed'" : _generateSeededSimpleValue(valueType, 'value2');
+    final keyValue2 = keyType == 'String'
+        ? "'key2 \$seed'"
+        : _generateSeededSimpleValue(keyType, 'key2');
+    final valueValue2 = valueType == 'String'
+        ? "'value2 \$seed'"
+        : _generateSeededSimpleValue(valueType, 'value2');
 
     return '{$keyValue1: $valueValue1, $keyValue2: $valueValue2}';
   }
