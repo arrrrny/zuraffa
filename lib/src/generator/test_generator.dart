@@ -214,38 +214,44 @@ $testBody
         arrange =
             "when(() => mockRepository.get()).thenAnswer((_) async => $returnConstructor);";
         verifyCall = "verify(() => mockRepository.get()).called(1);";
-        failureArrange = "when(() => mockRepository.get()).thenThrow(exception);";
+        failureArrange =
+            "when(() => mockRepository.get()).thenThrow(exception);";
       } else {
         paramsConstructor = "const QueryParams('1')";
         arrange =
             "when(() => mockRepository.get(any())).thenAnswer((_) async => $returnConstructor);";
         verifyCall = "verify(() => mockRepository.get(any())).called(1);";
-        failureArrange = "when(() => mockRepository.get(any())).thenThrow(exception);";
+        failureArrange =
+            "when(() => mockRepository.get(any())).thenThrow(exception);";
       }
     } else if (method == 'getList') {
       paramsConstructor = "const ListQueryParams()";
       arrange =
           "when(() => mockRepository.getList(any())).thenAnswer((_) async => $returnConstructor);";
       verifyCall = "verify(() => mockRepository.getList(any())).called(1);";
-      failureArrange = "when(() => mockRepository.getList(any())).thenThrow(exception);";
+      failureArrange =
+          "when(() => mockRepository.getList(any())).thenThrow(exception);";
     } else if (method == 'create') {
       paramsConstructor = "t$entityName";
       arrange =
           "when(() => mockRepository.create(any())).thenAnswer((_) async => $returnConstructor);";
       verifyCall = "verify(() => mockRepository.create(any())).called(1);";
-      failureArrange = "when(() => mockRepository.create(any())).thenThrow(exception);";
+      failureArrange =
+          "when(() => mockRepository.create(any())).thenThrow(exception);";
     } else if (method == 'update') {
       paramsConstructor = "UpdateParams(id: '1', data: u$entityName)";
       arrange =
           "when(() => mockRepository.update(any())).thenAnswer((_) async => $returnConstructor);";
       verifyCall = "verify(() => mockRepository.update(any())).called(1);";
-      failureArrange = "when(() => mockRepository.update(any())).thenThrow(exception);";
+      failureArrange =
+          "when(() => mockRepository.update(any())).thenThrow(exception);";
     } else if (method == 'delete') {
       paramsConstructor = "const DeleteParams('1')";
       arrange =
           "when(() => mockRepository.delete(any())).thenAnswer((_) async => {});";
       verifyCall = "verify(() => mockRepository.delete(any())).called(1);";
-      failureArrange = "when(() => mockRepository.delete(any())).thenThrow(exception);";
+      failureArrange =
+          "when(() => mockRepository.delete(any())).thenThrow(exception);";
     } else {
       return '';
     }
@@ -294,20 +300,23 @@ $testBody
         arrange =
             "when(() => mockRepository.watch()).thenAnswer((_) => Stream.value($returnConstructor));";
         verifyCall = "verify(() => mockRepository.watch()).called(1);";
-        failureArrange = "when(() => mockRepository.watch()).thenAnswer((_) => Stream.error(exception));";
+        failureArrange =
+            "when(() => mockRepository.watch()).thenAnswer((_) => Stream.error(exception));";
       } else {
         paramsConstructor = "QueryParams('1')";
         arrange =
             "when(() => mockRepository.watch(any())).thenAnswer((_) => Stream.value($returnConstructor));";
         verifyCall = "verify(() => mockRepository.watch(any())).called(1);";
-        failureArrange = "when(() => mockRepository.watch(any())).thenAnswer((_) => Stream.error(exception));";
+        failureArrange =
+            "when(() => mockRepository.watch(any())).thenAnswer((_) => Stream.error(exception));";
       }
     } else if (method == 'watchList') {
       paramsConstructor = "ListQueryParams()";
       arrange =
           "when(() => mockRepository.watchList(any())).thenAnswer((_) => Stream.value($returnConstructor));";
       verifyCall = "verify(() => mockRepository.watchList(any())).called(1);";
-      failureArrange = "when(() => mockRepository.watchList(any())).thenAnswer((_) => Stream.error(exception));";
+      failureArrange =
+          "when(() => mockRepository.watchList(any())).thenAnswer((_) => Stream.error(exception));";
     } else {
       return '';
     }

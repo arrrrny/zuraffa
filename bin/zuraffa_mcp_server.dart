@@ -305,12 +305,14 @@ class ZuraffaMcpServer {
           },
           'cache': {
             'type': 'boolean',
-            'description': 'Enable caching with dual datasources (remote + local)',
+            'description':
+                'Enable caching with dual datasources (remote + local)',
           },
           'cache_policy': {
             'type': 'string',
             'enum': ['daily', 'restart', 'ttl'],
-            'description': 'Cache policy: daily (default), restart (app session only), ttl (time-based)',
+            'description':
+                'Cache policy: daily (default), restart (app session only), ttl (time-based)',
           },
           'cache_storage': {
             'type': 'string',
@@ -346,7 +348,8 @@ class ZuraffaMcpServer {
           },
           'dry_run': {
             'type': 'boolean',
-            'description': 'Preview what would be generated without writing files',
+            'description':
+                'Preview what would be generated without writing files',
           },
           'verbose': {
             'type': 'boolean',

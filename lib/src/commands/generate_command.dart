@@ -77,11 +77,13 @@ class GenerateCommand {
 
     // Validate --id-field=null usage
     if (config.idField == 'null') {
-      final invalidMethods = config.methods.where((method) => 
-        method == 'getList' || method == 'watchList').toList();
-      
+      final invalidMethods = config.methods
+          .where((method) => method == 'getList' || method == 'watchList')
+          .toList();
+
       if (invalidMethods.isNotEmpty) {
-        print('❌ Error: --id-field=null can only be used with get and watch methods, not list methods.');
+        print(
+            '❌ Error: --id-field=null can only be used with get and watch methods, not list methods.');
         print('   Invalid methods: ${invalidMethods.join(', ')}');
         print('   Use --id-field=null only with: get, watch');
         exit(1);

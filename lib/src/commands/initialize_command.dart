@@ -57,7 +57,7 @@ class InitializeCommand {
     final verbose = results['verbose'] as bool;
 
     final entitySnake = StringUtils.camelToSnake(entityName);
-    
+
     // Create entity directory path
     final entityDir = path.join(outputDir, 'domain', 'entities', entitySnake);
     final entityFile = path.join(entityDir, '$entitySnake.dart');
@@ -83,12 +83,14 @@ class InitializeCommand {
 
       print('\n📝 Next steps:');
       print('   • Generate complete feature:');
-      print('     zfa generate $entityName --methods=get,getList,create,update,delete --repository --data --vpc --state');
+      print(
+          '     zfa generate $entityName --methods=get,getList,create,update,delete --repository --data --vpc --state');
       print('   • Or generate incrementally:');
       print('     zfa generate $entityName --methods=get,getList --repository');
-      print('     zfa generate $entityName --methods=get,getList --vpc --state --force');
-      print('     zfa generate $entityName --methods=get,getList --data --force');
-      
+      print(
+          '     zfa generate $entityName --methods=get,getList --vpc --state --force');
+      print(
+          '     zfa generate $entityName --methods=get,getList --data --force');
     } catch (e) {
       print('❌ Error: $e');
       exit(1);

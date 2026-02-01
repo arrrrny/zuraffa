@@ -57,22 +57,28 @@ class VpcGenerator {
     final methods = <String>[];
 
     for (final method in config.methods) {
-      final useCaseInfo = useCaseGenerator.getUseCaseInfo(method, entityName, entityCamel);
+      final useCaseInfo =
+          useCaseGenerator.getUseCaseInfo(method, entityName, entityCamel);
       useCaseInfos.add(useCaseInfo);
       fields.add('  final ${useCaseInfo.className} _${useCaseInfo.fieldName};');
-      constructorParams.add('required ${useCaseInfo.className} ${useCaseInfo.fieldName}');
+      constructorParams
+          .add('required ${useCaseInfo.className} ${useCaseInfo.fieldName}');
       methods.add(useCaseInfo.presenterMethod);
     }
 
     // Add repository imports
     for (final repo in config.effectiveRepos) {
-      final repoSnake = StringUtils.camelToSnake(repo.replaceAll('Repository', ''));
-      imports.add("import '$relativePath../domain/repositories/${repoSnake}_repository.dart';");
+      final repoSnake =
+          StringUtils.camelToSnake(repo.replaceAll('Repository', ''));
+      imports.add(
+          "import '$relativePath../domain/repositories/${repoSnake}_repository.dart';");
     }
 
     // Add entity import if needed
-    if (config.methods.any((m) => ['create', 'update', 'get', 'watch'].contains(m))) {
-      imports.add("import '$relativePath../domain/entities/$entitySnake/$entitySnake.dart';");
+    if (config.methods
+        .any((m) => ['create', 'update', 'get', 'watch'].contains(m))) {
+      imports.add(
+          "import '$relativePath../domain/entities/$entitySnake/$entitySnake.dart';");
     }
 
     final content = '''
@@ -402,13 +408,15 @@ ${methods.join('\n\n')}
       if (config.idField == 'null') {
         initialMethodCall = 'controller.get$entityName();';
       } else {
-        initialMethodCall = 'controller.get$entityName(/* ${config.queryField} */);';
+        initialMethodCall =
+            'controller.get$entityName(/* ${config.queryField} */);';
       }
     } else if (config.methods.contains('watch')) {
       if (config.idField == 'null') {
         initialMethodCall = 'controller.watch$entityName();';
       } else {
-        initialMethodCall = 'controller.watch$entityName(/* ${config.queryField} */);';
+        initialMethodCall =
+            'controller.watch$entityName(/* ${config.queryField} */);';
       }
     }
 
