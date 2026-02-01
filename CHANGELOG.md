@@ -1,10 +1,46 @@
 ## [Unreleased]
 
+### Added
+- **Cache Storage Default**: `--cache` now defaults to `--cache-storage=hive` automatically
+- **Abstract DataSource Generation**: Always generate abstract datasource interface, even with `--cache`
+- **Initialize Method Support**: Added `--init` flag support for cache datasources
+  - Remote and local datasources implement initialize methods when `--init` is used
+  - Data repository delegates initialization to remote datasource
+  - Proper `@override` annotations on all interface implementations
+
+### Fixed
+- **VPC Generator**: Reverted to working presenter generation with proper `Presenter` base class and `registerUseCase()`
+- **Mock Data Generation**:
+  - Respect `--id-field` parameter in mock datasources (e.g., `--id-field=name`)
+  - Use `const Duration()` for DateTime mock values for better performance
+  - Fixed `DeleteParams` usage in mock datasource delete methods
+  - Added proper spacing between generated methods
+  - Fixed List<String> generation to use actual strings instead of `String()` constructors
+  - Fixed duplicate map keys in generated mock data
+  - Improved Morphy entity support - parse generated `.morphy.dart` files for complete field information
+  - Only generate enum imports when entity actually contains enum fields
+  - Exclude primitive types, generics, and enums from nested entity generation
+  - Fixed seeded DateTime generation to remove invalid `const` usage
+- **DataSource Generation**:
+  - Remote and local datasources always include `with Loggable, FailureHandler` mixins
+  - Proper `implements` clause ordering (after `with` mixins)
+  - Added missing `@override` annotations for interface method implementations
+  - Initialize methods properly added to both remote and local datasources when `--init` is used
+- **Entity Analysis**: 
+  - Never use fallback fields - only parse actual entity fields from source files
+  - Improved class regex to handle `extends` and `implements` clauses
+  - Better support for Morphy generated classes with complex inheritance
+
+### Improved
+- **Mock Data Quality**: More realistic and varied mock data generation
+- **Type Safety**: Better handling of complex generic types and nullable fields
+- **Code Generation**: Cleaner generated code with proper formatting and annotations
+
 ## [1.12.1] - 2026-02-01
 
-### Change
-- --fix
-
+### Fixed
+-  Mock data generation
+- 
 ## [1.12.0] - 2026-02-01 
 
 ### Added
