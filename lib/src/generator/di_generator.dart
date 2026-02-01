@@ -195,7 +195,7 @@ import 'package:zuraffa/zuraffa.dart';''';
   );''';
     } else {
       // Use mock or remote datasource based on flag
-      final dataSourceName = config.useMockInDi 
+      final dataSourceName = config.useMockInDi
           ? '${entityName}MockDataSource'
           : '${entityName}RemoteDataSource';
       final dataSourceImport = config.useMockInDi
@@ -234,14 +234,16 @@ $registration
     final entityName = config.name;
     final entitySnake = config.nameSnake;
     final useCaseInfo = _getUseCaseInfo(method);
-    final useCaseSnake = StringUtils.camelToSnake(useCaseInfo.className.replaceAll('UseCase', ''));
+    final useCaseSnake = StringUtils.camelToSnake(
+        useCaseInfo.className.replaceAll('UseCase', ''));
     final fileName = '${useCaseSnake}_usecase_di.dart';
 
     final diPath = path.join(outputDir, 'di', 'usecases', fileName);
 
-    final subdirectoryPart = config.subdirectory != null && config.subdirectory!.isNotEmpty
-        ? '/${config.subdirectory!}'
-        : '';
+    final subdirectoryPart =
+        config.subdirectory != null && config.subdirectory!.isNotEmpty
+            ? '/${config.subdirectory!}'
+            : '';
 
     final content = '''
 // Auto-generated DI registration for ${useCaseInfo.className}
@@ -353,7 +355,8 @@ void register$controllerName(GetIt getIt) {
     final files = dir
         .listSync()
         .whereType<File>()
-        .where((f) => f.path.endsWith('_di.dart') && !f.path.endsWith('index.dart'))
+        .where((f) =>
+            f.path.endsWith('_di.dart') && !f.path.endsWith('index.dart'))
         .toList();
 
     if (files.isEmpty) {
@@ -369,7 +372,8 @@ void register$controllerName(GetIt getIt) {
 
       // Extract registration function name from file
       final content = file.readAsStringSync();
-      final match = RegExp(r'void (register\w+)\(GetIt getIt\)').firstMatch(content);
+      final match =
+          RegExp(r'void (register\w+)\(GetIt getIt\)').firstMatch(content);
       if (match != null) {
         registrations.add('  ${match.group(1)}(getIt);');
       }

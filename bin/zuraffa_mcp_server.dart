@@ -239,7 +239,8 @@ class ZuraffaMcpServer {
           },
           'data': {
             'type': 'boolean',
-            'description': 'Generate data layer (DataRepository + DataSource, always includes remote datasource)',
+            'description':
+                'Generate data layer (DataRepository + DataSource, always includes remote datasource)',
           },
           'datasource': {
             'type': 'boolean',
@@ -339,7 +340,8 @@ class ZuraffaMcpServer {
           },
           'use_mock': {
             'type': 'boolean',
-            'description': 'Use mock datasource in DI registration (default: remote datasource)',
+            'description':
+                'Use mock datasource in DI registration (default: remote datasource)',
           },
           'di': {
             'type': 'boolean',

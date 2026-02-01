@@ -57,8 +57,14 @@ class GenerateCommand {
         idType: results['id-field-type'] ?? results['id-type'] ?? 'String',
         generateVpc: results['vpc'] == true,
         generateView: results['view'] == true || results['vpc'] == true,
-        generatePresenter: results['presenter'] == true || results['vpc'] == true || results['pc'] == true || results['pcs'] == true,
-        generateController: results['controller'] == true || results['vpc'] == true || results['pc'] == true || results['pcs'] == true,
+        generatePresenter: results['presenter'] == true ||
+            results['vpc'] == true ||
+            results['pc'] == true ||
+            results['pcs'] == true,
+        generateController: results['controller'] == true ||
+            results['vpc'] == true ||
+            results['pc'] == true ||
+            results['pcs'] == true,
         generateObserver: results['observer'] == true,
         generateData: results['data'] == true,
         generateDataSource: results['datasource'] == true,

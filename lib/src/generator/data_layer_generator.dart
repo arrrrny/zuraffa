@@ -25,7 +25,7 @@ class DataLayerGenerator {
 
     // Always generate remote datasource (the actual implementation)
     await _generateRemoteDataSource();
-    
+
     // If caching is enabled, also generate local datasource
     if (config.enableCache) {
       await _generateLocalDataSource();
