@@ -20,6 +20,35 @@ class EntityAnalyzer {
       }
 
       final content = file.readAsStringSync();
+      
+      // Check if this is a Morphy entity (contains @Morphy annotation)
+      if (content.contains('@Morphy')) {
+        // Try to parse from the generated .morphy.dart file first
+        final morphyPath = '$outputDir/domain/entities/$entitySnake/$entitySnake.morphy.dart';
+        final morphyFile = File(morphyPath);
+        if (morphyFile.existsSync()) {
+          final morphyContent = morphyFile.readAsStringSync();
+          final morphyFields = _parseEntityFields(morphyContent, entityName);
+          if (morphyFields.isNotEmpty && !_hasOnlyDefaultFields(morphyFields)) {
+            return morphyFields;
+          }
+          // If parsing the class failed, try parsing all final fields in the file
+          final allFieldsRegex = RegExp(r'final\s+([\w\?<>,\s\[\]]+)\s+(\w+)\s*;', multiLine: true);
+          final allFieldMatches = allFieldsRegex.allMatches(morphyContent);
+          final allFields = <String, String>{};
+          for (final match in allFieldMatches) {
+            final type = match.group(1)?.trim();
+            final name = match.group(2);
+            if (type != null && name != null && !_isIgnoredField(name)) {
+              allFields[name] = type;
+            }
+          }
+          if (allFields.isNotEmpty) {
+            return allFields;
+          }
+        }
+      }
+      
       // Try both regular name and morphy name ($EntityName)
       var fields = _parseEntityFields(content, entityName);
       if (fields.isEmpty || _hasOnlyDefaultFields(fields)) {
@@ -44,7 +73,7 @@ class EntityAnalyzer {
     final classRegex = RegExp(
         r'(?:abstract\s+)?class\s+' +
             RegExp.escape(targetEntityName) +
-            r'\s*\{',
+            r'(?:\s+extends\s+\w+)?(?:\s+implements\s+[\w\s,]+)?\s*\{',
         multiLine: true);
     final classMatch = classRegex.firstMatch(content);
 
@@ -82,7 +111,7 @@ class EntityAnalyzer {
 
       // Parse field declarations within this class body
       final fieldRegex =
-          RegExp(r'final\s+([\w\?<>,\s]+)\s+(\w+)\s*;', multiLine: true);
+          RegExp(r'final\s+([\w\?<>,\s\[\]]+)\s+(\w+)\s*;', multiLine: true);
       final fieldMatches = fieldRegex.allMatches(classBody);
 
       for (final match in fieldMatches) {

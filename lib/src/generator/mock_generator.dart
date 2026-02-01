@@ -83,6 +83,10 @@ class MockGenerator {
       // Check if it's a custom type (PascalCase) and not already processed
       if (baseType.isNotEmpty &&
           baseType[0] == baseType[0].toUpperCase() &&
+          !['String', 'int', 'double', 'bool', 'DateTime', 'Object', 'dynamic'].contains(baseType) &&
+          !baseType.contains('<') && // Exclude generic types like Map<String, dynamic>
+          !baseType.contains(',') && // Exclude complex types with commas
+          !baseType.contains(' ') && // Exclude types with spaces
           !processedEntities.contains(baseType)) {
         // Check if it's an entity (has fields)
         final entityFields = EntityAnalyzer.analyzeEntity(baseType, outputDir);
@@ -106,7 +110,7 @@ class MockGenerator {
               entityFields, outputDir, files, processedEntities,
               dryRun: dryRun, force: force, verbose: verbose);
         } else if (verbose) {
-          print('  → Skipping $baseType (not an entity or default fields)');
+          print('  → Skipping $baseType (not an entity, enum, or complex type)');
         }
       }
     }
@@ -411,9 +415,10 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
     final items = <String>[];
 
     for (int i = 1; i <= itemCount; i++) {
-      // Check if listType is an entity
+      // Check if listType is an entity (exclude primitive types)
       if (cleanListType.isNotEmpty &&
-          cleanListType[0] == cleanListType[0].toUpperCase()) {
+          cleanListType[0] == cleanListType[0].toUpperCase() &&
+          !['String', 'int', 'double', 'bool', 'DateTime', 'Object', 'dynamic'].contains(cleanListType)) {
         final entityFields =
             EntityAnalyzer.analyzeEntity(cleanListType, outputDir);
         if (entityFields.isNotEmpty && !_isDefaultFields(entityFields)) {
@@ -421,6 +426,11 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
           final itemIndex = (seed + i - 1) % 3;
           items.add(
               '${cleanListType}MockData.${StringUtils.pascalToCamel(cleanListType)}s[$itemIndex]');
+          continue;
+        } else {
+          // Force generate mock data for this nested entity if it doesn't exist
+          // This ensures ListingOffer gets its mock data generated
+          items.add('${cleanListType}MockData.sample${cleanListType}');
           continue;
         }
       }
@@ -487,7 +497,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
       case 'bool':
         return 'seed % 2 == 1';
       case 'DateTime':
-        return 'DateTime.now().subtract(const Duration(days: seed * 30))';
+        return 'DateTime.now().subtract(Duration(days: seed * 30))';
       case 'Object':
         return '{"key\$seed": "value\$seed"}';
       default:
@@ -527,14 +537,18 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
     final cleanListType =
         listType.startsWith('\$') ? listType.substring(1) : listType;
 
-    // Check if listType is an entity
+    // Check if listType is an entity (exclude primitive types)
     if (cleanListType.isNotEmpty &&
-        cleanListType[0] == cleanListType[0].toUpperCase()) {
+        cleanListType[0] == cleanListType[0].toUpperCase() &&
+        !['String', 'int', 'double', 'bool', 'DateTime', 'Object', 'dynamic'].contains(cleanListType)) {
       final entityFields =
           EntityAnalyzer.analyzeEntity(cleanListType, outputDir);
       if (entityFields.isNotEmpty && !_isDefaultFields(entityFields)) {
-        // Reference mock data items
-        return '[${cleanListType}MockData.${StringUtils.pascalToCamel(cleanListType)}s[0], ${cleanListType}MockData.${StringUtils.pascalToCamel(cleanListType)}s[1]]';
+        // Reference mock data items with seed-based indices
+        return '[${cleanListType}MockData.${StringUtils.pascalToCamel(cleanListType)}s[seed % 3], ${cleanListType}MockData.${StringUtils.pascalToCamel(cleanListType)}s[(seed + 1) % 3]]';
+      } else {
+        // Force generate mock data for this nested entity if it doesn't exist
+        return '[${cleanListType}MockData.sample${cleanListType}, ${cleanListType}MockData.sample${cleanListType}]';
       }
     }
 
@@ -567,10 +581,12 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
     final valueType = typeParts[1];
 
     // Generate seeded key-value pairs
-    final keyValue = _generateSeededSimpleValue(keyType, 'key');
-    final valueValue = _generateSeededSimpleValue(valueType, 'value');
+    final keyValue1 = _generateSeededSimpleValue(keyType, 'key');
+    final valueValue1 = _generateSeededSimpleValue(valueType, 'value');
+    final keyValue2 = keyType == 'String' ? "'key2 \$seed'" : _generateSeededSimpleValue(keyType, 'key2');
+    final valueValue2 = valueType == 'String' ? "'value2 \$seed'" : _generateSeededSimpleValue(valueType, 'value2');
 
-    return '{$keyValue: $valueValue, $keyValue: $valueValue}';
+    return '{$keyValue1: $valueValue1, $keyValue2: $valueValue2}';
   }
 
   static String _generateSeededSimpleValue(String type, String name) {
