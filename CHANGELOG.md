@@ -1,4 +1,4 @@
-## [Unreleased]
+## [1.11.0] - 2026-02-01
 
 ### Added
 - **Initialize Command**: New `zfa initialize` command to quickly create sample entities
