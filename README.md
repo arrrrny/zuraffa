@@ -38,13 +38,29 @@ flutter pub get
 
 ## Quick Start
 
-### 1. Generate Code with the CLI
+### 1. Initialize with a Test Entity (Recommended)
 
-The easiest way to get started is using the `zfa` CLI. **One command generates your entire feature:**
+The fastest way to try Zuraffa is to create a sample entity first:
 
 ```bash
 # Activate the CLI
 dart pub global activate zuraffa
+
+# Create a sample Product entity to test with
+zfa initialize
+
+# Or create a different entity
+zfa initialize --entity=User
+
+# Generate complete Clean Architecture around your entity
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state
+```
+
+### 2. Generate Code with the CLI
+
+**One command generates your entire feature:**
+
+```bash
 
 # Generate a complete feature with one line of code
 # This creates 14 files: UseCases, Repository, DataSource, Presenter, Controller, State, and View
@@ -448,6 +464,36 @@ dart pub global activate zuraffa
 # Or run directly
 dart run zuraffa:zfa
 ```
+
+### Initialize Command
+
+The quickest way to get started is with the `initialize` command:
+
+```bash
+# Create a sample Product entity with common fields
+zfa initialize
+
+# Create a different entity
+zfa initialize --entity=User
+
+# Preview without writing files
+zfa initialize --dry-run
+
+# Specify custom output directory
+zfa initialize --entity=Order --output=lib/src
+```
+
+The `initialize` command creates a sample entity with realistic fields:
+- `id` (String) - Unique identifier
+- `name` (String) - Display name
+- `description` (String) - Detailed description
+- `price` (double) - Numeric value
+- `category` (String) - Classification
+- `isActive` (bool) - Status flag
+- `createdAt` (DateTime) - Creation timestamp
+- `updatedAt` (DateTime?) - Optional update timestamp
+
+This gives you a complete entity to immediately test Zuraffa's code generation capabilities.
 
 ### Basic Usage
 
