@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.14.0] - 2026-02-01
 
 ### Added
 - **Dependency Injection Generation**: New `--di` flag generates get_it DI files
