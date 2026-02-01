@@ -1,5 +1,5 @@
-import {themes as prismThemes} from 'prism-react-renderer';
-import type {Config} from '@docusaurus/types';
+import { themes as prismThemes } from 'prism-react-renderer';
+import type { Config } from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
@@ -61,7 +61,7 @@ const config: Config = {
       title: 'Zuraffa',
       logo: {
         alt: 'Zuraffa Logo',
-        src: 'img/logo.svg',
+        src: 'img/giraffe.svg',
       },
       items: [
         {
@@ -134,6 +134,7 @@ const config: Config = {
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
+      additionalLanguages: ['dart', 'bash', 'json', 'yaml'],
     },
   } satisfies Preset.ThemeConfig,
 };
