@@ -489,17 +489,14 @@ ${methods.join('\n\n')}
             ? '/${config.subdirectory!}'
             : '';
 
-    final dataRepoPathParts = <String>[outputDir, 'data', 'repositories'];
+    final dataSourcePathParts = <String>[outputDir, 'data', 'data_sources'];
     if (config.subdirectory != null && config.subdirectory!.isNotEmpty) {
-      dataRepoPathParts.add(config.subdirectory!);
+      dataSourcePathParts.add(config.subdirectory!);
+      relativePath += '../';
     }
-    final dataRepoDirPath = path.joinAll(dataRepoPathParts);
-    final filePath = path.join(dataRepoDirPath, fileName);
-
-    final relativePath =
-        config.subdirectory != null && config.subdirectory!.isNotEmpty
-            ? '../..'
-            : '..';
+    dataSourcePathParts.add(entitySnake);
+    final dataSourceDirPath = path.joinAll(dataSourcePathParts);
+    final filePath = path.join(dataSourceDirPath, fileName);
 
     final methods = <String>[];
 
