@@ -50,11 +50,17 @@ class UseCaseGenerator {
     switch (method) {
       case 'get':
         className = 'Get${entityName}UseCase';
-        baseClass =
-            'UseCase<$entityName, QueryParams<${config.queryFieldType}>>';
-        paramsType = 'QueryParams<${config.queryFieldType}>';
+        if (config.idField == 'null') {
+          baseClass = 'UseCase<$entityName, NoParams>';
+          paramsType = 'NoParams';
+          executeBody = 'return _repository.get();';
+        } else {
+          baseClass =
+              'UseCase<$entityName, QueryParams<${config.queryFieldType}>>';
+          paramsType = 'QueryParams<${config.queryFieldType}>';
+          executeBody = 'return _repository.get(params.query);';
+        }
         returnType = entityName;
-        executeBody = 'return _repository.get(params.query);';
         break;
       case 'getList':
         className = 'Get${entityName}ListUseCase';
@@ -100,11 +106,17 @@ class UseCaseGenerator {
         break;
       case 'watch':
         className = 'Watch${entityName}UseCase';
-        baseClass =
-            'StreamUseCase<$entityName, QueryParams<${config.queryFieldType}>>';
-        paramsType = 'QueryParams<${config.queryFieldType}>';
+        if (config.idField == 'null') {
+          baseClass = 'StreamUseCase<$entityName, NoParams>';
+          paramsType = 'NoParams';
+          executeBody = 'return _repository.watch();';
+        } else {
+          baseClass =
+              'StreamUseCase<$entityName, QueryParams<${config.queryFieldType}>>';
+          paramsType = 'QueryParams<${config.queryFieldType}>';
+          executeBody = 'return _repository.watch(params.query);';
+        }
         returnType = entityName;
-        executeBody = 'return _repository.watch(params.query);';
         isStream = true;
         break;
       case 'watchList':
@@ -318,8 +330,11 @@ $executeMethod
         return UseCaseInfo(
           className: 'Get${entityName}UseCase',
           fieldName: 'get$entityName',
-          presenterMethod:
-              '''  Future<Result<$entityName, AppFailure>> get$entityName(${config.queryFieldType} ${config.queryField}) {
+          presenterMethod: config.idField == 'null'
+              ? '''  Future<Result<$entityName, AppFailure>> get$entityName() {
+    return _get$entityName.call(const NoParams());
+  }'''
+              : '''  Future<Result<$entityName, AppFailure>> get$entityName(${config.queryFieldType} ${config.queryField}) {
     return _get$entityName.call(QueryParams(${config.queryField}));
   }''',
         );
@@ -365,8 +380,11 @@ $executeMethod
         return UseCaseInfo(
           className: 'Watch${entityName}UseCase',
           fieldName: 'watch$entityName',
-          presenterMethod:
-              '''  Stream<Result<$entityName, AppFailure>> watch$entityName(${config.queryFieldType} ${config.queryField}) {
+          presenterMethod: config.idField == 'null'
+              ? '''  Stream<Result<$entityName, AppFailure>> watch$entityName() {
+    return _watch$entityName.call(const NoParams());
+  }'''
+              : '''  Stream<Result<$entityName, AppFailure>> watch$entityName(${config.queryFieldType} ${config.queryField}) {
     return _watch$entityName.call(QueryParams(${config.queryField}));
   }''',
         );

@@ -64,8 +64,12 @@ class DataLayerGenerator {
     for (final method in config.methods) {
       switch (method) {
         case 'get':
-          methods.add(
-              '  Future<$entityName> get(${config.queryFieldType} ${config.queryField});');
+          if (config.idField == 'null') {
+            methods.add('  Future<$entityName> get();');
+          } else {
+            methods.add(
+                '  Future<$entityName> get(${config.queryFieldType} ${config.queryField});');
+          }
           break;
         case 'getList':
           methods.add(
@@ -84,8 +88,12 @@ class DataLayerGenerator {
               .add('  Future<void> delete(DeleteParams<$entityName> params);');
           break;
         case 'watch':
-          methods.add(
-              '  Stream<$entityName> watch(${config.queryFieldType} ${config.queryField});');
+          if (config.idField == 'null') {
+            methods.add('  Stream<$entityName> watch();');
+          } else {
+            methods.add(
+                '  Stream<$entityName> watch(${config.queryFieldType} ${config.queryField});');
+          }
           break;
         case 'watchList':
           methods.add(
@@ -146,11 +154,19 @@ ${methods.join('\n')}
     for (final method in config.methods) {
       switch (method) {
         case 'get':
-          methods.add('''
+          if (config.idField == 'null') {
+            methods.add('''
+  Future<$entityName> get() async {
+    // TODO: Implement remote API call
+    throw UnimplementedError('Implement remote get');
+  }''');
+          } else {
+            methods.add('''
   Future<$entityName> get(${config.queryFieldType} ${config.queryField}) async {
     // TODO: Implement remote API call
     throw UnimplementedError('Implement remote get');
   }''');
+          }
           break;
         case 'getList':
           methods.add('''
@@ -181,11 +197,19 @@ ${methods.join('\n')}
   }''');
           break;
         case 'watch':
-          methods.add('''
+          if (config.idField == 'null') {
+            methods.add('''
+  Stream<$entityName> watch() {
+    // TODO: Implement remote stream (WebSocket, SSE, etc.)
+    throw UnimplementedError('Implement remote watch');
+  }''');
+          } else {
+            methods.add('''
   Stream<$entityName> watch(${config.queryFieldType} ${config.queryField}) {
     // TODO: Implement remote stream (WebSocket, SSE, etc.)
     throw UnimplementedError('Implement remote watch');
   }''');
+          }
           break;
         case 'watchList':
           methods.add('''
@@ -250,17 +274,26 @@ ${methods.join('\n\n')}
 
     // Generate Hive implementation if specified
     if (config.cacheStorage == 'hive') {
-      methods.add('''
+      if (config.idField == 'null') {
+        // For singleton entities, use a fixed key
+        methods.add('''
+  Future<$entityName> save($entityName $entityCamel) async {
+    await _box.put('singleton', $entityCamel);
+    return $entityCamel;
+  }''');
+      } else {
+        methods.add('''
   Future<$entityName> save($entityName $entityCamel) async {
     await _box.put($entityCamel.${config.idField}, $entityCamel);
     return $entityCamel;
   }''');
 
-      methods.add('''
+        methods.add('''
   Future<void> saveAll(List<$entityName> items) async {
     final map = {for (var item in items) item.${config.idField}: item};
     await _box.putAll(map);
   }''');
+      }
 
       methods.add('''
   Future<void> clear() async {
@@ -270,7 +303,17 @@ ${methods.join('\n\n')}
       for (final method in config.methods) {
         switch (method) {
           case 'get':
-            methods.add('''
+            if (config.idField == 'null') {
+              methods.add('''
+  Future<$entityName> get() async {
+    final item = _box.get('singleton');
+    if (item == null) {
+      throw NotFoundFailure('$entityName not found in cache');
+    }
+    return item;
+  }''');
+            } else {
+              methods.add('''
   Future<$entityName> get(${config.queryFieldType} ${config.queryField}) async {
     final item = _box.get(${config.queryField});
     if (item == null) {
@@ -278,6 +321,7 @@ ${methods.join('\n\n')}
     }
     return item;
   }''');
+            }
             break;
           case 'getList':
             methods.add('''
@@ -341,11 +385,13 @@ ${methods.join('\n\n')}
     throw UnimplementedError('Implement local save');
   }''');
 
-    methods.add('''
+    if (config.idField != 'null') {
+      methods.add('''
   Future<void> saveAll(List<$entityName> items) async {
     // TODO: Implement bulk save to local storage
     throw UnimplementedError('Implement local saveAll');
   }''');
+    }
 
     methods.add('''
   Future<void> clear() async {
@@ -356,11 +402,19 @@ ${methods.join('\n\n')}
     for (final method in config.methods) {
       switch (method) {
         case 'get':
-          methods.add('''
+          if (config.idField == 'null') {
+            methods.add('''
+  Future<$entityName> get() async {
+    // TODO: Implement local storage read
+    throw UnimplementedError('Implement local get');
+  }''');
+          } else {
+            methods.add('''
   Future<$entityName> get(${config.queryFieldType} ${config.queryField}) async {
     // TODO: Implement local storage read
     throw UnimplementedError('Implement local get');
   }''');
+          }
           break;
         case 'getList':
           methods.add('''
@@ -522,10 +576,17 @@ ${methods.join('\n\n')}
       String method, String entityName, String entityCamel) {
     switch (method) {
       case 'get':
-        return '''  @override
+        if (config.idField == 'null') {
+          return '''  @override
+  Future<$entityName> get() {
+    return _dataSource.get();
+  }''';
+        } else {
+          return '''  @override
   Future<$entityName> get(${config.queryFieldType} ${config.queryField}) {
     return _dataSource.get(${config.queryField});
   }''';
+        }
       case 'getList':
         return '''  @override
   Future<List<$entityName>> getList(ListQueryParams params) {
@@ -567,7 +628,29 @@ ${methods.join('\n\n')}
 
     switch (method) {
       case 'get':
-        return '''  @override
+        if (config.idField == 'null') {
+          return '''  @override
+  Future<$entityName> get() async {
+    // Check cache validity
+    if (await _cachePolicy.isValid('$baseCacheKey')) {
+      try {
+        return await _localDataSource.get();
+      } catch (e) {
+        logger.severe('Cache miss, fetching from remote');
+      }
+    }
+
+    // Fetch from remote
+    final data = await _remoteDataSource.get();
+
+    // Update cache
+    await _localDataSource.save(data);
+    await _cachePolicy.markFresh('$baseCacheKey');
+
+    return data;
+  }''';
+        } else {
+          return '''  @override
   Future<$entityName> get(${config.queryFieldType} ${config.queryField}) async {
     // Check cache validity
     if (await _cachePolicy.isValid('$baseCacheKey')) {
@@ -587,6 +670,7 @@ ${methods.join('\n\n')}
 
     return data;
   }''';
+        }
       case 'getList':
         return '''  @override
   Future<List<$entityName>> getList(ListQueryParams params) async {
