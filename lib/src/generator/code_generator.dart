@@ -9,6 +9,7 @@ import 'observer_generator.dart';
 import 'data_layer_generator.dart';
 import 'test_generator.dart';
 import 'mock_generator.dart';
+import 'di_generator.dart';
 
 class CodeGenerator {
   final GeneratorConfig config;
@@ -198,6 +199,20 @@ class CodeGenerator {
         final file = await _testGenerator.generateCustom();
         files.add(file);
         nextSteps.add('Run tests: flutter test ');
+      }
+
+      // Generate DI files if requested
+      if (config.generateDi) {
+        final diGenerator = DiGenerator(
+          config: config,
+          outputDir: outputDir,
+          dryRun: dryRun,
+          force: force,
+          verbose: verbose,
+        );
+        final diFiles = await diGenerator.generate();
+        files.addAll(diFiles);
+        nextSteps.add('Import and call setupDependencies() in your main.dart');
       }
 
       return GeneratorResult(

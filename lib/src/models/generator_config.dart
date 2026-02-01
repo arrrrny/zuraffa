@@ -29,6 +29,9 @@ class GeneratorConfig {
   final String? cacheStorage;
   final bool generateMock;
   final bool generateMockDataOnly;
+  final bool useMockInDi;
+  final bool generateDi;
+  final String diFramework;
 
   GeneratorConfig({
     required this.name,
@@ -59,6 +62,9 @@ class GeneratorConfig {
     this.cacheStorage,
     this.generateMock = false,
     this.generateMockDataOnly = false,
+    this.useMockInDi = false,
+    this.generateDi = false,
+    this.diFramework = 'get_it',
   }) : queryFieldType = queryFieldType ?? idType;
 
   factory GeneratorConfig.fromJson(Map<String, dynamic> json, String name) {
@@ -92,6 +98,9 @@ class GeneratorConfig {
       generateMock: json['mock'] == true || json['generate_mock'] == true,
       generateMockDataOnly: json['mock_data_only'] == true ||
           json['generate_mock_data_only'] == true,
+      useMockInDi: json['use_mock'] == true || json['use_mock_in_di'] == true,
+      generateDi: json['di'] == true || json['generate_di'] == true,
+      diFramework: json['di_framework'] ?? 'get_it',
     );
   }
 
