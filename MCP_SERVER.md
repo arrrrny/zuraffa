@@ -105,6 +105,18 @@ Generate Clean Architecture code for your Flutter project.
 | output | string | No | Output directory (default: lib/src) |
 | dry_run | boolean | No | Preview without writing files |
 | force | boolean | No | Overwrite existing files |
+| state | boolean | No | Generate immutable State class |
+| pc | boolean | No | Generate Presenter + Controller only (preserve View) |
+| pcs | boolean | No | Generate Presenter + Controller + State (preserve View) |
+| cache | boolean | No | Enable caching with dual datasources |
+| cache_policy | string | No | Cache policy: daily, restart, ttl |
+| cache_storage | string | No | Local storage: hive, sqlite, shared_preferences |
+| mock | boolean | No | Generate mock data files |
+| mock_data_only | boolean | No | Generate only mock data files |
+| use_mock | boolean | No | Use mock datasource in DI (default: remote) |
+| di | boolean | No | Generate dependency injection files (get_it) |
+| init | boolean | No | Generate initialize method for repository |
+| test | boolean | No | Generate unit tests |
 
 **Example:**
 ```json
@@ -115,6 +127,50 @@ Generate Clean Architecture code for your Flutter project.
     "methods": ["get", "getList", "create"],
     "repository": true,
     "vpc": true
+  }
+}
+```
+
+**Example with DI:**
+```json
+{
+  "name": "generate",
+  "arguments": {
+    "name": "Product",
+    "methods": ["get", "getList"],
+    "repository": true,
+    "data": true,
+    "vpc": true,
+    "di": true
+  }
+}
+```
+
+**Example with Mock DataSource:**
+```json
+{
+  "name": "generate",
+  "arguments": {
+    "name": "Product",
+    "methods": ["get", "getList"],
+    "repository": true,
+    "data": true,
+    "mock": true,
+    "di": true,
+    "use_mock": true
+  }
+}
+```
+
+**Example regenerating business logic without View:**
+```json
+{
+  "name": "generate",
+  "arguments": {
+    "name": "Product",
+    "methods": ["get", "getList", "create"],
+    "pcs": true,
+    "force": true
   }
 }
 ```

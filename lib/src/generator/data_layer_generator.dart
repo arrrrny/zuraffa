@@ -23,12 +23,11 @@ class DataLayerGenerator {
     final entitySnake = config.nameSnake;
     final entityCamel = config.nameCamel;
 
-    // Always generate abstract datasource
-    // If caching is enabled, also generate remote and local implementations
+    // Always generate remote datasource (the actual implementation)
+    await _generateRemoteDataSource();
+    
+    // If caching is enabled, also generate local datasource
     if (config.enableCache) {
-      // Generate remote datasource
-      await _generateRemoteDataSource();
-      // Generate local datasource
       await _generateLocalDataSource();
     }
 

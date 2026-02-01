@@ -2,8 +2,14 @@
 
 [![Pub Version](https://img.shields.io/pub/v/zuraffa)](https://pub.dev/packages/zuraffa)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Documentation](https://img.shields.io/badge/docs-docusaurus-blue)](https://arrrrny.github.io/zuraffa/)
 
 A comprehensive Clean Architecture framework for Flutter applications with **Result-based error handling**, **type-safe failures**, and **minimal boilerplate**.
+
+## 📚 Documentation
+
+- **[Full Documentation](https://arrrrny.github.io/zuraffa/)** - Complete guides and API reference
+- **[Landing Page](https://zuraffa.dev)** - Beautiful overview and quick start
 
 ## What is Zuraffa?
 
@@ -451,6 +457,70 @@ class _ProductViewState extends CleanViewState<ProductView, ProductController> {
 }
 ```
 
+## Dependency Injection Generation
+
+Zuraffa can automatically generate dependency injection setup using get_it:
+
+```bash
+# Generate DI files alongside your code
+zfa generate Product --methods=get,getList,create --repository --data --vpc --di
+
+# Use mock datasource in DI (for development/testing)
+zfa generate Product --methods=get,getList --repository --data --mock --di --use-mock
+
+# With caching enabled
+zfa generate Product --methods=get,getList --repository --data --cache --di
+```
+
+### Generated DI Structure
+
+```
+lib/src/di/
+├── index.dart                    # Main entry with setupDependencies()
+├── datasources/
+│   ├── index.dart               # Auto-generated
+│   └── product_remote_data_source_di.dart
+├── repositories/
+│   ├── index.dart               # Auto-generated
+│   └── product_repository_di.dart
+├── usecases/
+│   ├── index.dart               # Auto-generated
+│   ├── get_product_usecase_di.dart
+│   └── get_product_list_usecase_di.dart
+├── presenters/
+│   ├── index.dart               # Auto-generated
+│   └── product_presenter_di.dart
+└── controllers/
+    ├── index.dart               # Auto-generated
+    └── product_controller_di.dart
+```
+
+### Usage
+
+```dart
+import 'package:get_it/get_it.dart';
+import 'src/di/index.dart';
+
+void main() {
+  final getIt = GetIt.instance;
+  setupDependencies(getIt);
+  
+  runApp(MyApp());
+}
+
+// Access registered dependencies
+final productRepository = getIt<ProductRepository>();
+final productController = getIt<ProductController>();
+```
+
+### Features
+
+- ✅ **One file per component**: No merge conflicts
+- ✅ **Auto-generated indexes**: Directory scanning regenerates imports
+- ✅ **Cache support**: Registers remote + local datasources when `--cache` used
+- ✅ **Mock support**: Use `--use-mock` to register mock datasources
+- ✅ **Fail-safe**: Regenerate anytime without manual merging
+
 ## Mock Data Generation
 
 Zuraffa can generate realistic mock data for your entities, perfect for testing, UI previews, and development:
@@ -667,15 +737,19 @@ zfa generate ProcessCheckout --repos=CartRepository,PaymentRepository --params=C
 | Flag           | Description                                           |
 |----------------|-------------------------------------------------------|
 | `--repository` | Generate repository interface                         |
-| `--data`       | Generate DataRepository and DataSource                |
+| `--data`       | Generate DataRepository and DataSource (always includes remote datasource) |
 | `--vpc`        | Generate View, Presenter, and Controller              |
+| `--pc`         | Generate Presenter and Controller only (preserve View)|
+| `--pcs`        | Generate Presenter, Controller, and State (preserve View) |
 | `--state`      | Generate immutable State class                        |
 | `--mock`       | Generate mock data files alongside other layers       |
 | `--mock-data-only` | Generate only mock data files (no other layers)   |
+| `--use-mock`   | Use mock datasource in DI (default: remote datasource)|
+| `--di`         | Generate dependency injection files (get_it)          |
 | `--morphy`     | Use typed Patch objects for updates                   |
 | `--cache`      | Enable caching with dual datasources (remote + local) |
 | `--cache-policy` | Cache expiration: daily, restart, ttl (default: daily) |
-| `--cache-storage` | Local storage hint: hive, sqlite, shared_preferences |
+| `--cache-storage` | Local storage hint: hive, sqlite, shared_preferences (default: hive) |
 | `--subfolder`  | Organize under a subfolder (e.g., `--subfolder=auth`) |
 | `--init`       | Add initialize method & isInitialized stream to repos |
 | `--force`      | Overwrite existing files                              |

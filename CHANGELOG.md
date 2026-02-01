@@ -1,3 +1,37 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+- **Dependency Injection Generation**: New `--di` flag generates get_it DI files
+  - One file per component (datasource, repository, usecase, presenter, controller)
+  - Auto-generated index files via directory scanning
+  - Supports `--cache` for dual datasource registration
+  - Supports `--use-mock` to register mock datasources instead of remote
+- **Granular VPC Generation**: New flags for selective presenter/controller generation
+  - `--pc`: Generate Presenter + Controller only (preserve custom View)
+  - `--pcs`: Generate Presenter + Controller + State (preserve custom View)
+  - `--vpc`: Still available for full View + Presenter + Controller generation
+- **Mock DataSource Control**: New `--use-mock` flag
+  - When used with `--di`, registers mock datasource instead of remote
+  - Useful for development and testing without backend
+- **Remote DataSource Always Generated**: `--data` now always generates remote datasource implementation
+  - Previously only generated with `--cache`
+  - More intuitive default behavior
+
+### Changed
+- **Presenter DI Registration**: Fixed to inject only repositories (not usecases)
+  - Presenters create usecases internally via `registerUseCase()`
+  - Matches actual presenter implementation pattern
+
+### Fixed
+- **DI Generation**: Removed extra closing parenthesis in presenter registration
+
 ## [1.13.0] - 2026-02-01
 
 ### Added

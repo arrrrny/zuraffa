@@ -56,13 +56,13 @@ class GenerateCommand {
         idField: results['id-field'] ?? 'id',
         idType: results['id-field-type'] ?? results['id-type'] ?? 'String',
         generateVpc: results['vpc'] == true,
-        generateView: results['view'] == true,
-        generatePresenter: results['presenter'] == true,
-        generateController: results['controller'] == true,
+        generateView: results['view'] == true || results['vpc'] == true,
+        generatePresenter: results['presenter'] == true || results['vpc'] == true || results['pc'] == true || results['pcs'] == true,
+        generateController: results['controller'] == true || results['vpc'] == true || results['pc'] == true || results['pcs'] == true,
         generateObserver: results['observer'] == true,
         generateData: results['data'] == true,
         generateDataSource: results['datasource'] == true,
-        generateState: results['state'] == true,
+        generateState: results['state'] == true || results['pcs'] == true,
         generateInit: results['init'] == true,
         queryField: results['query-field'] ?? 'id',
         queryFieldType: results['query-field-type'],
@@ -75,6 +75,9 @@ class GenerateCommand {
             (results['cache'] == true ? 'hive' : null),
         generateMock: results['mock'] == true,
         generateMockDataOnly: results['mock-data-only'] == true,
+        useMockInDi: results['use-mock'] == true,
+        generateDi: results['di'] == true,
+        diFramework: 'get_it',
       );
     }
 
@@ -147,6 +150,10 @@ class GenerateCommand {
       ..addOption('returns', help: 'Return type for custom usecase')
       ..addFlag('vpc',
           help: 'Generate View + Presenter + Controller', defaultsTo: false)
+      ..addFlag('pc',
+          help: 'Generate Presenter + Controller only', defaultsTo: false)
+      ..addFlag('pcs',
+          help: 'Generate Presenter + Controller + State', defaultsTo: false)
       ..addFlag('view', help: 'Generate View only', defaultsTo: false)
       ..addFlag('presenter', help: 'Generate Presenter only', defaultsTo: false)
       ..addFlag('controller',
@@ -189,6 +196,11 @@ class GenerateCommand {
       ..addFlag('mock-data-only',
           help: 'Generate only mock data file (no data source)',
           defaultsTo: false)
+      ..addFlag('use-mock',
+          help: 'Use mock datasource in DI (default: remote datasource)',
+          defaultsTo: false)
+      ..addFlag('di',
+          help: 'Generate dependency injection files', defaultsTo: false)
       ..addOption('subdirectory',
           help: 'Subdirectory to organize files (e.g., products, orders)')
       ..addOption('output',
@@ -230,6 +242,9 @@ MOCK DATA:
   --mock               Generate mock data source with sample data
   --mock-data-only     Generate only mock data file (no data source)
 
+DEPENDENCY INJECTION:
+  --di                 Generate DI registration files (get_it)
+
 CUSTOM USECASE:
   --repos=<list>        Comma-separated repositories to inject
   --type=<type>         usecase|stream|background|completable (default: usecase)
@@ -238,6 +253,8 @@ CUSTOM USECASE:
 
 VPC LAYER:
   --vpc                 Generate View + Presenter + Controller
+  --pc                  Generate Presenter + Controller only (preserve View)
+  --pcs                 Generate Presenter + Controller + State (preserve View)
   --view                Generate View only
   --presenter           Generate Presenter only
   --controller          Generate Controller only

@@ -54,6 +54,28 @@ zfa generate Product --methods=get,getList --repository --di=get_it --additive
 - ✅ Additive mode prevents breaking existing registrations
 - ✅ High impact, low complexity implementation
 
+**Status**: ✅ **COMPLETED** - Available in v1.14.0
+
+### 3. Granular VPC Regeneration (`--pc`, `--pcs`) - **COMPLETED v1.14.0**
+
+**Goal**: Allow regeneration of business logic (Presenter/Controller) without overwriting custom UI code.
+
+**Usage:**
+```bash
+# Regenerate presenter and controller only (preserve custom view)
+zfa generate Product --methods=get,getList --pc --force
+
+# Regenerate presenter, controller, and state (preserve custom view)
+zfa generate Product --methods=get,getList --pcs --force
+```
+
+**Benefits:**
+- ✅ Safe regeneration without losing custom UI
+- ✅ Iterate on business logic independently
+- ✅ Maintain separation between UI and logic layers
+
+**Status**: ✅ **COMPLETED** - Available in v1.14.0
+
 ---
 
 *Focus: Developer experience through complete automation, not feature bloat.*

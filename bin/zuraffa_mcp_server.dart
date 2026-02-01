@@ -222,6 +222,16 @@ class ZuraffaMcpServer {
             'description':
                 'Generate View, Presenter, and Controller (presentation layer)',
           },
+          'pc': {
+            'type': 'boolean',
+            'description':
+                'Generate Presenter and Controller only (preserve custom View)',
+          },
+          'pcs': {
+            'type': 'boolean',
+            'description':
+                'Generate Presenter, Controller, and State (preserve custom View)',
+          },
           'state': {
             'type': 'boolean',
             'description':
@@ -229,7 +239,7 @@ class ZuraffaMcpServer {
           },
           'data': {
             'type': 'boolean',
-            'description': 'Generate data layer (DataRepository + DataSource)',
+            'description': 'Generate data layer (DataRepository + DataSource, always includes remote datasource)',
           },
           'datasource': {
             'type': 'boolean',
@@ -326,6 +336,14 @@ class ZuraffaMcpServer {
           'mock_data_only': {
             'type': 'boolean',
             'description': 'Generate only mock data files (no other layers)',
+          },
+          'use_mock': {
+            'type': 'boolean',
+            'description': 'Use mock datasource in DI registration (default: remote datasource)',
+          },
+          'di': {
+            'type': 'boolean',
+            'description': 'Generate dependency injection files using get_it',
           },
         },
         'required': ['name'],
