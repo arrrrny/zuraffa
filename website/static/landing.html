@@ -1,1009 +1,974 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Zuraffa — Architecture for the Discerning Developer</title>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-        <link
-            href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
-            rel="stylesheet"
-        />
-        <style>
-            :root {
-                --color-bg: #1a1a1a;
-                --color-accent: #ccff00;
-                --color-accent-dim: #aacc00;
-                --color-text: #f5f5f5;
-                --color-text-dim: #999;
-                --color-border: #333;
-                --color-code-bg: #0d0d0d;
-                --font-display: "Space Grotesk", sans-serif;
-                --font-mono: "JetBrains Mono", monospace;
-                --spacing-xs: 0.5rem;
-                --spacing-sm: 1rem;
-                --spacing-md: 2rem;
-                --spacing-lg: 4rem;
-                --spacing-xl: 8rem;
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zuraffa — Architecture for the Discerning Developer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet" />
+    <style>
+        :root {
+            --color-bg: #1a1a1a;
+            --color-accent: #ccff00;
+            --color-accent-dim: #aacc00;
+            --color-text: #f5f5f5;
+            --color-text-dim: #999;
+            --color-border: #333;
+            --color-code-bg: #0d0d0d;
+            --font-display: "Space Grotesk", sans-serif;
+            --font-mono: "JetBrains Mono", monospace;
+            --spacing-xs: 0.5rem;
+            --spacing-sm: 1rem;
+            --spacing-md: 2rem;
+            --spacing-lg: 4rem;
+            --spacing-xl: 8rem;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: var(--font-display);
+            background: var(--color-bg);
+            color: var(--color-text);
+            line-height: 1.6;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Grain texture overlay */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            opacity: 0.03;
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: var(--spacing-sm) var(--spacing-md);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            background: rgba(26, 26, 26, 0.9);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .logo {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 1.5rem;
+            letter-spacing: -0.05em;
+            color: var(--color-text);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-xs);
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            position: relative;
+        }
+
+        .logo-icon svg {
+            width: 100%;
+            height: 100%;
+            fill: var(--color-accent);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: var(--spacing-md);
+            list-style: none;
+        }
+
+        .nav-links a {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            color: var(--color-text-dim);
+            text-decoration: none;
+            transition: color 0.3s ease;
+            position: relative;
+        }
+
+        .nav-links a::after {
+            content: "";
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--color-accent);
+            transition: width 0.3s ease;
+        }
+
+        .nav-links a:hover {
+            color: var(--color-accent);
+        }
+
+        .nav-links a:hover::after {
+            width: 100%;
+        }
+
+        .cta-button {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            padding: 0.75rem 1.5rem;
+            background: var(--color-accent);
+            color: var(--color-bg);
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+
+        .cta-button:hover {
+            background: var(--color-text);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(204, 255, 0, 0.3);
+        }
+
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            padding: var(--spacing-xl) var(--spacing-md);
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-content {
+            z-index: 2;
+        }
+
+        .hero-title {
+            font-size: clamp(4rem, 12vw, 10rem);
+            font-weight: 700;
+            line-height: 0.9;
+            letter-spacing: -0.08em;
+            margin-bottom: var(--spacing-md);
+            opacity: 0;
+            animation: slideUp 0.8s ease forwards;
+            animation-delay: 0.2s;
+        }
+
+        .hero-title span {
+            display: block;
+            color: var(--color-accent);
+        }
+
+        .hero-tagline {
+            font-size: 1.5rem;
+            color: var(--color-text-dim);
+            margin-bottom: var(--spacing-lg);
+            font-weight: 400;
+            opacity: 0;
+            animation: slideUp 0.8s ease forwards;
+            animation-delay: 0.4s;
+        }
+
+        .hero-description {
+            font-size: 1.125rem;
+            color: var(--color-text-dim);
+            max-width: 600px;
+            margin-bottom: var(--spacing-lg);
+            opacity: 0;
+            animation: slideUp 0.8s ease forwards;
+            animation-delay: 0.6s;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: var(--spacing-sm);
+            opacity: 0;
+            animation: slideUp 0.8s ease forwards;
+            animation-delay: 0.8s;
+        }
+
+        .hero-actions .cta-button {
+            padding: 1rem 2rem;
+            font-size: 1rem;
+        }
+
+        .hero-actions .cta-button.secondary {
+            background: transparent;
+            color: var(--color-text);
+            border: 2px solid var(--color-border);
+        }
+
+        .hero-actions .cta-button.secondary:hover {
+            border-color: var(--color-accent);
+            color: var(--color-accent);
+        }
+
+        .hero-visual {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 120%;
+            left: -10%;
+        }
+
+        /* Animated Z Logo */
+        .z-logo {
+            width: 350px;
+            height: 350px;
+            position: relative;
+            opacity: 0;
+            animation: fadeIn 1s ease forwards;
+            animation-delay: 0.5s;
+            flex-shrink: 0;
+        }
+
+        .z-logo svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .z-logo .z-shape {
+            fill: none;
+            stroke: var(--color-accent);
+            stroke-width: 8;
+            stroke-linecap: square;
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            animation: drawZ 2s ease forwards;
+            animation-delay: 1s;
+        }
+
+        .z-logo .z-inner {
+            fill: var(--color-accent);
+            opacity: 0;
+            animation: fadeIn 1s ease forwards;
+            animation-delay: 2.5s;
+        }
+
+        /* Decorative elements */
+        .decoration {
+            position: absolute;
+            pointer-events: none;
+        }
+
+        .decoration-square {
+            width: 200px;
+            height: 200px;
+            border: 4px solid var(--color-border);
+            top: 10%;
+            right: 5%;
+            opacity: 0.3;
+            transform: rotate(12deg);
+        }
+
+        .decoration-line {
+            width: 100%;
+            height: 1px;
+            background: var(--color-border);
+            position: absolute;
+            top: 50%;
+            left: 0;
+        }
+
+        .decoration-circle {
+            width: 100px;
+            height: 100px;
+            border: 4px solid var(--color-accent);
+            border-radius: 50%;
+            bottom: 20%;
+            left: 10%;
+            opacity: 0.2;
+        }
+
+        .decoration-giraffe {
+            position: absolute;
+            right: -8%;
+            width: 450px;
+            opacity: 0.12;
+            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+            cursor: pointer;
+        }
+
+        .decoration-giraffe:hover {
+            opacity: 0.4;
+            transform: scale(1.05) rotate(2deg);
+        }
+
+        .decoration-giraffe svg {
+            width: 100%;
+            height: 100%;
+            fill: var(--color-accent);
+        }
+
+        .decoration-giraffe img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            filter: brightness(0) saturate(100%) invert(26%) sepia(99%) saturate(5837%) hue-rotate(55deg) brightness(102%) contrast(103%);
+        }
+
+        /* Giraffe tooltip */
+        .giraffe-tooltip {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--color-accent);
+            color: var(--color-bg);
+            padding: 1rem 1.5rem;
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            font-weight: 600;
+            border-radius: 8px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            pointer-events: none;
+            z-index: 10000;
+            box-shadow: 0 10px 40px rgba(204, 255, 0, 0.3);
+        }
+
+        .giraffe-tooltip.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .giraffe-tooltip::before {
+            content: "🦒 ";
+            margin-right: 0.5rem;
+        }
+
+        /* Features Section */
+        .features {
+            padding: var(--spacing-xl) var(--spacing-md);
+            position: relative;
+        }
+
+        .section-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--color-accent);
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            margin-bottom: var(--spacing-sm);
+            display: block;
+        }
+
+        .section-title {
+            font-size: clamp(3rem, 8vw, 6rem);
+            font-weight: 700;
+            letter-spacing: -0.05em;
+            margin-bottom: var(--spacing-lg);
+            line-height: 1;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--spacing-md);
+            position: relative;
+        }
+
+        .feature-card {
+            background: var(--color-bg);
+            border: 2px solid var(--color-border);
+            padding: var(--spacing-md);
+            position: relative;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            cursor: pointer;
+        }
+
+        .feature-card::before {
+            content: "";
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: var(--color-accent);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            z-index: -1;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-8px) rotate(-1deg);
+            border-color: var(--color-accent);
+        }
+
+        .feature-card:hover::before {
+            opacity: 0.1;
+        }
+
+        .feature-card:nth-child(2) {
+            transform: translateY(var(--spacing-md));
+        }
+
+        .feature-card:nth-child(2):hover {
+            transform: translateY(calc(var(--spacing-md) - 8px)) rotate(1deg);
+        }
+
+        .feature-card:nth-child(5) {
+            transform: translateY(var(--spacing-md));
+        }
+
+        .feature-card:nth-child(5):hover {
+            transform: translateY(calc(var(--spacing-md) - 8px)) rotate(-1deg);
+        }
+
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            margin-bottom: var(--spacing-sm);
+            fill: var(--color-accent);
+        }
+
+        .feature-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: var(--spacing-xs);
+            letter-spacing: -0.02em;
+        }
+
+        .feature-description {
+            color: var(--color-text-dim);
+            font-size: 1rem;
+            line-height: 1.7;
+        }
+
+        .feature-tag {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--color-accent);
+            margin-top: var(--spacing-sm);
+            display: inline-block;
+        }
+
+        /* Grid-breaking card */
+        .feature-card.break-out {
+            grid-column: span 2;
+            background: linear-gradient(135deg,
+                    var(--color-bg) 0%,
+                    rgba(204, 255, 0, 0.05) 100%);
+        }
+
+        /* Code Showcase Section */
+        .code-showcase {
+            padding: var(--spacing-xl) var(--spacing-md);
+            background: linear-gradient(180deg,
+                    transparent 0%,
+                    rgba(204, 255, 0, 0.02) 50%,
+                    transparent 100%);
+            position: relative;
+        }
+
+        .code-showcase-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--spacing-lg);
+            align-items: center;
+        }
+
+        .code-showcase-text {
+            padding-right: var(--spacing-lg);
+        }
+
+        .code-showcase-text h2 {
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 700;
+            letter-spacing: -0.05em;
+            margin-bottom: var(--spacing-md);
+            line-height: 1.1;
+        }
+
+        .code-showcase-text p {
+            color: var(--color-text-dim);
+            font-size: 1.125rem;
+            margin-bottom: var(--spacing-md);
+        }
+
+        .code-window {
+            background: var(--color-code-bg);
+            border: 2px solid var(--color-border);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .code-window-header {
+            background: rgba(255, 255, 255, 0.03);
+            padding: var(--spacing-sm);
+            display: flex;
+            gap: 8px;
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .code-window-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .code-window-dot:nth-child(1) {
+            background: #ff5f56;
+        }
+
+        .code-window-dot:nth-child(2) {
+            background: #ffbd2e;
+        }
+
+        .code-window-dot:nth-child(3) {
+            background: #27c93f;
+        }
+
+        .code-window-body {
+            padding: var(--spacing-md);
+            overflow-x: auto;
+        }
+
+        .code-window-body pre {
+            margin: 0;
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            line-height: 1.8;
+            color: #d4d4d4;
+        }
+
+        .code-window-body .keyword {
+            color: #c586c0;
+        }
+
+        .code-window-body .class {
+            color: #4ec9b0;
+        }
+
+        .code-window-body .function {
+            color: #dcdcaa;
+        }
+
+        .code-window-body .string {
+            color: #ce9178;
+        }
+
+        .code-window-body .comment {
+            color: #6a9955;
+        }
+
+        .code-window-body .type {
+            color: #4ec9b0;
+        }
+
+        .code-window-body .variable {
+            color: #9cdcfe;
+        }
+
+        /* CLI Demo Section */
+        .cli-demo {
+            padding: var(--spacing-xl) var(--spacing-md);
+            position: relative;
+        }
+
+        .cli-demo-content {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .terminal {
+            background: var(--color-code-bg);
+            border: 2px solid var(--color-border);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .terminal-header {
+            background: rgba(255, 255, 255, 0.03);
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-bottom: 1px solid var(--color-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .terminal-title {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            color: var(--color-text-dim);
+        }
+
+        .terminal-body {
+            padding: var(--spacing-md);
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            min-height: 300px;
+        }
+
+        .terminal-line {
+            margin-bottom: 0.5rem;
+            display: flex;
+            opacity: 0;
+            animation: fadeIn 0.3s ease forwards;
+        }
+
+        .terminal-prompt {
+            color: var(--color-accent);
+            margin-right: 0.5rem;
+            white-space: nowrap;
+        }
+
+        .terminal-command {
+            color: var(--color-text);
+        }
+
+        .terminal-output {
+            color: var(--color-text-dim);
+            white-space: pre-wrap;
+        }
+
+        .terminal-cursor {
+            display: inline-block;
+            width: 10px;
+            height: 18px;
+            background: var(--color-accent);
+            animation: blink 1s step-end infinite;
+            margin-left: 2px;
+        }
+
+        /* Footer */
+        footer {
+            padding: var(--spacing-lg) var(--spacing-md);
+            border-top: 1px solid var(--color-border);
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--spacing-lg);
+        }
+
+        footer h3 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: var(--spacing-sm);
+        }
+
+        footer p {
+            color: var(--color-text-dim);
+            max-width: 400px;
+        }
+
+        .footer-links {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: var(--spacing-md);
+        }
+
+        .footer-links ul {
+            list-style: none;
+        }
+
+        .footer-links li {
+            margin-bottom: 0.5rem;
+        }
+
+        .footer-links a {
+            color: var(--color-text-dim);
+            text-decoration: none;
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            transition: color 0.3s ease;
+        }
+
+        .footer-links a:hover {
+            color: var(--color-accent);
+        }
+
+        .footer-bottom {
+            grid-column: 1 / -1;
+            padding-top: var(--spacing-md);
+            border-top: 1px solid var(--color-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            color: var(--color-text-dim);
+        }
+
+        /* Animations */
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
             }
 
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
             }
 
-            html {
-                scroll-behavior: smooth;
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes drawZ {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        @keyframes blink {
+
+            0%,
+            50% {
+                opacity: 1;
             }
 
-            body {
-                font-family: var(--font-display);
-                background: var(--color-bg);
-                color: var(--color-text);
-                line-height: 1.6;
-                overflow-x: hidden;
-                position: relative;
+            51%,
+            100% {
+                opacity: 0;
             }
+        }
 
-            /* Grain texture overlay */
-            body::before {
-                content: "";
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-                opacity: 0.03;
-                pointer-events: none;
-                z-index: 9999;
-            }
+        /* Scroll animations */
+        .animate-on-scroll {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
 
-            /* Navigation */
-            nav {
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                padding: var(--spacing-sm) var(--spacing-md);
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                z-index: 100;
-                background: rgba(26, 26, 26, 0.9);
-                backdrop-filter: blur(10px);
-                border-bottom: 1px solid var(--color-border);
-            }
+        .animate-on-scroll.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
 
-            .logo {
-                font-family: var(--font-display);
-                font-weight: 700;
-                font-size: 1.5rem;
-                letter-spacing: -0.05em;
-                color: var(--color-text);
-                text-decoration: none;
-                display: flex;
-                align-items: center;
-                gap: var(--spacing-xs);
-            }
-
-            .logo-icon {
-                width: 32px;
-                height: 32px;
-                position: relative;
-            }
-
-            .logo-icon svg {
-                width: 100%;
-                height: 100%;
-                fill: var(--color-accent);
-            }
-
-            .nav-links {
-                display: flex;
-                gap: var(--spacing-md);
-                list-style: none;
-            }
-
-            .nav-links a {
-                font-family: var(--font-mono);
-                font-size: 0.875rem;
-                color: var(--color-text-dim);
-                text-decoration: none;
-                transition: color 0.3s ease;
-                position: relative;
-            }
-
-            .nav-links a::after {
-                content: "";
-                position: absolute;
-                bottom: -4px;
-                left: 0;
-                width: 0;
-                height: 2px;
-                background: var(--color-accent);
-                transition: width 0.3s ease;
-            }
-
-            .nav-links a:hover {
-                color: var(--color-accent);
-            }
-
-            .nav-links a:hover::after {
-                width: 100%;
-            }
-
-            .cta-button {
-                font-family: var(--font-mono);
-                font-size: 0.875rem;
-                padding: 0.75rem 1.5rem;
-                background: var(--color-accent);
-                color: var(--color-bg);
-                text-decoration: none;
-                font-weight: 600;
-                transition: all 0.3s ease;
-                display: inline-block;
-            }
-
-            .cta-button:hover {
-                background: var(--color-text);
-                transform: translateY(-2px);
-                box-shadow: 0 4px 20px rgba(204, 255, 0, 0.3);
-            }
-
-            /* Hero Section */
+        /* Responsive */
+        @media (max-width: 1024px) {
             .hero {
-                min-height: 100vh;
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                padding: var(--spacing-xl) var(--spacing-md);
-                align-items: center;
-                position: relative;
-                overflow: hidden;
-            }
-
-            .hero-content {
-                z-index: 2;
-            }
-
-            .hero-title {
-                font-size: clamp(4rem, 12vw, 10rem);
-                font-weight: 700;
-                line-height: 0.9;
-                letter-spacing: -0.08em;
-                margin-bottom: var(--spacing-md);
-                opacity: 0;
-                animation: slideUp 0.8s ease forwards;
-                animation-delay: 0.2s;
-            }
-
-            .hero-title span {
-                display: block;
-                color: var(--color-accent);
-            }
-
-            .hero-tagline {
-                font-size: 1.5rem;
-                color: var(--color-text-dim);
-                margin-bottom: var(--spacing-lg);
-                font-weight: 400;
-                opacity: 0;
-                animation: slideUp 0.8s ease forwards;
-                animation-delay: 0.4s;
-            }
-
-            .hero-description {
-                font-size: 1.125rem;
-                color: var(--color-text-dim);
-                max-width: 600px;
-                margin-bottom: var(--spacing-lg);
-                opacity: 0;
-                animation: slideUp 0.8s ease forwards;
-                animation-delay: 0.6s;
-            }
-
-            .hero-actions {
-                display: flex;
-                gap: var(--spacing-sm);
-                opacity: 0;
-                animation: slideUp 0.8s ease forwards;
-                animation-delay: 0.8s;
-            }
-
-            .hero-actions .cta-button {
-                padding: 1rem 2rem;
-                font-size: 1rem;
-            }
-
-            .hero-actions .cta-button.secondary {
-                background: transparent;
-                color: var(--color-text);
-                border: 2px solid var(--color-border);
-            }
-
-            .hero-actions .cta-button.secondary:hover {
-                border-color: var(--color-accent);
-                color: var(--color-accent);
+                grid-template-columns: 1fr;
+                padding-top: var(--spacing-xl);
             }
 
             .hero-visual {
-                position: relative;
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                width: 120%;
-                left: -10%;
+                order: -1;
+                padding: var(--spacing-md) 0;
             }
 
-            /* Animated Z Logo */
             .z-logo {
-                width: 350px;
-                height: 350px;
-                position: relative;
-                opacity: 0;
-                animation: fadeIn 1s ease forwards;
-                animation-delay: 0.5s;
-                flex-shrink: 0;
-            }
-
-            .z-logo svg {
-                width: 100%;
-                height: 100%;
-            }
-
-            .z-logo .z-shape {
-                fill: none;
-                stroke: var(--color-accent);
-                stroke-width: 8;
-                stroke-linecap: square;
-                stroke-dasharray: 1000;
-                stroke-dashoffset: 1000;
-                animation: drawZ 2s ease forwards;
-                animation-delay: 1s;
-            }
-
-            .z-logo .z-inner {
-                fill: var(--color-accent);
-                opacity: 0;
-                animation: fadeIn 1s ease forwards;
-                animation-delay: 2.5s;
-            }
-
-            /* Decorative elements */
-            .decoration {
-                position: absolute;
-                pointer-events: none;
-            }
-
-            .decoration-square {
-                width: 200px;
-                height: 200px;
-                border: 4px solid var(--color-border);
-                top: 10%;
-                right: 5%;
-                opacity: 0.3;
-                transform: rotate(12deg);
-            }
-
-            .decoration-line {
-                width: 100%;
-                height: 1px;
-                background: var(--color-border);
-                position: absolute;
-                top: 50%;
-                left: 0;
-            }
-
-            .decoration-circle {
-                width: 100px;
-                height: 100px;
-                border: 4px solid var(--color-accent);
-                border-radius: 50%;
-                bottom: 20%;
-                left: 10%;
-                opacity: 0.2;
-            }
-
-            .decoration-giraffe {
-                position: absolute;
-                right: -8%;
-                width: 450px;
-                opacity: 0.12;
-                transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-                cursor: pointer;
-            }
-
-            .decoration-giraffe:hover {
-                opacity: 0.4;
-                transform: scale(1.05) rotate(2deg);
-            }
-
-            .decoration-giraffe svg {
-                width: 100%;
-                height: 100%;
-                fill: var(--color-accent);
-            }
-
-            .decoration-giraffe img {
-                width: 100%;
-                height: 100%;
-                object-fit: contain;
-                filter: brightness(0) saturate(100%) invert(26%) sepia(99%)
-                    saturate(5837%) hue-rotate(55deg) brightness(102%)
-                    contrast(103%);
-            }
-
-            /* Giraffe tooltip */
-            .giraffe-tooltip {
-                position: fixed;
-                bottom: 20px;
-                right: 20px;
-                background: var(--color-accent);
-                color: var(--color-bg);
-                padding: 1rem 1.5rem;
-                font-family: var(--font-mono);
-                font-size: 0.875rem;
-                font-weight: 600;
-                border-radius: 8px;
-                opacity: 0;
-                transform: translateY(20px);
-                transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-                pointer-events: none;
-                z-index: 10000;
-                box-shadow: 0 10px 40px rgba(204, 255, 0, 0.3);
-            }
-
-            .giraffe-tooltip.visible {
-                opacity: 1;
-                transform: translateY(0);
-            }
-
-            .giraffe-tooltip::before {
-                content: "🦒 ";
-                margin-right: 0.5rem;
-            }
-
-            /* Features Section */
-            .features {
-                padding: var(--spacing-xl) var(--spacing-md);
-                position: relative;
-            }
-
-            .section-label {
-                font-family: var(--font-mono);
-                font-size: 0.75rem;
-                color: var(--color-accent);
-                text-transform: uppercase;
-                letter-spacing: 0.2em;
-                margin-bottom: var(--spacing-sm);
-                display: block;
-            }
-
-            .section-title {
-                font-size: clamp(3rem, 8vw, 6rem);
-                font-weight: 700;
-                letter-spacing: -0.05em;
-                margin-bottom: var(--spacing-lg);
-                line-height: 1;
+                width: 300px;
+                height: 300px;
             }
 
             .features-grid {
-                display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: var(--spacing-md);
-                position: relative;
+                grid-template-columns: 1fr;
             }
 
-            .feature-card {
-                background: var(--color-bg);
-                border: 2px solid var(--color-border);
-                padding: var(--spacing-md);
-                position: relative;
-                transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-                cursor: pointer;
-            }
-
-            .feature-card::before {
-                content: "";
-                position: absolute;
-                top: -2px;
-                left: -2px;
-                right: -2px;
-                bottom: -2px;
-                background: var(--color-accent);
-                opacity: 0;
-                transition: opacity 0.4s ease;
-                z-index: -1;
-            }
-
-            .feature-card:hover {
-                transform: translateY(-8px) rotate(-1deg);
-                border-color: var(--color-accent);
-            }
-
-            .feature-card:hover::before {
-                opacity: 0.1;
-            }
-
-            .feature-card:nth-child(2) {
-                transform: translateY(var(--spacing-md));
-            }
-
-            .feature-card:nth-child(2):hover {
-                transform: translateY(calc(var(--spacing-md) - 8px))
-                    rotate(1deg);
-            }
-
+            .feature-card:nth-child(2),
             .feature-card:nth-child(5) {
-                transform: translateY(var(--spacing-md));
+                transform: none;
             }
 
-            .feature-card:nth-child(5):hover {
-                transform: translateY(calc(var(--spacing-md) - 8px))
-                    rotate(-1deg);
-            }
-
-            .feature-icon {
-                width: 48px;
-                height: 48px;
-                margin-bottom: var(--spacing-sm);
-                fill: var(--color-accent);
-            }
-
-            .feature-title {
-                font-size: 1.5rem;
-                font-weight: 600;
-                margin-bottom: var(--spacing-xs);
-                letter-spacing: -0.02em;
-            }
-
-            .feature-description {
-                color: var(--color-text-dim);
-                font-size: 1rem;
-                line-height: 1.7;
-            }
-
-            .feature-tag {
-                font-family: var(--font-mono);
-                font-size: 0.75rem;
-                color: var(--color-accent);
-                margin-top: var(--spacing-sm);
-                display: inline-block;
-            }
-
-            /* Grid-breaking card */
             .feature-card.break-out {
-                grid-column: span 2;
-                background: linear-gradient(
-                    135deg,
-                    var(--color-bg) 0%,
-                    rgba(204, 255, 0, 0.05) 100%
-                );
-            }
-
-            /* Code Showcase Section */
-            .code-showcase {
-                padding: var(--spacing-xl) var(--spacing-md);
-                background: linear-gradient(
-                    180deg,
-                    transparent 0%,
-                    rgba(204, 255, 0, 0.02) 50%,
-                    transparent 100%
-                );
-                position: relative;
+                grid-column: span 1;
             }
 
             .code-showcase-content {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: var(--spacing-lg);
-                align-items: center;
+                grid-template-columns: 1fr;
             }
 
             .code-showcase-text {
-                padding-right: var(--spacing-lg);
-            }
-
-            .code-showcase-text h2 {
-                font-size: clamp(2.5rem, 5vw, 4rem);
-                font-weight: 700;
-                letter-spacing: -0.05em;
-                margin-bottom: var(--spacing-md);
-                line-height: 1.1;
-            }
-
-            .code-showcase-text p {
-                color: var(--color-text-dim);
-                font-size: 1.125rem;
+                padding-right: 0;
                 margin-bottom: var(--spacing-md);
             }
 
-            .code-window {
-                background: var(--color-code-bg);
-                border: 2px solid var(--color-border);
-                border-radius: 8px;
-                overflow: hidden;
-                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-            }
-
-            .code-window-header {
-                background: rgba(255, 255, 255, 0.03);
-                padding: var(--spacing-sm);
-                display: flex;
-                gap: 8px;
-                border-bottom: 1px solid var(--color-border);
-            }
-
-            .code-window-dot {
-                width: 12px;
-                height: 12px;
-                border-radius: 50%;
-            }
-
-            .code-window-dot:nth-child(1) {
-                background: #ff5f56;
-            }
-            .code-window-dot:nth-child(2) {
-                background: #ffbd2e;
-            }
-            .code-window-dot:nth-child(3) {
-                background: #27c93f;
-            }
-
-            .code-window-body {
-                padding: var(--spacing-md);
-                overflow-x: auto;
-            }
-
-            .code-window-body pre {
-                margin: 0;
-                font-family: var(--font-mono);
-                font-size: 0.875rem;
-                line-height: 1.8;
-                color: #d4d4d4;
-            }
-
-            .code-window-body .keyword {
-                color: #c586c0;
-            }
-            .code-window-body .class {
-                color: #4ec9b0;
-            }
-            .code-window-body .function {
-                color: #dcdcaa;
-            }
-            .code-window-body .string {
-                color: #ce9178;
-            }
-            .code-window-body .comment {
-                color: #6a9955;
-            }
-            .code-window-body .type {
-                color: #4ec9b0;
-            }
-            .code-window-body .variable {
-                color: #9cdcfe;
-            }
-
-            /* CLI Demo Section */
-            .cli-demo {
-                padding: var(--spacing-xl) var(--spacing-md);
-                position: relative;
-            }
-
-            .cli-demo-content {
-                max-width: 900px;
-                margin: 0 auto;
-            }
-
-            .terminal {
-                background: var(--color-code-bg);
-                border: 2px solid var(--color-border);
-                border-radius: 8px;
-                overflow: hidden;
-                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-            }
-
-            .terminal-header {
-                background: rgba(255, 255, 255, 0.03);
-                padding: var(--spacing-sm) var(--spacing-md);
-                border-bottom: 1px solid var(--color-border);
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-            }
-
-            .terminal-title {
-                font-family: var(--font-mono);
-                font-size: 0.875rem;
-                color: var(--color-text-dim);
-            }
-
-            .terminal-body {
-                padding: var(--spacing-md);
-                font-family: var(--font-mono);
-                font-size: 0.875rem;
-                min-height: 300px;
-            }
-
-            .terminal-line {
-                margin-bottom: 0.5rem;
-                display: flex;
-                opacity: 0;
-                animation: fadeIn 0.3s ease forwards;
-            }
-
-            .terminal-prompt {
-                color: var(--color-accent);
-                margin-right: 0.5rem;
-                white-space: nowrap;
-            }
-
-            .terminal-command {
-                color: var(--color-text);
-            }
-
-            .terminal-output {
-                color: var(--color-text-dim);
-                white-space: pre-wrap;
-            }
-
-            .terminal-cursor {
-                display: inline-block;
-                width: 10px;
-                height: 18px;
-                background: var(--color-accent);
-                animation: blink 1s step-end infinite;
-                margin-left: 2px;
-            }
-
-            /* Footer */
             footer {
-                padding: var(--spacing-lg) var(--spacing-md);
-                border-top: 1px solid var(--color-border);
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: var(--spacing-lg);
+                grid-template-columns: 1fr;
             }
 
-            footer h3 {
-                font-size: 1.5rem;
-                font-weight: 700;
-                margin-bottom: var(--spacing-sm);
+            .nav-links {
+                display: none;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .hero-title {
+                font-size: clamp(3rem, 15vw, 6rem);
             }
 
-            footer p {
-                color: var(--color-text-dim);
-                max-width: 400px;
+            .hero-tagline {
+                font-size: 1.125rem;
             }
 
-            .footer-links {
-                display: grid;
-                grid-template-columns: repeat(2, 1fr);
-                gap: var(--spacing-md);
+            .section-title {
+                font-size: clamp(2rem, 10vw, 4rem);
             }
 
-            .footer-links ul {
-                list-style: none;
+            .hero-actions {
+                flex-direction: column;
+                width: 100%;
             }
 
-            .footer-links li {
-                margin-bottom: 0.5rem;
+            .hero-actions .cta-button {
+                width: 100%;
+                text-align: center;
             }
+        }
+    </style>
+</head>
 
-            .footer-links a {
-                color: var(--color-text-dim);
-                text-decoration: none;
-                font-family: var(--font-mono);
-                font-size: 0.875rem;
-                transition: color 0.3s ease;
-            }
-
-            .footer-links a:hover {
-                color: var(--color-accent);
-            }
-
-            .footer-bottom {
-                grid-column: 1 / -1;
-                padding-top: var(--spacing-md);
-                border-top: 1px solid var(--color-border);
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                font-family: var(--font-mono);
-                font-size: 0.875rem;
-                color: var(--color-text-dim);
-            }
-
-            /* Animations */
-            @keyframes slideUp {
-                from {
-                    opacity: 0;
-                    transform: translateY(30px);
-                }
-                to {
-                    opacity: 1;
-                    transform: translateY(0);
-                }
-            }
-
-            @keyframes fadeIn {
-                from {
-                    opacity: 0;
-                }
-                to {
-                    opacity: 1;
-                }
-            }
-
-            @keyframes drawZ {
-                to {
-                    stroke-dashoffset: 0;
-                }
-            }
-
-            @keyframes blink {
-                0%,
-                50% {
-                    opacity: 1;
-                }
-                51%,
-                100% {
-                    opacity: 0;
-                }
-            }
-
-            /* Scroll animations */
-            .animate-on-scroll {
-                opacity: 0;
-                transform: translateY(30px);
-                transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-            }
-
-            .animate-on-scroll.visible {
-                opacity: 1;
-                transform: translateY(0);
-            }
-
-            /* Responsive */
-            @media (max-width: 1024px) {
-                .hero {
-                    grid-template-columns: 1fr;
-                    padding-top: var(--spacing-xl);
-                }
-
-                .hero-visual {
-                    order: -1;
-                    padding: var(--spacing-md) 0;
-                }
-
-                .z-logo {
-                    width: 300px;
-                    height: 300px;
-                }
-
-                .features-grid {
-                    grid-template-columns: 1fr;
-                }
-
-                .feature-card:nth-child(2),
-                .feature-card:nth-child(5) {
-                    transform: none;
-                }
-
-                .feature-card.break-out {
-                    grid-column: span 1;
-                }
-
-                .code-showcase-content {
-                    grid-template-columns: 1fr;
-                }
-
-                .code-showcase-text {
-                    padding-right: 0;
-                    margin-bottom: var(--spacing-md);
-                }
-
-                footer {
-                    grid-template-columns: 1fr;
-                }
-
-                .nav-links {
-                    display: none;
-                }
-            }
-
-            @media (max-width: 640px) {
-                .hero-title {
-                    font-size: clamp(3rem, 15vw, 6rem);
-                }
-
-                .hero-tagline {
-                    font-size: 1.125rem;
-                }
-
-                .section-title {
-                    font-size: clamp(2rem, 10vw, 4rem);
-                }
-
-                .hero-actions {
-                    flex-direction: column;
-                    width: 100%;
-                }
-
-                .hero-actions .cta-button {
-                    width: 100%;
-                    text-align: center;
-                }
-            }
-        </style>
-    </head>
-    <body>
-        <!-- Navigation -->
-        <nav>
-            <a href="#" class="logo">
-                <div class="logo-icon">
-                    <svg viewBox="0 0 32 32">
-                        <path
-                            d="M4 4 L28 4 L4 28 L4 14 L18 14 L8 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="3"
-                        />
-                    </svg>
-                </div>
-                ZURAFFA
-            </a>
-            <ul class="nav-links">
-                <li><a href="#features">Features</a></li>
-                <li><a href="#code">Code</a></li>
-                <li><a href="#cli">CLI</a></li>
-                <li>
-                    <a href="docs/intro">Docs</a>
-                </li>
-                <li>
-                    <a href="https://github.com/arrrrny/zuraffa" target="_blank"
-                        >GitHub</a
-                    >
-                </li>
-            </ul>
-            <a
-                href="https://pub.dev/packages/zuraffa"
-                target="_blank"
-                class="cta-button"
-                >Get Started</a
-            >
-        </nav>
-
-        <!-- Hero Section -->
-        <section class="hero">
-            <div class="decoration decoration-square"></div>
-            <div class="decoration decoration-circle"></div>
-            <div class="decoration decoration-giraffe" id="giraffe-icon">
-                <img
-                    src="/img/giraffe.svg"
-                    alt="Giraffe"
-                    style="width: 100%; height: 100%; object-fit: contain"
-                />
+<body>
+    <!-- Navigation -->
+    <nav>
+        <a href="#" class="logo">
+            <div class="logo-icon">
+                <svg viewBox="0 0 32 32">
+                    <path d="M4 4 L28 4 L4 28 L4 14 L18 14 L8 24" fill="none" stroke="currentColor" stroke-width="3" />
+                </svg>
             </div>
+            ZURAFFA
+        </a>
+        <ul class="nav-links">
+            <li><a href="#features">Features</a></li>
+            <li><a href="#code">Code</a></li>
+            <li><a href="#cli">CLI</a></li>
+            <li>
+                <a href="docs/intro">Docs</a>
+            </li>
+            <li>
+                <a href="https://github.com/arrrrny/zuraffa" target="_blank">GitHub</a>
+            </li>
+        </ul>
+        <a href="https://pub.dev/packages/zuraffa" target="_blank" class="cta-button">Get Started</a>
+    </nav>
 
-            <div class="hero-content">
-                <h1 class="hero-title">ZURA<span>FFA</span></h1>
-                <p class="hero-tagline">
-                    Architecture for the Discerning Developer
-                </p>
-                <p class="hero-description">
-                    A comprehensive Clean Architecture framework for Flutter
-                    applications with Result-based error handling, type-safe
-                    failures, and minimal boilerplate.
-                </p>
-                <div class="hero-actions">
-                    <a
-                        href="https://pub.dev/packages/zuraffa"
-                        target="_blank"
-                        class="cta-button"
-                        >Install Now</a
-                    >
-                    <a href="docs/intro" class="cta-button secondary"
-                        >See the Code</a
-                    >
-                </div>
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="decoration decoration-square"></div>
+        <div class="decoration decoration-circle"></div>
+        <div class="decoration decoration-giraffe" id="giraffe-icon">
+            <img src="/img/giraffe.svg" alt="Giraffe" style="width: 100%; height: 100%; object-fit: contain" />
+        </div>
+
+        <div class="hero-content">
+            <h1 class="hero-title">ZURA<span>FFA</span></h1>
+            <p class="hero-tagline">
+                Architecture for the Discerning Developer
+            </p>
+            <p class="hero-description">
+                A comprehensive Clean Architecture framework for Flutter
+                applications with Result-based error handling, type-safe
+                failures, and minimal boilerplate.
+            </p>
+            <div class="hero-actions">
+                <a href="https://pub.dev/packages/zuraffa" target="_blank" class="cta-button">Install Now</a>
+                <a href="docs/intro" class="cta-button secondary">See the Code</a>
             </div>
+        </div>
 
-            <div class="hero-visual">
-                <div class="z-logo">
-                    <svg viewBox="0 0 200 200">
-                        <!-- Z shape -->
-                        <path
-                            class="z-shape"
-                            d="M40 30 L160 30 L40 170 L40 100 L120 100"
-                        />
-                        <!-- Inner decorative elements -->
-                        <circle class="z-inner" cx="160" cy="170" r="8" />
-                        <rect
-                            class="z-inner"
-                            x="140"
-                            y="50"
-                            width="20"
-                            height="20"
-                        />
-                    </svg>
-                </div>
+        <div class="hero-visual">
+            <div class="z-logo">
+                <svg viewBox="0 0 200 200">
+                    <!-- Z shape -->
+                    <path class="z-shape" d="M40 30 L160 30 L40 170 L40 100 L120 100" />
+                    <!-- Inner decorative elements -->
+                    <circle class="z-inner" cx="160" cy="170" r="8" />
+                    <rect class="z-inner" x="140" y="50" width="20" height="20" />
+                </svg>
             </div>
-        </section>
+        </div>
+    </section>
 
-        <!-- CLI Demo Section -->
-        <section class="cli-demo" id="cli">
-            <div class="cli-demo-content">
-                <span class="section-label">The CLI</span>
-                <h2 class="section-title animate-on-scroll">
-                    Generate in<br />
-                    <span style="color: var(--color-accent)">Seconds</span>
-                </h2>
-                <p
-                    style="
+    <!-- CLI Demo Section -->
+    <section class="cli-demo" id="cli">
+        <div class="cli-demo-content">
+            <span class="section-label">The CLI</span>
+            <h2 class="section-title animate-on-scroll">
+                Generate in<br />
+                <span style="color: var(--color-accent)">Seconds</span>
+            </h2>
+            <p style="
                         color: var(--color-text-dim);
                         margin-bottom: var(--spacing-md);
                         max-width: 600px;
-                    "
-                >
-                    The zfa CLI generates complete Clean Architecture
-                    boilerplate. UseCases, repositories, controllers, views—all
-                    from a single command.
-                </p>
+                    ">
+                The zfa CLI generates complete Clean Architecture
+                boilerplate. UseCases, repositories, controllers, views—all
+                from a single command.
+            </p>
 
-                <div class="terminal animate-on-scroll">
-                    <div class="terminal-header">
-                        <span class="terminal-title">zfa — Terminal</span>
-                        <div style="display: flex; gap: 4px">
-                            <div class="code-window-dot"></div>
-                            <div class="code-window-dot"></div>
-                            <div class="code-window-dot"></div>
-                        </div>
+            <div class="terminal animate-on-scroll">
+                <div class="terminal-header">
+                    <span class="terminal-title">zfa — Terminal</span>
+                    <div style="display: flex; gap: 4px">
+                        <div class="code-window-dot"></div>
+                        <div class="code-window-dot"></div>
+                        <div class="code-window-dot"></div>
                     </div>
-                    <div class="terminal-body" id="terminal-output">
-                        <div class="terminal-line">
-                            <span class="terminal-prompt">$</span>
-                            <span class="terminal-command"
-                                >zfa generate Product
-                                --methods=get,getList,create,update,delete
-                                --repository --vpc</span
-                            >
-                        </div>
+                </div>
+                <div class="terminal-body" id="terminal-output">
+                    <div class="terminal-line">
+                        <span class="terminal-prompt">$</span>
+                        <span class="terminal-command">zfa generate Product
+                            --methods=get,getList,create,update,delete
+                            --repository --vpc</span>
                     </div>
                 </div>
             </div>
-        </section>
+        </div>
+    </section>
 
-        <!-- Code Showcase Section -->
-        <section class="code-showcase" id="code">
-            <div class="code-showcase-content">
-                <div class="code-showcase-text">
-                    <span class="section-label">The Code</span>
-                    <h2>Elegant by Design</h2>
-                    <p>
-                        Write Flutter code that reads like poetry. Type-safe,
-                        expressive, and maintainable. Zuraffa handles the
-                        complexity so you can focus on what matters.
-                    </p>
-                    <a
-                        href="https://github.com/arrrrny/zuraffa/blob/master/example/lib/main.dart"
-                        target="_blank"
-                        class="cta-button"
-                        >View Example →</a
-                    >
+    <!-- Code Showcase Section -->
+    <section class="code-showcase" id="code">
+        <div class="code-showcase-content">
+            <div class="code-showcase-text">
+                <span class="section-label">The Code</span>
+                <h2>Elegant by Design</h2>
+                <p>
+                    Write Flutter code that reads like poetry. Type-safe,
+                    expressive, and maintainable. Zuraffa handles the
+                    complexity so you can focus on what matters.
+                </p>
+                <a href="https://github.com/arrrrny/zuraffa/blob/master/example/lib/main.dart" target="_blank"
+                    class="cta-button">View Example →</a>
+            </div>
+
+            <div class="code-window">
+                <div class="code-window-header">
+                    <div class="code-window-dot"></div>
+                    <div class="code-window-dot"></div>
+                    <div class="code-window-dot"></div>
                 </div>
-
-                <div class="code-window">
-                    <div class="code-window-header">
-                        <div class="code-window-dot"></div>
-                        <div class="code-window-dot"></div>
-                        <div class="code-window-dot"></div>
-                    </div>
-                    <div class="code-window-body">
-                        <pre><code><span class="comment">// Define a UseCase</span>
+                <div class="code-window-body">
+                    <pre><code><span class="comment">// Define a UseCase</span>
 <span class="keyword">class</span> <span class="class">GetUserUseCase</span> <span class="keyword">extends</span> <span class="type">UseCase</span>&lt;<span class="type">User</span>, <span class="type">String</span>&gt; {
   <span class="keyword">final</span> <span class="type">UserRepository</span> _repository;
 
@@ -1025,356 +990,326 @@ result.<span class="function">fold</span>(
   (user) => <span class="function">showUser</span>(user),
   (failure) => <span class="function">showError</span>(failure),
 );</code></pre>
-                    </div>
                 </div>
             </div>
-        </section>
+        </div>
+    </section>
 
-        <!-- Features Section -->
-        <section class="features" id="features">
-            <div class="decoration-line"></div>
-            <span class="section-label">Features</span>
-            <h2 class="section-title animate-on-scroll">
-                Crafted for<br />
-                <span style="color: var(--color-accent)">Excellence</span>
-            </h2>
+    <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="decoration-line"></div>
+        <span class="section-label">Features</span>
+        <h2 class="section-title animate-on-scroll">
+            Crafted for<br />
+            <span style="color: var(--color-accent)">Excellence</span>
+        </h2>
 
-            <div class="features-grid">
-                <div class="feature-card animate-on-scroll">
-                    <svg class="feature-icon" viewBox="0 0 48 48">
-                        <path
-                            d="M24 4L4 14v20l20 10 20-10V14L24 4zm0 4l14 7-14 7-14-7 14-7zm-16 9.8l14 7v16.4l-14-7V17.8zm32 0v16.4l-14 7v-16.4l14-7z"
-                        />
-                    </svg>
-                    <h3 class="feature-title">Result Type</h3>
-                    <p class="feature-description">
-                        Type-safe error handling with sealed classes. Pattern
-                        match successes and failures with compile-time
-                        guarantees.
-                    </p>
-                    <span class="feature-tag">TYPE-SAFE</span>
-                </div>
-
-                <div class="feature-card animate-on-scroll">
-                    <svg class="feature-icon" viewBox="0 0 48 48">
-                        <path
-                            d="M38 6H10c-2.2 0-4 1.8-4 4v28c0 2.2 1.8 4 4 4h28c2.2 0 4-1.8 4-4V10c0-2.2-1.8-4-4-4zm-2 28H12V12h24v22z"
-                        />
-                        <path
-                            d="M16 16h8v8h-8zM26 16h8v8h-8zM16 26h8v8h-8zM26 26h8v8h-8z"
-                        />
-                    </svg>
-                    <h3 class="feature-title">UseCase Patterns</h3>
-                    <p class="feature-description">
-                        Single-shot, streaming, and background operations. One
-                        pattern, infinite possibilities for your business logic.
-                    </p>
-                    <span class="feature-tag">FLEXIBLE</span>
-                </div>
-
-                <div class="feature-card animate-on-scroll">
-                    <svg class="feature-icon" viewBox="0 0 48 48">
-                        <path
-                            d="M24 4C12.95 4 4 12.95 4 24s8.95 20 20 20 20-8.95 20-20S35.05 4 24 4zm0 36c-8.82 0-16-7.18-16-16S15.18 8 24 8s16 7.18 16 16-7.18 16-16 16z"
-                        />
-                        <path d="M22 14h4v12h-4zM22 30h4v4h-4z" />
-                    </svg>
-                    <h3 class="feature-title">AppFailure</h3>
-                    <p class="feature-description">
-                        Comprehensive sealed hierarchy for every error scenario.
-                        Network, validation, server—handle them all elegantly.
-                    </p>
-                    <span class="feature-tag">COMPREHENSIVE</span>
-                </div>
-
-                <div class="feature-card animate-on-scroll">
-                    <svg class="feature-icon" viewBox="0 0 48 48">
-                        <path
-                            d="M8 4h32v4H8zM8 12h32v4H8zM8 20h32v4H8zM8 28h32v4H8zM8 36h32v4H8z"
-                        />
-                    </svg>
-                    <h3 class="feature-title">CLI Tool</h3>
-                    <p class="feature-description">
-                        Generate boilerplate with a single command. Full stack,
-                        half the effort. Focus on logic, not structure.
-                    </p>
-                    <span class="feature-tag">PRODUCTIVE</span>
-                </div>
-
-                <div class="feature-card break-out animate-on-scroll">
-                    <svg class="feature-icon" viewBox="0 0 48 48">
-                        <path
-                            d="M40 8H8c-2.2 0-4 1.8-4 4v24c0 2.2 1.8 4 4 4h32c2.2 0 4-1.8 4-4V12c0-2.2-1.8-4-4-4zm0 28H8V12h32v24z"
-                        />
-                        <circle cx="24" cy="24" r="6" />
-                        <path d="M36 16l-4 4M12 32l4-4M36 32l-4-4M12 16l4 4" />
-                    </svg>
-                    <h3 class="feature-title">Controller & CleanView</h3>
-                    <p class="feature-description">
-                        State management that gets out of your way. Automatic
-                        cleanup, lifecycle hooks, and fine-grained rebuilds.
-                        Just build your UI.
-                    </p>
-                    <span class="feature-tag">EFFORTLESS</span>
-                </div>
-
-                <div class="feature-card animate-on-scroll">
-                    <svg class="feature-icon" viewBox="0 0 48 48">
-                        <path
-                            d="M24 4l-2 8h-8l6 6-2 8 8-6 8 6-2-8 6-6h-8l-2-8zM12 26l-4 4 4 4 4-4-4-4zM36 26l-4 4 4 4 4-4-4-4z"
-                        />
-                    </svg>
-                    <h3 class="feature-title">MCP Server</h3>
-                    <p class="feature-description">
-                        AI/IDE integration via Model Context Protocol. Let
-                        Claude generate your architecture. Seamless workflow.
-                    </p>
-                    <span class="feature-tag">INNOVATIVE</span>
-                </div>
-            </div>
-        </section>
-        <!-- Footer -->
-        <footer>
-            <div>
-                <h3>Zuraffa</h3>
-                <p>
-                    Architecture for the discerning developer. Built with love
-                    for the Flutter community.
+        <div class="features-grid">
+            <a href="docs/architecture/result-type" class="feature-card animate-on-scroll"
+                style="text-decoration: none; color: inherit;">
+                <svg class="feature-icon" viewBox="0 0 48 48">
+                    <path
+                        d="M24 4L4 14v20l20 10 20-10V14L24 4zm0 4l14 7-14 7-14-7 14-7zm-16 9.8l14 7v16.4l-14-7V17.8zm32 0v16.4l-14 7v-16.4l14-7z" />
+                </svg>
+                <h3 class="feature-title">Result Type</h3>
+                <p class="feature-description">
+                    Type-safe error handling with sealed classes. Pattern
+                    match successes and failures with compile-time
+                    guarantees.
                 </p>
+                <span class="feature-tag">TYPE-SAFE</span>
+            </a>
+
+            <a href="docs/architecture/usecases" class="feature-card animate-on-scroll"
+                style="text-decoration: none; color: inherit;">
+                <svg class="feature-icon" viewBox="0 0 48 48">
+                    <path
+                        d="M38 6H10c-2.2 0-4 1.8-4 4v28c0 2.2 1.8 4 4 4h28c2.2 0 4-1.8 4-4V10c0-2.2-1.8-4-4-4zm-2 28H12V12h24v22z" />
+                    <path d="M16 16h8v8h-8zM26 16h8v8h-8zM16 26h8v8h-8zM26 26h8v8h-8z" />
+                </svg>
+                <h3 class="feature-title">UseCase Patterns</h3>
+                <p class="feature-description">
+                    Single-shot, streaming, and background operations. One
+                    pattern, infinite possibilities for your business logic.
+                </p>
+                <span class="feature-tag">FLEXIBLE</span>
+            </a>
+
+            <a href="docs/architecture/result-type" class="feature-card animate-on-scroll"
+                style="text-decoration: none; color: inherit;">
+                <svg class="feature-icon" viewBox="0 0 48 48">
+                    <path
+                        d="M24 4C12.95 4 4 12.95 4 24s8.95 20 20 20 20-8.95 20-20S35.05 4 24 4zm0 36c-8.82 0-16-7.18-16-16S15.18 8 24 8s16 7.18 16 16-7.18 16-16 16z" />
+                    <path d="M22 14h4v12h-4zM22 30h4v4h-4z" />
+                </svg>
+                <h3 class="feature-title">AppFailure</h3>
+                <p class="feature-description">
+                    Comprehensive sealed hierarchy for every error scenario.
+                    Network, validation, server—handle them all elegantly.
+                </p>
+                <span class="feature-tag">COMPREHENSIVE</span>
+            </a>
+
+            <a href="docs/cli/commands" class="feature-card animate-on-scroll"
+                style="text-decoration: none; color: inherit;">
+                <svg class="feature-icon" viewBox="0 0 48 48">
+                    <path d="M8 4h32v4H8zM8 12h32v4H8zM8 20h32v4H8zM8 28h32v4H8zM8 36h32v4H8z" />
+                </svg>
+                <h3 class="feature-title">CLI Tool</h3>
+                <p class="feature-description">
+                    Generate boilerplate with a single command. Full stack,
+                    half the effort. Focus on logic, not structure.
+                </p>
+                <span class="feature-tag">PRODUCTIVE</span>
+            </a>
+
+            <a href="docs/architecture/overview" class="feature-card break-out animate-on-scroll"
+                style="text-decoration: none; color: inherit;">
+                <svg class="feature-icon" viewBox="0 0 48 48">
+                    <path
+                        d="M40 8H8c-2.2 0-4 1.8-4 4v24c0 2.2 1.8 4 4 4h32c2.2 0 4-1.8 4-4V12c0-2.2-1.8-4-4-4zm0 28H8V12h32v24z" />
+                    <circle cx="24" cy="24" r="6" />
+                    <path d="M36 16l-4 4M12 32l4-4M36 32l-4-4M12 16l4 4" />
+                </svg>
+                <h3 class="feature-title">Controller & CleanView</h3>
+                <p class="feature-description">
+                    State management that gets out of your way. Automatic
+                    cleanup, lifecycle hooks, and fine-grained rebuilds.
+                    Just build your UI.
+                </p>
+                <span class="feature-tag">EFFORTLESS</span>
+            </a>
+
+            <a href="docs/features/vpc-regeneration" class="feature-card animate-on-scroll"
+                style="text-decoration: none; color: inherit;">
+                <svg class="feature-icon" viewBox="0 0 48 48">
+                    <path
+                        d="M24 4l-2 8h-8l6 6-2 8 8-6 8 6-2-8 6-6h-8l-2-8zM12 26l-4 4 4 4 4-4-4-4zM36 26l-4 4 4 4 4-4-4-4z" />
+                </svg>
+                <h3 class="feature-title">MCP Server</h3>
+                <p class="feature-description">
+                    AI/IDE integration via Model Context Protocol. Let
+                    Claude generate your architecture. Seamless workflow.
+                </p>
+                <span class="feature-tag">INNOVATIVE</span>
+            </a>
+        </div>
+    </section>
+    <!-- Footer -->
+    <footer>
+        <div>
+            <h3>Zuraffa</h3>
+            <p>
+                Architecture for the discerning developer. Built with love
+                for the Flutter community.
+            </p>
+        </div>
+
+        <div class="footer-links">
+            <div>
+                <ul>
+                    <li>
+                        <a href="https://pub.dev/packages/zuraffa" target="_blank">Pub.dev</a>
+                    </li>
+                    <li>
+                        <a href="https://github.com/arrrrny/zuraffa" target="_blank">GitHub</a>
+                    </li>
+                    <li>
+                        <a href="https://github.com/arrrrny/zuraffa/issues" target="_blank">Issues</a>
+                    </li>
+                </ul>
             </div>
-
-            <div class="footer-links">
-                <div>
-                    <ul>
-                        <li>
-                            <a
-                                href="https://pub.dev/packages/zuraffa"
-                                target="_blank"
-                                >Pub.dev</a
-                            >
-                        </li>
-                        <li>
-                            <a
-                                href="https://github.com/arrrrny/zuraffa"
-                                target="_blank"
-                                >GitHub</a
-                            >
-                        </li>
-                        <li>
-                            <a
-                                href="https://github.com/arrrrny/zuraffa/issues"
-                                target="_blank"
-                                >Issues</a
-                            >
-                        </li>
-                    </ul>
-                </div>
-                <div>
-                    <ul>
-                        <li>
-                            <a
-                                href="https://github.com/arrrrny/zuraffa/blob/master/CLI_GUIDE.md"
-                                target="_blank"
-                                >CLI Guide</a
-                            >
-                        </li>
-                        <li>
-                            <a
-                                href="https://github.com/arrrrny/zuraffa/blob/master/MCP_SERVER.md"
-                                target="_blank"
-                                >MCP Server</a
-                            >
-                        </li>
-                        <li>
-                            <a
-                                href="https://github.com/arrrrny/zuraffa/blob/master/AGENTS.md"
-                                target="_blank"
-                                >AI Agents</a
-                            >
-                        </li>
-                    </ul>
-                </div>
+            <div>
+                <ul>
+                    <li>
+                        <a href="https://github.com/arrrrny/zuraffa/blob/master/CLI_GUIDE.md" target="_blank">CLI
+                            Guide</a>
+                    </li>
+                    <li>
+                        <a href="https://github.com/arrrrny/zuraffa/blob/master/MCP_SERVER.md" target="_blank">MCP
+                            Server</a>
+                    </li>
+                    <li>
+                        <a href="https://github.com/arrrrny/zuraffa/blob/master/AGENTS.md" target="_blank">AI Agents</a>
+                    </li>
+                </ul>
             </div>
+        </div>
 
-            <div class="footer-bottom">
-                <span>© 2026 Zuraffa. MIT License.</span>
-                <span
-                    >Crafted with ⚡️ by
-                    <a
-                        href="https://github.com/arrrrny"
-                        style="color: var(--color-accent)"
-                        >@arrrrny</a
-                    ></span
-                >
-            </div>
-        </footer>
+        <div class="footer-bottom">
+            <span>© 2026 Zuraffa. MIT License.</span>
+            <span>Crafted with ⚡️ by
+                <a href="https://github.com/arrrrny" style="color: var(--color-accent)">@arrrrny</a></span>
+        </div>
+    </footer>
 
-        <script>
-            // Scroll animations
-            const observerOptions = {
-                threshold: 0.1,
-                rootMargin: "0px 0px -50px 0px",
-            };
+    <script>
+        // Scroll animations
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: "0px 0px -50px 0px",
+        };
 
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach((entry) => {
-                    if (entry.isIntersecting) {
-                        entry.target.classList.add("visible");
-                    }
-                });
-            }, observerOptions);
-
-            document.querySelectorAll(".animate-on-scroll").forEach((el) => {
-                observer.observe(el);
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add("visible");
+                }
             });
+        }, observerOptions);
 
-            // Terminal typing animation
-            const terminalOutput = document.getElementById("terminal-output");
-            const commands = [
-                {
-                    cmd: "zfa generate Product --methods=get,getList,create,update,delete --repository --vpc",
-                    output: "✓ Generated UseCases: GetProductUseCase, GetProductListUseCase, CreateProductUseCase, UpdateProductUseCase, DeleteProductUseCase\n✓ Generated Repository: ProductRepository\n✓ Generated Controller: ProductController\n✓ Generated View: ProductView\n✓ Generated State: ProductState\n\n5 files created in lib/src/product/",
-                },
-                {
-                    cmd: "zfa generate Order --repos=OrderRepo,PaymentRepo --params=OrderRequest --returns=OrderResult",
-                    output: "✓ Generated Custom UseCase: ProcessOrderUseCase\n✓ Generated with repositories: OrderRepo, PaymentRepo\n✓ Generated params: OrderRequest\n✓ Generated returns: OrderResult\n\n1 file created in lib/src/order/",
-                },
-                {
-                    cmd: "zfa --help",
-                    output: 'Zuraffa CLI v1.14.0\n\nUsage: zfa <command> [options]\n\nCommands:\n  generate  Generate Clean Architecture code\n  schema    Get JSON schema for config validation\n  validate  Validate a generation config\n\nRun "zfa <command> --help" for more information on a command.',
-                },
-            ];
+        document.querySelectorAll(".animate-on-scroll").forEach((el) => {
+            observer.observe(el);
+        });
 
-            let currentCommand = 0;
-            let currentLine = 0;
+        // Terminal typing animation
+        const terminalOutput = document.getElementById("terminal-output");
+        const commands = [
+            {
+                cmd: "zfa generate Product --methods=get,getList,create,update,delete --repository --vpc",
+                output: "✓ Generated UseCases: GetProductUseCase, GetProductListUseCase, CreateProductUseCase, UpdateProductUseCase, DeleteProductUseCase\n✓ Generated Repository: ProductRepository\n✓ Generated Controller: ProductController\n✓ Generated View: ProductView\n✓ Generated State: ProductState\n\n5 files created in lib/src/product/",
+            },
+            {
+                cmd: "zfa generate Order --repos=OrderRepo,PaymentRepo --params=OrderRequest --returns=OrderResult",
+                output: "✓ Generated Custom UseCase: ProcessOrderUseCase\n✓ Generated with repositories: OrderRepo, PaymentRepo\n✓ Generated params: OrderRequest\n✓ Generated returns: OrderResult\n\n1 file created in lib/src/order/",
+            },
+            {
+                cmd: "zfa --help",
+                output: 'Zuraffa CLI v1.14.0\n\nUsage: zfa <command> [options]\n\nCommands:\n  generate  Generate Clean Architecture code\n  schema    Get JSON schema for config validation\n  validate  Validate a generation config\n\nRun "zfa <command> --help" for more information on a command.',
+            },
+        ];
 
-            function typeLine(element, text, speed = 30) {
-                return new Promise((resolve) => {
-                    let i = 0;
-                    const interval = setInterval(() => {
-                        if (i < text.length) {
-                            element.textContent += text.charAt(i);
-                            i++;
-                        } else {
-                            clearInterval(interval);
-                            resolve();
-                        }
-                    }, speed);
-                });
-            }
+        let currentCommand = 0;
+        let currentLine = 0;
 
-            async function runTerminal() {
-                while (true) {
-                    const command = commands[currentCommand];
+        function typeLine(element, text, speed = 30) {
+            return new Promise((resolve) => {
+                let i = 0;
+                const interval = setInterval(() => {
+                    if (i < text.length) {
+                        element.textContent += text.charAt(i);
+                        i++;
+                    } else {
+                        clearInterval(interval);
+                        resolve();
+                    }
+                }, speed);
+            });
+        }
 
-                    // Create new command line
-                    const line = document.createElement("div");
-                    line.className = "terminal-line";
-                    line.innerHTML = `
+        async function runTerminal() {
+            while (true) {
+                const command = commands[currentCommand];
+
+                // Create new command line
+                const line = document.createElement("div");
+                line.className = "terminal-line";
+                line.innerHTML = `
                     <span class="terminal-prompt">$</span>
                     <span class="terminal-command"></span>
                     <span class="terminal-cursor"></span>
                 `;
-                    terminalOutput.appendChild(line);
+                terminalOutput.appendChild(line);
 
-                    const commandSpan = line.querySelector(".terminal-command");
-                    await typeLine(commandSpan, command.cmd, 50);
+                const commandSpan = line.querySelector(".terminal-command");
+                await typeLine(commandSpan, command.cmd, 50);
 
-                    // Remove cursor
-                    line.querySelector(".terminal-cursor").remove();
+                // Remove cursor
+                line.querySelector(".terminal-cursor").remove();
 
-                    // Add output
-                    await new Promise((resolve) => setTimeout(resolve, 300));
-                    const outputLine = document.createElement("div");
-                    outputLine.className = "terminal-line";
-                    outputLine.innerHTML = `<span class="terminal-output">${command.output}</span>`;
-                    terminalOutput.appendChild(outputLine);
+                // Add output
+                await new Promise((resolve) => setTimeout(resolve, 300));
+                const outputLine = document.createElement("div");
+                outputLine.className = "terminal-line";
+                outputLine.innerHTML = `<span class="terminal-output">${command.output}</span>`;
+                terminalOutput.appendChild(outputLine);
 
-                    // Scroll to bottom
-                    terminalOutput.scrollTop = terminalOutput.scrollHeight;
+                // Scroll to bottom
+                terminalOutput.scrollTop = terminalOutput.scrollHeight;
 
-                    currentCommand = (currentCommand + 1) % commands.length;
+                currentCommand = (currentCommand + 1) % commands.length;
 
-                    // Wait before next command
-                    await new Promise((resolve) => setTimeout(resolve, 3000));
+                // Wait before next command
+                await new Promise((resolve) => setTimeout(resolve, 3000));
 
-                    // Clear and restart
-                    await new Promise((resolve) => setTimeout(resolve, 2000));
-                    terminalOutput.innerHTML = "";
-                }
+                // Clear and restart
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+                terminalOutput.innerHTML = "";
             }
+        }
 
-            // Start terminal animation when in view
-            const terminalObserver = new IntersectionObserver(
-                (entries) => {
-                    entries.forEach((entry) => {
-                        if (
-                            entry.isIntersecting &&
-                            !terminalOutput.dataset.started
-                        ) {
-                            terminalOutput.dataset.started = "true";
-                            runTerminal();
-                        }
-                    });
-                },
-                { threshold: 0.5 },
-            );
-
-            terminalObserver.observe(terminalOutput);
-
-            // Smooth scroll for navigation
-            document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
-                anchor.addEventListener("click", function (e) {
-                    e.preventDefault();
-                    const target = document.querySelector(
-                        this.getAttribute("href"),
-                    );
-                    if (target) {
-                        target.scrollIntoView({
-                            behavior: "smooth",
-                            block: "start",
-                        });
+        // Start terminal animation when in view
+        const terminalObserver = new IntersectionObserver(
+            (entries) => {
+                entries.forEach((entry) => {
+                    if (
+                        entry.isIntersecting &&
+                        !terminalOutput.dataset.started
+                    ) {
+                        terminalOutput.dataset.started = "true";
+                        runTerminal();
                     }
                 });
-            });
+            },
+            { threshold: 0.5 },
+        );
 
-            // Navbar background on scroll
-            const nav = document.querySelector("nav");
-            window.addEventListener("scroll", () => {
-                if (window.scrollY > 100) {
-                    nav.style.background = "rgba(26, 26, 26, 0.98)";
-                } else {
-                    nav.style.background = "rgba(26, 26, 26, 0.9)";
+        terminalObserver.observe(terminalOutput);
+
+        // Smooth scroll for navigation
+        document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
+            anchor.addEventListener("click", function (e) {
+                e.preventDefault();
+                const target = document.querySelector(
+                    this.getAttribute("href"),
+                );
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: "smooth",
+                        block: "start",
+                    });
                 }
             });
+        });
 
-            // Giraffe easter egg
-            const giraffeIcon = document.getElementById("giraffe-icon");
-            const tooltip = document.createElement("div");
-            tooltip.className = "giraffe-tooltip";
-            tooltip.textContent = 'Zuraffa means "Giraffe" in Türkçe 🇹🇷';
-            document.body.appendChild(tooltip);
+        // Navbar background on scroll
+        const nav = document.querySelector("nav");
+        window.addEventListener("scroll", () => {
+            if (window.scrollY > 100) {
+                nav.style.background = "rgba(26, 26, 26, 0.98)";
+            } else {
+                nav.style.background = "rgba(26, 26, 26, 0.9)";
+            }
+        });
 
-            let tooltipTimeout;
+        // Giraffe easter egg
+        const giraffeIcon = document.getElementById("giraffe-icon");
+        const tooltip = document.createElement("div");
+        tooltip.className = "giraffe-tooltip";
+        tooltip.textContent = 'Zuraffa means "Giraffe" in Türkçe 🇹🇷';
+        document.body.appendChild(tooltip);
 
-            giraffeIcon.addEventListener("mouseenter", () => {
-                clearTimeout(tooltipTimeout);
-                tooltipTimeout = setTimeout(() => {
-                    tooltip.classList.add("visible");
-                }, 300);
-            });
+        let tooltipTimeout;
 
-            giraffeIcon.addEventListener("mouseleave", () => {
-                clearTimeout(tooltipTimeout);
+        giraffeIcon.addEventListener("mouseenter", () => {
+            clearTimeout(tooltipTimeout);
+            tooltipTimeout = setTimeout(() => {
+                tooltip.classList.add("visible");
+            }, 300);
+        });
+
+        giraffeIcon.addEventListener("mouseleave", () => {
+            clearTimeout(tooltipTimeout);
+            tooltip.classList.remove("visible");
+        });
+
+        giraffeIcon.addEventListener("click", () => {
+            tooltip.classList.toggle("visible");
+            setTimeout(() => {
                 tooltip.classList.remove("visible");
-            });
+            }, 4000);
+        });
+    </script>
+</body>
 
-            giraffeIcon.addEventListener("click", () => {
-                tooltip.classList.toggle("visible");
-                setTimeout(() => {
-                    tooltip.classList.remove("visible");
-                }, 4000);
-            });
-        </script>
-    </body>
 </html>

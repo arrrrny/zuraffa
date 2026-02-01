@@ -1,269 +1,475 @@
----
-sidebar_position: 1
-title: Dependency Injection
----
+# Dependency Injection
 
-# Dependency Injection Generation
+Zuraffa can automatically generate dependency injection (DI) setup files for the `get_it` package. This eliminates the boilerplate of manually registering all your generated components.
 
-Zuraffa can automatically generate dependency injection setup using get_it, eliminating the last manual step in Clean Architecture setup.
+## Overview
+
+When you use the `--di` flag, Zuraffa generates:
+
+1. **Component DI files** - One file per layer (datasource, repository, usecase, presenter, controller)
+2. **Index files** - Auto-generated barrel files via directory scanning
+3. **Main DI file** - Imports and calls all component registrations
 
 ## Quick Start
 
+Add `--di` to your generation command:
+
 ```bash
-# Generate DI files alongside your code
-zfa generate Product --methods=get,getList,create --repository --data --vpc --di
-
-# Use mock datasource in DI (for development/testing)
-zfa generate Product --methods=get,getList --repository --data --mock --di --use-mock
-
-# With caching enabled
-zfa generate Product --methods=get,getList --repository --data --cache --di
+zfa generate Product \
+  --methods=get,getList,create,update,delete \
+  --repository \
+  --data \
+  --vpc \
+  --state \
+  --di
 ```
 
-## Generated Structure
+This generates DI files in `lib/src/di/`:
 
 ```
 lib/src/di/
-├── index.dart                    # Main entry with setupDependencies()
-├── datasources/
-│   ├── index.dart               # Auto-generated
-│   └── product_remote_data_source_di.dart
-├── repositories/
-│   ├── index.dart               # Auto-generated
-│   └── product_repository_di.dart
-├── usecases/
-│   ├── index.dart               # Auto-generated
-│   ├── get_product_usecase_di.dart
-│   └── get_product_list_usecase_di.dart
-├── presenters/
-│   ├── index.dart               # Auto-generated
-│   └── product_presenter_di.dart
-└── controllers/
-    ├── index.dart               # Auto-generated
-    └── product_controller_di.dart
+├── di.dart                          # Main entry point
+├── product/
+│   ├── product_datasource_di.dart   # DataSource registration
+│   ├── product_repository_di.dart   # Repository registration
+│   ├── product_usecase_di.dart      # UseCase registration
+│   ├── product_presenter_di.dart    # Presenter registration
+│   └── product_controller_di.dart   # Controller registration
 ```
 
-## Usage
+## Setup
 
-### Setup
+### 1. Add get_it
+
+```yaml
+dependencies:
+  zuraffa: ^1.14.0
+  get_it: ^7.0.0
+```
+
+### 2. Create get_it Instance
 
 ```dart
+// lib/src/di/get_it.dart
 import 'package:get_it/get_it.dart';
-import 'src/di/index.dart';
+
+final getIt = GetIt.instance;
+```
+
+### 3. Initialize DI
+
+```dart
+// lib/main.dart
+import 'package:flutter/material.dart';
+import 'src/di/di.dart';
 
 void main() {
-  final getIt = GetIt.instance;
-  setupDependencies(getIt);
+  WidgetsFlutterBinding.ensureInitialized();
   
-  runApp(MyApp());
+  // Setup all DI
+  setupDI();
+  
+  runApp(const MyApp());
 }
 ```
 
-### Access Dependencies
+## Generated DI Files
+
+### Main DI File
 
 ```dart
-// Get repository
-final productRepository = getIt<ProductRepository>();
+// lib/src/di/di.dart
+import 'get_it.dart';
+import 'product/product_datasource_di.dart';
+import 'product/product_repository_di.dart';
+import 'product/product_usecase_di.dart';
+import 'product/product_presenter_di.dart';
+import 'product/product_controller_di.dart';
 
-// Get controller
-final productController = getIt<ProductController>();
-
-// Use in widgets
-class ProductView extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final controller = getIt<ProductController>();
-    return Scaffold(
-      body: ControlledWidgetBuilder<ProductController>(
-        builder: (context, controller) {
-          // Your UI
-        },
-      ),
-    );
-  }
+void setupDI() {
+  registerProductDataSources();
+  registerProductRepositories();
+  registerProductUseCases();
+  registerProductPresenters();
+  registerProductControllers();
 }
 ```
 
-## Features
-
-### One File Per Component
-
-Each component gets its own registration file, preventing merge conflicts:
+### DataSource DI
 
 ```dart
-// lib/src/di/repositories/product_repository_di.dart
-import 'package:get_it/get_it.dart';
-import '../../domain/repositories/product_repository.dart';
-import '../../data/repositories/data_product_repository.dart';
+// lib/src/di/product/product_datasource_di.dart
+import '../get_it.dart';
+import '../../data/data_sources/product/product_data_source.dart';
 import '../../data/data_sources/product/product_remote_data_source.dart';
 
-void registerProductRepository(GetIt getIt) {
-  getIt.registerLazySingleton<ProductRepository>(
-    () => DataProductRepository(getIt<ProductRemoteDataSource>()),
+void registerProductDataSources() {
+  // Register remote datasource
+  getIt.registerLazySingleton<ProductDataSource>(
+    () => ProductRemoteDataSource(
+      getIt(), // HttpClient or similar
+    ),
+    instanceName: 'remote',
   );
 }
 ```
 
-### Auto-Generated Indexes
-
-Index files are automatically regenerated by scanning directories:
+### Repository DI
 
 ```dart
-// lib/src/di/repositories/index.dart
-import 'package:get_it/get_it.dart';
-import 'product_repository_di.dart';
-import 'user_repository_di.dart';
+// lib/src/di/product/product_repository_di.dart
+import '../get_it.dart';
+import '../../domain/repositories/product_repository.dart';
+import '../../data/repositories/data_product_repository.dart';
+import '../../data/data_sources/product/product_data_source.dart';
 
-void registerAllRepositories(GetIt getIt) {
-  registerProductRepository(getIt);
-  registerUserRepository(getIt);
-}
-```
-
-### Cache Support
-
-When `--cache` is used, both remote and local datasources are registered:
-
-```dart
-void registerProductRepository(GetIt getIt) {
+void registerProductRepositories() {
   getIt.registerLazySingleton<ProductRepository>(
     () => DataProductRepository(
-      getIt<ProductRemoteDataSource>(),
-      getIt<ProductLocalDataSource>(),
-      getIt<CachePolicy>(),
+      getIt<ProductDataSource>(instanceName: 'remote'),
     ),
   );
 }
 ```
 
-### Mock Support
-
-Use `--use-mock` to register mock datasources instead of remote:
-
-```bash
-zfa generate Product --methods=get,getList --repository --data --mock --di --use-mock
-```
+### UseCase DI
 
 ```dart
-void registerProductRepository(GetIt getIt) {
-  getIt.registerLazySingleton<ProductRepository>(
-    () => DataProductRepository(getIt<ProductMockDataSource>()),
+// lib/src/di/product/product_usecase_di.dart
+import '../get_it.dart';
+import '../../domain/usecases/product/get_product_usecase.dart';
+import '../../domain/usecases/product/get_product_list_usecase.dart';
+import '../../domain/usecases/product/create_product_usecase.dart';
+import '../../domain/usecases/product/update_product_usecase.dart';
+import '../../domain/usecases/product/delete_product_usecase.dart';
+import '../../domain/repositories/product_repository.dart';
+
+void registerProductUseCases() {
+  getIt.registerFactory(() => GetProductUseCase(getIt()));
+  getIt.registerFactory(() => GetProductListUseCase(getIt()));
+  getIt.registerFactory(() => CreateProductUseCase(getIt()));
+  getIt.registerFactory(() => UpdateProductUseCase(getIt()));
+  getIt.registerFactory(() => DeleteProductUseCase(getIt()));
+}
+```
+
+### Presenter DI
+
+```dart
+// lib/src/di/product/product_presenter_di.dart
+import '../get_it.dart';
+import '../../presentation/pages/product/product_presenter.dart';
+import '../../domain/repositories/product_repository.dart';
+
+void registerProductPresenters() {
+  getIt.registerFactoryParam<ProductPresenter, ProductRepository, void>(
+    (repository, _) => ProductPresenter(productRepository: repository),
   );
 }
 ```
 
-## Registration Patterns
+### Controller DI
 
-| Component | Registration Type | Reason |
-|-----------|------------------|---------|
-| DataSource | `registerLazySingleton` | Shared instance, created on first use |
-| Repository | `registerLazySingleton` | Shared instance, created on first use |
-| UseCase | `registerFactory` | New instance per request |
-| Presenter | `registerFactory` | New instance per screen |
-| Controller | `registerFactory` | New instance per screen |
+```dart
+// lib/src/di/product/product_controller_di.dart
+import '../get_it.dart';
+import '../../presentation/pages/product/product_controller.dart';
+import '../../presentation/pages/product/product_presenter.dart';
 
-## Regeneration
-
-The DI system is fail-safe and can be regenerated anytime:
-
-```bash
-# Regenerate DI files without touching other code
-zfa generate Product --methods=get,getList --di --force
+void registerProductControllers() {
+  getIt.registerFactoryParam<ProductController, ProductPresenter, void>(
+    (presenter, _) => ProductController(presenter),
+  );
+}
 ```
 
-Index files are automatically updated by scanning the directory structure, so you never need to manually merge registration code.
+## With Caching
+
+When using `--cache`, DI includes both remote and local datasources:
+
+```dart
+// lib/src/di/product/product_datasource_di.dart
+void registerProductDataSources() {
+  // Remote datasource
+  getIt.registerLazySingleton<ProductDataSource>(
+    () => ProductRemoteDataSource(getIt()),
+    instanceName: 'remote',
+  );
+  
+  // Local datasource (Hive)
+  getIt.registerLazySingleton<ProductDataSource>(
+    () => ProductLocalDataSource(getIt()),
+    instanceName: 'local',
+  );
+}
+
+// lib/src/di/product/product_repository_di.dart
+void registerProductRepositories() {
+  getIt.registerLazySingleton<ProductRepository>(
+    () => DataProductRepository(
+      getIt<ProductDataSource>(instanceName: 'remote'),
+      localDataSource: getIt<ProductDataSource>(instanceName: 'local'),
+    ),
+  );
+}
+```
+
+## With Mock Data
+
+Use `--use-mock` to register mock datasources for development:
+
+```bash
+zfa generate Product --methods=get,getList --repository --data --di --use-mock
+```
+
+Generated DI:
+
+```dart
+void registerProductDataSources() {
+  // Register mock instead of remote
+  getIt.registerLazySingleton<ProductDataSource>(
+    () => ProductMockDataSource(),
+    instanceName: 'remote',
+  );
+}
+```
+
+## Multiple Entities
+
+DI files are organized by entity, making it easy to manage:
+
+```
+lib/src/di/
+├── di.dart
+├── get_it.dart
+├── product/
+│   ├── product_datasource_di.dart
+│   ├── product_repository_di.dart
+│   ├── product_usecase_di.dart
+│   ├── product_presenter_di.dart
+│   └── product_controller_di.dart
+├── category/
+│   ├── category_datasource_di.dart
+│   ├── category_repository_di.dart
+│   ├── category_usecase_di.dart
+│   ├── category_presenter_di.dart
+│   └── category_controller_di.dart
+└── order/
+    ├── order_datasource_di.dart
+    ├── order_repository_di.dart
+    ├── order_usecase_di.dart
+    ├── order_presenter_di.dart
+    └── order_controller_di.dart
+```
+
+Main DI file:
+
+```dart
+void setupDI() {
+  // Product
+  registerProductDataSources();
+  registerProductRepositories();
+  registerProductUseCases();
+  registerProductPresenters();
+  registerProductControllers();
+  
+  // Category
+  registerCategoryDataSources();
+  registerCategoryRepositories();
+  // ...
+  
+  // Order
+  registerOrderDataSources();
+  // ...
+}
+```
+
+## Using Injected Dependencies
+
+### In Views
+
+```dart
+class ProductView extends CleanView {
+  const ProductView({super.key});
+
+  @override
+  State<ProductView> createState() => _ProductViewState(
+    ProductController(
+      ProductPresenter(
+        productRepository: getIt<ProductRepository>(),
+      ),
+    ),
+  );
+}
+```
+
+Or with factory params:
+
+```dart
+class ProductView extends CleanView {
+  const ProductView({super.key});
+
+  @override
+  State<ProductView> createState() {
+    final repository = getIt<ProductRepository>();
+    final presenter = getIt<ProductPresenter>(param1: repository);
+    final controller = getIt<ProductController>(param1: presenter);
+    return _ProductViewState(controller);
+  }
+}
+```
+
+### In Custom UseCases
+
+```dart
+class ProcessCheckoutUseCase extends UseCase<Order, CheckoutRequest> {
+  final CartRepository _cartRepository;
+  final OrderRepository _orderRepository;
+  final PaymentRepository _paymentRepository;
+
+  ProcessCheckoutUseCase(
+    this._cartRepository,
+    this._orderRepository,
+    this._paymentRepository,
+  );
+  
+  // ...
+}
+
+// DI registration
+void registerProcessCheckout() {
+  getIt.registerFactory(() => ProcessCheckoutUseCase(
+    getIt(),
+    getIt(),
+    getIt(),
+  ));
+}
+```
 
 ## Best Practices
 
-### 1. Separate DI Setup
+### 1. Register by Interface
 
-Keep your DI setup in a separate file:
+Always register by interface, resolve by interface:
 
 ```dart
-// lib/src/di/setup.dart
-import 'package:get_it/get_it.dart';
-import 'index.dart';
+// Good
+getIt.registerLazySingleton<ProductRepository>(
+  () => DataProductRepository(...),
+);
 
-final getIt = GetIt.instance;
+// Usage
+final repo = getIt<ProductRepository>(); // ✓
+```
 
-Future<void> setupDI() async {
-  // Setup generated dependencies
-  setupDependencies(getIt);
-  
-  // Add custom registrations
-  getIt.registerLazySingleton(() => HttpClient());
-  getIt.registerLazySingleton(() => CachePolicy.daily());
+### 2. Use Appropriate Lifetimes
+
+| Component | Lifetime | Reason |
+|-----------|----------|--------|
+| DataSource | `singleton` | Expensive to create, stateless |
+| Repository | `singleton` | Coordinates datasources |
+| UseCase | `factory` | New instance per operation |
+| Presenter | `factory` | New per view instance |
+| Controller | `factory` | New per view instance |
+
+### 3. Lazy Registration
+
+Use `registerLazySingleton` for expensive-to-create objects:
+
+```dart
+getIt.registerLazySingleton<HttpClient>(
+  () => HttpClient()..timeout = Duration(seconds: 30),
+);
+```
+
+### 4. Environment-Specific DI
+
+Create different DI setups for different environments:
+
+```dart
+// lib/src/di/di_development.dart
+void setupDevelopmentDI() {
+  // Use mock datasources
+  getIt.registerLazySingleton<ProductDataSource>(
+    () => ProductMockDataSource(),
+  );
+}
+
+// lib/src/di/di_production.dart
+void setupProductionDI() {
+  // Use real datasources
+  getIt.registerLazySingleton<ProductDataSource>(
+    () => ProductRemoteDataSource(getIt()),
+  );
 }
 ```
 
-### 2. Initialize Early
+### 5. Testing with DI
 
-Call setup in `main()` before running the app:
-
-```dart
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await setupDI();
-  runApp(MyApp());
-}
-```
-
-### 3. Use Mock in Development
-
-Switch between mock and real datasources easily:
+Reset and register mocks in tests:
 
 ```dart
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+setUp(() {
+  // Reset DI
+  getIt.reset();
   
-  // Use environment variable or build flavor
-  const useMock = bool.fromEnvironment('USE_MOCK', defaultValue: false);
-  
-  if (useMock) {
-    // Regenerate with: zfa generate Product --di --use-mock --force
-    await setupDI();
-  } else {
-    await setupDI();
-  }
-  
-  runApp(MyApp());
-}
+  // Register mocks
+  getIt.registerLazySingleton<ProductRepository>(
+    () => MockProductRepository(),
+  );
+});
 ```
 
 ## Troubleshooting
 
-### Circular Dependencies
+### "Object/factory with type X is not registered"
 
-If you encounter circular dependencies, check your repository dependencies:
+Ensure you're calling `setupDI()` before using dependencies:
 
 ```dart
-// ❌ Bad: Circular dependency
-class ProductRepository {
-  final UserRepository userRepository;
-}
-
-class UserRepository {
-  final ProductRepository productRepository;
-}
-
-// ✅ Good: Use a shared service
-class ProductRepository {
-  final ApiService apiService;
-}
-
-class UserRepository {
-  final ApiService apiService;
+void main() {
+  setupDI(); // Don't forget this!
+  runApp(MyApp());
 }
 ```
 
-### Missing Registrations
+### Circular Dependencies
 
-If a dependency is not found, ensure the DI file was generated:
+If you have circular dependencies, use `registerFactory` instead of `registerSingleton`:
 
-```bash
-# Check if DI files exist
-ls lib/src/di/repositories/
+```dart
+// Bad - circular dependency
+getIt.registerSingleton<A>(A(getIt<B>()));
+getIt.registerSingleton<B>(B(getIt<A>()));
 
-# Regenerate if missing
-zfa generate Product --methods=get,getList --repository --data --di --force
+// Good - factory breaks the cycle
+getIt.registerFactory<A>(() => A(getIt<B>()));
+getIt.registerFactory<B>(() => B(getIt<A>()));
 ```
+
+### Multiple Implementations
+
+Use named instances:
+
+```dart
+getIt.registerLazySingleton<ProductDataSource>(
+  () => ProductRemoteDataSource(),
+  instanceName: 'remote',
+);
+
+getIt.registerLazySingleton<ProductDataSource>(
+  () => ProductLocalDataSource(),
+  instanceName: 'local',
+);
+
+// Usage
+final remote = getIt<ProductDataSource>(instanceName: 'remote');
+```
+
+---
+
+## Next Steps
+
+- [CLI Commands](../cli/commands) - All generation options
+- [Caching](./caching) - DI with caching setup
+- [Testing](../guides/testing) - Testing with DI
