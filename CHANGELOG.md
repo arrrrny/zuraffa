@@ -30,6 +30,11 @@
   - Fixed both success and failure test scenarios for Future and Stream UseCases
   - Eliminates "too many arguments" compilation errors
 
+- **Singleton Entity Key Collision**: Fixed Hive storage key collision for singleton entities
+  - Now uses entity snake_case name as key instead of generic `'singleton'`
+  - Each entity gets unique storage: `GoogleCookie` → `'google_cookie'`, `AppConfig` → `'app_config'`
+  - Prevents data overwriting between different singleton entities
+
 ## [1.10.0] - 2026-02-01
 
 ### Added

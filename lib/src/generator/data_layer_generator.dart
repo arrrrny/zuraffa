@@ -275,10 +275,10 @@ ${methods.join('\n\n')}
     // Generate Hive implementation if specified
     if (config.cacheStorage == 'hive') {
       if (config.idField == 'null') {
-        // For singleton entities, use a fixed key
+        // For singleton entities, use entity name as key
         methods.add('''
   Future<$entityName> save($entityName $entityCamel) async {
-    await _box.put('singleton', $entityCamel);
+    await _box.put('$entitySnake', $entityCamel);
     return $entityCamel;
   }''');
       } else {
@@ -306,7 +306,7 @@ ${methods.join('\n\n')}
             if (config.idField == 'null') {
               methods.add('''
   Future<$entityName> get() async {
-    final item = _box.get('singleton');
+    final item = _box.get('$entitySnake');
     if (item == null) {
       throw NotFoundFailure('$entityName not found in cache');
     }
