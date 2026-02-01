@@ -634,15 +634,15 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
         case 'update':
           methods.add('''
   @override
-  Future<$entityName> update(String id, ${config.useMorphy ? '${entityName}Patch' : 'Partial<$entityName>'} data) async {
-    logger.info('Updating $entityName: \$id with data: \$data');
+  Future<$entityName> update(UpdateParams<${config.useMorphy ? '${entityName}Patch' : 'Partial<$entityName>'}> params) async {
+    logger.info('Updating $entityName: \${params.id} with data: \${params.data}');
     await Future.delayed(_delay);
     final existing = ${entityName}MockData.${entityCamel}s.firstWhere(
-      (item) => item.id == id,
-      orElse: () => throw NotFoundFailure('$entityName not found: \$id'),
+      (item) => item.id == params.id,
+      orElse: () => throw NotFoundFailure('$entityName not found: \${params.id}'),
     );
     // In a real implementation, you'd apply the update
-    logger.info('Successfully updated $entityName: \$id');
+    logger.info('Successfully updated $entityName: \${params.id}');
     return existing;
   }''');
           break;
