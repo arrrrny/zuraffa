@@ -1,3 +1,27 @@
+## [Unreleased]
+
+### Added
+- **Mock Data Generation**: Comprehensive mock data generation system
+  - `--mock` flag: Generate mock data files alongside other layers
+  - `--mock-data-only` flag: Generate only mock data files
+  - **Realistic Data**: Type-appropriate values for all field types (String, int, double, bool, DateTime, Object)
+  - **Complex Types**: Full support for `List<T>`, `Map<K,V>`, nullable types
+  - **Nested Entities**: Automatic detection and recursive generation with proper cross-references
+  - **Morphy Support**: Handles `$EntityName` syntax and morphy annotations
+  - **Smart Imports**: Single enum import (`enums/index.dart`) only when needed
+  - **Large Datasets**: Generated methods for performance testing (100+ items)
+  - **Null Safety**: Proper handling of optional fields with realistic null distribution
+
+### Enhanced
+- **Entity Analysis**: Improved entity field parsing with balanced brace matching
+  - Handles complex generic types like `Map<String, String>` correctly
+  - Fixed regex patterns for getter-style fields in abstract classes
+  - Supports unlimited recursion depth for nested entity structures
+
+- **MCP Server**: Added mock generation flags to Model Context Protocol server
+  - `mock` and `mock_data_only` parameters available in MCP tools
+  - Enhanced AI/IDE integration for mock data workflows
+
 ## [1.11.1] - 2026-02-01
 
 ### Fixed

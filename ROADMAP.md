@@ -1,32 +1,33 @@
 # Zuraffa Roadmap
 
-## Next Features
+## Completed Features ✅
 
-### 1. Mock DataSource Generation (`--mock`)
+### 1. Mock Data Generation (`--mock`, `--mock-data-only`) - **COMPLETED v1.12.0**
 
 **Goal**: Generate mock data sources with realistic test data for rapid prototyping and testing.
 
 **Usage:**
 ```bash
-# Generate mock data source with sample data
-zfa generate Product --methods=get,getList,create --mock
+# Generate mock data with other layers
+zfa generate Product --methods=get,getList,create --repository --vpc --mock
 
 # Generate mock data only
 zfa generate Product --mock-data-only
 ```
 
 **Generated Files:**
-- `lib/src/data/mock/product_mock_data.dart` - Centralized mock data
-- `lib/src/data/data_sources/product/product_mock_data_source.dart` - Mock implementation
+- `lib/src/data/mock/product_mock_data.dart` - Centralized mock data with realistic values
 
-**Benefits:**
-- ✅ Rapid prototyping without backend
-- ✅ Realistic test data for UI development  
-- ✅ Reusable mock data across tests and previews
-- ✅ Different scenarios (success, error, edge cases)
-- ✅ Works with any entity structure
+**Features Delivered:**
+- ✅ Realistic test data for all field types (String, int, double, bool, DateTime, Object, List, Map)
+- ✅ Nested entity support with automatic cross-references
+- ✅ Morphy entity syntax (`$EntityName`) support
+- ✅ Smart enum imports (only when needed)
+- ✅ Large dataset generation for performance testing
+- ✅ Proper null safety with realistic null distribution
+- ✅ Unlimited recursion depth for complex entity structures
 
-**Implementation Approach**: Mock files (not constructor-based) for better reusability and maintainability.
+## Next Features
 
 ### 2. DI Integration (`--di=get_it`)
 

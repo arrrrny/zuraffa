@@ -186,7 +186,8 @@ class GenerateCommand {
       ..addFlag('mock',
           help: 'Generate mock data source with sample data', defaultsTo: false)
       ..addFlag('mock-data-only',
-          help: 'Generate only mock data file (no data source)', defaultsTo: false)
+          help: 'Generate only mock data file (no data source)',
+          defaultsTo: false)
       ..addOption('subdirectory',
           help: 'Subdirectory to organize files (e.g., products, orders)')
       ..addOption('output',

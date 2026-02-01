@@ -8,10 +8,11 @@ class EntityAnalyzer {
   static Map<String, String> analyzeEntity(
       String entityName, String outputDir) {
     final entitySnake = StringUtils.camelToSnake(entityName);
-    
+
     // All entities are at entities/{entity_snake}/{entity_snake}.dart
-    final entityPath = '$outputDir/domain/entities/$entitySnake/$entitySnake.dart';
-    
+    final entityPath =
+        '$outputDir/domain/entities/$entitySnake/$entitySnake.dart';
+
     try {
       final file = File(entityPath);
       if (!file.existsSync()) {
@@ -22,7 +23,7 @@ class EntityAnalyzer {
       // Try both regular name and morphy name ($EntityName)
       var fields = _parseEntityFields(content, entityName);
       if (fields.isEmpty || _hasOnlyDefaultFields(fields)) {
-        fields = _parseEntityFields(content, '\$${entityName}');
+        fields = _parseEntityFields(content, '\$$entityName');
       }
       if (fields.isNotEmpty && !_hasOnlyDefaultFields(fields)) {
         return fields;
@@ -30,7 +31,7 @@ class EntityAnalyzer {
     } catch (e) {
       // Continue to fallback
     }
-    
+
     // Fallback to default fields if parsing fails
     return _getDefaultFields();
   }
@@ -41,17 +42,19 @@ class EntityAnalyzer {
 
     // Find the specific class/abstract class definition by name
     final classRegex = RegExp(
-        r'(?:abstract\s+)?class\s+' + RegExp.escape(targetEntityName) + r'\s*\{',
+        r'(?:abstract\s+)?class\s+' +
+            RegExp.escape(targetEntityName) +
+            r'\s*\{',
         multiLine: true);
     final classMatch = classRegex.firstMatch(content);
-    
+
     if (classMatch != null) {
       final startIndex = classMatch.end;
-      
+
       // Find the matching closing brace using balanced brace counting
       int braceCount = 1;
       int endIndex = startIndex;
-      
+
       for (int i = startIndex; i < content.length && braceCount > 0; i++) {
         if (content[i] == '{') {
           braceCount++;
@@ -60,13 +63,12 @@ class EntityAnalyzer {
         }
         endIndex = i;
       }
-      
+
       final classBody = content.substring(startIndex, endIndex);
-      
+
       // Parse getter-style fields within this class body
-      final getterRegex = RegExp(
-          r'([\w\?<>,\s]+)\s+get\s+(\w+)\s*;',
-          multiLine: true);
+      final getterRegex =
+          RegExp(r'([\w\?<>,\s]+)\s+get\s+(\w+)\s*;', multiLine: true);
       final getterMatches = getterRegex.allMatches(classBody);
 
       for (final match in getterMatches) {
@@ -79,9 +81,8 @@ class EntityAnalyzer {
       }
 
       // Parse field declarations within this class body
-      final fieldRegex = RegExp(
-          r'final\s+([\w\?<>,\s]+)\s+(\w+)\s*;',
-          multiLine: true);
+      final fieldRegex =
+          RegExp(r'final\s+([\w\?<>,\s]+)\s+(\w+)\s*;', multiLine: true);
       final fieldMatches = fieldRegex.allMatches(classBody);
 
       for (final match in fieldMatches) {
@@ -148,7 +149,16 @@ class EntityAnalyzer {
 
   static bool _hasOnlyDefaultFields(Map<String, String> fields) {
     // Check if these are the default fallback fields
-    final defaultKeys = {'id', 'name', 'description', 'price', 'category', 'isActive', 'createdAt', 'updatedAt'};
+    final defaultKeys = {
+      'id',
+      'name',
+      'description',
+      'price',
+      'category',
+      'isActive',
+      'createdAt',
+      'updatedAt'
+    };
     return fields.keys.toSet().containsAll(defaultKeys);
   }
 }

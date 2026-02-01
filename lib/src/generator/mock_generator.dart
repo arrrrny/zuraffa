@@ -385,7 +385,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
             return '${baseType}MockData.sample$baseType';
           }
           // Otherwise treat as enum
-          return '${baseType}.values[${seed % 3}]';
+          return '$baseType.values[${seed % 3}]';
         }
 
         return "'$fieldName $seed'";
@@ -508,7 +508,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
             return '${cleanType}MockData.sample$cleanType';
           }
           // Otherwise treat as enum
-          return '${cleanType}.values[seed % 3]';
+          return '$cleanType.values[seed % 3]';
         }
         return "'$fieldName \$seed'";
     }
@@ -541,7 +541,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
       case 'bool':
         return '[true, false]';
       default:
-        return '[${cleanListType}(), ${cleanListType}()]';
+        return '[$cleanListType(), $cleanListType()]';
     }
   }
 

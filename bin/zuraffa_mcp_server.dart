@@ -319,6 +319,14 @@ class ZuraffaMcpServer {
             'enum': ['hive', 'sqlite', 'shared_preferences'],
             'description': 'Local storage implementation hint for caching',
           },
+          'mock': {
+            'type': 'boolean',
+            'description': 'Generate mock data files alongside other layers',
+          },
+          'mock_data_only': {
+            'type': 'boolean',
+            'description': 'Generate only mock data files (no other layers)',
+          },
         },
         'required': ['name'],
       },

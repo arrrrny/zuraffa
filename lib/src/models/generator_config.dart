@@ -90,7 +90,8 @@ class GeneratorConfig {
       cachePolicy: json['cache_policy'] ?? 'daily',
       cacheStorage: json['cache_storage'],
       generateMock: json['mock'] == true || json['generate_mock'] == true,
-      generateMockDataOnly: json['mock_data_only'] == true || json['generate_mock_data_only'] == true,
+      generateMockDataOnly: json['mock_data_only'] == true ||
+          json['generate_mock_data_only'] == true,
     );
   }
 

@@ -155,18 +155,20 @@ class CodeGenerator {
       // Generate mock data and/or mock data source
       if (config.generateMock || config.generateMockDataOnly) {
         final mockFiles = await MockGenerator.generate(
-          config, 
+          config,
           outputDir,
           dryRun: dryRun,
           force: force,
           verbose: verbose,
         );
         files.addAll(mockFiles);
-        
+
         if (config.generateMockDataOnly) {
-          nextSteps.add('Use ${config.name}MockData in your tests and UI previews');
+          nextSteps
+              .add('Use ${config.name}MockData in your tests and UI previews');
         } else {
-          nextSteps.add('Use ${config.name}MockDataSource for rapid prototyping');
+          nextSteps
+              .add('Use ${config.name}MockDataSource for rapid prototyping');
           nextSteps.add('Switch to real DataSource implementation when ready');
         }
       }
