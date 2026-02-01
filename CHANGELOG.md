@@ -1,4 +1,4 @@
-## [Unreleased]
+## [1.11.1] - 2026-02-01
 
 ### Fixed
 - **Singleton Entity Key Collision**: Fixed Hive storage key collision for singleton entities
