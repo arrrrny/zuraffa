@@ -8,6 +8,7 @@ import 'state_generator.dart';
 import 'observer_generator.dart';
 import 'data_layer_generator.dart';
 import 'test_generator.dart';
+import 'mock_generator.dart';
 
 class CodeGenerator {
   final GeneratorConfig config;
@@ -149,6 +150,25 @@ class CodeGenerator {
       if (config.generateData) {
         final file = await _dataLayerGenerator.generateDataRepository();
         files.add(file);
+      }
+
+      // Generate mock data and/or mock data source
+      if (config.generateMock || config.generateMockDataOnly) {
+        final mockFiles = await MockGenerator.generate(
+          config, 
+          outputDir,
+          dryRun: dryRun,
+          force: force,
+          verbose: verbose,
+        );
+        files.addAll(mockFiles);
+        
+        if (config.generateMockDataOnly) {
+          nextSteps.add('Use ${config.name}MockData in your tests and UI previews');
+        } else {
+          nextSteps.add('Use ${config.name}MockDataSource for rapid prototyping');
+          nextSteps.add('Switch to real DataSource implementation when ready');
+        }
       }
 
       if (config.generateRepository &&

@@ -218,6 +218,8 @@ $executeMethod
     if (config.subdirectory != null && config.subdirectory!.isNotEmpty) {
       usecasePathParts.add(config.subdirectory!);
     }
+    // Add entity subfolder for custom UseCases too
+    usecasePathParts.add(classSnake);
     final usecaseDirPath = path.joinAll(usecasePathParts);
     final filePath = path.join(usecaseDirPath, fileName);
 
@@ -248,8 +250,8 @@ $executeMethod
           StringUtils.camelToSnake(repo.replaceAll('Repository', ''));
       final repoPath =
           config.subdirectory != null && config.subdirectory!.isNotEmpty
-              ? '../../repositories/${repoSnake}_repository.dart'
-              : '../repositories/${repoSnake}_repository.dart';
+              ? '../../../repositories/${repoSnake}_repository.dart'
+              : '../../repositories/${repoSnake}_repository.dart';
       repoImports.add("import '$repoPath';");
       repoFields.add('  final $repo _${StringUtils.pascalToCamel(repo)};');
       repoParams.add('this._${StringUtils.pascalToCamel(repo)}');
@@ -259,12 +261,11 @@ $executeMethod
     final entityImports = _getPotentialEntityImports([paramsType, returnsType]);
     for (final entityImport in entityImports) {
       final entitySnake = StringUtils.camelToSnake(entityImport);
-      final entityFolder = StringUtils.snakeToPath(entitySnake);
 
       final entityPath =
           config.subdirectory != null && config.subdirectory!.isNotEmpty
-              ? '../../entities/$entityFolder/$entitySnake.dart'
-              : '../entities/$entityFolder/$entitySnake.dart';
+              ? '../../../entities/$entitySnake/$entitySnake.dart'
+              : '../../entities/$entitySnake/$entitySnake.dart';
       repoImports.add("import '$entityPath';");
     }
 
@@ -283,10 +284,20 @@ $executeMethod
   static void _process(BackgroundTaskContext<$paramsType> context) {
     try {
       final params = context.params;
+      
+      // TODO: Implement your background processing logic here
+      final result = processData(params); // Replace with actual implementation
+      
+      context.sendData(result);
       context.sendDone();
     } catch (e, stackTrace) {
       context.sendError(e, stackTrace);
     }
+  }
+  
+  // TODO: Implement this method with your actual processing logic
+  static $returnsType processData($paramsType params) {
+    throw UnimplementedError('Implement your background processing logic');
   }''';
     } else {
       executeMethod = '''

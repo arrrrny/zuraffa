@@ -503,6 +503,12 @@ This gives you a complete entity to immediately test Zuraffa's code generation c
 # Generate everything at once - Domain, Data, and Presentation layers
 zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state
 
+# Generate with mock data for testing and UI previews
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --mock
+
+# Generate only mock data files
+zfa generate Product --mock-data-only
+
 # Or generate incrementally:
 
 # Generate UseCases + Repository interface

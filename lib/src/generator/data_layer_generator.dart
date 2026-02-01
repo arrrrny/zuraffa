@@ -489,15 +489,14 @@ ${methods.join('\n\n')}
             ? '/${config.subdirectory!}'
             : '';
 
-    String relativePath = '../../../';
-    final dataSourcePathParts = <String>[outputDir, 'data', 'data_sources'];
+    String relativePath = '../';
+    final dataRepoPathParts = <String>[outputDir, 'data', 'repositories'];
     if (config.subdirectory != null && config.subdirectory!.isNotEmpty) {
-      dataSourcePathParts.add(config.subdirectory!);
+      dataRepoPathParts.add(config.subdirectory!);
       relativePath += '../';
     }
-    dataSourcePathParts.add(entitySnake);
-    final dataSourceDirPath = path.joinAll(dataSourcePathParts);
-    final filePath = path.join(dataSourceDirPath, fileName);
+    final dataRepoDirPath = path.joinAll(dataRepoPathParts);
+    final filePath = path.join(dataRepoDirPath, fileName);
 
     final methods = <String>[];
 

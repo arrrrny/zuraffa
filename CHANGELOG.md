@@ -43,6 +43,20 @@
   - Fixed both success and failure test scenarios for Future and Stream UseCases
   - Eliminates "too many arguments" compilation errors
 
+## [Unreleased]
+
+### Fixed
+- **Background UseCase Generation**: Fixed `--returns` and `--params` parameters for background UseCases
+  - Now properly uses specified return type instead of defaulting to `void`
+  - Generates `context.sendData(result)` to return the processed result
+  - Includes helper `processData()` method with correct type signatures
+  - Auto-imports custom params and returns entity types
+
+- **Custom UseCase File Structure**: Fixed custom UseCases to follow entity naming structure
+  - Now generates in subfolders: `lib/src/domain/usecases/parsing_task/parsing_task_usecase.dart`
+  - Updated import paths to account for subfolder structure (`../../entities/` instead of `../entities/`)
+  - Consistent with entity-based UseCase organization
+
 ## [1.10.0] - 2026-02-01
 
 ### Added

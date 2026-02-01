@@ -72,6 +72,8 @@ class GenerateCommand {
         enableCache: results['cache'] == true,
         cachePolicy: results['cache-policy'] ?? 'daily',
         cacheStorage: results['cache-storage'],
+        generateMock: results['mock'] == true,
+        generateMockDataOnly: results['mock-data-only'] == true,
       );
     }
 
@@ -181,6 +183,10 @@ class GenerateCommand {
           defaultsTo: 'daily')
       ..addOption('cache-storage',
           help: 'Local storage hint: hive, sqlite, shared_preferences')
+      ..addFlag('mock',
+          help: 'Generate mock data source with sample data', defaultsTo: false)
+      ..addFlag('mock-data-only',
+          help: 'Generate only mock data file (no data source)', defaultsTo: false)
       ..addOption('subdirectory',
           help: 'Subdirectory to organize files (e.g., products, orders)')
       ..addOption('output',
@@ -217,6 +223,10 @@ CACHING:
   --cache              Enable caching with dual datasources (remote + local)
   --cache-policy=<p>   Cache policy: daily, restart, ttl (default: daily)
   --cache-storage=<s>  Local storage hint: hive, sqlite, shared_preferences
+
+MOCK DATA:
+  --mock               Generate mock data source with sample data
+  --mock-data-only     Generate only mock data file (no data source)
 
 CUSTOM USECASE:
   --repos=<list>        Comma-separated repositories to inject

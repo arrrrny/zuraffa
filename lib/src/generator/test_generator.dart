@@ -360,12 +360,14 @@ $testBody
     final paramsType = config.paramsType ?? 'NoParams';
     final fileName = '${config.nameSnake}_usecase_test.dart';
 
-    // Construct path: test/domain/usecases/...
+    // Construct path: test/domain/usecases/entity_name/...
     final projectRoot = outputDir.replaceAll('lib/src', '');
     final testPathParts = <String>[projectRoot, 'test', 'domain', 'usecases'];
     if (config.subdirectory != null && config.subdirectory!.isNotEmpty) {
       testPathParts.add(config.subdirectory!);
     }
+    // Add entity subfolder for custom UseCases
+    testPathParts.add(config.nameSnake);
 
     final testDirPath = path.joinAll(testPathParts);
     final filePath = path.join(testDirPath, fileName);
@@ -397,7 +399,7 @@ $testBody
           "import 'package:$packageName/src/domain/usecases/${config.subdirectory}/${config.nameSnake}_usecase.dart';");
     } else {
       imports.add(
-          "import 'package:$packageName/src/domain/usecases/${config.nameSnake}_usecase.dart';");
+          "import 'package:$packageName/src/domain/usecases/${config.nameSnake}/${config.nameSnake}_usecase.dart';");
     }
 
     final mocks = <String>[];
