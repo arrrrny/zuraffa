@@ -198,6 +198,21 @@ class _ProductViewState extends CleanViewState<ProductView, ProductController> {
 
 Manages state and handles UI events. Uses `StatefulController` mixin for state management.
 
+:::tip Recommended: Use `--state` Flag
+We highly recommend using the `--state` flag when generating VPC components. It automatically creates a `State` class with granular loading states for each operation:
+
+```bash
+zfa generate Product --methods=get,watch,create,update,delete,getList,watchList --vpc --state
+```
+
+This generates an immutable `ProductState` with:
+- Individual loading flags (`isGetting`, `isCreating`, `isUpdating`, etc.)
+- Error handling
+- Data fields
+- `copyWith()` for immutable updates
+- `isLoading` getter for any operation in progress
+:::
+
 ```dart
 class ProductController extends Controller with StatefulController<ProductState> {
   final ProductPresenter _presenter;
@@ -231,6 +246,14 @@ class ProductController extends Controller with StatefulController<ProductState>
   }
 }
 ```
+
+:::info No Complex State Management Needed
+With Zuraffa's built-in `StatefulController` and the auto-generated State classes, **you don't need Bloc, Riverpod, or other complex state management solutions**. The framework handles:
+- Automatic UI updates via `notifyListeners()`
+- Immutable state updates via `copyWith()`
+- Granular loading states for each operation
+- Error state management
+:::
 
 ### Presenter
 
