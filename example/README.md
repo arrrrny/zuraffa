@@ -1,6 +1,4 @@
-# Zuraffa v7 Example
-
-This example demonstrates the new v7 API of the Zuraffa package.
+# Zuraffa Example
 
 ## Features Demonstrated
 

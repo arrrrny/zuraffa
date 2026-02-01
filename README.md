@@ -8,8 +8,9 @@ A comprehensive Clean Architecture framework for Flutter applications with **Res
 
 ## 📚 Documentation
 
-- **[Full Documentation](https://arrrrny.github.io/zuraffa/)** - Complete guides and API reference
-- **[Landing Page](https://zuraffa.dev)** - Beautiful overview and quick start
+- **[Full Documentation](https://zuraffa.com/docs/intro)** - Complete guides and API reference
+- **[Landing Page](https://zuraffa.com)** - Beautiful overview and quick start
+- **[Github](https://github.com/arrrrny/zuraffa)** - Source code and example
 
 ## What is Zuraffa?
 
