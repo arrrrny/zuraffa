@@ -1,3 +1,16 @@
+## [1.11.1] - 2026-02-01
+
+### Fixed
+- **Singleton Entity Key Collision**: Fixed Hive storage key collision for singleton entities
+  - Now uses entity snake_case name as key instead of generic `'singleton'`
+  - Each entity gets unique storage: `GoogleCookie` → `'google_cookie'`, `AppConfig` → `'app_config'`
+  - Prevents data overwriting between different singleton entities
+
+- **Data Layer Generator**: Fixed undefined `relativePath` variable in data repository generation
+  - Added missing variable declaration in `generateDataRepository` method
+  - Fixed import path string interpolation for data sources
+  - Ensures correct import paths when using subdirectories and caching features
+
 ## [1.11.0] - 2026-02-01
 
 ### Added
