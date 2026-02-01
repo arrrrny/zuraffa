@@ -1,4 +1,4 @@
-## [Unreleased]
+## [1.13.0] - 2026-02-01
 
 ### Added
 - **Cache Storage Default**: `--cache` now defaults to `--cache-storage=hive` automatically
