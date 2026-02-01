@@ -1,4 +1,4 @@
-## [Unreleased] 
+## [1.12.0] - 2026-02-01 
 
 ### Added
 - **Mock Data Generation**: Comprehensive mock data generation system
