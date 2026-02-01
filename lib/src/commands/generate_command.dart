@@ -71,7 +71,8 @@ class GenerateCommand {
         subdirectory: results['subdirectory'],
         enableCache: results['cache'] == true,
         cachePolicy: results['cache-policy'] ?? 'daily',
-        cacheStorage: results['cache-storage'],
+        cacheStorage: results['cache-storage'] ??
+            (results['cache'] == true ? 'hive' : null),
         generateMock: results['mock'] == true,
         generateMockDataOnly: results['mock-data-only'] == true,
       );

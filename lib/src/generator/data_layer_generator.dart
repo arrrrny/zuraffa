@@ -23,24 +23,16 @@ class DataLayerGenerator {
     final entitySnake = config.nameSnake;
     final entityCamel = config.nameCamel;
 
-    // If caching is enabled, don't generate abstract datasource
-    // Remote and local will be concrete implementations
+    // Always generate abstract datasource
+    // If caching is enabled, also generate remote and local implementations
     if (config.enableCache) {
       // Generate remote datasource
       await _generateRemoteDataSource();
       // Generate local datasource
       await _generateLocalDataSource();
-      // Return a dummy result (both are already generated)
-      return GeneratedFile(
-        path:
-            'lib/src/data/data_sources/$entitySnake/${entitySnake}_data_source.dart',
-        content: '// Skipped - using remote and local datasources',
-        type: 'datasource',
-        action: 'skipped',
-      );
     }
 
-    // Original single datasource generation
+    // Generate abstract datasource (always)
     final dataSourceName = '${entityName}DataSource';
     final fileName = '${entitySnake}_data_source.dart';
     String relativePath = '../../../';

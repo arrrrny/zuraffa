@@ -135,16 +135,8 @@ class EntityAnalyzer {
   }
 
   static Map<String, String> _getDefaultFields() {
-    return {
-      'id': 'String',
-      'name': 'String',
-      'description': 'String',
-      'price': 'double',
-      'category': 'String',
-      'isActive': 'bool',
-      'createdAt': 'DateTime',
-      'updatedAt': 'DateTime?',
-    };
+    // NEVER use fallback fields - only use actual entity fields
+    return {};
   }
 
   static bool _hasOnlyDefaultFields(Map<String, String> fields) {

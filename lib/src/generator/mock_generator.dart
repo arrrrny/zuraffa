@@ -305,7 +305,15 @@ ${config.generateInit ? '''
       String entityName, Map<String, String> fields, String outputDir) {
     final instances = <String>[];
 
-    // Generate 3 instances
+    // If no fields found, generate empty constructor calls
+    if (fields.isEmpty) {
+      for (int i = 1; i <= 3; i++) {
+        instances.add('''    $entityName(),''');
+      }
+      return instances.join('\n');
+    }
+
+    // Generate 3 instances with field values
     for (int i = 1; i <= 3; i++) {
       instances.add('''    $entityName(
 ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
@@ -355,7 +363,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
         return seed % 2 == 1 ? 'true' : 'false';
 
       case 'DateTime':
-        return 'DateTime.now().subtract(Duration(days: ${seed * 30}))';
+        return 'DateTime.now().subtract(const Duration(days: ${seed * 30}))';
 
       case 'Object':
         return '{"key$seed": "value$seed"}';
@@ -479,7 +487,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
       case 'bool':
         return 'seed % 2 == 1';
       case 'DateTime':
-        return 'DateTime.now().subtract(Duration(days: seed * 30))';
+        return 'DateTime.now().subtract(const Duration(days: seed * 30))';
       case 'Object':
         return '{"key\$seed": "value\$seed"}';
       default:
@@ -589,14 +597,14 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
         case 'get':
           methods.add('''
   @override
-  Future<$entityName> get(String id) async {
-    logger.info('Getting $entityName with id: \$id');
+  Future<$entityName> get(${config.queryFieldType} ${config.queryField}) async {
+    logger.info('Getting $entityName with ${config.queryField}: \$${config.queryField}');
     await Future.delayed(_delay);
     final item = ${entityName}MockData.${entityCamel}s.firstWhere(
-      (item) => item.id == id,
-      orElse: () => throw NotFoundFailure('$entityName not found: \$id'),
+      (item) => item.${config.idField} == ${config.queryField},
+      orElse: () => throw NotFoundFailure('$entityName not found: \$${config.queryField}'),
     );
-    logger.info('Successfully retrieved $entityName: \$id');
+    logger.info('Successfully retrieved $entityName: \$${config.queryField}');
     return item;
   }''');
           break;
@@ -650,26 +658,26 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
         case 'delete':
           methods.add('''
   @override
-  Future<void> delete(String id) async {
-    logger.info('Deleting $entityName: \$id');
+  Future<void> delete(DeleteParams<$entityName> params) async {
+    logger.info('Deleting $entityName: \${params.${config.idField}}');
     await Future.delayed(_delay);
-    final exists = ${entityName}MockData.${entityCamel}s.any((item) => item.id == id);
+    final exists = ${entityName}MockData.${entityCamel}s.any((item) => item.${config.idField} == params.${config.idField});
     if (!exists) {
-      throw NotFoundFailure('$entityName not found: \$id');
+      throw NotFoundFailure('$entityName not found: \${params.${config.idField}}');
     }
     // In a real implementation, you'd remove from storage
-    logger.info('Successfully deleted $entityName: \$id');
+    logger.info('Successfully deleted $entityName: \${params.${config.idField}}');
   }''');
           break;
 
         case 'watch':
           methods.add('''
   @override
-  Stream<$entityName> watch(String id) {
+  Stream<$entityName> watch(${config.queryFieldType} ${config.queryField}) {
     return Stream.periodic(const Duration(seconds: 1), (count) {
       final item = ${entityName}MockData.${entityCamel}s.firstWhere(
-        (item) => item.id == id,
-        orElse: () => throw NotFoundFailure('$entityName not found: \$id'),
+        (item) => item.${config.idField} == ${config.queryField},
+        orElse: () => throw NotFoundFailure('$entityName not found: \$${config.queryField}'),
       );
       return item;
     }).take(10); // Limit for demo
@@ -692,6 +700,6 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
       }
     }
 
-    return methods.join('\n');
+    return methods.join('\n\n');
   }
 }

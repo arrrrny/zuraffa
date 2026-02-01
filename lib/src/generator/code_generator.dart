@@ -130,6 +130,10 @@ class CodeGenerator {
       }
 
       if (config.generateData || config.generateDataSource) {
+        // Always generate abstract datasource first
+        final file = await _dataLayerGenerator.generateDataSource();
+        files.add(file);
+
         if (config.enableCache) {
           // Generate both remote and local datasources
           final remoteFile =
@@ -142,8 +146,6 @@ class CodeGenerator {
         } else {
           nextSteps.add(
               'Create a DataSource that implements ${config.name}DataSource in data layer');
-          final file = await _dataLayerGenerator.generateDataSource();
-          files.add(file);
         }
       }
 
