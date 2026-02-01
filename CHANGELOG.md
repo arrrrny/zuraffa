@@ -1,4 +1,4 @@
-## [Unreleased]
+## [1.12.0] - 2026-02-01
 
 ### Added
 - **Mock Data Generation**: Comprehensive mock data generation system
@@ -67,7 +67,7 @@
   - Fixed both success and failure test scenarios for Future and Stream UseCases
   - Eliminates "too many arguments" compilation errors
 
-## [Unreleased]
+## [1.12.0] - 2026-02-01
 
 ### Fixed
 - **Background UseCase Generation**: Fixed `--returns` and `--params` parameters for background UseCases
