@@ -10,6 +10,7 @@ import 'data_layer_generator.dart';
 import 'test_generator.dart';
 import 'mock_generator.dart';
 import 'di_generator.dart';
+import 'cache_generator.dart';
 
 class CodeGenerator {
   final GeneratorConfig config;
@@ -212,6 +213,21 @@ class CodeGenerator {
         );
         final diFiles = await diGenerator.generate();
         files.addAll(diFiles);
+
+        // Generate cache init files if caching is enabled
+        if (config.enableCache) {
+          final cacheGenerator = CacheGenerator(
+            config: config,
+            outputDir: outputDir,
+            dryRun: dryRun,
+            force: force,
+            verbose: verbose,
+          );
+          final cacheFiles = await cacheGenerator.generate();
+          files.addAll(cacheFiles);
+          nextSteps.add('Run: dart run build_runner build');
+        }
+
         nextSteps.add('Import and call setupDependencies() in your main.dart');
       }
 

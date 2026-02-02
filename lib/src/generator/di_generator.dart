@@ -105,11 +105,8 @@ void register$dataSourceName(GetIt getIt) {
 
     final hiveBoxSetup = config.cacheStorage == 'hive'
         ? '''
-  // TODO: Open Hive box before calling this
-  // final ${entitySnake}Box = await Hive.openBox<$entityName>('${entitySnake}s');
-  // Then pass it to the constructor
   getIt.registerLazySingleton<$dataSourceName>(
-    () => $dataSourceName(getIt<Box<$entityName>>()),
+    () => $dataSourceName(Hive.box<$entityName>('${entitySnake}s')),
   );'''
         : '''
   getIt.registerLazySingleton<$dataSourceName>(
@@ -179,18 +176,33 @@ void register$dataSourceName(GetIt getIt) {
     final String registration;
     final String cacheImports;
     if (config.enableCache) {
-      final remoteDataSourceName = '${entityName}RemoteDataSource';
+      final remoteDataSourceName = config.useMockInDi
+          ? '${entityName}MockDataSource'
+          : '${entityName}RemoteDataSource';
       final localDataSourceName = '${entityName}LocalDataSource';
+
+      final policyType = config.cachePolicy;
+      final ttlMinutes = config.ttlMinutes ?? 1440;
+      final policyFunctionName = policyType == 'daily'
+          ? 'createDailyCachePolicy'
+          : policyType == 'restart'
+              ? 'createAppRestartCachePolicy'
+              : 'createTtl${ttlMinutes}MinutesCachePolicy';
+
+      final remoteDataSourceImport = config.useMockInDi
+          ? "import '../../data/data_sources/$entitySnake/${entitySnake}_mock_data_source.dart';"
+          : "import '../../data/data_sources/$entitySnake/${entitySnake}_remote_data_source.dart';";
+
       cacheImports = '''
-import '../../data/data_sources/$entitySnake/${entitySnake}_remote_data_source.dart';
+$remoteDataSourceImport
 import '../../data/data_sources/$entitySnake/${entitySnake}_local_data_source.dart';
-import 'package:zuraffa/zuraffa.dart';''';
+import '../../cache/${policyType == 'ttl' ? 'ttl_${ttlMinutes}_minutes_cache_policy.dart' : policyType == 'daily' ? 'daily_cache_policy.dart' : 'app_restart_cache_policy.dart'}';''';
       registration = '''
   getIt.registerLazySingleton<$repoName>(
     () => $dataRepoName(
       getIt<$remoteDataSourceName>(),
       getIt<$localDataSourceName>(),
-      getIt<CachePolicy>(),
+      $policyFunctionName(),
     ),
   );''';
     } else {

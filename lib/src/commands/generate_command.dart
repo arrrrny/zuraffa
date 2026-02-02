@@ -79,6 +79,8 @@ class GenerateCommand {
         cachePolicy: results['cache-policy'] ?? 'daily',
         cacheStorage: results['cache-storage'] ??
             (results['cache'] == true ? 'hive' : null),
+        ttlMinutes:
+            results['ttl'] != null ? int.tryParse(results['ttl']) : null,
         generateMock: results['mock'] == true,
         generateMockDataOnly: results['mock-data-only'] == true,
         useMockInDi: results['use-mock'] == true,
@@ -197,6 +199,8 @@ class GenerateCommand {
           defaultsTo: 'daily')
       ..addOption('cache-storage',
           help: 'Local storage hint: hive, sqlite, shared_preferences')
+      ..addOption('ttl',
+          help: 'TTL duration in minutes (default: 1440 = 24 hours)')
       ..addFlag('mock',
           help: 'Generate mock data source with sample data', defaultsTo: false)
       ..addFlag('mock-data-only',
@@ -243,6 +247,7 @@ CACHING:
   --cache              Enable caching with dual datasources (remote + local)
   --cache-policy=<p>   Cache policy: daily, restart, ttl (default: daily)
   --cache-storage=<s>  Local storage hint: hive, sqlite, shared_preferences
+  --ttl=<minutes>      TTL duration in minutes (default: 1440 = 24 hours)
 
 MOCK DATA:
   --mock               Generate mock data source with sample data

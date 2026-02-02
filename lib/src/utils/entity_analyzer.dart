@@ -35,7 +35,7 @@ class EntityAnalyzer {
           }
           // If parsing the class failed, try parsing all final fields in the file
           final allFieldsRegex = RegExp(
-              r'final\s+([\w\?<>,\s\[\]]+)\s+(\w+)\s*;',
+              r'final\s+([\w\?\$<>,\s\[\]]+)\s+(\w+)\s*;',
               multiLine: true);
           final allFieldMatches = allFieldsRegex.allMatches(morphyContent);
           final allFields = <String, String>{};
@@ -100,7 +100,7 @@ class EntityAnalyzer {
 
       // Parse getter-style fields within this class body
       final getterRegex =
-          RegExp(r'([\w\?<>,\s]+)\s+get\s+(\w+)\s*;', multiLine: true);
+          RegExp(r'([\w\?\$<>,\s]+)\s+get\s+(\w+)\s*;', multiLine: true);
       final getterMatches = getterRegex.allMatches(classBody);
 
       for (final match in getterMatches) {
@@ -114,7 +114,7 @@ class EntityAnalyzer {
 
       // Parse field declarations within this class body
       final fieldRegex =
-          RegExp(r'final\s+([\w\?<>,\s\[\]]+)\s+(\w+)\s*;', multiLine: true);
+          RegExp(r'final\s+([\w\?\$<>,\s\[\]]+)\s+(\w+)\s*;', multiLine: true);
       final fieldMatches = fieldRegex.allMatches(classBody);
 
       for (final match in fieldMatches) {

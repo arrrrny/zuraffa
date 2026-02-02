@@ -27,6 +27,7 @@ class GeneratorConfig {
   final bool enableCache;
   final String cachePolicy;
   final String? cacheStorage;
+  final int? ttlMinutes;
   final bool generateMock;
   final bool generateMockDataOnly;
   final bool useMockInDi;
@@ -60,6 +61,7 @@ class GeneratorConfig {
     this.enableCache = false,
     this.cachePolicy = 'daily',
     this.cacheStorage,
+    this.ttlMinutes,
     this.generateMock = false,
     this.generateMockDataOnly = false,
     this.useMockInDi = false,
@@ -95,6 +97,8 @@ class GeneratorConfig {
       enableCache: json['cache'] == true || json['enable_cache'] == true,
       cachePolicy: json['cache_policy'] ?? 'daily',
       cacheStorage: json['cache_storage'],
+      ttlMinutes:
+          json['ttl'] != null ? int.tryParse(json['ttl'].toString()) : null,
       generateMock: json['mock'] == true || json['generate_mock'] == true,
       generateMockDataOnly: json['mock_data_only'] == true ||
           json['generate_mock_data_only'] == true,

@@ -505,9 +505,7 @@ ${methods.join('\n\n')}
     final dataRepoName = 'Data${entityName}Repository';
 
     // Use different datasource names based on caching
-    final dataSourceName = config.enableCache
-        ? '${entityName}RemoteDataSource'
-        : '${entityName}DataSource';
+    final dataSourceName = '${entityName}DataSource';
     final localDataSourceName = '${entityName}LocalDataSource';
 
     final fileName = 'data_${entitySnake}_repository.dart';
@@ -579,7 +577,7 @@ ${methods.join('\n\n')}
 
     // Import statements
     final dataSourceImport = config.enableCache
-        ? '''import '${relativePath}data_sources$subdirectoryPart/$entitySnake/${entitySnake}_remote_data_source.dart';
+        ? '''import '${relativePath}data_sources$subdirectoryPart/$entitySnake/${entitySnake}_data_source.dart';
 import '${relativePath}data_sources$subdirectoryPart/$entitySnake/${entitySnake}_local_data_source.dart';'''
         : '''import '${relativePath}data_sources$subdirectoryPart/$entitySnake/${entitySnake}_data_source.dart';''';
 
