@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.15.0] - 2026-02-02
 
 ### Added
 - **Automatic Cache Initialization**: Auto-generated cache files for Hive
