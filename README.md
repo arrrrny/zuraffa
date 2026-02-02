@@ -536,10 +536,43 @@ zfa generate Product --methods=get,getList --repository --data --cache --cache-p
 ```
 lib/src/cache/
 ├── hive_registrar.dart              # @GenerateAdapters for all entities
+├── hive_manual_additions.txt        # Template for nested entities/enums
 ├── product_cache.dart               # Opens Product box
 ├── timestamp_cache.dart             # Opens timestamps box
 ├── ttl_30_minutes_cache_policy.dart # Cache policy implementation
 └── index.dart                       # initAllCaches() + exports
+```
+
+### Adding Nested Entities and Enums
+
+The generator creates `hive_manual_additions.txt` for entities that aren't directly cached but need adapters (nested entities, enums, etc.):
+
+```txt
+# Hive Manual Additions
+# Format: import_path|EntityName
+
+../domain/entities/enums/index.dart|ParserType
+../domain/entities/enums/index.dart|HttpClientType
+../domain/entities/range/range.dart|Range
+../domain/entities/filter_parameter/filter_parameter.dart|FilterParameter
+```
+
+After adding entries, regenerate:
+
+```bash
+zfa generate Product --methods=get --repository --data --cache --di --force
+```
+
+The registrar will include all manual additions:
+
+```dart
+@GenerateAdapters([
+  AdapterSpec<ParserType>(),
+  AdapterSpec<HttpClientType>(),
+  AdapterSpec<Range>(),
+  AdapterSpec<FilterParameter>(),
+  AdapterSpec<Product>()
+])
 ```
 
 ### Generated Files
@@ -821,6 +854,7 @@ zfa generate ProcessCheckout --repos=CartRepository,PaymentRepository --params=C
 | `--repository` | Generate repository interface                         |
 | `--data`       | Generate DataRepository and DataSource (always includes remote datasource) |
 | `--vpc`        | Generate View, Presenter, and Controller              |
+| `--vpcs`       | Generate View, Presenter, Controller, and State       |
 | `--pc`         | Generate Presenter and Controller only (preserve View)|
 | `--pcs`        | Generate Presenter, Controller, and State (preserve View) |
 | `--state`      | Generate immutable State class                        |

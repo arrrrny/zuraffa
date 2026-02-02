@@ -265,6 +265,33 @@ ${inits.join('\n')}
     final adapterSpecs = <String>[];
     final registrations = <String>[];
 
+    // Check for manual additions file
+    final manualAdditionsPath =
+        path.join(outputDir, 'cache', 'hive_manual_additions.txt');
+    final manualAdditionsFile = File(manualAdditionsPath);
+
+    if (manualAdditionsFile.existsSync()) {
+      final lines = manualAdditionsFile.readAsLinesSync();
+      for (final line in lines) {
+        final trimmed = line.trim();
+        if (trimmed.isEmpty || trimmed.startsWith('#')) continue;
+
+        // Format: import_path|EntityName
+        // Example: ../domain/entities/enums/index.dart|ParserType
+        final parts = trimmed.split('|');
+        if (parts.length == 2) {
+          final importPath = parts[0].trim();
+          final entityName = parts[1].trim();
+
+          if (!imports.contains("import '$importPath';")) {
+            imports.add("import '$importPath';");
+          }
+          adapterSpecs.add('AdapterSpec<$entityName>()');
+          registrations.add('    registerAdapter(${entityName}Adapter());');
+        }
+      }
+    }
+
     for (final file in files) {
       final content = file.readAsStringSync();
       // Extract entity name from import
@@ -281,8 +308,10 @@ ${inits.join('\n')}
             .map((word) => word[0].toUpperCase() + word.substring(1))
             .join('');
 
-        imports
-            .add("import '../domain/entities/$entitySnake/$entityFile.dart';");
+        final importPath = '../domain/entities/$entitySnake/$entityFile.dart';
+        if (!imports.contains("import '$importPath';")) {
+          imports.add("import '$importPath';");
+        }
         adapterSpecs.add('AdapterSpec<$entityName>()');
         registrations.add('    registerAdapter(${entityName}Adapter());');
       }
@@ -295,7 +324,9 @@ ${imports.join('\n')}
 
 part 'hive_registrar.g.dart';
 
-@GenerateAdapters([${adapterSpecs.join(', ')}])
+@GenerateAdapters([
+  ${adapterSpecs.join(',\n  ')}
+])
 extension HiveRegistrar on HiveInterface {
   void registerAdapters() {
 ${registrations.join('\n')}
@@ -317,5 +348,20 @@ ${registrations.join('\n')}
       dryRun: dryRun,
       verbose: verbose,
     );
+
+    // Create template file if it doesn't exist
+    if (!manualAdditionsFile.existsSync() && !dryRun) {
+      final template = '''# Hive Manual Additions
+# Add nested entities and enums that need Hive adapters
+# Format: import_path|EntityName
+# Example: ../domain/entities/enums/index.dart|ParserType
+
+# Uncomment and add your entities below:
+# ../domain/entities/enums/index.dart|ParserType
+# ../domain/entities/enums/index.dart|HttpClientType
+# ../domain/entities/range/range.dart|Range
+''';
+      manualAdditionsFile.writeAsStringSync(template);
+    }
   }
 }

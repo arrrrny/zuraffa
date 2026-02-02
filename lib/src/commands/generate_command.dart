@@ -55,22 +55,28 @@ class GenerateCommand {
         returnsType: results['returns'],
         idField: results['id-field'] ?? 'id',
         idType: results['id-field-type'] ?? results['id-type'] ?? 'String',
-        generateVpc: results['vpc'] == true,
-        generateView: results['view'] == true || results['vpc'] == true,
+        generateVpc: results['vpc'] == true || results['vpcs'] == true,
+        generateView: results['view'] == true ||
+            results['vpc'] == true ||
+            results['vpcs'] == true,
         generatePresenter: results['presenter'] == true ||
             results['vpc'] == true ||
+            results['vpcs'] == true ||
             results['pc'] == true ||
             results['pcs'] == true,
         generateController: results['controller'] == true ||
             results['vpc'] == true ||
+            results['vpcs'] == true ||
             results['pc'] == true ||
             results['pcs'] == true,
         generateObserver: results['observer'] == true,
         generateData: results['data'] == true,
         generateDataSource: results['datasource'] == true,
-        generateState: results['state'] == true || results['pcs'] == true,
+        generateState: results['state'] == true ||
+            results['vpcs'] == true ||
+            results['pcs'] == true,
         generateInit: results['init'] == true,
-        queryField: results['query-field'] ?? 'id',
+        queryField: results['query-field'] ?? results['id-field'] ?? 'id',
         queryFieldType: results['query-field-type'],
         useMorphy: results['morphy'] == true,
         generateTest: results['test'] == true,
@@ -158,6 +164,9 @@ class GenerateCommand {
       ..addOption('returns', help: 'Return type for custom usecase')
       ..addFlag('vpc',
           help: 'Generate View + Presenter + Controller', defaultsTo: false)
+      ..addFlag('vpcs',
+          help: 'Generate View + Presenter + Controller + State',
+          defaultsTo: false)
       ..addFlag('pc',
           help: 'Generate Presenter + Controller only', defaultsTo: false)
       ..addFlag('pcs',
@@ -183,8 +192,7 @@ class GenerateCommand {
       ..addOption('id-field-type',
           help: 'ID field type (default: String)', defaultsTo: 'String')
       ..addOption('query-field',
-          help: 'Query field name for get/watch (default: id)',
-          defaultsTo: 'id')
+          help: 'Query field name for get/watch (default: matches --id-field)')
       ..addOption('query-field-type',
           help: 'Query field type (default: matches --id-type)')
       ..addFlag('morphy',
@@ -264,6 +272,7 @@ CUSTOM USECASE:
 
 VPC LAYER:
   --vpc                 Generate View + Presenter + Controller
+  --vpcs                Generate View + Presenter + Controller + State
   --pc                  Generate Presenter + Controller only (preserve View)
   --pcs                 Generate Presenter + Controller + State (preserve View)
   --view                Generate View only

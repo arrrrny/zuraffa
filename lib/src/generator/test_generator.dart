@@ -209,7 +209,7 @@ $testBody
     String failureArrange;
 
     if (method == 'get') {
-      if (config.idField == 'null') {
+      if (config.idField == 'null' || config.queryField == 'null') {
         paramsConstructor = "const NoParams()";
         arrange =
             "when(() => mockRepository.get()).thenAnswer((_) async => $returnConstructor);";
@@ -295,7 +295,7 @@ $testBody
     String failureArrange;
 
     if (method == 'watch') {
-      if (config.idField == 'null') {
+      if (config.idField == 'null' || config.queryField == 'null') {
         paramsConstructor = "NoParams()";
         arrange =
             "when(() => mockRepository.watch()).thenAnswer((_) => Stream.value($returnConstructor));";

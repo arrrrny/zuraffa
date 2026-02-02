@@ -55,7 +55,7 @@ class DataLayerGenerator {
     for (final method in config.methods) {
       switch (method) {
         case 'get':
-          if (config.idField == 'null') {
+          if (config.idField == 'null' || config.queryField == 'null') {
             methods.add('  Future<$entityName> get();');
           } else {
             methods.add(
@@ -79,7 +79,7 @@ class DataLayerGenerator {
               .add('  Future<void> delete(DeleteParams<$entityName> params);');
           break;
         case 'watch':
-          if (config.idField == 'null') {
+          if (config.idField == 'null' || config.queryField == 'null') {
             methods.add('  Stream<$entityName> watch();');
           } else {
             methods.add(
@@ -159,7 +159,7 @@ ${methods.join('\n')}
     for (final method in config.methods) {
       switch (method) {
         case 'get':
-          if (config.idField == 'null') {
+          if (config.idField == 'null' || config.queryField == 'null') {
             methods.add('''
   @override
   Future<$entityName> get() async {
@@ -205,7 +205,7 @@ ${methods.join('\n')}
   }''');
           break;
         case 'watch':
-          if (config.idField == 'null') {
+          if (config.idField == 'null' || config.queryField == 'null') {
             methods.add('''
   Stream<$entityName> watch() {
     // TODO: Implement remote stream (WebSocket, SSE, etc.)
@@ -611,7 +611,7 @@ ${methods.join('\n\n')}
       String method, String entityName, String entityCamel) {
     switch (method) {
       case 'get':
-        if (config.idField == 'null') {
+        if (config.idField == 'null' || config.queryField == 'null') {
           return '''  @override
   Future<$entityName> get() {
     return _dataSource.get();
@@ -643,10 +643,17 @@ ${methods.join('\n\n')}
     return _dataSource.delete(params);
   }''';
       case 'watch':
-        return '''  @override
+        if (config.idField == 'null' || config.queryField == 'null') {
+          return '''  @override
+  Stream<$entityName> watch() {
+    return _dataSource.watch();
+  }''';
+        } else {
+          return '''  @override
   Stream<$entityName> watch(${config.queryFieldType} ${config.queryField}) {
     return _dataSource.watch(${config.queryField});
   }''';
+        }
       case 'watchList':
         return '''  @override
   Stream<List<$entityName>> watchList(ListQueryParams params) {
@@ -663,7 +670,7 @@ ${methods.join('\n\n')}
 
     switch (method) {
       case 'get':
-        if (config.idField == 'null') {
+        if (config.idField == 'null' || config.queryField == 'null') {
           return '''  @override
   Future<$entityName> get() async {
     // Check cache validity
@@ -765,12 +772,21 @@ ${methods.join('\n\n')}
     await _cachePolicy.invalidate('$baseCacheKey');
   }''';
       case 'watch':
-        return '''  @override
+        if (config.idField == 'null' || config.queryField == 'null') {
+          return '''  @override
+  Stream<$entityName> watch() {
+    // For streams, typically use remote source
+    // You may want to seed with cached data first
+    return _remoteDataSource.watch();
+  }''';
+        } else {
+          return '''  @override
   Stream<$entityName> watch(${config.queryFieldType} ${config.queryField}) {
     // For streams, typically use remote source
     // You may want to seed with cached data first
     return _remoteDataSource.watch(${config.queryField});
   }''';
+        }
       case 'watchList':
         return '''  @override
   Stream<List<$entityName>> watchList(ListQueryParams params) {

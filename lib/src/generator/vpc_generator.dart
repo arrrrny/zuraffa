@@ -152,10 +152,14 @@ ${presenterMethods.join('\n\n')}
     for (final method in config.methods) {
       switch (method) {
         case 'get':
+          final getParams = config.queryField == 'null'
+              ? ''
+              : '${config.queryFieldType} ${config.queryField}';
+          final getArgs = config.queryField == 'null' ? '' : config.queryField;
           methods.add('''
-  Future<void> get$entityName(${config.queryFieldType} ${config.queryField}) async {
+  Future<void> get$entityName($getParams) async {
 ${withState ? "    updateState(viewState.copyWith(isGetting: true));" : ""}
-    final result = await _presenter.get$entityName(${config.queryField});
+    final result = await _presenter.get$entityName($getArgs);
 
 ${withState ? '''    result.fold(
       (entity) => updateState(viewState.copyWith(
@@ -194,6 +198,11 @@ ${withState ? '''    result.fold(
   }''');
           break;
         case 'create':
+          final hasListMethod = config.methods.contains('getList') ||
+              config.methods.contains('watchList');
+          final listUpdate = hasListMethod
+              ? '${entityCamel}List: [...viewState.${entityCamel}List, created],'
+              : '';
           methods.add('''
   Future<void> create$entityName($entityName $entityCamel) async {
 ${withState ? "    updateState(viewState.copyWith(isCreating: true));" : ""}
@@ -202,7 +211,7 @@ ${withState ? "    updateState(viewState.copyWith(isCreating: true));" : ""}
 ${withState ? '''    result.fold(
       (created) => updateState(viewState.copyWith(
         isCreating: false,
-        ${entityCamel}List: [...viewState.${entityCamel}List, created],
+        $listUpdate
       )),
       (failure) => updateState(viewState.copyWith(
         isCreating: false,
@@ -217,16 +226,32 @@ ${withState ? '''    result.fold(
         case 'update':
           final updateDataType =
               config.useMorphy ? '${entityName}Patch' : 'Partial<$entityName>';
+          final updateParams = config.idField == 'null'
+              ? '$entityName $entityCamel'
+              : '${config.idType} ${config.idField}, $updateDataType data';
+          final updateArgs = config.idField == 'null'
+              ? entityCamel
+              : '${config.idField}, data';
+          final hasListMethod = config.methods.contains('getList') ||
+              config.methods.contains('watchList');
+          final listUpdate = hasListMethod
+              ? (config.queryField == 'null'
+                  ? '${entityCamel}List: [updated],'
+                  : '${entityCamel}List: viewState.${entityCamel}List.map((e) => e.${config.queryField} == updated.${config.queryField} ? updated : e).toList(),')
+              : '';
+          final singleUpdate = config.queryField == 'null'
+              ? '$entityCamel: updated,'
+              : '$entityCamel: viewState.$entityCamel?.${config.queryField} == updated.${config.queryField} ? updated : viewState.$entityCamel,';
           methods.add('''
-  Future<void> update$entityName(${config.idType} ${config.idField}, $updateDataType data) async {
+  Future<void> update$entityName($updateParams) async {
 ${withState ? "    updateState(viewState.copyWith(isUpdating: true));" : ""}
-    final result = await _presenter.update$entityName(${config.idField}, data);
+    final result = await _presenter.update$entityName($updateArgs);
 
 ${withState ? '''    result.fold(
       (updated) => updateState(viewState.copyWith(
         isUpdating: false,
-        ${entityCamel}List: viewState.${entityCamel}List.map((e) => e.${config.queryField} == updated.${config.queryField} ? updated : e).toList(),
-        $entityCamel: viewState.$entityCamel?.${config.queryField} == updated.${config.queryField} ? updated : viewState.$entityCamel,
+        $listUpdate
+        $singleUpdate
       )),
       (failure) => updateState(viewState.copyWith(
         isUpdating: false,
@@ -239,15 +264,25 @@ ${withState ? '''    result.fold(
   }''');
           break;
         case 'delete':
+          final deleteParams = config.idField == 'null'
+              ? '$entityName $entityCamel'
+              : '${config.idType} ${config.idField}';
+          final deleteArgs =
+              config.idField == 'null' ? entityCamel : config.idField;
+          final hasListMethod = config.methods.contains('getList') ||
+              config.methods.contains('watchList');
+          final listUpdate = hasListMethod
+              ? '${entityCamel}List: viewState.${entityCamel}List.where((e) => e.${config.queryField} != ${config.queryField}).toList(),'
+              : '';
           methods.add('''
-  Future<void> delete$entityName(${config.idType} ${config.idField}) async {
+  Future<void> delete$entityName($deleteParams) async {
 ${withState ? "    updateState(viewState.copyWith(isDeleting: true));" : ""}
-    final result = await _presenter.delete$entityName(${config.idField});
+    final result = await _presenter.delete$entityName($deleteArgs);
 
 ${withState ? '''    result.fold(
       (_) => updateState(viewState.copyWith(
         isDeleting: false,
-        ${entityCamel}List: viewState.${entityCamel}List.where((e) => e.${config.queryField} != ${config.queryField}).toList(),
+        $listUpdate
       )),
       (failure) => updateState(viewState.copyWith(
         isDeleting: false,
@@ -260,10 +295,15 @@ ${withState ? '''    result.fold(
   }''');
           break;
         case 'watch':
+          final watchParams = config.queryField == 'null'
+              ? ''
+              : '${config.queryFieldType} ${config.queryField}';
+          final watchArgs =
+              config.queryField == 'null' ? '' : config.queryField;
           methods.add('''
-  void watch$entityName(${config.queryFieldType} ${config.queryField}) {
+  void watch$entityName($watchParams) {
 ${withState ? "    updateState(viewState.copyWith(isWatching: true));" : ""}
-    _presenter.watch$entityName(${config.queryField}).listen(
+    _presenter.watch$entityName($watchArgs).listen(
 ${withState ? '''      (result) {
         result.fold(
           (entity) => updateState(viewState.copyWith(

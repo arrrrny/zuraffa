@@ -50,7 +50,7 @@ class UseCaseGenerator {
     switch (method) {
       case 'get':
         className = 'Get${entityName}UseCase';
-        if (config.idField == 'null') {
+        if (config.idField == 'null' || config.queryField == 'null') {
           baseClass = 'UseCase<$entityName, NoParams>';
           paramsType = 'NoParams';
           executeBody = 'return _repository.get();';
@@ -106,7 +106,7 @@ class UseCaseGenerator {
         break;
       case 'watch':
         className = 'Watch${entityName}UseCase';
-        if (config.idField == 'null') {
+        if (config.idField == 'null' || config.queryField == 'null') {
           baseClass = 'StreamUseCase<$entityName, NoParams>';
           paramsType = 'NoParams';
           executeBody = 'return _repository.watch();';
@@ -341,7 +341,8 @@ $executeMethod
         return UseCaseInfo(
           className: 'Get${entityName}UseCase',
           fieldName: 'get$entityName',
-          presenterMethod: config.idField == 'null'
+          presenterMethod: config.idField == 'null' ||
+                  config.queryField == 'null'
               ? '''  Future<Result<$entityName, AppFailure>> get$entityName() {
     return _get$entityName.call(const NoParams());
   }'''
@@ -391,7 +392,8 @@ $executeMethod
         return UseCaseInfo(
           className: 'Watch${entityName}UseCase',
           fieldName: 'watch$entityName',
-          presenterMethod: config.idField == 'null'
+          presenterMethod: config.idField == 'null' ||
+                  config.queryField == 'null'
               ? '''  Stream<Result<$entityName, AppFailure>> watch$entityName() {
     return _watch$entityName.call(const NoParams());
   }'''

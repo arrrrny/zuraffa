@@ -297,6 +297,39 @@ dart run build_runner build
 
 That's it! All Hive adapters, boxes, and cache policies are automatically configured.
 
+### Adding Nested Entities and Enums
+
+For entities that aren't directly cached but need adapters (nested entities, enums), edit `hive_manual_additions.txt`:
+
+```txt
+# Hive Manual Additions
+# Format: import_path|EntityName
+
+../domain/entities/enums/index.dart|ParserType
+../domain/entities/enums/index.dart|HttpClientType
+../domain/entities/range/range.dart|Range
+../domain/entities/filter_parameter/filter_parameter.dart|FilterParameter
+```
+
+Then regenerate:
+
+```bash
+zfa generate Product --methods=get --repository --data --cache --di --force
+dart run build_runner build
+```
+
+The registrar will include all manual additions:
+
+```dart
+@GenerateAdapters([
+  AdapterSpec<ParserType>(),
+  AdapterSpec<HttpClientType>(),
+  AdapterSpec<Range>(),
+  AdapterSpec<FilterParameter>(),
+  AdapterSpec<Product>()
+])
+```
+
 ### Manual Setup
 
 If you prefer manual setup:

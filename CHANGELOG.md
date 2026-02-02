@@ -1,11 +1,42 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **`--query-field=null` Support**: Generate parameterless methods for singleton/global entities
+  - Repository: `Future<T> get()` instead of `Future<T> get(String id)`
+  - UseCase: `UseCase<T, NoParams>` instead of `UseCase<T, QueryParams<String>>`
+  - DataSource, Presenter, Controller all use parameterless signatures
+  - Works with `get`, `watch`, `update`, and `delete` methods
+  - Automatic test generation with `NoParams`
+
+### Changed
+- **Simplified DI Generation**: Removed UseCase, Presenter, and Controller registration
+  - `--di` now only generates DataSource and Repository registration
+  - UseCases handled by Zuraffa's built-in mechanisms
+  - Presenters and Controllers instantiated directly in Views
+  - Cleaner DI with focus on infrastructure concerns only
+- **Conditional List Updates**: Controller methods only update lists when list methods exist
+  - `create` only adds to list if `getList` or `watchList` is generated
+  - `update` only updates list if `getList` or `watchList` is generated
+  - `delete` only removes from list if `getList` or `watchList` is generated
+  - Prevents unnecessary state updates and compilation errors
+
+### Fixed
+- **Query Field Handling**: Fixed `--query-field=null` across all layers
+  - DataSource interface generates parameterless methods
+  - RemoteDataSource implementation matches interface
+  - DataRepository (simple and cached) handle parameterless calls
+  - Controller update method uses direct assignment instead of field comparison
+  - Test generator creates correct mock expectations
+
 ## [1.15.0] - 2026-02-02
 
 ### Added
 - **Automatic Cache Initialization**: Auto-generated cache files for Hive
   - `cache/` folder with entity-specific cache init files
   - `hive_registrar.dart` with `@GenerateAdapters` for all cached entities
+  - `hive_manual_additions.txt` template for nested entities and enums
   - `timestamp_cache.dart` for cache policy timestamp storage
   - `initAllCaches()` function that registers adapters and opens all boxes
   - Automatic index file generation with exports
@@ -16,6 +47,13 @@
 - **Mock DataSource Support for Cache**: `--use-mock` now works with `--cache`
   - Registers mock datasource as remote datasource in cached repositories
   - Enables full development workflow without backend
+- **Manual Adapter Registration**: `hive_manual_additions.txt` for nested entities
+  - Simple format: `import_path|EntityName`
+  - Auto-merged with cached entities in registrar
+  - Supports enums, nested entities, and custom types
+- **VPCS Flag**: New `--vpcs` flag for complete presentation layer generation
+  - Generates View + Presenter + Controller + State in one command
+  - Shorthand for `--vpc --state`
 
 ### Changed
 - **DataRepository Type Safety**: Remote datasource now uses abstract `DataSource` type
@@ -23,6 +61,8 @@
   - Example: `final ProductDataSource _remoteDataSource;` instead of `ProductRemoteDataSource`
 - **Enum Mock Data**: Changed from `seed % 3` to `seed % 2` for safer enum value generation
   - Prevents index errors with enums that have only 2 values
+- **Hive Registrar Import**: Uses `hive_ce_flutter` instead of `hive_ce`
+  - Consistent with Flutter projects
 
 ### Fixed
 - **Snake Case Entity Names**: Proper PascalCase conversion in Hive registrar

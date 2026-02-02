@@ -7,12 +7,35 @@ When using `--cache` with `--di`, Zuraffa automatically generates cache initiali
 ```
 lib/src/
 ├── cache/
+│   ├── hive_registrar.dart          # @GenerateAdapters for all entities
+│   ├── hive_manual_additions.txt    # Template for nested entities/enums
 │   ├── product_cache.dart
 │   ├── user_cache.dart
-│   └── index.dart              # Auto-generated with initAllCaches()
+│   ├── timestamp_cache.dart
+│   ├── daily_cache_policy.dart      # Or ttl_N_minutes_cache_policy.dart
+│   └── index.dart                   # Auto-generated with initAllCaches()
 └── di/
     └── datasources/
         └── product_local_data_source_di.dart
+```
+
+## Adding Nested Entities and Enums
+
+The generator creates `hive_manual_additions.txt` for entities that aren't directly cached but need adapters:
+
+```txt
+# Hive Manual Additions
+# Format: import_path|EntityName
+
+../domain/entities/enums/index.dart|Gender
+../domain/entities/enums/index.dart|ShoppingStyle
+```
+
+After adding entries, regenerate:
+
+```bash
+zfa generate Product --methods=get --repository --data --cache --di --force
+dart run build_runner build
 ```
 
 ## Example Generated Files
