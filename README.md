@@ -522,6 +522,87 @@ final productController = getIt<ProductController>();
 - ✅ **Mock support**: Use `--use-mock` to register mock datasources
 - ✅ **Fail-safe**: Regenerate anytime without manual merging
 
+## Cache Initialization (Hive)
+
+When using `--cache` with `--di`, Zuraffa automatically generates cache initialization files:
+
+```bash
+# Generate with cache and DI
+zfa generate Product --methods=get,getList --repository --data --cache --cache-policy=ttl --ttl=30 --di
+```
+
+### Generated Cache Structure
+
+```
+lib/src/cache/
+├── hive_registrar.dart              # @GenerateAdapters for all entities
+├── product_cache.dart               # Opens Product box
+├── timestamp_cache.dart             # Opens timestamps box
+├── ttl_30_minutes_cache_policy.dart # Cache policy implementation
+└── index.dart                       # initAllCaches() + exports
+```
+
+### Generated Files
+
+**hive_registrar.dart** - Automatic adapter registration:
+```dart
+@GenerateAdapters([AdapterSpec<Product>(), AdapterSpec<User>()])
+part 'hive_registrar.g.dart';
+
+extension HiveRegistrar on HiveInterface {
+  void registerAdapters() {
+    registerAdapter(ProductAdapter());
+    registerAdapter(UserAdapter());
+  }
+}
+```
+
+**Cache policy** - Fully implemented with Hive:
+```dart
+CachePolicy createTtl30MinutesCachePolicy() {
+  final timestampBox = Hive.box<int>('cache_timestamps');
+  return TtlCachePolicy(
+    ttl: const Duration(minutes: 30),
+    getTimestamps: () async => Map<String, int>.from(timestampBox.toMap()),
+    setTimestamp: (key, timestamp) async => await timestampBox.put(key, timestamp),
+    removeTimestamp: (key) async => await timestampBox.delete(key),
+    clearAll: () async => await timestampBox.clear(),
+  );
+}
+```
+
+### Usage
+
+```dart
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+import 'src/cache/index.dart';
+import 'src/di/index.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  await Hive.initFlutter();
+  await initAllCaches();  // Registers adapters + opens boxes
+  
+  setupDependencies(GetIt.instance);
+  
+  runApp(MyApp());
+}
+```
+
+### Workflow
+
+1. Generate code with `--cache` and `--di`
+2. Run `dart run build_runner build` (generates `hive_registrar.g.dart`)
+3. Call `initAllCaches()` before DI setup
+
+### Features
+
+- ✅ **Automatic adapter registration**: No manual Hive.registerAdapter() calls
+- ✅ **Separate policy files**: `daily_cache_policy.dart`, `ttl_<N>_minutes_cache_policy.dart`
+- ✅ **Custom TTL**: Use `--ttl=<minutes>` for custom durations
+- ✅ **Type-safe**: Abstract DataSource type allows easy mock/remote switching
+
 ## Mock Data Generation
 
 Zuraffa can generate realistic mock data for your entities, perfect for testing, UI previews, and development:
@@ -751,6 +832,7 @@ zfa generate ProcessCheckout --repos=CartRepository,PaymentRepository --params=C
 | `--cache`      | Enable caching with dual datasources (remote + local) |
 | `--cache-policy` | Cache expiration: daily, restart, ttl (default: daily) |
 | `--cache-storage` | Local storage hint: hive, sqlite, shared_preferences (default: hive) |
+| `--ttl`        | TTL duration in minutes (default: 1440 = 24 hours)    |
 | `--subfolder`  | Organize under a subfolder (e.g., `--subfolder=auth`) |
 | `--init`       | Add initialize method & isInitialized stream to repos |
 | `--force`      | Overwrite existing files                              |

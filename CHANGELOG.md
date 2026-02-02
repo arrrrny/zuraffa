@@ -1,5 +1,33 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **Automatic Cache Initialization**: Auto-generated cache files for Hive
+  - `cache/` folder with entity-specific cache init files
+  - `hive_registrar.dart` with `@GenerateAdapters` for all cached entities
+  - `timestamp_cache.dart` for cache policy timestamp storage
+  - `initAllCaches()` function that registers adapters and opens all boxes
+  - Automatic index file generation with exports
+- **Cache Policy Generation**: Auto-generated cache policy implementations
+  - Separate files per policy type: `daily_cache_policy.dart`, `app_restart_cache_policy.dart`, `ttl_<N>_minutes_cache_policy.dart`
+  - Full Hive implementation with timestamp box operations
+  - `--ttl=<minutes>` flag for custom TTL duration (default: 1440 = 24 hours)
+- **Mock DataSource Support for Cache**: `--use-mock` now works with `--cache`
+  - Registers mock datasource as remote datasource in cached repositories
+  - Enables full development workflow without backend
+
+### Changed
+- **DataRepository Type Safety**: Remote datasource now uses abstract `DataSource` type
+  - Allows easy switching between implementations (remote, mock, etc.)
+  - Example: `final ProductDataSource _remoteDataSource;` instead of `ProductRemoteDataSource`
+- **Enum Mock Data**: Changed from `seed % 3` to `seed % 2` for safer enum value generation
+  - Prevents index errors with enums that have only 2 values
+
+### Fixed
+- **Snake Case Entity Names**: Proper PascalCase conversion in Hive registrar
+  - `category_config` → `CategoryConfig` (not `Category_config`)
+
 ## [1.14.0] - 2026-02-01
 
 ### Added

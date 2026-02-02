@@ -244,6 +244,63 @@ class CustomCachePolicy implements CachePolicy {
 
 ## Setup Hive for Caching
 
+### Automatic Setup (Recommended)
+
+When using `--cache` with `--di`, Zuraffa automatically generates all cache initialization:
+
+```bash
+zfa generate Product \
+  --methods=get,getList \
+  --repository \
+  --data \
+  --cache \
+  --cache-policy=ttl \
+  --ttl=30 \
+  --di
+```
+
+This generates:
+
+```
+lib/src/cache/
+├── hive_registrar.dart              # @GenerateAdapters for all entities
+├── product_cache.dart               # Opens Product box
+├── timestamp_cache.dart             # Opens timestamps box
+├── ttl_30_minutes_cache_policy.dart # Fully implemented cache policy
+└── index.dart                       # initAllCaches() function
+```
+
+**Usage:**
+
+```dart
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+import 'src/cache/index.dart';
+import 'src/di/index.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  await Hive.initFlutter();
+  await initAllCaches();  // Registers adapters + opens boxes
+  
+  setupDependencies(GetIt.instance);
+  
+  runApp(MyApp());
+}
+```
+
+Then run:
+
+```bash
+dart run build_runner build
+```
+
+That's it! All Hive adapters, boxes, and cache policies are automatically configured.
+
+### Manual Setup
+
+If you prefer manual setup:
+
 ### 1. Add Dependencies
 
 ```yaml

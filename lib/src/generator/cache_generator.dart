@@ -290,7 +290,7 @@ ${inits.join('\n')}
 
     final content = '''
 // Auto-generated Hive registrar
-import 'package:hive_ce/hive_ce.dart';
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 ${imports.join('\n')}
 
 part 'hive_registrar.g.dart';
