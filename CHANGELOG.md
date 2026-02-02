@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.16.0] - 2026-02-02
 
 ### Added
 - **`--query-field=null` Support**: Generate parameterless methods for singleton/global entities
