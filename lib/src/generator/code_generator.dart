@@ -123,12 +123,11 @@ class CodeGenerator {
         );
       }
 
-      if (config.generateRepository) {
+      // Generate repository for entity-based operations only
+      if (config.isEntityBased) {
         final file = await _repositoryGenerator.generate();
         files.add(file);
-      }
 
-      if (config.isEntityBased) {
         for (final method in config.methods) {
           final file = await _useCaseGenerator.generateForMethod(method);
           files.add(file);

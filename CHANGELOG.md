@@ -16,6 +16,8 @@ ZFA 2.0.0 transforms from a CRUD generator into a complete Clean Architecture fr
 - **Repository method naming**: UseCase name automatically maps to repository method
   - `SearchProductUseCase` → `productRepo.searchProduct()`
   - `ProcessCheckoutUseCase` → `checkoutRepo.processCheckout()`
+ - **`--repository` removed**: All entity based operations automaticaly creates the repository. Custom usecases create repository if non existed or add method to the existing repository with`--append` flag
+ 
 
 ### ✨ New Features
 

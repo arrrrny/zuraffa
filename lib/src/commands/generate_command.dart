@@ -55,7 +55,7 @@ class GenerateCommand {
         domain: results['domain'],
         repoMethod: results['method'],
         appendToExisting: results['append'] == true,
-        generateRepository: results['repository'] == true,
+        generateRepository: true, // Always true, controlled internally
         useCaseType: results['type'],
         paramsType: results['params'],
         returnsType: results['returns'],
@@ -276,8 +276,6 @@ class GenerateCommand {
       ..addFlag('append',
           help:
               'Append method to existing repository and datasources (requires --repo)')
-      ..addFlag('repository',
-          abbr: 'r', help: 'Generate repository interface', defaultsTo: false)
       ..addFlag('data',
           abbr: 'd',
           help: 'Generate data repository implementation + data source',
@@ -364,7 +362,6 @@ USAGE:
 
 ENTITY-BASED GENERATION:
   --methods=<list>      Comma-separated: get,getList,create,update,delete,watch,watchList
-  -r, --repository      Generate repository interface
   -d, --data            Generate data repository + data source
   --datasource          Generate data source only
   --init                Generate initialize method for repository and datasource
@@ -417,16 +414,19 @@ INPUT/OUTPUT:
 
 EXAMPLES:
   # Entity-based CRUD with VPC and State
-  zfa generate Product --methods=get,getList,create,update,delete --repository --vpc --state
+  zfa generate Product --methods=get,getList,create,update,delete --vpc --state
 
   # With data layer (repository impl + datasource)
-  zfa generate Product --methods=get,getList,create,update,delete --repository --data
+  zfa generate Product --methods=get,getList,create,update,delete --data
 
   # Stream usecases
-  zfa generate Product --methods=watch,watchList --repository
+  zfa generate Product --methods=watch,watchList
 
-  # Custom usecase with multiple repos
-  zfa generate ProcessOrder --repos=OrderRepo,PaymentRepo --params=OrderRequest --returns=OrderResult
+  # Custom usecase with repository
+  zfa generate SearchProduct --domain=search --repo=Product --params=Query --returns=List<Product>
+
+  # Append method to existing repository
+  zfa generate WatchProduct --domain=product --repo=Product --params=String --returns=Product --type=stream --append
 
   # Background usecase
   zfa generate ProcessImages --type=background --params=ImageBatch --returns=ProcessedImage
