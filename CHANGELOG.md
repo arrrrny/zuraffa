@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [2.0.0] - 2026-02-03
 
 ### 🚀 Major Release - Clean Architecture Framework
 

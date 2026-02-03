@@ -5,7 +5,7 @@ import 'commands/validate_command.dart';
 import 'commands/create_command.dart';
 import 'commands/initialize_command.dart';
 
-const version = '1.16.0';
+const version = '2.0.0';
 
 Future<void> run(List<String> args) async {
   if (args.isEmpty) {
