@@ -256,7 +256,10 @@ class CodeGenerator {
         nextSteps.add('Run tests: flutter test ');
       }
 
-      if (config.generateTest && config.isCustomUseCase && !config.isPolymorphic && !config.isOrchestrator) {
+      if (config.generateTest &&
+          config.isCustomUseCase &&
+          !config.isPolymorphic &&
+          !config.isOrchestrator) {
         final file = await _testGenerator.generateCustom();
         files.add(file);
         nextSteps.add('Run tests: flutter test ');

@@ -207,7 +207,7 @@ $executeMethod
 
   Future<GeneratedFile> generateCustom() async {
     // Strip "UseCase" suffix if present for cleaner file names
-    final baseName = config.name.endsWith('UseCase') 
+    final baseName = config.name.endsWith('UseCase')
         ? config.name.substring(0, config.name.length - 7)
         : config.name;
     final className = '${baseName}UseCase';

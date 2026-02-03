@@ -51,10 +51,11 @@ class MethodAppender {
     final repoPath = path.join(
         outputDir, 'domain', 'repositories', '${repoSnake}_repository.dart');
     final repoExists = File(repoPath).existsSync();
-    
+
     if (!repoExists) {
       // Create repository if it doesn't exist
-      await _createRepository(repoPath, repoName, methodName, returnSignature, paramsType);
+      await _createRepository(
+          repoPath, repoName, methodName, returnSignature, paramsType);
       updatedFiles.add(GeneratedFile(
         path: repoPath,
         type: 'repository',
@@ -82,7 +83,8 @@ class MethodAppender {
         action: 'updated',
       ));
     } else {
-      warnings.add('DataRepository not found: data_${repoSnake}_repository.dart');
+      warnings
+          .add('DataRepository not found: data_${repoSnake}_repository.dart');
     }
 
     // 3. Append to DataSource interface

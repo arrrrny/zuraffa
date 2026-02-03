@@ -141,9 +141,8 @@ class GeneratorConfig {
     }
 
     // Default: UseCase name in camelCase, strip "UseCase" suffix
-    final methodName = name.endsWith('UseCase') 
-        ? name.substring(0, name.length - 7) 
-        : name;
+    final methodName =
+        name.endsWith('UseCase') ? name.substring(0, name.length - 7) : name;
     return _pascalToCamel(methodName);
   }
 
@@ -153,7 +152,8 @@ class GeneratorConfig {
   List<String> get effectiveRepos {
     if (repo != null) {
       // Ensure repo has Repository suffix
-      final repoName = repo!.endsWith('Repository') ? repo! : '${repo!}Repository';
+      final repoName =
+          repo!.endsWith('Repository') ? repo! : '${repo!}Repository';
       return [repoName];
     }
     if (isEntityBased) return ['${name}Repository'];
