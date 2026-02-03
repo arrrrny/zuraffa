@@ -1,290 +1,413 @@
----
-sidebar_position: 2
-title: VPC Regeneration
----
+# VPC Regeneration
 
-# Granular VPC Regeneration
+Zuraffa provides powerful VPC (View-Presenter-Controller) regeneration capabilities. The `--pc`, `--pcs`, `--vpc`, and `--vpcs` flags allow you to regenerate business logic while preserving custom UI code.
 
-Zuraffa allows you to regenerate business logic (Presenter/Controller) without overwriting your custom UI code.
+## Overview
 
-## The Problem
+VPC regeneration enables you to:
 
-When you customize your View (UI), running `--vpc` again would overwrite your changes:
+1. **Evolve business logic** without losing custom UI
+2. **Add new methods** to existing UseCases
+3. **Update state management** without UI changes
+4. **Preserve custom styling** and layouts
 
-```bash
-# ❌ This overwrites your custom View
-zfa generate Product --methods=get,getList --vpc --force
-```
+## VPC Generation Flags
 
-## The Solution
+### Complete Generation (`--vpc`)
 
-Use `--pc` or `--pcs` to regenerate only the business logic layer:
+Generates View + Presenter + Controller:
 
 ```bash
-# ✅ Regenerate Presenter + Controller only
-zfa generate Product --methods=get,getList --pc --force
-
-# ✅ Regenerate Presenter + Controller + State
-zfa generate Product --methods=get,getList --pcs --force
+zfa generate Product --methods=get,getList --vpc
 ```
 
-## Available Flags
+### Complete Generation with State (`--vpcs`)
 
-| Flag | Generates | Use When |
-|------|-----------|----------|
-| `--vpc` | View + Presenter + Controller | Initial generation or full regeneration |
-| `--pc` | Presenter + Controller | You have custom View, need to update business logic |
-| `--pcs` | Presenter + Controller + State | You have custom View, need to update business logic and state |
-| `--state` | State only | You only need to regenerate state class |
-
-## Common Workflows
-
-### Initial Generation
-
-Start with full VPC generation:
+Generates View + Presenter + Controller + State:
 
 ```bash
-zfa generate Product --methods=get,getList,create --repository --data --vpc --state --di
+zfa generate Product --methods=get,getList --vpcs
 ```
 
-This generates:
-- ✅ `product_view.dart` - UI layer
-- ✅ `product_presenter.dart` - Business logic orchestration
-- ✅ `product_controller.dart` - State management
-- ✅ `product_state.dart` - Immutable state
+### Controller + Presenter Only (`--pc`)
 
-### Customize the View
+Generates Presenter + Controller, preserves existing View:
 
-Edit `product_view.dart` to match your design:
+```bash
+zfa generate Product --methods=get,getList --pc
+```
+
+### Controller + Presenter + State (`--pcs`)
+
+Generates Presenter + Controller + State, preserves existing View:
+
+```bash
+zfa generate Product --methods=get,getList --pcs
+```
+
+## Use Cases for VPC Regeneration
+
+### 1. Adding New Methods
+
+Add new operations to existing entities:
+
+```bash
+# Initial generation
+zfa generate Product --methods=get,getList --vpcs
+
+# Later: Add create/update methods without affecting UI
+zfa generate Product --methods=create,update --pc --force
+```
+
+### 2. Evolving State Management
+
+Update state without touching custom UI:
+
+```bash
+# Add new loading states
+zfa generate Product --methods=watch,watchList --pcs --force
+```
+
+### 3. Preserving Custom UI
+
+Regenerate business logic while keeping custom View:
+
+```bash
+# Your custom View remains untouched
+zfa generate Product --methods=get,getList,create --pc --force
+```
+
+## Generated Architecture
+
+### Controller Regeneration
+
+When regenerating with `--pc` or `--pcs`, the Controller is updated:
 
 ```dart
-class _ProductViewState extends CleanViewState<ProductView, ProductController> {
-  _ProductViewState(super.controller);
+// lib/src/presentation/pages/product/product_controller.dart
+class ProductController extends Controller with StatefulController<ProductState> {
+  final ProductPresenter _presenter;
+
+  ProductController(this._presenter) : super();
 
   @override
-  Widget get view {
-    return Scaffold(
-      key: globalKey,
-      appBar: AppBar(
-        title: const Text('My Custom Products'),
-        // Your custom app bar
-      ),
-      body: ControlledWidgetBuilder<ProductController>(
-        builder: (context, controller) {
-          // Your custom UI
-          return CustomProductList(
-            products: controller.viewState.productList,
-            onTap: (product) => _showDetails(product),
-          );
-        },
-      ),
+  ProductState createInitialState() => const ProductState();
+
+  Future<void> loadProduct(String id) async {
+    updateState(viewState.copyWith(isGetting: true));
+
+    final result = await _presenter.getProduct(id);
+
+    result.fold(
+      (product) => updateState(viewState.copyWith(
+        isGetting: false,
+        currentProduct: product,
+      )),
+      (failure) => updateState(viewState.copyWith(
+        isGetting: false,
+        error: failure,
+      )),
     );
   }
-  
-  void _showDetails(Product product) {
-    // Your custom navigation
+
+  // NEW: If adding watch method
+  StreamSubscription<Result<Product, AppFailure>>? _watchSubscription;
+
+  Future<void> startWatchingProduct(String id) async {
+    _watchSubscription?.cancel();
+    
+    updateState(viewState.copyWith(isWatching: true));
+
+    _watchSubscription = _presenter.watchProduct(id).listen(
+      (result) {
+        result.fold(
+          (product) => updateState(viewState.copyWith(
+            currentProduct: product,
+            isWatching: false,
+          )),
+          (failure) => updateState(viewState.copyWith(
+            error: failure,
+            isWatching: false,
+          )),
+        );
+      },
+    );
+  }
+
+  @override
+  void onDisposed() {
+    _watchSubscription?.cancel();
+    _presenter.dispose();
+    super.onDisposed();
   }
 }
 ```
 
-### Add New Methods
+### Presenter Regeneration
 
-When you need to add new methods (e.g., `update`, `delete`), regenerate only the business logic:
-
-```bash
-# Add update and delete methods without touching your custom View
-zfa generate Product --methods=get,getList,create,update,delete --pcs --force
-```
-
-This updates:
-- ✅ `product_presenter.dart` - Adds new UseCase calls
-- ✅ `product_controller.dart` - Adds new state management methods
-- ✅ `product_state.dart` - Adds new loading flags
-- ❌ `product_view.dart` - **NOT TOUCHED** - Your custom UI is safe!
-
-### Update State Structure
-
-If you only need to regenerate the state class:
-
-```bash
-zfa generate Product --methods=get,getList,create,update,delete --state --force
-```
-
-## Example: Iterative Development
-
-### Step 1: Initial Generation
-
-```bash
-zfa generate Product --methods=get,getList --repository --data --vpc --state --di
-```
-
-### Step 2: Customize View
+Presenter is updated with new UseCase injections:
 
 ```dart
-// product_view.dart - Add custom UI
-class _ProductViewState extends CleanViewState<ProductView, ProductController> {
-  @override
-  Widget get view {
-    return Scaffold(
-      key: globalKey,
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            title: Text('Products'),
-            // Custom app bar
-          ),
-          ControlledWidgetBuilder<ProductController>(
-            builder: (context, controller) {
-              return SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final product = controller.viewState.productList[index];
-                    return CustomProductCard(product: product);
-                  },
-                  childCount: controller.viewState.productList.length,
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
+// lib/src/presentation/pages/product/product_presenter.dart
+class ProductPresenter extends Presenter {
+  final ProductRepository productRepository;
+
+  late final GetProductUseCase _getProduct;
+  late final GetProductListUseCase _getProductList;
+  // NEW: Added when watch method is added
+  late final WatchProductUseCase _watchProduct;
+
+  ProductPresenter({required this.productRepository}) {
+    _getProduct = registerUseCase(GetProductUseCase(productRepository));
+    _getProductList = registerUseCase(GetProductListUseCase(productRepository));
+    // NEW: Registration for watch method
+    _watchProduct = registerUseCase(WatchProductUseCase(productRepository));
+  }
+
+  Future<Result<Product, AppFailure>> getProduct(String id) {
+    return _getProduct.call(id);
+  }
+
+  Future<Result<List<Product>, AppFailure>> getProductList() {
+    return _getProductList.call(const NoParams());
+  }
+
+  // NEW: Method for watch functionality
+  Stream<Result<Product, AppFailure>> watchProduct(String id) {
+    return _watchProduct.call(id);
   }
 }
 ```
 
-### Step 3: Add Create Method
+### State Regeneration
 
-```bash
-# Add create method - View stays untouched
-zfa generate Product --methods=get,getList,create --pcs --force
-```
-
-### Step 4: Use New Method in View
+When using `--pcs` or `--vpcs`, state is regenerated with new fields:
 
 ```dart
-// product_view.dart - Add FAB to use new create method
-class _ProductViewState extends CleanViewState<ProductView, ProductController> {
-  @override
-  Widget get view {
-    return Scaffold(
-      key: globalKey,
-      body: /* your custom UI */,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showCreateDialog(),
-        child: Icon(Icons.add),
-      ),
+// lib/src/presentation/pages/product/product_state.dart
+@immutable
+class ProductState {
+  final bool isGetting;
+  final bool isGettingList;
+  final bool isCreating;
+  final bool isUpdating;
+  final bool isDeleting;
+  final bool isLoading; // Overall loading state
+  final Product? currentProduct;
+  final List<Product> productList;
+  final AppFailure? error;
+  // NEW: Added when watch method is added
+  final bool isWatching;
+
+  const ProductState({
+    this.isGetting = false,
+    this.isGettingList = false,
+    this.isCreating = false,
+    this.isUpdating = false,
+    this.isDeleting = false,
+    this.isWatching = false, // NEW: Added
+    this.currentProduct,
+    this.productList = const [],
+    this.error,
+  });
+
+  ProductState copyWith({
+    bool? isGetting,
+    bool? isGettingList,
+    bool? isCreating,
+    bool? isUpdating,
+    bool? isDeleting,
+    bool? isWatching, // NEW: Added
+    Product? currentProduct,
+    List<Product>? productList,
+    AppFailure? error,
+  }) {
+    return ProductState(
+      isGetting: isGetting ?? this.isGetting,
+      isGettingList: isGettingList ?? this.isGettingList,
+      isCreating: isCreating ?? this.isCreating,
+      isUpdating: isUpdating ?? this.isUpdating,
+      isDeleting: isDeleting ?? this.isDeleting,
+      isWatching: isWatching ?? this.isWatching, // NEW: Added
+      currentProduct: currentProduct ?? this.currentProduct,
+      productList: productList ?? this.productList,
+      error: error ?? this.error,
     );
   }
-  
-  void _showCreateDialog() {
-    // Show dialog and call controller.createProduct()
-  }
+
+  bool get isLoading =>
+      isGetting || isGettingList || isCreating || isUpdating || isDeleting || isWatching; // NEW: Added
 }
 ```
 
-### Step 5: Add Update and Delete
+## ZFA Patterns and VPC Regeneration
+
+### Entity-Based Pattern
+
+Perfect for evolving entity-based features:
 
 ```bash
-# Add more methods - View still safe
-zfa generate Product --methods=get,getList,create,update,delete --pcs --force
+# Start with basic CRUD
+zfa generate Product --methods=get,getList --vpcs
+
+# Add real-time features
+zfa generate Product --methods=watch,watchList --pcs --force
+
+# Add create/update/delete
+zfa generate Product --methods=create,update,delete --pcs --force
+```
+
+### Single Repository Pattern
+
+Regenerate custom UseCase business logic:
+
+```bash
+# Initial generation
+zfa generate ProcessCheckout --domain=checkout --repo=Checkout --vpc
+
+# Add new functionality
+zfa generate ProcessCheckout --domain=checkout --repo=Checkout --params=NewParams --returns=NewResult --pc --force
+```
+
+### Orchestrator Pattern
+
+Update orchestrated workflows:
+
+```bash
+# Add new composed UseCases
+zfa generate ProcessCheckout --usecases=ValidateCart,CreateOrder,ProcessPayment,SendNotification --pc --force
+```
+
+## Advanced VPC Regeneration
+
+### Using `--force` with VPC
+
+Always use `--force` when regenerating VPC components:
+
+```bash
+# Add new methods to existing VPC
+zfa generate Product --methods=watch --pc --force
+
+# Update state with new loading indicators
+zfa generate Product --methods=watch --pcs --force
+```
+
+### Combining with Other Features
+
+```bash
+# Add caching to existing VPC
+zfa generate Product --methods=get,getList --pcs --cache --force
+
+# Add testing to existing VPC
+zfa generate Product --methods=get,getList --pcs --test --force
+
+# Add DI to existing VPC
+zfa generate Product --methods=get,getList --pcs --di --force
+```
+
+### Preserving Custom Views
+
+The `--pc` and `--pcs` flags are ideal for preserving custom UI:
+
+```bash
+# Your custom View with complex layouts remains untouched
+zfa generate Product --methods=get,getList,create,update --pc --force
+
+# Only regenerate business logic layers
 ```
 
 ## Best Practices
 
-### 1. Always Use `--force` with `--pc`/`--pcs`
+### 1. Progressive Enhancement
 
-Since you're intentionally regenerating, use `--force` to overwrite:
-
-```bash
-zfa generate Product --methods=get,getList,create --pcs --force
-```
-
-### 2. Commit Before Regenerating
-
-Always commit your custom View before regenerating:
+Start simple and add complexity gradually:
 
 ```bash
-git add lib/src/presentation/pages/product/product_view.dart
-git commit -m "feat: custom product view UI"
+# Start with basic operations
+zfa generate Product --methods=get,getList --vpcs
 
-# Now safe to regenerate
-zfa generate Product --methods=get,getList,create --pcs --force
+# Add more operations as needed
+zfa generate Product --methods=watch,watchList --pcs --force
+
+# Add advanced features
+zfa generate Product --methods=create,update,delete --pcs --force
 ```
 
-### 3. Use Version Control
+### 2. Preserve Custom UI
 
-Keep your View in version control so you can always revert if needed:
+Use `--pc` or `--pcs` to preserve custom Views:
 
 ```bash
-# Check what changed
-git diff lib/src/presentation/pages/product/
+# Custom View with complex layout
+zfa generate Product --methods=get,getList --vpc  # Initial generation
 
-# Revert if needed
-git checkout lib/src/presentation/pages/product/product_view.dart
+# Add new features without touching UI
+zfa generate Product --methods=watch --pcs --force  # Regenerates only business logic
 ```
 
-### 4. Separate UI and Logic
+### 3. State Evolution
 
-Keep your View focused on UI only. All business logic should be in the Controller:
+Use `--pcs` when adding new state requirements:
 
-```dart
-// ❌ Bad: Business logic in View
-class _ProductViewState extends CleanViewState<ProductView, ProductController> {
-  void _handleCreate() {
-    if (nameController.text.isEmpty) {
-      // validation logic
-    }
-    final product = Product(name: nameController.text);
-    controller.createProduct(product);
-  }
-}
+```bash
+# Add new loading states
+zfa generate Product --methods=streamOperation --pcs --force
 
-// ✅ Good: Business logic in Controller
-class ProductController extends Controller {
-  Future<void> createProduct(String name) async {
-    if (name.isEmpty) {
-      updateState(viewState.copyWith(error: ValidationFailure('Name required')));
-      return;
-    }
-    // ... rest of logic
-  }
-}
+# New error handling
+zfa generate Product --methods=complexOperation --pcs --force
+```
 
-class _ProductViewState extends CleanViewState<ProductView, ProductController> {
-  void _handleCreate() {
-    controller.createProduct(nameController.text);
-  }
-}
+### 4. Domain-Specific Regeneration
+
+Work within domain boundaries:
+
+```bash
+# Regenerate within checkout domain
+zfa generate ProcessCheckout --domain=checkout --pc --force
+
+# Add to search domain
+zfa generate SearchProduct --domain=search --pcs --force
+```
+
+## Migration from 1.x
+
+### Before (1.x)
+```bash
+# Regeneration affected all layers
+zfa generate Product --methods=get,create --vpc --force
+```
+
+### After (ZFA)
+```bash
+# Granular regeneration preserves custom UI
+zfa generate Product --methods=get,create --pc --force  # Preserves View
+
+# Domain organization
+zfa generate ProcessCheckout --domain=checkout --pc --force
 ```
 
 ## Troubleshooting
 
-### View Was Overwritten
+### View Preservation Issues
 
-If you accidentally used `--vpc` instead of `--pc`:
+If your custom View is being overwritten:
+- Use `--pc` or `--pcs` instead of `--vpc` or `--vpcs`
+- Ensure you're not accidentally regenerating the View layer
 
-```bash
-# Revert the View
-git checkout lib/src/presentation/pages/product/product_view.dart
+### State Inconsistencies
 
-# Use correct flag
-zfa generate Product --methods=get,getList,create --pc --force
-```
+If getting state errors after regeneration:
+- Use `--pcs` to regenerate state along with controller/presenter
+- Check that new state fields are properly initialized
 
-### State Not Updated
+### Missing Methods
 
-If you used `--pc` but need state changes, use `--pcs`:
+If new UseCase methods aren't appearing in regenerated code:
+- Ensure you're using `--force` flag
+- Check that the UseCase files exist and contain the new methods
 
-```bash
-zfa generate Product --methods=get,getList,create,update,delete --pcs --force
-```
+## Next Steps
 
-### Controller Methods Missing
-
-Ensure you include all methods you need:
-
-```bash
-# Include all methods you want in the controller
-zfa generate Product --methods=get,getList,create,update,delete,watch,watchList --pcs --force
-```
+- [UseCase Types](../architecture/usecases) - Detailed VPC architecture and patterns
+- [State Management](../architecture/usecases) - State management patterns
+- [CLI Reference](../cli/commands) - Complete VPC regeneration flags

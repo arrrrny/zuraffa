@@ -140,8 +140,11 @@ class GeneratorConfig {
       return _pascalToCamel('$variantPrefix$name');
     }
 
-    // Default: UseCase name in camelCase
-    return nameCamel;
+    // Default: UseCase name in camelCase, strip "UseCase" suffix
+    final methodName = name.endsWith('UseCase') 
+        ? name.substring(0, name.length - 7) 
+        : name;
+    return _pascalToCamel(methodName);
   }
 
   // Backward compatibility helpers

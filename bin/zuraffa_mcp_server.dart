@@ -213,10 +213,6 @@ class ZuraffaMcpServer {
             },
             'description': 'Methods to generate for entity-based UseCases',
           },
-          'repository': {
-            'type': 'boolean',
-            'description': 'Generate repository interface',
-          },
           'vpc': {
             'type': 'boolean',
             'description':
@@ -514,7 +510,6 @@ class ZuraffaMcpServer {
         cliArgs.add('--methods=${methods.join(',')}');
       }
     }
-    if (args['repository'] == true) cliArgs.add('--repository');
     if (args['vpc'] == true) cliArgs.add('--vpc');
     if (args['state'] == true) cliArgs.add('--state');
     if (args['data'] == true) cliArgs.add('--data');

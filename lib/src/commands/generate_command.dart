@@ -385,7 +385,12 @@ DEPENDENCY INJECTION:
   --di                 Generate DI registration files (get_it)
 
 CUSTOM USECASE:
-  --repos=<list>        Comma-separated repositories to inject
+  --repo=<name>         Repository to inject (single, enforces SRP)
+  --domain=<name>       Domain folder (required for custom UseCases)
+  --method=<name>       Repository method name (default: auto from UseCase name)
+  --append              Append to existing repository/datasources
+  --usecases=<list>     Orchestrator: compose UseCases (comma-separated)
+  --variants=<list>     Polymorphic: generate variants (comma-separated)
   --type=<type>         usecase|stream|background|completable (default: usecase)
   --params=<type>       Params type (default: NoParams)
   --returns=<type>      Return type (default: void)

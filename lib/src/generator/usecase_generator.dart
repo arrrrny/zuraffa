@@ -206,8 +206,12 @@ $executeMethod
   }
 
   Future<GeneratedFile> generateCustom() async {
-    final className = '${config.name}UseCase';
-    final classSnake = StringUtils.camelToSnake(config.name);
+    // Strip "UseCase" suffix if present for cleaner file names
+    final baseName = config.name.endsWith('UseCase') 
+        ? config.name.substring(0, config.name.length - 7)
+        : config.name;
+    final className = '${baseName}UseCase';
+    final classSnake = StringUtils.camelToSnake(baseName);
     final fileName = '${classSnake}_usecase.dart';
 
     final usecasePathParts = <String>[outputDir, 'domain', 'usecases'];
@@ -268,11 +272,21 @@ $executeMethod
 
     String executeMethod;
     if (config.useCaseType == 'stream') {
-      executeMethod = '''
+      if (repoFields.isNotEmpty) {
+        final methodName = config.getRepoMethodName();
+        final repoField = repoFields.first.split(' ').last.replaceAll(';', '');
+        executeMethod = '''
+  @override
+  Stream<$returnsType> execute($paramsType params, CancelToken? cancelToken) {
+    return $repoField.$methodName(params);
+  }''';
+      } else {
+        executeMethod = '''
   @override
   Stream<$returnsType> execute($paramsType params, CancelToken? cancelToken) {
     throw UnimplementedError();
   }''';
+      }
     } else if (config.useCaseType == 'background') {
       executeMethod = '''
   @override

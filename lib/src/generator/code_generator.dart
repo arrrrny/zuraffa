@@ -99,7 +99,7 @@ class CodeGenerator {
           outputDir: outputDir,
           verbose: verbose,
         );
-        final messages = await appender.appendMethod();
+        final appendResult = await appender.appendMethod();
 
         // Generate UseCase file
         if (config.isPolymorphic) {
@@ -114,12 +114,20 @@ class CodeGenerator {
           files.add(file);
         }
 
+        // Add updated files to the main list
+        files.addAll(appendResult.updatedFiles);
+
+        // Add warnings to next steps
+        if (appendResult.warnings.isNotEmpty) {
+          nextSteps.addAll(appendResult.warnings.map((w) => '⚠️  $w'));
+        }
+
         return GeneratorResult(
           name: config.name,
           success: true,
           files: files,
           errors: errors,
-          nextSteps: messages,
+          nextSteps: nextSteps,
         );
       }
 

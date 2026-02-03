@@ -1,6 +1,6 @@
 # Architecture Overview
 
-Zuraffa implements **Clean Architecture** principles with a clear separation of concerns across three main layers. This architecture ensures your code is **testable**, **maintainable**, and **scalable**.
+Zuraffa implements **Clean Architecture** principles with a clear separation of concerns across three main layers. ZFA introduces four powerful patterns for organizing your business logic. This architecture ensures your code is **testable**, **maintainable**, and **scalable**.
 
 ## The Three Layers
 
@@ -27,6 +27,93 @@ Zuraffa implements **Clean Architecture** principles with a clear separation of 
 ### Dependency Rule
 
 **The fundamental rule**: Dependencies always point **inward**. The Domain layer knows nothing about Flutter, databases, or HTTP clients. The Data layer implements interfaces defined by the Domain layer.
+
+## ZFA Patterns
+
+ZFA introduces four distinct patterns for organizing your business logic:
+
+### 1. Entity-Based Pattern
+
+Perfect for standard CRUD operations on domain entities. Automatically generates complete architecture stacks.
+
+```bash
+zfa generate Product \
+  --methods=get,getList,create,update,delete,watch,watchList \
+  --data \
+  --vpc \
+  --state \
+  --test \
+  --cache \
+  --di
+```
+
+**Characteristics:**
+- Generates complete CRUD stack
+- Follows convention-based naming
+- Automatically creates repository, usecases, data layer, and presentation layer
+- Organized by entity type (Product, User, Order, etc.)
+
+### 2. Single Repository Pattern (Recommended)
+
+Best for custom business logic with one repository to enforce Single Responsibility Principle.
+
+```bash
+zfa generate ProcessCheckout \
+  --domain=checkout \
+  --repo=CheckoutRepository \
+  --params=CheckoutRequest \
+  --returns=OrderConfirmation
+```
+
+**Characteristics:**
+- One UseCase, one repository
+- Enforces Single Responsibility Principle
+- Organized by domain concepts
+- Requires `--domain` and `--repo` flags
+
+### 3. Orchestrator Pattern (NEW)
+
+Compose multiple UseCases into complex workflows.
+
+```bash
+# Step 1: Create atomic UseCases
+zfa generate ValidateCart --domain=checkout --repo=Cart --params=CartId --returns=bool
+zfa generate CreateOrder --domain=checkout --repo=Order --params=OrderData --returns=Order
+zfa generate ProcessPayment --domain=checkout --repo=Payment --params=PaymentData --returns=Receipt
+
+# Step 2: Orchestrate them
+zfa generate ProcessCheckout \
+  --domain=checkout \
+  --usecases=ValidateCart,CreateOrder,ProcessPayment \
+  --params=CheckoutRequest \
+  --returns=Order
+```
+
+**Characteristics:**
+- Composes multiple UseCases
+- No direct repository injection
+- Perfect for complex business flows
+- Requires `--usecases`, `--domain`, `--params`, and `--returns`
+
+### 4. Polymorphic Pattern (NEW)
+
+Generate abstract base + concrete variants + factory.
+
+```bash
+zfa generate SparkSearch \
+  --domain=search \
+  --repo=Search \
+  --variants=Barcode,Url,Text \
+  --params=Spark \
+  --returns=Listing \
+  --type=stream
+```
+
+**Characteristics:**
+- Generates abstract base class
+- Creates concrete implementations for each variant
+- Provides factory for runtime switching
+- Requires `--variants`, `--domain`, `--params`, and `--returns`
 
 ## Domain Layer (Pure Dart)
 
@@ -55,7 +142,7 @@ class Product {
   final String id;
   final String name;
   final double price;
-  
+
   const Product({required this.id, required this.name, required this.price});
 }
 
@@ -66,9 +153,9 @@ abstract class ProductRepository {
 
 class GetProductUseCase extends UseCase<Product, String> {
   final ProductRepository _repository;
-  
+
   GetProductUseCase(this._repository);
-  
+
   @override
   Future<Product> execute(String id, CancelToken? cancelToken) async {
     cancelToken?.throwIfCancelled();
@@ -108,9 +195,9 @@ lib/src/data/
 class DataProductRepository implements ProductRepository {
   final ProductDataSource _remoteDataSource;
   final ProductDataSource? _localDataSource;
-  
+
   DataProductRepository(this._remoteDataSource, [this._localDataSource]);
-  
+
   @override
   Future<Product> get(String id) async {
     // Check cache first
@@ -121,12 +208,12 @@ class DataProductRepository implements ProductRepository {
         // Cache miss - fetch from remote
       }
     }
-    
+
     final product = await _remoteDataSource.get(id);
     await _localDataSource?.save(product);
     return product;
   }
-  
+
   @override
   Future<List<Product>> getList() => _remoteDataSource.getList();
 }
@@ -157,9 +244,9 @@ The View is **pure UI** - no business logic, just widgets.
 ```dart
 class ProductView extends CleanView {
   final ProductRepository productRepository;
-  
+
   const ProductView({required this.productRepository});
-  
+
   @override
   State<ProductView> createState() => _ProductViewState(
     ProductController(
@@ -170,7 +257,7 @@ class ProductView extends CleanView {
 
 class _ProductViewState extends CleanViewState<ProductView, ProductController> {
   _ProductViewState(super.controller);
-  
+
   @override
   Widget get view {
     return Scaffold(
@@ -216,17 +303,17 @@ This generates an immutable `ProductState` with:
 ```dart
 class ProductController extends Controller with StatefulController<ProductState> {
   final ProductPresenter _presenter;
-  
+
   ProductController(this._presenter) : super();
-  
+
   @override
   ProductState createInitialState() => const ProductState();
-  
+
   Future<void> loadProducts() async {
     updateState(viewState.copyWith(isGettingList: true));
-    
+
     final result = await _presenter.getProductList();
-    
+
     result.fold(
       (products) => updateState(viewState.copyWith(
         isGettingList: false,
@@ -238,7 +325,7 @@ class ProductController extends Controller with StatefulController<ProductState>
       )),
     );
   }
-  
+
   @override
   void onDisposed() {
     _presenter.dispose();
@@ -262,19 +349,19 @@ Orchestrates UseCases. Contains no state - just business logic coordination.
 ```dart
 class ProductPresenter extends Presenter {
   final ProductRepository productRepository;
-  
+
   late final GetProductUseCase _getProduct;
   late final GetProductListUseCase _getProductList;
-  
+
   ProductPresenter({required this.productRepository}) {
     _getProduct = registerUseCase(GetProductUseCase(productRepository));
     _getProductList = registerUseCase(GetProductListUseCase(productRepository));
   }
-  
+
   Future<Result<Product, AppFailure>> getProduct(String id) {
     return _getProduct.call(id);
   }
-  
+
   Future<Result<List<Product>, AppFailure>> getProductList() {
     return _getProductList.call(const NoParams());
   }
@@ -329,7 +416,16 @@ External Service (API/Database)
 - Could reuse domain in Dart backend
 - Easy to migrate to new frameworks
 
+### 5. Pattern Flexibility
+
+- **Entity-Based**: Perfect for standard CRUD operations
+- **Single Repository**: Enforces Single Responsibility Principle
+- **Orchestrator**: Composes complex workflows from simple operations
+- **Polymorphic**: Handles multiple implementations of the same operation
+
 ## File Organization
+
+ZFA organizes UseCases by domain concepts:
 
 ```
 lib/src/
@@ -340,14 +436,18 @@ lib/src/
 │   ├── repositories/
 │   │   └── product_repository.dart
 │   └── usecases/
-│       └── product/
-│           ├── get_product_usecase.dart
-│           └── get_product_list_usecase.dart
+│       ├── product/          # Entity-based UseCases
+│       │   ├── get_product_usecase.dart
+│       │   └── get_product_list_usecase.dart
+│       ├── checkout/         # Custom domain UseCases
+│       │   └── process_checkout_usecase.dart
+│       └── search/           # Custom domain UseCases
+│           └── search_product_usecase.dart
 ├── data/
 │   ├── data_sources/
 │   │   └── product/
 │   │       ├── product_data_source.dart
-│   │       └── product_remote_data_source.dart
+│       └── product_remote_data_source.dart
 │   └── repositories/
 │       └── data_product_repository.dart
 └── presentation/
@@ -361,6 +461,6 @@ lib/src/
 
 ## Next Steps
 
-- [UseCase Types](./usecases) - Deep dive into each UseCase type
-- [Error Handling](./error-handling) - Result type and AppFailure hierarchy
+- [UseCase Types](./usecases) - Deep dive into each UseCase type and patterns
+- [Result Type](./result-type) - Result type and AppFailure hierarchy
 - [CLI Generation](../cli/commands) - Generate this architecture automatically

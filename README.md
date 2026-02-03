@@ -896,14 +896,30 @@ For complete CLI documentation, see [CLI_GUIDE.md](CLI_GUIDE.md).
 
 Zuraffa includes an MCP (Model Context Protocol) server for seamless integration with AI-powered development environments like Claude Desktop, Cursor, and VS Code.
 
-### Running the MCP Server
+### Installation
+
+**Option 1: From pub.dev (Recommended)**
+```bash
+dart pub global activate zuraffa
+# MCP server is immediately available: zuraffa_mcp_server
+```
+
+**Option 2: Pre-compiled Binary (Fastest)**
+
+Download from [GitHub Releases](https://github.com/arrrrny/zuraffa/releases):
+- macOS ARM64 / x64
+- Linux x64
+- Windows x64
 
 ```bash
-# Compile for faster startup
-dart compile exe bin/zuraffa_mcp_server.dart -o zuraffa_mcp_server
+# macOS/Linux
+chmod +x zuraffa_mcp_server-macos-arm64
+sudo mv zuraffa_mcp_server-macos-arm64 /usr/local/bin/zuraffa_mcp_server
+```
 
-# Run the server
-./zuraffa_mcp_server
+**Option 3: Compile from Source**
+```bash
+dart compile exe bin/zuraffa_mcp_server.dart -o zuraffa_mcp_server
 ```
 
 ### MCP Tools

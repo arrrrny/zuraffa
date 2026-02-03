@@ -1,6 +1,6 @@
 # CLI Commands Reference
 
-The `zfa` CLI provides powerful code generation capabilities for Zuraffa's Clean Architecture. This reference covers all commands, flags, and options.
+The `zfa` CLI provides powerful code generation capabilities for Zuraffa's Clean Architecture. This reference covers all commands, flags, and options for ZFA.
 
 ## Commands Overview
 
@@ -34,7 +34,6 @@ Generate CRUD operations for an entity.
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--methods=<list>` | `-m` | Comma-separated methods to generate |
-| `--repository` | `-r` | Generate repository interface |
 | `--data` | `-d` | Generate data repository + data source |
 | `--datasource` | | Generate data source only |
 
@@ -68,6 +67,7 @@ Generate presentation layer components.
 | Flag | Description |
 |------|-------------|
 | `--vpc` | Generate View + Presenter + Controller |
+| `--vpcs` | Generate View + Presenter + Controller + State |
 | `--pc` | Generate Presenter + Controller only (preserve custom View) |
 | `--pcs` | Generate Presenter + Controller + State (preserve custom View) |
 | `--view` | Generate View only |
@@ -84,21 +84,47 @@ Generate presentation layer components.
 | `--datasource` | Generate DataSource only |
 | `--cache` | Enable caching with dual datasources (remote + local) |
 | `--cache-policy=<policy>` | Cache policy: `daily`, `restart`, `ttl` |
-| `--cache-storage=<storage>` | Local storage: `hive` |
+| `--cache-storage=<storage>` | Local storage: `hive`, `sqlite`, `shared_preferences` |
+| `--ttl=<minutes>` | TTL duration in minutes (default: 1440 = 24 hours) |
 | `--mock` | Generate mock data source with sample data |
 | `--mock-data-only` | Generate only mock data file |
 | `--use-mock` | Use mock datasource in DI instead of remote |
 
-### Custom UseCase Flags
+### Custom UseCase Generation
 
-Create standalone UseCases without an entity.
+ZFA introduces four distinct patterns for custom UseCases:
+
+#### Single Repository Pattern (Recommended)
+Use one UseCase with one repository to enforce Single Responsibility Principle.
 
 | Flag | Description |
 |------|-------------|
-| `--repos=<list>` | Comma-separated repositories to inject |
+| `--repo=<name>` | Single repository to inject (replaces `--repos`) |
+| `--domain=<name>` | **Required** domain folder for organization |
 | `--type=<type>` | UseCase type: `usecase`, `stream`, `background`, `completable` |
 | `--params=<type>` | Params type (default: `NoParams`) |
 | `--returns=<type>` | Return type (default: `void`) |
+
+#### Orchestrator Pattern (NEW)
+Compose multiple UseCases into workflows.
+
+| Flag | Description |
+|------|-------------|
+| `--usecases=<list>` | Comma-separated UseCases to compose |
+| `--domain=<name>` | **Required** domain folder for organization |
+| `--params=<type>` | Params type (required for orchestrators) |
+| `--returns=<type>` | Return type (required for orchestrators) |
+
+#### Polymorphic Pattern (NEW)
+Generate abstract base + concrete variants + factory.
+
+| Flag | Description |
+|------|-------------|
+| `--variants=<list>` | Comma-separated variants for polymorphic pattern |
+| `--repo=<name>` | Repository to inject |
+| `--domain=<name>` | **Required** domain folder for organization |
+| `--params=<type>` | Params type (required for polymorphic) |
+| `--returns=<type>` | Return type (required for polymorphic) |
 
 ### Dependency Injection Flags
 
@@ -119,12 +145,12 @@ Create standalone UseCases without an entity.
 | `--from-json=<file>` | `-j` | Read configuration from JSON file |
 | `--from-stdin` | | Read configuration from stdin (AI-friendly) |
 | `--output=<dir>` | `-o` | Output directory (default: `lib/src`) |
-| `--subdirectory=<dir>` | | Subdirectory for organization |
 | `--format=<type>` | | Output format: `json`, `text` |
 | `--dry-run` | | Preview without writing files |
 | `--force` | | Overwrite existing files |
 | `--verbose` | `-v` | Verbose output |
 | `--quiet` | `-q` | Minimal output (errors only) |
+| `--append` | | Append method to existing repository/datasource files |
 
 ---
 
@@ -167,6 +193,8 @@ zfa initialize [options]
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--entity=<name>` | `Product` | Entity name to create |
+| `--output=<dir>` | `lib/src` | Output directory |
+| `--force` | false | Overwrite existing files |
 
 Creates a complete entity at `lib/src/domain/entities/{entity}/{entity}.dart` with:
 - Common fields (id, name, description, price, etc.)
@@ -174,6 +202,74 @@ Creates a complete entity at `lib/src/domain/entities/{entity}/{entity}.dart` wi
 - Equality operators
 - toString
 - JSON serialization
+
+---
+
+## ZFA Patterns
+
+### Entity-Based Pattern
+
+Perfect for standard CRUD operations on entities:
+
+```bash
+zfa generate Product \
+  --methods=get,getList,create,update,delete,watch,watchList \
+  --data \
+  --vpc \
+  --state \
+  --test \
+  --cache \
+  --di
+```
+
+### Single Repository Pattern
+
+Best for custom business logic with one repository:
+
+```bash
+zfa generate ProcessCheckout \
+  --domain=checkout \
+  --repo=Checkout \
+  --params=CheckoutRequest \
+  --returns=OrderConfirmation
+```
+
+### Orchestrator Pattern
+
+Compose multiple UseCases into complex workflows:
+
+```bash
+# Step 1: Create atomic UseCases
+zfa generate ValidateCart --domain=checkout --repo=Cart --params=CartId --returns=bool
+zfa generate CreateOrder --domain=checkout --repo=Order --params=OrderData --returns=Order
+zfa generate ProcessPayment --domain=checkout --repo=Payment --params=PaymentData --returns=Receipt
+
+# Step 2: Orchestrate them
+zfa generate ProcessCheckout \
+  --domain=checkout \
+  --usecases=ValidateCart,CreateOrder,ProcessPayment \
+  --params=CheckoutRequest \
+  --returns=Order
+```
+
+### Polymorphic Pattern
+
+Generate multiple implementations of the same operation:
+
+```bash
+zfa generate SparkSearch \
+  --domain=search \
+  --repo=Search \
+  --variants=Barcode,Url,Text \
+  --params=Spark \
+  --returns=Listing \
+  --type=stream
+```
+
+This generates:
+- Abstract base class: `SparkSearchUseCase`
+- Concrete implementations: `BarcodeSparkSearchUseCase`, `UrlSparkSearchUseCase`, `TextSparkSearchUseCase`
+- Factory: `SparkSearchUseCaseFactory`
 
 ---
 
@@ -186,12 +282,12 @@ Generate everything needed for a full feature:
 ```bash
 zfa generate Product \
   --methods=get,getList,create,update,delete,watch,watchList \
-  --repository \
   --data \
   --vpc \
   --state \
   --di \
-  --test
+  --test \
+  --cache
 ```
 
 This generates:
@@ -200,14 +296,7 @@ This generates:
 - ✅ Presentation layer (View, Presenter, Controller, State)
 - ✅ Dependency injection setup
 - ✅ Unit tests
-
-### Minimal Setup
-
-Just the essentials:
-
-```bash
-zfa generate Product --methods=get,getList --repository
-```
+- ✅ Caching with dual datasources
 
 ### With Caching
 
@@ -216,20 +305,20 @@ Enable dual datasource caching:
 ```bash
 zfa generate Product \
   --methods=get,getList,create,update,delete \
-  --repository \
   --data \
   --cache \
   --cache-policy=daily \
   --cache-storage=hive
 ```
 
-### Custom UseCase
+### Custom UseCase with Single Repository
 
-Complex business operation:
+Simple business operation:
 
 ```bash
 zfa generate ProcessCheckout \
-  --repos=CartRepository,OrderRepository,PaymentRepository \
+  --domain=checkout \
+  --repo=CheckoutRepository \
   --params=CheckoutRequest \
   --returns=OrderConfirmation
 ```
@@ -240,6 +329,8 @@ CPU-intensive operation on isolate:
 
 ```bash
 zfa generate ProcessImages \
+  --domain=image \
+  --repo=ImageProcessor \
   --type=background \
   --params=ImageBatch \
   --returns=ProcessedImages
@@ -251,8 +342,9 @@ Real-time data:
 
 ```bash
 zfa generate ListenToNotifications \
+  --domain=notification \
+  --repo=NotificationRepository \
   --type=stream \
-  --repos=NotificationRepository \
   --params=UserId \
   --returns=Notification
 ```
@@ -275,7 +367,7 @@ Generate mock data for testing without backend:
 
 ```bash
 # Generate mock datasource with sample data
-zfa generate Product --methods=get,getList --repository --data --mock
+zfa generate Product --methods=get,getList --data --mock
 
 # Use mock in DI for development
 zfa generate Product --methods=get,getList --di --use-mock
@@ -288,9 +380,25 @@ For entities without IDs (app config, user session):
 ```bash
 zfa generate AppConfig \
   --methods=get,watch \
-  --repository \
+  --data \
   --id-field=null
 ```
+
+### Append to Existing Files
+
+Add new methods to existing repositories:
+
+```bash
+zfa generate WatchProduct \
+  --domain=product \
+  --repo=Product \
+  --params=String \
+  --returns=Stream<Product> \
+  --type=stream \
+  --append
+```
+
+This adds the new method to existing Repository, DataRepository, DataSource, and RemoteDataSource files.
 
 ### AI-Friendly JSON Output
 
@@ -298,13 +406,13 @@ For AI agent integration:
 
 ```bash
 # Generate with JSON output
-zfa generate Product --methods=get,getList --repository --format=json
+zfa generate Product --methods=get,getList --data --format=json
 
 # Dry run to preview
 zfa generate Product --methods=get,getList --dry-run --format=json
 
 # From stdin
-echo '{"name":"Product","methods":["get","getList"],"repository":true}' | \
+echo '{"name":"Product","methods":["get","getList"],"data":true}' | \
   zfa generate Product --from-stdin --format=json
 ```
 
@@ -318,7 +426,6 @@ Instead of command-line flags, use JSON configuration:
 {
   "name": "Product",
   "methods": ["get", "getList", "create", "update", "delete"],
-  "repository": true,
   "data": true,
   "vpc": true,
   "state": true,
@@ -326,7 +433,8 @@ Instead of command-line flags, use JSON configuration:
   "test": true,
   "cache": true,
   "cache_policy": "daily",
-  "mock": true
+  "mock": true,
+  "domain": "product"
 }
 ```
 
@@ -342,9 +450,9 @@ zfa generate Product -j config.json
 {
   "name": "string (required)",
   "methods": ["get", "getList", "create", "update", "delete", "watch", "watchList"],
-  "repository": "boolean",
   "data": "boolean",
   "vpc": "boolean",
+  "vpcs": "boolean",
   "pc": "boolean",
   "pcs": "boolean",
   "view": "boolean",
@@ -361,19 +469,53 @@ zfa generate Product -j config.json
   "query_field": "string (default: 'id')",
   "query_field_type": "string",
   "morphy": "boolean",
-  "repos": ["string"],
+  "repo": "string",
+  "usecases": ["string"],
+  "variants": ["string"],
+  "domain": "string (required for custom usecases)",
   "type": "usecase | stream | background | completable",
   "params": "string",
   "returns": "string",
   "cache": "boolean",
   "cache_policy": "daily | restart | ttl",
-  "cache_storage": "hive",
+  "cache_storage": "hive | sqlite | shared_preferences",
+  "ttl": "number (minutes)",
   "mock": "boolean",
   "mock_data_only": "boolean",
   "use_mock": "boolean",
-  "subdirectory": "string"
+  "append": "boolean",
+  "output": "string",
+  "format": "json | text",
+  "dry_run": "boolean",
+  "force": "boolean",
+  "verbose": "boolean",
+  "quiet": "boolean"
 }
 ```
+
+---
+
+## Validation Rules
+
+ZFA enforces strict validation rules:
+
+| UseCase Type | `--domain` | `--repo` | `--usecases` | `--variants` |
+|--------------|------------|----------|--------------|--------------|
+| Entity-based | ❌ Forbidden | ❌ Forbidden | ❌ Forbidden | ❌ Forbidden |
+| Custom | ✅ Required | ✅ Required | ❌ Forbidden | ⚠️ Optional |
+| Orchestrator | ✅ Required | ❌ Forbidden | ✅ Required | ⚠️ Optional |
+| Background | ✅ Required | ⚠️ Optional | ❌ Forbidden | ⚠️ Optional |
+| Polymorphic | ✅ Required | ✅ Required | ❌ Forbidden | ✅ Defines pattern |
+
+### Error Messages
+
+Common validation errors:
+
+- `--domain is required for custom UseCases`: Add `--domain=<name>`
+- `--repo cannot be used with entity-based generation`: Remove `--repo` for entity-based
+- `Cannot use both --repo and --usecases`: Choose one or the other
+- `--params is required for orchestrator UseCases`: Add `--params=<Type>`
+- `--returns is required for orchestrator UseCases`: Add `--returns=<Type>`
 
 ---
 
@@ -393,7 +535,7 @@ zfa generate Product -j config.json
 Preview what will be generated:
 
 ```bash
-zfa generate Product --methods=get,create --repository --dry-run
+zfa generate Product --methods=get,create --data --dry-run
 ```
 
 ### Combine with `--force`
@@ -402,16 +544,27 @@ Regenerate specific parts without affecting others:
 
 ```bash
 # Add watch methods to existing entity
-zfa generate Product --methods=watch,watchList --repository --force
+zfa generate Product --methods=watch,watchList --data --force
 ```
 
-### Organize with Subdirectories
+### Use `--append` for Evolution
+
+Add new methods to existing files without regenerating:
 
 ```bash
-zfa generate Product \
-  --methods=get,getList \
-  --repository \
-  --subdirectory=ecommerce/products
+zfa generate NewFeature --domain=product --repo=Product --append
+```
+
+### Organize by Domain
+
+Use domains to organize custom UseCases:
+
+```bash
+zfa generate SearchProduct \
+  --domain=search \
+  --repo=Product \
+  --params=Query \
+  --returns=List<Product>
 ```
 
 ### Quiet Mode for Scripts
@@ -424,7 +577,7 @@ zfa generate Product --methods=get --quiet || echo "Generation failed"
 
 ## Next Steps
 
-- [Entity Generation](./entity-generation) - Detailed entity generation guide
-- [VPC Generation](./vpc-generation) - Presentation layer patterns
-- [Caching](./caching) - Dual datasource caching setup
-- [Testing](../guides/testing) - Testing generated code
+- [UseCase Types](../architecture/usecases) - Explore all UseCase patterns and ZFA patterns
+- [VPC Generation](../architecture/usecases) - Presentation layer patterns
+- [Caching](../architecture/usecases) - Dual datasource caching setup
+- [Testing](../architecture/usecases) - Testing generated code

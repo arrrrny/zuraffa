@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:path/path.dart' as path;
 import '../models/generator_config.dart';
+import '../models/generated_file.dart';
 import '../utils/string_utils.dart';
 
 class MethodAppender {
@@ -14,12 +15,13 @@ class MethodAppender {
     this.verbose = false,
   });
 
-  Future<List<String>> appendMethod() async {
-    final messages = <String>[];
+  Future<AppendResult> appendMethod() async {
+    final updatedFiles = <GeneratedFile>[];
+    final warnings = <String>[];
 
     if (config.repo == null) {
-      messages.add('⚠️  --append requires --repo flag');
-      return messages;
+      warnings.add('⚠️  --append requires --repo flag');
+      return AppendResult(updatedFiles: updatedFiles, warnings: warnings);
     }
 
     final repoName = config.repo!.endsWith('Repository')
@@ -53,12 +55,20 @@ class MethodAppender {
     if (!repoExists) {
       // Create repository if it doesn't exist
       await _createRepository(repoPath, repoName, methodName, returnSignature, paramsType);
-      messages.add('✓ Created ${repoSnake}_repository.dart');
+      updatedFiles.add(GeneratedFile(
+        path: repoPath,
+        type: 'repository',
+        action: 'created',
+      ));
     } else if (await _appendToRepository(
         repoPath, methodName, returnSignature, paramsType)) {
-      messages.add('✓ Appended to ${repoSnake}_repository.dart');
+      updatedFiles.add(GeneratedFile(
+        path: repoPath,
+        type: 'repository',
+        action: 'updated',
+      ));
     } else {
-      messages.add('⚠️  Failed to append to ${repoSnake}_repository.dart');
+      warnings.add('Failed to append to ${repoSnake}_repository.dart');
     }
 
     // 2. Append to DataRepository
@@ -66,10 +76,13 @@ class MethodAppender {
         outputDir, 'data', 'repositories', 'data_${repoSnake}_repository.dart');
     if (await _appendToDataRepository(
         dataRepoPath, methodName, returnSignature, paramsType, repoSnake)) {
-      messages.add('✓ Appended to data_${repoSnake}_repository.dart');
+      updatedFiles.add(GeneratedFile(
+        path: dataRepoPath,
+        type: 'repository',
+        action: 'updated',
+      ));
     } else {
-      messages.add(
-          '⚠️  DataRepository not found: data_${repoSnake}_repository.dart');
+      warnings.add('DataRepository not found: data_${repoSnake}_repository.dart');
     }
 
     // 3. Append to DataSource interface
@@ -77,10 +90,14 @@ class MethodAppender {
     if (dataSourcePath != null) {
       if (await _appendToDataSource(
           dataSourcePath, methodName, returnSignature, paramsType)) {
-        messages.add('✓ Appended to ${path.basename(dataSourcePath)}');
+        updatedFiles.add(GeneratedFile(
+          path: dataSourcePath,
+          type: 'datasource',
+          action: 'updated',
+        ));
       }
     } else {
-      messages.add('⚠️  DataSource not found for $repoSnake');
+      warnings.add('DataSource not found for $repoSnake');
     }
 
     // 4. Append to RemoteDataSource
@@ -88,22 +105,43 @@ class MethodAppender {
     if (remoteDataSourcePath != null) {
       if (await _appendToRemoteDataSource(
           remoteDataSourcePath, methodName, returnSignature, paramsType)) {
-        messages.add('✓ Appended to ${path.basename(remoteDataSourcePath)}');
+        updatedFiles.add(GeneratedFile(
+          path: remoteDataSourcePath,
+          type: 'datasource',
+          action: 'updated',
+        ));
       }
     } else {
-      messages.add('⚠️  RemoteDataSource not found for $repoSnake');
+      warnings.add('RemoteDataSource not found for $repoSnake');
     }
 
-    // 5. Append to MockDataSource (if exists)
+    // 5. Append to LocalDataSource (if exists)
+    final localDataSourcePath = await _findLocalDataSource(repoSnake);
+    if (localDataSourcePath != null) {
+      if (await _appendToLocalDataSource(
+          localDataSourcePath, methodName, returnSignature, paramsType)) {
+        updatedFiles.add(GeneratedFile(
+          path: localDataSourcePath,
+          type: 'datasource',
+          action: 'updated',
+        ));
+      }
+    }
+
+    // 6. Append to MockDataSource (if exists)
     final mockDataSourcePath = await _findMockDataSource(repoSnake);
     if (mockDataSourcePath != null) {
       if (await _appendToMockDataSource(
           mockDataSourcePath, methodName, returnSignature, paramsType)) {
-        messages.add('✓ Appended to ${path.basename(mockDataSourcePath)}');
+        updatedFiles.add(GeneratedFile(
+          path: mockDataSourcePath,
+          type: 'datasource',
+          action: 'updated',
+        ));
       }
     }
 
-    return messages;
+    return AppendResult(updatedFiles: updatedFiles, warnings: warnings);
   }
 
   Future<bool> _appendToRepository(String filePath, String methodName,
@@ -225,6 +263,32 @@ class MethodAppender {
     return true;
   }
 
+  Future<bool> _appendToLocalDataSource(String filePath, String methodName,
+      String returnSignature, String paramsType) async {
+    final file = File(filePath);
+    if (!file.existsSync()) return false;
+
+    final content = await file.readAsString();
+    final lastBrace = content.lastIndexOf('}');
+    if (lastBrace == -1) return false;
+
+    final isStream = config.useCaseType == 'stream';
+    final methodImpl = '''
+  @override
+  $returnSignature $methodName($paramsType params) ${isStream ? '' : 'async '}{\n    // TODO: Implement local storage $methodName
+    throw UnimplementedError('Implement local storage $methodName');
+  }
+
+''';
+
+    final newContent = content.substring(0, lastBrace) +
+        methodImpl +
+        content.substring(lastBrace);
+
+    await file.writeAsString(newContent);
+    return true;
+  }
+
   Future<String?> _findDataSource(String repoSnake) async {
     // Try direct path first
     final directPath = path.join(outputDir, 'data', 'data_sources', repoSnake,
@@ -251,6 +315,22 @@ class MethodAppender {
     if (config.domain != null) {
       final domainPath = path.join(outputDir, 'data', 'data_sources',
           config.domain, '${repoSnake}_remote_data_source.dart');
+      if (File(domainPath).existsSync()) return domainPath;
+    }
+
+    return null;
+  }
+
+  Future<String?> _findLocalDataSource(String repoSnake) async {
+    // Try direct path first
+    final directPath = path.join(outputDir, 'data', 'data_sources', repoSnake,
+        '${repoSnake}_local_data_source.dart');
+    if (File(directPath).existsSync()) return directPath;
+
+    // Fallback: search in domain folder
+    if (config.domain != null) {
+      final domainPath = path.join(outputDir, 'data', 'data_sources',
+          config.domain, '${repoSnake}_local_data_source.dart');
       if (File(domainPath).existsSync()) return domainPath;
     }
 
@@ -289,4 +369,14 @@ abstract class ${repoName}Repository {
 
     await file.writeAsString(content);
   }
+}
+
+class AppendResult {
+  final List<GeneratedFile> updatedFiles;
+  final List<String> warnings;
+
+  AppendResult({
+    required this.updatedFiles,
+    required this.warnings,
+  });
 }

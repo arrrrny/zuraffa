@@ -19,7 +19,19 @@ class CliLogger {
 
   static void printResult(GeneratorResult result) {
     if (result.success) {
-      print('✅ Generated ${result.files.length} files for ${result.name}');
+      final generatedCount = result.files.where((f) => f.action == 'created').length;
+      final updatedCount = result.files.where((f) => f.action == 'updated').length;
+      
+      final parts = <String>[];
+      if (generatedCount > 0) {
+        parts.add('Generated $generatedCount');
+      }
+      if (updatedCount > 0) {
+        parts.add('updated $updatedCount');
+      }
+      
+      final fileWord = (generatedCount + updatedCount) == 1 ? 'file' : 'files';
+      print('✅ ${parts.join(', ')} $fileWord for ${result.name}');
       print('');
       for (final file in result.files) {
         print('  ${file.action == 'created' ? '✓' : '⟳'} ${file.path}');

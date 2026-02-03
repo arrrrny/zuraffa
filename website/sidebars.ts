@@ -54,6 +54,7 @@ const sidebars: SidebarsConfig = {
         'features/mock-data',
         'features/testing',
         'features/vpc-regeneration',
+        'features/mcp-server',
       ],
     },
   ],
