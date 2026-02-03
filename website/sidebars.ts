@@ -57,6 +57,15 @@ const sidebars: SidebarsConfig = {
         'features/mcp-server',
       ],
     },
+    {
+      type: 'category',
+      label: 'Built on Zuraffa',
+      collapsed: false,
+      items: [
+        'built-on-zuraffa/showcase',
+        'built-on-zuraffa/contributing',
+      ],
+    },
   ],
 
   // But you can create a sidebar manually

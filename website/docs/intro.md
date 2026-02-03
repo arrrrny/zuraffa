@@ -4,17 +4,18 @@
 
 ## Why Zuraffa?
 
-- ✅ **Result Type**: Type-safe error handling with `Result<T, AppFailure>`
-- ✅ **Sealed Failures**: Exhaustive pattern matching for error cases
+- ✅ **Clean Architecture Enforced**: Entity-based,Single (Responsibility) Repository, Orchestrator, and Polymorphic patterns
 - ✅ **UseCase Pattern**: Single-shot, streaming, and background operations
-- ✅ **Controller**: Simple state management with automatic cleanup
-- ✅ **CLI Tool**: Generate boilerplate code with `zfa` command
+- ✅ **State Management Included**: Simple state management with automatic cleanup
+- ✅ **ZFA CLI Tool**: Generate boilerplate code with `zfa` command
 - ✅ **MCP Server**: AI/IDE integration via Model Context Protocol
 - ✅ **Cancellation**: Cooperative cancellation with `CancelToken`
 - ✅ **Fine-grained Rebuilds**: Optimize performance with selective widget updates
 - ✅ **Caching**: Built-in dual datasource pattern with flexible cache policies
-- ✅ **ZFA**: Entity-based, Single Repository, Orchestrator, and Polymorphic patterns
 
+- ✅ **Result Type**: Type-safe error handling with `Result<T, AppFailure>`
+- ✅ **Sealed Failures**: Exhaustive pattern matching for error cases
+- 
 ## ZFA - Complete Clean Architecture Framework
 
 ZFA transforms from a CRUD generator into a **complete Clean Architecture framework** with four powerful patterns:
@@ -25,7 +26,7 @@ Perfect for standard CRUD operations on entities:
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc
 ```
 
-### 2. Single Repository Pattern (Recommended)
+### 2. Single (Responsibility) Repository Pattern (Recommended)
 One UseCase, one repository for focused business logic:
 ```bash
 zfa generate ProcessCheckout --domain=checkout --repo=CheckoutRepository --params=Request --returns=Result
@@ -51,7 +52,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  zuraffa: ^1.16.0
+  zuraffa: ^2.0.0
 ```
 
 Then run:
