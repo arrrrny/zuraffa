@@ -1234,18 +1234,23 @@ result.<span class="function">fold</span>(
             const terminalOutput = document.getElementById("terminal-output");
             const commands = [
                 {
-                    cmd: "zfa generate Product --methods=get,getList,create,update,delete --repository --vpc",
-                    output: "✓ Generated UseCases: GetProductUseCase, GetProductListUseCase, CreateProductUseCase, UpdateProductUseCase, DeleteProductUseCase\n✓ Generated Repository: ProductRepository\n✓ Generated Controller: ProductController\n✓ Generated View: ProductView\n✓ Generated State: ProductState\n\n5 files created in lib/src/product/",
+                    cmd: "zfa generate Product --methods=get,getList,create,update,delete --data --mock --di --cache --test --dry-run",
+                    output: "✅ Generated 20 files for Product\n\n  ⟳ lib/src/domain/repositories/product_repository.dart\n  ✓ lib/src/domain/usecases/product/create_product_usecase.dart\n  ⟳ lib/src/domain/usecases/product/get_product_usecase.dart\n  ✓ lib/src/domain/usecases/product/get_product_list_usecase.dart\n  ✓ lib/src/data/data_sources/product/product_data_source.dart\n  ✓ lib/src/data/data_sources/product/product_remote_data_source.dart\n  ✓ lib/src/data/data_sources/product/product_local_data_source.dart\n  ✓ lib/src/data/repositories/data_product_repository.dart\n  ✓ lib/src/data/mock/product_mock_data.dart\n  ✓ lib/src/data/data_sources/product/product_mock_data_source.dart\n  ✓ test/domain/usecases/product/create_product_usecase_test.dart\n  ⟳ test/domain/usecases/product/get_product_usecase_test.dart\n  ✓ test/domain/usecases/product/get_product_list_usecase_test.dart\n  ✓ lib/src/di/datasources/product_remote_data_source_di.dart\n  ✓ lib/src/di/datasources/product_local_data_source_di.dart\n  ✓ lib/src/di/repositories/product_repository_di.dart\n  ✓ lib/src/di/datasources/product_mock_data_source_di.dart\n  ✓ lib/src/cache/product_cache.dart\n  ⟳ lib/src/cache/daily_cache_policy.dart\n  ⟳ lib/src/cache/timestamp_cache.dart\n\n📝 Next steps:\n   • Implement remote and local data sources for Product\n   • Use ProductMockDataSource for rapid prototyping\n   • Switch to real DataSource implementation when ready\n   • Register repositories with DI container\n   • Run tests: flutter test\n   • Run: dart run build_runner build\n   • Import and call setupDependencies() in your main.dart",
                 },
                 {
-                    cmd: "zfa generate Order --repos=OrderRepo,PaymentRepo --params=OrderRequest --returns=OrderResult",
-                    output: "✓ Generated Custom UseCase: ProcessOrderUseCase\n✓ Generated with repositories: OrderRepo, PaymentRepo\n✓ Generated params: OrderRequest\n✓ Generated returns: OrderResult\n\n1 file created in lib/src/order/",
+                    cmd: "zfa generate ProcessOrder --domain=order --repo=OrderRepository --params=OrderRequest --returns=OrderResult --test --dry-run",
+                    output: "✅ Generated 1 files for ProcessOrder\n\n  ✓ lib/src/domain/usecases/order/process_order_usecase.dart\n  ✓ test/domain/usecases/order/process_order_usecase_test.dart\n\n📝 Next steps:\n   • Implement DataProcessOrderRepository in data layer\n   • Register repositories with DI container\n   • Implement TODO sections in generated usecases",
                 },
                 {
-                    cmd: "zfa --help",
-                    output: 'Zuraffa CLI v1.12.0\n\nUsage: zfa <command> [options]\n\nCommands:\n  generate  Generate Clean Architecture code\n  schema    Get JSON schema for config validation\n  validate  Validate a generation config\n\nRun "zfa <command> --help" for more information on a command.',
+                    cmd: "zfa generate ProcessCheckout --domain=checkout --usecases=ValidateCart,CreateOrder,ProcessPayment --params=CheckoutRequest --returns=Order --dry-run",
+                    output: "✅ Generated 1 files for ProcessCheckout\n\n  ✓ lib/src/domain/usecases/checkout/process_checkout_usecase.dart\n\n📝 Next steps:\n   • Implement DataProcessCheckoutRepository in data layer\n   • Register repositories with DI container\n   • Implement TODO sections in generated usecases",
                 },
+                {
+                    cmd: "zfa -h",
+                    output: "zfa - Zuraffa Code Generator\n\nUSAGE:\n  zfa <command> [options]\n\nCOMMANDS:\n  generate <Name>     Generate code for an entity or custom usecase\n  initialize          Initialize a test entity to quickly try out Zuraffa\n  schema              Output JSON schema for configuration\n  validate <file>     Validate JSON configuration file\n  create              Create architecture folders or pages\n  help                Show this help message\n  version             Show version\n\nEXAMPLES:\n  zfa initialize                          # Create sample Product entity\n  zfa generate Product --methods=get,getList,create --repository --vpc\n  zfa generate ProcessOrder --repo=Order --params=OrderRequest --returns=OrderResult --domain=order\n  echo '{\"name\":\"Product\",\"methods\":[\"get\",\"getList\"]}' | zfa generate Product --from-stdin\n  zfa create\n  zfa create --page user_profile\n\nRun 'zfa initialize --help' for more details on the initialize command.\nRun 'zfa generate --help' for more details on the generate command.\nRun 'zfa create --help' for more details on the create command.",
+                }
             ];
+
 
             let currentCommand = 0;
             let currentLine = 0;

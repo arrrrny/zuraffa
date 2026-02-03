@@ -99,7 +99,7 @@ Use one UseCase with one repository to enforce Single Responsibility Principle.
 
 | Flag | Description |
 |------|-------------|
-| `--repo=<name>` | Single repository to inject (replaces `--repos`) |
+| `--repo=<name>` | Single repository to inject |
 | `--domain=<name>` | **Required** domain folder for organization |
 | `--type=<type>` | UseCase type: `usecase`, `stream`, `background`, `completable` |
 | `--params=<type>` | Params type (default: `NoParams`) |

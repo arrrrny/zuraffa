@@ -1,4 +1,9 @@
 # Changelog
+## [2.0.1] - 2026-02-03
+
+### Chore
+
+Updated examples and docs
 
 ## [2.0.0] - 2026-02-03
 
