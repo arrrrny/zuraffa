@@ -11,6 +11,7 @@ import 'test_generator.dart';
 import 'mock_generator.dart';
 import 'di_generator.dart';
 import 'cache_generator.dart';
+import 'method_appender.dart';
 
 class CodeGenerator {
   final GeneratorConfig config;
@@ -91,6 +92,37 @@ class CodeGenerator {
     final nextSteps = <String>[];
 
     try {
+      // Handle --append mode
+      if (config.appendToExisting) {
+        final appender = MethodAppender(
+          config: config,
+          outputDir: outputDir,
+          verbose: verbose,
+        );
+        final messages = await appender.appendMethod();
+
+        // Generate UseCase file
+        if (config.isPolymorphic) {
+          final polymorphicFiles =
+              await _useCaseGenerator.generatePolymorphic();
+          files.addAll(polymorphicFiles);
+        } else if (config.isOrchestrator) {
+          final file = await _useCaseGenerator.generateOrchestrator();
+          files.add(file);
+        } else {
+          final file = await _useCaseGenerator.generateCustom();
+          files.add(file);
+        }
+
+        return GeneratorResult(
+          name: config.name,
+          success: true,
+          files: files,
+          errors: errors,
+          nextSteps: messages,
+        );
+      }
+
       if (config.generateRepository) {
         final file = await _repositoryGenerator.generate();
         files.add(file);
@@ -101,7 +133,16 @@ class CodeGenerator {
           final file = await _useCaseGenerator.generateForMethod(method);
           files.add(file);
         }
+      } else if (config.isPolymorphic) {
+        // Generate polymorphic UseCases (abstract + variants + factory)
+        final polymorphicFiles = await _useCaseGenerator.generatePolymorphic();
+        files.addAll(polymorphicFiles);
+      } else if (config.isOrchestrator) {
+        // Generate orchestrator UseCase
+        final file = await _useCaseGenerator.generateOrchestrator();
+        files.add(file);
       } else if (config.isCustomUseCase) {
+        // Generate custom UseCase
         final file = await _useCaseGenerator.generateCustom();
         files.add(file);
       }
@@ -196,7 +237,19 @@ class CodeGenerator {
         nextSteps.add('Run tests: flutter test ');
       }
 
-      if (config.generateTest && config.isCustomUseCase) {
+      if (config.generateTest && config.isOrchestrator) {
+        final file = await _testGenerator.generateOrchestrator();
+        files.add(file);
+        nextSteps.add('Run tests: flutter test ');
+      }
+
+      if (config.generateTest && config.isPolymorphic) {
+        final testFiles = await _testGenerator.generatePolymorphic();
+        files.addAll(testFiles);
+        nextSteps.add('Run tests: flutter test ');
+      }
+
+      if (config.generateTest && config.isCustomUseCase && !config.isPolymorphic && !config.isOrchestrator) {
         final file = await _testGenerator.generateCustom();
         files.add(file);
         nextSteps.add('Run tests: flutter test ');

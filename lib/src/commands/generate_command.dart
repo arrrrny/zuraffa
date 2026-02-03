@@ -44,11 +44,17 @@ class GenerateCommand {
       config = GeneratorConfig.fromJson(json, name);
     } else {
       final methodsStr = results['methods'] as String?;
-      final reposStr = results['repos'] as String?;
+      final usecasesStr = results['usecases'] as String?;
+      final variantsStr = results['variants'] as String?;
       config = GeneratorConfig(
         name: name,
         methods: methodsStr?.split(',').map((s) => s.trim()).toList() ?? [],
-        repos: reposStr?.split(',').map((s) => s.trim()).toList() ?? [],
+        repo: results['repo'],
+        usecases: usecasesStr?.split(',').map((s) => s.trim()).toList() ?? [],
+        variants: variantsStr?.split(',').map((s) => s.trim()).toList() ?? [],
+        domain: results['domain'],
+        repoMethod: results['method'],
+        appendToExisting: results['append'] == true,
         generateRepository: results['repository'] == true,
         useCaseType: results['type'],
         paramsType: results['params'],
@@ -80,7 +86,6 @@ class GenerateCommand {
         queryFieldType: results['query-field-type'],
         useMorphy: results['morphy'] == true,
         generateTest: results['test'] == true,
-        subdirectory: results['subdirectory'],
         enableCache: results['cache'] == true,
         cachePolicy: results['cache-policy'] ?? 'daily',
         cacheStorage: results['cache-storage'] ??
@@ -95,20 +100,8 @@ class GenerateCommand {
       );
     }
 
-    // Validate --id-field=null usage
-    if (config.idField == 'null') {
-      final invalidMethods = config.methods
-          .where((method) => method == 'getList' || method == 'watchList')
-          .toList();
-
-      if (invalidMethods.isNotEmpty) {
-        print(
-            '❌ Error: --id-field=null can only be used with get and watch methods, not list methods.');
-        print('   Invalid methods: ${invalidMethods.join(', ')}');
-        print('   Use --id-field=null only with: get, watch');
-        exit(1);
-      }
-    }
+    // ZFA 2.0.0 Validation Rules
+    _validateConfig(config);
 
     final outputDir = results['output'] as String;
     final format = results['format'] as String;
@@ -142,6 +135,127 @@ class GenerateCommand {
     exit(result.success ? 0 : 1);
   }
 
+  void _validateConfig(GeneratorConfig config) {
+    // Rule 1: Entity-based cannot have --domain, --repo, --usecases, --variants
+    if (config.isEntityBased) {
+      if (config.domain != null) {
+        print('❌ Error: --domain cannot be used with entity-based generation');
+        print('   Entity-based UseCases auto-use entity name as domain');
+        exit(1);
+      }
+      if (config.repo != null) {
+        print('❌ Error: --repo cannot be used with entity-based generation');
+        print('   Entity-based UseCases auto-inject ${config.name}Repository');
+        exit(1);
+      }
+      if (config.usecases.isNotEmpty) {
+        print(
+            '❌ Error: --usecases cannot be used with entity-based generation');
+        exit(1);
+      }
+      if (config.variants.isNotEmpty) {
+        print(
+            '❌ Error: --variants cannot be used with entity-based generation');
+        exit(1);
+      }
+    }
+
+    // Rule 2: Custom UseCases require --domain
+    if (config.isCustomUseCase && config.domain == null) {
+      print('❌ Error: --domain is required for custom UseCases');
+      print('');
+      print('Usage:');
+      print(
+          '  zfa generate ${config.name} --domain=<domain> --repo=<Repository> --params=<Type> --returns=<Type>');
+      print('');
+      print('Example:');
+      print(
+          '  zfa generate SearchProduct --domain=search --repo=Product --params=Query --returns=List<Product>');
+      exit(1);
+    }
+
+    // Rule 3: Orchestrator (--usecases) cannot have --repo
+    if (config.isOrchestrator && config.repo != null) {
+      print('❌ Error: Cannot use both --repo and --usecases');
+      print(
+          '   Orchestrators compose UseCases, they don\'t use repositories directly');
+      print('');
+      print('Either:');
+      print('  - Use --repo for repository-based UseCase');
+      print('  - Use --usecases for orchestrator UseCase');
+      exit(1);
+    }
+
+    // Rule 4: Custom non-orchestrator requires --repo (except background)
+    if (config.isCustomUseCase &&
+        !config.isOrchestrator &&
+        config.repo == null &&
+        config.useCaseType != 'background') {
+      print('❌ Error: --repo is required for custom UseCases');
+      print('   (except orchestrators with --usecases or --type=background)');
+      print('');
+      print('Usage:');
+      print(
+          '  zfa generate ${config.name} --domain=${config.domain ?? 'domain'} --repo=<Repository> --params=<Type> --returns=<Type>');
+      exit(1);
+    }
+
+    // Rule 5: Orchestrator requires --params and --returns
+    if (config.isOrchestrator) {
+      if (config.paramsType == null) {
+        print('❌ Error: --params is required for orchestrator UseCases');
+        exit(1);
+      }
+      if (config.returnsType == null) {
+        print('❌ Error: --returns is required for orchestrator UseCases');
+        exit(1);
+      }
+    }
+
+    // Rule 5b: Polymorphic requires --params and --returns
+    if (config.isPolymorphic) {
+      if (config.paramsType == null) {
+        print('❌ Error: --params is required for polymorphic UseCases');
+        print('');
+        print('Usage:');
+        print(
+            '  zfa generate ${config.name} --variants=A,B,C --domain=${config.domain ?? 'domain'} --repo=<Repository> --params=<Type> --returns=<Type>');
+        exit(1);
+      }
+      if (config.returnsType == null) {
+        print('❌ Error: --returns is required for polymorphic UseCases');
+        print('');
+        print('Usage:');
+        print(
+            '  zfa generate ${config.name} --variants=A,B,C --domain=${config.domain ?? 'domain'} --repo=<Repository> --params=<Type> --returns=<Type>');
+        exit(1);
+      }
+    }
+
+    // Rule 6: Validate --id-field=null usage
+    if (config.idField == 'null') {
+      final invalidMethods = config.methods
+          .where((method) => method == 'getList' || method == 'watchList')
+          .toList();
+
+      if (invalidMethods.isNotEmpty) {
+        print(
+            '❌ Error: --id-field=null can only be used with get and watch methods, not list methods.');
+        print('   Invalid methods: ${invalidMethods.join(', ')}');
+        print('   Use --id-field=null only with: get, watch');
+        exit(1);
+      }
+    }
+
+    // Rule 7: Validate UseCase type
+    final validTypes = ['usecase', 'stream', 'background', 'completable'];
+    if (!validTypes.contains(config.useCaseType)) {
+      print('❌ Error: Invalid --type: ${config.useCaseType}');
+      print('   Valid types: ${validTypes.join(', ')}');
+      exit(1);
+    }
+  }
+
   ArgParser _buildArgParser() {
     return ArgParser()
       ..addOption('from-json', abbr: 'j', help: 'JSON configuration file')
@@ -150,7 +264,18 @@ class GenerateCommand {
           abbr: 'm',
           help:
               'Comma-separated methods: get,getList,create,update,delete,watch,watchList')
-      ..addOption('repos', help: 'Comma-separated repositories to inject')
+      ..addOption('repo', help: 'Repository to inject (single)')
+      ..addOption('usecases',
+          help: 'Comma-separated UseCases to compose (orchestrator pattern)')
+      ..addOption('variants',
+          help: 'Comma-separated variants for polymorphic pattern')
+      ..addOption('domain',
+          help: 'Domain folder for custom UseCases (required for custom)')
+      ..addOption('method',
+          help: 'Repository method name (default: auto from UseCase name)')
+      ..addFlag('append',
+          help:
+              'Append method to existing repository and datasources (requires --repo)')
       ..addFlag('repository',
           abbr: 'r', help: 'Generate repository interface', defaultsTo: false)
       ..addFlag('data',
@@ -219,8 +344,6 @@ class GenerateCommand {
           defaultsTo: false)
       ..addFlag('di',
           help: 'Generate dependency injection files', defaultsTo: false)
-      ..addOption('subdirectory',
-          help: 'Subdirectory to organize files (e.g., products, orders)')
       ..addOption('output',
           abbr: 'o', help: 'Output directory', defaultsTo: 'lib/src')
       ..addOption('format',
@@ -283,7 +406,6 @@ VPC LAYER:
   -t, --test            Generate Unit Tests
 
 INPUT/OUTPUT:
-  --subdirectory=<dir>  Subdirectory to organize files (e.g., products, orders)
   -j, --from-json       JSON configuration file
   --from-stdin          Read JSON from stdin
   -o, --output          Output directory (default: lib/src)

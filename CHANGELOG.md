@@ -1,5 +1,120 @@
 # Changelog
 
+## [Unreleased]
+
+### 🚀 Major Release - Clean Architecture Framework
+
+ZFA 2.0.0 transforms from a CRUD generator into a complete Clean Architecture framework with orchestration and polymorphic patterns.
+
+### ⚠️ Breaking Changes
+
+- **`--repos` → `--repo`**: Custom UseCases now accept single repository (enforces Single Responsibility Principle)
+  - Old: `--repos=Cart,Order,Payment`
+  - New: `--repo=Checkout` (one UseCase, one repository)
+- **`--domain` required**: All custom UseCases must specify domain folder
+  - Example: `--domain=search`, `--domain=checkout`
+- **Repository method naming**: UseCase name automatically maps to repository method
+  - `SearchProductUseCase` → `productRepo.searchProduct()`
+  - `ProcessCheckoutUseCase` → `checkoutRepo.processCheckout()`
+
+### ✨ New Features
+
+#### Orchestrator Pattern
+Compose multiple UseCases into workflows:
+```bash
+zfa generate SearchProduct \
+  --usecases=GenerateZiks,ParseZik,DetectCategory \
+  --domain=search \
+  --params=Spark \
+  --returns=Listing
+```
+
+Generates UseCase that injects and orchestrates other UseCases (no repositories).
+
+#### Polymorphic Pattern
+Generate abstract base + concrete variants + factory:
+```bash
+zfa generate SparkSearch \
+  --type=stream \
+  --variants=Barcode,Url,Text \
+  --domain=search \
+  --repo=Search \
+  --params=Spark \
+  --returns=Listing
+```
+
+Generates:
+- Abstract `SparkSearchUseCase`
+- `BarcodeSparkSearchUseCase`, `UrlSparkSearchUseCase`, `TextSparkSearchUseCase`
+- `SparkSearchUseCaseFactory` with runtime type switching
+
+#### Domain Organization
+UseCases organized by domain concept (DDD-style):
+```
+domain/usecases/
+├── product/          # Product domain
+├── search/           # Search domain
+├── checkout/         # Checkout domain
+└── zik/              # Custom domain
+```
+
+### Added
+
+- **`--repo`**: Single repository injection (replaces `--repos`)
+- **`--usecases`**: Comma-separated UseCases for orchestration
+- **`--variants`**: Comma-separated variants for polymorphic pattern
+- **`--domain`**: Required domain folder for custom UseCases
+- **UseCase path resolution**: Convention-based with file search fallback
+- **Automatic import resolution**: Finds and imports composed UseCases
+- **`--append` flag** - Append methods to existing repository/datasource files without regenerating
+  - Automatically finds and updates Repository, DataRepository, DataSource, RemoteDataSource, and MockDataSource
+  - Generates UseCase file and appends method signatures to all related files
+  - Gracefully handles missing files with warning messages
+  - Example: `zfa generate WatchProduct --domain=product --repo=Product --params=String --returns=Stream<Product> --type=stream --append`
+
+### Changed
+- Allow `query-field=null` to disable ID-based queries (use `NoParams` instead)
+- Simplified DI generation - removed UseCase, Presenter, and Controller registration (manual registration recommended)
+- **Removed `--subdirectory` flag** - Use `--domain` instead for organizing custom UseCases
+  - Custom UseCases now create files in `usecases/{domain}/` folder
+  - Example: `--domain=product` creates `usecases/product/watch_product_usecase.dart`
+- **Custom UseCases**: Now require `--domain` and `--repo` (except orchestrators/background)
+- **UseCase organization**: Grouped by domain concept instead of flat structure
+- **Repository method naming**: Auto-matches UseCase name (e.g., `SearchProduct` → `searchProduct()`)
+
+### Fixed
+- DataSource interface now includes `@override` annotations for watch methods
+- Custom UseCases now respect `--domain` flag for folder organization
+
+### Migration Guide (1.x → 2.0.0)
+
+#### Before (1.x)
+```bash
+zfa generate ProcessCheckout --repos=Cart,Order,Payment --params=Request --returns=Order
+```
+
+#### After (2.0.0)
+
+**Option 1: Single Repository (Recommended)**
+```bash
+zfa generate ProcessCheckout --repo=Checkout --domain=checkout --params=Request --returns=Order
+```
+
+**Option 2: Orchestrator Pattern**
+```bash
+# Create atomic UseCases
+zfa generate ValidateCart --repo=Cart --domain=checkout --params=CartId --returns=bool
+zfa generate CreateOrder --repo=Order --domain=checkout --params=OrderData --returns=Order
+zfa generate ProcessPayment --repo=Payment --domain=checkout --params=PaymentData --returns=Receipt
+
+# Orchestrate them
+zfa generate ProcessCheckout \
+  --usecases=ValidateCart,CreateOrder,ProcessPayment \
+  --domain=checkout \
+  --params=CheckoutRequest \
+  --returns=Order
+```
+
 ## [1.16.0] - 2026-02-02
 
 ### Added

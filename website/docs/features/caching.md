@@ -332,7 +332,7 @@ The registrar will include all manual additions:
 
 ### Manual Setup
 
-If you prefer manual setup:
+If you prefer manual setup without `--di`:
 
 ### 1. Add Dependencies
 
@@ -346,26 +346,7 @@ dev_dependencies:
   build_runner: ^2.4.0
 ```
 
-### 2. Initialize Hive
-
-```dart
-// main.dart
-import 'package:hive_ce_flutter/hive_flutter.dart';
-
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize Hive
-  await Hive.initFlutter();
-  
-  // Register adapters
-  Hive.registerAdapter(ProductAdapter());
-  
-  runApp(const MyApp());
-}
-```
-
-### 3. Make Entity Hive-Compatible
+### 2. Make Entity Hive-Compatible
 
 ```dart
 import 'package:hive_ce/hive.dart';
@@ -397,33 +378,38 @@ Generate adapter:
 dart run build_runner build
 ```
 
-### 4. Register with DI
+### 3. Initialize in main.dart
 
 ```dart
-void setupDI() {
-  // Open Hive box
-  final productBox = await Hive.openBox<Product>('products');
+import 'package:hive_ce_flutter/hive_flutter.dart';
+import 'src/cache/index.dart';  // If using --cache --di
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   
-  // Register datasources
-  getIt.registerLazySingleton<ProductDataSource>(
-    () => ProductRemoteDataSource(getIt<HttpClient>()),
-    instanceName: 'remote',
-  );
+  await Hive.initFlutter();
   
-  getIt.registerLazySingleton<ProductDataSource>(
-    () => ProductLocalDataSource(productBox),
-    instanceName: 'local',
-  );
+  // If using automatic generation
+  await initAllCaches();
   
-  // Register repository with caching
-  getIt.registerLazySingleton<ProductRepository>(
-    () => DataProductRepository(
-      getIt<ProductDataSource>(instanceName: 'remote'),
-      localDataSource: getIt<ProductDataSource>(instanceName: 'local'),
-      cachePolicy: DailyCachePolicy(),
-    ),
-  );
+  // Or manual registration
+  Hive.registerAdapter(ProductAdapter());
+  await Hive.openBox<Product>('products');
+  
+  runApp(const MyApp());
 }
+```
+
+### 4. Use in Repository
+
+The repository is already generated with cache support. Just inject the datasources:
+
+```dart
+final repository = DataProductRepository(
+  remoteDataSource,
+  localDataSource: localDataSource,
+  cachePolicy: createTtl30MinutesCachePolicy(), // If using --di
+);
 ```
 
 ## Advanced Patterns

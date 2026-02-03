@@ -35,17 +35,11 @@ class VpcGenerator {
     final fileName = '${entitySnake}_presenter.dart';
 
     final presenterPathParts = <String>[outputDir, 'presentation', 'pages'];
-    if (config.subdirectory != null && config.subdirectory!.isNotEmpty) {
-      presenterPathParts.add(config.subdirectory!);
-    }
     presenterPathParts.add(entitySnake);
     final presenterDirPath = path.joinAll(presenterPathParts);
     final filePath = path.join(presenterDirPath, fileName);
 
-    final relativePath =
-        config.subdirectory != null && config.subdirectory!.isNotEmpty
-            ? '../../../'
-            : '../../';
+    final relativePath = '../../';
 
     final imports = <String>[
       "import 'package:zuraffa/zuraffa.dart';",
@@ -75,12 +69,8 @@ class VpcGenerator {
           useCaseGenerator.getUseCaseInfo(method, entityName, entityCamel);
       final useCaseSnake = StringUtils.camelToSnake(
           useCaseInfo.className.replaceAll('UseCase', ''));
-      final subdirectoryPart =
-          config.subdirectory != null && config.subdirectory!.isNotEmpty
-              ? '/${config.subdirectory!}'
-              : '';
       useCaseImports.add(
-          "import '$relativePath../domain/usecases$subdirectoryPart/$entitySnake/${useCaseSnake}_usecase.dart';");
+          "import '$relativePath../domain/usecases/$entitySnake/${useCaseSnake}_usecase.dart';");
       useCaseFields.add(
           '  late final ${useCaseInfo.className} _${useCaseInfo.fieldName};');
 
@@ -136,10 +126,6 @@ ${presenterMethods.join('\n\n')}
     String relativePath = '../../';
 
     final controllerPathParts = <String>[outputDir, 'presentation', 'pages'];
-    if (config.subdirectory != null && config.subdirectory!.isNotEmpty) {
-      controllerPathParts.add(config.subdirectory!);
-      relativePath += '../';
-    }
 
     controllerPathParts.add(entitySnake);
     final controllerDirPath = path.joinAll(controllerPathParts);
@@ -412,10 +398,6 @@ ${methods.join('\n\n')}
     String relativePath = '../../';
 
     final viewPathParts = <String>[outputDir, 'presentation', 'pages'];
-    if (config.subdirectory != null && config.subdirectory!.isNotEmpty) {
-      relativePath += '../';
-      viewPathParts.add(config.subdirectory!);
-    }
     viewPathParts.add(entitySnake);
     final viewDirPath = path.joinAll(viewPathParts);
     final filePath = path.join(viewDirPath, fileName);

@@ -25,9 +25,6 @@ class StateGenerator {
     final stateName = '${entityName}State';
     final fileName = '${entitySnake}_state.dart';
     final statePathParts = <String>[outputDir, 'presentation', 'pages'];
-    if (config.subdirectory != null && config.subdirectory!.isNotEmpty) {
-      statePathParts.add(config.subdirectory!);
-    }
     statePathParts.add(entitySnake);
     final stateDirPath = path.joinAll(statePathParts);
     final filePath = path.join(stateDirPath, fileName);
@@ -36,15 +33,13 @@ class StateGenerator {
         config.methods.any((m) => ['getList', 'watchList'].contains(m));
 
     final needsEntityField = config.methods
-        .any((m) => ['get', 'watch', 'create' 'update', 'delete'].contains(m));
+        .any((m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m));
 
     final imports = <String>["import 'package:zuraffa/zuraffa.dart';"];
 
     if (needsEntityListField || needsEntityField) {
       final entityPath =
-          config.subdirectory != null && config.subdirectory!.isNotEmpty
-              ? '../../../../domain/entities/$entitySnake/$entitySnake.dart'
-              : '../../../domain/entities/$entitySnake/$entitySnake.dart';
+          '../../../domain/entities/$entitySnake/$entitySnake.dart';
       imports.add("import '$entityPath';");
     }
 
