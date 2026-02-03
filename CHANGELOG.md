@@ -1,4 +1,9 @@
 # Changelog
+## [Unreleased]
+
+### Chore
+
+Updated examples and docs
 
 ## [2.0.0] - 2026-02-03
 
