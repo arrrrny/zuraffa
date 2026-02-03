@@ -18,7 +18,7 @@ Before submitting your app, ensure it:
 
 1. **Fork and Clone**
    ```bash
-   git clone https://github.com/your-username/zuraffa.git
+   git clone https://github.com/arrrrny/zuraffa.git
    cd zuraffa
    ```
 
