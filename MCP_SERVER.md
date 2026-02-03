@@ -4,48 +4,68 @@ The `zuraffa_mcp_server` is a Model Context Protocol (MCP) server that exposes t
 
 ## Installation
 
-The MCP server is included with the `zuraffa` package:
+### Option 1: From pub.dev (Recommended)
 
 ```bash
-# Add the package
-flutter pub add zuraffa
-
-# Activate globally (optional)
+# Activate globally
 dart pub global activate zuraffa
+
+# MCP server is immediately available
+zuraffa_mcp_server
 ```
 
-The MCP server executable is available at:
+The executable is automatically compiled and cached by Dart, providing fast startup times.
+
+### Option 2: Pre-compiled Binary (Fastest)
+
+Download the pre-compiled binary for your platform from [GitHub Releases](https://github.com/arrrrny/zuraffa/releases):
+
+- **macOS ARM64**: `zuraffa_mcp_server-macos-arm64`
+- **macOS x64**: `zuraffa_mcp_server-macos-x64`
+- **Linux x64**: `zuraffa_mcp_server-linux-x64`
+- **Windows x64**: `zuraffa_mcp_server-windows-x64.exe`
 
 ```bash
-# Run from project (compiles every time - may timeout)
-dart run zuraffa:zuraffa_mcp_server
+# macOS/Linux: Make executable
+chmod +x zuraffa_mcp_server-macos-arm64
 
-# Or globally (also compiles every time)
-zuraffa_mcp_server
-
-# RECOMMENDED: Precompile once for faster startup
-dart compile exe bin/zuraffa_mcp_server.dart -o zuraffa_mcp_server
+# Move to PATH (optional)
+sudo mv zuraffa_mcp_server-macos-arm64 /usr/local/bin/zuraffa_mcp_server
 ```
 
-**Important**: Use the precompiled `zuraffa_mcp_server` binary in your MCP client configuration to avoid timeouts during connection. The `dart run` command compiles the package on every invocation, which can cause MCP clients to timeout.
+### Option 3: Compile from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/arrrrny/zuraffa.git
+cd zuraffa
+
+# Compile
+dart compile exe bin/zuraffa_mcp_server.dart -o zuraffa_mcp_server
+
+# Move to PATH (optional)
+sudo mv zuraffa_mcp_server /usr/local/bin/
+```
 
 ## Configuration
 
 ### Claude Desktop
 
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
 ```json
 {
   "mcpServers": {
     "zuraffa": {
-      "command": "zuraffa_mcp_server",
-      "args": ["--morphy"], // Enable Morphy by default for all generations
+      "command": "/usr/local/bin/zuraffa_mcp_server",
+      "args": [],
       "cwd": "/path/to/your/flutter/project"
     }
   }
 }
 ```
+
+**Note**: Use the full path to the binary for reliability. Find it with `which zuraffa_mcp_server`.
 
 ### Cursor / VS Code
 

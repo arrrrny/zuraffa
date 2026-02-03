@@ -54,6 +54,16 @@ const sidebars: SidebarsConfig = {
         'features/mock-data',
         'features/testing',
         'features/vpc-regeneration',
+        'features/mcp-server',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Built on Zuraffa',
+      collapsed: false,
+      items: [
+        'built-on-zuraffa/showcase',
+        'built-on-zuraffa/contributing',
       ],
     },
   ],

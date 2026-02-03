@@ -213,10 +213,6 @@ class ZuraffaMcpServer {
             },
             'description': 'Methods to generate for entity-based UseCases',
           },
-          'repository': {
-            'type': 'boolean',
-            'description': 'Generate repository interface',
-          },
           'vpc': {
             'type': 'boolean',
             'description':
@@ -273,10 +269,37 @@ class ZuraffaMcpServer {
             'type': 'boolean',
             'description': 'Use Morphy-style typed patches',
           },
-          'repos': {
+          'repo': {
+            'type': 'string',
+            'description':
+                'Repository to inject (for custom UseCases) - enforces Single Responsibility Principle',
+          },
+          'usecases': {
             'type': 'array',
             'items': {'type': 'string'},
-            'description': 'Repositories to inject (for custom UseCases)',
+            'description':
+                'UseCases to compose (for orchestrator pattern) - comma-separated list',
+          },
+          'variants': {
+            'type': 'array',
+            'items': {'type': 'string'},
+            'description':
+                'Variants for polymorphic pattern (e.g., Barcode,Url,Text) - generates abstract + variants + factory',
+          },
+          'domain': {
+            'type': 'string',
+            'description':
+                'Domain folder for custom UseCases (required for custom UseCases)',
+          },
+          'method': {
+            'type': 'string',
+            'description':
+                'Repository method name (default: auto-generated from UseCase name)',
+          },
+          'append': {
+            'type': 'boolean',
+            'description':
+                'Append method to existing repository/datasource files without regenerating',
           },
           'params': {
             'type': 'string',
@@ -487,7 +510,6 @@ class ZuraffaMcpServer {
         cliArgs.add('--methods=${methods.join(',')}');
       }
     }
-    if (args['repository'] == true) cliArgs.add('--repository');
     if (args['vpc'] == true) cliArgs.add('--vpc');
     if (args['state'] == true) cliArgs.add('--state');
     if (args['data'] == true) cliArgs.add('--data');
@@ -513,13 +535,23 @@ class ZuraffaMcpServer {
         (args['morphy'] == null && useMorphyByDefault);
     if (useMorphy) cliArgs.add('--morphy');
 
-    // Custom UseCase options
-    if (args['repos'] != null) {
-      final repos = args['repos'] as List;
-      if (repos.isNotEmpty) {
-        cliArgs.add('--repos=${repos.join(',')}');
+    // ZFA 2.0.0 Custom UseCase options
+    if (args['repo'] != null) cliArgs.add('--repo=${args['repo']}');
+    if (args['usecases'] != null) {
+      final usecases = args['usecases'] as List;
+      if (usecases.isNotEmpty) {
+        cliArgs.add('--usecases=${usecases.join(',')}');
       }
     }
+    if (args['variants'] != null) {
+      final variants = args['variants'] as List;
+      if (variants.isNotEmpty) {
+        cliArgs.add('--variants=${variants.join(',')}');
+      }
+    }
+    if (args['domain'] != null) cliArgs.add('--domain=${args['domain']}');
+    if (args['method'] != null) cliArgs.add('--method=${args['method']}');
+    if (args['append'] == true) cliArgs.add('--append');
     if (args['params'] != null) cliArgs.add('--params=${args['params']}');
     if (args['returns'] != null) cliArgs.add('--returns=${args['returns']}');
     if (args['type'] != null) cliArgs.add('--type=${args['type']}');
@@ -539,6 +571,12 @@ class ZuraffaMcpServer {
     if (args['cache_storage'] != null) {
       cliArgs.add('--cache-storage=${args['cache_storage']}');
     }
+
+    // Mock and DI options
+    if (args['mock'] == true) cliArgs.add('--mock');
+    if (args['mock_data_only'] == true) cliArgs.add('--mock-data-only');
+    if (args['use_mock'] == true) cliArgs.add('--use-mock');
+    if (args['di'] == true) cliArgs.add('--di');
 
     // Always use JSON format for parsing
     cliArgs.add('--format=json');

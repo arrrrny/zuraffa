@@ -1,5 +1,190 @@
 # Changelog
 
+## [2.0.0] - 2026-02-03
+
+### 🚀 Major Release - Clean Architecture Framework
+
+ZFA 2.0.0 transforms from a CRUD generator into a complete Clean Architecture framework with orchestration and polymorphic patterns.
+
+### ⚠️ Breaking Changes
+
+- **`--repos` → `--repo`**: Custom UseCases now accept single repository (enforces Single Responsibility Principle)
+  - Old: `--repos=Cart,Order,Payment`
+  - New: `--repo=Checkout` (one UseCase, one repository)
+- **`--domain` required**: All custom UseCases must specify domain folder
+  - Example: `--domain=search`, `--domain=checkout`
+- **Repository method naming**: UseCase name automatically maps to repository method
+  - `SearchProductUseCase` → `productRepo.searchProduct()`
+  - `ProcessCheckoutUseCase` → `checkoutRepo.processCheckout()`
+ - **`--repository` removed**: All entity based operations automaticaly creates the repository. Custom usecases create repository if non existed or add method to the existing repository with`--append` flag
+ 
+
+### ✨ New Features
+
+#### Orchestrator Pattern
+Compose multiple UseCases into workflows:
+```bash
+zfa generate SearchProduct \
+  --usecases=GenerateZiks,ParseZik,DetectCategory \
+  --domain=search \
+  --params=Spark \
+  --returns=Listing
+```
+
+Generates UseCase that injects and orchestrates other UseCases (no repositories).
+
+#### Polymorphic Pattern
+Generate abstract base + concrete variants + factory:
+```bash
+zfa generate SparkSearch \
+  --type=stream \
+  --variants=Barcode,Url,Text \
+  --domain=search \
+  --repo=Search \
+  --params=Spark \
+  --returns=Listing
+```
+
+Generates:
+- Abstract `SparkSearchUseCase`
+- `BarcodeSparkSearchUseCase`, `UrlSparkSearchUseCase`, `TextSparkSearchUseCase`
+- `SparkSearchUseCaseFactory` with runtime type switching
+
+#### Domain Organization
+UseCases organized by domain concept (DDD-style):
+```
+domain/usecases/
+├── product/          # Product domain
+├── search/           # Search domain
+├── checkout/         # Checkout domain
+└── zik/              # Custom domain
+```
+
+### Added
+
+- **`--repo`**: Single repository injection (replaces `--repos`)
+- **`--usecases`**: Comma-separated UseCases for orchestration
+- **`--variants`**: Comma-separated variants for polymorphic pattern
+- **`--domain`**: Required domain folder for custom UseCases
+- **UseCase path resolution**: Convention-based with file search fallback
+- **Automatic import resolution**: Finds and imports composed UseCases
+- **`--append` flag** - Append methods to existing repository/datasource files without regenerating
+  - Automatically finds and updates Repository, DataRepository, DataSource, RemoteDataSource, and MockDataSource
+  - Generates UseCase file and appends method signatures to all related files
+  - Gracefully handles missing files with warning messages
+  - Example: `zfa generate WatchProduct --domain=product --repo=Product --params=String --returns=Stream<Product> --type=stream --append`
+
+### Changed
+- Allow `query-field=null` to disable ID-based queries (use `NoParams` instead)
+- Simplified DI generation - removed UseCase, Presenter, and Controller registration (manual registration recommended)
+- **Removed `--subdirectory` flag** - Use `--domain` instead for organizing custom UseCases
+  - Custom UseCases now create files in `usecases/{domain}/` folder
+  - Example: `--domain=product` creates `usecases/product/watch_product_usecase.dart`
+- **Custom UseCases**: Now require `--domain` and `--repo` (except orchestrators/background)
+- **UseCase organization**: Grouped by domain concept instead of flat structure
+- **Repository method naming**: Auto-matches UseCase name (e.g., `SearchProduct` → `searchProduct()`)
+
+### Fixed
+- DataSource interface now includes `@override` annotations for watch methods
+- Custom UseCases now respect `--domain` flag for folder organization
+
+### Migration Guide (1.x → 2.0.0)
+
+#### Before (1.x)
+```bash
+zfa generate ProcessCheckout --repos=Cart,Order,Payment --params=Request --returns=Order
+```
+
+#### After (2.0.0)
+
+**Option 1: Single Repository (Recommended)**
+```bash
+zfa generate ProcessCheckout --repo=Checkout --domain=checkout --params=Request --returns=Order
+```
+
+**Option 2: Orchestrator Pattern**
+```bash
+# Create atomic UseCases
+zfa generate ValidateCart --repo=Cart --domain=checkout --params=CartId --returns=bool
+zfa generate CreateOrder --repo=Order --domain=checkout --params=OrderData --returns=Order
+zfa generate ProcessPayment --repo=Payment --domain=checkout --params=PaymentData --returns=Receipt
+
+# Orchestrate them
+zfa generate ProcessCheckout \
+  --usecases=ValidateCart,CreateOrder,ProcessPayment \
+  --domain=checkout \
+  --params=CheckoutRequest \
+  --returns=Order
+```
+
+## [1.16.0] - 2026-02-02
+
+### Added
+- **`--query-field=null` Support**: Generate parameterless methods for singleton/global entities
+  - Repository: `Future<T> get()` instead of `Future<T> get(String id)`
+  - UseCase: `UseCase<T, NoParams>` instead of `UseCase<T, QueryParams<String>>`
+  - DataSource, Presenter, Controller all use parameterless signatures
+  - Works with `get`, `watch`, `update`, and `delete` methods
+  - Automatic test generation with `NoParams`
+
+### Changed
+- **Simplified DI Generation**: Removed UseCase, Presenter, and Controller registration
+  - `--di` now only generates DataSource and Repository registration
+  - UseCases handled by Zuraffa's built-in mechanisms
+  - Presenters and Controllers instantiated directly in Views
+  - Cleaner DI with focus on infrastructure concerns only
+- **Conditional List Updates**: Controller methods only update lists when list methods exist
+  - `create` only adds to list if `getList` or `watchList` is generated
+  - `update` only updates list if `getList` or `watchList` is generated
+  - `delete` only removes from list if `getList` or `watchList` is generated
+  - Prevents unnecessary state updates and compilation errors
+
+### Fixed
+- **Query Field Handling**: Fixed `--query-field=null` across all layers
+  - DataSource interface generates parameterless methods
+  - RemoteDataSource implementation matches interface
+  - DataRepository (simple and cached) handle parameterless calls
+  - Controller update method uses direct assignment instead of field comparison
+  - Test generator creates correct mock expectations
+
+## [1.15.0] - 2026-02-02
+
+### Added
+- **Automatic Cache Initialization**: Auto-generated cache files for Hive
+  - `cache/` folder with entity-specific cache init files
+  - `hive_registrar.dart` with `@GenerateAdapters` for all cached entities
+  - `hive_manual_additions.txt` template for nested entities and enums
+  - `timestamp_cache.dart` for cache policy timestamp storage
+  - `initAllCaches()` function that registers adapters and opens all boxes
+  - Automatic index file generation with exports
+- **Cache Policy Generation**: Auto-generated cache policy implementations
+  - Separate files per policy type: `daily_cache_policy.dart`, `app_restart_cache_policy.dart`, `ttl_<N>_minutes_cache_policy.dart`
+  - Full Hive implementation with timestamp box operations
+  - `--ttl=<minutes>` flag for custom TTL duration (default: 1440 = 24 hours)
+- **Mock DataSource Support for Cache**: `--use-mock` now works with `--cache`
+  - Registers mock datasource as remote datasource in cached repositories
+  - Enables full development workflow without backend
+- **Manual Adapter Registration**: `hive_manual_additions.txt` for nested entities
+  - Simple format: `import_path|EntityName`
+  - Auto-merged with cached entities in registrar
+  - Supports enums, nested entities, and custom types
+- **VPCS Flag**: New `--vpcs` flag for complete presentation layer generation
+  - Generates View + Presenter + Controller + State in one command
+  - Shorthand for `--vpc --state`
+
+### Changed
+- **DataRepository Type Safety**: Remote datasource now uses abstract `DataSource` type
+  - Allows easy switching between implementations (remote, mock, etc.)
+  - Example: `final ProductDataSource _remoteDataSource;` instead of `ProductRemoteDataSource`
+- **Enum Mock Data**: Changed from `seed % 3` to `seed % 2` for safer enum value generation
+  - Prevents index errors with enums that have only 2 values
+- **Hive Registrar Import**: Uses `hive_ce_flutter` instead of `hive_ce`
+  - Consistent with Flutter projects
+
+### Fixed
+- **Snake Case Entity Names**: Proper PascalCase conversion in Hive registrar
+  - `category_config` → `CategoryConfig` (not `Category_config`)
+
 ## [1.14.0] - 2026-02-01
 
 ### Added

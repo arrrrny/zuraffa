@@ -5,7 +5,7 @@ import 'commands/validate_command.dart';
 import 'commands/create_command.dart';
 import 'commands/initialize_command.dart';
 
-const version = '1.14.0';
+const version = '2.0.0';
 
 Future<void> run(List<String> args) async {
   if (args.isEmpty) {
@@ -77,7 +77,7 @@ COMMANDS:
 EXAMPLES:
   zfa initialize                          # Create sample Product entity
   zfa generate Product --methods=get,getList,create --repository --vpc
-  zfa generate ProcessOrder --repos=OrderRepo,PaymentRepo --params=OrderRequest --returns=OrderResult
+  zfa generate ProcessOrder --repo=Order --params=OrderRequest --returns=OrderResult --domain=order
   echo '{"name":"Product","methods":["get","getList"]}' | zfa generate Product --from-stdin
   zfa create
   zfa create --page user_profile

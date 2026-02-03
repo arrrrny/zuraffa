@@ -81,9 +81,6 @@ class TestGenerator {
     final projectRoot = outputDir.replaceAll('lib/src', '');
 
     final testPathParts = <String>[projectRoot, 'test', 'domain', 'usecases'];
-    if (config.subdirectory != null && config.subdirectory!.isNotEmpty) {
-      testPathParts.add(config.subdirectory!);
-    }
     testPathParts.add(entitySnake);
     final testDirPath = path.joinAll(testPathParts);
     final filePath = path.join(testDirPath, fileName);
@@ -209,7 +206,7 @@ $testBody
     String failureArrange;
 
     if (method == 'get') {
-      if (config.idField == 'null') {
+      if (config.idField == 'null' || config.queryField == 'null') {
         paramsConstructor = "const NoParams()";
         arrange =
             "when(() => mockRepository.get()).thenAnswer((_) async => $returnConstructor);";
@@ -295,7 +292,7 @@ $testBody
     String failureArrange;
 
     if (method == 'watch') {
-      if (config.idField == 'null') {
+      if (config.idField == 'null' || config.queryField == 'null') {
         paramsConstructor = "NoParams()";
         arrange =
             "when(() => mockRepository.watch()).thenAnswer((_) => Stream.value($returnConstructor));";
@@ -360,14 +357,11 @@ $testBody
     final paramsType = config.paramsType ?? 'NoParams';
     final fileName = '${config.nameSnake}_usecase_test.dart';
 
-    // Construct path: test/domain/usecases/entity_name/...
+    // Construct path: test/domain/usecases/domain/...
     final projectRoot = outputDir.replaceAll('lib/src', '');
     final testPathParts = <String>[projectRoot, 'test', 'domain', 'usecases'];
-    if (config.subdirectory != null && config.subdirectory!.isNotEmpty) {
-      testPathParts.add(config.subdirectory!);
-    }
-    // Add entity subfolder for custom UseCases
-    testPathParts.add(config.nameSnake);
+    // Use domain folder for custom UseCases
+    testPathParts.add(config.effectiveDomain);
 
     final testDirPath = path.joinAll(testPathParts);
     final filePath = path.join(testDirPath, fileName);
@@ -394,18 +388,13 @@ $testBody
     } catch (_) {}
 
     // Import usecase
-    if (config.subdirectory != null) {
-      imports.add(
-          "import 'package:$packageName/src/domain/usecases/${config.subdirectory}/${config.nameSnake}_usecase.dart';");
-    } else {
-      imports.add(
-          "import 'package:$packageName/src/domain/usecases/${config.nameSnake}/${config.nameSnake}_usecase.dart';");
-    }
+    imports.add(
+        "import 'package:$packageName/src/domain/usecases/${config.effectiveDomain}/${config.nameSnake}_usecase.dart';");
 
     final mocks = <String>[];
     final setupMocks = <String>[];
 
-    for (final repo in config.repos) {
+    for (final repo in config.effectiveRepos) {
       final mockName = 'Mock$repo';
       mocks.add('class $mockName extends Mock implements $repo {}');
       setupMocks.add('mock$repo = $mockName();');
@@ -416,12 +405,12 @@ $testBody
           "import 'package:$packageName/src/domain/repositories/${repoSnake}_repository.dart';");
     }
 
-    final setupArgs = config.repos.map((r) => 'mock$r').join(', ');
+    final setupArgs = config.effectiveRepos.map((r) => 'mock$r').join(', ');
     final setupInstantiation = 'useCase = $useCaseName($setupArgs);';
 
     final fields = <String>[];
     fields.add('late $useCaseName useCase;');
-    for (final repo in config.repos) {
+    for (final repo in config.effectiveRepos) {
       fields.add('late Mock$repo mock$repo;');
     }
 
@@ -498,5 +487,232 @@ $testBody
       dryRun: dryRun,
       verbose: verbose,
     );
+  }
+
+  Future<GeneratedFile> generateOrchestrator() async {
+    final useCaseName = '${config.name}UseCase';
+    final fileName = '${config.nameSnake}_usecase_test.dart';
+
+    final projectRoot = outputDir.replaceAll('lib/src', '');
+    final testPathParts = <String>[projectRoot, 'test', 'domain', 'usecases'];
+    testPathParts.add(config.effectiveDomain);
+
+    final testDirPath = path.joinAll(testPathParts);
+    final filePath = path.join(testDirPath, fileName);
+
+    final imports = <String>[
+      "import 'package:flutter_test/flutter_test.dart';",
+      "import 'package:mocktail/mocktail.dart';",
+      "import 'package:zuraffa/zuraffa.dart';",
+    ];
+
+    String packageName = 'your_app';
+    try {
+      final pubspecFile = File(path.join(projectRoot, 'pubspec.yaml'));
+      if (pubspecFile.existsSync()) {
+        final lines = pubspecFile.readAsLinesSync();
+        for (final line in lines) {
+          if (line.trim().startsWith('name:')) {
+            packageName = line.split(':')[1].trim();
+            break;
+          }
+        }
+      }
+    } catch (_) {}
+
+    imports.add(
+        "import 'package:$packageName/src/domain/usecases/${config.effectiveDomain}/${config.nameSnake}_usecase.dart';");
+
+    final mocks = <String>[];
+    final setupMocks = <String>[];
+
+    for (final usecase in config.usecases) {
+      final mockName = 'Mock${usecase}UseCase';
+      mocks.add('class $mockName extends Mock implements ${usecase}UseCase {}');
+      setupMocks.add('mock${usecase}UseCase = $mockName();');
+
+      final usecaseSnake = StringUtils.camelToSnake(usecase);
+      imports.add(
+          "import 'package:$packageName/src/domain/usecases/$usecaseSnake/${usecaseSnake}_usecase.dart';");
+    }
+
+    final setupArgs = config.usecases.map((u) => 'mock${u}UseCase').join(', ');
+    final setupInstantiation = 'useCase = $useCaseName($setupArgs);';
+
+    final fields = <String>['late $useCaseName useCase;'];
+    for (final usecase in config.usecases) {
+      fields.add('late Mock${usecase}UseCase mock${usecase}UseCase;');
+    }
+
+    final paramsType = config.paramsType ?? 'NoParams';
+    final callArgs = paramsType == 'NoParams' ? 'const NoParams()' : 'params';
+
+    final content = '''
+// Generated by zfa
+// Test for $useCaseName
+
+${imports.join('\n')}
+
+${mocks.join('\n')}
+
+void main() {
+  ${fields.join('\n  ')}
+
+  setUp(() {
+    ${setupMocks.join('\n    ')}
+    $setupInstantiation
+  });
+
+  group('$useCaseName', () {
+    test('should orchestrate all usecases', () async {
+      // Arrange
+      // TODO: Mock returns from child usecases
+
+      // Act
+      final result = await useCase($callArgs);
+
+      // Assert
+      expect(result, isA<Success>());
+    });
+  });
+}
+''';
+
+    return FileUtils.writeFile(
+      filePath,
+      content,
+      'test',
+      force: force,
+      dryRun: dryRun,
+      verbose: verbose,
+    );
+  }
+
+  Future<List<GeneratedFile>> generatePolymorphic() async {
+    final files = <GeneratedFile>[];
+    final projectRoot = outputDir.replaceAll('lib/src', '');
+    final testPathParts = <String>[projectRoot, 'test', 'domain', 'usecases'];
+    testPathParts.add(config.effectiveDomain);
+    final testDirPath = path.joinAll(testPathParts);
+
+    String packageName = 'your_app';
+    try {
+      final pubspecFile = File(path.join(projectRoot, 'pubspec.yaml'));
+      if (pubspecFile.existsSync()) {
+        final lines = pubspecFile.readAsLinesSync();
+        for (final line in lines) {
+          if (line.trim().startsWith('name:')) {
+            packageName = line.split(':')[1].trim();
+            break;
+          }
+        }
+      }
+    } catch (_) {}
+
+    for (final variant in config.variants) {
+      final className = '${config.name}${variant}UseCase';
+      final classSnake = StringUtils.camelToSnake('${config.name}$variant');
+      final fileName = '${classSnake}_usecase_test.dart';
+      final filePath = path.join(testDirPath, fileName);
+
+      final imports = <String>[
+        "import 'package:flutter_test/flutter_test.dart';",
+        "import 'package:mocktail/mocktail.dart';",
+        "import 'package:zuraffa/zuraffa.dart';",
+        "import 'package:$packageName/src/domain/usecases/${config.effectiveDomain}/${classSnake}_usecase.dart';",
+      ];
+
+      final mocks = <String>[];
+      final setupMocks = <String>[];
+
+      if (config.repo != null) {
+        final repoName = '${config.repo}Repository';
+        final mockName = 'Mock$repoName';
+        mocks.add('class $mockName extends Mock implements $repoName {}');
+        setupMocks.add('mock$repoName = $mockName();');
+
+        final repoSnake =
+            StringUtils.camelToSnake(config.repo!.replaceAll('Repository', ''));
+        imports.add(
+            "import 'package:$packageName/src/domain/repositories/${repoSnake}_repository.dart';");
+      }
+
+      final setupArgs =
+          config.repo != null ? 'mock${config.repo}Repository' : '';
+      final setupInstantiation = 'useCase = $className($setupArgs);';
+
+      final fields = <String>['late $className useCase;'];
+      if (config.repo != null) {
+        fields.add(
+            'late Mock${config.repo}Repository mock${config.repo}Repository;');
+      }
+
+      final paramsType = config.paramsType ?? 'NoParams';
+      final callArgs = paramsType == 'NoParams' ? 'const NoParams()' : 'params';
+
+      String testBody;
+      if (config.useCaseType == 'stream') {
+        testBody = '''
+    test('should emit values from stream', () async {
+      // Arrange
+      // TODO: Mock stream return from repository
+
+      // Act
+      final result = useCase($callArgs);
+
+      // Assert
+      await expectLater(
+        result,
+        emits(isA<Success>()),
+      );
+    });''';
+      } else {
+        testBody = '''
+    test('should return Success', () async {
+      // Arrange
+      // TODO: Mock return from repository
+
+      // Act
+      final result = await useCase($callArgs);
+
+      // Assert
+      expect(result, isA<Success>());
+    });''';
+      }
+
+      final content = '''
+// Generated by zfa
+// Test for $className
+
+${imports.join('\n')}
+
+${mocks.join('\n')}
+
+void main() {
+  ${fields.join('\n  ')}
+
+  setUp(() {
+    ${setupMocks.join('\n    ')}
+    $setupInstantiation
+  });
+
+  group('$className', () {
+$testBody
+  });
+}
+''';
+
+      final file = await FileUtils.writeFile(
+        filePath,
+        content,
+        'test',
+        force: force,
+        dryRun: dryRun,
+        verbose: verbose,
+      );
+      files.add(file);
+    }
+
+    return files;
   }
 }

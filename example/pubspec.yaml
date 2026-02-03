@@ -1,9 +1,9 @@
 name: example
-description: Example app demonstrating Zuraffa v7 API.
+description: Example app demonstrating Zuraffa.
 
 publish_to: none
 
-version: 1.14.0
+version: 2.0.0
 
 environment:
   sdk: ">=3.0.0 <4.0.0"

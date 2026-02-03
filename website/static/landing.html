@@ -333,7 +333,6 @@
             filter: brightness(0) saturate(100%) invert(26%) sepia(99%) saturate(5837%) hue-rotate(55deg) brightness(102%) contrast(103%);
         }
 
-        /* Giraffe tooltip */
         .giraffe-tooltip {
             position: fixed;
             bottom: 20px;
@@ -363,10 +362,15 @@
             margin-right: 0.5rem;
         }
 
-        /* Features Section */
-        .features {
+        /* CLI Demo Section */
+        .cli-demo {
             padding: var(--spacing-xl) var(--spacing-md);
             position: relative;
+        }
+
+        .cli-demo-content {
+            max-width: 900px;
+            margin: 0 auto;
         }
 
         .section-label {
@@ -387,11 +391,115 @@
             line-height: 1;
         }
 
+        .terminal {
+            background: var(--color-code-bg);
+            border: 2px solid var(--color-border);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .terminal-header {
+            background: rgba(255, 255, 255, 0.03);
+            padding: var(--spacing-sm) var(--spacing-md);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .terminal-title {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            color: var(--color-text-dim);
+        }
+
+        .terminal-dots {
+            display: flex;
+            gap: 8px;
+        }
+
+        .terminal-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .terminal-dot:nth-child(1) {
+            background: #ff5f56;
+        }
+
+        .terminal-dot:nth-child(2) {
+            background: #ffbd2e;
+        }
+
+        .terminal-dot:nth-child(3) {
+            background: #27c93f;
+        }
+
+        .terminal-body {
+            padding: var(--spacing-md);
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            min-height: 300px;
+            overflow-y: auto;
+        }
+
+        .terminal-line {
+            margin-bottom: 0.5rem;
+            display: flex;
+            opacity: 0;
+            animation: fadeIn 0.3s ease forwards;
+        }
+
+        .terminal-prompt {
+            color: var(--color-accent);
+            margin-right: 0.5rem;
+            white-space: nowrap;
+        }
+
+        .terminal-command {
+            color: var(--color-text);
+        }
+
+        .terminal-output {
+            color: var(--color-text-dim);
+            white-space: pre-wrap;
+        }
+
+        .terminal-cursor {
+            display: inline-block;
+            width: 10px;
+            height: 18px;
+            background: var(--color-accent);
+            animation: blink 1s step-end infinite;
+            margin-left: 2px;
+        }
+
+        /* Features Section */
+        .features {
+            padding: var(--spacing-xl) var(--spacing-md);
+            position: relative;
+        }
+
+        .decoration-line {
+            position: absolute;
+            top: 0;
+            left: 10%;
+            right: 10%;
+            height: 1px;
+            background: linear-gradient(90deg,
+                    transparent,
+                    var(--color-accent),
+                    transparent);
+        }
+
         .features-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: var(--spacing-md);
             position: relative;
+            margin-top: var(--spacing-xl);
         }
 
         .feature-card {
@@ -559,104 +667,32 @@
             color: #d4d4d4;
         }
 
-        .code-window-body .keyword {
+        .keyword {
             color: #c586c0;
         }
 
-        .code-window-body .class {
+        .class {
             color: #4ec9b0;
         }
 
-        .code-window-body .function {
+        .function {
             color: #dcdcaa;
         }
 
-        .code-window-body .string {
+        .string {
             color: #ce9178;
         }
 
-        .code-window-body .comment {
+        .comment {
             color: #6a9955;
         }
 
-        .code-window-body .type {
+        .type {
             color: #4ec9b0;
         }
 
-        .code-window-body .variable {
+        .variable {
             color: #9cdcfe;
-        }
-
-        /* CLI Demo Section */
-        .cli-demo {
-            padding: var(--spacing-xl) var(--spacing-md);
-            position: relative;
-        }
-
-        .cli-demo-content {
-            max-width: 900px;
-            margin: 0 auto;
-        }
-
-        .terminal {
-            background: var(--color-code-bg);
-            border: 2px solid var(--color-border);
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-        }
-
-        .terminal-header {
-            background: rgba(255, 255, 255, 0.03);
-            padding: var(--spacing-sm) var(--spacing-md);
-            border-bottom: 1px solid var(--color-border);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .terminal-title {
-            font-family: var(--font-mono);
-            font-size: 0.875rem;
-            color: var(--color-text-dim);
-        }
-
-        .terminal-body {
-            padding: var(--spacing-md);
-            font-family: var(--font-mono);
-            font-size: 0.875rem;
-            min-height: 300px;
-        }
-
-        .terminal-line {
-            margin-bottom: 0.5rem;
-            display: flex;
-            opacity: 0;
-            animation: fadeIn 0.3s ease forwards;
-        }
-
-        .terminal-prompt {
-            color: var(--color-accent);
-            margin-right: 0.5rem;
-            white-space: nowrap;
-        }
-
-        .terminal-command {
-            color: var(--color-text);
-        }
-
-        .terminal-output {
-            color: var(--color-text-dim);
-            white-space: pre-wrap;
-        }
-
-        .terminal-cursor {
-            display: inline-block;
-            width: 10px;
-            height: 18px;
-            background: var(--color-accent);
-            animation: blink 1s step-end infinite;
-            margin-left: 2px;
         }
 
         /* Footer */
@@ -916,7 +952,6 @@
                 <span style="color: var(--color-accent)">Seconds</span>
             </h2>
             <p style="
-                        color: var(--color-text-dim);
                         margin-bottom: var(--spacing-md);
                         max-width: 600px;
                     ">
@@ -928,18 +963,17 @@
             <div class="terminal animate-on-scroll">
                 <div class="terminal-header">
                     <span class="terminal-title">zfa — Terminal</span>
-                    <div style="display: flex; gap: 4px">
-                        <div class="code-window-dot"></div>
-                        <div class="code-window-dot"></div>
-                        <div class="code-window-dot"></div>
+                    <div class="terminal-dots">
+                        <div class="terminal-dot"></div>
+                        <div class="terminal-dot"></div>
+                        <div class="terminal-dot"></div>
                     </div>
                 </div>
                 <div class="terminal-body" id="terminal-output">
                     <div class="terminal-line">
                         <span class="terminal-prompt">$</span>
-                        <span class="terminal-command">zfa generate Product
-                            --methods=get,getList,create,update,delete
-                            --repository --vpc</span>
+                        <span class="terminal-command">zfa generate Product --methods=get,getList,create,update,delete --data --mock --di --cache --test --dry-run</span>
+                        <span class="terminal-cursor"></span>
                     </div>
                 </div>
             </div>
@@ -1024,8 +1058,7 @@ result.<span class="function">fold</span>(
                 style="text-decoration: none; color: inherit;">
                 <svg class="feature-icon" viewBox="0 0 48 48">
                     <path
-                        d="M38 6H10c-2.2 0-4 1.8-4 4v28c0 2.2 1.8 4 4 4h28c2.2 0 4-1.8 4-4V10c0-2.2-1.8-4-4-4zm-2 28H12V12h24v22z" />
-                    <path d="M16 16h8v8h-8zM26 16h8v8h-8zM16 26h8v8h-8zM26 26h8v8h-8z" />
+                        d="M38 6H10c-2.2 0-4 1.8-4 4v28c0 2.2 1.8 4 4 4h28c2.2 0 4-1.8 4-4V10c0-2.2-1.8-4-4-4zm0 4l14 7-14 7-14-7 14-7zm-16 9.8l14 7v16.4l-14-7V17.8zm32 0v16.4l-14 7v-16.4l14-7z" />
                 </svg>
                 <h3 class="feature-title">UseCase Patterns</h3>
                 <p class="feature-description">
@@ -1033,21 +1066,6 @@ result.<span class="function">fold</span>(
                     pattern, infinite possibilities for your business logic.
                 </p>
                 <span class="feature-tag">FLEXIBLE</span>
-            </a>
-
-            <a href="docs/architecture/result-type" class="feature-card animate-on-scroll"
-                style="text-decoration: none; color: inherit;">
-                <svg class="feature-icon" viewBox="0 0 48 48">
-                    <path
-                        d="M24 4C12.95 4 4 12.95 4 24s8.95 20 20 20 20-8.95 20-20S35.05 4 24 4zm0 36c-8.82 0-16-7.18-16-16S15.18 8 24 8s16 7.18 16 16-7.18 16-16 16z" />
-                    <path d="M22 14h4v12h-4zM22 30h4v4h-4z" />
-                </svg>
-                <h3 class="feature-title">AppFailure</h3>
-                <p class="feature-description">
-                    Comprehensive sealed hierarchy for every error scenario.
-                    Network, validation, server—handle them all elegantly.
-                </p>
-                <span class="feature-tag">COMPREHENSIVE</span>
             </a>
 
             <a href="docs/cli/commands" class="feature-card animate-on-scroll"
@@ -1080,7 +1098,7 @@ result.<span class="function">fold</span>(
                 <span class="feature-tag">EFFORTLESS</span>
             </a>
 
-            <a href="docs/features/vpc-regeneration" class="feature-card animate-on-scroll"
+            <a href="docs/features/mcp-server" class="feature-card animate-on-scroll"
                 style="text-decoration: none; color: inherit;">
                 <svg class="feature-icon" viewBox="0 0 48 48">
                     <path
@@ -1093,18 +1111,58 @@ result.<span class="function">fold</span>(
                 </p>
                 <span class="feature-tag">INNOVATIVE</span>
             </a>
+
+            <a href="docs/features/mock-data" class="feature-card animate-on-scroll"
+                style="text-decoration: none; color: inherit;">
+                <svg class="feature-icon" viewBox="0 0 48 48">
+                    <path d="M24 4L4 14v20l20 10 20-10V14L24 4zm0 4l14 7-14 7-14-7 14-7zm-16 9.8l14 7v16.4l-14-7V17.8zm32 0v16.4l-14 7v-16.4l14-7z" />
+                </svg>
+                <h3 class="feature-title">Mocking</h3>
+                <p class="feature-description">
+                    Generate realistic mock data for development and testing.
+                    Work without backend services, prototype quickly.
+                </p>
+                <span class="feature-tag">OFFLINE</span>
+            </a>
+
+            <a href="docs/features/caching" class="feature-card animate-on-scroll"
+                style="text-decoration: none; color: inherit;">
+                <svg class="feature-icon" viewBox="0 0 48 48">
+                    <path d="M24 4C12.95 4 4 12.95 4 24s8.95 20 20 20 20-8.95 20-20S35.05 4 24 4zm0 36c-8.82 0-16-7.18-16-16S15.18 8 24 8s16 7.18 16 16-7.18 16-16 16z" />
+                    <path d="M22 14h4v12h-4zM22 30h4v4h-4z" />
+                </svg>
+                <h3 class="feature-title">Caching</h3>
+                <p class="feature-description">
+                    Dual datasource pattern with configurable cache policies.
+                    Offline-first with automatic sync strategies.
+                </p>
+                <span class="feature-tag">PERFORMANCE</span>
+            </a>
+
+            <a href="docs/features/dependency-injection" class="feature-card animate-on-scroll"
+                style="text-decoration: none; color: inherit;">
+                <svg class="feature-icon" viewBox="0 0 48 48">
+                    <path d="M8 4h32v4H8zM8 12h32v4H8zM8 20h32v4H8zM8 28h32v4H8zM8 36h32v4H8z" />
+                </svg>
+                <h3 class="feature-title">Dependency Injection</h3>
+                <p class="feature-description">
+                    Automated DI setup with get_it. Clean separation of
+                    concerns, easy testing, and flexible composition.
+                </p>
+                <span class="feature-tag">ORGANIZED</span>
+            </a>
         </div>
     </section>
+
     <!-- Footer -->
     <footer>
         <div>
             <h3>Zuraffa</h3>
             <p>
-                Architecture for the discerning developer. Built with love
+                Architecture for the discerning developer. Built with 🔥 and AI
                 for the Flutter community.
             </p>
         </div>
-
         <div class="footer-links">
             <div>
                 <ul>
@@ -1166,21 +1224,24 @@ result.<span class="function">fold</span>(
         const terminalOutput = document.getElementById("terminal-output");
         const commands = [
             {
-                cmd: "zfa generate Product --methods=get,getList,create,update,delete --repository --vpc",
-                output: "✓ Generated UseCases: GetProductUseCase, GetProductListUseCase, CreateProductUseCase, UpdateProductUseCase, DeleteProductUseCase\n✓ Generated Repository: ProductRepository\n✓ Generated Controller: ProductController\n✓ Generated View: ProductView\n✓ Generated State: ProductState\n\n5 files created in lib/src/product/",
+                cmd: "zfa generate Product --methods=get,getList,create,update,delete --data --mock --di --cache --test --dry-run",
+                output: "✅ Generated 20 files for Product\n\n  ⟳ lib/src/domain/repositories/product_repository.dart\n  ✓ lib/src/domain/usecases/product/create_product_usecase.dart\n  ⟳ lib/src/domain/usecases/product/get_product_usecase.dart\n  ✓ lib/src/domain/usecases/product/get_product_list_usecase.dart\n  ✓ lib/src/data/data_sources/product/product_data_source.dart\n  ✓ lib/src/data/data_sources/product/product_remote_data_source.dart\n  ✓ lib/src/data/data_sources/product/product_local_data_source.dart\n  ✓ lib/src/data/repositories/data_product_repository.dart\n  ✓ lib/src/data/mock/product_mock_data.dart\n  ✓ lib/src/data/data_sources/product/product_mock_data_source.dart\n  ✓ test/domain/usecases/product/create_product_usecase_test.dart\n  ⟳ test/domain/usecases/product/get_product_usecase_test.dart\n  ✓ test/domain/usecases/product/get_product_list_usecase_test.dart\n  ✓ lib/src/di/datasources/product_remote_data_source_di.dart\n  ✓ lib/src/di/datasources/product_local_data_source_di.dart\n  ✓ lib/src/di/repositories/product_repository_di.dart\n  ✓ lib/src/di/datasources/product_mock_data_source_di.dart\n  ✓ lib/src/cache/product_cache.dart\n  ⟳ lib/src/cache/daily_cache_policy.dart\n  ⟳ lib/src/cache/timestamp_cache.dart\n\n📝 Next steps:\n   • Implement remote and local data sources for Product\n   • Use ProductMockDataSource for rapid prototyping\n   • Switch to real DataSource implementation when ready\n   • Register repositories with DI container\n   • Run tests: flutter test\n   • Run: dart run build_runner build\n   • Import and call setupDependencies() in your main.dart",
             },
             {
-                cmd: "zfa generate Order --repos=OrderRepo,PaymentRepo --params=OrderRequest --returns=OrderResult",
-                output: "✓ Generated Custom UseCase: ProcessOrderUseCase\n✓ Generated with repositories: OrderRepo, PaymentRepo\n✓ Generated params: OrderRequest\n✓ Generated returns: OrderResult\n\n1 file created in lib/src/order/",
+                cmd: "zfa generate ProcessOrder --domain=order --repo=OrderRepository --params=OrderRequest --returns=OrderResult --test --dry-run",
+                output: "✅ Generated 1 files for ProcessOrder\n\n  ✓ lib/src/domain/usecases/order/process_order_usecase.dart\n  ✓ test/domain/usecases/order/process_order_usecase_test.dart\n\n📝 Next steps:\n   • Implement DataProcessOrderRepository in data layer\n   • Register repositories with DI container\n   • Implement TODO sections in generated usecases",
             },
             {
-                cmd: "zfa --help",
-                output: 'Zuraffa CLI v1.14.0\n\nUsage: zfa <command> [options]\n\nCommands:\n  generate  Generate Clean Architecture code\n  schema    Get JSON schema for config validation\n  validate  Validate a generation config\n\nRun "zfa <command> --help" for more information on a command.',
+                cmd: "zfa generate ProcessCheckout --domain=checkout --usecases=ValidateCart,CreateOrder,ProcessPayment --params=CheckoutRequest --returns=Order --dry-run",
+                output: "✅ Generated 1 files for ProcessCheckout\n\n  ✓ lib/src/domain/usecases/checkout/process_checkout_usecase.dart\n\n📝 Next steps:\n   • Implement DataProcessCheckoutRepository in data layer\n   • Register repositories with DI container\n   • Implement TODO sections in generated usecases",
             },
+            {
+                cmd: "zfa -h",
+                output: "zfa - Zuraffa Code Generator\n\nUSAGE:\n  zfa <command> [options]\n\nCOMMANDS:\n  generate <Name>     Generate code for an entity or custom usecase\n  initialize          Initialize a test entity to quickly try out Zuraffa\n  schema              Output JSON schema for configuration\n  validate <file>     Validate JSON configuration file\n  create              Create architecture folders or pages\n  help                Show this help message\n  version             Show version\n\nEXAMPLES:\n  zfa initialize                          # Create sample Product entity\n  zfa generate Product --methods=get,getList,create --repository --vpc\n  zfa generate ProcessOrder --repo=Order --params=OrderRequest --returns=OrderResult --domain=order\n  echo '{\"name\":\"Product\",\"methods\":[\"get\",\"getList\"]}' | zfa generate Product --from-stdin\n  zfa create\n  zfa create --page user_profile\n\nRun 'zfa initialize --help' for more details on the initialize command.\nRun 'zfa generate --help' for more details on the generate command.\nRun 'zfa create --help' for more details on the create command.",
+            }
         ];
 
         let currentCommand = 0;
-        let currentLine = 0;
 
         function typeLine(element, text, speed = 30) {
             return new Promise((resolve) => {
@@ -1219,21 +1280,23 @@ result.<span class="function">fold</span>(
 
                 // Add output
                 await new Promise((resolve) => setTimeout(resolve, 300));
-                const outputLine = document.createElement("div");
-                outputLine.className = "terminal-line";
-                outputLine.innerHTML = `<span class="terminal-output">${command.output}</span>`;
-                terminalOutput.appendChild(outputLine);
+                const outputLines = command.output.split("\n");
+                for (const outputLine of outputLines) {
+                    const outputEl = document.createElement("div");
+                    outputEl.className = "terminal-line";
+                    outputEl.innerHTML = `<span class="terminal-output">${outputLine}</span>`;
+                    terminalOutput.appendChild(outputEl);
+                }
 
                 // Scroll to bottom
                 terminalOutput.scrollTop = terminalOutput.scrollHeight;
 
                 currentCommand = (currentCommand + 1) % commands.length;
 
-                // Wait before next command
-                await new Promise((resolve) => setTimeout(resolve, 3000));
+                // Wait before clearing for next command
+                await new Promise((resolve) => setTimeout(resolve, 5000));
 
                 // Clear and restart
-                await new Promise((resolve) => setTimeout(resolve, 2000));
                 terminalOutput.innerHTML = "";
             }
         }

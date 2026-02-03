@@ -70,53 +70,90 @@ class MockGenerator {
   }) async {
     for (final entry in fields.entries) {
       final fieldType = entry.value;
-      var baseType = fieldType
-          .replaceAll('?', '')
-          .replaceAll('List<', '')
-          .replaceAll('>', '');
+      final baseTypes = _extractEntityTypesFromField(fieldType);
 
-      // Handle morphy entity indicator ($EntityName)
-      if (baseType.startsWith('\$')) {
-        baseType = baseType.substring(1);
-      }
+      for (final baseType in baseTypes) {
+        // Check if it's a custom type (PascalCase) and not already processed
+        if (baseType.isNotEmpty &&
+            baseType[0] == baseType[0].toUpperCase() &&
+            ![
+              'String',
+              'int',
+              'double',
+              'bool',
+              'DateTime',
+              'Object',
+              'dynamic'
+            ].contains(baseType) &&
+            !processedEntities.contains(baseType)) {
+          // Check if it's an entity (has fields)
+          final entityFields =
+              EntityAnalyzer.analyzeEntity(baseType, outputDir);
+          if (entityFields.isNotEmpty && !_isDefaultFields(entityFields)) {
+            processedEntities.add(baseType);
 
-      // Check if it's a custom type (PascalCase) and not already processed
-      if (baseType.isNotEmpty &&
-          baseType[0] == baseType[0].toUpperCase() &&
-          !['String', 'int', 'double', 'bool', 'DateTime', 'Object', 'dynamic']
-              .contains(baseType) &&
-          !baseType.contains(
-              '<') && // Exclude generic types like Map<String, dynamic>
-          !baseType.contains(',') && // Exclude complex types with commas
-          !baseType.contains(' ') && // Exclude types with spaces
-          !processedEntities.contains(baseType)) {
-        // Check if it's an entity (has fields)
-        final entityFields = EntityAnalyzer.analyzeEntity(baseType, outputDir);
-        if (entityFields.isNotEmpty && !_isDefaultFields(entityFields)) {
-          processedEntities.add(baseType);
+            if (verbose) {
+              print('  → Generating mock for nested entity: $baseType');
+            }
 
-          if (verbose) {
-            print('  → Generating mock for nested entity: $baseType');
+            // Generate mock data file for this nested entity
+            final nestedConfig =
+                GeneratorConfig(name: baseType, generateMockDataOnly: true);
+            final nestedMockFile = await _generateMockDataFile(
+                nestedConfig, outputDir,
+                dryRun: dryRun, force: force, verbose: verbose);
+            files.add(nestedMockFile);
+
+            // Recursively process nested entities within this entity
+            await _collectAndGenerateNestedEntities(
+                entityFields, outputDir, files, processedEntities,
+                dryRun: dryRun, force: force, verbose: verbose);
+          } else if (verbose) {
+            print(
+                '  → Skipping $baseType (not an entity, enum, or complex type)');
           }
-
-          // Generate mock data file for this nested entity
-          final nestedConfig =
-              GeneratorConfig(name: baseType, generateMockDataOnly: true);
-          final nestedMockFile = await _generateMockDataFile(
-              nestedConfig, outputDir,
-              dryRun: dryRun, force: force, verbose: verbose);
-          files.add(nestedMockFile);
-
-          // Recursively process nested entities within this entity
-          await _collectAndGenerateNestedEntities(
-              entityFields, outputDir, files, processedEntities,
-              dryRun: dryRun, force: force, verbose: verbose);
-        } else if (verbose) {
-          print(
-              '  → Skipping $baseType (not an entity, enum, or complex type)');
         }
       }
     }
+  }
+
+  static List<String> _extractEntityTypesFromField(String fieldType) {
+    final types = <String>[];
+    var baseType = fieldType.replaceAll('?', '');
+
+    // Handle List<Type>
+    if (baseType.startsWith('List<') && baseType.endsWith('>')) {
+      baseType = baseType.substring(5, baseType.length - 1);
+    }
+    // Handle Map<K,V> - extract value type
+    else if (baseType.startsWith('Map<') && baseType.endsWith('>')) {
+      final innerTypes = baseType.substring(4, baseType.length - 1);
+      final typeParts = innerTypes.split(',').map((s) => s.trim()).toList();
+      if (typeParts.length == 2) {
+        // Process the value type (second part)
+        baseType = typeParts[1];
+      } else {
+        return types; // Skip malformed map types
+      }
+    }
+
+    // Handle morphy entity indicator ($EntityName)
+    if (baseType.startsWith('\$')) {
+      baseType = baseType.substring(1);
+    }
+
+    // Clean up any remaining generic markers
+    baseType = baseType
+        .replaceAll('<', '')
+        .replaceAll('>', '')
+        .split(',')[0] // Take first type if there are multiple
+        .trim();
+
+    if (baseType.isNotEmpty) {
+      types.add(baseType);
+    }
+
+    return types;
   }
 
   static bool _isDefaultFields(Map<String, String> fields) {
@@ -150,9 +187,16 @@ class MockGenerator {
         baseType = baseType.substring(5, baseType.length - 1);
       }
 
-      // Handle Map<K,V> - skip entirely as they don't need entity imports
-      if (baseType.startsWith('Map<')) {
-        continue; // Skip Map types completely
+      // Handle Map<K,V> - extract value type for entity detection
+      if (baseType.startsWith('Map<') && baseType.endsWith('>')) {
+        final innerTypes = baseType.substring(4, baseType.length - 1);
+        final typeParts = innerTypes.split(',').map((s) => s.trim()).toList();
+        if (typeParts.length == 2) {
+          // Process the value type (second part)
+          baseType = typeParts[1];
+        } else {
+          continue; // Skip malformed map types
+        }
       }
 
       // Handle morphy entity indicator ($EntityName)
@@ -384,7 +428,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
 
         // Handle Map types
         if (baseType.startsWith('Map<') && baseType.endsWith('>')) {
-          return _generateMapValue(baseType, seed);
+          return _generateMapValue(baseType, seed, outputDir);
         }
 
         // Handle custom classes/enums
@@ -392,15 +436,19 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
 
         // Check if it's likely an enum or class
         if (baseType.isNotEmpty && baseType[0] == baseType[0].toUpperCase()) {
+          // Handle morphy entity indicator ($EntityName)
+          final cleanType =
+              baseType.startsWith('\$') ? baseType.substring(1) : baseType;
+
           // Try to detect if it's an entity by checking if it has fields
           final entityFields =
-              EntityAnalyzer.analyzeEntity(baseType, outputDir);
+              EntityAnalyzer.analyzeEntity(cleanType, outputDir);
           if (entityFields.isNotEmpty && !_isDefaultFields(entityFields)) {
             // It's an entity - reference its mock data
-            return '${baseType}MockData.sample$baseType';
+            return '${cleanType}MockData.sample$cleanType';
           }
-          // Otherwise treat as enum
-          return '$baseType.values[${seed % 3}]';
+          // Otherwise treat as enum - use modulo 2 to stay safe
+          return '$baseType.values[${seed % 2}]';
         }
 
         return "'$fieldName $seed'";
@@ -448,7 +496,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
     return '[${items.join(', ')}]';
   }
 
-  static String _generateMapValue(String mapType, int seed) {
+  static String _generateMapValue(String mapType, int seed, String outputDir) {
     // Extract key and value types from Map<K, V>
     final innerTypes =
         mapType.substring(4, mapType.length - 1); // Remove "Map<" and ">"
@@ -467,7 +515,8 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
 
     for (int i = 1; i <= itemCount; i++) {
       final keyValue = _generateSimpleValue(keyType, 'key$i', seed + i);
-      final valueValue = _generateSimpleValue(valueType, 'value$i', seed + i);
+      final valueValue =
+          _generateMockValue('value$i', valueType, seed + i, false, outputDir);
       entries.add('$keyValue: $valueValue');
     }
 
@@ -513,7 +562,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
 
         // Handle Map types
         if (baseType.startsWith('Map<') && baseType.endsWith('>')) {
-          return _generateSeededMapValue(baseType);
+          return _generateSeededMapValue(baseType, outputDir);
         }
 
         // Handle custom classes/enums
@@ -529,8 +578,8 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
             // It's an entity - reference its mock data
             return '${cleanType}MockData.sample$cleanType';
           }
-          // Otherwise treat as enum
-          return '$cleanType.values[seed % 3]';
+          // Otherwise treat as enum - use modulo 2 to stay safe
+          return '$cleanType.values[seed % 2]';
         }
         return "'$fieldName \$seed'";
     }
@@ -572,7 +621,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
     }
   }
 
-  static String _generateSeededMapValue(String mapType) {
+  static String _generateSeededMapValue(String mapType, String outputDir) {
     // Extract key and value types from Map<K, V>
     final innerTypes =
         mapType.substring(4, mapType.length - 1); // Remove "Map<" and ">"
@@ -587,13 +636,14 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
 
     // Generate seeded key-value pairs
     final keyValue1 = _generateSeededSimpleValue(keyType, 'key');
-    final valueValue1 = _generateSeededSimpleValue(valueType, 'value');
+    final valueValue1 =
+        _generateSeededValue('value', valueType, false, outputDir);
     final keyValue2 = keyType == 'String'
         ? "'key2 \$seed'"
         : _generateSeededSimpleValue(keyType, 'key2');
     final valueValue2 = valueType == 'String'
         ? "'value2 \$seed'"
-        : _generateSeededSimpleValue(valueType, 'value2');
+        : _generateSeededValue('value2', valueType, false, outputDir);
 
     return '{$keyValue1: $valueValue1, $keyValue2: $valueValue2}';
   }
@@ -620,7 +670,18 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
     for (final method in config.methods) {
       switch (method) {
         case 'get':
-          methods.add('''
+          if (config.idField == 'null') {
+            methods.add('''
+  @override
+  Future<$entityName> get() async {
+    logger.info('Getting $entityName');
+    await Future.delayed(_delay);
+    final item = ${entityName}MockData.sample$entityName;
+    logger.info('Successfully retrieved $entityName');
+    return item;
+  }''');
+          } else {
+            methods.add('''
   @override
   Future<$entityName> get(${config.queryFieldType} ${config.queryField}) async {
     logger.info('Getting $entityName with ${config.queryField}: \$${config.queryField}');
@@ -632,6 +693,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
     logger.info('Successfully retrieved $entityName: \$${config.queryField}');
     return item;
   }''');
+          }
           break;
 
         case 'getList':
@@ -681,22 +743,43 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
           break;
 
         case 'delete':
-          methods.add('''
+          if (config.idField == 'null') {
+            methods.add('''
   @override
   Future<void> delete(DeleteParams<$entityName> params) async {
-    logger.info('Deleting $entityName: \${params.${config.idField}}');
+    logger.info('Deleting $entityName: \${params.id}');
     await Future.delayed(_delay);
-    final exists = ${entityName}MockData.${entityCamel}s.any((item) => item.${config.idField} == params.${config.idField});
+    // For entities without ID field, we can't verify existence
+    // In a real implementation, you'd remove from storage
+    logger.info('Successfully deleted $entityName: \${params.id}');
+  }''');
+          } else {
+            methods.add('''
+  @override
+  Future<void> delete(DeleteParams<$entityName> params) async {
+    logger.info('Deleting $entityName: \${params.id}');
+    await Future.delayed(_delay);
+    final exists = ${entityName}MockData.${entityCamel}s.any((item) => item.${config.idField} == params.id);
     if (!exists) {
-      throw NotFoundFailure('$entityName not found: \${params.${config.idField}}');
+      throw NotFoundFailure('$entityName not found: \${params.id}');
     }
     // In a real implementation, you'd remove from storage
-    logger.info('Successfully deleted $entityName: \${params.${config.idField}}');
+    logger.info('Successfully deleted $entityName: \${params.id}');
   }''');
+          }
           break;
 
         case 'watch':
-          methods.add('''
+          if (config.idField == 'null') {
+            methods.add('''
+  @override
+  Stream<$entityName> watch() {
+    return Stream.periodic(const Duration(seconds: 1), (count) {
+      return ${entityName}MockData.sample$entityName;
+    }).take(10); // Limit for demo
+  }''');
+          } else {
+            methods.add('''
   @override
   Stream<$entityName> watch(${config.queryFieldType} ${config.queryField}) {
     return Stream.periodic(const Duration(seconds: 1), (count) {
@@ -707,6 +790,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
       return item;
     }).take(10); // Limit for demo
   }''');
+          }
           break;
 
         case 'watchList':

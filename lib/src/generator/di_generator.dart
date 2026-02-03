@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import '../models/generator_config.dart';
 import '../models/generated_file.dart';
-import '../utils/string_utils.dart';
 import '../utils/file_utils.dart';
 
 class DiGenerator {
@@ -43,20 +42,9 @@ class DiGenerator {
       files.add(await _generateRepositoryDI());
     }
 
-    // Generate usecase DI files
-    for (final method in config.methods) {
-      files.add(await _generateUseCaseDI(method));
-    }
-
     // Generate mock datasource DI file
     if (config.generateMock && !config.generateMockDataOnly) {
       files.add(await _generateMockDataSourceDI());
-    }
-
-    // Generate presenter and controller DI files
-    if (config.generateVpc) {
-      files.add(await _generatePresenterDI());
-      files.add(await _generateControllerDI());
     }
 
     // Regenerate all index files
@@ -105,11 +93,8 @@ void register$dataSourceName(GetIt getIt) {
 
     final hiveBoxSetup = config.cacheStorage == 'hive'
         ? '''
-  // TODO: Open Hive box before calling this
-  // final ${entitySnake}Box = await Hive.openBox<$entityName>('${entitySnake}s');
-  // Then pass it to the constructor
   getIt.registerLazySingleton<$dataSourceName>(
-    () => $dataSourceName(getIt<Box<$entityName>>()),
+    () => $dataSourceName(Hive.box<$entityName>('${entitySnake}s')),
   );'''
         : '''
   getIt.registerLazySingleton<$dataSourceName>(
@@ -179,18 +164,33 @@ void register$dataSourceName(GetIt getIt) {
     final String registration;
     final String cacheImports;
     if (config.enableCache) {
-      final remoteDataSourceName = '${entityName}RemoteDataSource';
+      final remoteDataSourceName = config.useMockInDi
+          ? '${entityName}MockDataSource'
+          : '${entityName}RemoteDataSource';
       final localDataSourceName = '${entityName}LocalDataSource';
+
+      final policyType = config.cachePolicy;
+      final ttlMinutes = config.ttlMinutes ?? 1440;
+      final policyFunctionName = policyType == 'daily'
+          ? 'createDailyCachePolicy'
+          : policyType == 'restart'
+              ? 'createAppRestartCachePolicy'
+              : 'createTtl${ttlMinutes}MinutesCachePolicy';
+
+      final remoteDataSourceImport = config.useMockInDi
+          ? "import '../../data/data_sources/$entitySnake/${entitySnake}_mock_data_source.dart';"
+          : "import '../../data/data_sources/$entitySnake/${entitySnake}_remote_data_source.dart';";
+
       cacheImports = '''
-import '../../data/data_sources/$entitySnake/${entitySnake}_remote_data_source.dart';
+$remoteDataSourceImport
 import '../../data/data_sources/$entitySnake/${entitySnake}_local_data_source.dart';
-import 'package:zuraffa/zuraffa.dart';''';
+import '../../cache/${policyType == 'ttl' ? 'ttl_${ttlMinutes}_minutes_cache_policy.dart' : policyType == 'daily' ? 'daily_cache_policy.dart' : 'app_restart_cache_policy.dart'}';''';
       registration = '''
   getIt.registerLazySingleton<$repoName>(
     () => $dataRepoName(
       getIt<$remoteDataSourceName>(),
       getIt<$localDataSourceName>(),
-      getIt<CachePolicy>(),
+      $policyFunctionName(),
     ),
   );''';
     } else {
@@ -230,116 +230,9 @@ $registration
     );
   }
 
-  Future<GeneratedFile> _generateUseCaseDI(String method) async {
-    final entityName = config.name;
-    final entitySnake = config.nameSnake;
-    final useCaseInfo = _getUseCaseInfo(method);
-    final useCaseSnake = StringUtils.camelToSnake(
-        useCaseInfo.className.replaceAll('UseCase', ''));
-    final fileName = '${useCaseSnake}_usecase_di.dart';
-
-    final diPath = path.join(outputDir, 'di', 'usecases', fileName);
-
-    final subdirectoryPart =
-        config.subdirectory != null && config.subdirectory!.isNotEmpty
-            ? '/${config.subdirectory!}'
-            : '';
-
-    final content = '''
-// Auto-generated DI registration for ${useCaseInfo.className}
-import 'package:get_it/get_it.dart';
-import '../../domain/usecases$subdirectoryPart/$entitySnake/${useCaseSnake}_usecase.dart';
-import '../../domain/repositories/${entitySnake}_repository.dart';
-
-void register${useCaseInfo.className}(GetIt getIt) {
-  getIt.registerFactory<${useCaseInfo.className}>(
-    () => ${useCaseInfo.className}(getIt<${entityName}Repository>()),
-  );
-}
-''';
-
-    return FileUtils.writeFile(
-      diPath,
-      content,
-      'di_usecase',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
-    );
-  }
-
-  Future<GeneratedFile> _generatePresenterDI() async {
-    final entityName = config.name;
-    final entitySnake = config.nameSnake;
-    final presenterName = '${entityName}Presenter';
-    final repoName = '${entityName}Repository';
-    final fileName = '${entitySnake}_presenter_di.dart';
-
-    final diPath = path.join(outputDir, 'di', 'presenters', fileName);
-
-    final content = '''
-// Auto-generated DI registration for $presenterName
-import 'package:get_it/get_it.dart';
-import '../../presentation/pages/$entitySnake/${entitySnake}_presenter.dart';
-import '../../domain/repositories/${entitySnake}_repository.dart';
-
-void register$presenterName(GetIt getIt) {
-  getIt.registerFactory(
-    () => $presenterName(
-      ${StringUtils.pascalToCamel(entityName)}Repository: getIt<$repoName>(),
-    ),
-  );
-}
-''';
-
-    return FileUtils.writeFile(
-      diPath,
-      content,
-      'di_presenter',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
-    );
-  }
-
-  Future<GeneratedFile> _generateControllerDI() async {
-    final entityName = config.name;
-    final entitySnake = config.nameSnake;
-    final controllerName = '${entityName}Controller';
-    final presenterName = '${entityName}Presenter';
-    final fileName = '${entitySnake}_controller_di.dart';
-
-    final diPath = path.join(outputDir, 'di', 'controllers', fileName);
-
-    final content = '''
-// Auto-generated DI registration for $controllerName
-import 'package:get_it/get_it.dart';
-import '../../presentation/pages/$entitySnake/${entitySnake}_controller.dart';
-import '../../presentation/pages/$entitySnake/${entitySnake}_presenter.dart';
-
-void register$controllerName(GetIt getIt) {
-  getIt.registerFactory(
-    () => $controllerName(getIt<$presenterName>()),
-  );
-}
-''';
-
-    return FileUtils.writeFile(
-      diPath,
-      content,
-      'di_controller',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
-    );
-  }
-
   Future<void> _regenerateIndexFiles() async {
     await _regenerateIndexFile('datasources', 'DataSources');
     await _regenerateIndexFile('repositories', 'Repositories');
-    await _regenerateIndexFile('usecases', 'UseCases');
-    await _regenerateIndexFile('presenters', 'Presenters');
-    await _regenerateIndexFile('controllers', 'Controllers');
     await _regenerateMainIndex();
   }
 
@@ -407,23 +300,14 @@ ${registrations.join('\n')}
 // Auto-generated - DO NOT EDIT
 export 'datasources/index.dart';
 export 'repositories/index.dart';
-export 'usecases/index.dart';
-export 'presenters/index.dart';
-export 'controllers/index.dart';
 
 import 'package:get_it/get_it.dart';
 import 'datasources/index.dart';
 import 'repositories/index.dart';
-import 'usecases/index.dart';
-import 'presenters/index.dart';
-import 'controllers/index.dart';
 
 void setupDependencies(GetIt getIt) {
   registerAllDataSources(getIt);
   registerAllRepositories(getIt);
-  registerAllUseCases(getIt);
-  registerAllPresenters(getIt);
-  registerAllControllers(getIt);
 }
 ''';
 
@@ -435,54 +319,6 @@ void setupDependencies(GetIt getIt) {
       dryRun: dryRun,
       verbose: verbose,
     );
-  }
-
-  UseCaseInfo _getUseCaseInfo(String method) {
-    final entityName = config.name;
-    final entityCamel = config.nameCamel;
-
-    switch (method) {
-      case 'get':
-        return UseCaseInfo(
-          className: 'Get${entityName}UseCase',
-          fieldName: 'get${entityName}UseCase',
-        );
-      case 'getList':
-        return UseCaseInfo(
-          className: 'Get${entityName}ListUseCase',
-          fieldName: 'get${entityName}ListUseCase',
-        );
-      case 'create':
-        return UseCaseInfo(
-          className: 'Create${entityName}UseCase',
-          fieldName: 'create${entityName}UseCase',
-        );
-      case 'update':
-        return UseCaseInfo(
-          className: 'Update${entityName}UseCase',
-          fieldName: 'update${entityName}UseCase',
-        );
-      case 'delete':
-        return UseCaseInfo(
-          className: 'Delete${entityName}UseCase',
-          fieldName: 'delete${entityName}UseCase',
-        );
-      case 'watch':
-        return UseCaseInfo(
-          className: 'Watch${entityName}UseCase',
-          fieldName: 'watch${entityName}UseCase',
-        );
-      case 'watchList':
-        return UseCaseInfo(
-          className: 'Watch${entityName}ListUseCase',
-          fieldName: 'watch${entityName}ListUseCase',
-        );
-      default:
-        return UseCaseInfo(
-          className: '${entityName}UseCase',
-          fieldName: '${entityCamel}UseCase',
-        );
-    }
   }
 }
 

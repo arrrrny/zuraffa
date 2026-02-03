@@ -1,0 +1,78 @@
+name: Build MCP Server Binaries
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            platform: macos-arm64
+            output: zuraffa_mcp_server-macos-arm64
+          - os: macos-13
+            platform: macos-x64
+            output: zuraffa_mcp_server-macos-x64
+          - os: ubuntu-latest
+            platform: linux-x64
+            output: zuraffa_mcp_server-linux-x64
+          - os: windows-latest
+            platform: windows-x64
+            output: zuraffa_mcp_server-windows-x64.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Build binary
+        run: dart compile exe bin/zuraffa_mcp_server.dart -o ${{ matrix.output }}
+
+      - name: Create archive (Unix)
+        if: runner.os != 'Windows'
+        run: tar -czf ${{ matrix.output }}.tar.gz ${{ matrix.output }}
+
+      - name: Create archive (Windows)
+        if: runner.os == 'Windows'
+        run: Compress-Archive -Path ${{ matrix.output }} -DestinationPath ${{ matrix.output }}.zip
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}
+          path: |
+            ${{ matrix.output }}
+            ${{ matrix.output }}.tar.gz
+            ${{ matrix.output }}.zip
+
+      - name: Upload to release (Unix)
+        if: github.event_name == 'release' && runner.os != 'Windows'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./${{ matrix.output }}.tar.gz
+          asset_name: ${{ matrix.output }}.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload to release (Windows)
+        if: github.event_name == 'release' && runner.os == 'Windows'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./${{ matrix.output }}.zip
+          asset_name: ${{ matrix.output }}.zip
+          asset_content_type: application/zip

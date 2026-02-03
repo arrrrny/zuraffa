@@ -3,7 +3,12 @@
 class GeneratorConfig {
   final String name;
   final List<String> methods;
-  final List<String> repos;
+  final String? repo; // Changed from repos to single repo
+  final List<String> usecases; // New: for orchestrator pattern
+  final List<String> variants; // New: for polymorphic pattern
+  final String? domain; // New: required for custom UseCases
+  final String? repoMethod; // New: repository method name
+  final bool appendToExisting; // New: append to existing files
   final bool generateRepository;
   final String useCaseType;
   final String? paramsType;
@@ -23,10 +28,10 @@ class GeneratorConfig {
   final String queryFieldType;
   final bool useMorphy;
   final bool generateTest;
-  final String? subdirectory;
   final bool enableCache;
   final String cachePolicy;
   final String? cacheStorage;
+  final int? ttlMinutes;
   final bool generateMock;
   final bool generateMockDataOnly;
   final bool useMockInDi;
@@ -36,7 +41,12 @@ class GeneratorConfig {
   GeneratorConfig({
     required this.name,
     this.methods = const [],
-    this.repos = const [],
+    this.repo,
+    this.usecases = const [],
+    this.variants = const [],
+    this.domain,
+    this.repoMethod,
+    this.appendToExisting = false,
     this.generateRepository = false,
     this.useCaseType = 'usecase',
     this.paramsType,
@@ -56,10 +66,10 @@ class GeneratorConfig {
     String? queryFieldType,
     this.useMorphy = false,
     this.generateTest = false,
-    this.subdirectory,
     this.enableCache = false,
     this.cachePolicy = 'daily',
     this.cacheStorage,
+    this.ttlMinutes,
     this.generateMock = false,
     this.generateMockDataOnly = false,
     this.useMockInDi = false,
@@ -71,7 +81,13 @@ class GeneratorConfig {
     return GeneratorConfig(
       name: json['name'] ?? name,
       methods: (json['methods'] as List<dynamic>?)?.cast<String>() ?? [],
-      repos: (json['repos'] as List<dynamic>?)?.cast<String>() ?? [],
+      repo: json['repo'],
+      usecases: (json['usecases'] as List<dynamic>?)?.cast<String>() ?? [],
+      variants: (json['variants'] as List<dynamic>?)?.cast<String>() ?? [],
+      domain: json['domain'],
+      repoMethod: json['repo_method'] ?? json['method'],
+      appendToExisting:
+          json['append'] == true || json['append_to_existing'] == true,
       generateRepository: json['repository'] == true,
       useCaseType: json['type'] ?? 'usecase',
       paramsType: json['params'],
@@ -91,10 +107,11 @@ class GeneratorConfig {
       queryFieldType: json['query_field_type'],
       useMorphy: json['morphy'] == true || json['useMorphy'] == true,
       generateTest: json['test'] == true,
-      subdirectory: json['subdirectory'],
       enableCache: json['cache'] == true || json['enable_cache'] == true,
       cachePolicy: json['cache_policy'] ?? 'daily',
       cacheStorage: json['cache_storage'],
+      ttlMinutes:
+          json['ttl'] != null ? int.tryParse(json['ttl'].toString()) : null,
       generateMock: json['mock'] == true || json['generate_mock'] == true,
       generateMockDataOnly: json['mock_data_only'] == true ||
           json['generate_mock_data_only'] == true,
@@ -106,12 +123,39 @@ class GeneratorConfig {
 
   bool get isEntityBased => methods.isNotEmpty;
 
-  bool get isCustomUseCase =>
-      methods.isEmpty &&
-      (repos.isNotEmpty || paramsType != null || useCaseType != 'usecase');
+  bool get isCustomUseCase => methods.isEmpty;
+
+  bool get isOrchestrator => usecases.isNotEmpty;
+
+  bool get isPolymorphic => variants.isNotEmpty;
+
+  String get effectiveDomain => domain ?? nameSnake;
+
+  // Get repository method name (default: UseCase name in camelCase)
+  String getRepoMethodName([String? variantPrefix]) {
+    if (repoMethod != null) return repoMethod!;
+
+    // For polymorphic with variant prefix
+    if (variantPrefix != null) {
+      return _pascalToCamel('$variantPrefix$name');
+    }
+
+    // Default: UseCase name in camelCase, strip "UseCase" suffix
+    final methodName =
+        name.endsWith('UseCase') ? name.substring(0, name.length - 7) : name;
+    return _pascalToCamel(methodName);
+  }
+
+  // Backward compatibility helpers
+  List<String> get repos => repo != null ? [repo!] : [];
 
   List<String> get effectiveRepos {
-    if (repos.isNotEmpty) return repos;
+    if (repo != null) {
+      // Ensure repo has Repository suffix
+      final repoName =
+          repo!.endsWith('Repository') ? repo! : '${repo!}Repository';
+      return [repoName];
+    }
     if (isEntityBased) return ['${name}Repository'];
     return [];
   }

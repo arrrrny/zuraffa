@@ -10,6 +10,8 @@ import 'data_layer_generator.dart';
 import 'test_generator.dart';
 import 'mock_generator.dart';
 import 'di_generator.dart';
+import 'cache_generator.dart';
+import 'method_appender.dart';
 
 class CodeGenerator {
   final GeneratorConfig config;
@@ -90,17 +92,64 @@ class CodeGenerator {
     final nextSteps = <String>[];
 
     try {
-      if (config.generateRepository) {
-        final file = await _repositoryGenerator.generate();
-        files.add(file);
+      // Handle --append mode
+      if (config.appendToExisting) {
+        final appender = MethodAppender(
+          config: config,
+          outputDir: outputDir,
+          verbose: verbose,
+        );
+        final appendResult = await appender.appendMethod();
+
+        // Generate UseCase file
+        if (config.isPolymorphic) {
+          final polymorphicFiles =
+              await _useCaseGenerator.generatePolymorphic();
+          files.addAll(polymorphicFiles);
+        } else if (config.isOrchestrator) {
+          final file = await _useCaseGenerator.generateOrchestrator();
+          files.add(file);
+        } else {
+          final file = await _useCaseGenerator.generateCustom();
+          files.add(file);
+        }
+
+        // Add updated files to the main list
+        files.addAll(appendResult.updatedFiles);
+
+        // Add warnings to next steps
+        if (appendResult.warnings.isNotEmpty) {
+          nextSteps.addAll(appendResult.warnings.map((w) => '⚠️  $w'));
+        }
+
+        return GeneratorResult(
+          name: config.name,
+          success: true,
+          files: files,
+          errors: errors,
+          nextSteps: nextSteps,
+        );
       }
 
+      // Generate repository for entity-based operations only
       if (config.isEntityBased) {
+        final file = await _repositoryGenerator.generate();
+        files.add(file);
+
         for (final method in config.methods) {
           final file = await _useCaseGenerator.generateForMethod(method);
           files.add(file);
         }
+      } else if (config.isPolymorphic) {
+        // Generate polymorphic UseCases (abstract + variants + factory)
+        final polymorphicFiles = await _useCaseGenerator.generatePolymorphic();
+        files.addAll(polymorphicFiles);
+      } else if (config.isOrchestrator) {
+        // Generate orchestrator UseCase
+        final file = await _useCaseGenerator.generateOrchestrator();
+        files.add(file);
       } else if (config.isCustomUseCase) {
+        // Generate custom UseCase
         final file = await _useCaseGenerator.generateCustom();
         files.add(file);
       }
@@ -195,7 +244,22 @@ class CodeGenerator {
         nextSteps.add('Run tests: flutter test ');
       }
 
-      if (config.generateTest && config.isCustomUseCase) {
+      if (config.generateTest && config.isOrchestrator) {
+        final file = await _testGenerator.generateOrchestrator();
+        files.add(file);
+        nextSteps.add('Run tests: flutter test ');
+      }
+
+      if (config.generateTest && config.isPolymorphic) {
+        final testFiles = await _testGenerator.generatePolymorphic();
+        files.addAll(testFiles);
+        nextSteps.add('Run tests: flutter test ');
+      }
+
+      if (config.generateTest &&
+          config.isCustomUseCase &&
+          !config.isPolymorphic &&
+          !config.isOrchestrator) {
         final file = await _testGenerator.generateCustom();
         files.add(file);
         nextSteps.add('Run tests: flutter test ');
@@ -212,6 +276,21 @@ class CodeGenerator {
         );
         final diFiles = await diGenerator.generate();
         files.addAll(diFiles);
+
+        // Generate cache init files if caching is enabled
+        if (config.enableCache) {
+          final cacheGenerator = CacheGenerator(
+            config: config,
+            outputDir: outputDir,
+            dryRun: dryRun,
+            force: force,
+            verbose: verbose,
+          );
+          final cacheFiles = await cacheGenerator.generate();
+          files.addAll(cacheFiles);
+          nextSteps.add('Run: dart run build_runner build');
+        }
+
         nextSteps.add('Import and call setupDependencies() in your main.dart');
       }
 

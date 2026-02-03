@@ -13,6 +13,95 @@ Zuraffa provides four UseCase types for different operation patterns. Each type 
 
 ---
 
+## ZFA Patterns
+
+ZFA introduces four powerful patterns for organizing your business logic:
+
+### 1. Entity-Based Pattern
+
+Perfect for standard CRUD operations on entities. Automatically generates all layers.
+
+```bash
+zfa generate Product \
+  --methods=get,getList,create,update,delete,watch,watchList \
+  --data \
+  --vpc \
+  --state \
+  --test \
+  --cache \
+  --di
+```
+
+**Characteristics:**
+- Generates complete CRUD stack
+- Follows convention-based naming
+- Automatically creates repository, usecases, data layer, and presentation layer
+- Ideal for domain entities (Product, User, Order, etc.)
+
+### 2. Single Repository Pattern (Recommended)
+
+Best for custom business logic with one repository to enforce Single Responsibility Principle.
+
+```bash
+zfa generate ProcessCheckout \
+  --domain=checkout \
+  --repo=CheckoutRepository \
+  --params=CheckoutRequest \
+  --returns=OrderConfirmation
+```
+
+**Characteristics:**
+- One UseCase, one repository
+- Enforces Single Responsibility Principle
+- Organized by domain concepts
+- Requires `--domain` and `--repo` flags
+
+### 3. Orchestrator Pattern (NEW)
+
+Compose multiple UseCases into complex workflows.
+
+```bash
+# Step 1: Create atomic UseCases
+zfa generate ValidateCart --domain=checkout --repo=Cart --params=CartId --returns=bool
+zfa generate CreateOrder --domain=checkout --repo=Order --params=OrderData --returns=Order
+zfa generate ProcessPayment --domain=checkout --repo=Payment --params=PaymentData --returns=Receipt
+
+# Step 2: Orchestrate them
+zfa generate ProcessCheckout \
+  --domain=checkout \
+  --usecases=ValidateCart,CreateOrder,ProcessPayment \
+  --params=CheckoutRequest \
+  --returns=Order
+```
+
+**Characteristics:**
+- Composes multiple UseCases
+- No direct repository injection
+- Perfect for complex business flows
+- Requires `--usecases`, `--domain`, `--params`, and `--returns`
+
+### 4. Polymorphic Pattern (NEW)
+
+Generate abstract base + concrete variants + factory.
+
+```bash
+zfa generate SparkSearch \
+  --domain=search \
+  --repo=Search \
+  --variants=Barcode,Url,Text \
+  --params=Spark \
+  --returns=Listing \
+  --type=stream
+```
+
+**Characteristics:**
+- Generates abstract base class
+- Creates concrete implementations for each variant
+- Provides factory for runtime switching
+- Requires `--variants`, `--domain`, `--params`, and `--returns`
+
+---
+
 ## UseCase
 
 The default UseCase for single-shot operations that return a value.
@@ -31,7 +120,7 @@ abstract class UseCase<T, Params> {
     Params params, {
     CancelToken? cancelToken,
   });
-  
+
   @protected
   Future<T> execute(Params params, CancelToken? cancelToken);
 }
@@ -42,20 +131,20 @@ abstract class UseCase<T, Params> {
 ```dart
 class GetProductUseCase extends UseCase<Product, String> {
   final ProductRepository _repository;
-  
+
   GetProductUseCase(this._repository);
-  
+
   @override
   Future<Product> execute(String id, CancelToken? cancelToken) async {
     // Check cancellation before starting
     cancelToken?.throwIfCancelled();
-    
+
     // Perform the operation
     final product = await _repository.get(id);
-    
+
     // Check cancellation after operation
     cancelToken?.throwIfCancelled();
-    
+
     return product;
   }
 }
@@ -114,9 +203,9 @@ abstract class CompletableUseCase<Params> extends UseCase<void, Params> {
 ```dart
 class DeleteProductUseCase extends CompletableUseCase<String> {
   final ProductRepository _repository;
-  
+
   DeleteProductUseCase(this._repository);
-  
+
   @override
   Future<void> execute(String id, CancelToken? cancelToken) async {
     cancelToken?.throwIfCancelled();
@@ -165,10 +254,10 @@ abstract class StreamUseCase<T, Params> {
     Params params, {
     CancelToken? cancelToken,
   });
-  
+
   @protected
   Stream<T> execute(Params params, CancelToken? cancelToken);
-  
+
   // Convenience method with callbacks
   StreamSubscription<Result<T, AppFailure>> listen(
     Params params, {
@@ -185,9 +274,9 @@ abstract class StreamUseCase<T, Params> {
 ```dart
 class WatchProductUseCase extends StreamUseCase<Product, String> {
   final ProductRepository _repository;
-  
+
   WatchProductUseCase(this._repository);
-  
+
   @override
   Stream<Product> execute(String id, CancelToken? cancelToken) {
     return _repository.watch(id);
@@ -251,12 +340,12 @@ BackgroundUseCase is **not supported on web** platforms. Use regular `UseCase` w
 abstract class BackgroundUseCase<T, Params> {
   BackgroundUseCaseState get state;
   bool get isRunning;
-  
+
   Stream<Result<T, AppFailure>> call(
     Params params, {
     CancelToken? cancelToken,
   });
-  
+
   @protected
   BackgroundTask<Params> buildTask();
 }
@@ -280,16 +369,16 @@ class BackgroundTaskContext<Params> {
 class ProcessImageUseCase extends BackgroundUseCase<ProcessedImage, ImageParams> {
   @override
   BackgroundTask<ImageParams> buildTask() => _processImage;
-  
+
   // MUST be static or top-level function
   static void _processImage(BackgroundTaskContext<ImageParams> context) {
     try {
       final params = context.params;
-      
+
       // CPU-intensive work
       final processed = applyFilters(params.image);
       final compressed = compressImage(processed);
-      
+
       // Send result back
       context.sendData(ProcessedImage(compressed));
       context.sendDone();
@@ -328,6 +417,8 @@ print(processImageUseCase.isRunning); // true/false
 
 ```bash
 zfa generate ProcessImages \
+  --domain=image \
+  --repo=ImageProcessor \
   --type=background \
   --params=ImageBatch \
   --returns=ProcessedImage
@@ -398,30 +489,33 @@ Place cancellation checks at strategic points:
 Future<Data> execute(Params params, CancelToken? cancelToken) async {
   // Before starting
   cancelToken?.throwIfCancelled();
-  
+
   final step1 = await doStep1();
-  
+
   // Between steps
   cancelToken?.throwIfCancelled();
-  
+
   final step2 = await doStep2();
-  
+
   // After long operations
   cancelToken?.throwIfCancelled();
-  
+
   return processResults(step1, step2);
 }
 ```
 
 ---
 
-## Custom UseCases
+## Custom UseCases with ZFA Patterns
 
-Create custom UseCases for complex business operations:
+### Single Repository Pattern
+
+Create custom UseCases with one repository for focused business logic:
 
 ```bash
 zfa generate ProcessCheckout \
-  --repos=CartRepository,OrderRepository,PaymentRepository \
+  --domain=checkout \
+  --repo=CheckoutRepository \
   --params=CheckoutRequest \
   --returns=OrderConfirmation
 ```
@@ -430,57 +524,125 @@ Generates:
 
 ```dart
 class ProcessCheckoutUseCase extends UseCase<OrderConfirmation, CheckoutRequest> {
-  final CartRepository _cartRepository;
-  final OrderRepository _orderRepository;
-  final PaymentRepository _paymentRepository;
-  
-  ProcessCheckoutUseCase(
-    this._cartRepository,
-    this._orderRepository,
-    this._paymentRepository,
-  );
-  
+  final CheckoutRepository _checkoutRepository;
+
+  ProcessCheckoutUseCase(this._checkoutRepository);
+
   @override
   Future<OrderConfirmation> execute(
     CheckoutRequest request,
     CancelToken? cancelToken,
   ) async {
     cancelToken?.throwIfCancelled();
-    
-    // Validate cart
-    final cart = await _cartRepository.get(request.cartId);
-    
-    cancelToken?.throwIfCancelled();
-    
-    // Process payment
-    final payment = await _paymentRepository.charge(
-      cart.total,
-      request.paymentMethod,
-    );
-    
-    cancelToken?.throwIfCancelled();
-    
-    // Create order
-    final order = await _orderRepository.create(
-      CreateOrderRequest(
-        cart: cart,
-        payment: payment,
-      ),
-    );
-    
-    // Clear cart
-    await _cartRepository.clear(request.cartId);
-    
-    return OrderConfirmation(order: order, payment: payment);
+
+    // Business logic using single repository
+    final result = await _checkoutRepository.process(request);
+
+    return result;
   }
 }
 ```
+
+### Orchestrator Pattern
+
+Compose multiple UseCases into complex workflows:
+
+```bash
+zfa generate ProcessCheckout \
+  --domain=checkout \
+  --usecases=ValidateCart,CreateOrder,ProcessPayment \
+  --params=CheckoutRequest \
+  --returns=OrderConfirmation
+```
+
+Generates:
+
+```dart
+class ProcessCheckoutUseCase extends UseCase<OrderConfirmation, CheckoutRequest> {
+  final ValidateCartUseCase _validateCart;
+  final CreateOrderUseCase _createOrder;
+  final ProcessPaymentUseCase _processPayment;
+
+  ProcessCheckoutUseCase(
+    this._validateCart,
+    this._createOrder,
+    this._processPayment,
+  );
+
+  @override
+  Future<OrderConfirmation> execute(
+    CheckoutRequest request,
+    CancelToken? cancelToken,
+  ) async {
+    cancelToken?.throwIfCancelled();
+
+    // Orchestrate multiple UseCases
+    final isValid = await _validateCart.execute(request.cartId, cancelToken);
+    if (isValid.isFailure) return Result.failure(isValid.failure);
+
+    final order = await _createOrder.execute(request.orderData, cancelToken);
+    if (order.isFailure) return Result.failure(order.failure);
+
+    final payment = await _processPayment.execute(request.paymentData, cancelToken);
+    if (payment.isFailure) return Result.failure(payment.failure);
+
+    return Result.success(OrderConfirmation(order: order.success, payment: payment.success));
+  }
+}
+```
+
+### Polymorphic Pattern
+
+Generate multiple implementations of the same operation:
+
+```bash
+zfa generate SparkSearch \
+  --domain=search \
+  --repo=Search \
+  --variants=Barcode,Url,Text \
+  --params=Spark \
+  --returns=Listing \
+  --type=stream
+```
+
+Generates:
+- Abstract base: `SparkSearchUseCase`
+- Concrete implementations: `BarcodeSparkSearchUseCase`, `UrlSparkSearchUseCase`, `TextSparkSearchUseCase`
+- Factory: `SparkSearchUseCaseFactory`
 
 ---
 
 ## Best Practices
 
-### 1. One UseCase = One Operation
+### 1. Choose the Right Pattern
+
+```bash
+# Entity-Based: For standard CRUD on domain entities
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc
+
+# Single Repository: For focused business logic
+zfa generate ProcessCheckout --domain=checkout --repo=Checkout --params=Request --returns=Result
+
+# Orchestrator: For complex workflows
+zfa generate ProcessCheckout --domain=checkout --usecases=ValidateCart,CreateOrder,ProcessPayment --params=Request --returns=Result
+
+# Polymorphic: For multiple implementations of same operation
+zfa generate SparkSearch --domain=search --variants=Barcode,Url,Text --params=Spark --returns=Listing
+```
+
+### 2. Use Domain Organization
+
+Organize UseCases by domain concepts:
+
+```bash
+zfa generate SearchProduct \
+  --domain=search \
+  --repo=Product \
+  --params=Query \
+  --returns=List<Product>
+```
+
+### 3. One UseCase = One Operation
 
 ```dart
 // Good: Single responsibility
@@ -493,7 +655,7 @@ class ProductUseCase extends UseCase<dynamic, dynamic> {
 }
 ```
 
-### 2. Use Meaningful Parameter Types
+### 4. Use Meaningful Parameter Types
 
 ```dart
 // Good: Type-safe parameters
@@ -501,7 +663,7 @@ class CreateOrderParams {
   final Cart cart;
   final PaymentMethod payment;
   final Address shippingAddress;
-  
+
   const CreateOrderParams({...});
 }
 
@@ -509,45 +671,24 @@ class CreateOrderParams {
 class CreateOrderUseCase extends UseCase<Order, Map<String, dynamic>> { ... }
 ```
 
-### 3. Handle Cancellation at Key Points
+### 5. Handle Cancellation at Key Points
 
 ```dart
 @override
 Future<Data> execute(Params params, CancelToken? cancelToken) async {
   cancelToken?.throwIfCancelled();
-  
+
   final data = await fetchData();
-  
+
   // Before expensive processing
   cancelToken?.throwIfCancelled();
-  
+
   final processed = expensiveProcessing(data);
-  
+
   // Before saving
   cancelToken?.throwIfCancelled();
-  
+
   return await save(processed);
-}
-```
-
-### 4. Don't Catch Exceptions Unnecessarily
-
-```dart
-// Good: Let UseCase handle errors
-@override
-Future<Product> execute(String id, CancelToken? cancelToken) async {
-  return await _repository.get(id); // Errors auto-wrapped
-}
-
-// Bad: Unnecessary try-catch
-@override
-Future<Product> execute(String id, CancelToken? cancelToken) async {
-  try {
-    return await _repository.get(id);
-  } catch (e) {
-    // Don't do this - UseCase already handles it
-    throw AppFailure.unknown(e.toString());
-  }
 }
 ```
 
@@ -555,6 +696,6 @@ Future<Product> execute(String id, CancelToken? cancelToken) async {
 
 ## Next Steps
 
-- [Result Type](./result-type) - Deep dive into error handling
+- [Architecture Overview](../architecture/overview) - Deep dive into Clean Architecture patterns
+- [Result Type](../architecture/result-type) - Type-safe error handling
 - [CLI Reference](../cli/commands) - Generate UseCases automatically
-- [VPC Pattern](./vpc-pattern) - Connect UseCases to UI

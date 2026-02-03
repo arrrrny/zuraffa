@@ -33,7 +33,7 @@ class RepositoryGenerator {
     for (final method in config.methods) {
       switch (method) {
         case 'get':
-          if (config.idField == 'null') {
+          if (config.idField == 'null' || config.queryField == 'null') {
             methods.add('  Future<${config.name}> get();');
           } else {
             methods.add(
@@ -57,7 +57,7 @@ class RepositoryGenerator {
               '  Future<void> delete(DeleteParams<${config.name}> params);');
           break;
         case 'watch':
-          if (config.idField == 'null') {
+          if (config.idField == 'null' || config.queryField == 'null') {
             methods.add('  Stream<${config.name}> watch();');
           } else {
             methods.add(

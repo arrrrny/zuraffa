@@ -11,7 +11,7 @@ import '../domain/stream_usecase.dart';
 
 /// An optional orchestration layer for complex business flows.
 ///
-/// [Presenter] is **optional** in the v7 architecture. For simple CRUD
+/// [Presenter] is **optional** For simple CRUD
 /// operations, you can call UseCases directly from the Controller.
 ///
 /// Use [Presenter] when you need:

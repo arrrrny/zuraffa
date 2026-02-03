@@ -1,6 +1,6 @@
 # Getting Started
 
-Get up and running with Zuraffa in minutes. This guide walks you through installation, your first entity, and generating a complete Clean Architecture stack.
+Get up and running with Zuraffa in minutes. This guide walks you through installation, your first entity, and generating a complete Clean Architecture stack with ZFA patterns.
 
 ## Installation
 
@@ -12,7 +12,7 @@ Add Zuraffa to your `pubspec.yaml`:
 dependencies:
   flutter:
     sdk: flutter
-  zuraffa: ^1.14.0
+  zuraffa: ^2.0.0
 ```
 
 Run:
@@ -40,6 +40,36 @@ If `zfa` is not found, ensure your Dart pub cache bin directory is in your PATH:
 - macOS/Linux: `export PATH="$PATH":"$HOME/.pub-cache/bin"`
 - Windows: Add `%LOCALAPPDATA%\Pub\Cache\bin` to your PATH
 :::
+
+---
+
+## ZFA - Four Powerful Patterns
+
+ZFA introduces four distinct patterns for organizing your business logic:
+
+### 1. Entity-Based Pattern
+Perfect for standard CRUD operations on entities:
+```bash
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc
+```
+
+### 2. Single Repository Pattern (Recommended)
+One UseCase, one repository for focused business logic:
+```bash
+zfa generate ProcessCheckout --domain=checkout --repo=CheckoutRepository --params=Request --returns=Result
+```
+
+### 3. Orchestrator Pattern (NEW)
+Compose multiple UseCases into complex workflows:
+```bash
+zfa generate ProcessCheckout --domain=checkout --usecases=ValidateCart,CreateOrder,ProcessPayment --params=Request --returns=Result
+```
+
+### 4. Polymorphic Pattern (NEW)
+Generate abstract base + concrete variants + factory:
+```bash
+zfa generate SparkSearch --domain=search --variants=Barcode,Url,Text --params=Spark --returns=Listing --type=stream
+```
 
 ---
 
@@ -78,13 +108,13 @@ class Product {
   });
 
   Product copyWith({...}) => ...
-  
+
   @override
   bool operator ==(Object other) => ...
-  
+
   @override
   int get hashCode => ...
-  
+
   @override
   String toString() => ...
 }
@@ -97,7 +127,6 @@ Generate all layers with one command:
 ```bash
 zfa generate Product \
   --methods=get,getList,create,update,delete,watch,watchList \
-  --repository \
   --data \
   --vpc \
   --state \
@@ -194,13 +223,14 @@ class ProductRemoteDataSource implements ProductDataSource {
 The `--di` flag generated DI files. Register your implementation:
 
 ```dart
-// lib/src/di/data_source_di.dart
-import '../data/data_sources/product/product_data_source.dart';
-import '../data/data_sources/product/product_remote_data_source.dart';
+// lib/src/di/datasources/product_remote_data_source_di.dart
+import 'package:get_it/get_it.dart';
+import '../../data/data_sources/product/product_remote_data_source.dart';
+import '../../data/data_sources/product/product_data_source.dart';
 
-void registerDataSources() {
+Future<void> registerProductRemoteDataSource(GetIt getIt) async {
   getIt.registerLazySingleton<ProductDataSource>(
-    () => ProductRemoteDataSource(getIt<HttpClient>()),
+    () => ProductRemoteDataSource(HttpClient()),
   );
 }
 ```
@@ -211,12 +241,15 @@ void registerDataSources() {
 // main.dart
 import 'package:flutter/material.dart';
 import 'package:zuraffa/zuraffa.dart';
+import 'package:get_it/get_it.dart';
 import 'src/presentation/pages/product/product_view.dart';
-import 'src/di/di.dart';
+import 'src/di/index.dart'; // Generated DI index
+
+final getIt = GetIt.instance;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  setupDI();
+  setupDependencies(getIt); // Generated DI setup
   runApp(const MyApp());
 }
 
@@ -259,11 +292,11 @@ class _ProductViewState extends CleanViewState<ProductView, ProductController> {
           if (controller.viewState.isLoading) {
             return const Center(child: CircularProgressIndicator());
           }
-          
+
           if (controller.viewState.hasError) {
             return ErrorView(failure: controller.viewState.error!);
           }
-          
+
           return ListView.builder(
             itemCount: controller.viewState.productList.length,
             itemBuilder: (context, index) {
@@ -291,26 +324,91 @@ class _ProductViewState extends CleanViewState<ProductView, ProductController> {
 
 ---
 
+## ZFA Patterns in Practice
+
+### Entity-Based Pattern (Standard CRUD)
+
+Perfect for domain entities like Product, User, Order:
+
+```bash
+zfa generate Product \
+  --methods=get,getList,create,update,delete,watch,watchList \
+  --data \
+  --vpc \
+  --state \
+  --di \
+  --test
+```
+
+### Single Repository Pattern (Custom Logic)
+
+For focused business operations with one repository:
+
+```bash
+zfa generate ProcessCheckout \
+  --domain=checkout \
+  --repo=CheckoutRepository \
+  --params=CheckoutRequest \
+  --returns=OrderConfirmation \
+  --test
+```
+
+### Orchestrator Pattern (Complex Workflows)
+
+Compose multiple UseCases into workflows:
+
+```bash
+# Step 1: Create atomic UseCases
+zfa generate ValidateCart --domain=checkout --repo=Cart --params=CartId --returns=bool --test
+zfa generate CreateOrder --domain=checkout --repo=Order --params=OrderData --returns=Order --test
+zfa generate ProcessPayment --domain=checkout --repo=Payment --params=PaymentData --returns=Receipt --test
+
+# Step 2: Orchestrate them
+zfa generate ProcessCheckout \
+  --domain=checkout \
+  --usecases=ValidateCart,CreateOrder,ProcessPayment \
+  --params=CheckoutRequest \
+  --returns=Order \
+  --test
+```
+
+### Polymorphic Pattern (Multiple Implementations)
+
+Generate multiple implementations of the same operation:
+
+```bash
+zfa generate SparkSearch \
+  --domain=search \
+  --repo=Search \
+  --variants=Barcode,Url,Text \
+  --params=Spark \
+  --returns=Listing \
+  --type=stream \
+  --test
+```
+
+---
+
 ## Next Steps
 
 ### Learn the Architecture
 
-- [Architecture Overview](../architecture/overview) - Understand the three layers
-- [UseCase Types](../architecture/usecases) - Deep dive into each UseCase type
+- [Architecture Overview](../architecture/overview) - Understand the three layers and ZFA patterns
+- [UseCase Types](../architecture/usecases) - Deep dive into each UseCase type and patterns
 - [Result Type](../architecture/result-type) - Type-safe error handling
 
 ### Explore CLI Features
 
-- [CLI Commands](../cli/commands) - Complete command reference
-- [Entity Generation](../cli/entity-generation) - Generate entities
-- [VPC Generation](../cli/vpc-generation) - Presentation layer patterns
+- [CLI Commands](../cli/commands) - Complete command reference with ZFA patterns
+- [Architecture Overview](../architecture/overview) - Clean Architecture patterns
+- [UseCase Types](../architecture/usecases) - UseCase patterns and ZFA patterns
 
 ### Advanced Topics
 
 - [Caching](../features/caching) - Dual datasource caching
-- [Dependency Injection](../features/dependency-injection) - DI setup
-- [Testing](../guides/testing) - Test your code
-- [Background Processing](../guides/background-processing) - CPU-intensive work
+- [Dependency Injection](../features/dependency-injection) - DI setup with domain organization
+- [Testing](../features/testing) - Test your code with ZFA patterns
+- [Mock Data](../features/mock-data) - Development with mock data
 
 ---
 
@@ -325,7 +423,6 @@ zfa initialize --entity=Category
 # 2. Generate all layers
 zfa generate Category \
   --methods=get,getList,create,update,delete \
-  --repository \
   --data \
   --vpc \
   --state \
@@ -339,16 +436,29 @@ zfa generate Category \
 
 ```bash
 # Add watch methods to existing Product
-zfa generate Product --methods=watch,watchList --repository --force
+zfa generate Product --methods=watch,watchList --data --force
 ```
 
-### Creating a Custom UseCase
+### Creating a Custom UseCase with Single Repository
 
 ```bash
 zfa generate ProcessOrder \
-  --repos=CartRepository,OrderRepository,PaymentRepository \
+  --domain=order \
+  --repo=OrderRepository \
   --params=CheckoutRequest \
-  --returns=OrderConfirmation
+  --returns=OrderConfirmation \
+  --test
+```
+
+### Creating an Orchestrator UseCase
+
+```bash
+zfa generate ProcessCheckout \
+  --domain=checkout \
+  --usecases=ValidateCart,CreateOrder,ProcessPayment \
+  --params=CheckoutRequest \
+  --returns=Order \
+  --test
 ```
 
 ---
@@ -368,6 +478,14 @@ For `Product`:
 lib/src/domain/entities/product/product.dart
 ```
 
+### Domain Required Error
+
+For custom UseCases, add `--domain`:
+
+```bash
+zfa generate ProcessCheckout --domain=checkout --repo=Checkout
+```
+
 ### Import Errors
 
 Run `flutter pub get` after generation to resolve imports.
@@ -380,14 +498,6 @@ Generated tests use mocktail. Ensure it's in your `pubspec.yaml`:
 dev_dependencies:
   mocktail: ^1.0.0
 ```
-
----
-
-## Video Tutorial
-
-:::tip Coming Soon
-A complete video walkthrough is in production. Check back soon!
-:::
 
 ---
 

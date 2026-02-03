@@ -8,10 +8,10 @@ void main() {
   // Enable framework logging in debug mode
   Zuraffa.enableLogging();
 
-  runApp(const CleanArchitectureExampleApp());
+  runApp(const ZuraffaExampleApp());
 }
 
-/// Example app demonstrating Zuraffa v7.
+/// Example app demonstrating Zuraffa.
 ///
 /// This app shows:
 /// - [UseCase] for single-shot operations (create, toggle, delete todos)
@@ -21,8 +21,8 @@ void main() {
 /// - [ControlledWidgetBuilder] for fine-grained UI updates
 /// - [Result] and [AppFailure] for type-safe error handling
 /// - [CancelToken] for cooperative cancellation
-class CleanArchitectureExampleApp extends StatelessWidget {
-  const CleanArchitectureExampleApp({super.key});
+class ZuraffaExampleApp extends StatelessWidget {
+  const ZuraffaExampleApp({super.key});
 
   @override
   Widget build(BuildContext context) {
