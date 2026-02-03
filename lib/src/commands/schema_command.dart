@@ -47,7 +47,8 @@ class SchemaCommand {
         },
         'method': {
           'type': 'string',
-          'description': 'Repository method name (default: auto from UseCase name)',
+          'description':
+              'Repository method name (default: auto from UseCase name)',
         },
         'append': {
           'type': 'boolean',
