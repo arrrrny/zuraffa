@@ -23,7 +23,10 @@ class ValidateCommand {
         'valid': true,
         'name': config.name,
         'methods': config.methods,
-        'repos': config.repos,
+        'repo': config.repo,
+        'domain': config.domain,
+        'usecases': config.usecases,
+        'variants': config.variants,
       }));
     } catch (e) {
       print(jsonEncode({'valid': false, 'error': e.toString()}));

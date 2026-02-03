@@ -43,14 +43,17 @@ zfa --help
 Generate a complete CRUD stack for an entity:
 
 ```bash
-# Basic CRUD with repository
-zfa generate Product --methods=get,getList,create,update,delete --repository
+# Basic CRUD (repository auto-generated)
+zfa generate Product --methods=get,getList,create,update,delete
 
 # With VPC layer (View, Presenter, Controller)
-zfa generate Product --methods=get,getList,create,update,delete --repository --vpc
+zfa generate Product --methods=get,getList,create,update,delete --vpc --state
 
 # With data layer (DataRepository + DataSource)
-zfa generate Product --methods=get,getList,create,update,delete --repository --data
+zfa generate Product --methods=get,getList,create,update,delete --data
+
+# Complete feature with everything
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test
 ```
 
 ## Commands
@@ -74,7 +77,6 @@ zfa generate <Name> [options]
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--methods=<list>` | `-m` | Comma-separated methods to generate |
-| `--repository` | `-r` | Generate repository interface |
 | `--data` | `-d` | Generate data repository + data source |
 | `--datasource` | | Generate data source only |
 | `--id-field=<name>` | | ID field name (default: `id`) |
@@ -82,6 +84,9 @@ zfa generate <Name> [options]
 | `--query-field=<name>` | | Query field name for `get`/`watch` (default: `id`) |
 | `--query-field-type=<type>` | | Query field type (default: matches id-type) |
 | `--morphy` | | Use Morphy-style typed patches |
+| `--init` | | Generate initialize method for repository |
+
+**Note:** Repository interface is automatically generated for entity-based operations.
 
 #### Supported Methods
 
@@ -99,7 +104,12 @@ zfa generate <Name> [options]
 
 | Flag | Description |
 |------|-------------|
-| `--repos=<list>` | Comma-separated repositories to inject |
+| `--repo=<name>` | Repository to inject (single, enforces SRP) |
+| `--domain=<name>` | Domain folder (required for custom UseCases) |
+| `--method=<name>` | Repository method name (default: auto from UseCase name) |
+| `--append` | Append to existing repository/datasources |
+| `--usecases=<list>` | Orchestrator: compose UseCases (comma-separated) |
+| `--variants=<list>` | Polymorphic: generate variants (comma-separated) |
 | `--type=<type>` | UseCase type: `usecase`, `stream`, `background`, `completable` |
 | `--params=<type>` | Params type (default: `NoParams`) |
 | `--returns=<type>` | Return type (default: `void`) |
@@ -109,11 +119,29 @@ zfa generate <Name> [options]
 | Flag | Description |
 |------|-------------|
 | `--vpc` | Generate View + Presenter + Controller |
-| `--view` | Generate View only |
-| `--presenter` | Generate Presenter only |
-| `--controller` | Generate Controller only |
+| `--vpcs` | Generate View + Presenter + Controller + State |
+| `--pc` | Generate Presenter + Controller only (preserve View) |
+| `--pcs` | Generate Presenter + Controller + State (preserve View) |
 | `--state` | Generate State object with granular loading states |
-| `--observer` | Generate Observer class |
+
+#### Caching Options
+
+| Flag | Description |
+|------|-------------|
+| `--cache` | Enable caching with dual datasources (remote + local) |
+| `--cache-policy=<p>` | Cache policy: `daily`, `restart`, `ttl` (default: daily) |
+| `--cache-storage=<s>` | Local storage: `hive`, `sqlite`, `shared_preferences` |
+| `--ttl=<minutes>` | TTL duration in minutes (default: 1440 = 24 hours) |
+
+#### Mock Data & Testing Options
+
+| Flag | Description |
+|------|-------------|
+| `--mock` | Generate mock data files alongside other layers |
+| `--mock-data-only` | Generate only mock data files (no other layers) |
+| `--test` | Generate unit tests for UseCases |
+| `--di` | Generate dependency injection files (get_it) |
+| `--use-mock` | Use mock datasource in DI (default: remote datasource) |
 
 #### Input/Output Options
 
@@ -157,7 +185,7 @@ lib/src/domain/entities/{entity_snake}/{entity_snake}.dart
 Assuming you have a `Product` entity:
 
 ```bash
-zfa generate Product --methods=get,getList,create,update,delete,watchList --repository
+zfa generate Product --methods=get,getList,create,update,delete,watchList
 ```
 
 This generates:
@@ -212,10 +240,11 @@ Create standalone UseCases without an entity, useful for complex business operat
 ### Basic Custom UseCase
 
 ```bash
-zfa generate ProcessOrder \
-  --repos=OrderRepository,PaymentRepository \
-  --params=OrderRequest \
-  --returns=OrderResult
+zfa generate SearchProduct \
+  --domain=search \
+  --repo=Product \
+  --params=Query \
+  --returns=List<Product>
 ```
 
 Generates:
@@ -240,8 +269,9 @@ class ProcessOrderUseCase extends UseCase<OrderResult, OrderRequest> {
 
 ```bash
 zfa generate ListenToNotifications \
+  --domain=notification \
+  --repo=Notification \
   --type=stream \
-  --repos=NotificationRepository \
   --params=UserId \
   --returns=Notification
 ```
@@ -288,7 +318,7 @@ Generate the presentation layer with View, Presenter, and Controller.
 **Note:** The `--vpc` flag creates files in `presentation/pages/{entity}/` to better organize multi-page applications.
 
 ```bash
-zfa generate Product --methods=get,getList,create --repository --vpc
+zfa generate Product --methods=get,getList,create --vpc --state
 ```
 
 Generates:
@@ -300,16 +330,8 @@ lib/src/
 └── presentation/pages/product/
     ├── product_view.dart
     ├── product_presenter.dart
-    └── product_controller.dart
-```
-
-### With Multiple Repositories
-
-```bash
-zfa generate Product \
-  --repos=ProductRepository,CategoryRepository \
-  --methods=get,getList \
-  --vpc
+    ├── product_controller.dart
+    └── product_state.dart
 ```
 
 ### Generated View
@@ -517,7 +539,7 @@ void watchProduct(String id) {
 Generate the data layer with DataSource interface and DataRepository implementation.
 
 ```bash
-zfa generate Product --methods=get,getList,create,update,delete --repository --data
+zfa generate Product --methods=get,getList,create,update,delete --data
 ```
 
 Generates:
@@ -575,7 +597,7 @@ The CLI is designed to be AI-agent friendly with machine-readable I/O.
 ### JSON Output Format
 
 ```bash
-zfa generate Product --methods=get,getList --repository --format=json
+zfa generate Product --methods=get,getList --format=json
 ```
 
 Output:
@@ -664,7 +686,7 @@ zfa generate Product -j product.json
 {
   "name": "ProcessOrder",
   "type": "usecase",
-  "repos": ["OrderRepository", "PaymentRepository"],
+  "repo": ["OrderRepository"],
   "params": "OrderRequest",
   "returns": "OrderResult"
 }
@@ -772,47 +794,98 @@ See the [Generated Controller](#generated-controller) section above for complete
 
 ## Examples
 
-### Complete CRUD with Full Stack (with State)
+### Complete CRUD with Full Stack
 
 ```bash
 zfa generate Product \
   --methods=get,getList,create,update,delete,watch,watchList \
-  --repository \
   --data \
   --vpc \
-  --state
+  --state \
+  --test
 ```
 
-### Complete CRUD without State Management
+### Entity-Based with Caching
+
+```bash
+zfa generate Config \
+  --methods=get,getList \
+  --data \
+  --cache \
+  --cache-policy=daily
+```
+
+### Custom UseCase with Repository
+
+```bash
+# Single repository UseCase
+zfa generate SearchProduct \
+  --domain=search \
+  --repo=Product \
+  --params=Query \
+  --returns=List<Product>
+
+# Stream UseCase
+zfa generate WatchProduct \
+  --domain=product \
+  --repo=Product \
+  --params=String \
+  --returns=Stream<Product> \
+  --type=stream
+```
+
+### Orchestrator Pattern
+
+```bash
+# Compose multiple UseCases
+zfa generate ProcessCheckout \
+  --domain=checkout \
+  --usecases=ValidateCart,ProcessPayment,CreateOrder \
+  --params=CheckoutRequest \
+  --returns=OrderResult
+```
+
+### Polymorphic Pattern
+
+```bash
+# Generate abstract + variants + factory
+zfa generate SparkSearch \
+  --domain=search \
+  --variants=Barcode,Url,Text \
+  --repo=Search \
+  --params=String \
+  --returns=Stream<SearchResult> \
+  --type=stream
+```
+
+### Append to Existing Repository
+
+```bash
+# Add new method to existing repository
+zfa generate ListenToNotifications \
+  --domain=customer \
+  --repo=Customer \
+  --params=String \
+  --returns=Stream<Notification> \
+  --type=stream \
+  --append
+```
+
+### With Mock Data and DI
 
 ```bash
 zfa generate Product \
-  --methods=get,getList,create,update,delete,watch,watchList \
-  --repository \
+  --methods=get,getList,create \
   --data \
-  --vpc
-```
-
-### Multiple Entities
-
-```bash
-# Generate Product stack
-zfa generate Product --methods=get,getList,create --repository --vpc
-
-# Generate Order stack
-zfa generate Order --methods=get,getList,create,update --repository --vpc
-
-# Generate shared UseCase
-zfa generate ProcessCheckout \
-  --repos=ProductRepository,OrderRepository,PaymentRepository \
-  --params=CheckoutRequest \
-  --returns=CheckoutResult
+  --mock \
+  --di \
+  --test
 ```
 
 ### Overwrite Existing Files
 
 ```bash
-zfa generate Product --methods=get,getList --repository --force
+zfa generate Product --methods=get,getList --force
 ```
 
 ### Custom Output Directory
@@ -824,7 +897,7 @@ zfa generate Product --methods=get,getList --output=lib/features/product
 ### Custom ID Type
 
 ```bash
-zfa generate Product --methods=get,delete --id-type=int --repository
+zfa generate Product --methods=get,delete --id-type=int
 ```
 
 ## Generated File Structure
@@ -883,7 +956,7 @@ If you see import errors after generation, ensure:
 
 1. The entity file exists and exports the entity class
 2. Run `flutter pub get` if dependencies are missing
-3. For `--data` flag, ensure the repository interface is generated first with `--repository`
+3. Repository interface is automatically generated for entity-based operations
 
 ### Overwriting Files
 

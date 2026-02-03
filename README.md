@@ -61,7 +61,7 @@ zfa initialize
 zfa initialize --entity=User
 
 # Generate complete Clean Architecture around your entity
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state
 ```
 
 ### 2. Generate Code with the CLI
@@ -72,10 +72,10 @@ zfa generate Product --methods=get,getList,create,update,delete --repository --d
 
 # Generate a complete feature with one line of code
 # This creates 14 files: UseCases, Repository, DataSource, Presenter, Controller, State, and View
-zfa generate Product --methods=get,watch,create,update,delete,getList,watchList --repository --data --vpc --state --test
+zfa generate Product --methods=get,watch,create,update,delete,getList,watchList --data --vpc --state --test
 
 # Or use the shorter alias
-dart run zuraffa:zfa generate Product --methods=get,getList --repository --vpc --state
+dart run zuraffa:zfa generate Product --methods=get,getList --vpc --state
 ```
 
 **That's it!** One command generates:
@@ -465,13 +465,13 @@ Zuraffa can automatically generate dependency injection setup using get_it:
 
 ```bash
 # Generate DI files alongside your code
-zfa generate Product --methods=get,getList,create --repository --data --vpc --di
+zfa generate Product --methods=get,getList,create --data --vpc --di
 
 # Use mock datasource in DI (for development/testing)
-zfa generate Product --methods=get,getList --repository --data --mock --di --use-mock
+zfa generate Product --methods=get,getList --data --mock --di --use-mock
 
 # With caching enabled
-zfa generate Product --methods=get,getList --repository --data --cache --di
+zfa generate Product --methods=get,getList --data --cache --di
 ```
 
 ### Generated DI Structure
@@ -529,7 +529,7 @@ When using `--cache` with `--di`, Zuraffa automatically generates cache initiali
 
 ```bash
 # Generate with cache and DI
-zfa generate Product --methods=get,getList --repository --data --cache --cache-policy=ttl --ttl=30 --di
+zfa generate Product --methods=get,getList --data --cache --cache-policy=ttl --ttl=30 --di
 ```
 
 ### Generated Cache Structure
@@ -561,7 +561,7 @@ The generator creates `hive_manual_additions.txt` for entities that aren't direc
 After adding entries, regenerate:
 
 ```bash
-zfa generate Product --methods=get --repository --data --cache --di --force
+zfa generate Product --methods=get --data --cache --di --force
 ```
 
 The registrar will include all manual additions:
@@ -643,7 +643,7 @@ Zuraffa can generate realistic mock data for your entities, perfect for testing,
 
 ```bash
 # Generate mock data alongside other layers
-zfa generate Product --methods=get,getList,create --repository --vpc --mock
+zfa generate Product --methods=get,getList,create --vpc --mock
 
 # Generate only mock data files
 zfa generate Product --mock-data-only
@@ -768,10 +768,10 @@ This gives you a complete entity to immediately test Zuraffa's code generation c
 
 ```bash
 # Generate everything at once - Domain, Data, and Presentation layers
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state
 
 # Generate with mock data for testing and UI previews
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --mock
 
 # Generate only mock data files
 zfa generate Product --mock-data-only
@@ -779,31 +779,31 @@ zfa generate Product --mock-data-only
 # Or generate incrementally:
 
 # Generate UseCases + Repository interface
-zfa generate Product --methods=get,getList,create,update,delete --repository
+zfa generate Product --methods=get,getList,create,update,delete
 
 # Add presentation layer (View, Presenter, Controller, State)
-zfa generate Product --methods=get,getList,create,update,delete --repository --vpc --state
+zfa generate Product --methods=get,getList,create,update,delete --vpc --state
 
 # Add data layer (DataRepository + DataSource)
-zfa generate Product --methods=get,getList,create,update,delete --repository --data
+zfa generate Product --methods=get,getList,create,update,delete --data
 
 # Use typed patches for updates (Morphy support)
 zfa generate Product --methods=update --morphy
 
 # Enable caching with dual datasources
-zfa generate Config --methods=get,getList --repository --data --cache --cache-policy=daily
+zfa generate Config --methods=get,getList --data --cache --cache-policy=daily
 
 # Preview what would be generated without writing files
-zfa generate Product --methods=get,getList --repository --dry-run
+zfa generate Product --methods=get,getList --dry-run
 
 # Generate with unit tests for each UseCase
-zfa generate Product --methods=get,create,update,delete --repository --test
+zfa generate Product --methods=get,create,update,delete --test
 
-# Generate in a subfolder (e.g., for auth-related entities)
-zfa generate Session --methods=get,create --repository --subfolder=auth
+# Custom UseCase with repository
+zfa generate SearchProduct --domain=search --repo=Product --params=Query --returns=List<Product>
 
-# Custom UseCase with multiple repositories
-zfa generate PublishProduct --repos=ProductRepository,CategoryRepository --params=PublishProductRequest --returns=PublishedProduct
+# Orchestrator pattern (compose UseCases)
+zfa generate ProcessCheckout --domain=checkout --usecases=ValidateCart,ProcessPayment --params=CheckoutRequest --returns=OrderResult
 
 # Background UseCase for CPU-intensive operations (runs on isolate)
 zfa generate CalculatePrimeNumbers --type=background --params=int --returns=int
@@ -827,8 +827,8 @@ Use `--params` and `--returns` to specify custom types for your UseCase:
 # Define custom parameter and return types
 zfa generate CalculatePrimeNumbers --type=background --params=int --returns=int
 
-# Complex types with multiple repositories
-zfa generate ProcessCheckout --repos=CartRepository,PaymentRepository --params=CheckoutRequest --returns=OrderConfirmation
+# Orchestrator with multiple UseCases
+zfa generate ProcessCheckout --domain=checkout --usecases=ValidateCart,ProcessPayment --params=CheckoutRequest --returns=OrderConfirmation
 ```
 
 | Flag | Description | Example |
@@ -852,12 +852,16 @@ zfa generate ProcessCheckout --repos=CartRepository,PaymentRepository --params=C
 
 | Flag           | Description                                           |
 |----------------|-------------------------------------------------------|
-| `--repository` | Generate repository interface                         |
 | `--data`       | Generate DataRepository and DataSource (always includes remote datasource) |
 | `--vpc`        | Generate View, Presenter, and Controller              |
 | `--vpcs`       | Generate View, Presenter, Controller, and State       |
 | `--pc`         | Generate Presenter and Controller only (preserve View)|
 | `--pcs`        | Generate Presenter, Controller, and State (preserve View) |
+| `--repo`       | Repository to inject (for custom UseCases)            |
+| `--domain`     | Domain folder (required for custom UseCases)          |
+| `--append`     | Append to existing repository/datasources             |
+| `--usecases`   | Orchestrator: compose UseCases (comma-separated)      |
+| `--variants`   | Polymorphic: generate variants (comma-separated)      |
 | `--state`      | Generate immutable State class                        |
 | `--mock`       | Generate mock data files alongside other layers       |
 | `--mock-data-only` | Generate only mock data files (no other layers)   |
@@ -974,7 +978,7 @@ lib/
 
 **All of this is generated with a single command:**
 ```bash
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state
 ```
 
 ## Advanced Features

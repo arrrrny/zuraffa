@@ -1,4 +1,4 @@
-# Built on Zuraffa Showcase
+# Built on Zuraffa
 
 Discover amazing applications built with Zuraffa's Clean Architecture framework. This showcase highlights real-world implementations leveraging Zuraffa's powerful patterns and features.
 
