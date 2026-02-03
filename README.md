@@ -18,15 +18,16 @@ A comprehensive Clean Architecture framework for Flutter applications with **Res
 
 ### Key Features
 
-- ✅ **Result Type**: Type-safe error handling with `Result<T, AppFailure>`
-- ✅ **Sealed Failures**: Exhaustive pattern matching for error cases
+- ✅ **Clean Architecture Enforced**: Entity-based, Single (Responsibility) Repository, Orchestrator, and Polymorphic patterns
 - ✅ **UseCase Pattern**: Single-shot, streaming, and background operations
-- ✅ **Controller**: Simple state management with automatic cleanup
-- ✅ **CLI Tool**: Generate boilerplate code with `zfa` command
+- ✅ **State Management Included**: Simple state management with automatic cleanup
+- ✅ **ZFA CLI Tool**: Generate boilerplate code with `zfa` command
 - ✅ **MCP Server**: AI/IDE integration via Model Context Protocol
 - ✅ **Cancellation**: Cooperative cancellation with `CancelToken`
 - ✅ **Fine-grained Rebuilds**: Optimize performance with selective widget updates
 - ✅ **Caching**: Built-in dual datasource pattern with flexible cache policies
+- ✅ **Result Type**: Type-safe error handling with `Result<T, AppFailure>`
+- ✅ **Sealed Failures**: Exhaustive pattern matching for error cases
 
 ## Installation
 
