@@ -350,12 +350,12 @@ Mock generation properly handles nullable fields with realistic null distributio
 updatedAt: seed % 3 == 0 ? null : DateTime.now(), // 33% chance of null
 ```
 
-### Morphy Support
+### Zorphy Support
 
-When using `--morphy`, mock data generation handles Patch objects correctly:
+When using `--zorphy`, mock data generation handles Patch objects correctly:
 
 ```bash
-zfa generate Product --methods=update --morphy --mock
+zfa generate Product --methods=update --zorphy --mock
 ```
 
 ## Using Mock Data in Development

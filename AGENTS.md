@@ -121,7 +121,7 @@ Entity-based generation creates UseCases that operate on a specific entity type.
 | `--id-field-type=<type>` | | ID field type (default: `String`) |
 | `--query-field=<name>` | | Query field name for `get`/`watch` (default: `id`) |
 | `--query-field-type=<type>` | | Query field type (default: matches id-type) |
-| `--morphy` | | Use Morphy-style typed patches |
+| `--zorphy` | | Use Zorphy-style typed patches |
 
 **Note:** Repository interface is automatically generated for entity-based operations.
 
@@ -263,18 +263,6 @@ Instead of command-line flags, you can use a JSON configuration file.
 zfa generate Product -j product.json
 ```
 
-#### Custom UseCase Configuration
-
-```json
-{
-  "name": "ProcessOrder",
-  "type": "usecase",
-  "repos": ["OrderRepository", "PaymentRepository"],
-  "params": "OrderRequest",
-  "returns": "OrderResult"
-}
-```
-
 ### AI Agent Integration
 
 The CLI is designed to be AI-agent friendly with machine-readable I/O.
@@ -305,7 +293,7 @@ Output:
   ],
   "errors": [],
   "next_steps": [
-    "Implement ProductRepositoryImpl in data layer",
+    "Implement DataProductRepository in data layer",
     "Register repositories with DI container"
   ]
 }
@@ -547,7 +535,7 @@ dart pub global activate zuraffa
 
 ### Adding a New Entity
 
-1. **Create Entity** (manual or use your preferred generator like freezed/morphy)
+1. **Create Entity** (manual or use your preferred generator like freezed/zorphy)
    ```
    lib/src/domain/entities/product/product.dart
    ```

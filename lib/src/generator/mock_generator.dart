@@ -137,7 +137,7 @@ class MockGenerator {
       }
     }
 
-    // Handle morphy entity indicator ($EntityName)
+    // Handle zorphy entity indicator ($EntityName)
     if (baseType.startsWith('\$')) {
       baseType = baseType.substring(1);
     }
@@ -199,7 +199,7 @@ class MockGenerator {
         }
       }
 
-      // Handle morphy entity indicator ($EntityName)
+      // Handle zorphy entity indicator ($EntityName)
       if (baseType.startsWith('\$')) {
         baseType = baseType.substring(1);
       }
@@ -436,7 +436,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
 
         // Check if it's likely an enum or class
         if (baseType.isNotEmpty && baseType[0] == baseType[0].toUpperCase()) {
-          // Handle morphy entity indicator ($EntityName)
+          // Handle zorphy entity indicator ($EntityName)
           final cleanType =
               baseType.startsWith('\$') ? baseType.substring(1) : baseType;
 
@@ -457,7 +457,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
 
   static String _generateListValue(
       String listType, int seed, String outputDir) {
-    // Handle morphy entity indicator ($EntityName)
+    // Handle zorphy entity indicator ($EntityName)
     final cleanListType =
         listType.startsWith('\$') ? listType.substring(1) : listType;
 
@@ -567,7 +567,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
 
         // Handle custom classes/enums
         if (baseType.isNotEmpty && baseType[0] == baseType[0].toUpperCase()) {
-          // Handle morphy entity indicator ($EntityName)
+          // Handle zorphy entity indicator ($EntityName)
           final cleanType =
               baseType.startsWith('\$') ? baseType.substring(1) : baseType;
 
@@ -586,7 +586,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
   }
 
   static String _generateSeededListValue(String listType, String outputDir) {
-    // Handle morphy entity indicator ($EntityName)
+    // Handle zorphy entity indicator ($EntityName)
     final cleanListType =
         listType.startsWith('\$') ? listType.substring(1) : listType;
 
@@ -729,7 +729,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
         case 'update':
           methods.add('''
   @override
-  Future<$entityName> update(UpdateParams<${config.useMorphy ? '${entityName}Patch' : 'Partial<$entityName>'}> params) async {
+  Future<$entityName> update(UpdateParams<${config.useZorphy ? '${entityName}Patch' : 'Partial<$entityName>'}> params) async {
     logger.info('Updating $entityName: \${params.id} with data: \${params.data}');
     await Future.delayed(_delay);
     final existing = ${entityName}MockData.${entityCamel}s.firstWhere(

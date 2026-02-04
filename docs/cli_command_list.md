@@ -17,7 +17,7 @@ Based on the actual implementation in /Users/arrrrny/Developer/zuraffa/lib/src/c
 10. `--test` or `-t` (Generate Unit Tests)
 11. `--datasource` (Generate DataSource only)
 12. `--init` (Generate initialize method for repository and datasource)
-13. `--morphy` (Use Morphy-style typed patches)
+13. `--zorphy` (Use Zorphy-style typed patches)
 14. `--state` (Generate State object)
 15. `--cache` (Enable caching with dual datasources)
 16. `--mock` (Generate mock data source with sample data)
@@ -75,7 +75,7 @@ zfa generate Product --methods=get,getList,create,update,delete --data --vpc --s
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --zorphy
 zfa generate Product --methods=watch,watchList --data --vpc --state --test --cache --di
 ```
 
@@ -104,10 +104,10 @@ zfa generate ProcessNotification --domain=notification --variants=Email,SMS,Push
 
 ### With Various Boolean Combinations:
 ```
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --morphy --mock --use-mock --init --observer --verbose
-zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --test --cache --di --morphy --mock --init --observer --quiet
-zfa generate Product --methods=get,getList,create,update,delete --data --pc --test --cache --di --morphy --mock --init --observer
-zfa generate Product --methods=get,getList,create,update,delete --data --pcs --test --cache --di --morphy --mock --init --observer
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --zorphy --mock --use-mock --init --observer --verbose
+zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --test --cache --di --zorphy --mock --init --observer --quiet
+zfa generate Product --methods=get,getList,create,update,delete --data --pc --test --cache --di --zorphy --mock --init --observer
+zfa generate Product --methods=get,getList,create,update,delete --data --pcs --test --cache --di --zorphy --mock --init --observer
 ```
 
 ### With Different String Options:

@@ -211,7 +211,7 @@ ${withState ? '''    result.fold(
           break;
         case 'update':
           final updateDataType =
-              config.useMorphy ? '${entityName}Patch' : 'Partial<$entityName>';
+              config.useZorphy ? '${entityName}Patch' : 'Partial<$entityName>';
           final updateParams = config.idField == 'null'
               ? '$entityName $entityCamel'
               : '${config.idType} ${config.idField}, $updateDataType data';

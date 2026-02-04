@@ -68,7 +68,7 @@ class DataLayerGenerator {
           break;
         case 'update':
           methods.add(
-              '  Future<${config.name}> update(UpdateParams<${config.useMorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params);');
+              '  Future<${config.name}> update(UpdateParams<${config.useZorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params);');
           break;
         case 'delete':
           methods
@@ -184,7 +184,7 @@ ${methods.join('\n')}
           break;
         case 'update':
           methods.add('''
-  Future<${config.name}> update(UpdateParams<${config.useMorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params) async {
+  Future<${config.name}> update(UpdateParams<${config.useZorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params) async {
     // TODO: Implement remote API call
     throw UnimplementedError('Implement remote update');
   }''');
@@ -345,7 +345,7 @@ ${methods.join('\n\n')}
             break;
           case 'update':
             methods.add('''
-  Future<${config.name}> update(UpdateParams<${config.useMorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params) async {
+  Future<${config.name}> update(UpdateParams<${config.useZorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params) async {
     final existing = _box.get(params.${config.idField});
     if (existing == null) {
       throw NotFoundFailure('$entityName not found in cache');
@@ -440,7 +440,7 @@ ${methods.join('\n\n')}
           break;
         case 'update':
           methods.add('''
-  Future<${config.name}> update(UpdateParams<${config.useMorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params) async {
+  Future<${config.name}> update(UpdateParams<${config.useZorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params) async {
     // TODO: Implement local storage update
     throw UnimplementedError('Implement local update');
   }''');
@@ -613,7 +613,7 @@ ${methods.join('\n\n')}
   }''';
       case 'update':
         return '''  @override
-  Future<${config.name}> update(UpdateParams<${config.useMorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params) {
+  Future<${config.name}> update(UpdateParams<${config.useZorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params) {
     return _dataSource.update(params);
   }''';
       case 'delete':
@@ -697,7 +697,7 @@ ${methods.join('\n\n')}
   Future<List<$entityName>> getList(ListQueryParams params) async {
     // Include params in cache key for granular caching
     final listCacheKey = '${baseCacheKey}_\${params.hashCode}';
-    
+
     // Check cache validity
     if (await _cachePolicy.isValid(listCacheKey)) {
       try {
@@ -729,7 +729,7 @@ ${methods.join('\n\n')}
   }''';
       case 'update':
         return '''  @override
-  Future<${config.name}> update(UpdateParams<${config.useMorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params) async {
+  Future<${config.name}> update(UpdateParams<${config.useZorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params) async {
     // Update on remote
     final updated = await _remoteDataSource.update(params);
 

@@ -9,12 +9,34 @@ The **Model Context Protocol** is a standardized protocol that allows AI assista
 - Execute CLI commands
 - Access project files
 - Generate code
+- Create entities and data models
 - Retrieve project metadata
 - Integrate with your development workflow
 
 ## Installation Options
 
-Zuraffa MCP server offers three installation approaches to suit different needs:
+Zuraffa MCP server offers three installation approaches to suit different needs. Additionally, you can configure Zorphy (entity generation) defaults via startup flags.
+
+### Zorphy Configuration Flags
+
+Enable Zorphy-style typed entity patches by default for all MCP tool calls:
+
+```json
+{
+  "mcpServers": {
+    "zuraffa": {
+      "command": "/usr/local/bin/zuraffa_mcp_server",
+      "args": ["--zorphy"],
+      "cwd": "/path/to/your/flutter/project"
+    }
+  }
+}
+```
+
+Available flags:
+- `--zorphy` / `--always-zorphy`: Enable Zorphy by default
+
+When enabled, all code generation will use Zorphy-style typed patches instead of `Partial<T>` for update operations. You can still override this per-request using the `zorphy: false` parameter.
 
 ### 1. Automatic via pub.dev (Recommended for Most Users)
 
@@ -109,7 +131,7 @@ Add to your workspace settings (`.vscode/settings.json`) or MCP configuration:
 ```json
 {
   "mcp.servers": {
-    "zfa": {
+    "zuraffa": {
       "command": "zuraffa_mcp_server",
       "args": [],
       "cwd": "${workspaceFolder}"
@@ -124,14 +146,14 @@ Configure in Zed settings:
 
 ```json
 {
-  /// The name of your MCP server
-  "flutter-clean-architecture": {
-    /// The command which runs the MCP server
-    "command": "/usr/local/bin/zuraffa_mcp_server",
-    /// The arguments to pass to the MCP server
-    "args": [],
-    /// The environment variables to set
-    "env": {}
+  "lsp": {
+    "mcp_servers": {
+      "zuraffa": {
+        "command": "/usr/local/bin/zuraffa_mcp_server",
+        "args": [],
+        "env": {}
+      }
+    }
   }
 }
 ```
@@ -139,6 +161,8 @@ Configure in Zed settings:
 ## Available Tools
 
 The MCP server exposes Zuraffa CLI functionality as MCP tools:
+
+### Clean Architecture Tools
 
 ### zuraffa_generate
 
@@ -161,21 +185,17 @@ Generate Clean Architecture code for your Flutter project.
 | `id_field_type` | string | No | ID field type (default: String) |
 | `query_field` | string | No | Query field name for get/watch (default: id) |
 | `query_field_type` | string | No | Query field type (default: matches id_field_type) |
-| `morphy` | boolean | No | Use Morphy-style typed patches |
+| `zorphy` | boolean | No | Use Zorphy-style typed patches |
 | `repo` | string | No | Repository to inject (enforces Single Responsibility Principle) |
 | `usecases` | array | No | UseCases to compose (orchestrator pattern) |
 | `variants` | array | No | Variants for polymorphic pattern |
 | `domain` | string | No | Domain folder for custom UseCases (required for custom) |
-| `method` | string | No | Repository method name (default: auto from UseCase name) |
-| `append` | boolean | No | Append method to existing repository/datasource files |
 | `params` | string | No | Params type for custom UseCase (default: NoParams) |
 | `returns` | string | No | Return type for custom UseCase (default: void) |
 | `type` | string | No | UseCase type: usecase, stream, background, completable |
 | `output` | string | No | Output directory (default: lib/src) |
 | `dry_run` | boolean | No | Preview without writing files |
 | `force` | boolean | No | Overwrite existing files |
-| `verbose` | boolean | No | Enable verbose output |
-| `test` | boolean | No | Generate unit tests |
 | `cache` | boolean | No | Enable caching with dual datasources |
 | `cache_policy` | string | No | Cache policy: daily, restart, ttl |
 | `cache_storage` | string | No | Local storage: hive, sqlite, shared_preferences |
@@ -187,7 +207,7 @@ Generate Clean Architecture code for your Flutter project.
 **Example Usage:**
 ```json
 {
-  "name": "generate",
+  "name": "zuraffa_generate",
   "arguments": {
     "name": "Product",
     "methods": ["get", "getList", "create"],
@@ -210,7 +230,6 @@ Initialize a test entity to quickly try out Zuraffa.
 | `output` | string | No | Output directory (default: lib/src) |
 | `force` | boolean | No | Overwrite existing files |
 | `dry_run` | boolean | No | Preview without writing files |
-| `verbose` | boolean | No | Enable verbose output |
 
 ### zuraffa_schema
 
@@ -225,35 +244,192 @@ Validate a JSON configuration file.
 **Parameters:**
 - `config` (object, required): The configuration to validate
 
+---
+
+### Entity Generation Tools (NEW!)
+
+### entity_create
+
+Create a new Zorphy entity with fields. Supports JSON serialization, sealed classes, inheritance, and all Zorphy features.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Entity name in PascalCase (e.g., User, Product) |
+| `output` | string | No | Output directory (default: lib/src/domain/entities) |
+| `fields` | array | No | Fields in format "name:type" or "name:type?" for nullable |
+| `json` | boolean | No | Enable JSON serialization (default: true) |
+| `sealed` | boolean | No | Create sealed abstract class (use $$ prefix) |
+| `non_sealed` | boolean | No | Create non-sealed abstract class |
+| `copywith_fn` | boolean | No | Enable function-based copyWith |
+| `compare` | boolean | No | Enable compareTo generation |
+| `extends` | string | No | Interface to extend (e.g., $BaseEntity) |
+| `subtype` | array | No | Explicit subtypes for polymorphism (e.g., ["$Dog", "$Cat"]) |
+
+**Example Usage:**
+```json
+{
+  "name": "entity_create",
+  "arguments": {
+    "name": "User",
+    "fields": ["name:String", "email:String?", "age:int"],
+    "json": true
+  }
+}
+```
+
+### entity_enum
+
+Create a new enum in the entities/enums directory with automatic barrel export.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Enum name in PascalCase (e.g., Status, UserRole) |
+| `output` | string | No | Output base directory (default: lib/src/domain/entities) |
+| `values` | array | Yes | Enum values (e.g., ["active", "inactive", "pending"]) |
+
+**Example Usage:**
+```json
+{
+  "name": "entity_enum",
+  "arguments": {
+    "name": "OrderStatus",
+    "values": ["pending", "processing", "shipped", "delivered", "cancelled"]
+  }
+}
+```
+
+### entity_add_field
+
+Add field(s) to an existing Zorphy entity. Automatically updates imports if needed.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Entity name (e.g., User) |
+| `output` | string | No | Output base directory (default: lib/src/domain/entities) |
+| `fields` | array | Yes | Fields to add in format "name:type" or "name:type?" |
+
+**Example Usage:**
+```json
+{
+  "name": "entity_add_field",
+  "arguments": {
+    "name": "User",
+    "fields": ["phone:String?", "address:$Address"]
+  }
+}
+```
+
+### entity_from_json
+
+Create Zorphy entity/ies from a JSON file. Automatically infers types and creates nested entities.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `file` | string | Yes | Path to JSON file |
+| `name` | string | No | Entity name (inferred from file if not provided) |
+| `output` | string | No | Output base directory (default: lib/src/domain/entities) |
+| `json` | boolean | No | Enable JSON serialization (default: true) |
+| `prefix_nested` | boolean | No | Prefix nested entities with parent name (default: true) |
+
+**Example Usage:**
+```json
+{
+  "name": "entity_from_json",
+  "arguments": {
+    "file": "user_data.json",
+    "name": "UserProfile",
+    "json": true
+  }
+}
+```
+
+### entity_list
+
+List all Zorphy entities and enums in the project with their properties.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `output` | string | No | Directory to search (default: lib/src/domain/entities) |
+
+**Example Usage:**
+```json
+{
+  "name": "entity_list",
+  "arguments": {
+    "output": "lib/src/domain/entities"
+  }
+}
+```
+
+### entity_new
+
+Quick-create a simple Zorphy entity with basic defaults. Good for prototyping.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Entity name in PascalCase |
+| `output` | string | No | Output directory (default: lib/src/domain/entities) |
+| `json` | boolean | No | Enable JSON serialization (default: true) |
+
+**Example Usage:**
+```json
+{
+  "name": "entity_new",
+  "arguments": {
+    "name": "Product",
+    "json": true
+  }
+}
+```
+
 ## Project Resources
 
 The MCP server provides access to your project's generated resources:
 
 ### resources/list
 
-List all available files in your project's Clean Architecture directories:
+List all available files in your project's Clean Architecture and entity directories:
 
 - `lib/src/domain/repositories` - Repository interfaces
 - `lib/src/domain/usecases` - UseCase implementations
 - `lib/src/data/data_sources` - Data source implementations
 - `lib/src/data/repositories` - Data repository implementations
 - `lib/src/presentation` - Views, Presenters, Controllers
-- `lib/src/domain/entities` - Entity definitions
+- `lib/src/domain/entities` - Entity definitions (Zorphy entities)
+- `lib/src/domain/entities/enums` - Enum definitions
 
 **Example Response:**
 ```json
 {
   "resources": [
     {
-      "uri": "file://lib/src/domain/repositories/product_repository.dart",
-      "name": "product_repository",
-      "description": "product_repository.dart",
+      "uri": "file://lib/src/domain/entities/user/user.dart",
+      "name": "user",
+      "description": "user.dart",
       "mimeType": "text/dart"
     },
     {
-      "uri": "file://lib/src/domain/usecases/product/get_product_usecase.dart",
-      "name": "product.get_product_usecase",
-      "description": "product/get_product_usecase.dart",
+      "uri": "file://lib/src/domain/entities/enums/status.dart",
+      "name": "status",
+      "description": "status.dart",
+      "mimeType": "text/dart"
+    },
+    {
+      "uri": "file://lib/src/domain/repositories/product_repository.dart",
+      "name": "product_repository",
+      "description": "product_repository.dart",
       "mimeType": "text/dart"
     }
   ]
@@ -274,33 +450,61 @@ Read the contents of a specific file using its URI from `resources/list`.
   "method": "resources/read",
   "id": 10,
   "params": {
-    "uri": "file://lib/src/domain/repositories/product_repository.dart"
+    "uri": "file://lib/src/domain/entities/user/user.dart"
   }
 }
 ```
 
-**Response:**
+## AI/IDE Integration Examples
+
+### Generate Complete Feature with Entities
+
+```bash
+# AI agent workflow in Claude Desktop:
+1. Create enum: entity_enum(name="OrderStatus", values=["pending","shipped"])
+2. Create entity: entity_create(name="Order", fields=["customer:$Customer", "total:double"])
+3. Generate architecture: zuraffa_generate(name="Order", methods=["get","create"], data=true, vpc=true)
+4. Build: Automatic via notifications
+```
+
+### Iterate on Entity Design
+
 ```json
+// AI agent conversation:
 {
-  "jsonrpc": "2.0",
-  "result": {
-    "contents": [
-      {
-        "uri": "file://lib/src/domain/repositories/product_repository.dart",
-        "mimeType": "text/dart",
-        "text": "abstract class ProductRepository {\n  Future<Product> get(String id);\n  Future<List<Product>> getList();\n  Future<Product> create(Product product);\n  Future<Product> update(Product product);\n  Future<void> delete(String id);\n}"
-      }
-    ]
-  },
-  "id": 10
+  "role": "user",
+  "content": "Create a User entity with name, email, and address fields"
+}
+
+// Agent calls:
+{
+  "name": "entity_create",
+  "arguments": {
+    "name": "User",
+    "fields": ["name:String", "email:String?", "address:$Address"]
+  }
+}
+```
+
+### Import from API Response
+
+```json
+// After receiving API documentation:
+{
+  "name": "entity_from_json",
+  "arguments": {
+    "file": "api_response.json",
+    "name": "ApiResponse",
+    "json": true
+  }
 }
 ```
 
 ## Notifications
 
-When the `zuraffa_generate` tool creates new files, the MCP server automatically sends resource change notifications to the agent. This ensures the agent is aware of newly generated files without needing to explicitly query them.
+When tools create new files, the MCP server automatically sends resource change notifications to the agent. This ensures the agent is aware of newly generated files without needing to explicitly query them.
 
-**Example notification sent after generating code:**
+**Example notification after entity creation:**
 
 ```json
 {
@@ -310,37 +514,34 @@ When the `zuraffa_generate` tool creates new files, the MCP server automatically
     "changes": [
       {
         "type": "created",
-        "uri": "file://lib/src/domain/repositories/product_repository.dart"
+        "uri": "file://lib/src/domain/entities/user/user.dart"
       },
       {
         "type": "created",
-        "uri": "file://lib/src/domain/usecases/product/get_product_usecase.dart"
+        "uri": "file://lib/src/domain/entities/user/user.zorphy.dart"
+      },
+      {
+        "type": "created",
+        "uri": "file://lib/src/domain/entities/user/user.g.dart"
       }
     ]
   }
 }
 ```
 
-This enables the agent to:
-- Automatically become aware of new files as they are created
-- Update its context with generated code without manual intervention
-- Call `resources/list` to see all available files in the project
-- Call `resources/read` to read the contents of specific files
-- Continue working with the generated files seamlessly
-
 ## Testing
 
 Test the server directly:
 
 ```bash
-# Test initialize (using precompiled binary)
+# Test initialize
 echo '{"jsonrpc":"2.0","method":"initialize","id":1}' | zuraffa_mcp_server
 
-# List tools
+# List tools (includes entity commands!)
 echo '{"jsonrpc":"2.0","method":"tools/list","id":2}' | zuraffa_mcp_server
 
-# Get schema
-echo '{"jsonrpc":"2.0","method":"tools/call","id":3,"params":{"name":"zuraffa_schema","arguments":{}}}' | zuraffa_mcp_server
+# Create entity via MCP
+echo '{"jsonrpc":"2.0","method":"tools/call","id":3,"params":{"name":"entity_create","arguments":{"name":"TestUser","fields":["name:String"]}}}' | zuraffa_mcp_server
 ```
 
 ## Troubleshooting
@@ -354,42 +555,64 @@ echo '{"jsonrpc":"2.0","method":"tools/call","id":3,"params":{"name":"zuraffa_sc
 **Solution:** Use a precompiled executable:
 
 ```bash
-# From zuraffa directory
 dart compile exe bin/zuraffa_mcp_server.dart -o zuraffa_mcp_server
-
-# Then update your MCP configuration to use the precompiled binary:
-"command": "zuraffa_mcp_server"
 ```
 
-**Alternative:** If you must use `dart run`, increase your MCP client timeout setting to at least 90 seconds.
+### Build Errors After Entity Creation
 
-### General Issues
+**Problem:** Generated entity code has compilation errors.
 
-- Ensure Dart is in your PATH (if using `dart run`)
-- Check the working directory in your MCP configuration
-- Make sure the entity file exists at the expected path before generating
-- Recompile the executable if you've made code changes to `zuraffa_mcp_server.dart`
+**Solution:** Run `zfa build` after entity creation:
+
+```bash
+zfa entity create -n User --field name:String
+zfa build  # This generates the implementation
+```
 
 ## Best Practices
 
-### 1. Use Pre-compiled Binaries for Production
+### 1. Create Entities Before Architecture
 
-For fastest startup and best performance, use the pre-compiled binaries from GitHub Releases.
+Always create entities before generating Clean Architecture:
 
-### 2. Configure Proper Working Directory
+```json
+// ✅ Good - Create entity first
+entity_create(name="Product", fields=["name:String", "price:double"])
+zuraffa_generate(name="Product", methods=["get", "create"], data=true)
 
-Always set the correct `cwd` (current working directory) to your Flutter project root in MCP configuration.
+// ❌ Bad - Product entity doesn't exist yet
+zuraffa_generate(name="Product", methods=["get", "create"], data=true)
+```
 
-### 3. Leverage Notifications
+### 2. Use --dry-run for Testing
 
-Take advantage of automatic resource change notifications to keep AI agents synchronized with your project.
+When working with AI agents, preview changes first:
 
-### 4. Use --dry-run for Preview
+```json
+{
+  "name": "entity_create",
+  "arguments": {
+    "name": "User",
+    "fields": ["name:String"],
+    "dry_run": true
+  }
+}
+```
 
-When integrating with AI agents, use `dry_run: true` to preview changes before applying them.
+### 3. Leverage Resource Notifications
+
+Monitor file creation notifications to understand what was generated:
+
+```bash
+# Agent receives notifications for:
+# - user.dart (your definition)
+# - user.zorphy.dart (generated implementation)
+# - user.g.dart (JSON serialization)
+```
 
 ## Next Steps
 
-- [CLI Reference](../cli/commands) - Complete CLI documentation with all flags and options
+- [Entity Generation](../entities/intro) - Complete entity generation guide
+- [CLI Reference](../cli/commands) - Complete CLI documentation
+- [Entity Commands](../cli/entity-commands) - Entity command reference
 - [Architecture Overview](../architecture/overview) - Clean Architecture patterns
-- [UseCase Types](../architecture/usecases) - UseCase patterns and ZFA patterns

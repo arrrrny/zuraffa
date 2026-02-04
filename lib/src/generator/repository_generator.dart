@@ -50,7 +50,7 @@ class RepositoryGenerator {
           break;
         case 'update':
           methods.add(
-              '  Future<${config.name}> update(UpdateParams<${config.useMorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params);');
+              '  Future<${config.name}> update(UpdateParams<${config.useZorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params);');
           break;
         case 'delete':
           methods.add(

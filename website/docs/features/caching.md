@@ -249,7 +249,7 @@ Persists until app restart:
 zfa generate Product --data --cache --cache-policy=restart
 ```
 
-## ZFA 2.0.0 Patterns and Caching
+## ZFA Patterns and Caching
 
 ### Entity-Based Pattern
 

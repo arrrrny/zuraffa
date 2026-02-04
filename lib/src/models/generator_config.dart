@@ -26,7 +26,7 @@ class GeneratorConfig {
   final bool generateInit;
   final String queryField;
   final String queryFieldType;
-  final bool useMorphy;
+  final bool useZorphy;
   final bool generateTest;
   final bool enableCache;
   final String cachePolicy;
@@ -64,7 +64,7 @@ class GeneratorConfig {
     this.generateInit = false,
     this.queryField = 'id',
     String? queryFieldType,
-    this.useMorphy = false,
+    this.useZorphy = false,
     this.generateTest = false,
     this.enableCache = false,
     this.cachePolicy = 'daily',
@@ -105,7 +105,7 @@ class GeneratorConfig {
       generateInit: json['init'] == true,
       queryField: json['query_field'] ?? 'id',
       queryFieldType: json['query_field_type'],
-      useMorphy: json['morphy'] == true || json['useMorphy'] == true,
+      useZorphy: json['zorphy'] == true || json['useZorphy'] == true,
       generateTest: json['test'] == true,
       enableCache: json['cache'] == true || json['enable_cache'] == true,
       cachePolicy: json['cache_policy'] ?? 'daily',

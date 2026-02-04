@@ -35,7 +35,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  zuraffa: ^2.0.0
+  zuraffa: ^2.1.0
 ```
 
 Then run:
@@ -64,7 +64,27 @@ zfa initialize --entity=User
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state
 ```
 
-### 2. Generate Code with the CLI
+### 2. Configure Your Project (NEW!)
+
+```bash
+# Create configuration with defaults
+zfa config init
+
+# Show current configuration
+zfa config show
+
+# Customize defaults
+zfa config set useZorphyByDefault false
+zfa config set defaultEntityOutput lib/src/models
+```
+
+**Configuration Options:**
+- `useZorphyByDefault` - Use Zorphy for entities (default: true)
+- `jsonByDefault` - Default JSON serialization (default: true)
+- `compareByDefault` - Default compareTo generation (default: true)
+- `defaultEntityOutput` - Default entity output directory
+
+### 3. Generate Code with the CLI
 
 **One command generates your entire feature:**
 
@@ -231,15 +251,15 @@ Uses `Partial<T>` (a `Map<String, dynamic>`) to send only changed fields. The ge
 await updateProduct(id: '123', data: {'name': 'New Product Name'});
 ```
 
-#### 2. Typed Updates with Morphy (`--morphy`)
-If you use [Morphy](https://pub.dev/packages/morphy) or similar tools, you can use typed Patch objects for full type safety.
+#### 2. Typed Updates with Zorphy (`--zorphy`)
+If you use [Zorphy](https://pub.dev/packages/zorphy) or similar tools, you can use typed Patch objects for full type safety.
 
 ```bash
-zfa generate Product --methods=update --morphy
+zfa generate Product --methods=update --zorphy
 ```
 
 ```dart
-// Generated with --morphy
+// Generated with --zorphy
 await updateProduct(id: '123', data: ProductPatch(name: 'New Product Name'));
 ```
 
@@ -732,6 +752,50 @@ dart pub global activate zuraffa
 dart run zuraffa:zfa
 ```
 
+
+### Entity Commands (NEW!)
+
+Zuraffa now includes **full Zorphy entity generation** - create type-safe entities, enums, and manage data models:
+
+```bash
+# Create an entity with fields
+zfa entity create -n User --field name:String --field email:String? --field age:int
+
+# Create an enum
+zfa entity enum -n Status --value active,inactive,pending
+
+# Quick-create a simple entity
+zfa entity new -n Product
+
+# Add fields to existing entity
+zfa entity add-field -n User --field phone:String?
+
+# Create entity from JSON file
+zfa entity from-json user_data.json
+
+# List all entities
+zfa entity list
+
+# Build generated code
+zfa build
+zfa build --watch  # Watch for changes
+zfa build --clean  # Clean and rebuild
+```
+
+**Full Entity Generation Features:**
+- ✅ Type-safe entities with null safety
+- ✅ JSON serialization (built-in)
+- ✅ Sealed classes for polymorphism
+- ✅ Multiple inheritance support
+- ✅ Generic types (`List<T>`, `Map<K,V>`)
+- ✅ Nested entities with auto-imports
+- ✅ Enum integration
+- ✅ Self-referencing types (trees)
+- ✅ compare`To, `copyWith`, `patch` methods
+
+**📖 For complete entity generation documentation, see [ENTITY_GUIDE.md](ENTITY_GUIDE.md)**
+
+
 ### Initialize Command
 
 The quickest way to get started is with the `initialize` command:
@@ -787,8 +851,8 @@ zfa generate Product --methods=get,getList,create,update,delete --vpc --state
 # Add data layer (DataRepository + DataSource)
 zfa generate Product --methods=get,getList,create,update,delete --data
 
-# Use typed patches for updates (Morphy support)
-zfa generate Product --methods=update --morphy
+# Use typed patches for updates (Zorphy support)
+zfa generate Product --methods=update --zorphy
 
 # Enable caching with dual datasources
 zfa generate Config --methods=get,getList --data --cache --cache-policy=daily
@@ -867,7 +931,7 @@ zfa generate ProcessCheckout --domain=checkout --usecases=ValidateCart,ProcessPa
 | `--mock-data-only` | Generate only mock data files (no other layers)   |
 | `--use-mock`   | Use mock datasource in DI (default: remote datasource)|
 | `--di`         | Generate dependency injection files (get_it)          |
-| `--morphy`     | Use typed Patch objects for updates                   |
+| `--zorphy`     | Use typed Patch objects for updates                   |
 | `--cache`      | Enable caching with dual datasources (remote + local) |
 | `--cache-policy` | Cache expiration: daily, restart, ttl (default: daily) |
 | `--cache-storage` | Local storage hint: hive, sqlite, shared_preferences (default: hive) |

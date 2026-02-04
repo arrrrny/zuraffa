@@ -7,7 +7,7 @@ class UpdateParams<T> {
   /// The unique identifier of the entity to update.
   final dynamic id;
 
-  /// The update data (e.g., a Partial map or a Morphy Patch object).
+  /// The update data (e.g., a Partial map or a Zorphy Patch object).
   final T data;
 
   /// Optional additional parameters for the update.

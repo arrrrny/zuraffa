@@ -84,7 +84,7 @@ class GenerateCommand {
         generateInit: results['init'] == true,
         queryField: results['query-field'] ?? results['id-field'] ?? 'id',
         queryFieldType: results['query-field-type'],
-        useMorphy: results['morphy'] == true,
+        useZorphy: results['zorphy'] == true,
         generateTest: results['test'] == true,
         enableCache: results['cache'] == true,
         cachePolicy: results['cache-policy'] ?? 'daily',
@@ -100,7 +100,7 @@ class GenerateCommand {
       );
     }
 
-    // ZFA 2.0.0 Validation Rules
+    // ZFA 2.1.0 Validation Rules
     _validateConfig(config);
 
     final outputDir = results['output'] as String;
@@ -318,8 +318,9 @@ class GenerateCommand {
           help: 'Query field name for get/watch (default: matches --id-field)')
       ..addOption('query-field-type',
           help: 'Query field type (default: matches --id-type)')
-      ..addFlag('morphy',
-          help: 'Use Morphy-style typed patches (e.g. EntityPatch) for updates',
+      ..addFlag('zorphy',
+          help:
+              'Use Zorphy-style typed patches (Zorphy generates patch() methods) (e.g. EntityPatch) for updates',
           defaultsTo: false)
       ..addFlag('state', help: 'Generate State object', defaultsTo: false)
       ..addFlag('cache',
@@ -369,7 +370,7 @@ ENTITY-BASED GENERATION:
   --id-field-type=<t>   ID field type (default: String)
   --query-field=<name>  Query field name for get/watch (default: id)
   --query-field-type=<t> Query field type (default: same as id-field-type)
-  --morphy             Use Morphy-style typed patches (e.g. EntityPatch)
+  --zorphy             Use Zorphy-style typed patches (alias: --zorphy)
 
 CACHING:
   --cache              Enable caching with dual datasources (remote + local)
