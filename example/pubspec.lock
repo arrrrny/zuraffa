@@ -320,14 +320,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "14.2.1"
-  zikzak_morphy_annotation:
+  zorphy_annotation:
     dependency: transitive
     description:
-      name: zikzak_morphy_annotation
-      sha256: d30a65a9dec4d71ab75e94d0c33fc99bd23bd217bff7141f633f4cf3837978b6
+      name: zorphy_annotation
+      sha256: "30bb01562a691315e885f8a6dd66508fb8beb8ec50c7c8fadd099856f9b869f0"
       url: "https://pub.dev"
     source: hosted
-    version: "2.9.1"
+    version: "1.0.0"
   zuraffa:
     dependency: "direct main"
     description:

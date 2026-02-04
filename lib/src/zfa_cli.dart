@@ -4,6 +4,7 @@ import 'commands/schema_command.dart';
 import 'commands/validate_command.dart';
 import 'commands/create_command.dart';
 import 'commands/initialize_command.dart';
+import 'commands/entity_command.dart';
 
 const version = '2.0.1';
 
@@ -33,6 +34,12 @@ Future<void> run(List<String> args) async {
       case 'init':
         await InitializeCommand().execute(args.skip(1).toList());
         break;
+      case 'entity':
+        await EntityCommand().execute(args.skip(1).toList());
+        break;
+      case 'build':
+        await _handleBuild(args.skip(1).toList());
+        break;
       case 'help':
       case '--help':
       case '-h':
@@ -58,32 +65,98 @@ Future<void> run(List<String> args) async {
   }
 }
 
+/// Handle the build command - run build_runner
+Future<void> _handleBuild(List<String> args) async {
+  final watch = args.contains('-w') || args.contains('--watch');
+  final clean = args.contains('-c') || args.contains('--clean');
+
+  print('🔨 Building generated code...');
+
+  if (clean) {
+    print('🧹 Cleaning before build...');
+  }
+
+  if (watch) {
+    print('👀 Watching for changes...');
+    print('Press Ctrl+C to stop\n');
+  }
+
+  // Run build_runner
+  final buildArgs = ['run', 'build_runner'];
+  if (clean) buildArgs.add('clean');
+  buildArgs.add('build');
+  if (watch) buildArgs.add('--watch');
+
+  final process = await Process.start(
+    'dart',
+    buildArgs,
+    mode: ProcessStartMode.inheritStdio,
+  );
+
+  final exitCode = await process.exitCode;
+
+  if (exitCode != 0) {
+    print('\n❌ Build failed with exit code $exitCode');
+    exit(exitCode);
+  }
+
+  print('\n✅ Build complete!');
+}
+
 void _printHelp() {
   print('''
-zfa - Zuraffa Code Generator
+zfa - Zuraffa Code Generator v$version
 
 USAGE:
   zfa <command> [options]
 
-COMMANDS:
-  generate <Name>     Generate code for an entity or custom usecase
+CLEAN ARCHITECTURE COMMANDS:
+  generate <Name>     Generate Clean Architecture code for an entity or usecase
   initialize          Initialize a test entity to quickly try out Zuraffa
+  create              Create architecture folders or pages
   schema              Output JSON schema for configuration
   validate <file>     Validate JSON configuration file
-  create              Create architecture folders or pages
+
+ENTITY GENERATION COMMANDS (powered by Zorphy):
+  entity create       Create a new Zorphy entity with fields
+  entity new          Quick-create a simple entity
+  entity enum         Create a new enum
+  entity add-field    Add field(s) to an existing entity
+  entity from-json    Create entity/ies from JSON file
+  entity list         List all Zorphy entities
+
+BUILD COMMANDS:
+  build               Run code generation (build_runner)
+    -w, --watch       Watch for changes
+    -c, --clean       Clean before build
+
+HELP:
   help                Show this help message
   version             Show version
 
-EXAMPLES:
-  zfa initialize                          # Create sample Product entity
-  zfa generate Product --methods=get,getList,create --repository --vpc
-  zfa generate ProcessOrder --repo=Order --params=OrderRequest --returns=OrderResult --domain=order
-  echo '{"name":"Product","methods":["get","getList"]}' | zfa generate Product --from-stdin
-  zfa create
-  zfa create --page user_profile
+EXAMPLES - CLEAN ARCHITECTURE:
+  zfa initialize                                    # Create sample Product entity
+  zfa generate Product --methods=get,getList        # Generate Clean Architecture
+  zfa generate OrderUseCase --custom --returns=Order
 
-Run 'zfa initialize --help' for more details on the initialize command.
-Run 'zfa generate --help' for more details on the generate command.
-Run 'zfa create --help' for more details on the create command.
+EXAMPLES - ENTITY GENERATION:
+  zfa entity create User --field name:String --field email:String?
+  zfa entity enum Status --value active,inactive,pending
+  zfa entity from-json user_data.json
+  zfa entity list
+
+EXAMPLES - BUILD:
+  zfa build                # Run build_runner once
+  zfa build --watch        # Watch for changes
+  zfa build --clean        # Clean and rebuild
+
+For detailed help on each command:
+  zfa generate --help
+  zfa entity --help
+  zfa initialize --help
+  zfa create --help
+
+Documentation: https://zuraffa.com/docs
+Zorphy Docs: https://github.com/arrrrny/zorphy
 ''');
 }

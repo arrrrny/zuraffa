@@ -20,6 +20,24 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Entity Generation (NEW)',
+      collapsed: false,
+      items: [
+        'entities/intro',
+        {
+          type: 'category',
+          label: 'Entity Guides',
+          collapsed: true,
+          items: [
+            'entities/field-types',
+            'entities/advanced-patterns',
+            'entities/examples',
+          ],
+        },
+      ],
+    },
+    {
+      type: 'category',
       label: 'Getting Started',
       collapsed: false,
       items: [
@@ -42,6 +60,7 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'cli/commands',
+        'cli/entity-commands',
       ],
     },
     {

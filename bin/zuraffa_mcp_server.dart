@@ -177,6 +177,12 @@ class ZuraffaMcpServer {
           _initializeToolDefinition(),
           _schemaToolDefinition(),
           _validateToolDefinition(),
+          _entityCreateToolDefinition(),
+          _entityEnumToolDefinition(),
+          _entityAddFieldToolDefinition(),
+          _entityFromJsonToolDefinition(),
+          _entityListToolDefinition(),
+          _entityNewToolDefinition(),
         ],
       },
       'id': id,
@@ -465,6 +471,24 @@ class ZuraffaMcpServer {
         case 'validate':
           result = await _runValidateCommand(args);
           break;
+        case 'entity_create':
+          result = await _runEntityCreateCommand(args);
+          break;
+        case 'entity_enum':
+          result = await _runEntityEnumCommand(args);
+          break;
+        case 'entity_add_field':
+          result = await _runEntityAddFieldCommand(args);
+          break;
+        case 'entity_from_json':
+          result = await _runEntityFromJsonCommand(args);
+          break;
+        case 'entity_list':
+          result = await _runEntityListCommand(args);
+          break;
+        case 'entity_new':
+          result = await _runEntityNewCommand(args);
+          break;
         default:
           return _error(id, -32602, 'Unknown tool: $toolName');
       }
@@ -497,6 +521,262 @@ class ZuraffaMcpServer {
         'id': id,
       };
     }
+  }
+
+  /// Run entity create command
+  Future<String> _runEntityCreateCommand(Map<String, dynamic> args) async {
+    final List<String> cliArgs = ['entity', 'create', '--name=${args["name"]}'];
+
+    if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
+    if (args['json'] == true) cliArgs.add('--json=true');
+    if (args['json'] == false) cliArgs.add('--json=false');
+    if (args['sealed'] == true) cliArgs.add('--sealed');
+    if (args['non_sealed'] == true) cliArgs.add('--non-sealed');
+    if (args['copywith_fn'] == true) cliArgs.add('--copywith-fn');
+    if (args['compare'] == true) cliArgs.add('--compare=true');
+    if (args['compare'] == false) cliArgs.add('--compare=false');
+    if (args['extends'] != null) cliArgs.add('--extends=${args["extends"]}');
+
+    if (args['fields'] != null) {
+      final fields = args['fields'] as List;
+      for (final field in fields) {
+        cliArgs.add('--field=$field');
+      }
+    }
+
+    if (args['subtype'] != null) {
+      final subtypes = args['subtype'] as List;
+      for (final subtype in subtypes) {
+        cliArgs.add('--subtype=$subtype');
+      }
+    }
+
+    return await _runZuraffaProcess(cliArgs);
+  }
+
+  /// Run entity enum command
+  Future<String> _runEntityEnumCommand(Map<String, dynamic> args) async {
+    final List<String> cliArgs = ['entity', 'enum', '--name=${args["name"]}'];
+
+    if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
+
+    if (args['values'] != null) {
+      final values = args['values'] as List;
+      cliArgs.add('--value=${values.join(',')}');
+    }
+
+    return await _runZuraffaProcess(cliArgs);
+  }
+
+  /// Run entity add-field command
+  Future<String> _runEntityAddFieldCommand(Map<String, dynamic> args) async {
+    final List<String> cliArgs = [
+      'entity',
+      'add-field',
+      '--name=${args["name"]}'
+    ];
+
+    if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
+
+    if (args['fields'] != null) {
+      final fields = args['fields'] as List;
+      for (final field in fields) {
+        cliArgs.add('--field=$field');
+      }
+    }
+
+    return await _runZuraffaProcess(cliArgs);
+  }
+
+  /// Run entity from-json command
+  Future<String> _runEntityFromJsonCommand(Map<String, dynamic> args) async {
+    final List<String> cliArgs = [
+      'entity',
+      'from-json',
+      args['file'] as String
+    ];
+
+    if (args['name'] != null) cliArgs.add('--name=${args["name"]}');
+    if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
+    if (args['json'] == true) cliArgs.add('--json=true');
+    if (args['json'] == false) cliArgs.add('--json=false');
+    if (args['prefix_nested'] == true) cliArgs.add('--prefix-nested=true');
+    if (args['prefix_nested'] == false) cliArgs.add('--prefix-nested=false');
+
+    return await _runZuraffaProcess(cliArgs);
+  }
+
+  /// Run entity list command
+  Future<String> _runEntityListCommand(Map<String, dynamic> args) async {
+    final List<String> cliArgs = ['entity', 'list'];
+
+    if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
+
+    return await _runZuraffaProcess(cliArgs);
+  }
+
+  /// Run entity new (quick create) command
+  Future<String> _runEntityNewCommand(Map<String, dynamic> args) async {
+    final List<String> cliArgs = ['entity', 'new', '--name=${args["name"]}'];
+
+    if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
+    if (args['json'] == true) cliArgs.add('--json=true');
+    if (args['json'] == false) cliArgs.add('--json=false');
+
+    return await _runZuraffaProcess(cliArgs);
+  }
+
+  /// Entity Create tool definition
+  Map<String, dynamic> _entityCreateToolDefinition() {
+    return {
+      'name': 'entity_create',
+      'description':
+          'Create a new Zorphy entity with fields. Supports JSON serialization, sealed classes, inheritance, and all Zorphy features.',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'name': {
+            'type': 'string',
+            'description': 'Entity name in PascalCase (e.g., User, Product)'
+          },
+          'output': {
+            'type': 'string',
+            'description': 'Output directory (default: lib/src/domain/entities)'
+          },
+          'fields': {
+            'type': 'array',
+            'items': {'type': 'string'},
+            'description':
+                'Fields in format "name:type" or "name:type?" for nullable'
+          },
+          'json': {
+            'type': 'boolean',
+            'description': 'Enable JSON serialization'
+          },
+          'sealed': {'type': 'boolean', 'description': 'Create sealed class'},
+          'non_sealed': {
+            'type': 'boolean',
+            'description': 'Create non-sealed class'
+          },
+          'copywith_fn': {
+            'type': 'boolean',
+            'description': 'Function-based copyWith'
+          },
+          'compare': {'type': 'boolean', 'description': 'Enable compareTo'},
+          'extends': {'type': 'string', 'description': 'Interface to extend'},
+          'subtype': {
+            'type': 'array',
+            'items': {'type': 'string'},
+            'description': 'Explicit subtypes'
+          },
+        },
+        'required': ['name']
+      }
+    };
+  }
+
+  /// Entity Enum tool definition
+  Map<String, dynamic> _entityEnumToolDefinition() {
+    return {
+      'name': 'entity_enum',
+      'description': 'Create a new enum in the entities/enums directory',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'name': {'type': 'string', 'description': 'Enum name in PascalCase'},
+          'output': {'type': 'string', 'description': 'Output base directory'},
+          'values': {
+            'type': 'array',
+            'items': {'type': 'string'},
+            'description': 'Enum values'
+          },
+        },
+        'required': ['name', 'values']
+      }
+    };
+  }
+
+  /// Entity Add-Field tool definition
+  Map<String, dynamic> _entityAddFieldToolDefinition() {
+    return {
+      'name': 'entity_add_field',
+      'description': 'Add field(s) to an existing Zorphy entity',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'name': {'type': 'string', 'description': 'Entity name'},
+          'output': {'type': 'string', 'description': 'Output base directory'},
+          'fields': {
+            'type': 'array',
+            'items': {'type': 'string'},
+            'description': 'Fields to add in format "name:type"'
+          },
+        },
+        'required': ['name', 'fields']
+      }
+    };
+  }
+
+  /// Entity From-JSON tool definition
+  Map<String, dynamic> _entityFromJsonToolDefinition() {
+    return {
+      'name': 'entity_from_json',
+      'description': 'Create Zorphy entity/ies from a JSON file',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'file': {'type': 'string', 'description': 'Path to JSON file'},
+          'name': {'type': 'string', 'description': 'Entity name'},
+          'output': {'type': 'string', 'description': 'Output base directory'},
+          'json': {
+            'type': 'boolean',
+            'description': 'Enable JSON serialization'
+          },
+          'prefix_nested': {
+            'type': 'boolean',
+            'description': 'Prefix nested entities'
+          },
+        },
+        'required': ['file']
+      }
+    };
+  }
+
+  /// Entity List tool definition
+  Map<String, dynamic> _entityListToolDefinition() {
+    return {
+      'name': 'entity_list',
+      'description': 'List all Zorphy entities and enums',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'output': {'type': 'string', 'description': 'Directory to search'}
+        },
+      }
+    };
+  }
+
+  /// Entity New tool definition
+  Map<String, dynamic> _entityNewToolDefinition() {
+    return {
+      'name': 'entity_new',
+      'description': 'Quick-create a simple Zorphy entity',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'name': {
+            'type': 'string',
+            'description': 'Entity name in PascalCase'
+          },
+          'output': {'type': 'string', 'description': 'Output directory'},
+          'json': {
+            'type': 'boolean',
+            'description': 'Enable JSON serialization'
+          },
+        },
+        'required': ['name']
+      }
+    };
   }
 
   /// Run the generate command

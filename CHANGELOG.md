@@ -1,4 +1,135 @@
 # Changelog
+
+## [Unreleased]
+
+### 🎉 Major Feature - Zorphy Entity Generation Integration
+
+Zuraffa now includes **complete Zorphy entity generation** - making it a full-featured CLI for both Clean Architecture and entity management!
+
+### ✨ New Features
+
+#### Entity Generation Commands
+- `zfa entity create` - Create Zorphy entities with fields
+- `zfa entity new` - Quick-create simple entities
+- `zfa entity enum` - Create enums with automatic barrel exports
+- `zfa entity add-field` - Add fields to existing entities
+- `zfa entity from-json` - Create entities from JSON files
+- `zfa entity list` - List all entities in project
+- `zfa build` - Run build_runner with --watch and --clean options
+
+#### Entity Features
+- ✅ Type-safe entities with null safety
+- ✅ JSON serialization (built-in)
+- ✅ Sealed classes for polymorphism
+- ✅ Multiple inheritance support
+- ✅ Generic types (`List<T>`, `Map<K,V>`)
+- ✅ Nested entities with auto-imports
+- ✅ Enum integration
+- ✅ Self-referencing types (trees, graphs)
+- ✅ `compareTo`, `copyWith`, `patch` methods
+- ✅ Function-based copyWith option
+- ✅ Explicit subtypes for polymorphism
+
+#### MCP Server Integration
+All entity commands now available via MCP:
+- `entity_create` - Create entities from AI/IDE
+- `entity_enum` - Create enums
+- `entity_add_field` - Add fields to existing entities
+- `entity_from_json` - Import from JSON
+- `entity_list` - List all entities
+- `entity_new` - Quick entity creation
+
+### 🔄 Changes
+
+#### Dependencies
+- **Replaced** `zikzak_morphy` with `zorphy` (fully upgraded version)
+- **Added** `zorphy_annotation` as runtime dependency
+- **Added** `json_annotation` for entity serialization
+- **Updated** SDK constraint to `>=3.8.0`
+- **Added** `dependency_overrides` for compatibility
+
+#### Documentation
+- **Added** `ENTITY_GUIDE.md` - Comprehensive entity generation guide with 50+ examples
+- **Updated** README.md with entity commands section
+- **Updated** CLI help text with entity commands
+
+### 📚 New Documentation
+
+- **[ENTITY_GUIDE.md](ENTITY_GUIDE.md)** - Complete guide covering:
+  - Basic entity creation
+  - All field types (basic, nullable, generic, nested)
+  - JSON serialization
+  - Enums
+  - Sealed classes & polymorphism
+  - Inheritance & interfaces
+  - Nested objects
+  - Self-referencing types
+  - Generic classes
+  - Complete real-world examples (E-commerce, Social Media, Task Management)
+  - Best practices
+  - Integration with Clean Architecture
+
+### 💡 Usage Examples
+
+\`\`\`bash
+# Create entity with fields
+zfa entity create -n User --field name:String --field email:String? --field age:int
+
+# Create enum
+zfa entity enum -n Status --value active,inactive,pending
+
+# Create polymorphic sealed class
+zfa entity create -n PaymentMethod --sealed --subtype=$CreditCard --subtype=$PayPal
+
+# Build all generated code
+zfa build --watch
+
+# Use with Clean Architecture
+zfa entity create -n Product --field name:String --field price:double
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state
+zfa build
+\`\`\`
+
+### 🐛 Fixes
+
+- Fixed dependency conflicts between zorphy and flutter_test
+- Fixed meta version constraints
+- Fixed test_api version compatibility
+
+### 📖 Migration from 2.0.1
+
+No breaking changes! Entity commands are purely additive:
+
+\`\`\`bash
+# Old commands still work
+zfa generate Product --methods=get,getList --vpc --state
+zfa initialize
+
+# New entity commands available
+zfa entity create -n User --field name:String
+zfa entity enum -n Status --value active,inactive
+zfa build
+\`\`\`
+
+### 🎯 Benefits
+
+1. **Single CLI for Everything** - No need to install separate tools
+2. **Type-Safe Entities** - Compile-time safety for all data models
+3. **Polymorphism Support** - Sealed classes with exhaustive checking
+4. **Auto-Imports** - Nested entities automatically imported
+5. **JSON Ready** - Built-in serialization/deserialization
+6. **IDE Integration** - Full MCP server support
+7. **Comprehensive Docs** - 50+ examples in ENTITY_GUIDE.md
+
+### 🔗 Links
+
+- [Zorphy GitHub](https://github.com/arrrrny/zorphy)
+- [Entity Guide](ENTITY_GUIDE.md)
+- [CLI Guide](CLI_GUIDE.md)
+- [MCP Server](MCP_SERVER.md)
+
+---
+
 ## [2.0.1] - 2026-02-03
 
 ### Chore

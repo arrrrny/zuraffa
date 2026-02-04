@@ -732,6 +732,50 @@ dart pub global activate zuraffa
 dart run zuraffa:zfa
 ```
 
+
+### Entity Commands (NEW!)
+
+Zuraffa now includes **full Zorphy entity generation** - create type-safe entities, enums, and manage data models:
+
+```bash
+# Create an entity with fields
+zfa entity create -n User --field name:String --field email:String? --field age:int
+
+# Create an enum
+zfa entity enum -n Status --value active,inactive,pending
+
+# Quick-create a simple entity
+zfa entity new -n Product
+
+# Add fields to existing entity
+zfa entity add-field -n User --field phone:String?
+
+# Create entity from JSON file
+zfa entity from-json user_data.json
+
+# List all entities
+zfa entity list
+
+# Build generated code
+zfa build
+zfa build --watch  # Watch for changes
+zfa build --clean  # Clean and rebuild
+```
+
+**Full Entity Generation Features:**
+- ✅ Type-safe entities with null safety
+- ✅ JSON serialization (built-in)
+- ✅ Sealed classes for polymorphism
+- ✅ Multiple inheritance support
+- ✅ Generic types (`List<T>`, `Map<K,V>`)
+- ✅ Nested entities with auto-imports
+- ✅ Enum integration
+- ✅ Self-referencing types (trees)
+- ✅ compare`To, `copyWith`, `patch` methods
+
+**📖 For complete entity generation documentation, see [ENTITY_GUIDE.md](ENTITY_GUIDE.md)**
+
+
 ### Initialize Command
 
 The quickest way to get started is with the `initialize` command:
