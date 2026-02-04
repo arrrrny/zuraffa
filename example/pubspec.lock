@@ -444,25 +444,25 @@ packages:
     dependency: transitive
     description:
       name: zorphy
-      sha256: "912c9ff724ac570b7a5ae82879138e6fcc763d6bf3a712eb5a1a9b94b4cbfc37"
+      sha256: "517b3f5e5541c6c59f2a7a423e3f20e53c1b5686caeb2bf208ab6399f16484be"
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.0"
+    version: "1.1.1"
   zorphy_annotation:
     dependency: transitive
     description:
       name: zorphy_annotation
-      sha256: "30bb01562a691315e885f8a6dd66508fb8beb8ec50c7c8fadd099856f9b869f0"
+      sha256: f890c1b5ab704f49469adb4967631fbd398167582430be4d4fa25123a1be5458
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.0"
+    version: "1.1.1"
   zuraffa:
     dependency: "direct main"
     description:
       path: ".."
       relative: true
     source: path
-    version: "2.2.2"
+    version: "2.3.0"
 sdks:
   dart: ">=3.9.0 <4.0.0"
   flutter: ">=3.18.0-18.0.pre.54"
