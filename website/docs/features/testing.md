@@ -128,7 +128,7 @@ Zuraffa generates tests for all common scenarios:
 - Conflict errors
 - Unknown errors
 
-## ZFA 2.0.0 Patterns and Testing
+## ZFA  Patterns and Testing
 
 ### Entity-Based Pattern
 

@@ -160,7 +160,7 @@ Future<void> setupDependencies(GetIt getIt) async {
 }
 ```
 
-## ZFA 2.0.0 Patterns and DI
+## ZFA Patterns and DI
 
 ### Entity-Based Pattern
 

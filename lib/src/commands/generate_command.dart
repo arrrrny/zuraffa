@@ -100,7 +100,7 @@ class GenerateCommand {
       );
     }
 
-    // ZFA 2.0.0 Validation Rules
+    // ZFA 2.1.0 Validation Rules
     _validateConfig(config);
 
     final outputDir = results['output'] as String;

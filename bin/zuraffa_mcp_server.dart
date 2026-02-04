@@ -818,7 +818,7 @@ class ZuraffaMcpServer {
             useZorphyByDefault);
     if (useZorphy) cliArgs.add('--zorphy');
 
-    // ZFA 2.0.0 Custom UseCase options
+    // ZFA ^2.1.0 Custom UseCase options
     if (args['repo'] != null) cliArgs.add('--repo=${args['repo']}');
     if (args['usecases'] != null) {
       final usecases = args['usecases'] as List;
