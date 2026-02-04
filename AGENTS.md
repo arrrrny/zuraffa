@@ -263,18 +263,6 @@ Instead of command-line flags, you can use a JSON configuration file.
 zfa generate Product -j product.json
 ```
 
-#### Custom UseCase Configuration
-
-```json
-{
-  "name": "ProcessOrder",
-  "type": "usecase",
-  "repos": ["OrderRepository", "PaymentRepository"],
-  "params": "OrderRequest",
-  "returns": "OrderResult"
-}
-```
-
 ### AI Agent Integration
 
 The CLI is designed to be AI-agent friendly with machine-readable I/O.
@@ -305,7 +293,7 @@ Output:
   ],
   "errors": [],
   "next_steps": [
-    "Implement ProductRepositoryImpl in data layer",
+    "Implement DataProductRepository in data layer",
     "Register repositories with DI container"
   ]
 }
