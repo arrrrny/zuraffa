@@ -1,5 +1,5 @@
 # Changelog
-## [Unreleased]
+## [2.2.0] - 2026-02-04
 
 ### Added
 
