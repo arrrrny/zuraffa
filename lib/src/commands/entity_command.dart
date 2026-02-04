@@ -34,6 +34,33 @@ class EntityCommand {
       exit(1);
     }
 
+    final pubspecContent = await pubspecFile.readAsString();
+    final hasZorphyAnnotation = pubspecContent.contains('zorphy_annotation:');
+
+    if (!hasZorphyAnnotation) {
+      print('⚠️  Warning: zorphy_annotation not found in pubspec.yaml');
+      print('');
+      print('Entity generation requires the zorphy_annotation package.');
+      print('Generated entities will have warnings without it.');
+      print('');
+      print('To add it, run:');
+      print('  dart pub add zorphy_annotation');
+      print('');
+      print('Or add manually to pubspec.yaml:');
+      print('');
+      print('  dependencies:');
+      print('    zorphy_annotation: ^1.0.0');
+      print('');
+      print('Continue anyway? (y/N): ');
+
+      final response = stdin.readLineSync()?.toLowerCase().trim();
+      if (response != 'y' && response != 'yes') {
+        print('Cancelled.');
+        exit(0);
+      }
+      print('');
+    }
+
     // Build the zorphy CLI command
     final zorphyArgs = [command, ...args];
 
@@ -56,6 +83,10 @@ class EntityCommand {
     }
 
     print('\n✅ Entity command completed successfully!');
+    print('');
+    print('📝 Don\'t forget to run code generation:');
+    print('   zfa build');
+    print('');
   }
 
   /// Print help for the entity command
@@ -68,6 +99,9 @@ USAGE:
 
 NOTE:
   Zorphy is bundled with ZFA - no additional installation needed!
+  However, your project needs zorphy_annotation for generated entities:
+
+    dart pub add zorphy_annotation
 
 SUBCOMMANDS:
   create      Create a new Zorphy entity with fields

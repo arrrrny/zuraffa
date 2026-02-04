@@ -53,7 +53,7 @@ Perfect for standard CRUD operations on entities:
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc
 ```
 
-### 2. Single Repository Pattern (Recommended)
+### 2. Single (Responsibility) Repository Pattern
 One UseCase, one repository for focused business logic:
 ```bash
 zfa generate ProcessCheckout --domain=checkout --repo=CheckoutRepository --params=Request --returns=Result
@@ -68,64 +68,141 @@ zfa generate ProcessCheckout --domain=checkout --usecases=ValidateCart,CreateOrd
 ### 4. Polymorphic Pattern (NEW)
 Generate abstract base + concrete variants + factory:
 ```bash
-zfa generate SparkSearch --domain=search --variants=Barcode,Url,Text --params=Spark --returns=Listing --type=stream
+zfa generate SparkSearch --domain=search --variants=Barcode,Url,Text,Image --params=Spark --returns=Listing --type=stream
 ```
 
 ---
 
-## Quick Start (3 Minutes)
+## Quick Start (5 Minutes)
 
-### Step 1: Initialize a Sample Entity
+### Step 1: Configure Your Project
 
-Create your first entity with a single command:
+Set up ZFA configuration for your project:
 
 ```bash
-zfa initialize
+# Create configuration with defaults
+zfa config init
+
+# Optionally customize
+zfa config set useZorphyByDefault true
+zfa config set defaultEntityOutput lib/src/domain/entities
 ```
 
-This creates `lib/src/domain/entities/product/product.dart`:
+:::note
+Entity generation requires `zorphy_annotation` in your project. If you haven't added it yet, ZFA will prompt you when you create your first entity:
 
-```dart
-class Product {
-  final String id;
-  final String name;
-  final String? description;
-  final double price;
-  final String? category;
-  final bool isActive;
-  final DateTime createdAt;
-  final DateTime updatedAt;
+```bash
+dart pub add zorphy_annotation
+```
+:::
 
-  const Product({
-    required this.id,
-    required this.name,
-    this.description,
-    required this.price,
-    this.category,
-    this.isActive = true,
-    required this.createdAt,
-    required this.updatedAt,
-  });
+### Step 2: Create Your Entities
 
-  Product copyWith({...}) => ...
+Define your data model with entities and enums. You have three options:
 
-  @override
-  bool operator ==(Object other) => ...
+#### Option A: Create from JSON (Fastest!)
 
-  @override
-  int get hashCode => ...
+If you have JSON samples (e.g., from an API), create entities directly:
 
-  @override
-  String toString() => ...
+```bash
+# From a JSON file
+zfa entity from-json user_response.json
+
+# From API documentation
+cat > order.json << EOF
+{
+  "id": "123",
+  "customer": {
+    "id": "456",
+    "name": "John Doe",
+    "email": "john@example.com"
+  },
+  "status": "processing",
+  "items": [
+    {
+      "product": {"id": "789", "name": "Widget", "price": 29.99},
+      "quantity": 2
+    }
+  ],
+  "total": 59.98,
+  "createdAt": "2024-01-15T10:30:00Z"
 }
+EOF
+
+zfa entity from-json order.json --name Order
 ```
 
-### Step 2: Generate Complete Architecture
+This automatically creates all entities with proper types:
+- `Order` with all fields
+- `User` (nested from customer object)
+- `Product` (nested from items array)
+- `OrderItem` (for array items)
+- Infers `DateTime` from ISO date strings
+- Handles nullable fields from `null` values
+
+#### Option B: Interactive Field Entry
+
+Let ZFA prompt you for each field:
+
+```bash
+zfa entity create -n User
+
+📝 Creating Zorphy Entity: User
+Enter fields one by one. Press Enter without input to finish.
+
+Field name (or press Enter to finish): id
+Field type (e.g., String, int, List<String>, Status, \$Order): String?
+✓ Added field: id (String?)
+
+Field name (or press Enter to finish): name
+Field type (e.g., String, int, List<String>, Status, \$Order): String
+✓ Added field: name (String)
+
+Field name (or press Enter to finish): [Press Enter]
+```
+
+#### Option C: Define Fields Inline
+
+Specify all fields in one command:
+
+```bash
+# Create an enum
+zfa entity enum -n OrderStatus --value pending,processing,shipped,delivered
+
+# Create entities with fields
+zfa entity create -n User --field name:String --field email:String?
+zfa entity create -n Product --field name:String --field price:double --field description:String?
+zfa entity create -n Order --field customer:\$User --field status:OrderStatus --field items:List<\$OrderItem>
+zfa entity create -n OrderItem --field product:\$Product --field quantity:int
+```
+
+
+This creates entity files like:
+```
+lib/src/domain/entities/order/order.dart
+lib/src/domain/entities/order/order.zorphy.dart
+lib/src/domain/entities/order/order.g.dart
+```
+
+### Step 3: Run Code Generation
+
+Generate the entity implementations:
+
+```bash
+zfa build
+```
+
+This generates:
+- `copyWith`, `==`, `hashCode`, `toString` methods
+- JSON serialization (`toJson`/`fromJson`)
+- Typed patch classes for updates
+
+### Step 4: Generate Clean Architecture
 
 Generate all layers with one command:
 
 ```bash
-zfa generate Product \
+zfa generate Order \
   --methods=get,getList,create,update,delete,watch,watchList \
   --data \
   --vpc \
@@ -137,32 +214,32 @@ zfa generate Product \
 This generates **21 files**:
 
 ```
-✅ Generated 21 files for Product
+✅ Generated 21 files for Order
 
-  ⟳ lib/src/domain/repositories/product_repository.dart
-  ⟳ lib/src/domain/usecases/product/get_product_usecase.dart
-  ⟳ lib/src/domain/usecases/product/watch_product_usecase.dart
-  ⟳ lib/src/domain/usecases/product/create_product_usecase.dart
-  ⟳ lib/src/domain/usecases/product/update_product_usecase.dart
-  ⟳ lib/src/domain/usecases/product/delete_product_usecase.dart
-  ⟳ lib/src/domain/usecases/product/get_product_list_usecase.dart
-  ⟳ lib/src/domain/usecases/product/watch_product_list_usecase.dart
-  ⟳ lib/src/presentation/pages/product/product_presenter.dart
-  ⟳ lib/src/presentation/pages/product/product_controller.dart
-  ⟳ lib/src/presentation/pages/product/product_view.dart
-  ⟳ lib/src/presentation/pages/product/product_state.dart
-  ⟳ lib/src/data/data_sources/product/product_data_source.dart
-  ⟳ lib/src/data/repositories/data_product_repository.dart
-  ✓ test/domain/usecases/product/get_product_usecase_test.dart
-  ✓ test/domain/usecases/product/watch_product_usecase_test.dart
-  ✓ test/domain/usecases/product/create_product_usecase_test.dart
-  ✓ test/domain/usecases/product/update_product_usecase_test.dart
-  ✓ test/domain/usecases/product/delete_product_usecase_test.dart
-  ✓ test/domain/usecases/product/get_product_list_usecase_test.dart
-  ✓ test/domain/usecases/product/watch_product_list_usecase_test.dart
+  ⟳ lib/src/domain/repositories/order_repository.dart
+  ⟳ lib/src/domain/usecases/order/get_order_usecase.dart
+  ⟳ lib/src/domain/usecases/order/watch_order_usecase.dart
+  ⟳ lib/src/domain/usecases/order/create_order_usecase.dart
+  ⟳ lib/src/domain/usecases/order/update_order_usecase.dart
+  ⟳ lib/src/domain/usecases/order/delete_order_usecase.dart
+  ⟳ lib/src/domain/usecases/order/get_order_list_usecase.dart
+  ⟳ lib/src/domain/usecases/order/watch_order_list_usecase.dart
+  ⟳ lib/src/presentation/pages/order/order_presenter.dart
+  ⟳ lib/src/presentation/pages/order/order_controller.dart
+  ⟳ lib/src/presentation/pages/order/order_view.dart
+  ⟳ lib/src/presentation/pages/order/order_state.dart
+  ⟳ lib/src/data/data_sources/order/order_data_source.dart
+  ⟳ lib/src/data/repositories/data_order_repository.dart
+  ✓ test/domain/usecases/order/get_order_usecase_test.dart
+  ✓ test/domain/usecases/order/watch_order_usecase_test.dart
+  ✓ test/domain/usecases/order/create_order_usecase_test.dart
+  ✓ test/domain/usecases/order/update_order_usecase_test.dart
+  ✓ test/domain/usecases/order/delete_order_usecase_test.dart
+  ✓ test/domain/usecases/order/get_order_list_usecase_test.dart
+  ✓ test/domain/usecases/order/watch_order_list_usecase_test.dart
 
 📝 Next steps:
-   • Create a DataSource that implements ProductDataSource in data layer
+   • Create a DataSource that implements OrderDataSource in data layer
    • Register repositories with DI container
    • Run tests: flutter test
 ```
@@ -417,10 +494,13 @@ zfa generate SparkSearch \
 ### Adding a New Entity
 
 ```bash
-# 1. Create entity manually or use initialize
-zfa initialize --entity=Category
+# 1. Create entity
+zfa entity create -n Category --field name:String --field parent:\$Category?
 
-# 2. Generate all layers
+# 2. Run build
+zfa build
+
+# 3. Generate all layers
 zfa generate Category \
   --methods=get,getList,create,update,delete \
   --data \
@@ -428,8 +508,8 @@ zfa generate Category \
   --state \
   --di
 
-# 3. Implement DataSource
-# 4. Register with DI
+# 4. Implement DataSource
+# 5. Register with DI
 ```
 
 ### Adding Methods to Existing Entity

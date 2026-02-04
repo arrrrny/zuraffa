@@ -67,6 +67,11 @@ zfa config set jsonByDefault false
 - `compareByDefault` - Default compareTo generation (default: true)
 - `defaultEntityOutput` - Entity output (default: lib/src/domain/entities)
 
+> **Note:** Entity generation requires `zorphy_annotation` in your project. ZFA will prompt you to add it when creating your first entity, or you can add it now:
+> ```bash
+> dart pub add zorphy_annotation
+> ```
+
 ### 2. Create Your Entities
 
 Create entities first, then generate Clean Architecture around them:
