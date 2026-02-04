@@ -27,7 +27,6 @@ dependencies:
   provider: ^6.1.5+1
   responsive_builder: ^0.7.1
   uuid: ^4.5.2
-  # Replaced zikzak_morphy with zorphy (fully upgraded version)
   zorphy_annotation: ^1.0.0
   json_annotation: ^4.10.0
 
@@ -42,7 +41,6 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   mocktail: ^1.0.4
   test: ^1.25.8
-  # Replaced zikzak_morphy with zorphy
   zorphy: ^1.0.0
   json_serializable: ^6.9.5
   build_runner: ^2.5.4

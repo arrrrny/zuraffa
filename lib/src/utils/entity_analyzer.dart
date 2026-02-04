@@ -21,23 +21,23 @@ class EntityAnalyzer {
 
       final content = file.readAsStringSync();
 
-      // Check if this is a Morphy entity (contains @Morphy annotation)
-      if (content.contains('@Morphy')) {
-        // Try to parse from the generated .morphy.dart file first
-        final morphyPath =
-            '$outputDir/domain/entities/$entitySnake/$entitySnake.morphy.dart';
-        final morphyFile = File(morphyPath);
-        if (morphyFile.existsSync()) {
-          final morphyContent = morphyFile.readAsStringSync();
-          final morphyFields = _parseEntityFields(morphyContent, entityName);
-          if (morphyFields.isNotEmpty && !_hasOnlyDefaultFields(morphyFields)) {
-            return morphyFields;
+      // Check if this is a Zorphy entity (contains @Zorphy annotation)
+      if (content.contains('@Zorphy')) {
+        // Try to parse from the generated .zorphy.dart file first
+        final zorphyPath =
+            '$outputDir/domain/entities/$entitySnake/$entitySnake.zorphy.dart';
+        final zorphyFile = File(zorphyPath);
+        if (zorphyFile.existsSync()) {
+          final zorphyContent = zorphyFile.readAsStringSync();
+          final zorphyFields = _parseEntityFields(zorphyContent, entityName);
+          if (zorphyFields.isNotEmpty && !_hasOnlyDefaultFields(zorphyFields)) {
+            return zorphyFields;
           }
           // If parsing the class failed, try parsing all final fields in the file
           final allFieldsRegex = RegExp(
               r'final\s+([\w\?\$<>,\s\[\]]+)\s+(\w+)\s*;',
               multiLine: true);
-          final allFieldMatches = allFieldsRegex.allMatches(morphyContent);
+          final allFieldMatches = allFieldsRegex.allMatches(zorphyContent);
           final allFields = <String, String>{};
           for (final match in allFieldMatches) {
             final type = match.group(1)?.trim();
@@ -52,7 +52,7 @@ class EntityAnalyzer {
         }
       }
 
-      // Try both regular name and morphy name ($EntityName)
+      // Try both regular name and zorphy name ($EntityName)
       var fields = _parseEntityFields(content, entityName);
       if (fields.isEmpty || _hasOnlyDefaultFields(fields)) {
         fields = _parseEntityFields(content, '\$$entityName');

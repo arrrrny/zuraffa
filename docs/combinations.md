@@ -15,7 +15,7 @@ Based on the actual implementation, here are the parameters and their possible v
 10. --test: 2 options
 11. --datasource: 2 options
 12. --init: 2 options
-13. --morphy: 2 options
+13. --zorphy: 2 options
 14. --state: 2 options
 15. --cache: 2 options
 16. --mock: 2 options
@@ -137,255 +137,255 @@ zfa generate Product --methods=get,getList,create,update,delete --state
 zfa generate Product --methods=get,getList,create,update,delete --test
 zfa generate Product --methods=get,getList,create,update,delete --cache
 zfa generate Product --methods=get,getList,create,update,delete --di
-zfa generate Product --methods=get,getList,create,update,delete --morphy
+zfa generate Product --methods=get,getList,create,update,delete --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --mock
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc
 zfa generate Product --methods=get,getList,create,update,delete --data --state
 zfa generate Product --methods=get,getList,create,update,delete --data --test
 zfa generate Product --methods=get,getList,create,update,delete --data --cache
 zfa generate Product --methods=get,getList,create,update,delete --data --di
-zfa generate Product --methods=get,getList,create,update,delete --data --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --mock
 zfa generate Product --methods=get,getList,create,update,delete --vpc --state
 zfa generate Product --methods=get,getList,create,update,delete --vpc --test
 zfa generate Product --methods=get,getList,create,update,delete --vpc --cache
 zfa generate Product --methods=get,getList,create,update,delete --vpc --di
-zfa generate Product --methods=get,getList,create,update,delete --vpc --morphy
+zfa generate Product --methods=get,getList,create,update,delete --vpc --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --vpc --mock
 zfa generate Product --methods=get,getList,create,update,delete --state --test
 zfa generate Product --methods=get,getList,create,update,delete --state --cache
 zfa generate Product --methods=get,getList,create,update,delete --state --di
-zfa generate Product --methods=get,getList,create,update,delete --state --morphy
+zfa generate Product --methods=get,getList,create,update,delete --state --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --state --mock
 zfa generate Product --methods=get,getList,create,update,delete --test --cache
 zfa generate Product --methods=get,getList,create,update,delete --test --di
-zfa generate Product --methods=get,getList,create,update,delete --test --morphy
+zfa generate Product --methods=get,getList,create,update,delete --test --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --test --mock
 zfa generate Product --methods=get,getList,create,update,delete --cache --di
-zfa generate Product --methods=get,getList,create,update,delete --cache --morphy
+zfa generate Product --methods=get,getList,create,update,delete --cache --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --cache --mock
-zfa generate Product --methods=get,getList,create,update,delete --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --morphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --zorphy --mock
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --cache
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --di
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --mock
 zfa generate Product --methods=get,getList,create,update,delete --data --state --test
 zfa generate Product --methods=get,getList,create,update,delete --data --state --cache
 zfa generate Product --methods=get,getList,create,update,delete --data --state --di
-zfa generate Product --methods=get,getList,create,update,delete --data --state --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --state --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --state --mock
 zfa generate Product --methods=get,getList,create,update,delete --data --test --cache
 zfa generate Product --methods=get,getList,create,update,delete --data --test --di
-zfa generate Product --methods=get,getList,create,update,delete --data --test --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --test --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --test --mock
 zfa generate Product --methods=get,getList,create,update,delete --data --cache --di
-zfa generate Product --methods=get,getList,create,update,delete --data --cache --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --cache --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --cache --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --morphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --zorphy --mock
 zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test
 zfa generate Product --methods=get,getList,create,update,delete --vpc --state --cache
 zfa generate Product --methods=get,getList,create,update,delete --vpc --state --di
-zfa generate Product --methods=get,getList,create,update,delete --vpc --state --morphy
+zfa generate Product --methods=get,getList,create,update,delete --vpc --state --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --vpc --state --mock
 zfa generate Product --methods=get,getList,create,update,delete --vpc --test --cache
 zfa generate Product --methods=get,getList,create,update,delete --vpc --test --di
-zfa generate Product --methods=get,getList,create,update,delete --vpc --test --morphy
+zfa generate Product --methods=get,getList,create,update,delete --vpc --test --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --vpc --test --mock
 zfa generate Product --methods=get,getList,create,update,delete --vpc --cache --di
-zfa generate Product --methods=get,getList,create,update,delete --vpc --cache --morphy
+zfa generate Product --methods=get,getList,create,update,delete --vpc --cache --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --vpc --cache --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --vpc --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --vpc --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --morphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --vpc --zorphy --mock
 zfa generate Product --methods=get,getList,create,update,delete --state --test --cache
 zfa generate Product --methods=get,getList,create,update,delete --state --test --di
-zfa generate Product --methods=get,getList,create,update,delete --state --test --morphy
+zfa generate Product --methods=get,getList,create,update,delete --state --test --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --state --test --mock
 zfa generate Product --methods=get,getList,create,update,delete --state --cache --di
-zfa generate Product --methods=get,getList,create,update,delete --state --cache --morphy
+zfa generate Product --methods=get,getList,create,update,delete --state --cache --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --state --cache --mock
-zfa generate Product --methods=get,getList,create,update,delete --state --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --state --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --state --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --state --morphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --state --zorphy --mock
 zfa generate Product --methods=get,getList,create,update,delete --test --cache --di
-zfa generate Product --methods=get,getList,create,update,delete --test --cache --morphy
+zfa generate Product --methods=get,getList,create,update,delete --test --cache --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --test --cache --mock
-zfa generate Product --methods=get,getList,create,update,delete --test --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --test --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --test --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --test --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --cache --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --test --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --cache --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --cache --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --cache --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --di --morphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --cache --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --di --zorphy --mock
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --cache
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --di
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --mock
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test --cache
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test --di
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test --mock
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --cache --di
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --cache --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --cache --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --cache --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --morphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --zorphy --mock
 zfa generate Product --methods=get,getList,create,update,delete --data --state --test --cache
 zfa generate Product --methods=get,getList,create,update,delete --data --state --test --di
-zfa generate Product --methods=get,getList,create,update,delete --data --state --test --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --state --test --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --state --test --mock
 zfa generate Product --methods=get,getList,create,update,delete --data --state --cache --di
-zfa generate Product --methods=get,getList,create,update,delete --data --state --cache --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --state --cache --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --state --cache --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --state --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --state --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --state --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --state --morphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --state --zorphy --mock
 zfa generate Product --methods=get,getList,create,update,delete --data --test --cache --di
-zfa generate Product --methods=get,getList,create,update,delete --data --test --cache --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --test --cache --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --test --cache --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --test --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --test --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --test --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --test --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --cache --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --test --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --cache --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --cache --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --cache --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --di --morphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --cache --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --di --zorphy --mock
 zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test --cache
 zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test --di
-zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test --morphy
+zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test --mock
 zfa generate Product --methods=get,getList,create,update,delete --vpc --state --cache --di
-zfa generate Product --methods=get,getList,create,update,delete --vpc --state --cache --morphy
+zfa generate Product --methods=get,getList,create,update,delete --vpc --state --cache --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --vpc --state --cache --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --state --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --vpc --state --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --vpc --state --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --state --morphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --vpc --state --zorphy --mock
 zfa generate Product --methods=get,getList,create,update,delete --vpc --test --cache --di
-zfa generate Product --methods=get,getList,create,update,delete --vpc --test --cache --morphy
+zfa generate Product --methods=get,getList,create,update,delete --vpc --test --cache --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --vpc --test --cache --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --test --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --vpc --test --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --vpc --test --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --test --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --cache --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --vpc --test --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --vpc --cache --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --vpc --cache --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --cache --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --di --morphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --vpc --cache --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --vpc --di --zorphy --mock
 zfa generate Product --methods=get,getList,create,update,delete --state --test --cache --di
-zfa generate Product --methods=get,getList,create,update,delete --state --test --cache --morphy
+zfa generate Product --methods=get,getList,create,update,delete --state --test --cache --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --state --test --cache --mock
-zfa generate Product --methods=get,getList,create,update,delete --state --test --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --state --test --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --state --test --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --state --test --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --state --cache --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --state --test --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --state --cache --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --state --cache --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --state --cache --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --state --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --test --cache --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --state --cache --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --state --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --test --cache --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --test --cache --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --test --cache --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --test --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --cache --di --morphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --test --cache --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --test --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --cache --di --zorphy --mock
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --di
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --mock
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --cache --di
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --cache --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --cache --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --cache --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --morphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --zorphy --mock
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test --cache --di
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test --cache --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test --cache --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test --cache --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --cache --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --cache --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --cache --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --cache --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --di --morphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --cache --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --di --zorphy --mock
 zfa generate Product --methods=get,getList,create,update,delete --data --state --test --cache --di
-zfa generate Product --methods=get,getList,create,update,delete --data --state --test --cache --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --state --test --cache --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --state --test --cache --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --state --test --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --state --test --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --state --test --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --state --test --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --state --cache --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --state --test --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --state --cache --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --state --cache --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --state --cache --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --state --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --test --cache --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --state --cache --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --state --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --test --cache --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --test --cache --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --test --cache --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --test --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --cache --di --morphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --test --cache --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --test --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --cache --di --zorphy --mock
 zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test --cache --di
-zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test --cache --morphy
+zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test --cache --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test --cache --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --state --cache --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --vpc --state --cache --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --vpc --state --cache --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --state --cache --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --state --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --test --cache --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --vpc --state --cache --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --vpc --state --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --vpc --test --cache --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --vpc --test --cache --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --test --cache --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --test --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --cache --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --state --test --cache --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --vpc --test --cache --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --vpc --test --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --vpc --cache --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --state --test --cache --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --state --test --cache --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --state --test --cache --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --state --test --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --state --cache --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --test --cache --di --morphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --state --test --cache --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --state --test --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --state --cache --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --test --cache --di --zorphy --mock
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --cache --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --cache --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --cache --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --cache --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test --cache --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --cache --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test --cache --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test --cache --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test --cache --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --cache --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --state --test --cache --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test --cache --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --cache --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --state --test --cache --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --state --test --cache --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --state --test --cache --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --state --test --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --state --cache --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --test --cache --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test --cache --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --data --state --test --cache --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --state --test --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --state --cache --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --test --cache --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test --cache --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test --cache --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test --cache --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --state --cache --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --test --cache --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --state --test --cache --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test --cache --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --vpc --state --cache --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --vpc --test --cache --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --state --test --cache --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --cache --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test --cache --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --state --test --cache --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test --cache --di --morphy --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --morphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --cache --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --test --cache --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --state --test --cache --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --vpc --state --test --cache --di --zorphy --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --zorphy --mock
 ```
 
 ### Entity-Based with String Option Combinations
@@ -396,9 +396,9 @@ zfa generate Product --methods=get,getList,create,update,delete --cache --cache-
 zfa generate Product --methods=get,getList,create,update,delete --cache --cache-storage=hive
 zfa generate Product --methods=get,getList,create,update,delete --cache --cache-storage=sqlite
 zfa generate Product --methods=get,getList,create,update,delete --cache --cache-storage=shared_preferences
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --morphy --mock --cache-policy=daily --cache-storage=hive
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --morphy --mock --cache-policy=restart --cache-storage=sqlite
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --morphy --mock --cache-policy=ttl --ttl=120 --cache-storage=shared_preferences
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --zorphy --mock --cache-policy=daily --cache-storage=hive
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --zorphy --mock --cache-policy=restart --cache-storage=sqlite
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --zorphy --mock --cache-policy=ttl --ttl=120 --cache-storage=shared_preferences
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --output=lib/features/products
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --id-field=productId --id-field-type=int
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --query-field=name --query-field-type=String
@@ -415,14 +415,14 @@ zfa generate ProcessOrder --domain=order --repo=OrderRepository --params=OrderRe
 zfa generate ProcessOrder --domain=order --repo=OrderRepository --params=OrderRequest --returns=OrderResult --di
 zfa generate ProcessOrder --domain=order --repo=OrderRepository --params=OrderRequest --returns=OrderResult --cache
 zfa generate ProcessOrder --domain=order --repo=OrderRepository --params=OrderRequest --returns=OrderResult --mock
-zfa generate ProcessOrder --domain=order --repo=OrderRepository --params=OrderRequest --returns=OrderResult --morphy
+zfa generate ProcessOrder --domain=order --repo=OrderRepository --params=OrderRequest --returns=OrderResult --zorphy
 zfa generate ProcessOrder --domain=order --repo=OrderRepository --params=OrderRequest --returns=OrderResult --cache --cache-policy=daily
 zfa generate ProcessOrder --domain=order --repo=OrderRepository --params=OrderRequest --returns=OrderResult --cache --cache-storage=hive
 zfa generate ProcessOrder --domain=order --repo=OrderRepository --params=OrderRequest --returns=OrderResult --test --di
 zfa generate ProcessOrder --domain=order --repo=OrderRepository --params=OrderRequest --returns=OrderResult --test --cache --di
-zfa generate ProcessOrder --domain=order --repo=OrderRepository --params=OrderRequest --returns=OrderResult --test --cache --di --morphy
+zfa generate ProcessOrder --domain=order --repo=OrderRepository --params=OrderRequest --returns=OrderResult --test --cache --di --zorphy
 zfa generate ProcessOrder --domain=order --repo=OrderRepository --params=OrderRequest --returns=OrderResult --test --cache --di --mock
-zfa generate ProcessOrder --domain=order --repo=OrderRepository --params=OrderRequest --returns=OrderResult --test --cache --di --morphy --mock
+zfa generate ProcessOrder --domain=order --repo=OrderRepository --params=OrderRequest --returns=OrderResult --test --cache --di --zorphy --mock
 ```
 
 ### Orchestrator UseCase Combinations

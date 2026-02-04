@@ -35,7 +35,6 @@ Enable Zorphy-style typed entity patches by default for all MCP tool calls:
 
 Available flags:
 - `--zorphy` / `--always-zorphy`: Enable Zorphy by default
-- `--morphy` / `--always-morphy`: Alias for --zorphy (backward compatibility)
 
 When enabled, all code generation will use Zorphy-style typed patches instead of `Partial<T>` for update operations. You can still override this per-request using the `zorphy: false` parameter.
 
@@ -187,7 +186,6 @@ Generate Clean Architecture code for your Flutter project.
 | `query_field` | string | No | Query field name for get/watch (default: id) |
 | `query_field_type` | string | No | Query field type (default: matches id_field_type) |
 | `zorphy` | boolean | No | Use Zorphy-style typed patches |
-| `morphy` | boolean | No | Alias for zorphy (backward compatibility) |
 | `repo` | string | No | Repository to inject (enforces Single Responsibility Principle) |
 | `usecases` | array | No | UseCases to compose (orchestrator pattern) |
 | `variants` | array | No | Variants for polymorphic pattern |

@@ -12,10 +12,8 @@ import 'package:zuraffa/src/zfa_cli.dart' as zfa show version;
 /// Run with: dart run zuraffa:zuraffa_mcp_server
 void main(List<String> args) async {
   // Check for flags passed to the server process itself
-  final useZorphyByDefault = args.contains('--zorphy') ||
-      args.contains('--always-zorphy') ||
-      args.contains('--morphy') ||
-      args.contains('--always-morphy');
+  final useZorphyByDefault =
+      args.contains('--zorphy') || args.contains('--always-zorphy');
 
   final server = ZuraffaMcpServer(useZorphyByDefault: useZorphyByDefault);
   await server.run();
@@ -276,10 +274,6 @@ class ZuraffaMcpServer {
           'zorphy': {
             'type': 'boolean',
             'description': 'Use Zorphy-style typed patches',
-          },
-          'morphy': {
-            'type': 'boolean',
-            'description': 'Use Zorphy-style typed patches (alias for zorphy)',
           },
           'repo': {
             'type': 'string',
@@ -818,9 +812,9 @@ class ZuraffaMcpServer {
 
     // Zorphy logic: Explicit flag > Default flag
     final useZorphy = args['zorphy'] == true ||
-        args['morphy'] == true ||
+        args['zorphy'] == true ||
         (args['zorphy'] == null &&
-            args['morphy'] == null &&
+            args['zorphy'] == null &&
             useZorphyByDefault);
     if (useZorphy) cliArgs.add('--zorphy');
 

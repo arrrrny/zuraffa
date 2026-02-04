@@ -367,7 +367,7 @@ zfa generate ProcessCheckout \
   - Added proper spacing between generated methods
   - Fixed List<String> generation to use actual strings instead of `String()` constructors
   - Fixed duplicate map keys in generated mock data
-  - Improved Morphy entity support - parse generated `.morphy.dart` files for complete field information
+  - Improved Zorphy entity support - parse generated `.zorphy.dart` files for complete field information
   - Only generate enum imports when entity actually contains enum fields
   - Exclude primitive types, generics, and enums from nested entity generation
   - Fixed seeded DateTime generation to remove invalid `const` usage
@@ -379,7 +379,7 @@ zfa generate ProcessCheckout \
 - **Entity Analysis**: 
   - Never use fallback fields - only parse actual entity fields from source files
   - Improved class regex to handle `extends` and `implements` clauses
-  - Better support for Morphy generated classes with complex inheritance
+  - Better support for Zorphy generated classes with complex inheritance
 
 ### Improved
 - **Mock Data Quality**: More realistic and varied mock data generation
@@ -400,7 +400,7 @@ zfa generate ProcessCheckout \
   - **Realistic Data**: Type-appropriate values for all field types (String, int, double, bool, DateTime, Object)
   - **Complex Types**: Full support for `List<T>`, `Map<K,V>`, nullable types
   - **Nested Entities**: Automatic detection and recursive generation with proper cross-references
-  - **Morphy Support**: Handles `$EntityName` syntax and morphy annotations
+  - **Zorphy Support**: Handles `$EntityName` syntax and zorphy annotations
   - **Smart Imports**: Single enum import (`enums/index.dart`) only when needed
   - **Large Datasets**: Generated methods for performance testing (100+ items)
   - **Null Safety**: Proper handling of optional fields with realistic null distribution
@@ -521,7 +521,7 @@ zfa generate ProcessCheckout \
 
 ## [1.7.0] - 2026-01-31
 ### Added
-- **Typed Updates (`--morphy`)**: New flag to generate update operations using typed Patch objects (e.g., `CustomerPatch`) instead of Map-based partials.
+- **Typed Updates (`--zorphy`)**: New flag to generate update operations using typed Patch objects (e.g., `CustomerPatch`) instead of Map-based partials.
 - **Partial Updates**: Default update mechanism now uses `Partial<T>` (Map<String, dynamic>) with automatic field extraction for validation.
 - **Validation**:
   - `UpdateParams.validate()` automatically checks fields against your entity definition.
@@ -531,7 +531,7 @@ zfa generate ProcessCheckout \
   - `DeleteParams`: Standardized params for delete operations.
   - `UpdateParams<T>`: Now generic over data type to support both Maps and Patch objects.
 - **CLI Global Flags**:
-  - `--morphy`: Enable Morphy-style patch objects.
+  - `--zorphy`: Enable Zorphy-style patch objects.
   - `--id-field` & `--id-field-type`: Customize the identifier field name and type (default: 'id', 'String').
   - `--query-field` & `--query-field-type`: Customize the lookup field definition for `get`/`watch` methods.
 

@@ -33,8 +33,6 @@ Future<void> run(List<String> args) async {
       case 'config':
         await ConfigCommand().execute(args.skip(1).toList());
         break;
-        break;
-        break;
       case 'initialize':
       case 'init':
         await InitializeCommand().execute(args.skip(1).toList());

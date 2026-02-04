@@ -79,12 +79,12 @@ class UseCaseGenerator {
       case 'update':
         className = 'Update${entityName}UseCase';
         final dataType =
-            config.useMorphy ? '${entityName}Patch' : 'Partial<$entityName>';
+            config.useZorphy ? '${entityName}Patch' : 'Partial<$entityName>';
         baseClass = 'UseCase<$entityName, UpdateParams<$dataType>>';
         paramsType = 'UpdateParams<$dataType>';
         returnType = entityName;
 
-        if (config.useMorphy) {
+        if (config.useZorphy) {
           executeBody = 'return _repository.update(params);';
         } else {
           final fields = _extractEntityFields(entitySnake);
@@ -295,17 +295,17 @@ $executeMethod
   static void _process(BackgroundTaskContext<$paramsType> context) {
     try {
       final params = context.params;
-      
+
       // TODO: Implement your background processing logic here
       final result = processData(params); // Replace with actual implementation
-      
+
       context.sendData(result);
       context.sendDone();
     } catch (e, stackTrace) {
       context.sendError(e, stackTrace);
     }
   }
-  
+
   // TODO: Implement this method with your actual processing logic
   static $returnsType processData($paramsType params) {
     throw UnimplementedError('Implement your background processing logic');
@@ -434,11 +434,11 @@ ${usecaseFields.join('\n')}
   @override
   $executeSignature {
     cancelToken?.throwIfCancelled();
-    
+
     // TODO: Orchestrate the UseCases
     // Available UseCases:
 ${config.usecases.map((u) => '    // - _${StringUtils.pascalToCamel(u.replaceAll('UseCase', ''))}.execute(...)').join('\n')}
-    
+
     throw UnimplementedError('Implement orchestration logic');
   }
 }
@@ -743,7 +743,7 @@ $factoryCases
         );
       case 'update':
         final updateDataType =
-            config.useMorphy ? '${entityName}Patch' : 'Partial<$entityName>';
+            config.useZorphy ? '${entityName}Patch' : 'Partial<$entityName>';
         return UseCaseInfo(
           className: 'Update${entityName}UseCase',
           fieldName: 'update$entityName',

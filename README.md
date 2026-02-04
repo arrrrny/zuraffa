@@ -251,15 +251,15 @@ Uses `Partial<T>` (a `Map<String, dynamic>`) to send only changed fields. The ge
 await updateProduct(id: '123', data: {'name': 'New Product Name'});
 ```
 
-#### 2. Typed Updates with Morphy (`--morphy`)
-If you use [Morphy](https://pub.dev/packages/morphy) or similar tools, you can use typed Patch objects for full type safety.
+#### 2. Typed Updates with Zorphy (`--zorphy`)
+If you use [Zorphy](https://pub.dev/packages/zorphy) or similar tools, you can use typed Patch objects for full type safety.
 
 ```bash
-zfa generate Product --methods=update --morphy
+zfa generate Product --methods=update --zorphy
 ```
 
 ```dart
-// Generated with --morphy
+// Generated with --zorphy
 await updateProduct(id: '123', data: ProductPatch(name: 'New Product Name'));
 ```
 
@@ -851,8 +851,8 @@ zfa generate Product --methods=get,getList,create,update,delete --vpc --state
 # Add data layer (DataRepository + DataSource)
 zfa generate Product --methods=get,getList,create,update,delete --data
 
-# Use typed patches for updates (Morphy support)
-zfa generate Product --methods=update --morphy
+# Use typed patches for updates (Zorphy support)
+zfa generate Product --methods=update --zorphy
 
 # Enable caching with dual datasources
 zfa generate Config --methods=get,getList --data --cache --cache-policy=daily
@@ -931,7 +931,7 @@ zfa generate ProcessCheckout --domain=checkout --usecases=ValidateCart,ProcessPa
 | `--mock-data-only` | Generate only mock data files (no other layers)   |
 | `--use-mock`   | Use mock datasource in DI (default: remote datasource)|
 | `--di`         | Generate dependency injection files (get_it)          |
-| `--morphy`     | Use typed Patch objects for updates                   |
+| `--zorphy`     | Use typed Patch objects for updates                   |
 | `--cache`      | Enable caching with dual datasources (remote + local) |
 | `--cache-policy` | Cache expiration: daily, restart, ttl (default: daily) |
 | `--cache-storage` | Local storage hint: hive, sqlite, shared_preferences (default: hive) |

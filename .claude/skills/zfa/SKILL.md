@@ -97,7 +97,7 @@ lib/src/
 | `--id-field-type=<type>` | | ID field type (default: `String`) |
 | `--query-field=<name>` | | Query field name for `get`/`watch` (default: `id`) |
 | `--query-field-type=<type>` | | Query field type (default: matches id-type) |
-| `--morphy` | | Use Morphy-style typed patches |
+| `--zorphy` | | Use Zorphy-style typed patches |
 
 ### VPC Layer Generation
 

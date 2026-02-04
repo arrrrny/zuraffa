@@ -117,7 +117,7 @@ Generate Clean Architecture code for your Flutter project.
 | id_field_type | string | No | ID field type (default: String) |
 | query_field | string | No | Query field name for get/watch (default: id) |
 | query_field_type | string | No | Query field type (default: matches id_field_type) |
-| morphy | boolean | No | Use Morphy-style typed patches |
+| zorphy | boolean | No | Use Zorphy-style typed patches |
 | repos | array | No | Repository names to inject |
 | params | string | No | Params type (default: NoParams) |
 | returns | string | No | Return type (default: void) |

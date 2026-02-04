@@ -142,18 +142,18 @@ zfa generate Product --methods=get,getList,create,update,delete --repository --d
 zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --di
 ```
 
-## Entity Generation with Morphy
+## Entity Generation with Zorphy
 
 ```
-zfa generate Product --morphy
-zfa generate Product --methods=get --morphy
-zfa generate Product --methods=get,getList --morphy
-zfa generate Product --methods=get,getList,create --morphy
-zfa generate Product --methods=get,getList,create,update --morphy
-zfa generate Product --methods=get,getList,create,update,delete --morphy
-zfa generate Product --methods=get,getList,create,update,delete --repository --morphy
-zfa generate Product --methods=get,getList,create,update,delete --data --morphy
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --morphy
+zfa generate Product --zorphy
+zfa generate Product --methods=get --zorphy
+zfa generate Product --methods=get,getList --zorphy
+zfa generate Product --methods=get,getList,create --zorphy
+zfa generate Product --methods=get,getList,create,update --zorphy
+zfa generate Product --methods=get,getList,create,update,delete --zorphy
+zfa generate Product --methods=get,getList,create,update,delete --repository --zorphy
+zfa generate Product --methods=get,getList,create,update,delete --data --zorphy
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --zorphy
 ```
 
 ## Entity Generation with Custom ID Fields
@@ -228,7 +228,7 @@ zfa generate Product --methods=get,getList,create,update,delete --repository --d
 zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --test --mock --di
 zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --test --cache --mock --di
 zfa generate Product --methods=watch,watchList --repository --data --vpc --state --test --cache --di
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --test --cache --di --morphy
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --test --cache --di --zorphy
 zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --test --cache --di --id-field=productId --id-field-type=int
 zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --test --cache --di --use-mock
 zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --test --cache --di --output=lib/custom/path

@@ -187,7 +187,6 @@ Generate CRUD operations for an entity.
 | `--query-field=<name>` | `id` | Query field name for get/watch |
 | `--query-field-type=<type>` | (same as id) | Query field type |
 | `--zorphy` | false | Use Zorphy-style typed patches for updates |
-| `--morphy` | false | Alias for --zorphy (backward compatibility) |
 | `--init` | false | Generate initialize method for repository/datasource |
 
 ### VPC Layer Flags
@@ -599,7 +598,6 @@ zfa generate Product -j config.json
   "query_field": "string (default: 'id')",
   "query_field_type": "string",
   "zorphy": "boolean",
-  "morphy": "boolean (alias for zorphy)",
   "repo": "string",
   "usecases": ["string"],
   "variants": ["string"],
