@@ -58,15 +58,14 @@ dart pub global activate zuraffa
 zfa config init
 
 # Optionally customize defaults
-zfa config set useZorphyByDefault true
-zfa config set defaultEntityOutput lib/src/domain/entities
+zfa config set jsonByDefault false
 ```
 
 **Configuration Options:**
 - `useZorphyByDefault` - Use Zorphy for entities (default: true)
 - `jsonByDefault` - Default JSON serialization (default: true)
 - `compareByDefault` - Default compareTo generation (default: true)
-- `defaultEntityOutput` - Default entity output directory
+- `defaultEntityOutput` - Entity output (default: lib/src/domain/entities)
 
 ### 2. Create Your Entities
 
