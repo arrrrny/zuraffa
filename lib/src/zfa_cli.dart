@@ -7,7 +7,7 @@ import 'commands/config_command.dart';
 import 'commands/initialize_command.dart';
 import 'commands/entity_command.dart';
 
-const version = '2.2.0';
+const version = '2.2.1';
 
 Future<void> run(List<String> args) async {
   if (args.isEmpty) {
