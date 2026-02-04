@@ -12,7 +12,7 @@ Add Zuraffa to your `pubspec.yaml`:
 dependencies:
   flutter:
     sdk: flutter
-  zuraffa: ^2.1.0
+  zuraffa: ^2.2.1
 ```
 
 Run:

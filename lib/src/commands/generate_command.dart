@@ -62,15 +62,18 @@ class GenerateCommand {
         idField: results['id-field'] ?? 'id',
         idType: results['id-field-type'] ?? results['id-type'] ?? 'String',
         generateVpc: results['vpc'] == true || results['vpcs'] == true,
-        generateView: results['view'] == true ||
+        generateView:
+            results['view'] == true ||
             results['vpc'] == true ||
             results['vpcs'] == true,
-        generatePresenter: results['presenter'] == true ||
+        generatePresenter:
+            results['presenter'] == true ||
             results['vpc'] == true ||
             results['vpcs'] == true ||
             results['pc'] == true ||
             results['pcs'] == true,
-        generateController: results['controller'] == true ||
+        generateController:
+            results['controller'] == true ||
             results['vpc'] == true ||
             results['vpcs'] == true ||
             results['pc'] == true ||
@@ -78,7 +81,8 @@ class GenerateCommand {
         generateObserver: results['observer'] == true,
         generateData: results['data'] == true,
         generateDataSource: results['datasource'] == true,
-        generateState: results['state'] == true ||
+        generateState:
+            results['state'] == true ||
             results['vpcs'] == true ||
             results['pcs'] == true,
         generateInit: results['init'] == true,
@@ -88,10 +92,12 @@ class GenerateCommand {
         generateTest: results['test'] == true,
         enableCache: results['cache'] == true,
         cachePolicy: results['cache-policy'] ?? 'daily',
-        cacheStorage: results['cache-storage'] ??
+        cacheStorage:
+            results['cache-storage'] ??
             (results['cache'] == true ? 'hive' : null),
-        ttlMinutes:
-            results['ttl'] != null ? int.tryParse(results['ttl']) : null,
+        ttlMinutes: results['ttl'] != null
+            ? int.tryParse(results['ttl'])
+            : null,
         generateMock: results['mock'] == true,
         generateMockDataOnly: results['mock-data-only'] == true,
         useMockInDi: results['use-mock'] == true,
@@ -100,7 +106,6 @@ class GenerateCommand {
       );
     }
 
-    // ZFA 2.1.0 Validation Rules
     _validateConfig(config);
 
     final outputDir = results['output'] as String;
@@ -150,12 +155,14 @@ class GenerateCommand {
       }
       if (config.usecases.isNotEmpty) {
         print(
-            '❌ Error: --usecases cannot be used with entity-based generation');
+          '❌ Error: --usecases cannot be used with entity-based generation',
+        );
         exit(1);
       }
       if (config.variants.isNotEmpty) {
         print(
-            '❌ Error: --variants cannot be used with entity-based generation');
+          '❌ Error: --variants cannot be used with entity-based generation',
+        );
         exit(1);
       }
     }
@@ -166,11 +173,13 @@ class GenerateCommand {
       print('');
       print('Usage:');
       print(
-          '  zfa generate ${config.name} --domain=<domain> --repo=<Repository> --params=<Type> --returns=<Type>');
+        '  zfa generate ${config.name} --domain=<domain> --repo=<Repository> --params=<Type> --returns=<Type>',
+      );
       print('');
       print('Example:');
       print(
-          '  zfa generate SearchProduct --domain=search --repo=Product --params=Query --returns=List<Product>');
+        '  zfa generate SearchProduct --domain=search --repo=Product --params=Query --returns=List<Product>',
+      );
       exit(1);
     }
 
@@ -178,7 +187,8 @@ class GenerateCommand {
     if (config.isOrchestrator && config.repo != null) {
       print('❌ Error: Cannot use both --repo and --usecases');
       print(
-          '   Orchestrators compose UseCases, they don\'t use repositories directly');
+        '   Orchestrators compose UseCases, they don\'t use repositories directly',
+      );
       print('');
       print('Either:');
       print('  - Use --repo for repository-based UseCase');
@@ -196,7 +206,8 @@ class GenerateCommand {
       print('');
       print('Usage:');
       print(
-          '  zfa generate ${config.name} --domain=${config.domain ?? 'domain'} --repo=<Repository> --params=<Type> --returns=<Type>');
+        '  zfa generate ${config.name} --domain=${config.domain ?? 'domain'} --repo=<Repository> --params=<Type> --returns=<Type>',
+      );
       exit(1);
     }
 
@@ -219,7 +230,8 @@ class GenerateCommand {
         print('');
         print('Usage:');
         print(
-            '  zfa generate ${config.name} --variants=A,B,C --domain=${config.domain ?? 'domain'} --repo=<Repository> --params=<Type> --returns=<Type>');
+          '  zfa generate ${config.name} --variants=A,B,C --domain=${config.domain ?? 'domain'} --repo=<Repository> --params=<Type> --returns=<Type>',
+        );
         exit(1);
       }
       if (config.returnsType == null) {
@@ -227,7 +239,8 @@ class GenerateCommand {
         print('');
         print('Usage:');
         print(
-            '  zfa generate ${config.name} --variants=A,B,C --domain=${config.domain ?? 'domain'} --repo=<Repository> --params=<Type> --returns=<Type>');
+          '  zfa generate ${config.name} --variants=A,B,C --domain=${config.domain ?? 'domain'} --repo=<Repository> --params=<Type> --returns=<Type>',
+        );
         exit(1);
       }
     }
@@ -240,7 +253,8 @@ class GenerateCommand {
 
       if (invalidMethods.isNotEmpty) {
         print(
-            '❌ Error: --id-field=null can only be used with get and watch methods, not list methods.');
+          '❌ Error: --id-field=null can only be used with get and watch methods, not list methods.',
+        );
         print('   Invalid methods: ${invalidMethods.join(', ')}');
         print('   Use --id-field=null only with: get, watch');
         exit(1);
@@ -260,95 +274,175 @@ class GenerateCommand {
     return ArgParser()
       ..addOption('from-json', abbr: 'j', help: 'JSON configuration file')
       ..addFlag('from-stdin', help: 'Read JSON from stdin', defaultsTo: false)
-      ..addOption('methods',
-          abbr: 'm',
-          help:
-              'Comma-separated methods: get,getList,create,update,delete,watch,watchList')
+      ..addOption(
+        'methods',
+        abbr: 'm',
+        help:
+            'Comma-separated methods: get,getList,create,update,delete,watch,watchList',
+      )
       ..addOption('repo', help: 'Repository to inject (single)')
-      ..addOption('usecases',
-          help: 'Comma-separated UseCases to compose (orchestrator pattern)')
-      ..addOption('variants',
-          help: 'Comma-separated variants for polymorphic pattern')
-      ..addOption('domain',
-          help: 'Domain folder for custom UseCases (required for custom)')
-      ..addOption('method',
-          help: 'Repository method name (default: auto from UseCase name)')
-      ..addFlag('append',
-          help:
-              'Append method to existing repository and datasources (requires --repo)')
-      ..addFlag('data',
-          abbr: 'd',
-          help: 'Generate data repository implementation + data source',
-          defaultsTo: false)
-      ..addOption('type',
-          help: 'UseCase type: usecase,stream,background,completable',
-          defaultsTo: 'usecase')
+      ..addOption(
+        'usecases',
+        help: 'Comma-separated UseCases to compose (orchestrator pattern)',
+      )
+      ..addOption(
+        'variants',
+        help: 'Comma-separated variants for polymorphic pattern',
+      )
+      ..addOption(
+        'domain',
+        help: 'Domain folder for custom UseCases (required for custom)',
+      )
+      ..addOption(
+        'method',
+        help: 'Repository method name (default: auto from UseCase name)',
+      )
+      ..addFlag(
+        'append',
+        help:
+            'Append method to existing repository and datasources (requires --repo)',
+      )
+      ..addFlag(
+        'data',
+        abbr: 'd',
+        help: 'Generate data repository implementation + data source',
+        defaultsTo: false,
+      )
+      ..addOption(
+        'type',
+        help: 'UseCase type: usecase,stream,background,completable',
+        defaultsTo: 'usecase',
+      )
       ..addOption('params', help: 'Params type for custom usecase')
       ..addOption('returns', help: 'Return type for custom usecase')
-      ..addFlag('vpc',
-          help: 'Generate View + Presenter + Controller', defaultsTo: false)
-      ..addFlag('vpcs',
-          help: 'Generate View + Presenter + Controller + State',
-          defaultsTo: false)
-      ..addFlag('pc',
-          help: 'Generate Presenter + Controller only', defaultsTo: false)
-      ..addFlag('pcs',
-          help: 'Generate Presenter + Controller + State', defaultsTo: false)
+      ..addFlag(
+        'vpc',
+        help: 'Generate View + Presenter + Controller',
+        defaultsTo: false,
+      )
+      ..addFlag(
+        'vpcs',
+        help: 'Generate View + Presenter + Controller + State',
+        defaultsTo: false,
+      )
+      ..addFlag(
+        'pc',
+        help: 'Generate Presenter + Controller only',
+        defaultsTo: false,
+      )
+      ..addFlag(
+        'pcs',
+        help: 'Generate Presenter + Controller + State',
+        defaultsTo: false,
+      )
       ..addFlag('view', help: 'Generate View only', defaultsTo: false)
       ..addFlag('presenter', help: 'Generate Presenter only', defaultsTo: false)
-      ..addFlag('controller',
-          help: 'Generate Controller only', defaultsTo: false)
+      ..addFlag(
+        'controller',
+        help: 'Generate Controller only',
+        defaultsTo: false,
+      )
       ..addFlag('observer', help: 'Generate Observer', defaultsTo: false)
-      ..addFlag('test',
-          abbr: 't', help: 'Generate Unit Tests', defaultsTo: false)
-      ..addFlag('datasource',
-          help: 'Generate DataSource only', defaultsTo: false)
-      ..addFlag('init',
-          help: 'Generate initialize method for repository and datasource',
-          defaultsTo: false)
-      ..addOption('id-type',
-          help: 'ID type for entity (deprecated, use --id-field-type)',
-          defaultsTo: 'String')
-      ..addOption('id-field',
-          help: 'ID field name for update/delete (default: id)',
-          defaultsTo: 'id')
-      ..addOption('id-field-type',
-          help: 'ID field type (default: String)', defaultsTo: 'String')
-      ..addOption('query-field',
-          help: 'Query field name for get/watch (default: matches --id-field)')
-      ..addOption('query-field-type',
-          help: 'Query field type (default: matches --id-type)')
-      ..addFlag('zorphy',
-          help:
-              'Use Zorphy-style typed patches (Zorphy generates patch() methods) (e.g. EntityPatch) for updates',
-          defaultsTo: false)
+      ..addFlag(
+        'test',
+        abbr: 't',
+        help: 'Generate Unit Tests',
+        defaultsTo: false,
+      )
+      ..addFlag(
+        'datasource',
+        help: 'Generate DataSource only',
+        defaultsTo: false,
+      )
+      ..addFlag(
+        'init',
+        help: 'Generate initialize method for repository and datasource',
+        defaultsTo: false,
+      )
+      ..addOption(
+        'id-type',
+        help: 'ID type for entity (deprecated, use --id-field-type)',
+        defaultsTo: 'String',
+      )
+      ..addOption(
+        'id-field',
+        help: 'ID field name for update/delete (default: id)',
+        defaultsTo: 'id',
+      )
+      ..addOption(
+        'id-field-type',
+        help: 'ID field type (default: String)',
+        defaultsTo: 'String',
+      )
+      ..addOption(
+        'query-field',
+        help: 'Query field name for get/watch (default: matches --id-field)',
+      )
+      ..addOption(
+        'query-field-type',
+        help: 'Query field type (default: matches --id-type)',
+      )
+      ..addFlag(
+        'zorphy',
+        help:
+            'Use Zorphy-style typed patches (Zorphy generates patch() methods) (e.g. EntityPatch) for updates',
+        defaultsTo: false,
+      )
       ..addFlag('state', help: 'Generate State object', defaultsTo: false)
-      ..addFlag('cache',
-          help: 'Enable caching with dual datasources (remote + local)',
-          defaultsTo: false)
-      ..addOption('cache-policy',
-          help: 'Cache policy: daily, restart, ttl (default: daily)',
-          defaultsTo: 'daily')
-      ..addOption('cache-storage',
-          help: 'Local storage hint: hive, sqlite, shared_preferences')
-      ..addOption('ttl',
-          help: 'TTL duration in minutes (default: 1440 = 24 hours)')
-      ..addFlag('mock',
-          help: 'Generate mock data source with sample data', defaultsTo: false)
-      ..addFlag('mock-data-only',
-          help: 'Generate only mock data file (no data source)',
-          defaultsTo: false)
-      ..addFlag('use-mock',
-          help: 'Use mock datasource in DI (default: remote datasource)',
-          defaultsTo: false)
-      ..addFlag('di',
-          help: 'Generate dependency injection files', defaultsTo: false)
-      ..addOption('output',
-          abbr: 'o', help: 'Output directory', defaultsTo: 'lib/src')
-      ..addOption('format',
-          help: 'Output format: json,text', defaultsTo: 'text')
-      ..addFlag('dry-run',
-          help: 'Preview without writing files', defaultsTo: false)
+      ..addFlag(
+        'cache',
+        help: 'Enable caching with dual datasources (remote + local)',
+        defaultsTo: false,
+      )
+      ..addOption(
+        'cache-policy',
+        help: 'Cache policy: daily, restart, ttl (default: daily)',
+        defaultsTo: 'daily',
+      )
+      ..addOption(
+        'cache-storage',
+        help: 'Local storage hint: hive, sqlite, shared_preferences',
+      )
+      ..addOption(
+        'ttl',
+        help: 'TTL duration in minutes (default: 1440 = 24 hours)',
+      )
+      ..addFlag(
+        'mock',
+        help: 'Generate mock data source with sample data',
+        defaultsTo: false,
+      )
+      ..addFlag(
+        'mock-data-only',
+        help: 'Generate only mock data file (no data source)',
+        defaultsTo: false,
+      )
+      ..addFlag(
+        'use-mock',
+        help: 'Use mock datasource in DI (default: remote datasource)',
+        defaultsTo: false,
+      )
+      ..addFlag(
+        'di',
+        help: 'Generate dependency injection files',
+        defaultsTo: false,
+      )
+      ..addOption(
+        'output',
+        abbr: 'o',
+        help: 'Output directory',
+        defaultsTo: 'lib/src',
+      )
+      ..addOption(
+        'format',
+        help: 'Output format: json,text',
+        defaultsTo: 'text',
+      )
+      ..addFlag(
+        'dry-run',
+        help: 'Preview without writing files',
+        defaultsTo: false,
+      )
       ..addFlag('force', help: 'Overwrite existing files', defaultsTo: false)
       ..addFlag('verbose', abbr: 'v', help: 'Verbose output', defaultsTo: false)
       ..addFlag('quiet', abbr: 'q', help: 'Minimal output', defaultsTo: false);

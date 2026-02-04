@@ -101,7 +101,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  zuraffa: ^2.1.0
+  zuraffa: ^2.2.1
 ```
 
 Then run:

@@ -52,8 +52,9 @@ class ZuraffaMcpServer {
     }
 
     // Set up the stream first to ensure it's ready
-    final stream =
-        stdin.transform(utf8.decoder).transform(const LineSplitter());
+    final stream = stdin
+        .transform(utf8.decoder)
+        .transform(const LineSplitter());
 
     // Keep the process alive indefinitely
     // Use a completer that never completes to prevent exit
@@ -117,7 +118,8 @@ class ZuraffaMcpServer {
 
   /// Handle incoming JSON-RPC requests
   Future<Map<String, dynamic>?> handleRequest(
-      Map<String, dynamic> request) async {
+    Map<String, dynamic> request,
+  ) async {
     final method = request['method'] as String?;
     final id = request['id'];
 
@@ -128,12 +130,16 @@ class ZuraffaMcpServer {
         return _listTools(id);
       case 'tools/call':
         return await _callTool(
-            id, request['params'] as Map<String, dynamic>? ?? {});
+          id,
+          request['params'] as Map<String, dynamic>? ?? {},
+        );
       case 'resources/list':
         return await _listResources(id);
       case 'resources/read':
         return await _readResource(
-            id, request['params'] as Map<String, dynamic>? ?? {});
+          id,
+          request['params'] as Map<String, dynamic>? ?? {},
+        );
       case 'shutdown':
         // Graceful shutdown
         return _success(id, {});
@@ -158,10 +164,7 @@ class ZuraffaMcpServer {
           'tools': {'listChanged': true},
           'resources': {'subscribe': true, 'listChanged': true},
         },
-        'serverInfo': {
-          'name': 'zfa-mcp-server',
-          'version': zfa.version,
-        },
+        'serverInfo': {'name': 'zfa-mcp-server', 'version': zfa.version},
       },
       'id': id,
     };
@@ -201,7 +204,7 @@ class ZuraffaMcpServer {
           'name': {
             'type': 'string',
             'description':
-                'Entity or UseCase name in PascalCase (e.g., Product, ProcessOrder)'
+                'Entity or UseCase name in PascalCase (e.g., Product, ProcessOrder)',
           },
           'methods': {
             'type': 'array',
@@ -214,8 +217,8 @@ class ZuraffaMcpServer {
                 'update',
                 'delete',
                 'watch',
-                'watchList'
-              ]
+                'watchList',
+              ],
             },
             'description': 'Methods to generate for entity-based UseCases',
           },
@@ -423,10 +426,7 @@ class ZuraffaMcpServer {
       'name': 'schema',
       'description':
           'Get the JSON schema for ZFA configuration validation. Useful for AI agents to validate configs before generation.',
-      'inputSchema': {
-        'type': 'object',
-        'properties': {},
-      },
+      'inputSchema': {'type': 'object', 'properties': {}},
     };
   }
 
@@ -451,7 +451,9 @@ class ZuraffaMcpServer {
 
   /// Handle tool calls
   Future<Map<String, dynamic>> _callTool(
-      dynamic id, Map<String, dynamic> params) async {
+    dynamic id,
+    Map<String, dynamic> params,
+  ) async {
     final toolName = params['name'] as String;
     final args = params['arguments'] as Map<String, dynamic>? ?? {};
 
@@ -497,11 +499,8 @@ class ZuraffaMcpServer {
         'jsonrpc': '2.0',
         'result': {
           'content': [
-            {
-              'type': 'text',
-              'text': result,
-            }
-          ]
+            {'type': 'text', 'text': result},
+          ],
         },
         'id': id,
       };
@@ -514,7 +513,7 @@ class ZuraffaMcpServer {
               'type': 'text',
               'text':
                   'Error: ${e.toString()}\n\nStack trace:\n${stackTrace.toString()}',
-            }
+            },
           ],
           'isError': true,
         },
@@ -573,7 +572,7 @@ class ZuraffaMcpServer {
     final List<String> cliArgs = [
       'entity',
       'add-field',
-      '--name=${args["name"]}'
+      '--name=${args["name"]}',
     ];
 
     if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
@@ -593,7 +592,7 @@ class ZuraffaMcpServer {
     final List<String> cliArgs = [
       'entity',
       'from-json',
-      args['file'] as String
+      args['file'] as String,
     ];
 
     if (args['name'] != null) cliArgs.add('--name=${args["name"]}');
@@ -637,41 +636,42 @@ class ZuraffaMcpServer {
         'properties': {
           'name': {
             'type': 'string',
-            'description': 'Entity name in PascalCase (e.g., User, Product)'
+            'description': 'Entity name in PascalCase (e.g., User, Product)',
           },
           'output': {
             'type': 'string',
-            'description': 'Output directory (default: lib/src/domain/entities)'
+            'description':
+                'Output directory (default: lib/src/domain/entities)',
           },
           'fields': {
             'type': 'array',
             'items': {'type': 'string'},
             'description':
-                'Fields in format "name:type" or "name:type?" for nullable'
+                'Fields in format "name:type" or "name:type?" for nullable',
           },
           'json': {
             'type': 'boolean',
-            'description': 'Enable JSON serialization'
+            'description': 'Enable JSON serialization',
           },
           'sealed': {'type': 'boolean', 'description': 'Create sealed class'},
           'non_sealed': {
             'type': 'boolean',
-            'description': 'Create non-sealed class'
+            'description': 'Create non-sealed class',
           },
           'copywith_fn': {
             'type': 'boolean',
-            'description': 'Function-based copyWith'
+            'description': 'Function-based copyWith',
           },
           'compare': {'type': 'boolean', 'description': 'Enable compareTo'},
           'extends': {'type': 'string', 'description': 'Interface to extend'},
           'subtype': {
             'type': 'array',
             'items': {'type': 'string'},
-            'description': 'Explicit subtypes'
+            'description': 'Explicit subtypes',
           },
         },
-        'required': ['name']
-      }
+        'required': ['name'],
+      },
     };
   }
 
@@ -688,11 +688,11 @@ class ZuraffaMcpServer {
           'values': {
             'type': 'array',
             'items': {'type': 'string'},
-            'description': 'Enum values'
+            'description': 'Enum values',
           },
         },
-        'required': ['name', 'values']
-      }
+        'required': ['name', 'values'],
+      },
     };
   }
 
@@ -709,11 +709,11 @@ class ZuraffaMcpServer {
           'fields': {
             'type': 'array',
             'items': {'type': 'string'},
-            'description': 'Fields to add in format "name:type"'
+            'description': 'Fields to add in format "name:type"',
           },
         },
-        'required': ['name', 'fields']
-      }
+        'required': ['name', 'fields'],
+      },
     };
   }
 
@@ -730,15 +730,15 @@ class ZuraffaMcpServer {
           'output': {'type': 'string', 'description': 'Output base directory'},
           'json': {
             'type': 'boolean',
-            'description': 'Enable JSON serialization'
+            'description': 'Enable JSON serialization',
           },
           'prefix_nested': {
             'type': 'boolean',
-            'description': 'Prefix nested entities'
+            'description': 'Prefix nested entities',
           },
         },
-        'required': ['file']
-      }
+        'required': ['file'],
+      },
     };
   }
 
@@ -750,9 +750,9 @@ class ZuraffaMcpServer {
       'inputSchema': {
         'type': 'object',
         'properties': {
-          'output': {'type': 'string', 'description': 'Directory to search'}
+          'output': {'type': 'string', 'description': 'Directory to search'},
         },
-      }
+      },
     };
   }
 
@@ -766,16 +766,16 @@ class ZuraffaMcpServer {
         'properties': {
           'name': {
             'type': 'string',
-            'description': 'Entity name in PascalCase'
+            'description': 'Entity name in PascalCase',
           },
           'output': {'type': 'string', 'description': 'Output directory'},
           'json': {
             'type': 'boolean',
-            'description': 'Enable JSON serialization'
+            'description': 'Enable JSON serialization',
           },
         },
-        'required': ['name']
-      }
+        'required': ['name'],
+      },
     };
   }
 
@@ -800,8 +800,9 @@ class ZuraffaMcpServer {
     }
     if (args['id_field_type'] != null || args['id_type'] != null) {
       // Support both for backward compatibility
-      cliArgs
-          .add('--id-field-type=${args['id_field_type'] ?? args['id_type']}');
+      cliArgs.add(
+        '--id-field-type=${args['id_field_type'] ?? args['id_type']}',
+      );
     }
     if (args['query_field'] != null) {
       cliArgs.add('--query-field=${args['query_field']}');
@@ -811,14 +812,14 @@ class ZuraffaMcpServer {
     }
 
     // Zorphy logic: Explicit flag > Default flag
-    final useZorphy = args['zorphy'] == true ||
+    final useZorphy =
+        args['zorphy'] == true ||
         args['zorphy'] == true ||
         (args['zorphy'] == null &&
             args['zorphy'] == null &&
             useZorphyByDefault);
     if (useZorphy) cliArgs.add('--zorphy');
 
-    // ZFA ^2.1.0 Custom UseCase options
     if (args['repo'] != null) cliArgs.add('--repo=${args['repo']}');
     if (args['usecases'] != null) {
       final usecases = args['usecases'] as List;
@@ -956,21 +957,14 @@ class ZuraffaMcpServer {
 
   /// Create a success response
   Map<String, dynamic> _success(dynamic id, Map<String, dynamic> result) {
-    return {
-      'jsonrpc': '2.0',
-      'result': result,
-      'id': id,
-    };
+    return {'jsonrpc': '2.0', 'result': result, 'id': id};
   }
 
   /// Create an error response
   Map<String, dynamic> _error(dynamic id, int code, String message) {
     return {
       'jsonrpc': '2.0',
-      'error': {
-        'code': code,
-        'message': message,
-      },
+      'error': {'code': code, 'message': message},
       'id': id,
     };
   }
@@ -998,7 +992,8 @@ class ZuraffaMcpServer {
         onTimeout: () {
           // Return whatever we've collected so far (partial results)
           stderr.writeln(
-              'Resource listing timeout, returning ${collected.length} partial results');
+            'Resource listing timeout, returning ${collected.length} partial results',
+          );
           return collected.take(_maxFiles).toList();
         },
       );
@@ -1019,7 +1014,9 @@ class ZuraffaMcpServer {
 
   /// Read a resource's contents
   Future<Map<String, dynamic>> _readResource(
-      dynamic id, Map<String, dynamic> params) async {
+    dynamic id,
+    Map<String, dynamic> params,
+  ) async {
     final uri = params['uri'] as String?;
 
     if (uri == null) {
@@ -1038,12 +1035,8 @@ class ZuraffaMcpServer {
         'jsonrpc': '2.0',
         'result': {
           'contents': [
-            {
-              'uri': uri,
-              'mimeType': 'text/dart',
-              'text': contents,
-            }
-          ]
+            {'uri': uri, 'mimeType': 'text/dart', 'text': contents},
+          ],
         },
         'id': id,
       };
@@ -1065,16 +1058,17 @@ class ZuraffaMcpServer {
       // List with timeout - wrap in try-catch to skip slow directories
       try {
         final entities = await dir.list().toList().timeout(
-              const Duration(milliseconds: 300),
-              onTimeout: () => [],
-            );
+          const Duration(milliseconds: 300),
+          onTimeout: () => [],
+        );
 
         for (final entity in entities) {
           try {
             if (entity is File && entity.path.endsWith('.dart')) {
               final relativePath = entity.path.replaceFirst('$dirPath/', '');
-              final name =
-                  relativePath.replaceAll('/', '.').replaceAll('.dart', '');
+              final name = relativePath
+                  .replaceAll('/', '.')
+                  .replaceAll('.dart', '');
 
               resources.add({
                 'uri': 'file://${entity.path}',
@@ -1097,7 +1091,8 @@ class ZuraffaMcpServer {
 
   /// Perform actual resource listing with timeouts
   Future<List<Map<String, dynamic>>> _doResourceListing(
-      List<Map<String, dynamic>> collected) async {
+    List<Map<String, dynamic>> collected,
+  ) async {
     // Scan common ZFA directories for Dart files (single level only)
     final directories = [
       'lib/src/domain/repositories',
@@ -1115,8 +1110,11 @@ class ZuraffaMcpServer {
 
     // Scan entities directory if we haven't hit the limit
     if (collected.length < _maxFiles) {
-      await _scanDirectory('lib/src/domain/entities', collected,
-          prefix: 'entity/');
+      await _scanDirectory(
+        'lib/src/domain/entities',
+        collected,
+        prefix: 'entity/',
+      );
     }
 
     return collected.take(_maxFiles).toList();
