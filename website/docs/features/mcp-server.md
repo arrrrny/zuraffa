@@ -15,7 +15,29 @@ The **Model Context Protocol** is a standardized protocol that allows AI assista
 
 ## Installation Options
 
-Zuraffa MCP server offers three installation approaches to suit different needs:
+Zuraffa MCP server offers three installation approaches to suit different needs. Additionally, you can configure Zorphy (entity generation) defaults via startup flags.
+
+### Zorphy Configuration Flags
+
+Enable Zorphy-style typed entity patches by default for all MCP tool calls:
+
+```json
+{
+  "mcpServers": {
+    "zuraffa": {
+      "command": "/usr/local/bin/zuraffa_mcp_server",
+      "args": ["--zorphy"],
+      "cwd": "/path/to/your/flutter/project"
+    }
+  }
+}
+```
+
+Available flags:
+- `--zorphy` / `--always-zorphy`: Enable Zorphy by default
+- `--morphy` / `--always-morphy`: Alias for --zorphy (backward compatibility)
+
+When enabled, all code generation will use Zorphy-style typed patches instead of `Partial<T>` for update operations. You can still override this per-request using the `zorphy: false` parameter.
 
 ### 1. Automatic via pub.dev (Recommended for Most Users)
 
@@ -164,6 +186,8 @@ Generate Clean Architecture code for your Flutter project.
 | `id_field_type` | string | No | ID field type (default: String) |
 | `query_field` | string | No | Query field name for get/watch (default: id) |
 | `query_field_type` | string | No | Query field type (default: matches id_field_type) |
+| `zorphy` | boolean | No | Use Zorphy-style typed patches |
+| `morphy` | boolean | No | Alias for zorphy (backward compatibility) |
 | `repo` | string | No | Repository to inject (enforces Single Responsibility Principle) |
 | `usecases` | array | No | UseCases to compose (orchestrator pattern) |
 | `variants` | array | No | Variants for polymorphic pattern |

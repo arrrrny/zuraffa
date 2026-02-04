@@ -3,10 +3,11 @@ import 'commands/generate_command.dart';
 import 'commands/schema_command.dart';
 import 'commands/validate_command.dart';
 import 'commands/create_command.dart';
+import 'commands/config_command.dart';
 import 'commands/initialize_command.dart';
 import 'commands/entity_command.dart';
 
-const version = '2.0.1';
+const version = '2.1.1';
 
 Future<void> run(List<String> args) async {
   if (args.isEmpty) {
@@ -29,6 +30,10 @@ Future<void> run(List<String> args) async {
         break;
       case 'create':
         await CreateCommand().execute(args.skip(1).toList());
+      case 'config':
+        await ConfigCommand().execute(args.skip(1).toList());
+        break;
+        break;
         break;
       case 'initialize':
       case 'init':
@@ -114,6 +119,7 @@ CLEAN ARCHITECTURE COMMANDS:
   generate <Name>     Generate Clean Architecture code for an entity or usecase
   initialize          Initialize a test entity to quickly try out Zuraffa
   create              Create architecture folders or pages
+  config              Manage ZFA configuration (.zfa.json)
   schema              Output JSON schema for configuration
   validate <file>     Validate JSON configuration file
 
@@ -134,10 +140,15 @@ HELP:
   help                Show this help message
   version             Show version
 
+EXAMPLES - CONFIGURATION:
+  zfa config init                                   # Create .zfa.json with defaults
+  zfa config show                                   # Show current configuration
+  zfa config set useZorphyByDefault false          # Disable Zorphy by default
+
 EXAMPLES - CLEAN ARCHITECTURE:
   zfa initialize                                    # Create sample Product entity
   zfa generate Product --methods=get,getList        # Generate Clean Architecture
-  zfa generate OrderUseCase --custom --returns=Order
+  zfa generate OrderUseCase --custom --returns=Order --zorphy
 
 EXAMPLES - ENTITY GENERATION:
   zfa entity create User --field name:String --field email:String?

@@ -7,9 +7,138 @@ The `zfa` CLI provides powerful code generation capabilities for Zuraffa's Clean
 | Command | Description |
 |---------|-------------|
 | [`zfa generate`](#generate) | Generate Clean Architecture code |
+| [`zfa config`](#config) | Manage ZFA configuration |
 | [`zfa schema`](#schema) | Output JSON schema for validation |
 | [`zfa validate`](#validate) | Validate JSON configuration |
 | [`zfa initialize`](#initialize) | Create a sample entity |
+
+---
+
+## config
+
+Manage ZFA configuration for your project. Configuration is stored in `.zfa.json` in your project root.
+
+```bash
+zfa config <command> [options]
+```
+
+### Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| `init` | Create default configuration file |
+| `show` / `get` | Display current configuration |
+| `set <key> <value>` | Update a configuration value |
+| `help` | Show help message |
+
+### init
+
+Create a `.zfa.json` configuration file with default values:
+
+```bash
+zfa config init [directory]
+```
+
+Creates a configuration file with the following defaults:
+
+```json
+{
+  "useZorphyByDefault": true,
+  "jsonByDefault": true,
+  "compareByDefault": true,
+  "defaultEntityOutput": "lib/src/domain/entities"
+}
+```
+
+### show / get
+
+Display the current configuration:
+
+```bash
+zfa config show
+```
+
+Example output:
+
+```
+📋 ZFA Configuration (/path/to/project/.zfa.json):
+
+Settings:
+  • useZorphyByDefault: true
+  • jsonByDefault: true
+  • compareByDefault: true
+  • defaultEntityOutput: lib/src/domain/entities
+```
+
+### set
+
+Update a specific configuration value:
+
+```bash
+zfa config set <key> <value>
+```
+
+#### Configuration Keys
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `useZorphyByDefault` | boolean | Use Zorphy for entity generation by default |
+| `jsonByDefault` | boolean | Enable JSON serialization by default |
+| `compareByDefault` | boolean | Enable `compareTo` by default |
+| `defaultEntityOutput` | string | Default output directory for entities |
+
+#### Examples
+
+```bash
+# Disable Zorphy by default
+zfa config set useZorphyByDefault false
+
+# Set custom output directory
+zfa config set defaultEntityOutput lib/src/models
+
+# Enable JSON serialization by default
+zfa config set jsonByDefault true
+```
+
+### Configuration File
+
+The `.zfa.json` file is created in your project root and can be:
+
+- Created with `zfa config init`
+- Viewed with `zfa config show`
+- Updated with `zfa config set`
+- Edited manually in any text editor
+
+#### Example Configuration
+
+```json
+{
+  "useZorphyByDefault": true,
+  "jsonByDefault": true,
+  "compareByDefault": true,
+  "defaultEntityOutput": "lib/src/domain/entities",
+  "notes": [
+    "Set useZorphyByDefault to false for manual entity generation",
+    "Adjust defaultEntityOutput to change where entities are created"
+  ]
+}
+```
+
+### How Configuration Affects Generation
+
+When you run `zfa generate` or entity commands:
+
+1. **Zorphy Integration**: If `useZorphyByDefault` is `true`, generated code uses Zorphy-style typed patches instead of `Partial<T>`
+2. **Entity Output**: Entity commands use `defaultEntityOutput` as the base directory
+3. **JSON Serialization**: Entity generation includes JSON serialization when `jsonByDefault` is `true`
+4. **Comparison**: Entities get `compareTo` methods when `compareByDefault` is `true`
+
+You can always override these defaults with command-line flags:
+
+```bash
+# Even with useZorphyByDefault: false, you can enable it per-command
+zfa generate Product --methods=get --zorphy
+```
 
 ---
 
@@ -57,7 +186,8 @@ Generate CRUD operations for an entity.
 | `--id-field-type=<type>` | `String` | ID field type |
 | `--query-field=<name>` | `id` | Query field name for get/watch |
 | `--query-field-type=<type>` | (same as id) | Query field type |
-| `--morphy` | false | Use Morphy-style typed patches for updates |
+| `--zorphy` | false | Use Zorphy-style typed patches for updates |
+| `--morphy` | false | Alias for --zorphy (backward compatibility) |
 | `--init` | false | Generate initialize method for repository/datasource |
 
 ### VPC Layer Flags
@@ -468,7 +598,8 @@ zfa generate Product -j config.json
   "id_field_type": "string (default: 'String')",
   "query_field": "string (default: 'id')",
   "query_field_type": "string",
-  "morphy": "boolean",
+  "zorphy": "boolean",
+  "morphy": "boolean (alias for zorphy)",
   "repo": "string",
   "usecases": ["string"],
   "variants": ["string"],

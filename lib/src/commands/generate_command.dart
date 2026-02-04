@@ -319,7 +319,7 @@ class GenerateCommand {
       ..addOption('query-field-type',
           help: 'Query field type (default: matches --id-type)')
       ..addFlag('morphy',
-          help: 'Use Morphy-style typed patches (e.g. EntityPatch) for updates',
+          help: 'Use Zorphy-style typed patches (Zorphy generates patch() methods) (e.g. EntityPatch) for updates',
           defaultsTo: false)
       ..addFlag('state', help: 'Generate State object', defaultsTo: false)
       ..addFlag('cache',
@@ -369,7 +369,7 @@ ENTITY-BASED GENERATION:
   --id-field-type=<t>   ID field type (default: String)
   --query-field=<name>  Query field name for get/watch (default: id)
   --query-field-type=<t> Query field type (default: same as id-field-type)
-  --morphy             Use Morphy-style typed patches (e.g. EntityPatch)
+  --zorphy             Use Zorphy-style typed patches (alias: --morphy)
 
 CACHING:
   --cache              Enable caching with dual datasources (remote + local)

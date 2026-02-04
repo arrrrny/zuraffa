@@ -1,0 +1,10 @@
+{
+  "useZorphyByDefault": true,
+  "jsonByDefault": true,
+  "compareByDefault": true,
+  "defaultEntityOutput": "lib/src/domain/entities",
+  "notes": [
+    "Set \"useZorphyByDefault\": false to use manual entity generation",
+    "Adjust \"defaultEntityOutput\" to change where entities are created"
+  ]
+}

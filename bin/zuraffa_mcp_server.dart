@@ -12,17 +12,19 @@ import 'package:zuraffa/src/zfa_cli.dart' as zfa show version;
 /// Run with: dart run zuraffa:zuraffa_mcp_server
 void main(List<String> args) async {
   // Check for flags passed to the server process itself
-  final useMorphyByDefault =
-      args.contains('--morphy') || args.contains('--always-morphy');
+  final useZorphyByDefault = args.contains('--zorphy') ||
+      args.contains('--always-zorphy') ||
+      args.contains('--morphy') ||
+      args.contains('--always-morphy');
 
-  final server = ZuraffaMcpServer(useMorphyByDefault: useMorphyByDefault);
+  final server = ZuraffaMcpServer(useZorphyByDefault: useZorphyByDefault);
   await server.run();
 }
 
 class ZuraffaMcpServer {
-  final bool useMorphyByDefault;
+  final bool useZorphyByDefault;
 
-  ZuraffaMcpServer({this.useMorphyByDefault = false});
+  ZuraffaMcpServer({this.useZorphyByDefault = false});
 
   // Cache for resource listings to avoid repeated filesystem scans
   List<Map<String, dynamic>>? _resourcesCache;
@@ -47,8 +49,8 @@ class ZuraffaMcpServer {
       // Ignore errors in piped context
     }
 
-    if (useMorphyByDefault) {
-      stderr.writeln('Spawned with default Morphy mode enabled');
+    if (useZorphyByDefault) {
+      stderr.writeln('Spawned with default Zorphy mode enabled');
     }
 
     // Set up the stream first to ensure it's ready
@@ -271,9 +273,13 @@ class ZuraffaMcpServer {
             'description':
                 'Query field type - ONLY include if user explicitly specifies (default: matches id_field_type)',
           },
+          'zorphy': {
+            'type': 'boolean',
+            'description': 'Use Zorphy-style typed patches',
+          },
           'morphy': {
             'type': 'boolean',
-            'description': 'Use Morphy-style typed patches',
+            'description': 'Use Zorphy-style typed patches (alias for zorphy)',
           },
           'repo': {
             'type': 'string',
@@ -810,10 +816,13 @@ class ZuraffaMcpServer {
       cliArgs.add('--query-field-type=${args['query_field_type']}');
     }
 
-    // Morphy logic: Explicit flag > Default flag
-    final useMorphy = args['morphy'] == true ||
-        (args['morphy'] == null && useMorphyByDefault);
-    if (useMorphy) cliArgs.add('--morphy');
+    // Zorphy logic: Explicit flag > Default flag
+    final useZorphy = args['zorphy'] == true ||
+        args['morphy'] == true ||
+        (args['zorphy'] == null &&
+            args['morphy'] == null &&
+            useZorphyByDefault);
+    if (useZorphy) cliArgs.add('--zorphy');
 
     // ZFA 2.0.0 Custom UseCase options
     if (args['repo'] != null) cliArgs.add('--repo=${args['repo']}');

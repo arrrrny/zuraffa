@@ -64,7 +64,27 @@ zfa initialize --entity=User
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state
 ```
 
-### 2. Generate Code with the CLI
+### 2. Configure Your Project (NEW!)
+
+```bash
+# Create configuration with defaults
+zfa config init
+
+# Show current configuration
+zfa config show
+
+# Customize defaults
+zfa config set useZorphyByDefault false
+zfa config set defaultEntityOutput lib/src/models
+```
+
+**Configuration Options:**
+- `useZorphyByDefault` - Use Zorphy for entities (default: true)
+- `jsonByDefault` - Default JSON serialization (default: true)
+- `compareByDefault` - Default compareTo generation (default: true)
+- `defaultEntityOutput` - Default entity output directory
+
+### 3. Generate Code with the CLI
 
 **One command generates your entire feature:**
 
