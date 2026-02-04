@@ -1,9 +1,10 @@
 # Changelog
-## [2.0.1] - 2026-02-03
+## [Unreleased]
 
-### Chore
+### Added
 
 Updated examples and docs
+Bundled zorphy with zuraffa so no longer need a separate install
 
 ## [2.1.0] - 2026-02-04
 

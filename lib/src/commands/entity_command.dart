@@ -26,18 +26,27 @@ class EntityCommand {
 
   /// Execute zorphy CLI with the given command and arguments
   Future<void> _executeZorphy(String command, List<String> args) async {
+    // Check if we're in a Dart/Flutter project
+    final pubspecFile = File('pubspec.yaml');
+    if (!pubspecFile.existsSync()) {
+      print('❌ Error: pubspec.yaml not found in current directory.');
+      print('   Please run this command from your Flutter/Dart project root.');
+      exit(1);
+    }
+
     // Build the zorphy CLI command
     final zorphyArgs = [command, ...args];
 
     print('🦒 Running Zorphy: zorphy_cli ${zorphyArgs.join(' ')}');
+    print('   (Zorphy is bundled with ZFA - no setup required!)');
     print('');
 
-    // Run zorphy CLI as a subprocess
-    final process = await Process.start(
-      'dart',
-      ['run', 'zorphy:zorphy_cli', ...zorphyArgs],
-      mode: ProcessStartMode.inheritStdio,
-    );
+    // Run zorphy CLI as a subprocess using the bundled version
+    final process = await Process.start('dart', [
+      'run',
+      'zorphy:zorphy_cli',
+      ...zorphyArgs,
+    ], mode: ProcessStartMode.inheritStdio);
 
     final exitCode = await process.exitCode;
 
@@ -57,10 +66,13 @@ zfa entity - Zorphy Entity Generation Commands
 USAGE:
   zfa entity <subcommand> [options]
 
+NOTE:
+  Zorphy is bundled with ZFA - no additional installation needed!
+
 SUBCOMMANDS:
   create      Create a new Zorphy entity with fields
   new         Quick-create a simple entity (basic defaults)
-  enum        Create a new enum
+  enum        Create a new Zorphy enum
   add-field   Add field(s) to an existing entity
   from-json   Create entity/ies from JSON file
   list        List all Zorphy entities
@@ -119,11 +131,17 @@ EXAMPLES:
   # Interactive entity creation
   zfa entity create -n User
 
-  # Create with fields
+  # Create with fields (basic types)
   zfa entity create -n User --field name:String --field age:int --field email:String?
 
+  # Create with entity references and enums
+  zfa entity create -n Order --field customer:\$Customer --field status:OrderStatus --field items:List<\$OrderItem>
+
   # Create enum
-  zfa entity enum -n Status --value active,inactive,pending
+  zfa entity enum -n OrderStatus --value pending,processing,shipped,delivered
+
+  # Create nested entity
+  zfa entity create -n Address --field street:String --field city:String --field zipCode:String
 
   # Quick create simple entity
   zfa entity new -n Product
@@ -145,7 +163,15 @@ FIELD TYPES:
   Zorphy Objects: \$TypeName (concrete), \$\$TypeName (sealed/polymorphic)
   Enums: TypeName (will be imported from enums/index.dart)
 
-  Note: In shell, use --field address:\\\$Address (escape the \$)
+  Examples:
+    name:String              → String field
+    age:int?                 → Nullable int field
+    tags:List<String>        → List of strings
+    order:\$Order             → Order entity (concrete)
+    status:OrderStatus       → OrderStatus enum
+    metadata:Map<String, dynamic> → Map field
+
+  Note: In shell, use --field order:\\\$Order (escape the \$)
 
 For more information, visit: https://github.com/arrrrny/zorphy
 ''');

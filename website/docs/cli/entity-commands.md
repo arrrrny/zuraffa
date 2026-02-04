@@ -312,8 +312,9 @@ Add `?` to make any field nullable:
 
 Reference other Zorphy entities with `$` prefix:
 ```bash
---field address:$Address
---field user:$User
+--field address:\$Address
+--field user:\$User
+--field order:\$Order
 ```
 
 ### Enums
@@ -322,6 +323,8 @@ First create the enum, then use it:
 ```bash
 zfa entity enum -n Status --value active,inactive
 zfa entity create -n Account --field status:Status
+zfa entity enum -n OrderStatus --value pending,processing,delivered
+zfa entity create -n Order --field status:OrderStatus --field customer:\$Customer
 ```
 
 ### Generic Types
