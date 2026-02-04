@@ -185,9 +185,7 @@ extension FutureNullableExtension<T> on Future<T?> {
     try {
       final value = await this;
       if (value == null) {
-        return Result.failure(
-          NotFoundFailure(message ?? 'Value not found'),
-        );
+        return Result.failure(NotFoundFailure(message ?? 'Value not found'));
       }
       return Result.success(value);
     } catch (e, stackTrace) {

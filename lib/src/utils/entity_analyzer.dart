@@ -6,7 +6,9 @@ import 'string_utils.dart';
 class EntityAnalyzer {
   /// Analyzes an entity file to extract field information for mock data generation
   static Map<String, String> analyzeEntity(
-      String entityName, String outputDir) {
+    String entityName,
+    String outputDir,
+  ) {
     final entitySnake = StringUtils.camelToSnake(entityName);
 
     // All entities are at entities/{entity_snake}/{entity_snake}.dart
@@ -35,8 +37,9 @@ class EntityAnalyzer {
           }
           // If parsing the class failed, try parsing all final fields in the file
           final allFieldsRegex = RegExp(
-              r'final\s+([\w\?\$<>,\s\[\]]+)\s+(\w+)\s*;',
-              multiLine: true);
+            r'final\s+([\w\?\$<>,\s\[\]]+)\s+(\w+)\s*;',
+            multiLine: true,
+          );
           final allFieldMatches = allFieldsRegex.allMatches(zorphyContent);
           final allFields = <String, String>{};
           for (final match in allFieldMatches) {
@@ -69,15 +72,18 @@ class EntityAnalyzer {
   }
 
   static Map<String, String> _parseEntityFields(
-      String content, String targetEntityName) {
+    String content,
+    String targetEntityName,
+  ) {
     final fields = <String, String>{};
 
     // Find the specific class/abstract class definition by name
     final classRegex = RegExp(
-        r'(?:abstract\s+)?class\s+' +
-            RegExp.escape(targetEntityName) +
-            r'(?:\s+extends\s+\w+)?(?:\s+implements\s+[\w\s,]+)?\s*\{',
-        multiLine: true);
+      r'(?:abstract\s+)?class\s+' +
+          RegExp.escape(targetEntityName) +
+          r'(?:\s+extends\s+\w+)?(?:\s+implements\s+[\w\s,]+)?\s*\{',
+      multiLine: true,
+    );
     final classMatch = classRegex.firstMatch(content);
 
     if (classMatch != null) {
@@ -99,8 +105,10 @@ class EntityAnalyzer {
       final classBody = content.substring(startIndex, endIndex);
 
       // Parse getter-style fields within this class body
-      final getterRegex =
-          RegExp(r'([\w\?\$<>,\s]+)\s+get\s+(\w+)\s*;', multiLine: true);
+      final getterRegex = RegExp(
+        r'([\w\?\$<>,\s]+)\s+get\s+(\w+)\s*;',
+        multiLine: true,
+      );
       final getterMatches = getterRegex.allMatches(classBody);
 
       for (final match in getterMatches) {
@@ -113,8 +121,10 @@ class EntityAnalyzer {
       }
 
       // Parse field declarations within this class body
-      final fieldRegex =
-          RegExp(r'final\s+([\w\?\$<>,\s\[\]]+)\s+(\w+)\s*;', multiLine: true);
+      final fieldRegex = RegExp(
+        r'final\s+([\w\?\$<>,\s\[\]]+)\s+(\w+)\s*;',
+        multiLine: true,
+      );
       final fieldMatches = fieldRegex.allMatches(classBody);
 
       for (final match in fieldMatches) {
@@ -130,8 +140,10 @@ class EntityAnalyzer {
     // If no class-specific fields found, fall back to the old method
     if (fields.isEmpty) {
       // Parse getter-style fields: Type get fieldName;
-      final getterRegex = RegExp(r'(\w+(?:\?)?(?:<[^>]+>)?)\s+get\s+(\w+)\s*;',
-          multiLine: true);
+      final getterRegex = RegExp(
+        r'(\w+(?:\?)?(?:<[^>]+>)?)\s+get\s+(\w+)\s*;',
+        multiLine: true,
+      );
       final getterMatches = getterRegex.allMatches(content);
 
       for (final match in getterMatches) {
@@ -161,7 +173,7 @@ class EntityAnalyzer {
       'when',
       'map',
       'maybeWhen',
-      'maybeMap'
+      'maybeMap',
     };
     return ignored.contains(fieldName);
   }
@@ -181,7 +193,7 @@ class EntityAnalyzer {
       'category',
       'isActive',
       'createdAt',
-      'updatedAt'
+      'updatedAt',
     };
     return fields.keys.toSet().containsAll(defaultKeys);
   }

@@ -22,7 +22,7 @@ class SchemaCommand {
               'update',
               'delete',
               'watch',
-              'watchList'
+              'watchList',
             ],
           },
           'description': 'Methods to generate for entity-based usecases',
@@ -75,10 +75,7 @@ class SchemaCommand {
           'type': 'boolean',
           'description': 'Generate View + Presenter + Controller',
         },
-        'state': {
-          'type': 'boolean',
-          'description': 'Generate State object',
-        },
+        'state': {'type': 'boolean', 'description': 'Generate State object'},
         'data': {
           'type': 'boolean',
           'description': 'Generate data layer (DataRepository + DataSource)',
@@ -92,18 +89,12 @@ class SchemaCommand {
           'enum': ['daily', 'restart', 'ttl'],
           'description': 'Cache policy',
         },
-        'mock': {
-          'type': 'boolean',
-          'description': 'Generate mock data files',
-        },
+        'mock': {'type': 'boolean', 'description': 'Generate mock data files'},
         'di': {
           'type': 'boolean',
           'description': 'Generate dependency injection files',
         },
-        'test': {
-          'type': 'boolean',
-          'description': 'Generate unit tests',
-        },
+        'test': {'type': 'boolean', 'description': 'Generate unit tests'},
       },
       'required': ['name'],
     };

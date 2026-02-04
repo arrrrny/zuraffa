@@ -57,16 +57,24 @@ class CreateCommand {
   ArgParser _buildMainParser(ArgParser createParser) {
     final parser = ArgParser();
     parser.addCommand('create', createParser);
-    parser.addFlag('help',
-        abbr: 'h', help: 'Show this message and exit.', negatable: false);
+    parser.addFlag(
+      'help',
+      abbr: 'h',
+      help: 'Show this message and exit.',
+      negatable: false,
+    );
     return parser;
   }
 
   ArgParser _buildArgParser() {
     final create = ArgParser();
     create.addOption('page', abbr: 'p', help: 'Creates page with given value.');
-    create.addFlag('help',
-        abbr: 'h', help: 'Show this message and exit.', negatable: false);
+    create.addFlag(
+      'help',
+      abbr: 'h',
+      help: 'Show this message and exit.',
+      negatable: false,
+    );
     return create;
   }
 
@@ -100,7 +108,8 @@ class CreateCommand {
   Future<void> _createPage(String name) async {
     if (!_isValidPageName(name)) {
       CliLogger.error(
-          'Invalid page name "$name". Use snake_case format (e.g., "user_profile")');
+        'Invalid page name "$name". Use snake_case format (e.g., "user_profile")',
+      );
       exit(1);
     }
 

@@ -37,23 +37,23 @@ class ConfigCommand {
 
   Future<void> _handleInit(List<String> args) async {
     print('🔧 Initializing ZFA configuration...');
-    
+
     final projectRoot = args.isEmpty ? null : args[0];
-    
+
     if (projectRoot != null && !Directory(projectRoot).existsSync()) {
       print('❌ Directory not found: $projectRoot');
       exit(1);
     }
-    
+
     final root = projectRoot ?? Directory.current.path;
     final configFile = File(p.join(root, '.zfa.json'));
-    
+
     if (configFile.existsSync()) {
       print('⚠️  Configuration file already exists: ${configFile.path}');
       print('   Use "zfa config set" to update configuration');
       return;
     }
-    
+
     // Create default config
     final defaultConfig = {
       'useZorphyByDefault': true,
@@ -65,11 +65,11 @@ class ConfigCommand {
         'Adjust "defaultEntityOutput" to change where entities are created',
       ],
     };
-    
+
     const encoder = JsonEncoder.withIndent('  ');
     final content = encoder.convert(defaultConfig);
     await configFile.writeAsString(content);
-    
+
     print('✅ Created configuration file: ${configFile.path}');
     print('');
     print('📋 Current settings:');
@@ -89,27 +89,27 @@ class ConfigCommand {
     final projectRoot = args.isEmpty ? null : args[0];
     final root = projectRoot ?? Directory.current.path;
     final configFile = File(p.join(root, '.zfa.json'));
-    
+
     if (!configFile.existsSync()) {
       print('ℹ️  No configuration file found.');
       print('   Run "zfa config init" to create one with defaults.');
       return;
     }
-    
+
     try {
       final content = configFile.readAsStringSync();
       final json = jsonDecode(content) as Map<String, dynamic>;
-      
+
       print('📋 ZFA Configuration (${configFile.path}):');
       print('');
-      
+
       print('Settings:');
       json.forEach((key, value) {
         if (key != 'notes') {
           print('  • $key: $value');
         }
       });
-      
+
       if (json.containsKey('notes') && json['notes'] is List) {
         print('');
         print('Notes:');
@@ -130,23 +130,23 @@ class ConfigCommand {
       print('   Example: zfa config set useZorphyByDefault false');
       exit(1);
     }
-    
+
     final key = args[0];
     final value = args[1];
-    
+
     final projectRoot = Directory.current.path;
     final configFile = File(p.join(projectRoot, '.zfa.json'));
-    
+
     if (!configFile.existsSync()) {
       print('❌ Configuration file not found.');
       print('   Run "zfa config init" to create one first.');
       exit(1);
     }
-    
+
     try {
       final content = configFile.readAsStringSync();
       final json = jsonDecode(content) as Map<String, dynamic>;
-      
+
       // Parse value based on key
       dynamic parsedValue;
       switch (key) {
@@ -162,16 +162,18 @@ class ConfigCommand {
           break;
         default:
           print('❌ Unknown configuration key: $key');
-          print('   Valid keys: useZorphyByDefault, jsonByDefault, compareByDefault, defaultEntityOutput');
+          print(
+            '   Valid keys: useZorphyByDefault, jsonByDefault, compareByDefault, defaultEntityOutput',
+          );
           exit(1);
       }
-      
+
       json[key] = parsedValue;
-      
+
       const encoder = JsonEncoder.withIndent('  ');
       final newContent = encoder.convert(json);
       await configFile.writeAsString(newContent);
-      
+
       print('✅ Updated configuration:');
       print('   • $key: $parsedValue');
     } catch (e) {

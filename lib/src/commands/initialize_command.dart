@@ -36,12 +36,7 @@ class InitializeCommand {
         help: 'Enable verbose output',
         negatable: false,
       )
-      ..addFlag(
-        'help',
-        abbr: 'h',
-        help: 'Show help',
-        negatable: false,
-      );
+      ..addFlag('help', abbr: 'h', help: 'Show help', negatable: false);
 
     final results = parser.parse(args);
 
@@ -84,13 +79,16 @@ class InitializeCommand {
       print('\n📝 Next steps:');
       print('   • Generate complete feature:');
       print(
-          '     zfa generate $entityName --methods=get,getList,create,update,delete --data --vpc --state');
+        '     zfa generate $entityName --methods=get,getList,create,update,delete --data --vpc --state',
+      );
       print('   • Or generate incrementally:');
       print('     zfa generate $entityName --methods=get,getList');
       print(
-          '     zfa generate $entityName --methods=get,getList --vpc --state --force');
+        '     zfa generate $entityName --methods=get,getList --vpc --state --force',
+      );
       print(
-          '     zfa generate $entityName --methods=get,getList --data --force');
+        '     zfa generate $entityName --methods=get,getList --data --force',
+      );
     } catch (e) {
       print('❌ Error: $e');
       exit(1);

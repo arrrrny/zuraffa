@@ -4,10 +4,8 @@ import 'package:provider/provider.dart';
 import 'controller.dart';
 
 /// A function that builds a widget using a [Controller].
-typedef ControlledBuilder<Con extends Controller> = Widget Function(
-  BuildContext context,
-  Con controller,
-);
+typedef ControlledBuilder<Con extends Controller> =
+    Widget Function(BuildContext context, Con controller);
 
 /// A widget that rebuilds when the [Controller] calls [Controller.refreshUI].
 ///
@@ -77,10 +75,7 @@ class ControlledWidgetBuilder<Con extends Controller> extends StatelessWidget {
   ///
   /// The [builder] function receives the [BuildContext] and the [Controller]
   /// and should return the widget to display.
-  const ControlledWidgetBuilder({
-    super.key,
-    required this.builder,
-  });
+  const ControlledWidgetBuilder({super.key, required this.builder});
 
   @override
   Widget build(BuildContext context) {
@@ -117,7 +112,7 @@ class ControlledWidgetBuilderWithChild<Con extends Controller>
     extends StatelessWidget {
   /// The builder function that builds the widget using the [Controller] and [child].
   final Widget Function(BuildContext context, Con controller, Widget? child)
-      builder;
+  builder;
 
   /// A widget that doesn't depend on the Controller.
   ///
@@ -134,10 +129,7 @@ class ControlledWidgetBuilderWithChild<Con extends Controller>
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<Con>(
-      builder: builder,
-      child: child,
-    );
+    return Consumer<Con>(builder: builder, child: child);
   }
 }
 

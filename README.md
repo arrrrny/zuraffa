@@ -35,7 +35,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  zuraffa: ^2.1.0
+  zuraffa: ^2.2.1
 ```
 
 Then run:
@@ -46,64 +46,81 @@ flutter pub get
 
 ## Quick Start
 
-### 1. Initialize with a Test Entity (Recommended)
+### 1. Configure Your Project
 
-The fastest way to try Zuraffa is to create a sample entity first:
+First, set up ZFA configuration for your project:
 
 ```bash
 # Activate the CLI
 dart pub global activate zuraffa
 
-# Create a sample Product entity to test with
-zfa initialize
-
-# Or create a different entity
-zfa initialize --entity=User
-
-# Generate complete Clean Architecture around your entity
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state
-```
-
-### 2. Configure Your Project (NEW!)
-
-```bash
 # Create configuration with defaults
 zfa config init
 
-# Show current configuration
-zfa config show
-
-# Customize defaults
-zfa config set useZorphyByDefault true
-zfa config set defaultEntityOutput lib/src/domain/entities
+# Optionally customize defaults
+zfa config set jsonByDefault false
 ```
 
 **Configuration Options:**
 - `useZorphyByDefault` - Use Zorphy for entities (default: true)
 - `jsonByDefault` - Default JSON serialization (default: true)
 - `compareByDefault` - Default compareTo generation (default: true)
-- `defaultEntityOutput` - Default entity output directory
+- `defaultEntityOutput` - Entity output (default: lib/src/domain/entities)
 
-### 3. Generate Code with the CLI
+### 2. Create Your Entities
 
-**One command generates your entire feature:**
+Create entities first, then generate Clean Architecture around them:
 
 ```bash
+# Create an enum
+zfa entity enum -n OrderStatus --value pending,processing,shipped,delivered
 
-# Generate a complete feature with one line of code
-# This creates 14 files: UseCases, Repository, DataSource, Presenter, Controller, State, and View
-zfa generate Product --methods=get,watch,create,update,delete,getList,watchList --data --vpc --state --test
+# Create entities with fields
+zfa entity create -n User --field name:String --field email:String?
+zfa entity create -n Order --field customer:\$User --field status:OrderStatus --field items:List<\$OrderItem>
+zfa entity create -n OrderItem --field product:\$Product --field quantity:int --field price:double
 
-# Or use the shorter alias
-dart run zuraffa:zfa generate Product --methods=get,getList --vpc --state
+# List all entities
+zfa entity list
+```
+
+### 3. Generate Clean Architecture
+
+Now generate complete features around your entities:
+
+```bash
+# Generate a complete feature for your entity
+zfa generate Order --methods=get,getList,create,update,delete --data --vpc --state --test
+
+# Or generate multiple entities at once
+zfa generate User --methods=get,create --data
+zfa generate Product --methods=get,getList,watch,watchList --data --vpc --state
 ```
 
 **That's it!** One command generates:
 - ✅ Domain layer (UseCases + Repository interface)
 - ✅ Data layer (DataRepository + DataSource)
 - ✅ Presentation layer (View, Presenter, Controller, State)
+- ✅ Unit tests for all UseCases
 
-### 2. Use the Generated Code
+### 4. Run Code Generation
+
+After creating entities, run the build:
+
+```bash
+# Run Zorphy + json_serializable code generation
+zfa build
+
+# Or watch for changes
+zfa build --watch
+```
+
+This generates:
+- Entity implementations with `copyWith`, `==`, `hashCode`, `toString`
+- JSON serialization (`toJson`/`fromJson`)
+- Typed patch classes for updates (when using `--zorphy`)
+
+### 5. Use the Generated Code
 
 ```dart
 class ProductView extends CleanView {
@@ -155,29 +172,38 @@ class _ProductViewState extends CleanViewState<ProductView, ProductController> {
 ### Generated Output Example
 
 ```
-✅ Generated 21 files for Product
+✅ Created 2 entities
 
-  ⟳ lib/src/domain/repositories/product_repository.dart
-  ⟳ lib/src/domain/usecases/product/get_product_usecase.dart
-  ⟳ lib/src/domain/usecases/product/watch_product_usecase.dart
-  ⟳ lib/src/domain/usecases/product/create_product_usecase.dart
-  ⟳ lib/src/domain/usecases/product/update_product_usecase.dart
-  ⟳ lib/src/domain/usecases/product/delete_product_usecase.dart
-  ⟳ lib/src/domain/usecases/product/get_product_list_usecase.dart
-  ⟳ lib/src/domain/usecases/product/watch_product_list_usecase.dart
-  ⟳ lib/src/presentation/pages/product/product_presenter.dart
-  ⟳ lib/src/presentation/pages/product/product_controller.dart
-  ⟳ lib/src/presentation/pages/product/product_view.dart
-  ⟳ lib/src/presentation/pages/product/product_state.dart
-  ⟳ lib/src/data/data_sources/product/product_data_source.dart
-  ⟳ lib/src/data/repositories/data_product_repository.dart
-  ✓ test/domain/usecases/product/get_product_usecase_test.dart
-  ✓ test/domain/usecases/product/watch_product_usecase_test.dart
-  ✓ test/domain/usecases/product/create_product_usecase_test.dart
-  ✓ test/domain/usecases/product/update_product_usecase_test.dart
-  ✓ test/domain/usecases/product/delete_product_usecase_test.dart
-  ✓ test/domain/usecases/product/get_product_list_usecase_test.dart
-  ✓ test/domain/usecases/product/watch_product_list_usecase_test.dart
+  ⟳ lib/src/domain/entities/order/order.dart
+  ⟳ lib/src/domain/entities/order/order.zorphy.dart
+  ⟳ lib/src/domain/entities/order/order.g.dart
+  ⟳ lib/src/domain/entities/order_item/order_item.dart
+  ⟳ lib/src/domain/entities/order_item/order_item.zorphy.dart
+  ⟳ lib/src/domain/entities/order_item/order_item.g.dart
+
+✅ Generated 21 files for Order
+
+  ⟳ lib/src/domain/repositories/order_repository.dart
+  ⟳ lib/src/domain/usecases/order/get_order_usecase.dart
+  ⟳ lib/src/domain/usecases/order/watch_order_usecase.dart
+  ⟳ lib/src/domain/usecases/order/create_order_usecase.dart
+  ⟳ lib/src/domain/usecases/order/update_order_usecase.dart
+  ⟳ lib/src/domain/usecases/order/delete_order_usecase.dart
+  ⟳ lib/src/domain/usecases/order/get_order_list_usecase.dart
+  ⟳ lib/src/domain/usecases/order/watch_order_list_usecase.dart
+  ⟳ lib/src/presentation/pages/order/order_presenter.dart
+  ⟳ lib/src/presentation/pages/order/order_controller.dart
+  ⟳ lib/src/presentation/pages/order/order_view.dart
+  ⟳ lib/src/presentation/pages/order/order_state.dart
+  ⟳ lib/src/data/data_sources/order/order_data_source.dart
+  ⟳ lib/src/data/repositories/data_order_repository.dart
+  ✓ test/domain/usecases/order/get_order_usecase_test.dart
+  ✓ test/domain/usecases/order/watch_order_usecase_test.dart
+  ✓ test/domain/usecases/order/create_order_usecase_test.dart
+  ✓ test/domain/usecases/order/update_order_usecase_test.dart
+  ✓ test/domain/usecases/order/delete_order_usecase_test.dart
+  ✓ test/domain/usecases/order/get_order_list_usecase_test.dart
+  ✓ test/domain/usecases/order/watch_order_list_usecase_test.dart
 
 📝 Next steps:
    • Create a DataSource that implements ProductDataSource in data layer
@@ -795,38 +821,7 @@ zfa build --clean  # Clean and rebuild
 
 **📖 For complete entity generation documentation, see [ENTITY_GUIDE.md](ENTITY_GUIDE.md)**
 
-
-### Initialize Command
-
-The quickest way to get started is with the `initialize` command:
-
-```bash
-# Create a sample Product entity with common fields
-zfa initialize
-
-# Create a different entity
-zfa initialize --entity=User
-
-# Preview without writing files
-zfa initialize --dry-run
-
-# Specify custom output directory
-zfa initialize --entity=Order --output=lib/src
-```
-
-The `initialize` command creates a sample entity with realistic fields:
-- `id` (String) - Unique identifier
-- `name` (String) - Display name
-- `description` (String) - Detailed description
-- `price` (double) - Numeric value
-- `category` (String) - Classification
-- `isActive` (bool) - Status flag
-- `createdAt` (DateTime) - Creation timestamp
-- `updatedAt` (DateTime?) - Optional update timestamp
-
-This gives you a complete entity to immediately test Zuraffa's code generation capabilities.
-
-### Basic Usage
+### Generate Clean Architecture
 
 **One command generates your entire feature:**
 

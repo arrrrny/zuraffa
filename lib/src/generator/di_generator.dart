@@ -61,7 +61,8 @@ class DiGenerator {
 
     final diPath = path.join(outputDir, 'di', 'datasources', fileName);
 
-    final content = '''
+    final content =
+        '''
 // Auto-generated DI registration for $dataSourceName
 import 'package:get_it/get_it.dart';
 import '../../data/data_sources/$entitySnake/${entitySnake}_remote_data_source.dart';
@@ -101,7 +102,8 @@ void register$dataSourceName(GetIt getIt) {
     () => $dataSourceName(),
   );''';
 
-    final content = '''
+    final content =
+        '''
 // Auto-generated DI registration for $dataSourceName
 import 'package:get_it/get_it.dart';
 import '../../data/data_sources/$entitySnake/${entitySnake}_local_data_source.dart';
@@ -130,7 +132,8 @@ $hiveBoxSetup
 
     final diPath = path.join(outputDir, 'di', 'datasources', fileName);
 
-    final content = '''
+    final content =
+        '''
 // Auto-generated DI registration for $dataSourceName
 import 'package:get_it/get_it.dart';
 import '../../data/data_sources/$entitySnake/${entitySnake}_mock_data_source.dart';
@@ -174,18 +177,24 @@ void register$dataSourceName(GetIt getIt) {
       final policyFunctionName = policyType == 'daily'
           ? 'createDailyCachePolicy'
           : policyType == 'restart'
-              ? 'createAppRestartCachePolicy'
-              : 'createTtl${ttlMinutes}MinutesCachePolicy';
+          ? 'createAppRestartCachePolicy'
+          : 'createTtl${ttlMinutes}MinutesCachePolicy';
 
       final remoteDataSourceImport = config.useMockInDi
           ? "import '../../data/data_sources/$entitySnake/${entitySnake}_mock_data_source.dart';"
           : "import '../../data/data_sources/$entitySnake/${entitySnake}_remote_data_source.dart';";
 
-      cacheImports = '''
+      cacheImports =
+          '''
 $remoteDataSourceImport
 import '../../data/data_sources/$entitySnake/${entitySnake}_local_data_source.dart';
-import '../../cache/${policyType == 'ttl' ? 'ttl_${ttlMinutes}_minutes_cache_policy.dart' : policyType == 'daily' ? 'daily_cache_policy.dart' : 'app_restart_cache_policy.dart'}';''';
-      registration = '''
+import '../../cache/${policyType == 'ttl'
+              ? 'ttl_${ttlMinutes}_minutes_cache_policy.dart'
+              : policyType == 'daily'
+              ? 'daily_cache_policy.dart'
+              : 'app_restart_cache_policy.dart'}';''';
+      registration =
+          '''
   getIt.registerLazySingleton<$repoName>(
     () => $dataRepoName(
       getIt<$remoteDataSourceName>(),
@@ -202,13 +211,15 @@ import '../../cache/${policyType == 'ttl' ? 'ttl_${ttlMinutes}_minutes_cache_pol
           ? "import '../../data/data_sources/$entitySnake/${entitySnake}_mock_data_source.dart';"
           : "import '../../data/data_sources/$entitySnake/${entitySnake}_remote_data_source.dart';";
       cacheImports = dataSourceImport;
-      registration = '''
+      registration =
+          '''
   getIt.registerLazySingleton<$repoName>(
     () => $dataRepoName(getIt<$dataSourceName>()),
   );''';
     }
 
-    final content = '''
+    final content =
+        '''
 // Auto-generated DI registration for $repoName
 import 'package:get_it/get_it.dart';
 import '../../domain/repositories/${entitySnake}_repository.dart';
@@ -248,8 +259,9 @@ $registration
     final files = dir
         .listSync()
         .whereType<File>()
-        .where((f) =>
-            f.path.endsWith('_di.dart') && !f.path.endsWith('index.dart'))
+        .where(
+          (f) => f.path.endsWith('_di.dart') && !f.path.endsWith('index.dart'),
+        )
         .toList();
 
     if (files.isEmpty) {
@@ -265,14 +277,16 @@ $registration
 
       // Extract registration function name from file
       final content = file.readAsStringSync();
-      final match =
-          RegExp(r'void (register\w+)\(GetIt getIt\)').firstMatch(content);
+      final match = RegExp(
+        r'void (register\w+)\(GetIt getIt\)',
+      ).firstMatch(content);
       if (match != null) {
         registrations.add('  ${match.group(1)}(getIt);');
       }
     }
 
-    final content = '''
+    final content =
+        '''
 // Auto-generated - DO NOT EDIT
 ${imports.join('\n')}
 
@@ -326,8 +340,5 @@ class UseCaseInfo {
   final String className;
   final String fieldName;
 
-  UseCaseInfo({
-    required this.className,
-    required this.fieldName,
-  });
+  UseCaseInfo({required this.className, required this.fieldName});
 }

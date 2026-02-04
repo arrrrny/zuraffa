@@ -49,54 +49,81 @@ class MethodAppender {
 
     // 1. Append to Repository interface (create if doesn't exist)
     final repoPath = path.join(
-        outputDir, 'domain', 'repositories', '${repoSnake}_repository.dart');
+      outputDir,
+      'domain',
+      'repositories',
+      '${repoSnake}_repository.dart',
+    );
     final repoExists = File(repoPath).existsSync();
 
     if (!repoExists) {
       // Create repository if it doesn't exist
       await _createRepository(
-          repoPath, repoName, methodName, returnSignature, paramsType);
-      updatedFiles.add(GeneratedFile(
-        path: repoPath,
-        type: 'repository',
-        action: 'created',
-      ));
+        repoPath,
+        repoName,
+        methodName,
+        returnSignature,
+        paramsType,
+      );
+      updatedFiles.add(
+        GeneratedFile(path: repoPath, type: 'repository', action: 'created'),
+      );
     } else if (await _appendToRepository(
-        repoPath, methodName, returnSignature, paramsType)) {
-      updatedFiles.add(GeneratedFile(
-        path: repoPath,
-        type: 'repository',
-        action: 'updated',
-      ));
+      repoPath,
+      methodName,
+      returnSignature,
+      paramsType,
+    )) {
+      updatedFiles.add(
+        GeneratedFile(path: repoPath, type: 'repository', action: 'updated'),
+      );
     } else {
       warnings.add('Failed to append to ${repoSnake}_repository.dart');
     }
 
     // 2. Append to DataRepository
     final dataRepoPath = path.join(
-        outputDir, 'data', 'repositories', 'data_${repoSnake}_repository.dart');
+      outputDir,
+      'data',
+      'repositories',
+      'data_${repoSnake}_repository.dart',
+    );
     if (await _appendToDataRepository(
-        dataRepoPath, methodName, returnSignature, paramsType, repoSnake)) {
-      updatedFiles.add(GeneratedFile(
-        path: dataRepoPath,
-        type: 'repository',
-        action: 'updated',
-      ));
+      dataRepoPath,
+      methodName,
+      returnSignature,
+      paramsType,
+      repoSnake,
+    )) {
+      updatedFiles.add(
+        GeneratedFile(
+          path: dataRepoPath,
+          type: 'repository',
+          action: 'updated',
+        ),
+      );
     } else {
-      warnings
-          .add('DataRepository not found: data_${repoSnake}_repository.dart');
+      warnings.add(
+        'DataRepository not found: data_${repoSnake}_repository.dart',
+      );
     }
 
     // 3. Append to DataSource interface
     final dataSourcePath = await _findDataSource(repoSnake);
     if (dataSourcePath != null) {
       if (await _appendToDataSource(
-          dataSourcePath, methodName, returnSignature, paramsType)) {
-        updatedFiles.add(GeneratedFile(
-          path: dataSourcePath,
-          type: 'datasource',
-          action: 'updated',
-        ));
+        dataSourcePath,
+        methodName,
+        returnSignature,
+        paramsType,
+      )) {
+        updatedFiles.add(
+          GeneratedFile(
+            path: dataSourcePath,
+            type: 'datasource',
+            action: 'updated',
+          ),
+        );
       }
     } else {
       warnings.add('DataSource not found for $repoSnake');
@@ -106,12 +133,18 @@ class MethodAppender {
     final remoteDataSourcePath = await _findRemoteDataSource(repoSnake);
     if (remoteDataSourcePath != null) {
       if (await _appendToRemoteDataSource(
-          remoteDataSourcePath, methodName, returnSignature, paramsType)) {
-        updatedFiles.add(GeneratedFile(
-          path: remoteDataSourcePath,
-          type: 'datasource',
-          action: 'updated',
-        ));
+        remoteDataSourcePath,
+        methodName,
+        returnSignature,
+        paramsType,
+      )) {
+        updatedFiles.add(
+          GeneratedFile(
+            path: remoteDataSourcePath,
+            type: 'datasource',
+            action: 'updated',
+          ),
+        );
       }
     } else {
       warnings.add('RemoteDataSource not found for $repoSnake');
@@ -121,12 +154,18 @@ class MethodAppender {
     final localDataSourcePath = await _findLocalDataSource(repoSnake);
     if (localDataSourcePath != null) {
       if (await _appendToLocalDataSource(
-          localDataSourcePath, methodName, returnSignature, paramsType)) {
-        updatedFiles.add(GeneratedFile(
-          path: localDataSourcePath,
-          type: 'datasource',
-          action: 'updated',
-        ));
+        localDataSourcePath,
+        methodName,
+        returnSignature,
+        paramsType,
+      )) {
+        updatedFiles.add(
+          GeneratedFile(
+            path: localDataSourcePath,
+            type: 'datasource',
+            action: 'updated',
+          ),
+        );
       }
     }
 
@@ -134,20 +173,30 @@ class MethodAppender {
     final mockDataSourcePath = await _findMockDataSource(repoSnake);
     if (mockDataSourcePath != null) {
       if (await _appendToMockDataSource(
-          mockDataSourcePath, methodName, returnSignature, paramsType)) {
-        updatedFiles.add(GeneratedFile(
-          path: mockDataSourcePath,
-          type: 'datasource',
-          action: 'updated',
-        ));
+        mockDataSourcePath,
+        methodName,
+        returnSignature,
+        paramsType,
+      )) {
+        updatedFiles.add(
+          GeneratedFile(
+            path: mockDataSourcePath,
+            type: 'datasource',
+            action: 'updated',
+          ),
+        );
       }
     }
 
     return AppendResult(updatedFiles: updatedFiles, warnings: warnings);
   }
 
-  Future<bool> _appendToRepository(String filePath, String methodName,
-      String returnSignature, String paramsType) async {
+  Future<bool> _appendToRepository(
+    String filePath,
+    String methodName,
+    String returnSignature,
+    String paramsType,
+  ) async {
     final file = File(filePath);
     if (!file.existsSync()) return false;
 
@@ -157,7 +206,8 @@ class MethodAppender {
 
     final methodSignature =
         '  $returnSignature $methodName($paramsType params);\n';
-    final newContent = content.substring(0, lastBrace) +
+    final newContent =
+        content.substring(0, lastBrace) +
         methodSignature +
         content.substring(lastBrace);
 
@@ -165,8 +215,13 @@ class MethodAppender {
     return true;
   }
 
-  Future<bool> _appendToDataRepository(String filePath, String methodName,
-      String returnSignature, String paramsType, String repoSnake) async {
+  Future<bool> _appendToDataRepository(
+    String filePath,
+    String methodName,
+    String returnSignature,
+    String paramsType,
+    String repoSnake,
+  ) async {
     final file = File(filePath);
     if (!file.existsSync()) return false;
 
@@ -175,19 +230,22 @@ class MethodAppender {
     if (lastBrace == -1) return false;
 
     // Detect datasource field name from existing content
-    final dataSourceFieldMatch =
-        RegExp(r'final \w+ (_\w+);').firstMatch(content);
+    final dataSourceFieldMatch = RegExp(
+      r'final \w+ (_\w+);',
+    ).firstMatch(content);
     final dataSourceField = dataSourceFieldMatch?.group(1) ?? '_dataSource';
 
     final isStream = config.useCaseType == 'stream';
-    final methodImpl = '''
+    final methodImpl =
+        '''
   @override
   $returnSignature $methodName($paramsType params) ${isStream ? '' : 'async '}{\n    ${isStream ? 'return' : 'return await'} $dataSourceField.$methodName(params);
   }
 
 ''';
 
-    final newContent = content.substring(0, lastBrace) +
+    final newContent =
+        content.substring(0, lastBrace) +
         methodImpl +
         content.substring(lastBrace);
 
@@ -195,8 +253,12 @@ class MethodAppender {
     return true;
   }
 
-  Future<bool> _appendToDataSource(String filePath, String methodName,
-      String returnSignature, String paramsType) async {
+  Future<bool> _appendToDataSource(
+    String filePath,
+    String methodName,
+    String returnSignature,
+    String paramsType,
+  ) async {
     final file = File(filePath);
     if (!file.existsSync()) return false;
 
@@ -206,7 +268,8 @@ class MethodAppender {
 
     final methodSignature =
         '  $returnSignature $methodName($paramsType params);\n';
-    final newContent = content.substring(0, lastBrace) +
+    final newContent =
+        content.substring(0, lastBrace) +
         methodSignature +
         content.substring(lastBrace);
 
@@ -214,8 +277,12 @@ class MethodAppender {
     return true;
   }
 
-  Future<bool> _appendToRemoteDataSource(String filePath, String methodName,
-      String returnSignature, String paramsType) async {
+  Future<bool> _appendToRemoteDataSource(
+    String filePath,
+    String methodName,
+    String returnSignature,
+    String paramsType,
+  ) async {
     final file = File(filePath);
     if (!file.existsSync()) return false;
 
@@ -223,7 +290,8 @@ class MethodAppender {
     final lastBrace = content.lastIndexOf('}');
     if (lastBrace == -1) return false;
 
-    final methodImpl = '''
+    final methodImpl =
+        '''
   @override
   $returnSignature $methodName($paramsType params) ${config.useCaseType == 'stream' ? '' : 'async '}{\n    // TODO: Implement remote $methodName
     throw UnimplementedError('Implement remote $methodName');
@@ -231,7 +299,8 @@ class MethodAppender {
 
 ''';
 
-    final newContent = content.substring(0, lastBrace) +
+    final newContent =
+        content.substring(0, lastBrace) +
         methodImpl +
         content.substring(lastBrace);
 
@@ -239,8 +308,12 @@ class MethodAppender {
     return true;
   }
 
-  Future<bool> _appendToMockDataSource(String filePath, String methodName,
-      String returnSignature, String paramsType) async {
+  Future<bool> _appendToMockDataSource(
+    String filePath,
+    String methodName,
+    String returnSignature,
+    String paramsType,
+  ) async {
     final file = File(filePath);
     if (!file.existsSync()) return false;
 
@@ -249,7 +322,8 @@ class MethodAppender {
     if (lastBrace == -1) return false;
 
     final isStream = config.useCaseType == 'stream';
-    final methodImpl = '''
+    final methodImpl =
+        '''
   @override
   $returnSignature $methodName($paramsType params) ${isStream ? '' : 'async '}{\n    // TODO: Return mock data
     throw UnimplementedError('Return mock data for $methodName');
@@ -257,7 +331,8 @@ class MethodAppender {
 
 ''';
 
-    final newContent = content.substring(0, lastBrace) +
+    final newContent =
+        content.substring(0, lastBrace) +
         methodImpl +
         content.substring(lastBrace);
 
@@ -265,8 +340,12 @@ class MethodAppender {
     return true;
   }
 
-  Future<bool> _appendToLocalDataSource(String filePath, String methodName,
-      String returnSignature, String paramsType) async {
+  Future<bool> _appendToLocalDataSource(
+    String filePath,
+    String methodName,
+    String returnSignature,
+    String paramsType,
+  ) async {
     final file = File(filePath);
     if (!file.existsSync()) return false;
 
@@ -275,7 +354,8 @@ class MethodAppender {
     if (lastBrace == -1) return false;
 
     final isStream = config.useCaseType == 'stream';
-    final methodImpl = '''
+    final methodImpl =
+        '''
   @override
   $returnSignature $methodName($paramsType params) ${isStream ? '' : 'async '}{\n    // TODO: Implement local storage $methodName
     throw UnimplementedError('Implement local storage $methodName');
@@ -283,7 +363,8 @@ class MethodAppender {
 
 ''';
 
-    final newContent = content.substring(0, lastBrace) +
+    final newContent =
+        content.substring(0, lastBrace) +
         methodImpl +
         content.substring(lastBrace);
 
@@ -293,14 +374,24 @@ class MethodAppender {
 
   Future<String?> _findDataSource(String repoSnake) async {
     // Try direct path first
-    final directPath = path.join(outputDir, 'data', 'data_sources', repoSnake,
-        '${repoSnake}_data_source.dart');
+    final directPath = path.join(
+      outputDir,
+      'data',
+      'data_sources',
+      repoSnake,
+      '${repoSnake}_data_source.dart',
+    );
     if (File(directPath).existsSync()) return directPath;
 
     // Fallback: search in domain folder
     if (config.domain != null) {
-      final domainPath = path.join(outputDir, 'data', 'data_sources',
-          config.domain, '${repoSnake}_data_source.dart');
+      final domainPath = path.join(
+        outputDir,
+        'data',
+        'data_sources',
+        config.domain,
+        '${repoSnake}_data_source.dart',
+      );
       if (File(domainPath).existsSync()) return domainPath;
     }
 
@@ -309,14 +400,24 @@ class MethodAppender {
 
   Future<String?> _findRemoteDataSource(String repoSnake) async {
     // Try direct path first
-    final directPath = path.join(outputDir, 'data', 'data_sources', repoSnake,
-        '${repoSnake}_remote_data_source.dart');
+    final directPath = path.join(
+      outputDir,
+      'data',
+      'data_sources',
+      repoSnake,
+      '${repoSnake}_remote_data_source.dart',
+    );
     if (File(directPath).existsSync()) return directPath;
 
     // Fallback: search in domain folder
     if (config.domain != null) {
-      final domainPath = path.join(outputDir, 'data', 'data_sources',
-          config.domain, '${repoSnake}_remote_data_source.dart');
+      final domainPath = path.join(
+        outputDir,
+        'data',
+        'data_sources',
+        config.domain,
+        '${repoSnake}_remote_data_source.dart',
+      );
       if (File(domainPath).existsSync()) return domainPath;
     }
 
@@ -325,14 +426,24 @@ class MethodAppender {
 
   Future<String?> _findLocalDataSource(String repoSnake) async {
     // Try direct path first
-    final directPath = path.join(outputDir, 'data', 'data_sources', repoSnake,
-        '${repoSnake}_local_data_source.dart');
+    final directPath = path.join(
+      outputDir,
+      'data',
+      'data_sources',
+      repoSnake,
+      '${repoSnake}_local_data_source.dart',
+    );
     if (File(directPath).existsSync()) return directPath;
 
     // Fallback: search in domain folder
     if (config.domain != null) {
-      final domainPath = path.join(outputDir, 'data', 'data_sources',
-          config.domain, '${repoSnake}_local_data_source.dart');
+      final domainPath = path.join(
+        outputDir,
+        'data',
+        'data_sources',
+        config.domain,
+        '${repoSnake}_local_data_source.dart',
+      );
       if (File(domainPath).existsSync()) return domainPath;
     }
 
@@ -341,26 +452,42 @@ class MethodAppender {
 
   Future<String?> _findMockDataSource(String repoSnake) async {
     // Try direct path first
-    final directPath = path.join(outputDir, 'data', 'data_sources', repoSnake,
-        '${repoSnake}_mock_data_source.dart');
+    final directPath = path.join(
+      outputDir,
+      'data',
+      'data_sources',
+      repoSnake,
+      '${repoSnake}_mock_data_source.dart',
+    );
     if (File(directPath).existsSync()) return directPath;
 
     // Fallback: search in domain folder
     if (config.domain != null) {
-      final domainPath = path.join(outputDir, 'data', 'data_sources',
-          config.domain, '${repoSnake}_mock_data_source.dart');
+      final domainPath = path.join(
+        outputDir,
+        'data',
+        'data_sources',
+        config.domain,
+        '${repoSnake}_mock_data_source.dart',
+      );
       if (File(domainPath).existsSync()) return domainPath;
     }
 
     return null;
   }
 
-  Future<void> _createRepository(String filePath, String repoName,
-      String methodName, String returnSignature, String paramsType) async {
+  Future<void> _createRepository(
+    String filePath,
+    String repoName,
+    String methodName,
+    String returnSignature,
+    String paramsType,
+  ) async {
     final file = File(filePath);
     await file.parent.create(recursive: true);
 
-    final content = '''
+    final content =
+        '''
 // Generated by zfa
 // Repository interface for $repoName
 
@@ -377,8 +504,5 @@ class AppendResult {
   final List<GeneratedFile> updatedFiles;
   final List<String> warnings;
 
-  AppendResult({
-    required this.updatedFiles,
-    required this.warnings,
-  });
+  AppendResult({required this.updatedFiles, required this.warnings});
 }

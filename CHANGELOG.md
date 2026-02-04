@@ -1,9 +1,20 @@
 # Changelog
-## [2.0.1] - 2026-02-03
+## [2.2.2] - 2026-02-04
 
 ### Chore
+Updated README
+
+## [2.2.1] - 2026-02-04
+
+### Chore
+Updated README and website docs https://zuraffa.com
+
+## [2.2.0] - 2026-02-04
+
+### Added
 
 Updated examples and docs
+Bundled zorphy with zuraffa so no longer need a separate install
 
 ## [2.1.0] - 2026-02-04
 

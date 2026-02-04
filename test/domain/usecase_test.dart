@@ -48,8 +48,10 @@ void main() {
 
         expect(result, isFailure());
         expect(result, isFailureOfType<UnknownFailure>());
-        expect(result.getFailureOrNull()?.message,
-            contains('Something went wrong'));
+        expect(
+          result.getFailureOrNull()?.message,
+          contains('Something went wrong'),
+        );
       });
 
       test('wraps ArgumentError in ValidationFailure', () async {
@@ -72,35 +74,41 @@ void main() {
     });
 
     group('cancellation', () {
-      test('returns CancellationFailure when cancelled before execution',
-          () async {
-        final useCase = _SlowUseCase();
-        final cancelToken = CancelToken();
-        cancelToken.cancel('Test cancellation');
+      test(
+        'returns CancellationFailure when cancelled before execution',
+        () async {
+          final useCase = _SlowUseCase();
+          final cancelToken = CancelToken();
+          cancelToken.cancel('Test cancellation');
 
-        final result = await useCase('input', cancelToken: cancelToken);
+          final result = await useCase('input', cancelToken: cancelToken);
 
-        expect(result, isFailure());
-        expect(result, isFailureOfType<CancellationFailure>());
-        expect(
-            result.getFailureOrNull()?.message, contains('Test cancellation'));
-      });
+          expect(result, isFailure());
+          expect(result, isFailureOfType<CancellationFailure>());
+          expect(
+            result.getFailureOrNull()?.message,
+            contains('Test cancellation'),
+          );
+        },
+      );
 
-      test('returns CancellationFailure when throwIfCancelled is called',
-          () async {
-        final useCase = _CancellationCheckingUseCase();
-        final cancelToken = CancelToken();
+      test(
+        'returns CancellationFailure when throwIfCancelled is called',
+        () async {
+          final useCase = _CancellationCheckingUseCase();
+          final cancelToken = CancelToken();
 
-        // Cancel after a short delay
-        Future.delayed(const Duration(milliseconds: 50), () {
-          cancelToken.cancel('Cancelled mid-operation');
-        });
+          // Cancel after a short delay
+          Future.delayed(const Duration(milliseconds: 50), () {
+            cancelToken.cancel('Cancelled mid-operation');
+          });
 
-        final result = await useCase('input', cancelToken: cancelToken);
+          final result = await useCase('input', cancelToken: cancelToken);
 
-        expect(result, isFailure());
-        expect(result, isFailureOfType<CancellationFailure>());
-      });
+          expect(result, isFailure());
+          expect(result, isFailureOfType<CancellationFailure>());
+        },
+      );
 
       test('completes successfully if not cancelled', () async {
         final useCase = _CancellationCheckingUseCase();
@@ -186,7 +194,9 @@ class _NoParamsUseCase extends UseCase<int, NoParams> {
 class _ComplexUseCase extends UseCase<_ComplexResult, _ComplexParams> {
   @override
   Future<_ComplexResult> execute(
-      _ComplexParams params, CancelToken? cancelToken) async {
+    _ComplexParams params,
+    CancelToken? cancelToken,
+  ) async {
     return _ComplexResult(name: params.name, value: params.value);
   }
 }

@@ -45,10 +45,7 @@ void main() {
     test('copyWith should allow partial updates and clearing', () {
       const q = ListQueryParams(search: 'old', sortBy: 'old');
 
-      final updated = q.copyWith(
-        search: 'new',
-        clearSort: true,
-      );
+      final updated = q.copyWith(search: 'new', clearSort: true);
 
       expect(updated.search, 'new');
       expect(updated.sortBy, isNull);
@@ -83,10 +80,7 @@ void main() {
         data: {'invalid': 'value'},
       );
 
-      expect(
-        () => params.validate(['name', 'email']),
-        throwsArgumentError,
-      );
+      expect(() => params.validate(['name', 'email']), throwsArgumentError);
     });
 
     test('validate should succeed for valid fields', () {
@@ -95,10 +89,7 @@ void main() {
         data: {'name': 'Value'},
       );
 
-      expect(
-        () => params.validate(['name', 'email']),
-        returnsNormally,
-      );
+      expect(() => params.validate(['name', 'email']), returnsNormally);
     });
   });
 

@@ -19,10 +19,12 @@ class CliLogger {
 
   static void printResult(GeneratorResult result) {
     if (result.success) {
-      final generatedCount =
-          result.files.where((f) => f.action == 'created').length;
-      final updatedCount =
-          result.files.where((f) => f.action == 'updated').length;
+      final generatedCount = result.files
+          .where((f) => f.action == 'created')
+          .length;
+      final updatedCount = result.files
+          .where((f) => f.action == 'updated')
+          .length;
 
       final parts = <String>[];
       if (generatedCount > 0) {

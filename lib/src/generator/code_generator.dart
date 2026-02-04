@@ -103,8 +103,8 @@ class CodeGenerator {
 
         // Generate UseCase file
         if (config.isPolymorphic) {
-          final polymorphicFiles =
-              await _useCaseGenerator.generatePolymorphic();
+          final polymorphicFiles = await _useCaseGenerator
+              .generatePolymorphic();
           files.addAll(polymorphicFiles);
         } else if (config.isOrchestrator) {
           final file = await _useCaseGenerator.generateOrchestrator();
@@ -186,16 +186,18 @@ class CodeGenerator {
 
         if (config.enableCache) {
           // Generate both remote and local datasources
-          final remoteFile =
-              await _dataLayerGenerator.generateRemoteDataSource();
+          final remoteFile = await _dataLayerGenerator
+              .generateRemoteDataSource();
           final localFile = await _dataLayerGenerator.generateLocalDataSource();
           files.add(remoteFile);
           files.add(localFile);
           nextSteps.add(
-              'Implement remote and local data sources for ${config.name}');
+            'Implement remote and local data sources for ${config.name}',
+          );
         } else {
           nextSteps.add(
-              'Create a DataSource that implements ${config.name}DataSource in data layer');
+            'Create a DataSource that implements ${config.name}DataSource in data layer',
+          );
         }
       }
 
@@ -216,11 +218,13 @@ class CodeGenerator {
         files.addAll(mockFiles);
 
         if (config.generateMockDataOnly) {
-          nextSteps
-              .add('Use ${config.name}MockData in your tests and UI previews');
+          nextSteps.add(
+            'Use ${config.name}MockData in your tests and UI previews',
+          );
         } else {
-          nextSteps
-              .add('Use ${config.name}MockDataSource for rapid prototyping');
+          nextSteps.add(
+            'Use ${config.name}MockDataSource for rapid prototyping',
+          );
           nextSteps.add('Switch to real DataSource implementation when ready');
         }
       }

@@ -14,11 +14,7 @@ class UpdateParams<T> {
   final Params? params;
 
   /// Create an [UpdateParams] instance.
-  const UpdateParams({
-    required this.id,
-    required this.data,
-    this.params,
-  });
+  const UpdateParams({required this.id, required this.data, this.params});
 
   /// Validate that all keys in [data] are present in [validFields].
   ///
@@ -28,20 +24,14 @@ class UpdateParams<T> {
       final map = data as Map;
       for (final key in map.keys) {
         if (!validFields.contains(key)) {
-          throw ArgumentError(
-            'Field "$key" is not a valid field for update.',
-          );
+          throw ArgumentError('Field "$key" is not a valid field for update.');
         }
       }
     }
   }
 
   /// Create a copy of [UpdateParams] with optional new values.
-  UpdateParams<T> copyWith({
-    dynamic id,
-    T? data,
-    Params? params,
-  }) {
+  UpdateParams<T> copyWith({dynamic id, T? data, Params? params}) {
     return UpdateParams<T>(
       id: id ?? this.id,
       data: data ?? this.data,

@@ -14,14 +14,8 @@ class QueryParams<T> {
   const QueryParams(this.query, [this.params]);
 
   /// Create a copy of [QueryParams] with optional new values.
-  QueryParams<T> copyWith({
-    T? query,
-    Params? params,
-  }) {
-    return QueryParams<T>(
-      query ?? this.query,
-      params ?? this.params,
-    );
+  QueryParams<T> copyWith({T? query, Params? params}) {
+    return QueryParams<T>(query ?? this.query, params ?? this.params);
   }
 
   @override

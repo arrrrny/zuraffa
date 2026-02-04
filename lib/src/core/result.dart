@@ -42,20 +42,14 @@ sealed class Result<S, F> {
   /// Fold the result into a single value
   ///
   /// Calls [onSuccess] if this is a [Success], [onFailure] if this is a [Failure].
-  T fold<T>(
-    T Function(S value) onSuccess,
-    T Function(F error) onFailure,
-  );
+  T fold<T>(T Function(S value) onSuccess, T Function(F error) onFailure);
 
   /// Async version of [fold]
   Future<T> foldAsync<T>(
     Future<T> Function(S value) onSuccess,
     Future<T> Function(F error) onFailure,
   ) async {
-    return fold(
-      (value) => onSuccess(value),
-      (error) => onFailure(error),
-    );
+    return fold((value) => onSuccess(value), (error) => onFailure(error));
   }
 
   /// Map the success value to a new type
@@ -121,10 +115,7 @@ final class Success<S, F> extends Result<S, F> {
   const Success(this.value);
 
   @override
-  T fold<T>(
-    T Function(S value) onSuccess,
-    T Function(F error) onFailure,
-  ) =>
+  T fold<T>(T Function(S value) onSuccess, T Function(F error) onFailure) =>
       onSuccess(value);
 
   @override
@@ -184,10 +175,7 @@ final class Failure<S, F> extends Result<S, F> {
   const Failure(this.error);
 
   @override
-  T fold<T>(
-    T Function(S value) onSuccess,
-    T Function(F error) onFailure,
-  ) =>
+  T fold<T>(T Function(S value) onSuccess, T Function(F error) onFailure) =>
       onFailure(error);
 
   @override
@@ -248,7 +236,8 @@ final class Failure<S, F> extends Result<S, F> {
 extension ResultAsyncExtensions<S, F> on Result<S, F> {
   /// Map the success value with an async function
   Future<Result<T, F>> mapAsync<T>(
-      Future<T> Function(S value) transform) async {
+    Future<T> Function(S value) transform,
+  ) async {
     return fold(
       (value) async => Success(await transform(value)),
       (error) async => Failure(error),
@@ -259,10 +248,7 @@ extension ResultAsyncExtensions<S, F> on Result<S, F> {
   Future<Result<T, F>> flatMapAsync<T>(
     Future<Result<T, F>> Function(S value) transform,
   ) async {
-    return fold(
-      (value) => transform(value),
-      (error) async => Failure(error),
-    );
+    return fold((value) => transform(value), (error) async => Failure(error));
   }
 }
 

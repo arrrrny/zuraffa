@@ -23,8 +23,8 @@ enum BackgroundUseCaseState {
 /// Function signature for the task executed in the isolate.
 ///
 /// This must be a static or top-level function (not a closure or instance method).
-typedef BackgroundTask<Params> = FutureOr<void> Function(
-    BackgroundTaskContext<Params> context);
+typedef BackgroundTask<Params> =
+    FutureOr<void> Function(BackgroundTaskContext<Params> context);
 
 /// Context passed to the background task.
 ///
@@ -161,16 +161,20 @@ abstract class BackgroundUseCase<T, Params> with Loggable {
     // Check for cancellation before starting
     if (cancelToken?.isCancelled ?? false) {
       logger.info('$runtimeType cancelled before starting');
-      return Stream.value(Result.failure(
-        CancellationFailure(
-            cancelToken?.cancelReason ?? 'Operation was cancelled'),
-      ));
+      return Stream.value(
+        Result.failure(
+          CancellationFailure(
+            cancelToken?.cancelReason ?? 'Operation was cancelled',
+          ),
+        ),
+      );
     }
 
     // If already running, return the existing stream
     if (isRunning && _controller != null) {
       logger.warning(
-          '$runtimeType is already running, returning existing stream');
+        '$runtimeType is already running, returning existing stream',
+      );
       return _controller!.stream;
     }
 
@@ -187,10 +191,13 @@ abstract class BackgroundUseCase<T, Params> with Loggable {
     // Listen for cancellation
     if (cancelToken != null) {
       final subscription = cancelToken.onCancel.listen((_) {
-        _controller?.add(Result.failure(
-          CancellationFailure(
-              cancelToken.cancelReason ?? 'Operation was cancelled'),
-        ));
+        _controller?.add(
+          Result.failure(
+            CancellationFailure(
+              cancelToken.cancelReason ?? 'Operation was cancelled',
+            ),
+          ),
+        );
         _stop();
       });
       _subscriptions.add(subscription);
@@ -222,8 +229,10 @@ abstract class BackgroundUseCase<T, Params> with Loggable {
         _isolateEntryPoint<Params>,
         _IsolateEntry<Params>(
           task: task,
-          context:
-              BackgroundTaskContext<Params>(params, _receivePort!.sendPort),
+          context: BackgroundTaskContext<Params>(
+            params,
+            _receivePort!.sendPort,
+          ),
         ),
         errorsAreFatal: true,
         onError: _receivePort!.sendPort,
@@ -280,10 +289,13 @@ abstract class BackgroundUseCase<T, Params> with Loggable {
 
       if (message.error != null) {
         logger.warning(
-            '$runtimeType task error', message.error, message.stackTrace);
-        _controller?.add(Result.failure(
-          AppFailure.from(message.error!, message.stackTrace),
-        ));
+          '$runtimeType task error',
+          message.error,
+          message.stackTrace,
+        );
+        _controller?.add(
+          Result.failure(AppFailure.from(message.error!, message.stackTrace)),
+        );
         _stop();
         return;
       }
@@ -297,10 +309,13 @@ abstract class BackgroundUseCase<T, Params> with Loggable {
             '$runtimeType received data of wrong type: '
             'expected $Type, got ${message.data.runtimeType}',
           );
-          _controller?.add(Result.failure(
-            UnknownFailure(
-                'Received data of unexpected type: ${message.data.runtimeType}'),
-          ));
+          _controller?.add(
+            Result.failure(
+              UnknownFailure(
+                'Received data of unexpected type: ${message.data.runtimeType}',
+              ),
+            ),
+          );
         }
       }
     }
@@ -370,10 +385,7 @@ class _IsolateEntry<Params> {
   final BackgroundTask<Params> task;
   final BackgroundTaskContext<Params> context;
 
-  const _IsolateEntry({
-    required this.task,
-    required this.context,
-  });
+  const _IsolateEntry({required this.task, required this.context});
 }
 
 /// Isolate entry point function.

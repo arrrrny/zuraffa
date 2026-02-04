@@ -51,8 +51,8 @@ mixin StatefulController<S> on Controller {
   /// This will be called once during controller initialization.
   @protected
   S createInitialState() => throw UnimplementedError(
-        'Controllers using StatefulController must override createInitialState()',
-      );
+    'Controllers using StatefulController must override createInitialState()',
+  );
 
   /// Update the state and refresh the UI.
   ///

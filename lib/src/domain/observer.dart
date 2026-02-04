@@ -134,14 +134,8 @@ extension ObserverStreamExtension<T> on Stream<Result<T, AppFailure>> {
   /// subscription.cancel();
   /// ```
   StreamSubscription<Result<T, AppFailure>> observe(Observer<T> observer) {
-    return listen(
-      (result) {
-        result.fold(
-          observer.onData,
-          observer.onError,
-        );
-      },
-      onDone: observer.onDone,
-    );
+    return listen((result) {
+      result.fold(observer.onData, observer.onError);
+    }, onDone: observer.onDone);
   }
 }
