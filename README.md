@@ -74,8 +74,8 @@ zfa config init
 zfa config show
 
 # Customize defaults
-zfa config set useZorphyByDefault false
-zfa config set defaultEntityOutput lib/src/models
+zfa config set useZorphyByDefault 
+zfa config set defaultEntityOutput
 ```
 
 **Configuration Options:**
