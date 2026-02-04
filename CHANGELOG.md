@@ -1,3 +1,10 @@
+## [Unreleased]
+
+## [2.3.0] - 2026-02-05
+
+### Chore
+- Updated Zorphy dependencies
+
 # Changelog
 ## [2.2.2] - 2026-02-04
 
