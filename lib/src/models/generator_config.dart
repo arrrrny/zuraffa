@@ -110,10 +110,12 @@ class GeneratorConfig {
       enableCache: json['cache'] == true || json['enable_cache'] == true,
       cachePolicy: json['cache_policy'] ?? 'daily',
       cacheStorage: json['cache_storage'],
-      ttlMinutes:
-          json['ttl'] != null ? int.tryParse(json['ttl'].toString()) : null,
+      ttlMinutes: json['ttl'] != null
+          ? int.tryParse(json['ttl'].toString())
+          : null,
       generateMock: json['mock'] == true || json['generate_mock'] == true,
-      generateMockDataOnly: json['mock_data_only'] == true ||
+      generateMockDataOnly:
+          json['mock_data_only'] == true ||
           json['generate_mock_data_only'] == true,
       useMockInDi: json['use_mock'] == true || json['use_mock_in_di'] == true,
       generateDi: json['di'] == true || json['generate_di'] == true,
@@ -141,8 +143,9 @@ class GeneratorConfig {
     }
 
     // Default: UseCase name in camelCase, strip "UseCase" suffix
-    final methodName =
-        name.endsWith('UseCase') ? name.substring(0, name.length - 7) : name;
+    final methodName = name.endsWith('UseCase')
+        ? name.substring(0, name.length - 7)
+        : name;
     return _pascalToCamel(methodName);
   }
 
@@ -152,8 +155,9 @@ class GeneratorConfig {
   List<String> get effectiveRepos {
     if (repo != null) {
       // Ensure repo has Repository suffix
-      final repoName =
-          repo!.endsWith('Repository') ? repo! : '${repo!}Repository';
+      final repoName = repo!.endsWith('Repository')
+          ? repo!
+          : '${repo!}Repository';
       return [repoName];
     }
     if (isEntityBased) return ['${name}Repository'];

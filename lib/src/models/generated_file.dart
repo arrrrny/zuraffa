@@ -12,9 +12,9 @@ class GeneratedFile {
   });
 
   Map<String, dynamic> toJson() => {
-        'type': type,
-        'path': path,
-        'action': action,
-        'content': content,
-      };
+    'type': type,
+    'path': path,
+    'action': action,
+    'content': content,
+  };
 }

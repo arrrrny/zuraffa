@@ -17,14 +17,8 @@ class DeleteParams<T> {
   const DeleteParams(this.id, [this.params]);
 
   /// Create a copy of [DeleteParams] with optional new values.
-  DeleteParams<T> copyWith({
-    dynamic id,
-    Params? params,
-  }) {
-    return DeleteParams<T>(
-      id ?? this.id,
-      params ?? this.params,
-    );
+  DeleteParams<T> copyWith({dynamic id, Params? params}) {
+    return DeleteParams<T>(id ?? this.id, params ?? this.params);
   }
 
   @override

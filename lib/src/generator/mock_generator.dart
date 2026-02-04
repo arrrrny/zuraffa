@@ -17,21 +17,34 @@ class MockGenerator {
     final files = <GeneratedFile>[];
 
     // Generate mock data file for main entity
-    final mockDataFile = await _generateMockDataFile(config, outputDir,
-        dryRun: dryRun, force: force, verbose: verbose);
+    final mockDataFile = await _generateMockDataFile(
+      config,
+      outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
     files.add(mockDataFile);
 
     // Generate mock data files for nested entities
     final nestedEntityFiles = await _generateNestedEntityMockFiles(
-        config, outputDir,
-        dryRun: dryRun, force: force, verbose: verbose);
+      config,
+      outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
     files.addAll(nestedEntityFiles);
 
     // Generate mock data source if not mock-data-only
     if (!config.generateMockDataOnly) {
       final mockDataSourceFile = await _generateMockDataSource(
-          config, outputDir,
-          dryRun: dryRun, force: force, verbose: verbose);
+        config,
+        outputDir,
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+      );
       files.add(mockDataSourceFile);
     }
 
@@ -49,12 +62,18 @@ class MockGenerator {
     final entityName = config.name;
     final entityFields = EntityAnalyzer.analyzeEntity(entityName, outputDir);
     final processedEntities = <String>{
-      entityName
+      entityName,
     }; // Avoid generating for main entity
 
     await _collectAndGenerateNestedEntities(
-        entityFields, outputDir, files, processedEntities,
-        dryRun: dryRun, force: force, verbose: verbose);
+      entityFields,
+      outputDir,
+      files,
+      processedEntities,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
 
     return files;
   }
@@ -83,12 +102,14 @@ class MockGenerator {
               'bool',
               'DateTime',
               'Object',
-              'dynamic'
+              'dynamic',
             ].contains(baseType) &&
             !processedEntities.contains(baseType)) {
           // Check if it's an entity (has fields)
-          final entityFields =
-              EntityAnalyzer.analyzeEntity(baseType, outputDir);
+          final entityFields = EntityAnalyzer.analyzeEntity(
+            baseType,
+            outputDir,
+          );
           if (entityFields.isNotEmpty && !_isDefaultFields(entityFields)) {
             processedEntities.add(baseType);
 
@@ -97,20 +118,33 @@ class MockGenerator {
             }
 
             // Generate mock data file for this nested entity
-            final nestedConfig =
-                GeneratorConfig(name: baseType, generateMockDataOnly: true);
+            final nestedConfig = GeneratorConfig(
+              name: baseType,
+              generateMockDataOnly: true,
+            );
             final nestedMockFile = await _generateMockDataFile(
-                nestedConfig, outputDir,
-                dryRun: dryRun, force: force, verbose: verbose);
+              nestedConfig,
+              outputDir,
+              dryRun: dryRun,
+              force: force,
+              verbose: verbose,
+            );
             files.add(nestedMockFile);
 
             // Recursively process nested entities within this entity
             await _collectAndGenerateNestedEntities(
-                entityFields, outputDir, files, processedEntities,
-                dryRun: dryRun, force: force, verbose: verbose);
+              entityFields,
+              outputDir,
+              files,
+              processedEntities,
+              dryRun: dryRun,
+              force: force,
+              verbose: verbose,
+            );
           } else if (verbose) {
             print(
-                '  → Skipping $baseType (not an entity, enum, or complex type)');
+              '  → Skipping $baseType (not an entity, enum, or complex type)',
+            );
           }
         }
       }
@@ -166,13 +200,15 @@ class MockGenerator {
       'category',
       'isActive',
       'createdAt',
-      'updatedAt'
+      'updatedAt',
     };
     return fields.keys.toSet().containsAll(defaultKeys);
   }
 
   static List<String> _collectNestedEntityImports(
-      Map<String, String> fields, String outputDir) {
+    Map<String, String> fields,
+    String outputDir,
+  ) {
     final imports = <String>[];
     bool hasEnums = false;
 
@@ -205,8 +241,14 @@ class MockGenerator {
       }
 
       // Skip primitive types
-      if (['String', 'int', 'double', 'bool', 'DateTime', 'Object']
-          .contains(baseType)) {
+      if ([
+        'String',
+        'int',
+        'double',
+        'bool',
+        'DateTime',
+        'Object',
+      ].contains(baseType)) {
         continue;
       }
 
@@ -247,15 +289,20 @@ class MockGenerator {
     // Try to analyze entity for realistic mock data
     final entityFields = EntityAnalyzer.analyzeEntity(entityName, outputDir);
 
-    final mockData =
-        _generateMockDataInstances(entityName, entityFields, outputDir);
+    final mockData = _generateMockDataInstances(
+      entityName,
+      entityFields,
+      outputDir,
+    );
 
     // Collect imports for nested entities
     final imports = _collectNestedEntityImports(entityFields, outputDir);
-    final importStatements =
-        imports.map((import) => "import '$import';").join('\n');
+    final importStatements = imports
+        .map((import) => "import '$import';")
+        .join('\n');
 
-    final content = '''
+    final content =
+        '''
 // Generated by zfa
 // Mock data for $entityName
 
@@ -305,10 +352,14 @@ ${_generateConstructorCall(entityFields, useSeeds: true, outputDir: outputDir)}
     final entitySnake = StringUtils.camelToSnake(entityName);
     final entityCamel = StringUtils.pascalToCamel(entityName);
 
-    final methods =
-        _generateMockDataSourceMethods(config, entityName, entityCamel);
+    final methods = _generateMockDataSourceMethods(
+      config,
+      entityName,
+      entityCamel,
+    );
 
-    final content = '''
+    final content =
+        '''
 // Generated by zfa
 // Mock data source for $entityName
 
@@ -353,7 +404,10 @@ ${config.generateInit ? '''
   }
 
   static String _generateMockDataInstances(
-      String entityName, Map<String, String> fields, String outputDir) {
+    String entityName,
+    Map<String, String> fields,
+    String outputDir,
+  ) {
     final instances = <String>[];
 
     // If no fields found, generate empty constructor calls
@@ -374,23 +428,37 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
     return instances.join('\n');
   }
 
-  static String _generateConstructorCall(Map<String, String> fields,
-      {int seed = 1, bool useSeeds = false, required String outputDir}) {
+  static String _generateConstructorCall(
+    Map<String, String> fields, {
+    int seed = 1,
+    bool useSeeds = false,
+    required String outputDir,
+  }) {
     final params = <String>[];
 
     for (final entry in fields.entries) {
       final fieldName = entry.key;
       final fieldType = entry.value;
-      final mockValue =
-          _generateMockValue(fieldName, fieldType, seed, useSeeds, outputDir);
+      final mockValue = _generateMockValue(
+        fieldName,
+        fieldType,
+        seed,
+        useSeeds,
+        outputDir,
+      );
       params.add('      $fieldName: $mockValue,');
     }
 
     return params.join('\n');
   }
 
-  static String _generateMockValue(String fieldName, String fieldType, int seed,
-      bool useSeeds, String outputDir) {
+  static String _generateMockValue(
+    String fieldName,
+    String fieldType,
+    int seed,
+    bool useSeeds,
+    String outputDir,
+  ) {
     // Handle nullable types
     final isNullable = fieldType.endsWith('?');
     final baseType = fieldType.replaceAll('?', '');
@@ -437,12 +505,15 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
         // Check if it's likely an enum or class
         if (baseType.isNotEmpty && baseType[0] == baseType[0].toUpperCase()) {
           // Handle zorphy entity indicator ($EntityName)
-          final cleanType =
-              baseType.startsWith('\$') ? baseType.substring(1) : baseType;
+          final cleanType = baseType.startsWith('\$')
+              ? baseType.substring(1)
+              : baseType;
 
           // Try to detect if it's an entity by checking if it has fields
-          final entityFields =
-              EntityAnalyzer.analyzeEntity(cleanType, outputDir);
+          final entityFields = EntityAnalyzer.analyzeEntity(
+            cleanType,
+            outputDir,
+          );
           if (entityFields.isNotEmpty && !_isDefaultFields(entityFields)) {
             // It's an entity - reference its mock data
             return '${cleanType}MockData.sample$cleanType';
@@ -456,10 +527,14 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
   }
 
   static String _generateListValue(
-      String listType, int seed, String outputDir) {
+    String listType,
+    int seed,
+    String outputDir,
+  ) {
     // Handle zorphy entity indicator ($EntityName)
-    final cleanListType =
-        listType.startsWith('\$') ? listType.substring(1) : listType;
+    final cleanListType = listType.startsWith('\$')
+        ? listType.substring(1)
+        : listType;
 
     // Generate a list with 2-3 items
     final itemCount = 2 + (seed % 2);
@@ -469,15 +544,25 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
       // Check if listType is an entity (exclude primitive types)
       if (cleanListType.isNotEmpty &&
           cleanListType[0] == cleanListType[0].toUpperCase() &&
-          !['String', 'int', 'double', 'bool', 'DateTime', 'Object', 'dynamic']
-              .contains(cleanListType)) {
-        final entityFields =
-            EntityAnalyzer.analyzeEntity(cleanListType, outputDir);
+          ![
+            'String',
+            'int',
+            'double',
+            'bool',
+            'DateTime',
+            'Object',
+            'dynamic',
+          ].contains(cleanListType)) {
+        final entityFields = EntityAnalyzer.analyzeEntity(
+          cleanListType,
+          outputDir,
+        );
         if (entityFields.isNotEmpty && !_isDefaultFields(entityFields)) {
           // Reference different items from the mock data
           final itemIndex = (seed + i - 1) % 3;
           items.add(
-              '${cleanListType}MockData.${StringUtils.pascalToCamel(cleanListType)}s[$itemIndex]');
+            '${cleanListType}MockData.${StringUtils.pascalToCamel(cleanListType)}s[$itemIndex]',
+          );
           continue;
         } else {
           // Force generate mock data for this nested entity if it doesn't exist
@@ -488,8 +573,13 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
       }
 
       // For primitive types or enums
-      final itemValue =
-          _generateMockValue('item', cleanListType, seed + i, false, outputDir);
+      final itemValue = _generateMockValue(
+        'item',
+        cleanListType,
+        seed + i,
+        false,
+        outputDir,
+      );
       items.add(itemValue);
     }
 
@@ -498,8 +588,10 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
 
   static String _generateMapValue(String mapType, int seed, String outputDir) {
     // Extract key and value types from Map<K, V>
-    final innerTypes =
-        mapType.substring(4, mapType.length - 1); // Remove "Map<" and ">"
+    final innerTypes = mapType.substring(
+      4,
+      mapType.length - 1,
+    ); // Remove "Map<" and ">"
     final typeParts = innerTypes.split(',').map((s) => s.trim()).toList();
 
     if (typeParts.length != 2) {
@@ -515,8 +607,13 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
 
     for (int i = 1; i <= itemCount; i++) {
       final keyValue = _generateSimpleValue(keyType, 'key$i', seed + i);
-      final valueValue =
-          _generateMockValue('value$i', valueType, seed + i, false, outputDir);
+      final valueValue = _generateMockValue(
+        'value$i',
+        valueType,
+        seed + i,
+        false,
+        outputDir,
+      );
       entries.add('$keyValue: $valueValue');
     }
 
@@ -539,7 +636,11 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
   }
 
   static String _generateSeededValue(
-      String fieldName, String baseType, bool isNullable, String outputDir) {
+    String fieldName,
+    String baseType,
+    bool isNullable,
+    String outputDir,
+  ) {
     switch (baseType) {
       case 'String':
         return "'$fieldName \$seed'";
@@ -568,12 +669,15 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
         // Handle custom classes/enums
         if (baseType.isNotEmpty && baseType[0] == baseType[0].toUpperCase()) {
           // Handle zorphy entity indicator ($EntityName)
-          final cleanType =
-              baseType.startsWith('\$') ? baseType.substring(1) : baseType;
+          final cleanType = baseType.startsWith('\$')
+              ? baseType.substring(1)
+              : baseType;
 
           // Try to detect if it's an entity by checking if it has fields
-          final entityFields =
-              EntityAnalyzer.analyzeEntity(cleanType, outputDir);
+          final entityFields = EntityAnalyzer.analyzeEntity(
+            cleanType,
+            outputDir,
+          );
           if (entityFields.isNotEmpty && !_isDefaultFields(entityFields)) {
             // It's an entity - reference its mock data
             return '${cleanType}MockData.sample$cleanType';
@@ -587,16 +691,26 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
 
   static String _generateSeededListValue(String listType, String outputDir) {
     // Handle zorphy entity indicator ($EntityName)
-    final cleanListType =
-        listType.startsWith('\$') ? listType.substring(1) : listType;
+    final cleanListType = listType.startsWith('\$')
+        ? listType.substring(1)
+        : listType;
 
     // Check if listType is an entity (exclude primitive types)
     if (cleanListType.isNotEmpty &&
         cleanListType[0] == cleanListType[0].toUpperCase() &&
-        !['String', 'int', 'double', 'bool', 'DateTime', 'Object', 'dynamic']
-            .contains(cleanListType)) {
-      final entityFields =
-          EntityAnalyzer.analyzeEntity(cleanListType, outputDir);
+        ![
+          'String',
+          'int',
+          'double',
+          'bool',
+          'DateTime',
+          'Object',
+          'dynamic',
+        ].contains(cleanListType)) {
+      final entityFields = EntityAnalyzer.analyzeEntity(
+        cleanListType,
+        outputDir,
+      );
       if (entityFields.isNotEmpty && !_isDefaultFields(entityFields)) {
         // Reference mock data items with seed-based indices
         return '[${cleanListType}MockData.${StringUtils.pascalToCamel(cleanListType)}s[seed % 3], ${cleanListType}MockData.${StringUtils.pascalToCamel(cleanListType)}s[(seed + 1) % 3]]';
@@ -623,8 +737,10 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
 
   static String _generateSeededMapValue(String mapType, String outputDir) {
     // Extract key and value types from Map<K, V>
-    final innerTypes =
-        mapType.substring(4, mapType.length - 1); // Remove "Map<" and ">"
+    final innerTypes = mapType.substring(
+      4,
+      mapType.length - 1,
+    ); // Remove "Map<" and ">"
     final typeParts = innerTypes.split(',').map((s) => s.trim()).toList();
 
     if (typeParts.length != 2) {
@@ -636,8 +752,12 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
 
     // Generate seeded key-value pairs
     final keyValue1 = _generateSeededSimpleValue(keyType, 'key');
-    final valueValue1 =
-        _generateSeededValue('value', valueType, false, outputDir);
+    final valueValue1 = _generateSeededValue(
+      'value',
+      valueType,
+      false,
+      outputDir,
+    );
     final keyValue2 = keyType == 'String'
         ? "'key2 \$seed'"
         : _generateSeededSimpleValue(keyType, 'key2');
@@ -664,7 +784,10 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
   }
 
   static String _generateMockDataSourceMethods(
-      GeneratorConfig config, String entityName, String entityCamel) {
+    GeneratorConfig config,
+    String entityName,
+    String entityCamel,
+  ) {
     final methods = <String>[];
 
     for (final method in config.methods) {

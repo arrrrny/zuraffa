@@ -41,7 +41,8 @@ class CacheGenerator {
 
     final cachePath = path.join(outputDir, 'cache', fileName);
 
-    final content = '''
+    final content =
+        '''
 // Auto-generated cache for $entityName
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import '../domain/entities/$entitySnake/$entitySnake.dart';
@@ -117,7 +118,8 @@ Future<void> initTimestampCache() async {
     } else {
       fileName = 'ttl_${ttlMinutes}_minutes_cache_policy.dart';
       policyName = 'createTtl${ttlMinutes}MinutesCachePolicy';
-      policyImpl = '''
+      policyImpl =
+          '''
   final timestampBox = Hive.box<int>('cache_timestamps');
   return TtlCachePolicy(
     ttl: const Duration(minutes: $ttlMinutes),
@@ -130,7 +132,8 @@ Future<void> initTimestampCache() async {
 
     final cachePath = path.join(outputDir, 'cache', fileName);
 
-    final content = '''
+    final content =
+        '''
 // Auto-generated cache policy
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:zuraffa/zuraffa.dart';
@@ -162,10 +165,12 @@ $policyImpl
     final files = dir
         .listSync()
         .whereType<File>()
-        .where((f) =>
-            f.path.endsWith('_cache.dart') &&
-            !f.path.endsWith('index.dart') &&
-            !f.path.endsWith('timestamp_cache.dart'))
+        .where(
+          (f) =>
+              f.path.endsWith('_cache.dart') &&
+              !f.path.endsWith('index.dart') &&
+              !f.path.endsWith('timestamp_cache.dart'),
+        )
         .toList();
 
     if (files.isEmpty) {
@@ -199,8 +204,9 @@ $policyImpl
       imports.add("import '$fileName';");
 
       final content = file.readAsStringSync();
-      final match =
-          RegExp(r'Future<void> (init\w+Cache)\(\)').firstMatch(content);
+      final match = RegExp(
+        r'Future<void> (init\w+Cache)\(\)',
+      ).firstMatch(content);
       if (match != null) {
         inits.add('  await ${match.group(1)}();');
       }
@@ -217,7 +223,8 @@ $policyImpl
       exports.add("export '$fileName';");
     }
 
-    final content = '''
+    final content =
+        '''
 // Auto-generated - DO NOT EDIT
 ${exports.join('\n')}
 
@@ -251,10 +258,12 @@ ${inits.join('\n')}
     final files = dir
         .listSync()
         .whereType<File>()
-        .where((f) =>
-            f.path.endsWith('_cache.dart') &&
-            !f.path.endsWith('index.dart') &&
-            !f.path.endsWith('timestamp_cache.dart'))
+        .where(
+          (f) =>
+              f.path.endsWith('_cache.dart') &&
+              !f.path.endsWith('index.dart') &&
+              !f.path.endsWith('timestamp_cache.dart'),
+        )
         .toList();
 
     if (files.isEmpty) {
@@ -266,8 +275,11 @@ ${inits.join('\n')}
     final registrations = <String>[];
 
     // Check for manual additions file
-    final manualAdditionsPath =
-        path.join(outputDir, 'cache', 'hive_manual_additions.txt');
+    final manualAdditionsPath = path.join(
+      outputDir,
+      'cache',
+      'hive_manual_additions.txt',
+    );
     final manualAdditionsFile = File(manualAdditionsPath);
 
     if (manualAdditionsFile.existsSync()) {
@@ -295,9 +307,9 @@ ${inits.join('\n')}
     for (final file in files) {
       final content = file.readAsStringSync();
       // Extract entity name from import
-      final importMatch =
-          RegExp(r"import '\.\./domain/entities/(\w+)/(\w+)\.dart';")
-              .firstMatch(content);
+      final importMatch = RegExp(
+        r"import '\.\./domain/entities/(\w+)/(\w+)\.dart';",
+      ).firstMatch(content);
       if (importMatch != null) {
         final entitySnake = importMatch.group(1);
         final entityFile = importMatch.group(2);
@@ -317,7 +329,8 @@ ${inits.join('\n')}
       }
     }
 
-    final content = '''
+    final content =
+        '''
 // Auto-generated Hive registrar
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 ${imports.join('\n')}

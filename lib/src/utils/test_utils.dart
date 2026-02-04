@@ -155,13 +155,16 @@ bool isResultFailure<S, F>(Result<S, F> result) => result.isFailure;
 
 /// Check if a Result is a Failure of a specific type
 bool isResultFailureOfType<F extends AppFailure>(
-    Result<dynamic, AppFailure> result) {
+  Result<dynamic, AppFailure> result,
+) {
   return result.isFailure && result.getFailureOrNull() is F;
 }
 
 /// Check if a Result failure message contains a substring
 bool resultFailureContains(
-    Result<dynamic, AppFailure> result, String substring) {
+  Result<dynamic, AppFailure> result,
+  String substring,
+) {
   if (result.isFailure) {
     final failure = result.getFailureOrNull();
     if (failure is AppFailure) {
@@ -194,12 +197,10 @@ Future<Result<T, AppFailure>> failureFuture<T>(AppFailure failure) =>
 Future<Result<T, AppFailure>> delayedSuccess<T>(
   T value, {
   Duration delay = const Duration(milliseconds: 100),
-}) =>
-    Future.delayed(delay, () => Result.success(value));
+}) => Future.delayed(delay, () => Result.success(value));
 
 /// Create a delayed [Future] that completes with a [Result.failure].
 Future<Result<T, AppFailure>> delayedFailure<T>(
   AppFailure failure, {
   Duration delay = const Duration(milliseconds: 100),
-}) =>
-    Future.delayed(delay, () => Result.failure(failure));
+}) => Future.delayed(delay, () => Result.failure(failure));

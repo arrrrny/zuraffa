@@ -37,8 +37,9 @@ class _IsSuccessMatcher<T> extends Matcher {
   ) {
     if (item is Result) {
       if (item.isFailure) {
-        return mismatchDescription
-            .add('is a Failure: ${item.getFailureOrNull()}');
+        return mismatchDescription.add(
+          'is a Failure: ${item.getFailureOrNull()}',
+        );
       }
     }
     return mismatchDescription.add('is not a Result');
@@ -104,8 +105,9 @@ class _IsFailureOfTypeMatcher<T extends AppFailure> extends Matcher {
         return mismatchDescription.add('is a Success: ${item.getOrNull()}');
       }
       final failure = item.getFailureOrNull();
-      return mismatchDescription
-          .add('is a Failure of type ${failure.runtimeType}');
+      return mismatchDescription.add(
+        'is a Failure of type ${failure.runtimeType}',
+      );
     }
     return mismatchDescription.add('is not a Result');
   }
@@ -148,7 +150,8 @@ class _FailureMessageContainsMatcher extends Matcher {
       final failure = item.getFailureOrNull();
       if (failure is AppFailure) {
         return mismatchDescription.add(
-            'has message "${failure.message}" which does not contain "$substring"');
+          'has message "${failure.message}" which does not contain "$substring"',
+        );
       }
     }
     return mismatchDescription.add('is not a Result');

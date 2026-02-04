@@ -23,10 +23,7 @@ void main() {
       const queryParams = QueryParams<String>('id123');
       const newParams = Params({'filter': 'active'});
 
-      final updated = queryParams.copyWith(
-        query: 'id456',
-        params: newParams,
-      );
+      final updated = queryParams.copyWith(query: 'id456', params: newParams);
 
       expect(updated.query, 'id456');
       expect(updated.params, newParams);
@@ -52,8 +49,10 @@ void main() {
 
     test('toString should be descriptive', () {
       const queryParams = QueryParams<String>('id123');
-      expect(queryParams.toString(),
-          contains('QueryParams(query: id123, params: null)'));
+      expect(
+        queryParams.toString(),
+        contains('QueryParams(query: id123, params: null)'),
+      );
     });
   });
 }

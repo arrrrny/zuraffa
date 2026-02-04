@@ -56,10 +56,7 @@ void main() {
         final token = CancelToken();
         var streamDone = false;
 
-        token.onCancel.listen(
-          (_) {},
-          onDone: () => streamDone = true,
-        );
+        token.onCancel.listen((_) {}, onDone: () => streamDone = true);
 
         token.cancel();
         await Future.delayed(Duration.zero);
@@ -136,10 +133,7 @@ void main() {
 
         child.linkTo(parent1);
 
-        expect(
-          () => child.linkTo(parent2),
-          throwsA(isA<StateError>()),
-        );
+        expect(() => child.linkTo(parent2), throwsA(isA<StateError>()));
       });
 
       test('isCancelled returns true if parent is cancelled', () {
@@ -206,10 +200,7 @@ void main() {
         final token = CancelToken();
         var streamDone = false;
 
-        token.onCancel.listen(
-          (_) {},
-          onDone: () => streamDone = true,
-        );
+        token.onCancel.listen((_) {}, onDone: () => streamDone = true);
 
         token.dispose();
         await Future.delayed(Duration.zero);
@@ -364,10 +355,9 @@ void main() {
       final results = <int>[];
       Object? error;
 
-      controller.stream.withCancellation(token).listen(
-            results.add,
-            onError: (e) => error = e,
-          );
+      controller.stream
+          .withCancellation(token)
+          .listen(results.add, onError: (e) => error = e);
 
       controller.add(1);
       controller.add(2);

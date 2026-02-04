@@ -136,7 +136,9 @@ void main() {
       test('toString returns correct format', () {
         const failure = NetworkFailure('Connection refused');
         expect(
-            failure.toString(), equals('NetworkFailure: Connection refused'));
+          failure.toString(),
+          equals('NetworkFailure: Connection refused'),
+        );
       });
     });
 
@@ -170,7 +172,7 @@ void main() {
         const failure = ValidationFailure(
           'Validation failed',
           fieldErrors: {
-            'email': ['Invalid']
+            'email': ['Invalid'],
           },
         );
         expect(failure.hasErrorFor('email'), isTrue);
@@ -181,7 +183,7 @@ void main() {
         const failure = ValidationFailure(
           'Validation failed',
           fieldErrors: {
-            'email': ['Invalid', 'Required']
+            'email': ['Invalid', 'Required'],
           },
         );
         expect(failure.errorsFor('email'), equals(['Invalid', 'Required']));
@@ -192,7 +194,7 @@ void main() {
         const failure = ValidationFailure(
           'Validation failed',
           fieldErrors: {
-            'email': ['First error', 'Second error']
+            'email': ['First error', 'Second error'],
           },
         );
         expect(failure.firstErrorFor('email'), equals('First error'));
@@ -203,7 +205,7 @@ void main() {
         const failure = ValidationFailure(
           'Validation failed',
           fieldErrors: {
-            'email': ['Invalid']
+            'email': ['Invalid'],
           },
         );
         expect(failure.toString(), contains('email'));
@@ -213,7 +215,9 @@ void main() {
       test('toString works without fieldErrors', () {
         const failure = ValidationFailure('Validation failed');
         expect(
-            failure.toString(), equals('ValidationFailure: Validation failed'));
+          failure.toString(),
+          equals('ValidationFailure: Validation failed'),
+        );
       });
     });
 
@@ -241,7 +245,9 @@ void main() {
       test('toString works without resource info', () {
         const failure = NotFoundFailure('Resource not found');
         expect(
-            failure.toString(), equals('NotFoundFailure: Resource not found'));
+          failure.toString(),
+          equals('NotFoundFailure: Resource not found'),
+        );
       });
     });
 
@@ -253,8 +259,10 @@ void main() {
 
       test('toString returns correct format', () {
         const failure = UnauthorizedFailure('Invalid credentials');
-        expect(failure.toString(),
-            equals('UnauthorizedFailure: Invalid credentials'));
+        expect(
+          failure.toString(),
+          equals('UnauthorizedFailure: Invalid credentials'),
+        );
       });
     });
 
@@ -324,8 +332,10 @@ void main() {
 
       test('toString returns correct format', () {
         const failure = CancellationFailure();
-        expect(failure.toString(),
-            equals('CancellationFailure: Operation was cancelled'));
+        expect(
+          failure.toString(),
+          equals('CancellationFailure: Operation was cancelled'),
+        );
       });
     });
 

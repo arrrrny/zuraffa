@@ -10,12 +10,8 @@ class Params {
   const Params([this.params]);
 
   /// Create a copy of [Params] with optional new values.
-  Params copyWith({
-    Map<String, dynamic>? params,
-  }) {
-    return Params(
-      params ?? this.params,
-    );
+  Params copyWith({Map<String, dynamic>? params}) {
+    return Params(params ?? this.params);
   }
 
   @override

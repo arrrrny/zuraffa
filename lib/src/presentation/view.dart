@@ -65,10 +65,7 @@ abstract class CleanView extends StatefulWidget {
   /// (push, pop, etc.) via [RouteAware].
   final RouteObserver<ModalRoute<void>>? routeObserver;
 
-  const CleanView({
-    super.key,
-    this.routeObserver,
-  });
+  const CleanView({super.key, this.routeObserver});
 }
 
 /// The state for a [CleanView].
@@ -109,7 +106,8 @@ abstract class CleanView extends StatefulWidget {
 /// }
 /// ```
 abstract class CleanViewState<P extends CleanView, Con extends Controller>
-    extends State<P> with Loggable {
+    extends State<P>
+    with Loggable {
   /// The Controller for this view.
   ///
   /// Access this to call Controller methods or read state.
@@ -220,10 +218,7 @@ abstract class CleanViewState<P extends CleanView, Con extends Controller>
   @nonVirtual
   Widget build(BuildContext context) {
     // Wrap in ChangeNotifierProvider for ControlledWidgetBuilder access
-    return ChangeNotifierProvider<Con>.value(
-      value: controller,
-      child: view,
-    );
+    return ChangeNotifierProvider<Con>.value(value: controller, child: view);
   }
 
   @override

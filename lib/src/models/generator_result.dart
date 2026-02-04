@@ -16,10 +16,10 @@ class GeneratorResult {
   });
 
   Map<String, dynamic> toJson() => {
-        'success': success,
-        'name': name,
-        'generated': files.map((f) => f.toJson()).toList(),
-        'errors': errors,
-        'next_steps': nextSteps,
-      };
+    'success': success,
+    'name': name,
+    'generated': files.map((f) => f.toJson()).toList(),
+    'errors': errors,
+    'next_steps': nextSteps,
+  };
 }

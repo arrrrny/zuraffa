@@ -65,7 +65,8 @@ abstract class StreamUseCase<T, Params> with Loggable {
       logger.info('$runtimeType cancelled before starting');
       yield Result.failure(
         CancellationFailure(
-            cancelToken?.cancelReason ?? 'Operation was cancelled'),
+          cancelToken?.cancelReason ?? 'Operation was cancelled',
+        ),
       );
       return;
     }
@@ -84,7 +85,8 @@ abstract class StreamUseCase<T, Params> with Loggable {
           logger.info('$runtimeType cancelled during execution');
           yield Result.failure(
             CancellationFailure(
-                cancelToken?.cancelReason ?? 'Operation was cancelled'),
+              cancelToken?.cancelReason ?? 'Operation was cancelled',
+            ),
           );
           return;
         }
@@ -139,15 +141,14 @@ abstract class StreamUseCase<T, Params> with Loggable {
     void Function()? onDone,
     CancelToken? cancelToken,
   }) {
-    final subscription = call(params, cancelToken: cancelToken).listen(
-      (result) {
-        result.fold(
-          (value) => onData(value),
-          (failure) => onError?.call(failure),
-        );
-      },
-      onDone: onDone,
-    );
+    final subscription = call(params, cancelToken: cancelToken).listen((
+      result,
+    ) {
+      result.fold(
+        (value) => onData(value),
+        (failure) => onError?.call(failure),
+      );
+    }, onDone: onDone);
 
     _subscriptions.add(subscription);
     return subscription;

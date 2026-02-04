@@ -25,10 +25,10 @@ class DailyCachePolicy implements CachePolicy {
     required Future<void> Function(String key, int timestamp) setTimestamp,
     required Future<void> Function(String key) removeTimestamp,
     required Future<void> Function() clearAll,
-  })  : _getTimestamps = getTimestamps,
-        _setTimestamp = setTimestamp,
-        _removeTimestamp = removeTimestamp,
-        _clearAll = clearAll;
+  }) : _getTimestamps = getTimestamps,
+       _setTimestamp = setTimestamp,
+       _removeTimestamp = removeTimestamp,
+       _clearAll = clearAll;
 
   @override
   Future<bool> isValid(String key) async {
@@ -123,10 +123,10 @@ class TtlCachePolicy implements CachePolicy {
     required Future<void> Function(String key, int timestamp) setTimestamp,
     required Future<void> Function(String key) removeTimestamp,
     required Future<void> Function() clearAll,
-  })  : _getTimestamps = getTimestamps,
-        _setTimestamp = setTimestamp,
-        _removeTimestamp = removeTimestamp,
-        _clearAll = clearAll;
+  }) : _getTimestamps = getTimestamps,
+       _setTimestamp = setTimestamp,
+       _removeTimestamp = removeTimestamp,
+       _clearAll = clearAll;
 
   @override
   Future<bool> isValid(String key) async {

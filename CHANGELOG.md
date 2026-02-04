@@ -1,4 +1,9 @@
 # Changelog
+## [Unreleased]
+
+### Chore
+Updated README and website docs https://zuraffa.com
+
 ## [2.2.0] - 2026-02-04
 
 ### Added
