@@ -1,3 +1,10 @@
+## [Unreleased]
+
+## [2.3.2] - 2026-02-05
+
+### Chore
+- Fixed meta transitive dependency
+
 ## [2.3.1] - 2026-02-05
 - Updated Zorphy dependencies
 
