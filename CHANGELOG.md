@@ -1,4 +1,4 @@
-## [2.5.0] - 2026-02-05
+## [Unreleased]
 
 ### ✨ New Features
 
@@ -10,18 +10,6 @@
 - Updated CLI commands reference with sync usage
 - Updated MCP server with sync capabilities
 
-### 📚 Documentation
-- Added `website/docs/features/sync.md` with complete sync feature documentation
-- Updated `website/docs/cli/commands.md` with sync command examples
-- Updated README.md with sync usecase information
-
-### 🔧 Internal
-- Added `lib/src/domain/sync_usecase.dart` base class
-- Enhanced `lib/src/generator/method_appender.dart` for method appending
-- Updated `lib/src/generator/usecase_generator.dart` with sync support
-- Updated `lib/src/generator/service_generator.dart` with sync support
-- Updated `lib/src/generator/provider_generator.dart` with sync support
-- Updated `lib/zuraffa.dart` to export sync usecase
 
 ## [2.4.0] - 2026-02-05
 
