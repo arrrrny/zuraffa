@@ -118,7 +118,11 @@ Generate Clean Architecture code for your Flutter project.
 | query_field | string | No | Query field name for get/watch (default: id) |
 | query_field_type | string | No | Query field type (default: matches id_field_type) |
 | zorphy | boolean | No | Use Zorphy-style typed patches |
-| repos | array | No | Repository names to inject |
+| repo | string | No | Repository to inject (single, enforces SRP) |
+| repos | array | No | Repository names to inject (deprecated: use repo) |
+| service | string | No | Service to inject (alternative to repo) |
+| service_method | string | No | Service method name (default: auto-generated) |
+| domain | string | No | Domain folder (required for custom usecases) |
 | params | string | No | Params type (default: NoParams) |
 | returns | string | No | Return type (default: void) |
 | type | string | No | UseCase type: usecase, stream, background, completable |
@@ -137,6 +141,12 @@ Generate Clean Architecture code for your Flutter project.
 | di | boolean | No | Generate dependency injection files (get_it) |
 | init | boolean | No | Generate initialize method for repository |
 | test | boolean | No | Generate unit tests |
+| gql | boolean | No | Generate GraphQL query/mutation/subscription files |
+| gql_type | string | No | GraphQL operation type: query, mutation, subscription |
+| gql_returns | string | No | GraphQL return fields (comma-separated) |
+| gql_input_type | string | No | GraphQL input type name |
+| gql_input_name | string | No | GraphQL input variable name |
+| gql_name | string | No | Custom GraphQL operation name |
 
 **Example:**
 ```json
@@ -195,6 +205,71 @@ Generate Clean Architecture code for your Flutter project.
 }
 ```
 
+**Example with Service (alternative to Repository):**
+```json
+{
+  "name": "generate",
+  "arguments": {
+    "name": "SendEmail",
+    "service": "Email",
+    "domain": "notifications",
+    "params": "EmailMessage",
+    "returns": "void",
+    "data": true
+  }
+}
+```
+
+**Example with GraphQL generation:**
+```json
+{
+  "name": "generate",
+  "arguments": {
+    "name": "Product",
+    "methods": ["get", "getList", "create"],
+    "gql": true,
+    "gql_type": "query",
+    "gql_returns": "id,name,description,price,isActive,createdAt"
+  }
+}
+```
+
+**Example with GraphQL for custom UseCase:**
+```json
+{
+  "name": "generate",
+  "arguments": {
+    "name": "SearchProducts",
+    "service": "Search",
+    "domain": "products",
+    "params": "SearchQuery",
+    "returns": "List<Product>",
+    "gql": true,
+    "gql_type": "query",
+    "gql_name": "searchProducts",
+    "gql_input_type": "SearchInput",
+    "gql_returns": "id,name,price,category"
+  }
+}
+```
+
+**Example with complete GraphQL integration:**
+```json
+{
+  "name": "generate",
+  "arguments": {
+    "name": "Product",
+    "methods": ["get", "getList", "create", "update", "delete"],
+    "repository": true,
+    "data": true,
+    "gql": true,
+    "gql_type": "query",
+    "gql_returns": "id,name,description,price,category,isActive,createdAt,updatedAt",
+    "di": true
+  }
+}
+```
+
 ### zuraffa_schema
 
 Get the JSON schema for ZFA configuration validation.
@@ -217,8 +292,10 @@ The MCP server also provides access to generated project resources:
 List all available files in the project's Clean Architecture directories. The server scans the following directories recursively for `.dart` files:
 
 - `lib/src/domain/repositories` - Repository interfaces
+- `lib/src/domain/services` - Service interfaces
 - `lib/src/domain/usecases` - UseCase implementations
 - `lib/src/data/data_sources` - Data source implementations
+- `lib/src/data/providers` - Service provider implementations
 - `lib/src/data/repositories` - Data repository implementations
 - `lib/src/presentation` - Views, Presenters, Controllers
 - `lib/src/domain/entities` - Entity definitions

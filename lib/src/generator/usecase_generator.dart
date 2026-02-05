@@ -276,7 +276,8 @@ $executeMethod
       final serviceBaseName = serviceName.endsWith('Service')
           ? serviceName.substring(0, serviceName.length - 7)
           : serviceName;
-      final serviceFieldName = '_${StringUtils.pascalToCamel(serviceBaseName)}Service';
+      final serviceFieldName =
+          '_${StringUtils.pascalToCamel(serviceBaseName)}Service';
 
       dependencyImports.add("import '$servicePath';");
       dependencyFields.add('  final $serviceName $serviceFieldName;');
@@ -297,7 +298,10 @@ $executeMethod
         final methodName = config.hasService
             ? config.getServiceMethodName()
             : config.getRepoMethodName();
-        final depField = dependencyFields.first.split(' ').last.replaceAll(';', '');
+        final depField = dependencyFields.first
+            .split(' ')
+            .last
+            .replaceAll(';', '');
         executeMethod =
             '''
   @override

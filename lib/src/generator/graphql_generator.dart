@@ -40,8 +40,9 @@ class GraphQLGenerator {
     final entitySnake = config.nameSnake;
     final operationType = _getOperationType(method);
     final operationName = _getOperationName(method, entityName);
-    
-    final fileName = '${StringUtils.camelToSnake(operationName)}_$operationType.dart';
+
+    final fileName =
+        '${StringUtils.camelToSnake(operationName)}_$operationType.dart';
     final filePath = path.join(
       outputDir,
       'data',
@@ -51,8 +52,17 @@ class GraphQLGenerator {
       fileName,
     );
 
-    final gqlString = _generateGraphQLString(method, entityName, operationType, operationName);
-    final content = _generateFileContent(operationName, operationType, gqlString);
+    final gqlString = _generateGraphQLString(
+      method,
+      entityName,
+      operationType,
+      operationName,
+    );
+    final content = _generateFileContent(
+      operationName,
+      operationType,
+      gqlString,
+    );
 
     return FileUtils.writeFile(
       filePath,
@@ -68,11 +78,12 @@ class GraphQLGenerator {
     final useCaseName = config.name;
     final domain = config.effectiveDomain;
     final operationType = _getCustomOperationType();
-    final operationName = useCaseName.endsWith('UseCase') 
+    final operationName = useCaseName.endsWith('UseCase')
         ? useCaseName.substring(0, useCaseName.length - 7)
         : useCaseName;
-    
-    final fileName = '${StringUtils.camelToSnake(operationName)}_$operationType.dart';
+
+    final fileName =
+        '${StringUtils.camelToSnake(operationName)}_$operationType.dart';
     final filePath = path.join(
       outputDir,
       'data',
@@ -82,8 +93,15 @@ class GraphQLGenerator {
       fileName,
     );
 
-    final gqlString = _generateCustomGraphQLString(operationName, operationType);
-    final content = _generateFileContent(operationName, operationType, gqlString);
+    final gqlString = _generateCustomGraphQLString(
+      operationName,
+      operationType,
+    );
+    final content = _generateFileContent(
+      operationName,
+      operationType,
+      gqlString,
+    );
 
     return FileUtils.writeFile(
       filePath,
@@ -99,7 +117,7 @@ class GraphQLGenerator {
     if (config.gqlType != null) {
       return config.gqlType!;
     }
-    
+
     switch (method) {
       case 'get':
       case 'getList':
@@ -120,9 +138,11 @@ class GraphQLGenerator {
     if (config.gqlType != null) {
       return config.gqlType!;
     }
-    
+
     // For custom UseCases, gql-type is mandatory when --gql is used
-    throw ArgumentError('--gql-type is required for custom UseCases when using --gql');
+    throw ArgumentError(
+      '--gql-type is required for custom UseCases when using --gql',
+    );
   }
 
   String _getOperationName(String method, String entityName) {
@@ -146,14 +166,20 @@ class GraphQLGenerator {
     }
   }
 
-  String _generateGraphQLString(String method, String entityName, String operationType, String operationName) {
-    final entitySnake = StringUtils.camelToSnake(entityName);
+  String _generateGraphQLString(
+    String method,
+    String entityName,
+    String operationType,
+    String operationName,
+  ) {
     final returnFields = _getReturnFields(entityName);
     final inputType = config.gqlInputType ?? '${entityName}Input';
     final inputName = config.gqlInputName ?? 'input';
     final gqlOperationName = config.gqlName ?? operationName;
     final wrapperName = gqlOperationName; // PascalCase for wrapper
-    final camelCaseOpName = StringUtils.pascalToCamel(gqlOperationName); // camelCase for inner
+    final camelCaseOpName = StringUtils.pascalToCamel(
+      gqlOperationName,
+    ); // camelCase for inner
 
     switch (method) {
       case 'get':
@@ -215,7 +241,10 @@ $returnFields
     }
   }
 
-  String _generateCustomGraphQLString(String operationName, String operationType) {
+  String _generateCustomGraphQLString(
+    String operationName,
+    String operationType,
+  ) {
     final paramsType = config.paramsType ?? 'NoParams';
     final returnsType = config.returnsType ?? 'void';
     final returnFields = _getCustomReturnFields(returnsType);
@@ -223,7 +252,9 @@ $returnFields
     final inputName = config.gqlInputName ?? 'input';
     final gqlOperationName = config.gqlName ?? operationName;
     final wrapperName = gqlOperationName; // PascalCase for wrapper
-    final camelCaseOpName = StringUtils.pascalToCamel(gqlOperationName); // camelCase for inner
+    final camelCaseOpName = StringUtils.pascalToCamel(
+      gqlOperationName,
+    ); // camelCase for inner
 
     if (paramsType == 'NoParams' && config.gqlInputType == null) {
       return '''
@@ -272,12 +303,12 @@ $returnFields
     final fields = fieldsStr.split(',').map((f) => f.trim()).toList();
     final result = StringBuffer();
     final fieldTree = <String, dynamic>{};
-    
+
     // Build nested field tree
     for (final field in fields) {
       final parts = field.split('.');
       dynamic current = fieldTree;
-      
+
       for (int i = 0; i < parts.length; i++) {
         final part = parts[i];
         if (i == parts.length - 1) {
@@ -294,15 +325,19 @@ $returnFields
         }
       }
     }
-    
+
     // Convert tree to GraphQL format
     _writeGraphQLFields(fieldTree, result, 6);
     return result.toString().trimRight();
   }
-  
-  void _writeGraphQLFields(Map<String, dynamic> fields, StringBuffer buffer, int indent) {
+
+  void _writeGraphQLFields(
+    Map<String, dynamic> fields,
+    StringBuffer buffer,
+    int indent,
+  ) {
     final spaces = ' ' * indent;
-    
+
     for (final entry in fields.entries) {
       if (entry.value == true) {
         // Simple field
@@ -310,7 +345,11 @@ $returnFields
       } else if (entry.value is Map) {
         // Nested field
         buffer.writeln('$spaces${entry.key}{');
-        _writeGraphQLFields(entry.value as Map<String, dynamic>, buffer, indent + 2);
+        _writeGraphQLFields(
+          entry.value as Map<String, dynamic>,
+          buffer,
+          indent + 2,
+        );
         buffer.writeln('$spaces}');
       }
     }
@@ -331,9 +370,15 @@ $returnFields
     }
   }
 
-  String _generateFileContent(String operationName, String operationType, String gqlString) {
-    final constantName = StringUtils.pascalToCamel(operationName) + StringUtils.convertToPascalCase(operationType);
-    
+  String _generateFileContent(
+    String operationName,
+    String operationType,
+    String gqlString,
+  ) {
+    final constantName =
+        StringUtils.pascalToCamel(operationName) +
+        StringUtils.convertToPascalCase(operationType);
+
     return '''
 // Generated GraphQL $operationType for $operationName
 const String $constantName = r\'\'\'$gqlString

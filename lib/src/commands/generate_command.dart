@@ -50,11 +50,12 @@ class GenerateCommand {
       final methodsStr = results['methods'] as String?;
       final usecasesStr = results['usecases'] as String?;
       final variantsStr = results['variants'] as String?;
-      
+
       // Apply config defaults for entity-based operations
       final isEntityBased = methodsStr != null && methodsStr.isNotEmpty;
-      final shouldGenerateGql = results['gql'] == true || (isEntityBased && zfaConfig.generateGql);
-      
+      final shouldGenerateGql =
+          results['gql'] == true || (isEntityBased && zfaConfig.generateGql);
+
       config = GeneratorConfig(
         name: name,
         methods: methodsStr?.split(',').map((s) => s.trim()).toList() ?? [],
@@ -171,9 +172,7 @@ class GenerateCommand {
         exit(1);
       }
       if (config.service != null) {
-        print(
-          '❌ Error: --service cannot be used with entity-based generation',
-        );
+        print('❌ Error: --service cannot be used with entity-based generation');
         print('   Entity-based UseCases auto-inject ${config.name}Repository');
         exit(1);
       }
@@ -215,7 +214,8 @@ class GenerateCommand {
     }
 
     // Rule 3: Orchestrator (--usecases) cannot have --repo or --service
-    if (config.isOrchestrator && (config.repo != null || config.service != null)) {
+    if (config.isOrchestrator &&
+        (config.repo != null || config.service != null)) {
       print('❌ Error: Cannot use --repo or --service with --usecases');
       print(
         '   Orchestrators compose UseCases, they don\'t use repositories/services directly',
@@ -234,7 +234,9 @@ class GenerateCommand {
         config.useCaseType != 'background') {
       if (config.repo != null && config.service != null) {
         print('❌ Error: Cannot use both --repo and --service');
-        print('   Use --repo for repository injection OR --service for service injection');
+        print(
+          '   Use --repo for repository injection OR --service for service injection',
+        );
         exit(1);
       }
       if (config.repo == null && config.service == null) {
@@ -252,8 +254,6 @@ class GenerateCommand {
         exit(1);
       }
     }
-
-
 
     // Rule 5: Orchestrator requires --params and --returns
     if (config.isOrchestrator) {
@@ -317,16 +317,21 @@ class GenerateCommand {
     if (config.generateGql) {
       // For custom UseCases, --gql-type is mandatory
       if (config.isCustomUseCase && config.gqlType == null) {
-        print('❌ Error: --gql-type is required for custom UseCases when using --gql');
+        print(
+          '❌ Error: --gql-type is required for custom UseCases when using --gql',
+        );
         print('   Valid types: query, mutation, subscription');
         print('');
         print('Example:');
-        print('  zfa generate ${config.name} --domain=${config.domain ?? 'domain'} --service=Service --gql --gql-type=mutation');
+        print(
+          '  zfa generate ${config.name} --domain=${config.domain ?? 'domain'} --service=Service --gql --gql-type=mutation',
+        );
         exit(1);
       }
-      
+
       // Validate gql-type values
-      if (config.gqlType != null && !['query', 'mutation', 'subscription'].contains(config.gqlType)) {
+      if (config.gqlType != null &&
+          !['query', 'mutation', 'subscription'].contains(config.gqlType)) {
         print('❌ Error: Invalid --gql-type "${config.gqlType}"');
         print('   Valid types: query, mutation, subscription');
         exit(1);
@@ -368,8 +373,7 @@ class GenerateCommand {
       )
       ..addFlag(
         'append',
-        help:
-            'Append method to existing repository or service',
+        help: 'Append method to existing repository or service',
       )
       ..addFlag(
         'data',

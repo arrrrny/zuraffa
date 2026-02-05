@@ -188,6 +188,12 @@ Generate CRUD operations for an entity.
 | `--query-field-type=<type>` | (same as id) | Query field type |
 | `--zorphy` | false | Use Zorphy-style typed patches for updates |
 | `--init` | false | Generate initialize method for repository/datasource |
+| `--gql` | false | Generate GraphQL query/mutation/subscription files |
+| `--gql-type=<type>` | auto | GraphQL operation type: query, mutation, subscription |
+| `--gql-returns=<fields>` | auto | Return fields as comma-separated string |
+| `--gql-input-type=<type>` | auto | GraphQL input type name |
+| `--gql-input-name=<name>` | `input` | GraphQL input variable name |
+| `--gql-name=<name>` | auto | Custom GraphQL operation name |
 
 ### VPC Layer Flags
 
@@ -340,6 +346,86 @@ Generate abstract base + concrete variants + factory.
 | `--domain=<name>` | **Required** domain folder for organization |
 | `--params=<type>` | Params type (required for polymorphic) |
 | `--returns=<type>` | Return type (required for polymorphic) |
+
+#### GraphQL Generation (NEW)
+Generate GraphQL query/mutation/subscription files for your entities and UseCases.
+
+**Entity-Based GraphQL Generation:**
+
+```bash
+# Basic GraphQL with auto-generated queries
+zfa generate Product --methods=get,getList --gql
+
+# With custom return fields
+zfa generate Product --methods=get,getList,create --gql --gql-returns="id,name,price,category,isActive,createdAt"
+
+# With custom operation types
+zfa generate Product --methods=watch,watchList --gql --gql-type=subscription
+
+# Complete GraphQL setup
+zfa generate Product --methods=get,getList,create,update,delete --data --gql --gql-returns="id,name,description,price,category,isActive,createdAt,updatedAt"
+```
+
+Generated files are placed in:
+```
+lib/src/data/data_sources/{entity}/graphql/
+├── get_product_query.dart
+├── get_product_list_query.dart
+├── create_product_mutation.dart
+└── update_product_mutation.dart
+```
+
+**Custom UseCase with GraphQL:**
+
+```bash
+# Custom UseCase with GraphQL query
+zfa generate SearchProducts \
+  --service=Search \
+  --domain=products \
+  --params=SearchQuery \
+  --returns=List<Product> \
+  --gql \
+  --gql-type=query \
+  --gql-name=searchProducts \
+  --gql-input-type=SearchInput \
+  --gql-returns="id,name,price,category"
+
+# Custom UseCase with GraphQL mutation
+zfa generate UploadFile \
+  --service=Storage \
+  --domain=storage \
+  --params=FileData \
+  --returns=String \
+  --gql \
+  --gql-type=mutation \
+  --gql-name=uploadFile \
+  --gql-input-type=FileInput
+
+# Custom UseCase with GraphQL subscription
+zfa generate WatchUserLocation \
+  --service=Location \
+  --domain=realtime \
+  --params=UserId \
+  --returns=Location \
+  --gql \
+  --gql-type=subscription
+```
+
+**GraphQL Options:**
+
+| Flag | Description |
+|------|-------------|
+| `--gql` | Enable GraphQL generation |
+| `--gql-type` | Operation type: query, mutation, subscription (auto-detected for entity methods) |
+| `--gql-returns` | Return fields as comma-separated string |
+| `--gql-input-type` | Input type name for mutation/subscription |
+| `--gql-input-name` | Input variable name (default: input) |
+| `--gql-name` | Custom operation name (default: auto-generated) |
+
+**Auto-Detection for Entity Methods:**
+- `get`, `getList` → query
+- `create`, `update`, `delete` → mutation
+- `watch`, `watchList` → subscription
 
 ### Dependency Injection Flags
 

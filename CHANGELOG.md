@@ -1,5 +1,37 @@
 ## [Unreleased]
 
+### ✨ New Features
+
+#### GraphQL Generation
+- Added GraphQL query/mutation/subscription file generator
+- Added `--gql` flag to enable GraphQL generation
+- Added `--gql-type` flag to specify operation type (query, mutation, subscription)
+- Added `--gql-returns` flag to specify return fields as comma-separated string
+- Added `--gql-input-type` flag to specify input type name
+- Added `--gql-input-name` flag to specify input variable name (default: input)
+- Added `--gql-name` flag to specify custom GraphQL operation name
+- Auto-detects operation types for entity methods (get/getList=query, create/update/delete=mutation, watch/watchList=subscription)
+
+#### Service/Provider Pattern
+- Added service pattern as alternative to repository for custom UseCases
+- Added `--service` flag to generate service interface instead of repository
+- Added `--service-method` flag to customize service method names
+- Added provider generator for service implementations
+- Generated files placed in `domain/services/` and `data/providers/`
+
+### 📚 Documentation
+- Updated README.md with service vs repository comparison and GraphQL generation examples
+- Updated AGENTS.md with comprehensive GraphQL generation documentation
+- Updated MCP_SERVER.md with GraphQL and service support in tool definitions
+- Updated CLI_GUIDE.md with GraphQL flags and examples
+- Updated website/docs/cli/commands.md with GraphQL generation section
+
+### 🔧 Internal
+- Added `GraphQLGenerator` class for GraphQL file generation
+- Added `ProviderGenerator` class for service provider generation
+- Updated `GeneratorConfig` model with GraphQL and service properties
+- Updated MCP server tool definitions to support new flags
+
 ## [2.3.2] - 2026-02-05
 
 ### Chore

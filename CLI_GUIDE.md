@@ -85,6 +85,12 @@ zfa generate <Name> [options]
 | `--query-field-type=<type>` | | Query field type (default: matches id-type) |
 | `--zorphy` | | Use Zorphy-style typed patches |
 | `--init` | | Generate initialize method for repository |
+| `--gql` | | Generate GraphQL query/mutation/subscription files |
+| `--gql-type=<type>` | | GraphQL operation type: query, mutation, subscription (default: auto) |
+| `--gql-returns=<fields>` | | GraphQL return fields (comma-separated) |
+| `--gql-input-type=<type>` | | GraphQL input type name |
+| `--gql-input-name=<name>` | | GraphQL input variable name (default: input) |
+| `--gql-name=<name>` | | Custom GraphQL operation name |
 
 **Note:** Repository interface is automatically generated for entity-based operations.
 

@@ -278,6 +278,34 @@ class ZuraffaMcpServer {
             'type': 'boolean',
             'description': 'Use Zorphy-style typed patches',
           },
+          'gql': {
+            'type': 'boolean',
+            'description': 'Generate GraphQL query/mutation/subscription files',
+          },
+          'gql_type': {
+            'type': 'string',
+            'enum': ['query', 'mutation', 'subscription'],
+            'description':
+                'GraphQL operation type - auto-detected for entity methods (get/getList=query, create/update/delete=mutation, watch/watchList=subscription)',
+          },
+          'gql_returns': {
+            'type': 'string',
+            'description':
+                'GraphQL return fields as comma-separated string (e.g., "id,name,price,category")',
+          },
+          'gql_input_type': {
+            'type': 'string',
+            'description': 'GraphQL input type name for mutation/subscription',
+          },
+          'gql_input_name': {
+            'type': 'string',
+            'description': 'GraphQL input variable name (default: input)',
+          },
+          'gql_name': {
+            'type': 'string',
+            'description':
+                'Custom GraphQL operation name (default: auto-generated)',
+          },
           'repo': {
             'type': 'string',
             'description':

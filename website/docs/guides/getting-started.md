@@ -151,11 +151,11 @@ zfa entity create -n User
 Enter fields one by one. Press Enter without input to finish.
 
 Field name (or press Enter to finish): id
-Field type (e.g., String, int, List<String>, Status, \$Order): String?
+Field type (e.g., String, int, List<String>, OrderStatus, \$Order): String?
 ✓ Added field: id (String?)
 
 Field name (or press Enter to finish): name
-Field type (e.g., String, int, List<String>, Status, \$Order): String
+Field type (e.g., String, int, List<String>, OrderStatus, \$Order): String
 ✓ Added field: name (String)
 
 Field name (or press Enter to finish): [Press Enter]

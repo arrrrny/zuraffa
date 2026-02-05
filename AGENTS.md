@@ -92,6 +92,9 @@ zfa generate Product --methods=get,getList,create,update,delete --data
 
 # Complete feature with state management, caching, DI, and tests
 zfa generate Product --methods=get,getList,create,update,delete,watchList --data --vpc --state --cache --di --test
+
+# Complete feature with GraphQL generation
+zfa generate Product --methods=get,getList,create,update,delete --data --gql --gql_returns="id,name,description,price,isActive,createdAt"
 ```
 
 ### Entity-Based Generation
@@ -122,6 +125,12 @@ Entity-based generation creates UseCases that operate on a specific entity type.
 | `--query-field=<name>` | | Query field name for `get`/`watch` (default: `id`) |
 | `--query-field-type=<type>` | | Query field type (default: matches id-type) |
 | `--zorphy` | | Use Zorphy-style typed patches |
+| `--gql` | | Generate GraphQL query/mutation/subscription files |
+| `--gql-type=<type>` | | GraphQL operation type: query, mutation, subscription (default: auto) |
+| `--gql-returns=<fields>` | | GraphQL return fields (comma-separated) |
+| `--gql-input-type=<type>` | | GraphQL input type name |
+| `--gql-input-name=<name>` | | GraphQL input variable name |
+| `--gql-name=<name>` | | Custom GraphQL operation name |
 
 **Note:** Repository interface is automatically generated for entity-based operations.
 
@@ -212,6 +221,17 @@ Generate the presentation layer with View, Presenter, and Controller.
 | `--verbose` | `-v` | Verbose output |
 | `--quiet` | `-q` | Minimal output (errors only) |
 
+#### GraphQL Generation Options
+
+| Flag | Description |
+|------|-------------|
+| `--gql` | Enable GraphQL query/mutation/subscription generation |
+| `--gql-type=<type>` | GraphQL operation type: query, mutation, subscription |
+| `--gql-returns=<fields>` | Return fields as comma-separated string |
+| `--gql-input-type=<type>` | GraphQL input type name |
+| `--gql-input-name=<name>` | GraphQL input variable name (default: input) |
+| `--gql-name=<name>` | Custom GraphQL operation name |
+
 ### Initialize Command
 
 The quickest way to get started is with the `initialize` command:
@@ -240,7 +260,88 @@ The `initialize` command creates a sample entity with realistic fields:
 - `createdAt` (DateTime) - Creation timestamp
 - `updatedAt` (DateTime?) - Optional update timestamp
 
-### JSON Configuration
+### GraphQL Generation
+
+Generate GraphQL query/mutation/subscription files for your entities and UseCases.
+
+#### Entity-Based GraphQL Generation
+
+```bash
+# Basic GraphQL with auto-generated queries
+zfa generate Product --methods=get,getList --gql
+
+# With custom return fields
+zfa generate Product --methods=get,getList,create --gql --gql-returns="id,name,price,category,isActive,createdAt"
+
+# With custom operation types
+zfa generate Product --methods=watch,watchList --gql --gql-type=subscription
+
+# Complete GraphQL setup
+zfa generate Product --methods=get,getList,create,update,delete --data --gql --gql-returns="id,name,description,price,category,isActive,createdAt,updatedAt"
+```
+
+Generated files are placed in:
+```
+lib/src/data/data_sources/{entity}/graphql/
+├── get_product_query.dart
+├── get_product_list_query.dart
+├── create_product_mutation.dart
+└── update_product_mutation.dart
+```
+
+#### Custom UseCase with GraphQL
+
+```bash
+# Custom UseCase with GraphQL query
+zfa generate SearchProducts \
+  --service=Search \
+  --domain=products \
+  --params=SearchQuery \
+  --returns=List<Product> \
+  --gql \
+  --gql-type=query \
+  --gql-name=searchProducts \
+  --gql-input-type=SearchInput \
+  --gql-returns="id,name,price,category"
+
+# Custom UseCase with GraphQL mutation
+zfa generate UploadFile \
+  --service=Storage \
+  --domain=storage \
+  --params=FileData \
+  --returns=String \
+  --gql \
+  --gql-type=mutation \
+  --gql-name=uploadFile \
+  --gql-input-type=FileInput
+
+# Custom UseCase with GraphQL subscription
+zfa generate WatchUserLocation \
+  --service=Location \
+  --domain=realtime \
+  --params=UserId \
+  --returns=Location \
+  --gql \
+  --gql-type=subscription
+```
+
+#### GraphQL Options
+
+| Flag | Description |
+|------|-------------|
+| `--gql` | Enable GraphQL generation |
+| `--gql-type` | Operation type: query, mutation, subscription (auto-detected for entity methods) |
+| `--gql-returns` | Return fields as comma-separated string |
+| `--gql-input-type` | Input type name for mutation/subscription |
+| `--gql-input-name` | Input variable name (default: input) |
+| `--gql-name` | Custom operation name (default: auto-generated) |
+
+**Auto-Detection for Entity Methods:**
+- `get`, `getList` → query
+- `create`, `update`, `delete` → mutation
+- `watch`, `watchList` → subscription
+
+#### JSON Configuration
 
 Instead of command-line flags, you can use a JSON configuration file.
 
@@ -258,6 +359,36 @@ Instead of command-line flags, you can use a JSON configuration file.
   "cache_policy": "daily",
   "di": true,
   "test": true
+}
+```
+
+#### JSON Configuration with GraphQL
+
+```json
+{
+  "name": "Product",
+  "methods": ["get", "getList", "create", "update", "delete"],
+  "repository": true,
+  "data": true,
+  "gql": true,
+  "gql_returns": "id,name,description,price,category,isActive,createdAt,updatedAt",
+  "di": true
+}
+```
+
+```json
+{
+  "name": "SearchProducts",
+  "service": "Search",
+  "domain": "products",
+  "params": "SearchQuery",
+  "returns": "List<Product>",
+  "gql": true,
+  "gql_type": "query",
+  "gql_name": "searchProducts",
+  "gql_input_type": "SearchInput",
+  "gql_returns": "id,name,price,category,rating",
+  "data": true
 }
 ```
 
@@ -613,9 +744,39 @@ zfa validate config.json
    zfa generate Product --methods=get,getList,create,update,delete --data
    ```
 
-4. **Complete Feature with All Layers:**
+# Complete Feature with All Layers:
+```bash
+zfa generate Product --methods=get,getList,create,update,delete,watchList --data --vpc --state --cache --di --test
+```
+
+### GraphQL Generation
+
+1. **Generate GraphQL for Entity:**
    ```bash
-   zfa generate Product --methods=get,getList,create,update,delete,watchList --data --vpc --state --cache --di --test
+   zfa generate Product --methods=get,getList,create --gql --gql-returns="id,name,price,category"
+   ```
+
+2. **Generate GraphQL for Custom UseCase:**
+   ```bash
+   zfa generate SearchProducts \
+     --service=Search \
+     --domain=products \
+     --params=SearchQuery \
+     --returns=List<Product> \
+     --gql \
+     --gql-type=query \
+     --gql-name=searchProducts \
+     --gql-input-type=SearchInput
+   ```
+
+3. **Complete GraphQL Setup:**
+   ```bash
+   zfa generate Product \
+     --methods=get,getList,create,update,delete,watchList \
+     --data \
+     --gql \
+     --gql-returns="id,name,description,price,category,isActive,createdAt,updatedAt" \
+     --di
    ```
 
 ### Custom UseCase Generation
