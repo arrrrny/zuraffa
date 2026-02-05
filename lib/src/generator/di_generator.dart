@@ -47,6 +47,14 @@ class DiGenerator {
       files.add(await _generateMockDataSourceDI());
     }
 
+    // Generate service DI file (only if not already registered)
+    if (config.hasService) {
+      final serviceFile = await _generateServiceDI();
+      if (serviceFile != null) {
+        files.add(serviceFile);
+      }
+    }
+
     // Regenerate all index files
     await _regenerateIndexFiles();
 
@@ -241,9 +249,68 @@ $registration
     );
   }
 
+  /// Generate service DI registration file.
+  /// Returns null if the service is already registered.
+  Future<GeneratedFile?> _generateServiceDI() async {
+    final serviceName = config.effectiveService!;
+    final serviceSnake = config.serviceSnake!;
+    final fileName = '${serviceSnake}_service_di.dart';
+
+    final diPath = path.join(outputDir, 'di', 'services', fileName);
+
+    // Check if already registered
+    if (File(diPath).existsSync() && !force) {
+      if (verbose) {
+        print('⏭️  Service DI already exists: $fileName (skipped)');
+      }
+      return null;
+    }
+
+    final content = '''
+// Auto-generated DI registration for $serviceName
+// TODO: Replace with your actual service implementation
+import 'package:get_it/get_it.dart';
+import '../../domain/services/${serviceSnake}_service.dart';
+
+/// Register $serviceName with dependency injection.
+///
+/// You need to create a concrete implementation of $serviceName
+/// and register it here. Example:
+///
+/// ```dart
+/// import '../../data/services/${serviceSnake}_service_impl.dart';
+///
+/// void register$serviceName(GetIt getIt) {
+///   getIt.registerLazySingleton<$serviceName>(
+///     () => ${serviceName}Impl(),
+///   );
+/// }
+/// ```
+void register$serviceName(GetIt getIt) {
+  // TODO: Replace with your service implementation
+  // getIt.registerLazySingleton<$serviceName>(
+  //   () => ${serviceName}Impl(),
+  // );
+  throw UnimplementedError(
+    'Register your $serviceName implementation in $fileName',
+  );
+}
+''';
+
+    return FileUtils.writeFile(
+      diPath,
+      content,
+      'di_service',
+      force: force,
+      dryRun: dryRun,
+      verbose: verbose,
+    );
+  }
+
   Future<void> _regenerateIndexFiles() async {
     await _regenerateIndexFile('datasources', 'DataSources');
     await _regenerateIndexFile('repositories', 'Repositories');
+    await _regenerateIndexFile('services', 'Services');
     await _regenerateMainIndex();
   }
 
@@ -310,18 +377,42 @@ ${registrations.join('\n')}
   Future<void> _regenerateMainIndex() async {
     final mainIndexPath = path.join(outputDir, 'di', 'index.dart');
 
+    // Check which folders exist
+    final datasourcesDir = Directory(path.join(outputDir, 'di', 'datasources'));
+    final repositoriesDir = Directory(path.join(outputDir, 'di', 'repositories'));
+    final servicesDir = Directory(path.join(outputDir, 'di', 'services'));
+
+    final exports = <String>[];
+    final imports = <String>[];
+    final registrations = <String>[];
+
+    if (datasourcesDir.existsSync() && _hasIndexFile(datasourcesDir)) {
+      exports.add("export 'datasources/index.dart';");
+      imports.add("import 'datasources/index.dart';");
+      registrations.add('  registerAllDataSources(getIt);');
+    }
+
+    if (repositoriesDir.existsSync() && _hasIndexFile(repositoriesDir)) {
+      exports.add("export 'repositories/index.dart';");
+      imports.add("import 'repositories/index.dart';");
+      registrations.add('  registerAllRepositories(getIt);');
+    }
+
+    if (servicesDir.existsSync() && _hasIndexFile(servicesDir)) {
+      exports.add("export 'services/index.dart';");
+      imports.add("import 'services/index.dart';");
+      registrations.add('  registerAllServices(getIt);');
+    }
+
     final content = '''
 // Auto-generated - DO NOT EDIT
-export 'datasources/index.dart';
-export 'repositories/index.dart';
+${exports.join('\n')}
 
 import 'package:get_it/get_it.dart';
-import 'datasources/index.dart';
-import 'repositories/index.dart';
+${imports.join('\n')}
 
 void setupDependencies(GetIt getIt) {
-  registerAllDataSources(getIt);
-  registerAllRepositories(getIt);
+${registrations.join('\n')}
 }
 ''';
 
@@ -333,6 +424,11 @@ void setupDependencies(GetIt getIt) {
       dryRun: dryRun,
       verbose: verbose,
     );
+  }
+
+  bool _hasIndexFile(Directory dir) {
+    final indexFile = File(path.join(dir.path, 'index.dart'));
+    return indexFile.existsSync() || !dryRun;
   }
 }
 

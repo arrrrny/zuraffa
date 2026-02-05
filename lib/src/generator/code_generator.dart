@@ -2,6 +2,7 @@ import '../models/generator_config.dart';
 import '../models/generator_result.dart';
 import '../models/generated_file.dart';
 import 'repository_generator.dart';
+import 'service_generator.dart';
 import 'usecase_generator.dart';
 import 'vpc_generator.dart';
 import 'state_generator.dart';
@@ -21,6 +22,7 @@ class CodeGenerator {
   final bool verbose;
 
   late final RepositoryGenerator _repositoryGenerator;
+  late final ServiceGenerator _serviceGenerator;
   late final UseCaseGenerator _useCaseGenerator;
   late final VpcGenerator _vpcGenerator;
   late final StateGenerator _stateGenerator;
@@ -36,6 +38,13 @@ class CodeGenerator {
     this.verbose = false,
   }) {
     _repositoryGenerator = RepositoryGenerator(
+      config: config,
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+    _serviceGenerator = ServiceGenerator(
       config: config,
       outputDir: outputDir,
       dryRun: dryRun,
@@ -149,6 +158,11 @@ class CodeGenerator {
         final file = await _useCaseGenerator.generateOrchestrator();
         files.add(file);
       } else if (config.isCustomUseCase) {
+        // Generate service interface if using --service
+        if (config.hasService) {
+          final serviceFile = await _serviceGenerator.generate();
+          files.add(serviceFile);
+        }
         // Generate custom UseCase
         final file = await _useCaseGenerator.generateCustom();
         files.add(file);
@@ -235,6 +249,12 @@ class CodeGenerator {
       }
       if (config.effectiveRepos.isNotEmpty) {
         nextSteps.add('Register repositories with DI container');
+      }
+      if (config.hasService) {
+        nextSteps.add(
+          'Implement ${config.effectiveService} in your data/infrastructure layer',
+        );
+        nextSteps.add('Register service with DI container');
       }
       if (files.any((f) => f.type == 'usecase' && (!config.isEntityBased))) {
         nextSteps.add('Implement TODO sections in generated usecases');

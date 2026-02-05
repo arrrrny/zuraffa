@@ -134,9 +134,11 @@ Create standalone UseCases without an entity, useful for complex business operat
 | Flag | Description |
 |------|-------------|
 | `--repo=<name>` | Repository to inject (single, enforces SRP) |
+| `--service=<name>` | Service to inject (alternative to `--repo`) |
 | `--domain=<name>` | Domain folder (required for custom UseCases) |
-| `--method=<name>` | Repository method name (default: auto from UseCase name) |
-| `--append` | Append to existing repository/datasources |
+| `--method=<name>` | Dependency method name (default: auto from UseCase name) |
+| `--service-method=<name>` | Service method name (default: auto from UseCase name) |
+| `--append` | Append to existing repository or service |
 | `--usecases=<list>` | Orchestrator: compose UseCases (comma-separated) |
 | `--variants=<list>` | Polymorphic: generate variants (comma-separated) |
 | `--type=<type>` | UseCase type: `usecase`, `stream`, `background`, `completable` |
@@ -618,19 +620,24 @@ zfa validate config.json
 
 ### Custom UseCase Generation
 
-1. **Simple Custom UseCase:**
+1. **Custom UseCase with Repository:**
    ```bash
    zfa generate SearchProduct --domain=search --repo=Product --params=Query --returns=List<Product>
    ```
 
-2. **Stream UseCase:**
+2. **Custom UseCase with Service:**
    ```bash
-   zfa generate ListenToNotifications --domain=notification --repo=Notification --type=stream --params=UserId --returns=Notification
+   zfa generate ProcessPayment --domain=payment --service=Payment --params=PaymentRequest --returns=PaymentResult
    ```
 
-3. **Background UseCase:**
+3. **Stream UseCase with Service:**
    ```bash
-   zfa generate ProcessImages --type=background --params=ImageBatch --returns=ProcessedImage
+   zfa generate WatchPrices --domain=pricing --service=PriceStream --type=stream --params=ProductId --returns=Price
+   ```
+
+4. **Background UseCase:**
+   ```bash
+   zfa generate ProcessImages --type=background --domain=processing --params=ImageBatch --returns=ProcessedImage
    ```
 
 ### Advanced Generation

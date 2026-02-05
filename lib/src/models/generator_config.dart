@@ -4,10 +4,12 @@ class GeneratorConfig {
   final String name;
   final List<String> methods;
   final String? repo; // Changed from repos to single repo
+  final String? service; // New: service to inject for custom UseCases
   final List<String> usecases; // New: for orchestrator pattern
   final List<String> variants; // New: for polymorphic pattern
   final String? domain; // New: required for custom UseCases
   final String? repoMethod; // New: repository method name
+  final String? serviceMethod; // New: service method name
   final bool appendToExisting; // New: append to existing files
   final bool generateRepository;
   final String useCaseType;
@@ -42,10 +44,12 @@ class GeneratorConfig {
     required this.name,
     this.methods = const [],
     this.repo,
+    this.service,
     this.usecases = const [],
     this.variants = const [],
     this.domain,
     this.repoMethod,
+    this.serviceMethod,
     this.appendToExisting = false,
     this.generateRepository = false,
     this.useCaseType = 'usecase',
@@ -82,10 +86,12 @@ class GeneratorConfig {
       name: json['name'] ?? name,
       methods: (json['methods'] as List<dynamic>?)?.cast<String>() ?? [],
       repo: json['repo'],
+      service: json['service'],
       usecases: (json['usecases'] as List<dynamic>?)?.cast<String>() ?? [],
       variants: (json['variants'] as List<dynamic>?)?.cast<String>() ?? [],
       domain: json['domain'],
       repoMethod: json['repo_method'] ?? json['method'],
+      serviceMethod: json['service_method'] ?? json['method'],
       appendToExisting:
           json['append'] == true || json['append_to_existing'] == true,
       generateRepository: json['repository'] == true,
@@ -149,6 +155,26 @@ class GeneratorConfig {
     return _pascalToCamel(methodName);
   }
 
+  // Get service method name (default: UseCase name in camelCase)
+  String getServiceMethodName([String? variantPrefix]) {
+    if (serviceMethod != null) return serviceMethod!;
+
+    // For polymorphic with variant prefix
+    if (variantPrefix != null) {
+      return _pascalToCamel('$variantPrefix$name');
+    }
+
+    // Default: UseCase name in camelCase, strip "UseCase" suffix
+    final methodName = name.endsWith('UseCase')
+        ? name.substring(0, name.length - 7)
+        : name;
+    return _pascalToCamel(methodName);
+  }
+
+  // Check if using repository or service
+  bool get hasRepo => repo != null;
+  bool get hasService => service != null;
+
   // Backward compatibility helpers
   List<String> get repos => repo != null ? [repo!] : [];
 
@@ -162,6 +188,21 @@ class GeneratorConfig {
     }
     if (isEntityBased) return ['${name}Repository'];
     return [];
+  }
+
+  // Get effective service name with Service suffix
+  String? get effectiveService {
+    if (service == null) return null;
+    return service!.endsWith('Service') ? service! : '${service!}Service';
+  }
+
+  // Get service snake case name (without Service suffix)
+  String? get serviceSnake {
+    if (service == null) return null;
+    final baseName = service!.endsWith('Service')
+        ? service!.substring(0, service!.length - 7)
+        : service!;
+    return _camelToSnake(baseName);
   }
 
   String get nameSnake => _camelToSnake(name);

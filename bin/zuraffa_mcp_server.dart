@@ -283,6 +283,11 @@ class ZuraffaMcpServer {
             'description':
                 'Repository to inject (for custom UseCases) - enforces Single Responsibility Principle',
           },
+          'service': {
+            'type': 'string',
+            'description':
+                'Service to inject (alternative to repo for custom UseCases) - generates service interface',
+          },
           'usecases': {
             'type': 'array',
             'items': {'type': 'string'},
@@ -303,7 +308,12 @@ class ZuraffaMcpServer {
           'method': {
             'type': 'string',
             'description':
-                'Repository method name (default: auto-generated from UseCase name)',
+                'Dependency method name (default: auto-generated from UseCase name)',
+          },
+          'service_method': {
+            'type': 'string',
+            'description':
+                'Service method name (default: auto-generated from UseCase name)',
           },
           'append': {
             'type': 'boolean',
@@ -821,6 +831,7 @@ class ZuraffaMcpServer {
     if (useZorphy) cliArgs.add('--zorphy');
 
     if (args['repo'] != null) cliArgs.add('--repo=${args['repo']}');
+    if (args['service'] != null) cliArgs.add('--service=${args['service']}');
     if (args['usecases'] != null) {
       final usecases = args['usecases'] as List;
       if (usecases.isNotEmpty) {
@@ -835,6 +846,9 @@ class ZuraffaMcpServer {
     }
     if (args['domain'] != null) cliArgs.add('--domain=${args['domain']}');
     if (args['method'] != null) cliArgs.add('--method=${args['method']}');
+    if (args['service_method'] != null) {
+      cliArgs.add('--service-method=${args['service_method']}');
+    }
     if (args['append'] == true) cliArgs.add('--append');
     if (args['params'] != null) cliArgs.add('--params=${args['params']}');
     if (args['returns'] != null) cliArgs.add('--returns=${args['returns']}');
