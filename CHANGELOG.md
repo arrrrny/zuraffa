@@ -1,4 +1,4 @@
-## [Unreleased]
+## [2.4.0] - 2026-02-05
 
 ### ✨ New Features
 
