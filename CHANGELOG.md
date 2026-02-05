@@ -1,4 +1,4 @@
-## [Unreleased]
+## [2.5.1] - 2026-02-05
 
 ### 📚 Documentation
 
