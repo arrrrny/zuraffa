@@ -1,3 +1,18 @@
+## [Unreleased]
+
+### 📚 Documentation
+
+#### Zuraffa CLI Skill
+- Completely refined Zuraffa CLI skill with CLI-only philosophy
+- Added comprehensive UI generation flags (--vpc, --vpcs, --pc, --pcs)
+- Added "Golden Rules" section emphasizing CLI-only workflow
+- Added "CLI vs Manual Work" comparison table
+- Enhanced workflows for complete feature generation
+- Updated Quick Reference with all latest features (v2.5.0 Sync UseCase, v2.4.0 GraphQL, Service pattern)
+- Improved troubleshooting section with common mistakes and fixes
+- Advanced features section with polymorphic patterns and GraphQL examples
+- Clear distinction: CLI handles 95% of boilerplate, manual work only for business logic and UI customization
+
 ## [2.5.0] - 2026-02-05
 
 ### ✨ New Features
