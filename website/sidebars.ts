@@ -18,6 +18,15 @@ const sidebars: SidebarsConfig = {
       id: 'intro',
       label: 'Welcome',
     },
+
+    {
+      type: 'category',
+      label: 'Getting Started',
+      collapsed: false,
+      items: [
+        'guides/getting-started',
+      ],
+    },
     {
       type: 'category',
       label: 'Entity Generation (NEW)',
@@ -34,14 +43,6 @@ const sidebars: SidebarsConfig = {
             'entities/examples',
           ],
         },
-      ],
-    },
-    {
-      type: 'category',
-      label: 'Getting Started',
-      collapsed: false,
-      items: [
-        'guides/getting-started',
       ],
     },
     {

@@ -242,26 +242,46 @@ $executeMethod
         baseClass = 'UseCase<$returnsType, $paramsType>';
     }
 
-    final repoImports = <String>[];
-    final repoFields = <String>[];
-    final repoParams = <String>[];
+    final dependencyImports = <String>[];
+    final dependencyFields = <String>[];
+    final dependencyParams = <String>[];
 
-    for (final repo in config.effectiveRepos) {
-      final repoSnake = StringUtils.camelToSnake(
-        repo.replaceAll('Repository', ''),
-      );
-      final repoPath = '../../repositories/${repoSnake}_repository.dart';
+    // Handle repository injection
+    if (config.hasRepo) {
+      for (final repo in config.effectiveRepos) {
+        final repoSnake = StringUtils.camelToSnake(
+          repo.replaceAll('Repository', ''),
+        );
+        final repoPath = '../../repositories/${repoSnake}_repository.dart';
 
-      // Ensure Repository suffix
-      final repoClassName = repo.endsWith('Repository')
-          ? repo
-          : '${repo}Repository';
-      final repoFieldName =
-          '_${StringUtils.pascalToCamel(repoSnake)}Repository';
+        // Ensure Repository suffix
+        final repoClassName = repo.endsWith('Repository')
+            ? repo
+            : '${repo}Repository';
+        final repoFieldName =
+            '_${StringUtils.pascalToCamel(repoSnake)}Repository';
 
-      repoImports.add("import '$repoPath';");
-      repoFields.add('  final $repoClassName $repoFieldName;');
-      repoParams.add('this.$repoFieldName');
+        dependencyImports.add("import '$repoPath';");
+        dependencyFields.add('  final $repoClassName $repoFieldName;');
+        dependencyParams.add('this.$repoFieldName');
+      }
+    }
+
+    // Handle service injection
+    if (config.hasService) {
+      final serviceName = config.effectiveService!;
+      final serviceSnake = config.serviceSnake!;
+      final servicePath = '../../services/${serviceSnake}_service.dart';
+      // Get base name without Service suffix for camelCase field name
+      final serviceBaseName = serviceName.endsWith('Service')
+          ? serviceName.substring(0, serviceName.length - 7)
+          : serviceName;
+      final serviceFieldName =
+          '_${StringUtils.pascalToCamel(serviceBaseName)}Service';
+
+      dependencyImports.add("import '$servicePath';");
+      dependencyFields.add('  final $serviceName $serviceFieldName;');
+      dependencyParams.add('this.$serviceFieldName');
     }
 
     // Auto-import potential entity types from params and returns
@@ -269,19 +289,24 @@ $executeMethod
     for (final entityImport in entityImports) {
       final entitySnake = StringUtils.camelToSnake(entityImport);
       final entityPath = '../../entities/$entitySnake/$entitySnake.dart';
-      repoImports.add("import '$entityPath';");
+      dependencyImports.add("import '$entityPath';");
     }
 
     String executeMethod;
     if (config.useCaseType == 'stream') {
-      if (repoFields.isNotEmpty) {
-        final methodName = config.getRepoMethodName();
-        final repoField = repoFields.first.split(' ').last.replaceAll(';', '');
+      if (dependencyFields.isNotEmpty) {
+        final methodName = config.hasService
+            ? config.getServiceMethodName()
+            : config.getRepoMethodName();
+        final depField = dependencyFields.first
+            .split(' ')
+            .last
+            .replaceAll(';', '');
         executeMethod =
             '''
   @override
   Stream<$returnsType> execute($paramsType params, CancelToken? cancelToken) {
-    return $repoField.$methodName(params);
+    return $depField.$methodName(params);
   }''';
       } else {
         executeMethod =
@@ -316,22 +341,32 @@ $executeMethod
     throw UnimplementedError('Implement your background processing logic');
   }''';
     } else {
-      final methodName = config.getRepoMethodName();
-      final repoField = repoFields.isNotEmpty
-          ? repoFields.first.split(' ').last.replaceAll(';', '')
+      final methodName = config.hasService
+          ? config.getServiceMethodName()
+          : config.getRepoMethodName();
+      final depField = dependencyFields.isNotEmpty
+          ? dependencyFields.first.split(' ').last.replaceAll(';', '')
           : '';
       executeMethod =
           '''
   @override
   Future<$returnsType> execute($paramsType params, CancelToken? cancelToken) async {
     cancelToken?.throwIfCancelled();
-    return await $repoField.$methodName(params);
+    return await $depField.$methodName(params);
   }''';
     }
 
-    final cliCommand = config.repo != null
-        ? '// zfa generate ${config.name} --repo=${config.repo} --domain=${config.effectiveDomain} --params=$paramsType --returns=$returnsType${config.useCaseType != 'usecase' ? ' --type=${config.useCaseType}' : ''}${config.repoMethod != null ? ' --method=${config.repoMethod}' : ''}'
-        : '// zfa generate ${config.name} --params=$paramsType --returns=$returnsType --type=${config.useCaseType}';
+    String cliCommand;
+    if (config.hasService) {
+      cliCommand =
+          '// zfa generate ${config.name} --service=${config.service} --domain=${config.effectiveDomain} --params=$paramsType --returns=$returnsType${config.useCaseType != 'usecase' ? ' --type=${config.useCaseType}' : ''}${config.serviceMethod != null ? ' --service-method=${config.serviceMethod}' : ''}';
+    } else if (config.hasRepo) {
+      cliCommand =
+          '// zfa generate ${config.name} --repo=${config.repo} --domain=${config.effectiveDomain} --params=$paramsType --returns=$returnsType${config.useCaseType != 'usecase' ? ' --type=${config.useCaseType}' : ''}${config.repoMethod != null ? ' --method=${config.repoMethod}' : ''}';
+    } else {
+      cliCommand =
+          '// zfa generate ${config.name} --params=$paramsType --returns=$returnsType --type=${config.useCaseType}';
+    }
 
     final content =
         '''
@@ -339,12 +374,12 @@ $executeMethod
 $cliCommand
 
 import 'package:zuraffa/zuraffa.dart';
-${repoImports.join('\n')}
+${dependencyImports.join('\n')}
 
 class $className extends $baseClass {
-${repoFields.join('\n')}
+${dependencyFields.join('\n')}
 
-  $className(${repoParams.join(', ')});
+  $className(${dependencyParams.join(', ')});
 
 $executeMethod
 }

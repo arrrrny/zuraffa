@@ -1,4 +1,4 @@
-#  🦒 Zuraffa
+# 🦒 Zuraffa
 
 [![Pub Version](https://img.shields.io/pub/v/zuraffa)](https://pub.dev/packages/zuraffa)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
@@ -23,6 +23,7 @@ A comprehensive Clean Architecture framework for Flutter applications with **Res
 - ✅ **State Management Included**: Simple state management with automatic cleanup
 - ✅ **ZFA CLI Tool**: Generate boilerplate code with `zfa` command
 - ✅ **MCP Server**: AI/IDE integration via Model Context Protocol
+- ✅ **GraphQL Generation**: Auto-generate queries, mutations, and subscriptions
 - ✅ **Cancellation**: Cooperative cancellation with `CancelToken`
 - ✅ **Fine-grained Rebuilds**: Optimize performance with selective widget updates
 - ✅ **Caching**: Built-in dual datasource pattern with flexible cache policies
@@ -66,6 +67,11 @@ zfa config set jsonByDefault false
 - `jsonByDefault` - Default JSON serialization (default: true)
 - `compareByDefault` - Default compareTo generation (default: true)
 - `defaultEntityOutput` - Entity output (default: lib/src/domain/entities)
+
+> **Note:** Entity generation requires `zorphy_annotation` in your project. ZFA will prompt you to add it when creating your first entity, or you can add it now:
+> ```bash
+> dart pub add zorphy_annotation
+> ```
 
 ### 2. Create Your Entities
 
@@ -540,7 +546,7 @@ lib/src/di/
 │   └── product_presenter_di.dart
 └── controllers/
     ├── index.dart               # Auto-generated
-    └── product_controller_di.dart
+│   └── product_controller_di.dart
 ```
 
 ### Usage
@@ -861,6 +867,9 @@ zfa generate Product --methods=get,create,update,delete --test
 # Custom UseCase with repository
 zfa generate SearchProduct --domain=search --repo=Product --params=Query --returns=List<Product>
 
+# Custom UseCase with service (alternative to repository)
+zfa generate SendEmail --domain=notifications --service=Email --params=EmailMessage --returns=void
+
 # Orchestrator pattern (compose UseCases)
 zfa generate ProcessCheckout --domain=checkout --usecases=ValidateCart,ProcessPayment --params=CheckoutRequest --returns=OrderResult
 
@@ -868,13 +877,329 @@ zfa generate ProcessCheckout --domain=checkout --usecases=ValidateCart,ProcessPa
 zfa generate CalculatePrimeNumbers --type=background --params=int --returns=int
 ```
 
+#### Services vs Repositories
+
+Zuraffa supports two patterns for dependency injection in custom UseCases:
+
+**Repositories (`--repo`)** - Use for data access and entity operations
+```bash
+zfa generate GetProduct --domain=product --repo=Product --params=String --returns=Product
+```
+
+**Services (`--service`)** - Use for business logic, external APIs, or non-entity operations
+```bash
+# Generate a service interface
+zfa generate SendEmail --domain=notifications --service=Email --params=EmailMessage --returns=void
+
+# Generated service interface
+abstract class EmailService {
+  Future<void> sendEmail(EmailMessage params);
+}
+```
+
+**When to use Services:**
+- External API integrations (payment gateways, email services, SMS)
+- Business logic that doesn't involve entities
+- Utility operations (file processing, calculations, transformations)
+- Third-party SDK integrations (analytics, crash reporting, authentication)
+
+**When to use Repositories:**
+- CRUD operations on entities
+- Data access (local or remote)
+- Caching and offline support
+- Data synchronization
+
+#### GraphQL Generation
+
+Generate GraphQL query/mutation/subscription files for your entities and UseCases with the `--gql` flag.
+
+**Entity-Based GraphQL Generation:**
+
+```bash
+# Basic GraphQL with auto-generated queries
+zfa generate Product --methods=get,getList --gql
+
+# With custom return fields
+zfa generate Product --methods=get,getList,create --gql --gql-returns="id,name,price,category,isActive,createdAt"
+
+# With custom operation types
+zfa generate Product --methods=watch,watchList --gql --gql-type=subscription
+
+# Complete GraphQL setup
+zfa generate Product --methods=get,getList,create,update,delete --data --gql --gql-returns="id,name,description,price,category,isActive,createdAt,updatedAt"
+```
+
+Generated files are placed in:
+```
+lib/src/data/data_sources/{entity}/graphql/
+├── get_product_query.dart
+├── get_product_list_query.dart
+├── create_product_mutation.dart
+└── update_product_mutation.dart
+```
+
+**Custom UseCase with GraphQL:**
+
+```bash
+# Custom UseCase with GraphQL query
+zfa generate SearchProducts \
+  --service=Search \
+  --domain=products \
+  --params=SearchQuery \
+  --returns=List<Product> \
+  --gql \
+  --gql-type=query \
+  --gql-name=searchProducts \
+  --gql-input-type=SearchInput \
+  --gql-returns="id,name,price,category"
+
+# Custom UseCase with GraphQL mutation
+zfa generate UploadFile \
+  --service=Storage \
+  --domain=storage \
+  --params=FileData \
+  --returns=String \
+  --gql \
+  --gql-type=mutation \
+  --gql-name=uploadFile \
+  --gql-input-type=FileInput
+
+# Custom UseCase with GraphQL subscription
+zfa generate WatchUserLocation \
+  --service=Location \
+  --domain=realtime \
+  --params=UserId \
+  --returns=Location \
+  --gql \
+  --gql-type=subscription
+```
+
+**GraphQL Options:**
+
+| Flag | Description |
+|------|-------------|
+| `--gql` | Enable GraphQL generation |
+| `--gql-type` | Operation type: query, mutation, subscription (auto-detected for entity methods) |
+| `--gql-returns` | Return fields as comma-separated string |
+| `--gql-input-type` | Input type name for mutation/subscription |
+| `--gql-input-name` | Input variable name (default: input) |
+| `--gql-name` | Custom operation name (default: auto-generated) |
+
+**Auto-Detection for Entity Methods:**
+- `get`, `getList` → query
+- `create`, `update`, `delete` → mutation
+- `watch`, `watchList` → subscription
+
+---
+
+## GraphQL Generation
+
+Zuraffa provides powerful GraphQL generation capabilities, creating type-safe GraphQL queries, mutations, and subscriptions directly from your entity and UseCase definitions.
+
+### Generated GraphQL Code
+
+When you use the `--gql` flag, Zuraffa generates GraphQL operation files with string constants that you can use directly with any GraphQL client (like `graphql_flutter` or `ferry`).
+
+**Example: Entity-Based Generation**
+
+```bash
+zfa generate Product --methods=get,getList,create --gql --gql-returns="id,name,price,category,isActive,createdAt"
+```
+
+**Generated File:** `lib/src/data/data_sources/product/graphql/get_product_query.dart`
+```dart
+// Generated GraphQL query for GetProduct
+const String getProductsQuery = r'''
+  query GetProduct($id: String!) {
+    getProduct(id: $id) {
+      id
+      name
+      price
+      category
+      isActive
+      createdAt
+    }
+  }''';
+```
+
+**Generated File:** `lib/src/data/data_sources/product/graphql/create_product_mutation.dart`
+```dart
+// Generated GraphQL mutation for CreateProduct
+const String createProductMutation = r'''
+  mutation CreateProduct($input: CreateProductInput!) {
+    createProduct(input: $input) {
+      id
+      name
+      price
+      category
+      isActive
+      createdAt
+    }
+  }''';
+```
+
+**Example: Custom UseCase with GraphQL**
+
+```bash
+zfa generate SearchProducts \
+  --service=Search \
+  --domain=products \
+  --params=SearchQuery \
+  --returns=List<Product> \
+  --gql \
+  --gql-type=query \
+  --gql-name=searchProducts \
+  --gql-input-type=SearchInput \
+  --gql-returns="id,name,price,category,rating"
+```
+
+**Generated File:** `lib/src/data/data_sources/products/graphql/search_products_query.dart`
+```dart
+// Generated GraphQL query for SearchProducts
+const String searchProductsQuery = r'''
+  query SearchProducts($input: SearchInput!) {
+    searchProducts(input: $input) {
+      id
+      name
+      price
+      category
+      rating
+    }
+  }''';
+```
+
+### Using Generated GraphQL
+
+Here's how to use the generated GraphQL strings with a GraphQL client:
+
+```dart
+import 'package:graphql_flutter/graphql_flutter.dart';
+import 'package:zuraffa_example/data/data_sources/product/graphql/get_product_query.dart';
+import 'package:zuraffa_example/data/data_sources/product/graphql/create_product_mutation.dart';
+
+class ProductGraphQLDataSource {
+  final GraphQLClient _client;
+
+  ProductGraphQLDataSource(this._client);
+
+  Future<Product> getProduct(String id) async {
+    final result = await _client.query(
+      QueryOptions(
+        document: gql(getProductQuery),
+        variables: {'id': id},
+      ),
+    );
+
+    if (result.hasException) {
+      throw Exception('Failed to fetch product: ${result.exception}');
+    }
+
+    return Product.fromJson(result.data!['getProduct']);
+  }
+
+  Future<Product> createProduct(CreateProductInput input) async {
+    final result = await _client.mutate(
+      MutationOptions(
+        document: gql(createProductMutation),
+        variables: {'input': input.toJson()},
+      ),
+    );
+
+    if (result.hasException) {
+      throw Exception('Failed to create product: ${result.exception}');
+    }
+
+    return Product.fromJson(result.data!['createProduct']);
+  }
+}
+```
+
+### Subscriptions
+
+Generate GraphQL subscriptions for real-time updates:
+
+```bash
+zfa generate Product --methods=watchList --gql --gql-type=subscription
+```
+
+**Generated Subscription:**
+```dart
+// Generated GraphQL subscription for WatchProductList
+const String watchProductListSubscription = r'''
+  subscription WatchProductList {
+    watchProductList {
+      id
+      name
+      price
+      category
+      isActive
+      updatedAt
+    }
+  }''';
+```
+
+**Usage:**
+```dart
+ObservableQuery<List<Product>> watchProductList() {
+  return _client.subscribe(
+    SubscriptionOptions(
+      document: gql(watchProductListSubscription),
+    ),
+  );
+}
+```
+
+### Custom Fields and Types
+
+You have full control over the generated GraphQL operations:
+
+```bash
+# Specify nested fields
+zfa generate Order --methods=get --gql --gql-returns="id,createdAt,customer{id,name,email},items{id,quantity,price,product{id,name}}"
+
+# Custom input types
+zfa generate CreateOrder \
+  --service=Order \
+  --domain=orders \
+  --params=OrderInput \
+  --returns=Order \
+  --gql --gql-type=mutation \
+  --gql-input-type=OrderCreateInput
+```
+
+### Coming Soon
+
+🚧 **Schema-First Generation** (Coming Soon)
+
+We're working on even more powerful GraphQL features:
+
+- **Auto-generate entities from GraphQL schema**: Import your GraphQL schema and Zuraffa will automatically create all entity definitions
+- **Auto-generate UseCases from queries/mutations**: Parse your `.graphql` files and generate corresponding UseCases with proper types
+- **Type safety from schema to code**: Ensure complete type alignment between your GraphQL server and Flutter app
+- **Introspection support**: Fetch live schema from GraphQL server to generate up-to-date types
+- **Federation support**: Generate code for federated GraphQL schemas
+
+These features will make building GraphQL-powered Flutter apps even more seamless, eliminating manual type mapping and reducing boilerplate to near-zero.
+
+### Quick Reference
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--gql` | Enable GraphQL generation | `--gql` |
+| `--gql-type` | Operation type: query, mutation, subscription | `--gql-type=query` |
+| `--gql-returns` | Return fields (comma-separated) | `--gql-returns="id,name,price"` |
+| `--gql-input-type` | Input type name | `--gql-input-type=ProductInput` |
+| `--gql-input-name` | Input variable name | `--gql-input-name=input` |
+| `--gql-name` | Custom operation name | `--gql-name=getProductById` |
+
+
 #### Custom UseCase Types
 
 The `--type` flag supports three variants for custom UseCases:
 
 | Type | Description | Use When |
 |------|-------------|----------|
-| `custom` (default) | Standard UseCase with repository dependencies | CRUD operations, business logic |
+| `custom` (default) | Standard UseCase with repository/service dependencies | CRUD operations, business logic |
 | `background` | Runs on a separate isolate | CPU-intensive work (calculations, image processing) |
 | `stream` | Emits multiple values over time | Real-time data, WebSocket, Firebase listeners |
 
@@ -917,6 +1242,7 @@ zfa generate ProcessCheckout --domain=checkout --usecases=ValidateCart,ProcessPa
 | `--pc`         | Generate Presenter and Controller only (preserve View)|
 | `--pcs`        | Generate Presenter, Controller, and State (preserve View) |
 | `--repo`       | Repository to inject (for custom UseCases)            |
+| `--service`    | Service interface to inject (alternative to --repo)   |
 | `--domain`     | Domain folder (required for custom UseCases)          |
 | `--append`     | Append to existing repository/datasources             |
 | `--usecases`   | Orchestrator: compose UseCases (comma-separated)      |
@@ -937,6 +1263,12 @@ zfa generate ProcessCheckout --domain=checkout --usecases=ValidateCart,ProcessPa
 | `--dry-run`    | Preview what would be generated without writing files |
 | `--test`       | Generate unit tests for each UseCase                  |
 | `--format=json`| Output JSON for AI/IDE integration                    |
+| `--gql`        | Generate GraphQL query/mutation/subscription files    |
+| `--gql-type`   | GraphQL operation type: query, mutation, subscription |
+| `--gql-returns` | GraphQL return fields (comma-separated)              |
+| `--gql-input-type` | GraphQL input type name                          |
+| `--gql-input-name` | GraphQL input variable name (default: input)    |
+| `--gql-name`   | Custom GraphQL operation name                        |
 
 ### AI/JSON Integration
 
@@ -1020,6 +1352,8 @@ lib/
     │   │       └── product.dart
     │   ├── repositories/        # Repository interfaces
     │   │   └── product_repository.dart
+    │   ├── services/            # Service interfaces (alternative to repositories)
+    │   │   └── email_service.dart
     │   └── usecases/            # Business logic
     │       └── product/
     │           ├── get_product_usecase.dart
@@ -1145,3 +1479,4 @@ MIT License - see [LICENSE](LICENSE) for details.
 ---
 
 Made with ⚡️ for the Flutter community
+

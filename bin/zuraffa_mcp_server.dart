@@ -278,10 +278,43 @@ class ZuraffaMcpServer {
             'type': 'boolean',
             'description': 'Use Zorphy-style typed patches',
           },
+          'gql': {
+            'type': 'boolean',
+            'description': 'Generate GraphQL query/mutation/subscription files',
+          },
+          'gql_type': {
+            'type': 'string',
+            'enum': ['query', 'mutation', 'subscription'],
+            'description':
+                'GraphQL operation type - auto-detected for entity methods (get/getList=query, create/update/delete=mutation, watch/watchList=subscription)',
+          },
+          'gql_returns': {
+            'type': 'string',
+            'description':
+                'GraphQL return fields as comma-separated string (e.g., "id,name,price,category")',
+          },
+          'gql_input_type': {
+            'type': 'string',
+            'description': 'GraphQL input type name for mutation/subscription',
+          },
+          'gql_input_name': {
+            'type': 'string',
+            'description': 'GraphQL input variable name (default: input)',
+          },
+          'gql_name': {
+            'type': 'string',
+            'description':
+                'Custom GraphQL operation name (default: auto-generated)',
+          },
           'repo': {
             'type': 'string',
             'description':
                 'Repository to inject (for custom UseCases) - enforces Single Responsibility Principle',
+          },
+          'service': {
+            'type': 'string',
+            'description':
+                'Service to inject (alternative to repo for custom UseCases) - generates service interface',
           },
           'usecases': {
             'type': 'array',
@@ -303,7 +336,12 @@ class ZuraffaMcpServer {
           'method': {
             'type': 'string',
             'description':
-                'Repository method name (default: auto-generated from UseCase name)',
+                'Dependency method name (default: auto-generated from UseCase name)',
+          },
+          'service_method': {
+            'type': 'string',
+            'description':
+                'Service method name (default: auto-generated from UseCase name)',
           },
           'append': {
             'type': 'boolean',
@@ -821,6 +859,7 @@ class ZuraffaMcpServer {
     if (useZorphy) cliArgs.add('--zorphy');
 
     if (args['repo'] != null) cliArgs.add('--repo=${args['repo']}');
+    if (args['service'] != null) cliArgs.add('--service=${args['service']}');
     if (args['usecases'] != null) {
       final usecases = args['usecases'] as List;
       if (usecases.isNotEmpty) {
@@ -835,6 +874,9 @@ class ZuraffaMcpServer {
     }
     if (args['domain'] != null) cliArgs.add('--domain=${args['domain']}');
     if (args['method'] != null) cliArgs.add('--method=${args['method']}');
+    if (args['service_method'] != null) {
+      cliArgs.add('--service-method=${args['service_method']}');
+    }
     if (args['append'] == true) cliArgs.add('--append');
     if (args['params'] != null) cliArgs.add('--params=${args['params']}');
     if (args['returns'] != null) cliArgs.add('--returns=${args['returns']}');

@@ -2,6 +2,8 @@ import '../models/generator_config.dart';
 import '../models/generator_result.dart';
 import '../models/generated_file.dart';
 import 'repository_generator.dart';
+import 'service_generator.dart';
+import 'provider_generator.dart';
 import 'usecase_generator.dart';
 import 'vpc_generator.dart';
 import 'state_generator.dart';
@@ -11,6 +13,7 @@ import 'test_generator.dart';
 import 'mock_generator.dart';
 import 'di_generator.dart';
 import 'cache_generator.dart';
+import 'graphql_generator.dart';
 import 'method_appender.dart';
 
 class CodeGenerator {
@@ -21,6 +24,8 @@ class CodeGenerator {
   final bool verbose;
 
   late final RepositoryGenerator _repositoryGenerator;
+  late final ServiceGenerator _serviceGenerator;
+  late final ProviderGenerator _providerGenerator;
   late final UseCaseGenerator _useCaseGenerator;
   late final VpcGenerator _vpcGenerator;
   late final StateGenerator _stateGenerator;
@@ -36,6 +41,20 @@ class CodeGenerator {
     this.verbose = false,
   }) {
     _repositoryGenerator = RepositoryGenerator(
+      config: config,
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+    _serviceGenerator = ServiceGenerator(
+      config: config,
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+    _providerGenerator = ProviderGenerator(
       config: config,
       outputDir: outputDir,
       dryRun: dryRun,
@@ -137,8 +156,8 @@ class CodeGenerator {
         files.add(file);
 
         for (final method in config.methods) {
-          final file = await _useCaseGenerator.generateForMethod(method);
-          files.add(file);
+          final methodFile = await _useCaseGenerator.generateForMethod(method);
+          files.add(methodFile);
         }
       } else if (config.isPolymorphic) {
         // Generate polymorphic UseCases (abstract + variants + factory)
@@ -146,12 +165,17 @@ class CodeGenerator {
         files.addAll(polymorphicFiles);
       } else if (config.isOrchestrator) {
         // Generate orchestrator UseCase
-        final file = await _useCaseGenerator.generateOrchestrator();
-        files.add(file);
+        final orchestratorFile = await _useCaseGenerator.generateOrchestrator();
+        files.add(orchestratorFile);
       } else if (config.isCustomUseCase) {
+        // Generate service interface if using --service
+        if (config.hasService) {
+          final serviceFile = await _serviceGenerator.generate();
+          files.add(serviceFile);
+        }
         // Generate custom UseCase
-        final file = await _useCaseGenerator.generateCustom();
-        files.add(file);
+        final usecaseFile = await _useCaseGenerator.generateCustom();
+        files.add(usecaseFile);
       }
 
       if (config.generateVpc || config.generatePresenter) {
@@ -180,30 +204,41 @@ class CodeGenerator {
       }
 
       if (config.generateData || config.generateDataSource) {
-        // Always generate abstract datasource first
-        final file = await _dataLayerGenerator.generateDataSource();
-        files.add(file);
-
-        if (config.enableCache) {
-          // Generate both remote and local datasources
-          final remoteFile = await _dataLayerGenerator
-              .generateRemoteDataSource();
-          final localFile = await _dataLayerGenerator.generateLocalDataSource();
-          files.add(remoteFile);
-          files.add(localFile);
+        // Handle service providers (when using --service with --data)
+        if (config.hasService && config.generateData) {
+          final providerFile = await _providerGenerator.generate();
+          files.add(providerFile);
           nextSteps.add(
-            'Implement remote and local data sources for ${config.name}',
+            'Implement ${config.effectiveProvider} with external service client',
           );
         } else {
-          nextSteps.add(
-            'Create a DataSource that implements ${config.name}DataSource in data layer',
-          );
-        }
-      }
+          // Handle repository datasources (when using --repo or entity-based)
+          // Always generate abstract datasource first
+          final dataSourceFile = await _dataLayerGenerator.generateDataSource();
+          files.add(dataSourceFile);
 
-      if (config.generateData) {
-        final file = await _dataLayerGenerator.generateDataRepository();
-        files.add(file);
+          if (config.enableCache) {
+            // Generate both remote and local datasources
+            final remoteFile = await _dataLayerGenerator
+                .generateRemoteDataSource();
+            final localFile = await _dataLayerGenerator
+                .generateLocalDataSource();
+            files.add(remoteFile);
+            files.add(localFile);
+            nextSteps.add(
+              'Implement remote and local data sources for ${config.name}',
+            );
+          } else {
+            nextSteps.add(
+              'Create a DataSource that implements ${config.name}DataSource in data layer',
+            );
+          }
+
+          // Generate data repository
+          final dataRepoFile = await _dataLayerGenerator
+              .generateDataRepository();
+          files.add(dataRepoFile);
+        }
       }
 
       // Generate mock data and/or mock data source
@@ -236,21 +271,33 @@ class CodeGenerator {
       if (config.effectiveRepos.isNotEmpty) {
         nextSteps.add('Register repositories with DI container');
       }
+      if (config.hasService) {
+        if (config.generateData) {
+          nextSteps.add(
+            'Implement ${config.effectiveProvider} with external service client',
+          );
+        } else {
+          nextSteps.add(
+            'Implement ${config.effectiveService} in data/providers layer',
+          );
+        }
+        nextSteps.add('Register service provider with DI container');
+      }
       if (files.any((f) => f.type == 'usecase' && (!config.isEntityBased))) {
         nextSteps.add('Implement TODO sections in generated usecases');
       }
 
       if (config.generateTest && config.isEntityBased) {
         for (final method in config.methods) {
-          final file = await _testGenerator.generateForMethod(method);
-          files.add(file);
+          final testFile = await _testGenerator.generateForMethod(method);
+          files.add(testFile);
         }
         nextSteps.add('Run tests: flutter test ');
       }
 
       if (config.generateTest && config.isOrchestrator) {
-        final file = await _testGenerator.generateOrchestrator();
-        files.add(file);
+        final testFile = await _testGenerator.generateOrchestrator();
+        files.add(testFile);
         nextSteps.add('Run tests: flutter test ');
       }
 
@@ -264,8 +311,8 @@ class CodeGenerator {
           config.isCustomUseCase &&
           !config.isPolymorphic &&
           !config.isOrchestrator) {
-        final file = await _testGenerator.generateCustom();
-        files.add(file);
+        final testFile = await _testGenerator.generateCustom();
+        files.add(testFile);
         nextSteps.add('Run tests: flutter test ');
       }
 
@@ -280,39 +327,54 @@ class CodeGenerator {
         );
         final diFiles = await diGenerator.generate();
         files.addAll(diFiles);
+      }
 
-        // Generate cache init files if caching is enabled
-        if (config.enableCache) {
-          final cacheGenerator = CacheGenerator(
-            config: config,
-            outputDir: outputDir,
-            dryRun: dryRun,
-            force: force,
-            verbose: verbose,
-          );
-          final cacheFiles = await cacheGenerator.generate();
-          files.addAll(cacheFiles);
-          nextSteps.add('Run: dart run build_runner build');
-        }
+      // Generate cache files if requested
+      if (config.enableCache) {
+        final cacheGenerator = CacheGenerator(
+          config: config,
+          outputDir: outputDir,
+          dryRun: dryRun,
+          force: force,
+          verbose: verbose,
+        );
+        final cacheFiles = await cacheGenerator.generate();
+        files.addAll(cacheFiles);
+        nextSteps.add('Run: dart run build_runner build');
+        nextSteps.add('Call initAllCaches() before DI setup');
+      }
 
-        nextSteps.add('Import and call setupDependencies() in your main.dart');
+      // Generate GraphQL files if requested
+      if (config.generateGql) {
+        final graphqlGenerator = GraphQLGenerator(
+          config: config,
+          outputDir: outputDir,
+          dryRun: dryRun,
+          force: force,
+          verbose: verbose,
+        );
+        final graphqlFiles = await graphqlGenerator.generate();
+        files.addAll(graphqlFiles);
       }
 
       return GeneratorResult(
+        name: config.name,
         success: true,
-        name: config.name,
-        files: files,
-        errors: [],
-        nextSteps: nextSteps,
-      );
-    } catch (e) {
-      errors.add(e.toString());
-      return GeneratorResult(
-        success: false,
-        name: config.name,
         files: files,
         errors: errors,
-        nextSteps: [],
+        nextSteps: nextSteps,
+      );
+    } catch (e, stack) {
+      errors.add('Generation failed: $e');
+      if (verbose) {
+        errors.add('Stack trace:\n$stack');
+      }
+      return GeneratorResult(
+        name: config.name,
+        success: false,
+        files: files,
+        errors: errors,
+        nextSteps: nextSteps,
       );
     }
   }

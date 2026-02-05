@@ -85,6 +85,12 @@ zfa generate <Name> [options]
 | `--query-field-type=<type>` | | Query field type (default: matches id-type) |
 | `--zorphy` | | Use Zorphy-style typed patches |
 | `--init` | | Generate initialize method for repository |
+| `--gql` | | Generate GraphQL query/mutation/subscription files |
+| `--gql-type=<type>` | | GraphQL operation type: query, mutation, subscription (default: auto) |
+| `--gql-returns=<fields>` | | GraphQL return fields (comma-separated) |
+| `--gql-input-type=<type>` | | GraphQL input type name |
+| `--gql-input-name=<name>` | | GraphQL input variable name (default: input) |
+| `--gql-name=<name>` | | Custom GraphQL operation name |
 
 **Note:** Repository interface is automatically generated for entity-based operations.
 
@@ -105,9 +111,11 @@ zfa generate <Name> [options]
 | Flag | Description |
 |------|-------------|
 | `--repo=<name>` | Repository to inject (single, enforces SRP) |
+| `--service=<name>` | Service to inject (alternative to `--repo`) |
 | `--domain=<name>` | Domain folder (required for custom UseCases) |
-| `--method=<name>` | Repository method name (default: auto from UseCase name) |
-| `--append` | Append to existing repository/datasources |
+| `--method=<name>` | Dependency method name (default: auto from UseCase name) |
+| `--service-method=<name>` | Service method name (default: auto from UseCase name) |
+| `--append` | Append to existing repository or service |
 | `--usecases=<list>` | Orchestrator: compose UseCases (comma-separated) |
 | `--variants=<list>` | Polymorphic: generate variants (comma-separated) |
 | `--type=<type>` | UseCase type: `usecase`, `stream`, `background`, `completable` |
@@ -237,7 +245,7 @@ class GetProductUseCase extends UseCase<Product, String> {
 
 Create standalone UseCases without an entity, useful for complex business operations.
 
-### Basic Custom UseCase
+### Custom UseCase with Repository
 
 ```bash
 zfa generate SearchProduct \
@@ -247,34 +255,88 @@ zfa generate SearchProduct \
   --returns=List<Product>
 ```
 
+Generates a UseCase that injects `ProductRepository`.
+
+### Custom UseCase with Service
+
+Use `--service` instead of `--repo` to inject a service interface:
+
+```bash
+zfa generate ProcessPayment \
+  --domain=payment \
+  --service=Payment \
+  --params=PaymentRequest \
+  --returns=PaymentResult
+```
+
 Generates:
 
+**Service Interface** (`domain/services/payment_service.dart`):
 ```dart
-class ProcessOrderUseCase extends UseCase<OrderResult, OrderRequest> {
-  final OrderRepository _orderRepository;
-  final PaymentRepository _paymentRepository;
+abstract class PaymentService {
+  Future<PaymentResult> processPayment(PaymentRequest params);
+}
+```
 
-  ProcessOrderUseCase(this._orderRepository, this._paymentRepository);
+**UseCase** (`domain/usecases/payment/process_payment_usecase.dart`):
+```dart
+class ProcessPaymentUseCase extends UseCase<PaymentResult, PaymentRequest> {
+  final PaymentService _paymentService;
+
+  ProcessPaymentUseCase(this._paymentService);
 
   @override
-  Future<OrderResult> execute(OrderRequest params, CancelToken? cancelToken) async {
+  Future<PaymentResult> execute(PaymentRequest params, CancelToken? cancelToken) async {
     cancelToken?.throwIfCancelled();
-    // TODO: Implement usecase logic
-    throw UnimplementedError();
+    return await _paymentService.processPayment(params);
   }
 }
 ```
 
-### Stream UseCase
+### When to Use Service vs Repository
+
+| Use `--repo` | Use `--service` |
+|--------------|-----------------|
+| CRUD operations on entities | Third-party API integrations |
+| Data persistence/retrieval | External service calls |
+| Entity-centric operations | Complex business operations |
+| Cache/database access | Payment gateways, auth providers |
+
+### Stream UseCase with Service
 
 ```bash
-zfa generate ListenToNotifications \
-  --domain=notification \
-  --repo=Notification \
+zfa generate WatchPrices \
+  --domain=pricing \
+  --service=PriceStream \
   --type=stream \
-  --params=UserId \
-  --returns=Notification
+  --params=ProductId \
+  --returns=Price
 ```
+
+Generates a `StreamUseCase` with a service that returns `Stream<Price>`.
+
+### Append Method to Existing Service
+
+Add a new method to an existing service interface:
+
+```bash
+# First, create initial service
+zfa generate ProcessPayment \
+  --domain=payment \
+  --service=Payment \
+  --params=PaymentRequest \
+  --returns=PaymentResult
+
+# Later, append a new method to the same service
+zfa generate RefundPayment \
+  --domain=payment \
+  --service=Payment \
+  --params=RefundRequest \
+  --returns=RefundResult \
+  --append
+```
+
+This appends `refundPayment()` to the existing `PaymentService` interface.
 
 ### Background UseCase
 
@@ -283,6 +345,7 @@ For CPU-intensive operations that run on a separate isolate:
 ```bash
 zfa generate ProcessImages \
   --type=background \
+  --domain=processing \
   --params=ImageBatch \
   --returns=ProcessedImage
 ```

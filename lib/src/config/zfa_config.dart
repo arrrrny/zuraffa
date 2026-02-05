@@ -18,11 +18,15 @@ class ZfaConfig {
   /// Default output directory for entities
   final String? defaultEntityOutput;
 
+  /// Default GraphQL generation for entity-based operations
+  final bool generateGql;
+
   const ZfaConfig({
     this.useZorphyByDefault = true,
     this.jsonByDefault = true,
     this.compareByDefault = true,
     this.defaultEntityOutput,
+    this.generateGql = false,
   });
 
   /// Load configuration from .zfa.json in project root
@@ -43,6 +47,7 @@ class ZfaConfig {
         jsonByDefault: json['jsonByDefault'] ?? true,
         compareByDefault: json['compareByDefault'] ?? true,
         defaultEntityOutput: json['defaultEntityOutput'],
+        generateGql: json['generateGql'] ?? false,
       );
     } catch (e) {
       // Return defaults if config is invalid

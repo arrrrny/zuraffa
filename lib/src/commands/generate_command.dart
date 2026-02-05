@@ -4,6 +4,7 @@ import 'package:args/args.dart';
 import '../models/generator_config.dart';
 import '../generator/code_generator.dart';
 import '../utils/logger.dart';
+import '../config/zfa_config.dart';
 
 class GenerateCommand {
   Future<void> execute(List<String> args) async {
@@ -28,6 +29,9 @@ class GenerateCommand {
     final parser = _buildArgParser();
     final results = parser.parse(args.skip(1).toList());
 
+    // Load ZFA config for defaults
+    final zfaConfig = ZfaConfig.load() ?? const ZfaConfig();
+
     GeneratorConfig config;
 
     if (results['from-stdin'] == true) {
@@ -46,14 +50,22 @@ class GenerateCommand {
       final methodsStr = results['methods'] as String?;
       final usecasesStr = results['usecases'] as String?;
       final variantsStr = results['variants'] as String?;
+
+      // Apply config defaults for entity-based operations
+      final isEntityBased = methodsStr != null && methodsStr.isNotEmpty;
+      final shouldGenerateGql =
+          results['gql'] == true || (isEntityBased && zfaConfig.generateGql);
+
       config = GeneratorConfig(
         name: name,
         methods: methodsStr?.split(',').map((s) => s.trim()).toList() ?? [],
         repo: results['repo'],
+        service: results['service'],
         usecases: usecasesStr?.split(',').map((s) => s.trim()).toList() ?? [],
         variants: variantsStr?.split(',').map((s) => s.trim()).toList() ?? [],
         domain: results['domain'],
         repoMethod: results['method'],
+        serviceMethod: results['service-method'],
         appendToExisting: results['append'] == true,
         generateRepository: true, // Always true, controlled internally
         useCaseType: results['type'],
@@ -103,6 +115,12 @@ class GenerateCommand {
         useMockInDi: results['use-mock'] == true,
         generateDi: results['di'] == true,
         diFramework: 'get_it',
+        generateGql: shouldGenerateGql,
+        gqlReturns: results['gql-returns'],
+        gqlType: results['gql-type'],
+        gqlInputType: results['gql-input-type'],
+        gqlInputName: results['gql-input-name'],
+        gqlName: results['gql-name'],
       );
     }
 
@@ -141,7 +159,7 @@ class GenerateCommand {
   }
 
   void _validateConfig(GeneratorConfig config) {
-    // Rule 1: Entity-based cannot have --domain, --repo, --usecases, --variants
+    // Rule 1: Entity-based cannot have --domain, --repo, --service, --usecases, --variants
     if (config.isEntityBased) {
       if (config.domain != null) {
         print('❌ Error: --domain cannot be used with entity-based generation');
@@ -150,6 +168,11 @@ class GenerateCommand {
       }
       if (config.repo != null) {
         print('❌ Error: --repo cannot be used with entity-based generation');
+        print('   Entity-based UseCases auto-inject ${config.name}Repository');
+        exit(1);
+      }
+      if (config.service != null) {
+        print('❌ Error: --service cannot be used with entity-based generation');
         print('   Entity-based UseCases auto-inject ${config.name}Repository');
         exit(1);
       }
@@ -175,40 +198,61 @@ class GenerateCommand {
       print(
         '  zfa generate ${config.name} --domain=<domain> --repo=<Repository> --params=<Type> --returns=<Type>',
       );
+      print('  or');
+      print(
+        '  zfa generate ${config.name} --domain=<domain> --service=<Service> --params=<Type> --returns=<Type>',
+      );
       print('');
       print('Example:');
       print(
         '  zfa generate SearchProduct --domain=search --repo=Product --params=Query --returns=List<Product>',
       );
+      print(
+        '  zfa generate ProcessPayment --domain=payment --service=Payment --params=PaymentRequest --returns=PaymentResult',
+      );
       exit(1);
     }
 
-    // Rule 3: Orchestrator (--usecases) cannot have --repo
-    if (config.isOrchestrator && config.repo != null) {
-      print('❌ Error: Cannot use both --repo and --usecases');
+    // Rule 3: Orchestrator (--usecases) cannot have --repo or --service
+    if (config.isOrchestrator &&
+        (config.repo != null || config.service != null)) {
+      print('❌ Error: Cannot use --repo or --service with --usecases');
       print(
-        '   Orchestrators compose UseCases, they don\'t use repositories directly',
+        '   Orchestrators compose UseCases, they don\'t use repositories/services directly',
       );
       print('');
       print('Either:');
-      print('  - Use --repo for repository-based UseCase');
+      print('  - Use --repo or --service for dependency-based UseCase');
       print('  - Use --usecases for orchestrator UseCase');
       exit(1);
     }
 
-    // Rule 4: Custom non-orchestrator requires --repo (except background)
+    // Rule 4: Custom non-orchestrator requires --repo OR --service (except background)
+    // Also: --repo and --service are mutually exclusive
     if (config.isCustomUseCase &&
         !config.isOrchestrator &&
-        config.repo == null &&
         config.useCaseType != 'background') {
-      print('❌ Error: --repo is required for custom UseCases');
-      print('   (except orchestrators with --usecases or --type=background)');
-      print('');
-      print('Usage:');
-      print(
-        '  zfa generate ${config.name} --domain=${config.domain ?? 'domain'} --repo=<Repository> --params=<Type> --returns=<Type>',
-      );
-      exit(1);
+      if (config.repo != null && config.service != null) {
+        print('❌ Error: Cannot use both --repo and --service');
+        print(
+          '   Use --repo for repository injection OR --service for service injection',
+        );
+        exit(1);
+      }
+      if (config.repo == null && config.service == null) {
+        print('❌ Error: --repo or --service is required for custom UseCases');
+        print('   (except orchestrators with --usecases or --type=background)');
+        print('');
+        print('Usage:');
+        print(
+          '  zfa generate ${config.name} --domain=${config.domain ?? 'domain'} --repo=<Repository> --params=<Type> --returns=<Type>',
+        );
+        print('  or');
+        print(
+          '  zfa generate ${config.name} --domain=${config.domain ?? 'domain'} --service=<Service> --params=<Type> --returns=<Type>',
+        );
+        exit(1);
+      }
     }
 
     // Rule 5: Orchestrator requires --params and --returns
@@ -268,6 +312,31 @@ class GenerateCommand {
       print('   Valid types: ${validTypes.join(', ')}');
       exit(1);
     }
+
+    // Rule 8: GraphQL validation
+    if (config.generateGql) {
+      // For custom UseCases, --gql-type is mandatory
+      if (config.isCustomUseCase && config.gqlType == null) {
+        print(
+          '❌ Error: --gql-type is required for custom UseCases when using --gql',
+        );
+        print('   Valid types: query, mutation, subscription');
+        print('');
+        print('Example:');
+        print(
+          '  zfa generate ${config.name} --domain=${config.domain ?? 'domain'} --service=Service --gql --gql-type=mutation',
+        );
+        exit(1);
+      }
+
+      // Validate gql-type values
+      if (config.gqlType != null &&
+          !['query', 'mutation', 'subscription'].contains(config.gqlType)) {
+        print('❌ Error: Invalid --gql-type "${config.gqlType}"');
+        print('   Valid types: query, mutation, subscription');
+        exit(1);
+      }
+    }
   }
 
   ArgParser _buildArgParser() {
@@ -281,6 +350,7 @@ class GenerateCommand {
             'Comma-separated methods: get,getList,create,update,delete,watch,watchList',
       )
       ..addOption('repo', help: 'Repository to inject (single)')
+      ..addOption('service', help: 'Service to inject (alternative to --repo)')
       ..addOption(
         'usecases',
         help: 'Comma-separated UseCases to compose (orchestrator pattern)',
@@ -295,12 +365,15 @@ class GenerateCommand {
       )
       ..addOption(
         'method',
-        help: 'Repository method name (default: auto from UseCase name)',
+        help: 'Dependency method name (default: auto from UseCase name)',
+      )
+      ..addOption(
+        'service-method',
+        help: 'Service method name (default: auto from UseCase name)',
       )
       ..addFlag(
         'append',
-        help:
-            'Append method to existing repository and datasources (requires --repo)',
+        help: 'Append method to existing repository or service',
       )
       ..addFlag(
         'data',
@@ -427,6 +500,31 @@ class GenerateCommand {
         help: 'Generate dependency injection files',
         defaultsTo: false,
       )
+      ..addFlag(
+        'gql',
+        help: 'Generate GraphQL queries and mutations',
+        defaultsTo: false,
+      )
+      ..addOption(
+        'gql-returns',
+        help: 'GraphQL return fields (comma-separated, supports dot notation)',
+      )
+      ..addOption(
+        'gql-type',
+        help: 'GraphQL operation type: query, mutation, subscription',
+      )
+      ..addOption(
+        'gql-input-type',
+        help: 'GraphQL input type name (e.g., CategoryFilter)',
+      )
+      ..addOption(
+        'gql-input-name',
+        help: 'GraphQL input parameter name (e.g., options)',
+      )
+      ..addOption(
+        'gql-name',
+        help: 'GraphQL operation name (e.g., DetectCategory)',
+      )
       ..addOption(
         'output',
         abbr: 'o',
@@ -479,11 +577,21 @@ MOCK DATA:
 DEPENDENCY INJECTION:
   --di                 Generate DI registration files (get_it)
 
+GRAPHQL:
+  --gql                Generate GraphQL queries and mutations
+  --gql-returns=<list> GraphQL return fields (comma-separated, supports dot notation)
+  --gql-type=<type>    GraphQL operation type: query, mutation, subscription
+  --gql-input-type=<t> GraphQL input type name (e.g., CategoryFilter)
+  --gql-input-name=<n> GraphQL input parameter name (e.g., options)
+  --gql-name=<name>    GraphQL operation name (e.g., DetectCategory)
+
 CUSTOM USECASE:
   --repo=<name>         Repository to inject (single, enforces SRP)
+  --service=<name>      Service to inject (alternative to --repo)
   --domain=<name>       Domain folder (required for custom UseCases)
-  --method=<name>       Repository method name (default: auto from UseCase name)
-  --append              Append to existing repository/datasources
+  --method=<name>       Dependency method name (default: auto from UseCase name)
+  --service-method=<n>  Service method name (default: auto from UseCase name)
+  --append              Append to existing repository/service
   --usecases=<list>     Orchestrator: compose UseCases (comma-separated)
   --variants=<list>     Polymorphic: generate variants (comma-separated)
   --type=<type>         usecase|stream|background|completable (default: usecase)
@@ -525,11 +633,17 @@ EXAMPLES:
   # Custom usecase with repository
   zfa generate SearchProduct --domain=search --repo=Product --params=Query --returns=List<Product>
 
+  # Custom usecase with service
+  zfa generate ProcessPayment --domain=payment --service=Payment --params=PaymentRequest --returns=PaymentResult
+
+  # Stream usecase with service
+  zfa generate WatchPrices --domain=pricing --service=PriceStream --params=ProductId --returns=Price --type=stream
+
   # Append method to existing repository
   zfa generate WatchProduct --domain=product --repo=Product --params=String --returns=Product --type=stream --append
 
   # Background usecase
-  zfa generate ProcessImages --type=background --params=ImageBatch --returns=ProcessedImage
+  zfa generate ProcessImages --type=background --params=ImageBatch --returns=ProcessedImage --domain=processing
 
   # From JSON
   zfa generate Product -j product.json
