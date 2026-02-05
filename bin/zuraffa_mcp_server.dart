@@ -360,7 +360,7 @@ class ZuraffaMcpServer {
           },
           'type': {
             'type': 'string',
-            'enum': ['usecase', 'stream', 'background', 'completable'],
+            'enum': ['usecase', 'stream', 'background', 'completable', 'sync'],
             'description': 'UseCase type for custom UseCases',
           },
           'output': {

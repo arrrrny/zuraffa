@@ -380,6 +380,32 @@ result.fold(
 - Send analytics events
 - Fire-and-forget notifications
 
+#### SyncUseCase
+
+For synchronous operations that don't require async processing (validation, calculations, transformations):
+
+```dart
+class ValidateEmailUseCase extends SyncUseCase<bool, String> {
+  @override
+  bool execute(String email) {
+    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
+  }
+}
+
+// Usage - returns Result<bool, AppFailure>
+final validateEmail = ValidateEmailUseCase();
+final result = validateEmail('user@example.com');
+result.fold(
+  (isValid) => print('Email is valid: $isValid'),
+  (failure) => print('Validation failed: $failure'),
+);
+```
+`SyncUseCase` is useful for operations that complete immediately without async I/O:
+- **Validation logic** - Email, phone number, format checks
+- **Data transformations** - Mapping, filtering, aggregations
+- **Calculations** - Totals, averages, conversions
+- **Business rules** - Eligibility, permissions, checks
+
 ### Controller with State
 
 Controllers use `StatefulController<T>` with immutable state objects:
@@ -1479,4 +1505,3 @@ MIT License - see [LICENSE](LICENSE) for details.
 ---
 
 Made with ⚡️ for the Flutter community
-
