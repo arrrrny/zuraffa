@@ -12,6 +12,7 @@ library;
 
 ///
 /// - **StreamUseCase**: Reactive operations that emit multiple values over time
+/// - **SyncUseCase**: Synchronous operations that return immediately without async
 /// - **BackgroundUseCase**: CPU-intensive operations that run on a separate isolate
 /// - **Controller**: Manages UI state and coordinates with UseCases
 /// - **Presenter**: Optional orchestration layer for complex business flows
@@ -171,6 +172,9 @@ export 'src/domain/usecase.dart';
 
 /// StreamUseCase for reactive/streaming operations
 export 'src/domain/stream_usecase.dart';
+
+/// SyncUseCase for synchronous operations
+export 'src/domain/sync_usecase.dart';
 
 /// BackgroundUseCase for isolate-based operations
 export 'src/domain/background_usecase.dart';

@@ -65,6 +65,13 @@ class ProviderGenerator {
     // TODO: Implement void operation logic
     throw UnimplementedError('$methodName not implemented');''';
         break;
+      case 'sync':
+        returnSignature = returnsType;
+        implementationComment = '''
+    // TODO: Implement synchronous logic
+    // Return $returnsType immediately
+    throw UnimplementedError('$methodName not implemented');''';
+        break;
       default: // usecase, background
         returnSignature = 'Future<$returnsType>';
         implementationComment =
@@ -76,8 +83,12 @@ class ProviderGenerator {
 
     // Build method signature
     final methodSignature = paramsType == 'NoParams'
-        ? '  @override\n  $returnSignature $methodName() async {'
-        : '  @override\n  $returnSignature $methodName($paramsType params) async {';
+        ? (config.useCaseType == 'sync' 
+            ? '  @override\n  $returnSignature $methodName() {'
+            : '  @override\n  $returnSignature $methodName() async {')
+        : (config.useCaseType == 'sync'
+            ? '  @override\n  $returnSignature $methodName($paramsType params) {'
+            : '  @override\n  $returnSignature $methodName($paramsType params) async {');
 
     // Build imports
     final imports = <String>[];

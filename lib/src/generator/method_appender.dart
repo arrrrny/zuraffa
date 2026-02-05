@@ -49,6 +49,8 @@ class MethodAppender {
       }
     } else if (config.useCaseType == 'completable') {
       returnSignature = 'Future<void>';
+    } else if (config.useCaseType == 'sync') {
+      returnSignature = returnsType;
     } else {
       returnSignature = 'Future<$returnsType>';
     }
@@ -242,10 +244,11 @@ class MethodAppender {
     final dataSourceField = dataSourceFieldMatch?.group(1) ?? '_dataSource';
 
     final isStream = config.useCaseType == 'stream';
+    final isSync = config.useCaseType == 'sync';
     final methodImpl =
         '''
   @override
-  $returnSignature $methodName($paramsType params) ${isStream ? '' : 'async '}{\n    ${isStream ? 'return' : 'return await'} $dataSourceField.$methodName(params);
+  $returnSignature $methodName($paramsType params) ${isStream || isSync ? '' : 'async '}{\n    ${isStream || isSync ? 'return' : 'return await'} $dataSourceField.$methodName(params);
   }
 
 ''';
@@ -299,7 +302,7 @@ class MethodAppender {
     final methodImpl =
         '''
   @override
-  $returnSignature $methodName($paramsType params) ${config.useCaseType == 'stream' ? '' : 'async '}{\n    // TODO: Implement remote $methodName
+  $returnSignature $methodName($paramsType params) ${config.useCaseType == 'stream' || config.useCaseType == 'sync' ? '' : 'async '}{\n    // TODO: Implement remote $methodName
     throw UnimplementedError('Implement remote $methodName');
   }
 
@@ -328,10 +331,11 @@ class MethodAppender {
     if (lastBrace == -1) return false;
 
     final isStream = config.useCaseType == 'stream';
+    final isSync = config.useCaseType == 'sync';
     final methodImpl =
         '''
   @override
-  $returnSignature $methodName($paramsType params) ${isStream ? '' : 'async '}{\n    // TODO: Return mock data
+  $returnSignature $methodName($paramsType params) ${isStream || isSync ? '' : 'async '}{\n    // TODO: Return mock data
     throw UnimplementedError('Return mock data for $methodName');
   }
 
@@ -360,10 +364,11 @@ class MethodAppender {
     if (lastBrace == -1) return false;
 
     final isStream = config.useCaseType == 'stream';
+    final isSync = config.useCaseType == 'sync';
     final methodImpl =
         '''
   @override
-  $returnSignature $methodName($paramsType params) ${isStream ? '' : 'async '}{\n    // TODO: Implement local storage $methodName
+  $returnSignature $methodName($paramsType params) ${isStream || isSync ? '' : 'async '}{\n    // TODO: Implement local storage $methodName
     throw UnimplementedError('Implement local storage $methodName');
   }
 
@@ -526,6 +531,8 @@ abstract class ${repoName}Repository {
       }
     } else if (config.useCaseType == 'completable') {
       returnSignature = 'Future<void>';
+    } else if (config.useCaseType == 'sync') {
+      returnSignature = returnsType;
     } else {
       returnSignature = 'Future<$returnsType>';
     }
