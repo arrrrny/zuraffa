@@ -444,8 +444,7 @@ $executeMethod
         break;
       case 'sync':
         baseClass = 'SyncUseCase<$returnsType, $paramsType>';
-        executeSignature =
-            '$returnsType execute($paramsType params)';
+        executeSignature = '$returnsType execute($paramsType params)';
         break;
       default:
         baseClass = 'UseCase<$returnsType, $paramsType>';
@@ -555,8 +554,7 @@ ${config.usecases.map((u) => '    // - _${StringUtils.pascalToCamel(u.replaceAll
         break;
       case 'sync':
         baseClass = 'SyncUseCase<$returnsType, $paramsType>';
-        executeSignature =
-            '$returnsType execute($paramsType params)';
+        executeSignature = '$returnsType execute($paramsType params)';
         break;
       default:
         baseClass = 'UseCase<$returnsType, $paramsType>';

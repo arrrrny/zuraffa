@@ -591,7 +591,10 @@ abstract class ${repoName}Repository {
         )) {
           updatedFiles.add(
             GeneratedFile(
-                path: providerPath, type: 'provider', action: 'updated'),
+              path: providerPath,
+              type: 'provider',
+              action: 'updated',
+            ),
           );
         } else {
           warnings.add('Failed to append to ${serviceSnake}_provider.dart');
@@ -677,7 +680,9 @@ abstract class $serviceName {
 ''';
 
     final newContent =
-        content.substring(0, lastBrace) + methodImpl + content.substring(lastBrace);
+        content.substring(0, lastBrace) +
+        methodImpl +
+        content.substring(lastBrace);
 
     await file.writeAsString(newContent);
     return true;

@@ -65,7 +65,8 @@ class GenerateCommand {
         variants: variantsStr?.split(',').map((s) => s.trim()).toList() ?? [],
         domain: results['domain'],
         repoMethod: results['method'],
-        serviceMethod: results['service-method'] ?? 
+        serviceMethod:
+            results['service-method'] ??
             (results['service'] != null ? results['method'] : null),
         appendToExisting: results['append'] == true,
         generateRepository: true, // Always true, controlled internally
@@ -307,7 +308,13 @@ class GenerateCommand {
     }
 
     // Rule 7: Validate UseCase type
-    final validTypes = ['usecase', 'stream', 'background', 'completable', 'sync'];
+    final validTypes = [
+      'usecase',
+      'stream',
+      'background',
+      'completable',
+      'sync',
+    ];
     if (!validTypes.contains(config.useCaseType)) {
       print('❌ Error: Invalid --type: ${config.useCaseType}');
       print('   Valid types: ${validTypes.join(', ')}');
