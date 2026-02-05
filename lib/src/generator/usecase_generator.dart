@@ -238,6 +238,9 @@ $executeMethod
       case 'completable':
         baseClass = 'CompletableUseCase<$paramsType>';
         break;
+      case 'sync':
+        baseClass = 'SyncUseCase<$returnsType, $paramsType>';
+        break;
       default:
         baseClass = 'UseCase<$returnsType, $paramsType>';
     }
@@ -258,8 +261,9 @@ $executeMethod
         final repoClassName = repo.endsWith('Repository')
             ? repo
             : '${repo}Repository';
+        final repoBaseName = repo.replaceAll('Repository', '');
         final repoFieldName =
-            '_${StringUtils.pascalToCamel(repoSnake)}Repository';
+            '_${StringUtils.pascalToCamel(repoBaseName)}Repository';
 
         dependencyImports.add("import '$repoPath';");
         dependencyFields.add('  final $repoClassName $repoFieldName;');
@@ -339,6 +343,19 @@ $executeMethod
   // TODO: Implement this method with your actual processing logic
   static $returnsType processData($paramsType params) {
     throw UnimplementedError('Implement your background processing logic');
+  }''';
+    } else if (config.useCaseType == 'sync') {
+      final methodName = config.hasService
+          ? config.getServiceMethodName()
+          : config.getRepoMethodName();
+      final depField = dependencyFields.isNotEmpty
+          ? dependencyFields.first.split(' ').last.replaceAll(';', '')
+          : '';
+      executeMethod =
+          '''
+  @override
+  $returnsType execute($paramsType params) {
+    return $depField.$methodName(params);
   }''';
     } else {
       final methodName = config.hasService
@@ -424,6 +441,10 @@ $executeMethod
         baseClass = 'CompletableUseCase<$paramsType>';
         executeSignature =
             'Future<void> execute($paramsType params, CancelToken? cancelToken) async';
+        break;
+      case 'sync':
+        baseClass = 'SyncUseCase<$returnsType, $paramsType>';
+        executeSignature = '$returnsType execute($paramsType params)';
         break;
       default:
         baseClass = 'UseCase<$returnsType, $paramsType>';
@@ -530,6 +551,10 @@ ${config.usecases.map((u) => '    // - _${StringUtils.pascalToCamel(u.replaceAll
         baseClass = 'CompletableUseCase<$paramsType>';
         executeSignature =
             'Future<void> execute($paramsType params, CancelToken? cancelToken) async';
+        break;
+      case 'sync':
+        baseClass = 'SyncUseCase<$returnsType, $paramsType>';
+        executeSignature = '$returnsType execute($paramsType params)';
         break;
       default:
         baseClass = 'UseCase<$returnsType, $paramsType>';

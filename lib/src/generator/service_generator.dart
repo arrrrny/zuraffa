@@ -43,6 +43,9 @@ class ServiceGenerator {
       case 'completable':
         returnSignature = 'Future<void>';
         break;
+      case 'sync':
+        returnSignature = returnsType;
+        break;
       default: // usecase, background
         returnSignature = 'Future<$returnsType>';
     }

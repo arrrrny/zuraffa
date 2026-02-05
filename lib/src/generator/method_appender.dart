@@ -49,6 +49,8 @@ class MethodAppender {
       }
     } else if (config.useCaseType == 'completable') {
       returnSignature = 'Future<void>';
+    } else if (config.useCaseType == 'sync') {
+      returnSignature = returnsType;
     } else {
       returnSignature = 'Future<$returnsType>';
     }
@@ -242,10 +244,11 @@ class MethodAppender {
     final dataSourceField = dataSourceFieldMatch?.group(1) ?? '_dataSource';
 
     final isStream = config.useCaseType == 'stream';
+    final isSync = config.useCaseType == 'sync';
     final methodImpl =
         '''
   @override
-  $returnSignature $methodName($paramsType params) ${isStream ? '' : 'async '}{\n    ${isStream ? 'return' : 'return await'} $dataSourceField.$methodName(params);
+  $returnSignature $methodName($paramsType params) ${isStream || isSync ? '' : 'async '}{\n    ${isStream || isSync ? 'return' : 'return await'} $dataSourceField.$methodName(params);
   }
 
 ''';
@@ -299,7 +302,7 @@ class MethodAppender {
     final methodImpl =
         '''
   @override
-  $returnSignature $methodName($paramsType params) ${config.useCaseType == 'stream' ? '' : 'async '}{\n    // TODO: Implement remote $methodName
+  $returnSignature $methodName($paramsType params) ${config.useCaseType == 'stream' || config.useCaseType == 'sync' ? '' : 'async '}{\n    // TODO: Implement remote $methodName
     throw UnimplementedError('Implement remote $methodName');
   }
 
@@ -328,10 +331,11 @@ class MethodAppender {
     if (lastBrace == -1) return false;
 
     final isStream = config.useCaseType == 'stream';
+    final isSync = config.useCaseType == 'sync';
     final methodImpl =
         '''
   @override
-  $returnSignature $methodName($paramsType params) ${isStream ? '' : 'async '}{\n    // TODO: Return mock data
+  $returnSignature $methodName($paramsType params) ${isStream || isSync ? '' : 'async '}{\n    // TODO: Return mock data
     throw UnimplementedError('Return mock data for $methodName');
   }
 
@@ -360,10 +364,11 @@ class MethodAppender {
     if (lastBrace == -1) return false;
 
     final isStream = config.useCaseType == 'stream';
+    final isSync = config.useCaseType == 'sync';
     final methodImpl =
         '''
   @override
-  $returnSignature $methodName($paramsType params) ${isStream ? '' : 'async '}{\n    // TODO: Implement local storage $methodName
+  $returnSignature $methodName($paramsType params) ${isStream || isSync ? '' : 'async '}{\n    // TODO: Implement local storage $methodName
     throw UnimplementedError('Implement local storage $methodName');
   }
 
@@ -526,6 +531,8 @@ abstract class ${repoName}Repository {
       }
     } else if (config.useCaseType == 'completable') {
       returnSignature = 'Future<void>';
+    } else if (config.useCaseType == 'sync') {
+      returnSignature = returnsType;
     } else {
       returnSignature = 'Future<$returnsType>';
     }
@@ -562,6 +569,37 @@ abstract class ${repoName}Repository {
       );
     } else {
       warnings.add('Failed to append to ${serviceSnake}_service.dart');
+    }
+
+    // Append to provider if it exists
+    if (config.generateData) {
+      final domainSnake = StringUtils.camelToSnake(config.effectiveDomain);
+      final providerPath = path.join(
+        outputDir,
+        'data',
+        'providers',
+        domainSnake,
+        '${serviceSnake}_provider.dart',
+      );
+
+      if (File(providerPath).existsSync()) {
+        if (await _appendToProvider(
+          providerPath,
+          methodName,
+          returnSignature,
+          paramsType,
+        )) {
+          updatedFiles.add(
+            GeneratedFile(
+              path: providerPath,
+              type: 'provider',
+              action: 'updated',
+            ),
+          );
+        } else {
+          warnings.add('Failed to append to ${serviceSnake}_provider.dart');
+        }
+      }
     }
 
     return AppendResult(updatedFiles: updatedFiles, warnings: warnings);
@@ -614,6 +652,40 @@ abstract class $serviceName {
 ''';
 
     await file.writeAsString(content);
+  }
+
+  Future<bool> _appendToProvider(
+    String filePath,
+    String methodName,
+    String returnSignature,
+    String paramsType,
+  ) async {
+    final file = File(filePath);
+    if (!file.existsSync()) return false;
+
+    final content = await file.readAsString();
+    final lastBrace = content.lastIndexOf('}');
+    if (lastBrace == -1) return false;
+
+    final isStream = config.useCaseType == 'stream';
+    final isSync = config.useCaseType == 'sync';
+    final methodImpl =
+        '''
+  @override
+  $returnSignature $methodName($paramsType params) ${isStream || isSync ? '' : 'async '}{
+    // TODO: Implement $methodName
+    throw UnimplementedError('Implement $methodName');
+  }
+
+''';
+
+    final newContent =
+        content.substring(0, lastBrace) +
+        methodImpl +
+        content.substring(lastBrace);
+
+    await file.writeAsString(newContent);
+    return true;
   }
 }
 

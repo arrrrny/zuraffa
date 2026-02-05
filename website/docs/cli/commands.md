@@ -411,6 +411,85 @@ zfa generate WatchUserLocation \
   --gql-type=subscription
 ```
 
+#### SyncUseCase Pattern (NEW)
+For synchronous operations that don't require async processing (validation, calculations, transformations).
+
+| Flag | Description |
+|------|-------------|
+| `--type=sync` | UseCase type for sync operations |
+| `--repo=<name>` | Repository to inject (optional) |
+| `--service=<name>` | Service to inject (optional) |
+| `--domain=<name>` | **Required** domain folder for organization |
+| `--params=<type>` | Params type (default: NoParams) |
+| `--returns=<type>` | Return type (required) |
+
+**Example: Validation Logic**
+```bash
+zfa generate ValidateEmail \
+  --domain=validation \
+  --type=sync \
+  --params=String \
+  --returns=bool
+```
+
+**Generated UseCase:**
+```dart
+// lib/src/domain/usecases/validation/validate_email_usecase.dart
+class ValidateEmailUseCase extends SyncUseCase<bool, String> {
+  @override
+  bool execute(String email) {
+    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
+  }
+}
+```
+
+**Usage:**
+```dart
+final validateEmail = ValidateEmailUseCase();
+final result = validateEmail('user@example.com');
+result.fold(
+  (isValid) => print('Email is valid: $isValid'),
+  (failure) => print('Validation failed: $failure'),
+);
+```
+
+**When to Use SyncUseCase:**
+- **Validation logic** - Email, phone number, format checks
+- **Data transformations** - Mapping, filtering, aggregations
+- **Calculations** - Totals, averages, conversions
+- **Business rules** - Eligibility, permissions, checks
+
+**When to Use Other Types:**
+- Use **`UseCase`** (default) for async operations with I/O
+- Use **`StreamUseCase`** (`--type=stream`) for real-time data streams
+- Use **`BackgroundUseCase`** (`--type=background`) for CPU-intensive tasks on isolates
+- Use **`CompletableUseCase`** (`--type=completable`) for async void operations
+
+**Example with Repository:**
+```bash
+zfa generate CalculateTotal \
+  --domain=orders \
+  --repo=Order \
+  --type=sync \
+  --params=List<OrderItem> \
+  --returns=double
+```
+
+**Example with Service:**
+```bash
+zfa generate CheckPermission \
+  --domain=auth \
+  --service=Permission \
+  --type=sync \
+  --params=PermissionRequest \
+  --returns=bool
+```
+
+**Auto-Detection for Entity Methods:**
+- `get`, `getList` → query
+- `create`, `update`, `delete` → mutation
+- `watch`, `watchList` → subscription
+
 **GraphQL Options:**
 
 | Flag | Description |
