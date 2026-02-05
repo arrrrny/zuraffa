@@ -39,6 +39,12 @@ class GeneratorConfig {
   final bool useMockInDi;
   final bool generateDi;
   final String diFramework;
+  final bool generateGql;
+  final String? gqlReturns;
+  final String? gqlType;
+  final String? gqlInputType;
+  final String? gqlInputName;
+  final String? gqlName;
 
   GeneratorConfig({
     required this.name,
@@ -79,6 +85,12 @@ class GeneratorConfig {
     this.useMockInDi = false,
     this.generateDi = false,
     this.diFramework = 'get_it',
+    this.generateGql = false,
+    this.gqlReturns,
+    this.gqlType,
+    this.gqlInputType,
+    this.gqlInputName,
+    this.gqlName,
   }) : queryFieldType = queryFieldType ?? idType;
 
   factory GeneratorConfig.fromJson(Map<String, dynamic> json, String name) {
@@ -126,6 +138,12 @@ class GeneratorConfig {
       useMockInDi: json['use_mock'] == true || json['use_mock_in_di'] == true,
       generateDi: json['di'] == true || json['generate_di'] == true,
       diFramework: json['di_framework'] ?? 'get_it',
+      generateGql: json['gql'] == true || json['generate_gql'] == true,
+      gqlReturns: json['gql_returns'],
+      gqlType: json['gql_type'],
+      gqlInputType: json['gql_input_type'],
+      gqlInputName: json['gql_input_name'],
+      gqlName: json['gql_name'],
     );
   }
 
@@ -198,6 +216,26 @@ class GeneratorConfig {
 
   // Get service snake case name (without Service suffix)
   String? get serviceSnake {
+    if (service == null) return null;
+    final baseName = service!.endsWith('Service')
+        ? service!.substring(0, service!.length - 7)
+        : service!;
+    return _camelToSnake(baseName);
+  }
+
+  // Get effective provider name with Provider suffix
+  String? get effectiveProvider {
+    if (service == null) return null;
+    final baseName = service!.endsWith('Service')
+        ? service!.substring(0, service!.length - 7)
+        : service!;
+    // Provider name format: {ServiceName}Provider (e.g., EmailProvider, SmtpEmailProvider)
+    // For now, use the simple format. Users can extend with custom providers manually.
+    return '${baseName}Provider';
+  }
+
+  // Get provider snake case name (without Provider suffix)
+  String? get providerSnake {
     if (service == null) return null;
     final baseName = service!.endsWith('Service')
         ? service!.substring(0, service!.length - 7)

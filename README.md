@@ -1,4 +1,4 @@
-#  🦒 Zuraffa
+# 🦒 Zuraffa
 
 [![Pub Version](https://img.shields.io/pub/v/zuraffa)](https://pub.dev/packages/zuraffa)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
@@ -545,7 +545,7 @@ lib/src/di/
 │   └── product_presenter_di.dart
 └── controllers/
     ├── index.dart               # Auto-generated
-    └── product_controller_di.dart
+│   └── product_controller_di.dart
 ```
 
 ### Usage
@@ -866,6 +866,9 @@ zfa generate Product --methods=get,create,update,delete --test
 # Custom UseCase with repository
 zfa generate SearchProduct --domain=search --repo=Product --params=Query --returns=List<Product>
 
+# Custom UseCase with service (alternative to repository)
+zfa generate SendEmail --domain=notifications --service=Email --params=EmailMessage --returns=void
+
 # Orchestrator pattern (compose UseCases)
 zfa generate ProcessCheckout --domain=checkout --usecases=ValidateCart,ProcessPayment --params=CheckoutRequest --returns=OrderResult
 
@@ -873,13 +876,45 @@ zfa generate ProcessCheckout --domain=checkout --usecases=ValidateCart,ProcessPa
 zfa generate CalculatePrimeNumbers --type=background --params=int --returns=int
 ```
 
+#### Services vs Repositories
+
+Zuraffa supports two patterns for dependency injection in custom UseCases:
+
+**Repositories (`--repo`)** - Use for data access and entity operations
+```bash
+zfa generate GetProduct --domain=product --repo=Product --params=String --returns=Product
+```
+
+**Services (`--service`)** - Use for business logic, external APIs, or non-entity operations
+```bash
+# Generate a service interface
+zfa generate SendEmail --domain=notifications --service=Email --params=EmailMessage --returns=void
+
+# Generated service interface
+abstract class EmailService {
+  Future<void> sendEmail(EmailMessage params);
+}
+```
+
+**When to use Services:**
+- External API integrations (payment gateways, email services, SMS)
+- Business logic that doesn't involve entities
+- Utility operations (file processing, calculations, transformations)
+- Third-party SDK integrations (analytics, crash reporting, authentication)
+
+**When to use Repositories:**
+- CRUD operations on entities
+- Data access (local or remote)
+- Caching and offline support
+- Data synchronization
+
 #### Custom UseCase Types
 
 The `--type` flag supports three variants for custom UseCases:
 
 | Type | Description | Use When |
 |------|-------------|----------|
-| `custom` (default) | Standard UseCase with repository dependencies | CRUD operations, business logic |
+| `custom` (default) | Standard UseCase with repository/service dependencies | CRUD operations, business logic |
 | `background` | Runs on a separate isolate | CPU-intensive work (calculations, image processing) |
 | `stream` | Emits multiple values over time | Real-time data, WebSocket, Firebase listeners |
 
@@ -922,6 +957,7 @@ zfa generate ProcessCheckout --domain=checkout --usecases=ValidateCart,ProcessPa
 | `--pc`         | Generate Presenter and Controller only (preserve View)|
 | `--pcs`        | Generate Presenter, Controller, and State (preserve View) |
 | `--repo`       | Repository to inject (for custom UseCases)            |
+| `--service`    | Service interface to inject (alternative to --repo)   |
 | `--domain`     | Domain folder (required for custom UseCases)          |
 | `--append`     | Append to existing repository/datasources             |
 | `--usecases`   | Orchestrator: compose UseCases (comma-separated)      |
@@ -1025,6 +1061,8 @@ lib/
     │   │       └── product.dart
     │   ├── repositories/        # Repository interfaces
     │   │   └── product_repository.dart
+    │   ├── services/            # Service interfaces (alternative to repositories)
+    │   │   └── email_service.dart
     │   └── usecases/            # Business logic
     │       └── product/
     │           ├── get_product_usecase.dart
@@ -1150,3 +1188,4 @@ MIT License - see [LICENSE](LICENSE) for details.
 ---
 
 Made with ⚡️ for the Flutter community
+

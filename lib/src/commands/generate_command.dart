@@ -4,6 +4,7 @@ import 'package:args/args.dart';
 import '../models/generator_config.dart';
 import '../generator/code_generator.dart';
 import '../utils/logger.dart';
+import '../config/zfa_config.dart';
 
 class GenerateCommand {
   Future<void> execute(List<String> args) async {
@@ -28,6 +29,9 @@ class GenerateCommand {
     final parser = _buildArgParser();
     final results = parser.parse(args.skip(1).toList());
 
+    // Load ZFA config for defaults
+    final zfaConfig = ZfaConfig.load() ?? const ZfaConfig();
+
     GeneratorConfig config;
 
     if (results['from-stdin'] == true) {
@@ -46,6 +50,11 @@ class GenerateCommand {
       final methodsStr = results['methods'] as String?;
       final usecasesStr = results['usecases'] as String?;
       final variantsStr = results['variants'] as String?;
+      
+      // Apply config defaults for entity-based operations
+      final isEntityBased = methodsStr != null && methodsStr.isNotEmpty;
+      final shouldGenerateGql = results['gql'] == true || (isEntityBased && zfaConfig.generateGql);
+      
       config = GeneratorConfig(
         name: name,
         methods: methodsStr?.split(',').map((s) => s.trim()).toList() ?? [],
@@ -105,6 +114,12 @@ class GenerateCommand {
         useMockInDi: results['use-mock'] == true,
         generateDi: results['di'] == true,
         diFramework: 'get_it',
+        generateGql: shouldGenerateGql,
+        gqlReturns: results['gql-returns'],
+        gqlType: results['gql-type'],
+        gqlInputType: results['gql-input-type'],
+        gqlInputName: results['gql-input-name'],
+        gqlName: results['gql-name'],
       );
     }
 
@@ -297,6 +312,26 @@ class GenerateCommand {
       print('   Valid types: ${validTypes.join(', ')}');
       exit(1);
     }
+
+    // Rule 8: GraphQL validation
+    if (config.generateGql) {
+      // For custom UseCases, --gql-type is mandatory
+      if (config.isCustomUseCase && config.gqlType == null) {
+        print('❌ Error: --gql-type is required for custom UseCases when using --gql');
+        print('   Valid types: query, mutation, subscription');
+        print('');
+        print('Example:');
+        print('  zfa generate ${config.name} --domain=${config.domain ?? 'domain'} --service=Service --gql --gql-type=mutation');
+        exit(1);
+      }
+      
+      // Validate gql-type values
+      if (config.gqlType != null && !['query', 'mutation', 'subscription'].contains(config.gqlType)) {
+        print('❌ Error: Invalid --gql-type "${config.gqlType}"');
+        print('   Valid types: query, mutation, subscription');
+        exit(1);
+      }
+    }
   }
 
   ArgParser _buildArgParser() {
@@ -461,6 +496,31 @@ class GenerateCommand {
         help: 'Generate dependency injection files',
         defaultsTo: false,
       )
+      ..addFlag(
+        'gql',
+        help: 'Generate GraphQL queries and mutations',
+        defaultsTo: false,
+      )
+      ..addOption(
+        'gql-returns',
+        help: 'GraphQL return fields (comma-separated, supports dot notation)',
+      )
+      ..addOption(
+        'gql-type',
+        help: 'GraphQL operation type: query, mutation, subscription',
+      )
+      ..addOption(
+        'gql-input-type',
+        help: 'GraphQL input type name (e.g., CategoryFilter)',
+      )
+      ..addOption(
+        'gql-input-name',
+        help: 'GraphQL input parameter name (e.g., options)',
+      )
+      ..addOption(
+        'gql-name',
+        help: 'GraphQL operation name (e.g., DetectCategory)',
+      )
       ..addOption(
         'output',
         abbr: 'o',
@@ -512,6 +572,14 @@ MOCK DATA:
 
 DEPENDENCY INJECTION:
   --di                 Generate DI registration files (get_it)
+
+GRAPHQL:
+  --gql                Generate GraphQL queries and mutations
+  --gql-returns=<list> GraphQL return fields (comma-separated, supports dot notation)
+  --gql-type=<type>    GraphQL operation type: query, mutation, subscription
+  --gql-input-type=<t> GraphQL input type name (e.g., CategoryFilter)
+  --gql-input-name=<n> GraphQL input parameter name (e.g., options)
+  --gql-name=<name>    GraphQL operation name (e.g., DetectCategory)
 
 CUSTOM USECASE:
   --repo=<name>         Repository to inject (single, enforces SRP)

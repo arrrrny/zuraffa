@@ -60,8 +60,10 @@ class ConfigCommand {
       'jsonByDefault': true,
       'compareByDefault': true,
       'defaultEntityOutput': 'lib/src/domain/entities',
+      'generateGql': false,
       'notes': [
         'Set "useZorphyByDefault": false to use manual entity generation',
+        'Set "generateGql": true to auto-generate GraphQL for entity operations',
         'Adjust "defaultEntityOutput" to change where entities are created',
       ],
     };
@@ -77,6 +79,7 @@ class ConfigCommand {
     print('  • jsonByDefault: true (entities include JSON serialization)');
     print('  • compareByDefault: true (entities include compareTo)');
     print('  • defaultEntityOutput: lib/src/domain/entities');
+    print('  • generateGql: false (GraphQL generation disabled by default)');
     print('');
     print('💡 To disable Zorphy by default, edit .zfa.json and set:');
     print('   "useZorphyByDefault": false');
@@ -155,6 +158,7 @@ class ConfigCommand {
           break;
         case 'jsonByDefault':
         case 'compareByDefault':
+        case 'generateGql':
           parsedValue = value.toLowerCase() == 'true';
           break;
         case 'defaultEntityOutput':
@@ -163,7 +167,7 @@ class ConfigCommand {
         default:
           print('❌ Unknown configuration key: $key');
           print(
-            '   Valid keys: useZorphyByDefault, jsonByDefault, compareByDefault, defaultEntityOutput',
+            '   Valid keys: useZorphyByDefault, jsonByDefault, compareByDefault, defaultEntityOutput, generateGql',
           );
           exit(1);
       }
@@ -204,6 +208,7 @@ CONFIGURATION KEYS:
 
   jsonByDefault        Enable JSON serialization by default (default: true)
   compareByDefault      Enable compareTo by default (default: true)
+  generateGql          Enable GraphQL generation by default (default: false)
   defaultEntityOutput   Default output directory for entities
                        (default: lib/src/domain/entities)
 
@@ -229,6 +234,7 @@ CONFIGURATION FILE:
     "useZorphyByDefault": true,
     "jsonByDefault": true,
     "compareByDefault": true,
+    "generateGql": false,
     "defaultEntityOutput": "lib/src/domain/entities"
   }
 

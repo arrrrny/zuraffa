@@ -221,7 +221,7 @@ Generate presentation layer components.
 
 ### Custom UseCase Generation
 
-ZFA introduces four distinct patterns for custom UseCases:
+ZFA introduces multiple patterns for custom UseCases:
 
 #### Single Repository Pattern (Recommended)
 Use one UseCase with one repository to enforce Single Responsibility Principle.
@@ -233,6 +233,92 @@ Use one UseCase with one repository to enforce Single Responsibility Principle.
 | `--type=<type>` | UseCase type: `usecase`, `stream`, `background`, `completable` |
 | `--params=<type>` | Params type (default: `NoParams`) |
 | `--returns=<type>` | Return type (default: `void`) |
+
+#### Single Service Pattern (NEW - Alternative to Repository)
+Use a service interface for non-data operations or external integrations.
+
+| Flag | Description |
+|------|-------------|
+| `--service=<name>` | Service interface to inject |
+| `--service-method=<name>` | Method name in service (default: auto-generated) |
+| `--domain=<name>` | **Required** domain folder for organization |
+| `--type=<type>` | UseCase type: `usecase`, `stream`, `background`, `completable` |
+| `--params=<type>` | Params type (default: `NoParams`) |
+| `--returns=<type>` | Return type (default: `void`) |
+
+**Services vs Repositories:**
+
+| Aspect | Repository (`--repo`) | Service (`--service`) |
+|--------|---------------------|----------------------|
+| **Purpose** | Data access for entities | Business logic, external APIs, utilities |
+| **Use Cases** | CRUD, caching, sync | Email, payments, analytics, file processing |
+| **Generated** | Repository interface | Service interface |
+| **Location** | `domain/repositories/` | `domain/services/` |
+| **Example** | `ProductRepository` | `EmailService`, `PaymentService` |
+
+**Example: Service for Email Notification**
+
+```bash
+# Generate service interface
+zfa generate SendEmail \
+  --domain=notifications \
+  --service=Email \
+  --params=EmailMessage \
+  --returns=void
+```
+
+**Generated Service Interface:**
+```dart
+// lib/src/domain/services/email_service.dart
+abstract class EmailService {
+  Future<void> sendEmail(EmailMessage params);
+}
+```
+
+**Generated UseCase:**
+```dart
+// lib/src/domain/usecases/notifications/send_email_usecase.dart
+class SendEmailUseCase extends UseCase<void, EmailMessage> {
+  final EmailService _service;
+
+  SendEmailUseCase(this._service);
+
+  @override
+  Future<void> execute(EmailMessage params, CancelToken? cancelToken) async {
+    return _service.sendEmail(params);
+  }
+}
+```
+
+**Implementing the Service:**
+```dart
+// lib/src/data/services/smtp_email_service.dart
+class SmtpEmailService implements EmailService {
+  final SmtpClient _client;
+
+  SmtpEmailService(this._client);
+
+  @override
+  Future<void> sendEmail(EmailMessage params) async {
+    await _client.send(
+      to: params.recipient,
+      subject: params.subject,
+      body: params.body,
+    );
+  }
+}
+```
+
+**When to Use Services:**
+- External API integrations (payment gateways, email, SMS)
+- Business logic that doesn't involve entities
+- Utility operations (file processing, calculations)
+- Third-party SDK integrations (analytics, authentication)
+
+**When to Use Repositories:**
+- CRUD operations on entities
+- Data access (local or remote)
+- Caching and offline support
 
 #### Orchestrator Pattern (NEW)
 Compose multiple UseCases into workflows.
@@ -363,6 +449,33 @@ zfa generate ProcessCheckout \
   --returns=OrderConfirmation
 ```
 
+### Single Service Pattern
+
+Best for external integrations and non-entity operations:
+
+```bash
+# Email service
+zfa generate SendEmail \
+  --domain=notifications \
+  --service=Email \
+  --params=EmailMessage \
+  --returns=void
+
+# Payment service
+zfa generate ProcessPayment \
+  --domain=payments \
+  --service=Payment \
+  --params=PaymentDetails \
+  --returns=PaymentReceipt
+
+# Analytics service
+zfa generate TrackEvent \
+  --domain=analytics \
+  --service=Analytics \
+  --params=AnalyticsEvent \
+  --returns=void
+```
+
 ### Orchestrator Pattern
 
 Compose multiple UseCases into complex workflows:
@@ -371,7 +484,7 @@ Compose multiple UseCases into complex workflows:
 # Step 1: Create atomic UseCases
 zfa generate ValidateCart --domain=checkout --repo=Cart --params=CartId --returns=bool
 zfa generate CreateOrder --domain=checkout --repo=Order --params=OrderData --returns=Order
-zfa generate ProcessPayment --domain=checkout --repo=Payment --params=PaymentData --returns=Receipt
+zfa generate ProcessPayment --domain=checkout --service=Payment --params=PaymentData --returns=Receipt
 
 # Step 2: Orchestrate them
 zfa generate ProcessCheckout \
@@ -452,6 +565,45 @@ zfa generate ProcessCheckout \
   --returns=OrderConfirmation
 ```
 
+### Custom UseCase with Single Service
+
+External API integration:
+
+```bash
+zfa generate SendPushNotification \
+  --domain=notifications \
+  --service=PushNotification \
+  --params=NotificationPayload \
+  --returns=void
+```
+
+Generated files:
+- `lib/src/domain/services/push_notification_service.dart` - Service interface
+- `lib/src/domain/usecases/notifications/send_push_notification_usecase.dart` - UseCase
+
+Implementation:
+```dart
+// lib/src/data/services/firebase_push_notification_service.dart
+class FirebasePushNotificationService implements PushNotificationService {
+  final FirebaseMessaging _messaging;
+
+  FirebasePushNotificationService(this._messaging);
+
+  @override
+  Future<void> sendPushNotification(NotificationPayload params) async {
+    await _messaging.send(
+      message: Message(
+        token: params.deviceToken,
+        notification: Notification(
+          title: params.title,
+          body: params.body,
+        ),
+      ),
+    );
+  }
+}
+```
+
 ### Background Processing
 
 CPU-intensive operation on isolate:
@@ -476,6 +628,19 @@ zfa generate ListenToNotifications \
   --type=stream \
   --params=UserId \
   --returns=Notification
+```
+
+### Stream Service UseCase
+
+Real-time external data:
+
+```bash
+zfa generate ListenToWebSocket \
+  --domain=realtime \
+  --service=WebSocket \
+  --type=stream \
+  --params=WebSocketConfig \
+  --returns=WebSocketMessage
 ```
 
 ### Granular VPC Generation
@@ -529,6 +694,25 @@ zfa generate WatchProduct \
 
 This adds the new method to existing Repository, DataRepository, DataSource, and RemoteDataSource files.
 
+### Service with Custom Method Name
+
+```bash
+# Use --service-method to customize the service method name
+zfa generate UploadFile \
+  --domain=storage \
+  --service=Storage \
+  --service-method=uploadToCloud \
+  --params=FileData \
+  --returns=String
+```
+
+Generated service interface:
+```dart
+abstract class StorageService {
+  Future<String> uploadToCloud(FileData params);
+}
+```
+
 ### AI-Friendly JSON Output
 
 For AI agent integration:
@@ -573,6 +757,20 @@ Use it:
 zfa generate Product -j config.json
 ```
 
+### JSON Configuration for Services
+
+```json
+{
+  "name": "SendEmail",
+  "domain": "notifications",
+  "service": "Email",
+  "service_method": "sendEmail",
+  "params": "EmailMessage",
+  "returns": "void",
+  "type": "usecase"
+}
+```
+
 ### Full JSON Schema
 
 ```json
@@ -599,6 +797,8 @@ zfa generate Product -j config.json
   "query_field_type": "string",
   "zorphy": "boolean",
   "repo": "string",
+  "service": "string",
+  "service_method": "string",
   "usecases": ["string"],
   "variants": ["string"],
   "domain": "string (required for custom usecases)",
@@ -628,13 +828,15 @@ zfa generate Product -j config.json
 
 ZFA enforces strict validation rules:
 
-| UseCase Type | `--domain` | `--repo` | `--usecases` | `--variants` |
-|--------------|------------|----------|--------------|--------------|
-| Entity-based | ❌ Forbidden | ❌ Forbidden | ❌ Forbidden | ❌ Forbidden |
-| Custom | ✅ Required | ✅ Required | ❌ Forbidden | ⚠️ Optional |
-| Orchestrator | ✅ Required | ❌ Forbidden | ✅ Required | ⚠️ Optional |
-| Background | ✅ Required | ⚠️ Optional | ❌ Forbidden | ⚠️ Optional |
-| Polymorphic | ✅ Required | ✅ Required | ❌ Forbidden | ✅ Defines pattern |
+| UseCase Type | `--domain` | `--repo` | `--service` | `--usecases` | `--variants` |
+|--------------|------------|----------|-------------|--------------|--------------|
+| Entity-based | ❌ Forbidden | ❌ Forbidden | ❌ Forbidden | ❌ Forbidden | ❌ Forbidden |
+| Custom | ✅ Required | ✅ Required* | ✅ Required* | ❌ Forbidden | ⚠️ Optional |
+| Orchestrator | ✅ Required | ❌ Forbidden | ❌ Forbidden | ✅ Required | ⚠️ Optional |
+| Background | ✅ Required | ⚠️ Optional | ⚠️ Optional | ❌ Forbidden | ⚠️ Optional |
+| Polymorphic | ✅ Required | ✅ Required | ❌ Allowed | ❌ Forbidden | ✅ Defines pattern |
+
+* Either `--repo` or `--service` must be specified (not both)
 
 ### Error Messages
 
@@ -642,7 +844,10 @@ Common validation errors:
 
 - `--domain is required for custom UseCases`: Add `--domain=<name>`
 - `--repo cannot be used with entity-based generation`: Remove `--repo` for entity-based
-- `Cannot use both --repo and --usecases`: Choose one or the other
+- `Cannot use both --repo and --service`: Choose one or the other
+- `Must specify either --repo or --service for custom UseCases`: Add one of them
+- `--service cannot be used with orchestrators`: Use `--repo` for orchestrators
+- `--usecases cannot be used with --service`: Use `--repo` for orchestrators
 - `--params is required for orchestrator UseCases`: Add `--params=<Type>`
 - `--returns is required for orchestrator UseCases`: Add `--returns=<Type>`
 
@@ -696,6 +901,29 @@ zfa generate SearchProduct \
   --returns=List<Product>
 ```
 
+### Choose Between Repository and Service
+
+Use this decision tree:
+
+```
+Does the operation involve entities?
+├─ Yes → Use --repo (Repository)
+└─ No
+   └─ Is it external API/integration?
+      ├─ Yes → Use --service (Service)
+      └─ No
+         └─ Is it business logic?
+            ├─ Yes → Use --service (Service)
+            └─ No → Consider if it needs its own UseCase
+```
+
+Examples:
+- ✅ `ProductRepository` - CRUD for Product entities
+- ✅ `EmailService` - Send emails (external API)
+- ✅ `PaymentService` - Process payments (external API)
+- ✅ `AnalyticsService` - Track events (external API)
+- ✅ `FileStorageService` - Upload files (utility)
+
 ### Quiet Mode for Scripts
 
 ```bash
@@ -707,6 +935,7 @@ zfa generate Product --methods=get --quiet || echo "Generation failed"
 ## Next Steps
 
 - [UseCase Types](../architecture/usecases) - Explore all UseCase patterns and ZFA patterns
-- [VPC Generation](../architecture/usecases) - Presentation layer patterns
-- [Caching](../architecture/usecases) - Dual datasource caching setup
-- [Testing](../architecture/usecases) - Testing generated code
+- [VPC Generation](../features/vpc-regeneration) - Presentation layer patterns
+- [Caching](../features/caching) - Dual datasource caching setup
+- [Testing](../features/testing) - Testing generated code
+
