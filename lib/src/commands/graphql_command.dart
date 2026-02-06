@@ -76,7 +76,7 @@ class GraphQLCommand {
 
     // Step 2: Translate
     final translator = GraphQLSchemaTranslator(schema);
-    final entitySpecs = translator.extractEntitySpecs(
+    final requestedEntitySpecs = translator.extractEntitySpecs(
       include: include,
       exclude: exclude,
     );
@@ -86,12 +86,66 @@ class GraphQLCommand {
     );
 
     if (verbose) {
-      print('📦 Found ${entitySpecs.length} entities and ${enumSpecs.length} enums');
+      print('📦 Found ${requestedEntitySpecs.length} requested entities and ${enumSpecs.length} enums');
     }
 
-    if (entitySpecs.isEmpty && enumSpecs.isEmpty) {
+    if (requestedEntitySpecs.isEmpty && enumSpecs.isEmpty) {
       print('⚠️  No entities or enums found matching the filters');
       exit(0);
+    }
+
+    // Step 2.5: Collect all referenced entities and enums recursively
+    final allEntityNames = <String>{};
+    final allEnumNames = <String>{};
+    final processedEntities = <String>{};
+    
+    void collectReferences(String entityName) {
+      if (processedEntities.contains(entityName)) return;
+      processedEntities.add(entityName);
+      allEntityNames.add(entityName);
+      
+      // Find the entity spec
+      final specs = translator.extractEntitySpecs(
+        include: {entityName},
+      );
+      
+      if (specs.isEmpty) return;
+      final entitySpec = specs.first;
+      
+      // Collect referenced entities and enums from fields
+      for (final field in entitySpec.fields) {
+        if (field.referencedEntity != null) {
+          collectReferences(field.referencedEntity!);
+        }
+        if (field.referencedEnum != null) {
+          allEnumNames.add(field.referencedEnum!);
+        }
+      }
+    }
+    
+    // Start with requested entities
+    for (final spec in requestedEntitySpecs) {
+      collectReferences(spec.name);
+    }
+
+    // Also include explicitly requested enums
+    for (final spec in enumSpecs) {
+      allEnumNames.add(spec.name);
+    }
+    
+    // Get all entity specs including referenced ones
+    final allEntitySpecs = translator.extractEntitySpecs(
+      include: allEntityNames.isEmpty && include == null ? null : allEntityNames,
+    );
+    
+    // Get all enum specs (filtered if include was provided, otherwise all matching filters)
+    final allEnumSpecs = translator.extractEnumSpecs(
+      include: allEnumNames.isEmpty && include == null ? null : allEnumNames,
+    );
+    
+    if (verbose && allEntitySpecs.length > requestedEntitySpecs.length) {
+      print('📦 Including ${allEntitySpecs.length - requestedEntitySpecs.length} referenced entities');
+      print('   Total: ${allEntitySpecs.length} entities and ${allEnumSpecs.length} enums');
     }
 
     // Step 3: Generate enums first (entities may reference them)
@@ -104,26 +158,26 @@ class GraphQLCommand {
     );
 
     final generatedEnums = <String>[];
-    for (final enumSpec in enumSpecs) {
+    for (final enumSpec in allEnumSpecs) {
       final path = await emitter.generateEnum(enumSpec);
       if (path != null) {
         generatedEnums.add(enumSpec.name);
       }
     }
 
-    // Step 4: Generate entities
+    // Step 4: Generate entities (all including referenced)
     final generatedEntities = <String>[];
-    for (final entitySpec in entitySpecs) {
+    for (final entitySpec in allEntitySpecs) {
       final path = await emitter.generateEntity(entitySpec);
       if (path != null) {
         generatedEntities.add(entitySpec.name);
       }
     }
 
-    // Step 5: Generate usecases (reuse CodeGenerator)
+    // Step 5: Generate usecases (only for originally requested entities)
     final generatedUsecases = <String>[];
     if (!skipUsecases) {
-      for (final entitySpec in entitySpecs) {
+      for (final entitySpec in requestedEntitySpecs) {
         final config = GeneratorConfig(
           name: entitySpec.name,
           methods: methods,

@@ -123,9 +123,9 @@ CREATE COMMAND:
     --sealed                Create sealed class (default: false)
     --non-sealed            Create non-sealed class (default: false)
     -f, --fields            Interactive field prompts (default: true)
-    --field                 Add fields directly ("name:type" or "name:type?")
-    --extends               Interface to extend
-    --subtype               Explicit subtypes
+    --field                 Add one or more fields ("name:type" or "id:int,name:String")
+    --extends               Interface to extend (e.g., BaseEntity)
+    --subtype               Explicit subtypes (e.g., Dog,Cat)
 
 ENUM COMMAND:
   zfa entity enum [options]
@@ -146,7 +146,7 @@ ADD-FIELD COMMAND:
   Options:
     -n, --name              Entity name (required)
     -o, --output            Output base directory (default: lib/src/domain/entities)
-    --field                 Fields to add ("name:type" or "name:type?")
+    --field                 Add one or more fields ("name:type" or "name:type?")
 
 FROM-JSON COMMAND:
   zfa entity from-json <file.json> [options]
@@ -168,8 +168,8 @@ EXAMPLES:
   # Create with fields (basic types)
   zfa entity create -n User --field name:String --field age:int --field email:String?
 
-  # Create with entity references and enums
-  zfa entity create -n Order --field customer:\$Customer --field status:OrderStatus --field items:List<\$OrderItem>
+  # Create with multiple fields and generic types
+  zfa entity create -n Order --field "customer:Customer,status:OrderStatus,items:List<OrderItem>,data:Map<String, dynamic>"
 
   # Create enum
   zfa entity enum -n OrderStatus --value pending,processing,shipped,delivered
@@ -194,18 +194,24 @@ FIELD TYPES:
   Nullable types: Add ? after type (e.g., String?, int?)
   Generic types: List<Type>, Set<Type>, Map<KeyType, ValueType>
   Custom types: Any other class name
-  Zorphy Objects: \$TypeName (concrete), \$\$TypeName (sealed/polymorphic)
+  Zorphy Objects: TypeName (e.g., User, Address). Automatically detected and prefixed.
   Enums: TypeName (will be imported from enums/index.dart)
+
+BULK OPERATION:
+  Multiple fields can be added in a single --field flag using commas:
+  --field "id:String,name:String,data:Map<String, dynamic>"
+  (Commas inside Map or List generics are safely handled)
 
   Examples:
     name:String              → String field
     age:int?                 → Nullable int field
     tags:List<String>        → List of strings
-    order:\$Order             → Order entity (concrete)
+    order:Order              → Order entity (auto-prefixed with \$)
     status:OrderStatus       → OrderStatus enum
-    metadata:Map<String, dynamic> → Map field
+    metadata:Map<String, dynamic> → Map field (internal commas handled)
 
-  Note: In shell, use --field order:\\\$Order (escape the \$)
+  Note: \$ and \$\$ prefixes are now handled automatically by the CLI.
+  You can still use them manually if you prefer.
 
 For more information, visit: https://github.com/arrrrny/zorphy
 ''');

@@ -28,8 +28,8 @@ dependencies:
   responsive_builder: ^0.7.1
   uuid: ^4.5.2
   # Zorphy for entity generation (bundled with ZFA)
-  zorphy: ^1.2.1
-  zorphy_annotation: ^1.2.1
+  zorphy: ^1.3.2
+  zorphy_annotation: ^1.3.2
   json_annotation: ^4.10.0
   http: ^1.6.0
 

@@ -11,6 +11,7 @@ class FieldSpec {
   final bool isList;
   final String? description;
   final String? referencedEntity;
+  final String? referencedEnum;
 
   const FieldSpec({
     required this.name,
@@ -19,11 +20,12 @@ class FieldSpec {
     required this.isList,
     this.description,
     this.referencedEntity,
+    this.referencedEnum,
   });
 
   @override
   String toString() =>
-      'FieldSpec(name: $name, dartType: $dartType, isNullable: $isNullable, isList: $isList, referencedEntity: $referencedEntity)';
+      'FieldSpec(name: $name, dartType: $dartType, isNullable: $isNullable, isList: $isList, referencedEntity: $referencedEntity, referencedEnum: $referencedEnum)';
 }
 
 /// Specification for an entity derived from a GraphQL object type.
@@ -151,6 +153,7 @@ class GraphQLSchemaTranslator {
       final isList = field.type.isList;
       final dartType = _toDartType(field.type);
       final referencedEntity = _getReferencedEntity(field.type);
+      final referencedEnum = _getReferencedEnum(field.type);
 
       return FieldSpec(
         name: field.name,
@@ -159,6 +162,7 @@ class GraphQLSchemaTranslator {
         isList: isList,
         description: field.description,
         referencedEntity: referencedEntity,
+        referencedEnum: referencedEnum,
       );
     }).toList();
   }
@@ -206,6 +210,17 @@ class GraphQLSchemaTranslator {
       }
     }
 
+    return null;
+  }
+
+  String? _getReferencedEnum(GqlTypeRef typeRef) {
+    final namedType = typeRef.namedType;
+    if (namedType.kind == GqlTypeKind.enum_) {
+      final typeName = namedType.name;
+      if (typeName != null && !typeName.startsWith('__')) {
+        return typeName;
+      }
+    }
     return null;
   }
 

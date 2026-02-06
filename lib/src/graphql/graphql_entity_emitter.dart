@@ -26,6 +26,154 @@ class GraphQLEntityEmitter {
   ///
   /// Returns the file path if generated, or null if skipped.
   Future<String?> generateEntity(EntitySpec spec) async {
+    if (useZorphy) {
+      return _generateEntityViaZorphy(spec);
+    } else {
+      return _generateEntityManually(spec);
+    }
+  }
+
+  /// Generates a Dart enum file from the given [spec].
+  ///
+  /// Returns the file path if generated, or null if skipped.
+  Future<String?> generateEnum(EnumSpec spec) async {
+    if (useZorphy) {
+      return _generateEnumViaZorphy(spec);
+    } else {
+      return _generateEnumManually(spec);
+    }
+  }
+
+  /// Delegate entity generation to zorphy_cli
+  Future<String?> _generateEntityViaZorphy(EntitySpec spec) async {
+    // Check if zorphy is available
+    final checkResult = await Process.run('which', ['zorphy']);
+    if (checkResult.exitCode != 0) {
+      print('⚠️  zorphy CLI not found. Install with: dart pub global activate zorphy_annotation');
+      print('   Falling back to manual generation...');
+      return _generateEntityManually(spec);
+    }
+
+    final args = <String>[
+      'create',
+      '-n',
+      spec.name,
+    ];
+
+    // Add fields
+    for (final field in spec.fields) {
+      final nullableSuffix = field.isNullable ? '?' : '';
+      args.addAll(['--field', '${field.name}:${field.dartType}$nullableSuffix']);
+    }
+
+    // Add output directory
+    args.addAll(['-o', path.join(outputDir, 'domain', 'entities')]);
+    
+    // Disable interactive prompts
+    args.add('--no-fields');
+
+    if (force) {
+      args.add('--force');
+    }
+
+    if (dryRun) {
+      print('Would run: zorphy ${args.join(' ')}');
+      return path.join(
+        outputDir,
+        'domain',
+        'entities',
+        StringUtils.camelToSnake(spec.name),
+        '${StringUtils.camelToSnake(spec.name)}.dart',
+      );
+    }
+
+    // Execute zorphy_cli
+    final result = await Process.run('zorphy', args);
+
+    if (result.exitCode != 0) {
+      print('❌ Failed to generate ${spec.name} via zorphy');
+      if (verbose) {
+        print('   stdout: ${result.stdout}');
+        print('   stderr: ${result.stderr}');
+      }
+      return null;
+    }
+
+    if (verbose) {
+      print('✅ Generated ${spec.name} via zorphy');
+    }
+
+    return path.join(
+      outputDir,
+      'domain',
+      'entities',
+      StringUtils.camelToSnake(spec.name),
+      '${StringUtils.camelToSnake(spec.name)}.dart',
+    );
+  }
+
+  /// Delegate enum generation to zorphy_cli
+  Future<String?> _generateEnumViaZorphy(EnumSpec spec) async {
+    // Check if zorphy is available
+    final checkResult = await Process.run('which', ['zorphy']);
+    if (checkResult.exitCode != 0) {
+      print('⚠️  zorphy CLI not found. Install with: dart pub global activate zorphy_annotation');
+      print('   Falling back to manual generation...');
+      return _generateEnumManually(spec);
+    }
+
+    final args = <String>[
+      'enum',
+      '-n',
+      spec.name,
+      '--value',
+      spec.values.join(','),
+      '-o',
+      path.join(outputDir, 'domain', 'entities'),
+    ];
+
+    if (force) {
+      args.add('--force');
+    }
+
+    if (dryRun) {
+      print('Would run: zorphy ${args.join(' ')}');
+      return path.join(
+        outputDir,
+        'domain',
+        'entities',
+        'enums',
+        '${StringUtils.camelToSnake(spec.name)}.dart',
+      );
+    }
+
+    // Execute zorphy_cli
+    final result = await Process.run('zorphy', args);
+
+    if (result.exitCode != 0) {
+      print('❌ Failed to generate enum ${spec.name} via zorphy');
+      if (verbose) {
+        print('   stdout: ${result.stdout}');
+        print('   stderr: ${result.stderr}');
+      }
+      return null;
+    }
+
+    if (verbose) {
+      print('✅ Generated enum ${spec.name} via zorphy');
+    }
+
+    return path.join(
+      outputDir,
+      'domain',
+      'entities',
+      'enums',
+      '${StringUtils.camelToSnake(spec.name)}.dart',
+    );
+  }
+
+  /// Fallback: Generate entity manually (when useZorphy is false)
+  Future<String?> _generateEntityManually(EntitySpec spec) async {
     final snakeName = StringUtils.camelToSnake(spec.name);
     final dirPath = path.join(outputDir, 'domain', 'entities', snakeName);
     final filePath = path.join(dirPath, '$snakeName.dart');
@@ -57,12 +205,10 @@ class GraphQLEntityEmitter {
     return filePath;
   }
 
-  /// Generates a Dart enum file from the given [spec].
-  ///
-  /// Returns the file path if generated, or null if skipped.
-  Future<String?> generateEnum(EnumSpec spec) async {
+  /// Fallback: Generate enum manually (when useZorphy is false)
+  Future<String?> _generateEnumManually(EnumSpec spec) async {
     final snakeName = StringUtils.camelToSnake(spec.name);
-    final dirPath = path.join(outputDir, 'domain', 'entities', snakeName);
+    final dirPath = path.join(outputDir, 'domain', 'entities', 'enums');
     final filePath = path.join(dirPath, '$snakeName.dart');
 
     if (!force && await File(filePath).exists()) {
