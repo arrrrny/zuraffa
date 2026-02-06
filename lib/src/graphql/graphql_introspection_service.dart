@@ -9,8 +9,7 @@ import 'graphql_schema.dart';
 
 /// Service for fetching GraphQL schema via introspection.
 class GraphQLIntrospectionService {
-  /// Standard GraphQL introspection query.
-  static const String introspectionQuery = '''
+  static const String introspectionQuery = r'''
 query IntrospectionQuery {
   __schema {
     queryType { name }
@@ -23,39 +22,46 @@ query IntrospectionQuery {
       fields(includeDeprecated: true) {
         name
         description
-        type {
-          kind
+        args {
           name
-          ofType {
-            kind
-            name
-            ofType {
-              kind
-              name
-              ofType {
-                kind
-                name
-                ofType {
-                  kind
-                  name
-                  ofType {
-                    kind
-                    name
-                    ofType {
-                      kind
-                      name
-                    }
-                  }
-                }
-              }
-            }
+          description
+          type {
+            ...TypeRef
           }
+          defaultValue
+        }
+        type {
+          ...TypeRef
         }
       }
       inputFields {
         name
         description
         type {
+          ...TypeRef
+        }
+      }
+      enumValues(includeDeprecated: true) {
+        name
+        description
+      }
+    }
+  }
+}
+
+fragment TypeRef on __Type {
+  kind
+  name
+  ofType {
+    kind
+    name
+    ofType {
+      kind
+      name
+      ofType {
+        kind
+        name
+        ofType {
           kind
           name
           ofType {
@@ -71,10 +77,6 @@ query IntrospectionQuery {
             }
           }
         }
-      }
-      enumValues(includeDeprecated: true) {
-        name
-        description
       }
     }
   }

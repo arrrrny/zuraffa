@@ -85,16 +85,42 @@ class GqlTypeRef {
   }
 }
 
+/// Represents a GraphQL argument.
+class GqlArgument {
+  final String name;
+  final String? description;
+  final GqlTypeRef type;
+  final dynamic defaultValue;
+
+  const GqlArgument({
+    required this.name,
+    this.description,
+    required this.type,
+    this.defaultValue,
+  });
+
+  factory GqlArgument.fromJson(Map<String, dynamic> json) {
+    return GqlArgument(
+      name: json['name'] as String,
+      description: json['description'] as String?,
+      type: GqlTypeRef.fromJson(json['type'] as Map<String, dynamic>?),
+      defaultValue: json['defaultValue'],
+    );
+  }
+}
+
 /// Represents a GraphQL field.
 class GqlField {
   final String name;
   final String? description;
   final GqlTypeRef type;
+  final List<GqlArgument> args;
 
   const GqlField({
     required this.name,
     this.description,
     required this.type,
+    this.args = const [],
   });
 
   factory GqlField.fromJson(Map<String, dynamic> json) {
@@ -102,6 +128,10 @@ class GqlField {
       name: json['name'] as String,
       description: json['description'] as String?,
       type: GqlTypeRef.fromJson(json['type'] as Map<String, dynamic>?),
+      args: (json['args'] as List<dynamic>?)
+              ?.map((a) => GqlArgument.fromJson(a as Map<String, dynamic>))
+              .toList() ??
+          const [],
     );
   }
 }

@@ -44,6 +44,42 @@ class GraphQLEntityEmitter {
     }
   }
 
+  /// Generates a GraphQL operation file (query or mutation).
+  Future<String?> generateOperation(OperationSpec spec,
+      {String? domain}) async {
+    final snakeName = StringUtils.camelToSnake(spec.name);
+    final opType = spec.type;
+
+    // Path: lib/src/data/data_sources/[domain]/graphql/[operation_name]_[type].dart
+    final domainDir = domain ?? 'graphql';
+    final dirPath = path.join(
+        outputDir, 'data', 'data_sources', domainDir, 'graphql');
+    final filePath = path.join(dirPath, '${snakeName}_$opType.dart');
+
+    if (!force && await File(filePath).exists()) {
+      if (verbose) {
+        print('Skipping $filePath (already exists)');
+      }
+      return filePath;
+    }
+
+    final content = _generateOperationContent(spec);
+
+    if (dryRun) {
+      print('Would generate: $filePath');
+      return filePath;
+    }
+
+    await Directory(dirPath).create(recursive: true);
+    await File(filePath).writeAsString(content);
+
+    if (verbose) {
+      print('Generated: $filePath');
+    }
+
+    return filePath;
+  }
+
   /// Delegate entity generation to zorphy_cli
   Future<String?> _generateEntityViaZorphy(EntitySpec spec) async {
     // Check if zorphy is available
@@ -498,6 +534,66 @@ class GraphQLEntityEmitter {
     }
 
     return buffer.toString();
+  }
+
+  String _generateOperationContent(OperationSpec spec) {
+    final buffer = StringBuffer();
+    final typeName = spec.type[0].toUpperCase() + spec.type.substring(1);
+    final varName = '${spec.name}$typeName';
+
+    buffer.writeln('/// Generated GraphQL ${spec.type} for ${spec.operationName}');
+    buffer.writeln('const String $varName = r\'\'\'');
+    buffer.writeln(_generateGqlString(spec));
+    buffer.writeln('\'\'\';');
+
+    return buffer.toString();
+  }
+
+  String _generateGqlString(OperationSpec spec) {
+    final buf = StringBuffer();
+    final opName = spec.operationName;
+
+    buf.write('  ${spec.type} $opName');
+
+    if (spec.args.isNotEmpty) {
+      buf.write('(');
+      for (var i = 0; i < spec.args.length; i++) {
+        final arg = spec.args[i];
+        buf.write('\$${arg.name}: ${arg.gqlType}');
+        if (i < spec.args.length - 1) buf.write(', ');
+      }
+      buf.write(')');
+    }
+
+    buf.writeln(' {');
+    buf.write('    ${spec.name}');
+
+    if (spec.args.isNotEmpty) {
+      buf.write('(');
+      for (var i = 0; i < spec.args.length; i++) {
+        final arg = spec.args[i];
+        buf.write('${arg.name}: \$${arg.name}');
+        if (i < spec.args.length - 1) buf.write(', ');
+      }
+      buf.write(')');
+    }
+
+    if (spec.returnFields.isNotEmpty) {
+      buf.writeln(' {');
+      for (final field in spec.returnFields) {
+        if (field.referencedEntity == null) {
+          buf.writeln('      ${field.name}');
+        } else {
+          buf.writeln('      ${field.name} { id }');
+        }
+      }
+      buf.writeln('    }');
+    }
+
+    buf.writeln('  }');
+    buf.write('}');
+
+    return buf.toString();
   }
 
   /// Converts SCREAMING_SNAKE_CASE to camelCase.

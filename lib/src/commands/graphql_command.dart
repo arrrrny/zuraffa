@@ -35,17 +35,39 @@ class GraphQLCommand {
     final outputDir = results['output'] as String;
     final methodsStr = results['methods'] as String;
     final methods = methodsStr.split(',').map((s) => s.trim()).toList();
-    final includeStr = results['include'] as String?;
+    final entitiesStr = results['entities'] as String? ?? results['include'] as String?;
+    final queriesStr = results['queries'] as String?;
+    final mutationsStr = results['mutations'] as String?;
+    final domain = results['domain'] as String?;
     final excludeStr = results['exclude'] as String?;
     final authToken = results['auth'] as String?;
-    final skipUsecases = results['skip-usecases'] == true;
     final useZorphy = results['zorphy'] == true;
     final dryRun = results['dry-run'] == true;
+    final displayStr = results['display'] as String?;
     final force = results['force'] == true;
     final verbose = results['verbose'] == true;
 
-    final include = includeStr?.split(',').map((s) => s.trim()).toSet();
+    if (queriesStr != null || mutationsStr != null) {
+      if (domain == null || domain.isEmpty) {
+        print('❌ Error: --domain is required when specifying --queries or --mutations');
+        exit(1);
+      }
+    }
+
+    final queryNames = queriesStr?.split(',').map((s) => s.trim()).toSet();
+    final mutationNames = mutationsStr?.split(',').map((s) => s.trim()).toSet();
+    
+    // If specific operations are requested, but no entities are requested,
+    // default entities to an empty set to avoid pulling in the whole schema.
+    Set<String>? include;
+    if (entitiesStr != null) {
+      include = entitiesStr.split(',').map((s) => s.trim()).toSet();
+    } else if (queryNames != null || mutationNames != null) {
+      include = {};
+    }
+
     final exclude = excludeStr?.split(',').map((s) => s.trim()).toSet();
+    final display = displayStr?.split(',').map((s) => s.trim()).toSet();
 
     // Build headers
     final headers = <String, String>{};
@@ -84,13 +106,49 @@ class GraphQLCommand {
       include: include,
       exclude: exclude,
     );
+    final operationSpecs = translator.extractOperationSpecs(
+      includeQueries: queryNames,
+      includeMutations: mutationNames,
+    );
 
     if (verbose) {
-      print('📦 Found ${requestedEntitySpecs.length} requested entities and ${enumSpecs.length} enums');
+      print('📦 Found ${requestedEntitySpecs.length} entities, ${enumSpecs.length} enums, and ${operationSpecs.length} operations');
     }
 
-    if (requestedEntitySpecs.isEmpty && enumSpecs.isEmpty) {
-      print('⚠️  No entities or enums found matching the filters');
+    if (display != null && display.isNotEmpty) {
+      print('\n🔍 Available GraphQL Schema Items:');
+      
+      if (display.contains('entities') || display.contains('all')) {
+        final allTranslatorEntities = translator.extractEntitySpecs();
+        print('\n📦 Entities (${allTranslatorEntities.length}):');
+        for (final e in allTranslatorEntities) {
+          print('  - ${e.name}');
+        }
+      }
+      
+      if (display.contains('queries') || display.contains('all')) {
+        final allQueries = translator.extractOperationSpecs();
+        final queries = allQueries.where((o) => o.type == 'query').toList();
+        print('\n🔍 Queries (${queries.length}):');
+        for (final q in queries) {
+          print('  - ${q.name}');
+        }
+      }
+      
+      if (display.contains('mutations') || display.contains('all')) {
+        final allMutations = translator.extractOperationSpecs();
+        final mutations = allMutations.where((o) => o.type == 'mutation').toList();
+        print('\n⚡ Mutations (${mutations.length}):');
+        for (final m in mutations) {
+          print('  - ${m.name}');
+        }
+      }
+      
+      exit(0);
+    }
+
+    if (requestedEntitySpecs.isEmpty && enumSpecs.isEmpty && (operationSpecs.isEmpty)) {
+      print('⚠️  No entities, enums, or operations found matching the filters');
       exit(0);
     }
 
@@ -126,6 +184,30 @@ class GraphQLCommand {
     // Start with requested entities
     for (final spec in requestedEntitySpecs) {
       collectReferences(spec.name);
+    }
+
+    // Also include entities and enums referenced in operations
+    for (final op in operationSpecs) {
+      if (op.returnEntityType != null) {
+        collectReferences(op.returnEntityType!);
+      }
+      // Return fields (nested entities)
+      for (final field in op.returnFields) {
+        if (field.referencedEntity != null) {
+          collectReferences(field.referencedEntity!);
+        }
+        if (field.referencedEnum != null) {
+          allEnumNames.add(field.referencedEnum!);
+        }
+      }
+      // Arguments (potential enums)
+      for (final arg in op.args) {
+        // Find the named type in arguments to see if it's an enum
+        final typeRef = translator.schema.types[arg.gqlType.replaceAll('[', '').replaceAll(']', '').replaceAll('!', '')];
+        if (typeRef != null && typeRef.isEnum) {
+           allEnumNames.add(typeRef.name);
+        }
+      }
     }
 
     // Also include explicitly requested enums
@@ -174,9 +256,10 @@ class GraphQLCommand {
       }
     }
 
-    // Step 5: Generate usecases (only for originally requested entities)
+    // Step 5: Generate usecases
     final generatedUsecases = <String>[];
-    if (!skipUsecases) {
+    // 5.1: Generate standard CRUD usecases for entities (legacy behavior, but kept if no operations specified)
+    if (operationSpecs.isEmpty) {
       for (final entitySpec in requestedEntitySpecs) {
         final config = GeneratorConfig(
           name: entitySpec.name,
@@ -204,12 +287,48 @@ class GraphQLCommand {
           if (verbose) {
             CliLogger.printResult(result);
           }
-        } else {
-          print('⚠️  Failed to generate usecases for ${entitySpec.name}');
-          for (final error in result.errors) {
-            print('   $error');
-          }
         }
+      }
+    }
+
+    // 5.2: Generate custom usecases and operations from GraphQL operations
+    for (final opSpec in operationSpecs) {
+      // Generate the GraphQL string file
+      await emitter.generateOperation(opSpec, domain: domain);
+
+      final config = GeneratorConfig(
+        name: opSpec.operationName,
+        domain: domain,
+        useCaseType: 'usecase',
+        returnsType: opSpec.returnType,
+        paramsType:
+            opSpec.args.isNotEmpty ? '${opSpec.operationName}Params' : 'NoParams',
+        generateData: true,
+        generateRepository: true,
+        appendToExisting: true, // Append to existing domain repository/datasource if any
+        useZorphy: useZorphy,
+        gqlType: opSpec.type,
+        gqlName: opSpec.name,
+        gqlReturns: opSpec.returnFields.map((f) => f.name).join(','),
+      );
+
+      final generator = CodeGenerator(
+        config: config,
+        outputDir: outputDir,
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+      );
+
+      final result = await generator.generate();
+
+      if (result.success) {
+        generatedUsecases.add(opSpec.operationName);
+        if (verbose) {
+          CliLogger.printResult(result);
+        }
+      } else {
+        print('⚠️  Failed to generate operation ${opSpec.name}');
       }
     }
 
@@ -228,7 +347,15 @@ class GraphQLCommand {
     }
     if (dryRun) {
       print('');
-      print('ℹ️  Dry run - no files were written');
+      print('ℹ️  DRY RUN SUMMARY:');
+      if (generatedEnums.isNotEmpty) print('  - Would write ${generatedEnums.length} enums');
+      if (generatedEntities.isNotEmpty) print('  - Would write ${generatedEntities.length} entities');
+      if (operationSpecs.isNotEmpty) {
+        print('  - Would write ${operationSpecs.length} GraphQL operation files');
+        print('  - Would generate/update Domain Repository and DataSources for: ${operationSpecs.map((o) => o.operationName).join(', ')}');
+      }
+      if (generatedUsecases.isNotEmpty) print('  - Would generate UseCases for: ${generatedUsecases.join(', ')}');
+      print('\nℹ️  No files were actually modified.');
     }
 
     // Next steps
@@ -237,10 +364,8 @@ class GraphQLCommand {
     if (useZorphy) {
       print('  1. Run: dart run build_runner build');
     }
-    if (!skipUsecases) {
-      print('  2. Implement DataSource classes for each entity');
-      print('  3. Register dependencies with DI container');
-    }
+    print('  2. Implement DataSource classes for each entity');
+    print('  3. Register dependencies with DI container');
   }
 
   ArgParser _buildParser() {
@@ -263,8 +388,24 @@ class GraphQLCommand {
         defaultsTo: 'get,getList,create,update,delete',
       )
       ..addOption(
+        'entities',
+        help: 'Entities to generate (comma-separated)',
+      )
+      ..addOption(
+        'queries',
+        help: 'Queries to generate (comma-separated)',
+      )
+      ..addOption(
+        'mutations',
+        help: 'Mutations to generate (comma-separated)',
+      )
+      ..addOption(
+        'domain',
+        help: 'Domain name for queries and mutations',
+      )
+      ..addOption(
         'include',
-        help: 'Types to include (comma-separated)',
+        help: 'Types to include (legacy, use --entities instead)',
       )
       ..addOption(
         'exclude',
@@ -274,10 +415,10 @@ class GraphQLCommand {
         'auth',
         help: 'Bearer authentication token',
       )
-      ..addFlag(
-        'skip-usecases',
-        help: 'Only generate entities (skip usecases)',
-        defaultsTo: false,
+      ..addOption(
+        'display',
+        abbr: 'd',
+        help: 'Display available items from schema (entities, queries, mutations, all)',
       )
       ..addFlag(
         'zorphy',
@@ -314,36 +455,34 @@ OPTIONS:
   -u, --url=<url>         GraphQL endpoint URL (required)
   -o, --output=<dir>      Output directory (default: lib/src)
   -m, --methods=<list>    CRUD methods to generate (default: get,getList,create,update,delete)
-  --include=<types>       Types to include (comma-separated)
-  --exclude=<types>       Types to exclude (comma-separated)
   --auth=<token>          Bearer authentication token
-  --skip-usecases         Only generate entities (skip usecases)
+  --entities=<list>       Entities to generate (e.g., Order,Product)
+  --queries=<list>        Specific GraphQL queries to import as UseCases
+  --mutations=<list>      Specific GraphQL mutations to import as UseCases
+  --domain=<name>         Domain for queries/mutations (e.g., order, catalog)
+  --exclude=<types>       Types to exclude (comma-separated)
+  --include=<types>       Types to include (legacy, use --entities)
   --zorphy                Use Zorphy annotations (default: true)
   --dry-run               Preview without writing files
   -f, --force             Overwrite existing files
   -v, --verbose           Verbose output
+  -d, --display=<list>    List available items (entities,queries,mutations,all)
 
 EXAMPLES:
-  # Basic introspection
+  # Basic introspection (deprecated behavior, generates standard CRUD)
   zfa graphql --url=https://api.example.com/graphql
+
+  # Import specific queries and mutations into a domain
+  zfa graphql -u https://api.example.com/graphql --queries=getProducts --domain=catalog
+  
+  # Import entities and specific operations
+  zfa graphql -u url --entities=Order --queries=GetOrder --mutations=CreateOrder --domain=order
 
   # With authentication
   zfa graphql --url=https://api.example.com/graphql --auth=your-token
 
-  # Only specific types
-  zfa graphql --url=https://api.example.com/graphql --include=User,Product,Order
-
-  # Exclude internal types
-  zfa graphql --url=https://api.example.com/graphql --exclude=Query,Mutation,Subscription
-
-  # Only generate entities (no usecases)
-  zfa graphql --url=https://api.example.com/graphql --skip-usecases
-
-  # Custom methods
-  zfa graphql --url=https://api.example.com/graphql --methods=get,getList,watch
-
-  # Preview without writing
-  zfa graphql --url=https://api.example.com/graphql --dry-run --verbose
+  # List available queries and entities
+  zfa graphql -u url -d queries,entities
 ''');
   }
 }

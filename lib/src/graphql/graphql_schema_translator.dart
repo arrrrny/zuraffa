@@ -49,6 +49,43 @@ class EntitySpec {
       'EntitySpec(name: $name, fields: ${fields.length}, idField: $idField, idDartType: $idDartType)';
 }
 
+class ArgumentSpec {
+  final String name;
+  final String dartType;
+  final String gqlType;
+  final bool isNullable;
+
+  const ArgumentSpec({
+    required this.name,
+    required this.dartType,
+    required this.gqlType,
+    required this.isNullable,
+  });
+}
+
+class OperationSpec {
+  final String name;
+  final String type; // 'query' or 'mutation'
+  final List<ArgumentSpec> args;
+  final String returnType;
+  final String? returnEntityType;
+  final List<FieldSpec> returnFields;
+  final String? description;
+
+  const OperationSpec({
+    required this.name,
+    required this.type,
+    required this.args,
+    required this.returnType,
+    this.returnEntityType,
+    required this.returnFields,
+    this.description,
+  });
+
+  String get operationName =>
+      name[0].toUpperCase() + name.substring(1);
+}
+
 /// Specification for an enum derived from a GraphQL enum type.
 class EnumSpec {
   final String name;
@@ -146,6 +183,78 @@ class GraphQLSchemaTranslator {
     return specs;
   }
 
+  /// Extracts operation specifications (queries and mutations) from the schema.
+  List<OperationSpec> extractOperationSpecs({
+    Set<String>? includeQueries,
+    Set<String>? includeMutations,
+  }) {
+    final specs = <OperationSpec>[];
+
+    // If any filter is provided, we only include the requested categories.
+    // If BOTH are null, we include all for backward compatibility.
+    final anyFilter = includeQueries != null || includeMutations != null;
+
+    // Queries
+    if (schema.queryTypeName != null && (!anyFilter || includeQueries != null)) {
+      final queryType = schema.types[schema.queryTypeName];
+      if (queryType != null && queryType.fields != null) {
+        for (final field in queryType.fields!) {
+          if (includeQueries != null && !includeQueries.contains(field.name)) {
+            continue;
+          }
+          specs.add(_toOperationSpec(field, 'query'));
+        }
+      }
+    }
+
+    // Mutations
+    if (schema.mutationTypeName != null &&
+        (!anyFilter || includeMutations != null)) {
+      final mutationType = schema.types[schema.mutationTypeName];
+      if (mutationType != null && mutationType.fields != null) {
+        for (final field in mutationType.fields!) {
+          if (includeMutations != null &&
+              !includeMutations.contains(field.name)) {
+            continue;
+          }
+          specs.add(_toOperationSpec(field, 'mutation'));
+        }
+      }
+    }
+
+    return specs;
+  }
+
+  OperationSpec _toOperationSpec(GqlField field, String type) {
+    final args = field.args.map((a) {
+      return ArgumentSpec(
+        name: a.name,
+        dartType: _toDartType(a.type),
+        gqlType: _toGqlType(a.type),
+        isNullable: !a.type.isNonNull,
+      );
+    }).toList();
+
+    final returnFields = <FieldSpec>[];
+    final namedReturnType = field.type.namedType.name;
+    if (namedReturnType != null) {
+      final typeDef = schema.types[namedReturnType];
+      if (typeDef != null) {
+        returnFields.addAll(_extractFields(typeDef));
+      }
+    }
+
+    return OperationSpec(
+      name: field.name,
+      type: type,
+      args: args,
+      returnType: _toDartType(field.type),
+      returnEntityType: _getReferencedEntity(field.type),
+      returnFields: returnFields,
+      description: field.description,
+    );
+  }
+
   List<FieldSpec> _extractFields(GqlTypeDef typeDef) {
     final gqlFields = typeDef.fields ?? [];
     return gqlFields.map((field) {
@@ -188,6 +297,17 @@ class GraphQLSchemaTranslator {
       case GqlTypeKind.interface_:
       case GqlTypeKind.union:
       case GqlTypeKind.inputObject:
+        return typeRef.name ?? 'dynamic';
+    }
+  }
+
+  String _toGqlType(GqlTypeRef typeRef) {
+    switch (typeRef.kind) {
+      case GqlTypeKind.nonNull:
+        return '${_toGqlType(typeRef.ofType!)}!';
+      case GqlTypeKind.list:
+        return '[${_toGqlType(typeRef.ofType!)}]';
+      default:
         return typeRef.name ?? 'dynamic';
     }
   }
