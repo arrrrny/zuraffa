@@ -6,6 +6,7 @@ import 'commands/create_command.dart';
 import 'commands/config_command.dart';
 import 'commands/initialize_command.dart';
 import 'commands/entity_command.dart';
+import 'commands/graphql_command.dart';
 
 const version = '2.5.1';
 
@@ -39,6 +40,9 @@ Future<void> run(List<String> args) async {
         break;
       case 'entity':
         await EntityCommand().execute(args.skip(1).toList());
+        break;
+      case 'graphql':
+        await GraphQLCommand().execute(args.skip(1).toList());
         break;
       case 'build':
         await _handleBuild(args.skip(1).toList());
@@ -120,6 +124,7 @@ CLEAN ARCHITECTURE COMMANDS:
   config              Manage ZFA configuration (.zfa.json)
   schema              Output JSON schema for configuration
   validate <file>     Validate JSON configuration file
+  graphql             Introspect GraphQL schema and generate entities + usecases
 
 ENTITY GENERATION COMMANDS (powered by Zorphy):
   entity create       Create a new Zorphy entity with fields
@@ -154,6 +159,11 @@ EXAMPLES - ENTITY GENERATION:
   zfa entity from-json user_data.json
   zfa entity list
 
+EXAMPLES - GRAPHQL:
+  zfa graphql --url=https://api.example.com/graphql
+  zfa graphql --url=https://api.example.com/graphql --auth=token
+  zfa graphql --url=https://api.example.com/graphql --include=User,Product
+
 EXAMPLES - BUILD:
   zfa build                # Run build_runner once
   zfa build --watch        # Watch for changes
@@ -162,6 +172,7 @@ EXAMPLES - BUILD:
 For detailed help on each command:
   zfa generate --help
   zfa entity --help
+  zfa graphql --help
   zfa initialize --help
   zfa create --help
 
