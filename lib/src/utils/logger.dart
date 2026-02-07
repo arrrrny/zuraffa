@@ -23,7 +23,7 @@ class CliLogger {
           .where((f) => f.action == 'created')
           .length;
       final updatedCount = result.files
-          .where((f) => f.action == 'updated')
+          .where((f) => ['updated', 'overwritten', 'skipped'].contains(f.action))
           .length;
 
       final parts = <String>[];

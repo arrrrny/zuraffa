@@ -1,3 +1,22 @@
+## [Unreleased]
+
+### ✨ Features
+
+#### GraphQL Support
+- Added GraphQL command for schema introspection and code generation
+- Added GraphQL schema models for introspection query responses
+- Added GraphQL introspection service for fetching and parsing schemas
+- Added GraphQL schema translator to convert Zorphy entities to GraphQL types
+- Added GraphQL entity emitter for generating annotated entity classes
+- Added comprehensive unit tests for GraphQL schema models and translator
+- Added barrel export for GraphQL module
+
+### 📝 Notes
+- GraphQL parser is now ready for production use
+- Supports introspection of remote GraphQL schemas
+- Generates type-safe Dart code from GraphQL schemas
+- Integrates with existing Zorphy entity system
+- 
 ## [2.5.1] - 2026-02-05
 
 ### 📚 Documentation

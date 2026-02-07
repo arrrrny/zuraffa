@@ -1,11 +1,16 @@
 import 'dart:io';
+import 'package:path/path.dart' as path;
 import 'package:args/args.dart';
 import '../graphql/graphql_introspection_service.dart';
 import '../graphql/graphql_schema_translator.dart';
 import '../graphql/graphql_entity_emitter.dart';
 import '../models/generator_config.dart';
+import '../models/generator_result.dart';
+import '../models/generated_file.dart';
 import '../generator/code_generator.dart';
 import '../utils/logger.dart';
+import '../utils/string_utils.dart';
+import 'generate_command.dart';
 
 /// Command for introspecting a GraphQL schema and generating entities + usecases.
 class GraphQLCommand {
@@ -41,6 +46,9 @@ class GraphQLCommand {
     final domain = results['domain'] as String?;
     final excludeStr = results['exclude'] as String?;
     final authToken = results['auth'] as String?;
+    final repo = results['repo'] as String?;
+    final service = results['service'] as String?;
+    final generateData = results['data'] == true;
     final useZorphy = results['zorphy'] == true;
     final dryRun = results['dry-run'] == true;
     final displayStr = results['display'] as String?;
@@ -200,12 +208,16 @@ class GraphQLCommand {
           allEnumNames.add(field.referencedEnum!);
         }
       }
-      // Arguments (potential enums)
+      // Arguments (potential enums or input objects)
       for (final arg in op.args) {
-        // Find the named type in arguments to see if it's an enum
-        final typeRef = translator.schema.types[arg.gqlType.replaceAll('[', '').replaceAll(']', '').replaceAll('!', '')];
-        if (typeRef != null && typeRef.isEnum) {
-           allEnumNames.add(typeRef.name);
+        final rawTypeName = arg.gqlType.replaceAll('[', '').replaceAll(']', '').replaceAll('!', '');
+        final typeRef = translator.schema.types[rawTypeName];
+        if (typeRef != null) {
+          if (typeRef.isEnum) {
+            allEnumNames.add(typeRef.name);
+          } else if (typeRef.isInputObject) {
+            collectReferences(typeRef.name);
+          }
         }
       }
     }
@@ -239,20 +251,51 @@ class GraphQLCommand {
       verbose: verbose,
     );
 
+    final allFiles = <GeneratedFile>[];
     final generatedEnums = <String>[];
     for (final enumSpec in allEnumSpecs) {
-      final path = await emitter.generateEnum(enumSpec);
-      if (path != null) {
+      final snakeName = StringUtils.camelToSnake(enumSpec.name);
+      final expectedPath = path.join(
+        outputDir,
+        'domain',
+        'entities',
+        'enums',
+        '$snakeName.dart',
+      );
+      final exists = File(expectedPath).existsSync();
+
+      final filePath = await emitter.generateEnum(enumSpec);
+      if (filePath != null) {
         generatedEnums.add(enumSpec.name);
+        allFiles.add(GeneratedFile(
+          path: filePath,
+          type: 'enum',
+          action: exists ? 'updated' : 'created',
+        ));
       }
     }
 
     // Step 4: Generate entities (all including referenced)
     final generatedEntities = <String>[];
     for (final entitySpec in allEntitySpecs) {
-      final path = await emitter.generateEntity(entitySpec);
-      if (path != null) {
+      final snakeName = StringUtils.camelToSnake(entitySpec.name);
+      final expectedPath = path.join(
+        outputDir,
+        'domain',
+        'entities',
+        snakeName,
+        '$snakeName.dart',
+      );
+      final exists = File(expectedPath).existsSync();
+
+      final filePath = await emitter.generateEntity(entitySpec);
+      if (filePath != null) {
         generatedEntities.add(entitySpec.name);
+        allFiles.add(GeneratedFile(
+          path: filePath,
+          type: 'entity',
+          action: exists ? 'updated' : 'created',
+        ));
       }
     }
 
@@ -284,6 +327,7 @@ class GraphQLCommand {
 
         if (result.success) {
           generatedUsecases.add(entitySpec.name);
+          allFiles.addAll(result.files);
           if (verbose) {
             CliLogger.printResult(result);
           }
@@ -292,58 +336,99 @@ class GraphQLCommand {
     }
 
     // 5.2: Generate custom usecases and operations from GraphQL operations
+    final generateCmd = GenerateCommand();
     for (final opSpec in operationSpecs) {
       // Generate the GraphQL string file
-      await emitter.generateOperation(opSpec, domain: domain);
-
-      final config = GeneratorConfig(
-        name: opSpec.operationName,
-        domain: domain,
-        useCaseType: 'usecase',
-        returnsType: opSpec.returnType,
-        paramsType:
-            opSpec.args.isNotEmpty ? '${opSpec.operationName}Params' : 'NoParams',
-        generateData: true,
-        generateRepository: true,
-        appendToExisting: true, // Append to existing domain repository/datasource if any
-        useZorphy: useZorphy,
-        gqlType: opSpec.type,
-        gqlName: opSpec.name,
-        gqlReturns: opSpec.returnFields.map((f) => f.name).join(','),
+      final snakeName = StringUtils.camelToSnake(opSpec.name);
+      final opType = opSpec.type;
+      final domainDir = domain ?? 'graphql';
+      final expectedOpPath = path.join(
+        outputDir,
+        'data',
+        'data_sources',
+        domainDir,
+        'graphql',
+        '${snakeName}_$opType.dart',
       );
+      final opExists = File(expectedOpPath).existsSync();
 
-      final generator = CodeGenerator(
-        config: config,
-        outputDir: outputDir,
-        dryRun: dryRun,
-        force: force,
-        verbose: verbose,
-      );
+      final opPath = await emitter.generateOperation(opSpec, domain: domain);
+      if (opPath != null) {
+        allFiles.add(GeneratedFile(
+          path: opPath,
+          type: 'graphql',
+          action: opExists ? 'updated' : 'created',
+        ));
+      }
 
-      final result = await generator.generate();
+      // Compose the 'zfa generate' command arguments
+      final genArgs = <String>[
+        opSpec.operationName,
+        '--domain=$domain',
+        if (repo != null) '--repo=$repo',
+        if (service != null) '--service=$service',
+        '--type=usecase',
+        '--params=${opSpec.args.isNotEmpty ? '${opSpec.operationName}Params' : 'NoParams'}',
+        '--returns=${opSpec.returnType}',
+        if (generateData) '--data',
+        '--append',
+        if (useZorphy) '--zorphy',
+        '--gql',
+        '--gql-type=${opSpec.type}',
+        '--gql-name=${opSpec.name}',
+        '--gql-returns=${opSpec.returnFields.map((f) => f.name).join(',')}',
+        if (dryRun) '--dry-run',
+        if (force) '--force',
+        if (verbose) '--verbose',
+        '--output=$outputDir',
+        '--quiet',
+      ];
 
-      if (result.success) {
-        generatedUsecases.add(opSpec.operationName);
-        if (verbose) {
-          CliLogger.printResult(result);
+      print('🚀 Composing: zfa generate ${genArgs.where((a) => a != '--quiet').join(' ')}');
+
+      // Execute via GenerateCommand to ensure all rules and logic are applied
+      try {
+        final result =
+            await generateCmd.execute(genArgs, exitOnCompletion: false);
+
+        if (result.success) {
+          generatedUsecases.add(opSpec.operationName);
+          allFiles.addAll(result.files);
         }
-      } else {
-        print('⚠️  Failed to generate operation ${opSpec.name}');
+      } catch (e) {
+        if (verbose) {
+          print('⚠️  Generation failed for ${opSpec.name}: $e');
+        }
       }
     }
 
-    // Summary
-    print('');
-    print('✅ GraphQL introspection complete!');
-    print('');
-    if (generatedEnums.isNotEmpty) {
-      print('📋 Enums: ${generatedEnums.join(', ')}');
+    // Final unified summary
+    if (allFiles.isNotEmpty) {
+      // Deduplicate files by path
+      final seenPaths = <String>{};
+      final uniqueFiles = allFiles.where((f) => seenPaths.add(f.path)).toList();
+
+      final megaResult = GeneratorResult(
+        success: true,
+        name: 'GraphQL Introspection',
+        files: uniqueFiles,
+        errors: [],
+        nextSteps: [
+          if (operationSpecs.isNotEmpty)
+            'Business logic generated in domain layer',
+          if (generateData)
+            'Ensure GraphQL providers are correctly implemented in data layer',
+          if (useZorphy) 'Run build: zfa build',
+          'Register dependencies with DI container if using --di',
+        ],
+      );
+      CliLogger.printResult(megaResult);
     }
-    if (generatedEntities.isNotEmpty) {
-      print('📦 Entities: ${generatedEntities.join(', ')}');
-    }
-    if (generatedUsecases.isNotEmpty) {
-      print('🔧 UseCases generated for: ${generatedUsecases.join(', ')}');
+
+    if (generatedEnums.isEmpty &&
+        generatedEntities.isEmpty &&
+        generatedUsecases.isEmpty) {
+      print('ℹ️  No changes detected.');
     }
     if (dryRun) {
       print('');
@@ -352,7 +437,11 @@ class GraphQLCommand {
       if (generatedEntities.isNotEmpty) print('  - Would write ${generatedEntities.length} entities');
       if (operationSpecs.isNotEmpty) {
         print('  - Would write ${operationSpecs.length} GraphQL operation files');
-        print('  - Would generate/update Domain Repository and DataSources for: ${operationSpecs.map((o) => o.operationName).join(', ')}');
+        if (repo != null || service != null) {
+          print('  - Would generate/update functional layers using: zfa generate ...');
+        } else {
+          print('  - Skipping functional layers (UseCases/Repo/Service) because --repo or --service was not provided');
+        }
       }
       if (generatedUsecases.isNotEmpty) print('  - Would generate UseCases for: ${generatedUsecases.join(', ')}');
       print('\nℹ️  No files were actually modified.');
@@ -360,12 +449,6 @@ class GraphQLCommand {
 
     // Next steps
     print('');
-    print('Next steps:');
-    if (useZorphy) {
-      print('  1. Run: dart run build_runner build');
-    }
-    print('  2. Implement DataSource classes for each entity');
-    print('  3. Register dependencies with DI container');
   }
 
   ArgParser _buildParser() {
@@ -441,6 +524,19 @@ class GraphQLCommand {
         abbr: 'v',
         help: 'Verbose output',
         defaultsTo: false,
+      )
+      ..addOption(
+        'repo',
+        help: 'Repository name to inject (required for UseCase generation)',
+      )
+      ..addOption(
+        'service',
+        help: 'Service name to inject (alternative to --repo)',
+      )
+      ..addFlag(
+        'data',
+        help: 'Generate Data sources (DataSource/DataRepository)',
+        defaultsTo: false,
       );
   }
 
@@ -460,6 +556,9 @@ OPTIONS:
   --queries=<list>        Specific GraphQL queries to import as UseCases
   --mutations=<list>      Specific GraphQL mutations to import as UseCases
   --domain=<name>         Domain for queries/mutations (e.g., order, catalog)
+  --repo=<name>           Repository name to inject (e.g., Order, User)
+  --service=<name>        Service name to inject (alternative to --repo)
+  --data                  Generate functional Data layer (DataSource/DataRepo)
   --exclude=<types>       Types to exclude (comma-separated)
   --include=<types>       Types to include (legacy, use --entities)
   --zorphy                Use Zorphy annotations (default: true)
@@ -472,11 +571,14 @@ EXAMPLES:
   # Basic introspection (deprecated behavior, generates standard CRUD)
   zfa graphql --url=https://api.example.com/graphql
 
-  # Import specific queries and mutations into a domain
+  # Import specific queries and mutations into a domain (Definition files only)
   zfa graphql -u https://api.example.com/graphql --queries=getProducts --domain=catalog
+
+  # Full integration: Create GraphQL strings + UseCase + Repo + Data layer
+  zfa graphql -u url --queries=GetOrder --domain=order --repo=Order --data
   
   # Import entities and specific operations
-  zfa graphql -u url --entities=Order --queries=GetOrder --mutations=CreateOrder --domain=order
+  zfa graphql -u url --entities=Order --queries=GetOrder --mutations=CreateOrder --domain=order --repo=Order --data
 
   # With authentication
   zfa graphql --url=https://api.example.com/graphql --auth=your-token

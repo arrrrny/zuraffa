@@ -314,11 +314,13 @@ class GraphQLSchemaTranslator {
 
   String? _getReferencedEntity(GqlTypeRef typeRef) {
     final namedType = typeRef.namedType;
+    final kind = namedType.kind;
 
-    if (namedType.kind == GqlTypeKind.object ||
-        namedType.kind == GqlTypeKind.interface_) {
+    if (kind == GqlTypeKind.object ||
+        kind == GqlTypeKind.interface_ ||
+        kind == GqlTypeKind.union) {
       final typeName = namedType.name;
-      if (typeName != null && schema.types[typeName]?.isObject == true) {
+      if (typeName != null) {
         final rootTypes = {
           schema.queryTypeName,
           schema.mutationTypeName,

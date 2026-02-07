@@ -2,131 +2,72 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:args/args.dart';
 import '../models/generator_config.dart';
+import '../models/generator_result.dart';
 import '../generator/code_generator.dart';
 import '../utils/logger.dart';
 import '../config/zfa_config.dart';
 
 class GenerateCommand {
-  Future<void> execute(List<String> args) async {
+  Future<GeneratorResult> execute(List<String> args,
+      {bool exitOnCompletion = true}) async {
     if (args.isEmpty) {
       print('❌ Usage: zfa generate <Name> [options]');
       print('\nRun: zfa generate --help for more information');
-      exit(1);
+      if (exitOnCompletion) exit(1);
+      return GeneratorResult(
+        name: 'error',
+        success: false,
+        files: [],
+        errors: ['Missing arguments'],
+        nextSteps: [],
+      );
     }
 
     if (args[0] == '--help' || args[0] == '-h') {
       _printHelp();
-      exit(0);
+      if (exitOnCompletion) exit(0);
+      return GeneratorResult(
+        name: 'help',
+        success: true,
+        files: [],
+        errors: [],
+        nextSteps: [],
+      );
     }
 
     final name = args[0];
     if (name.startsWith('--')) {
       print('❌ Missing name');
       print('Usage: zfa generate <Name> [options]');
-      exit(1);
-    }
-
-    final parser = _buildArgParser();
-    final results = parser.parse(args.skip(1).toList());
-
-    // Load ZFA config for defaults
-    final zfaConfig = ZfaConfig.load() ?? const ZfaConfig();
-
-    GeneratorConfig config;
-
-    if (results['from-stdin'] == true) {
-      final input = stdin.readLineSync() ?? '';
-      final json = jsonDecode(input) as Map<String, dynamic>;
-      config = GeneratorConfig.fromJson(json, name);
-    } else if (results['from-json'] != null) {
-      final file = File(results['from-json']);
-      if (!file.existsSync()) {
-        print('❌ JSON file not found: ${results['from-json']}');
-        exit(1);
-      }
-      final json = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
-      config = GeneratorConfig.fromJson(json, name);
-    } else {
-      final methodsStr = results['methods'] as String?;
-      final usecasesStr = results['usecases'] as String?;
-      final variantsStr = results['variants'] as String?;
-
-      // Apply config defaults for entity-based operations
-      final isEntityBased = methodsStr != null && methodsStr.isNotEmpty;
-      final shouldGenerateGql =
-          results['gql'] == true || (isEntityBased && zfaConfig.generateGql);
-
-      config = GeneratorConfig(
-        name: name,
-        methods: methodsStr?.split(',').map((s) => s.trim()).toList() ?? [],
-        repo: results['repo'],
-        service: results['service'],
-        usecases: usecasesStr?.split(',').map((s) => s.trim()).toList() ?? [],
-        variants: variantsStr?.split(',').map((s) => s.trim()).toList() ?? [],
-        domain: results['domain'],
-        repoMethod: results['method'],
-        serviceMethod:
-            results['service-method'] ??
-            (results['service'] != null ? results['method'] : null),
-        appendToExisting: results['append'] == true,
-        generateRepository: true, // Always true, controlled internally
-        useCaseType: results['type'],
-        paramsType: results['params'],
-        returnsType: results['returns'],
-        idField: results['id-field'] ?? 'id',
-        idType: results['id-field-type'] ?? results['id-type'] ?? 'String',
-        generateVpc: results['vpc'] == true || results['vpcs'] == true,
-        generateView:
-            results['view'] == true ||
-            results['vpc'] == true ||
-            results['vpcs'] == true,
-        generatePresenter:
-            results['presenter'] == true ||
-            results['vpc'] == true ||
-            results['vpcs'] == true ||
-            results['pc'] == true ||
-            results['pcs'] == true,
-        generateController:
-            results['controller'] == true ||
-            results['vpc'] == true ||
-            results['vpcs'] == true ||
-            results['pc'] == true ||
-            results['pcs'] == true,
-        generateObserver: results['observer'] == true,
-        generateData: results['data'] == true,
-        generateDataSource: results['datasource'] == true,
-        generateState:
-            results['state'] == true ||
-            results['vpcs'] == true ||
-            results['pcs'] == true,
-        generateInit: results['init'] == true,
-        queryField: results['query-field'] ?? results['id-field'] ?? 'id',
-        queryFieldType: results['query-field-type'],
-        useZorphy: results['zorphy'] == true,
-        generateTest: results['test'] == true,
-        enableCache: results['cache'] == true,
-        cachePolicy: results['cache-policy'] ?? 'daily',
-        cacheStorage:
-            results['cache-storage'] ??
-            (results['cache'] == true ? 'hive' : null),
-        ttlMinutes: results['ttl'] != null
-            ? int.tryParse(results['ttl'])
-            : null,
-        generateMock: results['mock'] == true,
-        generateMockDataOnly: results['mock-data-only'] == true,
-        useMockInDi: results['use-mock'] == true,
-        generateDi: results['di'] == true,
-        diFramework: 'get_it',
-        generateGql: shouldGenerateGql,
-        gqlReturns: results['gql-returns'],
-        gqlType: results['gql-type'],
-        gqlInputType: results['gql-input-type'],
-        gqlInputName: results['gql-input-name'],
-        gqlName: results['gql-name'],
+      if (exitOnCompletion) exit(1);
+      return GeneratorResult(
+        name: 'error',
+        success: false,
+        files: [],
+        errors: ['Missing name'],
+        nextSteps: [],
       );
     }
 
-    _validateConfig(config);
+    final parser = _buildArgParser();
+    final ArgResults results;
+    try {
+      results = parser.parse(args.skip(1).toList());
+    } on FormatException catch (e) {
+      print('❌ ${e.message}');
+      print('\nRun: zfa generate --help for usage information');
+      if (exitOnCompletion) exit(1);
+      return GeneratorResult(
+        name: 'error',
+        success: false,
+        files: [],
+        errors: [e.message],
+        nextSteps: [],
+      );
+    }
+
+    final config = _buildConfig(name, results);
+    _validateConfig(config, exitOnCompletion: exitOnCompletion);
 
     final outputDir = results['output'] as String;
     final format = results['format'] as String;
@@ -147,6 +88,11 @@ class GenerateCommand {
 
     if (format == 'json') {
       print(jsonEncode(result.toJson()));
+    } else if (!result.success) {
+      if (!quiet) {
+        CliLogger.printResult(result);
+      }
+      if (exitOnCompletion) exit(1);
     } else if (verbose && !quiet) {
       for (final file in result.files) {
         print('\n--- ${file.path} ---');
@@ -157,38 +103,134 @@ class GenerateCommand {
       CliLogger.printResult(result);
     }
 
-    exit(result.success ? 0 : 1);
+    if (exitOnCompletion) exit(0);
+    return result;
   }
 
-  void _validateConfig(GeneratorConfig config) {
+  GeneratorConfig _buildConfig(String name, ArgResults results) {
+    // Load ZFA config for defaults
+    final zfaConfig = ZfaConfig.load() ?? const ZfaConfig();
+
+    if (results['from-stdin'] == true) {
+      final input = stdin.readLineSync() ?? '';
+      final json = jsonDecode(input) as Map<String, dynamic>;
+      return GeneratorConfig.fromJson(json, name);
+    } else if (results['from-json'] != null) {
+      final file = File(results['from-json']);
+      if (!file.existsSync()) {
+        print('❌ JSON file not found: ${results['from-json']}');
+        exit(1);
+      }
+      final json = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      return GeneratorConfig.fromJson(json, name);
+    } else {
+      final methodsStr = results['methods'] as String?;
+      final usecasesStr = results['usecases'] as String?;
+      final variantsStr = results['variants'] as String?;
+
+      // Apply config defaults for entity-based operations
+      final isEntityBased = methodsStr != null && methodsStr.isNotEmpty;
+      final shouldGenerateGql =
+          results['gql'] == true || (isEntityBased && zfaConfig.generateGql);
+
+      return GeneratorConfig(
+        name: name,
+        methods: methodsStr?.split(',').map((s) => s.trim()).toList() ?? [],
+        repo: results['repo'],
+        service: results['service'],
+        usecases: usecasesStr?.split(',').map((s) => s.trim()).toList() ?? [],
+        variants: variantsStr?.split(',').map((s) => s.trim()).toList() ?? [],
+        domain: results['domain'],
+        repoMethod: results['method'],
+        serviceMethod: results['service-method'] ??
+            (results['service'] != null ? results['method'] : null),
+        appendToExisting: results['append'] == true,
+        generateRepository: true,
+        useCaseType: results['type'],
+        paramsType: results['params'],
+        returnsType: results['returns'],
+        idField: results['id-field'] ?? 'id',
+        idType: results['id-field-type'] ?? results['id-type'] ?? 'String',
+        generateVpc: results['vpc'] == true || results['vpcs'] == true,
+        generateView: results['view'] == true ||
+            results['vpc'] == true ||
+            results['vpcs'] == true,
+        generatePresenter: results['presenter'] == true ||
+            results['vpc'] == true ||
+            results['vpcs'] == true ||
+            results['pc'] == true ||
+            results['pcs'] == true,
+        generateController: results['controller'] == true ||
+            results['vpc'] == true ||
+            results['vpcs'] == true ||
+            results['pc'] == true ||
+            results['pcs'] == true,
+        generateObserver: results['observer'] == true,
+        generateData: results['data'] == true,
+        generateDataSource: results['datasource'] == true,
+        generateState: results['state'] == true ||
+            results['vpcs'] == true ||
+            results['pcs'] == true,
+        generateInit: results['init'] == true,
+        queryField: results['query-field'] ?? results['id-field'] ?? 'id',
+        queryFieldType: results['query-field-type'],
+        useZorphy: results['zorphy'] == true,
+        generateTest: results['test'] == true,
+        enableCache: results['cache'] == true,
+        cachePolicy: results['cache-policy'] ?? 'daily',
+        cacheStorage: results['cache-storage'] ??
+            (results['cache'] == true ? 'hive' : null),
+        ttlMinutes:
+            results['ttl'] != null ? int.tryParse(results['ttl']) : null,
+        generateMock: results['mock'] == true,
+        generateMockDataOnly: results['mock-data-only'] == true,
+        useMockInDi: results['use-mock'] == true,
+        generateDi: results['di'] == true,
+        diFramework: 'get_it',
+        generateGql: shouldGenerateGql,
+        gqlReturns: results['gql-returns'],
+        gqlType: results['gql-type'],
+        gqlInputType: results['gql-input-type'],
+        gqlInputName: results['gql-input-name'],
+        gqlName: results['gql-name'],
+      );
+    }
+  }
+
+  void _validateConfig(GeneratorConfig config, {bool exitOnCompletion = true}) {
     // Rule 1: Entity-based cannot have --domain, --repo, --service, --usecases, --variants
     if (config.isEntityBased) {
       if (config.domain != null) {
         print('❌ Error: --domain cannot be used with entity-based generation');
         print('   Entity-based UseCases auto-use entity name as domain');
-        exit(1);
+        if (exitOnCompletion) exit(1);
+        throw ArgumentError('Invalid config: --domain with entity-based');
       }
       if (config.repo != null) {
         print('❌ Error: --repo cannot be used with entity-based generation');
         print('   Entity-based UseCases auto-inject ${config.name}Repository');
-        exit(1);
+        if (exitOnCompletion) exit(1);
+        throw ArgumentError('Invalid config: --repo with entity-based');
       }
       if (config.service != null) {
         print('❌ Error: --service cannot be used with entity-based generation');
         print('   Entity-based UseCases auto-inject ${config.name}Repository');
-        exit(1);
+        if (exitOnCompletion) exit(1);
+        throw ArgumentError('Invalid config: --service with entity-based');
       }
       if (config.usecases.isNotEmpty) {
         print(
           '❌ Error: --usecases cannot be used with entity-based generation',
         );
-        exit(1);
+        if (exitOnCompletion) exit(1);
+        throw ArgumentError('Invalid config: --usecases with entity-based');
       }
       if (config.variants.isNotEmpty) {
         print(
           '❌ Error: --variants cannot be used with entity-based generation',
         );
-        exit(1);
+        if (exitOnCompletion) exit(1);
+        throw ArgumentError('Invalid config: --variants with entity-based');
       }
     }
 
@@ -212,7 +254,8 @@ class GenerateCommand {
       print(
         '  zfa generate ProcessPayment --domain=payment --service=Payment --params=PaymentRequest --returns=PaymentResult',
       );
-      exit(1);
+      if (exitOnCompletion) exit(1);
+      throw ArgumentError('Invalid config: missing --domain');
     }
 
     // Rule 3: Orchestrator (--usecases) cannot have --repo or --service
@@ -226,7 +269,8 @@ class GenerateCommand {
       print('Either:');
       print('  - Use --repo or --service for dependency-based UseCase');
       print('  - Use --usecases for orchestrator UseCase');
-      exit(1);
+      if (exitOnCompletion) exit(1);
+      throw ArgumentError('Invalid config: --usecases with --repo or --service');
     }
 
     // Rule 4: Custom non-orchestrator requires --repo OR --service (except background)
@@ -239,7 +283,8 @@ class GenerateCommand {
         print(
           '   Use --repo for repository injection OR --service for service injection',
         );
-        exit(1);
+        if (exitOnCompletion) exit(1);
+        throw ArgumentError('Invalid config: both --repo and --service');
       }
       if (config.repo == null && config.service == null) {
         print('❌ Error: --repo or --service is required for custom UseCases');
@@ -249,11 +294,11 @@ class GenerateCommand {
         print(
           '  zfa generate ${config.name} --domain=${config.domain ?? 'domain'} --repo=<Repository> --params=<Type> --returns=<Type>',
         );
-        print('  or');
         print(
           '  zfa generate ${config.name} --domain=${config.domain ?? 'domain'} --service=<Service> --params=<Type> --returns=<Type>',
         );
-        exit(1);
+        if (exitOnCompletion) exit(1);
+        throw ArgumentError('Invalid config: missing --repo or --service');
       }
     }
 
