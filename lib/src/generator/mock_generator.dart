@@ -822,7 +822,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
         case 'getList':
           methods.add('''
   @override
-  Future<List<$entityName>> getList(ListQueryParams params) async {
+  Future<List<$entityName>> getList(ListQueryParams<$entityName> params) async {
     logger.info('Getting $entityName list with params: \$params');
     await Future.delayed(_delay);
     var items = ${entityName}MockData.${entityCamel}s;
@@ -919,7 +919,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
         case 'watchList':
           methods.add('''
   @override
-  Stream<List<$entityName>> watchList(ListQueryParams params) {
+  Stream<List<$entityName>> watchList(ListQueryParams<$entityName> params) {
     return Stream.periodic(const Duration(seconds: 2), (count) {
       var items = ${entityName}MockData.${entityCamel}s;
       if (params.limit != null && params.limit! > 0) {

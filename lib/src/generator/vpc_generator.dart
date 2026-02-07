@@ -174,7 +174,7 @@ ${withState ? '''    result.fold(
           break;
         case 'getList':
           methods.add('''
-  Future<void> get${entityName}List([ListQueryParams params = const ListQueryParams()]) async {
+  Future<void> get${entityName}List([ListQueryParams<$entityName> params = const ListQueryParams()]) async {
 ${withState ? "    updateState(viewState.copyWith(isGettingList: true));" : ""}
     final result = await _presenter.get${entityName}List(params);
 
@@ -328,7 +328,7 @@ ${withState ? '''      (result) {
           break;
         case 'watchList':
           methods.add('''
-  void watch${entityName}List([ListQueryParams params = const ListQueryParams()]) {
+  void watch${entityName}List([ListQueryParams<$entityName> params = const ListQueryParams()]) {
 ${withState ? "    updateState(viewState.copyWith(isWatchingList: true));" : ""}
     _presenter.watch${entityName}List(params).listen(
 ${withState ? '''      (result) {

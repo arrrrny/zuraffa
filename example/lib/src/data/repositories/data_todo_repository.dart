@@ -39,12 +39,12 @@ class DataTodoRepository
   }
 
   @override
-  Future<List<Todo>> getList(ListQueryParams params) {
+  Future<List<Todo>> getList(ListQueryParams<Todo> params) {
     return _dataSource.getList(params);
   }
 
   @override
-  Stream<List<Todo>> watchList(ListQueryParams params) {
+  Stream<List<Todo>> watchList(ListQueryParams<Todo> params) {
     return _dataSource.watchList(params);
   }
 }

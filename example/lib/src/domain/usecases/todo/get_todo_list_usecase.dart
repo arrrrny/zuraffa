@@ -4,14 +4,14 @@ import 'package:zuraffa/zuraffa.dart';
 import '../../entities/todo/todo.dart';
 import '../../repositories/todo_repository.dart';
 
-class GetTodoListUseCase extends UseCase<List<Todo>, ListQueryParams> {
+class GetTodoListUseCase extends UseCase<List<Todo>, ListQueryParams<Todo>> {
   final TodoRepository _repository;
 
   GetTodoListUseCase(this._repository);
 
   @override
   Future<List<Todo>> execute(
-      ListQueryParams params, CancelToken? cancelToken) async {
+      ListQueryParams<Todo> params, CancelToken? cancelToken) async {
     cancelToken?.throwIfCancelled();
     return _repository.getList(params);
   }

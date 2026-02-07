@@ -40,7 +40,7 @@ void main() {
 
     test('should call repository.getList with correct parameters', () async {
       // Arrange
-      const params = ListQueryParams();
+      const params = ListQueryParams<Todo>();
       when(() => mockRepository.getList(params))
           .thenAnswer((_) async => testTodos);
 
@@ -55,7 +55,7 @@ void main() {
 
     test('should return empty list when no todos exist', () async {
       // Arrange
-      const params = ListQueryParams();
+      const params = ListQueryParams<Todo>();
       when(() => mockRepository.getList(params)).thenAnswer((_) async => []);
 
       // Act
@@ -69,7 +69,7 @@ void main() {
 
     test('should return Failure when repository throws', () async {
       // Arrange
-      const params = ListQueryParams();
+      const params = ListQueryParams<Todo>();
       final exception = Exception('Database error');
       when(() => mockRepository.getList(params)).thenThrow(exception);
 
@@ -83,7 +83,7 @@ void main() {
 
     test('should return CancellationFailure when cancelled', () async {
       // Arrange
-      const params = ListQueryParams();
+      const params = ListQueryParams<Todo>();
       final cancelToken = CancelToken();
       cancelToken.cancel();
 

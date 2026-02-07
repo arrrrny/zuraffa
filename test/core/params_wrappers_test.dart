@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zorphy_annotation/zorphy_annotation.dart';
 import 'package:zuraffa/zuraffa.dart';
 
 void main() {
@@ -23,42 +24,73 @@ void main() {
 
   group('ListQueryParams', () {
     test('should store all query options', () {
-      const q = ListQueryParams(
+      const nameField = Field<_TestEntity, String>('name');
+      final q = ListQueryParams<_TestEntity>(
         search: 'test',
-        filters: {'active': true},
-        sortBy: 'name',
-        descending: false,
+        filter: Eq<_TestEntity, String>(nameField, 'active'),
+        sort: Sort<_TestEntity>.asc(nameField),
         limit: 10,
         offset: 0,
-        params: Params({'custom': 1}),
+        params: const Params({'custom': 1}),
+        extra: const {'active': true},
       );
 
       expect(q.search, 'test');
-      expect(q.filters?['active'], true);
-      expect(q.sortBy, 'name');
-      expect(q.descending, false);
+      expect(q.filter, isNotNull);
+      expect(q.sort?.field.name, 'name');
+      expect(q.sort?.descending, false);
       expect(q.limit, 10);
       expect(q.offset, 0);
       expect(q.params?.params?['custom'], 1);
+      expect(q.extra?['active'], true);
     });
 
     test('copyWith should allow partial updates and clearing', () {
-      const q = ListQueryParams(search: 'old', sortBy: 'old');
+      const q = ListQueryParams<_TestEntity>(search: 'old');
 
       final updated = q.copyWith(search: 'new', clearSort: true);
 
       expect(updated.search, 'new');
-      expect(updated.sortBy, isNull);
+      expect(updated.sort, isNull);
     });
 
     test('equality and hashCode', () {
-      const q1 = ListQueryParams(search: 'a');
-      const q2 = ListQueryParams(search: 'a');
-      const q3 = ListQueryParams(search: 'b');
+      const q1 = ListQueryParams<_TestEntity>(search: 'a');
+      const q2 = ListQueryParams<_TestEntity>(search: 'a');
+      const q3 = ListQueryParams<_TestEntity>(search: 'b');
 
       expect(q1, equals(q2));
       expect(q1.hashCode, equals(q2.hashCode));
       expect(q1, isNot(equals(q3)));
+    });
+
+    test('toQueryMap serializes correctly', () {
+      const nameField = Field<_TestEntity, String>('name');
+      final q = ListQueryParams<_TestEntity>(
+        search: 'test',
+        filter: Eq<_TestEntity, String>(nameField, 'active'),
+        sort: Sort<_TestEntity>.desc(nameField),
+        limit: 20,
+        offset: 5,
+        extra: const {'custom': 'value'},
+      );
+
+      final map = q.toQueryMap();
+      expect(map['search'], 'test');
+      expect(map['sort'], isA<Map>());
+      expect((map['sort'] as Map)['field'], 'name');
+      expect((map['sort'] as Map)['descending'], true);
+      expect(map['limit'], 20);
+      expect(map['offset'], 5);
+      expect(map['filter'], isA<Map>());
+      expect(map['custom'], 'value');
+    });
+
+    test('default constructor works without type parameter', () {
+      const q = ListQueryParams();
+      expect(q.search, isNull);
+      expect(q.filter, isNull);
+      expect(q.sort, isNull);
     });
   });
 
@@ -110,4 +142,9 @@ void main() {
       expect(d1, isNot(equals(d3)));
     });
   });
+}
+
+class _TestEntity {
+  final String name;
+  const _TestEntity({required this.name});
 }

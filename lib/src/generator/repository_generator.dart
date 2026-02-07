@@ -43,7 +43,7 @@ class RepositoryGenerator {
           break;
         case 'getList':
           methods.add(
-            '  Future<List<${config.name}>> getList(ListQueryParams params);',
+            '  Future<List<${config.name}>> getList(ListQueryParams<${config.name}> params);',
           );
           break;
         case 'create':
@@ -72,7 +72,7 @@ class RepositoryGenerator {
           break;
         case 'watchList':
           methods.add(
-            '  Stream<List<${config.name}>> watchList(ListQueryParams params);',
+            '  Stream<List<${config.name}>> watchList(ListQueryParams<${config.name}> params);',
           );
           break;
       }

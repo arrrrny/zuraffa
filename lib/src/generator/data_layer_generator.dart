@@ -61,7 +61,7 @@ class DataLayerGenerator {
           break;
         case 'getList':
           methods.add(
-            '  Future<List<$entityName>> getList(ListQueryParams params);',
+            '  Future<List<$entityName>> getList(ListQueryParams<$entityName> params);',
           );
           break;
         case 'create':
@@ -90,7 +90,7 @@ class DataLayerGenerator {
           break;
         case 'watchList':
           methods.add(
-            '  Stream<List<$entityName>> watchList(ListQueryParams params);',
+            '  Stream<List<$entityName>> watchList(ListQueryParams<$entityName> params);',
           );
           break;
       }
@@ -178,7 +178,7 @@ ${methods.join('\n')}
         case 'getList':
           methods.add('''
   @override
-  Future<List<$entityName>> getList(ListQueryParams params) async {
+  Future<List<$entityName>> getList(ListQueryParams<$entityName> params) async {
     // TODO: Implement remote API call
     throw UnimplementedError('Implement remote getList');
   }''');
@@ -221,7 +221,7 @@ ${methods.join('\n')}
           break;
         case 'watchList':
           methods.add('''
-  Stream<List<$entityName>> watchList(ListQueryParams params) {
+  Stream<List<$entityName>> watchList(ListQueryParams<$entityName> params) {
     // TODO: Implement remote stream (WebSocket, SSE, etc.)
     throw UnimplementedError('Implement remote watchList');
   }''');
@@ -348,7 +348,7 @@ ${methods.join('\n\n')}
           case 'getList':
             methods.add('''
   @override
-  Future<List<$entityName>> getList(ListQueryParams params) async {
+  Future<List<$entityName>> getList(ListQueryParams<$entityName> params) async {
     return _box.values.toList();
   }''');
             break;
@@ -443,7 +443,7 @@ ${methods.join('\n\n')}
           break;
         case 'getList':
           methods.add('''
-  Future<List<$entityName>> getList(ListQueryParams params) async {
+  Future<List<$entityName>> getList(ListQueryParams<$entityName> params) async {
     // TODO: Implement local storage read
     throw UnimplementedError('Implement local getList');
   }''');
@@ -618,7 +618,7 @@ ${methods.join('\n\n')}
         }
       case 'getList':
         return '''  @override
-  Future<List<$entityName>> getList(ListQueryParams params) {
+  Future<List<$entityName>> getList(ListQueryParams<$entityName> params) {
     return _dataSource.getList(params);
   }''';
       case 'create':
@@ -650,7 +650,7 @@ ${methods.join('\n\n')}
         }
       case 'watchList':
         return '''  @override
-  Stream<List<$entityName>> watchList(ListQueryParams params) {
+  Stream<List<$entityName>> watchList(ListQueryParams<$entityName> params) {
     return _dataSource.watchList(params);
   }''';
       default:
@@ -712,7 +712,7 @@ ${methods.join('\n\n')}
         }
       case 'getList':
         return '''  @override
-  Future<List<$entityName>> getList(ListQueryParams params) async {
+  Future<List<$entityName>> getList(ListQueryParams<$entityName> params) async {
     // Include params in cache key for granular caching
     final listCacheKey = '${baseCacheKey}_\${params.hashCode}';
 
@@ -786,7 +786,7 @@ ${methods.join('\n\n')}
         }
       case 'watchList':
         return '''  @override
-  Stream<List<$entityName>> watchList(ListQueryParams params) {
+  Stream<List<$entityName>> watchList(ListQueryParams<$entityName> params) {
     // For streams, typically use remote source
     // You may want to seed with cached data first
     return _remoteDataSource.watchList(params);

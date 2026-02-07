@@ -147,7 +147,7 @@ class TestGenerator {
   late $mockRepoClass mockRepository;
 
   setUp(() {
-    ${method == 'getList' || method == 'watchList' ? 'registerFallbackValue(const ListQueryParams());\n    ' : ''}
+    ${method == 'getList' || method == 'watchList' ? 'registerFallbackValue(const ListQueryParams<dynamic>());\n    ' : ''}
     mockRepository = $mockRepoClass();
     useCase = $className(mockRepository);
   });''';
@@ -239,7 +239,7 @@ $testBody
             "when(() => mockRepository.get(any())).thenThrow(exception);";
       }
     } else if (method == 'getList') {
-      paramsConstructor = "const ListQueryParams()";
+      paramsConstructor = "const ListQueryParams<$entityName>()";
       arrange =
           "when(() => mockRepository.getList(any())).thenAnswer((_) async => $returnConstructor);";
       verifyCall = "verify(() => mockRepository.getList(any())).called(1);";
@@ -329,7 +329,7 @@ $testBody
             "when(() => mockRepository.watch(any())).thenAnswer((_) => Stream.error(exception));";
       }
     } else if (method == 'watchList') {
-      paramsConstructor = "ListQueryParams()";
+      paramsConstructor = "ListQueryParams<$entityName>()";
       arrange =
           "when(() => mockRepository.watchList(any())).thenAnswer((_) => Stream.value($returnConstructor));";
       verifyCall = "verify(() => mockRepository.watchList(any())).called(1);";
@@ -496,7 +496,7 @@ void main() {
   ${fields.join('\n  ')}
 
   setUp(() {
-    registerFallbackValue(const ListQueryParams());
+    registerFallbackValue(const ListQueryParams<dynamic>());
     ${setupMocks.join('\n    ')}
     $setupInstantiation
   });

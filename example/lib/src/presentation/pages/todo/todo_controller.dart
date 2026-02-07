@@ -100,7 +100,7 @@ class TodoController extends Controller with StatefulController<TodoState> {
   }
 
   Future<void> getTodoList(
-      [ListQueryParams params = const ListQueryParams()]) async {
+      [ListQueryParams<Todo> params = const ListQueryParams()]) async {
     updateState(viewState.copyWith(isGettingList: true));
     final result = await _presenter.getTodoList(params);
 
@@ -128,7 +128,7 @@ class TodoController extends Controller with StatefulController<TodoState> {
     updateState(viewState.copyWith(clearError: true));
   }
 
-  void watchTodoList([ListQueryParams params = const ListQueryParams()]) {
+  void watchTodoList([ListQueryParams<Todo> params = const ListQueryParams()]) {
     updateState(viewState.copyWith(isWatchingList: true));
     _presenter.watchTodoList(params).listen(
       (result) {

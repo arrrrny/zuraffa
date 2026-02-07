@@ -64,8 +64,8 @@ class UseCaseGenerator {
         break;
       case 'getList':
         className = 'Get${entityName}ListUseCase';
-        baseClass = 'UseCase<List<$entityName>, ListQueryParams>';
-        paramsType = 'ListQueryParams';
+        baseClass = 'UseCase<List<$entityName>, ListQueryParams<$entityName>>';
+        paramsType = 'ListQueryParams<$entityName>';
         returnType = 'List<$entityName>';
         executeBody = 'return _repository.getList(params);';
         break;
@@ -122,8 +122,8 @@ class UseCaseGenerator {
         break;
       case 'watchList':
         className = 'Watch${entityName}ListUseCase';
-        baseClass = 'StreamUseCase<List<$entityName>, ListQueryParams>';
-        paramsType = 'ListQueryParams';
+        baseClass = 'StreamUseCase<List<$entityName>, ListQueryParams<$entityName>>';
+        paramsType = 'ListQueryParams<$entityName>';
         returnType = 'List<$entityName>';
         executeBody = 'return _repository.watchList(params);';
         isStream = true;
@@ -827,7 +827,7 @@ $factoryCases
           className: 'Get${entityName}ListUseCase',
           fieldName: 'get${entityName}List',
           presenterMethod:
-              '''  Future<Result<List<$entityName>, AppFailure>> get${entityName}List([ListQueryParams params = const ListQueryParams()]) {
+              '''  Future<Result<List<$entityName>, AppFailure>> get${entityName}List([ListQueryParams<$entityName> params = const ListQueryParams()]) {
     return _get${entityName}List.call(params);
   }''',
         );
@@ -879,7 +879,7 @@ $factoryCases
           className: 'Watch${entityName}ListUseCase',
           fieldName: 'watch${entityName}List',
           presenterMethod:
-              '''  Stream<Result<List<$entityName>, AppFailure>> watch${entityName}List([ListQueryParams params = const ListQueryParams()]) {
+              '''  Stream<Result<List<$entityName>, AppFailure>> watch${entityName}List([ListQueryParams<$entityName> params = const ListQueryParams()]) {
     return _watch${entityName}List.call(params);
   }''',
         );

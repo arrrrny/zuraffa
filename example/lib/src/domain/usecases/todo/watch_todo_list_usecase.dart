@@ -4,13 +4,15 @@ import 'package:zuraffa/zuraffa.dart';
 import '../../entities/todo/todo.dart';
 import '../../repositories/todo_repository.dart';
 
-class WatchTodoListUseCase extends StreamUseCase<List<Todo>, ListQueryParams> {
+class WatchTodoListUseCase
+    extends StreamUseCase<List<Todo>, ListQueryParams<Todo>> {
   final TodoRepository _repository;
 
   WatchTodoListUseCase(this._repository);
 
   @override
-  Stream<List<Todo>> execute(ListQueryParams params, CancelToken? cancelToken) {
+  Stream<List<Todo>> execute(
+      ListQueryParams<Todo> params, CancelToken? cancelToken) {
     cancelToken?.throwIfCancelled();
     return _repository.watchList(params);
   }

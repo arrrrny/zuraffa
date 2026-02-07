@@ -48,7 +48,7 @@ class InMemoryTodoDataSource
   }
 
   @override
-  Future<List<Todo>> getList(ListQueryParams params) async {
+  Future<List<Todo>> getList(ListQueryParams<Todo> params) async {
     // Simulate network delay
     await Future.delayed(const Duration(milliseconds: 500));
     var result = List<Todo>.from(_todos);
@@ -61,11 +61,13 @@ class InMemoryTodoDataSource
     }
 
     // Apply sorting
-    if (params.sortBy != null) {
+    if (params.sort != null) {
       // Simple sorting logic for demonstration
       result.sort((a, b) {
         // Implementation depends on fields available
-        return params.descending ? b.id.compareTo(a.id) : a.id.compareTo(b.id);
+        return params.sort!.descending
+            ? b.id.compareTo(a.id)
+            : a.id.compareTo(b.id);
       });
     }
 
