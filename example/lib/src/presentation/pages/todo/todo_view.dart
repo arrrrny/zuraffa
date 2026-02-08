@@ -195,6 +195,7 @@ class _TodoViewState extends CleanViewState<TodoView, TodoController> {
       ),
       onDismissed: (_) => controller.deleteTodo(todo.id),
       child: ListTile(
+        onTap: () => controller.toggleTodo(todo.id),
         leading: Checkbox(
           value: todo.isCompleted,
           onChanged: (_) => controller.toggleTodo(todo.id),

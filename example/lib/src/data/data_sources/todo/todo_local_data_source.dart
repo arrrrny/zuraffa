@@ -35,11 +35,7 @@ class TodoLocalDataSource
 
   @override
   Future<List<Todo>> getList(ListQueryParams<Todo> params) async {
-    var result = _box.values;
-    if (params.filter != null) {
-      result = result.filter(params.filter!);
-    }
-    return result.orderBy(params.sort);
+    return _box.values.filter(params.filter).orderBy(params.sort);
   }
 
   @override

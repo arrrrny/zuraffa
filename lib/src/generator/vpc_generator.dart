@@ -271,30 +271,34 @@ ${withState ? '''    result.fold(
           final deleteArgs = config.idField == 'null'
               ? entityCamel
               : config.idField;
-          // Only update list optimistically if using getList (not watchList)
-          // watchList streams will handle the update automatically
-          final hasListMethod = config.methods.contains('getList');
-          final hasWatchList = config.methods.contains('watchList');
-          // Note: delete should always update optimistically for immediate UI feedback
-          // unless watchList is present and fast enough
-          final listUpdate = (hasListMethod && !hasWatchList)
+          // Delete should ALWAYS update optimistically for immediate UI feedback
+          // This prevents Dismissible errors and provides better UX
+          final hasListMethod =
+              config.methods.contains('getList') ||
+              config.methods.contains('watchList');
+          final listUpdate = hasListMethod
               ? '${entityCamel}List: viewState.${entityCamel}List.where((e) => e.${config.queryField} != ${config.queryField}).toList(),'
               : '';
           methods.add('''
   Future<void> delete$entityName($deleteParams) async {
-${withState ? "    updateState(viewState.copyWith(isDeleting: true));" : ""}
+${withState ? '''    // Immediately remove from list for optimistic UI update
+    // This prevents Dismissible error where widget must be removed synchronously
+    updateState(viewState.copyWith(
+      isDeleting: true,
+      $listUpdate
+    ));
+
     final result = await _presenter.delete$entityName($deleteArgs);
 
-${withState ? '''    result.fold(
-      (_) => updateState(viewState.copyWith(
-        isDeleting: false,
-        $listUpdate
-      )),
+    result.fold(
+      (_) => updateState(viewState.copyWith(isDeleting: false)),
       (failure) => updateState(viewState.copyWith(
         isDeleting: false,
         error: failure,
       )),
-    );''' : '''    result.fold(
+    );''' : '''    final result = await _presenter.delete$entityName($deleteArgs);
+
+    result.fold(
       (_) {},
       (failure) {},
     );'''}
