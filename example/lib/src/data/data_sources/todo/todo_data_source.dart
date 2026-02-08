@@ -10,6 +10,6 @@ abstract class TodoDataSource with Loggable, FailureHandler {
   Stream<Todo> watch(QueryParams<Todo> params);
   Stream<List<Todo>> watchList(ListQueryParams<Todo> params);
   Future<Todo> create(Todo todo);
-  Future<Todo> update(UpdateParams<Todo, TodoPatch> params);
-  Future<void> delete(DeleteParams<Todo> params);
+  Future<Todo> update(UpdateParams<int, TodoPatch> params);
+  Future<void> delete(DeleteParams<int> params);
 }

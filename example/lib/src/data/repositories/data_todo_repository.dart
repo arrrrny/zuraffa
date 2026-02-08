@@ -110,7 +110,7 @@ class DataTodoRepository
   }
 
   @override
-  Future<Todo> update(UpdateParams<Todo, TodoPatch> params) async {
+  Future<Todo> update(UpdateParams<int, TodoPatch> params) async {
     // Update on remote
     final updated = await _remoteDataSource.update(params);
 
@@ -124,7 +124,7 @@ class DataTodoRepository
   }
 
   @override
-  Future<void> delete(DeleteParams<Todo> params) async {
+  Future<void> delete(DeleteParams<int> params) async {
     // Delete from remote
     await _remoteDataSource.delete(params);
 

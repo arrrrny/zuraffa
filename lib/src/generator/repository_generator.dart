@@ -54,14 +54,14 @@ class RepositoryGenerator {
         case 'update':
           final dataType = config.useZorphy
               ? '${config.name}Patch'
-              : 'Map<String, dynamic>';
+              : 'Partial<${config.name}>';
           methods.add(
-            '  Future<${config.name}> update(UpdateParams<${config.name}, $dataType> params);',
+            '  Future<${config.name}> update(UpdateParams<${config.idType}, $dataType> params);',
           );
           break;
         case 'delete':
           methods.add(
-            '  Future<void> delete(DeleteParams<${config.name}> params);',
+            '  Future<void> delete(DeleteParams<${config.idType}> params);',
           );
           break;
         case 'watch':

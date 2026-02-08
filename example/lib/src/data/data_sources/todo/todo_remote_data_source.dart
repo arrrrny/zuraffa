@@ -27,12 +27,6 @@ class TodoRemoteDataSource
     _controller.add(List.unmodifiable(_todos));
   }
 
-  int _parseId(dynamic id) {
-    if (id is int) return id;
-    if (id is String) return int.tryParse(id) ?? -1;
-    return -1;
-  }
-
   @override
   Future<Todo> get(QueryParams<Todo> params) async {
     await Future.delayed(const Duration(milliseconds: 300));
@@ -103,15 +97,13 @@ class TodoRemoteDataSource
   }
 
   @override
-  Future<Todo> update(UpdateParams<Todo, TodoPatch> params) async {
+  Future<Todo> update(UpdateParams<int, TodoPatch> params) async {
     await Future.delayed(const Duration(milliseconds: 200));
 
-    final id = _parseId(params.id);
-
-    final index = _todos.indexWhere((t) => t.id == id);
+    final index = _todos.indexWhere((t) => t.id == params.id);
 
     if (index == -1) {
-      throw Exception('Todo with id $id not found');
+      throw Exception('Todo with id ${params.id} not found');
     }
 
     final currentTodo = _todos[index];
@@ -124,15 +116,13 @@ class TodoRemoteDataSource
   }
 
   @override
-  Future<void> delete(DeleteParams<Todo> params) async {
+  Future<void> delete(DeleteParams<int> params) async {
     await Future.delayed(const Duration(milliseconds: 200));
 
-    final id = _parseId(params.id);
-
-    final index = _todos.indexWhere((t) => t.id == id);
+    final index = _todos.indexWhere((t) => t.id == params.id);
 
     if (index == -1) {
-      throw Exception('Todo with id $id not found');
+      throw Exception('Todo with id ${params.id} not found');
     }
 
     _todos.removeAt(index);

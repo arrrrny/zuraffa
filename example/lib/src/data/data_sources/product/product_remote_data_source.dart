@@ -46,14 +46,13 @@ class ProductRemoteDataSource
   }
 
   @override
-  Future<Product> update(
-      UpdateParams<Product, Map<String, dynamic>> params) async {
+  Future<Product> update(UpdateParams<String, Partial<Product>> params) async {
     // TODO: Implement remote API call
     throw UnimplementedError('Implement remote update');
   }
 
   @override
-  Future<void> delete(DeleteParams<Product> params) async {
+  Future<void> delete(DeleteParams<String> params) async {
     // TODO: Implement remote API call
     throw UnimplementedError('Implement remote delete');
   }

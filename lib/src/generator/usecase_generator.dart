@@ -79,20 +79,21 @@ class UseCaseGenerator {
         className = 'Update${entityName}UseCase';
         final dataType = config.useZorphy
             ? '${entityName}Patch'
-            : 'Map<String, dynamic>';
+            : 'Partial<$entityName>';
         baseClass =
-            'UseCase<$entityName, UpdateParams<$entityName, $dataType>>';
-        paramsType = 'UpdateParams<$entityName, $dataType>';
+            'UseCase<$entityName, UpdateParams<${config.idType}, $dataType>>';
+        paramsType = 'UpdateParams<${config.idType}, $dataType>';
         returnType = entityName;
         executeBody = 'return _repository.update(params);';
         break;
       case 'delete':
         className = 'Delete${entityName}UseCase';
-        baseClass = 'CompletableUseCase<DeleteParams<$entityName>>';
-        paramsType = 'DeleteParams<$entityName>';
+        baseClass = 'CompletableUseCase<DeleteParams<${config.idType}>>';
+        paramsType = 'DeleteParams<${config.idType}>';
         returnType = 'void';
         executeBody = 'return _repository.delete(params);';
         isCompletable = true;
+        needsEntityImport = false;
         break;
       case 'watch':
         className = 'Watch${entityName}UseCase';
@@ -842,7 +843,7 @@ $factoryCases
           fieldName: 'update$entityName',
           presenterMethod:
               '''  Future<Result<$entityName, AppFailure>> update$entityName(${config.idType} ${config.idField}, $updateDataType data) {
-    return _update$entityName.call(UpdateParams(id: ${config.idField}, data: data));
+    return _update$entityName.call(UpdateParams<${config.idType}, $updateDataType>(id: ${config.idField}, data: ${config.useZorphy ? 'data' : 'Partial<$entityName>()'}));
   }''',
         );
       case 'delete':
@@ -851,7 +852,7 @@ $factoryCases
           fieldName: 'delete$entityName',
           presenterMethod:
               '''  Future<Result<void, AppFailure>> delete$entityName(${config.idType} ${config.idField}) {
-    return _delete$entityName.call(DeleteParams(id: ${config.idField}));
+    return _delete$entityName.call(DeleteParams<${config.idType}>(id: ${config.idField}));
   }''',
         );
       case 'watch':

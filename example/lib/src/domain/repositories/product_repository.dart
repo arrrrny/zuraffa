@@ -10,6 +10,6 @@ abstract class ProductRepository {
   Stream<Product> watch(QueryParams<Product> params);
   Stream<List<Product>> watchList(ListQueryParams<Product> params);
   Future<Product> create(Product product);
-  Future<Product> update(UpdateParams<Product, Map<String, dynamic>> params);
-  Future<void> delete(DeleteParams<Product> params);
+  Future<Product> update(UpdateParams<String, Partial<Product>> params);
+  Future<void> delete(DeleteParams<String> params);
 }

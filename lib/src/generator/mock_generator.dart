@@ -1054,7 +1054,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
               : 'Map<String, dynamic>';
           methods.add('''
   @override
-  Future<$entityName> update(UpdateParams<$entityName, $dataType> params) async {
+  Future<$entityName> update(UpdateParams<${config.idType}, $dataType> params) async {
     logger.info('Updating $entityName with id: \${params.id}');
     await Future.delayed(_delay);
     final existing = ${entityName}MockData.${entityCamel}s.firstWhere(
@@ -1070,7 +1070,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
         case 'delete':
           methods.add('''
   @override
-  Future<void> delete(DeleteParams<$entityName> params) async {
+  Future<void> delete(DeleteParams<${config.idType}> params) async {
     logger.info('Deleting $entityName with id: \${params.id}');
     await Future.delayed(_delay);
     final exists = ${entityName}MockData.${entityCamel}s.any((item) => item.${config.idField} == params.id);

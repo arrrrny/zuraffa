@@ -68,7 +68,7 @@ class TodoMockDataSource
   }
 
   @override
-  Future<Todo> update(UpdateParams<Todo, TodoPatch> params) async {
+  Future<Todo> update(UpdateParams<int, TodoPatch> params) async {
     logger.info('Updating Todo with id: ${params.id}');
     await Future.delayed(_delay);
     final existing = TodoMockData.todos.firstWhere(
@@ -81,7 +81,7 @@ class TodoMockDataSource
   }
 
   @override
-  Future<void> delete(DeleteParams<Todo> params) async {
+  Future<void> delete(DeleteParams<int> params) async {
     logger.info('Deleting Todo with id: ${params.id}');
     await Future.delayed(_delay);
     final exists = TodoMockData.todos.any((item) => item.id == params.id);

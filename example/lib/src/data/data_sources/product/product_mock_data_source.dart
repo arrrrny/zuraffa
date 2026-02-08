@@ -69,7 +69,7 @@ class ProductMockDataSource
 
   @override
   Future<Product> update(
-      UpdateParams<Product, Map<String, dynamic>> params) async {
+      UpdateParams<String, Map<String, dynamic>> params) async {
     logger.info('Updating Product with id: ${params.id}');
     await Future.delayed(_delay);
     final existing = ProductMockData.products.firstWhere(
@@ -82,7 +82,7 @@ class ProductMockDataSource
   }
 
   @override
-  Future<void> delete(DeleteParams<Product> params) async {
+  Future<void> delete(DeleteParams<String> params) async {
     logger.info('Deleting Product with id: ${params.id}');
     await Future.delayed(_delay);
     final exists = ProductMockData.products.any((item) => item.id == params.id);

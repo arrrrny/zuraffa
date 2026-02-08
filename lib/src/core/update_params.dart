@@ -1,14 +1,18 @@
 import 'package:meta/meta.dart';
 import 'params.dart';
 
-/// Parameters for updating an entity of type [T].
+/// Parameters for updating an entity.
 ///
-/// The type parameter [T] represents the entity type being updated,
-/// and [P] represents the patch type (`Zorphy Patch` or `Map<String, dynamic>`).
+/// The type parameter [I] represents the ID type (e.g., `String`, `int`).
+/// The type parameter [P] represents the patch type (`Zorphy Patch` or `Map<String, dynamic>`).
+///
+/// Example: `UpdateParams<int, TodoPatch>(id: 123, data: patch)`
+///
+/// This allows strongly-typed IDs and patch data instead of using `dynamic`.
 @immutable
-class UpdateParams<T, P> {
-  /// The ID of the entity to update.
-  final dynamic id;
+class UpdateParams<I, P> {
+  /// The ID of the entity to update (strongly typed).
+  final I id;
 
   /// The patch data to apply (Zorphy Patch or Partial map).
   final P data;
@@ -29,13 +33,13 @@ class UpdateParams<T, P> {
   }
 
   /// Create a copy of [UpdateParams] with optional new values.
-  UpdateParams<T, P> copyWith({
-    dynamic id,
+  UpdateParams<I, P> copyWith({
+    I? id,
     P? data,
     Params? params,
     bool clearParams = false,
   }) {
-    return UpdateParams<T, P>(
+    return UpdateParams<I, P>(
       id: id ?? this.id,
       data: data ?? this.data,
       params: clearParams ? null : (params ?? this.params),
@@ -45,7 +49,7 @@ class UpdateParams<T, P> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is UpdateParams<T, P> &&
+      other is UpdateParams<I, P> &&
           runtimeType == other.runtimeType &&
           id == other.id &&
           data == other.data &&
@@ -56,5 +60,5 @@ class UpdateParams<T, P> {
 
   @override
   String toString() =>
-      'UpdateParams<$T, $P>(id: $id, data: $data, params: $params)';
+      'UpdateParams<$I, $P>(id: $id, data: $data, params: $params)';
 }

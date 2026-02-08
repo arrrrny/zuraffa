@@ -72,14 +72,14 @@ class DataLayerGenerator {
         case 'update':
           final dataType = config.useZorphy
               ? '${config.name}Patch'
-              : 'Map<String, dynamic>';
+              : 'Partial<${config.name}>';
           methods.add(
-            '  Future<${config.name}> update(UpdateParams<${config.name}, $dataType> params);',
+            '  Future<${config.name}> update(UpdateParams<${config.idType}, $dataType> params);',
           );
           break;
         case 'delete':
           methods.add(
-            '  Future<void> delete(DeleteParams<$entityName> params);',
+            '  Future<void> delete(DeleteParams<${config.idType}> params);',
           );
           break;
         case 'watch':
@@ -197,10 +197,10 @@ ${methods.join('\n')}
         case 'update':
           final dataType = config.useZorphy
               ? '${config.name}Patch'
-              : 'Map<String, dynamic>';
+              : 'Partial<${config.name}>';
           methods.add('''
   @override
-  Future<${config.name}> update(UpdateParams<${config.name}, $dataType> params) async {
+  Future<${config.name}> update(UpdateParams<${config.idType}, $dataType> params) async {
     // TODO: Implement remote API call
     throw UnimplementedError('Implement remote update');
   }''');
@@ -208,7 +208,7 @@ ${methods.join('\n')}
         case 'delete':
           methods.add('''
   @override
-  Future<void> delete(DeleteParams<$entityName> params) async {
+  Future<void> delete(DeleteParams<${config.idType}> params) async {
     // TODO: Implement remote API call
     throw UnimplementedError('Implement remote delete');
   }''');
@@ -371,10 +371,10 @@ ${methods.join('\n\n')}
           case 'update':
             final dataType = config.useZorphy
                 ? '${config.name}Patch'
-                : 'Map<String, dynamic>';
+                : 'Partial<${config.name}>';
             methods.add('''
   @override
-  Future<${config.name}> update(UpdateParams<${config.name}, $dataType> params) async {
+  Future<${config.name}> update(UpdateParams<${config.idType}, $dataType> params) async {
     final existing = _box.values.firstWhere(
       (item) => item.${config.idField} == params.id,
       orElse: () => throw notFoundFailure('$entityName not found in cache'),
@@ -383,7 +383,7 @@ ${methods.join('\n\n')}
     final updated = params.data.applyTo(existing);
     await _box.put(updated.${config.idField}, updated);
     return updated;''' : '''
-    // TODO: Apply Map<String, dynamic> patch to existing entity
+    // TODO: Apply Partial<$entityName> patch to existing entity
     await _box.put(existing.${config.idField}, existing);
     return existing;'''}
   }''');
@@ -391,7 +391,7 @@ ${methods.join('\n\n')}
           case 'delete':
             methods.add('''
   @override
-  Future<void> delete(DeleteParams<$entityName> params) async {
+  Future<void> delete(DeleteParams<${config.idType}> params) async {
     final existing = _box.values.firstWhere(
       (item) => item.${config.idField} == params.id,
       orElse: () => throw notFoundFailure('$entityName not found in cache'),
@@ -500,15 +500,18 @@ ${methods.join('\n\n')}
   }''');
           break;
         case 'update':
+          final dataType = config.useZorphy
+              ? '${config.name}Patch'
+              : 'Partial<${config.name}>';
           methods.add('''
-  Future<${config.name}> update(UpdateParams<${config.useZorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params) async {
+  Future<${config.name}> update(UpdateParams<${config.idType}, $dataType> params) async {
     // TODO: Implement local storage update
     throw UnimplementedError('Implement local update');
   }''');
           break;
         case 'delete':
           methods.add('''
-  Future<void> delete(DeleteParams<$entityName> params) async {
+  Future<void> delete(DeleteParams<${config.idType}> params) async {
     // TODO: Implement local storage delete
     throw UnimplementedError('Implement local delete');
   }''');
@@ -680,14 +683,14 @@ ${methods.join('\n\n')}
       case 'update':
         final dataType = config.useZorphy
             ? '${config.name}Patch'
-            : 'Map<String, dynamic>';
+            : 'Partial<${config.name}>';
         return '''  @override
-  Future<${config.name}> update(UpdateParams<${config.name}, $dataType> params) {
+  Future<${config.name}> update(UpdateParams<${config.idType}, $dataType> params) {
     return _dataSource.update(params);
   }''';
       case 'delete':
         return '''  @override
-  Future<void> delete(DeleteParams<$entityName> params) {
+  Future<void> delete(DeleteParams<${config.idType}> params) {
     return _dataSource.delete(params);
   }''';
       case 'watch':
@@ -805,9 +808,9 @@ ${methods.join('\n\n')}
       case 'update':
         final dataType = config.useZorphy
             ? '${config.name}Patch'
-            : 'Map<String, dynamic>';
+            : 'Partial<${config.name}>';
         return '''  @override
-  Future<${config.name}> update(UpdateParams<${config.name}, $dataType> params) async {
+  Future<${config.name}> update(UpdateParams<${config.idType}, $dataType> params) async {
     // Update on remote
     final updated = await _remoteDataSource.update(params);
 
@@ -821,7 +824,7 @@ ${methods.join('\n\n')}
   }''';
       case 'delete':
         return '''  @override
-  Future<void> delete(DeleteParams<$entityName> params) async {
+  Future<void> delete(DeleteParams<${config.idType}> params) async {
     // Delete from remote
     await _remoteDataSource.delete(params);
 

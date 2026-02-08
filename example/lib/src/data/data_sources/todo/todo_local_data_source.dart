@@ -57,7 +57,7 @@ class TodoLocalDataSource
   }
 
   @override
-  Future<Todo> update(UpdateParams<Todo, TodoPatch> params) async {
+  Future<Todo> update(UpdateParams<int, TodoPatch> params) async {
     final existing = _box.values.firstWhere(
       (item) => item.id == params.id,
       orElse: () => throw notFoundFailure('Todo not found in cache'),
@@ -68,7 +68,7 @@ class TodoLocalDataSource
   }
 
   @override
-  Future<void> delete(DeleteParams<Todo> params) async {
+  Future<void> delete(DeleteParams<int> params) async {
     final existing = _box.values.firstWhere(
       (item) => item.id == params.id,
       orElse: () => throw notFoundFailure('Todo not found in cache'),

@@ -5,13 +5,13 @@ import '../../entities/product/product.dart';
 import '../../repositories/product_repository.dart';
 
 class UpdateProductUseCase
-    extends UseCase<Product, UpdateParams<Product, Map<String, dynamic>>> {
+    extends UseCase<Product, UpdateParams<String, Partial<Product>>> {
   final ProductRepository _repository;
 
   UpdateProductUseCase(this._repository);
 
   @override
-  Future<Product> execute(UpdateParams<Product, Map<String, dynamic>> params,
+  Future<Product> execute(UpdateParams<String, Partial<Product>> params,
       CancelToken? cancelToken) async {
     cancelToken?.throwIfCancelled();
     return _repository.update(params);

@@ -9,6 +9,7 @@ import 'package:example/src/domain/repositories/product_repository.dart';
 import 'package:example/src/domain/usecases/product/delete_product_usecase.dart';
 
 class MockProductRepository extends Mock implements ProductRepository {}
+
 class MockProduct extends Mock implements Product {}
 
 void main() {
@@ -16,21 +17,17 @@ void main() {
   late MockProductRepository mockRepository;
 
   setUp(() {
-    
     mockRepository = MockProductRepository();
     useCase = DeleteProductUseCase(mockRepository);
   });
 
   group('DeleteProductUseCase', () {
-    
-    
-
     test('should call repository.delete and return result', () async {
       // Arrange
       when(() => mockRepository.delete(any())).thenAnswer((_) async => {});
 
       // Act
-      final result = await useCase(const DeleteParams<Product>(id: '1'));
+      final result = await useCase(const DeleteParams<String>(id: '1'));
 
       // Assert
       verify(() => mockRepository.delete(any())).called(1);
@@ -43,7 +40,7 @@ void main() {
       when(() => mockRepository.delete(any())).thenThrow(exception);
 
       // Act
-      final result = await useCase(const DeleteParams<Product>(id: '1'));
+      final result = await useCase(const DeleteParams<String>(id: '1'));
 
       // Assert
       verify(() => mockRepository.delete(any())).called(1);

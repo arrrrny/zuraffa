@@ -57,19 +57,18 @@ class ProductLocalDataSource
   }
 
   @override
-  Future<Product> update(
-      UpdateParams<Product, Map<String, dynamic>> params) async {
+  Future<Product> update(UpdateParams<String, Partial<Product>> params) async {
     final existing = _box.values.firstWhere(
       (item) => item.id == params.id,
       orElse: () => throw notFoundFailure('Product not found in cache'),
     );
-    // TODO: Apply Map<String, dynamic> patch to existing entity
+    // TODO: Apply Partial<Product> patch to existing entity
     await _box.put(existing.id, existing);
     return existing;
   }
 
   @override
-  Future<void> delete(DeleteParams<Product> params) async {
+  Future<void> delete(DeleteParams<String> params) async {
     final existing = _box.values.firstWhere(
       (item) => item.id == params.id,
       orElse: () => throw notFoundFailure('Product not found in cache'),

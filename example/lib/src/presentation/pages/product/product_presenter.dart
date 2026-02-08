@@ -60,10 +60,11 @@ class ProductPresenter extends Presenter {
 
   Future<Result<Product, AppFailure>> updateProduct(
       String id, Partial<Product> data) {
-    return _updateProduct.call(UpdateParams(id: id, data: data));
+    return _updateProduct.call(UpdateParams<String, Partial<Product>>(
+        id: id, data: Partial<Product>()));
   }
 
   Future<Result<void, AppFailure>> deleteProduct(String id) {
-    return _deleteProduct.call(DeleteParams(id: id));
+    return _deleteProduct.call(DeleteParams<String>(id: id));
   }
 }

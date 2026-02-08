@@ -4,14 +4,14 @@ import 'package:zuraffa/zuraffa.dart';
 import '../../entities/todo/todo.dart';
 import '../../repositories/todo_repository.dart';
 
-class UpdateTodoUseCase extends UseCase<Todo, UpdateParams<Todo, TodoPatch>> {
+class UpdateTodoUseCase extends UseCase<Todo, UpdateParams<int, TodoPatch>> {
   final TodoRepository _repository;
 
   UpdateTodoUseCase(this._repository);
 
   @override
   Future<Todo> execute(
-      UpdateParams<Todo, TodoPatch> params, CancelToken? cancelToken) async {
+      UpdateParams<int, TodoPatch> params, CancelToken? cancelToken) async {
     cancelToken?.throwIfCancelled();
     return _repository.update(params);
   }

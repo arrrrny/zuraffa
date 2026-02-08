@@ -220,7 +220,6 @@ $testBody
     String paramsConstructor;
     String failureArrange;
 
-    bool containsPatch = false;
     if (method == 'get') {
       if (config.idField == 'null' || config.queryField == 'null') {
         paramsConstructor = "NoParams()";
@@ -256,17 +255,18 @@ $testBody
     } else if (method == 'update') {
       final dataType = config.useZorphy
           ? '${entityName}Patch'
-          : 'Map<String, dynamic>';
-      containsPatch = config.useZorphy;
+          : 'Partial<$entityName>';
+      final idValue = config.idType == 'int' ? '1' : "'1'";
       paramsConstructor =
-          "UpdateParams<$entityName, $dataType>(id: '1', data: ${config.useZorphy ? '${entityName}Patch()' : '{}'})";
+          "UpdateParams<${config.idType}, $dataType>(id: $idValue, data: ${config.useZorphy ? '${entityName}Patch()' : 'Partial<$entityName>()'})";
       arrange =
           "when(() => mockRepository.update(any())).thenAnswer((_) async => $returnConstructor);";
       verifyCall = "verify(() => mockRepository.update(any())).called(1);";
       failureArrange =
           "when(() => mockRepository.update(any())).thenThrow(exception);";
     } else if (method == 'delete') {
-      paramsConstructor = "DeleteParams<$entityName>(id: '1')";
+      final idValue = config.idType == 'int' ? '1' : "'1'";
+      paramsConstructor = "DeleteParams<${config.idType}>(id: $idValue)";
       arrange =
           "when(() => mockRepository.delete(any())).thenAnswer((_) async => {});";
       verifyCall = "verify(() => mockRepository.delete(any())).called(1);";
@@ -275,7 +275,7 @@ $testBody
     } else {
       return '';
     }
-    if (method != 'create' && !containsPatch) {
+    if (method != 'create' && method != 'update') {
       paramsConstructor = 'const $paramsConstructor';
     }
     final successCheck = isCompletable

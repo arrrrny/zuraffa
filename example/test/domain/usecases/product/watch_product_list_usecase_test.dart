@@ -9,6 +9,7 @@ import 'package:example/src/domain/repositories/product_repository.dart';
 import 'package:example/src/domain/usecases/product/watch_product_list_usecase.dart';
 
 class MockProductRepository extends Mock implements ProductRepository {}
+
 class MockProduct extends Mock implements Product {}
 
 void main() {
@@ -17,20 +18,20 @@ void main() {
 
   setUp(() {
     registerFallbackValue(const ListQueryParams<dynamic>());
-    
+
     mockRepository = MockProductRepository();
     useCase = WatchProductListUseCase(mockRepository);
   });
 
   group('WatchProductListUseCase', () {
     final tProduct = MockProduct();
-    
-        final tProductList = [tProduct];
 
+    final tProductList = [tProduct];
 
     test('should emit values from repository stream', () async {
       // Arrange
-      when(() => mockRepository.watchList(any())).thenAnswer((_) => Stream.value(tProductList));
+      when(() => mockRepository.watchList(any()))
+          .thenAnswer((_) => Stream.value(tProductList));
 
       // Act
       final result = useCase(const ListQueryParams<Product>());
@@ -38,7 +39,8 @@ void main() {
       // Assert
       await expectLater(
         result,
-        emits(isA<Success>().having((s) => s.value, 'value', equals(tProductList))),
+        emits(isA<Success>()
+            .having((s) => s.value, 'value', equals(tProductList))),
       );
       verify(() => mockRepository.watchList(any())).called(1);
     });
@@ -46,7 +48,8 @@ void main() {
     test('should emit Failure when repository stream errors', () async {
       // Arrange
       final exception = Exception('Stream Error');
-      when(() => mockRepository.watchList(any())).thenAnswer((_) => Stream.error(exception));
+      when(() => mockRepository.watchList(any()))
+          .thenAnswer((_) => Stream.error(exception));
 
       // Act
       final result = useCase(const ListQueryParams<Product>());
