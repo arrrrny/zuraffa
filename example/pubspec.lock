@@ -787,24 +787,26 @@ packages:
   zorphy:
     dependency: transitive
     description:
-      path: "../../zorphy/zorphy"
-      relative: true
-    source: path
-    version: "1.4.0"
+      name: zorphy
+      sha256: "79680078ff3223f97f3af1ff6037117523e1a24154a646026e2a47bcd06e3c3f"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.4.1"
   zorphy_annotation:
     dependency: "direct main"
     description:
-      path: "../../zorphy/zorphy_annotation"
-      relative: true
-    source: path
-    version: "1.4.0"
+      name: zorphy_annotation
+      sha256: "353c7cf505b3f7b17af1298c109b3f6950556f694c5f526acef6e7af3d321690"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.4.1"
   zuraffa:
     dependency: "direct main"
     description:
       path: ".."
       relative: true
     source: path
-    version: "2.6.0"
+    version: "2.7.0"
 sdks:
   dart: ">=3.10.3 <4.0.0"
   flutter: ">=3.38.4"

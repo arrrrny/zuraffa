@@ -195,7 +195,7 @@ void main() {
     test('should store id, data, and optional params', () {
       const patch = {'name': 'Updated'};
       const params = Params({'key': 'value'});
-      const updateParams = UpdateParams<_TestEntity, Map<String, dynamic>>(
+      const updateParams = UpdateParams<String, Map<String, dynamic>>(
         id: '123',
         data: patch,
         params: params,
@@ -207,7 +207,7 @@ void main() {
     });
 
     test('toMap serializes correctly', () {
-      const updateParams = UpdateParams<_TestEntity, Map<String, dynamic>>(
+      const updateParams = UpdateParams<String, Map<String, dynamic>>(
         id: '123',
         data: {'name': 'Updated'},
       );
@@ -218,7 +218,7 @@ void main() {
     });
 
     test('copyWith should work correctly', () {
-      const u = UpdateParams<_TestEntity, Map<String, dynamic>>(
+      const u = UpdateParams<String, Map<String, dynamic>>(
         id: '123',
         data: {'name': 'Old'},
       );
@@ -230,15 +230,15 @@ void main() {
     });
 
     test('equality should work correctly', () {
-      const u1 = UpdateParams<_TestEntity, Map<String, dynamic>>(
+      const u1 = UpdateParams<String, Map<String, dynamic>>(
         id: '123',
         data: {'name': 'Test'},
       );
-      const u2 = UpdateParams<_TestEntity, Map<String, dynamic>>(
+      const u2 = UpdateParams<String, Map<String, dynamic>>(
         id: '123',
         data: {'name': 'Test'},
       );
-      const u3 = UpdateParams<_TestEntity, Map<String, dynamic>>(
+      const u3 = UpdateParams<String, Map<String, dynamic>>(
         id: '456',
         data: {'name': 'Other'},
       );
@@ -251,14 +251,14 @@ void main() {
   group('DeleteParams', () {
     test('should store id and optional params', () {
       const params = Params({'soft': true});
-      const deleteParams = DeleteParams<_TestEntity>(id: '123', params: params);
+      const deleteParams = DeleteParams<String>(id: '123', params: params);
 
       expect(deleteParams.id, '123');
       expect(deleteParams.params, params);
     });
 
     test('toMap serializes correctly', () {
-      const deleteParams = DeleteParams<_TestEntity>(
+      const deleteParams = DeleteParams<String>(
         id: '123',
         params: Params({'soft': true}),
       );
@@ -269,7 +269,7 @@ void main() {
     });
 
     test('copyWith should work correctly', () {
-      const d = DeleteParams<_TestEntity>(id: '123');
+      const d = DeleteParams<String>(id: '123');
 
       final updated = d.copyWith(id: '456');
 
@@ -277,9 +277,9 @@ void main() {
     });
 
     test('equality should work correctly', () {
-      const d1 = DeleteParams<_TestEntity>(id: '123');
-      const d2 = DeleteParams<_TestEntity>(id: '123');
-      const d3 = DeleteParams<_TestEntity>(id: '456');
+      const d1 = DeleteParams<String>(id: '123');
+      const d2 = DeleteParams<String>(id: '123');
+      const d3 = DeleteParams<String>(id: '456');
 
       expect(d1, equals(d2));
       expect(d1, isNot(equals(d3)));
