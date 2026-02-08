@@ -431,7 +431,6 @@ ${methods.join('\n\n')}
 
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:zuraffa/zuraffa.dart';
-import 'package:zorphy_annotation/zorphy_annotation.dart';
 import '${relativePath}domain/entities/$entitySnake/$entitySnake.dart';
 import '${entitySnake}_data_source.dart';
 
@@ -798,6 +797,9 @@ ${methods.join('\n\n')}
     // Update local cache
     await _localDataSource.save(created);
 
+    // Invalidate list cache since a new item was added
+    await _cachePolicy.invalidate('$baseCacheKey');
+
     return created;
   }''';
       case 'update':
@@ -812,6 +814,9 @@ ${methods.join('\n\n')}
     // Update local cache
     await _localDataSource.update(params);
 
+    // Invalidate cache since data was modified
+    await _cachePolicy.invalidate('$baseCacheKey');
+
     return updated;
   }''';
       case 'delete':
@@ -823,31 +828,61 @@ ${methods.join('\n\n')}
     // Delete from local cache
     await _localDataSource.delete(params);
 
-    // Optionally invalidate cache
+    // Invalidate all cache since data was removed
     await _cachePolicy.invalidate('$baseCacheKey');
   }''';
       case 'watch':
         if (config.idField == 'null' || config.queryField == 'null') {
           return '''  @override
   Stream<$entityName> watch() {
-    // For streams, typically use remote source
-    // You may want to seed with cached data first
-    return _remoteDataSource.watch();
+    // Stream from remote and update cache in background
+    return _remoteDataSource.watch().map(
+      (data) async {
+        // Update cache in background when remote data changes
+        try {
+          await _localDataSource.save(data);
+          await _cachePolicy.markFresh('$baseCacheKey');
+        } catch (e) {
+          logger.warning('Failed to update cache: \$e');
+        }
+        return data;
+      },
+    ).asyncMap((future) async => await future);
   }''';
         } else {
           return '''  @override
   Stream<$entityName> watch(QueryParams<$entityName> params) {
-    // For streams, typically use remote source
-    // You may want to seed with cached data first
-    return _remoteDataSource.watch(params);
+    // Stream from remote and update cache in background
+    return _remoteDataSource.watch(params).map(
+      (data) async {
+        // Update cache in background when remote data changes
+        try {
+          await _localDataSource.save(data);
+          await _cachePolicy.markFresh('$baseCacheKey');
+        } catch (e) {
+          logger.warning('Failed to update cache: \$e');
+        }
+        return data;
+      },
+    ).asyncMap((future) async => await future);
   }''';
         }
       case 'watchList':
         return '''  @override
   Stream<List<$entityName>> watchList(ListQueryParams<$entityName> params) {
-    // For streams, typically use remote source
-    // You may want to seed with cached data first
-    return _remoteDataSource.watchList(params);
+    // Stream from remote and update cache in background
+    return _remoteDataSource.watchList(params).map(
+      (data) async {
+        // Update cache in background when remote data changes
+        try {
+          await _localDataSource.saveAll(data);
+          await _cachePolicy.markFresh('$baseCacheKey');
+        } catch (e) {
+          logger.warning('Failed to update cache: \$e');
+        }
+        return data;
+      },
+    ).asyncMap((future) async => await future);
   }''';
       default:
         return '';

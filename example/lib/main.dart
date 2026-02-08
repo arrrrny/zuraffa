@@ -19,8 +19,6 @@ final getIt = GetIt.instance;
 Future<void> setupDependencies() async {
   auto_di.setupDependencies(getIt);
   await Hive.initFlutter();
-  await Hive.deleteFromDisk();
-
   await auto_cache.initAllCaches();
 }
 
