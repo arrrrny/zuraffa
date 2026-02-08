@@ -17,9 +17,11 @@ void main() async {
 final getIt = GetIt.instance;
 
 Future<void> setupDependencies() async {
-  await Hive.initFlutter();
-  await auto_cache.initAllCaches();
   auto_di.setupDependencies(getIt);
+  await Hive.initFlutter();
+  await Hive.deleteFromDisk();
+
+  await auto_cache.initAllCaches();
 }
 
 /// Example app demonstrating Zuraffa.
