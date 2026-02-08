@@ -9,7 +9,6 @@ import 'package:example/src/domain/repositories/todo_repository.dart';
 import 'package:example/src/domain/usecases/todo/get_todo_list_usecase.dart';
 
 class MockTodoRepository extends Mock implements TodoRepository {}
-
 class MockTodo extends Mock implements Todo {}
 
 void main() {
@@ -18,20 +17,20 @@ void main() {
 
   setUp(() {
     registerFallbackValue(const ListQueryParams<dynamic>());
-
+    
     mockRepository = MockTodoRepository();
     useCase = GetTodoListUseCase(mockRepository);
   });
 
   group('GetTodoListUseCase', () {
     final tTodo = MockTodo();
+    
+        final tTodoList = [tTodo];
 
-    final tTodoList = [tTodo];
 
     test('should call repository.getList and return result', () async {
       // Arrange
-      when(() => mockRepository.getList(any()))
-          .thenAnswer((_) async => tTodoList);
+      when(() => mockRepository.getList(any())).thenAnswer((_) async => tTodoList);
 
       // Act
       final result = await useCase(const ListQueryParams<Todo>());

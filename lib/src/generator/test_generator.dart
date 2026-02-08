@@ -187,10 +187,8 @@ $setupBody
 
   group('$className', () {
     ${(method != 'delete') ? 'final t$entityName = $mockEntityClass();\n    ' : ''}
-    ${(['get', 'create', 'delete', 'watch'].contains(method))
+    ${(['get', 'create', 'delete', 'watch', 'update'].contains(method))
             ? ''
-            : (method == 'update')
-            ? '    final u$entityName = t$entityName.toJson();\n'
             : (['getList', 'watchList'].contains(method))
             ? '    final t${entityName}List = [t$entityName];\n'
             : '    final t${entityName}List = [t$entityName];\n    final u$entityName = t$entityName.toJson();\n'}
@@ -224,7 +222,7 @@ $testBody
 
     if (method == 'get') {
       if (config.idField == 'null' || config.queryField == 'null') {
-        paramsConstructor = "const NoParams()";
+        paramsConstructor = "NoParams()";
         arrange =
             "when(() => mockRepository.get()).thenAnswer((_) async => $returnConstructor);";
         verifyCall = "verify(() => mockRepository.get()).called(1);";
@@ -232,8 +230,8 @@ $testBody
             "when(() => mockRepository.get()).thenThrow(exception);";
       } else {
         paramsConstructor = config.useZorphy
-            ? "const QueryParams<$entityName>(filter: Eq(${entityName}Fields.${config.queryField}, '1'))"
-            : "const QueryParams<$entityName>(params: Params({'${config.queryField}': '1'}))";
+            ? "QueryParams<$entityName>(filter: Eq(${entityName}Fields.${config.queryField}, '1'))"
+            : "QueryParams<$entityName>(params: Params({'${config.queryField}': '1'}))";
         arrange =
             "when(() => mockRepository.get(any())).thenAnswer((_) async => $returnConstructor);";
         verifyCall = "verify(() => mockRepository.get(any())).called(1);";
@@ -241,7 +239,7 @@ $testBody
             "when(() => mockRepository.get(any())).thenThrow(exception);";
       }
     } else if (method == 'getList') {
-      paramsConstructor = "const ListQueryParams<$entityName>()";
+      paramsConstructor = "ListQueryParams<$entityName>()";
       arrange =
           "when(() => mockRepository.getList(any())).thenAnswer((_) async => $returnConstructor);";
       verifyCall = "verify(() => mockRepository.getList(any())).called(1);";
@@ -259,7 +257,7 @@ $testBody
           ? '${entityName}Patch'
           : 'Map<String, dynamic>';
       paramsConstructor =
-          "UpdateParams<$entityName, $dataType>(id: '1', data: ${config.useZorphy ? '${entityName}Patch()' : 'const {}'})";
+          "UpdateParams<$entityName, $dataType>(id: '1', data: ${config.useZorphy ? '${entityName}Patch()' : '{}'})";
       arrange =
           "when(() => mockRepository.update(any())).thenAnswer((_) async => $returnConstructor);";
       verifyCall = "verify(() => mockRepository.update(any())).called(1);";
@@ -275,7 +273,9 @@ $testBody
     } else {
       return '';
     }
-
+    if (method != 'create' && (config.useZorphy && method != 'update')) {
+      paramsConstructor = 'const $paramsConstructor';
+    }
     final successCheck = isCompletable
         ? "expect(result.isSuccess, true);"
         : "expect(result.isSuccess, true);\n      expect(result.getOrElse(() => throw Exception()), equals($returnConstructor));";

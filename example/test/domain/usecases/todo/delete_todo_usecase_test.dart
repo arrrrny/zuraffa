@@ -9,7 +9,6 @@ import 'package:example/src/domain/repositories/todo_repository.dart';
 import 'package:example/src/domain/usecases/todo/delete_todo_usecase.dart';
 
 class MockTodoRepository extends Mock implements TodoRepository {}
-
 class MockTodo extends Mock implements Todo {}
 
 void main() {
@@ -17,17 +16,21 @@ void main() {
   late MockTodoRepository mockRepository;
 
   setUp(() {
+    
     mockRepository = MockTodoRepository();
     useCase = DeleteTodoUseCase(mockRepository);
   });
 
   group('DeleteTodoUseCase', () {
+    
+    
+
     test('should call repository.delete and return result', () async {
       // Arrange
       when(() => mockRepository.delete(any())).thenAnswer((_) async => {});
 
       // Act
-      final result = await useCase(DeleteParams<Todo>(id: '1'));
+      final result = await useCase(const DeleteParams<Todo>(id: '1'));
 
       // Assert
       verify(() => mockRepository.delete(any())).called(1);
@@ -40,7 +43,7 @@ void main() {
       when(() => mockRepository.delete(any())).thenThrow(exception);
 
       // Act
-      final result = await useCase(DeleteParams<Todo>(id: '1'));
+      final result = await useCase(const DeleteParams<Todo>(id: '1'));
 
       // Assert
       verify(() => mockRepository.delete(any())).called(1);

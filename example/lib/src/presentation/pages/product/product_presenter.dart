@@ -36,9 +36,8 @@ class ProductPresenter extends Presenter {
     _deleteProduct = registerUseCase(DeleteProductUseCase(productRepository));
   }
 
-  Future<Result<Product, AppFailure>> getProduct(String name) {
-    return _getProduct
-        .call(QueryParams<Product>(params: Params({'name': name})));
+  Future<Result<Product, AppFailure>> getProduct(String id) {
+    return _getProduct.call(QueryParams<Product>(params: Params({'id': id})));
   }
 
   Future<Result<List<Product>, AppFailure>> getProductList(
@@ -46,9 +45,8 @@ class ProductPresenter extends Presenter {
     return _getProductList.call(params);
   }
 
-  Stream<Result<Product, AppFailure>> watchProduct(String name) {
-    return _watchProduct
-        .call(QueryParams<Product>(params: Params({'name': name})));
+  Stream<Result<Product, AppFailure>> watchProduct(String id) {
+    return _watchProduct.call(QueryParams<Product>(params: Params({'id': id})));
   }
 
   Stream<Result<List<Product>, AppFailure>> watchProductList(

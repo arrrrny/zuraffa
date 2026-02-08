@@ -9,7 +9,6 @@ import 'package:example/src/domain/repositories/product_repository.dart';
 import 'package:example/src/domain/usecases/product/update_product_usecase.dart';
 
 class MockProductRepository extends Mock implements ProductRepository {}
-
 class MockProduct extends Mock implements Product {}
 
 void main() {
@@ -17,23 +16,22 @@ void main() {
   late MockProductRepository mockRepository;
 
   setUp(() {
+    
     mockRepository = MockProductRepository();
     useCase = UpdateProductUseCase(mockRepository);
   });
 
   group('UpdateProductUseCase', () {
     final tProduct = MockProduct();
-
-    final uProduct = tProduct.toJson();
+    
+    
 
     test('should call repository.update and return result', () async {
       // Arrange
-      when(() => mockRepository.update(any()))
-          .thenAnswer((_) async => tProduct);
+      when(() => mockRepository.update(any())).thenAnswer((_) async => tProduct);
 
       // Act
-      final result = await useCase(
-          UpdateParams<Product, Map<String, dynamic>>(id: '1', data: const {}));
+      final result = await useCase(UpdateParams<Product, Map<String, dynamic>>(id: '1', data: {}));
 
       // Assert
       verify(() => mockRepository.update(any())).called(1);
@@ -47,8 +45,7 @@ void main() {
       when(() => mockRepository.update(any())).thenThrow(exception);
 
       // Act
-      final result = await useCase(
-          UpdateParams<Product, Map<String, dynamic>>(id: '1', data: const {}));
+      final result = await useCase(UpdateParams<Product, Map<String, dynamic>>(id: '1', data: {}));
 
       // Assert
       verify(() => mockRepository.update(any())).called(1);

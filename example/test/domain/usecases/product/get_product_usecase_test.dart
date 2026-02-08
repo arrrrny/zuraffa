@@ -9,7 +9,6 @@ import 'package:example/src/domain/repositories/product_repository.dart';
 import 'package:example/src/domain/usecases/product/get_product_usecase.dart';
 
 class MockProductRepository extends Mock implements ProductRepository {}
-
 class MockProduct extends Mock implements Product {}
 
 void main() {
@@ -17,20 +16,22 @@ void main() {
   late MockProductRepository mockRepository;
 
   setUp(() {
+    
     mockRepository = MockProductRepository();
     useCase = GetProductUseCase(mockRepository);
   });
 
   group('GetProductUseCase', () {
     final tProduct = MockProduct();
+    
+    
 
     test('should call repository.get and return result', () async {
       // Arrange
       when(() => mockRepository.get(any())).thenAnswer((_) async => tProduct);
 
       // Act
-      final result = await useCase(
-          const QueryParams<Product>(params: Params({'name': '1'})));
+      final result = await useCase(QueryParams<Product>(params: Params({'id': '1'})));
 
       // Assert
       verify(() => mockRepository.get(any())).called(1);
@@ -44,8 +45,7 @@ void main() {
       when(() => mockRepository.get(any())).thenThrow(exception);
 
       // Act
-      final result = await useCase(
-          const QueryParams<Product>(params: Params({'name': '1'})));
+      final result = await useCase(QueryParams<Product>(params: Params({'id': '1'})));
 
       // Assert
       verify(() => mockRepository.get(any())).called(1);

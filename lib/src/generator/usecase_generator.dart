@@ -884,68 +884,6 @@ $factoryCases
         throw ArgumentError('Unknown method: $method');
     }
   }
-
-  List<String> _extractEntityFields(String entitySnake) {
-    try {
-      // Try to find the entity file in common Clean Architecture locations
-      final possiblePaths = [
-        // Standard: lib/src/domain/entities/todo/todo.dart (folder per entity)
-        path.join(
-          outputDir,
-          'domain',
-          'entities',
-          entitySnake,
-          '$entitySnake.dart',
-        ),
-        // Flat: lib/src/domain/entities/todo.dart
-        path.join(outputDir, 'domain', 'entities', '$entitySnake.dart'),
-      ];
-
-      File? file;
-      for (final p in possiblePaths) {
-        final f = File(p);
-        if (f.existsSync()) {
-          file = f;
-          break;
-        }
-      }
-
-      if (file == null) {
-        if (verbose) {
-          print(
-            '  ℹ Entity file for $entitySnake not found, skipping auto-validation',
-          );
-        }
-        return [];
-      }
-
-      final content = file.readAsStringSync();
-      // Regex to find fields (usually final or non-static members)
-      // Matches both 'final int id;' and 'String? name;'
-      // but avoids methods and static members.
-      final regex = RegExp(
-        r'^\s+(?:final\s+)?(?:[\w<>,?!\s]+)\s+(\w+)\s*;',
-        multiLine: true,
-      );
-      final matches = regex.allMatches(content);
-
-      final fields = matches
-          .map((m) => m.group(1)!)
-          .where((f) => f != 'hashCode')
-          .toList();
-
-      if (verbose && fields.isNotEmpty) {
-        print(
-          '  ✓ Automatically extracted fields for validation: ${fields.join(', ')}',
-        );
-      }
-
-      return fields;
-    } catch (e) {
-      if (verbose) print('  ⚠️ Error extracting fields: $e');
-      return [];
-    }
-  }
 }
 
 Set<String> _getPotentialEntityImports(List<String> types) {

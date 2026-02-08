@@ -9,7 +9,6 @@ import 'package:example/src/domain/repositories/product_repository.dart';
 import 'package:example/src/domain/usecases/product/get_product_list_usecase.dart';
 
 class MockProductRepository extends Mock implements ProductRepository {}
-
 class MockProduct extends Mock implements Product {}
 
 void main() {
@@ -18,23 +17,23 @@ void main() {
 
   setUp(() {
     registerFallbackValue(const ListQueryParams<dynamic>());
-
+    
     mockRepository = MockProductRepository();
     useCase = GetProductListUseCase(mockRepository);
   });
 
   group('GetProductListUseCase', () {
     final tProduct = MockProduct();
+    
+        final tProductList = [tProduct];
 
-    final tProductList = [tProduct];
 
     test('should call repository.getList and return result', () async {
       // Arrange
-      when(() => mockRepository.getList(any()))
-          .thenAnswer((_) async => tProductList);
+      when(() => mockRepository.getList(any())).thenAnswer((_) async => tProductList);
 
       // Act
-      final result = await useCase(const ListQueryParams<Product>());
+      final result = await useCase(ListQueryParams<Product>());
 
       // Assert
       verify(() => mockRepository.getList(any())).called(1);
@@ -48,7 +47,7 @@ void main() {
       when(() => mockRepository.getList(any())).thenThrow(exception);
 
       // Act
-      final result = await useCase(const ListQueryParams<Product>());
+      final result = await useCase(ListQueryParams<Product>());
 
       // Assert
       verify(() => mockRepository.getList(any())).called(1);

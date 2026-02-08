@@ -119,6 +119,13 @@ class GenerateCommand {
       await _runBuild();
     }
 
+    // Run dart format if generation succeeded
+    if (result.success && !dryRun) {
+      print('');
+      print('🎨 Formatting generated code...');
+      await _runFormat(outputDir);
+    }
+
     if (exitOnCompletion) exit(0);
     return result;
   }
@@ -650,6 +657,22 @@ class GenerateCommand {
     }
 
     print('\n✅ Build completed successfully!');
+  }
+
+  Future<void> _runFormat(String outputDir) async {
+    final process = await Process.start('dart', [
+      'format',
+      outputDir,
+    ], mode: ProcessStartMode.inheritStdio);
+
+    final exitCode = await process.exitCode;
+
+    if (exitCode != 0) {
+      print('\n⚠️  dart format exited with code $exitCode (non-critical)');
+      return;
+    }
+
+    print('✅ Code formatted successfully!');
   }
 
   void _printHelp() {

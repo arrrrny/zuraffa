@@ -67,16 +67,32 @@ class DataProductRepository
 
   @override
   Stream<Product> watch(QueryParams<Product> params) {
-    // For streams, typically use remote source
-    // You may want to seed with cached data first
-    return _remoteDataSource.watch(params);
+    // Stream from remote and update cache in background
+    return _remoteDataSource.watch(params).map(
+      (data) {
+        // Update cache in background (fire and forget)
+        _localDataSource.save(data).then(
+              (_) => _cachePolicy.markFresh('product_cache'),
+              onError: (e) => logger.warning('Failed to update cache: $e'),
+            );
+        return data;
+      },
+    );
   }
 
   @override
   Stream<List<Product>> watchList(ListQueryParams<Product> params) {
-    // For streams, typically use remote source
-    // You may want to seed with cached data first
-    return _remoteDataSource.watchList(params);
+    // Stream from remote and update cache in background
+    return _remoteDataSource.watchList(params).map(
+      (data) {
+        // Update cache in background (fire and forget)
+        _localDataSource.saveAll(data).then(
+              (_) => _cachePolicy.markFresh('product_cache'),
+              onError: (e) => logger.warning('Failed to update cache: $e'),
+            );
+        return data;
+      },
+    );
   }
 
   @override
@@ -86,6 +102,9 @@ class DataProductRepository
 
     // Update local cache
     await _localDataSource.save(created);
+
+    // Invalidate list cache since a new item was added
+    await _cachePolicy.invalidate('product_cache');
 
     return created;
   }
@@ -99,6 +118,9 @@ class DataProductRepository
     // Update local cache
     await _localDataSource.update(params);
 
+    // Invalidate cache since data was modified
+    await _cachePolicy.invalidate('product_cache');
+
     return updated;
   }
 
@@ -110,7 +132,7 @@ class DataProductRepository
     // Delete from local cache
     await _localDataSource.delete(params);
 
-    // Optionally invalidate cache
+    // Invalidate all cache since data was removed
     await _cachePolicy.invalidate('product_cache');
   }
 }

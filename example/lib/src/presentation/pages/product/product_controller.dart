@@ -10,8 +10,8 @@ class ProductController extends Controller {
 
   ProductController(this._presenter);
 
-  Future<void> getProduct(String name) async {
-    final result = await _presenter.getProduct(name);
+  Future<void> getProduct(String id) async {
+    final result = await _presenter.getProduct(id);
 
     result.fold(
       (entity) {},
@@ -29,8 +29,8 @@ class ProductController extends Controller {
     );
   }
 
-  void watchProduct(String name) {
-    _presenter.watchProduct(name).listen(
+  void watchProduct(String id) {
+    _presenter.watchProduct(id).listen(
       (result) {
         result.fold(
           (entity) {},
