@@ -12,15 +12,9 @@ class MockProductRepository extends Mock implements ProductRepository {}
 
 class MockProduct extends Mock implements Product {}
 
-class FakeDeleteParams extends Fake implements DeleteParams<Product> {}
-
 void main() {
   late DeleteProductUseCase useCase;
   late MockProductRepository mockRepository;
-
-  setUpAll(() {
-    registerFallbackValue(FakeDeleteParams());
-  });
 
   setUp(() {
     mockRepository = MockProductRepository();
@@ -33,7 +27,7 @@ void main() {
       when(() => mockRepository.delete(any())).thenAnswer((_) async => {});
 
       // Act
-      final result = await useCase(const DeleteParams('1'));
+      final result = await useCase(const DeleteParams<String>(id: '1'));
 
       // Assert
       verify(() => mockRepository.delete(any())).called(1);
@@ -46,7 +40,7 @@ void main() {
       when(() => mockRepository.delete(any())).thenThrow(exception);
 
       // Act
-      final result = await useCase(const DeleteParams('1'));
+      final result = await useCase(const DeleteParams<String>(id: '1'));
 
       // Assert
       verify(() => mockRepository.delete(any())).called(1);

@@ -1,56 +1,12 @@
-/// A Todo entity representing a task.
-class Todo {
-  final int id;
-  final String title;
-  final bool isCompleted;
-  final DateTime createdAt;
+import 'package:zorphy_annotation/zorphy.dart';
 
-  const Todo({
-    required this.id,
-    required this.title,
-    this.isCompleted = false,
-    required this.createdAt,
-  });
+part 'todo.zorphy.dart';
+part 'todo.g.dart';
 
-  Todo copyWith({
-    int? id,
-    String? title,
-    bool? isCompleted,
-    DateTime? createdAt,
-  }) {
-    return Todo(
-      id: id ?? this.id,
-      title: title ?? this.title,
-      isCompleted: isCompleted ?? this.isCompleted,
-      createdAt: createdAt ?? this.createdAt,
-    );
-  }
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is Todo &&
-          runtimeType == other.runtimeType &&
-          id == other.id &&
-          title == other.title &&
-          isCompleted == other.isCompleted &&
-          createdAt == other.createdAt);
-
-  @override
-  int get hashCode =>
-      id.hashCode ^ title.hashCode ^ isCompleted.hashCode ^ createdAt.hashCode;
-
-  @override
-  String toString() =>
-      'Todo(id: $id, title: $title, isCompleted: $isCompleted)';
-
-  /// Converts this Todo to a JSON map that can be used as Partial<Todo>.
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'title': title,
-      'isCompleted': isCompleted,
-      'createdAt': createdAt.toIso8601String(),
-    };
-  }
+@Zorphy(generateJson: true, generateFilter: true)
+abstract class $Todo {
+  int get id;
+  String get title;
+  bool get isCompleted;
+  DateTime get createdAt;
 }

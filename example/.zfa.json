@@ -1,0 +1,17 @@
+{
+  "zorphyByDefault": true,
+  "jsonByDefault": true,
+  "compareByDefault": true,
+  "filterByDefault": false,
+  "defaultEntityOutput": "lib/src/domain/entities",
+  "gqlByDefault": false,
+  "buildByDefault": false,
+  "appendByDefault": false,
+  "notes": [
+    "Set \"zorphyByDefault\": false to use manual entity generation",
+    "Set \"gqlByDefault\": true to auto-generate GraphQL for entity operations",
+    "Set \"buildByDefault\": true to auto-run build_runner after entity/cache operations",
+    "Set \"appendByDefault\": true to auto-append to existing repositories/datasources",
+    "Adjust \"defaultEntityOutput\" to change where entities are created"
+  ]
+}

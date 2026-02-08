@@ -16,30 +16,16 @@ class ProductMockDataSource
       : _delay = delay ?? const Duration(milliseconds: 100);
 
   @override
-  Future<void> initialize(InitializationParams params) async {
-    logger.info('Initializing ProductMockDataSource');
-    // Mock initialization - nothing to do
-    await Future.delayed(const Duration(seconds: 1));
-    logger.info('ProductMockDataSource initialized');
-  }
-
-  @override
-  Stream<bool> get isInitialized => Stream.value(true);
-
-  @override
-  Future<Product> get(String id) async {
-    logger.info('Getting Product with id: $id');
+  Future<Product> get(QueryParams<Product> params) async {
+    logger.info('Getting Product with params: $params');
     await Future.delayed(_delay);
-    final item = ProductMockData.products.firstWhere(
-      (item) => item.id == id,
-      orElse: () => throw NotFoundFailure('Product not found: $id'),
-    );
-    logger.info('Successfully retrieved Product: $id');
+    final item = ProductMockData.products.query(params);
+    logger.info('Successfully retrieved Product');
     return item;
   }
 
   @override
-  Future<List<Product>> getList(ListQueryParams params) async {
+  Future<List<Product>> getList(ListQueryParams<Product> params) async {
     logger.info('Getting Product list with params: $params');
     await Future.delayed(_delay);
     var items = ProductMockData.products;
@@ -54,6 +40,25 @@ class ProductMockDataSource
   }
 
   @override
+  Stream<Product> watch(QueryParams<Product> params) {
+    return Stream.periodic(const Duration(seconds: 1), (count) {
+      final item = ProductMockData.products.query(params);
+      return item;
+    }).take(10); // Limit for demo
+  }
+
+  @override
+  Stream<List<Product>> watchList(ListQueryParams<Product> params) {
+    return Stream.periodic(const Duration(seconds: 2), (count) {
+      var items = ProductMockData.products;
+      if (params.limit != null && params.limit! > 0) {
+        items = items.take(params.limit!).toList();
+      }
+      return items;
+    }).take(5); // Limit for demo
+  }
+
+  @override
   Future<Product> create(Product item) async {
     logger.info('Creating Product: ${item.id}');
     await Future.delayed(_delay);
@@ -63,49 +68,28 @@ class ProductMockDataSource
   }
 
   @override
-  Stream<Product> watch(String id) {
-    return Stream.periodic(const Duration(seconds: 1), (count) {
-      final item = ProductMockData.products.firstWhere(
-        (item) => item.id == id,
-        orElse: () => throw NotFoundFailure('Product not found: $id'),
-      );
-      return item;
-    }).take(10); // Limit for demo
-  }
-
-  @override
-  Future<Product> update(UpdateParams<Partial<Product>> params) async {
-    logger.info('Updating Product: ${params.id} with data: ${params.data}');
+  Future<Product> update(
+      UpdateParams<String, Map<String, dynamic>> params) async {
+    logger.info('Updating Product with id: ${params.id}');
     await Future.delayed(_delay);
     final existing = ProductMockData.products.firstWhere(
       (item) => item.id == params.id,
-      orElse: () => throw NotFoundFailure('Product not found: ${params.id}'),
+      orElse: () => throw notFoundFailure('Product not found'),
     );
     // In a real implementation, you'd apply the update
-    logger.info('Successfully updated Product: ${params.id}');
+    logger.info('Successfully updated Product');
     return existing;
   }
 
   @override
-  Future<void> delete(DeleteParams<Product> params) async {
-    logger.info('Deleting Product: ${params.id}');
+  Future<void> delete(DeleteParams<String> params) async {
+    logger.info('Deleting Product with id: ${params.id}');
     await Future.delayed(_delay);
     final exists = ProductMockData.products.any((item) => item.id == params.id);
     if (!exists) {
-      throw NotFoundFailure('Product not found: ${params.id}');
+      throw notFoundFailure('Product not found');
     }
     // In a real implementation, you'd remove from storage
-    logger.info('Successfully deleted Product: ${params.id}');
-  }
-
-  @override
-  Stream<List<Product>> watchList(ListQueryParams params) {
-    return Stream.periodic(const Duration(seconds: 2), (count) {
-      var items = ProductMockData.products;
-      if (params.limit != null && params.limit! > 0) {
-        items = items.take(params.limit!).toList();
-      }
-      return items;
-    }).take(5); // Limit for demo
+    logger.info('Successfully deleted Product');
   }
 }

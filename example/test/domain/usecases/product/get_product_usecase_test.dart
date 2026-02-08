@@ -12,15 +12,9 @@ class MockProductRepository extends Mock implements ProductRepository {}
 
 class MockProduct extends Mock implements Product {}
 
-class FakeQueryParams extends Fake implements QueryParams {}
-
 void main() {
   late GetProductUseCase useCase;
   late MockProductRepository mockRepository;
-
-  setUpAll(() {
-    registerFallbackValue(FakeQueryParams());
-  });
 
   setUp(() {
     mockRepository = MockProductRepository();
@@ -35,7 +29,8 @@ void main() {
       when(() => mockRepository.get(any())).thenAnswer((_) async => tProduct);
 
       // Act
-      final result = await useCase(const QueryParams('1'));
+      final result = await useCase(
+          const QueryParams<Product>(params: Params({'id': '1'})));
 
       // Assert
       verify(() => mockRepository.get(any())).called(1);
@@ -49,7 +44,8 @@ void main() {
       when(() => mockRepository.get(any())).thenThrow(exception);
 
       // Act
-      final result = await useCase(const QueryParams('1'));
+      final result = await useCase(
+          const QueryParams<Product>(params: Params({'id': '1'})));
 
       // Assert
       verify(() => mockRepository.get(any())).called(1);

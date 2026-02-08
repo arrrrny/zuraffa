@@ -37,13 +37,13 @@ class RepositoryGenerator {
             methods.add('  Future<${config.name}> get();');
           } else {
             methods.add(
-              '  Future<${config.name}> get(${config.queryFieldType} ${config.queryField});',
+              '  Future<${config.name}> get(QueryParams<${config.name}> params);',
             );
           }
           break;
         case 'getList':
           methods.add(
-            '  Future<List<${config.name}>> getList(ListQueryParams params);',
+            '  Future<List<${config.name}>> getList(ListQueryParams<${config.name}> params);',
           );
           break;
         case 'create':
@@ -52,13 +52,16 @@ class RepositoryGenerator {
           );
           break;
         case 'update':
+          final dataType = config.useZorphy
+              ? '${config.name}Patch'
+              : 'Partial<${config.name}>';
           methods.add(
-            '  Future<${config.name}> update(UpdateParams<${config.useZorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params);',
+            '  Future<${config.name}> update(UpdateParams<${config.idType}, $dataType> params);',
           );
           break;
         case 'delete':
           methods.add(
-            '  Future<void> delete(DeleteParams<${config.name}> params);',
+            '  Future<void> delete(DeleteParams<${config.idType}> params);',
           );
           break;
         case 'watch':
@@ -66,13 +69,13 @@ class RepositoryGenerator {
             methods.add('  Stream<${config.name}> watch();');
           } else {
             methods.add(
-              '  Stream<${config.name}> watch(${config.queryFieldType} ${config.queryField});',
+              '  Stream<${config.name}> watch(QueryParams<${config.name}> params);',
             );
           }
           break;
         case 'watchList':
           methods.add(
-            '  Stream<List<${config.name}>> watchList(ListQueryParams params);',
+            '  Stream<List<${config.name}>> watchList(ListQueryParams<${config.name}> params);',
           );
           break;
       }

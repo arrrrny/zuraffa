@@ -5,10 +5,7 @@ import 'package:zuraffa/zuraffa.dart';
 
 import '../../../domain/entities/todo/todo.dart';
 
-///
-/// This is a simple implementation for demonstration purposes.
-/// In a real app, you'd implement against an API or local database.
-class InMemoryTodoDataSource
+class TodoRemoteDataSource
     with Loggable, FailureHandler
     implements TodoDataSource {
   final List<Todo> _todos = [];
@@ -16,8 +13,7 @@ class InMemoryTodoDataSource
 
   final _controller = StreamController<List<Todo>>.broadcast();
 
-  /// Create a repository with optional initial todos.
-  InMemoryTodoDataSource({List<Todo>? initialTodos}) {
+  TodoRemoteDataSource({List<Todo>? initialTodos}) {
     if (initialTodos != null) {
       _todos.addAll(initialTodos);
       if (initialTodos.isNotEmpty) {
@@ -31,62 +27,51 @@ class InMemoryTodoDataSource
     _controller.add(List.unmodifiable(_todos));
   }
 
-  int _parseId(String id) {
-    return int.tryParse(id) ?? -1;
-  }
-
   @override
-  Future<Todo> get(String id) async {
-    // Simulate network delay
+  Future<Todo> get(QueryParams<Todo> params) async {
     await Future.delayed(const Duration(milliseconds: 300));
-    final intId = _parseId(id);
+
+    final intId =
+        params.filter != null ? (params.filter!.toJson()['id'] as int?) : null;
+    if (intId == null) {
+      throw Exception('Query requires filter with id');
+    }
     final todo = _todos.where((t) => t.id == intId).firstOrNull;
     if (todo == null) {
-      throw Exception('Todo with id $id not found');
+      throw Exception('Todo with id $intId not found');
     }
     return todo;
   }
 
   @override
-  Future<List<Todo>> getList(ListQueryParams params) async {
-    // Simulate network delay
+  Future<List<Todo>> getList(ListQueryParams<Todo> params) async {
     await Future.delayed(const Duration(milliseconds: 500));
     var result = List<Todo>.from(_todos);
 
-    // Apply filtering if needed (e.g., search)
     if (params.search != null && params.search!.isNotEmpty) {
       final query = params.search!.toLowerCase();
       result =
           result.where((t) => t.title.toLowerCase().contains(query)).toList();
     }
 
-    // Apply sorting
-    if (params.sortBy != null) {
-      // Simple sorting logic for demonstration
-      result.sort((a, b) {
-        // Implementation depends on fields available
-        return params.descending ? b.id.compareTo(a.id) : a.id.compareTo(b.id);
-      });
-    }
-
     return result;
   }
 
   @override
-  Stream<Todo> watch(String id) {
-    final intId = _parseId(id);
+  Stream<Todo> watch(QueryParams<Todo> params) {
+    final intId =
+        params.filter != null ? (params.filter!.toJson()['id'] as int?) : null;
     return _controller.stream.map((todos) {
       final todo = todos.where((t) => t.id == intId).firstOrNull;
       if (todo == null) {
-        throw Exception('Todo with id $id not found');
+        throw Exception('Todo with id $intId not found');
       }
       return todo;
     }).distinct();
   }
 
   @override
-  Stream<List<Todo>> watchList(ListQueryParams params) {
-    // Emit current state immediately then updates
+  Stream<List<Todo>> watchList(ListQueryParams<Todo> params) {
     return _controller.stream.startWith(List.unmodifiable(_todos)).map((todos) {
       var result = List<Todo>.from(todos);
 
@@ -102,7 +87,6 @@ class InMemoryTodoDataSource
 
   @override
   Future<Todo> create(Todo todo) async {
-    // Simulate network delay
     await Future.delayed(const Duration(milliseconds: 200));
 
     final newTodo = todo.copyWith(id: _nextId++);
@@ -113,24 +97,17 @@ class InMemoryTodoDataSource
   }
 
   @override
-  Future<Todo> update(UpdateParams<Partial<Todo>> params) async {
-    // Simulate network delay
+  Future<Todo> update(UpdateParams<int, TodoPatch> params) async {
     await Future.delayed(const Duration(milliseconds: 200));
 
-    final intId = _parseId(params.id.toString());
-    final index = _todos.indexWhere((t) => t.id == intId);
+    final index = _todos.indexWhere((t) => t.id == params.id);
 
     if (index == -1) {
       throw Exception('Todo with id ${params.id} not found');
     }
 
     final currentTodo = _todos[index];
-
-    // Apply partial updates
-    final newTodo = currentTodo.copyWith(
-      title: params.data['title'] as String?,
-      isCompleted: params.data['isCompleted'] as bool?,
-    );
+    final newTodo = params.data.applyTo(currentTodo);
 
     _todos[index] = newTodo;
     _notifyListeners();
@@ -139,12 +116,10 @@ class InMemoryTodoDataSource
   }
 
   @override
-  Future<void> delete(DeleteParams<Todo> params) async {
-    // Simulate network delay
+  Future<void> delete(DeleteParams<int> params) async {
     await Future.delayed(const Duration(milliseconds: 200));
 
-    final intId = _parseId(params.id.toString());
-    final index = _todos.indexWhere((t) => t.id == intId);
+    final index = _todos.indexWhere((t) => t.id == params.id);
 
     if (index == -1) {
       throw Exception('Todo with id ${params.id} not found');
@@ -154,13 +129,11 @@ class InMemoryTodoDataSource
     _notifyListeners();
   }
 
-  /// Dispose of resources.
   void dispose() {
     _controller.close();
   }
 }
 
-// Extension for startWith since standard stream doesn't have it easily available without rxdart
 extension StreamStartWith<T> on Stream<T> {
   Stream<T> startWith(T initial) async* {
     yield initial;

@@ -16,17 +16,31 @@ class MockGenerator {
   }) async {
     final files = <GeneratedFile>[];
 
-    // Generate mock data file for main entity
-    final mockDataFile = await _generateMockDataFile(
-      config,
+    // Check if main entity is polymorphic (abstract with subtypes)
+    final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
+      config.name,
       outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
     );
-    files.add(mockDataFile);
+    final isPolymorphic = subtypes.isNotEmpty;
 
-    // Generate mock data files for nested entities
+    // Skip generating mock data for abstract polymorphic types
+    if (!isPolymorphic) {
+      // Generate mock data file for main entity
+      final mockDataFile = await _generateMockDataFile(
+        config,
+        outputDir,
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+      );
+      files.add(mockDataFile);
+    } else if (verbose) {
+      print(
+        '  → Skipping mock data for abstract polymorphic type: ${config.name}',
+      );
+    }
+
+    // Generate mock data files for nested entities (including subtypes)
     final nestedEntityFiles = await _generateNestedEntityMockFiles(
       config,
       outputDir,
@@ -65,6 +79,54 @@ class MockGenerator {
       entityName,
     }; // Avoid generating for main entity
 
+    // Check if main entity is polymorphic and generate subtypes first
+    final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
+      entityName,
+      outputDir,
+    );
+    if (subtypes.isNotEmpty && verbose) {
+      print(
+        '  → Detected polymorphic entity $entityName with subtypes: ${subtypes.join(', ')}',
+      );
+    }
+
+    // Generate mock data for each subtype
+    for (final subtype in subtypes) {
+      if (!processedEntities.contains(subtype)) {
+        processedEntities.add(subtype);
+
+        if (verbose) {
+          print('  → Generating mock for polymorphic subtype: $subtype');
+        }
+
+        final subtypeConfig = GeneratorConfig(
+          name: subtype,
+          generateMockDataOnly: true,
+        );
+        final subtypeMockFile = await _generateMockDataFile(
+          subtypeConfig,
+          outputDir,
+          dryRun: dryRun,
+          force: force,
+          verbose: verbose,
+        );
+        files.add(subtypeMockFile);
+
+        // Recursively process nested entities within this subtype
+        final subtypeFields = EntityAnalyzer.analyzeEntity(subtype, outputDir);
+        await _collectAndGenerateNestedEntities(
+          subtypeFields,
+          outputDir,
+          files,
+          processedEntities,
+          dryRun: dryRun,
+          force: force,
+          verbose: verbose,
+        );
+      }
+    }
+
+    // Process nested entities in the main entity's fields
     await _collectAndGenerateNestedEntities(
       entityFields,
       outputDir,
@@ -105,6 +167,61 @@ class MockGenerator {
               'dynamic',
             ].contains(baseType) &&
             !processedEntities.contains(baseType)) {
+          // Check if it's a polymorphic type with subtypes
+          final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
+            baseType,
+            outputDir,
+          );
+          if (subtypes.isNotEmpty) {
+            // Skip the abstract type, but generate its subtypes
+            processedEntities.add(baseType);
+
+            if (verbose) {
+              print('  → Skipping polymorphic abstract type: $baseType');
+              print('  → Generating subtypes: ${subtypes.join(', ')}');
+            }
+
+            // Generate mock data for each subtype
+            for (final subtype in subtypes) {
+              if (!processedEntities.contains(subtype)) {
+                processedEntities.add(subtype);
+
+                if (verbose) {
+                  print('  → Generating mock for subtype: $subtype');
+                }
+
+                final subtypeConfig = GeneratorConfig(
+                  name: subtype,
+                  generateMockDataOnly: true,
+                );
+                final subtypeMockFile = await _generateMockDataFile(
+                  subtypeConfig,
+                  outputDir,
+                  dryRun: dryRun,
+                  force: force,
+                  verbose: verbose,
+                );
+                files.add(subtypeMockFile);
+
+                // Recursively process nested entities within this subtype
+                final subtypeFields = EntityAnalyzer.analyzeEntity(
+                  subtype,
+                  outputDir,
+                );
+                await _collectAndGenerateNestedEntities(
+                  subtypeFields,
+                  outputDir,
+                  files,
+                  processedEntities,
+                  dryRun: dryRun,
+                  force: force,
+                  verbose: verbose,
+                );
+              }
+            }
+            continue;
+          }
+
           // Check if it's an entity (has fields)
           final entityFields = EntityAnalyzer.analyzeEntity(
             baseType,
@@ -254,6 +371,20 @@ class MockGenerator {
 
       // Check if it's a custom type (PascalCase)
       if (baseType.isNotEmpty && baseType[0] == baseType[0].toUpperCase()) {
+        // Check if it's a polymorphic type with subtypes
+        final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
+          baseType,
+          outputDir,
+        );
+        if (subtypes.isNotEmpty) {
+          // Import mock data for each subtype instead of abstract type
+          for (final subtype in subtypes) {
+            final subtypeSnake = StringUtils.camelToSnake(subtype);
+            imports.add('../mock/${subtypeSnake}_mock_data.dart');
+          }
+          continue; // Skip the abstract type itself
+        }
+
         // Check if it's an entity (has fields)
         final entityFields = EntityAnalyzer.analyzeEntity(baseType, outputDir);
         if (entityFields.isNotEmpty && !_isDefaultFields(entityFields)) {
@@ -509,6 +640,18 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
               ? baseType.substring(1)
               : baseType;
 
+          // Check if it's a polymorphic type with subtypes
+          final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
+            cleanType,
+            outputDir,
+          );
+          if (subtypes.isNotEmpty) {
+            // Use one of the subtypes based on seed
+            final subtypeIndex = seed % subtypes.length;
+            final subtype = subtypes[subtypeIndex];
+            return '${subtype}MockData.sample$subtype';
+          }
+
           // Try to detect if it's an entity by checking if it has fields
           final entityFields = EntityAnalyzer.analyzeEntity(
             cleanType,
@@ -540,39 +683,62 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
     final itemCount = 2 + (seed % 2);
     final items = <String>[];
 
-    for (int i = 1; i <= itemCount; i++) {
-      // Check if listType is an entity (exclude primitive types)
-      if (cleanListType.isNotEmpty &&
-          cleanListType[0] == cleanListType[0].toUpperCase() &&
-          ![
-            'String',
-            'int',
-            'double',
-            'bool',
-            'DateTime',
-            'Object',
-            'dynamic',
-          ].contains(cleanListType)) {
-        final entityFields = EntityAnalyzer.analyzeEntity(
-          cleanListType,
-          outputDir,
-        );
-        if (entityFields.isNotEmpty && !_isDefaultFields(entityFields)) {
-          // Reference different items from the mock data
+    // Check if listType is an entity (exclude primitive types)
+    if (cleanListType.isNotEmpty &&
+        cleanListType[0] == cleanListType[0].toUpperCase() &&
+        ![
+          'String',
+          'int',
+          'double',
+          'bool',
+          'DateTime',
+          'Object',
+          'dynamic',
+        ].contains(cleanListType)) {
+      // Check if it's a polymorphic type with subtypes
+      final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
+        cleanListType,
+        outputDir,
+      );
+
+      if (subtypes.isNotEmpty) {
+        // Mix different subtypes in the list
+        for (int i = 0; i < itemCount; i++) {
+          final subtypeIndex = (seed + i) % subtypes.length;
+          final subtype = subtypes[subtypeIndex];
+          final itemIndex = i % 3;
+          items.add(
+            '${subtype}MockData.${StringUtils.pascalToCamel(subtype)}s[$itemIndex]',
+          );
+        }
+        return '[${items.join(', ')}]';
+      }
+
+      final entityFields = EntityAnalyzer.analyzeEntity(
+        cleanListType,
+        outputDir,
+      );
+      if (entityFields.isNotEmpty && !_isDefaultFields(entityFields)) {
+        // Reference different items from the mock data
+        for (int i = 1; i <= itemCount; i++) {
           final itemIndex = (seed + i - 1) % 3;
           items.add(
             '${cleanListType}MockData.${StringUtils.pascalToCamel(cleanListType)}s[$itemIndex]',
           );
-          continue;
-        } else {
-          // Force generate mock data for this nested entity if it doesn't exist
-          // This ensures ListingOffer gets its mock data generated
-          items.add('${cleanListType}MockData.sample$cleanListType');
-          continue;
         }
+        return '[${items.join(', ')}]';
+      } else {
+        // Force generate mock data for this nested entity if it doesn't exist
+        // This ensures ListingOffer gets its mock data generated
+        for (int i = 0; i < itemCount; i++) {
+          items.add('${cleanListType}MockData.sample$cleanListType');
+        }
+        return '[${items.join(', ')}]';
       }
+    }
 
-      // For primitive types or enums
+    // For primitive types or enums
+    for (int i = 1; i <= itemCount; i++) {
       final itemValue = _generateMockValue(
         'item',
         cleanListType,
@@ -673,6 +839,17 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
               ? baseType.substring(1)
               : baseType;
 
+          // Check if it's a polymorphic type with subtypes
+          final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
+            cleanType,
+            outputDir,
+          );
+          if (subtypes.isNotEmpty) {
+            // Use one of the subtypes based on seed
+            final subtype = subtypes[0]; // Use first subtype for seeded value
+            return '${subtype}MockData.sample$subtype';
+          }
+
           // Try to detect if it's an entity by checking if it has fields
           final entityFields = EntityAnalyzer.analyzeEntity(
             cleanType,
@@ -707,6 +884,31 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
           'Object',
           'dynamic',
         ].contains(cleanListType)) {
+      // Check if it's a polymorphic type with subtypes
+      final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
+        cleanListType,
+        outputDir,
+      );
+
+      if (subtypes.isNotEmpty) {
+        // Mix different subtypes in the list (3 items, one of each subtype if possible)
+        final items = <String>[];
+        for (int i = 0; i < 3 && i < subtypes.length; i++) {
+          final subtype = subtypes[i];
+          items.add(
+            '${subtype}MockData.${StringUtils.pascalToCamel(subtype)}s[seed % 3]',
+          );
+        }
+        // If we have fewer than 3 subtypes, cycle through them
+        while (items.length < 3) {
+          final subtype = subtypes[items.length % subtypes.length];
+          items.add(
+            '${subtype}MockData.${StringUtils.pascalToCamel(subtype)}s[(seed + ${items.length}) % 3]',
+          );
+        }
+        return '[${items.join(', ')}]';
+      }
+
       final entityFields = EntityAnalyzer.analyzeEntity(
         cleanListType,
         outputDir,
@@ -806,14 +1008,11 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
           } else {
             methods.add('''
   @override
-  Future<$entityName> get(${config.queryFieldType} ${config.queryField}) async {
-    logger.info('Getting $entityName with ${config.queryField}: \$${config.queryField}');
+  Future<$entityName> get(QueryParams<$entityName> params) async {
+    logger.info('Getting $entityName with params: \$params');
     await Future.delayed(_delay);
-    final item = ${entityName}MockData.${entityCamel}s.firstWhere(
-      (item) => item.${config.idField} == ${config.queryField},
-      orElse: () => throw NotFoundFailure('$entityName not found: \$${config.queryField}'),
-    );
-    logger.info('Successfully retrieved $entityName: \$${config.queryField}');
+    final item = ${entityName}MockData.${entityCamel}s.query(params);
+    logger.info('Successfully retrieved $entityName');
     return item;
   }''');
           }
@@ -822,7 +1021,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
         case 'getList':
           methods.add('''
   @override
-  Future<List<$entityName>> getList(ListQueryParams params) async {
+  Future<List<$entityName>> getList(ListQueryParams<$entityName> params) async {
     logger.info('Getting $entityName list with params: \$params');
     await Future.delayed(_delay);
     var items = ${entityName}MockData.${entityCamel}s;
@@ -850,46 +1049,37 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
           break;
 
         case 'update':
+          final dataType = config.useZorphy
+              ? '${entityName}Patch'
+              : 'Map<String, dynamic>';
           methods.add('''
   @override
-  Future<$entityName> update(UpdateParams<${config.useZorphy ? '${entityName}Patch' : 'Partial<$entityName>'}> params) async {
-    logger.info('Updating $entityName: \${params.id} with data: \${params.data}');
+  Future<$entityName> update(UpdateParams<${config.idType}, $dataType> params) async {
+    logger.info('Updating $entityName with id: \${params.id}');
     await Future.delayed(_delay);
     final existing = ${entityName}MockData.${entityCamel}s.firstWhere(
-      (item) => item.id == params.id,
-      orElse: () => throw NotFoundFailure('$entityName not found: \${params.id}'),
+      (item) => item.${config.idField} == params.id,
+      orElse: () => throw notFoundFailure('$entityName not found'),
     );
     // In a real implementation, you'd apply the update
-    logger.info('Successfully updated $entityName: \${params.id}');
+    logger.info('Successfully updated $entityName');
     return existing;
   }''');
           break;
 
         case 'delete':
-          if (config.idField == 'null') {
-            methods.add('''
+          methods.add('''
   @override
-  Future<void> delete(DeleteParams<$entityName> params) async {
-    logger.info('Deleting $entityName: \${params.id}');
-    await Future.delayed(_delay);
-    // For entities without ID field, we can't verify existence
-    // In a real implementation, you'd remove from storage
-    logger.info('Successfully deleted $entityName: \${params.id}');
-  }''');
-          } else {
-            methods.add('''
-  @override
-  Future<void> delete(DeleteParams<$entityName> params) async {
-    logger.info('Deleting $entityName: \${params.id}');
+  Future<void> delete(DeleteParams<${config.idType}> params) async {
+    logger.info('Deleting $entityName with id: \${params.id}');
     await Future.delayed(_delay);
     final exists = ${entityName}MockData.${entityCamel}s.any((item) => item.${config.idField} == params.id);
     if (!exists) {
-      throw NotFoundFailure('$entityName not found: \${params.id}');
+      throw notFoundFailure('$entityName not found');
     }
     // In a real implementation, you'd remove from storage
-    logger.info('Successfully deleted $entityName: \${params.id}');
+    logger.info('Successfully deleted $entityName');
   }''');
-          }
           break;
 
         case 'watch':
@@ -904,12 +1094,9 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
           } else {
             methods.add('''
   @override
-  Stream<$entityName> watch(${config.queryFieldType} ${config.queryField}) {
+  Stream<$entityName> watch(QueryParams<$entityName> params) {
     return Stream.periodic(const Duration(seconds: 1), (count) {
-      final item = ${entityName}MockData.${entityCamel}s.firstWhere(
-        (item) => item.${config.idField} == ${config.queryField},
-        orElse: () => throw NotFoundFailure('$entityName not found: \$${config.queryField}'),
-      );
+      final item = ${entityName}MockData.${entityCamel}s.query(params);
       return item;
     }).take(10); // Limit for demo
   }''');
@@ -919,7 +1106,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
         case 'watchList':
           methods.add('''
   @override
-  Stream<List<$entityName>> watchList(ListQueryParams params) {
+  Stream<List<$entityName>> watchList(ListQueryParams<$entityName> params) {
     return Stream.periodic(const Duration(seconds: 2), (count) {
       var items = ${entityName}MockData.${entityCamel}s;
       if (params.limit != null && params.limit! > 0) {

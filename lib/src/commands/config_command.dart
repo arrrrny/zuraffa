@@ -56,14 +56,19 @@ class ConfigCommand {
 
     // Create default config
     final defaultConfig = {
-      'useZorphyByDefault': true,
+      'zorphyByDefault': true,
       'jsonByDefault': true,
       'compareByDefault': true,
+      'filterByDefault': true,
       'defaultEntityOutput': 'lib/src/domain/entities',
-      'generateGql': false,
+      'gqlByDefault': false,
+      'buildByDefault': false,
+      'appendByDefault': false,
       'notes': [
-        'Set "useZorphyByDefault": false to use manual entity generation',
-        'Set "generateGql": true to auto-generate GraphQL for entity operations',
+        'Set "zorphyByDefault": false to use manual entity generation',
+        'Set "gqlByDefault": true to auto-generate GraphQL for entity operations',
+        'Set "buildByDefault": true to auto-run build_runner after entity/cache operations',
+        'Set "appendByDefault": true to auto-append to existing repositories/datasources',
         'Adjust "defaultEntityOutput" to change where entities are created',
       ],
     };
@@ -75,17 +80,22 @@ class ConfigCommand {
     print('✅ Created configuration file: ${configFile.path}');
     print('');
     print('📋 Current settings:');
-    print('  • useZorphyByDefault: true (entities use Zorphy)');
+    print('  • zorphyByDefault: true (entities use Zorphy)');
     print('  • jsonByDefault: true (entities include JSON serialization)');
     print('  • compareByDefault: true (entities include compareTo)');
+    print('  • filterByDefault: false (type-safe filters disabled by default)');
     print('  • defaultEntityOutput: lib/src/domain/entities');
-    print('  • generateGql: false (GraphQL generation disabled by default)');
+    print('  • gqlByDefault: false (GraphQL generation disabled by default)');
+    print(
+      '  • buildByDefault: false (build_runner auto-run disabled by default)',
+    );
+    print('  • appendByDefault: false (append mode disabled by default)');
     print('');
     print('💡 To disable Zorphy by default, edit .zfa.json and set:');
-    print('   "useZorphyByDefault": false');
+    print('   "zorphyByDefault": false');
     print('');
     print('💡 To customize these defaults for your project:');
-    print('   zfa config set useZorphyByDefault false');
+    print('   zfa config set zorphyByDefault false');
   }
 
   Future<void> _handleShow(List<String> args) async {
@@ -130,7 +140,7 @@ class ConfigCommand {
   Future<void> _handleSet(List<String> args) async {
     if (args.length < 2) {
       print('❌ Usage: zfa config set <key> <value>');
-      print('   Example: zfa config set useZorphyByDefault false');
+      print('   Example: zfa config set zorphyByDefault false');
       exit(1);
     }
 
@@ -153,12 +163,13 @@ class ConfigCommand {
       // Parse value based on key
       dynamic parsedValue;
       switch (key) {
-        case 'useZorphyByDefault':
-          parsedValue = value.toLowerCase() == 'true';
-          break;
+        case 'zorphyByDefault':
         case 'jsonByDefault':
         case 'compareByDefault':
-        case 'generateGql':
+        case 'filterByDefault':
+        case 'gqlByDefault':
+        case 'buildByDefault':
+        case 'appendByDefault':
           parsedValue = value.toLowerCase() == 'true';
           break;
         case 'defaultEntityOutput':
@@ -167,7 +178,7 @@ class ConfigCommand {
         default:
           print('❌ Unknown configuration key: $key');
           print(
-            '   Valid keys: useZorphyByDefault, jsonByDefault, compareByDefault, defaultEntityOutput, generateGql',
+            '   Valid keys: zorphyByDefault, jsonByDefault, compareByDefault, filterByDefault, defaultEntityOutput, gqlByDefault, buildByDefault, appendByDefault',
           );
           exit(1);
       }
@@ -203,13 +214,15 @@ OPTIONS:
   --help, -h          Show this help message
 
 CONFIGURATION KEYS:
-  useZorphyByDefault   Use Zorphy for entity generation (default: true)
+  zorphyByDefault      Use Zorphy for entity generation (default: true)
                        Set to false to use manual entity generation
 
   jsonByDefault        Enable JSON serialization by default (default: true)
-  compareByDefault      Enable compareTo by default (default: true)
-  generateGql          Enable GraphQL generation by default (default: false)
-  defaultEntityOutput   Default output directory for entities
+  compareByDefault     Enable compareTo by default (default: true)
+  gqlByDefault         Enable GraphQL generation by default (default: false)
+  buildByDefault       Auto-run build_runner after entity/cache operations (default: false)
+  appendByDefault      Auto-append to existing repositories/datasources (default: false)
+  defaultEntityOutput  Default output directory for entities
                        (default: lib/src/domain/entities)
 
 EXAMPLES:
@@ -223,7 +236,7 @@ EXAMPLES:
   zfa config show
 
   # Disable Zorphy by default
-  zfa config set useZorphyByDefault false
+  zfa config set zorphyByDefault false
 
   # Set custom output directory
   zfa config set defaultEntityOutput lib/src/models
@@ -231,10 +244,10 @@ EXAMPLES:
 CONFIGURATION FILE:
   Configuration is stored in .zfa.json in your project root:
   {
-    "useZorphyByDefault": true,
+    "zorphyByDefault": true,
     "jsonByDefault": true,
     "compareByDefault": true,
-    "generateGql": false,
+    "gqlByDefault": false,
     "defaultEntityOutput": "lib/src/domain/entities"
   }
 

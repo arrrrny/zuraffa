@@ -1,3 +1,45 @@
+## [2.7.0] - 2026-02-09
+
+### ✨ Features
+
+#### Generic ListQueryParams with Type-Safe Filtering and Sorting
+- Added generic `ListQueryParams<T>` class for type-safe list queries
+- Integrated Zorphy's `Filter<T>` for type-safe query filtering
+- Integrated Zorphy's `Sort<T>` for type-safe ordering (orderBy)
+- Added `search`, `filter`, `sort`, `limit`, `offset` parameters
+- Full JSON serialization support via `toQueryMap()`
+- `copyWith()` method with optional clearing for filter/sort/search
+
+#### Zorphy Extension for Type-Safe Queries
+- Extended Zorphy entities with automatic filter and sort field detection
+- Exported Zorphy types directly through zuraffa package
+- Type-safe `Field<T>`, `Filter<T>`, and `Sort<T>` references for any entity
+- Automatic field analysis from Zorphy-annotated entities
+
+#### Params Generics Improvements
+- Added strongly-typed `DeleteParams<T>` and `UpdateParams<T>` with typed ID field
+- Updated all generated UseCases to use generic params wrappers
+- CAUTION: Preserved backward compatibility with existing code, might contain unintended breaking changes.
+
+## [2.6.0] - 2026-02-07
+
+### ✨ Features
+
+#### GraphQL Support
+- Added GraphQL command for schema introspection and code generation
+- Added GraphQL schema models for introspection query responses
+- Added GraphQL introspection service for fetching and parsing schemas
+- Added GraphQL schema translator to convert Zorphy entities to GraphQL types
+- Added GraphQL entity emitter for generating annotated entity classes
+- Added comprehensive unit tests for GraphQL schema models and translator
+- Added barrel export for GraphQL module
+
+### 📝 Notes
+- GraphQL parser is now ready for production use
+- Supports introspection of remote GraphQL schemas
+- Generates type-safe Dart code from GraphQL schemas
+- Integrates with existing Zorphy entity system
+- 
 ## [2.5.1] - 2026-02-05
 
 ### 📚 Documentation

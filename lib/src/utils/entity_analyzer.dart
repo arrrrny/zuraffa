@@ -197,4 +197,47 @@ class EntityAnalyzer {
     };
     return fields.keys.toSet().containsAll(defaultKeys);
   }
+
+  /// Detects if an entity is polymorphic (has explicitSubTypes in @Zorphy)
+  /// Returns list of subtype names (without $ prefix)
+  static List<String> getPolymorphicSubtypes(
+    String entityName,
+    String outputDir,
+  ) {
+    final entitySnake = StringUtils.camelToSnake(entityName);
+    final entityPath =
+        '$outputDir/domain/entities/$entitySnake/$entitySnake.dart';
+
+    try {
+      final file = File(entityPath);
+      if (!file.existsSync()) return [];
+
+      final content = file.readAsStringSync();
+
+      // Look for @Zorphy annotation with explicitSubTypes
+      final zorphyRegex = RegExp(
+        r'@Zorphy\s*\([^)]*explicitSubTypes\s*:\s*\[([^\]]+)\]',
+        multiLine: true,
+        dotAll: true,
+      );
+      final match = zorphyRegex.firstMatch(content);
+
+      if (match != null) {
+        final subtypesStr = match.group(1);
+        if (subtypesStr != null) {
+          // Extract subtype names (e.g., $BarcodeUrlTemplate -> BarcodeUrlTemplate)
+          final subtypeRegex = RegExp(r'\$(\w+)');
+          final subtypes = subtypeRegex
+              .allMatches(subtypesStr)
+              .map((m) => m.group(1)!)
+              .toList();
+          return subtypes;
+        }
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+
+    return [];
+  }
 }

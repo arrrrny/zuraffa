@@ -1,23 +1,23 @@
-import 'package:meta/meta.dart';
+import 'package:zorphy/zorphy.dart';
 import 'params.dart';
 
 /// Parameters for querying a list of entities.
 ///
-/// Use [ListQueryParams] to pass common query options like filtering,
+/// Use [ListQueryParams] to pass common query options like typed filtering,
 /// sorting, and pagination to list-based UseCases.
+///
+/// The type parameter [T] represents the entity type being queried,
+/// enabling type-safe [Filter], [Field], and [Sort] references.
 @immutable
-class ListQueryParams {
+class ListQueryParams<T> {
   /// A search string for filtering results.
   final String? search;
 
-  /// A map of filters to apply to the query.
-  final Map<String, dynamic>? filters;
+  /// A type-safe filter to apply to the query.
+  final Filter<T>? filter;
 
-  /// The field name to sort by.
-  final String? sortBy;
-
-  /// Whether to sort in descending order.
-  final bool descending;
+  /// A type-safe sort specification.
+  final Sort<T>? sort;
 
   /// Maximum number of items to return.
   final int? limit;
@@ -25,38 +25,47 @@ class ListQueryParams {
   /// Number of items to skip.
   final int? offset;
 
-  /// Optional additional parameters.
+  /// Optional arbitrary additional parameters as an escape hatch
   final Params? params;
 
   /// Create a [ListQueryParams] instance.
   const ListQueryParams({
     this.search,
-    this.filters,
-    this.sortBy,
-    this.descending = true,
+    this.filter,
+    this.sort,
     this.limit,
     this.offset,
     this.params,
   });
 
+  /// Serializes the query parameters to a flat map.
+  Map<String, dynamic> toQueryMap() {
+    return <String, dynamic>{
+      if (search != null) 'search': search,
+      if (filter != null) 'filter': filter!.toJson(),
+      if (sort != null) 'sort': sort!.toJson(),
+      if (limit != null) 'limit': limit,
+      if (offset != null) 'offset': offset,
+      if (params != null) ...?params?.params,
+    };
+  }
+
   /// Create a copy of [ListQueryParams] with optional new values.
-  ListQueryParams copyWith({
+  ListQueryParams<T> copyWith({
     String? search,
-    Map<String, dynamic>? filters,
-    String? sortBy,
-    bool? descending,
+    Filter<T>? filter,
+    Sort<T>? sort,
     int? limit,
     int? offset,
     Params? params,
     bool clearSearch = false,
-    bool clearFilters = false,
+    bool clearFilter = false,
     bool clearSort = false,
   }) {
-    return ListQueryParams(
+    return ListQueryParams<T>(
       search: clearSearch ? null : (search ?? this.search),
-      filters: clearFilters ? null : (filters ?? this.filters),
-      sortBy: clearSort ? null : (sortBy ?? this.sortBy),
-      descending: descending ?? this.descending,
+      filter: clearFilter ? null : (filter ?? this.filter),
+      sort: clearSort ? null : (sort ?? this.sort),
       limit: limit ?? this.limit,
       offset: offset ?? this.offset,
       params: params ?? this.params,
@@ -66,12 +75,11 @@ class ListQueryParams {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is ListQueryParams &&
+      other is ListQueryParams<T> &&
           runtimeType == other.runtimeType &&
           search == other.search &&
-          filters == other.filters &&
-          sortBy == other.sortBy &&
-          descending == other.descending &&
+          filter == other.filter &&
+          sort == other.sort &&
           limit == other.limit &&
           offset == other.offset &&
           params == other.params;
@@ -79,14 +87,13 @@ class ListQueryParams {
   @override
   int get hashCode =>
       search.hashCode ^
-      filters.hashCode ^
-      sortBy.hashCode ^
-      descending.hashCode ^
+      filter.hashCode ^
+      sort.hashCode ^
       limit.hashCode ^
       offset.hashCode ^
       params.hashCode;
 
   @override
   String toString() =>
-      'ListQueryParams(search: $search, filters: $filters, sortBy: $sortBy, descending: $descending, limit: $limit, offset: $offset, params: $params)';
+      'ListQueryParams<$T>(search: $search, filter: $filter, sort: $sort, limit: $limit, offset: $offset, params: $params)';
 }

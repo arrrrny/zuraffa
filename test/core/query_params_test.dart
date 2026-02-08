@@ -1,58 +1,100 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/zuraffa.dart';
+import 'package:zorphy/zorphy.dart';
 
 void main() {
   group('QueryParams', () {
-    test('should store query value and optional params', () {
+    test('should store filter and optional params', () {
       const params = Params({'key': 'value'});
-      const queryParams = QueryParams<String>('id123', params);
+      final filter = AlwaysMatch<String>();
+      final queryParams = QueryParams<String>(filter: filter, params: params);
 
-      expect(queryParams.query, 'id123');
+      expect(queryParams.filter, filter);
       expect(queryParams.params, params);
     });
 
-    test('should work with different types as query', () {
-      const queryParamsInt = QueryParams<int>(42);
-      expect(queryParamsInt.query, 42);
+    test('should work with null filter and params', () {
+      const queryParams = QueryParams<int>();
+      expect(queryParams.filter, isNull);
+      expect(queryParams.params, isNull);
+    });
 
-      const queryParamsString = QueryParams<String>('slug-name');
-      expect(queryParamsString.query, 'slug-name');
+    test('should work with only filter', () {
+      final filter = AlwaysMatch<String>();
+      final queryParams = QueryParams<String>(filter: filter);
+      expect(queryParams.filter, filter);
+      expect(queryParams.params, isNull);
     });
 
     test('copyWith should update fields correctly', () {
-      const queryParams = QueryParams<String>('id123');
+      final filter1 = AlwaysMatch<String>();
+      final filter2 = AlwaysMatch<String>();
+      final queryParams = QueryParams<String>(filter: filter1);
       const newParams = Params({'filter': 'active'});
 
-      final updated = queryParams.copyWith(query: 'id456', params: newParams);
+      final updated = queryParams.copyWith(filter: filter2, params: newParams);
 
-      expect(updated.query, 'id456');
+      expect(updated.filter, filter2);
       expect(updated.params, newParams);
     });
 
+    test('copyWith should clear fields when requested', () {
+      final filter = AlwaysMatch<String>();
+      const params = Params({'key': 'value'});
+      final queryParams = QueryParams<String>(filter: filter, params: params);
+
+      final clearedFilter = queryParams.copyWith(clearFilter: true);
+      expect(clearedFilter.filter, isNull);
+      expect(clearedFilter.params, params);
+
+      final clearedParams = queryParams.copyWith(clearParams: true);
+      expect(clearedParams.filter, filter);
+      expect(clearedParams.params, isNull);
+    });
+
     test('equality should work correctly', () {
-      const q1 = QueryParams<String>('id1', Params({'a': 1}));
-      const q2 = QueryParams<String>('id1', Params({'a': 1}));
-      const q3 = QueryParams<String>('id2', Params({'a': 1}));
-      const q4 = QueryParams<String>('id1', Params({'b': 2}));
+      final filter1a = AlwaysMatch<String>();
+      final filter2 = AlwaysMatch<String>();
+      const params1 = Params({'a': 1});
+      const params2 = Params({'b': 2});
+
+      final q1 = QueryParams<String>(filter: filter1a, params: params1);
+      final q2 = QueryParams<String>(filter: filter1a, params: params1);
+      final q3 = QueryParams<String>(filter: filter2, params: params1);
+      final q4 = QueryParams<String>(filter: filter1a, params: params2);
 
       expect(q1, equals(q2));
       expect(q1, isNot(equals(q3)));
       expect(q1, isNot(equals(q4)));
     });
 
-    test('hashCode should be consistent', () {
-      const q1 = QueryParams<String>('id1', Params({'a': 1}));
-      const q2 = QueryParams<String>('id1', Params({'a': 1}));
+    test('hashCode should be consistent for same instance', () {
+      final filter = AlwaysMatch<String>();
+      const params = Params({'a': 1});
+
+      final q1 = QueryParams<String>(filter: filter, params: params);
+      final q2 = QueryParams<String>(filter: filter, params: params);
 
       expect(q1.hashCode, equals(q2.hashCode));
     });
 
     test('toString should be descriptive', () {
-      const queryParams = QueryParams<String>('id123');
+      final filter = AlwaysMatch<String>();
+      final queryParams = QueryParams<String>(filter: filter);
       expect(
         queryParams.toString(),
-        contains('QueryParams(query: id123, params: null)'),
+        contains('QueryParams<String>(filter: Instance of'),
       );
+    });
+
+    test('toQueryMap should serialize filter and params', () {
+      final filter = AlwaysMatch<String>();
+      const params = Params({'key': 'value'});
+      final queryParams = QueryParams<String>(filter: filter, params: params);
+
+      final map = queryParams.toQueryMap();
+      expect(map['filter'], isNotNull);
+      expect(map['key'], 'value');
     });
   });
 }

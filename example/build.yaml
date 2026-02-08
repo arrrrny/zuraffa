@@ -1,0 +1,21 @@
+targets:
+  $default:
+    builders:
+      zorphy:zorphy:
+        enabled: true
+        generate_for:
+          - lib/src/**
+          - test/**
+      json_serializable:
+        enabled: true
+        generate_for:
+          - lib/src/**
+          - test/**
+        options:
+          explicit_to_json: false
+          include_if_null: false
+          generic_argument_factories: true
+      source_gen:combining_builder:
+        enabled: true
+      mockito:mockBuilder:
+        enabled: true

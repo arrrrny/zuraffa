@@ -3,6 +3,8 @@ import 'package:path/path.dart' as path;
 import '../models/generator_config.dart';
 import '../models/generated_file.dart';
 import '../utils/file_utils.dart';
+import '../utils/entity_analyzer.dart';
+import '../utils/string_utils.dart';
 
 class CacheGenerator {
   final GeneratorConfig config;
@@ -273,6 +275,7 @@ ${inits.join('\n')}
     final imports = <String>[];
     final adapterSpecs = <String>[];
     final registrations = <String>[];
+    final processedEntities = <String>{};
 
     // Check for manual additions file
     final manualAdditionsPath = path.join(
@@ -298,8 +301,11 @@ ${inits.join('\n')}
           if (!imports.contains("import '$importPath';")) {
             imports.add("import '$importPath';");
           }
-          adapterSpecs.add('AdapterSpec<$entityName>()');
-          registrations.add('    registerAdapter(${entityName}Adapter());');
+          if (!processedEntities.contains(entityName)) {
+            processedEntities.add(entityName);
+            adapterSpecs.add('AdapterSpec<$entityName>()');
+            registrations.add('    registerAdapter(${entityName}Adapter());');
+          }
         }
       }
     }
@@ -324,8 +330,20 @@ ${inits.join('\n')}
         if (!imports.contains("import '$importPath';")) {
           imports.add("import '$importPath';");
         }
-        adapterSpecs.add('AdapterSpec<$entityName>()');
-        registrations.add('    registerAdapter(${entityName}Adapter());');
+        if (!processedEntities.contains(entityName)) {
+          processedEntities.add(entityName);
+          adapterSpecs.add('AdapterSpec<$entityName>()');
+          registrations.add('    registerAdapter(${entityName}Adapter());');
+        }
+
+        // Auto-detect nested entities and polymorphic subtypes
+        await _collectNestedEntitiesForHive(
+          entityName,
+          imports,
+          adapterSpecs,
+          registrations,
+          processedEntities,
+        );
       }
     }
 
@@ -376,5 +394,193 @@ ${registrations.join('\n')}
 ''';
       manualAdditionsFile.writeAsStringSync(template);
     }
+  }
+
+  Future<void> _collectNestedEntitiesForHive(
+    String entityName,
+    List<String> imports,
+    List<String> adapterSpecs,
+    List<String> registrations,
+    Set<String> processedEntities,
+  ) async {
+    // Check for polymorphic subtypes
+    final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
+      entityName,
+      outputDir,
+    );
+    for (final subtype in subtypes) {
+      if (!processedEntities.contains(subtype)) {
+        processedEntities.add(subtype);
+        final subtypeSnake = StringUtils.camelToSnake(subtype);
+        final importPath =
+            '../domain/entities/$subtypeSnake/$subtypeSnake.dart';
+        if (!imports.contains("import '$importPath';")) {
+          imports.add("import '$importPath';");
+        }
+        adapterSpecs.add('AdapterSpec<$subtype>()');
+        registrations.add('    registerAdapter(${subtype}Adapter());');
+
+        // Recursively process nested entities in subtypes
+        await _collectNestedEntitiesForHive(
+          subtype,
+          imports,
+          adapterSpecs,
+          registrations,
+          processedEntities,
+        );
+      }
+    }
+
+    // Get entity fields
+    final entityFields = EntityAnalyzer.analyzeEntity(entityName, outputDir);
+
+    for (final entry in entityFields.entries) {
+      final fieldType = entry.value;
+      final baseTypes = _extractEntityTypes(fieldType);
+
+      for (final baseType in baseTypes) {
+        if (baseType.isNotEmpty &&
+            baseType[0] == baseType[0].toUpperCase() &&
+            ![
+              'String',
+              'int',
+              'double',
+              'bool',
+              'DateTime',
+              'Object',
+              'dynamic',
+            ].contains(baseType) &&
+            !processedEntities.contains(baseType)) {
+          // Check if it's a polymorphic type
+          final nestedSubtypes = EntityAnalyzer.getPolymorphicSubtypes(
+            baseType,
+            outputDir,
+          );
+          if (nestedSubtypes.isNotEmpty) {
+            // Import the abstract type (needed for type references like List<UrlTemplate>)
+            final baseTypeSnake = StringUtils.camelToSnake(baseType);
+            final abstractImportPath =
+                '../domain/entities/$baseTypeSnake/$baseTypeSnake.dart';
+            if (!imports.contains("import '$abstractImportPath';")) {
+              imports.add("import '$abstractImportPath';");
+            }
+
+            // Process subtypes instead of abstract type (generate adapters)
+            for (final subtype in nestedSubtypes) {
+              if (!processedEntities.contains(subtype)) {
+                processedEntities.add(subtype);
+                final subtypeSnake = StringUtils.camelToSnake(subtype);
+                final importPath =
+                    '../domain/entities/$subtypeSnake/$subtypeSnake.dart';
+                if (!imports.contains("import '$importPath';")) {
+                  imports.add("import '$importPath';");
+                }
+                adapterSpecs.add('AdapterSpec<$subtype>()');
+                registrations.add('    registerAdapter(${subtype}Adapter());');
+
+                await _collectNestedEntitiesForHive(
+                  subtype,
+                  imports,
+                  adapterSpecs,
+                  registrations,
+                  processedEntities,
+                );
+              }
+            }
+            continue;
+          }
+
+          // Check if it's an entity
+          final nestedFields = EntityAnalyzer.analyzeEntity(
+            baseType,
+            outputDir,
+          );
+          if (nestedFields.isNotEmpty) {
+            processedEntities.add(baseType);
+            final baseTypeSnake = StringUtils.camelToSnake(baseType);
+            final importPath =
+                '../domain/entities/$baseTypeSnake/$baseTypeSnake.dart';
+            if (!imports.contains("import '$importPath';")) {
+              imports.add("import '$importPath';");
+            }
+            adapterSpecs.add('AdapterSpec<$baseType>()');
+            registrations.add('    registerAdapter(${baseType}Adapter());');
+
+            // Recursively process nested entities
+            await _collectNestedEntitiesForHive(
+              baseType,
+              imports,
+              adapterSpecs,
+              registrations,
+              processedEntities,
+            );
+          } else if (_isEnum(baseType)) {
+            // It's an enum - add adapter
+            processedEntities.add(baseType);
+            final enumImportPath = '../domain/entities/enums/index.dart';
+            if (!imports.contains("import '$enumImportPath';")) {
+              imports.add("import '$enumImportPath';");
+            }
+            adapterSpecs.add('AdapterSpec<$baseType>()');
+            registrations.add('    registerAdapter(${baseType}Adapter());');
+          }
+        }
+      }
+    }
+  }
+
+  bool _isEnum(String typeName) {
+    // Check if enum file exists
+    final enumsDir = Directory(
+      path.join(outputDir, 'domain', 'entities', 'enums'),
+    );
+    if (!enumsDir.existsSync()) return false;
+
+    final typeSnake = StringUtils.camelToSnake(typeName);
+    final enumFile = File(path.join(enumsDir.path, '$typeSnake.dart'));
+
+    if (enumFile.existsSync()) {
+      final content = enumFile.readAsStringSync();
+      return content.contains('enum $typeName');
+    }
+
+    return false;
+  }
+
+  List<String> _extractEntityTypes(String fieldType) {
+    final types = <String>[];
+    var baseType = fieldType.replaceAll('?', '');
+
+    // Handle List<Type>
+    if (baseType.startsWith('List<') && baseType.endsWith('>')) {
+      baseType = baseType.substring(5, baseType.length - 1);
+    }
+    // Handle Map<K,V> - extract value type
+    else if (baseType.startsWith('Map<') && baseType.endsWith('>')) {
+      final innerTypes = baseType.substring(4, baseType.length - 1);
+      final typeParts = innerTypes.split(',').map((s) => s.trim()).toList();
+      if (typeParts.length == 2) {
+        baseType = typeParts[1];
+      } else {
+        return types;
+      }
+    }
+
+    // Handle zorphy entity indicator ($EntityName)
+    if (baseType.startsWith('\$')) {
+      baseType = baseType.substring(1);
+    }
+
+    baseType = baseType
+        .replaceAll('<', '')
+        .replaceAll('>', '')
+        .split(',')[0]
+        .trim();
+
+    if (baseType.isNotEmpty) {
+      types.add(baseType);
+    }
+
+    return types;
   }
 }

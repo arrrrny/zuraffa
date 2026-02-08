@@ -141,6 +141,19 @@ class CodeGenerator {
           nextSteps.addAll(appendResult.warnings.map((w) => '⚠️  $w'));
         }
 
+        // Generate GraphQL files if requested
+        if (config.generateGql) {
+          final graphqlGenerator = GraphQLGenerator(
+            config: config,
+            outputDir: outputDir,
+            dryRun: dryRun,
+            force: force,
+            verbose: verbose,
+          );
+          final graphqlFiles = await graphqlGenerator.generate();
+          files.addAll(graphqlFiles);
+        }
+
         return GeneratorResult(
           name: config.name,
           success: true,

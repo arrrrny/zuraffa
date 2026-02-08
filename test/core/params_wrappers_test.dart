@@ -1,113 +1,300 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zorphy_annotation/zorphy_annotation.dart';
 import 'package:zuraffa/zuraffa.dart';
 
 void main() {
   group('QueryParams', () {
-    test('should store query value and optional params', () {
+    test('should store filter and optional params', () {
+      const filter = Eq<_TestEntity, String>(_TestEntityFields.name, 'test');
       const params = Params({'key': 'value'});
-      const queryParams = QueryParams<String>('id123', params);
+      const queryParams = QueryParams<_TestEntity>(
+        filter: filter,
+        params: params,
+      );
 
-      expect(queryParams.query, 'id123');
+      expect(queryParams.filter, filter);
       expect(queryParams.params, params);
     });
 
+    test('toQueryMap serializes correctly', () {
+      const filter = Eq<_TestEntity, String>(_TestEntityFields.name, 'test');
+      const queryParams = QueryParams<_TestEntity>(
+        filter: filter,
+        params: Params({'includeDeleted': true}),
+      );
+
+      final map = queryParams.toQueryMap();
+      expect(map['filter'], isA<Map>());
+      expect(map['includeDeleted'], true);
+    });
+
+    test('copyWith should allow partial updates and clearing', () {
+      const filter = Eq<_TestEntity, String>(_TestEntityFields.name, 'test');
+      const q = QueryParams<_TestEntity>(
+        filter: filter,
+        params: Params({'key': 'value'}),
+      );
+
+      final updated = q.copyWith(clearFilter: true);
+
+      expect(updated.filter, isNull);
+      expect(updated.params, isNotNull);
+    });
+
     test('equality should work correctly', () {
-      const q1 = QueryParams<String>('id1', Params({'a': 1}));
-      const q2 = QueryParams<String>('id1', Params({'a': 1}));
-      const q3 = QueryParams<String>('id2');
+      const filter1 = Eq<_TestEntity, String>(_TestEntityFields.name, 'test');
+      const filter2 = Eq<_TestEntity, String>(_TestEntityFields.name, 'test');
+      const q1 = QueryParams<_TestEntity>(filter: filter1);
+      const q2 = QueryParams<_TestEntity>(filter: filter2);
+      const q3 = QueryParams<_TestEntity>();
 
       expect(q1, equals(q2));
       expect(q1, isNot(equals(q3)));
+    });
+
+    test('query extension should find matching entity', () {
+      const entities = [
+        _TestEntity(name: 'Alice'),
+        _TestEntity(name: 'Bob'),
+        _TestEntity(name: 'Charlie'),
+      ];
+
+      final params = QueryParams<_TestEntity>(
+        filter: Eq(_TestEntityFields.name, 'Bob'),
+      );
+
+      final result = entities.query(params);
+      expect(result.name, 'Bob');
+    });
+
+    test('query extension should return first when no filter', () {
+      const entities = [_TestEntity(name: 'Alice'), _TestEntity(name: 'Bob')];
+
+      final result = entities.query(null);
+      expect(result.name, 'Alice');
     });
   });
 
   group('ListQueryParams', () {
     test('should store all query options', () {
-      const q = ListQueryParams(
+      const nameField = _TestEntityFields.name;
+      final q = ListQueryParams<_TestEntity>(
         search: 'test',
-        filters: {'active': true},
-        sortBy: 'name',
-        descending: false,
+        filter: Eq<_TestEntity, String>(nameField, 'active'),
+        sort: Sort<_TestEntity>.asc(nameField),
         limit: 10,
         offset: 0,
-        params: Params({'custom': 1}),
+        params: const Params({'custom': 1}),
       );
 
       expect(q.search, 'test');
-      expect(q.filters?['active'], true);
-      expect(q.sortBy, 'name');
-      expect(q.descending, false);
+      expect(q.filter, isNotNull);
+      expect(q.sort?.field.name, 'name');
+      expect(q.sort?.descending, false);
       expect(q.limit, 10);
       expect(q.offset, 0);
       expect(q.params?.params?['custom'], 1);
     });
 
     test('copyWith should allow partial updates and clearing', () {
-      const q = ListQueryParams(search: 'old', sortBy: 'old');
+      const q = ListQueryParams<_TestEntity>(search: 'old');
 
       final updated = q.copyWith(search: 'new', clearSort: true);
 
       expect(updated.search, 'new');
-      expect(updated.sortBy, isNull);
+      expect(updated.sort, isNull);
     });
 
     test('equality and hashCode', () {
-      const q1 = ListQueryParams(search: 'a');
-      const q2 = ListQueryParams(search: 'a');
-      const q3 = ListQueryParams(search: 'b');
+      const q1 = ListQueryParams<_TestEntity>(search: 'a');
+      const q2 = ListQueryParams<_TestEntity>(search: 'a');
+      const q3 = ListQueryParams<_TestEntity>(search: 'b');
 
       expect(q1, equals(q2));
       expect(q1.hashCode, equals(q2.hashCode));
       expect(q1, isNot(equals(q3)));
     });
+
+    test('toQueryMap serializes correctly', () {
+      const nameField = _TestEntityFields.name;
+      final q = ListQueryParams<_TestEntity>(
+        search: 'test',
+        filter: Eq<_TestEntity, String>(nameField, 'active'),
+        sort: Sort<_TestEntity>.desc(nameField),
+        limit: 20,
+        offset: 5,
+        params: Params({'custom': 'value'}),
+      );
+
+      final map = q.toQueryMap();
+      expect(map['search'], 'test');
+      expect(map['sort'], isA<Map>());
+      expect((map['sort'] as Map)['field'], 'name');
+      expect((map['sort'] as Map)['descending'], true);
+      expect(map['limit'], 20);
+      expect(map['offset'], 5);
+      expect(map['filter'], isA<Map>());
+      expect(map['custom'], 'value');
+    });
+
+    test('default constructor works without type parameter', () {
+      const q = ListQueryParams();
+      expect(q.search, isNull);
+      expect(q.filter, isNull);
+      expect(q.sort, isNull);
+    });
+  });
+
+  group('CreateParams', () {
+    test('should store data and optional params', () {
+      const entity = _TestEntity(name: 'Test');
+      const params = Params({'key': 'value'});
+      const createParams = CreateParams<_TestEntity>(
+        data: entity,
+        params: params,
+      );
+
+      expect(createParams.data, entity);
+      expect(createParams.params, params);
+    });
+
+    test('toMap serializes correctly', () {
+      const entity = _TestEntity(name: 'Test');
+      const createParams = CreateParams<_TestEntity>(
+        data: entity,
+        params: Params({'source': 'api'}),
+      );
+
+      final map = createParams.toMap();
+      expect(map['data'], entity);
+      expect(map['source'], 'api');
+    });
+
+    test('copyWith should work correctly', () {
+      const entity1 = _TestEntity(name: 'Test1');
+      const entity2 = _TestEntity(name: 'Test2');
+      const c = CreateParams<_TestEntity>(data: entity1);
+
+      final updated = c.copyWith(data: entity2);
+
+      expect(updated.data, entity2);
+    });
+
+    test('equality should work correctly', () {
+      const entity = _TestEntity(name: 'Test');
+      const c1 = CreateParams<_TestEntity>(data: entity);
+      const c2 = CreateParams<_TestEntity>(data: entity);
+      const c3 = CreateParams<_TestEntity>(data: _TestEntity(name: 'Other'));
+
+      expect(c1, equals(c2));
+      expect(c1, isNot(equals(c3)));
+    });
   });
 
   group('UpdateParams', () {
-    test('should store id and data map', () {
-      const params = UpdateParams<Partial<String>>(
+    test('should store id, data, and optional params', () {
+      const patch = {'name': 'Updated'};
+      const params = Params({'key': 'value'});
+      const updateParams = UpdateParams<String, Map<String, dynamic>>(
         id: '123',
-        data: {'name': 'New Name'},
+        data: patch,
+        params: params,
       );
 
-      expect(params.id, '123');
-      expect(params.data['name'], 'New Name');
-      expect(params.data, isA<Partial<String>>());
+      expect(updateParams.id, '123');
+      expect(updateParams.data, patch);
+      expect(updateParams.params, params);
     });
 
-    test('validate should throw for invalid fields', () {
-      const params = UpdateParams<Partial<String>>(
+    test('toMap serializes correctly', () {
+      const updateParams = UpdateParams<String, Map<String, dynamic>>(
         id: '123',
-        data: {'invalid': 'value'},
+        data: {'name': 'Updated'},
       );
 
-      expect(() => params.validate(['name', 'email']), throwsArgumentError);
+      final map = updateParams.toMap();
+      expect(map['id'], '123');
+      expect(map['data'], isA<Map>());
     });
 
-    test('validate should succeed for valid fields', () {
-      const params = UpdateParams<Partial<String>>(
+    test('copyWith should work correctly', () {
+      const u = UpdateParams<String, Map<String, dynamic>>(
         id: '123',
-        data: {'name': 'Value'},
+        data: {'name': 'Old'},
       );
 
-      expect(() => params.validate(['name', 'email']), returnsNormally);
+      final updated = u.copyWith(data: {'name': 'New'});
+
+      expect(updated.data['name'], 'New');
+      expect(updated.id, '123');
+    });
+
+    test('equality should work correctly', () {
+      const u1 = UpdateParams<String, Map<String, dynamic>>(
+        id: '123',
+        data: {'name': 'Test'},
+      );
+      const u2 = UpdateParams<String, Map<String, dynamic>>(
+        id: '123',
+        data: {'name': 'Test'},
+      );
+      const u3 = UpdateParams<String, Map<String, dynamic>>(
+        id: '456',
+        data: {'name': 'Other'},
+      );
+
+      expect(u1, equals(u2));
+      expect(u1, isNot(equals(u3)));
     });
   });
 
   group('DeleteParams', () {
     test('should store id and optional params', () {
-      const params = DeleteParams<int>(123, Params({'soft': true}));
+      const params = Params({'soft': true});
+      const deleteParams = DeleteParams<String>(id: '123', params: params);
 
-      expect(params.id, 123);
-      expect(params.params?.params?['soft'], true);
+      expect(deleteParams.id, '123');
+      expect(deleteParams.params, params);
     });
 
-    test('equality', () {
-      const d1 = DeleteParams<int>(1);
-      const d2 = DeleteParams<int>(1);
-      const d3 = DeleteParams<int>(2);
+    test('toMap serializes correctly', () {
+      const deleteParams = DeleteParams<String>(
+        id: '123',
+        params: Params({'soft': true}),
+      );
+
+      final map = deleteParams.toMap();
+      expect(map['id'], '123');
+      expect(map['soft'], true);
+    });
+
+    test('copyWith should work correctly', () {
+      const d = DeleteParams<String>(id: '123');
+
+      final updated = d.copyWith(id: '456');
+
+      expect(updated.id, '456');
+    });
+
+    test('equality should work correctly', () {
+      const d1 = DeleteParams<String>(id: '123');
+      const d2 = DeleteParams<String>(id: '123');
+      const d3 = DeleteParams<String>(id: '456');
 
       expect(d1, equals(d2));
       expect(d1, isNot(equals(d3)));
     });
   });
+}
+
+class _TestEntity {
+  final String name;
+  const _TestEntity({required this.name});
+}
+
+// Mock Fields class for testing
+class _TestEntityFields {
+  static const name = Field<_TestEntity, String>('name', _getName);
+
+  static String _getName(_TestEntity entity) => entity.name;
 }

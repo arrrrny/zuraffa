@@ -2,42 +2,142 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:args/args.dart';
 import '../models/generator_config.dart';
+import '../models/generator_result.dart';
 import '../generator/code_generator.dart';
 import '../utils/logger.dart';
 import '../config/zfa_config.dart';
 
 class GenerateCommand {
-  Future<void> execute(List<String> args) async {
+  Future<GeneratorResult> execute(
+    List<String> args, {
+    bool exitOnCompletion = true,
+  }) async {
     if (args.isEmpty) {
       print('❌ Usage: zfa generate <Name> [options]');
       print('\nRun: zfa generate --help for more information');
-      exit(1);
+      if (exitOnCompletion) exit(1);
+      return GeneratorResult(
+        name: 'error',
+        success: false,
+        files: [],
+        errors: ['Missing arguments'],
+        nextSteps: [],
+      );
     }
 
     if (args[0] == '--help' || args[0] == '-h') {
       _printHelp();
-      exit(0);
+      if (exitOnCompletion) exit(0);
+      return GeneratorResult(
+        name: 'help',
+        success: true,
+        files: [],
+        errors: [],
+        nextSteps: [],
+      );
     }
 
     final name = args[0];
     if (name.startsWith('--')) {
       print('❌ Missing name');
       print('Usage: zfa generate <Name> [options]');
-      exit(1);
+      if (exitOnCompletion) exit(1);
+      return GeneratorResult(
+        name: 'error',
+        success: false,
+        files: [],
+        errors: ['Missing name'],
+        nextSteps: [],
+      );
     }
 
     final parser = _buildArgParser();
-    final results = parser.parse(args.skip(1).toList());
+    final ArgResults results;
+    try {
+      results = parser.parse(args.skip(1).toList());
+    } on FormatException catch (e) {
+      print('❌ ${e.message}');
+      print('\nRun: zfa generate --help for usage information');
+      if (exitOnCompletion) exit(1);
+      return GeneratorResult(
+        name: 'error',
+        success: false,
+        files: [],
+        errors: [e.message],
+        nextSteps: [],
+      );
+    }
 
+    final config = _buildConfig(name, results);
+    _validateConfig(config, exitOnCompletion: exitOnCompletion);
+
+    final outputDir = results['output'] as String;
+    final format = results['format'] as String;
+    final dryRun = results['dry-run'] == true;
+    final force = results['force'] == true;
+    final verbose = results['verbose'] == true;
+    final quiet = results['quiet'] == true;
+    final shouldBuild = results['build'] == true;
+
+    // Load config to check buildByDefault
+    final zfaConfig = ZfaConfig.load();
+    final runBuild =
+        shouldBuild ||
+        (config.enableCache && (zfaConfig?.buildByDefault ?? false));
+
+    final generator = CodeGenerator(
+      config: config,
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+
+    final result = await generator.generate();
+
+    if (format == 'json') {
+      print(jsonEncode(result.toJson()));
+    } else if (!result.success) {
+      if (!quiet) {
+        CliLogger.printResult(result);
+      }
+      if (exitOnCompletion) exit(1);
+    } else if (verbose && !quiet) {
+      for (final file in result.files) {
+        print('\n--- ${file.path} ---');
+        print(file.content ?? '');
+      }
+      CliLogger.printResult(result);
+    } else if (!quiet) {
+      CliLogger.printResult(result);
+    }
+
+    // Run build if requested and generation succeeded
+    if (runBuild && result.success && !dryRun) {
+      print('');
+      print('🔨 Running build_runner...');
+      await _runBuild();
+    }
+
+    // Run dart format if generation succeeded
+    if (result.success && !dryRun) {
+      print('');
+      print('🎨 Formatting generated code...');
+      await _runFormat(outputDir);
+    }
+
+    if (exitOnCompletion) exit(0);
+    return result;
+  }
+
+  GeneratorConfig _buildConfig(String name, ArgResults results) {
     // Load ZFA config for defaults
     final zfaConfig = ZfaConfig.load() ?? const ZfaConfig();
-
-    GeneratorConfig config;
 
     if (results['from-stdin'] == true) {
       final input = stdin.readLineSync() ?? '';
       final json = jsonDecode(input) as Map<String, dynamic>;
-      config = GeneratorConfig.fromJson(json, name);
+      return GeneratorConfig.fromJson(json, name);
     } else if (results['from-json'] != null) {
       final file = File(results['from-json']);
       if (!file.existsSync()) {
@@ -45,7 +145,7 @@ class GenerateCommand {
         exit(1);
       }
       final json = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
-      config = GeneratorConfig.fromJson(json, name);
+      return GeneratorConfig.fromJson(json, name);
     } else {
       final methodsStr = results['methods'] as String?;
       final usecasesStr = results['usecases'] as String?;
@@ -54,9 +154,13 @@ class GenerateCommand {
       // Apply config defaults for entity-based operations
       final isEntityBased = methodsStr != null && methodsStr.isNotEmpty;
       final shouldGenerateGql =
-          results['gql'] == true || (isEntityBased && zfaConfig.generateGql);
+          results['gql'] == true || (isEntityBased && zfaConfig.gqlByDefault);
+      // Only apply appendByDefault for custom UseCases, not entity-based
+      final shouldAppend =
+          results['append'] == true ||
+          (!isEntityBased && zfaConfig.appendByDefault);
 
-      config = GeneratorConfig(
+      return GeneratorConfig(
         name: name,
         methods: methodsStr?.split(',').map((s) => s.trim()).toList() ?? [],
         repo: results['repo'],
@@ -68,8 +172,8 @@ class GenerateCommand {
         serviceMethod:
             results['service-method'] ??
             (results['service'] != null ? results['method'] : null),
-        appendToExisting: results['append'] == true,
-        generateRepository: true, // Always true, controlled internally
+        appendToExisting: shouldAppend,
+        generateRepository: true,
         useCaseType: results['type'],
         paramsType: results['params'],
         returnsType: results['returns'],
@@ -125,70 +229,42 @@ class GenerateCommand {
         gqlName: results['gql-name'],
       );
     }
-
-    _validateConfig(config);
-
-    final outputDir = results['output'] as String;
-    final format = results['format'] as String;
-    final dryRun = results['dry-run'] == true;
-    final force = results['force'] == true;
-    final verbose = results['verbose'] == true;
-    final quiet = results['quiet'] == true;
-
-    final generator = CodeGenerator(
-      config: config,
-      outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
-
-    final result = await generator.generate();
-
-    if (format == 'json') {
-      print(jsonEncode(result.toJson()));
-    } else if (verbose && !quiet) {
-      for (final file in result.files) {
-        print('\n--- ${file.path} ---');
-        print(file.content ?? '');
-      }
-      CliLogger.printResult(result);
-    } else if (!quiet) {
-      CliLogger.printResult(result);
-    }
-
-    exit(result.success ? 0 : 1);
   }
 
-  void _validateConfig(GeneratorConfig config) {
+  void _validateConfig(GeneratorConfig config, {bool exitOnCompletion = true}) {
     // Rule 1: Entity-based cannot have --domain, --repo, --service, --usecases, --variants
     if (config.isEntityBased) {
       if (config.domain != null) {
         print('❌ Error: --domain cannot be used with entity-based generation');
         print('   Entity-based UseCases auto-use entity name as domain');
-        exit(1);
+        if (exitOnCompletion) exit(1);
+        throw ArgumentError('Invalid config: --domain with entity-based');
       }
       if (config.repo != null) {
         print('❌ Error: --repo cannot be used with entity-based generation');
         print('   Entity-based UseCases auto-inject ${config.name}Repository');
-        exit(1);
+        if (exitOnCompletion) exit(1);
+        throw ArgumentError('Invalid config: --repo with entity-based');
       }
       if (config.service != null) {
         print('❌ Error: --service cannot be used with entity-based generation');
         print('   Entity-based UseCases auto-inject ${config.name}Repository');
-        exit(1);
+        if (exitOnCompletion) exit(1);
+        throw ArgumentError('Invalid config: --service with entity-based');
       }
       if (config.usecases.isNotEmpty) {
         print(
           '❌ Error: --usecases cannot be used with entity-based generation',
         );
-        exit(1);
+        if (exitOnCompletion) exit(1);
+        throw ArgumentError('Invalid config: --usecases with entity-based');
       }
       if (config.variants.isNotEmpty) {
         print(
           '❌ Error: --variants cannot be used with entity-based generation',
         );
-        exit(1);
+        if (exitOnCompletion) exit(1);
+        throw ArgumentError('Invalid config: --variants with entity-based');
       }
     }
 
@@ -212,7 +288,8 @@ class GenerateCommand {
       print(
         '  zfa generate ProcessPayment --domain=payment --service=Payment --params=PaymentRequest --returns=PaymentResult',
       );
-      exit(1);
+      if (exitOnCompletion) exit(1);
+      throw ArgumentError('Invalid config: missing --domain');
     }
 
     // Rule 3: Orchestrator (--usecases) cannot have --repo or --service
@@ -226,7 +303,10 @@ class GenerateCommand {
       print('Either:');
       print('  - Use --repo or --service for dependency-based UseCase');
       print('  - Use --usecases for orchestrator UseCase');
-      exit(1);
+      if (exitOnCompletion) exit(1);
+      throw ArgumentError(
+        'Invalid config: --usecases with --repo or --service',
+      );
     }
 
     // Rule 4: Custom non-orchestrator requires --repo OR --service (except background)
@@ -239,7 +319,8 @@ class GenerateCommand {
         print(
           '   Use --repo for repository injection OR --service for service injection',
         );
-        exit(1);
+        if (exitOnCompletion) exit(1);
+        throw ArgumentError('Invalid config: both --repo and --service');
       }
       if (config.repo == null && config.service == null) {
         print('❌ Error: --repo or --service is required for custom UseCases');
@@ -249,11 +330,11 @@ class GenerateCommand {
         print(
           '  zfa generate ${config.name} --domain=${config.domain ?? 'domain'} --repo=<Repository> --params=<Type> --returns=<Type>',
         );
-        print('  or');
         print(
           '  zfa generate ${config.name} --domain=${config.domain ?? 'domain'} --service=<Service> --params=<Type> --returns=<Type>',
         );
-        exit(1);
+        if (exitOnCompletion) exit(1);
+        throw ArgumentError('Invalid config: missing --repo or --service');
       }
     }
 
@@ -551,7 +632,47 @@ class GenerateCommand {
       )
       ..addFlag('force', help: 'Overwrite existing files', defaultsTo: false)
       ..addFlag('verbose', abbr: 'v', help: 'Verbose output', defaultsTo: false)
-      ..addFlag('quiet', abbr: 'q', help: 'Minimal output', defaultsTo: false);
+      ..addFlag('quiet', abbr: 'q', help: 'Minimal output', defaultsTo: false)
+      ..addFlag(
+        'build',
+        help:
+            'Run build_runner after generation (auto for --cache if buildByDefault=true)',
+        defaultsTo: false,
+      );
+  }
+
+  Future<void> _runBuild() async {
+    final process = await Process.start('dart', [
+      'run',
+      'build_runner',
+      'build',
+      '--delete-conflicting-outputs',
+    ], mode: ProcessStartMode.inheritStdio);
+
+    final exitCode = await process.exitCode;
+
+    if (exitCode != 0) {
+      print('\n❌ build_runner exited with code $exitCode');
+      exit(exitCode);
+    }
+
+    print('\n✅ Build completed successfully!');
+  }
+
+  Future<void> _runFormat(String outputDir) async {
+    final process = await Process.start('dart', [
+      'format',
+      outputDir,
+    ], mode: ProcessStartMode.inheritStdio);
+
+    final exitCode = await process.exitCode;
+
+    if (exitCode != 0) {
+      print('\n⚠️  dart format exited with code $exitCode (non-critical)');
+      return;
+    }
+
+    print('✅ Code formatted successfully!');
   }
 
   void _printHelp() {

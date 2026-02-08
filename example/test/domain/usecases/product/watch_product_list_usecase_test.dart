@@ -12,17 +12,13 @@ class MockProductRepository extends Mock implements ProductRepository {}
 
 class MockProduct extends Mock implements Product {}
 
-class FakeListQueryParams extends Fake implements ListQueryParams {}
-
 void main() {
   late WatchProductListUseCase useCase;
   late MockProductRepository mockRepository;
 
-  setUpAll(() {
-    registerFallbackValue(FakeListQueryParams());
-  });
-
   setUp(() {
+    registerFallbackValue(const ListQueryParams<dynamic>());
+
     mockRepository = MockProductRepository();
     useCase = WatchProductListUseCase(mockRepository);
   });
@@ -38,7 +34,7 @@ void main() {
           .thenAnswer((_) => Stream.value(tProductList));
 
       // Act
-      final result = useCase(const ListQueryParams());
+      final result = useCase(const ListQueryParams<Product>());
 
       // Assert
       await expectLater(
@@ -56,7 +52,7 @@ void main() {
           .thenAnswer((_) => Stream.error(exception));
 
       // Act
-      final result = useCase(const ListQueryParams());
+      final result = useCase(const ListQueryParams<Product>());
 
       // Assert
       await expectLater(

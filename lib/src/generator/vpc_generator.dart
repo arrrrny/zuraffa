@@ -174,7 +174,7 @@ ${withState ? '''    result.fold(
           break;
         case 'getList':
           methods.add('''
-  Future<void> get${entityName}List([ListQueryParams params = const ListQueryParams()]) async {
+  Future<void> get${entityName}List([ListQueryParams<$entityName> params = const ListQueryParams()]) async {
 ${withState ? "    updateState(viewState.copyWith(isGettingList: true));" : ""}
     final result = await _presenter.get${entityName}List(params);
 
@@ -194,10 +194,11 @@ ${withState ? '''    result.fold(
   }''');
           break;
         case 'create':
-          final hasListMethod =
-              config.methods.contains('getList') ||
-              config.methods.contains('watchList');
-          final listUpdate = hasListMethod
+          // Only update list optimistically if using getList (not watchList)
+          // watchList streams will handle the update automatically
+          final hasListMethod = config.methods.contains('getList');
+          final hasWatchList = config.methods.contains('watchList');
+          final listUpdate = (hasListMethod && !hasWatchList)
               ? '${entityCamel}List: [...viewState.${entityCamel}List, created],'
               : '';
           methods.add('''
@@ -230,10 +231,11 @@ ${withState ? '''    result.fold(
           final updateArgs = config.idField == 'null'
               ? entityCamel
               : '${config.idField}, data';
-          final hasListMethod =
-              config.methods.contains('getList') ||
-              config.methods.contains('watchList');
-          final listUpdate = hasListMethod
+          // Only update list optimistically if using getList (not watchList)
+          // watchList streams will handle the update automatically
+          final hasListMethod = config.methods.contains('getList');
+          final hasWatchList = config.methods.contains('watchList');
+          final listUpdate = (hasListMethod && !hasWatchList)
               ? (config.queryField == 'null'
                     ? '${entityCamel}List: [updated],'
                     : '${entityCamel}List: viewState.${entityCamel}List.map((e) => e.${config.queryField} == updated.${config.queryField} ? updated : e).toList(),')
@@ -269,6 +271,8 @@ ${withState ? '''    result.fold(
           final deleteArgs = config.idField == 'null'
               ? entityCamel
               : config.idField;
+          // Delete should ALWAYS update optimistically for immediate UI feedback
+          // This prevents Dismissible errors and provides better UX
           final hasListMethod =
               config.methods.contains('getList') ||
               config.methods.contains('watchList');
@@ -277,19 +281,24 @@ ${withState ? '''    result.fold(
               : '';
           methods.add('''
   Future<void> delete$entityName($deleteParams) async {
-${withState ? "    updateState(viewState.copyWith(isDeleting: true));" : ""}
+${withState ? '''    // Immediately remove from list for optimistic UI update
+    // This prevents Dismissible error where widget must be removed synchronously
+    updateState(viewState.copyWith(
+      isDeleting: true,
+      $listUpdate
+    ));
+
     final result = await _presenter.delete$entityName($deleteArgs);
 
-${withState ? '''    result.fold(
-      (_) => updateState(viewState.copyWith(
-        isDeleting: false,
-        $listUpdate
-      )),
+    result.fold(
+      (_) => updateState(viewState.copyWith(isDeleting: false)),
       (failure) => updateState(viewState.copyWith(
         isDeleting: false,
         error: failure,
       )),
-    );''' : '''    result.fold(
+    );''' : '''    final result = await _presenter.delete$entityName($deleteArgs);
+
+    result.fold(
       (_) {},
       (failure) {},
     );'''}
@@ -328,7 +337,7 @@ ${withState ? '''      (result) {
           break;
         case 'watchList':
           methods.add('''
-  void watch${entityName}List([ListQueryParams params = const ListQueryParams()]) {
+  void watch${entityName}List([ListQueryParams<$entityName> params = const ListQueryParams()]) {
 ${withState ? "    updateState(viewState.copyWith(isWatchingList: true));" : ""}
     _presenter.watch${entityName}List(params).listen(
 ${withState ? '''      (result) {
@@ -362,7 +371,10 @@ ${withState ? '''      (result) {
       imports.add("import '${entitySnake}_state.dart';");
     }
 
-    if (config.methods.any((m) => m == 'create' || m == 'update')) {
+    if (config.methods.any(
+      (m) =>
+          m == 'create' || m == 'update' || m == 'getList' || m == 'watchList',
+    )) {
       final entityPath =
           '$relativePath../domain/entities/$entitySnake/$entitySnake.dart';
 
