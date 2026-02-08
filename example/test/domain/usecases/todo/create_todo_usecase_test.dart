@@ -16,6 +16,7 @@ void main() {
   late MockTodoRepository mockRepository;
 
   setUp(() {
+    registerFallbackValue(MockTodo());
     mockRepository = MockTodoRepository();
     useCase = CreateTodoUseCase(mockRepository);
   });

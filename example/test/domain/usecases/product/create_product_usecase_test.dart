@@ -16,6 +16,7 @@ void main() {
   late MockProductRepository mockRepository;
 
   setUp(() {
+    registerFallbackValue(MockProduct());
     mockRepository = MockProductRepository();
     useCase = CreateProductUseCase(mockRepository);
   });

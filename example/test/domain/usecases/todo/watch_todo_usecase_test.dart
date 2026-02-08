@@ -17,6 +17,7 @@ void main() {
   late MockTodoRepository mockRepository;
 
   setUp(() {
+    registerFallbackValue(const QueryParams<Todo>());
     mockRepository = MockTodoRepository();
     useCase = WatchTodoUseCase(mockRepository);
   });

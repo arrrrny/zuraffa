@@ -17,8 +17,7 @@ void main() {
   late MockProductRepository mockRepository;
 
   setUp(() {
-    registerFallbackValue(const ListQueryParams<dynamic>());
-
+    registerFallbackValue(const ListQueryParams<Product>());
     mockRepository = MockProductRepository();
     useCase = WatchProductListUseCase(mockRepository);
   });

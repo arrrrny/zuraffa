@@ -17,6 +17,7 @@ void main() {
   late MockTodoRepository mockRepository;
 
   setUp(() {
+    registerFallbackValue(const DeleteParams<int>(id: 1));
     mockRepository = MockTodoRepository();
     useCase = DeleteTodoUseCase(mockRepository);
   });
