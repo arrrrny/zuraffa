@@ -30,7 +30,7 @@ void main() {
       when(() => mockRepository.delete(any())).thenAnswer((_) async => {});
 
       // Act
-      final result = await useCase(DeleteParams<Product>(id: '1'));
+      final result = await useCase(const DeleteParams<Product>(id: '1'));
 
       // Assert
       verify(() => mockRepository.delete(any())).called(1);
@@ -43,7 +43,7 @@ void main() {
       when(() => mockRepository.delete(any())).thenThrow(exception);
 
       // Act
-      final result = await useCase(DeleteParams<Product>(id: '1'));
+      final result = await useCase(const DeleteParams<Product>(id: '1'));
 
       // Assert
       verify(() => mockRepository.delete(any())).called(1);

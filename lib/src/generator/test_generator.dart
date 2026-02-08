@@ -220,6 +220,7 @@ $testBody
     String paramsConstructor;
     String failureArrange;
 
+    bool containsPatch = false;
     if (method == 'get') {
       if (config.idField == 'null' || config.queryField == 'null') {
         paramsConstructor = "NoParams()";
@@ -256,6 +257,7 @@ $testBody
       final dataType = config.useZorphy
           ? '${entityName}Patch'
           : 'Map<String, dynamic>';
+      containsPatch = config.useZorphy;
       paramsConstructor =
           "UpdateParams<$entityName, $dataType>(id: '1', data: ${config.useZorphy ? '${entityName}Patch()' : '{}'})";
       arrange =
@@ -273,7 +275,7 @@ $testBody
     } else {
       return '';
     }
-    if (method != 'create' && (config.useZorphy && method != 'update')) {
+    if (method != 'create' && !containsPatch) {
       paramsConstructor = 'const $paramsConstructor';
     }
     final successCheck = isCompletable

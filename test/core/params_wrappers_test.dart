@@ -85,7 +85,6 @@ void main() {
         limit: 10,
         offset: 0,
         params: const Params({'custom': 1}),
-        extra: const {'active': true},
       );
 
       expect(q.search, 'test');
@@ -95,7 +94,6 @@ void main() {
       expect(q.limit, 10);
       expect(q.offset, 0);
       expect(q.params?.params?['custom'], 1);
-      expect(q.extra?['active'], true);
     });
 
     test('copyWith should allow partial updates and clearing', () {
@@ -125,7 +123,7 @@ void main() {
         sort: Sort<_TestEntity>.desc(nameField),
         limit: 20,
         offset: 5,
-        extra: const {'custom': 'value'},
+        params: Params({'custom': 'value'}),
       );
 
       final map = q.toQueryMap();

@@ -9,6 +9,7 @@ import 'package:example/src/domain/repositories/todo_repository.dart';
 import 'package:example/src/domain/usecases/todo/update_todo_usecase.dart';
 
 class MockTodoRepository extends Mock implements TodoRepository {}
+
 class MockTodo extends Mock implements Todo {}
 
 void main() {
@@ -16,22 +17,20 @@ void main() {
   late MockTodoRepository mockRepository;
 
   setUp(() {
-    
     mockRepository = MockTodoRepository();
     useCase = UpdateTodoUseCase(mockRepository);
   });
 
   group('UpdateTodoUseCase', () {
     final tTodo = MockTodo();
-    
-    
 
     test('should call repository.update and return result', () async {
       // Arrange
       when(() => mockRepository.update(any())).thenAnswer((_) async => tTodo);
 
       // Act
-      final result = await useCase(UpdateParams<Todo, TodoPatch>(id: '1', data: TodoPatch()));
+      final result = await useCase(
+          UpdateParams<Todo, TodoPatch>(id: '1', data: TodoPatch()));
 
       // Assert
       verify(() => mockRepository.update(any())).called(1);
@@ -45,7 +44,8 @@ void main() {
       when(() => mockRepository.update(any())).thenThrow(exception);
 
       // Act
-      final result = await useCase(UpdateParams<Todo, TodoPatch>(id: '1', data: TodoPatch()));
+      final result = await useCase(
+          UpdateParams<Todo, TodoPatch>(id: '1', data: TodoPatch()));
 
       // Assert
       verify(() => mockRepository.update(any())).called(1);

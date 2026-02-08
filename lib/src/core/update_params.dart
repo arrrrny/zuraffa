@@ -4,7 +4,7 @@ import 'params.dart';
 /// Parameters for updating an entity of type [T].
 ///
 /// The type parameter [T] represents the entity type being updated,
-/// and [P] represents the patch type (Zorphy Patch or Map<String, dynamic>).
+/// and [P] represents the patch type (`Zorphy Patch` or `Map<String, dynamic>`).
 @immutable
 class UpdateParams<T, P> {
   /// The ID of the entity to update.

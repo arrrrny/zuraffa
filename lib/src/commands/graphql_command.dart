@@ -459,10 +459,12 @@ class GraphQLCommand {
     if (dryRun) {
       print('');
       print('ℹ️  DRY RUN SUMMARY:');
-      if (generatedEnums.isNotEmpty)
+      if (generatedEnums.isNotEmpty) {
         print('  - Would write ${generatedEnums.length} enums');
-      if (generatedEntities.isNotEmpty)
+      }
+      if (generatedEntities.isNotEmpty) {
         print('  - Would write ${generatedEntities.length} entities');
+      }
       if (operationSpecs.isNotEmpty) {
         print(
           '  - Would write ${operationSpecs.length} GraphQL operation files',
@@ -477,10 +479,11 @@ class GraphQLCommand {
           );
         }
       }
-      if (generatedUsecases.isNotEmpty)
+      if (generatedUsecases.isNotEmpty) {
         print(
           '  - Would generate UseCases for: ${generatedUsecases.join(', ')}',
         );
+      }
       print('\nℹ️  No files were actually modified.');
     }
 
@@ -587,7 +590,7 @@ EXAMPLES:
 
   # Full integration: Create GraphQL strings + UseCase + Repo + Data layer
   zfa graphql -u url --queries=GetOrder --domain=order --repo=Order --data
-  
+
   # Import entities and specific operations
   zfa graphql -u url --entities=Order --queries=GetOrder --mutations=CreateOrder --domain=order --repo=Order --data
 

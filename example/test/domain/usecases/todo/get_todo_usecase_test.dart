@@ -9,6 +9,7 @@ import 'package:example/src/domain/repositories/todo_repository.dart';
 import 'package:example/src/domain/usecases/todo/get_todo_usecase.dart';
 
 class MockTodoRepository extends Mock implements TodoRepository {}
+
 class MockTodo extends Mock implements Todo {}
 
 void main() {
@@ -16,22 +17,20 @@ void main() {
   late MockTodoRepository mockRepository;
 
   setUp(() {
-    
     mockRepository = MockTodoRepository();
     useCase = GetTodoUseCase(mockRepository);
   });
 
   group('GetTodoUseCase', () {
     final tTodo = MockTodo();
-    
-    
 
     test('should call repository.get and return result', () async {
       // Arrange
       when(() => mockRepository.get(any())).thenAnswer((_) async => tTodo);
 
       // Act
-      final result = await useCase(const QueryParams<Todo>(filter: Eq(TodoFields.id, '1')));
+      final result = await useCase(
+          const QueryParams<Todo>(filter: Eq(TodoFields.id, '1')));
 
       // Assert
       verify(() => mockRepository.get(any())).called(1);
@@ -45,7 +44,8 @@ void main() {
       when(() => mockRepository.get(any())).thenThrow(exception);
 
       // Act
-      final result = await useCase(const QueryParams<Todo>(filter: Eq(TodoFields.id, '1')));
+      final result = await useCase(
+          const QueryParams<Todo>(filter: Eq(TodoFields.id, '1')));
 
       // Assert
       verify(() => mockRepository.get(any())).called(1);

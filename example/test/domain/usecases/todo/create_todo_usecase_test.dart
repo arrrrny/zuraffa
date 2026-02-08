@@ -8,6 +8,7 @@ import 'package:example/src/domain/repositories/todo_repository.dart';
 import 'package:example/src/domain/usecases/todo/create_todo_usecase.dart';
 
 class MockTodoRepository extends Mock implements TodoRepository {}
+
 class MockTodo extends Mock implements Todo {}
 
 void main() {
@@ -15,15 +16,12 @@ void main() {
   late MockTodoRepository mockRepository;
 
   setUp(() {
-    
     mockRepository = MockTodoRepository();
     useCase = CreateTodoUseCase(mockRepository);
   });
 
   group('CreateTodoUseCase', () {
     final tTodo = MockTodo();
-    
-    
 
     test('should call repository.create and return result', () async {
       // Arrange

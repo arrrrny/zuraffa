@@ -31,7 +31,7 @@ void main() {
       when(() => mockRepository.update(any())).thenAnswer((_) async => tProduct);
 
       // Act
-      final result = await useCase(UpdateParams<Product, Map<String, dynamic>>(id: '1', data: {}));
+      final result = await useCase(const UpdateParams<Product, Map<String, dynamic>>(id: '1', data: {}));
 
       // Assert
       verify(() => mockRepository.update(any())).called(1);
@@ -45,7 +45,7 @@ void main() {
       when(() => mockRepository.update(any())).thenThrow(exception);
 
       // Act
-      final result = await useCase(UpdateParams<Product, Map<String, dynamic>>(id: '1', data: {}));
+      final result = await useCase(const UpdateParams<Product, Map<String, dynamic>>(id: '1', data: {}));
 
       // Assert
       verify(() => mockRepository.update(any())).called(1);

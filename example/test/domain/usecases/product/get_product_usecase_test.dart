@@ -31,7 +31,7 @@ void main() {
       when(() => mockRepository.get(any())).thenAnswer((_) async => tProduct);
 
       // Act
-      final result = await useCase(QueryParams<Product>(params: Params({'id': '1'})));
+      final result = await useCase(const QueryParams<Product>(params: Params({'id': '1'})));
 
       // Assert
       verify(() => mockRepository.get(any())).called(1);
@@ -45,7 +45,7 @@ void main() {
       when(() => mockRepository.get(any())).thenThrow(exception);
 
       // Act
-      final result = await useCase(QueryParams<Product>(params: Params({'id': '1'})));
+      final result = await useCase(const QueryParams<Product>(params: Params({'id': '1'})));
 
       // Assert
       verify(() => mockRepository.get(any())).called(1);

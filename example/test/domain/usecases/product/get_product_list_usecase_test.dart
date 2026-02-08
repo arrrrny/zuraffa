@@ -33,7 +33,7 @@ void main() {
       when(() => mockRepository.getList(any())).thenAnswer((_) async => tProductList);
 
       // Act
-      final result = await useCase(ListQueryParams<Product>());
+      final result = await useCase(const ListQueryParams<Product>());
 
       // Assert
       verify(() => mockRepository.getList(any())).called(1);
@@ -47,7 +47,7 @@ void main() {
       when(() => mockRepository.getList(any())).thenThrow(exception);
 
       // Act
-      final result = await useCase(ListQueryParams<Product>());
+      final result = await useCase(const ListQueryParams<Product>());
 
       // Assert
       verify(() => mockRepository.getList(any())).called(1);

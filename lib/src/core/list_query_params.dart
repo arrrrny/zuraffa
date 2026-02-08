@@ -1,4 +1,3 @@
-import 'package:meta/meta.dart';
 import 'package:zorphy/zorphy.dart';
 import 'params.dart';
 
@@ -26,11 +25,8 @@ class ListQueryParams<T> {
   /// Number of items to skip.
   final int? offset;
 
-  /// Optional additional parameters.
+  /// Optional arbitrary additional parameters as an escape hatch
   final Params? params;
-
-  /// Arbitrary extra parameters as an escape hatch.
-  final Map<String, dynamic>? extra;
 
   /// Create a [ListQueryParams] instance.
   const ListQueryParams({
@@ -40,7 +36,6 @@ class ListQueryParams<T> {
     this.limit,
     this.offset,
     this.params,
-    this.extra,
   });
 
   /// Serializes the query parameters to a flat map.
@@ -51,7 +46,7 @@ class ListQueryParams<T> {
       if (sort != null) 'sort': sort!.toJson(),
       if (limit != null) 'limit': limit,
       if (offset != null) 'offset': offset,
-      if (extra != null) ...extra!,
+      if (params != null) ...?params?.params,
     };
   }
 
@@ -63,11 +58,9 @@ class ListQueryParams<T> {
     int? limit,
     int? offset,
     Params? params,
-    Map<String, dynamic>? extra,
     bool clearSearch = false,
     bool clearFilter = false,
     bool clearSort = false,
-    bool clearExtra = false,
   }) {
     return ListQueryParams<T>(
       search: clearSearch ? null : (search ?? this.search),
@@ -76,7 +69,6 @@ class ListQueryParams<T> {
       limit: limit ?? this.limit,
       offset: offset ?? this.offset,
       params: params ?? this.params,
-      extra: clearExtra ? null : (extra ?? this.extra),
     );
   }
 
@@ -90,8 +82,7 @@ class ListQueryParams<T> {
           sort == other.sort &&
           limit == other.limit &&
           offset == other.offset &&
-          params == other.params &&
-          extra == other.extra;
+          params == other.params;
 
   @override
   int get hashCode =>
@@ -100,10 +91,9 @@ class ListQueryParams<T> {
       sort.hashCode ^
       limit.hashCode ^
       offset.hashCode ^
-      params.hashCode ^
-      extra.hashCode;
+      params.hashCode;
 
   @override
   String toString() =>
-      'ListQueryParams<$T>(search: $search, filter: $filter, sort: $sort, limit: $limit, offset: $offset, params: $params, extra: $extra)';
+      'ListQueryParams<$T>(search: $search, filter: $filter, sort: $sort, limit: $limit, offset: $offset, params: $params)';
 }
