@@ -37,7 +37,7 @@ class RepositoryGenerator {
             methods.add('  Future<${config.name}> get();');
           } else {
             methods.add(
-              '  Future<${config.name}> get(${config.queryFieldType} ${config.queryField});',
+              '  Future<${config.name}> get(QueryParams<${config.name}> params);',
             );
           }
           break;
@@ -52,8 +52,11 @@ class RepositoryGenerator {
           );
           break;
         case 'update':
+          final dataType = config.useZorphy
+              ? '${config.name}Patch'
+              : 'Map<String, dynamic>';
           methods.add(
-            '  Future<${config.name}> update(UpdateParams<${config.useZorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params);',
+            '  Future<${config.name}> update(UpdateParams<${config.name}, $dataType> params);',
           );
           break;
         case 'delete':
@@ -66,7 +69,7 @@ class RepositoryGenerator {
             methods.add('  Stream<${config.name}> watch();');
           } else {
             methods.add(
-              '  Stream<${config.name}> watch(${config.queryFieldType} ${config.queryField});',
+              '  Stream<${config.name}> watch(QueryParams<${config.name}> params);',
             );
           }
           break;

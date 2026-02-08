@@ -9,15 +9,11 @@ import 'package:example/src/domain/usecases/product/create_product_usecase.dart'
 
 class MockProductRepository extends Mock implements ProductRepository {}
 
-class FakeProduct extends Fake implements Product {}
+class MockProduct extends Mock implements Product {}
 
 void main() {
   late CreateProductUseCase useCase;
   late MockProductRepository mockRepository;
-
-  setUpAll(() {
-    registerFallbackValue(FakeProduct());
-  });
 
   setUp(() {
     mockRepository = MockProductRepository();
@@ -25,13 +21,7 @@ void main() {
   });
 
   group('CreateProductUseCase', () {
-    final tProduct = Product(
-      id: '1',
-      name: 'Test Product',
-      description: 'Test Description',
-      price: 9.99,
-      createdAt: DateTime(2026, 1, 1),
-    );
+    final tProduct = MockProduct();
 
     test('should call repository.create and return result', () async {
       // Arrange

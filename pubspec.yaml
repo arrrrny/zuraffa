@@ -29,7 +29,8 @@ dependencies:
   # Zorphy for entity generation (bundled with ZFA)
   zorphy:
     path: ../zorphy/zorphy
-  zorphy_annotation: ^1.4.0
+  zorphy_annotation:
+    path: ../zorphy/zorphy_annotation
   json_annotation: ^4.10.0
   http: ^1.6.0
   meta: ^1.18.1

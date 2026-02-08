@@ -257,6 +257,7 @@ class _TodoViewState extends CleanViewState<TodoView, TodoController> {
         id: 0, // ID will be assigned by repo
         title: title,
         createdAt: DateTime.now(),
+        isCompleted: false,
       );
       controller.createTodo(newTodo).then((_) {
         _textController.clear();

@@ -8,8 +8,10 @@ import '../utils/logger.dart';
 import '../config/zfa_config.dart';
 
 class GenerateCommand {
-  Future<GeneratorResult> execute(List<String> args,
-      {bool exitOnCompletion = true}) async {
+  Future<GeneratorResult> execute(
+    List<String> args, {
+    bool exitOnCompletion = true,
+  }) async {
     if (args.isEmpty) {
       print('❌ Usage: zfa generate <Name> [options]');
       print('\nRun: zfa generate --help for more information');
@@ -75,6 +77,13 @@ class GenerateCommand {
     final force = results['force'] == true;
     final verbose = results['verbose'] == true;
     final quiet = results['quiet'] == true;
+    final shouldBuild = results['build'] == true;
+
+    // Load config to check buildByDefault
+    final zfaConfig = ZfaConfig.load();
+    final runBuild =
+        shouldBuild ||
+        (config.enableCache && (zfaConfig?.buildByDefault ?? false));
 
     final generator = CodeGenerator(
       config: config,
@@ -101,6 +110,13 @@ class GenerateCommand {
       CliLogger.printResult(result);
     } else if (!quiet) {
       CliLogger.printResult(result);
+    }
+
+    // Run build if requested and generation succeeded
+    if (runBuild && result.success && !dryRun) {
+      print('');
+      print('🔨 Running build_runner...');
+      await _runBuild();
     }
 
     if (exitOnCompletion) exit(0);
@@ -131,7 +147,11 @@ class GenerateCommand {
       // Apply config defaults for entity-based operations
       final isEntityBased = methodsStr != null && methodsStr.isNotEmpty;
       final shouldGenerateGql =
-          results['gql'] == true || (isEntityBased && zfaConfig.generateGql);
+          results['gql'] == true || (isEntityBased && zfaConfig.gqlByDefault);
+      // Only apply appendByDefault for custom UseCases, not entity-based
+      final shouldAppend =
+          results['append'] == true ||
+          (!isEntityBased && zfaConfig.appendByDefault);
 
       return GeneratorConfig(
         name: name,
@@ -142,9 +162,10 @@ class GenerateCommand {
         variants: variantsStr?.split(',').map((s) => s.trim()).toList() ?? [],
         domain: results['domain'],
         repoMethod: results['method'],
-        serviceMethod: results['service-method'] ??
+        serviceMethod:
+            results['service-method'] ??
             (results['service'] != null ? results['method'] : null),
-        appendToExisting: results['append'] == true,
+        appendToExisting: shouldAppend,
         generateRepository: true,
         useCaseType: results['type'],
         paramsType: results['params'],
@@ -152,15 +173,18 @@ class GenerateCommand {
         idField: results['id-field'] ?? 'id',
         idType: results['id-field-type'] ?? results['id-type'] ?? 'String',
         generateVpc: results['vpc'] == true || results['vpcs'] == true,
-        generateView: results['view'] == true ||
+        generateView:
+            results['view'] == true ||
             results['vpc'] == true ||
             results['vpcs'] == true,
-        generatePresenter: results['presenter'] == true ||
+        generatePresenter:
+            results['presenter'] == true ||
             results['vpc'] == true ||
             results['vpcs'] == true ||
             results['pc'] == true ||
             results['pcs'] == true,
-        generateController: results['controller'] == true ||
+        generateController:
+            results['controller'] == true ||
             results['vpc'] == true ||
             results['vpcs'] == true ||
             results['pc'] == true ||
@@ -168,7 +192,8 @@ class GenerateCommand {
         generateObserver: results['observer'] == true,
         generateData: results['data'] == true,
         generateDataSource: results['datasource'] == true,
-        generateState: results['state'] == true ||
+        generateState:
+            results['state'] == true ||
             results['vpcs'] == true ||
             results['pcs'] == true,
         generateInit: results['init'] == true,
@@ -178,10 +203,12 @@ class GenerateCommand {
         generateTest: results['test'] == true,
         enableCache: results['cache'] == true,
         cachePolicy: results['cache-policy'] ?? 'daily',
-        cacheStorage: results['cache-storage'] ??
+        cacheStorage:
+            results['cache-storage'] ??
             (results['cache'] == true ? 'hive' : null),
-        ttlMinutes:
-            results['ttl'] != null ? int.tryParse(results['ttl']) : null,
+        ttlMinutes: results['ttl'] != null
+            ? int.tryParse(results['ttl'])
+            : null,
         generateMock: results['mock'] == true,
         generateMockDataOnly: results['mock-data-only'] == true,
         useMockInDi: results['use-mock'] == true,
@@ -270,7 +297,9 @@ class GenerateCommand {
       print('  - Use --repo or --service for dependency-based UseCase');
       print('  - Use --usecases for orchestrator UseCase');
       if (exitOnCompletion) exit(1);
-      throw ArgumentError('Invalid config: --usecases with --repo or --service');
+      throw ArgumentError(
+        'Invalid config: --usecases with --repo or --service',
+      );
     }
 
     // Rule 4: Custom non-orchestrator requires --repo OR --service (except background)
@@ -596,7 +625,31 @@ class GenerateCommand {
       )
       ..addFlag('force', help: 'Overwrite existing files', defaultsTo: false)
       ..addFlag('verbose', abbr: 'v', help: 'Verbose output', defaultsTo: false)
-      ..addFlag('quiet', abbr: 'q', help: 'Minimal output', defaultsTo: false);
+      ..addFlag('quiet', abbr: 'q', help: 'Minimal output', defaultsTo: false)
+      ..addFlag(
+        'build',
+        help:
+            'Run build_runner after generation (auto for --cache if buildByDefault=true)',
+        defaultsTo: false,
+      );
+  }
+
+  Future<void> _runBuild() async {
+    final process = await Process.start('dart', [
+      'run',
+      'build_runner',
+      'build',
+      '--delete-conflicting-outputs',
+    ], mode: ProcessStartMode.inheritStdio);
+
+    final exitCode = await process.exitCode;
+
+    if (exitCode != 0) {
+      print('\n❌ build_runner exited with code $exitCode');
+      exit(exitCode);
+    }
+
+    print('\n✅ Build completed successfully!');
   }
 
   void _printHelp() {

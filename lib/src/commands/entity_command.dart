@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../config/zfa_config.dart';
 
 /// Entity Command - Delegates to Zorphy CLI for entity generation
 ///
@@ -14,10 +15,24 @@ class EntityCommand {
     }
 
     final subCommand = args[0];
-    final subArgs = args.skip(1).toList();
+
+    // Check for --build flag
+    final shouldBuild = args.contains('--build');
+    final subArgs = args.skip(1).where((arg) => arg != '--build').toList();
+
+    // Load config to check buildByDefault
+    final config = ZfaConfig.load();
+    final runBuild = shouldBuild || (config?.buildByDefault ?? false);
 
     try {
       await _executeZorphy(subCommand, subArgs);
+
+      // Run build if requested
+      if (runBuild) {
+        print('');
+        print('🔨 Running build_runner...');
+        await _runBuild();
+      }
     } catch (e) {
       print('❌ Error executing entity command: $e');
       exit(1);
@@ -26,6 +41,18 @@ class EntityCommand {
 
   /// Execute zorphy CLI with the given command and arguments
   Future<void> _executeZorphy(String command, List<String> args) async {
+    // Load config to check for defaults
+    final config = ZfaConfig.load();
+
+    // Add --filter if filterByDefault is true and not already present
+    final shouldAddFilter =
+        config?.filterByDefault == true &&
+        (command == 'create' || command == 'new') &&
+        !args.contains('--filter') &&
+        !args.contains('--no-filter');
+
+    final finalArgs = shouldAddFilter ? [...args, '--filter'] : args;
+
     // Check if we're in a Dart/Flutter project
     final pubspecFile = File('pubspec.yaml');
     if (!pubspecFile.existsSync()) {
@@ -62,7 +89,7 @@ class EntityCommand {
     }
 
     // Build the zorphy CLI command
-    final zorphyArgs = [command, ...args];
+    final zorphyArgs = [command, ...finalArgs];
 
     print('🦒 Running Zorphy: zorphy_cli ${zorphyArgs.join(' ')}');
     print('   (Zorphy is bundled with ZFA - no setup required!)');
@@ -83,10 +110,25 @@ class EntityCommand {
     }
 
     print('\n✅ Entity command completed successfully!');
-    print('');
-    print('📝 Don\'t forget to run code generation:');
-    print('   zfa build');
-    print('');
+  }
+
+  /// Run build_runner
+  Future<void> _runBuild() async {
+    final process = await Process.start('dart', [
+      'run',
+      'build_runner',
+      'build',
+      '--delete-conflicting-outputs',
+    ], mode: ProcessStartMode.inheritStdio);
+
+    final exitCode = await process.exitCode;
+
+    if (exitCode != 0) {
+      print('\n❌ build_runner exited with code $exitCode');
+      exit(exitCode);
+    }
+
+    print('\n✅ Build completed successfully!');
   }
 
   /// Print help for the entity command
@@ -118,6 +160,7 @@ CREATE COMMAND:
     -n, --name              Entity name (required)
     -o, --output            Output base directory (default: lib/src/domain/entities)
     --json                  Enable JSON serialization (default: true)
+    --filter                Enable type-safe filters (default: false)
     --copywith-fn           Enable function-based copyWith (default: false)
     --compare               Enable compareTo (default: true)
     --sealed                Create sealed class (default: false)
@@ -140,6 +183,7 @@ NEW COMMAND:
     -n, --name              Entity name (required)
     -o, --output            Output base directory (default: lib/src/domain/entities)
     --json                  Enable JSON (default: true)
+    --filter                Enable type-safe filters (default: false)
 
 ADD-FIELD COMMAND:
   zfa entity add-field [options]
@@ -167,6 +211,9 @@ EXAMPLES:
 
   # Create with fields (basic types)
   zfa entity create -n User --field name:String --field age:int --field email:String?
+
+  # Create with type-safe filters enabled
+  zfa entity create -n Product --field name:String --field price:double --filter
 
   # Create with multiple fields and generic types
   zfa entity create -n Order --field "customer:Customer,status:OrderStatus,items:List<OrderItem>,data:Map<String, dynamic>"

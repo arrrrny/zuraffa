@@ -10,18 +10,11 @@ import 'package:example/src/domain/usecases/product/update_product_usecase.dart'
 
 class MockProductRepository extends Mock implements ProductRepository {}
 
-class FakeProduct extends Fake implements Product {}
-
-class FakeUpdateParams extends Fake implements UpdateParams<Partial<Product>> {}
+class MockProduct extends Mock implements Product {}
 
 void main() {
   late UpdateProductUseCase useCase;
   late MockProductRepository mockRepository;
-
-  setUpAll(() {
-    registerFallbackValue(FakeProduct());
-    registerFallbackValue(FakeUpdateParams());
-  });
 
   setUp(() {
     mockRepository = MockProductRepository();
@@ -29,21 +22,9 @@ void main() {
   });
 
   group('UpdateProductUseCase', () {
-    final tProduct = Product(
-      id: '1',
-      name: 'Test Product',
-      description: 'Test Description',
-      price: 9.99,
-      createdAt: DateTime(2026, 1, 1),
-    );
+    final tProduct = MockProduct();
 
-    final uProduct = <String, dynamic>{
-      'id': '1',
-      'name': 'Updated Product',
-      'description': 'Updated Description',
-      'price': 19.99,
-      'createdAt': DateTime(2026, 1, 1).toIso8601String(),
-    };
+    final uProduct = tProduct.toJson();
 
     test('should call repository.update and return result', () async {
       // Arrange
@@ -51,7 +32,8 @@ void main() {
           .thenAnswer((_) async => tProduct);
 
       // Act
-      final result = await useCase(UpdateParams(id: '1', data: uProduct));
+      final result = await useCase(
+          UpdateParams<Product, Map<String, dynamic>>(id: '1', data: const {}));
 
       // Assert
       verify(() => mockRepository.update(any())).called(1);
@@ -65,7 +47,8 @@ void main() {
       when(() => mockRepository.update(any())).thenThrow(exception);
 
       // Act
-      final result = await useCase(UpdateParams(id: '1', data: uProduct));
+      final result = await useCase(
+          UpdateParams<Product, Map<String, dynamic>>(id: '1', data: const {}));
 
       // Assert
       verify(() => mockRepository.update(any())).called(1);

@@ -40,7 +40,8 @@ class GraphQLCommand {
     final outputDir = results['output'] as String;
     final methodsStr = results['methods'] as String;
     final methods = methodsStr.split(',').map((s) => s.trim()).toList();
-    final entitiesStr = results['entities'] as String? ?? results['include'] as String?;
+    final entitiesStr =
+        results['entities'] as String? ?? results['include'] as String?;
     final queriesStr = results['queries'] as String?;
     final mutationsStr = results['mutations'] as String?;
     final domain = results['domain'] as String?;
@@ -57,14 +58,16 @@ class GraphQLCommand {
 
     if (queriesStr != null || mutationsStr != null) {
       if (domain == null || domain.isEmpty) {
-        print('❌ Error: --domain is required when specifying --queries or --mutations');
+        print(
+          '❌ Error: --domain is required when specifying --queries or --mutations',
+        );
         exit(1);
       }
     }
 
     final queryNames = queriesStr?.split(',').map((s) => s.trim()).toSet();
     final mutationNames = mutationsStr?.split(',').map((s) => s.trim()).toSet();
-    
+
     // If specific operations are requested, but no entities are requested,
     // default entities to an empty set to avoid pulling in the whole schema.
     Set<String>? include;
@@ -120,12 +123,14 @@ class GraphQLCommand {
     );
 
     if (verbose) {
-      print('📦 Found ${requestedEntitySpecs.length} entities, ${enumSpecs.length} enums, and ${operationSpecs.length} operations');
+      print(
+        '📦 Found ${requestedEntitySpecs.length} entities, ${enumSpecs.length} enums, and ${operationSpecs.length} operations',
+      );
     }
 
     if (display != null && display.isNotEmpty) {
       print('\n🔍 Available GraphQL Schema Items:');
-      
+
       if (display.contains('entities') || display.contains('all')) {
         final allTranslatorEntities = translator.extractEntitySpecs();
         print('\n📦 Entities (${allTranslatorEntities.length}):');
@@ -133,7 +138,7 @@ class GraphQLCommand {
           print('  - ${e.name}');
         }
       }
-      
+
       if (display.contains('queries') || display.contains('all')) {
         final allQueries = translator.extractOperationSpecs();
         final queries = allQueries.where((o) => o.type == 'query').toList();
@@ -142,20 +147,24 @@ class GraphQLCommand {
           print('  - ${q.name}');
         }
       }
-      
+
       if (display.contains('mutations') || display.contains('all')) {
         final allMutations = translator.extractOperationSpecs();
-        final mutations = allMutations.where((o) => o.type == 'mutation').toList();
+        final mutations = allMutations
+            .where((o) => o.type == 'mutation')
+            .toList();
         print('\n⚡ Mutations (${mutations.length}):');
         for (final m in mutations) {
           print('  - ${m.name}');
         }
       }
-      
+
       exit(0);
     }
 
-    if (requestedEntitySpecs.isEmpty && enumSpecs.isEmpty && (operationSpecs.isEmpty)) {
+    if (requestedEntitySpecs.isEmpty &&
+        enumSpecs.isEmpty &&
+        (operationSpecs.isEmpty)) {
       print('⚠️  No entities, enums, or operations found matching the filters');
       exit(0);
     }
@@ -164,20 +173,18 @@ class GraphQLCommand {
     final allEntityNames = <String>{};
     final allEnumNames = <String>{};
     final processedEntities = <String>{};
-    
+
     void collectReferences(String entityName) {
       if (processedEntities.contains(entityName)) return;
       processedEntities.add(entityName);
       allEntityNames.add(entityName);
-      
+
       // Find the entity spec
-      final specs = translator.extractEntitySpecs(
-        include: {entityName},
-      );
-      
+      final specs = translator.extractEntitySpecs(include: {entityName});
+
       if (specs.isEmpty) return;
       final entitySpec = specs.first;
-      
+
       // Collect referenced entities and enums from fields
       for (final field in entitySpec.fields) {
         if (field.referencedEntity != null) {
@@ -188,7 +195,7 @@ class GraphQLCommand {
         }
       }
     }
-    
+
     // Start with requested entities
     for (final spec in requestedEntitySpecs) {
       collectReferences(spec.name);
@@ -210,7 +217,10 @@ class GraphQLCommand {
       }
       // Arguments (potential enums or input objects)
       for (final arg in op.args) {
-        final rawTypeName = arg.gqlType.replaceAll('[', '').replaceAll(']', '').replaceAll('!', '');
+        final rawTypeName = arg.gqlType
+            .replaceAll('[', '')
+            .replaceAll(']', '')
+            .replaceAll('!', '');
         final typeRef = translator.schema.types[rawTypeName];
         if (typeRef != null) {
           if (typeRef.isEnum) {
@@ -226,20 +236,26 @@ class GraphQLCommand {
     for (final spec in enumSpecs) {
       allEnumNames.add(spec.name);
     }
-    
+
     // Get all entity specs including referenced ones
     final allEntitySpecs = translator.extractEntitySpecs(
-      include: allEntityNames.isEmpty && include == null ? null : allEntityNames,
+      include: allEntityNames.isEmpty && include == null
+          ? null
+          : allEntityNames,
     );
-    
+
     // Get all enum specs (filtered if include was provided, otherwise all matching filters)
     final allEnumSpecs = translator.extractEnumSpecs(
       include: allEnumNames.isEmpty && include == null ? null : allEnumNames,
     );
-    
+
     if (verbose && allEntitySpecs.length > requestedEntitySpecs.length) {
-      print('📦 Including ${allEntitySpecs.length - requestedEntitySpecs.length} referenced entities');
-      print('   Total: ${allEntitySpecs.length} entities and ${allEnumSpecs.length} enums');
+      print(
+        '📦 Including ${allEntitySpecs.length - requestedEntitySpecs.length} referenced entities',
+      );
+      print(
+        '   Total: ${allEntitySpecs.length} entities and ${allEnumSpecs.length} enums',
+      );
     }
 
     // Step 3: Generate enums first (entities may reference them)
@@ -267,11 +283,13 @@ class GraphQLCommand {
       final filePath = await emitter.generateEnum(enumSpec);
       if (filePath != null) {
         generatedEnums.add(enumSpec.name);
-        allFiles.add(GeneratedFile(
-          path: filePath,
-          type: 'enum',
-          action: exists ? 'updated' : 'created',
-        ));
+        allFiles.add(
+          GeneratedFile(
+            path: filePath,
+            type: 'enum',
+            action: exists ? 'updated' : 'created',
+          ),
+        );
       }
     }
 
@@ -291,11 +309,13 @@ class GraphQLCommand {
       final filePath = await emitter.generateEntity(entitySpec);
       if (filePath != null) {
         generatedEntities.add(entitySpec.name);
-        allFiles.add(GeneratedFile(
-          path: filePath,
-          type: 'entity',
-          action: exists ? 'updated' : 'created',
-        ));
+        allFiles.add(
+          GeneratedFile(
+            path: filePath,
+            type: 'entity',
+            action: exists ? 'updated' : 'created',
+          ),
+        );
       }
     }
 
@@ -354,11 +374,13 @@ class GraphQLCommand {
 
       final opPath = await emitter.generateOperation(opSpec, domain: domain);
       if (opPath != null) {
-        allFiles.add(GeneratedFile(
-          path: opPath,
-          type: 'graphql',
-          action: opExists ? 'updated' : 'created',
-        ));
+        allFiles.add(
+          GeneratedFile(
+            path: opPath,
+            type: 'graphql',
+            action: opExists ? 'updated' : 'created',
+          ),
+        );
       }
 
       // Compose the 'zfa generate' command arguments
@@ -384,12 +406,16 @@ class GraphQLCommand {
         '--quiet',
       ];
 
-      print('🚀 Composing: zfa generate ${genArgs.where((a) => a != '--quiet').join(' ')}');
+      print(
+        '🚀 Composing: zfa generate ${genArgs.where((a) => a != '--quiet').join(' ')}',
+      );
 
       // Execute via GenerateCommand to ensure all rules and logic are applied
       try {
-        final result =
-            await generateCmd.execute(genArgs, exitOnCompletion: false);
+        final result = await generateCmd.execute(
+          genArgs,
+          exitOnCompletion: false,
+        );
 
         if (result.success) {
           generatedUsecases.add(opSpec.operationName);
@@ -433,17 +459,28 @@ class GraphQLCommand {
     if (dryRun) {
       print('');
       print('ℹ️  DRY RUN SUMMARY:');
-      if (generatedEnums.isNotEmpty) print('  - Would write ${generatedEnums.length} enums');
-      if (generatedEntities.isNotEmpty) print('  - Would write ${generatedEntities.length} entities');
+      if (generatedEnums.isNotEmpty)
+        print('  - Would write ${generatedEnums.length} enums');
+      if (generatedEntities.isNotEmpty)
+        print('  - Would write ${generatedEntities.length} entities');
       if (operationSpecs.isNotEmpty) {
-        print('  - Would write ${operationSpecs.length} GraphQL operation files');
+        print(
+          '  - Would write ${operationSpecs.length} GraphQL operation files',
+        );
         if (repo != null || service != null) {
-          print('  - Would generate/update functional layers using: zfa generate ...');
+          print(
+            '  - Would generate/update functional layers using: zfa generate ...',
+          );
         } else {
-          print('  - Skipping functional layers (UseCases/Repo/Service) because --repo or --service was not provided');
+          print(
+            '  - Skipping functional layers (UseCases/Repo/Service) because --repo or --service was not provided',
+          );
         }
       }
-      if (generatedUsecases.isNotEmpty) print('  - Would generate UseCases for: ${generatedUsecases.join(', ')}');
+      if (generatedUsecases.isNotEmpty)
+        print(
+          '  - Would generate UseCases for: ${generatedUsecases.join(', ')}',
+        );
       print('\nℹ️  No files were actually modified.');
     }
 
@@ -453,11 +490,7 @@ class GraphQLCommand {
 
   ArgParser _buildParser() {
     return ArgParser()
-      ..addOption(
-        'url',
-        abbr: 'u',
-        help: 'GraphQL endpoint URL (required)',
-      )
+      ..addOption('url', abbr: 'u', help: 'GraphQL endpoint URL (required)')
       ..addOption(
         'output',
         abbr: 'o',
@@ -470,38 +503,21 @@ class GraphQLCommand {
         help: 'CRUD methods to generate (comma-separated)',
         defaultsTo: 'get,getList,create,update,delete',
       )
-      ..addOption(
-        'entities',
-        help: 'Entities to generate (comma-separated)',
-      )
-      ..addOption(
-        'queries',
-        help: 'Queries to generate (comma-separated)',
-      )
-      ..addOption(
-        'mutations',
-        help: 'Mutations to generate (comma-separated)',
-      )
-      ..addOption(
-        'domain',
-        help: 'Domain name for queries and mutations',
-      )
+      ..addOption('entities', help: 'Entities to generate (comma-separated)')
+      ..addOption('queries', help: 'Queries to generate (comma-separated)')
+      ..addOption('mutations', help: 'Mutations to generate (comma-separated)')
+      ..addOption('domain', help: 'Domain name for queries and mutations')
       ..addOption(
         'include',
         help: 'Types to include (legacy, use --entities instead)',
       )
-      ..addOption(
-        'exclude',
-        help: 'Types to exclude (comma-separated)',
-      )
-      ..addOption(
-        'auth',
-        help: 'Bearer authentication token',
-      )
+      ..addOption('exclude', help: 'Types to exclude (comma-separated)')
+      ..addOption('auth', help: 'Bearer authentication token')
       ..addOption(
         'display',
         abbr: 'd',
-        help: 'Display available items from schema (entities, queries, mutations, all)',
+        help:
+            'Display available items from schema (entities, queries, mutations, all)',
       )
       ..addFlag(
         'zorphy',
@@ -519,12 +535,7 @@ class GraphQLCommand {
         help: 'Overwrite existing files',
         defaultsTo: false,
       )
-      ..addFlag(
-        'verbose',
-        abbr: 'v',
-        help: 'Verbose output',
-        defaultsTo: false,
-      )
+      ..addFlag('verbose', abbr: 'v', help: 'Verbose output', defaultsTo: false)
       ..addOption(
         'repo',
         help: 'Repository name to inject (required for UseCase generation)',

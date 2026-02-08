@@ -5,14 +5,14 @@ import '../../entities/product/product.dart';
 import '../../repositories/product_repository.dart';
 
 class WatchProductListUseCase
-    extends StreamUseCase<List<Product>, ListQueryParams> {
+    extends StreamUseCase<List<Product>, ListQueryParams<Product>> {
   final ProductRepository _repository;
 
   WatchProductListUseCase(this._repository);
 
   @override
   Stream<List<Product>> execute(
-      ListQueryParams params, CancelToken? cancelToken) {
+      ListQueryParams<Product> params, CancelToken? cancelToken) {
     cancelToken?.throwIfCancelled();
     return _repository.watchList(params);
   }

@@ -45,15 +45,22 @@ class GraphQLEntityEmitter {
   }
 
   /// Generates a GraphQL operation file (query or mutation).
-  Future<String?> generateOperation(OperationSpec spec,
-      {String? domain}) async {
+  Future<String?> generateOperation(
+    OperationSpec spec, {
+    String? domain,
+  }) async {
     final snakeName = StringUtils.camelToSnake(spec.name);
     final opType = spec.type;
 
     // Path: lib/src/data/data_sources/[domain]/graphql/[operation_name]_[type].dart
     final domainDir = domain ?? 'graphql';
     final dirPath = path.join(
-        outputDir, 'data', 'data_sources', domainDir, 'graphql');
+      outputDir,
+      'data',
+      'data_sources',
+      domainDir,
+      'graphql',
+    );
     final filePath = path.join(dirPath, '${snakeName}_$opType.dart');
 
     if (!force && await File(filePath).exists()) {
@@ -85,26 +92,27 @@ class GraphQLEntityEmitter {
     // Check if zorphy is available
     final checkResult = await Process.run('which', ['zorphy']);
     if (checkResult.exitCode != 0) {
-      print('⚠️  zorphy CLI not found. Install with: dart pub global activate zorphy_annotation');
+      print(
+        '⚠️  zorphy CLI not found. Install with: dart pub global activate zorphy_annotation',
+      );
       print('   Falling back to manual generation...');
       return _generateEntityManually(spec);
     }
 
-    final args = <String>[
-      'create',
-      '-n',
-      spec.name,
-    ];
+    final args = <String>['create', '-n', spec.name];
 
     // Add fields
     for (final field in spec.fields) {
       final nullableSuffix = field.isNullable ? '?' : '';
-      args.addAll(['--field', '${field.name}:${field.dartType}$nullableSuffix']);
+      args.addAll([
+        '--field',
+        '${field.name}:${field.dartType}$nullableSuffix',
+      ]);
     }
 
     // Add output directory
     args.addAll(['-o', path.join(outputDir, 'domain', 'entities')]);
-    
+
     // Disable interactive prompts
     args.add('--no-fields');
 
@@ -153,7 +161,9 @@ class GraphQLEntityEmitter {
     // Check if zorphy is available
     final checkResult = await Process.run('which', ['zorphy']);
     if (checkResult.exitCode != 0) {
-      print('⚠️  zorphy CLI not found. Install with: dart pub global activate zorphy_annotation');
+      print(
+        '⚠️  zorphy CLI not found. Install with: dart pub global activate zorphy_annotation',
+      );
       print('   Falling back to manual generation...');
       return _generateEnumManually(spec);
     }
@@ -286,7 +296,9 @@ class GraphQLEntityEmitter {
     }
 
     if (useZorphy) {
-      buffer.writeln("import 'package:zorphy_annotation/zorphy_annotation.dart';");
+      buffer.writeln(
+        "import 'package:zorphy_annotation/zorphy_annotation.dart';",
+      );
       buffer.writeln();
 
       // Import referenced entities
@@ -343,7 +355,9 @@ class GraphQLEntityEmitter {
           buffer.writeln('  /// ${field.description}');
         }
         final nullableSuffix = field.isNullable ? '?' : '';
-        buffer.writeln('  final ${field.dartType}$nullableSuffix ${field.name};');
+        buffer.writeln(
+          '  final ${field.dartType}$nullableSuffix ${field.name};',
+        );
       }
 
       buffer.writeln();
@@ -359,7 +373,9 @@ class GraphQLEntityEmitter {
       buffer.writeln();
 
       // fromJson factory
-      buffer.writeln('  factory ${spec.name}.fromJson(Map<String, dynamic> json) {');
+      buffer.writeln(
+        '  factory ${spec.name}.fromJson(Map<String, dynamic> json) {',
+      );
       buffer.writeln('    return ${spec.name}(');
       for (final field in spec.fields) {
         final jsonAccess = _generateFromJsonField(field);
@@ -496,7 +512,9 @@ class GraphQLEntityEmitter {
     final buffer = StringBuffer();
 
     if (useZorphy) {
-      buffer.writeln("import 'package:zorphy_annotation/zorphy_annotation.dart';");
+      buffer.writeln(
+        "import 'package:zorphy_annotation/zorphy_annotation.dart';",
+      );
       buffer.writeln();
 
       // Add description as doc comment
@@ -541,7 +559,9 @@ class GraphQLEntityEmitter {
     final typeName = spec.type[0].toUpperCase() + spec.type.substring(1);
     final varName = '${spec.name}$typeName';
 
-    buffer.writeln('/// Generated GraphQL ${spec.type} for ${spec.operationName}');
+    buffer.writeln(
+      '/// Generated GraphQL ${spec.type} for ${spec.operationName}',
+    );
     buffer.writeln('const String $varName = r\'\'\'');
     buffer.writeln(_generateGqlString(spec));
     buffer.writeln('\'\'\';');

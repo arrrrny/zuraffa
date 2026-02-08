@@ -51,7 +51,7 @@ void main() {
       const queryParams = QueryParams<String>('id123');
       expect(
         queryParams.toString(),
-        contains('QueryParams(query: id123, params: null)'),
+        contains('QueryParams<String>(query: id123, params: null)'),
       );
     });
   });

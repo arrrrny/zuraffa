@@ -231,7 +231,9 @@ $testBody
         failureArrange =
             "when(() => mockRepository.get()).thenThrow(exception);";
       } else {
-        paramsConstructor = "const QueryParams('1')";
+        paramsConstructor = config.useZorphy
+            ? "const QueryParams<$entityName>(filter: Eq(${entityName}Fields.${config.queryField}, '1'))"
+            : "const QueryParams<$entityName>(params: Params({'${config.queryField}': '1'}))";
         arrange =
             "when(() => mockRepository.get(any())).thenAnswer((_) async => $returnConstructor);";
         verifyCall = "verify(() => mockRepository.get(any())).called(1);";
@@ -253,14 +255,18 @@ $testBody
       failureArrange =
           "when(() => mockRepository.create(any())).thenThrow(exception);";
     } else if (method == 'update') {
-      paramsConstructor = "UpdateParams(id: '1', data: u$entityName)";
+      final dataType = config.useZorphy
+          ? '${entityName}Patch'
+          : 'Map<String, dynamic>';
+      paramsConstructor =
+          "UpdateParams<$entityName, $dataType>(id: '1', data: ${config.useZorphy ? '${entityName}Patch()' : 'const {}'})";
       arrange =
           "when(() => mockRepository.update(any())).thenAnswer((_) async => $returnConstructor);";
       verifyCall = "verify(() => mockRepository.update(any())).called(1);";
       failureArrange =
           "when(() => mockRepository.update(any())).thenThrow(exception);";
     } else if (method == 'delete') {
-      paramsConstructor = "const DeleteParams('1')";
+      paramsConstructor = "DeleteParams<$entityName>(id: '1')";
       arrange =
           "when(() => mockRepository.delete(any())).thenAnswer((_) async => {});";
       verifyCall = "verify(() => mockRepository.delete(any())).called(1);";
@@ -321,7 +327,9 @@ $testBody
         failureArrange =
             "when(() => mockRepository.watch()).thenAnswer((_) => Stream.error(exception));";
       } else {
-        paramsConstructor = "QueryParams('1')";
+        paramsConstructor = config.useZorphy
+            ? "QueryParams<$entityName>(filter: Eq(${entityName}Fields.${config.queryField}, '1'))"
+            : "QueryParams<$entityName>(params: Params({'${config.queryField}': '1'}))";
         arrange =
             "when(() => mockRepository.watch(any())).thenAnswer((_) => Stream.value($returnConstructor));";
         verifyCall = "verify(() => mockRepository.watch(any())).called(1);";
@@ -345,7 +353,7 @@ $testBody
       $arrange
 
       // Act
-      final result = useCase($paramsConstructor);
+      final result = useCase(const $paramsConstructor);
 
       // Assert
       await expectLater(

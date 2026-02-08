@@ -142,6 +142,9 @@ export 'src/core/query_params.dart';
 /// ListQueryParams for querying a list of entities
 export 'src/core/list_query_params.dart';
 
+/// CreateParams for creating an entity
+export 'src/core/create_params.dart';
+
 /// UpdateParams for updating an entity
 export 'src/core/update_params.dart';
 
@@ -162,6 +165,28 @@ export 'src/core/cache_policy.dart';
 
 /// Concrete cache policy implementations (Daily, AppRestart, TTL)
 export 'src/core/cache_policies.dart';
+
+// ============================================================
+// Zorphy Integration - Type-safe filtering
+// ============================================================
+
+/// Re-export Zorphy's Eq, And, Or, etc. for convenience
+export 'package:zorphy_annotation/zorphy_annotation.dart'
+    show
+        Eq,
+        And,
+        Or,
+        Not,
+        Gt,
+        Gte,
+        Lt,
+        Lte,
+        Contains,
+        StartsWith,
+        EndsWith,
+        Field,
+        Filter,
+        Sort;
 
 // ============================================================
 // Domain - Business Logic

@@ -362,7 +362,10 @@ ${withState ? '''      (result) {
       imports.add("import '${entitySnake}_state.dart';");
     }
 
-    if (config.methods.any((m) => m == 'create' || m == 'update')) {
+    if (config.methods.any(
+      (m) =>
+          m == 'create' || m == 'update' || m == 'getList' || m == 'watchList',
+    )) {
       final entityPath =
           '$relativePath../domain/entities/$entitySnake/$entitySnake.dart';
 

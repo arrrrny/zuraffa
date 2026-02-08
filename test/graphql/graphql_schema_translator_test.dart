@@ -21,14 +21,14 @@ void main() {
                     'name': 'id',
                     'type': {
                       'kind': 'NON_NULL',
-                      'ofType': {'kind': 'SCALAR', 'name': 'ID'}
-                    }
+                      'ofType': {'kind': 'SCALAR', 'name': 'ID'},
+                    },
                   },
                   {
                     'name': 'name',
-                    'type': {'kind': 'SCALAR', 'name': 'String'}
+                    'type': {'kind': 'SCALAR', 'name': 'String'},
                   },
-                ]
+                ],
               },
               {
                 'kind': 'OBJECT',
@@ -38,13 +38,13 @@ void main() {
                     'name': 'id',
                     'type': {
                       'kind': 'NON_NULL',
-                      'ofType': {'kind': 'SCALAR', 'name': 'ID'}
-                    }
+                      'ofType': {'kind': 'SCALAR', 'name': 'ID'},
+                    },
                   },
-                ]
+                ],
               },
-            ]
-          }
+            ],
+          },
         };
         final schema = GqlSchema.fromIntrospection(data);
         final translator = GraphQLSchemaTranslator(schema);
@@ -70,29 +70,29 @@ void main() {
                     'name': 'id',
                     'type': {
                       'kind': 'NON_NULL',
-                      'ofType': {'kind': 'SCALAR', 'name': 'ID'}
-                    }
+                      'ofType': {'kind': 'SCALAR', 'name': 'ID'},
+                    },
                   },
                   {
                     'name': 'name',
-                    'type': {'kind': 'SCALAR', 'name': 'String'}
+                    'type': {'kind': 'SCALAR', 'name': 'String'},
                   },
                   {
                     'name': 'count',
-                    'type': {'kind': 'SCALAR', 'name': 'Int'}
+                    'type': {'kind': 'SCALAR', 'name': 'Int'},
                   },
                   {
                     'name': 'price',
-                    'type': {'kind': 'SCALAR', 'name': 'Float'}
+                    'type': {'kind': 'SCALAR', 'name': 'Float'},
                   },
                   {
                     'name': 'isActive',
-                    'type': {'kind': 'SCALAR', 'name': 'Boolean'}
+                    'type': {'kind': 'SCALAR', 'name': 'Boolean'},
                   },
-                ]
+                ],
               },
-            ]
-          }
+            ],
+          },
         };
         final schema = GqlSchema.fromIntrospection(data);
         final translator = GraphQLSchemaTranslator(schema);
@@ -100,11 +100,26 @@ void main() {
 
         expect(entities, hasLength(1));
         final item = entities.first;
-        expect(item.fields.firstWhere((f) => f.name == 'id').dartType, 'String');
-        expect(item.fields.firstWhere((f) => f.name == 'name').dartType, 'String');
-        expect(item.fields.firstWhere((f) => f.name == 'count').dartType, 'int');
-        expect(item.fields.firstWhere((f) => f.name == 'price').dartType, 'double');
-        expect(item.fields.firstWhere((f) => f.name == 'isActive').dartType, 'bool');
+        expect(
+          item.fields.firstWhere((f) => f.name == 'id').dartType,
+          'String',
+        );
+        expect(
+          item.fields.firstWhere((f) => f.name == 'name').dartType,
+          'String',
+        );
+        expect(
+          item.fields.firstWhere((f) => f.name == 'count').dartType,
+          'int',
+        );
+        expect(
+          item.fields.firstWhere((f) => f.name == 'price').dartType,
+          'double',
+        );
+        expect(
+          item.fields.firstWhere((f) => f.name == 'isActive').dartType,
+          'bool',
+        );
       });
 
       test('handles nullable vs non-null fields', () {
@@ -123,17 +138,17 @@ void main() {
                     'name': 'id',
                     'type': {
                       'kind': 'NON_NULL',
-                      'ofType': {'kind': 'SCALAR', 'name': 'ID'}
-                    }
+                      'ofType': {'kind': 'SCALAR', 'name': 'ID'},
+                    },
                   },
                   {
                     'name': 'description',
-                    'type': {'kind': 'SCALAR', 'name': 'String'}
+                    'type': {'kind': 'SCALAR', 'name': 'String'},
                   },
-                ]
+                ],
               },
-            ]
-          }
+            ],
+          },
         };
         final schema = GqlSchema.fromIntrospection(data);
         final translator = GraphQLSchemaTranslator(schema);
@@ -141,7 +156,9 @@ void main() {
 
         final product = entities.first;
         final idField = product.fields.firstWhere((f) => f.name == 'id');
-        final descField = product.fields.firstWhere((f) => f.name == 'description');
+        final descField = product.fields.firstWhere(
+          (f) => f.name == 'description',
+        );
 
         expect(idField.isNullable, isFalse);
         expect(descField.isNullable, isTrue);
@@ -163,17 +180,17 @@ void main() {
                     'name': 'id',
                     'type': {
                       'kind': 'NON_NULL',
-                      'ofType': {'kind': 'SCALAR', 'name': 'ID'}
-                    }
+                      'ofType': {'kind': 'SCALAR', 'name': 'ID'},
+                    },
                   },
                   {
                     'name': 'name',
-                    'type': {'kind': 'SCALAR', 'name': 'String'}
+                    'type': {'kind': 'SCALAR', 'name': 'String'},
                   },
-                ]
+                ],
               },
-            ]
-          }
+            ],
+          },
         };
         final schema = GqlSchema.fromIntrospection(data);
         final translator = GraphQLSchemaTranslator(schema);
@@ -199,17 +216,17 @@ void main() {
                     'name': 'orderId',
                     'type': {
                       'kind': 'NON_NULL',
-                      'ofType': {'kind': 'SCALAR', 'name': 'ID'}
-                    }
+                      'ofType': {'kind': 'SCALAR', 'name': 'ID'},
+                    },
                   },
                   {
                     'name': 'total',
-                    'type': {'kind': 'SCALAR', 'name': 'Float'}
+                    'type': {'kind': 'SCALAR', 'name': 'Float'},
                   },
-                ]
+                ],
               },
-            ]
-          }
+            ],
+          },
         };
         final schema = GqlSchema.fromIntrospection(data);
         final translator = GraphQLSchemaTranslator(schema);
@@ -233,9 +250,9 @@ void main() {
                 'fields': [
                   {
                     'name': 'id',
-                    'type': {'kind': 'SCALAR', 'name': 'ID'}
+                    'type': {'kind': 'SCALAR', 'name': 'ID'},
                   },
-                ]
+                ],
               },
               {
                 'kind': 'OBJECT',
@@ -243,9 +260,9 @@ void main() {
                 'fields': [
                   {
                     'name': 'id',
-                    'type': {'kind': 'SCALAR', 'name': 'ID'}
+                    'type': {'kind': 'SCALAR', 'name': 'ID'},
                   },
-                ]
+                ],
               },
               {
                 'kind': 'OBJECT',
@@ -253,16 +270,18 @@ void main() {
                 'fields': [
                   {
                     'name': 'id',
-                    'type': {'kind': 'SCALAR', 'name': 'ID'}
+                    'type': {'kind': 'SCALAR', 'name': 'ID'},
                   },
-                ]
+                ],
               },
-            ]
-          }
+            ],
+          },
         };
         final schema = GqlSchema.fromIntrospection(data);
         final translator = GraphQLSchemaTranslator(schema);
-        final entities = translator.extractEntitySpecs(include: {'Product', 'User'});
+        final entities = translator.extractEntitySpecs(
+          include: {'Product', 'User'},
+        );
 
         expect(entities, hasLength(2));
         expect(entities.map((e) => e.name), containsAll(['Product', 'User']));
@@ -283,9 +302,9 @@ void main() {
                 'fields': [
                   {
                     'name': 'id',
-                    'type': {'kind': 'SCALAR', 'name': 'ID'}
+                    'type': {'kind': 'SCALAR', 'name': 'ID'},
                   },
-                ]
+                ],
               },
               {
                 'kind': 'OBJECT',
@@ -293,9 +312,9 @@ void main() {
                 'fields': [
                   {
                     'name': 'id',
-                    'type': {'kind': 'SCALAR', 'name': 'ID'}
+                    'type': {'kind': 'SCALAR', 'name': 'ID'},
                   },
-                ]
+                ],
               },
               {
                 'kind': 'OBJECT',
@@ -303,12 +322,12 @@ void main() {
                 'fields': [
                   {
                     'name': 'id',
-                    'type': {'kind': 'SCALAR', 'name': 'ID'}
+                    'type': {'kind': 'SCALAR', 'name': 'ID'},
                   },
-                ]
+                ],
               },
-            ]
-          }
+            ],
+          },
         };
         final schema = GqlSchema.fromIntrospection(data);
         final translator = GraphQLSchemaTranslator(schema);
@@ -333,25 +352,27 @@ void main() {
                 'fields': [
                   {
                     'name': 'id',
-                    'type': {'kind': 'SCALAR', 'name': 'ID'}
+                    'type': {'kind': 'SCALAR', 'name': 'ID'},
                   },
                   {
                     'name': 'tags',
                     'type': {
                       'kind': 'LIST',
-                      'ofType': {'kind': 'SCALAR', 'name': 'String'}
-                    }
+                      'ofType': {'kind': 'SCALAR', 'name': 'String'},
+                    },
                   },
-                ]
+                ],
               },
-            ]
-          }
+            ],
+          },
         };
         final schema = GqlSchema.fromIntrospection(data);
         final translator = GraphQLSchemaTranslator(schema);
         final entities = translator.extractEntitySpecs();
 
-        final tagsField = entities.first.fields.firstWhere((f) => f.name == 'tags');
+        final tagsField = entities.first.fields.firstWhere(
+          (f) => f.name == 'tags',
+        );
         expect(tagsField.isList, isTrue);
         expect(tagsField.dartType, 'List<String>');
       });
@@ -374,7 +395,7 @@ void main() {
                   {'name': 'ACTIVE', 'description': 'Active item'},
                   {'name': 'INACTIVE', 'description': null},
                   {'name': 'PENDING', 'description': null},
-                ]
+                ],
               },
               {
                 'kind': 'ENUM',
@@ -383,10 +404,10 @@ void main() {
                   {'name': 'HIGH'},
                   {'name': 'MEDIUM'},
                   {'name': 'LOW'},
-                ]
+                ],
               },
-            ]
-          }
+            ],
+          },
         };
         final schema = GqlSchema.fromIntrospection(data);
         final translator = GraphQLSchemaTranslator(schema);
@@ -415,17 +436,17 @@ void main() {
                 'name': 'Status',
                 'enumValues': [
                   {'name': 'ACTIVE'},
-                ]
+                ],
               },
               {
                 'kind': 'ENUM',
                 'name': 'Priority',
                 'enumValues': [
                   {'name': 'HIGH'},
-                ]
+                ],
               },
-            ]
-          }
+            ],
+          },
         };
         final schema = GqlSchema.fromIntrospection(data);
         final translator = GraphQLSchemaTranslator(schema);
@@ -448,17 +469,17 @@ void main() {
                 'name': 'Status',
                 'enumValues': [
                   {'name': 'ACTIVE'},
-                ]
+                ],
               },
               {
                 'kind': 'ENUM',
                 'name': 'Priority',
                 'enumValues': [
                   {'name': 'HIGH'},
-                ]
+                ],
               },
-            ]
-          }
+            ],
+          },
         };
         final schema = GqlSchema.fromIntrospection(data);
         final translator = GraphQLSchemaTranslator(schema);
@@ -484,20 +505,20 @@ void main() {
                 'fields': [
                   {
                     'name': 'id',
-                    'type': {'kind': 'SCALAR', 'name': 'ID'}
+                    'type': {'kind': 'SCALAR', 'name': 'ID'},
                   },
                   {
                     'name': 'data',
-                    'type': {'kind': 'SCALAR', 'name': 'JSON'}
+                    'type': {'kind': 'SCALAR', 'name': 'JSON'},
                   },
                   {
                     'name': 'timestamp',
-                    'type': {'kind': 'SCALAR', 'name': 'Timestamp'}
+                    'type': {'kind': 'SCALAR', 'name': 'Timestamp'},
                   },
-                ]
+                ],
               },
-            ]
-          }
+            ],
+          },
         };
         final schema = GqlSchema.fromIntrospection(data);
         final translator = GraphQLSchemaTranslator(
@@ -506,10 +527,14 @@ void main() {
         );
         final entities = translator.extractEntitySpecs();
 
-        final dataField = entities.first.fields.firstWhere((f) => f.name == 'data');
+        final dataField = entities.first.fields.firstWhere(
+          (f) => f.name == 'data',
+        );
         expect(dataField.dartType, 'Map<String, dynamic>');
 
-        final timestampField = entities.first.fields.firstWhere((f) => f.name == 'timestamp');
+        final timestampField = entities.first.fields.firstWhere(
+          (f) => f.name == 'timestamp',
+        );
         expect(timestampField.dartType, 'int');
       });
     });
@@ -529,13 +554,13 @@ void main() {
                 'fields': [
                   {
                     'name': 'id',
-                    'type': {'kind': 'SCALAR', 'name': 'ID'}
+                    'type': {'kind': 'SCALAR', 'name': 'ID'},
                   },
                   {
                     'name': 'customer',
-                    'type': {'kind': 'OBJECT', 'name': 'Customer'}
+                    'type': {'kind': 'OBJECT', 'name': 'Customer'},
                   },
-                ]
+                ],
               },
               {
                 'kind': 'OBJECT',
@@ -543,19 +568,21 @@ void main() {
                 'fields': [
                   {
                     'name': 'id',
-                    'type': {'kind': 'SCALAR', 'name': 'ID'}
+                    'type': {'kind': 'SCALAR', 'name': 'ID'},
                   },
-                ]
+                ],
               },
-            ]
-          }
+            ],
+          },
         };
         final schema = GqlSchema.fromIntrospection(data);
         final translator = GraphQLSchemaTranslator(schema);
         final entities = translator.extractEntitySpecs();
 
         final order = entities.firstWhere((e) => e.name == 'Order');
-        final customerField = order.fields.firstWhere((f) => f.name == 'customer');
+        final customerField = order.fields.firstWhere(
+          (f) => f.name == 'customer',
+        );
 
         expect(customerField.referencedEntity, 'Customer');
         expect(customerField.dartType, 'Customer');

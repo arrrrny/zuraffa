@@ -82,8 +82,7 @@ class OperationSpec {
     this.description,
   });
 
-  String get operationName =>
-      name[0].toUpperCase() + name.substring(1);
+  String get operationName => name[0].toUpperCase() + name.substring(1);
 }
 
 /// Specification for an enum derived from a GraphQL enum type.
@@ -92,11 +91,7 @@ class EnumSpec {
   final String? description;
   final List<String> values;
 
-  const EnumSpec({
-    required this.name,
-    this.description,
-    required this.values,
-  });
+  const EnumSpec({required this.name, this.description, required this.values});
 
   @override
   String toString() => 'EnumSpec(name: $name, values: $values)';
@@ -119,13 +114,8 @@ class GraphQLSchemaTranslator {
     'JSON': 'Map<String, dynamic>',
   };
 
-  GraphQLSchemaTranslator(
-    this.schema, {
-    Map<String, String>? scalarMappings,
-  }) : scalarMappings = {
-          ...defaultScalarMappings,
-          ...?scalarMappings,
-        };
+  GraphQLSchemaTranslator(this.schema, {Map<String, String>? scalarMappings})
+    : scalarMappings = {...defaultScalarMappings, ...?scalarMappings};
 
   /// Extracts entity specifications from the schema.
   ///
@@ -144,13 +134,15 @@ class GraphQLSchemaTranslator {
       final fields = _extractFields(typeDef);
       final (idField, idDartType) = _inferIdField(fields, typeDef.name);
 
-      specs.add(EntitySpec(
-        name: typeDef.name,
-        description: typeDef.description,
-        fields: fields,
-        idField: idField,
-        idDartType: idDartType,
-      ));
+      specs.add(
+        EntitySpec(
+          name: typeDef.name,
+          description: typeDef.description,
+          fields: fields,
+          idField: idField,
+          idDartType: idDartType,
+        ),
+      );
     }
 
     return specs;
@@ -173,11 +165,13 @@ class GraphQLSchemaTranslator {
       final values =
           typeDef.enumValues?.map((v) => v.name).toList() ?? <String>[];
 
-      specs.add(EnumSpec(
-        name: typeDef.name,
-        description: typeDef.description,
-        values: values,
-      ));
+      specs.add(
+        EnumSpec(
+          name: typeDef.name,
+          description: typeDef.description,
+          values: values,
+        ),
+      );
     }
 
     return specs;
@@ -195,7 +189,8 @@ class GraphQLSchemaTranslator {
     final anyFilter = includeQueries != null || includeMutations != null;
 
     // Queries
-    if (schema.queryTypeName != null && (!anyFilter || includeQueries != null)) {
+    if (schema.queryTypeName != null &&
+        (!anyFilter || includeQueries != null)) {
       final queryType = schema.types[schema.queryTypeName];
       if (queryType != null && queryType.fields != null) {
         for (final field in queryType.fields!) {
@@ -282,8 +277,9 @@ class GraphQLSchemaTranslator {
         return _toDartType(typeRef.ofType!);
 
       case GqlTypeKind.list:
-        final elementType =
-            typeRef.ofType != null ? _toDartType(typeRef.ofType!) : 'dynamic';
+        final elementType = typeRef.ofType != null
+            ? _toDartType(typeRef.ofType!)
+            : 'dynamic';
         return 'List<$elementType>';
 
       case GqlTypeKind.scalar:
@@ -359,15 +355,15 @@ class GraphQLSchemaTranslator {
 
     // Priority 2: field named '{entityName}Id' (camelCase)
     final entityIdName = '${_toCamelCase(entityName)}Id';
-    final entityIdField =
-        fields.where((f) => f.name == entityIdName).firstOrNull;
+    final entityIdField = fields
+        .where((f) => f.name == entityIdName)
+        .firstOrNull;
     if (entityIdField != null) {
       return (entityIdName, entityIdField.dartType);
     }
 
     // Priority 3: any field ending with 'Id'
-    final anyIdField =
-        fields.where((f) => f.name.endsWith('Id')).firstOrNull;
+    final anyIdField = fields.where((f) => f.name.endsWith('Id')).firstOrNull;
     if (anyIdField != null) {
       return (anyIdField.name, anyIdField.dartType);
     }

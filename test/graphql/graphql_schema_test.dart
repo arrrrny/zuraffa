@@ -15,7 +15,7 @@ void main() {
     test('parses non-null type wrapping scalar', () {
       final json = {
         'kind': 'NON_NULL',
-        'ofType': {'kind': 'SCALAR', 'name': 'String'}
+        'ofType': {'kind': 'SCALAR', 'name': 'String'},
       };
       final typeRef = GqlTypeRef.fromJson(json);
 
@@ -30,7 +30,7 @@ void main() {
     test('parses list type', () {
       final json = {
         'kind': 'LIST',
-        'ofType': {'kind': 'SCALAR', 'name': 'Int'}
+        'ofType': {'kind': 'SCALAR', 'name': 'Int'},
       };
       final typeRef = GqlTypeRef.fromJson(json);
 
@@ -45,8 +45,8 @@ void main() {
         'kind': 'NON_NULL',
         'ofType': {
           'kind': 'LIST',
-          'ofType': {'kind': 'SCALAR', 'name': 'String'}
-        }
+          'ofType': {'kind': 'SCALAR', 'name': 'String'},
+        },
       };
       final typeRef = GqlTypeRef.fromJson(json);
 
@@ -62,9 +62,9 @@ void main() {
           'kind': 'LIST',
           'ofType': {
             'kind': 'NON_NULL',
-            'ofType': {'kind': 'OBJECT', 'name': 'Product'}
-          }
-        }
+            'ofType': {'kind': 'OBJECT', 'name': 'Product'},
+          },
+        },
       };
       final typeRef = GqlTypeRef.fromJson(json);
 
@@ -97,8 +97,8 @@ void main() {
           'types': [
             {'kind': 'OBJECT', 'name': 'Query', 'fields': []},
             {'kind': 'OBJECT', 'name': 'Mutation', 'fields': []},
-          ]
-        }
+          ],
+        },
       };
       final schema = GqlSchema.fromIntrospection(data);
 
@@ -127,10 +127,10 @@ void main() {
                   'name': 'id',
                   'type': {
                     'kind': 'NON_NULL',
-                    'ofType': {'kind': 'SCALAR', 'name': 'ID'}
-                  }
-                }
-              ]
+                    'ofType': {'kind': 'SCALAR', 'name': 'ID'},
+                  },
+                },
+              ],
             },
             {
               'kind': 'OBJECT',
@@ -138,12 +138,12 @@ void main() {
               'fields': [
                 {
                   'name': 'id',
-                  'type': {'kind': 'SCALAR', 'name': 'ID'}
-                }
-              ]
+                  'type': {'kind': 'SCALAR', 'name': 'ID'},
+                },
+              ],
             },
-          ]
-        }
+          ],
+        },
       };
       final schema = GqlSchema.fromIntrospection(data);
       final entityNames = schema.entityTypes.map((e) => e.name).toList();
@@ -171,7 +171,7 @@ void main() {
               'enumValues': [
                 {'name': 'ACTIVE'},
                 {'name': 'INACTIVE'},
-              ]
+              ],
             },
             {
               'kind': 'ENUM',
@@ -179,17 +179,17 @@ void main() {
               'enumValues': [
                 {'name': 'HIGH'},
                 {'name': 'LOW'},
-              ]
+              ],
             },
             {
               'kind': 'ENUM',
               'name': '__DirectiveLocation',
               'enumValues': [
                 {'name': 'QUERY'},
-              ]
+              ],
             },
-          ]
-        }
+          ],
+        },
       };
       final schema = GqlSchema.fromIntrospection(data);
       final enumNames = schema.enumTypes.map((e) => e.name).toList();

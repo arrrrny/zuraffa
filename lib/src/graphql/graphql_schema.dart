@@ -19,11 +19,7 @@ class GqlTypeRef {
   final String? name;
   final GqlTypeRef? ofType;
 
-  const GqlTypeRef({
-    required this.kind,
-    this.name,
-    this.ofType,
-  });
+  const GqlTypeRef({required this.kind, this.name, this.ofType});
 
   factory GqlTypeRef.fromJson(Map<String, dynamic>? json) {
     if (json == null) {
@@ -128,7 +124,8 @@ class GqlField {
       name: json['name'] as String,
       description: json['description'] as String?,
       type: GqlTypeRef.fromJson(json['type'] as Map<String, dynamic>?),
-      args: (json['args'] as List<dynamic>?)
+      args:
+          (json['args'] as List<dynamic>?)
               ?.map((a) => GqlArgument.fromJson(a as Map<String, dynamic>))
               .toList() ??
           const [],
@@ -141,10 +138,7 @@ class GqlEnumValue {
   final String name;
   final String? description;
 
-  const GqlEnumValue({
-    required this.name,
-    this.description,
-  });
+  const GqlEnumValue({required this.name, this.description});
 
   factory GqlEnumValue.fromJson(Map<String, dynamic> json) {
     return GqlEnumValue(
@@ -244,8 +238,9 @@ class GqlSchema {
   /// Returns all OBJECT types excluding built-ins and root operation types.
   Iterable<GqlTypeDef> get entityTypes {
     final rootTypes = {queryTypeName, mutationTypeName, subscriptionTypeName};
-    return types.values.where((t) =>
-        t.isObject && !t.isBuiltIn && !rootTypes.contains(t.name));
+    return types.values.where(
+      (t) => t.isObject && !t.isBuiltIn && !rootTypes.contains(t.name),
+    );
   }
 
   /// Returns all ENUM types excluding built-ins.

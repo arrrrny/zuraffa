@@ -55,10 +55,9 @@ class UseCaseGenerator {
           paramsType = 'NoParams';
           executeBody = 'return _repository.get();';
         } else {
-          baseClass =
-              'UseCase<$entityName, QueryParams<${config.queryFieldType}>>';
-          paramsType = 'QueryParams<${config.queryFieldType}>';
-          executeBody = 'return _repository.get(params.query);';
+          baseClass = 'UseCase<$entityName, QueryParams<$entityName>>';
+          paramsType = 'QueryParams<$entityName>';
+          executeBody = 'return _repository.get(params);';
         }
         returnType = entityName;
         break;
@@ -80,22 +79,12 @@ class UseCaseGenerator {
         className = 'Update${entityName}UseCase';
         final dataType = config.useZorphy
             ? '${entityName}Patch'
-            : 'Partial<$entityName>';
-        baseClass = 'UseCase<$entityName, UpdateParams<$dataType>>';
-        paramsType = 'UpdateParams<$dataType>';
+            : 'Map<String, dynamic>';
+        baseClass =
+            'UseCase<$entityName, UpdateParams<$entityName, $dataType>>';
+        paramsType = 'UpdateParams<$entityName, $dataType>';
         returnType = entityName;
-
-        if (config.useZorphy) {
-          executeBody = 'return _repository.update(params);';
-        } else {
-          final fields = _extractEntityFields(entitySnake);
-          final validationCall = fields.isNotEmpty
-              ? 'params.validate([${fields.map((f) => "'$f'").join(', ')}]);'
-              : '// params.validate([]); // TODO: List valid fields for partial update';
-
-          executeBody = '''$validationCall
-    return _repository.update(params);''';
-        }
+        executeBody = 'return _repository.update(params);';
         break;
       case 'delete':
         className = 'Delete${entityName}UseCase';
@@ -112,17 +101,17 @@ class UseCaseGenerator {
           paramsType = 'NoParams';
           executeBody = 'return _repository.watch();';
         } else {
-          baseClass =
-              'StreamUseCase<$entityName, QueryParams<${config.queryFieldType}>>';
-          paramsType = 'QueryParams<${config.queryFieldType}>';
-          executeBody = 'return _repository.watch(params.query);';
+          baseClass = 'StreamUseCase<$entityName, QueryParams<$entityName>>';
+          paramsType = 'QueryParams<$entityName>';
+          executeBody = 'return _repository.watch(params);';
         }
         returnType = entityName;
         isStream = true;
         break;
       case 'watchList':
         className = 'Watch${entityName}ListUseCase';
-        baseClass = 'StreamUseCase<List<$entityName>, ListQueryParams<$entityName>>';
+        baseClass =
+            'StreamUseCase<List<$entityName>, ListQueryParams<$entityName>>';
         paramsType = 'ListQueryParams<$entityName>';
         returnType = 'List<$entityName>';
         executeBody = 'return _repository.watchList(params);';
@@ -818,8 +807,12 @@ $factoryCases
               ? '''  Future<Result<$entityName, AppFailure>> get$entityName() {
     return _get$entityName.call(const NoParams());
   }'''
+              : config.useZorphy
+              ? '''  Future<Result<$entityName, AppFailure>> get$entityName(${config.queryFieldType} ${config.queryField}) {
+    return _get$entityName.call(QueryParams<$entityName>(filter: Eq(${entityName}Fields.${config.queryField}, ${config.queryField})));
+  }'''
               : '''  Future<Result<$entityName, AppFailure>> get$entityName(${config.queryFieldType} ${config.queryField}) {
-    return _get$entityName.call(QueryParams(${config.queryField}));
+    return _get$entityName.call(QueryParams<$entityName>(params: Params({'${config.queryField}': ${config.queryField}})));
   }''',
         );
       case 'getList':
@@ -858,7 +851,7 @@ $factoryCases
           fieldName: 'delete$entityName',
           presenterMethod:
               '''  Future<Result<void, AppFailure>> delete$entityName(${config.idType} ${config.idField}) {
-    return _delete$entityName.call(DeleteParams(${config.idField}));
+    return _delete$entityName.call(DeleteParams(id: ${config.idField}));
   }''',
         );
       case 'watch':
@@ -870,8 +863,12 @@ $factoryCases
               ? '''  Stream<Result<$entityName, AppFailure>> watch$entityName() {
     return _watch$entityName.call(const NoParams());
   }'''
+              : config.useZorphy
+              ? '''  Stream<Result<$entityName, AppFailure>> watch$entityName(${config.queryFieldType} ${config.queryField}) {
+    return _watch$entityName.call(QueryParams<$entityName>(filter: Eq(${entityName}Fields.${config.queryField}, ${config.queryField})));
+  }'''
               : '''  Stream<Result<$entityName, AppFailure>> watch$entityName(${config.queryFieldType} ${config.queryField}) {
-    return _watch$entityName.call(QueryParams(${config.queryField}));
+    return _watch$entityName.call(QueryParams<$entityName>(params: Params({'${config.queryField}': ${config.queryField}})));
   }''',
         );
       case 'watchList':

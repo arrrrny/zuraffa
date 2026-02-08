@@ -55,7 +55,7 @@ class DataLayerGenerator {
             methods.add('  Future<$entityName> get();');
           } else {
             methods.add(
-              '  Future<$entityName> get(${config.queryFieldType} ${config.queryField});',
+              '  Future<$entityName> get(QueryParams<$entityName> params);',
             );
           }
           break;
@@ -70,8 +70,11 @@ class DataLayerGenerator {
           );
           break;
         case 'update':
+          final dataType = config.useZorphy
+              ? '${config.name}Patch'
+              : 'Map<String, dynamic>';
           methods.add(
-            '  Future<${config.name}> update(UpdateParams<${config.useZorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params);',
+            '  Future<${config.name}> update(UpdateParams<${config.name}, $dataType> params);',
           );
           break;
         case 'delete':
@@ -84,7 +87,7 @@ class DataLayerGenerator {
             methods.add('  Stream<$entityName> watch();');
           } else {
             methods.add(
-              '  Stream<$entityName> watch(${config.queryFieldType} ${config.queryField});',
+              '  Stream<$entityName> watch(QueryParams<$entityName> params);',
             );
           }
           break;
@@ -169,7 +172,7 @@ ${methods.join('\n')}
           } else {
             methods.add('''
   @override
-  Future<$entityName> get(${config.queryFieldType} ${config.queryField}) async {
+  Future<$entityName> get(QueryParams<$entityName> params) async {
     // TODO: Implement remote API call
     throw UnimplementedError('Implement remote get');
   }''');
@@ -185,20 +188,26 @@ ${methods.join('\n')}
           break;
         case 'create':
           methods.add('''
+  @override
   Future<$entityName> create($entityName $entityCamel) async {
     // TODO: Implement remote API call
     throw UnimplementedError('Implement remote create');
   }''');
           break;
         case 'update':
+          final dataType = config.useZorphy
+              ? '${config.name}Patch'
+              : 'Map<String, dynamic>';
           methods.add('''
-  Future<${config.name}> update(UpdateParams<${config.useZorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params) async {
+  @override
+  Future<${config.name}> update(UpdateParams<${config.name}, $dataType> params) async {
     // TODO: Implement remote API call
     throw UnimplementedError('Implement remote update');
   }''');
           break;
         case 'delete':
           methods.add('''
+  @override
   Future<void> delete(DeleteParams<$entityName> params) async {
     // TODO: Implement remote API call
     throw UnimplementedError('Implement remote delete');
@@ -207,13 +216,15 @@ ${methods.join('\n')}
         case 'watch':
           if (config.idField == 'null' || config.queryField == 'null') {
             methods.add('''
+  @override
   Stream<$entityName> watch() {
     // TODO: Implement remote stream (WebSocket, SSE, etc.)
     throw UnimplementedError('Implement remote watch');
   }''');
           } else {
             methods.add('''
-  Stream<$entityName> watch(${config.queryFieldType} ${config.queryField}) {
+  @override
+  Stream<$entityName> watch(QueryParams<$entityName> params) {
     // TODO: Implement remote stream (WebSocket, SSE, etc.)
     throw UnimplementedError('Implement remote watch');
   }''');
@@ -221,6 +232,7 @@ ${methods.join('\n')}
           break;
         case 'watchList':
           methods.add('''
+  @override
   Stream<List<$entityName>> watchList(ListQueryParams<$entityName> params) {
     // TODO: Implement remote stream (WebSocket, SSE, etc.)
     throw UnimplementedError('Implement remote watchList');
@@ -329,19 +341,15 @@ ${methods.join('\n\n')}
   Future<$entityName> get() async {
     final item = _box.get('$entitySnake');
     if (item == null) {
-      throw NotFoundFailure('$entityName not found in cache');
+      throw notFoundFailure('$entityName not found in cache');
     }
     return item;
   }''');
             } else {
               methods.add('''
   @override
-  Future<$entityName> get(${config.queryFieldType} ${config.queryField}) async {
-    final item = _box.get(${config.queryField});
-    if (item == null) {
-      throw NotFoundFailure('$entityName not found in cache');
-    }
-    return item;
+  Future<$entityName> get(QueryParams<$entityName> params) async {
+    return _box.values.query(params);
   }''');
             }
             break;
@@ -349,25 +357,68 @@ ${methods.join('\n\n')}
             methods.add('''
   @override
   Future<List<$entityName>> getList(ListQueryParams<$entityName> params) async {
-    return _box.values.toList();
+    return _box.values.filter(params.filter).orderBy(params.sort);
+  }''');
+            break;
+          case 'create':
+            methods.add('''
+  @override
+  Future<$entityName> create($entityName $entityCamel) async {
+    await _box.put($entityCamel.${config.idField}, $entityCamel);
+    return $entityCamel;
   }''');
             break;
           case 'update':
+            final dataType = config.useZorphy
+                ? '${config.name}Patch'
+                : 'Map<String, dynamic>';
             methods.add('''
-  Future<${config.name}> update(UpdateParams<${config.useZorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params) async {
-    final existing = _box.get(params.${config.idField});
-    if (existing == null) {
-      throw NotFoundFailure('$entityName not found in cache');
-    }
-    // TODO: Apply partial update to existing entity
-    await _box.put(params.${config.idField}, existing);
-    return existing;
+  @override
+  Future<${config.name}> update(UpdateParams<${config.name}, $dataType> params) async {
+    final existing = _box.values.firstWhere(
+      (item) => item.${config.idField} == params.id,
+      orElse: () => throw notFoundFailure('$entityName not found in cache'),
+    );
+    ${config.useZorphy ? '''
+    final updated = params.data.applyTo(existing);
+    await _box.put(updated.${config.idField}, updated);
+    return updated;''' : '''
+    // TODO: Apply Map<String, dynamic> patch to existing entity
+    await _box.put(existing.${config.idField}, existing);
+    return existing;'''}
   }''');
             break;
           case 'delete':
             methods.add('''
+  @override
   Future<void> delete(DeleteParams<$entityName> params) async {
-    await _box.delete(params.${config.idField});
+    final existing = _box.values.firstWhere(
+      (item) => item.${config.idField} == params.id,
+      orElse: () => throw notFoundFailure('$entityName not found in cache'),
+    );
+    await _box.delete(existing.${config.idField});
+  }''');
+            break;
+          case 'watch':
+            if (config.idField == 'null') {
+              methods.add('''
+  @override
+  Stream<$entityName> watch() {
+    return _box.watch().map((_) => _box.values.first);
+  }''');
+            } else {
+              methods.add('''
+  @override
+  Stream<$entityName> watch(QueryParams<$entityName> params) {
+    return _box.watch().map((_) => _box.values.query(params));
+  }''');
+            }
+            break;
+          case 'watchList':
+            methods.add('''
+  @override
+  Stream<List<$entityName>> watchList(ListQueryParams<$entityName> params) {
+    return _box.watch().map((_) => _box.values.filter(params.filter).orderBy(params.sort));
   }''');
             break;
         }
@@ -380,6 +431,7 @@ ${methods.join('\n\n')}
 
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:zuraffa/zuraffa.dart';
+import 'package:zorphy_annotation/zorphy_annotation.dart';
 import '${relativePath}domain/entities/$entitySnake/$entitySnake.dart';
 import '${entitySnake}_data_source.dart';
 
@@ -435,7 +487,7 @@ ${methods.join('\n\n')}
   }''');
           } else {
             methods.add('''
-  Future<$entityName> get(${config.queryFieldType} ${config.queryField}) async {
+  Future<$entityName> get(QueryParams<$entityName> params) async {
     // TODO: Implement local storage read
     throw UnimplementedError('Implement local get');
   }''');
@@ -612,8 +664,8 @@ ${methods.join('\n\n')}
   }''';
         } else {
           return '''  @override
-  Future<$entityName> get(${config.queryFieldType} ${config.queryField}) {
-    return _dataSource.get(${config.queryField});
+  Future<$entityName> get(QueryParams<$entityName> params) {
+    return _dataSource.get(params);
   }''';
         }
       case 'getList':
@@ -627,8 +679,11 @@ ${methods.join('\n\n')}
     return _dataSource.create($entityCamel);
   }''';
       case 'update':
+        final dataType = config.useZorphy
+            ? '${config.name}Patch'
+            : 'Map<String, dynamic>';
         return '''  @override
-  Future<${config.name}> update(UpdateParams<${config.useZorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params) {
+  Future<${config.name}> update(UpdateParams<${config.name}, $dataType> params) {
     return _dataSource.update(params);
   }''';
       case 'delete':
@@ -644,8 +699,8 @@ ${methods.join('\n\n')}
   }''';
         } else {
           return '''  @override
-  Stream<$entityName> watch(${config.queryFieldType} ${config.queryField}) {
-    return _dataSource.watch(${config.queryField});
+  Stream<$entityName> watch(QueryParams<$entityName> params) {
+    return _dataSource.watch(params);
   }''';
         }
       case 'watchList':
@@ -690,18 +745,18 @@ ${methods.join('\n\n')}
   }''';
         } else {
           return '''  @override
-  Future<$entityName> get(${config.queryFieldType} ${config.queryField}) async {
+  Future<$entityName> get(QueryParams<$entityName> params) async {
     // Check cache validity
     if (await _cachePolicy.isValid('$baseCacheKey')) {
       try {
-        return await _localDataSource.get(${config.queryField});
+        return await _localDataSource.get(params);
       } catch (e) {
-        logger.severe('Cache miss for ${config.queryField}, fetching from remote');
+        logger.severe('Cache miss, fetching from remote');
       }
     }
 
     // Fetch from remote
-    final data = await _remoteDataSource.get(${config.queryField});
+    final data = await _remoteDataSource.get(params);
 
     // Update cache
     await _localDataSource.save(data);
@@ -746,8 +801,11 @@ ${methods.join('\n\n')}
     return created;
   }''';
       case 'update':
+        final dataType = config.useZorphy
+            ? '${config.name}Patch'
+            : 'Map<String, dynamic>';
         return '''  @override
-  Future<${config.name}> update(UpdateParams<${config.useZorphy ? "${config.name}Patch" : "Partial<${config.name}>"}> params) async {
+  Future<${config.name}> update(UpdateParams<${config.name}, $dataType> params) async {
     // Update on remote
     final updated = await _remoteDataSource.update(params);
 
@@ -778,10 +836,10 @@ ${methods.join('\n\n')}
   }''';
         } else {
           return '''  @override
-  Stream<$entityName> watch(${config.queryFieldType} ${config.queryField}) {
+  Stream<$entityName> watch(QueryParams<$entityName> params) {
     // For streams, typically use remote source
     // You may want to seed with cached data first
-    return _remoteDataSource.watch(${config.queryField});
+    return _remoteDataSource.watch(params);
   }''';
         }
       case 'watchList':

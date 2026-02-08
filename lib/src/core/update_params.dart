@@ -1,14 +1,17 @@
 import 'package:meta/meta.dart';
 import 'params.dart';
 
-/// Parameters for updating an entity with id and data of type [T].
+/// Parameters for updating an entity of type [T].
+///
+/// The type parameter [T] represents the entity type being updated,
+/// and [P] represents the patch type (Zorphy Patch or Map<String, dynamic>).
 @immutable
-class UpdateParams<T> {
-  /// The unique identifier of the entity to update.
+class UpdateParams<T, P> {
+  /// The ID of the entity to update.
   final dynamic id;
 
-  /// The update data (e.g., a Partial map or a Zorphy Patch object).
-  final T data;
+  /// The patch data to apply (Zorphy Patch or Partial map).
+  final P data;
 
   /// Optional additional parameters for the update.
   final Params? params;
@@ -16,33 +19,33 @@ class UpdateParams<T> {
   /// Create an [UpdateParams] instance.
   const UpdateParams({required this.id, required this.data, this.params});
 
-  /// Validate that all keys in [data] are present in [validFields].
-  ///
-  /// Only applicable if [T] is a [Map].
-  void validate(List<String> validFields) {
-    if (data is Map) {
-      final map = data as Map;
-      for (final key in map.keys) {
-        if (!validFields.contains(key)) {
-          throw ArgumentError('Field "$key" is not a valid field for update.');
-        }
-      }
-    }
+  /// Serializes the update parameters to a flat map.
+  Map<String, dynamic> toMap() {
+    return <String, dynamic>{
+      'id': id,
+      'data': data,
+      if (params != null) ...?params!.params,
+    };
   }
 
   /// Create a copy of [UpdateParams] with optional new values.
-  UpdateParams<T> copyWith({dynamic id, T? data, Params? params}) {
-    return UpdateParams<T>(
+  UpdateParams<T, P> copyWith({
+    dynamic id,
+    P? data,
+    Params? params,
+    bool clearParams = false,
+  }) {
+    return UpdateParams<T, P>(
       id: id ?? this.id,
       data: data ?? this.data,
-      params: params ?? this.params,
+      params: clearParams ? null : (params ?? this.params),
     );
   }
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is UpdateParams<T> &&
+      other is UpdateParams<T, P> &&
           runtimeType == other.runtimeType &&
           id == other.id &&
           data == other.data &&
@@ -52,5 +55,6 @@ class UpdateParams<T> {
   int get hashCode => id.hashCode ^ data.hashCode ^ params.hashCode;
 
   @override
-  String toString() => 'UpdateParams(id: $id, data: $data, params: $params)';
+  String toString() =>
+      'UpdateParams<$T, $P>(id: $id, data: $data, params: $params)';
 }
