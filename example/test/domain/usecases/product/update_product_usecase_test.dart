@@ -17,6 +17,8 @@ void main() {
   late MockProductRepository mockRepository;
 
   setUp(() {
+    registerFallbackValue(UpdateParams<String, Partial<Product>>(
+        id: '1', data: Partial<Product>()));
     mockRepository = MockProductRepository();
     useCase = UpdateProductUseCase(mockRepository);
   });

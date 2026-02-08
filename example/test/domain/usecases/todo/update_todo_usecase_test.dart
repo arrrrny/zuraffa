@@ -17,6 +17,8 @@ void main() {
   late MockTodoRepository mockRepository;
 
   setUp(() {
+    registerFallbackValue(
+        UpdateParams<int, TodoPatch>(id: 1, data: TodoPatch()));
     mockRepository = MockTodoRepository();
     useCase = UpdateTodoUseCase(mockRepository);
   });

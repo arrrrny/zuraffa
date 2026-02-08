@@ -17,6 +17,7 @@ void main() {
   late MockProductRepository mockRepository;
 
   setUp(() {
+    registerFallbackValue(const QueryParams<Product>());
     mockRepository = MockProductRepository();
     useCase = GetProductUseCase(mockRepository);
   });

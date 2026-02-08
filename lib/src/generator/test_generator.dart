@@ -141,13 +141,48 @@ class TestGenerator {
     final mockRepoClass = 'Mock$repoName';
     final mockEntityClass = 'Mock$entityName';
 
-    String setupBody =
+    // Build registerFallbackValue statements based on method type
+    final fallbackValues = <String>[];
+    switch (method) {
+      case 'get':
+      case 'watch':
+        fallbackValues.add(
+          "registerFallbackValue(const QueryParams<$entityName>());",
+        );
+        break;
+      case 'getList':
+      case 'watchList':
+        fallbackValues.add(
+          "registerFallbackValue(const ListQueryParams<$entityName>());",
+        );
+        break;
+      case 'create':
+        fallbackValues.add("registerFallbackValue($mockEntityClass());");
+        break;
+      case 'update':
+        final dataType = config.useZorphy
+            ? '${entityName}Patch'
+            : 'Partial<$entityName>';
+        final idType = config.idType;
+        fallbackValues.add(
+          "registerFallbackValue(UpdateParams<$idType, $dataType>(id: ${config.idType == 'int' ? '1' : "'1'"}, data: ${config.useZorphy ? '${entityName}Patch()' : 'Partial<$entityName>()'}));",
+        );
+        break;
+      case 'delete':
+        final idType = config.idType;
+        fallbackValues.add(
+          "registerFallbackValue(const DeleteParams<$idType>(id: ${config.idType == 'int' ? '1' : "'1'"}));",
+        );
+        break;
+    }
+
+    final setupBody =
         '''
   late $className useCase;
   late $mockRepoClass mockRepository;
 
   setUp(() {
-    ${method == 'getList' || method == 'watchList' ? 'registerFallbackValue(const ListQueryParams<dynamic>());\n    ' : ''}
+${fallbackValues.map((f) => '    $f').join('\n')}
     mockRepository = $mockRepoClass();
     useCase = $className(mockRepository);
   });''';

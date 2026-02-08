@@ -17,8 +17,7 @@ void main() {
   late MockTodoRepository mockRepository;
 
   setUp(() {
-    registerFallbackValue(const ListQueryParams<dynamic>());
-
+    registerFallbackValue(const ListQueryParams<Todo>());
     mockRepository = MockTodoRepository();
     useCase = WatchTodoListUseCase(mockRepository);
   });
