@@ -357,7 +357,11 @@ ${methods.join('\n\n')}
             methods.add('''
   @override
   Future<List<$entityName>> getList(ListQueryParams<$entityName> params) async {
-    return _box.values.filter(params.filter).orderBy(params.sort);
+    var result = _box.values;
+    if (params.filter != null) {
+      result = result.filter(params.filter!);
+    }
+    return result.orderBy(params.sort);
   }''');
             break;
           case 'create':
@@ -837,34 +841,30 @@ ${methods.join('\n\n')}
   Stream<$entityName> watch() {
     // Stream from remote and update cache in background
     return _remoteDataSource.watch().map(
-      (data) async {
-        // Update cache in background when remote data changes
-        try {
-          await _localDataSource.save(data);
-          await _cachePolicy.markFresh('$baseCacheKey');
-        } catch (e) {
-          logger.warning('Failed to update cache: \$e');
-        }
+      (data) {
+        // Update cache in background (fire and forget)
+        _localDataSource.save(data).then(
+          (_) => _cachePolicy.markFresh('$baseCacheKey'),
+          onError: (e) => logger.warning('Failed to update cache: \$e'),
+        );
         return data;
       },
-    ).asyncMap((future) async => await future);
+    );
   }''';
         } else {
           return '''  @override
   Stream<$entityName> watch(QueryParams<$entityName> params) {
     // Stream from remote and update cache in background
     return _remoteDataSource.watch(params).map(
-      (data) async {
-        // Update cache in background when remote data changes
-        try {
-          await _localDataSource.save(data);
-          await _cachePolicy.markFresh('$baseCacheKey');
-        } catch (e) {
-          logger.warning('Failed to update cache: \$e');
-        }
+      (data) {
+        // Update cache in background (fire and forget)
+        _localDataSource.save(data).then(
+          (_) => _cachePolicy.markFresh('$baseCacheKey'),
+          onError: (e) => logger.warning('Failed to update cache: \$e'),
+        );
         return data;
       },
-    ).asyncMap((future) async => await future);
+    );
   }''';
         }
       case 'watchList':
@@ -872,17 +872,15 @@ ${methods.join('\n\n')}
   Stream<List<$entityName>> watchList(ListQueryParams<$entityName> params) {
     // Stream from remote and update cache in background
     return _remoteDataSource.watchList(params).map(
-      (data) async {
-        // Update cache in background when remote data changes
-        try {
-          await _localDataSource.saveAll(data);
-          await _cachePolicy.markFresh('$baseCacheKey');
-        } catch (e) {
-          logger.warning('Failed to update cache: \$e');
-        }
+      (data) {
+        // Update cache in background (fire and forget)
+        _localDataSource.saveAll(data).then(
+          (_) => _cachePolicy.markFresh('$baseCacheKey'),
+          onError: (e) => logger.warning('Failed to update cache: \$e'),
+        );
         return data;
       },
-    ).asyncMap((future) async => await future);
+    );
   }''';
       default:
         return '';

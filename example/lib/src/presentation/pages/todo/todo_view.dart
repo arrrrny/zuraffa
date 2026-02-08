@@ -221,7 +221,7 @@ class _TodoViewState extends CleanViewState<TodoView, TodoController> {
     return ControlledWidgetSelector<TodoController, TodoState>(
       selector: (controller) => controller.viewState,
       builder: (context, state) {
-        if (!state.hasTodos) return const SizedBox.shrink();
+        if (state.todoList.isEmpty) return const SizedBox.shrink();
 
         return Container(
           padding: const EdgeInsets.all(16),
@@ -235,12 +235,12 @@ class _TodoViewState extends CleanViewState<TodoView, TodoController> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                '${state.activeCount} active',
+                '${state.todoList.filter(TodoFields.isCompleted.eq(false)).length} active',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(width: 24),
               Text(
-                '${state.completedCount} completed',
+                '${state.todoList.filter(TodoFields.isCompleted.eq(true)).length} completed',
                 style: TextStyle(color: Colors.grey.shade600),
               ),
             ],

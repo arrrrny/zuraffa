@@ -35,7 +35,11 @@ class ProductLocalDataSource
 
   @override
   Future<List<Product>> getList(ListQueryParams<Product> params) async {
-    return _box.values.filter(params.filter).orderBy(params.sort);
+    var result = _box.values;
+    if (params.filter != null) {
+      result = result.filter(params.filter!);
+    }
+    return result.orderBy(params.sort);
   }
 
   @override
@@ -45,9 +49,13 @@ class ProductLocalDataSource
 
   @override
   Stream<List<Product>> watchList(ListQueryParams<Product> params) {
-    return _box
-        .watch()
-        .map((_) => _box.values.filter(params.filter).orderBy(params.sort));
+    return _box.watch().map((_) {
+      var result = _box.values;
+      if (params.filter != null) {
+        result = result.filter(params.filter!);
+      }
+      return result.orderBy(params.sort);
+    });
   }
 
   @override

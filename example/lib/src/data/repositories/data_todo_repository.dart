@@ -69,34 +69,30 @@ class DataTodoRepository
   Stream<Todo> watch(QueryParams<Todo> params) {
     // Stream from remote and update cache in background
     return _remoteDataSource.watch(params).map(
-      (data) async {
-        // Update cache in background when remote data changes
-        try {
-          await _localDataSource.save(data);
-          await _cachePolicy.markFresh('todo_cache');
-        } catch (e) {
-          logger.warning('Failed to update cache: $e');
-        }
+      (data) {
+        // Update cache in background (fire and forget)
+        _localDataSource.save(data).then(
+              (_) => _cachePolicy.markFresh('todo_cache'),
+              onError: (e) => logger.warning('Failed to update cache: $e'),
+            );
         return data;
       },
-    ).asyncMap((future) async => await future);
+    );
   }
 
   @override
   Stream<List<Todo>> watchList(ListQueryParams<Todo> params) {
     // Stream from remote and update cache in background
     return _remoteDataSource.watchList(params).map(
-      (data) async {
-        // Update cache in background when remote data changes
-        try {
-          await _localDataSource.saveAll(data);
-          await _cachePolicy.markFresh('todo_cache');
-        } catch (e) {
-          logger.warning('Failed to update cache: $e');
-        }
+      (data) {
+        // Update cache in background (fire and forget)
+        _localDataSource.saveAll(data).then(
+              (_) => _cachePolicy.markFresh('todo_cache'),
+              onError: (e) => logger.warning('Failed to update cache: $e'),
+            );
         return data;
       },
-    ).asyncMap((future) async => await future);
+    );
   }
 
   @override

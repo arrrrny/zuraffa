@@ -170,23 +170,13 @@ export 'src/core/cache_policies.dart';
 // Zorphy Integration - Type-safe filtering
 // ============================================================
 
-/// Re-export Zorphy's Eq, And, Or, etc. for convenience
-export 'package:zorphy_annotation/zorphy_annotation.dart'
-    show
-        Eq,
-        And,
-        Or,
-        Not,
-        Gt,
-        Gte,
-        Lt,
-        Lte,
-        Contains,
-        StartsWith,
-        EndsWith,
-        Field,
-        Filter,
-        Sort;
+/// Re-export Zorphy's types and extensions for type-safe queries
+///
+/// This includes:
+/// - Filter operators: Eq, And, Or, Not, Gt, Gte, Lt, Lte, Contains, etc.
+/// - Field, Filter, Sort types
+/// - Iterable extensions for filter() and sort()
+export 'package:zorphy_annotation/zorphy_annotation.dart';
 
 // ============================================================
 // Domain - Business Logic

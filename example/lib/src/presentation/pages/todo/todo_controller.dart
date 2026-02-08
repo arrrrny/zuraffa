@@ -90,7 +90,6 @@ class TodoController extends Controller with StatefulController<TodoState> {
     result.fold(
       (created) => updateState(viewState.copyWith(
         isCreating: false,
-        todoList: [...viewState.todoList, created],
       )),
       (failure) => updateState(viewState.copyWith(
         isCreating: false,
@@ -106,9 +105,6 @@ class TodoController extends Controller with StatefulController<TodoState> {
     result.fold(
       (updated) => updateState(viewState.copyWith(
         isUpdating: false,
-        todoList: viewState.todoList
-            .map((e) => e.id == updated.id ? updated : e)
-            .toList(),
         todo: viewState.todo?.id == updated.id ? updated : viewState.todo,
       )),
       (failure) => updateState(viewState.copyWith(
@@ -119,18 +115,13 @@ class TodoController extends Controller with StatefulController<TodoState> {
   }
 
   Future<void> deleteTodo(int id) async {
-    // Immediately remove from list for optimistic UI update
-    // This prevents Dismissible error where widget must be removed synchronously
-    final updatedList = viewState.todoList.where((e) => e.id != id).toList();
-    updateState(viewState.copyWith(
-      isDeleting: true,
-      todoList: updatedList,
-    ));
-
+    updateState(viewState.copyWith(isDeleting: true));
     final result = await _presenter.deleteTodo(id);
 
     result.fold(
-      (_) => updateState(viewState.copyWith(isDeleting: false)),
+      (_) => updateState(viewState.copyWith(
+        isDeleting: false,
+      )),
       (failure) => updateState(viewState.copyWith(
         isDeleting: false,
         error: failure,

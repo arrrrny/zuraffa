@@ -194,10 +194,11 @@ ${withState ? '''    result.fold(
   }''');
           break;
         case 'create':
-          final hasListMethod =
-              config.methods.contains('getList') ||
-              config.methods.contains('watchList');
-          final listUpdate = hasListMethod
+          // Only update list optimistically if using getList (not watchList)
+          // watchList streams will handle the update automatically
+          final hasListMethod = config.methods.contains('getList');
+          final hasWatchList = config.methods.contains('watchList');
+          final listUpdate = (hasListMethod && !hasWatchList)
               ? '${entityCamel}List: [...viewState.${entityCamel}List, created],'
               : '';
           methods.add('''
@@ -230,10 +231,11 @@ ${withState ? '''    result.fold(
           final updateArgs = config.idField == 'null'
               ? entityCamel
               : '${config.idField}, data';
-          final hasListMethod =
-              config.methods.contains('getList') ||
-              config.methods.contains('watchList');
-          final listUpdate = hasListMethod
+          // Only update list optimistically if using getList (not watchList)
+          // watchList streams will handle the update automatically
+          final hasListMethod = config.methods.contains('getList');
+          final hasWatchList = config.methods.contains('watchList');
+          final listUpdate = (hasListMethod && !hasWatchList)
               ? (config.queryField == 'null'
                     ? '${entityCamel}List: [updated],'
                     : '${entityCamel}List: viewState.${entityCamel}List.map((e) => e.${config.queryField} == updated.${config.queryField} ? updated : e).toList(),')
@@ -269,10 +271,13 @@ ${withState ? '''    result.fold(
           final deleteArgs = config.idField == 'null'
               ? entityCamel
               : config.idField;
-          final hasListMethod =
-              config.methods.contains('getList') ||
-              config.methods.contains('watchList');
-          final listUpdate = hasListMethod
+          // Only update list optimistically if using getList (not watchList)
+          // watchList streams will handle the update automatically
+          final hasListMethod = config.methods.contains('getList');
+          final hasWatchList = config.methods.contains('watchList');
+          // Note: delete should always update optimistically for immediate UI feedback
+          // unless watchList is present and fast enough
+          final listUpdate = (hasListMethod && !hasWatchList)
               ? '${entityCamel}List: viewState.${entityCamel}List.where((e) => e.${config.queryField} != ${config.queryField}).toList(),'
               : '';
           methods.add('''
