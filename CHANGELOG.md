@@ -1,3 +1,26 @@
+## [2.7.0] - 2026-02-09
+
+### ✨ Features
+
+#### Generic ListQueryParams with Type-Safe Filtering and Sorting
+- Added generic `ListQueryParams<T>` class for type-safe list queries
+- Integrated Zorphy's `Filter<T>` for type-safe query filtering
+- Integrated Zorphy's `Sort<T>` for type-safe ordering (orderBy)
+- Added `search`, `filter`, `sort`, `limit`, `offset` parameters
+- Full JSON serialization support via `toQueryMap()`
+- `copyWith()` method with optional clearing for filter/sort/search
+
+#### Zorphy Extension for Type-Safe Queries
+- Extended Zorphy entities with automatic filter and sort field detection
+- Exported Zorphy types directly through zuraffa package
+- Type-safe `Field<T>`, `Filter<T>`, and `Sort<T>` references for any entity
+- Automatic field analysis from Zorphy-annotated entities
+
+#### Params Generics Improvements
+- Added strongly-typed `DeleteParams<T>` and `UpdateParams<T>` with typed ID field
+- Updated all generated UseCases to use generic params wrappers
+- CAUTION: Preserved backward compatibility with existing code, might contain unintended breaking changes.
+
 ## [2.6.0] - 2026-02-07
 
 ### ✨ Features
