@@ -59,7 +59,7 @@ class ConfigCommand {
       'zorphyByDefault': true,
       'jsonByDefault': true,
       'compareByDefault': true,
-      'filterByDefault': false,
+      'filterByDefault': true,
       'defaultEntityOutput': 'lib/src/domain/entities',
       'gqlByDefault': false,
       'buildByDefault': false,
