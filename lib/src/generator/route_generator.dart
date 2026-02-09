@@ -193,14 +193,12 @@ ${extensionMethods.join('\n')}
 
     // Determine import and dependency info first
     final String dependencyImport;
-    final String dependencyType;
     final String dependencyParam;
     final String viewParam;
 
     if (config.isEntityBased) {
       dependencyImport =
           "import '../domain/repositories/${entitySnake}_repository.dart';";
-      dependencyType = '${entityName}Repository';
       dependencyParam = entityCamel;
       viewParam = '${entityCamel}Repository';
     } else if (config.hasService) {
@@ -209,7 +207,6 @@ ${extensionMethods.join('\n')}
       final serviceSnake = config.serviceSnake!;
       dependencyImport =
           "import '../domain/services/${serviceSnake}_service.dart';";
-      dependencyType = serviceName;
       dependencyParam = _pascalToCamel(serviceName);
       viewParam = dependencyParam;
     } else if (config.hasRepo) {
@@ -218,14 +215,12 @@ ${extensionMethods.join('\n')}
       final repoSnake = _camelToSnake(repoName.replaceAll('Repository', ''));
       dependencyImport =
           "import '../domain/repositories/${repoSnake}_repository.dart';";
-      dependencyType = repoName;
       dependencyParam = _pascalToCamel(repoName);
       viewParam = dependencyParam;
     } else {
       // Fallback to entity pattern
       dependencyImport =
           "import '../domain/repositories/${entitySnake}_repository.dart';";
-      dependencyType = '${entityName}Repository';
       dependencyParam = entityCamel;
       viewParam = '${entityCamel}Repository';
     }
@@ -508,12 +503,6 @@ ${routeGetters.join('\n')}
   String _pascalToCamel(String input) {
     if (input.isEmpty) return '';
     return input[0].toLowerCase() + input.substring(1);
-  }
-
-  String _snakeToCamel(String input) {
-    if (input.isEmpty) return '';
-    final pascal = _snakeToPascal(input);
-    return _pascalToCamel(pascal);
   }
 
   String _camelToSnake(String input) {
