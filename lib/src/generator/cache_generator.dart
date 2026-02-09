@@ -381,7 +381,7 @@ ${registrations.join('\n')}
     );
 
     // Create template file if it doesn't exist
-    if (!manualAdditionsFile.existsSync() && !dryRun) {
+    if (!manualAdditionsFile.existsSync()) {
       final template = '''# Hive Manual Additions
 # Add nested entities and enums that need Hive adapters
 # Format: import_path|EntityName
@@ -392,7 +392,14 @@ ${registrations.join('\n')}
 # ../domain/entities/enums/index.dart|HttpClientType
 # ../domain/entities/range/range.dart|Range
 ''';
-      manualAdditionsFile.writeAsStringSync(template);
+      await FileUtils.writeFile(
+        manualAdditionsFile.path,
+        template,
+        'hive_manual_additions',
+        force: true,
+        dryRun: dryRun,
+        verbose: verbose,
+      );
     }
   }
 

@@ -4,6 +4,7 @@ library;
 import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'graphql_schema_translator.dart';
+import '../utils/file_utils.dart';
 import '../utils/string_utils.dart';
 
 /// Emits Dart entity and enum files from GraphQL schema specifications.
@@ -77,8 +78,14 @@ class GraphQLEntityEmitter {
       return filePath;
     }
 
-    await Directory(dirPath).create(recursive: true);
-    await File(filePath).writeAsString(content);
+    await FileUtils.writeFile(
+      filePath,
+      content,
+      'graphql_operation',
+      force: true,
+      dryRun: dryRun,
+      verbose: verbose,
+    );
 
     if (verbose) {
       print('Generated: $filePath');
@@ -242,7 +249,14 @@ class GraphQLEntityEmitter {
     }
 
     await Directory(dirPath).create(recursive: true);
-    await File(filePath).writeAsString(content);
+    await FileUtils.writeFile(
+      filePath,
+      content,
+      'graphql_entity',
+      force: true,
+      dryRun: dryRun,
+      verbose: verbose,
+    );
 
     if (verbose) {
       print('Generated: $filePath');
@@ -275,7 +289,14 @@ class GraphQLEntityEmitter {
     }
 
     await Directory(dirPath).create(recursive: true);
-    await File(filePath).writeAsString(content);
+    await FileUtils.writeFile(
+      filePath,
+      content,
+      'graphql_entity',
+      force: true,
+      dryRun: dryRun,
+      verbose: verbose,
+    );
 
     if (verbose) {
       print('Generated: $filePath');
