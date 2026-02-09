@@ -177,7 +177,6 @@ class ZuraffaMcpServer {
       'result': {
         'tools': [
           _generateToolDefinition(),
-          _initializeToolDefinition(),
           _schemaToolDefinition(),
           _validateToolDefinition(),
           _entityCreateToolDefinition(),
@@ -185,7 +184,10 @@ class ZuraffaMcpServer {
           _entityAddFieldToolDefinition(),
           _entityFromJsonToolDefinition(),
           _entityListToolDefinition(),
-          _entityNewToolDefinition(),
+          _configInitToolDefinition(),
+          _configShowToolDefinition(),
+          _configSetToolDefinition(),
+          _graphqlToolDefinition(),
         ],
       },
       'id': id,
@@ -423,41 +425,6 @@ class ZuraffaMcpServer {
     };
   }
 
-  /// Initialize tool definition
-  Map<String, dynamic> _initializeToolDefinition() {
-    return {
-      'name': 'initialize',
-      'description':
-          'Initialize a test entity to quickly try out Zuraffa. Creates a sample entity with common fields (id, name, description, price, etc.) to help you get started with Clean Architecture code generation.',
-      'inputSchema': {
-        'type': 'object',
-        'properties': {
-          'entity': {
-            'type': 'string',
-            'description': 'Entity name to generate (default: Product)',
-          },
-          'output': {
-            'type': 'string',
-            'description': 'Output directory (default: lib/src)',
-          },
-          'force': {
-            'type': 'boolean',
-            'description': 'Overwrite existing files',
-          },
-          'dry_run': {
-            'type': 'boolean',
-            'description':
-                'Preview what would be generated without writing files',
-          },
-          'verbose': {
-            'type': 'boolean',
-            'description': 'Enable verbose output',
-          },
-        },
-      },
-    };
-  }
-
   /// Schema tool definition
   Map<String, dynamic> _schemaToolDefinition() {
     return {
@@ -502,9 +469,6 @@ class ZuraffaMcpServer {
         case 'generate':
           result = await _runGenerateCommand(args);
           break;
-        case 'initialize':
-          result = await _runInitializeCommand(args);
-          break;
         case 'schema':
           result = await _runSchemaCommand();
           break;
@@ -526,8 +490,21 @@ class ZuraffaMcpServer {
         case 'entity_list':
           result = await _runEntityListCommand(args);
           break;
-        case 'entity_new':
-          result = await _runEntityNewCommand(args);
+        case 'config_init':
+          result = await _runConfigCommand(['init', ...?_configArgs(args)]);
+          break;
+        case 'config_show':
+          result = await _runConfigCommand(['show']);
+          break;
+        case 'config_set':
+          result = await _runConfigCommand([
+            'set',
+            args['key'] as String,
+            args['value'].toString(),
+          ]);
+          break;
+        case 'graphql':
+          result = await _runGraphqlCommand(args);
           break;
         default:
           return _error(id, -32602, 'Unknown tool: $toolName');
@@ -565,13 +542,13 @@ class ZuraffaMcpServer {
     final List<String> cliArgs = ['entity', 'create', '--name=${args["name"]}'];
 
     if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
-    if (args['json'] == true) cliArgs.add('--json=true');
-    if (args['json'] == false) cliArgs.add('--json=false');
+    if (args['json'] == true) cliArgs.add('--json');
+    if (args['json'] == false) cliArgs.add('--no-json');
     if (args['sealed'] == true) cliArgs.add('--sealed');
     if (args['non_sealed'] == true) cliArgs.add('--non-sealed');
     if (args['copywith_fn'] == true) cliArgs.add('--copywith-fn');
-    if (args['compare'] == true) cliArgs.add('--compare=true');
-    if (args['compare'] == false) cliArgs.add('--compare=false');
+    if (args['compare'] == true) cliArgs.add('--compare');
+    if (args['compare'] == false) cliArgs.add('--no-compare');
     if (args['extends'] != null) cliArgs.add('--extends=${args["extends"]}');
 
     if (args['fields'] != null) {
@@ -635,10 +612,10 @@ class ZuraffaMcpServer {
 
     if (args['name'] != null) cliArgs.add('--name=${args["name"]}');
     if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
-    if (args['json'] == true) cliArgs.add('--json=true');
-    if (args['json'] == false) cliArgs.add('--json=false');
-    if (args['prefix_nested'] == true) cliArgs.add('--prefix-nested=true');
-    if (args['prefix_nested'] == false) cliArgs.add('--prefix-nested=false');
+    if (args['json'] == true) cliArgs.add('--json');
+    if (args['json'] == false) cliArgs.add('--no-json');
+    if (args['prefix_nested'] == true) cliArgs.add('--prefix-nested');
+    if (args['prefix_nested'] == false) cliArgs.add('--no-prefix-nested');
 
     return await _runZuraffaProcess(cliArgs);
   }
@@ -648,17 +625,6 @@ class ZuraffaMcpServer {
     final List<String> cliArgs = ['entity', 'list'];
 
     if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
-
-    return await _runZuraffaProcess(cliArgs);
-  }
-
-  /// Run entity new (quick create) command
-  Future<String> _runEntityNewCommand(Map<String, dynamic> args) async {
-    final List<String> cliArgs = ['entity', 'new', '--name=${args["name"]}'];
-
-    if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
-    if (args['json'] == true) cliArgs.add('--json=true');
-    if (args['json'] == false) cliArgs.add('--json=false');
 
     return await _runZuraffaProcess(cliArgs);
   }
@@ -794,27 +760,194 @@ class ZuraffaMcpServer {
     };
   }
 
-  /// Entity New tool definition
-  Map<String, dynamic> _entityNewToolDefinition() {
+  /// Config Init tool definition
+  Map<String, dynamic> _configInitToolDefinition() {
     return {
-      'name': 'entity_new',
-      'description': 'Quick-create a simple Zorphy entity',
+      'name': 'config_init',
+      'description':
+          'Initialize ZFA configuration file (.zfa.json) with default settings for entity generation, GraphQL, caching, and more.',
       'inputSchema': {
         'type': 'object',
         'properties': {
-          'name': {
+          'path': {
             'type': 'string',
-            'description': 'Entity name in PascalCase',
-          },
-          'output': {'type': 'string', 'description': 'Output directory'},
-          'json': {
-            'type': 'boolean',
-            'description': 'Enable JSON serialization',
+            'description': 'Project root directory (default: current directory)',
           },
         },
-        'required': ['name'],
       },
     };
+  }
+
+  /// Config Show tool definition
+  Map<String, dynamic> _configShowToolDefinition() {
+    return {
+      'name': 'config_show',
+      'description':
+          'Show current ZFA configuration settings from .zfa.json',
+      'inputSchema': {'type': 'object', 'properties': {}},
+    };
+  }
+
+  /// Config Set tool definition
+  Map<String, dynamic> _configSetToolDefinition() {
+    return {
+      'name': 'config_set',
+      'description':
+          'Update a ZFA configuration value in .zfa.json. Valid keys: zorphyByDefault, jsonByDefault, compareByDefault, filterByDefault, defaultEntityOutput, gqlByDefault, buildByDefault, appendByDefault.',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'key': {
+            'type': 'string',
+            'description': 'Configuration key to set',
+            'enum': [
+              'zorphyByDefault',
+              'jsonByDefault',
+              'compareByDefault',
+              'filterByDefault',
+              'defaultEntityOutput',
+              'gqlByDefault',
+              'buildByDefault',
+              'appendByDefault',
+            ],
+          },
+          'value': {
+            'description':
+                'Value to set (boolean for flags, string for paths)',
+          },
+        },
+        'required': ['key', 'value'],
+      },
+    };
+  }
+
+  /// GraphQL tool definition
+  Map<String, dynamic> _graphqlToolDefinition() {
+    return {
+      'name': 'graphql',
+      'description':
+          'Introspect a GraphQL schema and generate Zorphy entities, enums, and UseCases. Can generate complete Clean Architecture layers from a GraphQL endpoint.',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'url': {
+            'type': 'string',
+            'description': 'GraphQL endpoint URL (required)',
+          },
+          'auth': {
+            'type': 'string',
+            'description': 'Bearer authentication token',
+          },
+          'output': {
+            'type': 'string',
+            'description': 'Output directory (default: lib/src)',
+          },
+          'methods': {
+            'type': 'string',
+            'description':
+                'CRUD methods to generate, comma-separated (default: get,getList,create,update,delete)',
+          },
+          'entities': {
+            'type': 'string',
+            'description': 'Entities to generate, comma-separated',
+          },
+          'queries': {
+            'type': 'string',
+            'description':
+                'Specific GraphQL queries to import as UseCases, comma-separated',
+          },
+          'mutations': {
+            'type': 'string',
+            'description':
+                'Specific GraphQL mutations to import as UseCases, comma-separated',
+          },
+          'domain': {
+            'type': 'string',
+            'description':
+                'Domain name for queries/mutations (required with --queries or --mutations)',
+          },
+          'repo': {
+            'type': 'string',
+            'description': 'Repository name to inject for UseCase generation',
+          },
+          'service': {
+            'type': 'string',
+            'description':
+                'Service name to inject (alternative to repo)',
+          },
+          'exclude': {
+            'type': 'string',
+            'description': 'Types to exclude, comma-separated',
+          },
+          'display': {
+            'type': 'string',
+            'description':
+                'List available items from schema: entities, queries, mutations, all',
+          },
+          'data': {
+            'type': 'boolean',
+            'description': 'Generate Data layer (DataSource/DataRepository)',
+          },
+          'zorphy': {
+            'type': 'boolean',
+            'description': 'Use Zorphy annotations for entities (default: true)',
+          },
+          'dry_run': {
+            'type': 'boolean',
+            'description': 'Preview without writing files',
+          },
+          'force': {
+            'type': 'boolean',
+            'description': 'Overwrite existing files',
+          },
+          'verbose': {
+            'type': 'boolean',
+            'description': 'Enable verbose output',
+          },
+        },
+        'required': ['url'],
+      },
+    };
+  }
+
+  /// Helper to extract optional config args
+  List<String>? _configArgs(Map<String, dynamic> args) {
+    if (args['path'] != null) return [args['path'] as String];
+    return null;
+  }
+
+  /// Run a config subcommand
+  Future<String> _runConfigCommand(List<String> subArgs) async {
+    return await _runZuraffaProcess(['config', ...subArgs]);
+  }
+
+  /// Run the graphql command
+  Future<String> _runGraphqlCommand(Map<String, dynamic> args) async {
+    final List<String> cliArgs = ['graphql', '--url=${args["url"]}'];
+
+    if (args['auth'] != null) cliArgs.add('--auth=${args["auth"]}');
+    if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
+    if (args['methods'] != null) cliArgs.add('--methods=${args["methods"]}');
+    if (args['entities'] != null) {
+      cliArgs.add('--entities=${args["entities"]}');
+    }
+    if (args['queries'] != null) cliArgs.add('--queries=${args["queries"]}');
+    if (args['mutations'] != null) {
+      cliArgs.add('--mutations=${args["mutations"]}');
+    }
+    if (args['domain'] != null) cliArgs.add('--domain=${args["domain"]}');
+    if (args['repo'] != null) cliArgs.add('--repo=${args["repo"]}');
+    if (args['service'] != null) cliArgs.add('--service=${args["service"]}');
+    if (args['exclude'] != null) cliArgs.add('--exclude=${args["exclude"]}');
+    if (args['display'] != null) cliArgs.add('--display=${args["display"]}');
+    if (args['data'] == true) cliArgs.add('--data');
+    if (args['zorphy'] == true) cliArgs.add('--zorphy');
+    if (args['zorphy'] == false) cliArgs.add('--no-zorphy');
+    if (args['dry_run'] == true) cliArgs.add('--dry-run');
+    if (args['force'] == true) cliArgs.add('--force');
+    if (args['verbose'] == true) cliArgs.add('--verbose');
+
+    return await _runZuraffaProcess(cliArgs);
   }
 
   /// Run the generate command
@@ -906,24 +1039,6 @@ class ZuraffaMcpServer {
 
     // Always use JSON format for parsing
     cliArgs.add('--format=json');
-
-    return await _runZuraffaProcess(cliArgs);
-  }
-
-  /// Run the initialize command
-  Future<String> _runInitializeCommand(Map<String, dynamic> args) async {
-    final List<String> cliArgs = ['initialize'];
-
-    // Add optional parameters
-    if (args['entity'] != null) {
-      cliArgs.add('--entity=${args['entity']}');
-    }
-    if (args['output'] != null) {
-      cliArgs.add('--output=${args['output']}');
-    }
-    if (args['force'] == true) cliArgs.add('--force');
-    if (args['dry_run'] == true) cliArgs.add('--dry-run');
-    if (args['verbose'] == true) cliArgs.add('--verbose');
 
     return await _runZuraffaProcess(cliArgs);
   }

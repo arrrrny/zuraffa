@@ -64,11 +64,13 @@ class ConfigCommand {
       'gqlByDefault': false,
       'buildByDefault': false,
       'appendByDefault': false,
+      'formatByDefault': false,
       'notes': [
         'Set "zorphyByDefault": false to use manual entity generation',
         'Set "gqlByDefault": true to auto-generate GraphQL for entity operations',
         'Set "buildByDefault": true to auto-run build_runner after entity/cache operations',
         'Set "appendByDefault": true to auto-append to existing repositories/datasources',
+        'Set "formatByDefault": true to auto-run dart format after generation',
         'Adjust "defaultEntityOutput" to change where entities are created',
       ],
     };
@@ -90,6 +92,9 @@ class ConfigCommand {
       '  • buildByDefault: false (build_runner auto-run disabled by default)',
     );
     print('  • appendByDefault: false (append mode disabled by default)');
+    print(
+      '  • formatByDefault: false (dart format auto-run disabled by default)',
+    );
     print('');
     print('💡 To disable Zorphy by default, edit .zfa.json and set:');
     print('   "zorphyByDefault": false');
@@ -170,6 +175,7 @@ class ConfigCommand {
         case 'gqlByDefault':
         case 'buildByDefault':
         case 'appendByDefault':
+        case 'formatByDefault':
           parsedValue = value.toLowerCase() == 'true';
           break;
         case 'defaultEntityOutput':
@@ -213,17 +219,18 @@ COMMANDS:
 OPTIONS:
   --help, -h          Show this help message
 
-CONFIGURATION KEYS:
-  zorphyByDefault      Use Zorphy for entity generation (default: true)
-                       Set to false to use manual entity generation
-
-  jsonByDefault        Enable JSON serialization by default (default: true)
-  compareByDefault     Enable compareTo by default (default: true)
-  gqlByDefault         Enable GraphQL generation by default (default: false)
-  buildByDefault       Auto-run build_runner after entity/cache operations (default: false)
-  appendByDefault      Auto-append to existing repositories/datasources (default: false)
-  defaultEntityOutput  Default output directory for entities
-                       (default: lib/src/domain/entities)
+ CONFIGURATION KEYS:
+   zorphyByDefault      Use Zorphy for entity generation (default: true)
+                        Set to false to use manual entity generation
+ 
+   jsonByDefault        Enable JSON serialization by default (default: true)
+   compareByDefault     Enable compareTo by default (default: true)
+   gqlByDefault         Enable GraphQL generation by default (default: false)
+   buildByDefault       Auto-run build_runner after entity/cache operations (default: false)
+   appendByDefault      Auto-append to existing repositories/datasources (default: false)
+   formatByDefault      Auto-run dart format after generation (default: false)
+   defaultEntityOutput  Default output directory for entities
+                        (default: lib/src/domain/entities)
 
 EXAMPLES:
   # Initialize configuration in current project

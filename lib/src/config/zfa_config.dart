@@ -30,6 +30,9 @@ class ZfaConfig {
   /// Auto-append to existing repositories/datasources by default
   final bool appendByDefault;
 
+  /// Auto-run dart format after generation by default
+  final bool formatByDefault;
+
   const ZfaConfig({
     this.zorphyByDefault = true,
     this.jsonByDefault = true,
@@ -39,6 +42,7 @@ class ZfaConfig {
     this.gqlByDefault = false,
     this.buildByDefault = false,
     this.appendByDefault = false,
+    this.formatByDefault = false,
   });
 
   /// Load configuration from .zfa.json in project root
@@ -63,6 +67,7 @@ class ZfaConfig {
         gqlByDefault: json['gqlByDefault'] ?? false,
         buildByDefault: json['buildByDefault'] ?? false,
         appendByDefault: json['appendByDefault'] ?? false,
+        formatByDefault: json['formatByDefault'] ?? false,
       );
     } catch (e) {
       // Return defaults if config is invalid
@@ -82,6 +87,7 @@ class ZfaConfig {
       'filterByDefault': config.filterByDefault,
       'buildByDefault': config.buildByDefault,
       'appendByDefault': config.appendByDefault,
+      'formatByDefault': config.formatByDefault,
       if (config.defaultEntityOutput != null)
         'defaultEntityOutput': config.defaultEntityOutput,
     };

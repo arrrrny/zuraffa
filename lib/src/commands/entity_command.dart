@@ -16,13 +16,18 @@ class EntityCommand {
 
     final subCommand = args[0];
 
-    // Check for --build flag
+    // Check for --build and --dart-format flags
     final shouldBuild = args.contains('--build');
-    final subArgs = args.skip(1).where((arg) => arg != '--build').toList();
+    final shouldFormat = args.contains('--dart-format');
+    final subArgs = args
+        .skip(1)
+        .where((arg) => arg != '--build' && arg != '--dart-format')
+        .toList();
 
-    // Load config to check buildByDefault
+    // Load config to check buildByDefault and formatByDefault
     final config = ZfaConfig.load();
     final runBuild = shouldBuild || (config?.buildByDefault ?? false);
+    final runFormat = shouldFormat || (config?.formatByDefault ?? false);
 
     try {
       await _executeZorphy(subCommand, subArgs);
@@ -32,6 +37,13 @@ class EntityCommand {
         print('');
         print('🔨 Running build_runner...');
         await _runBuild();
+      }
+
+      // Run dart format if requested
+      if (runFormat) {
+        print('');
+        print('🎨 Formatting generated code...');
+        await _runFormat();
       }
     } catch (e) {
       print('❌ Error executing entity command: $e');
@@ -131,6 +143,23 @@ class EntityCommand {
     print('\n✅ Build completed successfully!');
   }
 
+  /// Run dart format
+  Future<void> _runFormat() async {
+    final process = await Process.start('dart', [
+      'format',
+      '.',
+    ], mode: ProcessStartMode.inheritStdio);
+
+    final exitCode = await process.exitCode;
+
+    if (exitCode != 0) {
+      print('\n⚠️  dart format exited with code $exitCode (non-critical)');
+      return;
+    }
+
+    print('✅ Code formatted successfully!');
+  }
+
   /// Print help for the entity command
   void _printHelp() {
     print('''
@@ -185,14 +214,18 @@ NEW COMMAND:
     --json                  Enable JSON (default: true)
     --filter                Enable type-safe filters (default: false)
 
-ADD-FIELD COMMAND:
-  zfa entity add-field [options]
-  Options:
-    -n, --name              Entity name (required)
-    -o, --output            Output base directory (default: lib/src/domain/entities)
-    --field                 Add one or more fields ("name:type" or "name:type?")
+ ADD-FIELD COMMAND:
+   zfa entity add-field [options]
+   Options:
+     -n, --name              Entity name (required)
+     -o, --output            Output base directory (default: lib/src/domain/entities)
+     --field                 Add one or more fields ("name:type" or "name:type?")
 
-FROM-JSON COMMAND:
+ GLOBAL OPTIONS:
+   --build                  Run build_runner after generation (auto if buildByDefault=true)
+   --dart-format            Run dart format after generation (auto if formatByDefault=true)
+
+ FROM-JSON COMMAND:
   zfa entity from-json <file.json> [options]
   Options:
     --name                  Entity name (inferred from file if not provided)

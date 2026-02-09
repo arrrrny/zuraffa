@@ -78,12 +78,14 @@ class GenerateCommand {
     final verbose = results['verbose'] == true;
     final quiet = results['quiet'] == true;
     final shouldBuild = results['build'] == true;
+    final shouldFormat = results['dart-format'] == true;
 
-    // Load config to check buildByDefault
+    // Load config to check buildByDefault and formatByDefault
     final zfaConfig = ZfaConfig.load();
     final runBuild =
         shouldBuild ||
         (config.enableCache && (zfaConfig?.buildByDefault ?? false));
+    final runFormat = shouldFormat || (zfaConfig?.formatByDefault ?? false);
 
     final generator = CodeGenerator(
       config: config,
@@ -119,8 +121,8 @@ class GenerateCommand {
       await _runBuild();
     }
 
-    // Run dart format if generation succeeded
-    if (result.success && !dryRun) {
+    // Run dart format if generation succeeded and requested
+    if (runFormat && result.success && !dryRun) {
       print('');
       print('🎨 Formatting generated code...');
       await _runFormat(outputDir);
@@ -638,6 +640,11 @@ class GenerateCommand {
         help:
             'Run build_runner after generation (auto for --cache if buildByDefault=true)',
         defaultsTo: false,
+      )
+      ..addFlag(
+        'dart-format',
+        help: 'Run dart format after generation (auto if formatByDefault=true)',
+        defaultsTo: false,
       );
   }
 
@@ -739,15 +746,16 @@ VPC LAYER:
   --observer            Generate Observer class
   -t, --test            Generate Unit Tests
 
-INPUT/OUTPUT:
-  -j, --from-json       JSON configuration file
-  --from-stdin          Read JSON from stdin
-  -o, --output          Output directory (default: lib/src)
-  --format=json|text    Output format (default: text)
-  --dry-run             Preview without writing files
-  --force               Overwrite existing files
-  -v, --verbose         Verbose output
-  -q, --quiet           Minimal output
+ INPUT/OUTPUT:
+   -j, --from-json       JSON configuration file
+   --from-stdin          Read JSON from stdin
+   -o, --output          Output directory (default: lib/src)
+   --format=json|text    Output format (default: text)
+   --dart-format         Run dart format after generation (auto if formatByDefault=true)
+   --dry-run             Preview without writing files
+   --force               Overwrite existing files
+   -v, --verbose         Verbose output
+   -q, --quiet           Minimal output
 
 EXAMPLES:
   # Entity-based CRUD with VPC and State
