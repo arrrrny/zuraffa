@@ -526,7 +526,7 @@ import 'package:zuraffa/zuraffa.dart';
 ${repoImports.join('\n')}
 import '${entitySnake}_controller.dart';
 import '${entitySnake}_presenter.dart';
-${routeParamComments.isNotEmpty ? '\n' + routeParamComments.join('\n') : ''}
+${routeParamComments.isNotEmpty ? '\n${routeParamComments.join('\n')}' : ''}
 class $viewName extends CleanView {
 ${repoFields.join('\n')}
 ${routeParamFields.join('\n')}

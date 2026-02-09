@@ -74,11 +74,11 @@ class RouteGenerator {
     final newExtensionMethods = <String>[
       "  void goTo${entityPascal}List() => go(AppRoutes.${routeNameBase}List);",
       if (hasSubRoutes && (hasUpdate || hasDelete || hasGet || hasWatch))
-        "  void goTo${entityPascal}Detail(String id) => go('${routeBase}/\$id');",
+        "  void goTo${entityPascal}Detail(String id) => go('$routeBase/\$id');",
       if (hasCreate)
         "  void goTo${entityPascal}Create() => go(AppRoutes.${routeNameBase}Create);",
       if (hasUpdate)
-        "  void goTo${entityPascal}Update(String id) => go('${routeBase}/\$id/edit');",
+        "  void goTo${entityPascal}Update(String id) => go('$routeBase/\$id/edit');",
     ];
 
     String content;
@@ -137,10 +137,10 @@ ${extensionMethods.join('\n')}
 
     // Check and add imports if missing
     if (!content.contains("import 'package:flutter/material.dart';")) {
-      content = "import 'package:flutter/material.dart';\n" + content;
+      content = "import 'package:flutter/material.dart';\n$content";
     }
     if (!content.contains("import 'package:go_router/go_router.dart';")) {
-      content = "import 'package:go_router/go_router.dart';\n" + content;
+      content = "import 'package:go_router/go_router.dart';\n$content";
     }
 
     // Add new route constants before the closing brace of AppRoutes
@@ -149,12 +149,9 @@ ${extensionMethods.join('\n')}
       content.indexOf('extension RouterExtension'),
     );
     if (appRoutesEnd != -1) {
-      final newRoutesBlock = '\n' + newRouteConstants.join('\n');
+      final newRoutesBlock = '\n${newRouteConstants.join('\n')}';
       content =
-          content.substring(0, appRoutesEnd) +
-          newRoutesBlock +
-          '\n' +
-          content.substring(appRoutesEnd);
+          '${content.substring(0, appRoutesEnd)}$newRoutesBlock\n${content.substring(appRoutesEnd)}';
     }
 
     // Add new extension methods before the closing brace of RouterExtension
@@ -173,12 +170,9 @@ ${extensionMethods.join('\n')}
       }
 
       if (braceCount == 0) {
-        final newMethodsBlock = '\n' + newExtensionMethods.join('\n');
+        final newMethodsBlock = '\n${newExtensionMethods.join('\n')}';
         content =
-            content.substring(0, extEnd - 1) +
-            newMethodsBlock +
-            '\n' +
-            content.substring(extEnd - 1);
+            '${content.substring(0, extEnd - 1)}$newMethodsBlock\n${content.substring(extEnd - 1)}';
       }
     }
 

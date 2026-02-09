@@ -15,7 +15,7 @@ class MethodAppender {
     this.verbose = false,
   });
 
-  /// Extracts entity name from a type string (e.g., "Customer", "List<Customer>", "Stream<Customer>")
+  /// Extracts entity name from a type string (e.g., `&lt;Customer&gt;`, `List&lt;Customer&gt;`, `Stream&lt;Customer&gt;`)
   String? _extractEntityName(String type) {
     // Handle generic types like List<T>, Stream<T>, Future<T>, Result<T, E>
     final genericMatch = RegExp(r'^\w+<([^>]+)>').firstMatch(type);
@@ -144,7 +144,7 @@ class MethodAppender {
         final textAfterImport = modifiedContent.substring(insertPosition);
         if (!textAfterImport.startsWith('\n')) {
           // No newline, add one before the import
-          importStatement = '\n' + importStatement;
+          importStatement = '\n$importStatement';
         }
         modifiedContent =
             modifiedContent.substring(0, insertPosition) +
