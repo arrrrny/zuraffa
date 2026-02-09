@@ -991,11 +991,14 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
     String entityCamel,
   ) {
     final methods = <String>[];
+    final hasListMethods = config.methods.any(
+      (m) => m == 'getList' || m == 'watchList',
+    );
 
     for (final method in config.methods) {
       switch (method) {
         case 'get':
-          if (config.idField == 'null') {
+          if (config.idField == 'null' || !hasListMethods) {
             methods.add('''
   @override
   Future<$entityName> get() async {
@@ -1042,7 +1045,6 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
   Future<$entityName> create($entityName item) async {
       logger.info('Creating $entityName: \${item.id}');
       await Future.delayed(_delay);
-      // In a real implementation, you'd add to storage
       logger.info('Successfully created $entityName: \${item.id}');
       return item;
   }''');
@@ -1052,7 +1054,8 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
           final dataType = config.useZorphy
               ? '${entityName}Patch'
               : 'Map<String, dynamic>';
-          methods.add('''
+          if (hasListMethods) {
+            methods.add('''
   @override
   Future<$entityName> update(UpdateParams<${config.idType}, $dataType> params) async {
     logger.info('Updating $entityName with id: \${params.id}');
@@ -1061,14 +1064,25 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
       (item) => item.${config.idField} == params.id,
       orElse: () => throw notFoundFailure('$entityName not found'),
     );
-    // In a real implementation, you'd apply the update
     logger.info('Successfully updated $entityName');
     return existing;
   }''');
+          } else {
+            methods.add('''
+  @override
+  Future<$entityName> update(UpdateParams<${config.idType}, $dataType> params) async {
+    logger.info('Updating $entityName');
+    await Future.delayed(_delay);
+    final existing = ${entityName}MockData.sample$entityName;
+    logger.info('Successfully updated $entityName');
+    return existing;
+  }''');
+          }
           break;
 
         case 'delete':
-          methods.add('''
+          if (hasListMethods) {
+            methods.add('''
   @override
   Future<void> delete(DeleteParams<${config.idType}> params) async {
     logger.info('Deleting $entityName with id: \${params.id}');
@@ -1077,16 +1091,24 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
     if (!exists) {
       throw notFoundFailure('$entityName not found');
     }
-    // In a real implementation, you'd remove from storage
     logger.info('Successfully deleted $entityName');
   }''');
+          } else {
+            methods.add('''
+  @override
+  Future<void> delete(DeleteParams<${config.idType}> params) async {
+    logger.info('Deleting $entityName');
+    await Future.delayed(_delay);
+    logger.info('Successfully deleted $entityName');
+  }''');
+          }
           break;
 
         case 'watch':
-          if (config.idField == 'null') {
+          if (config.idField == 'null' || !hasListMethods) {
             methods.add('''
   @override
-  Stream<$entityName> watch() {
+  Stream<$entityName> watch(${config.idField == 'null' ? '' : 'QueryParams<$entityName> params'}) {
     return Stream.periodic(const Duration(seconds: 1), (count) {
       return ${entityName}MockData.sample$entityName;
     }).take(10); // Limit for demo
@@ -1098,7 +1120,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
     return Stream.periodic(const Duration(seconds: 1), (count) {
       final item = ${entityName}MockData.${entityCamel}s.query(params);
       return item;
-    }).take(10); // Limit for demo
+    }).take(10);
   }''');
           }
           break;
@@ -1113,7 +1135,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
         items = items.take(params.limit!).toList();
       }
       return items;
-    }).take(5); // Limit for demo
+    }).take(5);
   }''');
           break;
       }
