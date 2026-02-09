@@ -771,7 +771,8 @@ class ZuraffaMcpServer {
         'properties': {
           'path': {
             'type': 'string',
-            'description': 'Project root directory (default: current directory)',
+            'description':
+                'Project root directory (default: current directory)',
           },
         },
       },
@@ -782,8 +783,7 @@ class ZuraffaMcpServer {
   Map<String, dynamic> _configShowToolDefinition() {
     return {
       'name': 'config_show',
-      'description':
-          'Show current ZFA configuration settings from .zfa.json',
+      'description': 'Show current ZFA configuration settings from .zfa.json',
       'inputSchema': {'type': 'object', 'properties': {}},
     };
   }
@@ -812,8 +812,7 @@ class ZuraffaMcpServer {
             ],
           },
           'value': {
-            'description':
-                'Value to set (boolean for flags, string for paths)',
+            'description': 'Value to set (boolean for flags, string for paths)',
           },
         },
         'required': ['key', 'value'],
@@ -872,8 +871,7 @@ class ZuraffaMcpServer {
           },
           'service': {
             'type': 'string',
-            'description':
-                'Service name to inject (alternative to repo)',
+            'description': 'Service name to inject (alternative to repo)',
           },
           'exclude': {
             'type': 'string',
@@ -890,7 +888,8 @@ class ZuraffaMcpServer {
           },
           'zorphy': {
             'type': 'boolean',
-            'description': 'Use Zorphy annotations for entities (default: true)',
+            'description':
+                'Use Zorphy annotations for entities (default: true)',
           },
           'dry_run': {
             'type': 'boolean',
