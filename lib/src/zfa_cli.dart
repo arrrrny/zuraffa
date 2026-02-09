@@ -8,7 +8,7 @@ import 'commands/initialize_command.dart';
 import 'commands/entity_command.dart';
 import 'commands/graphql_command.dart';
 
-const version = '2.7.0';
+const version = '2.8.0';
 
 Future<void> run(List<String> args) async {
   if (args.isEmpty) {
