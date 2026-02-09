@@ -178,6 +178,7 @@ export 'src/core/ast/append_executor.dart';
 export 'src/core/ast/strategies/append_strategy.dart';
 export 'src/core/ast/strategies/method_append_strategy.dart';
 export 'src/core/ast/strategies/export_append_strategy.dart';
+export 'src/plugins/usecase/usecase_plugin.dart';
 export 'src/core/builder/code_builder_factory.dart';
 export 'src/core/builder/factories/usecase_factory.dart';
 export 'src/core/builder/factories/repository_factory.dart';

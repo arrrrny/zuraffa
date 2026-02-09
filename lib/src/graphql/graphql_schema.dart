@@ -110,19 +110,13 @@ class GqlField {
   final String name;
   final String? description;
   final GqlTypeRef type;
-<<<<<<< HEAD
   final List<GqlArgument> args;
-=======
->>>>>>> dc0ca2f (feat(graphql): add GraphQL schema models for introspection)
 
   const GqlField({
     required this.name,
     this.description,
     required this.type,
-<<<<<<< HEAD
     this.args = const [],
-=======
->>>>>>> dc0ca2f (feat(graphql): add GraphQL schema models for introspection)
   });
 
   factory GqlField.fromJson(Map<String, dynamic> json) {
