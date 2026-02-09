@@ -306,14 +306,19 @@ ${methods.join('\n\n')}
 
     // Generate Hive implementation if specified
     if (config.cacheStorage == 'hive') {
-      if (config.idField == 'null') {
-        // For singleton entities, use entity name as key
+      final hasListMethods = config.methods.any(
+        (m) => m == 'getList' || m == 'watchList',
+      );
+
+      if (config.idField == 'null' || !hasListMethods) {
+        // Single entity cache — use entity name as fixed key
         methods.add('''
   Future<$entityName> save($entityName $entityCamel) async {
     await _box.put('$entitySnake', $entityCamel);
     return $entityCamel;
   }''');
       } else {
+        // Collection cache — key by entity id
         methods.add('''
   Future<$entityName> save($entityName $entityCamel) async {
     await _box.put($entityCamel.${config.idField}, $entityCamel);
@@ -335,10 +340,10 @@ ${methods.join('\n\n')}
       for (final method in config.methods) {
         switch (method) {
           case 'get':
-            if (config.idField == 'null') {
+            if (config.idField == 'null' || !hasListMethods) {
               methods.add('''
   @override
-  Future<$entityName> get() async {
+  Future<$entityName> get(${config.idField == 'null' ? '' : 'QueryParams<$entityName> params'}) async {
     final item = _box.get('$entitySnake');
     if (item == null) {
       throw notFoundFailure('$entityName not found in cache');
@@ -361,18 +366,28 @@ ${methods.join('\n\n')}
   }''');
             break;
           case 'create':
-            methods.add('''
+            if (hasListMethods) {
+              methods.add('''
   @override
   Future<$entityName> create($entityName $entityCamel) async {
     await _box.put($entityCamel.${config.idField}, $entityCamel);
     return $entityCamel;
   }''');
+            } else {
+              methods.add('''
+  @override
+  Future<$entityName> create($entityName $entityCamel) async {
+    await _box.put('$entitySnake', $entityCamel);
+    return $entityCamel;
+  }''');
+            }
             break;
           case 'update':
             final dataType = config.useZorphy
                 ? '${config.name}Patch'
                 : 'Partial<${config.name}>';
-            methods.add('''
+            if (hasListMethods) {
+              methods.add('''
   @override
   Future<${config.name}> update(UpdateParams<${config.idType}, $dataType> params) async {
     final existing = _box.values.firstWhere(
@@ -387,9 +402,27 @@ ${methods.join('\n\n')}
     await _box.put(existing.${config.idField}, existing);
     return existing;'''}
   }''');
+            } else {
+              methods.add('''
+  @override
+  Future<${config.name}> update(UpdateParams<${config.idType}, $dataType> params) async {
+    final existing = _box.get('$entitySnake');
+    if (existing == null) {
+      throw notFoundFailure('$entityName not found in cache');
+    }
+    ${config.useZorphy ? '''
+    final updated = params.data.applyTo(existing);
+    await _box.put('$entitySnake', updated);
+    return updated;''' : '''
+    // TODO: Apply Partial<$entityName> patch to existing entity
+    await _box.put('$entitySnake', existing);
+    return existing;'''}
+  }''');
+            }
             break;
           case 'delete':
-            methods.add('''
+            if (hasListMethods) {
+              methods.add('''
   @override
   Future<void> delete(DeleteParams<${config.idType}> params) async {
     final existing = _box.values.firstWhere(
@@ -398,13 +431,26 @@ ${methods.join('\n\n')}
     );
     await _box.delete(existing.${config.idField});
   }''');
-            break;
-          case 'watch':
-            if (config.idField == 'null') {
+            } else {
               methods.add('''
   @override
-  Stream<$entityName> watch() {
-    return _box.watch().map((_) => _box.values.first);
+  Future<void> delete(DeleteParams<${config.idType}> params) async {
+    await _box.delete('$entitySnake');
+  }''');
+            }
+            break;
+          case 'watch':
+            if (config.idField == 'null' || !hasListMethods) {
+              methods.add('''
+  @override
+  Stream<$entityName> watch(${config.idField == 'null' ? '' : 'QueryParams<$entityName> params'}) {
+    return _box.watch(key: '$entitySnake').map((_) {
+      final item = _box.get('$entitySnake');
+      if (item == null) {
+        throw notFoundFailure('$entityName not found in cache');
+      }
+      return item;
+    });
   }''');
             } else {
               methods.add('''
