@@ -161,6 +161,11 @@ class GenerateCommand {
       final shouldAppend =
           results['append'] == true ||
           (!isEntityBased && zfaConfig.appendByDefault);
+      final useZorhpy = results['zorphy'] || zfaConfig.zorphyByDefault;
+      final idFieldType =
+          results['id-field'] == 'null' || results['id-field-type'] == 'null'
+          ? 'NoParams'
+          : results['id-field-type'] ?? results['id-type'] ?? 'String';
 
       return GeneratorConfig(
         name: name,
@@ -180,7 +185,7 @@ class GenerateCommand {
         paramsType: results['params'],
         returnsType: results['returns'],
         idField: results['id-field'] ?? 'id',
-        idType: results['id-field-type'] ?? results['id-type'] ?? 'String',
+        idType: idFieldType,
         generateVpc: results['vpc'] == true || results['vpcs'] == true,
         generateView:
             results['view'] == true ||
@@ -208,7 +213,7 @@ class GenerateCommand {
         generateInit: results['init'] == true,
         queryField: results['query-field'] ?? results['id-field'] ?? 'id',
         queryFieldType: results['query-field-type'],
-        useZorphy: results['zorphy'] == true,
+        useZorphy: useZorhpy,
         generateTest: results['test'] == true,
         enableCache: results['cache'] == true,
         cachePolicy: results['cache-policy'] ?? 'daily',
