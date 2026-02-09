@@ -11,11 +11,7 @@ import 'observer_generator.dart';
 import 'data_layer_generator.dart';
 import 'test_generator.dart';
 import 'mock_generator.dart';
-import 'di_generator.dart';
-import 'cache_generator.dart';
-import 'graphql_generator.dart';
-import 'route_generator.dart';
-import 'method_appender.dart';
+import '../core/generation/code_builder_factory.dart';
 import '../core/generation/generation_context.dart';
 import '../core/transaction/generation_transaction.dart';
 
@@ -26,6 +22,7 @@ class CodeGenerator {
   final bool force;
   final bool verbose;
   final GenerationContext context;
+  late final CodeBuilderFactory builderFactory;
 
   late final RepositoryGenerator _repositoryGenerator;
   late final ServiceGenerator _serviceGenerator;
@@ -43,22 +40,24 @@ class CodeGenerator {
     this.dryRun = false,
     this.force = false,
     this.verbose = false,
-  }) : context = GenerationContext(
+  }) : context = GenerationContext.create(
           config: config,
           outputDir: outputDir,
           dryRun: dryRun,
           force: force,
           verbose: verbose,
+          root: outputDir,
         ) {
-    _repositoryGenerator = RepositoryGenerator.fromContext(context);
-    _serviceGenerator = ServiceGenerator.fromContext(context);
-    _providerGenerator = ProviderGenerator.fromContext(context);
-    _useCaseGenerator = UseCaseGenerator.fromContext(context);
-    _vpcGenerator = VpcGenerator.fromContext(context);
-    _stateGenerator = StateGenerator.fromContext(context);
-    _observerGenerator = ObserverGenerator.fromContext(context);
-    _dataLayerGenerator = DataLayerGenerator.fromContext(context);
-    _testGenerator = TestGenerator.fromContext(context);
+    builderFactory = CodeBuilderFactory(context);
+    _repositoryGenerator = builderFactory.repository();
+    _serviceGenerator = builderFactory.service();
+    _providerGenerator = builderFactory.provider();
+    _useCaseGenerator = builderFactory.usecase();
+    _vpcGenerator = builderFactory.vpc();
+    _stateGenerator = builderFactory.state();
+    _observerGenerator = builderFactory.observer();
+    _dataLayerGenerator = builderFactory.dataLayer();
+    _testGenerator = builderFactory.test();
   }
 
   Future<GeneratorResult> generate() async {
@@ -95,7 +94,7 @@ class CodeGenerator {
 
       try {
         if (config.appendToExisting) {
-          final appender = MethodAppender.fromContext(context);
+          final appender = builderFactory.methodAppender();
           final appendResult = await appender.appendMethod();
 
           if (config.isPolymorphic) {
@@ -117,7 +116,7 @@ class CodeGenerator {
           }
 
           if (config.generateGql) {
-            final graphqlGenerator = GraphQLGenerator.fromContext(context);
+            final graphqlGenerator = builderFactory.graphql();
             final graphqlFiles = await graphqlGenerator.generate();
             files.addAll(graphqlFiles);
           }
@@ -284,13 +283,13 @@ class CodeGenerator {
         }
 
         if (config.generateDi) {
-          final diGenerator = DiGenerator.fromContext(context);
+          final diGenerator = builderFactory.di();
           final diFiles = await diGenerator.generate();
           files.addAll(diFiles);
         }
 
         if (config.generateRoute) {
-          final routeGenerator = RouteGenerator.fromContext(context);
+          final routeGenerator = builderFactory.route();
           final routeFiles = await routeGenerator.generate();
           files.addAll(routeFiles);
           nextSteps.add('Add go_router to your pubspec.yaml dependencies');
@@ -298,7 +297,7 @@ class CodeGenerator {
         }
 
         if (config.enableCache) {
-          final cacheGenerator = CacheGenerator.fromContext(context);
+          final cacheGenerator = builderFactory.cache();
           final cacheFiles = await cacheGenerator.generate();
           files.addAll(cacheFiles);
           nextSteps.add('Run: dart run build_runner build');
@@ -306,7 +305,7 @@ class CodeGenerator {
         }
 
         if (config.generateGql) {
-          final graphqlGenerator = GraphQLGenerator.fromContext(context);
+          final graphqlGenerator = builderFactory.graphql();
           final graphqlFiles = await graphqlGenerator.generate();
           files.addAll(graphqlFiles);
         }

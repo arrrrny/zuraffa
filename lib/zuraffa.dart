@@ -166,7 +166,11 @@ export 'src/core/cache_policy.dart';
 /// Concrete cache policy implementations (Daily, AppRestart, TTL)
 export 'src/core/cache_policies.dart';
 
+export 'src/core/generation/code_builder_factory.dart';
 export 'src/core/generation/generation_context.dart';
+export 'src/core/context/file_system.dart';
+export 'src/core/context/context_store.dart';
+export 'src/core/context/progress_reporter.dart';
 export 'src/core/plugin_system/plugin_interface.dart';
 export 'src/core/plugin_system/plugin_lifecycle.dart';
 export 'src/core/plugin_system/plugin_registry.dart';
