@@ -166,6 +166,10 @@ export 'src/core/cache_policy.dart';
 /// Concrete cache policy implementations (Daily, AppRestart, TTL)
 export 'src/core/cache_policies.dart';
 
+export 'src/core/plugin_system/plugin_interface.dart';
+export 'src/core/plugin_system/plugin_lifecycle.dart';
+export 'src/core/plugin_system/plugin_registry.dart';
+
 // ============================================================
 // Zorphy Integration - Type-safe filtering
 // ============================================================
