@@ -5,7 +5,7 @@ import 'package:zuraffa/src/models/generator_config.dart';
 void main() {
   test('CodeBuilderFactory creates generators with context', () {
     final config = GeneratorConfig(name: 'Order');
-    final context = GenerationContext(
+    final context = GenerationContext.create(
       config: config,
       outputDir: 'lib/src',
       dryRun: true,
