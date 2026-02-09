@@ -23,8 +23,13 @@ class DataLayerGenerator {
     final entitySnake = config.nameSnake;
     final entityCamel = config.nameCamel;
 
-    // Always generate remote datasource (the actual implementation)
-    await _generateRemoteDataSource();
+    // Generate either local or remote datasource based on config
+    if (config.generateLocal) {
+      await _generateLocalDataSource();
+    } else {
+      // Always generate remote datasource (the default implementation)
+      await _generateRemoteDataSource();
+    }
 
     // If caching is enabled, also generate local datasource
     if (config.enableCache) {
@@ -51,13 +56,9 @@ class DataLayerGenerator {
     for (final method in config.methods) {
       switch (method) {
         case 'get':
-          if (config.idField == 'null' || config.queryField == 'null') {
-            methods.add('  Future<$entityName> get();');
-          } else {
-            methods.add(
-              '  Future<$entityName> get(QueryParams<$entityName> params);',
-            );
-          }
+          methods.add(
+            '  Future<$entityName> get(QueryParams<$entityName> params);',
+          );
           break;
         case 'getList':
           methods.add(
@@ -83,13 +84,9 @@ class DataLayerGenerator {
           );
           break;
         case 'watch':
-          if (config.idField == 'null' || config.queryField == 'null') {
-            methods.add('  Stream<$entityName> watch();');
-          } else {
-            methods.add(
-              '  Stream<$entityName> watch(QueryParams<$entityName> params);',
-            );
-          }
+          methods.add(
+            '  Stream<$entityName> watch(QueryParams<$entityName> params);',
+          );
           break;
         case 'watchList':
           methods.add(
@@ -162,21 +159,12 @@ ${methods.join('\n')}
     for (final method in config.methods) {
       switch (method) {
         case 'get':
-          if (config.idField == 'null' || config.queryField == 'null') {
-            methods.add('''
-  @override
-  Future<$entityName> get() async {
-    // TODO: Implement remote API call
-    throw UnimplementedError('Implement remote get');
-  }''');
-          } else {
-            methods.add('''
+          methods.add('''
   @override
   Future<$entityName> get(QueryParams<$entityName> params) async {
     // TODO: Implement remote API call
     throw UnimplementedError('Implement remote get');
   }''');
-          }
           break;
         case 'getList':
           methods.add('''
@@ -214,21 +202,12 @@ ${methods.join('\n')}
   }''');
           break;
         case 'watch':
-          if (config.idField == 'null' || config.queryField == 'null') {
-            methods.add('''
-  @override
-  Stream<$entityName> watch() {
-    // TODO: Implement remote stream (WebSocket, SSE, etc.)
-    throw UnimplementedError('Implement remote watch');
-  }''');
-          } else {
-            methods.add('''
+          methods.add('''
   @override
   Stream<$entityName> watch(QueryParams<$entityName> params) {
     // TODO: Implement remote stream (WebSocket, SSE, etc.)
     throw UnimplementedError('Implement remote watch');
   }''');
-          }
           break;
         case 'watchList':
           methods.add('''
@@ -286,9 +265,9 @@ ${methods.join('\n\n')}
     final filePath = path.join(dataSourceDirPath, fileName);
 
     final methods = <String>[];
-    final storageComment = config.cacheStorage != null
-        ? '// Using ${config.cacheStorage} for local storage'
-        : '// TODO: Choose storage (Hive, SQLite, SharedPreferences, etc.)';
+
+    // Determine if we're using Hive (always true for --local or --cache with hive)
+    final useHive = config.generateLocal || config.cacheStorage == 'hive';
 
     if (config.generateInit) {
       methods.add('''
@@ -304,16 +283,21 @@ ${methods.join('\n\n')}
   Stream<bool> get isInitialized => Stream.value(true);''');
     }
 
-    // Generate Hive implementation if specified
-    if (config.cacheStorage == 'hive') {
-      if (config.idField == 'null') {
-        // For singleton entities, use entity name as key
+    // Generate Hive implementation
+    if (useHive) {
+      final hasListMethods = config.methods.any(
+        (m) => m == 'getList' || m == 'watchList',
+      );
+
+      if (!hasListMethods) {
+        // Single entity cache — use entity name as fixed key
         methods.add('''
   Future<$entityName> save($entityName $entityCamel) async {
     await _box.put('$entitySnake', $entityCamel);
     return $entityCamel;
   }''');
       } else {
+        // Collection cache — key by entity id
         methods.add('''
   Future<$entityName> save($entityName $entityCamel) async {
     await _box.put($entityCamel.${config.idField}, $entityCamel);
@@ -335,23 +319,11 @@ ${methods.join('\n\n')}
       for (final method in config.methods) {
         switch (method) {
           case 'get':
-            if (config.idField == 'null') {
-              methods.add('''
-  @override
-  Future<$entityName> get() async {
-    final item = _box.get('$entitySnake');
-    if (item == null) {
-      throw notFoundFailure('$entityName not found in cache');
-    }
-    return item;
-  }''');
-            } else {
-              methods.add('''
+            methods.add('''
   @override
   Future<$entityName> get(QueryParams<$entityName> params) async {
     return _box.values.query(params);
   }''');
-            }
             break;
           case 'getList':
             methods.add('''
@@ -361,18 +333,28 @@ ${methods.join('\n\n')}
   }''');
             break;
           case 'create':
-            methods.add('''
+            if (hasListMethods) {
+              methods.add('''
   @override
   Future<$entityName> create($entityName $entityCamel) async {
     await _box.put($entityCamel.${config.idField}, $entityCamel);
     return $entityCamel;
   }''');
+            } else {
+              methods.add('''
+  @override
+  Future<$entityName> create($entityName $entityCamel) async {
+    await _box.put('$entitySnake', $entityCamel);
+    return $entityCamel;
+  }''');
+            }
             break;
           case 'update':
             final dataType = config.useZorphy
                 ? '${config.name}Patch'
                 : 'Partial<${config.name}>';
-            methods.add('''
+            if (hasListMethods) {
+              methods.add('''
   @override
   Future<${config.name}> update(UpdateParams<${config.idType}, $dataType> params) async {
     final existing = _box.values.firstWhere(
@@ -387,9 +369,27 @@ ${methods.join('\n\n')}
     await _box.put(existing.${config.idField}, existing);
     return existing;'''}
   }''');
+            } else {
+              methods.add('''
+  @override
+  Future<${config.name}> update(UpdateParams<${config.idType}, $dataType> params) async {
+    final existing = _box.get('$entitySnake');
+    if (existing == null) {
+      throw notFoundFailure('$entityName not found in cache');
+    }
+    ${config.useZorphy ? '''
+    final updated = params.data.applyTo(existing);
+    await _box.put('$entitySnake', updated);
+    return updated;''' : '''
+    // TODO: Apply Partial<$entityName> patch to existing entity
+    await _box.put('$entitySnake', existing);
+    return existing;'''}
+  }''');
+            }
             break;
           case 'delete':
-            methods.add('''
+            if (hasListMethods) {
+              methods.add('''
   @override
   Future<void> delete(DeleteParams<${config.idType}> params) async {
     final existing = _box.values.firstWhere(
@@ -398,27 +398,29 @@ ${methods.join('\n\n')}
     );
     await _box.delete(existing.${config.idField});
   }''');
-            break;
-          case 'watch':
-            if (config.idField == 'null') {
-              methods.add('''
-  @override
-  Stream<$entityName> watch() {
-    return _box.watch().map((_) => _box.values.first);
-  }''');
             } else {
               methods.add('''
   @override
-  Stream<$entityName> watch(QueryParams<$entityName> params) {
-    return _box.watch().map((_) => _box.values.query(params));
+  Future<void> delete(DeleteParams<${config.idType}> params) async {
+    await _box.delete('$entitySnake');
   }''');
             }
+            break;
+          case 'watch':
+            methods.add('''
+  @override
+  Stream<$entityName> watch(QueryParams<$entityName> params) async* {
+    yield _box.values.query(params);
+  }''');
             break;
           case 'watchList':
             methods.add('''
   @override
-  Stream<List<$entityName>> watchList(ListQueryParams<$entityName> params) {
-    return _box.watch().map((_) => _box.values.filter(params.filter).orderBy(params.sort));
+  Stream<List<$entityName>> watchList(ListQueryParams<$entityName> params) async* {
+    final existing = _box.values.filter(params.filter).orderBy(params.sort);
+    yield existing;
+
+    yield* _box.watch().map((_) => _box.values.filter(params.filter).orderBy(params.sort));
   }''');
             break;
         }
@@ -427,7 +429,7 @@ ${methods.join('\n\n')}
       final content =
           '''
 // Generated by zfa
-// zfa generate $entityName --methods=${config.methods.join(',')} --data --cache --cache-storage=hive
+// zfa generate $entityName --methods=${config.methods.join(',')} --data${config.generateLocal ? ' --local' : ' --cache --cache-storage=hive'}
 
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:zuraffa/zuraffa.dart';
@@ -435,6 +437,9 @@ import '${relativePath}domain/entities/$entitySnake/$entitySnake.dart';
 import '${entitySnake}_data_source.dart';
 
 /// Local data source for $entityName using Hive.
+///
+/// Provides local storage functionality similar to mock data source,
+/// but persists data using Hive for production use.
 class $dataSourceName with Loggable, FailureHandler implements ${entityName}DataSource {
   final Box<$entityName> _box;
 
@@ -461,7 +466,7 @@ ${methods.join('\n\n')}
     throw UnimplementedError('Implement local save');
   }''');
 
-    if (config.idField != 'null') {
+    if (config.idType != 'NoParams') {
       methods.add('''
   Future<void> saveAll(List<$entityName> items) async {
     // TODO: Implement bulk save to local storage
@@ -478,19 +483,11 @@ ${methods.join('\n\n')}
     for (final method in config.methods) {
       switch (method) {
         case 'get':
-          if (config.idField == 'null') {
-            methods.add('''
-  Future<$entityName> get() async {
-    // TODO: Implement local storage read
-    throw UnimplementedError('Implement local get');
-  }''');
-          } else {
-            methods.add('''
+          methods.add('''
   Future<$entityName> get(QueryParams<$entityName> params) async {
     // TODO: Implement local storage read
     throw UnimplementedError('Implement local get');
   }''');
-          }
           break;
         case 'getList':
           methods.add('''
@@ -530,7 +527,7 @@ import '${entitySnake}_data_source.dart';
 
 /// Local data source for $entityName.
 ///
-/// $storageComment
+/// TODO: Choose storage (Hive, SQLite, SharedPreferences, etc.)
 class $dataSourceName with Loggable, FailureHandler implements ${entityName}DataSource {
   // TODO: Add storage dependency (Hive, SQLite, etc.)
   // final Box<$entityName> _box;
@@ -571,7 +568,11 @@ ${methods.join('\n\n')}
     final methods = <String>[];
 
     // Constructor parameters
-    final constructorParams = config.enableCache
+    final constructorParams = config.generateLocal
+        ? '''  final $localDataSourceName _dataSource;
+
+  $dataRepoName(this._dataSource);'''
+        : config.enableCache
         ? '''  final $dataSourceName _remoteDataSource;
   final $localDataSourceName _localDataSource;
   final CachePolicy _cachePolicy;
@@ -620,17 +621,26 @@ ${methods.join('\n\n')}
     }
 
     // Import statements
-    final dataSourceImport = config.enableCache
+    final dataSourceImport = config.generateLocal
+        ? '''import '${relativePath}data_sources/$entitySnake/${entitySnake}_local_data_source.dart';'''
+        : config.enableCache
         ? '''import '${relativePath}data_sources/$entitySnake/${entitySnake}_data_source.dart';
 import '${relativePath}data_sources/$entitySnake/${entitySnake}_local_data_source.dart';'''
         : '''import '${relativePath}data_sources/$entitySnake/${entitySnake}_data_source.dart';''';
 
+    final hasWatchMethods = config.methods.any(
+      (m) => m == 'watch' || m == 'watchList',
+    );
+    final asyncImport = config.enableCache && hasWatchMethods
+        ? "import 'dart:async';\n\n"
+        : '';
+
     final content =
         '''
 // Generated by zfa
-// zfa generate $entityName --methods=${config.methods.join(',')} --data${config.enableCache ? ' --cache=${config.cachePolicy}' : ''}
+// zfa generate $entityName --methods=${config.methods.join(',')} --data${config.enableCache ? ' --cache=${config.cachePolicy}' : ''}${config.generateLocal ? ' --local' : ''}
 
-import 'package:zuraffa/zuraffa.dart';
+${asyncImport}import 'package:zuraffa/zuraffa.dart';
 import '../../domain/entities/$entitySnake/$entitySnake.dart';
 import '../../domain/repositories/${entitySnake}_repository.dart';
 $dataSourceImport
@@ -659,17 +669,10 @@ ${methods.join('\n\n')}
   ) {
     switch (method) {
       case 'get':
-        if (config.idField == 'null' || config.queryField == 'null') {
-          return '''  @override
-  Future<$entityName> get() {
-    return _dataSource.get();
-  }''';
-        } else {
-          return '''  @override
+        return '''  @override
   Future<$entityName> get(QueryParams<$entityName> params) {
     return _dataSource.get(params);
   }''';
-        }
       case 'getList':
         return '''  @override
   Future<List<$entityName>> getList(ListQueryParams<$entityName> params) {
@@ -694,17 +697,10 @@ ${methods.join('\n\n')}
     return _dataSource.delete(params);
   }''';
       case 'watch':
-        if (config.idField == 'null' || config.queryField == 'null') {
-          return '''  @override
-  Stream<$entityName> watch() {
-    return _dataSource.watch();
-  }''';
-        } else {
-          return '''  @override
+        return '''  @override
   Stream<$entityName> watch(QueryParams<$entityName> params) {
     return _dataSource.watch(params);
   }''';
-        }
       case 'watchList':
         return '''  @override
   Stream<List<$entityName>> watchList(ListQueryParams<$entityName> params) {
@@ -724,29 +720,7 @@ ${methods.join('\n\n')}
 
     switch (method) {
       case 'get':
-        if (config.idField == 'null' || config.queryField == 'null') {
-          return '''  @override
-  Future<$entityName> get() async {
-    // Check cache validity
-    if (await _cachePolicy.isValid('$baseCacheKey')) {
-      try {
-        return await _localDataSource.get();
-      } catch (e) {
-        logger.severe('Cache miss, fetching from remote');
-      }
-    }
-
-    // Fetch from remote
-    final data = await _remoteDataSource.get();
-
-    // Update cache
-    await _localDataSource.save(data);
-    await _cachePolicy.markFresh('$baseCacheKey');
-
-    return data;
-  }''';
-        } else {
-          return '''  @override
+        return '''  @override
   Future<$entityName> get(QueryParams<$entityName> params) async {
     // Check cache validity
     if (await _cachePolicy.isValid('$baseCacheKey')) {
@@ -766,7 +740,6 @@ ${methods.join('\n\n')}
 
     return data;
   }''';
-        }
       case 'getList':
         return '''  @override
   Future<List<$entityName>> getList(ListQueryParams<$entityName> params) async {
@@ -835,51 +808,72 @@ ${methods.join('\n\n')}
     await _cachePolicy.invalidate('$baseCacheKey');
   }''';
       case 'watch':
-        if (config.idField == 'null' || config.queryField == 'null') {
-          return '''  @override
-  Stream<$entityName> watch() {
-    // Stream from remote and update cache in background
-    return _remoteDataSource.watch().map(
-      (data) {
-        // Update cache in background (fire and forget)
-        _localDataSource.save(data).then(
-          (_) => _cachePolicy.markFresh('$baseCacheKey'),
-          onError: (e) => logger.warning('Failed to update cache: \$e'),
-        );
-        return data;
-      },
-    );
-  }''';
-        } else {
-          return '''  @override
+        return '''  @override
   Stream<$entityName> watch(QueryParams<$entityName> params) {
-    // Stream from remote and update cache in background
-    return _remoteDataSource.watch(params).map(
-      (data) {
-        // Update cache in background (fire and forget)
-        _localDataSource.save(data).then(
-          (_) => _cachePolicy.markFresh('$baseCacheKey'),
-          onError: (e) => logger.warning('Failed to update cache: \$e'),
+    // Local drives the stream, remote syncs in background
+    late final StreamController<$entityName> controller;
+    StreamSubscription<$entityName>? localSub;
+    StreamSubscription<$entityName>? remoteSub;
+
+    controller = StreamController<$entityName>(
+      onListen: () {
+        localSub = _localDataSource.watch(params).listen(
+          controller.add,
+          onError: controller.addError,
         );
-        return data;
+        remoteSub = _remoteDataSource.watch(params).listen(
+          (data) async {
+            try {
+              await _localDataSource.save(data);
+              await _cachePolicy.markFresh('$baseCacheKey');
+            } catch (e) {
+              logger.warning('Failed to persist remote update: \$e');
+            }
+          },
+          onError: (e) => logger.warning('Remote watch error: \$e'),
+        );
+      },
+      onCancel: () async {
+        await remoteSub?.cancel();
+        await localSub?.cancel();
       },
     );
+
+    return controller.stream;
   }''';
-        }
       case 'watchList':
         return '''  @override
   Stream<List<$entityName>> watchList(ListQueryParams<$entityName> params) {
-    // Stream from remote and update cache in background
-    return _remoteDataSource.watchList(params).map(
-      (data) {
-        // Update cache in background (fire and forget)
-        _localDataSource.saveAll(data).then(
-          (_) => _cachePolicy.markFresh('$baseCacheKey'),
-          onError: (e) => logger.warning('Failed to update cache: \$e'),
+    // Local drives the stream, remote syncs in background
+    late final StreamController<List<$entityName>> controller;
+    StreamSubscription<List<$entityName>>? localSub;
+    StreamSubscription<List<$entityName>>? remoteSub;
+
+    controller = StreamController<List<$entityName>>(
+      onListen: () {
+        localSub = _localDataSource.watchList(params).listen(
+          controller.add,
+          onError: controller.addError,
         );
-        return data;
+        remoteSub = _remoteDataSource.watchList(params).listen(
+          (data) async {
+            try {
+              await _localDataSource.saveAll(data);
+              await _cachePolicy.markFresh('$baseCacheKey');
+            } catch (e) {
+              logger.warning('Failed to persist remote update: \$e');
+            }
+          },
+          onError: (e) => logger.warning('Remote watch error: \$e'),
+        );
+      },
+      onCancel: () async {
+        await remoteSub?.cancel();
+        await localSub?.cancel();
       },
     );
+
+    return controller.stream;
   }''';
       default:
         return '';

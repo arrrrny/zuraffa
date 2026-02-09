@@ -30,6 +30,15 @@ class ZfaConfig {
   /// Auto-append to existing repositories/datasources by default
   final bool appendByDefault;
 
+  /// Auto-run dart format after generation by default
+  final bool formatByDefault;
+
+  /// Auto-generate routing files when VPC is enabled
+  final bool routeByDefault;
+
+  /// Auto-generate DI files
+  final bool diByDefault;
+
   const ZfaConfig({
     this.zorphyByDefault = true,
     this.jsonByDefault = true,
@@ -39,6 +48,9 @@ class ZfaConfig {
     this.gqlByDefault = false,
     this.buildByDefault = false,
     this.appendByDefault = false,
+    this.formatByDefault = false,
+    this.routeByDefault = false,
+    this.diByDefault = false,
   });
 
   /// Load configuration from .zfa.json in project root
@@ -63,6 +75,9 @@ class ZfaConfig {
         gqlByDefault: json['gqlByDefault'] ?? false,
         buildByDefault: json['buildByDefault'] ?? false,
         appendByDefault: json['appendByDefault'] ?? false,
+        formatByDefault: json['formatByDefault'] ?? false,
+        routeByDefault: json['routeByDefault'] ?? false,
+        diByDefault: json['diByDefault'] ?? false,
       );
     } catch (e) {
       // Return defaults if config is invalid
@@ -82,6 +97,9 @@ class ZfaConfig {
       'filterByDefault': config.filterByDefault,
       'buildByDefault': config.buildByDefault,
       'appendByDefault': config.appendByDefault,
+      'formatByDefault': config.formatByDefault,
+      'routeByDefault': config.routeByDefault,
+      'diByDefault': config.diByDefault,
       if (config.defaultEntityOutput != null)
         'defaultEntityOutput': config.defaultEntityOutput,
     };

@@ -33,13 +33,9 @@ class RepositoryGenerator {
     for (final method in config.methods) {
       switch (method) {
         case 'get':
-          if (config.idField == 'null' || config.queryField == 'null') {
-            methods.add('  Future<${config.name}> get();');
-          } else {
-            methods.add(
-              '  Future<${config.name}> get(QueryParams<${config.name}> params);',
-            );
-          }
+          methods.add(
+            '  Future<${config.name}> get(QueryParams<${config.name}> params);',
+          );
           break;
         case 'getList':
           methods.add(
@@ -65,13 +61,9 @@ class RepositoryGenerator {
           );
           break;
         case 'watch':
-          if (config.idField == 'null' || config.queryField == 'null') {
-            methods.add('  Stream<${config.name}> watch();');
-          } else {
-            methods.add(
-              '  Stream<${config.name}> watch(QueryParams<${config.name}> params);',
-            );
-          }
+          methods.add(
+            '  Stream<${config.name}> watch(QueryParams<${config.name}> params);',
+          );
           break;
         case 'watchList':
           methods.add(

@@ -24,6 +24,7 @@ class GeneratorConfig {
   final bool generateObserver;
   final bool generateData;
   final bool generateDataSource;
+  final bool generateLocal;
   final bool generateState;
   final bool generateInit;
   final String queryField;
@@ -39,6 +40,7 @@ class GeneratorConfig {
   final bool useMockInDi;
   final bool generateDi;
   final String diFramework;
+  final bool generateRoute;
   final bool generateGql;
   final String? gqlReturns;
   final String? gqlType;
@@ -70,6 +72,7 @@ class GeneratorConfig {
     this.generateObserver = false,
     this.generateData = false,
     this.generateDataSource = false,
+    this.generateLocal = false,
     this.generateState = false,
     this.generateInit = false,
     this.queryField = 'id',
@@ -85,6 +88,7 @@ class GeneratorConfig {
     this.useMockInDi = false,
     this.generateDi = false,
     this.diFramework = 'get_it',
+    this.generateRoute = false,
     this.generateGql = false,
     this.gqlReturns,
     this.gqlType,
@@ -119,6 +123,7 @@ class GeneratorConfig {
       generateObserver: json['observer'] == true,
       generateData: json['data'] == true,
       generateDataSource: json['datasource'] == true,
+      generateLocal: json['local'] == true,
       generateState: json['state'] == true,
       generateInit: json['init'] == true,
       queryField: json['query_field'] ?? 'id',
@@ -138,6 +143,7 @@ class GeneratorConfig {
       useMockInDi: json['use_mock'] == true || json['use_mock_in_di'] == true,
       generateDi: json['di'] == true || json['generate_di'] == true,
       diFramework: json['di_framework'] ?? 'get_it',
+      generateRoute: json['route'] == true || json['generate_route'] == true,
       generateGql: json['gql'] == true || json['generate_gql'] == true,
       gqlReturns: json['gql_returns'],
       gqlType: json['gql_type'],

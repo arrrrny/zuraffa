@@ -50,10 +50,10 @@ class UseCaseGenerator {
     switch (method) {
       case 'get':
         className = 'Get${entityName}UseCase';
-        if (config.idField == 'null' || config.queryField == 'null') {
+        if (config.queryFieldType == 'NoParams') {
           baseClass = 'UseCase<$entityName, NoParams>';
           paramsType = 'NoParams';
-          executeBody = 'return _repository.get();';
+          executeBody = 'return _repository.get(const QueryParams());';
         } else {
           baseClass = 'UseCase<$entityName, QueryParams<$entityName>>';
           paramsType = 'QueryParams<$entityName>';
@@ -97,10 +97,10 @@ class UseCaseGenerator {
         break;
       case 'watch':
         className = 'Watch${entityName}UseCase';
-        if (config.idField == 'null' || config.queryField == 'null') {
+        if (config.queryFieldType == 'NoParams') {
           baseClass = 'StreamUseCase<$entityName, NoParams>';
           paramsType = 'NoParams';
-          executeBody = 'return _repository.watch();';
+          executeBody = 'return _repository.watch(const QueryParams());';
         } else {
           baseClass = 'StreamUseCase<$entityName, QueryParams<$entityName>>';
           paramsType = 'QueryParams<$entityName>';
@@ -803,8 +803,7 @@ $factoryCases
         return UseCaseInfo(
           className: 'Get${entityName}UseCase',
           fieldName: 'get$entityName',
-          presenterMethod:
-              config.idField == 'null' || config.queryField == 'null'
+          presenterMethod: config.queryFieldType == 'NoParams'
               ? '''  Future<Result<$entityName, AppFailure>> get$entityName() {
     return _get$entityName.call(const NoParams());
   }'''
@@ -859,8 +858,7 @@ $factoryCases
         return UseCaseInfo(
           className: 'Watch${entityName}UseCase',
           fieldName: 'watch$entityName',
-          presenterMethod:
-              config.idField == 'null' || config.queryField == 'null'
+          presenterMethod: config.queryFieldType == 'NoParams'
               ? '''  Stream<Result<$entityName, AppFailure>> watch$entityName() {
     return _watch$entityName.call(const NoParams());
   }'''

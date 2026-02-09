@@ -55,6 +55,7 @@ class GraphQLCommand {
     final displayStr = results['display'] as String?;
     final force = results['force'] == true;
     final verbose = results['verbose'] == true;
+    final shouldFormat = results['format'] == true;
 
     if (queriesStr != null || mutationsStr != null) {
       if (domain == null || domain.isEmpty) {
@@ -402,6 +403,7 @@ class GraphQLCommand {
         if (dryRun) '--dry-run',
         if (force) '--force',
         if (verbose) '--verbose',
+        if (shouldFormat) '--dart-format',
         '--output=$outputDir',
         '--quiet',
       ];
@@ -551,6 +553,11 @@ class GraphQLCommand {
         'data',
         help: 'Generate Data sources (DataSource/DataRepository)',
         defaultsTo: false,
+      )
+      ..addFlag(
+        'dart-format',
+        help: 'Run dart format after generation (auto if formatByDefault=true)',
+        defaultsTo: false,
       );
   }
 
@@ -575,11 +582,12 @@ OPTIONS:
   --data                  Generate functional Data layer (DataSource/DataRepo)
   --exclude=<types>       Types to exclude (comma-separated)
   --include=<types>       Types to include (legacy, use --entities)
-  --zorphy                Use Zorphy annotations (default: true)
-  --dry-run               Preview without writing files
-  -f, --force             Overwrite existing files
-  -v, --verbose           Verbose output
-  -d, --display=<list>    List available items (entities,queries,mutations,all)
+   --zorphy                Use Zorphy annotations (default: true)
+   --dry-run               Preview without writing files
+   -f, --force             Overwrite existing files
+   -v, --verbose           Verbose output
+   -d, --display=<list>    List available items (entities,queries,mutations,all)
+   --dart-format           Run dart format after generation (auto if formatByDefault=true)
 
 EXAMPLES:
   # Basic introspection (deprecated behavior, generates standard CRUD)

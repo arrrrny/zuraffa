@@ -78,12 +78,14 @@ class GenerateCommand {
     final verbose = results['verbose'] == true;
     final quiet = results['quiet'] == true;
     final shouldBuild = results['build'] == true;
+    final shouldFormat = results['dart-format'] == true;
 
-    // Load config to check buildByDefault
+    // Load config to check buildByDefault and formatByDefault
     final zfaConfig = ZfaConfig.load();
     final runBuild =
         shouldBuild ||
         (config.enableCache && (zfaConfig?.buildByDefault ?? false));
+    final runFormat = shouldFormat || (zfaConfig?.formatByDefault ?? false);
 
     final generator = CodeGenerator(
       config: config,
@@ -119,8 +121,8 @@ class GenerateCommand {
       await _runBuild();
     }
 
-    // Run dart format if generation succeeded
-    if (result.success && !dryRun) {
+    // Run dart format if generation succeeded and requested
+    if (runFormat && result.success && !dryRun) {
       print('');
       print('🎨 Formatting generated code...');
       await _runFormat(outputDir);
@@ -159,6 +161,20 @@ class GenerateCommand {
       final shouldAppend =
           results['append'] == true ||
           (!isEntityBased && zfaConfig.appendByDefault);
+      final useZorhpy = results['zorphy'] || zfaConfig.zorphyByDefault;
+
+      // Validate and set idFieldType - only accepts String, int, or NoParams
+      final rawIdFieldType =
+          results['id-field-type'] ?? results['id-type'] ?? 'String';
+      final validIdTypes = ['String', 'int', 'NoParams'];
+      final idFieldType = validIdTypes.contains(rawIdFieldType)
+          ? rawIdFieldType
+          : throw ArgumentError(
+              'Invalid --id-field-type: "$rawIdFieldType". '
+              'Must be one of: ${validIdTypes.join(", ")}',
+            );
+
+      final queryFieldType = results['query-field-type'] ?? idFieldType;
 
       return GeneratorConfig(
         name: name,
@@ -178,7 +194,7 @@ class GenerateCommand {
         paramsType: results['params'],
         returnsType: results['returns'],
         idField: results['id-field'] ?? 'id',
-        idType: results['id-field-type'] ?? results['id-type'] ?? 'String',
+        idType: idFieldType,
         generateVpc: results['vpc'] == true || results['vpcs'] == true,
         generateView:
             results['view'] == true ||
@@ -199,14 +215,15 @@ class GenerateCommand {
         generateObserver: results['observer'] == true,
         generateData: results['data'] == true,
         generateDataSource: results['datasource'] == true,
+        generateLocal: results['local'] == true,
         generateState:
             results['state'] == true ||
             results['vpcs'] == true ||
             results['pcs'] == true,
         generateInit: results['init'] == true,
         queryField: results['query-field'] ?? results['id-field'] ?? 'id',
-        queryFieldType: results['query-field-type'],
-        useZorphy: results['zorphy'] == true,
+        queryFieldType: queryFieldType,
+        useZorphy: useZorhpy,
         generateTest: results['test'] == true,
         enableCache: results['cache'] == true,
         cachePolicy: results['cache-policy'] ?? 'daily',
@@ -219,8 +236,12 @@ class GenerateCommand {
         generateMock: results['mock'] == true,
         generateMockDataOnly: results['mock-data-only'] == true,
         useMockInDi: results['use-mock'] == true,
-        generateDi: results['di'] == true,
+        generateDi: results['di'] == true || zfaConfig.diByDefault,
         diFramework: 'get_it',
+        generateRoute:
+            results['route'] == true ||
+            (zfaConfig.routeByDefault &&
+                (results['vpc'] == true || results['vpcs'] == true)),
         generateGql: shouldGenerateGql,
         gqlReturns: results['gql-returns'],
         gqlType: results['gql-type'],
@@ -372,18 +393,18 @@ class GenerateCommand {
       }
     }
 
-    // Rule 6: Validate --id-field=null usage
-    if (config.idField == 'null') {
+    // Rule 6: Validate --id-field-type=NoParams usage
+    if (config.idType == 'NoParams') {
       final invalidMethods = config.methods
           .where((method) => method == 'getList' || method == 'watchList')
           .toList();
 
       if (invalidMethods.isNotEmpty) {
         print(
-          '❌ Error: --id-field=null can only be used with get and watch methods, not list methods.',
+          '❌ Error: --id-field-type=NoParams can only be used with get and watch methods, not list methods.',
         );
         print('   Invalid methods: ${invalidMethods.join(', ')}');
-        print('   Use --id-field=null only with: get, watch');
+        print('   Use --id-field-type=NoParams only with: get, watch');
         exit(1);
       }
     }
@@ -468,6 +489,12 @@ class GenerateCommand {
         'data',
         abbr: 'd',
         help: 'Generate data repository implementation + data source',
+        defaultsTo: false,
+      )
+      ..addFlag(
+        'local',
+        help:
+            'Generate LocalDataSource (Hive-based) instead of RemoteDataSource',
         defaultsTo: false,
       )
       ..addOption(
@@ -590,6 +617,11 @@ class GenerateCommand {
         defaultsTo: false,
       )
       ..addFlag(
+        'route',
+        help: 'Generate go_router routing files (requires --vpc or --vpcs)',
+        defaultsTo: false,
+      )
+      ..addFlag(
         'gql',
         help: 'Generate GraphQL queries and mutations',
         defaultsTo: false,
@@ -637,6 +669,11 @@ class GenerateCommand {
         'build',
         help:
             'Run build_runner after generation (auto for --cache if buildByDefault=true)',
+        defaultsTo: false,
+      )
+      ..addFlag(
+        'dart-format',
+        help: 'Run dart format after generation (auto if formatByDefault=true)',
         defaultsTo: false,
       );
   }
@@ -706,6 +743,9 @@ MOCK DATA:
 DEPENDENCY INJECTION:
   --di                 Generate DI registration files (get_it)
 
+ROUTING:
+  --route              Generate go_router routing files (requires --vpc or --vpcs)
+
 GRAPHQL:
   --gql                Generate GraphQL queries and mutations
   --gql-returns=<list> GraphQL return fields (comma-separated, supports dot notation)
@@ -739,15 +779,16 @@ VPC LAYER:
   --observer            Generate Observer class
   -t, --test            Generate Unit Tests
 
-INPUT/OUTPUT:
-  -j, --from-json       JSON configuration file
-  --from-stdin          Read JSON from stdin
-  -o, --output          Output directory (default: lib/src)
-  --format=json|text    Output format (default: text)
-  --dry-run             Preview without writing files
-  --force               Overwrite existing files
-  -v, --verbose         Verbose output
-  -q, --quiet           Minimal output
+ INPUT/OUTPUT:
+   -j, --from-json       JSON configuration file
+   --from-stdin          Read JSON from stdin
+   -o, --output          Output directory (default: lib/src)
+   --format=json|text    Output format (default: text)
+   --dart-format         Run dart format after generation (auto if formatByDefault=true)
+   --dry-run             Preview without writing files
+   --force               Overwrite existing files
+   -v, --verbose         Verbose output
+   -q, --quiet           Minimal output
 
 EXAMPLES:
   # Entity-based CRUD with VPC and State

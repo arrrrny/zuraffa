@@ -36,7 +36,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  zuraffa: ^2.2.1
+  zuraffa: ^2.7.0
 ```
 
 Then run:
@@ -1505,4 +1505,3 @@ MIT License - see [LICENSE](LICENSE) for details.
 ---
 
 Made with ⚡️ for the Flutter community
-

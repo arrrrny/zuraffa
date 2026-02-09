@@ -148,10 +148,12 @@ ${presenterMethods.join('\n\n')}
     for (final method in config.methods) {
       switch (method) {
         case 'get':
-          final getParams = config.queryField == 'null'
+          final getParams = config.queryFieldType == 'NoParams'
               ? ''
               : '${config.queryFieldType} ${config.queryField}';
-          final getArgs = config.queryField == 'null' ? '' : config.queryField;
+          final getArgs = config.queryFieldType == 'NoParams'
+              ? ''
+              : config.queryField;
           methods.add('''
   Future<void> get$entityName($getParams) async {
 ${withState ? "    updateState(viewState.copyWith(isGetting: true));" : ""}
@@ -225,24 +227,18 @@ ${withState ? '''    result.fold(
           final updateDataType = config.useZorphy
               ? '${entityName}Patch'
               : 'Partial<$entityName>';
-          final updateParams = config.idField == 'null'
-              ? '$entityName $entityCamel'
-              : '${config.idType} ${config.idField}, $updateDataType data';
-          final updateArgs = config.idField == 'null'
-              ? entityCamel
-              : '${config.idField}, data';
+          final updateParams =
+              '${config.idType} ${config.idField}, $updateDataType data';
+          final updateArgs = '${config.idField}, data';
           // Only update list optimistically if using getList (not watchList)
           // watchList streams will handle the update automatically
           final hasListMethod = config.methods.contains('getList');
           final hasWatchList = config.methods.contains('watchList');
           final listUpdate = (hasListMethod && !hasWatchList)
-              ? (config.queryField == 'null'
-                    ? '${entityCamel}List: [updated],'
-                    : '${entityCamel}List: viewState.${entityCamel}List.map((e) => e.${config.queryField} == updated.${config.queryField} ? updated : e).toList(),')
+              ? '${entityCamel}List: viewState.${entityCamel}List.map((e) => e.${config.queryField} == updated.${config.queryField} ? updated : e).toList(),'
               : '';
-          final singleUpdate = config.queryField == 'null'
-              ? '$entityCamel: updated,'
-              : '$entityCamel: viewState.$entityCamel?.${config.queryField} == updated.${config.queryField} ? updated : viewState.$entityCamel,';
+          final singleUpdate =
+              '$entityCamel: viewState.$entityCamel?.${config.queryField} == updated.${config.queryField} ? updated : viewState.$entityCamel,';
           methods.add('''
   Future<void> update$entityName($updateParams) async {
 ${withState ? "    updateState(viewState.copyWith(isUpdating: true));" : ""}
@@ -265,12 +261,8 @@ ${withState ? '''    result.fold(
   }''');
           break;
         case 'delete':
-          final deleteParams = config.idField == 'null'
-              ? '$entityName $entityCamel'
-              : '${config.idType} ${config.idField}';
-          final deleteArgs = config.idField == 'null'
-              ? entityCamel
-              : config.idField;
+          final deleteParams = '${config.idType} ${config.idField}';
+          final deleteArgs = config.idField;
           // Delete should ALWAYS update optimistically for immediate UI feedback
           // This prevents Dismissible errors and provides better UX
           final hasListMethod =
@@ -305,10 +297,10 @@ ${withState ? '''    // Immediately remove from list for optimistic UI update
   }''');
           break;
         case 'watch':
-          final watchParams = config.queryField == 'null'
+          final watchParams = config.queryFieldType == 'NoParams'
               ? ''
               : '${config.queryFieldType} ${config.queryField}';
-          final watchArgs = config.queryField == 'null'
+          final watchArgs = config.queryFieldType == 'NoParams'
               ? ''
               : config.queryField;
           methods.add('''
@@ -449,6 +441,80 @@ ${methods.join('\n\n')}
       repoPresenterParams.add('$repoCamel: $repoCamel');
     }
 
+    // Determine if view needs route parameters
+    final hasUpdate = config.methods.contains('update');
+    final hasDelete = config.methods.contains('delete');
+    final hasGet = config.methods.contains('get');
+    final hasWatch = config.methods.contains('watch');
+    final needsIdParam = hasUpdate || hasDelete;
+    final needsQueryParam =
+        (hasGet || hasWatch) && !needsIdParam && config.queryField != 'id';
+
+    // Add route parameter fields
+    final routeParamFields = <String>[];
+    final routeParamConstructor = <String>[];
+    final routeParamComments = <String>[];
+
+    if (needsIdParam) {
+      routeParamFields.add('  final String? id;');
+      routeParamConstructor.add('this.id,');
+      routeParamComments.add(
+        '/// When navigating to detail/update routes, pass the ${config.idField}',
+      );
+    }
+
+    if (needsQueryParam) {
+      routeParamFields.add('  final String? ${config.queryField};');
+      routeParamConstructor.add('this.${config.queryField},');
+      routeParamComments.add(
+        '/// When navigating to ${config.queryField} routes, pass the ${config.queryField}',
+      );
+    }
+
+    if (needsQueryParam) {
+      routeParamFields.add('  final String? ${config.queryField};');
+      routeParamConstructor.add('this.${config.queryField},');
+      routeParamComments.add(
+        '  /// When navigating to ${config.queryField} routes, pass the ${config.queryField}',
+      );
+    }
+
+    // Build initial method call with parameters
+    String initialMethodCall;
+    if (config.methods.contains('getList')) {
+      initialMethodCall = 'controller.get${entityName}List();';
+    } else if (config.methods.contains('watchList')) {
+      initialMethodCall = 'controller.watch${entityName}List();';
+    } else if (config.methods.contains('get')) {
+      if (config.queryFieldType == 'NoParams') {
+        initialMethodCall = 'controller.get$entityName();';
+      } else if (needsIdParam && config.queryField == config.idField) {
+        initialMethodCall =
+            'if (widget.id != null) {\n      controller.get$entityName(widget.id!);\n    }';
+      } else if (needsQueryParam) {
+        initialMethodCall =
+            'if (widget.${config.queryField} != null) {\n      controller.get$entityName(widget.${config.queryField}!);\n    }';
+      } else {
+        initialMethodCall =
+            '//TODO: pass the ${config.queryField} of the $entityName\n    //controller.get$entityName(/* ${config.queryField} */);';
+      }
+    } else if (config.methods.contains('watch')) {
+      if (config.queryFieldType == 'NoParams') {
+        initialMethodCall = 'controller.watch$entityName();';
+      } else if (needsIdParam && config.queryField == config.idField) {
+        initialMethodCall =
+            'if (widget.id != null) {\n      controller.watch$entityName(widget.id!);\n    }';
+      } else if (needsQueryParam) {
+        initialMethodCall =
+            'if (widget.${config.queryField} != null) {\n      controller.watch$entityName(widget.${config.queryField}!);\n    }';
+      } else {
+        initialMethodCall =
+            '//TODO: pass the ${config.queryField} of the $entityName\n    //controller.watch$entityName(/* ${config.queryField} */);';
+      }
+    } else {
+      initialMethodCall = '// No initial method found';
+    }
+
     final content =
         '''
 // Generated by zfa
@@ -460,14 +526,16 @@ import 'package:zuraffa/zuraffa.dart';
 ${repoImports.join('\n')}
 import '${entitySnake}_controller.dart';
 import '${entitySnake}_presenter.dart';
-
+${routeParamComments.isNotEmpty ? '\n${routeParamComments.join('\n')}' : ''}
 class $viewName extends CleanView {
 ${repoFields.join('\n')}
+${routeParamFields.join('\n')}
 
   const $viewName({
     super.key,
     super.routeObserver,
     ${repoConstructorParams.join(',\n    ')},
+    ${routeParamConstructor.join('\n    ')}
   });
 
   @override
@@ -486,15 +554,7 @@ class _${viewName}State extends CleanViewState<$viewName, $controllerName> {
   @override
   void onInitState() {
     super.onInitState();
-    ${config.methods.contains('getList')
-            ? 'controller.get${entityName}List();'
-            : config.methods.contains('watchList')
-            ? 'controller.watch${entityName}List();'
-            : config.methods.contains('get')
-            ? 'controller.get$entityName(/* ${config.queryField} */);'
-            : config.methods.contains('watch')
-            ? 'controller.watch$entityName(/* ${config.queryField} */);'
-            : '// No initial method found'}
+    $initialMethodCall
   }
 
   @override

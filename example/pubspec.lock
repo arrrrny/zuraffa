@@ -227,6 +227,11 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_web_plugins:
+    dependency: transitive
+    description: flutter
+    source: sdk
+    version: "0.0.0"
   get_it:
     dependency: "direct main"
     description:
@@ -243,6 +248,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.3"
+  go_router:
+    dependency: transitive
+    description:
+      name: go_router
+      sha256: "7974313e217a7771557add6ff2238acb63f635317c35fa590d348fb238f00896"
+      url: "https://pub.dev"
+    source: hosted
+    version: "17.1.0"
   graphs:
     dependency: transitive
     description:
@@ -788,18 +801,18 @@ packages:
     dependency: transitive
     description:
       name: zorphy
-      sha256: "79680078ff3223f97f3af1ff6037117523e1a24154a646026e2a47bcd06e3c3f"
+      sha256: "54e8708b2e0678558b23161ff923779f99cb6a34b8f2dbb11018256de828ad13"
       url: "https://pub.dev"
     source: hosted
-    version: "1.4.1"
+    version: "1.5.0"
   zorphy_annotation:
     dependency: "direct main"
     description:
       name: zorphy_annotation
-      sha256: "353c7cf505b3f7b17af1298c109b3f6950556f694c5f526acef6e7af3d321690"
+      sha256: "58cde65aee74ae74468dfdb2dd60153afd69944eda5122ecfe51d7a86653ac84"
       url: "https://pub.dev"
     source: hosted
-    version: "1.4.1"
+    version: "1.5.0"
   zuraffa:
     dependency: "direct main"
     description:
