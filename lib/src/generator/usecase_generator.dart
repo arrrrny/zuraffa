@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:path/path.dart' as path;
+import '../core/generation/generation_context.dart';
 import '../models/generator_config.dart';
 import '../models/generated_file.dart';
 import '../utils/file_utils.dart';
@@ -31,6 +32,15 @@ class UseCaseGenerator {
     this.force = false,
     this.verbose = false,
   });
+
+  UseCaseGenerator.fromContext(GenerationContext context)
+      : this(
+          config: context.config,
+          outputDir: context.outputDir,
+          dryRun: context.dryRun,
+          force: context.force,
+          verbose: context.verbose,
+        );
 
   Future<GeneratedFile> generateForMethod(String method) async {
     final entityName = config.name;
