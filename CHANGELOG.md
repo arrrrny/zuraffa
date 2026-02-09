@@ -1,3 +1,89 @@
+## [Unreleased]
+
+### ✨ Features
+
+#### Automatic Router Generation
+- Added `--route` flag for automatic go_router route generation with VPC views
+- Added RouteGenerator that creates route constants and GoRoute configurations
+- Added automatic barrel export regeneration for routes
+- Routes are generated in `routing/` directory with app-wide route constants
+
+#### Local DataSource Generation
+- Added `--local` flag to generate Hive-based LocalDataSource instead of RemoteDataSource
+- LocalDataSource provides production-ready local storage similar to mock data source
+- Use with `--data --local` to generate local-only data layer
+
+#### Automatic Import Management for Append
+- Added automatic entity import detection when using `--append`
+- Automatically adds missing entity imports to repository, datasource, and service files
+- Calculates correct relative import paths based on file location
+- Prevents duplicate imports and handles proper formatting
+
+#### Parameter Type Improvements
+- Changed from string-based `config.idField == 'null'` checking to dedicated `--query-field-type` flag
+- Added support for `String`, `int`, or `NoParams` as explicit parameter types
+- Separated `--id-field-type` (for update/delete) from `--query-field-type` (for get/watch)
+- Improved type safety with enforced parameter type validation
+
+#### Independent Query Field Types
+- Added `--query-field-type` flag for independent control over get/watch operations
+- Allows different ID types for different operations (e.g., `String` for queries, `int` for updates)
+- Query field type defaults to match ID field type if not specified
+
+### 💥 Breaking Changes
+
+#### Parameterless DataSource Methods Removed
+- **Breaking:** DataSource `get()` and `watch()` methods without parameters have been removed
+- **New Behavior:** All DataSource methods now require `QueryParams<T>` parameter
+- **Migration:** Update any custom DataSource implementations from:
+  ```dart
+  Future<Customer> get();
+  Stream<Customer> watch();
+  ```
+  To:
+  ```dart
+  Future<Customer> get(QueryParams<Customer> params);
+  Stream<Customer> watch(QueryParams<Customer> params);
+  ```
+
+#### UseCase Parameter Type Changes
+- **Breaking:** UseCase `execute()` methods now always receive typed parameters instead of checking for null ID field
+- **New Behavior:** Methods receive `QueryParams<T>` or `NoParams` based on `--query-field-type` flag
+- **Migration:** Use explicit `--query-field-type=NoParams` for parameterless operations:
+  ```bash
+  zfa generate Customer --methods=get --query-field-type=NoParams
+  ```
+
+### 🐛 Bug Fixes
+
+- Fixed NoParams handling in UseCase generator - now uses `const QueryParams()` for data layer
+- Fixed single-entity cache implementation
+- Fixed stream cache behavior
+- Fixed test generator warnings
+- Fixed Zorphy config respect in generation process
+- Fixed View initialization TODO comments for methods requiring parameters
+
+### 🔧 Code Refactoring
+
+- Refactored method appender with automatic import management
+- Added entity type extraction from generic types (List<T>, Stream<T>, etc.)
+- Improved relative path calculation for imports across different file locations
+- Separated data source generation logic for local vs remote implementations
+
+### 📚 Documentation
+
+- Updated README with routing feature documentation
+- Added examples for `--local` and `--query-field-type` usage
+- Updated CLI command reference with new flags
+
+### 🔨 Chore
+
+- Added optionable `--dart-format` flag for code formatting during generation
+- Bumped documentation version
+- Updated path dependencies in project
+- Fixed static CI/CD workflow configuration
+
+
 ## [2.7.0] - 2026-02-09
 
 ### ✨ Features
