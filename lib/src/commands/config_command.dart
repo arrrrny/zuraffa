@@ -65,12 +65,16 @@ class ConfigCommand {
       'buildByDefault': false,
       'appendByDefault': false,
       'formatByDefault': false,
+      'routeByDefault': false,
+      'diByDefault': false,
       'notes': [
         'Set "zorphyByDefault": false to use manual entity generation',
         'Set "gqlByDefault": true to auto-generate GraphQL for entity operations',
         'Set "buildByDefault": true to auto-run build_runner after entity/cache operations',
         'Set "appendByDefault": true to auto-append to existing repositories/datasources',
         'Set "formatByDefault": true to auto-run dart format after generation',
+        'Set "routeByDefault": true to auto-generate routing files with --vpc/--vpcs',
+        'Set "diByDefault": true to auto-generate DI files',
         'Adjust "defaultEntityOutput" to change where entities are created',
       ],
     };
@@ -95,9 +99,17 @@ class ConfigCommand {
     print(
       '  • formatByDefault: false (dart format auto-run disabled by default)',
     );
+    print('  • routeByDefault: false (auto-routing disabled by default)');
+    print('  • diByDefault: false (auto-DI generation disabled by default)');
     print('');
     print('💡 To disable Zorphy by default, edit .zfa.json and set:');
     print('   "zorphyByDefault": false');
+    print('');
+    print('💡 To enable auto-routing with VPC:');
+    print('   zfa config set routeByDefault true');
+    print('');
+    print('💡 To enable auto-DI generation:');
+    print('   zfa config set diByDefault true');
     print('');
     print('💡 To customize these defaults for your project:');
     print('   zfa config set zorphyByDefault false');
@@ -176,6 +188,8 @@ class ConfigCommand {
         case 'buildByDefault':
         case 'appendByDefault':
         case 'formatByDefault':
+        case 'routeByDefault':
+        case 'diByDefault':
           parsedValue = value.toLowerCase() == 'true';
           break;
         case 'defaultEntityOutput':
@@ -184,7 +198,7 @@ class ConfigCommand {
         default:
           print('❌ Unknown configuration key: $key');
           print(
-            '   Valid keys: zorphyByDefault, jsonByDefault, compareByDefault, filterByDefault, defaultEntityOutput, gqlByDefault, buildByDefault, appendByDefault',
+            '   Valid keys: zorphyByDefault, jsonByDefault, compareByDefault, filterByDefault, defaultEntityOutput, gqlByDefault, buildByDefault, appendByDefault, routeByDefault, diByDefault',
           );
           exit(1);
       }
@@ -229,6 +243,8 @@ OPTIONS:
    buildByDefault       Auto-run build_runner after entity/cache operations (default: false)
    appendByDefault      Auto-append to existing repositories/datasources (default: false)
    formatByDefault      Auto-run dart format after generation (default: false)
+   routeByDefault       Auto-generate routing files with VPC (default: false)
+   diByDefault          Auto-generate DI files (default: false)
    defaultEntityOutput  Default output directory for entities
                         (default: lib/src/domain/entities)
 

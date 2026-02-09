@@ -793,7 +793,7 @@ class ZuraffaMcpServer {
     return {
       'name': 'config_set',
       'description':
-          'Update a ZFA configuration value in .zfa.json. Valid keys: zorphyByDefault, jsonByDefault, compareByDefault, filterByDefault, defaultEntityOutput, gqlByDefault, buildByDefault, appendByDefault.',
+          'Update a ZFA configuration value in .zfa.json. Valid keys: zorphyByDefault, jsonByDefault, compareByDefault, filterByDefault, defaultEntityOutput, gqlByDefault, buildByDefault, appendByDefault, routeByDefault, diByDefault.',
       'inputSchema': {
         'type': 'object',
         'properties': {
@@ -809,6 +809,8 @@ class ZuraffaMcpServer {
               'gqlByDefault',
               'buildByDefault',
               'appendByDefault',
+              'routeByDefault',
+              'diByDefault',
             ],
           },
           'value': {

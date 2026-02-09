@@ -236,8 +236,12 @@ class GenerateCommand {
         generateMock: results['mock'] == true,
         generateMockDataOnly: results['mock-data-only'] == true,
         useMockInDi: results['use-mock'] == true,
-        generateDi: results['di'] == true,
+        generateDi: results['di'] == true || zfaConfig.diByDefault,
         diFramework: 'get_it',
+        generateRoute:
+            results['route'] == true ||
+            (zfaConfig.routeByDefault &&
+                (results['vpc'] == true || results['vpcs'] == true)),
         generateGql: shouldGenerateGql,
         gqlReturns: results['gql-returns'],
         gqlType: results['gql-type'],
@@ -613,6 +617,11 @@ class GenerateCommand {
         defaultsTo: false,
       )
       ..addFlag(
+        'route',
+        help: 'Generate go_router routing files (requires --vpc or --vpcs)',
+        defaultsTo: false,
+      )
+      ..addFlag(
         'gql',
         help: 'Generate GraphQL queries and mutations',
         defaultsTo: false,
@@ -733,6 +742,9 @@ MOCK DATA:
 
 DEPENDENCY INJECTION:
   --di                 Generate DI registration files (get_it)
+
+ROUTING:
+  --route              Generate go_router routing files (requires --vpc or --vpcs)
 
 GRAPHQL:
   --gql                Generate GraphQL queries and mutations
