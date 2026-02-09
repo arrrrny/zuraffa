@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:path/path.dart' as path;
+import '../core/generation/generation_context.dart';
 import '../models/generator_config.dart';
 import '../models/generated_file.dart';
 import '../utils/file_utils.dart';
@@ -21,6 +22,15 @@ class RouteGenerator {
     this.force = false,
     this.verbose = false,
   });
+
+  RouteGenerator.fromContext(GenerationContext context)
+      : this(
+          config: context.config,
+          outputDir: context.outputDir,
+          dryRun: context.dryRun,
+          force: context.force,
+          verbose: context.verbose,
+        );
 
   Future<List<GeneratedFile>> generate() async {
     final files = <GeneratedFile>[];

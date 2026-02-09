@@ -1,4 +1,5 @@
 import 'package:path/path.dart' as path;
+import '../core/generation/generation_context.dart';
 import '../models/generator_config.dart';
 import '../models/generated_file.dart';
 import '../utils/file_utils.dart';
@@ -26,6 +27,15 @@ class ProviderGenerator {
     this.force = false,
     this.verbose = false,
   });
+
+  ProviderGenerator.fromContext(GenerationContext context)
+      : this(
+          config: context.config,
+          outputDir: context.outputDir,
+          dryRun: context.dryRun,
+          force: context.force,
+          verbose: context.verbose,
+        );
 
   /// Generates a provider implementation file for a service.
   Future<GeneratedFile> generate() async {

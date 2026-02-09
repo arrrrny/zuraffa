@@ -16,6 +16,7 @@ import 'cache_generator.dart';
 import 'graphql_generator.dart';
 import 'route_generator.dart';
 import 'method_appender.dart';
+import '../core/generation/generation_context.dart';
 import '../core/transaction/generation_transaction.dart';
 
 class CodeGenerator {
@@ -24,6 +25,7 @@ class CodeGenerator {
   final bool dryRun;
   final bool force;
   final bool verbose;
+  final GenerationContext context;
 
   late final RepositoryGenerator _repositoryGenerator;
   late final ServiceGenerator _serviceGenerator;
@@ -41,70 +43,22 @@ class CodeGenerator {
     this.dryRun = false,
     this.force = false,
     this.verbose = false,
-  }) {
-    _repositoryGenerator = RepositoryGenerator(
-      config: config,
-      outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
-    _serviceGenerator = ServiceGenerator(
-      config: config,
-      outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
-    _providerGenerator = ProviderGenerator(
-      config: config,
-      outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
-    _useCaseGenerator = UseCaseGenerator(
-      config: config,
-      outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
-    _vpcGenerator = VpcGenerator(
-      config: config,
-      outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
-    _stateGenerator = StateGenerator(
-      config: config,
-      outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
-    _observerGenerator = ObserverGenerator(
-      config: config,
-      outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
-    _dataLayerGenerator = DataLayerGenerator(
-      config: config,
-      outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
-    _testGenerator = TestGenerator(
-      config: config,
-      outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
+  }) : context = GenerationContext(
+          config: config,
+          outputDir: outputDir,
+          dryRun: dryRun,
+          force: force,
+          verbose: verbose,
+        ) {
+    _repositoryGenerator = RepositoryGenerator.fromContext(context);
+    _serviceGenerator = ServiceGenerator.fromContext(context);
+    _providerGenerator = ProviderGenerator.fromContext(context);
+    _useCaseGenerator = UseCaseGenerator.fromContext(context);
+    _vpcGenerator = VpcGenerator.fromContext(context);
+    _stateGenerator = StateGenerator.fromContext(context);
+    _observerGenerator = ObserverGenerator.fromContext(context);
+    _dataLayerGenerator = DataLayerGenerator.fromContext(context);
+    _testGenerator = TestGenerator.fromContext(context);
   }
 
   Future<GeneratorResult> generate() async {
@@ -141,12 +95,7 @@ class CodeGenerator {
 
       try {
         if (config.appendToExisting) {
-          final appender = MethodAppender(
-            config: config,
-            outputDir: outputDir,
-            verbose: verbose,
-            dryRun: dryRun,
-          );
+          final appender = MethodAppender.fromContext(context);
           final appendResult = await appender.appendMethod();
 
           if (config.isPolymorphic) {
@@ -168,13 +117,7 @@ class CodeGenerator {
           }
 
           if (config.generateGql) {
-            final graphqlGenerator = GraphQLGenerator(
-              config: config,
-              outputDir: outputDir,
-              dryRun: dryRun,
-              force: force,
-              verbose: verbose,
-            );
+            final graphqlGenerator = GraphQLGenerator.fromContext(context);
             final graphqlFiles = await graphqlGenerator.generate();
             files.addAll(graphqlFiles);
           }
@@ -341,25 +284,13 @@ class CodeGenerator {
         }
 
         if (config.generateDi) {
-          final diGenerator = DiGenerator(
-            config: config,
-            outputDir: outputDir,
-            dryRun: dryRun,
-            force: force,
-            verbose: verbose,
-          );
+          final diGenerator = DiGenerator.fromContext(context);
           final diFiles = await diGenerator.generate();
           files.addAll(diFiles);
         }
 
         if (config.generateRoute) {
-          final routeGenerator = RouteGenerator(
-            config: config,
-            outputDir: outputDir,
-            dryRun: dryRun,
-            force: force,
-            verbose: verbose,
-          );
+          final routeGenerator = RouteGenerator.fromContext(context);
           final routeFiles = await routeGenerator.generate();
           files.addAll(routeFiles);
           nextSteps.add('Add go_router to your pubspec.yaml dependencies');
@@ -367,13 +298,7 @@ class CodeGenerator {
         }
 
         if (config.enableCache) {
-          final cacheGenerator = CacheGenerator(
-            config: config,
-            outputDir: outputDir,
-            dryRun: dryRun,
-            force: force,
-            verbose: verbose,
-          );
+          final cacheGenerator = CacheGenerator.fromContext(context);
           final cacheFiles = await cacheGenerator.generate();
           files.addAll(cacheFiles);
           nextSteps.add('Run: dart run build_runner build');
@@ -381,13 +306,7 @@ class CodeGenerator {
         }
 
         if (config.generateGql) {
-          final graphqlGenerator = GraphQLGenerator(
-            config: config,
-            outputDir: outputDir,
-            dryRun: dryRun,
-            force: force,
-            verbose: verbose,
-          );
+          final graphqlGenerator = GraphQLGenerator.fromContext(context);
           final graphqlFiles = await graphqlGenerator.generate();
           files.addAll(graphqlFiles);
         }
