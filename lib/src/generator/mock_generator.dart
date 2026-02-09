@@ -998,18 +998,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
     for (final method in config.methods) {
       switch (method) {
         case 'get':
-          if (config.idField == 'null' || !hasListMethods) {
-            methods.add('''
-  @override
-  Future<$entityName> get() async {
-    logger.info('Getting $entityName');
-    await Future.delayed(_delay);
-    final item = ${entityName}MockData.sample$entityName;
-    logger.info('Successfully retrieved $entityName');
-    return item;
-  }''');
-          } else {
-            methods.add('''
+          methods.add('''
   @override
   Future<$entityName> get(QueryParams<$entityName> params) async {
     logger.info('Getting $entityName with params: \$params');
@@ -1018,7 +1007,6 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
     logger.info('Successfully retrieved $entityName');
     return item;
   }''');
-          }
           break;
 
         case 'getList':
@@ -1105,16 +1093,7 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
           break;
 
         case 'watch':
-          if (config.idField == 'null' || !hasListMethods) {
-            methods.add('''
-  @override
-  Stream<$entityName> watch(${config.idField == 'null' ? '' : 'QueryParams<$entityName> params'}) {
-    return Stream.periodic(const Duration(seconds: 1), (count) {
-      return ${entityName}MockData.sample$entityName;
-    }).take(10); // Limit for demo
-  }''');
-          } else {
-            methods.add('''
+          methods.add('''
   @override
   Stream<$entityName> watch(QueryParams<$entityName> params) {
     return Stream.periodic(const Duration(seconds: 1), (count) {
@@ -1122,7 +1101,6 @@ ${_generateConstructorCall(fields, seed: i, outputDir: outputDir)}
       return item;
     }).take(10);
   }''');
-          }
           break;
 
         case 'watchList':

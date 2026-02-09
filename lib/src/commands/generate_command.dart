@@ -162,10 +162,19 @@ class GenerateCommand {
           results['append'] == true ||
           (!isEntityBased && zfaConfig.appendByDefault);
       final useZorhpy = results['zorphy'] || zfaConfig.zorphyByDefault;
-      final idFieldType =
-          results['id-field'] == 'null' || results['id-field-type'] == 'null'
-          ? 'NoParams'
-          : results['id-field-type'] ?? results['id-type'] ?? 'String';
+
+      // Validate and set idFieldType - only accepts String, int, or NoParams
+      final rawIdFieldType =
+          results['id-field-type'] ?? results['id-type'] ?? 'String';
+      final validIdTypes = ['String', 'int', 'NoParams'];
+      final idFieldType = validIdTypes.contains(rawIdFieldType)
+          ? rawIdFieldType
+          : throw ArgumentError(
+              'Invalid --id-field-type: "$rawIdFieldType". '
+              'Must be one of: ${validIdTypes.join(", ")}',
+            );
+
+      final queryFieldType = results['query-field-type'] ?? idFieldType;
 
       return GeneratorConfig(
         name: name,
@@ -212,7 +221,7 @@ class GenerateCommand {
             results['pcs'] == true,
         generateInit: results['init'] == true,
         queryField: results['query-field'] ?? results['id-field'] ?? 'id',
-        queryFieldType: results['query-field-type'],
+        queryFieldType: queryFieldType,
         useZorphy: useZorhpy,
         generateTest: results['test'] == true,
         enableCache: results['cache'] == true,
@@ -379,18 +388,18 @@ class GenerateCommand {
       }
     }
 
-    // Rule 6: Validate --id-field=null usage
-    if (config.idField == 'null') {
+    // Rule 6: Validate --id-field-type=NoParams usage
+    if (config.idType == 'NoParams') {
       final invalidMethods = config.methods
           .where((method) => method == 'getList' || method == 'watchList')
           .toList();
 
       if (invalidMethods.isNotEmpty) {
         print(
-          '❌ Error: --id-field=null can only be used with get and watch methods, not list methods.',
+          '❌ Error: --id-field-type=NoParams can only be used with get and watch methods, not list methods.',
         );
         print('   Invalid methods: ${invalidMethods.join(', ')}');
-        print('   Use --id-field=null only with: get, watch');
+        print('   Use --id-field-type=NoParams only with: get, watch');
         exit(1);
       }
     }

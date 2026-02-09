@@ -256,13 +256,14 @@ $testBody
     String failureArrange;
 
     if (method == 'get') {
-      if (config.idField == 'null' || config.queryField == 'null') {
+      if (config.idType == 'NoParams') {
         paramsConstructor = "NoParams()";
         arrange =
-            "when(() => mockRepository.get()).thenAnswer((_) async => $returnConstructor);";
-        verifyCall = "verify(() => mockRepository.get()).called(1);";
+            "when(() => mockRepository.get(const QueryParams())).thenAnswer((_) async => $returnConstructor);";
+        verifyCall =
+            "verify(() => mockRepository.get(const QueryParams())).called(1);";
         failureArrange =
-            "when(() => mockRepository.get()).thenThrow(exception);";
+            "when(() => mockRepository.get(const QueryParams())).thenThrow(exception);";
       } else {
         paramsConstructor = config.useZorphy
             ? "QueryParams<$entityName>(filter: Eq(${entityName}Fields.${config.queryField}, '1'))"
@@ -356,13 +357,14 @@ $testBody
     String failureArrange;
 
     if (method == 'watch') {
-      if (config.idField == 'null' || config.queryField == 'null') {
+      if (config.idType == 'NoParams') {
         paramsConstructor = "NoParams()";
         arrange =
-            "when(() => mockRepository.watch()).thenAnswer((_) => Stream.value($returnConstructor));";
-        verifyCall = "verify(() => mockRepository.watch()).called(1);";
+            "when(() => mockRepository.watch(const QueryParams())).thenAnswer((_) => Stream.value($returnConstructor));";
+        verifyCall =
+            "verify(() => mockRepository.watch(const QueryParams())).called(1);";
         failureArrange =
-            "when(() => mockRepository.watch()).thenAnswer((_) => Stream.error(exception));";
+            "when(() => mockRepository.watch(const QueryParams())).thenAnswer((_) => Stream.error(exception));";
       } else {
         paramsConstructor = config.useZorphy
             ? "QueryParams<$entityName>(filter: Eq(${entityName}Fields.${config.queryField}, '1'))"

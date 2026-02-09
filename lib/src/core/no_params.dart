@@ -1,3 +1,5 @@
+import 'request_params.dart';
+
 /// A sentinel class for UseCases that don't require parameters.
 ///
 /// Use [NoParams] when your UseCase doesn't need any input parameters.
@@ -15,7 +17,7 @@
 /// // Usage
 /// final result = await getAllUsersUseCase(const NoParams());
 /// ```
-final class NoParams {
+final class NoParams extends RequestParams {
   /// Create a [NoParams] instance
   const NoParams();
 
