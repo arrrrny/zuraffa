@@ -1,4 +1,6 @@
 import 'dart:io';
+import '../core/transaction/file_operation.dart';
+import '../core/transaction/generation_transaction.dart';
 import '../models/generated_file.dart';
 
 class FileUtils {
@@ -25,7 +27,13 @@ class FileUtils {
       );
     }
 
-    if (!dryRun) {
+    final transaction = GenerationTransaction.current;
+    if (transaction != null) {
+      final operation = exists
+          ? await FileOperation.update(path: filePath, content: content)
+          : FileOperation.create(path: filePath, content: content);
+      transaction.addOperation(operation);
+    } else if (!dryRun) {
       await file.parent.create(recursive: true);
       await file.writeAsString(content);
     }
@@ -40,6 +48,45 @@ class FileUtils {
       type: type,
       action: exists ? 'overwritten' : 'created',
       content: content,
+    );
+  }
+
+  static Future<GeneratedFile> deleteFile(
+    String filePath,
+    String type, {
+    bool dryRun = false,
+    bool verbose = false,
+  }) async {
+    final file = File(filePath);
+    final exists = file.existsSync();
+
+    if (!exists) {
+      if (verbose) {
+        print('  ⏭ Skipping missing file: $filePath');
+      }
+      return GeneratedFile(
+        path: filePath,
+        type: type,
+        action: 'skipped',
+      );
+    }
+
+    final transaction = GenerationTransaction.current;
+    if (transaction != null) {
+      final operation = await FileOperation.delete(path: filePath);
+      transaction.addOperation(operation);
+    } else if (!dryRun) {
+      await file.delete();
+    }
+
+    if (verbose) {
+      print('  ✓ Deleting: $filePath');
+    }
+
+    return GeneratedFile(
+      path: filePath,
+      type: type,
+      action: 'deleted',
     );
   }
 

@@ -169,6 +169,10 @@ export 'src/core/cache_policies.dart';
 export 'src/core/plugin_system/plugin_interface.dart';
 export 'src/core/plugin_system/plugin_lifecycle.dart';
 export 'src/core/plugin_system/plugin_registry.dart';
+export 'src/core/transaction/file_operation.dart';
+export 'src/core/transaction/generation_transaction.dart';
+export 'src/core/transaction/transaction_result.dart';
+export 'src/core/transaction/conflict_detector.dart';
 
 // ============================================================
 // Zorphy Integration - Type-safe filtering
