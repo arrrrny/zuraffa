@@ -24,6 +24,7 @@ class GeneratorConfig {
   final bool generateObserver;
   final bool generateData;
   final bool generateDataSource;
+  final bool generateLocal;
   final bool generateState;
   final bool generateInit;
   final String queryField;
@@ -70,6 +71,7 @@ class GeneratorConfig {
     this.generateObserver = false,
     this.generateData = false,
     this.generateDataSource = false,
+    this.generateLocal = false,
     this.generateState = false,
     this.generateInit = false,
     this.queryField = 'id',
@@ -119,6 +121,7 @@ class GeneratorConfig {
       generateObserver: json['observer'] == true,
       generateData: json['data'] == true,
       generateDataSource: json['datasource'] == true,
+      generateLocal: json['local'] == true,
       generateState: json['state'] == true,
       generateInit: json['init'] == true,
       queryField: json['query_field'] ?? 'id',

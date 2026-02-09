@@ -215,6 +215,7 @@ class GenerateCommand {
         generateObserver: results['observer'] == true,
         generateData: results['data'] == true,
         generateDataSource: results['datasource'] == true,
+        generateLocal: results['local'] == true,
         generateState:
             results['state'] == true ||
             results['vpcs'] == true ||
@@ -484,6 +485,12 @@ class GenerateCommand {
         'data',
         abbr: 'd',
         help: 'Generate data repository implementation + data source',
+        defaultsTo: false,
+      )
+      ..addFlag(
+        'local',
+        help:
+            'Generate LocalDataSource (Hive-based) instead of RemoteDataSource',
         defaultsTo: false,
       )
       ..addOption(
