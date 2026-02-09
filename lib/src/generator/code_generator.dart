@@ -14,6 +14,7 @@ import 'mock_generator.dart';
 import 'di_generator.dart';
 import 'cache_generator.dart';
 import 'graphql_generator.dart';
+import 'route_generator.dart';
 import 'method_appender.dart';
 
 class CodeGenerator {
@@ -340,6 +341,21 @@ class CodeGenerator {
         );
         final diFiles = await diGenerator.generate();
         files.addAll(diFiles);
+      }
+
+      // Generate routing files if requested
+      if (config.generateRoute) {
+        final routeGenerator = RouteGenerator(
+          config: config,
+          outputDir: outputDir,
+          dryRun: dryRun,
+          force: force,
+          verbose: verbose,
+        );
+        final routeFiles = await routeGenerator.generate();
+        files.addAll(routeFiles);
+        nextSteps.add('Add go_router to your pubspec.yaml dependencies');
+        nextSteps.add('Import routes from lib/src/routing/index.dart');
       }
 
       // Generate cache files if requested

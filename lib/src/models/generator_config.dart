@@ -40,6 +40,7 @@ class GeneratorConfig {
   final bool useMockInDi;
   final bool generateDi;
   final String diFramework;
+  final bool generateRoute;
   final bool generateGql;
   final String? gqlReturns;
   final String? gqlType;
@@ -87,6 +88,7 @@ class GeneratorConfig {
     this.useMockInDi = false,
     this.generateDi = false,
     this.diFramework = 'get_it',
+    this.generateRoute = false,
     this.generateGql = false,
     this.gqlReturns,
     this.gqlType,
@@ -141,6 +143,7 @@ class GeneratorConfig {
       useMockInDi: json['use_mock'] == true || json['use_mock_in_di'] == true,
       generateDi: json['di'] == true || json['generate_di'] == true,
       diFramework: json['di_framework'] ?? 'get_it',
+      generateRoute: json['route'] == true || json['generate_route'] == true,
       generateGql: json['gql'] == true || json['generate_gql'] == true,
       gqlReturns: json['gql_returns'],
       gqlType: json['gql_type'],
