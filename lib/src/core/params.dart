@@ -1,11 +1,8 @@
 import 'package:meta/meta.dart';
-import 'request_params.dart';
 
 /// A class for passing parameters as a map.
-///
-/// Extends [RequestParams] to provide polymorphic parameter handling.
 @immutable
-base class Params extends RequestParams {
+class Params {
   /// Optional parameters as a map.
   final Map<String, dynamic>? params;
 

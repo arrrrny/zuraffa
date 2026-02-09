@@ -15,6 +15,224 @@ class MethodAppender {
     this.verbose = false,
   });
 
+  /// Extracts entity name from a type string (e.g., "Customer", "List<Customer>", "Stream<Customer>")
+  String? _extractEntityName(String type) {
+    // Handle generic types like List<T>, Stream<T>, Future<T>, Result<T, E>
+    final genericMatch = RegExp(r'^\w+<([^>]+)>').firstMatch(type);
+    if (genericMatch != null) {
+      final innerType = genericMatch.group(1)!;
+      // Handle Result<T, E> - return the first type parameter
+      if (innerType.contains(',')) {
+        return innerType.split(',').first.trim();
+      }
+      return innerType;
+    }
+    // Handle simple types
+    if (type.isNotEmpty && _isEntityLike(type)) {
+      return type;
+    }
+    return null;
+  }
+
+  /// Checks if a type name looks like an entity (starts with uppercase, not a primitive)
+  bool _isEntityLike(String typeName) {
+    if (typeName.isEmpty) return false;
+    // Not an entity if it's a common Dart type
+    final commonTypes = {
+      'void',
+      'String',
+      'int',
+      'double',
+      'bool',
+      'num',
+      'dynamic',
+      'NoParams',
+      'Params',
+      'QueryParams',
+      'ListQueryParams',
+      'UpdateParams',
+      'DeleteParams',
+      'InitializationParams',
+      'AppFailure',
+      'Filter',
+    };
+    if (commonTypes.contains(typeName)) return false;
+    // Entity names typically start with uppercase
+    return typeName[0].toUpperCase() == typeName[0];
+  }
+
+  /// Collects all entity types referenced in params and return types
+  Set<String> _collectEntityTypes() {
+    final entities = <String>{};
+
+    // Check params type
+    if (config.paramsType != null && config.paramsType != 'NoParams') {
+      final entity = _extractEntityName(config.paramsType!);
+      if (entity != null) entities.add(entity);
+    }
+
+    // Check returns type
+    if (config.returnsType != null && config.returnsType != 'void') {
+      final entity = _extractEntityName(config.returnsType!);
+      if (entity != null) entities.add(entity);
+    }
+
+    return entities;
+  }
+
+  /// Checks if an import for the entity already exists in the file content
+  bool _hasEntityImport(String content, String entityName, String entitySnake) {
+    // Check for various import patterns
+    // Build patterns as strings first with variable interpolation
+    final pattern1 = RegExp(
+      "import\\s+['\\\"]([^'\\\"]*/entities/$entitySnake/[^'\\\"]*)['\\\"]",
+    );
+    final pattern2 = RegExp(
+      "import\\s+['\\\"]([^'\\\"]*$entityName\\.dart)['\\\"]",
+    );
+    // Don't use a generic "entities" pattern - it causes false positives
+
+    final patterns = [pattern1, pattern2];
+
+    for (final pattern in patterns) {
+      if (pattern.hasMatch(content)) {
+        return true;
+      }
+    }
+
+    // Don't check if entity class is referenced - that will match the method we're about to add!
+    // Only check for actual import statements
+    return false;
+  }
+
+  /// Adds missing entity imports to a file's content
+  Future<String> _addMissingImports(String content, String filePath) async {
+    final entities = _collectEntityTypes();
+    if (entities.isEmpty) return content;
+
+    var modifiedContent = content;
+    var hasChanges = false;
+
+    for (final entityName in entities) {
+      final entitySnake = StringUtils.camelToSnake(entityName);
+
+      // Check if import already exists (check modifiedContent to avoid duplicates)
+      if (_hasEntityImport(modifiedContent, entityName, entitySnake)) {
+        continue;
+      }
+
+      // Find the last import statement in current modified content
+      final importMatches = RegExp(
+        r'''import\s+['"][^'"]*['"];''',
+      ).allMatches(modifiedContent).toList();
+      final lastImportEnd = importMatches.isEmpty ? 0 : importMatches.last.end;
+
+      // Determine relative path from file location
+      final relativePath = _getRelativeImportPath(filePath, entitySnake);
+      var importStatement = "import '$relativePath';\n";
+
+      // Add import after the last import
+      if (lastImportEnd > 0) {
+        // Find where the last import line actually ends (including its newline)
+        final importLineEnd = modifiedContent.indexOf('\n', lastImportEnd);
+        // Insert AFTER the newline (if found), otherwise at end of import
+        final insertPosition = importLineEnd == -1
+            ? lastImportEnd
+            : importLineEnd + 1;
+
+        // Check if there's already a newline after the last import line
+        final textAfterImport = modifiedContent.substring(insertPosition);
+        if (!textAfterImport.startsWith('\n')) {
+          // No newline, add one before the import
+          importStatement = '\n' + importStatement;
+        }
+        modifiedContent =
+            modifiedContent.substring(0, insertPosition) +
+            importStatement +
+            modifiedContent.substring(insertPosition);
+        hasChanges = true;
+      } else {
+        // No imports exist, add at the beginning after potential comments
+        final lines = modifiedContent.split('\n');
+        var insertIndex = 0;
+        for (var i = 0; i < lines.length; i++) {
+          if (lines[i].trim().startsWith('//')) {
+            insertIndex = i + 1;
+          } else if (lines[i].trim().isNotEmpty) {
+            break;
+          }
+        }
+        lines.insert(insertIndex, importStatement.trimRight());
+        modifiedContent = lines.join('\n');
+        hasChanges = true;
+      }
+    }
+
+    return hasChanges ? modifiedContent : content;
+  }
+
+  /// Determines the relative import path for an entity
+  String _getRelativeImportPath(String filePath, String entitySnake) {
+    // Determine the relative path based on the file location
+    // This matches the same logic used in the generators
+
+    final normalizedPath = path.normalize(filePath);
+
+    // Check if file is in data/data_sources
+    if (normalizedPath.contains('/data/data_sources/') ||
+        normalizedPath.contains('\\data\\data_sources\\')) {
+      return '../../../domain/entities/$entitySnake/$entitySnake.dart';
+    }
+
+    // Check if file is in data/repositories
+    if (normalizedPath.contains('/data/repositories/') ||
+        normalizedPath.contains('\\data\\repositories\\')) {
+      return '../domain/entities/$entitySnake/$entitySnake.dart';
+    }
+
+    // Check if file is in domain/repositories
+    if (normalizedPath.contains('/domain/repositories/') ||
+        normalizedPath.contains('\\domain\\repositories\\')) {
+      return '../entities/$entitySnake/$entitySnake.dart';
+    }
+
+    // Check if file is in domain/usecases
+    if (normalizedPath.contains('/domain/usecases/') ||
+        normalizedPath.contains('\\domain\\usecases\\')) {
+      return '../../entities/$entitySnake/$entitySnake.dart';
+    }
+
+    // Check if file is in data/providers
+    if (normalizedPath.contains('/data/providers/') ||
+        normalizedPath.contains('\\data\\providers\\')) {
+      return '../../../domain/services/${entitySnake}_service.dart';
+    }
+
+    // Fallback: calculate based on path structure
+    final parts = path.split(normalizedPath);
+
+    // Find 'lib' if it exists, otherwise use 'data' or 'domain' as base
+    var baseIndex = -1;
+    for (var i = parts.length - 1; i >= 0; i--) {
+      if (parts[i] == 'lib') {
+        baseIndex = i;
+        break;
+      }
+      if ((parts[i] == 'data' || parts[i] == 'domain') && baseIndex < 0) {
+        baseIndex = i;
+      }
+    }
+
+    if (baseIndex >= 0) {
+      final depth = parts.length - baseIndex - 1;
+      final relativePrefix = List.generate(depth, (_) => '..').join('/');
+      return '$relativePrefix/domain/entities/$entitySnake/$entitySnake.dart';
+    }
+
+    // Last resort: assume 3 levels up
+    return '../../../domain/entities/$entitySnake/$entitySnake.dart';
+  }
+
   Future<AppendResult> appendMethod() async {
     final updatedFiles = <GeneratedFile>[];
     final warnings = <String>[];
@@ -208,7 +426,11 @@ class MethodAppender {
     final file = File(filePath);
     if (!file.existsSync()) return false;
 
-    final content = await file.readAsString();
+    var content = await file.readAsString();
+
+    // Add missing entity imports
+    content = await _addMissingImports(content, filePath);
+
     final lastBrace = content.lastIndexOf('}');
     if (lastBrace == -1) return false;
 
@@ -233,7 +455,11 @@ class MethodAppender {
     final file = File(filePath);
     if (!file.existsSync()) return false;
 
-    final content = await file.readAsString();
+    var content = await file.readAsString();
+
+    // Add missing entity imports
+    content = await _addMissingImports(content, filePath);
+
     final lastBrace = content.lastIndexOf('}');
     if (lastBrace == -1) return false;
 
@@ -271,7 +497,11 @@ class MethodAppender {
     final file = File(filePath);
     if (!file.existsSync()) return false;
 
-    final content = await file.readAsString();
+    var content = await file.readAsString();
+
+    // Add missing entity imports
+    content = await _addMissingImports(content, filePath);
+
     final lastBrace = content.lastIndexOf('}');
     if (lastBrace == -1) return false;
 
@@ -295,7 +525,11 @@ class MethodAppender {
     final file = File(filePath);
     if (!file.existsSync()) return false;
 
-    final content = await file.readAsString();
+    var content = await file.readAsString();
+
+    // Add missing entity imports
+    content = await _addMissingImports(content, filePath);
+
     final lastBrace = content.lastIndexOf('}');
     if (lastBrace == -1) return false;
 
@@ -326,7 +560,11 @@ class MethodAppender {
     final file = File(filePath);
     if (!file.existsSync()) return false;
 
-    final content = await file.readAsString();
+    var content = await file.readAsString();
+
+    // Add missing entity imports
+    content = await _addMissingImports(content, filePath);
+
     final lastBrace = content.lastIndexOf('}');
     if (lastBrace == -1) return false;
 
@@ -359,7 +597,11 @@ class MethodAppender {
     final file = File(filePath);
     if (!file.existsSync()) return false;
 
-    final content = await file.readAsString();
+    var content = await file.readAsString();
+
+    // Add missing entity imports
+    content = await _addMissingImports(content, filePath);
+
     final lastBrace = content.lastIndexOf('}');
     if (lastBrace == -1) return false;
 
@@ -630,7 +872,11 @@ abstract class ${repoName}Repository {
     final file = File(filePath);
     if (!file.existsSync()) return false;
 
-    final content = await file.readAsString();
+    var content = await file.readAsString();
+
+    // Add missing entity imports
+    content = await _addMissingImports(content, filePath);
+
     final lastBrace = content.lastIndexOf('}');
     if (lastBrace == -1) return false;
 
@@ -679,7 +925,11 @@ abstract class $serviceName {
     final file = File(filePath);
     if (!file.existsSync()) return false;
 
-    final content = await file.readAsString();
+    var content = await file.readAsString();
+
+    // Add missing entity imports
+    content = await _addMissingImports(content, filePath);
+
     final lastBrace = content.lastIndexOf('}');
     if (lastBrace == -1) return false;
 

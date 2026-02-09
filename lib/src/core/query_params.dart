@@ -1,15 +1,12 @@
 import 'package:zorphy/zorphy.dart';
 import 'params.dart';
-import 'request_params.dart';
 
 /// Parameters for querying a single entity by a field (usually ID or slug).
 ///
 /// The type parameter [T] represents the entity type being queried,
 /// enabling type-safe [Filter] references when the entity has filterable fields.
-///
-/// Extends [RequestParams] to provide polymorphic parameter handling.
 @immutable
-base class QueryParams<T> extends RequestParams {
+class QueryParams<T> {
   /// Type-safe filter to identify the entity.
   final Filter<T>? filter;
 
