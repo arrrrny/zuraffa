@@ -9,9 +9,9 @@ import '../plugins/view/view_plugin.dart';
 import '../plugins/presenter/presenter_plugin.dart';
 import '../plugins/controller/controller_plugin.dart';
 import '../plugins/di/di_plugin.dart';
+import '../plugins/datasource/datasource_plugin.dart';
 import 'state_generator.dart';
 import 'observer_generator.dart';
-import 'data_layer_generator.dart';
 import 'test_generator.dart';
 import 'mock_generator.dart';
 import '../core/generation/code_builder_factory.dart';
@@ -35,9 +35,9 @@ class CodeGenerator {
   late final PresenterPlugin _presenterPlugin;
   late final ControllerPlugin _controllerPlugin;
   late final DiPlugin _diPlugin;
+  late final DataSourcePlugin _dataSourcePlugin;
   late final StateGenerator _stateGenerator;
   late final ObserverGenerator _observerGenerator;
-  late final DataLayerGenerator _dataLayerGenerator;
   late final TestGenerator _testGenerator;
 
   CodeGenerator({
@@ -93,9 +93,14 @@ class CodeGenerator {
       force: force,
       verbose: verbose,
     );
+    _dataSourcePlugin = DataSourcePlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
     _stateGenerator = builderFactory.state();
     _observerGenerator = builderFactory.observer();
-    _dataLayerGenerator = builderFactory.dataLayer();
     _testGenerator = builderFactory.test();
   }
 
@@ -206,25 +211,8 @@ class CodeGenerator {
               'Implement ${config.effectiveProvider} with external service client',
             );
           } else {
-            final dataSourceFile = await _dataLayerGenerator
-                .generateDataSource();
-            files.add(dataSourceFile);
-
-            if (config.enableCache) {
-              final remoteFile = await _dataLayerGenerator
-                  .generateRemoteDataSource();
-              final localFile = await _dataLayerGenerator
-                  .generateLocalDataSource();
-              files.add(remoteFile);
-              files.add(localFile);
-              nextSteps.add(
-                'Implement remote and local data sources for ${config.name}',
-              );
-            } else {
-              nextSteps.add(
-                'Create a DataSource that implements ${config.name}DataSource in data layer',
-              );
-            }
+            final dataSourceFiles = await _dataSourcePlugin.generate(config);
+            files.addAll(dataSourceFiles);
 
             final dataRepoFile = await _repositoryPlugin.generateImplementation(
               config,
