@@ -82,7 +82,12 @@ class ConfigCommand {
 
     const encoder = JsonEncoder.withIndent('  ');
     final content = encoder.convert(defaultConfig);
-    await FileUtils.writeFile(configFile.path, content, 'config', force: true);
+    await FileUtils.writeFile(
+      configFile.path,
+      content,
+      'config',
+      force: true,
+    );
 
     print('✅ Created configuration file: ${configFile.path}');
     print('');

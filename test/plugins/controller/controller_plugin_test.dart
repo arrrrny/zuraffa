@@ -34,10 +34,7 @@ void main() {
     );
     final files = await plugin.generate(config);
     final content = files.first.content ?? '';
-    expect(
-      content.contains('class ProductController extends Controller'),
-      isTrue,
-    );
+    expect(content.contains('class ProductController extends Controller'), isTrue);
     expect(content.contains('StatefulController<ProductState>'), isTrue);
     expect(content.contains('createInitialState()'), isTrue);
     expect(content.contains('createCancelToken()'), isTrue);

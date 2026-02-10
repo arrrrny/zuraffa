@@ -20,13 +20,13 @@ class StateGenerator {
   });
 
   StateGenerator.fromContext(GenerationContext context)
-    : this(
-        config: context.config,
-        outputDir: context.outputDir,
-        dryRun: context.dryRun,
-        force: context.force,
-        verbose: context.verbose,
-      );
+      : this(
+          config: context.config,
+          outputDir: context.outputDir,
+          dryRun: context.dryRun,
+          force: context.force,
+          verbose: context.verbose,
+        );
 
   Future<GeneratedFile> generate() async {
     final entityName = config.name;

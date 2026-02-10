@@ -107,7 +107,12 @@ class ZfaConfig {
 
     const encoder = JsonEncoder.withIndent('  ');
     final content = encoder.convert(configJson);
-    await FileUtils.writeFile(configFile.path, content, 'config', force: true);
+    await FileUtils.writeFile(
+      configFile.path,
+      content,
+      'config',
+      force: true,
+    );
   }
 
   /// Create a config file template in project root

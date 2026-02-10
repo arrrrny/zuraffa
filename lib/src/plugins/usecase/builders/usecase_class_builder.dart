@@ -40,10 +40,16 @@ class UseCaseClassBuilder {
 
     final directives = spec.imports.toSet().map(Directive.import).toList();
 
-    return specLibrary.library(specs: [clazz], directives: directives);
+    return specLibrary.library(
+      specs: [clazz],
+      directives: directives,
+    );
   }
 
   String build(UseCaseClassSpec spec, {bool format = true}) {
-    return specLibrary.emitLibrary(buildLibrary(spec), format: format);
+    return specLibrary.emitLibrary(
+      buildLibrary(spec),
+      format: format,
+    );
   }
 }

@@ -47,15 +47,15 @@ class VpcPatterns {
         ..constructors.addAll(
           constructors.isEmpty
               ? [
-                  CommonPatterns.constructor(
-                    parameters: fields.map(
-                      (field) => CommonPatterns.optionalNamedParam(
-                        field.name,
-                        field.type?.symbol ?? 'dynamic',
-                      ),
+                CommonPatterns.constructor(
+                  parameters: fields.map(
+                    (field) => CommonPatterns.optionalNamedParam(
+                      field.name,
+                      field.type?.symbol ?? 'dynamic',
                     ),
                   ),
-                ]
+                ),
+              ]
               : constructors,
         ),
     );

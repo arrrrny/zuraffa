@@ -64,7 +64,11 @@ class FileUtils {
       if (verbose) {
         print('  ⏭ Skipping missing file: $filePath');
       }
-      return GeneratedFile(path: filePath, type: type, action: 'skipped');
+      return GeneratedFile(
+        path: filePath,
+        type: type,
+        action: 'skipped',
+      );
     }
 
     final transaction = GenerationTransaction.current;
@@ -79,7 +83,11 @@ class FileUtils {
       print('  ✓ Deleting: $filePath');
     }
 
-    return GeneratedFile(path: filePath, type: type, action: 'deleted');
+    return GeneratedFile(
+      path: filePath,
+      type: type,
+      action: 'deleted',
+    );
   }
 
   static String getParamName(String method, String entityCamel) {

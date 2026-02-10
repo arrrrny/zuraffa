@@ -26,8 +26,8 @@ class CustomUseCaseGenerator {
     required this.verbose,
     UseCaseClassBuilder? classBuilder,
     AppendExecutor? appendExecutor,
-  }) : classBuilder = classBuilder ?? const UseCaseClassBuilder(),
-       appendExecutor = appendExecutor ?? AppendExecutor();
+  })  : classBuilder = classBuilder ?? const UseCaseClassBuilder(),
+        appendExecutor = appendExecutor ?? AppendExecutor();
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final baseName = config.name.endsWith('UseCase')
@@ -36,12 +36,8 @@ class CustomUseCaseGenerator {
     final className = '${baseName}UseCase';
     final classSnake = StringUtils.camelToSnake(baseName);
     final fileName = '${classSnake}_usecase.dart';
-    final usecaseDirPath = path.join(
-      outputDir,
-      'domain',
-      'usecases',
-      config.effectiveDomain,
-    );
+    final usecaseDirPath =
+        path.join(outputDir, 'domain', 'usecases', config.effectiveDomain);
     final filePath = path.join(usecaseDirPath, fileName);
 
     final paramsType = config.paramsType ?? 'NoParams';
@@ -60,10 +56,10 @@ class CustomUseCaseGenerator {
       constructors: constructorParams.isEmpty
           ? const []
           : [
-              Constructor(
-                (b) => b..requiredParameters.addAll(constructorParams),
-              ),
-            ],
+            Constructor(
+              (b) => b..requiredParameters.addAll(constructorParams),
+            ),
+          ],
       methods: methods,
       imports: imports,
     );
@@ -87,12 +83,8 @@ class CustomUseCaseGenerator {
     final className = '${config.name}UseCase';
     final classSnake = StringUtils.camelToSnake(config.name);
     final fileName = '${classSnake}_usecase.dart';
-    final usecaseDirPath = path.join(
-      outputDir,
-      'domain',
-      'usecases',
-      config.effectiveDomain,
-    );
+    final usecaseDirPath =
+        path.join(outputDir, 'domain', 'usecases', config.effectiveDomain);
     final filePath = path.join(usecaseDirPath, fileName);
 
     final paramsType = config.paramsType!;
@@ -143,7 +135,9 @@ class CustomUseCaseGenerator {
       baseClass: baseClass,
       fields: usecaseFields,
       constructors: [
-        Constructor((b) => b..requiredParameters.addAll(usecaseParams)),
+        Constructor(
+          (b) => b..requiredParameters.addAll(usecaseParams),
+        ),
       ],
       methods: [executeMethod],
       imports: usecaseImports,
@@ -166,12 +160,8 @@ class CustomUseCaseGenerator {
     final files = <GeneratedFile>[];
     final baseClassName = '${config.name}UseCase';
     final classSnake = StringUtils.camelToSnake(config.name);
-    final usecaseDirPath = path.join(
-      outputDir,
-      'domain',
-      'usecases',
-      config.effectiveDomain,
-    );
+    final usecaseDirPath =
+        path.join(outputDir, 'domain', 'usecases', config.effectiveDomain);
     final paramsType = config.paramsType!;
     final returnsType = config.returnsType!;
 
@@ -204,8 +194,8 @@ class CustomUseCaseGenerator {
 
       final repoClassName = config.repo != null
           ? (config.repo!.endsWith('Repository')
-                ? config.repo!
-                : '${config.repo}Repository')
+              ? config.repo!
+              : '${config.repo}Repository')
           : null;
 
       final fields = <Field>[];
@@ -251,10 +241,10 @@ class CustomUseCaseGenerator {
         constructors: constructorParams.isEmpty
             ? const []
             : [
-                Constructor(
-                  (b) => b..requiredParameters.addAll(constructorParams),
-                ),
-              ],
+              Constructor(
+                (b) => b..requiredParameters.addAll(constructorParams),
+              ),
+            ],
         methods: [executeMethod],
         imports: imports,
       );
@@ -284,7 +274,8 @@ class CustomUseCaseGenerator {
     final factoryImports = <String>[
       abstractFileName,
       ...config.variants.map(
-        (v) => '${StringUtils.camelToSnake('$v${config.name}')}_usecase.dart',
+        (v) =>
+            '${StringUtils.camelToSnake('$v${config.name}')}_usecase.dart',
       ),
     ];
     final factorySpec = UseCaseClassSpec(
@@ -410,9 +401,7 @@ class CustomUseCaseGenerator {
     final methodName = config.hasService
         ? config.getServiceMethodName()
         : config.getRepoMethodName();
-    final depField = dependencyFields.isNotEmpty
-        ? dependencyFields.first.name
-        : '';
+    final depField = dependencyFields.isNotEmpty ? dependencyFields.first.name : '';
 
     if (config.useCaseType == 'stream') {
       final body = depField.isEmpty
@@ -467,11 +456,9 @@ class CustomUseCaseGenerator {
 
     final body = StringBuffer()
       ..writeln('cancelToken?.throwIfCancelled();')
-      ..writeln(
-        depField.isEmpty
-            ? 'throw UnimplementedError();'
-            : 'return await $depField.$methodName(params);',
-      );
+      ..writeln(depField.isEmpty
+          ? 'throw UnimplementedError();'
+          : 'return await $depField.$methodName(params);');
 
     final returnTypeRef = config.useCaseType == 'completable'
         ? 'Future<void>'
@@ -503,7 +490,10 @@ class CustomUseCaseGenerator {
     ];
   }
 
-  List<Method> _buildBackgroundMethods(String paramsType, String returnsType) {
+  List<Method> _buildBackgroundMethods(
+    String paramsType,
+    String returnsType,
+  ) {
     final buildTask = Method(
       (b) => b
         ..name = 'buildTask'
@@ -564,39 +554,41 @@ class CustomUseCaseGenerator {
     final signature = config.useCaseType == 'stream'
         ? 'Stream<$returnsType>'
         : config.useCaseType == 'completable'
-        ? 'Future<void>'
-        : config.useCaseType == 'sync'
-        ? returnsType
-        : 'Future<$returnsType>';
+            ? 'Future<void>'
+            : config.useCaseType == 'sync'
+                ? returnsType
+                : 'Future<$returnsType>';
     final isAsync = config.useCaseType != 'sync';
     final body = StringBuffer()
       ..writeln('cancelToken?.throwIfCancelled();')
       ..writeln("throw UnimplementedError('Implement orchestration logic');");
 
-    return Method((b) {
-      b
-        ..name = 'execute'
-        ..returns = refer(signature)
-        ..modifier = isAsync ? MethodModifier.async : null
-        ..requiredParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'params'
-              ..type = refer(paramsType),
-          ),
-        )
-        ..annotations.add(CodeExpression(Code('override')))
-        ..body = Code(body.toString());
-      if (config.useCaseType != 'sync') {
-        b.requiredParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'cancelToken'
-              ..type = refer('CancelToken?'),
-          ),
-        );
-      }
-    });
+    return Method(
+      (b) {
+        b
+          ..name = 'execute'
+          ..returns = refer(signature)
+          ..modifier = isAsync ? MethodModifier.async : null
+          ..requiredParameters.add(
+            Parameter(
+              (p) => p
+                ..name = 'params'
+                ..type = refer(paramsType),
+            ),
+          )
+          ..annotations.add(CodeExpression(Code('override')))
+          ..body = Code(body.toString());
+        if (config.useCaseType != 'sync') {
+          b.requiredParameters.add(
+            Parameter(
+              (p) => p
+                ..name = 'cancelToken'
+                ..type = refer('CancelToken?'),
+            ),
+          );
+        }
+      },
+    );
   }
 
   Method _buildPolymorphicExecute(
@@ -608,39 +600,41 @@ class CustomUseCaseGenerator {
     final signature = config.useCaseType == 'stream'
         ? 'Stream<$returnsType>'
         : config.useCaseType == 'completable'
-        ? 'Future<void>'
-        : config.useCaseType == 'sync'
-        ? returnsType
-        : 'Future<$returnsType>';
+            ? 'Future<void>'
+            : config.useCaseType == 'sync'
+                ? returnsType
+                : 'Future<$returnsType>';
     final isAsync = config.useCaseType != 'sync';
     final body = config.useCaseType == 'sync'
         ? "throw UnimplementedError('Implement $variant variant');"
         : "throw UnimplementedError('Implement $variant variant');";
 
-    return Method((b) {
-      b
-        ..name = 'execute'
-        ..returns = refer(signature)
-        ..modifier = isAsync ? MethodModifier.async : null
-        ..requiredParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'params'
-              ..type = refer(paramsType),
-          ),
-        )
-        ..annotations.add(CodeExpression(Code('override')))
-        ..body = Code(body);
-      if (config.useCaseType != 'sync') {
-        b.requiredParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'cancelToken'
-              ..type = refer('CancelToken?'),
-          ),
-        );
-      }
-    });
+    return Method(
+      (b) {
+        b
+          ..name = 'execute'
+          ..returns = refer(signature)
+          ..modifier = isAsync ? MethodModifier.async : null
+          ..requiredParameters.add(
+            Parameter(
+              (p) => p
+                ..name = 'params'
+                ..type = refer(paramsType),
+            ),
+          )
+          ..annotations.add(CodeExpression(Code('override')))
+          ..body = Code(body);
+        if (config.useCaseType != 'sync') {
+          b.requiredParameters.add(
+            Parameter(
+              (p) => p
+                ..name = 'cancelToken'
+                ..type = refer('CancelToken?'),
+            ),
+          );
+        }
+      },
+    );
   }
 
   _FactoryClassParts _buildPolymorphicFactory(
@@ -701,7 +695,9 @@ class CustomUseCaseGenerator {
       className: factoryClassName,
       fields: fields,
       constructors: [
-        Constructor((b) => b..requiredParameters.addAll(constructorParams)),
+        Constructor(
+          (b) => b..requiredParameters.addAll(constructorParams),
+        ),
       ],
       methods: [forParamsMethod],
     );
@@ -725,18 +721,14 @@ class CustomUseCaseGenerator {
             name != 'Map' &&
             name != 'Set' &&
             name != 'NoParams' &&
-            !RegExp(
-              r'^(int|double|bool|String|void|dynamic)$',
-            ).hasMatch(name)) {
+            !RegExp(r'^(int|double|bool|String|void|dynamic)$')
+                .hasMatch(name)) {
           entityNames.add(name);
         }
       }
     }
     return entityNames
-        .map(
-          (e) =>
-              '../../entities/${StringUtils.camelToSnake(e)}/${StringUtils.camelToSnake(e)}.dart',
-        )
+        .map((e) => '../../entities/${StringUtils.camelToSnake(e)}/${StringUtils.camelToSnake(e)}.dart')
         .toList();
   }
 
@@ -767,9 +759,7 @@ class CustomUseCaseGenerator {
     final methodName = config.hasService
         ? config.getServiceMethodName()
         : config.getRepoMethodName();
-    final depField = dependencyFields.isNotEmpty
-        ? dependencyFields.first.name
-        : '';
+    final depField = dependencyFields.isNotEmpty ? dependencyFields.first.name : '';
 
     if (config.useCaseType == 'stream') {
       final body = depField.isEmpty

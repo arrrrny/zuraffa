@@ -26,8 +26,8 @@ class StreamUseCaseGenerator {
     required this.verbose,
     UseCaseClassBuilder? classBuilder,
     AppendExecutor? appendExecutor,
-  }) : classBuilder = classBuilder ?? const UseCaseClassBuilder(),
-       appendExecutor = appendExecutor ?? AppendExecutor();
+  })  : classBuilder = classBuilder ?? const UseCaseClassBuilder(),
+        appendExecutor = appendExecutor ?? AppendExecutor();
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final baseName = config.name.endsWith('UseCase')
@@ -36,12 +36,8 @@ class StreamUseCaseGenerator {
     final className = '${baseName}UseCase';
     final classSnake = StringUtils.camelToSnake(baseName);
     final fileName = '${classSnake}_usecase.dart';
-    final usecaseDirPath = path.join(
-      outputDir,
-      'domain',
-      'usecases',
-      config.effectiveDomain,
-    );
+    final usecaseDirPath =
+        path.join(outputDir, 'domain', 'usecases', config.effectiveDomain);
     final filePath = path.join(usecaseDirPath, fileName);
 
     final paramsType = config.paramsType ?? 'NoParams';
@@ -57,7 +53,8 @@ class StreamUseCaseGenerator {
       final repoSnake = StringUtils.camelToSnake(
         repoName.replaceAll('Repository', ''),
       );
-      dependencyImports.add('../../repositories/${repoSnake}_repository.dart');
+      dependencyImports
+          .add('../../repositories/${repoSnake}_repository.dart');
       dependencyFields.add(
         Field(
           (b) => b
@@ -127,10 +124,10 @@ class StreamUseCaseGenerator {
       constructors: constructorParams.isEmpty
           ? const []
           : [
-              Constructor(
-                (b) => b..requiredParameters.addAll(constructorParams),
-              ),
-            ],
+            Constructor(
+              (b) => b..requiredParameters.addAll(constructorParams),
+            ),
+          ],
       methods: [executeMethod],
       imports: [
         'package:zuraffa/zuraffa.dart',
@@ -169,18 +166,14 @@ class StreamUseCaseGenerator {
             name != 'Map' &&
             name != 'Set' &&
             name != 'NoParams' &&
-            !RegExp(
-              r'^(int|double|bool|String|void|dynamic)$',
-            ).hasMatch(name)) {
+            !RegExp(r'^(int|double|bool|String|void|dynamic)$')
+                .hasMatch(name)) {
           entityNames.add(name);
         }
       }
     }
     return entityNames
-        .map(
-          (e) =>
-              '../../entities/${StringUtils.camelToSnake(e)}/${StringUtils.camelToSnake(e)}.dart',
-        )
+        .map((e) => '../../entities/${StringUtils.camelToSnake(e)}/${StringUtils.camelToSnake(e)}.dart')
         .toList();
   }
 

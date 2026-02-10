@@ -21,13 +21,13 @@ class GraphQLGenerator {
   });
 
   GraphQLGenerator.fromContext(GenerationContext context)
-    : this(
-        config: context.config,
-        outputDir: context.outputDir,
-        dryRun: context.dryRun,
-        force: context.force,
-        verbose: context.verbose,
-      );
+      : this(
+          config: context.config,
+          outputDir: context.outputDir,
+          dryRun: context.dryRun,
+          force: context.force,
+          verbose: context.verbose,
+        );
 
   Future<List<GeneratedFile>> generate() async {
     final files = <GeneratedFile>[];

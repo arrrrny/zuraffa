@@ -25,13 +25,13 @@ class ServiceGenerator {
   });
 
   ServiceGenerator.fromContext(GenerationContext context)
-    : this(
-        config: context.config,
-        outputDir: context.outputDir,
-        dryRun: context.dryRun,
-        force: context.force,
-        verbose: context.verbose,
-      );
+      : this(
+          config: context.config,
+          outputDir: context.outputDir,
+          dryRun: context.dryRun,
+          force: context.force,
+          verbose: context.verbose,
+        );
 
   /// Generates a service interface file for a custom UseCase.
   Future<GeneratedFile> generate() async {

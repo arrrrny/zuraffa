@@ -1,5 +1,7 @@
+import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
+import '../../../core/builder/shared/spec_library.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -10,13 +12,15 @@ class RemoteDataSourceGenerator {
   final bool dryRun;
   final bool force;
   final bool verbose;
+  final SpecLibrary specLibrary;
 
   RemoteDataSourceGenerator({
     required this.outputDir,
     required this.dryRun,
     required this.force,
     required this.verbose,
-  });
+    SpecLibrary? specLibrary,
+  }) : specLibrary = specLibrary ?? const SpecLibrary();
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final entityName = config.name;
@@ -33,21 +37,37 @@ class RemoteDataSourceGenerator {
     );
     final filePath = path.join(dataSourceDirPath, fileName);
 
-    final methods = <String>[];
+    final methods = <Method>[];
     if (config.generateInit) {
       methods.add(
-        '''
-  @override
-  Future<void> initialize(InitializationParams params) async {
-    logger.info('Initializing $dataSourceName');
-    // TODO: Initialize remote connection, auth, etc.
-    logger.info('$dataSourceName initialized');
-  }''',
+        Method(
+          (m) => m
+            ..name = 'initialize'
+            ..annotations.add(CodeExpression(Code('override')))
+            ..returns = refer('Future<void>')
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('InitializationParams'),
+              ),
+            )
+            ..modifier = MethodModifier.async
+            ..body = Code('''
+logger.info('Initializing $dataSourceName');
+logger.info('$dataSourceName initialized');
+'''),
+        ),
       );
       methods.add(
-        '''
-  @override
-  Stream<bool> get isInitialized => Stream.value(true);''',
+        Method(
+          (m) => m
+            ..name = 'isInitialized'
+            ..type = MethodType.getter
+            ..annotations.add(CodeExpression(Code('override')))
+            ..returns = refer('Stream<bool>')
+            ..body = Code('return Stream.value(true);'),
+        ),
       );
     }
 
@@ -66,32 +86,35 @@ class RemoteDataSourceGenerator {
       switch (method) {
         case 'get':
           methods.add(
-            '''
-  @override
-  Future<$entityName> get(QueryParams<$entityName> params) async {
-    // TODO: Implement remote API call
-    ${_remoteBody('Implement remote get', gqlConstant)}
-  }''',
+            _buildMethod(
+              name: 'get',
+              returnType: 'Future<$entityName>',
+              parameters: [_param('params', 'QueryParams<$entityName>')],
+              body: _remoteBody('Implement remote get', gqlConstant),
+              isAsync: true,
+            ),
           );
           break;
         case 'getList':
           methods.add(
-            '''
-  @override
-  Future<List<$entityName>> getList(ListQueryParams<$entityName> params) async {
-    // TODO: Implement remote API call
-    ${_remoteBody('Implement remote getList', gqlConstant)}
-  }''',
+            _buildMethod(
+              name: 'getList',
+              returnType: 'Future<List<$entityName>>',
+              parameters: [_param('params', 'ListQueryParams<$entityName>')],
+              body: _remoteBody('Implement remote getList', gqlConstant),
+              isAsync: true,
+            ),
           );
           break;
         case 'create':
           methods.add(
-            '''
-  @override
-  Future<$entityName> create($entityName $entityCamel) async {
-    // TODO: Implement remote API call
-    ${_remoteBody('Implement remote create', gqlConstant)}
-  }''',
+            _buildMethod(
+              name: 'create',
+              returnType: 'Future<$entityName>',
+              parameters: [_param(entityCamel, entityName)],
+              body: _remoteBody('Implement remote create', gqlConstant),
+              isAsync: true,
+            ),
           );
           break;
         case 'update':
@@ -99,72 +122,73 @@ class RemoteDataSourceGenerator {
               ? '${config.name}Patch'
               : 'Partial<${config.name}>';
           methods.add(
-            '''
-  @override
-  Future<${config.name}> update(UpdateParams<${config.idType}, $dataType> params) async {
-    // TODO: Implement remote API call
-    ${_remoteBody('Implement remote update', gqlConstant)}
-  }''',
+            _buildMethod(
+              name: 'update',
+              returnType: 'Future<${config.name}>',
+              parameters: [
+                _param('params', 'UpdateParams<${config.idType}, $dataType>'),
+              ],
+              body: _remoteBody('Implement remote update', gqlConstant),
+              isAsync: true,
+            ),
           );
           break;
         case 'delete':
           methods.add(
-            '''
-  @override
-  Future<void> delete(DeleteParams<${config.idType}> params) async {
-    // TODO: Implement remote API call
-    ${_remoteBody('Implement remote delete', gqlConstant)}
-  }''',
+            _buildMethod(
+              name: 'delete',
+              returnType: 'Future<void>',
+              parameters: [_param('params', 'DeleteParams<${config.idType}>')],
+              body: _remoteBody('Implement remote delete', gqlConstant),
+              isAsync: true,
+            ),
           );
           break;
         case 'watch':
           methods.add(
-            '''
-  @override
-  Stream<$entityName> watch(QueryParams<$entityName> params) {
-    // TODO: Implement remote stream (WebSocket, SSE, etc.)
-    ${_remoteBody('Implement remote watch', gqlConstant)}
-  }''',
+            _buildMethod(
+              name: 'watch',
+              returnType: 'Stream<$entityName>',
+              parameters: [_param('params', 'QueryParams<$entityName>')],
+              body: _remoteBody('Implement remote watch', gqlConstant),
+              isAsync: false,
+            ),
           );
           break;
         case 'watchList':
           methods.add(
-            '''
-  @override
-  Stream<List<$entityName>> watchList(ListQueryParams<$entityName> params) {
-    // TODO: Implement remote stream (WebSocket, SSE, etc.)
-    ${_remoteBody('Implement remote watchList', gqlConstant)}
-  }''',
+            _buildMethod(
+              name: 'watchList',
+              returnType: 'Stream<List<$entityName>>',
+              parameters: [_param('params', 'ListQueryParams<$entityName>')],
+              body: _remoteBody('Implement remote watchList', gqlConstant),
+              isAsync: false,
+            ),
           );
           break;
       }
     }
 
-    final importLines = [
-      "import 'package:zuraffa/zuraffa.dart';",
-      "import '../../../domain/entities/$entitySnake/$entitySnake.dart';",
-      "import '${entitySnake}_data_source.dart';",
-      ...gqlImports.map((gqlImport) => "import '$gqlImport';"),
+    final clazz = Class(
+      (b) => b
+        ..name = dataSourceName
+        ..mixins.addAll([refer('Loggable'), refer('FailureHandler')])
+        ..implements.add(refer('${entityName}DataSource'))
+        ..methods.addAll(methods),
+    );
+
+    final directives = <Directive>[
+      Directive.import('package:zuraffa/zuraffa.dart'),
+      Directive.import(
+        '../../../domain/entities/$entitySnake/$entitySnake.dart',
+      ),
+      Directive.import('${entitySnake}_data_source.dart'),
+      ...gqlImports.map(Directive.import),
     ];
 
-    final content =
-        '''
-// Generated by zfa
-// zfa generate $entityName --methods=${config.methods.join(',')} --data --cache
-
-${importLines.join('\n')}
-
-/// Remote data source for $entityName.
-///
-/// Fetches data from external API/service.
-class $dataSourceName with Loggable, FailureHandler implements ${entityName}DataSource {
-  // TODO: Add HTTP client or API service dependency
-  // final ApiClient _apiClient;
-  // $dataSourceName(this._apiClient);
-
-${methods.join('\n\n')}
-}
-''';
+    final content = specLibrary.emitLibrary(
+      specLibrary.library(specs: [clazz], directives: directives),
+    );
 
     return FileUtils.writeFile(
       filePath,
@@ -173,6 +197,32 @@ ${methods.join('\n\n')}
       force: force,
       dryRun: dryRun,
       verbose: verbose,
+    );
+  }
+
+  Method _buildMethod({
+    required String name,
+    required String returnType,
+    required List<Parameter> parameters,
+    required String body,
+    required bool isAsync,
+  }) {
+    return Method(
+      (m) => m
+        ..name = name
+        ..annotations.add(CodeExpression(Code('override')))
+        ..returns = refer(returnType)
+        ..requiredParameters.addAll(parameters)
+        ..modifier = isAsync ? MethodModifier.async : null
+        ..body = Code(body),
+    );
+  }
+
+  Parameter _param(String name, String type) {
+    return Parameter(
+      (p) => p
+        ..name = name
+        ..type = refer(type),
     );
   }
 

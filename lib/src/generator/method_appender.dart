@@ -20,12 +20,12 @@ class MethodAppender {
   });
 
   MethodAppender.fromContext(GenerationContext context)
-    : this(
-        config: context.config,
-        outputDir: context.outputDir,
-        verbose: context.verbose,
-        dryRun: context.dryRun,
-      );
+      : this(
+          config: context.config,
+          outputDir: context.outputDir,
+          verbose: context.verbose,
+          dryRun: context.dryRun,
+        );
 
   Future<void> _writeFile(String filePath, String content, String type) async {
     await FileUtils.writeFile(
