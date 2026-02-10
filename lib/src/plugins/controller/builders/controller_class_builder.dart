@@ -44,14 +44,13 @@ class ControllerClassBuilder {
     );
 
     final ctor = Constructor((c) {
-      c
-        ..requiredParameters.add(
-          Parameter(
-            (p) => p
-              ..name = '_presenter'
-              ..toThis = true,
-          ),
-        );
+      c.requiredParameters.add(
+        Parameter(
+          (p) => p
+            ..name = '_presenter'
+            ..toThis = true,
+        ),
+      );
     });
     constructors.add(ctor);
 

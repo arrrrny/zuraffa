@@ -56,10 +56,23 @@ class NodeFinder {
     ExtensionDeclaration extensionNode, {
     String? name,
   }) {
-    final methods = extensionNode.members.whereType<MethodDeclaration>();
+    final methods = extensionNode.body.members.whereType<MethodDeclaration>();
     if (name == null) {
       return methods.toList();
     }
     return methods.where((m) => m.name.lexeme == name).toList();
+  }
+
+  static FunctionDeclaration? findFunction(
+    CompilationUnit unit,
+    String functionName,
+  ) {
+    for (final declaration in unit.declarations) {
+      if (declaration is FunctionDeclaration &&
+          declaration.name.lexeme == functionName) {
+        return declaration;
+      }
+    }
+    return null;
   }
 }
