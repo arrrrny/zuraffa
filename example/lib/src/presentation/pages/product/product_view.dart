@@ -1,3 +1,5 @@
+// ignore_for_file: no_logic_in_create_state
+
 import 'package:flutter/material.dart';
 import 'package:zuraffa/zuraffa.dart';
 
@@ -7,11 +9,11 @@ import 'product_presenter.dart';
 
 class ProductView extends CleanView {
   const ProductView({
-    Key? key,
-    RouteObserver<ModalRoute<void>>? routeObserver,
+    super.key,
+    super.routeObserver,
     required this.productRepository,
     this.id,
-  }) : super(key: key, routeObserver: routeObserver);
+  });
 
   final ProductRepository productRepository;
 
@@ -26,7 +28,7 @@ class ProductView extends CleanView {
 }
 
 class _ProductViewState extends CleanViewState<ProductView, ProductController> {
-  _ProductViewState(ProductController controller) : super(controller);
+  _ProductViewState(super.controller);
 
   @override
   onInitState() {

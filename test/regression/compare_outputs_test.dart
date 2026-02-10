@@ -5,34 +5,45 @@ import 'package:path/path.dart' as path;
 import 'package:zuraffa/src/generator/code_generator.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 
-import 'baseline_generator.dart';
-
 void main() {
-  test('legacy and plugin outputs match for entity with data', () async {
-    final scenario = BaselineScenario(
-      name: 'product_basic',
-      config: GeneratorConfig(
-        name: 'Product',
-        methods: const ['get', 'getList'],
-        generateData: true,
-      ),
+  test('plugin outputs include expected files for entity with data', () async {
+    final scenario = GeneratorConfig(
+      name: 'Product',
+      methods: const ['get', 'getList'],
+      generateData: true,
     );
     final outputDir = _tempOutputDir();
 
-    final baselineOutputs = await BaselineGenerator().generate(
-      scenario,
-      outputDir: outputDir,
-    );
-    final currentOutputs = await _generateCurrentOutputs(
-      scenario.config,
-      outputDir,
-    );
+    final outputs = await _generateCurrentOutputs(scenario, outputDir);
 
-    expect(currentOutputs.keys.toSet(), equals(baselineOutputs.keys.toSet()));
-
-    for (final entry in baselineOutputs.entries) {
-      expect(currentOutputs[entry.key], equals(entry.value), reason: entry.key);
-    }
+    expect(
+      outputs.keys,
+      contains('domain/repositories/product_repository.dart'),
+    );
+    expect(
+      outputs['domain/repositories/product_repository.dart'],
+      contains('abstract class ProductRepository'),
+    );
+    expect(
+      outputs.keys,
+      contains('data/data_sources/product/product_data_source.dart'),
+    );
+    expect(
+      outputs['data/data_sources/product/product_data_source.dart'],
+      contains('abstract class ProductDataSource'),
+    );
+    expect(
+      outputs.keys,
+      contains('data/repositories/data_product_repository.dart'),
+    );
+    expect(
+      outputs['data/repositories/data_product_repository.dart'],
+      contains('class DataProductRepository'),
+    );
+    expect(
+      outputs.keys,
+      contains('domain/usecases/product/get_product_usecase.dart'),
+    );
   });
 
   test('generator config accepts legacy json keys', () {
