@@ -51,9 +51,7 @@ class FileOperation {
     );
   }
 
-  static Future<FileOperation> delete({
-    required String path,
-  }) async {
+  static Future<FileOperation> delete({required String path}) async {
     final file = File(path);
     final previous = await file.readAsString();
     return FileOperation._(

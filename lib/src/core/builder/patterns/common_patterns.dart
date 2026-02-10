@@ -1,11 +1,7 @@
 import 'package:code_builder/code_builder.dart';
 
 class CommonPatterns {
-  static Field finalField(
-    String name,
-    String type, {
-    bool isLate = false,
-  }) {
+  static Field finalField(String name, String type, {bool isLate = false}) {
     return Field(
       (b) => b
         ..name = name
@@ -46,22 +42,20 @@ class CommonPatterns {
     Iterable<Code> initializers = const [],
     Code? body,
   }) {
-    return Constructor(
-      (b) {
-        b
-          ..name = name
-          ..constant = isConst
-          ..initializers.addAll(initializers)
-          ..body = body;
-        for (final parameter in parameters) {
-          if (parameter.named) {
-            b.optionalParameters.add(parameter);
-          } else {
-            b.requiredParameters.add(parameter);
-          }
+    return Constructor((b) {
+      b
+        ..name = name
+        ..constant = isConst
+        ..initializers.addAll(initializers)
+        ..body = body;
+      for (final parameter in parameters) {
+        if (parameter.named) {
+          b.optionalParameters.add(parameter);
+        } else {
+          b.requiredParameters.add(parameter);
         }
-      },
-    );
+      }
+    });
   }
 
   static Method abstractMethod({
@@ -69,20 +63,18 @@ class CommonPatterns {
     required String returnType,
     Iterable<Parameter> parameters = const [],
   }) {
-    return Method(
-      (b) {
-        b
-          ..name = name
-          ..returns = refer(returnType)
-          ..body = Code('throw UnimplementedError();');
-        for (final parameter in parameters) {
-          if (parameter.named) {
-            b.optionalParameters.add(parameter);
-          } else {
-            b.requiredParameters.add(parameter);
-          }
+    return Method((b) {
+      b
+        ..name = name
+        ..returns = refer(returnType)
+        ..body = Code('throw UnimplementedError();');
+      for (final parameter in parameters) {
+        if (parameter.named) {
+          b.optionalParameters.add(parameter);
+        } else {
+          b.requiredParameters.add(parameter);
         }
-      },
-    );
+      }
+    });
   }
 }
