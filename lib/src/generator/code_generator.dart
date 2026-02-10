@@ -41,13 +41,13 @@ class CodeGenerator {
     this.force = false,
     this.verbose = false,
   }) : context = GenerationContext.create(
-          config: config,
-          outputDir: outputDir,
-          dryRun: dryRun,
-          force: force,
-          verbose: verbose,
-          root: outputDir,
-        ) {
+         config: config,
+         outputDir: outputDir,
+         dryRun: dryRun,
+         force: force,
+         verbose: verbose,
+         root: outputDir,
+       ) {
     builderFactory = CodeBuilderFactory(context);
     _repositoryPlugin = RepositoryPlugin(
       outputDir: outputDir,
@@ -81,9 +81,7 @@ class CodeGenerator {
       Future<GeneratorResult> finalizeSuccess() async {
         final transactionResult = await transaction.commit();
         if (!transactionResult.success) {
-          errors.addAll(
-            transactionResult.conflicts.map((c) => 'Conflict: $c'),
-          );
+          errors.addAll(transactionResult.conflicts.map((c) => 'Conflict: $c'));
           errors.addAll(transactionResult.errors);
           return GeneratorResult(
             name: config.name,
@@ -179,8 +177,8 @@ class CodeGenerator {
               'Implement ${config.effectiveProvider} with external service client',
             );
           } else {
-            final dataSourceFile =
-                await _dataLayerGenerator.generateDataSource();
+            final dataSourceFile = await _dataLayerGenerator
+                .generateDataSource();
             files.add(dataSourceFile);
 
             if (config.enableCache) {
@@ -199,8 +197,9 @@ class CodeGenerator {
               );
             }
 
-            final dataRepoFile =
-                await _repositoryPlugin.generateImplementation(config);
+            final dataRepoFile = await _repositoryPlugin.generateImplementation(
+              config,
+            );
             files.add(dataRepoFile);
           }
         }

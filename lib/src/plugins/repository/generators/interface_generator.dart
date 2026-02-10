@@ -24,8 +24,8 @@ class RepositoryInterfaceGenerator {
     required this.verbose,
     AppendExecutor? appendExecutor,
     SpecLibrary? specLibrary,
-  })  : appendExecutor = appendExecutor ?? AppendExecutor(),
-        specLibrary = specLibrary ?? const SpecLibrary();
+  }) : appendExecutor = appendExecutor ?? AppendExecutor(),
+       specLibrary = specLibrary ?? const SpecLibrary();
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final repoName = '${config.name}Repository';
