@@ -28,6 +28,10 @@ class AstHelper {
     return NodeFinder.findExtension(unit, extensionName);
   }
 
+  FunctionDeclaration? findFunction(CompilationUnit unit, String functionName) {
+    return NodeFinder.findFunction(unit, functionName);
+  }
+
   List<MethodDeclaration> findMethods(
     ClassDeclaration classNode, {
     String? name,
@@ -45,6 +49,14 @@ class AstHelper {
   List<String> extractExports(CompilationUnit unit) {
     return unit.directives
         .whereType<ExportDirective>()
+        .map((directive) => directive.uri.stringValue)
+        .whereType<String>()
+        .toList();
+  }
+
+  List<String> extractImports(CompilationUnit unit) {
+    return unit.directives
+        .whereType<ImportDirective>()
         .map((directive) => directive.uri.stringValue)
         .whereType<String>()
         .toList();
@@ -110,6 +122,27 @@ class AstHelper {
       source: source,
       extensionNode: extensionNode,
       methodSource: methodSource,
+    );
+  }
+
+  String addStatementToFunction({
+    required String source,
+    required String functionName,
+    required String statementSource,
+  }) {
+    final parseResult = parseSource(source);
+    final unit = parseResult.unit;
+    if (unit == null) {
+      return source;
+    }
+    final functionNode = findFunction(unit, functionName);
+    if (functionNode == null) {
+      return source;
+    }
+    return AstModifier.addStatementToFunction(
+      source: source,
+      functionNode: functionNode,
+      statementSource: statementSource,
     );
   }
 }

@@ -44,10 +44,33 @@ class AstModifier {
     required ExtensionDeclaration extensionNode,
     required String methodSource,
   }) {
-    final insertOffset = extensionNode.rightBracket.offset;
+    final insertOffset = extensionNode.body.rightBracket.offset;
     final closingIndent = _indentBeforeOffset(source, insertOffset);
     final memberIndent = '$closingIndent  ';
     final normalized = methodSource.trimRight();
+    final indented = normalized
+        .split('\n')
+        .map((line) => line.isEmpty ? '' : '$memberIndent$line')
+        .join('\n');
+    final insert = '\n$indented\n$closingIndent';
+    return source.substring(0, insertOffset) +
+        insert +
+        source.substring(insertOffset);
+  }
+
+  static String addStatementToFunction({
+    required String source,
+    required FunctionDeclaration functionNode,
+    required String statementSource,
+  }) {
+    final body = functionNode.functionExpression.body;
+    if (body is! BlockFunctionBody) {
+      return source;
+    }
+    final insertOffset = body.block.rightBracket.offset;
+    final closingIndent = _indentBeforeOffset(source, insertOffset);
+    final memberIndent = '$closingIndent  ';
+    final normalized = statementSource.trimRight();
     final indented = normalized
         .split('\n')
         .map((line) => line.isEmpty ? '' : '$memberIndent$line')

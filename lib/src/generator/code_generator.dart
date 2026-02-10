@@ -8,6 +8,7 @@ import '../plugins/repository/repository_plugin.dart';
 import '../plugins/view/view_plugin.dart';
 import '../plugins/presenter/presenter_plugin.dart';
 import '../plugins/controller/controller_plugin.dart';
+import '../plugins/di/di_plugin.dart';
 import 'state_generator.dart';
 import 'observer_generator.dart';
 import 'data_layer_generator.dart';
@@ -33,6 +34,7 @@ class CodeGenerator {
   late final ViewPlugin _viewPlugin;
   late final PresenterPlugin _presenterPlugin;
   late final ControllerPlugin _controllerPlugin;
+  late final DiPlugin _diPlugin;
   late final StateGenerator _stateGenerator;
   late final ObserverGenerator _observerGenerator;
   late final DataLayerGenerator _dataLayerGenerator;
@@ -80,6 +82,12 @@ class CodeGenerator {
       verbose: verbose,
     );
     _controllerPlugin = ControllerPlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+    _diPlugin = DiPlugin(
       outputDir: outputDir,
       dryRun: dryRun,
       force: force,
@@ -302,8 +310,7 @@ class CodeGenerator {
         }
 
         if (config.generateDi) {
-          final diGenerator = builderFactory.di();
-          final diFiles = await diGenerator.generate();
+          final diFiles = await _diPlugin.generate(config);
           files.addAll(diFiles);
         }
 
