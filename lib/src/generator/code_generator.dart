@@ -5,6 +5,7 @@ import 'service_generator.dart';
 import 'provider_generator.dart';
 import '../plugins/usecase/usecase_plugin.dart';
 import '../plugins/repository/repository_plugin.dart';
+import '../plugins/view/view_plugin.dart';
 import 'vpc_generator.dart';
 import 'state_generator.dart';
 import 'observer_generator.dart';
@@ -28,6 +29,7 @@ class CodeGenerator {
   late final ServiceGenerator _serviceGenerator;
   late final ProviderGenerator _providerGenerator;
   late final UseCasePlugin _useCasePlugin;
+  late final ViewPlugin _viewPlugin;
   late final VpcGenerator _vpcGenerator;
   late final StateGenerator _stateGenerator;
   late final ObserverGenerator _observerGenerator;
@@ -58,6 +60,12 @@ class CodeGenerator {
     _serviceGenerator = builderFactory.service();
     _providerGenerator = builderFactory.provider();
     _useCasePlugin = UseCasePlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+    _viewPlugin = ViewPlugin(
       outputDir: outputDir,
       dryRun: dryRun,
       force: force,
@@ -155,8 +163,8 @@ class CodeGenerator {
         }
 
         if (config.generateVpc || config.generateView) {
-          final file = await _vpcGenerator.generateView();
-          files.add(file);
+          final viewFiles = await _viewPlugin.generate(config);
+          files.addAll(viewFiles);
         }
 
         if (config.generateState) {
