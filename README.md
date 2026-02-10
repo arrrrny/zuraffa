@@ -13,6 +13,8 @@ A comprehensive Clean Architecture framework for Flutter applications with **Res
 - **[Github](https://github.com/arrrrny/zuraffa)** - Source code and example
 - **[Plugin Development Guide](docs/PLUGIN_DEVELOPMENT.md)** - Build custom generation plugins
 - **[Plugin API Reference](docs/PLUGIN_API_REFERENCE.md)** - Plugin system APIs
+- **[Migration Guide](docs/MIGRATION_GUIDE.md)** - Upgrade from v1 to v2
+- **[Breaking Changes](docs/BREAKING_CHANGES.md)** - Versioned breakpoints
 
 ## What is Zuraffa?
 
