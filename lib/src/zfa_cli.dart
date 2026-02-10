@@ -7,6 +7,7 @@ import 'commands/config_command.dart';
 import 'commands/initialize_command.dart';
 import 'commands/entity_command.dart';
 import 'commands/graphql_command.dart';
+import 'commands/plugin_command.dart';
 
 const version = '2.8.0';
 
@@ -43,6 +44,9 @@ Future<void> run(List<String> args) async {
         break;
       case 'graphql':
         await GraphQLCommand().execute(args.skip(1).toList());
+        break;
+      case 'plugin':
+        await PluginCommand().execute(args.skip(1).toList());
         break;
       case 'build':
         await _handleBuild(args.skip(1).toList());
@@ -122,6 +126,7 @@ CLEAN ARCHITECTURE COMMANDS:
   initialize          Initialize a test entity to quickly try out Zuraffa
   create              Create architecture folders or pages
   config              Manage ZFA configuration (.zfa.json)
+  plugin              Manage plugins (list, enable, disable)
   schema              Output JSON schema for configuration
   validate <file>     Validate JSON configuration file
   graphql             Introspect GraphQL schema and generate entities + usecases

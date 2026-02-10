@@ -17,6 +17,9 @@ import 'mock_generator.dart';
 import '../core/generation/code_builder_factory.dart';
 import '../core/generation/generation_context.dart';
 import '../core/transaction/generation_transaction.dart';
+import '../core/context/progress_reporter.dart';
+import '../core/plugin_system/plugin_registry.dart';
+import '../core/plugin_system/plugin_interface.dart';
 
 class CodeGenerator {
   final GeneratorConfig config;
@@ -24,8 +27,10 @@ class CodeGenerator {
   final bool dryRun;
   final bool force;
   final bool verbose;
+  final Set<String> disabledPlugins;
   final GenerationContext context;
   late final CodeBuilderFactory builderFactory;
+  late final PluginRegistry pluginRegistry;
 
   late final RepositoryPlugin _repositoryPlugin;
   late final ProviderGenerator _providerGenerator;
@@ -46,6 +51,8 @@ class CodeGenerator {
     this.dryRun = false,
     this.force = false,
     this.verbose = false,
+    ProgressReporter? progressReporter,
+    Set<String>? disabledPluginIds,
   }) : context = GenerationContext.create(
          config: config,
          outputDir: outputDir,
@@ -53,8 +60,11 @@ class CodeGenerator {
          force: force,
          verbose: verbose,
          root: outputDir,
-       ) {
+         progressReporter: progressReporter,
+       ),
+       disabledPlugins = disabledPluginIds ?? {} {
     builderFactory = CodeBuilderFactory(context);
+    pluginRegistry = PluginRegistry();
     _repositoryPlugin = RepositoryPlugin(
       outputDir: outputDir,
       dryRun: dryRun,
@@ -107,15 +117,26 @@ class CodeGenerator {
     _stateGenerator = builderFactory.state();
     _observerGenerator = builderFactory.observer();
     _testGenerator = builderFactory.test();
+
+    _registerPlugin(_repositoryPlugin);
+    _registerPlugin(_useCasePlugin);
+    _registerPlugin(_viewPlugin);
+    _registerPlugin(_presenterPlugin);
+    _registerPlugin(_controllerPlugin);
+    _registerPlugin(_diPlugin);
+    _registerPlugin(_dataSourcePlugin);
+    _registerPlugin(_servicePlugin);
   }
 
   Future<GeneratorResult> generate() async {
     final transaction = GenerationTransaction(dryRun: dryRun);
 
     return GenerationTransaction.run(transaction, () async {
+      final progress = context.progress;
       final files = <GeneratedFile>[];
       final errors = <String>[];
       final nextSteps = <String>[];
+      String? currentPluginId;
 
       Future<GeneratorResult> finalizeSuccess() async {
         final transactionResult = await transaction.commit();
@@ -140,12 +161,39 @@ class CodeGenerator {
       }
 
       try {
+        final validation = await pluginRegistry.validateAll(config);
+        if (!validation.isValid) {
+          errors.addAll(validation.reasons);
+          if (validation.message != null) {
+            errors.add(validation.message!);
+          }
+          progress.failed('Validation failed');
+          return GeneratorResult(
+            name: config.name,
+            success: false,
+            files: files,
+            errors: errors,
+            nextSteps: nextSteps,
+          );
+        }
+
+        final totalSteps = _countSteps(config);
+        if (totalSteps > 0) {
+          progress.started('Generating ${config.name}', totalSteps);
+        }
+        await pluginRegistry.beforeGenerateAll(config);
+
         if (config.appendToExisting) {
           final appender = builderFactory.methodAppender();
           final appendResult = await appender.appendMethod();
 
-          final usecaseFiles = await _useCasePlugin.generate(config);
-          files.addAll(usecaseFiles);
+          if (_isPluginEnabled('usecase')) {
+            progress.update('usecase');
+            currentPluginId = 'usecase';
+            final usecaseFiles = await _useCasePlugin.generate(config);
+            files.addAll(usecaseFiles);
+            currentPluginId = null;
+          }
 
           files.addAll(appendResult.updatedFiles);
 
@@ -154,80 +202,140 @@ class CodeGenerator {
           }
 
           if (config.generateGql) {
+            progress.update('graphql');
             final graphqlGenerator = builderFactory.graphql();
             final graphqlFiles = await graphqlGenerator.generate();
             files.addAll(graphqlFiles);
           }
 
+          await pluginRegistry.afterGenerateAll(config);
+          progress.completed();
           return finalizeSuccess();
         }
 
         if (config.isEntityBased) {
-          final repoFiles = await _repositoryPlugin.generate(config);
-          files.addAll(repoFiles);
+          if (_isPluginEnabled('repository')) {
+            progress.update('repository');
+            currentPluginId = 'repository';
+            final repoFiles = await _repositoryPlugin.generate(config);
+            files.addAll(repoFiles);
+            currentPluginId = null;
+          }
 
-          final usecaseFiles = await _useCasePlugin.generate(config);
-          files.addAll(usecaseFiles);
+          if (_isPluginEnabled('usecase')) {
+            progress.update('usecase');
+            currentPluginId = 'usecase';
+            final usecaseFiles = await _useCasePlugin.generate(config);
+            files.addAll(usecaseFiles);
+            currentPluginId = null;
+          }
         } else if (config.isPolymorphic) {
-          final usecaseFiles = await _useCasePlugin.generate(config);
-          files.addAll(usecaseFiles);
+          if (_isPluginEnabled('usecase')) {
+            progress.update('usecase');
+            currentPluginId = 'usecase';
+            final usecaseFiles = await _useCasePlugin.generate(config);
+            files.addAll(usecaseFiles);
+            currentPluginId = null;
+          }
         } else if (config.isOrchestrator) {
-          final usecaseFiles = await _useCasePlugin.generate(config);
-          files.addAll(usecaseFiles);
+          if (_isPluginEnabled('usecase')) {
+            progress.update('usecase');
+            currentPluginId = 'usecase';
+            final usecaseFiles = await _useCasePlugin.generate(config);
+            files.addAll(usecaseFiles);
+            currentPluginId = null;
+          }
         } else if (config.isCustomUseCase) {
-          if (config.hasService) {
+          if (config.hasService && _isPluginEnabled('service')) {
+            progress.update('service');
+            currentPluginId = 'service';
             final serviceFiles = await _servicePlugin.generate(config);
             files.addAll(serviceFiles);
+            currentPluginId = null;
           }
-          final usecaseFiles = await _useCasePlugin.generate(config);
-          files.addAll(usecaseFiles);
+          if (_isPluginEnabled('usecase')) {
+            progress.update('usecase');
+            currentPluginId = 'usecase';
+            final usecaseFiles = await _useCasePlugin.generate(config);
+            files.addAll(usecaseFiles);
+            currentPluginId = null;
+          }
         }
 
         if (config.generateVpc || config.generatePresenter) {
-          final presenterFiles = await _presenterPlugin.generate(config);
-          files.addAll(presenterFiles);
+          if (_isPluginEnabled('presenter')) {
+            progress.update('presenter');
+            currentPluginId = 'presenter';
+            final presenterFiles = await _presenterPlugin.generate(config);
+            files.addAll(presenterFiles);
+            currentPluginId = null;
+          }
         }
 
         if (config.generateVpc || config.generateController) {
-          final controllerFiles = await _controllerPlugin.generate(config);
-          files.addAll(controllerFiles);
+          if (_isPluginEnabled('controller')) {
+            progress.update('controller');
+            currentPluginId = 'controller';
+            final controllerFiles = await _controllerPlugin.generate(config);
+            files.addAll(controllerFiles);
+            currentPluginId = null;
+          }
         }
 
         if (config.generateVpc || config.generateView) {
-          final viewFiles = await _viewPlugin.generate(config);
-          files.addAll(viewFiles);
+          if (_isPluginEnabled('view')) {
+            progress.update('view');
+            currentPluginId = 'view';
+            final viewFiles = await _viewPlugin.generate(config);
+            files.addAll(viewFiles);
+            currentPluginId = null;
+          }
         }
 
         if (config.generateState) {
+          progress.update('state');
           final file = await _stateGenerator.generate();
           files.add(file);
         }
 
         if (config.generateObserver) {
+          progress.update('observer');
           final file = await _observerGenerator.generate();
           files.add(file);
         }
 
         if (config.generateData || config.generateDataSource) {
           if (config.hasService && config.generateData) {
+            progress.update('provider');
             final providerFile = await _providerGenerator.generate();
             files.add(providerFile);
             nextSteps.add(
               'Implement ${config.effectiveProvider} with external service client',
             );
           } else {
-            final dataSourceFiles = await _dataSourcePlugin.generate(config);
-            files.addAll(dataSourceFiles);
+            if (_isPluginEnabled('datasource')) {
+              progress.update('datasource');
+              currentPluginId = 'datasource';
+              final dataSourceFiles = await _dataSourcePlugin.generate(config);
+              files.addAll(dataSourceFiles);
+              currentPluginId = null;
+            }
 
             if (!config.isEntityBased) {
-              final dataRepoFile = await _repositoryPlugin
-                  .generateImplementation(config);
-              files.add(dataRepoFile);
+              if (_isPluginEnabled('repository')) {
+                progress.update('repository');
+                currentPluginId = 'repository';
+                final dataRepoFile = await _repositoryPlugin
+                    .generateImplementation(config);
+                files.add(dataRepoFile);
+                currentPluginId = null;
+              }
             }
           }
         }
 
         if (config.generateMock || config.generateMockDataOnly) {
+          progress.update('mock');
           final mockFiles = await MockGenerator.generate(
             config,
             outputDir,
@@ -276,6 +384,7 @@ class CodeGenerator {
 
         if (config.generateTest && config.isEntityBased) {
           for (final method in config.methods) {
+            progress.update('test');
             final testFile = await _testGenerator.generateForMethod(method);
             files.add(testFile);
           }
@@ -283,12 +392,14 @@ class CodeGenerator {
         }
 
         if (config.generateTest && config.isOrchestrator) {
+          progress.update('test');
           final testFile = await _testGenerator.generateOrchestrator();
           files.add(testFile);
           nextSteps.add('Run tests: flutter test ');
         }
 
         if (config.generateTest && config.isPolymorphic) {
+          progress.update('test');
           final testFiles = await _testGenerator.generatePolymorphic();
           files.addAll(testFiles);
           nextSteps.add('Run tests: flutter test ');
@@ -298,17 +409,24 @@ class CodeGenerator {
             config.isCustomUseCase &&
             !config.isPolymorphic &&
             !config.isOrchestrator) {
+          progress.update('test');
           final testFile = await _testGenerator.generateCustom();
           files.add(testFile);
           nextSteps.add('Run tests: flutter test ');
         }
 
         if (config.generateDi) {
-          final diFiles = await _diPlugin.generate(config);
-          files.addAll(diFiles);
+          if (_isPluginEnabled('di')) {
+            progress.update('di');
+            currentPluginId = 'di';
+            final diFiles = await _diPlugin.generate(config);
+            files.addAll(diFiles);
+            currentPluginId = null;
+          }
         }
 
         if (config.generateRoute) {
+          progress.update('route');
           final routeGenerator = builderFactory.route();
           final routeFiles = await routeGenerator.generate();
           files.addAll(routeFiles);
@@ -317,6 +435,7 @@ class CodeGenerator {
         }
 
         if (config.enableCache) {
+          progress.update('cache');
           final cacheGenerator = builderFactory.cache();
           final cacheFiles = await cacheGenerator.generate();
           files.addAll(cacheFiles);
@@ -325,17 +444,26 @@ class CodeGenerator {
         }
 
         if (config.generateGql) {
+          progress.update('graphql');
           final graphqlGenerator = builderFactory.graphql();
           final graphqlFiles = await graphqlGenerator.generate();
           files.addAll(graphqlFiles);
         }
 
+        await pluginRegistry.afterGenerateAll(config);
+        progress.completed();
         return finalizeSuccess();
       } catch (e, stack) {
-        errors.add('Generation failed: $e');
+        if (currentPluginId != null) {
+          errors.add('Plugin $currentPluginId failed: $e');
+        } else {
+          errors.add('Generation failed: $e');
+        }
+        await pluginRegistry.onErrorAll(config, e, stack);
         if (verbose) {
           errors.add('Stack trace:\n$stack');
         }
+        progress.failed(e.toString());
         return GeneratorResult(
           name: config.name,
           success: false,
@@ -345,5 +473,60 @@ class CodeGenerator {
         );
       }
     });
+  }
+
+  void _registerPlugin(ZuraffaPlugin plugin) {
+    if (!disabledPlugins.contains(plugin.id)) {
+      pluginRegistry.register(plugin);
+    }
+  }
+
+  bool _isPluginEnabled(String id) {
+    return pluginRegistry.getById(id) != null;
+  }
+
+  int _countSteps(GeneratorConfig config) {
+    var steps = 0;
+    if (config.appendToExisting) {
+      steps += 1;
+      if (_isPluginEnabled('usecase')) steps += 1;
+      if (config.generateGql) steps += 1;
+      return steps;
+    }
+    if (config.isEntityBased) {
+      if (_isPluginEnabled('repository')) steps += 1;
+      if (_isPluginEnabled('usecase')) steps += 1;
+    } else if (config.isPolymorphic || config.isOrchestrator) {
+      if (_isPluginEnabled('usecase')) steps += 1;
+    } else if (config.isCustomUseCase) {
+      if (config.hasService && _isPluginEnabled('service')) steps += 1;
+      if (_isPluginEnabled('usecase')) steps += 1;
+    }
+    if (config.generateVpc || config.generatePresenter) {
+      if (_isPluginEnabled('presenter')) steps += 1;
+    }
+    if (config.generateVpc || config.generateController) {
+      if (_isPluginEnabled('controller')) steps += 1;
+    }
+    if (config.generateVpc || config.generateView) {
+      if (_isPluginEnabled('view')) steps += 1;
+    }
+    if (config.generateState) steps += 1;
+    if (config.generateObserver) steps += 1;
+    if (config.generateData || config.generateDataSource) {
+      if (config.hasService && config.generateData) {
+        steps += 1;
+      } else {
+        if (_isPluginEnabled('datasource')) steps += 1;
+        if (!config.isEntityBased && _isPluginEnabled('repository')) steps += 1;
+      }
+    }
+    if (config.generateMock || config.generateMockDataOnly) steps += 1;
+    if (config.generateTest) steps += config.methods.isEmpty ? 1 : config.methods.length;
+    if (config.generateDi && _isPluginEnabled('di')) steps += 1;
+    if (config.generateRoute) steps += 1;
+    if (config.enableCache) steps += 1;
+    if (config.generateGql) steps += 1;
+    return steps;
   }
 }

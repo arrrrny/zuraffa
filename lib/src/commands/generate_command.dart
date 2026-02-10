@@ -3,10 +3,15 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:path/path.dart' as path;
 import '../models/generator_config.dart';
+
 import '../models/generator_result.dart';
 import '../generator/code_generator.dart';
 import '../utils/logger.dart';
 import '../config/zfa_config.dart';
+import '../cli/plugin_loader.dart';
+import '../cli/progress_reporter.dart';
+import '../core/error/error_reporter.dart';
+import '../core/debug/artifact_saver.dart';
 
 class GenerateCommand {
   Future<GeneratorResult> execute(
@@ -69,9 +74,6 @@ class GenerateCommand {
       );
     }
 
-    final config = _buildConfig(name, results);
-    _validateConfig(config, exitOnCompletion: exitOnCompletion);
-
     final outputDir = _resolveOutputDir(results['output'] as String);
     final format = results['format'] as String;
     final dryRun = results['dry-run'] == true;
@@ -80,6 +82,46 @@ class GenerateCommand {
     final quiet = results['quiet'] == true;
     final shouldBuild = results['build'] == true;
     final shouldFormat = results['dart-format'] == true;
+    final debug = results['debug'] == true;
+    final pluginRoot = _resolvePluginRoot(outputDir);
+    final artifactSaver = DebugArtifactSaver(projectRoot: pluginRoot);
+    final errorReporter = ErrorReporter();
+    GeneratorConfig config;
+
+    try {
+      config = _buildConfig(name, results);
+      _validateConfig(config, exitOnCompletion: false);
+    } catch (e, stack) {
+      final failure = GeneratorResult(
+        name: name,
+        success: false,
+        files: [],
+        errors: [e.toString()],
+        nextSteps: [],
+      );
+      if (format == 'json') {
+        print(jsonEncode(failure.toJson()));
+      } else if (!quiet) {
+        errorReporter.report(failure);
+      }
+      if (debug) {
+        await artifactSaver.save(
+          result: failure,
+          args: args,
+          error: e,
+          stackTrace: stack,
+        );
+      }
+      if (exitOnCompletion) exit(1);
+      return failure;
+    }
+    final pluginConfig = PluginConfig.load(
+      projectRoot: _resolvePluginRoot(outputDir),
+    );
+    final progressReporter = createCliProgressReporter(
+      verbose: verbose,
+      quiet: quiet,
+    );
 
     // Load config to check buildByDefault and formatByDefault
     final zfaConfig = ZfaConfig.load();
@@ -94,6 +136,8 @@ class GenerateCommand {
       dryRun: dryRun,
       force: force,
       verbose: verbose,
+      progressReporter: progressReporter,
+      disabledPluginIds: pluginConfig.disabled,
     );
 
     final result = await generator.generate();
@@ -102,7 +146,7 @@ class GenerateCommand {
       print(jsonEncode(result.toJson()));
     } else if (!result.success) {
       if (!quiet) {
-        CliLogger.printResult(result);
+        errorReporter.report(result, config: config);
       }
       if (exitOnCompletion) exit(1);
     } else if (verbose && !quiet) {
@@ -113,6 +157,14 @@ class GenerateCommand {
       CliLogger.printResult(result);
     } else if (!quiet) {
       CliLogger.printResult(result);
+    }
+
+    if (debug) {
+      await artifactSaver.save(
+        config: config,
+        result: result,
+        args: args,
+      );
     }
 
     // Run build if requested and generation succeeded
@@ -131,6 +183,14 @@ class GenerateCommand {
 
     if (exitOnCompletion) exit(0);
     return result;
+  }
+
+  String _resolvePluginRoot(String outputDir) {
+    if (path.basename(outputDir) == 'src' &&
+        path.basename(path.dirname(outputDir)) == 'lib') {
+      return path.dirname(path.dirname(outputDir));
+    }
+    return outputDir;
   }
 
   String _resolveOutputDir(String outputDir) {
@@ -158,8 +218,7 @@ class GenerateCommand {
     } else if (results['from-json'] != null) {
       final file = File(results['from-json']);
       if (!file.existsSync()) {
-        print('❌ JSON file not found: ${results['from-json']}');
-        exit(1);
+        throw ArgumentError('JSON file not found: ${results['from-json']}');
       }
       final json = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
       return GeneratorConfig.fromJson(json, name);
@@ -681,6 +740,11 @@ class GenerateCommand {
       ..addFlag('verbose', abbr: 'v', help: 'Verbose output', defaultsTo: false)
       ..addFlag('quiet', abbr: 'q', help: 'Minimal output', defaultsTo: false)
       ..addFlag(
+        'debug',
+        help: 'Save generation artifacts to .zfa_debug',
+        defaultsTo: false,
+      )
+      ..addFlag(
         'build',
         help:
             'Run build_runner after generation (auto for --cache if buildByDefault=true)',
@@ -804,6 +868,7 @@ VPC LAYER:
    --force               Overwrite existing files
    -v, --verbose         Verbose output
    -q, --quiet           Minimal output
+  --debug               Save artifacts to .zfa_debug
 
 EXAMPLES:
   # Entity-based CRUD with VPC and State
