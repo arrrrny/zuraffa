@@ -7,6 +7,7 @@ import '../plugins/usecase/usecase_plugin.dart';
 import '../plugins/repository/repository_plugin.dart';
 import '../plugins/view/view_plugin.dart';
 import '../plugins/presenter/presenter_plugin.dart';
+import '../plugins/controller/controller_plugin.dart';
 import 'vpc_generator.dart';
 import 'state_generator.dart';
 import 'observer_generator.dart';
@@ -32,6 +33,7 @@ class CodeGenerator {
   late final UseCasePlugin _useCasePlugin;
   late final ViewPlugin _viewPlugin;
   late final PresenterPlugin _presenterPlugin;
+  late final ControllerPlugin _controllerPlugin;
   late final VpcGenerator _vpcGenerator;
   late final StateGenerator _stateGenerator;
   late final ObserverGenerator _observerGenerator;
@@ -74,6 +76,12 @@ class CodeGenerator {
       verbose: verbose,
     );
     _presenterPlugin = PresenterPlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+    _controllerPlugin = ControllerPlugin(
       outputDir: outputDir,
       dryRun: dryRun,
       force: force,
@@ -166,8 +174,8 @@ class CodeGenerator {
         }
 
         if (config.generateVpc || config.generateController) {
-          final file = await _vpcGenerator.generateController();
-          files.add(file);
+          final controllerFiles = await _controllerPlugin.generate(config);
+          files.addAll(controllerFiles);
         }
 
         if (config.generateVpc || config.generateView) {
