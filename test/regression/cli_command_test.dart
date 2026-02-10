@@ -225,10 +225,7 @@ void main() {
 
     final debugDir = Directory('${tempDir.path}/.zfa_debug');
     expect(debugDir.existsSync(), isTrue);
-    final entries = debugDir
-        .listSync()
-        .whereType<Directory>()
-        .toList();
+    final entries = debugDir.listSync().whereType<Directory>().toList();
     expect(entries.isNotEmpty, isTrue);
   });
 

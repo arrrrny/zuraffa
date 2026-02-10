@@ -98,7 +98,9 @@ class PresenterPlugin extends FileGeneratorPlugin {
     String entityCamel,
   ) {
     return config.methods
-        .map((method) => _getUseCaseInfo(config, method, entityName, entityCamel))
+        .map(
+          (method) => _getUseCaseInfo(config, method, entityName, entityCamel),
+        )
         .toList();
   }
 

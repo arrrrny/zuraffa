@@ -29,7 +29,9 @@ class SuggestionEngine {
 
     if (lower.contains('nparams') &&
         (lower.contains('getlist') || lower.contains('watchlist'))) {
-      suggestions.add('Remove getList/watchList or use id-field-type String/int');
+      suggestions.add(
+        'Remove getList/watchList or use id-field-type String/int',
+      );
     }
 
     if (lower.contains('json file not found')) {

@@ -522,7 +522,8 @@ class CodeGenerator {
       }
     }
     if (config.generateMock || config.generateMockDataOnly) steps += 1;
-    if (config.generateTest) steps += config.methods.isEmpty ? 1 : config.methods.length;
+    if (config.generateTest)
+      steps += config.methods.isEmpty ? 1 : config.methods.length;
     if (config.generateDi && _isPluginEnabled('di')) steps += 1;
     if (config.generateRoute) steps += 1;
     if (config.enableCache) steps += 1;

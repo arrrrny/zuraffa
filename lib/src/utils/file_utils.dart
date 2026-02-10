@@ -36,7 +36,10 @@ class FileUtils {
     final transaction = GenerationTransaction.current;
     if (transaction != null) {
       final operation = exists
-          ? await FileOperation.update(path: filePath, content: formattedContent)
+          ? await FileOperation.update(
+              path: filePath,
+              content: formattedContent,
+            )
           : FileOperation.create(path: filePath, content: formattedContent);
       transaction.addOperation(operation);
     } else if (!dryRun) {
