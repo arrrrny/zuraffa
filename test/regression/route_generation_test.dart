@@ -11,7 +11,7 @@ void main() {
     final generator = RouteGenerator(
       config: GeneratorConfig(
         name: 'Product',
-        methods: const ['get', 'update'],
+        methods: const ['get', 'create', 'update'],
         generateView: true,
       ),
       outputDir: outputDir,
@@ -20,7 +20,7 @@ void main() {
       verbose: false,
     );
     final files = await generator.generate();
-    final content = files.first.content ?? '';
+    final content = files.map((f) => f.content ?? '').join('\n');
     expect(content.contains("'/product'"), isTrue);
     expect(content.contains("'/product/:id'"), isTrue);
     expect(content.contains("'/product/create'"), isTrue);

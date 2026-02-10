@@ -22,8 +22,7 @@ class EntityUseCaseGenerator {
     required this.force,
     required this.verbose,
     AppendExecutor? appendExecutor,
-  }) : classBuilder = classBuilder ?? const UseCaseClassBuilder(),
-       appendExecutor = appendExecutor ?? AppendExecutor();
+  }) : appendExecutor = appendExecutor ?? AppendExecutor();
 
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     final files = <GeneratedFile>[];
@@ -197,75 +196,6 @@ $executeMethod
       executeMethodSource: executeMethod,
       content: content,
     );
-  }
-
-  Method _buildExecuteMethod({
-    required bool isStream,
-    required bool isCompletable,
-    required String paramsType,
-    required String returnType,
-    required String executeBody,
-  }) {
-    final returnTypeRef = isStream
-        ? 'Stream<$returnType>'
-        : isCompletable
-        ? 'Future<void>'
-        : 'Future<$returnType>';
-
-    final body = StringBuffer()
-      ..writeln('cancelToken?.throwIfCancelled();')
-      ..writeln(executeBody);
-
-    return Method(
-      (b) => b
-        ..name = 'execute'
-        ..returns = refer(returnTypeRef)
-        ..modifier = isStream ? null : MethodModifier.async
-        ..requiredParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'params'
-              ..type = refer(paramsType),
-          ),
-        )
-        ..requiredParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'cancelToken'
-              ..type = refer('CancelToken?'),
-          ),
-        )
-        ..annotations.add(CodeExpression(Code('override')))
-        ..body = Code(body.toString()),
-    );
-  }
-
-  String _methodSourceForAppend(
-    Method method, {
-    required bool isStream,
-    required bool isCompletable,
-    required String paramsType,
-    required String returnType,
-    required String executeBody,
-  }) {
-    final returnTypeRef = isStream
-        ? 'Stream<$returnType>'
-        : isCompletable
-        ? 'Future<void>'
-        : 'Future<$returnType>';
-    final buffer = StringBuffer()
-      ..writeln('@override')
-      ..write(
-        '$returnTypeRef execute($paramsType params, CancelToken? cancelToken)',
-      );
-    if (!isStream) {
-      buffer.write(' async');
-    }
-    buffer.writeln(' {');
-    buffer.writeln('  cancelToken?.throwIfCancelled();');
-    buffer.writeln('  $executeBody');
-    buffer.writeln('}');
-    return buffer.toString();
   }
 
   Future<GeneratedFile> _writeOrAppend({
