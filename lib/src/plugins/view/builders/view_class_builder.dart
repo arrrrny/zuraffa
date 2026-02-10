@@ -104,7 +104,7 @@ return _${spec.viewName}State(
     final builderBody = spec.withState
         ? '''
       final viewState = controller.viewState;
-      return Container();
+      return Container(key: ValueKey(viewState.hashCode));
 '''
         : '''
       return Container();

@@ -11,4 +11,5 @@ ios/Runner/GeneratedPluginRegistrant.*
 .vscode/
 example/coverage/
 CUSTOM_DOMAIN_SETUP.md
-DOCUSAURUS_SETUP.md
+DOCUSAURUS_SETUP.md*
+.tmp*
