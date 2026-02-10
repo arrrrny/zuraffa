@@ -1,9 +1,4 @@
-enum PluginLifecycleStage {
-  validate,
-  beforeGenerate,
-  afterGenerate,
-  error,
-}
+enum PluginLifecycleStage { validate, beforeGenerate, afterGenerate, error }
 
 class ValidationResult {
   final bool isValid;
@@ -17,18 +12,11 @@ class ValidationResult {
   }
 
   factory ValidationResult.failure(List<String> reasons, [String? message]) {
-    return ValidationResult._(
-      false,
-      message,
-      List.unmodifiable(reasons),
-    );
+    return ValidationResult._(false, message, List.unmodifiable(reasons));
   }
 
   ValidationResult merge(ValidationResult other) {
-    final mergedReasons = <String>[
-      ...reasons,
-      ...other.reasons,
-    ];
+    final mergedReasons = <String>[...reasons, ...other.reasons];
     final mergedMessage = message ?? other.message;
     if (mergedReasons.isEmpty) {
       return ValidationResult.success(mergedMessage);

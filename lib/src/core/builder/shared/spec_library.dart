@@ -15,10 +15,7 @@ class SpecLibrary {
     );
   }
 
-  String emitLibrary(
-    Library library, {
-    bool format = true,
-  }) {
+  String emitLibrary(Library library, {bool format = true}) {
     final emitter = DartEmitter(
       orderDirectives: true,
       useNullSafetySyntax: true,

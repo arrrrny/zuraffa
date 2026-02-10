@@ -20,12 +20,12 @@ class UseCasePatterns {
         ..requiredParameters.addAll(
           hasParams
               ? [
-                Parameter(
-                  (p) => p
-                    ..name = 'params'
-                    ..type = refer(paramsType),
-                ),
-              ]
+                  Parameter(
+                    (p) => p
+                      ..name = 'params'
+                      ..type = refer(paramsType),
+                  ),
+                ]
               : const [],
         )
         ..annotations.addAll(
@@ -48,9 +48,7 @@ class UseCasePatterns {
         ..name = className
         ..extend = refer(baseClass)
         ..abstract = isAbstract
-        ..fields.add(
-          CommonPatterns.finalField(repositoryField, repositoryType),
-        )
+        ..fields.add(CommonPatterns.finalField(repositoryField, repositoryType))
         ..constructors.add(
           CommonPatterns.constructor(
             parameters: [

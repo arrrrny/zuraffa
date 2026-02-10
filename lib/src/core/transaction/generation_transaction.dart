@@ -92,9 +92,6 @@ class GenerationTransaction {
     GenerationTransaction transaction,
     Future<T> Function() action,
   ) {
-    return runZoned(
-      action,
-      zoneValues: {_zoneKey: transaction},
-    );
+    return runZoned(action, zoneValues: {_zoneKey: transaction});
   }
 }
