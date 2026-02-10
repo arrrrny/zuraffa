@@ -1,8 +1,14 @@
 import 'dart:io';
+import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
+import '../core/ast/append_executor.dart';
+import '../core/ast/strategies/append_strategy.dart';
 import '../core/generation/generation_context.dart';
 import '../models/generator_config.dart';
 import '../models/generated_file.dart';
+import '../plugins/route/builders/app_routes_builder.dart';
+import '../plugins/route/builders/entity_routes_builder.dart';
+import '../plugins/route/builders/extension_builder.dart';
 import '../utils/file_utils.dart';
 
 /// Generates go_router routing files for VPC views.
@@ -14,6 +20,9 @@ class RouteGenerator {
   final bool dryRun;
   final bool force;
   final bool verbose;
+  final AppRoutesBuilder appRoutesBuilder;
+  final EntityRoutesBuilder entityRoutesBuilder;
+  final AppendExecutor appendExecutor;
 
   RouteGenerator({
     required this.config,
@@ -21,16 +30,21 @@ class RouteGenerator {
     this.dryRun = false,
     this.force = false,
     this.verbose = false,
-  });
+    AppRoutesBuilder? appRoutesBuilder,
+    EntityRoutesBuilder? entityRoutesBuilder,
+    AppendExecutor? appendExecutor,
+  }) : appRoutesBuilder = appRoutesBuilder ?? AppRoutesBuilder(),
+       entityRoutesBuilder = entityRoutesBuilder ?? const EntityRoutesBuilder(),
+       appendExecutor = appendExecutor ?? AppendExecutor();
 
   RouteGenerator.fromContext(GenerationContext context)
-      : this(
-          config: context.config,
-          outputDir: context.outputDir,
-          dryRun: context.dryRun,
-          force: context.force,
-          verbose: context.verbose,
-        );
+    : this(
+        config: context.config,
+        outputDir: context.outputDir,
+        dryRun: context.dryRun,
+        force: context.force,
+        verbose: context.verbose,
+      );
 
   Future<List<GeneratedFile>> generate() async {
     final files = <GeneratedFile>[];
@@ -56,7 +70,6 @@ class RouteGenerator {
     final routesPath = path.join(outputDir, 'routing', 'app_routes.dart');
     final file = File(routesPath);
 
-    // Determine route info for current entity (use entity name for all cases)
     final routeBase = config.nameSnake;
     final routeNameBase = config.nameCamel;
     final entityPascal = _snakeToPascal(config.nameSnake);
@@ -69,40 +82,42 @@ class RouteGenerator {
     final hasSubRoutes =
         hasCreate || hasUpdate || hasDelete || hasGet || hasWatch;
 
-    // Build new route constants for this entity
-    final newRouteConstants = <String>[
-      "  static const String ${routeNameBase}List = '/$routeBase';",
-      if (hasSubRoutes && (hasUpdate || hasDelete || hasGet || hasWatch))
-        "  static const String ${routeNameBase}Detail = '\$${routeNameBase}List/:id';",
-      if (hasCreate)
-        "  static const String ${routeNameBase}Create = '\$${routeNameBase}List/create';",
-      if (hasUpdate)
-        "  static const String ${routeNameBase}Update = '\$${routeNameBase}List/:id/edit';",
-    ];
+    final routeConstants = _buildAppRouteConstants(
+      routeBase: routeBase,
+      routeNameBase: routeNameBase,
+      hasSubRoutes: hasSubRoutes,
+      hasCreate: hasCreate,
+      hasUpdate: hasUpdate,
+      hasDelete: hasDelete,
+      hasGet: hasGet,
+      hasWatch: hasWatch,
+    );
 
-    // Build extension methods for this entity
-    final newExtensionMethods = <String>[
-      "  void goTo${entityPascal}List() => go(AppRoutes.${routeNameBase}List);",
-      if (hasSubRoutes && (hasUpdate || hasDelete || hasGet || hasWatch))
-        "  void goTo${entityPascal}Detail(String id) => go('$routeBase/\$id');",
-      if (hasCreate)
-        "  void goTo${entityPascal}Create() => go(AppRoutes.${routeNameBase}Create);",
-      if (hasUpdate)
-        "  void goTo${entityPascal}Update(String id) => go('$routeBase/\$id/edit');",
-    ];
+    final extensionMethods = _buildAppRouteExtensionMethods(
+      entityPascal: entityPascal,
+      routeBase: routeBase,
+      routeNameBase: routeNameBase,
+      hasSubRoutes: hasSubRoutes,
+      hasCreate: hasCreate,
+      hasUpdate: hasUpdate,
+      hasDelete: hasDelete,
+      hasGet: hasGet,
+      hasWatch: hasWatch,
+    );
 
     String content;
     if (file.existsSync() && !force) {
-      // Update existing file
       final existingContent = file.readAsStringSync();
       content = _updateAppRoutesFile(
         existingContent,
-        newRouteConstants,
-        newExtensionMethods,
+        routeConstants,
+        extensionMethods,
       );
     } else {
-      // Create new file
-      content = _createAppRoutesFile(newRouteConstants, newExtensionMethods);
+      content = appRoutesBuilder.buildFile(
+        routes: routeConstants,
+        extensionMethods: extensionMethods,
+      );
     }
 
     return FileUtils.writeFile(
@@ -115,75 +130,46 @@ class RouteGenerator {
     );
   }
 
-  String _createAppRoutesFile(
-    List<String> routeConstants,
-    List<String> extensionMethods,
-  ) {
-    return '''// Auto-generated route constants
-// This file is automatically updated when using --route flag
-// Add your custom routes here or modify the generated ones
-
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-
-abstract class AppRoutes {
-  // Auto-generated routes
-${routeConstants.join('\n')}
-}
-
-/// Navigation extension methods for BuildContext
-extension RouterExtension on BuildContext {
-${extensionMethods.join('\n')}
-}
-''';
-  }
-
   String _updateAppRoutesFile(
     String existingContent,
-    List<String> newRouteConstants,
-    List<String> newExtensionMethods,
+    Map<String, String> newRouteConstants,
+    List<ExtensionMethodSpec> newExtensionMethods,
   ) {
-    var content = existingContent;
+    var content = _ensureAppRoutesImports(existingContent);
 
-    // Check and add imports if missing
-    if (!content.contains("import 'package:flutter/material.dart';")) {
-      content = "import 'package:flutter/material.dart';\n$content";
-    }
-    if (!content.contains("import 'package:go_router/go_router.dart';")) {
-      content = "import 'package:go_router/go_router.dart';\n$content";
-    }
-
-    // Add new route constants before the closing brace of AppRoutes
-    final appRoutesEnd = content.lastIndexOf(
-      '}',
-      content.indexOf('extension RouterExtension'),
-    );
-    if (appRoutesEnd != -1) {
-      final newRoutesBlock = '\n${newRouteConstants.join('\n')}';
-      content =
-          '${content.substring(0, appRoutesEnd)}$newRoutesBlock\n${content.substring(appRoutesEnd)}';
+    if (!content.contains('class AppRoutes') ||
+        !content.contains('extension RouterExtension')) {
+      return appRoutesBuilder.buildFile(
+        routes: newRouteConstants,
+        extensionMethods: newExtensionMethods,
+      );
     }
 
-    // Add new extension methods before the closing brace of RouterExtension
-    final extStart = content.indexOf(
-      'extension RouterExtension on BuildContext {',
-    );
-    if (extStart != -1) {
-      // Find the matching closing brace
-      var braceCount = 1;
-      var extEnd =
-          extStart + 'extension RouterExtension on BuildContext {'.length;
-      while (braceCount > 0 && extEnd < content.length) {
-        if (content[extEnd] == '{') braceCount++;
-        if (content[extEnd] == '}') braceCount--;
-        extEnd++;
-      }
+    for (final entry in newRouteConstants.entries) {
+      final fieldSource = appRoutesBuilder.buildFieldSource(
+        entry.key,
+        entry.value,
+      );
+      final result = appendExecutor.execute(
+        AppendRequest.field(
+          source: content,
+          className: 'AppRoutes',
+          memberSource: fieldSource,
+        ),
+      );
+      content = result.source;
+    }
 
-      if (braceCount == 0) {
-        final newMethodsBlock = '\n${newExtensionMethods.join('\n')}';
-        content =
-            '${content.substring(0, extEnd - 1)}$newMethodsBlock\n${content.substring(extEnd - 1)}';
-      }
+    for (final method in newExtensionMethods) {
+      final methodSource = appRoutesBuilder.buildMethodSource(method);
+      final result = appendExecutor.execute(
+        AppendRequest.extensionMethod(
+          source: content,
+          className: 'RouterExtension',
+          memberSource: methodSource,
+        ),
+      );
+      content = result.source;
     }
 
     return content;
@@ -195,41 +181,38 @@ ${extensionMethods.join('\n')}
     final entityCamel = config.nameCamel;
     final fileName = '${entitySnake}_routes.dart';
 
-    // Determine import and dependency info first
-    final String dependencyImport;
+    final String dependencyImportPath;
     final String dependencyParam;
     final String viewParam;
 
     if (config.isEntityBased) {
-      dependencyImport =
-          "import '../domain/repositories/${entitySnake}_repository.dart';";
+      dependencyImportPath =
+          '../domain/repositories/${entitySnake}_repository.dart';
       dependencyParam = entityCamel;
       viewParam = '${entityCamel}Repository';
     } else if (config.hasService) {
       // Custom usecase with service
       final serviceName = config.effectiveService!;
       final serviceSnake = config.serviceSnake!;
-      dependencyImport =
-          "import '../domain/services/${serviceSnake}_service.dart';";
+      dependencyImportPath = '../domain/services/${serviceSnake}_service.dart';
       dependencyParam = _pascalToCamel(serviceName);
       viewParam = dependencyParam;
     } else if (config.hasRepo) {
       // Custom usecase with repository
       final repoName = config.effectiveRepos.first;
       final repoSnake = _camelToSnake(repoName.replaceAll('Repository', ''));
-      dependencyImport =
-          "import '../domain/repositories/${repoSnake}_repository.dart';";
+      dependencyImportPath =
+          '../domain/repositories/${repoSnake}_repository.dart';
       dependencyParam = _pascalToCamel(repoName);
       viewParam = dependencyParam;
     } else {
       // Fallback to entity pattern
-      dependencyImport =
-          "import '../domain/repositories/${entitySnake}_repository.dart';";
+      dependencyImportPath =
+          '../domain/repositories/${entitySnake}_repository.dart';
       dependencyParam = entityCamel;
       viewParam = '${entityCamel}Repository';
     }
 
-    // Use entity name as route base (e.g., 'product', 'payment_process')
     final routeBase = entitySnake;
     final routeNameBase = entityCamel;
 
@@ -247,18 +230,17 @@ ${extensionMethods.join('\n')}
     final needsIdParam = hasUpdate || hasDelete;
     final needsQueryParam = (hasGet || hasWatch) && !needsIdParam;
 
-    // Build route constants
-    final routeConstants = <String>[
-      "  static const String ${routeNameBase}List = '/$routeBase';",
-      if (hasSubRoutes && (hasUpdate || hasDelete || hasGet || hasWatch))
-        "  static const String ${routeNameBase}Detail = '/$routeBase/:id';",
-      if (hasCreate)
-        "  static const String ${routeNameBase}Create = '/$routeBase/create';",
-      if (hasUpdate)
-        "  static const String ${routeNameBase}Update = '/$routeBase/:id/edit';",
-    ];
+    final routeConstants = _buildEntityRouteConstants(
+      routeBase: routeBase,
+      routeNameBase: routeNameBase,
+      hasSubRoutes: hasSubRoutes,
+      hasCreate: hasCreate,
+      hasUpdate: hasUpdate,
+      hasDelete: hasDelete,
+      hasGet: hasGet,
+      hasWatch: hasWatch,
+    );
 
-    // Build GoRoute entries
     final goRoutes = <String>[
       _buildListRoute(
         entityName,
@@ -307,28 +289,18 @@ ${extensionMethods.join('\n')}
         ),
     ];
 
-    final content =
-        '''
-// Auto-generated routing for $entityName
-// Generated by: zfa generate $entityName --vpc${config.generateRoute ? ' --route' : ''}
-
-import 'package:go_router/go_router.dart';
-import '../../main.dart';
-import '../presentation/pages/$entitySnake/${entitySnake}_view.dart';
-$dependencyImport
-
-/// Route paths for $entityName
-abstract class ${entityName}Routes {
-${routeConstants.join('\n')}
-}
-
-/// GoRoute configurations for $entityName
-List<GoRoute> get${entityName}Routes() {
-  return [
-${goRoutes.join(',\n')},
-  ];
-}
-''';
+    final content = entityRoutesBuilder.buildFile(
+      className: '${entityName}Routes',
+      routes: routeConstants,
+      routesGetterName: 'get${entityName}Routes',
+      goRoutes: goRoutes,
+      imports: [
+        'package:go_router/go_router.dart',
+        '../../main.dart',
+        '../presentation/pages/$entitySnake/${entitySnake}_view.dart',
+        dependencyImportPath,
+      ],
+    );
     return FileUtils.writeFile(
       routesPath,
       content,
@@ -349,13 +321,13 @@ ${goRoutes.join(',\n')},
     bool needsQueryParam,
     String viewParam,
   ) {
-    return '''    GoRoute(
-      path: ${entityName}Routes.${routeNameBase}List,
-      name: '${routeBase}_list',
-      builder: (context, state) => ${entityName}View(
-        ${entityCamel}Repository: getIt<${entityName}Repository>(),
-      ),
-    )''';
+    return '''  GoRoute(
+    path: ${entityName}Routes.${routeNameBase}List,
+    name: '${routeBase}_list',
+    builder: (context, state) => ${entityName}View(
+      ${entityCamel}Repository: getIt<${entityName}Repository>(),
+    ),
+  )''';
   }
 
   String _buildDetailRoute(
@@ -369,16 +341,16 @@ ${goRoutes.join(',\n')},
     bool needsQueryParam,
     String viewParam,
   ) {
-    return '''    GoRoute(
-      path: ${entityName}Routes.${routeNameBase}Detail,
-      name: '${routeBase}_detail',
-      builder: (context, state) {
-        return ${entityName}View(
-          ${entityCamel}Repository: getIt<${entityName}Repository>(),
-          id: state.pathParameters['id']!,
-        );
-      },
-    )''';
+    return '''  GoRoute(
+    path: ${entityName}Routes.${routeNameBase}Detail,
+    name: '${routeBase}_detail',
+    builder: (context, state) {
+      return ${entityName}View(
+        ${entityCamel}Repository: getIt<${entityName}Repository>(),
+        id: state.pathParameters['id']!,
+      );
+    },
+  )''';
   }
 
   String _buildCreateRoute(
@@ -391,13 +363,13 @@ ${goRoutes.join(',\n')},
     bool needsQueryParam,
     String viewParam,
   ) {
-    return '''    GoRoute(
-      path: ${entityName}Routes.${routeNameBase}Create,
-      name: '${routeBase}_create',
-      builder: (context, state) => ${entityName}View(
-        ${entityCamel}Repository: getIt<${entityName}Repository>(),
-      ),
-    )''';
+    return '''  GoRoute(
+    path: ${entityName}Routes.${routeNameBase}Create,
+    name: '${routeBase}_create',
+    builder: (context, state) => ${entityName}View(
+      ${entityCamel}Repository: getIt<${entityName}Repository>(),
+    ),
+  )''';
   }
 
   String _buildUpdateRoute(
@@ -411,16 +383,16 @@ ${goRoutes.join(',\n')},
     bool needsQueryParam,
     String viewParam,
   ) {
-    return '''    GoRoute(
-      path: ${entityName}Routes.${routeNameBase}Update,
-      name: '${routeBase}_update',
-      builder: (context, state) {
-        return ${entityName}View(
-          ${entityCamel}Repository: getIt<${entityName}Repository>(),
-          id: state.pathParameters['id']!,
-        );
-      },
-    )''';
+    return '''  GoRoute(
+    path: ${entityName}Routes.${routeNameBase}Update,
+    name: '${routeBase}_update',
+    builder: (context, state) {
+      return ${entityName}View(
+        ${entityCamel}Repository: getIt<${entityName}Repository>(),
+        id: state.pathParameters['id']!,
+      );
+    },
+  )''';
   }
 
   Future<void> _regenerateIndexFile() async {
@@ -447,8 +419,10 @@ ${goRoutes.join(',\n')},
       return;
     }
 
-    final exports = <String>["export 'app_routes.dart';"];
-    final imports = <String>[];
+    final exports = <Directive>[Directive.export('app_routes.dart')];
+    final imports = <Directive>[
+      Directive.import('package:go_router/go_router.dart'),
+    ];
     final routeGetters = <String>[];
 
     for (final file in files) {
@@ -456,35 +430,23 @@ ${goRoutes.join(',\n')},
       final entityName = fileName.replaceAll('_routes.dart', '');
       final entityPascal = _snakeToPascal(entityName);
 
-      exports.add("export '$fileName';");
-      imports.add("import '$fileName';");
+      exports.add(Directive.export(fileName));
+      imports.add(Directive.import(fileName));
       routeGetters.add('  ...get${entityPascal}Routes(),');
     }
 
-    final content =
-        '''
-// Auto-generated - DO NOT EDIT
-${exports.join('\n')}
+    final getAllRoutes = Method(
+      (m) => m
+        ..name = 'getAllRoutes'
+        ..returns = refer('List<GoRoute>')
+        ..body = Code('return [\n${routeGetters.join('\n')}\n];'),
+    );
 
-import 'package:go_router/go_router.dart';
-${imports.join('\n')}
-
-/// Get all routes
-///
-/// Usage:
-/// ```dart
-/// final router = GoRouter(
-///   routes: [
-///     ...getAllRoutes(),
-///   ],
-/// );
-/// ```
-List<GoRoute> getAllRoutes() {
-  return [
-${routeGetters.join('\n')}
-  ];
-}
-''';
+    final library = entityRoutesBuilder.specLibrary.library(
+      specs: [getAllRoutes],
+      directives: [...exports, ...imports],
+    );
+    final content = entityRoutesBuilder.specLibrary.emitLibrary(library);
 
     await FileUtils.writeFile(
       indexPath,
@@ -520,5 +482,123 @@ ${routeGetters.join('\n')}
       buffer.write(char.toLowerCase());
     }
     return buffer.toString();
+  }
+
+  Map<String, String> _buildAppRouteConstants({
+    required String routeBase,
+    required String routeNameBase,
+    required bool hasSubRoutes,
+    required bool hasCreate,
+    required bool hasUpdate,
+    required bool hasDelete,
+    required bool hasGet,
+    required bool hasWatch,
+  }) {
+    final routes = <String, String>{'${routeNameBase}List': '/$routeBase'};
+
+    if (hasSubRoutes && (hasUpdate || hasDelete || hasGet || hasWatch)) {
+      routes['${routeNameBase}Detail'] = '\$${routeNameBase}List/:id';
+    }
+    if (hasCreate) {
+      routes['${routeNameBase}Create'] = '\$${routeNameBase}List/create';
+    }
+    if (hasUpdate) {
+      routes['${routeNameBase}Update'] = '\$${routeNameBase}List/:id/edit';
+    }
+    return routes;
+  }
+
+  List<ExtensionMethodSpec> _buildAppRouteExtensionMethods({
+    required String entityPascal,
+    required String routeBase,
+    required String routeNameBase,
+    required bool hasSubRoutes,
+    required bool hasCreate,
+    required bool hasUpdate,
+    required bool hasDelete,
+    required bool hasGet,
+    required bool hasWatch,
+  }) {
+    final methods = <ExtensionMethodSpec>[
+      ExtensionMethodSpec(
+        name: 'goTo${entityPascal}List',
+        body: 'go(AppRoutes.${routeNameBase}List)',
+      ),
+    ];
+
+    if (hasSubRoutes && (hasUpdate || hasDelete || hasGet || hasWatch)) {
+      methods.add(
+        ExtensionMethodSpec(
+          name: 'goTo${entityPascal}Detail',
+          parameters: [
+            Parameter(
+              (p) => p
+                ..name = 'id'
+                ..type = refer('String'),
+            ),
+          ],
+          body: "go('$routeBase/\$id')",
+        ),
+      );
+    }
+    if (hasCreate) {
+      methods.add(
+        ExtensionMethodSpec(
+          name: 'goTo${entityPascal}Create',
+          body: 'go(AppRoutes.${routeNameBase}Create)',
+        ),
+      );
+    }
+    if (hasUpdate) {
+      methods.add(
+        ExtensionMethodSpec(
+          name: 'goTo${entityPascal}Update',
+          parameters: [
+            Parameter(
+              (p) => p
+                ..name = 'id'
+                ..type = refer('String'),
+            ),
+          ],
+          body: "go('$routeBase/\$id/edit')",
+        ),
+      );
+    }
+    return methods;
+  }
+
+  Map<String, String> _buildEntityRouteConstants({
+    required String routeBase,
+    required String routeNameBase,
+    required bool hasSubRoutes,
+    required bool hasCreate,
+    required bool hasUpdate,
+    required bool hasDelete,
+    required bool hasGet,
+    required bool hasWatch,
+  }) {
+    final routes = <String, String>{'${routeNameBase}List': '/$routeBase'};
+
+    if (hasSubRoutes && (hasUpdate || hasDelete || hasGet || hasWatch)) {
+      routes['${routeNameBase}Detail'] = '/$routeBase/:id';
+    }
+    if (hasCreate) {
+      routes['${routeNameBase}Create'] = '/$routeBase/create';
+    }
+    if (hasUpdate) {
+      routes['${routeNameBase}Update'] = '/$routeBase/:id/edit';
+    }
+    return routes;
+  }
+
+  String _ensureAppRoutesImports(String source) {
+    var content = source;
+    if (!content.contains("import 'package:flutter/material.dart';")) {
+      content = "import 'package:flutter/material.dart';\n$content";
+    }
+    if (!content.contains("import 'package:go_router/go_router.dart';")) {
+      content = "import 'package:go_router/go_router.dart';\n$content";
+    }
+    return content;
   }
 }

@@ -4,14 +4,14 @@ import '../ast_helper.dart';
 import '../node_finder.dart';
 import 'append_strategy.dart';
 
-class MethodAppendStrategy implements AppendStrategy {
+class ExtensionMethodAppendStrategy implements AppendStrategy {
   final AstHelper helper;
 
-  const MethodAppendStrategy({this.helper = const AstHelper()});
+  const ExtensionMethodAppendStrategy({this.helper = const AstHelper()});
 
   @override
   bool canHandle(AppendRequest request) {
-    return request.target == AppendTarget.method &&
+    return request.target == AppendTarget.extensionMethod &&
         request.className != null &&
         request.memberSource != null;
   }
@@ -34,12 +34,12 @@ class MethodAppendStrategy implements AppendStrategy {
         message: 'Unable to parse source',
       );
     }
-    final classNode = helper.findClass(unit, request.className!);
-    if (classNode == null) {
+    final extensionNode = helper.findExtension(unit, request.className!);
+    if (extensionNode == null) {
       return AppendResult(
         source: request.source,
         changed: false,
-        message: 'Class not found',
+        message: 'Extension not found',
       );
     }
 
@@ -52,7 +52,7 @@ class MethodAppendStrategy implements AppendStrategy {
       );
     }
 
-    final existingMethods = NodeFinder.findMethods(classNode);
+    final existingMethods = NodeFinder.findExtensionMethods(extensionNode);
     final newSignature = _methodSignature(newMethod);
     for (final method in existingMethods) {
       if (_methodSignature(method) == newSignature) {
@@ -64,9 +64,9 @@ class MethodAppendStrategy implements AppendStrategy {
       }
     }
 
-    final updated = helper.addMethodToClass(
+    final updated = helper.addMethodToExtension(
       source: request.source,
-      className: request.className!,
+      extensionName: request.className!,
       methodSource: request.memberSource!,
     );
     return AppendResult(source: updated, changed: updated != request.source);
@@ -75,7 +75,7 @@ class MethodAppendStrategy implements AppendStrategy {
   MethodDeclaration? _parseMethod(String methodSource) {
     final wrapper =
         '''
-class _Temp {
+extension _Temp on Object {
 $methodSource
 }
 ''';
@@ -84,11 +84,11 @@ $methodSource
     if (unit == null) {
       return null;
     }
-    final classNode = NodeFinder.findClass(unit, '_Temp');
-    if (classNode == null) {
+    final extensionNode = NodeFinder.findExtension(unit, '_Temp');
+    if (extensionNode == null) {
       return null;
     }
-    final methods = NodeFinder.findMethods(classNode);
+    final methods = NodeFinder.findExtensionMethods(extensionNode);
     if (methods.isEmpty) {
       return null;
     }

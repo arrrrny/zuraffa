@@ -4,14 +4,14 @@ import '../ast_helper.dart';
 import '../node_finder.dart';
 import 'append_strategy.dart';
 
-class MethodAppendStrategy implements AppendStrategy {
+class FieldAppendStrategy implements AppendStrategy {
   final AstHelper helper;
 
-  const MethodAppendStrategy({this.helper = const AstHelper()});
+  const FieldAppendStrategy({this.helper = const AstHelper()});
 
   @override
   bool canHandle(AppendRequest request) {
-    return request.target == AppendTarget.method &&
+    return request.target == AppendTarget.field &&
         request.className != null &&
         request.memberSource != null;
   }
@@ -43,40 +43,39 @@ class MethodAppendStrategy implements AppendStrategy {
       );
     }
 
-    final newMethod = _parseMethod(request.memberSource!);
-    if (newMethod == null) {
+    final newField = _parseField(request.memberSource!);
+    if (newField == null) {
       return AppendResult(
         source: request.source,
         changed: false,
-        message: 'Invalid method source',
+        message: 'Invalid field source',
       );
     }
 
-    final existingMethods = NodeFinder.findMethods(classNode);
-    final newSignature = _methodSignature(newMethod);
-    for (final method in existingMethods) {
-      if (_methodSignature(method) == newSignature) {
+    final existingFields = NodeFinder.findFields(classNode);
+    for (final field in existingFields) {
+      if (field.name.lexeme == newField.name.lexeme) {
         return AppendResult(
           source: request.source,
           changed: false,
-          message: 'Duplicate method',
+          message: 'Duplicate field',
         );
       }
     }
 
-    final updated = helper.addMethodToClass(
+    final updated = helper.addFieldToClass(
       source: request.source,
       className: request.className!,
-      methodSource: request.memberSource!,
+      fieldSource: request.memberSource!,
     );
     return AppendResult(source: updated, changed: updated != request.source);
   }
 
-  MethodDeclaration? _parseMethod(String methodSource) {
+  VariableDeclaration? _parseField(String fieldSource) {
     final wrapper =
         '''
 class _Temp {
-$methodSource
+$fieldSource
 }
 ''';
     final result = helper.parseSource(wrapper);
@@ -88,16 +87,10 @@ $methodSource
     if (classNode == null) {
       return null;
     }
-    final methods = NodeFinder.findMethods(classNode);
-    if (methods.isEmpty) {
+    final fields = NodeFinder.findFields(classNode);
+    if (fields.isEmpty) {
       return null;
     }
-    return methods.first;
-  }
-
-  String _methodSignature(MethodDeclaration method) {
-    final params = method.parameters?.toSource() ?? '';
-    final returnType = method.returnType?.toSource() ?? '';
-    return '${method.name.lexeme}::$returnType$params';
+    return fields.first;
   }
 }

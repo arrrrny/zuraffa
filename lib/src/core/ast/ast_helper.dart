@@ -21,6 +21,13 @@ class AstHelper {
     return NodeFinder.findClass(unit, className);
   }
 
+  ExtensionDeclaration? findExtension(
+    CompilationUnit unit,
+    String extensionName,
+  ) {
+    return NodeFinder.findExtension(unit, extensionName);
+  }
+
   List<MethodDeclaration> findMethods(
     ClassDeclaration classNode, {
     String? name,
@@ -60,6 +67,48 @@ class AstHelper {
     return AstModifier.addMethodToClass(
       source: source,
       classNode: classNode,
+      methodSource: methodSource,
+    );
+  }
+
+  String addFieldToClass({
+    required String source,
+    required String className,
+    required String fieldSource,
+  }) {
+    final parseResult = parseSource(source);
+    final unit = parseResult.unit;
+    if (unit == null) {
+      return source;
+    }
+    final classNode = findClass(unit, className);
+    if (classNode == null) {
+      return source;
+    }
+    return AstModifier.addFieldToClass(
+      source: source,
+      classNode: classNode,
+      fieldSource: fieldSource,
+    );
+  }
+
+  String addMethodToExtension({
+    required String source,
+    required String extensionName,
+    required String methodSource,
+  }) {
+    final parseResult = parseSource(source);
+    final unit = parseResult.unit;
+    if (unit == null) {
+      return source;
+    }
+    final extensionNode = findExtension(unit, extensionName);
+    if (extensionNode == null) {
+      return source;
+    }
+    return AstModifier.addMethodToExtension(
+      source: source,
+      extensionNode: extensionNode,
       methodSource: methodSource,
     );
   }

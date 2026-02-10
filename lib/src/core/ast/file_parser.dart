@@ -8,10 +8,7 @@ class AstParseResult {
   final CompilationUnit? unit;
   final List<Diagnostic> errors;
 
-  const AstParseResult({
-    required this.unit,
-    required this.errors,
-  });
+  const AstParseResult({required this.unit, required this.errors});
 
   bool get hasErrors => errors.isNotEmpty;
 }

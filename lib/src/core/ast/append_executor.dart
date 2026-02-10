@@ -1,17 +1,21 @@
 import 'strategies/append_strategy.dart';
 import 'strategies/export_append_strategy.dart';
+import 'strategies/extension_method_append_strategy.dart';
+import 'strategies/field_append_strategy.dart';
 import 'strategies/method_append_strategy.dart';
 
 class AppendExecutor {
   final List<AppendStrategy> strategies;
 
   AppendExecutor({List<AppendStrategy>? strategies})
-      : strategies =
-            strategies ??
-            const [
-              MethodAppendStrategy(),
-              ExportAppendStrategy(),
-            ];
+    : strategies =
+          strategies ??
+          const [
+            MethodAppendStrategy(),
+            FieldAppendStrategy(),
+            ExtensionMethodAppendStrategy(),
+            ExportAppendStrategy(),
+          ];
 
   AppendResult execute(AppendRequest request) {
     for (final strategy in strategies) {

@@ -45,11 +45,7 @@ class ExportAppendStrategy implements AppendStrategy {
     return AppendResult(source: updated, changed: updated != request.source);
   }
 
-  String _insertExport(
-    String source,
-    CompilationUnit unit,
-    String exportPath,
-  ) {
+  String _insertExport(String source, CompilationUnit unit, String exportPath) {
     final exportDirective = "export '$exportPath';";
     final exports = unit.directives.whereType<ExportDirective>().toList();
     if (exports.isNotEmpty) {

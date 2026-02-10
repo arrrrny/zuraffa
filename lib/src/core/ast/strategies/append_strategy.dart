@@ -1,7 +1,4 @@
-enum AppendTarget {
-  method,
-  exportDirective,
-}
+enum AppendTarget { method, field, extensionMethod, exportDirective }
 
 class AppendRequest {
   final AppendTarget target;
@@ -14,15 +11,27 @@ class AppendRequest {
     required this.source,
     required this.className,
     required this.memberSource,
-  })  : target = AppendTarget.method,
-        exportPath = null;
+  }) : target = AppendTarget.method,
+       exportPath = null;
 
-  const AppendRequest.export({
+  const AppendRequest.field({
     required this.source,
-    required this.exportPath,
-  })  : target = AppendTarget.exportDirective,
-        className = null,
-        memberSource = null;
+    required this.className,
+    required this.memberSource,
+  }) : target = AppendTarget.field,
+       exportPath = null;
+
+  const AppendRequest.extensionMethod({
+    required this.source,
+    required this.className,
+    required this.memberSource,
+  }) : target = AppendTarget.extensionMethod,
+       exportPath = null;
+
+  const AppendRequest.export({required this.source, required this.exportPath})
+    : target = AppendTarget.exportDirective,
+      className = null,
+      memberSource = null;
 }
 
 class AppendResult {
