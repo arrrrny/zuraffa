@@ -26,8 +26,8 @@ class EntityUseCaseGenerator {
     required this.verbose,
     UseCaseClassBuilder? classBuilder,
     AppendExecutor? appendExecutor,
-  })  : classBuilder = classBuilder ?? const UseCaseClassBuilder(),
-        appendExecutor = appendExecutor ?? AppendExecutor();
+  }) : classBuilder = classBuilder ?? const UseCaseClassBuilder(),
+       appendExecutor = appendExecutor ?? AppendExecutor();
 
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     final files = <GeneratedFile>[];
@@ -132,8 +132,12 @@ class EntityUseCaseGenerator {
       className.replaceAll('UseCase', ''),
     );
     final fileName = '${fileSnake}_usecase.dart';
-    final usecaseDirPath =
-        path.join(outputDir, 'domain', 'usecases', entitySnake);
+    final usecaseDirPath = path.join(
+      outputDir,
+      'domain',
+      'usecases',
+      entitySnake,
+    );
     final filePath = path.join(usecaseDirPath, fileName);
 
     final imports = <String>['package:zuraffa/zuraffa.dart'];
@@ -206,8 +210,8 @@ class EntityUseCaseGenerator {
     final returnTypeRef = isStream
         ? 'Stream<$returnType>'
         : isCompletable
-            ? 'Future<void>'
-            : 'Future<$returnType>';
+        ? 'Future<void>'
+        : 'Future<$returnType>';
 
     final body = StringBuffer()
       ..writeln('cancelToken?.throwIfCancelled();')
@@ -248,11 +252,13 @@ class EntityUseCaseGenerator {
     final returnTypeRef = isStream
         ? 'Stream<$returnType>'
         : isCompletable
-            ? 'Future<void>'
-            : 'Future<$returnType>';
+        ? 'Future<void>'
+        : 'Future<$returnType>';
     final buffer = StringBuffer()
       ..writeln('@override')
-      ..write('$returnTypeRef execute($paramsType params, CancelToken? cancelToken)');
+      ..write(
+        '$returnTypeRef execute($paramsType params, CancelToken? cancelToken)',
+      );
     if (!isStream) {
       buffer.write(' async');
     }

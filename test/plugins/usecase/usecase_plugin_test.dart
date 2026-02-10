@@ -35,22 +35,10 @@ void main() {
     expect(files.length, equals(1));
     final content = files.first.content ?? '';
     expect(content.contains('class GetTodoUseCase'), isTrue);
-    expect(
-      content.contains('UseCase<Todo, QueryParams<Todo>>'),
-      isTrue,
-    );
-    expect(
-      content.contains('Future<Todo> execute'),
-      isTrue,
-    );
-    expect(
-      content.contains('QueryParams<Todo>'),
-      isTrue,
-    );
-    expect(
-      content.contains('CancelToken?'),
-      isTrue,
-    );
+    expect(content.contains('UseCase<Todo, QueryParams<Todo>>'), isTrue);
+    expect(content.contains('Future<Todo> execute'), isTrue);
+    expect(content.contains('QueryParams<Todo>'), isTrue);
+    expect(content.contains('CancelToken?'), isTrue);
   });
 
   test('generates custom sync usecase with repo dependency', () async {
@@ -93,18 +81,9 @@ void main() {
     final content = files.first.content ?? '';
     expect(content.contains('class StreamUserUseCase'), isTrue);
     expect(content.contains('StreamUseCase<User, UserParams>'), isTrue);
-    expect(
-      content.contains('Stream<User> execute'),
-      isTrue,
-    );
-    expect(
-      content.contains('UserParams'),
-      isTrue,
-    );
-    expect(
-      content.contains('CancelToken?'),
-      isTrue,
-    );
+    expect(content.contains('Stream<User> execute'), isTrue);
+    expect(content.contains('UserParams'), isTrue);
+    expect(content.contains('CancelToken?'), isTrue);
   });
 
   test('generates orchestrator usecase', () async {

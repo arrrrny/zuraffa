@@ -127,6 +127,8 @@ class Todo {
   }
 }
 
+extension TodoPropertyHelpers on Todo {}
+
 extension TodoSerialization on Todo {
   Map<String, dynamic> toJson() => _$TodoToJson(this);
   Map<String, dynamic> toJsonLean() {

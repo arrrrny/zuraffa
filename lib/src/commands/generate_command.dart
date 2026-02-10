@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:args/args.dart';
+import 'package:path/path.dart' as path;
 import '../models/generator_config.dart';
 import '../models/generator_result.dart';
 import '../generator/code_generator.dart';
@@ -71,7 +72,7 @@ class GenerateCommand {
     final config = _buildConfig(name, results);
     _validateConfig(config, exitOnCompletion: exitOnCompletion);
 
-    final outputDir = results['output'] as String;
+    final outputDir = _resolveOutputDir(results['output'] as String);
     final format = results['format'] as String;
     final dryRun = results['dry-run'] == true;
     final force = results['force'] == true;
@@ -130,6 +131,20 @@ class GenerateCommand {
 
     if (exitOnCompletion) exit(0);
     return result;
+  }
+
+  String _resolveOutputDir(String outputDir) {
+    if (path.isAbsolute(outputDir)) {
+      return outputDir;
+    }
+    final envPwd = Platform.environment['PWD'];
+    if (envPwd != null && envPwd.isNotEmpty) {
+      final envDir = Directory(envPwd);
+      if (envDir.existsSync()) {
+        return path.normalize(path.join(envPwd, outputDir));
+      }
+    }
+    return path.normalize(path.join(Directory.current.path, outputDir));
   }
 
   GeneratorConfig _buildConfig(String name, ArgResults results) {

@@ -1,12 +1,6 @@
 import 'dart:io';
 
-enum ProgressEvent {
-  started,
-  completed,
-  failed,
-  warning,
-  info,
-}
+enum ProgressEvent { started, completed, failed, warning, info }
 
 class ProgressReport {
   final String message;
@@ -26,19 +20,20 @@ class ProgressReport {
   });
 
   const ProgressReport.started(String message, int totalSteps)
-      : this(
-          message: message,
-          percent: 0,
-          currentStep: null,
-          totalSteps: totalSteps,
-          completedSteps: 0,
-          event: ProgressEvent.started,
-        );
+    : this(
+        message: message,
+        percent: 0,
+        currentStep: null,
+        totalSteps: totalSteps,
+        completedSteps: 0,
+        event: ProgressEvent.started,
+      );
 
   ProgressReport nextStep(String step) {
     final nextCompleted = completedSteps + 1;
-    final nextPercent =
-        totalSteps > 0 ? (nextCompleted / totalSteps * 100).round() : 0;
+    final nextPercent = totalSteps > 0
+        ? (nextCompleted / totalSteps * 100).round()
+        : 0;
     return ProgressReport(
       message: message,
       percent: nextPercent,
@@ -50,44 +45,44 @@ class ProgressReport {
   }
 
   const ProgressReport.completed()
-      : this(
-          message: '',
-          percent: 100,
-          currentStep: null,
-          totalSteps: 0,
-          completedSteps: 0,
-          event: ProgressEvent.completed,
-        );
+    : this(
+        message: '',
+        percent: 100,
+        currentStep: null,
+        totalSteps: 0,
+        completedSteps: 0,
+        event: ProgressEvent.completed,
+      );
 
   const ProgressReport.failed(String error)
-      : this(
-          message: error,
-          percent: 0,
-          currentStep: null,
-          totalSteps: 0,
-          completedSteps: 0,
-          event: ProgressEvent.failed,
-        );
+    : this(
+        message: error,
+        percent: 0,
+        currentStep: null,
+        totalSteps: 0,
+        completedSteps: 0,
+        event: ProgressEvent.failed,
+      );
 
   const ProgressReport.warning(String message)
-      : this(
-          message: message,
-          percent: 0,
-          currentStep: null,
-          totalSteps: 0,
-          completedSteps: 0,
-          event: ProgressEvent.warning,
-        );
+    : this(
+        message: message,
+        percent: 0,
+        currentStep: null,
+        totalSteps: 0,
+        completedSteps: 0,
+        event: ProgressEvent.warning,
+      );
 
   const ProgressReport.info(String message)
-      : this(
-          message: message,
-          percent: 0,
-          currentStep: null,
-          totalSteps: 0,
-          completedSteps: 0,
-          event: ProgressEvent.info,
-        );
+    : this(
+        message: message,
+        percent: 0,
+        currentStep: null,
+        totalSteps: 0,
+        completedSteps: 0,
+        event: ProgressEvent.info,
+      );
 }
 
 abstract class ProgressReporter {

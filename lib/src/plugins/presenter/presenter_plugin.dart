@@ -406,14 +406,14 @@ class PresenterPlugin extends FileGeneratorPlugin {
   ) {
     final imports = <String>[
       'package:zuraffa/zuraffa.dart',
-      '../../domain/entities/$entitySnake/$entitySnake.dart',
+      '../../../domain/entities/$entitySnake/$entitySnake.dart',
     ];
 
     for (final repo in config.effectiveRepos) {
       final repoSnake = StringUtils.camelToSnake(
         repo.replaceAll('Repository', ''),
       );
-      imports.add('../../domain/repositories/${repoSnake}_repository.dart');
+      imports.add('../../../domain/repositories/${repoSnake}_repository.dart');
     }
 
     for (final info in useCases) {
@@ -421,7 +421,7 @@ class PresenterPlugin extends FileGeneratorPlugin {
         info.className.replaceAll('UseCase', ''),
       );
       imports.add(
-        '../../domain/usecases/$entitySnake/${usecaseSnake}_usecase.dart',
+        '../../../domain/usecases/$entitySnake/${usecaseSnake}_usecase.dart',
       );
     }
 

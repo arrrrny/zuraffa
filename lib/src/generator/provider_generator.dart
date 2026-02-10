@@ -29,13 +29,13 @@ class ProviderGenerator {
   });
 
   ProviderGenerator.fromContext(GenerationContext context)
-      : this(
-          config: context.config,
-          outputDir: context.outputDir,
-          dryRun: context.dryRun,
-          force: context.force,
-          verbose: context.verbose,
-        );
+    : this(
+        config: context.config,
+        outputDir: context.outputDir,
+        dryRun: context.dryRun,
+        force: context.force,
+        verbose: context.verbose,
+      );
 
   /// Generates a provider implementation file for a service.
   Future<GeneratedFile> generate() async {

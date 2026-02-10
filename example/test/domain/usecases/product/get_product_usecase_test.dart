@@ -31,7 +31,7 @@ void main() {
 
       // Act
       final result = await useCase(
-          const QueryParams<Product>(params: Params({'id': '1'})));
+          const QueryParams<Product>(filter: Eq(ProductFields.id, '1')));
 
       // Assert
       verify(() => mockRepository.get(any())).called(1);
@@ -46,7 +46,7 @@ void main() {
 
       // Act
       final result = await useCase(
-          const QueryParams<Product>(params: Params({'id': '1'})));
+          const QueryParams<Product>(filter: Eq(ProductFields.id, '1')));
 
       // Assert
       verify(() => mockRepository.get(any())).called(1);
