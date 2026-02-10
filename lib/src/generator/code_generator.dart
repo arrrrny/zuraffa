@@ -1,10 +1,10 @@
 import '../models/generator_config.dart';
 import '../models/generator_result.dart';
 import '../models/generated_file.dart';
-import 'repository_generator.dart';
 import 'service_generator.dart';
 import 'provider_generator.dart';
 import '../plugins/usecase/usecase_plugin.dart';
+import '../plugins/repository/repository_plugin.dart';
 import 'vpc_generator.dart';
 import 'state_generator.dart';
 import 'observer_generator.dart';
@@ -24,7 +24,7 @@ class CodeGenerator {
   final GenerationContext context;
   late final CodeBuilderFactory builderFactory;
 
-  late final RepositoryGenerator _repositoryGenerator;
+  late final RepositoryPlugin _repositoryPlugin;
   late final ServiceGenerator _serviceGenerator;
   late final ProviderGenerator _providerGenerator;
   late final UseCasePlugin _useCasePlugin;
@@ -49,7 +49,12 @@ class CodeGenerator {
           root: outputDir,
         ) {
     builderFactory = CodeBuilderFactory(context);
-    _repositoryGenerator = builderFactory.repository();
+    _repositoryPlugin = RepositoryPlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
     _serviceGenerator = builderFactory.service();
     _providerGenerator = builderFactory.provider();
     _useCasePlugin = UseCasePlugin(
@@ -121,8 +126,8 @@ class CodeGenerator {
         }
 
         if (config.isEntityBased) {
-          final file = await _repositoryGenerator.generate();
-          files.add(file);
+          final repoFiles = await _repositoryPlugin.generate(config);
+          files.addAll(repoFiles);
 
           final usecaseFiles = await _useCasePlugin.generate(config);
           files.addAll(usecaseFiles);
@@ -195,7 +200,7 @@ class CodeGenerator {
             }
 
             final dataRepoFile =
-                await _dataLayerGenerator.generateDataRepository();
+                await _repositoryPlugin.generateImplementation(config);
             files.add(dataRepoFile);
           }
         }
