@@ -28,7 +28,11 @@ class MinimalPlugin extends FileGeneratorPlugin {
 
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
-    final filePath = path.join(outputDir, 'custom_plugin', 'minimal_output.txt');
+    final filePath = path.join(
+      outputDir,
+      'custom_plugin',
+      'minimal_output.txt',
+    );
     final file = await FileUtils.writeFile(
       filePath,
       'Minimal plugin output for ${config.name}',

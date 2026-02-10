@@ -72,8 +72,11 @@ class AdvancedPlugin extends FileGeneratorPlugin {
       ),
     );
 
-    final filePath =
-        path.join(outputDir, 'custom_plugin', 'advanced_output.dart');
+    final filePath = path.join(
+      outputDir,
+      'custom_plugin',
+      'advanced_output.dart',
+    );
     final file = await FileUtils.writeFile(
       filePath,
       content,
