@@ -1,44 +1,70 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zuraffa/zuraffa.dart';
+import 'package:zuraffa/src/core/context/context_store.dart';
 
 void main() {
   group('ContextStore', () {
-    test('stores and retrieves values', () {
+    test('stores and retrieves values by type', () {
       final store = ContextStore();
-      store.set('key', 'value');
-      expect(store.get<String>('key'), equals('value'));
+      store.set('count', 2);
+      store.set('name', 'test');
+
+      expect(store.get<int>('count'), equals(2));
+      expect(store.get<String>('name'), equals('test'));
+      expect(store.has('count'), isTrue);
     });
 
-    test('returns default value when key missing', () {
+    test('returns default value when missing', () {
       final store = ContextStore();
-      expect(
-        store.get<String>('missing', defaultValue: () => 'default'),
-        equals('default'),
-      );
+      final value = store.get<int>('missing', defaultValue: () => 5);
+      expect(value, equals(5));
     });
 
-    test('throws when key missing without default', () {
+    test('throws for missing key without default', () {
       final store = ContextStore();
-      expect(() => store.get<String>('missing'), throwsStateError);
+      expect(() => store.get<int>('missing'), throwsStateError);
     });
 
-    test('notifies listeners on change', () {
+    test('throws for type mismatch', () {
       final store = ContextStore();
-      var called = false;
+      store.set('count', 2);
+      expect(() => store.get<String>('count'), throwsStateError);
+    });
+
+    test('getOrNull returns null for missing or mismatch', () {
+      final store = ContextStore();
+      store.set('count', 2);
+      expect(store.getOrNull<String>('count'), isNull);
+      expect(store.getOrNull<int>('missing'), isNull);
+    });
+
+    test('notifies listeners on set and remove', () {
+      final store = ContextStore();
+      var hits = 0;
       void listener() {
-        called = true;
+        hits += 1;
       }
 
-      store.addListener('k', listener);
-      store.set('k', 1);
+      store.addListener('value', listener);
+      store.set('value', 1);
+      store.remove('value');
+      store.removeListener('value', listener);
+      store.set('value', 2);
 
-      expect(called, isTrue);
+      expect(hits, equals(2));
     });
 
-    test('supports type checking', () {
+    test('clear resets data and listeners', () {
       final store = ContextStore();
-      store.set('number', 42);
-      expect(() => store.get<String>('number'), throwsStateError);
+      var hits = 0;
+      store.addListener('value', () {
+        hits += 1;
+      });
+      store.set('value', 1);
+      store.clear();
+      store.set('value', 2);
+
+      expect(store.has('value'), isTrue);
+      expect(hits, equals(1));
     });
   });
 }

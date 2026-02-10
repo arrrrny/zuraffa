@@ -20,7 +20,10 @@ void main() {
 
     final output = const SpecLibrary().emitLibrary(library);
     expect(output.contains('class GetOrderUseCase'), isTrue);
-    expect(output.contains('Future<Order> execute(OrderParams params)'), isTrue);
+    expect(
+      output.contains('Future<Order> execute(OrderParams params)'),
+      isTrue,
+    );
   });
 
   test('CodeBuilderFactory builds repository library', () {
@@ -58,6 +61,9 @@ void main() {
     );
 
     final output = const SpecLibrary().emitLibrary(library);
-    expect(output.contains("static const String orderList = '/orders';"), isTrue);
+    expect(
+      output.contains("static const String orderList = '/orders';"),
+      isTrue,
+    );
   });
 }

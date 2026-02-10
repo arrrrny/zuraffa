@@ -55,6 +55,97 @@ class Foo {}
       ),
     );
     expect(result.changed, isTrue);
-    expect(result.source.contains("export 'package:example/foo.dart';"), isTrue);
+    expect(
+      result.source.contains("export 'package:example/foo.dart';"),
+      isTrue,
+    );
+  });
+
+  test('ImportAppendStrategy adds import when missing', () {
+    const source = '''
+library;
+
+class Foo {}
+''';
+    final executor = AppendExecutor();
+    final result = executor.execute(
+      const AppendRequest.import(
+        source: source,
+        importPath: 'package:example/bar.dart',
+      ),
+    );
+    expect(result.changed, isTrue);
+    expect(
+      result.source.contains("import 'package:example/bar.dart';"),
+      isTrue,
+    );
+  });
+
+  test('FieldAppendStrategy appends field when missing', () {
+    const source = '''
+class User {
+  User();
+}
+''';
+    const fieldSource = 'final int age;';
+    final executor = AppendExecutor();
+    final result = executor.execute(
+      const AppendRequest.field(
+        source: source,
+        className: 'User',
+        memberSource: fieldSource,
+      ),
+    );
+    expect(result.changed, isTrue);
+    expect(result.source.contains('final int age;'), isTrue);
+  });
+
+  test('ExtensionMethodAppendStrategy appends method', () {
+    const source = '''
+extension UserExt on String {}
+''';
+    const methodSource = 'String greet() => this;';
+    final executor = AppendExecutor();
+    final result = executor.execute(
+      const AppendRequest.extensionMethod(
+        source: source,
+        className: 'UserExt',
+        memberSource: methodSource,
+      ),
+    );
+    expect(result.changed, isTrue);
+    expect(result.source.contains('String greet() => this;'), isTrue);
+  });
+
+  test('FunctionStatementAppendStrategy appends statement', () {
+    const source = '''
+void setup() {
+  print('start');
+}
+''';
+    const statementSource = "print('next');";
+    final executor = AppendExecutor();
+    final result = executor.execute(
+      const AppendRequest.functionStatement(
+        source: source,
+        functionName: 'setup',
+        memberSource: statementSource,
+      ),
+    );
+    expect(result.changed, isTrue);
+    expect(result.source.contains("print('next');"), isTrue);
+  });
+
+  test('AppendExecutor returns no strategy found for unknown', () {
+    const source = 'class Foo {}';
+    final executor = AppendExecutor(strategies: const []);
+    final result = executor.execute(
+      const AppendRequest.import(
+        source: source,
+        importPath: 'package:example/bar.dart',
+      ),
+    );
+    expect(result.changed, isFalse);
+    expect(result.message, equals('No strategy found'));
   });
 }

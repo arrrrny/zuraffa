@@ -6,9 +6,7 @@ void main() {
   test('CommonPatterns builds fields and constructors', () {
     final field = CommonPatterns.finalField('name', 'String');
     final ctor = CommonPatterns.constructor(
-      parameters: [
-        CommonPatterns.requiredNamedParam('name', 'String'),
-      ],
+      parameters: [CommonPatterns.requiredNamedParam('name', 'String')],
     );
     final clazz = Class(
       (b) => b

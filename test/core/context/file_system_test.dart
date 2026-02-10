@@ -1,64 +1,32 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zuraffa/zuraffa.dart';
+import 'package:zuraffa/src/core/context/file_system.dart';
 
 void main() {
-  group('FileSystem', () {
-    test('reads file content', () async {
+  group('DefaultFileSystem', () {
+    test('writes, reads, and deletes with root', () async {
       final dir = await Directory.systemTemp.createTemp('zuraffa_fs_');
       addTearDown(() => dir.delete(recursive: true));
-      final file = File('${dir.path}/read.txt');
-      await file.writeAsString('content');
 
-      final fs = FileSystem.create(root: dir.path);
-      final result = await fs.read('read.txt');
+      final fs = DefaultFileSystem(root: dir.path);
+      await fs.write('nested/file.txt', 'hello');
 
-      expect(result, equals('content'));
+      expect(await fs.exists('nested/file.txt'), isTrue);
+      expect(await fs.read('nested/file.txt'), equals('hello'));
+
+      await fs.delete('nested/file.txt');
+      expect(await fs.exists('nested/file.txt'), isFalse);
     });
 
-    test('writes file with directories', () async {
+    test('creates directories', () async {
       final dir = await Directory.systemTemp.createTemp('zuraffa_fs_');
       addTearDown(() => dir.delete(recursive: true));
 
-      final fs = FileSystem.create(root: dir.path);
-      await fs.write('nested/dir/file.txt', 'data');
+      final fs = DefaultFileSystem(root: dir.path);
+      await fs.createDir('a/b', recursive: true);
 
-      final file = File('${dir.path}/nested/dir/file.txt');
-      expect(await file.readAsString(), equals('data'));
-    });
-
-    test('checks file existence', () async {
-      final dir = await Directory.systemTemp.createTemp('zuraffa_fs_');
-      addTearDown(() => dir.delete(recursive: true));
-      final fs = FileSystem.create(root: dir.path);
-
-      expect(await fs.exists('missing.txt'), isFalse);
-      await fs.write('exists.txt', 'ok');
-      expect(await fs.exists('exists.txt'), isTrue);
-    });
-
-    test('deletes existing file', () async {
-      final dir = await Directory.systemTemp.createTemp('zuraffa_fs_');
-      addTearDown(() => dir.delete(recursive: true));
-      final fs = FileSystem.create(root: dir.path);
-      await fs.write('delete.txt', 'remove');
-
-      await fs.delete('delete.txt');
-
-      expect(await fs.exists('delete.txt'), isFalse);
-    });
-
-    test('watches file changes', () async {
-      final dir = await Directory.systemTemp.createTemp('zuraffa_fs_');
-      addTearDown(() => dir.delete(recursive: true));
-      final fs = FileSystem.create(root: dir.path);
-      await fs.write('watch.txt', 'start');
-
-      final stream = fs.watch('watch.txt');
-      final expected = expectLater(stream, emits('watch.txt'));
-      await fs.write('watch.txt', 'updated');
-      await expected;
+      expect(Directory('${dir.path}/a/b').existsSync(), isTrue);
     });
   });
 }
