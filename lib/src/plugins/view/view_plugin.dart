@@ -69,6 +69,7 @@ class ViewPlugin extends FileGeneratorPlugin {
         repoPresenterArgs: repoPresenterArgs,
         initialMethodCall: initialMethodCall,
         imports: imports,
+        withState: config.generateState,
       ),
     );
 

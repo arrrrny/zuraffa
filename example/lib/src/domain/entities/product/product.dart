@@ -1,54 +1,13 @@
-// Example Product entity for testing zfa CLI
+import 'package:zorphy_annotation/zorphy.dart';
 
-class Product {
-  final String id;
-  final String name;
-  final String description;
-  final double price;
-  final DateTime createdAt;
+part 'product.zorphy.dart';
+part 'product.g.dart';
 
-  const Product({
-    required this.id,
-    required this.name,
-    required this.description,
-    required this.price,
-    required this.createdAt,
-  });
-
-  Product copyWith({
-    String? id,
-    String? name,
-    String? description,
-    double? price,
-    DateTime? createdAt,
-  }) {
-    return Product(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      description: description ?? this.description,
-      price: price ?? this.price,
-      createdAt: createdAt ?? this.createdAt,
-    );
-  }
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is Product && runtimeType == other.runtimeType && id == other.id;
-
-  @override
-  int get hashCode => id.hashCode;
-
-  @override
-  String toString() => 'Product(id: $id, name: $name, price: $price)';
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'description': description,
-      'price': price,
-      'createdAt': createdAt.toIso8601String(),
-    };
-  }
+@Zorphy(generateJson: true, generateFilter: true)
+abstract class $Product {
+  String get id;
+  String get name;
+  String get description;
+  double get price;
+  DateTime get createdAt;
 }

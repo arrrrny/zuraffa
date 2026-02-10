@@ -129,7 +129,6 @@ class EntityUseCaseGenerator {
       className.replaceAll('UseCase', ''),
     );
     final fileName = '${fileSnake}_usecase.dart';
-
     final usecaseDirPath = path.join(
       outputDir,
       'domain',

@@ -35,20 +35,16 @@ class RemoteDataSourceGenerator {
 
     final methods = <String>[];
     if (config.generateInit) {
-      methods.add(
-        '''
+      methods.add('''
   @override
   Future<void> initialize(InitializationParams params) async {
     logger.info('Initializing $dataSourceName');
     // TODO: Initialize remote connection, auth, etc.
     logger.info('$dataSourceName initialized');
-  }''',
-      );
-      methods.add(
-        '''
+  }''');
+      methods.add('''
   @override
-  Stream<bool> get isInitialized => Stream.value(true);''',
-      );
+  Stream<bool> get isInitialized => Stream.value(true);''');
     }
 
     final gqlImports = <String>[];
@@ -65,77 +61,63 @@ class RemoteDataSourceGenerator {
       }
       switch (method) {
         case 'get':
-          methods.add(
-            '''
+          methods.add('''
   @override
   Future<$entityName> get(QueryParams<$entityName> params) async {
     // TODO: Implement remote API call
     ${_remoteBody('Implement remote get', gqlConstant)}
-  }''',
-          );
+  }''');
           break;
         case 'getList':
-          methods.add(
-            '''
+          methods.add('''
   @override
   Future<List<$entityName>> getList(ListQueryParams<$entityName> params) async {
     // TODO: Implement remote API call
     ${_remoteBody('Implement remote getList', gqlConstant)}
-  }''',
-          );
+  }''');
           break;
         case 'create':
-          methods.add(
-            '''
+          methods.add('''
   @override
   Future<$entityName> create($entityName $entityCamel) async {
     // TODO: Implement remote API call
     ${_remoteBody('Implement remote create', gqlConstant)}
-  }''',
-          );
+  }''');
           break;
         case 'update':
           final dataType = config.useZorphy
               ? '${config.name}Patch'
               : 'Partial<${config.name}>';
-          methods.add(
-            '''
+          methods.add('''
   @override
   Future<${config.name}> update(UpdateParams<${config.idType}, $dataType> params) async {
     // TODO: Implement remote API call
     ${_remoteBody('Implement remote update', gqlConstant)}
-  }''',
-          );
+  }''');
           break;
         case 'delete':
-          methods.add(
-            '''
+          methods.add('''
   @override
   Future<void> delete(DeleteParams<${config.idType}> params) async {
     // TODO: Implement remote API call
     ${_remoteBody('Implement remote delete', gqlConstant)}
-  }''',
-          );
+  }''');
           break;
         case 'watch':
-          methods.add(
-            '''
+          methods.add('''
   @override
   Stream<$entityName> watch(QueryParams<$entityName> params) {
     // TODO: Implement remote stream (WebSocket, SSE, etc.)
     ${_remoteBody('Implement remote watch', gqlConstant)}
-  }''',
-          );
+  }''');
           break;
         case 'watchList':
-          methods.add(
-            '''
+          methods.add('''
   @override
   Stream<List<$entityName>> watchList(ListQueryParams<$entityName> params) {
     // TODO: Implement remote stream (WebSocket, SSE, etc.)
     ${_remoteBody('Implement remote watchList', gqlConstant)}
-  }''',
-          );
+  }''');
           break;
       }
     }

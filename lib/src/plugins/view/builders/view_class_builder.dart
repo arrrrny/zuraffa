@@ -14,6 +14,7 @@ class ViewClassSpec {
   final List<String> repoPresenterArgs;
   final String initialMethodCall;
   final List<String> imports;
+  final bool withState;
 
   const ViewClassSpec({
     required this.viewName,
@@ -25,6 +26,7 @@ class ViewClassSpec {
     required this.repoPresenterArgs,
     required this.initialMethodCall,
     required this.imports,
+    required this.withState,
   });
 }
 
@@ -99,6 +101,15 @@ return _${spec.viewName}State(
       initialCall: spec.initialMethodCall,
     );
 
+    final builderBody = spec.withState
+        ? '''
+      final viewState = controller.viewState;
+      return Container();
+'''
+        : '''
+      return Container();
+''';
+
     final viewGetter = Method(
       (m) => m
         ..name = 'view'
@@ -113,7 +124,7 @@ return Scaffold(
   ),
   body: ControlledWidgetBuilder<${spec.controllerName}>(
     builder: (context, controller) {
-      return Container();
+${builderBody.trimRight()}
     },
   ),
 );'''),

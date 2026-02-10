@@ -52,7 +52,9 @@ class DataSourceInterfaceGenerator {
           );
           break;
         case 'create':
-          methods.add('  Future<$entityName> create($entityName $entityCamel);');
+          methods.add(
+            '  Future<$entityName> create($entityName $entityCamel);',
+          );
           break;
         case 'update':
           final dataType = config.useZorphy
@@ -102,5 +104,4 @@ ${methods.join('\n')}
       verbose: verbose,
     );
   }
-
 }

@@ -41,7 +41,7 @@ class RepositoryImplementationGenerator {
 
   $dataRepoName(this._dataSource);'''
         : config.enableCache
-            ? '''  final $dataSourceName _remoteDataSource;
+        ? '''  final $dataSourceName _remoteDataSource;
   final $localDataSourceName _localDataSource;
   final CachePolicy _cachePolicy;
 
@@ -50,7 +50,7 @@ class RepositoryImplementationGenerator {
     this._localDataSource,
     this._cachePolicy,
   );'''
-            : '''  final $dataSourceName _dataSource;
+        : '''  final $dataSourceName _dataSource;
 
   $dataRepoName(this._dataSource);''';
 
@@ -93,9 +93,9 @@ class RepositoryImplementationGenerator {
     final dataSourceImport = config.generateLocal
         ? '''import '../data_sources/$entitySnake/${entitySnake}_local_data_source.dart';'''
         : config.enableCache
-            ? '''import '../data_sources/$entitySnake/${entitySnake}_data_source.dart';
+        ? '''import '../data_sources/$entitySnake/${entitySnake}_data_source.dart';
 import '../data_sources/$entitySnake/${entitySnake}_local_data_source.dart';'''
-            : '''import '../data_sources/$entitySnake/${entitySnake}_data_source.dart';''';
+        : '''import '../data_sources/$entitySnake/${entitySnake}_data_source.dart';''';
 
     final hasWatchMethods = config.methods.any(
       (m) => m == 'watch' || m == 'watchList',
