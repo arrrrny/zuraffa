@@ -20,6 +20,44 @@ class AstModifier {
         source.substring(insertOffset);
   }
 
+  static String addFieldToClass({
+    required String source,
+    required ClassDeclaration classNode,
+    required String fieldSource,
+  }) {
+    final insertOffset = classNode.body.endToken.offset;
+    final closingIndent = _indentBeforeOffset(source, insertOffset);
+    final memberIndent = '$closingIndent  ';
+    final normalized = fieldSource.trimRight();
+    final indented = normalized
+        .split('\n')
+        .map((line) => line.isEmpty ? '' : '$memberIndent$line')
+        .join('\n');
+    final insert = '\n$indented\n$closingIndent';
+    return source.substring(0, insertOffset) +
+        insert +
+        source.substring(insertOffset);
+  }
+
+  static String addMethodToExtension({
+    required String source,
+    required ExtensionDeclaration extensionNode,
+    required String methodSource,
+  }) {
+    final insertOffset = extensionNode.rightBracket.offset;
+    final closingIndent = _indentBeforeOffset(source, insertOffset);
+    final memberIndent = '$closingIndent  ';
+    final normalized = methodSource.trimRight();
+    final indented = normalized
+        .split('\n')
+        .map((line) => line.isEmpty ? '' : '$memberIndent$line')
+        .join('\n');
+    final insert = '\n$indented\n$closingIndent';
+    return source.substring(0, insertOffset) +
+        insert +
+        source.substring(insertOffset);
+  }
+
   static String _indentBeforeOffset(String source, int offset) {
     final lineStart = source.lastIndexOf('\n', offset);
     if (lineStart == -1) {
