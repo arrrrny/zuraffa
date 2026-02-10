@@ -219,10 +219,11 @@ class CodeGenerator {
             final dataSourceFiles = await _dataSourcePlugin.generate(config);
             files.addAll(dataSourceFiles);
 
-            final dataRepoFile = await _repositoryPlugin.generateImplementation(
-              config,
-            );
-            files.add(dataRepoFile);
+            if (!config.isEntityBased) {
+              final dataRepoFile = await _repositoryPlugin
+                  .generateImplementation(config);
+              files.add(dataRepoFile);
+            }
           }
         }
 
