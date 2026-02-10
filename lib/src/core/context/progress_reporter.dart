@@ -1,5 +1,3 @@
-import 'dart:io';
-
 enum ProgressEvent { started, completed, failed, warning, info }
 
 class ProgressReport {
@@ -172,8 +170,7 @@ class CliProgressReporter implements ProgressReporter {
         : 0;
     final filled = percent ~/ 10;
     final bar = '${'=' * filled}>${' ' * (10 - filled)}';
-    stdout.write('\r[$bar] $_completedSteps/$_totalSteps ');
-    stdout.flush();
+    print('[$bar] $_completedSteps/$_totalSteps');
   }
 
   @override
