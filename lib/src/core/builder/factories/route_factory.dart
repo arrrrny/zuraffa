@@ -36,6 +36,7 @@ class RouteFactory {
     final clazz = Class(
       (b) => b
         ..name = config.className
+        ..abstract = true
         ..fields.addAll(fields),
     );
 
