@@ -1,7 +1,6 @@
 import '../models/generator_config.dart';
 import '../models/generator_result.dart';
 import '../models/generated_file.dart';
-import 'service_generator.dart';
 import 'provider_generator.dart';
 import '../plugins/usecase/usecase_plugin.dart';
 import '../plugins/repository/repository_plugin.dart';
@@ -10,6 +9,7 @@ import '../plugins/presenter/presenter_plugin.dart';
 import '../plugins/controller/controller_plugin.dart';
 import '../plugins/di/di_plugin.dart';
 import '../plugins/datasource/datasource_plugin.dart';
+import '../plugins/service/service_plugin.dart';
 import 'state_generator.dart';
 import 'observer_generator.dart';
 import 'test_generator.dart';
@@ -28,7 +28,6 @@ class CodeGenerator {
   late final CodeBuilderFactory builderFactory;
 
   late final RepositoryPlugin _repositoryPlugin;
-  late final ServiceGenerator _serviceGenerator;
   late final ProviderGenerator _providerGenerator;
   late final UseCasePlugin _useCasePlugin;
   late final ViewPlugin _viewPlugin;
@@ -36,6 +35,7 @@ class CodeGenerator {
   late final ControllerPlugin _controllerPlugin;
   late final DiPlugin _diPlugin;
   late final DataSourcePlugin _dataSourcePlugin;
+  late final ServicePlugin _servicePlugin;
   late final StateGenerator _stateGenerator;
   late final ObserverGenerator _observerGenerator;
   late final TestGenerator _testGenerator;
@@ -61,7 +61,6 @@ class CodeGenerator {
       force: force,
       verbose: verbose,
     );
-    _serviceGenerator = builderFactory.service();
     _providerGenerator = builderFactory.provider();
     _useCasePlugin = UseCasePlugin(
       outputDir: outputDir,
@@ -94,6 +93,12 @@ class CodeGenerator {
       verbose: verbose,
     );
     _dataSourcePlugin = DataSourcePlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+    _servicePlugin = ServicePlugin(
       outputDir: outputDir,
       dryRun: dryRun,
       force: force,
@@ -171,8 +176,8 @@ class CodeGenerator {
           files.addAll(usecaseFiles);
         } else if (config.isCustomUseCase) {
           if (config.hasService) {
-            final serviceFile = await _serviceGenerator.generate();
-            files.add(serviceFile);
+            final serviceFiles = await _servicePlugin.generate(config);
+            files.addAll(serviceFiles);
           }
           final usecaseFiles = await _useCasePlugin.generate(config);
           files.addAll(usecaseFiles);
