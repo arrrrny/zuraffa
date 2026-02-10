@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:dart_style/dart_style.dart';
 import '../core/transaction/file_operation.dart';
 import '../core/transaction/generation_transaction.dart';
 import '../models/generated_file.dart';
@@ -14,6 +15,7 @@ class FileUtils {
   }) async {
     final file = File(filePath);
     final exists = file.existsSync();
+    final formattedContent = _formatDart(content, filePath);
 
     if (exists && !force) {
       if (verbose) {
@@ -23,19 +25,19 @@ class FileUtils {
         path: filePath,
         type: type,
         action: 'skipped',
-        content: content,
+        content: formattedContent,
       );
     }
 
     final transaction = GenerationTransaction.current;
     if (transaction != null) {
       final operation = exists
-          ? await FileOperation.update(path: filePath, content: content)
-          : FileOperation.create(path: filePath, content: content);
+          ? await FileOperation.update(path: filePath, content: formattedContent)
+          : FileOperation.create(path: filePath, content: formattedContent);
       transaction.addOperation(operation);
     } else if (!dryRun) {
       await file.parent.create(recursive: true);
-      await file.writeAsString(content);
+      await file.writeAsString(formattedContent);
     }
 
     if (verbose) {
@@ -47,7 +49,7 @@ class FileUtils {
       path: filePath,
       type: type,
       action: exists ? 'overwritten' : 'created',
-      content: content,
+      content: formattedContent,
     );
   }
 
@@ -96,6 +98,19 @@ class FileUtils {
         return entityCamel;
       default:
         return 'params';
+    }
+  }
+
+  static String _formatDart(String content, String filePath) {
+    if (!filePath.endsWith('.dart')) {
+      return content;
+    }
+    try {
+      return DartFormatter(
+        languageVersion: DartFormatter.latestLanguageVersion,
+      ).format(content);
+    } catch (_) {
+      return content;
     }
   }
 }
