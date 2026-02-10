@@ -56,37 +56,36 @@ class Product {
     );
   }
 
-  Product patchWithProduct({
-    ProductPatch? patchInput,
-  }) {
+  Product patchWithProduct({ProductPatch? patchInput}) {
     final _patcher = patchInput ?? ProductPatch();
     final _patchMap = _patcher.toPatch();
     return Product(
-        id: _patchMap.containsKey(Product$.id)
-            ? (_patchMap[Product$.id] is Function)
+      id: _patchMap.containsKey(Product$.id)
+          ? (_patchMap[Product$.id] is Function)
                 ? _patchMap[Product$.id](this.id)
                 : _patchMap[Product$.id]
-            : this.id,
-        name: _patchMap.containsKey(Product$.name)
-            ? (_patchMap[Product$.name] is Function)
+          : this.id,
+      name: _patchMap.containsKey(Product$.name)
+          ? (_patchMap[Product$.name] is Function)
                 ? _patchMap[Product$.name](this.name)
                 : _patchMap[Product$.name]
-            : this.name,
-        description: _patchMap.containsKey(Product$.description)
-            ? (_patchMap[Product$.description] is Function)
+          : this.name,
+      description: _patchMap.containsKey(Product$.description)
+          ? (_patchMap[Product$.description] is Function)
                 ? _patchMap[Product$.description](this.description)
                 : _patchMap[Product$.description]
-            : this.description,
-        price: _patchMap.containsKey(Product$.price)
-            ? (_patchMap[Product$.price] is Function)
+          : this.description,
+      price: _patchMap.containsKey(Product$.price)
+          ? (_patchMap[Product$.price] is Function)
                 ? _patchMap[Product$.price](this.price)
                 : _patchMap[Product$.price]
-            : this.price,
-        createdAt: _patchMap.containsKey(Product$.createdAt)
-            ? (_patchMap[Product$.createdAt] is Function)
+          : this.price,
+      createdAt: _patchMap.containsKey(Product$.createdAt)
+          ? (_patchMap[Product$.createdAt] is Function)
                 ? _patchMap[Product$.createdAt](this.createdAt)
                 : _patchMap[Product$.createdAt]
-            : this.createdAt);
+          : this.createdAt,
+    );
   }
 
   @override
@@ -103,7 +102,12 @@ class Product {
   @override
   int get hashCode {
     return Object.hash(
-        this.id, this.name, this.description, this.price, this.createdAt);
+      this.id,
+      this.name,
+      this.description,
+      this.price,
+      this.createdAt,
+    );
   }
 
   @override
@@ -132,10 +136,9 @@ class Product {
   dynamic _sanitizeJson(dynamic json) {
     if (json is Map<String, dynamic>) {
       json.remove('_className_');
-      return json
-        ..forEach((key, value) {
-          json[key] = _sanitizeJson(value);
-        });
+      return json..forEach((key, value) {
+        json[key] = _sanitizeJson(value);
+      });
     } else if (json is List) {
       return json.map((e) => _sanitizeJson(e)).toList();
     }
@@ -155,10 +158,9 @@ extension ProductSerialization on Product {
   dynamic _sanitizeJson(dynamic json) {
     if (json is Map<String, dynamic>) {
       json.remove('_className_');
-      return json
-        ..forEach((key, value) {
-          json[key] = _sanitizeJson(value);
-        });
+      return json..forEach((key, value) {
+        json[key] = _sanitizeJson(value);
+      });
     } else if (json is List) {
       return json.map((e) => _sanitizeJson(e)).toList();
     }
@@ -267,13 +269,17 @@ abstract final class ProductFields {
   static String _$getname(Product e) => e.name;
   static const name = Field<Product, String>('name', _$getname);
   static String _$getdescription(Product e) => e.description;
-  static const description =
-      Field<Product, String>('description', _$getdescription);
+  static const description = Field<Product, String>(
+    'description',
+    _$getdescription,
+  );
   static double _$getprice(Product e) => e.price;
   static const price = Field<Product, double>('price', _$getprice);
   static DateTime _$getcreatedAt(Product e) => e.createdAt;
-  static const createdAt =
-      Field<Product, DateTime>('createdAt', _$getcreatedAt);
+  static const createdAt = Field<Product, DateTime>(
+    'createdAt',
+    _$getcreatedAt,
+  );
 }
 
 extension ProductCompareE on Product {
