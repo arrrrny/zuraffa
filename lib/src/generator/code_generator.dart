@@ -34,7 +34,6 @@ class CodeGenerator {
   late final ViewPlugin _viewPlugin;
   late final PresenterPlugin _presenterPlugin;
   late final ControllerPlugin _controllerPlugin;
-  late final VpcGenerator _vpcGenerator;
   late final StateGenerator _stateGenerator;
   late final ObserverGenerator _observerGenerator;
   late final DataLayerGenerator _dataLayerGenerator;
@@ -87,7 +86,6 @@ class CodeGenerator {
       force: force,
       verbose: verbose,
     );
-    _vpcGenerator = builderFactory.vpc();
     _stateGenerator = builderFactory.state();
     _observerGenerator = builderFactory.observer();
     _dataLayerGenerator = builderFactory.dataLayer();
