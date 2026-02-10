@@ -8,7 +8,6 @@ import '../plugins/repository/repository_plugin.dart';
 import '../plugins/view/view_plugin.dart';
 import '../plugins/presenter/presenter_plugin.dart';
 import '../plugins/controller/controller_plugin.dart';
-import 'vpc_generator.dart';
 import 'state_generator.dart';
 import 'observer_generator.dart';
 import 'data_layer_generator.dart';
