@@ -5,6 +5,10 @@ import '../core/transaction/generation_transaction.dart';
 import '../models/generated_file.dart';
 
 class FileUtils {
+  static final DartFormatter _formatter = DartFormatter(
+    languageVersion: DartFormatter.latestLanguageVersion,
+  );
+
   static Future<GeneratedFile> writeFile(
     String filePath,
     String content,
@@ -106,9 +110,7 @@ class FileUtils {
       return content;
     }
     try {
-      return DartFormatter(
-        languageVersion: DartFormatter.latestLanguageVersion,
-      ).format(content);
+      return _formatter.format(content);
     } catch (_) {
       return content;
     }

@@ -12,4 +12,4 @@ ios/Runner/GeneratedPluginRegistrant.*
 example/coverage/
 CUSTOM_DOMAIN_SETUP.md
 DOCUSAURUS_SETUP.md*
-.tmp*
+.tmp_integration_*
