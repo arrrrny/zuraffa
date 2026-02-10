@@ -53,6 +53,49 @@ class User {
     expect(updated.contains('void greet() {}'), isTrue);
   });
 
+  test('AstHelper adds field to class', () {
+    const source = '''
+class User {
+  User();
+}
+''';
+    const fieldSource = 'final int age;';
+    final updated = helper.addFieldToClass(
+      source: source,
+      className: 'User',
+      fieldSource: fieldSource,
+    );
+    expect(updated.contains('final int age;'), isTrue);
+  });
+
+  test('AstHelper adds method to extension', () {
+    const source = '''
+extension UserExt on String {}
+''';
+    const methodSource = 'String greet() => this;';
+    final updated = helper.addMethodToExtension(
+      source: source,
+      extensionName: 'UserExt',
+      methodSource: methodSource,
+    );
+    expect(updated.contains('String greet() => this;'), isTrue);
+  });
+
+  test('AstHelper adds statement to function', () {
+    const source = '''
+void setup() {
+  print('start');
+}
+''';
+    const statementSource = "print('next');";
+    final updated = helper.addStatementToFunction(
+      source: source,
+      functionName: 'setup',
+      statementSource: statementSource,
+    );
+    expect(updated.contains("print('next');"), isTrue);
+  });
+
   test('AstHelper handles malformed source', () {
     const source = 'class Broken {';
     final result = helper.parseSource(source);

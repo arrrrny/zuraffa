@@ -47,9 +47,7 @@ void main() {
       await File(filePath).writeAsString('remove');
 
       final transaction = GenerationTransaction(dryRun: false);
-      transaction.addOperation(
-        await FileOperation.delete(path: filePath),
-      );
+      transaction.addOperation(await FileOperation.delete(path: filePath));
 
       final result = await transaction.commit();
 
