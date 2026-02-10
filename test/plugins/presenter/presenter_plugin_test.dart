@@ -51,6 +51,7 @@ void main() {
       ),
       isTrue,
     );
+    expect(content.contains('CancelToken? cancelToken'), isTrue);
   });
 
   test('generates query param methods with zorphy filter', () async {
@@ -72,6 +73,7 @@ void main() {
     final content = files.first.content ?? '';
     expect(content.contains('ProductFields.slug'), isTrue);
     expect(content.contains('filter: Eq(ProductFields.slug, slug)'), isTrue);
+    expect(content.contains('cancelToken: cancelToken'), isTrue);
   });
 
   test('generates watch list method signature', () async {

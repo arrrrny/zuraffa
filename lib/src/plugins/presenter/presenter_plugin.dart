@@ -219,10 +219,10 @@ class PresenterPlugin extends FileGeneratorPlugin {
   ) {
     final methodName = info.fieldName;
     final body = config.queryFieldType == 'NoParams'
-        ? 'return _$methodName.call(const NoParams());'
+        ? 'return _$methodName.call(const NoParams(), cancelToken: cancelToken);'
         : config.useZorphy
-        ? 'return _$methodName.call(QueryParams<$entityName>(filter: Eq(${entityName}Fields.${config.queryField}, ${config.queryField})));'
-        : "return _$methodName.call(QueryParams<$entityName>(params: Params({'${config.queryField}': ${config.queryField}})));";
+        ? 'return _$methodName.call(QueryParams<$entityName>(filter: Eq(${entityName}Fields.${config.queryField}, ${config.queryField})), cancelToken: cancelToken);'
+        : "return _$methodName.call(QueryParams<$entityName>(params: Params({'${config.queryField}': ${config.queryField}})), cancelToken: cancelToken);";
 
     return Method(
       (m) => m
@@ -239,6 +239,7 @@ class PresenterPlugin extends FileGeneratorPlugin {
                   ),
                 ],
         )
+        ..optionalParameters.add(_cancelTokenParam())
         ..body = Code(body),
     );
   }
@@ -248,15 +249,18 @@ class PresenterPlugin extends FileGeneratorPlugin {
       (m) => m
         ..name = 'get${entityName}List'
         ..returns = refer('Future<Result<List<$entityName>, AppFailure>>')
-        ..optionalParameters.add(
+        ..optionalParameters.addAll([
           Parameter(
             (p) => p
               ..name = 'params'
               ..type = refer('ListQueryParams<$entityName>')
               ..defaultTo = Code('const ListQueryParams()'),
           ),
-        )
-        ..body = Code('return _${info.fieldName}.call(params);'),
+          _cancelTokenParam(),
+        ])
+        ..body = Code(
+          'return _${info.fieldName}.call(params, cancelToken: cancelToken);',
+        ),
     );
   }
 
@@ -276,7 +280,10 @@ class PresenterPlugin extends FileGeneratorPlugin {
               ..type = refer(entityName),
           ),
         )
-        ..body = Code('return _${info.fieldName}.call($entityCamel);'),
+        ..optionalParameters.add(_cancelTokenParam())
+        ..body = Code(
+          'return _${info.fieldName}.call($entityCamel, cancelToken: cancelToken);',
+        ),
     );
   }
 
@@ -305,8 +312,9 @@ class PresenterPlugin extends FileGeneratorPlugin {
               ..type = refer(dataType),
           ),
         ])
+        ..optionalParameters.add(_cancelTokenParam())
         ..body = Code(
-          'return _${info.fieldName}.call(UpdateParams<${config.idType}, $dataType>(id: ${config.idField}, data: $dataValue));',
+          'return _${info.fieldName}.call(UpdateParams<${config.idType}, $dataType>(id: ${config.idField}, data: $dataValue), cancelToken: cancelToken);',
         ),
     );
   }
@@ -323,8 +331,9 @@ class PresenterPlugin extends FileGeneratorPlugin {
               ..type = refer(config.idType),
           ),
         )
+        ..optionalParameters.add(_cancelTokenParam())
         ..body = Code(
-          'return _${info.fieldName}.call(DeleteParams<${config.idType}>(id: ${config.idField}));',
+          'return _${info.fieldName}.call(DeleteParams<${config.idType}>(id: ${config.idField}), cancelToken: cancelToken);',
         ),
     );
   }
@@ -336,10 +345,10 @@ class PresenterPlugin extends FileGeneratorPlugin {
   ) {
     final methodName = info.fieldName;
     final body = config.queryFieldType == 'NoParams'
-        ? 'return _$methodName.call(const NoParams());'
+        ? 'return _$methodName.call(const NoParams(), cancelToken: cancelToken);'
         : config.useZorphy
-        ? 'return _$methodName.call(QueryParams<$entityName>(filter: Eq(${entityName}Fields.${config.queryField}, ${config.queryField})));'
-        : "return _$methodName.call(QueryParams<$entityName>(params: Params({'${config.queryField}': ${config.queryField}})));";
+        ? 'return _$methodName.call(QueryParams<$entityName>(filter: Eq(${entityName}Fields.${config.queryField}, ${config.queryField})), cancelToken: cancelToken);'
+        : "return _$methodName.call(QueryParams<$entityName>(params: Params({'${config.queryField}': ${config.queryField}})), cancelToken: cancelToken);";
 
     return Method(
       (m) => m
@@ -356,6 +365,7 @@ class PresenterPlugin extends FileGeneratorPlugin {
                   ),
                 ],
         )
+        ..optionalParameters.add(_cancelTokenParam())
         ..body = Code(body),
     );
   }
@@ -365,15 +375,27 @@ class PresenterPlugin extends FileGeneratorPlugin {
       (m) => m
         ..name = 'watch${entityName}List'
         ..returns = refer('Stream<Result<List<$entityName>, AppFailure>>')
-        ..optionalParameters.add(
+        ..optionalParameters.addAll([
           Parameter(
             (p) => p
               ..name = 'params'
               ..type = refer('ListQueryParams<$entityName>')
               ..defaultTo = Code('const ListQueryParams()'),
           ),
-        )
-        ..body = Code('return _${info.fieldName}.call(params);'),
+          _cancelTokenParam(),
+        ])
+        ..body = Code(
+          'return _${info.fieldName}.call(params, cancelToken: cancelToken);',
+        ),
+    );
+  }
+
+  Parameter _cancelTokenParam() {
+    return Parameter(
+      (p) => p
+        ..name = 'cancelToken'
+        ..type = refer('CancelToken?')
+        ..defaultTo = Code('null'),
     );
   }
 
