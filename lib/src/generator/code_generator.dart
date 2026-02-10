@@ -4,7 +4,7 @@ import '../models/generated_file.dart';
 import 'repository_generator.dart';
 import 'service_generator.dart';
 import 'provider_generator.dart';
-import 'usecase_generator.dart';
+import '../plugins/usecase/usecase_plugin.dart';
 import 'vpc_generator.dart';
 import 'state_generator.dart';
 import 'observer_generator.dart';
@@ -27,7 +27,7 @@ class CodeGenerator {
   late final RepositoryGenerator _repositoryGenerator;
   late final ServiceGenerator _serviceGenerator;
   late final ProviderGenerator _providerGenerator;
-  late final UseCaseGenerator _useCaseGenerator;
+  late final UseCasePlugin _useCasePlugin;
   late final VpcGenerator _vpcGenerator;
   late final StateGenerator _stateGenerator;
   late final ObserverGenerator _observerGenerator;
@@ -52,7 +52,12 @@ class CodeGenerator {
     _repositoryGenerator = builderFactory.repository();
     _serviceGenerator = builderFactory.service();
     _providerGenerator = builderFactory.provider();
-    _useCaseGenerator = builderFactory.usecase();
+    _useCasePlugin = UseCasePlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
     _vpcGenerator = builderFactory.vpc();
     _stateGenerator = builderFactory.state();
     _observerGenerator = builderFactory.observer();
@@ -97,17 +102,8 @@ class CodeGenerator {
           final appender = builderFactory.methodAppender();
           final appendResult = await appender.appendMethod();
 
-          if (config.isPolymorphic) {
-            final polymorphicFiles = await _useCaseGenerator
-                .generatePolymorphic();
-            files.addAll(polymorphicFiles);
-          } else if (config.isOrchestrator) {
-            final file = await _useCaseGenerator.generateOrchestrator();
-            files.add(file);
-          } else {
-            final file = await _useCaseGenerator.generateCustom();
-            files.add(file);
-          }
+          final usecaseFiles = await _useCasePlugin.generate(config);
+          files.addAll(usecaseFiles);
 
           files.addAll(appendResult.updatedFiles);
 
@@ -128,23 +124,21 @@ class CodeGenerator {
           final file = await _repositoryGenerator.generate();
           files.add(file);
 
-          for (final method in config.methods) {
-            final methodFile = await _useCaseGenerator.generateForMethod(method);
-            files.add(methodFile);
-          }
+          final usecaseFiles = await _useCasePlugin.generate(config);
+          files.addAll(usecaseFiles);
         } else if (config.isPolymorphic) {
-          final polymorphicFiles = await _useCaseGenerator.generatePolymorphic();
-          files.addAll(polymorphicFiles);
+          final usecaseFiles = await _useCasePlugin.generate(config);
+          files.addAll(usecaseFiles);
         } else if (config.isOrchestrator) {
-          final orchestratorFile = await _useCaseGenerator.generateOrchestrator();
-          files.add(orchestratorFile);
+          final usecaseFiles = await _useCasePlugin.generate(config);
+          files.addAll(usecaseFiles);
         } else if (config.isCustomUseCase) {
           if (config.hasService) {
             final serviceFile = await _serviceGenerator.generate();
             files.add(serviceFile);
           }
-          final usecaseFile = await _useCaseGenerator.generateCustom();
-          files.add(usecaseFile);
+          final usecaseFiles = await _useCasePlugin.generate(config);
+          files.addAll(usecaseFiles);
         }
 
         if (config.generateVpc || config.generatePresenter) {
