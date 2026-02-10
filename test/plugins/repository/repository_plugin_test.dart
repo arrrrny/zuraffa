@@ -53,8 +53,9 @@ void main() {
     );
     final files = await plugin.generate(config);
     expect(files.length, equals(2));
-    final impl =
-        files.firstWhere((f) => f.path.contains('data_order_repository.dart'));
+    final impl = files.firstWhere(
+      (f) => f.path.contains('data_order_repository.dart'),
+    );
     final content = impl.content ?? '';
     expect(content.contains('class DataOrderRepository'), isTrue);
     expect(content.contains('implements OrderRepository'), isTrue);
@@ -67,8 +68,7 @@ void main() {
       force: false,
       verbose: false,
     );
-    final filePath =
-        '${outputDir}/domain/repositories/user_repository.dart';
+    final filePath = '${outputDir}/domain/repositories/user_repository.dart';
     await File(filePath).create(recursive: true);
     await File(filePath).writeAsString(
       "import 'package:zuraffa/zuraffa.dart';\n\nabstract class UserRepository {\n  Future<void> custom();\n}\n",
