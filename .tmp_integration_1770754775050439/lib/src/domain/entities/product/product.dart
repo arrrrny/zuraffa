@@ -1,0 +1,1 @@
+class Product { final String id; const Product({required this.id}); }

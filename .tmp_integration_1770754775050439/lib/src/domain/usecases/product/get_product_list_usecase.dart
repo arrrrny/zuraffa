@@ -1,0 +1,20 @@
+import 'package:zuraffa/zuraffa.dart';
+
+import '../../entities/product/product.dart';
+import '../../repositories/product_repository.dart';
+
+class GetProductListUseCase
+    extends UseCase<List<Product>, ListQueryParams<Product>> {
+  GetProductListUseCase(this._repository);
+
+  final ProductRepository _repository;
+
+  @override
+  Future<List<Product>> execute(
+    ListQueryParams<Product> params,
+    CancelToken? cancelToken,
+  ) async {
+    cancelToken?.throwIfCancelled();
+    return _repository.getList(params);
+  }
+}
