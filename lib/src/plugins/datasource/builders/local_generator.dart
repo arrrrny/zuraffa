@@ -6,14 +6,14 @@ import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 
-class LocalDataSourceGenerator {
+class LocalDataSourceBuilder {
   final String outputDir;
   final bool dryRun;
   final bool force;
   final bool verbose;
   final SpecLibrary specLibrary;
 
-  LocalDataSourceGenerator({
+  LocalDataSourceBuilder({
     required this.outputDir,
     required this.dryRun,
     required this.force,

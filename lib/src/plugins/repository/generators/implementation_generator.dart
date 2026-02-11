@@ -86,9 +86,21 @@ class RepositoryImplementationGenerator {
         Constructor(
           (c) => c
             ..requiredParameters.addAll([
-              Parameter((p) => p..name = '_remoteDataSource'..toThis = true),
-              Parameter((p) => p..name = '_localDataSource'..toThis = true),
-              Parameter((p) => p..name = '_cachePolicy'..toThis = true),
+              Parameter(
+                (p) => p
+                  ..name = '_remoteDataSource'
+                  ..toThis = true,
+              ),
+              Parameter(
+                (p) => p
+                  ..name = '_localDataSource'
+                  ..toThis = true,
+              ),
+              Parameter(
+                (p) => p
+                  ..name = '_cachePolicy'
+                  ..toThis = true,
+              ),
             ]),
         ),
       );
@@ -163,17 +175,13 @@ class RepositoryImplementationGenerator {
     }
 
     final dataSourceImports = config.generateLocal
-        ? [
-            '../data_sources/$entitySnake/${entitySnake}_local_data_source.dart',
-          ]
+        ? ['../data_sources/$entitySnake/${entitySnake}_local_data_source.dart']
         : config.enableCache
         ? [
             '../data_sources/$entitySnake/${entitySnake}_data_source.dart',
             '../data_sources/$entitySnake/${entitySnake}_local_data_source.dart',
           ]
-        : [
-            '../data_sources/$entitySnake/${entitySnake}_data_source.dart',
-          ];
+        : ['../data_sources/$entitySnake/${entitySnake}_data_source.dart'];
 
     final hasWatchMethods = config.methods.any(
       (m) => m == 'watch' || m == 'watchList',
@@ -184,7 +192,9 @@ class RepositoryImplementationGenerator {
       if (includeAsyncImport) Directive.import('dart:async'),
       Directive.import('package:zuraffa/zuraffa.dart'),
       Directive.import('../../domain/entities/$entitySnake/$entitySnake.dart'),
-      Directive.import('../../domain/repositories/${entitySnake}_repository.dart'),
+      Directive.import(
+        '../../domain/repositories/${entitySnake}_repository.dart',
+      ),
       ...dataSourceImports.map(Directive.import),
     ];
 
@@ -247,7 +257,11 @@ class RepositoryImplementationGenerator {
             ..annotations.add(refer('override'))
             ..returns = refer('Future<$entityName>')
             ..requiredParameters.add(
-              Parameter((p) => p..name = 'params'..type = refer('QueryParams<$entityName>')),
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('QueryParams<$entityName>'),
+              ),
             )
             ..body = Code('return _dataSource.get(params);'),
         );
@@ -258,7 +272,11 @@ class RepositoryImplementationGenerator {
             ..annotations.add(refer('override'))
             ..returns = refer('Future<List<$entityName>>')
             ..requiredParameters.add(
-              Parameter((p) => p..name = 'params'..type = refer('ListQueryParams<$entityName>')),
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('ListQueryParams<$entityName>'),
+              ),
             )
             ..body = Code('return _dataSource.getList(params);'),
         );
@@ -269,7 +287,11 @@ class RepositoryImplementationGenerator {
             ..annotations.add(refer('override'))
             ..returns = refer('Future<$entityName>')
             ..requiredParameters.add(
-              Parameter((p) => p..name = entityCamel..type = refer(entityName)),
+              Parameter(
+                (p) => p
+                  ..name = entityCamel
+                  ..type = refer(entityName),
+              ),
             )
             ..body = Code('return _dataSource.create($entityCamel);'),
         );
@@ -283,7 +305,11 @@ class RepositoryImplementationGenerator {
             ..annotations.add(refer('override'))
             ..returns = refer('Future<${config.name}>')
             ..requiredParameters.add(
-              Parameter((p) => p..name = 'params'..type = refer('UpdateParams<${config.idType}, $dataType>')),
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('UpdateParams<${config.idType}, $dataType>'),
+              ),
             )
             ..body = Code('return _dataSource.update(params);'),
         );
@@ -294,7 +320,11 @@ class RepositoryImplementationGenerator {
             ..annotations.add(refer('override'))
             ..returns = refer('Future<void>')
             ..requiredParameters.add(
-              Parameter((p) => p..name = 'params'..type = refer('DeleteParams<${config.idType}>')),
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('DeleteParams<${config.idType}>'),
+              ),
             )
             ..body = Code('return _dataSource.delete(params);'),
         );
@@ -305,7 +335,11 @@ class RepositoryImplementationGenerator {
             ..annotations.add(refer('override'))
             ..returns = refer('Stream<$entityName>')
             ..requiredParameters.add(
-              Parameter((p) => p..name = 'params'..type = refer('QueryParams<$entityName>')),
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('QueryParams<$entityName>'),
+              ),
             )
             ..body = Code('return _dataSource.watch(params);'),
         );
@@ -316,7 +350,11 @@ class RepositoryImplementationGenerator {
             ..annotations.add(refer('override'))
             ..returns = refer('Stream<List<$entityName>>')
             ..requiredParameters.add(
-              Parameter((p) => p..name = 'params'..type = refer('ListQueryParams<$entityName>')),
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('ListQueryParams<$entityName>'),
+              ),
             )
             ..body = Code('return _dataSource.watchList(params);'),
         );
@@ -342,7 +380,11 @@ class RepositoryImplementationGenerator {
             ..returns = refer('Future<$entityName>')
             ..modifier = MethodModifier.async
             ..requiredParameters.add(
-              Parameter((p) => p..name = 'params'..type = refer('QueryParams<$entityName>')),
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('QueryParams<$entityName>'),
+              ),
             )
             ..body = Code('''
     if (await _cachePolicy.isValid('$baseCacheKey')) {
@@ -366,7 +408,11 @@ class RepositoryImplementationGenerator {
             ..returns = refer('Future<List<$entityName>>')
             ..modifier = MethodModifier.async
             ..requiredParameters.add(
-              Parameter((p) => p..name = 'params'..type = refer('ListQueryParams<$entityName>')),
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('ListQueryParams<$entityName>'),
+              ),
             )
             ..body = Code('''
     final listCacheKey = '${baseCacheKey}_\${params.hashCode}';
@@ -391,7 +437,11 @@ class RepositoryImplementationGenerator {
             ..returns = refer('Future<$entityName>')
             ..modifier = MethodModifier.async
             ..requiredParameters.add(
-              Parameter((p) => p..name = entityCamel..type = refer(entityName)),
+              Parameter(
+                (p) => p
+                  ..name = entityCamel
+                  ..type = refer(entityName),
+              ),
             )
             ..body = Code('''
     final created = await _remoteDataSource.create($entityCamel);
@@ -411,7 +461,11 @@ class RepositoryImplementationGenerator {
             ..returns = refer('Future<${config.name}>')
             ..modifier = MethodModifier.async
             ..requiredParameters.add(
-              Parameter((p) => p..name = 'params'..type = refer('UpdateParams<${config.idType}, $dataType>')),
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('UpdateParams<${config.idType}, $dataType>'),
+              ),
             )
             ..body = Code('''
     final updated = await _remoteDataSource.update(params);
@@ -428,7 +482,11 @@ class RepositoryImplementationGenerator {
             ..returns = refer('Future<void>')
             ..modifier = MethodModifier.async
             ..requiredParameters.add(
-              Parameter((p) => p..name = 'params'..type = refer('DeleteParams<${config.idType}>')),
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('DeleteParams<${config.idType}>'),
+              ),
             )
             ..body = Code('''
     await _remoteDataSource.delete(params);
@@ -443,9 +501,13 @@ class RepositoryImplementationGenerator {
             ..annotations.add(refer('override'))
             ..returns = refer('Stream<$entityName>')
             ..requiredParameters.add(
-              Parameter((p) => p..name = 'params'..type = refer('QueryParams<$entityName>')),
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('QueryParams<$entityName>'),
+              ),
             )
-            ..body = Code(_buildWatchBody(config, entityName)),
+            ..body = _buildWatchBody(config, entityName),
         );
       case 'watchList':
         return Method(
@@ -454,9 +516,13 @@ class RepositoryImplementationGenerator {
             ..annotations.add(refer('override'))
             ..returns = refer('Stream<List<$entityName>>')
             ..requiredParameters.add(
-              Parameter((p) => p..name = 'params'..type = refer('ListQueryParams<$entityName>')),
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('ListQueryParams<$entityName>'),
+              ),
             )
-            ..body = Code(_buildWatchListBody(config, entityName)),
+            ..body = _buildWatchListBody(config, entityName),
         );
       default:
         return Method((m) => m..name = '_noop');
@@ -508,7 +574,10 @@ class RepositoryImplementationGenerator {
     required List<Method> methods,
   }) {
     var updated = source;
-    final emitter = DartEmitter(orderDirectives: true, useNullSafetySyntax: true);
+    final emitter = DartEmitter(
+      orderDirectives: true,
+      useNullSafetySyntax: true,
+    );
     for (final method in methods) {
       final methodSource = method.accept(emitter).toString();
       final result = appendExecutor.execute(
@@ -533,77 +602,111 @@ class RepositoryImplementationGenerator {
     return updated;
   }
 
-  String _buildWatchBody(GeneratorConfig config, String entityName) {
+  Block _buildWatchBody(GeneratorConfig config, String entityName) {
     final baseCacheKey = '${config.nameSnake}_cache';
-    return '''  @override
-  Stream<$entityName> watch(QueryParams<$entityName> params) {
-    // Local drives the stream, remote syncs in background
-    late final StreamController<$entityName> controller;
-    StreamSubscription<$entityName>? localSub;
-    StreamSubscription<$entityName>? remoteSub;
-
-    controller = StreamController<$entityName>(
-      onListen: () {
-        localSub = _localDataSource.watch(params).listen(
-          controller.add,
-          onError: controller.addError,
-        );
-        remoteSub = _remoteDataSource.watch(params).listen(
-          (data) async {
-            try {
-              await _localDataSource.save(data);
-              await _cachePolicy.markFresh('$baseCacheKey');
-            } catch (e) {
-              logger.warning('Failed to persist remote update: \$e');
-            }
-          },
-          onError: (e) => logger.warning('Remote watch error: \$e'),
-        );
-      },
-      onCancel: () async {
-        await remoteSub?.cancel();
-        await localSub?.cancel();
-      },
+    return Block(
+      (b) => b
+        ..statements.add(
+          Code('late final StreamController<$entityName> controller;'),
+        )
+        ..statements.add(Code('StreamSubscription<$entityName>? localSub;'))
+        ..statements.add(Code('StreamSubscription<$entityName>? remoteSub;'))
+        ..statements.add(Code('controller = StreamController<$entityName>('))
+        ..statements.add(Code('  onListen: () {'))
+        ..statements.add(
+          Code('    localSub = _localDataSource.watch(params).listen('),
+        )
+        ..statements.add(Code('      controller.add,'))
+        ..statements.add(Code('      onError: controller.addError,'))
+        ..statements.add(Code('    );'))
+        ..statements.add(
+          Code('    remoteSub = _remoteDataSource.watch(params).listen('),
+        )
+        ..statements.add(Code('      (data) async {'))
+        ..statements.add(Code('        try {'))
+        ..statements.add(Code('          await _localDataSource.save(data);'))
+        ..statements.add(
+          Code("          await _cachePolicy.markFresh('$baseCacheKey');"),
+        )
+        ..statements.add(Code('        } catch (e) {'))
+        ..statements.add(
+          Code(
+            "          logger.warning('Failed to persist remote update: \${e}');",
+          ),
+        )
+        ..statements.add(Code('        }'))
+        ..statements.add(Code('      },'))
+        ..statements.add(
+          Code(
+            "      onError: (e) => logger.warning('Remote watch error: \${e}'),",
+          ),
+        )
+        ..statements.add(Code('    );'))
+        ..statements.add(Code('  },'))
+        ..statements.add(Code('  onCancel: () async {'))
+        ..statements.add(Code('    await remoteSub?.cancel();'))
+        ..statements.add(Code('    await localSub?.cancel();'))
+        ..statements.add(Code('  },'))
+        ..statements.add(Code(');'))
+        ..statements.add(Code('return controller.stream;')),
     );
-
-    return controller.stream;
-  }''';
   }
 
-  String _buildWatchListBody(GeneratorConfig config, String entityName) {
+  Block _buildWatchListBody(GeneratorConfig config, String entityName) {
     final baseCacheKey = '${config.nameSnake}_cache';
-    return '''  @override
-  Stream<List<$entityName>> watchList(ListQueryParams<$entityName> params) {
-    // Local drives the stream, remote syncs in background
-    late final StreamController<List<$entityName>> controller;
-    StreamSubscription<List<$entityName>>? localSub;
-    StreamSubscription<List<$entityName>>? remoteSub;
-
-    controller = StreamController<List<$entityName>>(
-      onListen: () {
-        localSub = _localDataSource.watchList(params).listen(
-          controller.add,
-          onError: controller.addError,
-        );
-        remoteSub = _remoteDataSource.watchList(params).listen(
-          (data) async {
-            try {
-              await _localDataSource.saveAll(data);
-              await _cachePolicy.markFresh('$baseCacheKey');
-            } catch (e) {
-              logger.warning('Failed to persist remote update: \$e');
-            }
-          },
-          onError: (e) => logger.warning('Remote watch error: \$e'),
-        );
-      },
-      onCancel: () async {
-        await remoteSub?.cancel();
-        await localSub?.cancel();
-      },
+    return Block(
+      (b) => b
+        ..statements.add(
+          Code('late final StreamController<List<$entityName>> controller;'),
+        )
+        ..statements.add(
+          Code('StreamSubscription<List<$entityName>>? localSub;'),
+        )
+        ..statements.add(
+          Code('StreamSubscription<List<$entityName>>? remoteSub;'),
+        )
+        ..statements.add(
+          Code('controller = StreamController<List<$entityName>>('),
+        )
+        ..statements.add(Code('  onListen: () {'))
+        ..statements.add(
+          Code('    localSub = _localDataSource.watchList(params).listen('),
+        )
+        ..statements.add(Code('      controller.add,'))
+        ..statements.add(Code('      onError: controller.addError,'))
+        ..statements.add(Code('    );'))
+        ..statements.add(
+          Code('    remoteSub = _remoteDataSource.watchList(params).listen('),
+        )
+        ..statements.add(Code('      (data) async {'))
+        ..statements.add(Code('        try {'))
+        ..statements.add(
+          Code('          await _localDataSource.saveAll(data);'),
+        )
+        ..statements.add(
+          Code("          await _cachePolicy.markFresh('$baseCacheKey');"),
+        )
+        ..statements.add(Code('        } catch (e) {'))
+        ..statements.add(
+          Code(
+            "          logger.warning('Failed to persist remote update: \${e}');",
+          ),
+        )
+        ..statements.add(Code('        }'))
+        ..statements.add(Code('      },'))
+        ..statements.add(
+          Code(
+            "      onError: (e) => logger.warning('Remote watch error: \${e}'),",
+          ),
+        )
+        ..statements.add(Code('    );'))
+        ..statements.add(Code('  },'))
+        ..statements.add(Code('  onCancel: () async {'))
+        ..statements.add(Code('    await remoteSub?.cancel();'))
+        ..statements.add(Code('    await localSub?.cancel();'))
+        ..statements.add(Code('  },'))
+        ..statements.add(Code(');'))
+        ..statements.add(Code('return controller.stream;')),
     );
-
-    return controller.stream;
-  }''';
   }
 }

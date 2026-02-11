@@ -50,30 +50,91 @@ class ObserverGenerator {
       Directive.import('../../entities/$entitySnake/$entitySnake.dart'),
     ];
 
-    final content = specLibrary.emitCode(
-      '''
-class $observerName extends Observer<$entityName> {
-  final void Function($entityName) onNext;
-  final void Function(AppFailure) onError;
-  final void Function() onComplete;
+    final clazz = Class(
+      (c) => c
+        ..name = observerName
+        ..extend = TypeReference((t) => t
+          ..symbol = 'Observer'
+          ..types.add(refer(entityName)))
+        ..fields.addAll([
+          Field(
+            (f) => f
+              ..modifier = FieldModifier.final$
+              ..type = refer('void Function($entityName)')
+              ..name = 'onNext',
+          ),
+          Field(
+            (f) => f
+              ..modifier = FieldModifier.final$
+              ..type = refer('void Function(AppFailure)')
+              ..name = 'onError',
+          ),
+          Field(
+            (f) => f
+              ..modifier = FieldModifier.final$
+              ..type = refer('void Function()')
+              ..name = 'onComplete',
+          ),
+        ])
+        ..constructors.add(
+          Constructor(
+            (ctr) => ctr
+              ..optionalParameters.addAll([
+                Parameter((p) => p
+                  ..name = 'onNext'
+                  ..named = true
+                  ..required = true
+                  ..toThis = true),
+                Parameter((p) => p
+                  ..name = 'onError'
+                  ..named = true
+                  ..required = true
+                  ..toThis = true),
+                Parameter((p) => p
+                  ..name = 'onComplete'
+                  ..named = true
+                  ..required = true
+                  ..toThis = true),
+              ]),
+          ),
+        )
+        ..methods.addAll([
+          Method(
+            (m) => m
+              ..name = 'onNextValue'
+              ..annotations.add(refer('override'))
+              ..returns = refer('void')
+              ..requiredParameters.add(
+                Parameter((p) => p
+                  ..name = 'value'
+                  ..type = refer(entityName)),
+              )
+              ..body = Code('onNext(value);'),
+          ),
+          Method(
+            (m) => m
+              ..name = 'onFailure'
+              ..annotations.add(refer('override'))
+              ..returns = refer('void')
+              ..requiredParameters.add(
+                Parameter((p) => p
+                  ..name = 'failure'
+                  ..type = refer('AppFailure')),
+              )
+              ..body = Code('onError(failure);'),
+          ),
+          Method(
+            (m) => m
+              ..name = 'onDone'
+              ..annotations.add(refer('override'))
+              ..returns = refer('void')
+              ..body = Code('onComplete();'),
+          ),
+        ]),
+    );
 
-  $observerName({
-    required this.onNext,
-    required this.onError,
-    required this.onComplete,
-  });
-
-  @override
-  void onNextValue($entityName value) => onNext(value);
-
-  @override
-  void onFailure(AppFailure failure) => onError(failure);
-
-  @override
-  void onDone() => onComplete();
-}
-''',
-      directives: directives,
+    final content = specLibrary.emitLibrary(
+      specLibrary.library(specs: [clazz], directives: directives),
     );
 
     return FileUtils.writeFile(
