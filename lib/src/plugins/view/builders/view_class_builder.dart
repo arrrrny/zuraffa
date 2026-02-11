@@ -12,7 +12,7 @@ class ViewClassSpec {
   final List<Field> repoFields;
   final List<Field> routeFields;
   final List<String> repoPresenterArgs;
-  final String initialMethodCall;
+  final Block initialMethodCall;
   final List<String> imports;
   final bool withState;
 

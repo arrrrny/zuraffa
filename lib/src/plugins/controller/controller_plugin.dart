@@ -177,7 +177,7 @@ class ControllerPlugin extends FileGeneratorPlugin {
             (p) => p
               ..name = 'params'
               ..type = refer('ListQueryParams<$entityName>')
-              ..defaultTo = Code('const ListQueryParams()'),
+              ..defaultTo = refer('ListQueryParams').constInstance([]).code,
           ),
           _cancelTokenParam(),
         ])
@@ -347,7 +347,7 @@ class ControllerPlugin extends FileGeneratorPlugin {
             (p) => p
               ..name = 'params'
               ..type = refer('ListQueryParams<$entityName>')
-              ..defaultTo = Code('const ListQueryParams()'),
+              ..defaultTo = refer('ListQueryParams').constInstance([]).code,
           ),
           _cancelTokenParam(),
         ])
@@ -491,9 +491,14 @@ class ControllerPlugin extends FileGeneratorPlugin {
         .awaited;
     final updateArgs = <String, Expression>{'isCreating': literalBool(false)};
     if (hasListMethod && !hasWatchList) {
-      updateArgs['${entityCamel}List'] = CodeExpression(
-        Code('[...viewState.${entityCamel}List, created]'),
-      );
+      updateArgs['${entityCamel}List'] = refer('viewState')
+          .property('${entityCamel}List')
+          .property('followedBy')
+          .call([
+            literalList([refer('created')]),
+          ])
+          .property('toList')
+          .call([]);
     }
     return Block(
       (b) => b
@@ -556,20 +561,35 @@ class ControllerPlugin extends FileGeneratorPlugin {
         .property('update$entityName')
         .call(_callArgsExpressions('${config.idField}, data'))
         .awaited;
+    final currentEntity = refer('viewState').property(entityCamel);
     final updateArgs = <String, Expression>{
       'isUpdating': literalBool(false),
-      entityCamel: CodeExpression(
-        Code(
-          'viewState.$entityCamel?.${config.queryField} == updated.${config.queryField} ? updated : viewState.$entityCamel',
-        ),
-      ),
+      entityCamel: currentEntity
+          .notEqualTo(literalNull)
+          .and(
+            currentEntity
+                .property(config.queryField)
+                .equalTo(refer('updated').property(config.queryField)),
+          )
+          .conditional(refer('updated'), currentEntity),
     };
     if (hasListMethod && !hasWatchList) {
-      updateArgs['${entityCamel}List'] = CodeExpression(
-        Code(
-          'viewState.${entityCamel}List.map((e) => e.${config.queryField} == updated.${config.queryField} ? updated : e).toList()',
-        ),
-      );
+      final listUpdateClosure = Method(
+        (m) => m
+          ..requiredParameters.add(Parameter((p) => p..name = 'e'))
+          ..lambda = true
+          ..body = refer('e')
+              .property(config.queryField)
+              .equalTo(refer('updated').property(config.queryField))
+              .conditional(refer('updated'), refer('e'))
+              .code,
+      ).closure;
+      updateArgs['${entityCamel}List'] = refer('viewState')
+          .property('${entityCamel}List')
+          .property('map')
+          .call([listUpdateClosure])
+          .property('toList')
+          .call([]);
     }
     return Block(
       (b) => b
@@ -636,11 +656,21 @@ class ControllerPlugin extends FileGeneratorPlugin {
         .awaited;
     final deleteArgs = <String, Expression>{'isDeleting': literalBool(true)};
     if (hasListMethod) {
-      deleteArgs['${entityCamel}List'] = CodeExpression(
-        Code(
-          'viewState.${entityCamel}List.where((e) => e.${config.queryField} != ${config.queryField}).toList()',
-        ),
-      );
+      final deleteFilterClosure = Method(
+        (m) => m
+          ..requiredParameters.add(Parameter((p) => p..name = 'e'))
+          ..lambda = true
+          ..body = refer('e')
+              .property(config.queryField)
+              .notEqualTo(refer(config.queryField))
+              .code,
+      ).closure;
+      deleteArgs['${entityCamel}List'] = refer('viewState')
+          .property('${entityCamel}List')
+          .property('where')
+          .call([deleteFilterClosure])
+          .property('toList')
+          .call([]);
     }
     return Block(
       (b) => b
@@ -863,7 +893,7 @@ class ControllerPlugin extends FileGeneratorPlugin {
       (p) => p
         ..name = 'cancelToken'
         ..type = refer('CancelToken?')
-        ..defaultTo = Code('null'),
+        ..defaultTo = literalNull.code,
     );
   }
 

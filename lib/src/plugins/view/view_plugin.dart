@@ -174,12 +174,22 @@ class ViewPlugin extends FileGeneratorPlugin {
     return (hasGet || hasWatch) && config.queryField != config.idField;
   }
 
-  String _buildInitialMethodCall(GeneratorConfig config, String entityName) {
+  Block _buildInitialMethodCall(GeneratorConfig config, String entityName) {
     if (config.methods.contains('getList')) {
-      return 'controller.get${entityName}List();';
+      return Block(
+        (b) => b
+          ..statements.add(
+            refer('controller').property('get${entityName}List').call([]).statement,
+          ),
+      );
     }
     if (config.methods.contains('watchList')) {
-      return 'controller.watch${entityName}List();';
+      return Block(
+        (b) => b
+          ..statements.add(
+            refer('controller').property('watch${entityName}List').call([]).statement,
+          ),
+      );
     }
     if (config.methods.contains('get')) {
       return _buildSingleCall(
@@ -195,32 +205,60 @@ class ViewPlugin extends FileGeneratorPlugin {
         methodName: 'watch',
       );
     }
-    return '';
+    return Block((b) => b);
   }
 
-  String _buildSingleCall({
+  Block _buildSingleCall({
     required GeneratorConfig config,
     required String entityName,
     required String methodName,
   }) {
     if (config.queryFieldType == 'NoParams') {
-      return 'controller.$methodName$entityName();';
+      return Block(
+        (b) => b
+          ..statements.add(
+            refer('controller')
+                .property('$methodName$entityName')
+                .call([])
+                .statement,
+          ),
+      );
     }
     if (_needsIdParam(config) && config.queryField == config.idField) {
-      return [
-        'if (widget.${config.idField} != null) {',
-        '  controller.$methodName$entityName(widget.${config.idField}!);',
-        '}',
-      ].join('\n');
+      final idValue = refer('widget').property(config.idField);
+      return Block(
+        (b) => b
+          ..statements.add(
+            idValue
+                .notEqualTo(literalNull)
+                .conditional(
+                  refer('controller')
+                      .property('$methodName$entityName')
+                      .call([idValue.nullChecked]),
+                  literalNull,
+                )
+                .statement,
+          ),
+      );
     }
     if (_needsQueryParam(config)) {
-      return [
-        'if (widget.${config.queryField} != null) {',
-        '  controller.$methodName$entityName(widget.${config.queryField}!);',
-        '}',
-      ].join('\n');
+      final queryValue = refer('widget').property(config.queryField);
+      return Block(
+        (b) => b
+          ..statements.add(
+            queryValue
+                .notEqualTo(literalNull)
+                .conditional(
+                  refer('controller')
+                      .property('$methodName$entityName')
+                      .call([queryValue.nullChecked]),
+                  literalNull,
+                )
+                .statement,
+          ),
+      );
     }
-    return '';
+    return Block((b) => b);
   }
 
   String _nullableType(String type) {

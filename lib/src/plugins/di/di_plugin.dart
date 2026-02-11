@@ -103,6 +103,19 @@ class DiPlugin extends FileGeneratorPlugin {
     final dataSourceName = '${entityName}RemoteDataSource';
     final fileName = '${entitySnake}_remote_data_source_di.dart';
     final diPath = path.join(outputDir, 'di', 'datasources', fileName);
+    final registrationCall = refer('getIt')
+        .property('registerLazySingleton')
+        .call(
+          [
+            Method(
+              (m) => m
+                ..lambda = true
+                ..body = refer(dataSourceName).call([]).code,
+            ).closure,
+          ],
+          {},
+          [refer(dataSourceName)],
+        );
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$dataSourceName',
@@ -110,8 +123,9 @@ class DiPlugin extends FileGeneratorPlugin {
         'package:get_it/get_it.dart',
         '../../data/data_sources/$entitySnake/${entitySnake}_remote_data_source.dart',
       ],
-      registrationBody:
-          'getIt.registerLazySingleton<$dataSourceName>(() => $dataSourceName());',
+      body: Block(
+        (b) => b..statements.add(registrationCall.statement),
+      ),
     );
 
     return FileUtils.writeFile(
@@ -138,21 +152,39 @@ class DiPlugin extends FileGeneratorPlugin {
       '../../data/data_sources/$entitySnake/${entitySnake}_local_data_source.dart',
     ];
 
-    String registrationBody;
+    Expression constructorCall;
     if (config.cacheStorage == 'hive') {
       imports.add('package:hive_ce_flutter/hive_ce_flutter.dart');
       imports.add('../../domain/entities/$entitySnake/$entitySnake.dart');
-      registrationBody =
-          "getIt.registerLazySingleton<$dataSourceName>(() => $dataSourceName(Hive.box<$entityName>('${entitySnake}s')));";
+      final boxCall = refer('Hive').property('box').call(
+        [literalString('${entitySnake}s')],
+        {},
+        [refer(entityName)],
+      );
+      constructorCall = refer(dataSourceName).call([boxCall]);
     } else {
-      registrationBody =
-          'getIt.registerLazySingleton<$dataSourceName>(() => $dataSourceName());';
+      constructorCall = refer(dataSourceName).call([]);
     }
+    final registrationCall = refer('getIt')
+        .property('registerLazySingleton')
+        .call(
+          [
+            Method(
+              (m) => m
+                ..lambda = true
+                ..body = constructorCall.code,
+            ).closure,
+          ],
+          {},
+          [refer(dataSourceName)],
+        );
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$dataSourceName',
       imports: imports,
-      registrationBody: registrationBody,
+      body: Block(
+        (b) => b..statements.add(registrationCall.statement),
+      ),
     );
 
     return FileUtils.writeFile(
@@ -173,6 +205,19 @@ class DiPlugin extends FileGeneratorPlugin {
     final dataSourceName = '${entityName}MockDataSource';
     final fileName = '${entitySnake}_mock_data_source_di.dart';
     final diPath = path.join(outputDir, 'di', 'datasources', fileName);
+    final registrationCall = refer('getIt')
+        .property('registerLazySingleton')
+        .call(
+          [
+            Method(
+              (m) => m
+                ..lambda = true
+                ..body = refer(dataSourceName).call([]).code,
+            ).closure,
+          ],
+          {},
+          [refer(dataSourceName)],
+        );
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$dataSourceName',
@@ -180,8 +225,9 @@ class DiPlugin extends FileGeneratorPlugin {
         'package:get_it/get_it.dart',
         '../../data/data_sources/$entitySnake/${entitySnake}_mock_data_source.dart',
       ],
-      registrationBody:
-          'getIt.registerLazySingleton<$dataSourceName>(() => $dataSourceName());',
+      body: Block(
+        (b) => b..statements.add(registrationCall.statement),
+      ),
     );
 
     return FileUtils.writeFile(
@@ -208,7 +254,7 @@ class DiPlugin extends FileGeneratorPlugin {
       '../../data/repositories/data_${entitySnake}_repository.dart',
     ];
 
-    String registrationBody;
+    Expression constructorCall;
     if (config.enableCache) {
       final remoteDataSourceName = config.useMockInDi
           ? '${entityName}MockDataSource'
@@ -237,8 +283,11 @@ class DiPlugin extends FileGeneratorPlugin {
             ? 'daily_cache_policy.dart'
             : 'app_restart_cache_policy.dart'}',
       );
-      registrationBody =
-          'getIt.registerLazySingleton<$repoName>(() => $dataRepoName(getIt<$remoteDataSourceName>(), getIt<$localDataSourceName>(), $policyFunctionName()));';
+      constructorCall = refer(dataRepoName).call([
+        refer('getIt').call([], {}, [refer(remoteDataSourceName)]),
+        refer('getIt').call([], {}, [refer(localDataSourceName)]),
+        refer(policyFunctionName).call([]),
+      ]);
     } else {
       final dataSourceName = config.useMockInDi
           ? '${entityName}MockDataSource'
@@ -247,14 +296,30 @@ class DiPlugin extends FileGeneratorPlugin {
           ? '../../data/data_sources/$entitySnake/${entitySnake}_mock_data_source.dart'
           : '../../data/data_sources/$entitySnake/${entitySnake}_remote_data_source.dart';
       imports.add(dataSourceImport);
-      registrationBody =
-          'getIt.registerLazySingleton<$repoName>(() => $dataRepoName(getIt<$dataSourceName>()));';
+      constructorCall = refer(dataRepoName).call([
+        refer('getIt').call([], {}, [refer(dataSourceName)]),
+      ]);
     }
+    final registrationCall = refer('getIt')
+        .property('registerLazySingleton')
+        .call(
+          [
+            Method(
+              (m) => m
+                ..lambda = true
+                ..body = constructorCall.code,
+            ).closure,
+          ],
+          {},
+          [refer(repoName)],
+        );
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$repoName',
       imports: imports,
-      registrationBody: registrationBody,
+      body: Block(
+        (b) => b..statements.add(registrationCall.statement),
+      ),
     );
 
     return FileUtils.writeFile(
@@ -283,8 +348,19 @@ class DiPlugin extends FileGeneratorPlugin {
         'package:get_it/get_it.dart',
         '../../domain/services/${serviceSnake}_service.dart',
       ],
-      registrationBody:
-          "throw UnimplementedError('Register your $serviceName implementation in $fileName');",
+      body: Block(
+        (b) => b
+          ..statements.add(
+            refer('UnimplementedError')
+                .call([
+                  literalString(
+                    'Register your $serviceName implementation in $fileName',
+                  ),
+                ])
+                .thrown
+                .statement,
+          ),
+      ),
     );
 
     return FileUtils.writeFile(
@@ -316,8 +392,25 @@ class DiPlugin extends FileGeneratorPlugin {
         '../../domain/services/${serviceSnake}_service.dart',
         '../../data/providers/${config.effectiveDomain}/${providerSnake}_provider.dart',
       ],
-      registrationBody:
-          'getIt.registerLazySingleton<$serviceName>(() => $providerName());',
+      body: Block(
+        (b) => b
+          ..statements.add(
+            refer('getIt')
+                .property('registerLazySingleton')
+                .call(
+                  [
+                    Method(
+                      (m) => m
+                        ..lambda = true
+                        ..body = refer(providerName).call([]).code,
+                    ).closure,
+                  ],
+                  {},
+                  [refer(serviceName)],
+                )
+                .statement,
+          ),
+      ),
     );
 
     return FileUtils.writeFile(
@@ -367,9 +460,14 @@ class DiPlugin extends FileGeneratorPlugin {
       );
     } else {
       final directives = importPaths.map(Directive.import).toList();
+      final registrationStatements = registrations
+          .map(
+            (r) => refer(r.functionName).call([refer('getIt')]).statement,
+          )
+          .toList();
       content = registrationBuilder.buildIndexFile(
         functionName: functionName,
-        registrations: registrationCalls,
+        registrations: registrationStatements,
         directives: directives,
       );
     }
@@ -440,9 +538,15 @@ class DiPlugin extends FileGeneratorPlugin {
         ...exportPaths.map(Directive.export),
         ...importPaths.map(Directive.import),
       ];
+      final registrationStatements = registrationCalls
+          .map(
+            (call) => refer(call.split('(').first)
+                .call([refer('getIt')]).statement,
+          )
+          .toList();
       content = registrationBuilder.buildIndexFile(
         functionName: 'setupDependencies',
-        registrations: registrationCalls,
+        registrations: registrationStatements,
         directives: directives,
       );
     }

@@ -3,7 +3,7 @@ import 'package:code_builder/code_builder.dart';
 class ViewLifecycleBuilder {
   const ViewLifecycleBuilder();
 
-  Method buildOnInitState({required String initialCall}) {
+  Method buildOnInitState({required Block initialCall}) {
     return Method(
       (m) => m
         ..name = 'onInitState'
@@ -13,9 +13,7 @@ class ViewLifecycleBuilder {
             ..statements.add(
               refer('super').property('onInitState').call([]).statement,
             )
-            ..statements.addAll(
-              initialCall.isEmpty ? const [] : [Code(initialCall)],
-            ),
+            ..statements.addAll(initialCall.statements),
         ),
     );
   }

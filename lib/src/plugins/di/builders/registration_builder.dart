@@ -10,7 +10,7 @@ class RegistrationBuilder {
   String buildRegistrationFile({
     required String functionName,
     required List<String> imports,
-    required String registrationBody,
+    required Block body,
   }) {
     final method = Method(
       (m) => m
@@ -23,7 +23,7 @@ class RegistrationBuilder {
               ..type = refer('GetIt'),
           ),
         )
-        ..body = Code(registrationBody),
+        ..body = body,
     );
 
     final library = specLibrary.library(
@@ -36,7 +36,7 @@ class RegistrationBuilder {
 
   String buildIndexFile({
     required String functionName,
-    required List<String> registrations,
+    required List<Code> registrations,
     List<Directive> directives = const [],
   }) {
     final method = Method(
@@ -50,7 +50,7 @@ class RegistrationBuilder {
               ..type = refer('GetIt'),
           ),
         )
-        ..body = Code(registrations.join('\n')),
+        ..body = Block((b) => b..statements.addAll(registrations)),
     );
 
     final library = specLibrary.library(
