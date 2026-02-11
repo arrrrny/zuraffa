@@ -32,14 +32,13 @@ grep -rn "Code(" lib/src/plugins --include="*.dart" | \
   grep -v "\.code\|CodeExpression\|emitLibrary\|///\|//" | wc -l
 ```
 
-**Result:** 1 (acceptable - GraphQL literals)
+**Result:** 1 (GraphQL raw literal only)
 
 ### Remaining Acceptable Patterns
 
 | File | Line | Pattern | Reason |
 |------|------|---------|--------|
-| `graphql_builder.dart` | 404 | `Code('r"""$escaped"""')` | GraphQL IS strings |
-| `cache_builder.dart` | 480 | `'''# Hive Manual Additions...'''` | Non-Dart config |
+| `graphql_builder.dart` | 404 | `Code('r"""$escaped"""')` | GraphQL is raw string content |
 
 **Verdict:** ✅ **100% code_builder achieved**
 
