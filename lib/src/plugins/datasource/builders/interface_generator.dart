@@ -126,8 +126,9 @@ class DataSourceInterfaceBuilder {
                   Parameter(
                     (p) => p
                       ..name = 'params'
-                      ..type =
-                          refer('UpdateParams<${config.idType}, $dataType>'),
+                      ..type = refer(
+                        'UpdateParams<${config.idType}, $dataType>',
+                      ),
                   ),
                 ),
             ),
@@ -186,7 +187,9 @@ class DataSourceInterfaceBuilder {
 
     final directives = <Directive>[
       Directive.import('package:zuraffa/zuraffa.dart'),
-      Directive.import('../../../domain/entities/$entitySnake/$entitySnake.dart'),
+      Directive.import(
+        '../../../domain/entities/$entitySnake/$entitySnake.dart',
+      ),
     ];
     final clazz = Class(
       (c) => c

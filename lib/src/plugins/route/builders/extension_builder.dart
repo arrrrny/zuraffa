@@ -2,16 +2,16 @@ import 'package:code_builder/code_builder.dart';
 
 class ExtensionMethodSpec {
   final String name;
-  final String body;
+  final Expression body;
   final List<Parameter> parameters;
-  final String returnType;
+  final Reference returnType;
   final bool lambda;
 
   const ExtensionMethodSpec({
     required this.name,
     required this.body,
     this.parameters = const [],
-    this.returnType = 'void',
+    this.returnType = const Reference('void'),
     this.lambda = true,
   });
 }
@@ -23,10 +23,12 @@ class RouteExtensionBuilder {
     return Method(
       (m) => m
         ..name = spec.name
-        ..returns = refer(spec.returnType)
+        ..returns = spec.returnType
         ..requiredParameters.addAll(spec.parameters)
         ..lambda = spec.lambda
-        ..body = Code(spec.body),
+        ..body = spec.lambda
+            ? spec.body.code
+            : Block((b) => b..statements.add(spec.body.statement)),
     );
   }
 

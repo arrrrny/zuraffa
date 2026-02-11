@@ -1,48 +1,28 @@
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
-import '../core/builder/shared/spec_library.dart';
-import '../core/generation/generation_context.dart';
-import '../models/generator_config.dart';
-import '../models/generated_file.dart';
-import '../utils/file_utils.dart';
-import '../utils/string_utils.dart';
 
-/// Generates provider implementation files for services.
-///
-/// Providers are the concrete implementations of service interfaces
-/// in the data layer. They handle external API integrations,
-/// third-party SDKs, and infrastructure concerns.
-///
-/// Pattern: Service (domain) -> Provider (data)
-/// Analogous to: Repository (domain) -> DataSource (data)
-class ProviderGenerator {
-  final GeneratorConfig config;
+import '../../../core/builder/shared/spec_library.dart';
+import '../../../models/generated_file.dart';
+import '../../../models/generator_config.dart';
+import '../../../utils/file_utils.dart';
+import '../../../utils/string_utils.dart';
+
+class ProviderBuilder {
   final String outputDir;
   final bool dryRun;
   final bool force;
   final bool verbose;
   final SpecLibrary specLibrary;
 
-  ProviderGenerator({
-    required this.config,
+  ProviderBuilder({
     required this.outputDir,
-    this.dryRun = false,
-    this.force = false,
-    this.verbose = false,
+    required this.dryRun,
+    required this.force,
+    required this.verbose,
     SpecLibrary? specLibrary,
   }) : specLibrary = specLibrary ?? const SpecLibrary();
 
-  ProviderGenerator.fromContext(GenerationContext context)
-    : this(
-        config: context.config,
-        outputDir: context.outputDir,
-        dryRun: context.dryRun,
-        force: context.force,
-        verbose: context.verbose,
-      );
-
-  /// Generates a provider implementation file for a service.
-  Future<GeneratedFile> generate() async {
+  Future<GeneratedFile> generate(GeneratorConfig config) async {
     final serviceName = config.effectiveService!;
     final providerName = config.effectiveProvider!;
     final providerSnake = config.providerSnake!;
@@ -61,26 +41,11 @@ class ProviderGenerator {
     final returnsType = config.returnsType ?? 'void';
     final methodName = config.getServiceMethodName();
 
-    String returnSignature;
-    switch (config.useCaseType) {
-      case 'stream':
-        returnSignature = 'Stream<$returnsType>';
-        break;
-      case 'completable':
-        returnSignature = 'Future<void>';
-        break;
-      case 'sync':
-        returnSignature = returnsType;
-        break;
-      default: // usecase, background
-        returnSignature = 'Future<$returnsType>';
-    }
+    final returnType = _returnType(config.useCaseType, returnsType);
 
     final directives = <Directive>[
       Directive.import('package:zuraffa/zuraffa.dart'),
-      Directive.import(
-        '../../../domain/services/${serviceSnake}_service.dart',
-      ),
+      Directive.import('../../../domain/services/${serviceSnake}_service.dart'),
     ];
 
     final entityImports = _getPotentialEntityImports([paramsType, returnsType]);
@@ -94,10 +59,9 @@ class ProviderGenerator {
     final method = Method(
       (m) => m
         ..name = methodName
-        ..returns = refer(returnSignature)
+        ..returns = returnType
         ..annotations.add(refer('override'))
-        ..modifier =
-            config.useCaseType == 'sync' ? null : MethodModifier.async
+        ..modifier = config.useCaseType == 'sync' ? null : MethodModifier.async
         ..requiredParameters.addAll(
           paramsType == 'NoParams'
               ? const []
@@ -109,16 +73,7 @@ class ProviderGenerator {
                   ),
                 ],
         )
-        ..body = Code(
-          _lines([
-            'try {',
-            "  throw UnimplementedError('$methodName not implemented');",
-            '} catch (e, stack) {',
-            '  logAndHandleError(e, stack);',
-            '  rethrow;',
-            '}',
-          ]),
-        ),
+        ..body = _buildMethodBody(methodName),
     );
 
     final providerClass = Class(
@@ -143,7 +98,52 @@ class ProviderGenerator {
     );
   }
 
-  /// Extract potential entity types from type strings for auto-imports.
+  Reference _returnType(String useCaseType, String returnsType) {
+    switch (useCaseType) {
+      case 'stream':
+        return TypeReference(
+          (b) => b
+            ..symbol = 'Stream'
+            ..types.add(refer(returnsType)),
+        );
+      case 'completable':
+        return TypeReference(
+          (b) => b
+            ..symbol = 'Future'
+            ..types.add(refer('void')),
+        );
+      case 'sync':
+        return refer(returnsType);
+      default:
+        return TypeReference(
+          (b) => b
+            ..symbol = 'Future'
+            ..types.add(refer(returnsType)),
+        );
+    }
+  }
+
+  Code _buildMethodBody(String methodName) {
+    final throwStatement = refer(
+      'UnimplementedError',
+    ).call([literalString('$methodName not implemented')]).thrown.statement;
+    final logStatement = refer(
+      'logAndHandleError',
+    ).call([refer('e'), refer('stack')]).statement;
+
+    return Block(
+      (b) => b
+        ..statements.addAll([
+          const Code('try {'),
+          throwStatement,
+          const Code('} catch (e, stack) {'),
+          logStatement,
+          const Code('  rethrow;'),
+          const Code('}'),
+        ]),
+    );
+  }
+
   List<String> _getPotentialEntityImports(List<String> types) {
     final entities = <String>[];
     final primitives = {
@@ -160,7 +160,6 @@ class ProviderGenerator {
     };
 
     for (final type in types) {
-      // Extract base types from generic wrappers like List<X>, Stream<X>, etc.
       final baseTypes = _extractBaseTypes(type);
       for (final baseType in baseTypes) {
         if (!primitives.contains(baseType) &&
@@ -174,18 +173,14 @@ class ProviderGenerator {
     return entities.toSet().toList();
   }
 
-  /// Extract base types from complex type strings.
   List<String> _extractBaseTypes(String type) {
     final results = <List<String>>[];
 
-    // Handle List<X>, Stream<X>, Future<X>, etc.
     final genericMatch = RegExp(r'(\w+)<(.+)>').firstMatch(type);
     if (genericMatch != null) {
       final innerType = genericMatch.group(2)!;
-      // Recursively extract from inner types
       results.add(_extractBaseTypes(innerType));
     } else {
-      // Simple type
       if (type.isNotEmpty && type != 'void') {
         results.add([type]);
       }
@@ -193,6 +188,4 @@ class ProviderGenerator {
 
     return results.expand((e) => e).toList();
   }
-
-  String _lines(List<String> lines) => lines.join('\n');
 }

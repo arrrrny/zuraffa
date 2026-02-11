@@ -1,20 +1,28 @@
 import '../../core/plugin_system/plugin_interface.dart';
-import '../../generator/cache_generator.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import 'builders/cache_builder.dart';
 
 class CachePlugin extends FileGeneratorPlugin {
   final String outputDir;
   final bool dryRun;
   final bool force;
   final bool verbose;
+  late final CacheBuilder cacheBuilder;
 
   CachePlugin({
     required this.outputDir,
     required this.dryRun,
     required this.force,
     required this.verbose,
-  });
+  }) {
+    cacheBuilder = CacheBuilder(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+  }
 
   @override
   String get id => 'cache';
@@ -30,13 +38,6 @@ class CachePlugin extends FileGeneratorPlugin {
     if (!config.enableCache) {
       return [];
     }
-    final generator = CacheGenerator(
-      config: config,
-      outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
-    return generator.generate();
+    return cacheBuilder.generate(config);
   }
 }

@@ -170,6 +170,7 @@ class CodeGenerator {
     _methodAppendPlugin = MethodAppendPlugin(
       outputDir: outputDir,
       dryRun: dryRun,
+      force: force,
       verbose: verbose,
     );
 

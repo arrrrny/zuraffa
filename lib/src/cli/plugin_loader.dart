@@ -229,6 +229,7 @@ class PluginLoader {
       MethodAppendPlugin(
         outputDir: outputDir,
         dryRun: dryRun,
+        force: force,
         verbose: verbose,
       ),
     ];

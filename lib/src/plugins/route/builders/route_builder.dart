@@ -1,21 +1,20 @@
 import 'dart:io';
+
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
-import '../core/ast/append_executor.dart';
-import '../core/ast/strategies/append_strategy.dart';
-import '../core/generation/generation_context.dart';
-import '../models/generator_config.dart';
-import '../models/generated_file.dart';
-import '../plugins/route/builders/app_routes_builder.dart';
-import '../plugins/route/builders/entity_routes_builder.dart';
-import '../plugins/route/builders/extension_builder.dart';
-import '../utils/file_utils.dart';
 
-/// Generates go_router routing files for VPC views.
-/// Similar to DiGenerator, creates route constants and GoRoute configurations
-/// with automatic barrel exports.
-class RouteGenerator {
-  final GeneratorConfig config;
+import '../../../core/ast/append_executor.dart';
+import '../../../core/ast/strategies/append_strategy.dart';
+import '../../../core/builder/shared/spec_library.dart';
+import '../../../models/generated_file.dart';
+import '../../../models/generator_config.dart';
+import '../../../utils/file_utils.dart';
+import '../../../utils/string_utils.dart';
+import 'app_routes_builder.dart';
+import 'entity_routes_builder.dart';
+import 'extension_builder.dart';
+
+class RouteBuilder {
   final String outputDir;
   final bool dryRun;
   final bool force;
@@ -23,56 +22,43 @@ class RouteGenerator {
   final AppRoutesBuilder appRoutesBuilder;
   final EntityRoutesBuilder entityRoutesBuilder;
   final AppendExecutor appendExecutor;
+  final SpecLibrary specLibrary;
 
-  RouteGenerator({
-    required this.config,
+  RouteBuilder({
     required this.outputDir,
-    this.dryRun = false,
-    this.force = false,
-    this.verbose = false,
+    required this.dryRun,
+    required this.force,
+    required this.verbose,
     AppRoutesBuilder? appRoutesBuilder,
     EntityRoutesBuilder? entityRoutesBuilder,
     AppendExecutor? appendExecutor,
+    SpecLibrary? specLibrary,
   }) : appRoutesBuilder = appRoutesBuilder ?? AppRoutesBuilder(),
        entityRoutesBuilder = entityRoutesBuilder ?? EntityRoutesBuilder(),
-       appendExecutor = appendExecutor ?? AppendExecutor();
+       appendExecutor = appendExecutor ?? AppendExecutor(),
+       specLibrary = specLibrary ?? const SpecLibrary();
 
-  RouteGenerator.fromContext(GenerationContext context)
-    : this(
-        config: context.config,
-        outputDir: context.outputDir,
-        dryRun: context.dryRun,
-        force: context.force,
-        verbose: context.verbose,
-      );
-
-  Future<List<GeneratedFile>> generate() async {
+  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     final files = <GeneratedFile>[];
 
-    // Only generate routes if VPC is enabled
     if (!config.generateVpc && !config.generateView) {
       return files;
     }
 
-    // Generate route constants file
-    files.add(await _generateRouteConstants());
-
-    // Generate entity-specific route file
-    files.add(await _generateEntityRoutes());
-
-    // Regenerate index file
+    files.add(await _generateRouteConstants(config));
+    files.add(await _generateEntityRoutes(config));
     await _regenerateIndexFile();
 
     return files;
   }
 
-  Future<GeneratedFile> _generateRouteConstants() async {
+  Future<GeneratedFile> _generateRouteConstants(GeneratorConfig config) async {
     final routesPath = path.join(outputDir, 'routing', 'app_routes.dart');
     final file = File(routesPath);
 
     final routeBase = config.nameSnake;
     final routeNameBase = config.nameCamel;
-    final entityPascal = _snakeToPascal(config.nameSnake);
+    final entityPascal = config.name;
 
     final hasGet = config.methods.contains('get');
     final hasWatch = config.methods.contains('watch');
@@ -83,8 +69,8 @@ class RouteGenerator {
         hasCreate || hasUpdate || hasDelete || hasGet || hasWatch;
 
     final routeConstants = _buildAppRouteConstants(
-      routeBase: routeBase,
       routeNameBase: routeNameBase,
+      routeBase: routeBase,
       hasSubRoutes: hasSubRoutes,
       hasCreate: hasCreate,
       hasUpdate: hasUpdate,
@@ -95,8 +81,8 @@ class RouteGenerator {
 
     final extensionMethods = _buildAppRouteExtensionMethods(
       entityPascal: entityPascal,
-      routeBase: routeBase,
       routeNameBase: routeNameBase,
+      routeBase: routeBase,
       hasSubRoutes: hasSubRoutes,
       hasCreate: hasCreate,
       hasUpdate: hasUpdate,
@@ -175,48 +161,41 @@ class RouteGenerator {
     return content;
   }
 
-  Future<GeneratedFile> _generateEntityRoutes() async {
+  Future<GeneratedFile> _generateEntityRoutes(GeneratorConfig config) async {
     final entityName = config.name;
     final entitySnake = config.nameSnake;
     final entityCamel = config.nameCamel;
     final fileName = '${entitySnake}_routes.dart';
 
     final String dependencyImportPath;
-    final String dependencyParam;
     final String viewParam;
 
     if (config.isEntityBased) {
       dependencyImportPath =
           '../domain/repositories/${entitySnake}_repository.dart';
-      dependencyParam = entityCamel;
       viewParam = '${entityCamel}Repository';
     } else if (config.hasService) {
-      // Custom usecase with service
       final serviceName = config.effectiveService!;
       final serviceSnake = config.serviceSnake!;
       dependencyImportPath = '../domain/services/${serviceSnake}_service.dart';
-      dependencyParam = _pascalToCamel(serviceName);
-      viewParam = dependencyParam;
+      viewParam = StringUtils.pascalToCamel(serviceName);
     } else if (config.hasRepo) {
-      // Custom usecase with repository
       final repoName = config.effectiveRepos.first;
-      final repoSnake = _camelToSnake(repoName.replaceAll('Repository', ''));
+      final repoSnake = StringUtils.camelToSnake(
+        repoName.replaceAll('Repository', ''),
+      );
       dependencyImportPath =
           '../domain/repositories/${repoSnake}_repository.dart';
-      dependencyParam = _pascalToCamel(repoName);
-      viewParam = dependencyParam;
+      viewParam = StringUtils.pascalToCamel(repoName);
     } else {
-      // Fallback to entity pattern
-      dependencyImportPath =
-          '../domain/repositories/${entitySnake}_repository.dart';
-      dependencyParam = entityCamel;
-      viewParam = '${entityCamel}Repository';
+      dependencyImportPath = '';
+      viewParam = '';
     }
 
-    final routeBase = entitySnake;
-    final routeNameBase = entityCamel;
-
     final routesPath = path.join(outputDir, 'routing', fileName);
+
+    final routeBase = config.nameSnake;
+    final routeNameBase = config.nameCamel;
 
     final hasGet = config.methods.contains('get');
     final hasWatch = config.methods.contains('watch');
@@ -226,13 +205,9 @@ class RouteGenerator {
     final hasSubRoutes =
         hasCreate || hasUpdate || hasDelete || hasGet || hasWatch;
 
-    // Determine what parameters the view needs
-    final needsIdParam = hasUpdate || hasDelete;
-    final needsQueryParam = (hasGet || hasWatch) && !needsIdParam;
-
     final routeConstants = _buildEntityRouteConstants(
-      routeBase: routeBase,
       routeNameBase: routeNameBase,
+      routeBase: routeBase,
       hasSubRoutes: hasSubRoutes,
       hasCreate: hasCreate,
       hasUpdate: hasUpdate,
@@ -241,52 +216,51 @@ class RouteGenerator {
       hasWatch: hasWatch,
     );
 
+    final needsIdParam = hasUpdate || hasDelete || hasGet || hasWatch;
+    final needsQueryParam =
+        config.methods.contains('getList') ||
+        config.methods.contains('watchList');
+
     final goRoutes = <Expression>[
-      _buildListRouteExpr(
-        entityName,
-        entitySnake,
-        entityCamel,
-        routeBase,
-        routeNameBase,
-        needsIdParam,
-        needsQueryParam,
-        viewParam,
-      ),
-      if (hasSubRoutes && (hasUpdate || hasDelete || hasGet || hasWatch))
+      if (needsQueryParam)
+        _buildListRouteExpr(
+          entityName: entityName,
+          entityCamel: entityCamel,
+          routeBase: routeBase,
+          routeNameBase: routeNameBase,
+          viewParam: viewParam,
+        ),
+      if (needsIdParam)
         _buildDetailRouteExpr(
-          entityName,
-          entitySnake,
-          entityCamel,
-          routeBase,
-          routeNameBase,
-          config.idField,
-          needsIdParam,
-          needsQueryParam,
-          viewParam,
+          entityName: entityName,
+          entityCamel: entityCamel,
+          routeBase: routeBase,
+          routeNameBase: routeNameBase,
+          viewParam: viewParam,
         ),
       if (hasCreate)
         _buildCreateRouteExpr(
-          entityName,
-          entitySnake,
-          entityCamel,
-          routeBase,
-          routeNameBase,
-          needsIdParam,
-          needsQueryParam,
-          viewParam,
+          entityName: entityName,
+          entityCamel: entityCamel,
+          routeBase: routeBase,
+          routeNameBase: routeNameBase,
+          viewParam: viewParam,
         ),
       if (hasUpdate)
         _buildUpdateRouteExpr(
-          entityName,
-          entitySnake,
-          entityCamel,
-          routeBase,
-          routeNameBase,
-          config.idField,
-          needsIdParam,
-          needsQueryParam,
-          viewParam,
+          entityName: entityName,
+          entityCamel: entityCamel,
+          routeBase: routeBase,
+          routeNameBase: routeNameBase,
+          viewParam: viewParam,
         ),
+    ];
+
+    final imports = [
+      'package:go_router/go_router.dart',
+      '../../main.dart',
+      '../presentation/pages/$entitySnake/${entitySnake}_view.dart',
+      if (dependencyImportPath.isNotEmpty) dependencyImportPath,
     ];
 
     final content = entityRoutesBuilder.buildFile(
@@ -294,133 +268,163 @@ class RouteGenerator {
       routes: routeConstants,
       routesGetterName: 'get${entityName}Routes',
       goRoutes: goRoutes,
-      imports: [
-        'package:go_router/go_router.dart',
-        '../../main.dart',
-        '../presentation/pages/$entitySnake/${entitySnake}_view.dart',
-        dependencyImportPath,
-      ],
+      imports: imports,
     );
+
     return FileUtils.writeFile(
       routesPath,
       content,
       'entity_routes',
-      force: force,
+      force: true,
       dryRun: dryRun,
       verbose: verbose,
     );
   }
 
-  Expression _buildListRouteExpr(
-    String entityName,
-    String entitySnake,
-    String entityCamel,
-    String routeBase,
-    String routeNameBase,
-    bool needsIdParam,
-    bool needsQueryParam,
-    String viewParam,
-  ) {
-    final pathExpr =
-        refer('${entityName}Routes').property('${routeNameBase}List');
+  Expression _buildListRouteExpr({
+    required String entityName,
+    required String entityCamel,
+    required String routeBase,
+    required String routeNameBase,
+    required String viewParam,
+  }) {
+    final pathExpr = refer(
+      '${entityName}Routes',
+    ).property('${routeNameBase}List');
     final nameExpr = literalString('${routeBase}_list');
-    final builderExpr = CodeExpression(Code(
-        '(context, state) => ${entityName}View(${entityCamel}Repository: getIt<${entityName}Repository>(),)'));
-    return refer('GoRoute').call(
-      [],
-      {
-        'path': pathExpr,
-        'name': nameExpr,
-        'builder': builderExpr,
-      },
-    );
+
+    final builderExpr = Method(
+      (m) => m
+        ..requiredParameters.addAll([
+          Parameter((p) => p..name = 'context'),
+          Parameter((p) => p..name = 'state'),
+        ])
+        ..lambda = true
+        ..body = refer('${entityName}View').call([], {
+          viewParam: refer(
+            'getIt',
+          ).call([], {}, [refer('${entityName}Repository')]),
+        }).code,
+    ).closure;
+
+    return refer(
+      'GoRoute',
+    ).call([], {'path': pathExpr, 'name': nameExpr, 'builder': builderExpr});
   }
 
-  Expression _buildDetailRouteExpr(
-    String entityName,
-    String entitySnake,
-    String entityCamel,
-    String routeBase,
-    String routeNameBase,
-    String idField,
-    bool needsIdParam,
-    bool needsQueryParam,
-    String viewParam,
-  ) {
-    final pathExpr =
-        refer('${entityName}Routes').property('${routeNameBase}Detail');
+  Expression _buildDetailRouteExpr({
+    required String entityName,
+    required String entityCamel,
+    required String routeBase,
+    required String routeNameBase,
+    required String viewParam,
+  }) {
+    final pathExpr = refer(
+      '${entityName}Routes',
+    ).property('${routeNameBase}Detail');
     final nameExpr = literalString('${routeBase}_detail');
-    final builderExpr = CodeExpression(Code(
-        '''(context, state) {
-      return ${entityName}View(
-        ${entityCamel}Repository: getIt<${entityName}Repository>(),
-        id: state.pathParameters['id']!,
-      );
-    }'''));
-    return refer('GoRoute').call(
-      [],
-      {
-        'path': pathExpr,
-        'name': nameExpr,
-        'builder': builderExpr,
-      },
-    );
+
+    final builderExpr = Method(
+      (m) => m
+        ..requiredParameters.addAll([
+          Parameter((p) => p..name = 'context'),
+          Parameter((p) => p..name = 'state'),
+        ])
+        ..body = Block(
+          (b) => b
+            ..statements.add(
+              refer('${entityName}View')
+                  .call([], {
+                    viewParam: refer(
+                      'getIt',
+                    ).call([], {}, [refer('${entityName}Repository')]),
+                    'id': refer('state')
+                        .property('pathParameters')
+                        .index(literalString('id'))
+                        .nullChecked,
+                  })
+                  .returned
+                  .statement,
+            ),
+        ),
+    ).closure;
+
+    return refer(
+      'GoRoute',
+    ).call([], {'path': pathExpr, 'name': nameExpr, 'builder': builderExpr});
   }
 
-  Expression _buildCreateRouteExpr(
-    String entityName,
-    String entitySnake,
-    String entityCamel,
-    String routeBase,
-    String routeNameBase,
-    bool needsIdParam,
-    bool needsQueryParam,
-    String viewParam,
-  ) {
-    final pathExpr =
-        refer('${entityName}Routes').property('${routeNameBase}Create');
+  Expression _buildCreateRouteExpr({
+    required String entityName,
+    required String entityCamel,
+    required String routeBase,
+    required String routeNameBase,
+    required String viewParam,
+  }) {
+    final pathExpr = refer(
+      '${entityName}Routes',
+    ).property('${routeNameBase}Create');
     final nameExpr = literalString('${routeBase}_create');
-    final builderExpr = CodeExpression(Code(
-        '(context, state) => ${entityName}View(${entityCamel}Repository: getIt<${entityName}Repository>(),)'));
-    return refer('GoRoute').call(
-      [],
-      {
-        'path': pathExpr,
-        'name': nameExpr,
-        'builder': builderExpr,
-      },
-    );
+
+    final builderExpr = Method(
+      (m) => m
+        ..requiredParameters.addAll([
+          Parameter((p) => p..name = 'context'),
+          Parameter((p) => p..name = 'state'),
+        ])
+        ..lambda = true
+        ..body = refer('${entityName}View').call([], {
+          viewParam: refer(
+            'getIt',
+          ).call([], {}, [refer('${entityName}Repository')]),
+        }).code,
+    ).closure;
+
+    return refer(
+      'GoRoute',
+    ).call([], {'path': pathExpr, 'name': nameExpr, 'builder': builderExpr});
   }
 
-  Expression _buildUpdateRouteExpr(
-    String entityName,
-    String entitySnake,
-    String entityCamel,
-    String routeBase,
-    String routeNameBase,
-    String idField,
-    bool needsIdParam,
-    bool needsQueryParam,
-    String viewParam,
-  ) {
-    final pathExpr =
-        refer('${entityName}Routes').property('${routeNameBase}Update');
+  Expression _buildUpdateRouteExpr({
+    required String entityName,
+    required String entityCamel,
+    required String routeBase,
+    required String routeNameBase,
+    required String viewParam,
+  }) {
+    final pathExpr = refer(
+      '${entityName}Routes',
+    ).property('${routeNameBase}Update');
     final nameExpr = literalString('${routeBase}_update');
-    final builderExpr = CodeExpression(Code(
-        '''(context, state) {
-      return ${entityName}View(
-        ${entityCamel}Repository: getIt<${entityName}Repository>(),
-        id: state.pathParameters['id']!,
-      );
-    }'''));
-    return refer('GoRoute').call(
-      [],
-      {
-        'path': pathExpr,
-        'name': nameExpr,
-        'builder': builderExpr,
-      },
-    );
+
+    final builderExpr = Method(
+      (m) => m
+        ..requiredParameters.addAll([
+          Parameter((p) => p..name = 'context'),
+          Parameter((p) => p..name = 'state'),
+        ])
+        ..body = Block(
+          (b) => b
+            ..statements.add(
+              refer('${entityName}View')
+                  .call([], {
+                    viewParam: refer(
+                      'getIt',
+                    ).call([], {}, [refer('${entityName}Repository')]),
+                    'id': refer('state')
+                        .property('pathParameters')
+                        .index(literalString('id'))
+                        .nullChecked,
+                  })
+                  .returned
+                  .statement,
+            ),
+        ),
+    ).closure;
+
+    return refer(
+      'GoRoute',
+    ).call([], {'path': pathExpr, 'name': nameExpr, 'builder': builderExpr});
   }
 
   Future<void> _regenerateIndexFile() async {
@@ -451,30 +455,30 @@ class RouteGenerator {
     final imports = <Directive>[
       Directive.import('package:go_router/go_router.dart'),
     ];
-    final routeGetters = <String>[];
+    final routeElements = <Expression>[];
 
     for (final file in files) {
       final fileName = path.basename(file.path);
-      final entityName = fileName.replaceAll('_routes.dart', '');
-      final entityPascal = _snakeToPascal(entityName);
+      final entitySnake = fileName.replaceAll('_routes.dart', '');
+      final entityPascal = StringUtils.convertToPascalCase(entitySnake);
 
       exports.add(Directive.export(fileName));
       imports.add(Directive.import(fileName));
-      routeGetters.add('  ...get${entityPascal}Routes(),');
+      routeElements.add(refer('get${entityPascal}Routes').call([]).spread);
     }
 
     final getAllRoutes = Method(
       (m) => m
         ..name = 'getAllRoutes'
         ..returns = refer('List<GoRoute>')
-        ..body = Code('return [\n${routeGetters.join('\n')}\n];'),
+        ..body = literalList(routeElements).returned.statement,
     );
 
-    final library = entityRoutesBuilder.specLibrary.library(
+    final library = specLibrary.library(
       specs: [getAllRoutes],
       directives: [...exports, ...imports],
     );
-    final content = entityRoutesBuilder.specLibrary.emitLibrary(library);
+    final content = specLibrary.emitLibrary(library);
 
     await FileUtils.writeFile(
       indexPath,
@@ -486,35 +490,9 @@ class RouteGenerator {
     );
   }
 
-  String _snakeToPascal(String input) {
-    if (input.isEmpty) return '';
-    return input.split('_').map((part) {
-      if (part.isEmpty) return '';
-      return part[0].toUpperCase() + part.substring(1);
-    }).join();
-  }
-
-  String _pascalToCamel(String input) {
-    if (input.isEmpty) return '';
-    return input[0].toLowerCase() + input.substring(1);
-  }
-
-  String _camelToSnake(String input) {
-    if (input.isEmpty) return '';
-    final buffer = StringBuffer();
-    for (var i = 0; i < input.length; i++) {
-      final char = input[i];
-      if (i > 0 && char.toUpperCase() == char && char != '_') {
-        buffer.write('_');
-      }
-      buffer.write(char.toLowerCase());
-    }
-    return buffer.toString();
-  }
-
   Map<String, String> _buildAppRouteConstants({
-    required String routeBase,
     required String routeNameBase,
+    required String routeBase,
     required bool hasSubRoutes,
     required bool hasCreate,
     required bool hasUpdate,
@@ -538,8 +516,8 @@ class RouteGenerator {
 
   List<ExtensionMethodSpec> _buildAppRouteExtensionMethods({
     required String entityPascal,
-    required String routeBase,
     required String routeNameBase,
+    required String routeBase,
     required bool hasSubRoutes,
     required bool hasCreate,
     required bool hasUpdate,
@@ -550,7 +528,9 @@ class RouteGenerator {
     final methods = <ExtensionMethodSpec>[
       ExtensionMethodSpec(
         name: 'goTo${entityPascal}List',
-        body: 'go(AppRoutes.${routeNameBase}List)',
+        body: refer(
+          'go',
+        ).call([refer('AppRoutes').property('${routeNameBase}List')]),
       ),
     ];
 
@@ -565,7 +545,7 @@ class RouteGenerator {
                 ..type = refer('String'),
             ),
           ],
-          body: "go('$routeBase/\$id')",
+          body: refer('go').call([literalString('$routeBase/\$id')]),
         ),
       );
     }
@@ -573,7 +553,9 @@ class RouteGenerator {
       methods.add(
         ExtensionMethodSpec(
           name: 'goTo${entityPascal}Create',
-          body: 'go(AppRoutes.${routeNameBase}Create)',
+          body: refer(
+            'go',
+          ).call([refer('AppRoutes').property('${routeNameBase}Create')]),
         ),
       );
     }
@@ -588,7 +570,7 @@ class RouteGenerator {
                 ..type = refer('String'),
             ),
           ],
-          body: "go('$routeBase/\$id/edit')",
+          body: refer('go').call([literalString('$routeBase/\$id/edit')]),
         ),
       );
     }
@@ -596,8 +578,8 @@ class RouteGenerator {
   }
 
   Map<String, String> _buildEntityRouteConstants({
-    required String routeBase,
     required String routeNameBase,
+    required String routeBase,
     required bool hasSubRoutes,
     required bool hasCreate,
     required bool hasUpdate,

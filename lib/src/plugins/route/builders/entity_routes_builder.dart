@@ -27,13 +27,11 @@ class EntityRoutesBuilder {
       RouteSpecConfig(className: className, routes: routes),
     );
 
-    final goRoutesSrc =
-        goRoutes.map((e) => e.accept(emitter).toString()).join(',\n');
     final getRoutesMethod = Method(
       (m) => m
         ..name = routesGetterName
         ..returns = refer('List<GoRoute>')
-        ..body = Code('return [\n$goRoutesSrc\n];'),
+        ..body = literalList(goRoutes).returned.statement,
     );
 
     final library = specLibrary.library(

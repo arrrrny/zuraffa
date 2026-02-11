@@ -1,11 +1,11 @@
-import '../../generator/cache_generator.dart';
-import '../../generator/graphql_generator.dart';
-import '../../generator/method_appender.dart';
-import '../../generator/observer_generator.dart';
-import '../../generator/provider_generator.dart';
-import '../../generator/route_generator.dart';
-import '../../generator/state_generator.dart';
-import '../../generator/test_generator.dart';
+import '../../plugins/cache/builders/cache_builder.dart';
+import '../../plugins/graphql/builders/graphql_builder.dart';
+import '../../plugins/method_append/builders/method_append_builder.dart';
+import '../../plugins/observer/builders/observer_builder.dart';
+import '../../plugins/provider/builders/provider_builder.dart';
+import '../../plugins/route/builders/route_builder.dart';
+import '../../plugins/state/builders/state_builder.dart';
+import '../../plugins/test/builders/test_builder.dart';
 import 'generation_context.dart';
 
 class CodeBuilderFactory {
@@ -13,19 +13,59 @@ class CodeBuilderFactory {
 
   const CodeBuilderFactory(this.context);
 
-  ProviderGenerator provider() => ProviderGenerator.fromContext(context);
+  ProviderBuilder provider() => ProviderBuilder(
+    outputDir: context.outputDir,
+    dryRun: context.dryRun,
+    force: context.force,
+    verbose: context.verbose,
+  );
 
-  StateGenerator state() => StateGenerator.fromContext(context);
+  StateBuilder state() => StateBuilder(
+    outputDir: context.outputDir,
+    dryRun: context.dryRun,
+    force: context.force,
+    verbose: context.verbose,
+  );
 
-  ObserverGenerator observer() => ObserverGenerator.fromContext(context);
+  ObserverBuilder observer() => ObserverBuilder(
+    outputDir: context.outputDir,
+    dryRun: context.dryRun,
+    force: context.force,
+    verbose: context.verbose,
+  );
 
-  TestGenerator test() => TestGenerator.fromContext(context);
+  TestBuilder test() => TestBuilder(
+    outputDir: context.outputDir,
+    dryRun: context.dryRun,
+    force: context.force,
+    verbose: context.verbose,
+  );
 
-  CacheGenerator cache() => CacheGenerator.fromContext(context);
+  CacheBuilder cache() => CacheBuilder(
+    outputDir: context.outputDir,
+    dryRun: context.dryRun,
+    force: context.force,
+    verbose: context.verbose,
+  );
 
-  GraphQLGenerator graphql() => GraphQLGenerator.fromContext(context);
+  GraphqlBuilder graphql() => GraphqlBuilder(
+    outputDir: context.outputDir,
+    dryRun: context.dryRun,
+    force: context.force,
+    verbose: context.verbose,
+  );
 
-  RouteGenerator route() => RouteGenerator.fromContext(context);
+  RouteBuilder route() => RouteBuilder(
+    outputDir: context.outputDir,
+    dryRun: context.dryRun,
+    force: context.force,
+    verbose: context.verbose,
+  );
 
-  MethodAppender methodAppender() => MethodAppender.fromContext(context);
+  MethodAppendBuilder methodAppender() => MethodAppendBuilder(
+    outputDir: context.outputDir,
+    dryRun: context.dryRun,
+    force: context.force,
+    verbose: context.verbose,
+  );
 }

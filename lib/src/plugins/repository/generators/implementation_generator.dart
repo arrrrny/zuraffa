@@ -386,19 +386,7 @@ class RepositoryImplementationGenerator {
                   ..type = refer('QueryParams<$entityName>'),
               ),
             )
-            ..body = Code('''
-    if (await _cachePolicy.isValid('$baseCacheKey')) {
-      try {
-        return await _localDataSource.get(params);
-      } catch (e) {
-        logger.severe('Cache miss, fetching from remote');
-      }
-    }
-    final data = await _remoteDataSource.get(params);
-    await _localDataSource.save(data);
-    await _cachePolicy.markFresh('$baseCacheKey');
-    return data;
-'''),
+            ..body = _buildCacheAwareGetBody(baseCacheKey),
         );
       case 'getList':
         return Method(
@@ -414,20 +402,7 @@ class RepositoryImplementationGenerator {
                   ..type = refer('ListQueryParams<$entityName>'),
               ),
             )
-            ..body = Code('''
-    final listCacheKey = '${baseCacheKey}_\${params.hashCode}';
-    if (await _cachePolicy.isValid(listCacheKey)) {
-      try {
-        return await _localDataSource.getList(params);
-      } catch (e) {
-        logger.severe('Cache miss, fetching from remote');
-      }
-    }
-    final data = await _remoteDataSource.getList(params);
-    await _localDataSource.saveAll(data);
-    await _cachePolicy.markFresh(listCacheKey);
-    return data;
-'''),
+            ..body = _buildCacheAwareGetListBody(baseCacheKey),
         );
       case 'create':
         return Method(
@@ -443,12 +418,7 @@ class RepositoryImplementationGenerator {
                   ..type = refer(entityName),
               ),
             )
-            ..body = Code('''
-    final created = await _remoteDataSource.create($entityCamel);
-    await _localDataSource.save(created);
-    await _cachePolicy.invalidate('$baseCacheKey');
-    return created;
-'''),
+            ..body = _buildCacheAwareCreateBody(baseCacheKey, entityCamel),
         );
       case 'update':
         final dataType = config.useZorphy
@@ -467,12 +437,7 @@ class RepositoryImplementationGenerator {
                   ..type = refer('UpdateParams<${config.idType}, $dataType>'),
               ),
             )
-            ..body = Code('''
-    final updated = await _remoteDataSource.update(params);
-    await _localDataSource.update(params);
-    await _cachePolicy.invalidate('$baseCacheKey');
-    return updated;
-'''),
+            ..body = _buildCacheAwareUpdateBody(baseCacheKey),
         );
       case 'delete':
         return Method(
@@ -488,11 +453,7 @@ class RepositoryImplementationGenerator {
                   ..type = refer('DeleteParams<${config.idType}>'),
               ),
             )
-            ..body = Code('''
-    await _remoteDataSource.delete(params);
-    await _localDataSource.delete(params);
-    await _cachePolicy.invalidate('$baseCacheKey');
-'''),
+            ..body = _buildCacheAwareDeleteBody(baseCacheKey),
         );
       case 'watch':
         return Method(
@@ -600,6 +561,172 @@ class RepositoryImplementationGenerator {
       }
     }
     return updated;
+  }
+
+  Block _buildCacheAwareGetBody(String baseCacheKey) {
+    return Block(
+      (b) => b
+        ..statements.add(
+          Code("if (await _cachePolicy.isValid('$baseCacheKey')) {"),
+        )
+        ..statements.add(Code('  try {'))
+        ..statements.add(Code('    return await _localDataSource.get(params);'))
+        ..statements.add(Code('  } catch (e) {'))
+        ..statements.add(
+          Code("    logger.severe('Cache miss, fetching from remote');"),
+        )
+        ..statements.add(Code('  }'))
+        ..statements.add(Code('}'))
+        ..statements.add(
+          declareFinal('data')
+              .assign(
+                refer(
+                  '_remoteDataSource',
+                ).property('get').call([refer('params')]).awaited,
+              )
+              .statement,
+        )
+        ..statements.add(
+          refer(
+            '_localDataSource',
+          ).property('save').call([refer('data')]).awaited.statement,
+        )
+        ..statements.add(
+          refer('_cachePolicy')
+              .property('markFresh')
+              .call([literalString(baseCacheKey)])
+              .awaited
+              .statement,
+        )
+        ..statements.add(refer('data').returned.statement),
+    );
+  }
+
+  Block _buildCacheAwareGetListBody(String baseCacheKey) {
+    return Block(
+      (b) => b
+        ..statements.add(
+          declareFinal('listCacheKey')
+              .assign(
+                CodeExpression(Code("'${baseCacheKey}_\${params.hashCode}'")),
+              )
+              .statement,
+        )
+        ..statements.add(
+          Code('if (await _cachePolicy.isValid(listCacheKey)) {'),
+        )
+        ..statements.add(Code('  try {'))
+        ..statements.add(
+          Code('    return await _localDataSource.getList(params);'),
+        )
+        ..statements.add(Code('  } catch (e) {'))
+        ..statements.add(
+          Code("    logger.severe('Cache miss, fetching from remote');"),
+        )
+        ..statements.add(Code('  }'))
+        ..statements.add(Code('}'))
+        ..statements.add(
+          declareFinal('data')
+              .assign(
+                refer(
+                  '_remoteDataSource',
+                ).property('getList').call([refer('params')]).awaited,
+              )
+              .statement,
+        )
+        ..statements.add(
+          refer(
+            '_localDataSource',
+          ).property('saveAll').call([refer('data')]).awaited.statement,
+        )
+        ..statements.add(
+          refer('_cachePolicy')
+              .property('markFresh')
+              .call([refer('listCacheKey')])
+              .awaited
+              .statement,
+        )
+        ..statements.add(refer('data').returned.statement),
+    );
+  }
+
+  Block _buildCacheAwareCreateBody(String baseCacheKey, String entityCamel) {
+    return Block(
+      (b) => b
+        ..statements.add(
+          declareFinal('created')
+              .assign(
+                refer(
+                  '_remoteDataSource',
+                ).property('create').call([refer(entityCamel)]).awaited,
+              )
+              .statement,
+        )
+        ..statements.add(
+          refer(
+            '_localDataSource',
+          ).property('save').call([refer('created')]).awaited.statement,
+        )
+        ..statements.add(
+          refer('_cachePolicy')
+              .property('invalidate')
+              .call([literalString(baseCacheKey)])
+              .awaited
+              .statement,
+        )
+        ..statements.add(refer('created').returned.statement),
+    );
+  }
+
+  Block _buildCacheAwareUpdateBody(String baseCacheKey) {
+    return Block(
+      (b) => b
+        ..statements.add(
+          declareFinal('updated')
+              .assign(
+                refer(
+                  '_remoteDataSource',
+                ).property('update').call([refer('params')]).awaited,
+              )
+              .statement,
+        )
+        ..statements.add(
+          refer(
+            '_localDataSource',
+          ).property('update').call([refer('params')]).awaited.statement,
+        )
+        ..statements.add(
+          refer('_cachePolicy')
+              .property('invalidate')
+              .call([literalString(baseCacheKey)])
+              .awaited
+              .statement,
+        )
+        ..statements.add(refer('updated').returned.statement),
+    );
+  }
+
+  Block _buildCacheAwareDeleteBody(String baseCacheKey) {
+    return Block(
+      (b) => b
+        ..statements.add(
+          refer(
+            '_remoteDataSource',
+          ).property('delete').call([refer('params')]).awaited.statement,
+        )
+        ..statements.add(
+          refer(
+            '_localDataSource',
+          ).property('delete').call([refer('params')]).awaited.statement,
+        )
+        ..statements.add(
+          refer('_cachePolicy')
+              .property('invalidate')
+              .call([literalString(baseCacheKey)])
+              .awaited
+              .statement,
+        ),
+    );
   }
 
   Block _buildWatchBody(GeneratorConfig config, String entityName) {

@@ -8,10 +8,15 @@ class ViewLifecycleBuilder {
       (m) => m
         ..name = 'onInitState'
         ..annotations.add(refer('override'))
-        ..body = Code('''
-    super.onInitState();
-    $initialCall
-'''),
+        ..body = Block(
+          (b) => b
+            ..statements.add(
+              refer('super').property('onInitState').call([]).statement,
+            )
+            ..statements.addAll(
+              initialCall.isEmpty ? const [] : [Code(initialCall)],
+            ),
+        ),
     );
   }
 }

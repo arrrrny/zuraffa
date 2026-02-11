@@ -61,17 +61,21 @@ class ViewClassBuilder {
     );
 
     final presenterCall = _presenterCall(spec);
-    final controllerCall = '${spec.controllerName}($presenterCall)';
+    final controllerCall = refer(spec.controllerName).call([], presenterCall);
 
     final createStateMethod = Method(
       (m) => m
         ..name = 'createState'
         ..annotations.add(refer('override'))
         ..returns = refer('State<${spec.viewName}>')
-        ..body = Code('''
-return _${spec.viewName}State(
-  $controllerCall,
-);'''),
+        ..body = Block(
+          (b) => b
+            ..statements.add(
+              refer(
+                '_${spec.viewName}State',
+              ).call([controllerCall]).returned.statement,
+            ),
+        ),
     );
 
     return Class(
@@ -101,14 +105,15 @@ return _${spec.viewName}State(
       initialCall: spec.initialMethodCall,
     );
 
-    final builderBody = spec.withState
-        ? '''
-      final viewState = controller.viewState;
-      return Container(key: ValueKey(viewState.hashCode));
-'''
-        : '''
-      return Container();
-''';
+    final builderBody = _buildBuilderBody(spec);
+    final builderClosure = Method(
+      (m) => m
+        ..requiredParameters.addAll([
+          Parameter((p) => p..name = 'context'),
+          Parameter((p) => p..name = 'controller'),
+        ])
+        ..body = builderBody,
+    ).closure;
 
     final viewGetter = Method(
       (m) => m
@@ -116,18 +121,25 @@ return _${spec.viewName}State(
         ..annotations.add(refer('override'))
         ..type = MethodType.getter
         ..returns = refer('Widget')
-        ..body = Code('''
-return Scaffold(
-  key: globalKey,
-  appBar: AppBar(
-    title: const Text('${spec.entityName}'),
-  ),
-  body: ControlledWidgetBuilder<${spec.controllerName}>(
-    builder: (context, controller) {
-${builderBody.trimRight()}
-    },
-  ),
-);'''),
+        ..body = Block(
+          (b) => b
+            ..statements.add(
+              refer('Scaffold')
+                  .call([], {
+                    'key': refer('globalKey'),
+                    'appBar': refer('AppBar').call([], {
+                      'title': refer(
+                        'Text',
+                      ).constInstance([literalString(spec.entityName)]),
+                    }),
+                    'body': refer(
+                      'ControlledWidgetBuilder<${spec.controllerName}>',
+                    ).call([], {'builder': builderClosure}),
+                  })
+                  .returned
+                  .statement,
+            ),
+        ),
     );
 
     return Class(
@@ -141,10 +153,42 @@ ${builderBody.trimRight()}
     );
   }
 
-  String _presenterCall(ViewClassSpec spec) {
+  Map<String, Expression> _presenterCall(ViewClassSpec spec) {
     if (spec.repoPresenterArgs.isEmpty) {
-      return '${spec.presenterName}()';
+      return const {};
     }
-    return '${spec.presenterName}(${spec.repoPresenterArgs.join(', ')})';
+    final args = <String, Expression>{};
+    for (final arg in spec.repoPresenterArgs) {
+      final parts = arg.split(':');
+      if (parts.length != 2) continue;
+      args[parts[0].trim()] = refer(parts[1].trim());
+    }
+    return args;
+  }
+
+  Block _buildBuilderBody(ViewClassSpec spec) {
+    if (spec.withState) {
+      return Block(
+        (b) => b
+          ..statements.add(
+            declareFinal(
+              'viewState',
+            ).assign(refer('controller').property('viewState')).statement,
+          )
+          ..statements.add(
+            refer('Container')
+                .call([], {
+                  'key': refer(
+                    'ValueKey',
+                  ).call([refer('viewState').property('hashCode')]),
+                })
+                .returned
+                .statement,
+          ),
+      );
+    }
+    return Block(
+      (b) => b..statements.add(refer('Container').call([]).returned.statement),
+    );
   }
 }

@@ -52,7 +52,7 @@ class PresenterPlugin extends FileGeneratorPlugin {
     final filePath = path.join(presenterDirPath, fileName);
 
     final repoFields = _buildRepoFields(config);
-    final usecaseInfo = _buildUseCaseInfo(config, entityName, entityCamel);
+    final usecaseInfo = _buildUseCaseInfo(config, entityName);
     final usecaseFields = _buildUseCaseFields(usecaseInfo);
     final constructor = _buildConstructor(config, usecaseInfo);
     final methods = _buildMethods(config, usecaseInfo, entityName, entityCamel);
@@ -95,12 +95,9 @@ class PresenterPlugin extends FileGeneratorPlugin {
   List<_UseCaseInfo> _buildUseCaseInfo(
     GeneratorConfig config,
     String entityName,
-    String entityCamel,
   ) {
     return config.methods
-        .map(
-          (method) => _getUseCaseInfo(config, method, entityName, entityCamel),
-        )
+        .map((method) => _getUseCaseInfo(method, entityName))
         .toList();
   }
 
@@ -118,92 +115,42 @@ class PresenterPlugin extends FileGeneratorPlugin {
         .toList();
   }
 
-  _UseCaseInfo _getUseCaseInfo(
-    GeneratorConfig config,
-    String method,
-    String entityName,
-    String entityCamel,
-  ) {
+  _UseCaseInfo _getUseCaseInfo(String method, String entityName) {
     switch (method) {
       case 'get':
         return _UseCaseInfo(
           className: 'Get${entityName}UseCase',
           fieldName: 'get$entityName',
-          presenterMethod: config.queryFieldType == 'NoParams'
-              ? '''  Future<Result<$entityName, AppFailure>> get$entityName() {
-    return _get$entityName.call(const NoParams());
-  }'''
-              : config.useZorphy
-              ? '''  Future<Result<$entityName, AppFailure>> get$entityName(${config.queryFieldType} ${config.queryField}) {
-    return _get$entityName.call(QueryParams<$entityName>(filter: Eq(${entityName}Fields.${config.queryField}, ${config.queryField})));
-  }'''
-              : '''  Future<Result<$entityName, AppFailure>> get$entityName(${config.queryFieldType} ${config.queryField}) {
-    return _get$entityName.call(QueryParams<$entityName>(params: Params({'${config.queryField}': ${config.queryField}})));
-  }''',
         );
       case 'getList':
         return _UseCaseInfo(
           className: 'Get${entityName}ListUseCase',
           fieldName: 'get${entityName}List',
-          presenterMethod:
-              '''  Future<Result<List<$entityName>, AppFailure>> get${entityName}List([ListQueryParams<$entityName> params = const ListQueryParams()]) {
-    return _get${entityName}List.call(params);
-  }''',
         );
       case 'create':
         return _UseCaseInfo(
           className: 'Create${entityName}UseCase',
           fieldName: 'create$entityName',
-          presenterMethod:
-              '''  Future<Result<$entityName, AppFailure>> create$entityName($entityName $entityCamel) {
-    return _create$entityName.call($entityCamel);
-  }''',
         );
       case 'update':
-        final updateDataType = config.useZorphy
-            ? '${entityName}Patch'
-            : 'Partial<$entityName>';
         return _UseCaseInfo(
           className: 'Update${entityName}UseCase',
           fieldName: 'update$entityName',
-          presenterMethod:
-              '''  Future<Result<$entityName, AppFailure>> update$entityName(${config.idType} ${config.idField}, $updateDataType data) {
-    return _update$entityName.call(UpdateParams<${config.idType}, $updateDataType>(id: ${config.idField}, data: ${config.useZorphy ? 'data' : 'Partial<$entityName>()'}));
-  }''',
         );
       case 'delete':
         return _UseCaseInfo(
           className: 'Delete${entityName}UseCase',
           fieldName: 'delete$entityName',
-          presenterMethod:
-              '''  Future<Result<void, AppFailure>> delete$entityName(${config.idType} ${config.idField}) {
-    return _delete$entityName.call(DeleteParams<${config.idType}>(id: ${config.idField}));
-  }''',
         );
       case 'watch':
         return _UseCaseInfo(
           className: 'Watch${entityName}UseCase',
           fieldName: 'watch$entityName',
-          presenterMethod: config.queryFieldType == 'NoParams'
-              ? '''  Stream<Result<$entityName, AppFailure>> watch$entityName() {
-    return _watch$entityName.call(const NoParams());
-  }'''
-              : config.useZorphy
-              ? '''  Stream<Result<$entityName, AppFailure>> watch$entityName(${config.queryFieldType} ${config.queryField}) {
-    return _watch$entityName.call(QueryParams<$entityName>(filter: Eq(${entityName}Fields.${config.queryField}, ${config.queryField})));
-  }'''
-              : '''  Stream<Result<$entityName, AppFailure>> watch$entityName(${config.queryFieldType} ${config.queryField}) {
-    return _watch$entityName.call(QueryParams<$entityName>(params: Params({'${config.queryField}': ${config.queryField}})));
-  }''',
         );
       case 'watchList':
         return _UseCaseInfo(
           className: 'Watch${entityName}ListUseCase',
           fieldName: 'watch${entityName}List',
-          presenterMethod:
-              '''  Stream<Result<List<$entityName>, AppFailure>> watch${entityName}List([ListQueryParams<$entityName> params = const ListQueryParams()]) {
-    return _watch${entityName}List.call(params);
-  }''',
         );
       default:
         throw ArgumentError('Unsupported method: $method');
@@ -232,15 +179,20 @@ class PresenterPlugin extends FileGeneratorPlugin {
 
     final registrations = useCases
         .map(
-          (info) =>
-              '_${info.fieldName} = registerUseCase(${info.className}($mainRepo));',
+          (info) => refer('_${info.fieldName}')
+              .assign(
+                refer('registerUseCase').call([
+                  refer(info.className).call([refer(mainRepo)]),
+                ]),
+              )
+              .statement,
         )
-        .join('\n');
+        .toList();
 
     return Constructor(
       (c) => c
         ..optionalParameters.addAll(repoParams)
-        ..body = Code(registrations),
+        ..body = Block((b) => b..statements.addAll(registrations)),
     );
   }
 
@@ -302,11 +254,24 @@ class PresenterPlugin extends FileGeneratorPlugin {
     String entityName,
   ) {
     final methodName = info.fieldName;
-    final body = config.queryFieldType == 'NoParams'
-        ? 'return _$methodName.call(const NoParams(), cancelToken: cancelToken);'
+    final paramsExpression = config.queryFieldType == 'NoParams'
+        ? refer('NoParams').constInstance([])
         : config.useZorphy
-        ? 'return _$methodName.call(QueryParams<$entityName>(filter: Eq(${entityName}Fields.${config.queryField}, ${config.queryField})), cancelToken: cancelToken);'
-        : "return _$methodName.call(QueryParams<$entityName>(params: Params({'${config.queryField}': ${config.queryField}})), cancelToken: cancelToken);";
+        ? refer('QueryParams<$entityName>').call([], {
+            'filter': refer('Eq').call([
+              refer('${entityName}Fields').property(config.queryField),
+              refer(config.queryField),
+            ]),
+          })
+        : refer('QueryParams<$entityName>').call([], {
+            'params': refer('Params').call([
+              literalMap({config.queryField: refer(config.queryField)}),
+            ]),
+          });
+
+    final callExpression = refer('_$methodName')
+        .property('call')
+        .call([paramsExpression], {'cancelToken': refer('cancelToken')});
 
     return Method(
       (m) => m
@@ -324,11 +289,17 @@ class PresenterPlugin extends FileGeneratorPlugin {
                 ],
         )
         ..optionalParameters.add(_cancelTokenParam())
-        ..body = Code(body),
+        ..body = Block(
+          (b) => b..statements.add(callExpression.returned.statement),
+        ),
     );
   }
 
   Method _buildGetListMethod(_UseCaseInfo info, String entityName) {
+    final callExpression = refer('_${info.fieldName}')
+        .property('call')
+        .call([refer('params')], {'cancelToken': refer('cancelToken')});
+
     return Method(
       (m) => m
         ..name = 'get${entityName}List'
@@ -338,12 +309,14 @@ class PresenterPlugin extends FileGeneratorPlugin {
             (p) => p
               ..name = 'params'
               ..type = refer('ListQueryParams<$entityName>')
-              ..defaultTo = Code('const ListQueryParams()'),
+              ..defaultTo = refer(
+                'ListQueryParams<$entityName>',
+              ).constInstance([]).code,
           ),
           _cancelTokenParam(),
         ])
-        ..body = Code(
-          'return _${info.fieldName}.call(params, cancelToken: cancelToken);',
+        ..body = Block(
+          (b) => b..statements.add(callExpression.returned.statement),
         ),
     );
   }
@@ -353,6 +326,10 @@ class PresenterPlugin extends FileGeneratorPlugin {
     String entityName,
     String entityCamel,
   ) {
+    final callExpression = refer('_${info.fieldName}')
+        .property('call')
+        .call([refer(entityCamel)], {'cancelToken': refer('cancelToken')});
+
     return Method(
       (m) => m
         ..name = 'create$entityName'
@@ -365,8 +342,8 @@ class PresenterPlugin extends FileGeneratorPlugin {
           ),
         )
         ..optionalParameters.add(_cancelTokenParam())
-        ..body = Code(
-          'return _${info.fieldName}.call($entityCamel, cancelToken: cancelToken);',
+        ..body = Block(
+          (b) => b..statements.add(callExpression.returned.statement),
         ),
     );
   }
@@ -379,7 +356,13 @@ class PresenterPlugin extends FileGeneratorPlugin {
     final dataType = config.useZorphy
         ? '${entityName}Patch'
         : 'Partial<$entityName>';
-    final dataValue = config.useZorphy ? 'data' : 'Partial<$entityName>()';
+    final updateParams = refer(
+      'UpdateParams<${config.idType}, $dataType>',
+    ).call([], {'id': refer(config.idField), 'data': refer('data')});
+    final callExpression = refer('_${info.fieldName}')
+        .property('call')
+        .call([updateParams], {'cancelToken': refer('cancelToken')});
+
     return Method(
       (m) => m
         ..name = 'update$entityName'
@@ -397,13 +380,20 @@ class PresenterPlugin extends FileGeneratorPlugin {
           ),
         ])
         ..optionalParameters.add(_cancelTokenParam())
-        ..body = Code(
-          'return _${info.fieldName}.call(UpdateParams<${config.idType}, $dataType>(id: ${config.idField}, data: $dataValue), cancelToken: cancelToken);',
+        ..body = Block(
+          (b) => b..statements.add(callExpression.returned.statement),
         ),
     );
   }
 
   Method _buildDeleteMethod(GeneratorConfig config, _UseCaseInfo info) {
+    final deleteParams = refer(
+      'DeleteParams<${config.idType}>',
+    ).call([], {'id': refer(config.idField)});
+    final callExpression = refer('_${info.fieldName}')
+        .property('call')
+        .call([deleteParams], {'cancelToken': refer('cancelToken')});
+
     return Method(
       (m) => m
         ..name = 'delete${config.name}'
@@ -416,8 +406,8 @@ class PresenterPlugin extends FileGeneratorPlugin {
           ),
         )
         ..optionalParameters.add(_cancelTokenParam())
-        ..body = Code(
-          'return _${info.fieldName}.call(DeleteParams<${config.idType}>(id: ${config.idField}), cancelToken: cancelToken);',
+        ..body = Block(
+          (b) => b..statements.add(callExpression.returned.statement),
         ),
     );
   }
@@ -428,11 +418,24 @@ class PresenterPlugin extends FileGeneratorPlugin {
     String entityName,
   ) {
     final methodName = info.fieldName;
-    final body = config.queryFieldType == 'NoParams'
-        ? 'return _$methodName.call(const NoParams(), cancelToken: cancelToken);'
+    final paramsExpression = config.queryFieldType == 'NoParams'
+        ? refer('NoParams').constInstance([])
         : config.useZorphy
-        ? 'return _$methodName.call(QueryParams<$entityName>(filter: Eq(${entityName}Fields.${config.queryField}, ${config.queryField})), cancelToken: cancelToken);'
-        : "return _$methodName.call(QueryParams<$entityName>(params: Params({'${config.queryField}': ${config.queryField}})), cancelToken: cancelToken);";
+        ? refer('QueryParams<$entityName>').call([], {
+            'filter': refer('Eq').call([
+              refer('${entityName}Fields').property(config.queryField),
+              refer(config.queryField),
+            ]),
+          })
+        : refer('QueryParams<$entityName>').call([], {
+            'params': refer('Params').call([
+              literalMap({config.queryField: refer(config.queryField)}),
+            ]),
+          });
+
+    final callExpression = refer('_$methodName')
+        .property('call')
+        .call([paramsExpression], {'cancelToken': refer('cancelToken')});
 
     return Method(
       (m) => m
@@ -450,11 +453,17 @@ class PresenterPlugin extends FileGeneratorPlugin {
                 ],
         )
         ..optionalParameters.add(_cancelTokenParam())
-        ..body = Code(body),
+        ..body = Block(
+          (b) => b..statements.add(callExpression.returned.statement),
+        ),
     );
   }
 
   Method _buildWatchListMethod(_UseCaseInfo info, String entityName) {
+    final callExpression = refer('_${info.fieldName}')
+        .property('call')
+        .call([refer('params')], {'cancelToken': refer('cancelToken')});
+
     return Method(
       (m) => m
         ..name = 'watch${entityName}List'
@@ -464,12 +473,14 @@ class PresenterPlugin extends FileGeneratorPlugin {
             (p) => p
               ..name = 'params'
               ..type = refer('ListQueryParams<$entityName>')
-              ..defaultTo = Code('const ListQueryParams()'),
+              ..defaultTo = refer(
+                'ListQueryParams<$entityName>',
+              ).constInstance([]).code,
           ),
           _cancelTokenParam(),
         ])
-        ..body = Code(
-          'return _${info.fieldName}.call(params, cancelToken: cancelToken);',
+        ..body = Block(
+          (b) => b..statements.add(callExpression.returned.statement),
         ),
     );
   }
@@ -515,11 +526,6 @@ class PresenterPlugin extends FileGeneratorPlugin {
 class _UseCaseInfo {
   final String className;
   final String fieldName;
-  final String presenterMethod;
 
-  _UseCaseInfo({
-    required this.className,
-    required this.fieldName,
-    required this.presenterMethod,
-  });
+  _UseCaseInfo({required this.className, required this.fieldName});
 }

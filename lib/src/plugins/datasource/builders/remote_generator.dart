@@ -51,11 +51,13 @@ class RemoteDataSourceBuilder {
               ),
             )
             ..modifier = MethodModifier.async
-            ..body = Code([
-              "logger.info('Initializing $dataSourceName');",
-              '// TODO: Initialize remote connection, auth, etc.',
-              "logger.info('$dataSourceName initialized');",
-            ].join('\n')),
+            ..body = Code(
+              [
+                "logger.info('Initializing $dataSourceName');",
+                '// TODO: Initialize remote connection, auth, etc.',
+                "logger.info('$dataSourceName initialized');",
+              ].join('\n'),
+            ),
         ),
       );
       methods.add(
@@ -98,10 +100,12 @@ class RemoteDataSourceBuilder {
                   ),
                 )
                 ..modifier = MethodModifier.async
-                ..body = Code([
-                  '// TODO: Implement remote API call',
-                  _remoteBody('Implement remote get', gqlConstant),
-                ].join('\n')),
+                ..body = Code(
+                  [
+                    '// TODO: Implement remote API call',
+                    _remoteBody('Implement remote get', gqlConstant),
+                  ].join('\n'),
+                ),
             ),
           );
           break;
@@ -120,10 +124,12 @@ class RemoteDataSourceBuilder {
                   ),
                 )
                 ..modifier = MethodModifier.async
-                ..body = Code([
-                  '// TODO: Implement remote API call',
-                  _remoteBody('Implement remote getList', gqlConstant),
-                ].join('\n')),
+                ..body = Code(
+                  [
+                    '// TODO: Implement remote API call',
+                    _remoteBody('Implement remote getList', gqlConstant),
+                  ].join('\n'),
+                ),
             ),
           );
           break;
@@ -142,16 +148,19 @@ class RemoteDataSourceBuilder {
                   ),
                 )
                 ..modifier = MethodModifier.async
-                ..body = Code([
-                  '// TODO: Implement remote API call',
-                  _remoteBody('Implement remote create', gqlConstant),
-                ].join('\n')),
+                ..body = Code(
+                  [
+                    '// TODO: Implement remote API call',
+                    _remoteBody('Implement remote create', gqlConstant),
+                  ].join('\n'),
+                ),
             ),
           );
           break;
         case 'update':
-          final dataType =
-              config.useZorphy ? '${config.name}Patch' : 'Partial<${config.name}>';
+          final dataType = config.useZorphy
+              ? '${config.name}Patch'
+              : 'Partial<${config.name}>';
           methods.add(
             Method(
               (m) => m
@@ -162,14 +171,18 @@ class RemoteDataSourceBuilder {
                   Parameter(
                     (p) => p
                       ..name = 'params'
-                      ..type = refer('UpdateParams<${config.idType}, $dataType>'),
+                      ..type = refer(
+                        'UpdateParams<${config.idType}, $dataType>',
+                      ),
                   ),
                 )
                 ..modifier = MethodModifier.async
-                ..body = Code([
-                  '// TODO: Implement remote API call',
-                  _remoteBody('Implement remote update', gqlConstant),
-                ].join('\n')),
+                ..body = Code(
+                  [
+                    '// TODO: Implement remote API call',
+                    _remoteBody('Implement remote update', gqlConstant),
+                  ].join('\n'),
+                ),
             ),
           );
           break;
@@ -188,10 +201,12 @@ class RemoteDataSourceBuilder {
                   ),
                 )
                 ..modifier = MethodModifier.async
-                ..body = Code([
-                  '// TODO: Implement remote API call',
-                  _remoteBody('Implement remote delete', gqlConstant),
-                ].join('\n')),
+                ..body = Code(
+                  [
+                    '// TODO: Implement remote API call',
+                    _remoteBody('Implement remote delete', gqlConstant),
+                  ].join('\n'),
+                ),
             ),
           );
           break;
@@ -209,10 +224,12 @@ class RemoteDataSourceBuilder {
                       ..type = refer('QueryParams<$entityName>'),
                   ),
                 )
-                ..body = Code([
-                  '// TODO: Implement remote stream (WebSocket, SSE, etc.)',
-                  _remoteBody('Implement remote watch', gqlConstant),
-                ].join('\n')),
+                ..body = Code(
+                  [
+                    '// TODO: Implement remote stream (WebSocket, SSE, etc.)',
+                    _remoteBody('Implement remote watch', gqlConstant),
+                  ].join('\n'),
+                ),
             ),
           );
           break;
@@ -230,10 +247,12 @@ class RemoteDataSourceBuilder {
                       ..type = refer('ListQueryParams<$entityName>'),
                   ),
                 )
-                ..body = Code([
-                  '// TODO: Implement remote stream (WebSocket, SSE, etc.)',
-                  _remoteBody('Implement remote watchList', gqlConstant),
-                ].join('\n')),
+                ..body = Code(
+                  [
+                    '// TODO: Implement remote stream (WebSocket, SSE, etc.)',
+                    _remoteBody('Implement remote watchList', gqlConstant),
+                  ].join('\n'),
+                ),
             ),
           );
           break;
@@ -242,7 +261,9 @@ class RemoteDataSourceBuilder {
 
     final directives = <Directive>[
       Directive.import('package:zuraffa/zuraffa.dart'),
-      Directive.import('../../../domain/entities/$entitySnake/$entitySnake.dart'),
+      Directive.import(
+        '../../../domain/entities/$entitySnake/$entitySnake.dart',
+      ),
       Directive.import('${entitySnake}_data_source.dart'),
       ...gqlImports.map(Directive.import),
     ];

@@ -465,13 +465,12 @@ class CustomUseCaseGenerator {
       ];
     }
 
-    final body = StringBuffer()
-      ..writeln('cancelToken?.throwIfCancelled();')
-      ..writeln(
-        depField.isEmpty
-            ? 'throw UnimplementedError();'
-            : 'return await $depField.$methodName(params);',
-      );
+    final body = [
+      'cancelToken?.throwIfCancelled();',
+      depField.isEmpty
+          ? 'throw UnimplementedError();'
+          : 'return await $depField.$methodName(params);',
+    ].join('\n');
 
     final returnTypeRef = config.useCaseType == 'completable'
         ? 'Future<void>'
@@ -498,7 +497,7 @@ class CustomUseCaseGenerator {
             ),
           )
           ..annotations.add(CodeExpression(Code('override')))
-          ..body = Code(body.toString()),
+          ..body = Code(body),
       ),
     ];
   }
@@ -569,9 +568,10 @@ class CustomUseCaseGenerator {
         ? returnsType
         : 'Future<$returnsType>';
     final isAsync = config.useCaseType != 'sync';
-    final body = StringBuffer()
-      ..writeln('cancelToken?.throwIfCancelled();')
-      ..writeln("throw UnimplementedError('Implement orchestration logic');");
+    final body = [
+      'cancelToken?.throwIfCancelled();',
+      "throw UnimplementedError('Implement orchestration logic');",
+    ].join('\n');
 
     return Method((b) {
       b
@@ -586,7 +586,7 @@ class CustomUseCaseGenerator {
           ),
         )
         ..annotations.add(CodeExpression(Code('override')))
-        ..body = Code(body.toString());
+        ..body = Code(body);
       if (config.useCaseType != 'sync') {
         b.requiredParameters.add(
           Parameter(

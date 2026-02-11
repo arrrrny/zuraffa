@@ -28,7 +28,7 @@ class AppRoutesBuilder {
               ..static = true
               ..modifier = FieldModifier.constant
               ..type = refer('String')
-              ..assignment = Code("'${entry.value}'"),
+              ..assignment = literalString(entry.value).code,
           ),
         )
         .toList();
@@ -63,7 +63,7 @@ class AppRoutesBuilder {
         ..static = true
         ..modifier = FieldModifier.constant
         ..type = refer('String')
-        ..assignment = Code("'$value'"),
+        ..assignment = literalString(value).code,
     );
     return field.accept(emitter).toString();
   }

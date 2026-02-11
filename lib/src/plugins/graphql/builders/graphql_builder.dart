@@ -1,58 +1,50 @@
-import 'package:path/path.dart' as path;
-import '../core/generation/generation_context.dart';
-import '../models/generator_config.dart';
 import 'package:code_builder/code_builder.dart';
-import '../core/builder/shared/spec_library.dart';
-import '../models/generated_file.dart';
-import '../utils/file_utils.dart';
-import '../utils/string_utils.dart';
+import 'package:path/path.dart' as path;
 
-class GraphQLGenerator {
-  final GeneratorConfig config;
+import '../../../core/builder/shared/spec_library.dart';
+import '../../../models/generated_file.dart';
+import '../../../models/generator_config.dart';
+import '../../../utils/file_utils.dart';
+import '../../../utils/string_utils.dart';
+
+class GraphqlBuilder {
   final String outputDir;
   final bool dryRun;
   final bool force;
   final bool verbose;
   final SpecLibrary specLibrary;
 
-  GraphQLGenerator({
-    required this.config,
+  GraphqlBuilder({
     required this.outputDir,
-    this.dryRun = false,
-    this.force = false,
-    this.verbose = false,
+    required this.dryRun,
+    required this.force,
+    required this.verbose,
     SpecLibrary? specLibrary,
   }) : specLibrary = specLibrary ?? const SpecLibrary();
 
-  GraphQLGenerator.fromContext(GenerationContext context)
-    : this(
-        config: context.config,
-        outputDir: context.outputDir,
-        dryRun: context.dryRun,
-        force: context.force,
-        verbose: context.verbose,
-      );
-
-  Future<List<GeneratedFile>> generate() async {
+  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     final files = <GeneratedFile>[];
 
     if (config.isEntityBased) {
       for (final method in config.methods) {
-        final file = await _generateForMethod(method);
+        final file = await _generateForMethod(config, method);
         files.add(file);
       }
     } else if (config.isCustomUseCase) {
-      final file = await _generateForCustomUseCase();
+      final file = await _generateForCustomUseCase(config);
       files.add(file);
     }
 
     return files;
   }
 
-  Future<GeneratedFile> _generateForMethod(String method) async {
+  Future<GeneratedFile> _generateForMethod(
+    GeneratorConfig config,
+    String method,
+  ) async {
     final entityName = config.name;
     final entitySnake = config.nameSnake;
-    final operationType = _getOperationType(method);
+    final operationType = _getOperationType(config, method);
     final operationName = _getOperationName(method, entityName);
 
     final fileName =
@@ -67,6 +59,7 @@ class GraphQLGenerator {
     );
 
     final gqlString = _generateGraphQLString(
+      config,
       method,
       entityName,
       operationType,
@@ -88,10 +81,12 @@ class GraphQLGenerator {
     );
   }
 
-  Future<GeneratedFile> _generateForCustomUseCase() async {
+  Future<GeneratedFile> _generateForCustomUseCase(
+    GeneratorConfig config,
+  ) async {
     final useCaseName = config.name;
     final domain = config.effectiveDomain;
-    final operationType = _getCustomOperationType();
+    final operationType = _getCustomOperationType(config);
     final operationName = useCaseName.endsWith('UseCase')
         ? useCaseName.substring(0, useCaseName.length - 7)
         : useCaseName;
@@ -108,6 +103,7 @@ class GraphQLGenerator {
     );
 
     final gqlString = _generateCustomGraphQLString(
+      config,
       operationName,
       operationType,
     );
@@ -127,7 +123,7 @@ class GraphQLGenerator {
     );
   }
 
-  String _getOperationType(String method) {
+  String _getOperationType(GeneratorConfig config, String method) {
     if (config.gqlType != null) {
       return config.gqlType!;
     }
@@ -148,12 +144,11 @@ class GraphQLGenerator {
     }
   }
 
-  String _getCustomOperationType() {
+  String _getCustomOperationType(GeneratorConfig config) {
     if (config.gqlType != null) {
       return config.gqlType!;
     }
 
-    // For custom UseCases, gql-type is mandatory when --gql is used
     throw ArgumentError(
       '--gql-type is required for custom UseCases when using --gql',
     );
@@ -181,19 +176,18 @@ class GraphQLGenerator {
   }
 
   String _generateGraphQLString(
+    GeneratorConfig config,
     String method,
     String entityName,
     String operationType,
     String operationName,
   ) {
-    final returnFields = _getReturnFields(entityName);
+    final returnFields = _getReturnFields(config, entityName);
     final inputType = config.gqlInputType ?? '${entityName}Input';
     final inputName = config.gqlInputName ?? 'input';
     final gqlOperationName = config.gqlName ?? operationName;
-    final wrapperName = gqlOperationName; // PascalCase for wrapper
-    final camelCaseOpName = StringUtils.pascalToCamel(
-      gqlOperationName,
-    ); // camelCase for inner
+    final wrapperName = gqlOperationName;
+    final camelCaseOpName = StringUtils.pascalToCamel(gqlOperationName);
 
     switch (method) {
       case 'get':
@@ -263,19 +257,18 @@ class GraphQLGenerator {
   }
 
   String _generateCustomGraphQLString(
+    GeneratorConfig config,
     String operationName,
     String operationType,
   ) {
     final paramsType = config.paramsType ?? 'NoParams';
     final returnsType = config.returnsType ?? 'void';
-    final returnFields = _getCustomReturnFields(returnsType);
+    final returnFields = _getCustomReturnFields(config, returnsType);
     final inputType = config.gqlInputType ?? '${paramsType}Input';
     final inputName = config.gqlInputName ?? 'input';
     final gqlOperationName = config.gqlName ?? operationName;
-    final wrapperName = gqlOperationName; // PascalCase for wrapper
-    final camelCaseOpName = StringUtils.pascalToCamel(
-      gqlOperationName,
-    ); // camelCase for inner
+    final wrapperName = gqlOperationName;
+    final camelCaseOpName = StringUtils.pascalToCamel(gqlOperationName);
 
     if (paramsType == 'NoParams' && config.gqlInputType == null) {
       return _lines([
@@ -296,12 +289,11 @@ class GraphQLGenerator {
     }
   }
 
-  String _getReturnFields(String entityName) {
+  String _getReturnFields(GeneratorConfig config, String entityName) {
     if (config.gqlReturns != null) {
       return _formatGraphQLFields(config.gqlReturns!);
     }
 
-    // Auto-generate common fields
     return _lines([
       '      ${config.idField}',
       '      createdAt',
@@ -309,7 +301,7 @@ class GraphQLGenerator {
     ]);
   }
 
-  String _getCustomReturnFields(String returnsType) {
+  String _getCustomReturnFields(GeneratorConfig config, String returnsType) {
     if (config.gqlReturns != null) {
       return _formatGraphQLFields(config.gqlReturns!);
     }
@@ -318,12 +310,7 @@ class GraphQLGenerator {
       return '      success';
     }
 
-    // Auto-generate common fields for the return type
-    return _lines([
-      '      id',
-      '      createdAt',
-      '      updatedAt',
-    ]);
+    return _lines(['      id', '      createdAt', '      updatedAt']);
   }
 
   String _formatGraphQLFields(String fieldsStr) {
@@ -331,7 +318,6 @@ class GraphQLGenerator {
     final result = StringBuffer();
     final fieldTree = <String, dynamic>{};
 
-    // Build nested field tree
     for (final field in fields) {
       final parts = field.split('.');
       dynamic current = fieldTree;
@@ -339,12 +325,10 @@ class GraphQLGenerator {
       for (int i = 0; i < parts.length; i++) {
         final part = parts[i];
         if (i == parts.length - 1) {
-          // Leaf node
           if (current is Map) {
             current[part] = true;
           }
         } else {
-          // Intermediate node
           if (current is Map) {
             current.putIfAbsent(part, () => <String, dynamic>{});
             current = current[part];
@@ -353,7 +337,6 @@ class GraphQLGenerator {
       }
     }
 
-    // Convert tree to GraphQL format
     _writeGraphQLFields(fieldTree, result, 6);
     return result.toString().trimRight();
   }
@@ -367,10 +350,8 @@ class GraphQLGenerator {
 
     for (final entry in fields.entries) {
       if (entry.value == true) {
-        // Simple field
         buffer.writeln('$spaces${entry.key}');
       } else if (entry.value is Map) {
-        // Nested field
         buffer.writeln('$spaces${entry.key}{');
         _writeGraphQLFields(
           entry.value as Map<String, dynamic>,
@@ -411,17 +392,15 @@ class GraphQLGenerator {
         ..name = constantName
         ..type = refer('String')
         ..modifier = FieldModifier.constant
-        ..assignment = Code(_graphqlLiteral(gqlString)),
+        ..assignment = _graphqlLiteral(gqlString),
     );
-    return specLibrary.emitLibrary(
-      specLibrary.library(specs: [field]),
-    );
+    return specLibrary.emitSpec(field);
   }
 
   String _lines(List<String> lines) => lines.join('\n');
 
-  String _graphqlLiteral(String gqlString) {
+  Code _graphqlLiteral(String gqlString) {
     final escaped = gqlString.replaceAll(r'$', r'\$');
-    return 'r"""$escaped"""';
+    return Code('r"""$escaped"""');
   }
 }

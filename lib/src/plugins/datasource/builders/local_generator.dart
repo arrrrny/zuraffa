@@ -56,10 +56,19 @@ class LocalDataSourceBuilder {
               ),
             )
             ..modifier = MethodModifier.async
-            ..body = Code('''
-logger.info('Initializing $dataSourceName');
-logger.info('$dataSourceName initialized');
-'''),
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer('logger').property('info').call([
+                    literalString('Initializing $dataSourceName'),
+                  ]).statement,
+                )
+                ..statements.add(
+                  refer('logger').property('info').call([
+                    literalString('$dataSourceName initialized'),
+                  ]).statement,
+                ),
+            ),
         ),
       );
       methods.add(
@@ -191,7 +200,7 @@ logger.info('$dataSourceName initialized');
                 : 'Partial<${config.name}>';
             if (hasListMethods) {
               methods.add(
-                _buildMethod(
+                _buildMethodWithBody(
                   name: 'update',
                   returnType: 'Future<${config.name}>',
                   parameters: [
@@ -201,29 +210,14 @@ logger.info('$dataSourceName initialized');
                     ),
                   ],
                   body: config.useZorphy
-                      ? '''
-final existing = _box.values.firstWhere(
-  (item) => item.${config.idField} == params.id,
-  orElse: () => throw notFoundFailure('$entityName not found in cache'),
-);
-final updated = params.data.applyTo(existing);
-await _box.put(updated.${config.idField}, updated);
-return updated;
-'''
-                      : '''
-final existing = _box.values.firstWhere(
-  (item) => item.${config.idField} == params.id,
-  orElse: () => throw notFoundFailure('$entityName not found in cache'),
-);
-await _box.put(existing.${config.idField}, existing);
-return existing;
-''',
+                      ? _buildUpdateWithZorphyBody(config, entityName)
+                      : _buildUpdateWithoutZorphyBody(config, entityName),
                   isAsync: true,
                 ),
               );
             } else {
               methods.add(
-                _buildMethod(
+                _buildMethodWithBody(
                   name: 'update',
                   returnType: 'Future<${config.name}>',
                   parameters: [
@@ -233,23 +227,16 @@ return existing;
                     ),
                   ],
                   body: config.useZorphy
-                      ? '''
-final existing = _box.get('$entitySnake');
-if (existing == null) {
-  throw notFoundFailure('$entityName not found in cache');
-}
-final updated = params.data.applyTo(existing);
-await _box.put('$entitySnake', updated);
-return updated;
-'''
-                      : '''
-final existing = _box.get('$entitySnake');
-if (existing == null) {
-  throw notFoundFailure('$entityName not found in cache');
-}
-await _box.put('$entitySnake', existing);
-return existing;
-''',
+                      ? _buildUpdateSingleWithZorphyBody(
+                          config,
+                          entityName,
+                          entitySnake,
+                        )
+                      : _buildUpdateSingleWithoutZorphyBody(
+                          config,
+                          entityName,
+                          entitySnake,
+                        ),
                   isAsync: true,
                 ),
               );
@@ -257,21 +244,15 @@ return existing;
             break;
           case 'delete':
             methods.add(
-              _buildMethod(
+              _buildMethodWithBody(
                 name: 'delete',
                 returnType: 'Future<void>',
                 parameters: [
                   _param('params', 'DeleteParams<${config.idType}>'),
                 ],
                 body: hasListMethods
-                    ? '''
-final existing = _box.values.firstWhere(
-  (item) => item.${config.idField} == params.id,
-  orElse: () => throw notFoundFailure('$entityName not found in cache'),
-);
-await _box.delete(existing.${config.idField});
-'''
-                    : "await _box.delete('$entitySnake');",
+                    ? _buildDeleteWithListBody(config, entityName)
+                    : Code("await _box.delete('$entitySnake');"),
                 isAsync: true,
               ),
             );
@@ -290,17 +271,11 @@ await _box.delete(existing.${config.idField});
             break;
           case 'watchList':
             methods.add(
-              _buildMethod(
+              _buildMethodWithBody(
                 name: 'watchList',
                 returnType: 'Stream<List<$entityName>>',
                 parameters: [_param('params', 'ListQueryParams<$entityName>')],
-                body: '''
-final existing = _box.values.filter(params.filter).orderBy(params.sort);
-yield existing;
-yield* _box.watch().map(
-  (_) => _box.values.filter(params.filter).orderBy(params.sort),
-);
-''',
+                body: _buildWatchListBody(),
                 isAsync: false,
                 modifier: MethodModifier.asyncStar,
               ),
@@ -483,6 +458,128 @@ yield* _box.watch().map(
         ..requiredParameters.addAll(parameters)
         ..modifier = modifier ?? (isAsync ? MethodModifier.async : null)
         ..body = Code(body),
+    );
+  }
+
+  Method _buildMethodWithBody({
+    required String name,
+    required String returnType,
+    required List<Parameter> parameters,
+    required Code body,
+    required bool isAsync,
+    bool override = true,
+    MethodModifier? modifier,
+  }) {
+    return Method(
+      (m) => m
+        ..name = name
+        ..annotations.addAll(override ? [CodeExpression(Code('override'))] : [])
+        ..returns = refer(returnType)
+        ..requiredParameters.addAll(parameters)
+        ..modifier = modifier ?? (isAsync ? MethodModifier.async : null)
+        ..body = body,
+    );
+  }
+
+  Block _buildUpdateWithZorphyBody(GeneratorConfig config, String entityName) {
+    return Block(
+      (b) => b
+        ..statements.add(
+          Code(
+            "final existing = _box.values.firstWhere((item) => item.${config.idField} == params.id, orElse: () => throw notFoundFailure('$entityName not found in cache'),);",
+          ),
+        )
+        ..statements.add(Code('final updated = params.data.applyTo(existing);'))
+        ..statements.add(
+          Code('await _box.put(updated.${config.idField}, updated);'),
+        )
+        ..statements.add(Code('return updated;')),
+    );
+  }
+
+  Block _buildUpdateWithoutZorphyBody(
+    GeneratorConfig config,
+    String entityName,
+  ) {
+    return Block(
+      (b) => b
+        ..statements.add(
+          Code(
+            "final existing = _box.values.firstWhere((item) => item.${config.idField} == params.id, orElse: () => throw notFoundFailure('$entityName not found in cache'),);",
+          ),
+        )
+        ..statements.add(
+          Code('await _box.put(existing.${config.idField}, existing);'),
+        )
+        ..statements.add(Code('return existing;')),
+    );
+  }
+
+  Block _buildUpdateSingleWithZorphyBody(
+    GeneratorConfig config,
+    String entityName,
+    String entitySnake,
+  ) {
+    return Block(
+      (b) => b
+        ..statements.add(Code("final existing = _box.get('$entitySnake');"))
+        ..statements.add(
+          Code(
+            "if (existing == null) { throw notFoundFailure('$entityName not found in cache'); }",
+          ),
+        )
+        ..statements.add(Code('final updated = params.data.applyTo(existing);'))
+        ..statements.add(Code("await _box.put('$entitySnake', updated);"))
+        ..statements.add(Code('return updated;')),
+    );
+  }
+
+  Block _buildUpdateSingleWithoutZorphyBody(
+    GeneratorConfig config,
+    String entityName,
+    String entitySnake,
+  ) {
+    return Block(
+      (b) => b
+        ..statements.add(Code("final existing = _box.get('$entitySnake');"))
+        ..statements.add(
+          Code(
+            "if (existing == null) { throw notFoundFailure('$entityName not found in cache'); }",
+          ),
+        )
+        ..statements.add(Code("await _box.put('$entitySnake', existing);"))
+        ..statements.add(Code('return existing;')),
+    );
+  }
+
+  Block _buildDeleteWithListBody(GeneratorConfig config, String entityName) {
+    return Block(
+      (b) => b
+        ..statements.add(
+          Code(
+            "final existing = _box.values.firstWhere((item) => item.${config.idField} == params.id, orElse: () => throw notFoundFailure('$entityName not found in cache'),);",
+          ),
+        )
+        ..statements.add(
+          Code('await _box.delete(existing.${config.idField});'),
+        ),
+    );
+  }
+
+  Block _buildWatchListBody() {
+    return Block(
+      (b) => b
+        ..statements.add(
+          Code(
+            'final existing = _box.values.filter(params.filter).orderBy(params.sort);',
+          ),
+        )
+        ..statements.add(Code('yield existing;'))
+        ..statements.add(
+          Code(
+            'yield* _box.watch().map((_) => _box.values.filter(params.filter).orderBy(params.sort),);',
+          ),
+        ),
     );
   }
 

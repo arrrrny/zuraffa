@@ -1,20 +1,28 @@
 import '../../core/plugin_system/plugin_interface.dart';
-import '../../generator/mock_generator.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import 'builders/mock_builder.dart';
 
 class MockPlugin extends FileGeneratorPlugin {
   final String outputDir;
   final bool dryRun;
   final bool force;
   final bool verbose;
+  late final MockBuilder mockBuilder;
 
   MockPlugin({
     required this.outputDir,
     required this.dryRun,
     required this.force,
     required this.verbose,
-  });
+  }) {
+    mockBuilder = MockBuilder(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+  }
 
   @override
   String get id => 'mock';
@@ -30,12 +38,6 @@ class MockPlugin extends FileGeneratorPlugin {
     if (!config.generateMock && !config.generateMockDataOnly) {
       return [];
     }
-    return MockGenerator.generate(
-      config,
-      outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
+    return mockBuilder.generate(config);
   }
 }

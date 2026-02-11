@@ -133,33 +133,9 @@ class ControllerPlugin extends FileGeneratorPlugin {
   ) {
     final hasParams = config.queryFieldType != 'NoParams';
     final args = hasParams ? config.queryField : '';
-    final callArgs = _callArgs(args);
     final body = withState
-        ? '''
-final token = cancelToken ?? createCancelToken();
-updateState(viewState.copyWith(isGetting: true));
-final result = await _presenter.get$entityName($callArgs);
-
-result.fold(
-  (entity) => updateState(viewState.copyWith(
-    isGetting: false,
-    $entityCamel: entity,
-  )),
-  (failure) => updateState(viewState.copyWith(
-    isGetting: false,
-    error: failure,
-  )),
-);
-'''
-        : '''
-final token = cancelToken ?? createCancelToken();
-final result = await _presenter.get$entityName($callArgs);
-
-result.fold(
-  (entity) {},
-  (failure) {},
-);
-''';
+        ? _buildGetWithStateBody(entityName, entityCamel, args)
+        : _buildGetWithoutStateBody(entityName, args);
 
     return Method(
       (m) => m
@@ -178,7 +154,7 @@ result.fold(
               : const [],
         )
         ..optionalParameters.add(_cancelTokenParam())
-        ..body = Code(body),
+        ..body = body,
     );
   }
 
@@ -187,33 +163,9 @@ result.fold(
     String entityCamel,
     bool withState,
   ) {
-    final callArgs = _callArgs('params');
     final body = withState
-        ? '''
-final token = cancelToken ?? createCancelToken();
-updateState(viewState.copyWith(isGettingList: true));
-final result = await _presenter.get${entityName}List($callArgs);
-
-result.fold(
-  (list) => updateState(viewState.copyWith(
-    isGettingList: false,
-    ${entityCamel}List: list,
-  )),
-  (failure) => updateState(viewState.copyWith(
-    isGettingList: false,
-    error: failure,
-  )),
-);
-'''
-        : '''
-final token = cancelToken ?? createCancelToken();
-final result = await _presenter.get${entityName}List($callArgs);
-
-result.fold(
-  (list) {},
-  (failure) {},
-);
-''';
+        ? _buildGetListWithStateBody(entityName, entityCamel)
+        : _buildGetListWithoutStateBody(entityName);
 
     return Method(
       (m) => m
@@ -229,7 +181,7 @@ result.fold(
           ),
           _cancelTokenParam(),
         ])
-        ..body = Code(body),
+        ..body = body,
     );
   }
 
@@ -241,36 +193,14 @@ result.fold(
   ) {
     final hasListMethod = config.methods.contains('getList');
     final hasWatchList = config.methods.contains('watchList');
-    final listUpdate = (hasListMethod && !hasWatchList)
-        ? '${entityCamel}List: [...viewState.${entityCamel}List, created],'
-        : '';
-    final callArgs = _callArgs(entityCamel);
     final body = withState
-        ? '''
-final token = cancelToken ?? createCancelToken();
-updateState(viewState.copyWith(isCreating: true));
-final result = await _presenter.create$entityName($callArgs);
-
-result.fold(
-  (created) => updateState(viewState.copyWith(
-    isCreating: false,
-    $listUpdate
-  )),
-  (failure) => updateState(viewState.copyWith(
-    isCreating: false,
-    error: failure,
-  )),
-);
-'''
-        : '''
-final token = cancelToken ?? createCancelToken();
-final result = await _presenter.create$entityName($callArgs);
-
-result.fold(
-  (created) {},
-  (failure) {},
-);
-''';
+        ? _buildCreateWithStateBody(
+            entityName,
+            entityCamel,
+            hasListMethod,
+            hasWatchList,
+          )
+        : _buildCreateWithoutStateBody(entityName, entityCamel);
 
     return Method(
       (m) => m
@@ -285,7 +215,7 @@ result.fold(
           ),
         )
         ..optionalParameters.add(_cancelTokenParam())
-        ..body = Code(body),
+        ..body = body,
     );
   }
 
@@ -300,39 +230,15 @@ result.fold(
         : 'Partial<$entityName>';
     final hasListMethod = config.methods.contains('getList');
     final hasWatchList = config.methods.contains('watchList');
-    final listUpdate = (hasListMethod && !hasWatchList)
-        ? '${entityCamel}List: viewState.${entityCamel}List.map((e) => e.${config.queryField} == updated.${config.queryField} ? updated : e).toList(),'
-        : '';
-    final singleUpdate =
-        '$entityCamel: viewState.$entityCamel?.${config.queryField} == updated.${config.queryField} ? updated : viewState.$entityCamel,';
-    final callArgs = _callArgs('${config.idField}, data');
     final body = withState
-        ? '''
-final token = cancelToken ?? createCancelToken();
-updateState(viewState.copyWith(isUpdating: true));
-final result = await _presenter.update$entityName($callArgs);
-
-result.fold(
-  (updated) => updateState(viewState.copyWith(
-    isUpdating: false,
-    $listUpdate
-    $singleUpdate
-  )),
-  (failure) => updateState(viewState.copyWith(
-    isUpdating: false,
-    error: failure,
-  )),
-);
-'''
-        : '''
-final token = cancelToken ?? createCancelToken();
-final result = await _presenter.update$entityName($callArgs);
-
-result.fold(
-  (updated) {},
-  (failure) {},
-);
-''';
+        ? _buildUpdateWithStateBody(
+            config,
+            entityName,
+            entityCamel,
+            hasListMethod,
+            hasWatchList,
+          )
+        : _buildUpdateWithoutStateBody(config, entityName);
 
     return Method(
       (m) => m
@@ -352,7 +258,7 @@ result.fold(
           ),
         ])
         ..optionalParameters.add(_cancelTokenParam())
-        ..body = Code(body),
+        ..body = body,
     );
   }
 
@@ -365,37 +271,14 @@ result.fold(
     final hasListMethod =
         config.methods.contains('getList') ||
         config.methods.contains('watchList');
-    final listUpdate = hasListMethod
-        ? '${entityCamel}List: viewState.${entityCamel}List.where((e) => e.${config.queryField} != ${config.queryField}).toList(),'
-        : '';
-    final callArgs = _callArgs(config.idField);
     final body = withState
-        ? '''
-final token = cancelToken ?? createCancelToken();
-updateState(viewState.copyWith(
-  isDeleting: true,
-  $listUpdate
-));
-
-final result = await _presenter.delete$entityName($callArgs);
-
-result.fold(
-  (_) => updateState(viewState.copyWith(isDeleting: false)),
-  (failure) => updateState(viewState.copyWith(
-    isDeleting: false,
-    error: failure,
-  )),
-);
-'''
-        : '''
-final token = cancelToken ?? createCancelToken();
-final result = await _presenter.delete$entityName($callArgs);
-
-result.fold(
-  (_) {},
-  (failure) {},
-);
-''';
+        ? _buildDeleteWithStateBody(
+            config,
+            entityName,
+            entityCamel,
+            hasListMethod,
+          )
+        : _buildDeleteWithoutStateBody(entityName, config.idField);
 
     return Method(
       (m) => m
@@ -410,7 +293,7 @@ result.fold(
           ),
         )
         ..optionalParameters.add(_cancelTokenParam())
-        ..body = Code(body),
+        ..body = body,
     );
   }
 
@@ -422,39 +305,9 @@ result.fold(
   ) {
     final hasParams = config.queryFieldType != 'NoParams';
     final args = hasParams ? config.queryField : '';
-    final callArgs = _callArgs(args);
     final body = withState
-        ? '''
-final token = cancelToken ?? createCancelToken();
-updateState(viewState.copyWith(isWatching: true));
-final subscription = _presenter.watch$entityName($callArgs).listen(
-  (result) {
-    result.fold(
-      (entity) => updateState(viewState.copyWith(
-        isWatching: false,
-        $entityCamel: entity,
-      )),
-      (failure) => updateState(viewState.copyWith(
-        isWatching: false,
-        error: failure,
-      )),
-    );
-  },
-);
-registerSubscription(subscription);
-'''
-        : '''
-final token = cancelToken ?? createCancelToken();
-final subscription = _presenter.watch$entityName($callArgs).listen(
-  (result) {
-    result.fold(
-      (entity) {},
-      (failure) {},
-    );
-  },
-);
-registerSubscription(subscription);
-''';
+        ? _buildWatchWithStateBody(entityName, entityCamel, args)
+        : _buildWatchWithoutStateBody(entityName, args);
 
     return Method(
       (m) => m
@@ -472,7 +325,7 @@ registerSubscription(subscription);
               : const [],
         )
         ..optionalParameters.add(_cancelTokenParam())
-        ..body = Code(body),
+        ..body = body,
     );
   }
 
@@ -481,39 +334,9 @@ registerSubscription(subscription);
     String entityCamel,
     bool withState,
   ) {
-    final callArgs = _callArgs('params');
     final body = withState
-        ? '''
-final token = cancelToken ?? createCancelToken();
-updateState(viewState.copyWith(isWatchingList: true));
-final subscription = _presenter.watch${entityName}List($callArgs).listen(
-  (result) {
-    result.fold(
-      (list) => updateState(viewState.copyWith(
-        isWatchingList: false,
-        ${entityCamel}List: list,
-      )),
-      (failure) => updateState(viewState.copyWith(
-        isWatchingList: false,
-        error: failure,
-      )),
-    );
-  },
-);
-registerSubscription(subscription);
-'''
-        : '''
-final token = cancelToken ?? createCancelToken();
-final subscription = _presenter.watch${entityName}List($callArgs).listen(
-  (result) {
-    result.fold(
-      (list) {},
-      (failure) {},
-    );
-  },
-);
-registerSubscription(subscription);
-''';
+        ? _buildWatchListWithStateBody(entityName, entityCamel)
+        : _buildWatchListWithoutStateBody(entityName);
 
     return Method(
       (m) => m
@@ -528,7 +351,510 @@ registerSubscription(subscription);
           ),
           _cancelTokenParam(),
         ])
-        ..body = Code(body),
+        ..body = body,
+    );
+  }
+
+  Block _buildGetWithStateBody(
+    String entityName,
+    String entityCamel,
+    String args,
+  ) {
+    final resultCall = refer(
+      '_presenter',
+    ).property('get$entityName').call(_callArgsExpressions(args)).awaited;
+    return Block(
+      (b) => b
+        ..statements.add(_tokenStatement())
+        ..statements.add(
+          _updateStateStatement({'isGetting': literalBool(true)}),
+        )
+        ..statements.add(declareFinal('result').assign(resultCall).statement)
+        ..statements.add(
+          _resultFold(
+            resultVar: 'result',
+            successParams: ['entity'],
+            successBody: Block(
+              (bb) => bb
+                ..statements.add(
+                  _updateStateStatement({
+                    'isGetting': literalBool(false),
+                    entityCamel: refer('entity'),
+                  }),
+                ),
+            ),
+            failureParams: ['failure'],
+            failureBody: Block(
+              (bb) => bb
+                ..statements.add(
+                  _updateStateStatement({
+                    'isGetting': literalBool(false),
+                    'error': refer('failure'),
+                  }),
+                ),
+            ),
+          ),
+        ),
+    );
+  }
+
+  Block _buildGetWithoutStateBody(String entityName, String args) {
+    final resultCall = refer(
+      '_presenter',
+    ).property('get$entityName').call(_callArgsExpressions(args)).awaited;
+    return Block(
+      (b) => b
+        ..statements.add(_tokenStatement())
+        ..statements.add(declareFinal('result').assign(resultCall).statement)
+        ..statements.add(
+          _resultFold(
+            resultVar: 'result',
+            successParams: ['entity'],
+            successBody: Block((bb) => bb),
+            failureParams: ['failure'],
+            failureBody: Block((bb) => bb),
+          ),
+        ),
+    );
+  }
+
+  Block _buildGetListWithStateBody(String entityName, String entityCamel) {
+    final resultCall = refer('_presenter')
+        .property('get${entityName}List')
+        .call(_callArgsExpressions('params'))
+        .awaited;
+    return Block(
+      (b) => b
+        ..statements.add(_tokenStatement())
+        ..statements.add(
+          _updateStateStatement({'isGettingList': literalBool(true)}),
+        )
+        ..statements.add(declareFinal('result').assign(resultCall).statement)
+        ..statements.add(
+          _resultFold(
+            resultVar: 'result',
+            successParams: ['list'],
+            successBody: Block(
+              (bb) => bb
+                ..statements.add(
+                  _updateStateStatement({
+                    'isGettingList': literalBool(false),
+                    '${entityCamel}List': refer('list'),
+                  }),
+                ),
+            ),
+            failureParams: ['failure'],
+            failureBody: Block(
+              (bb) => bb
+                ..statements.add(
+                  _updateStateStatement({
+                    'isGettingList': literalBool(false),
+                    'error': refer('failure'),
+                  }),
+                ),
+            ),
+          ),
+        ),
+    );
+  }
+
+  Block _buildGetListWithoutStateBody(String entityName) {
+    final resultCall = refer('_presenter')
+        .property('get${entityName}List')
+        .call(_callArgsExpressions('params'))
+        .awaited;
+    return Block(
+      (b) => b
+        ..statements.add(_tokenStatement())
+        ..statements.add(declareFinal('result').assign(resultCall).statement)
+        ..statements.add(
+          _resultFold(
+            resultVar: 'result',
+            successParams: ['list'],
+            successBody: Block((bb) => bb),
+            failureParams: ['failure'],
+            failureBody: Block((bb) => bb),
+          ),
+        ),
+    );
+  }
+
+  Block _buildCreateWithStateBody(
+    String entityName,
+    String entityCamel,
+    bool hasListMethod,
+    bool hasWatchList,
+  ) {
+    final resultCall = refer('_presenter')
+        .property('create$entityName')
+        .call(_callArgsExpressions(entityCamel))
+        .awaited;
+    final updateArgs = <String, Expression>{'isCreating': literalBool(false)};
+    if (hasListMethod && !hasWatchList) {
+      updateArgs['${entityCamel}List'] = CodeExpression(
+        Code('[...viewState.${entityCamel}List, created]'),
+      );
+    }
+    return Block(
+      (b) => b
+        ..statements.add(_tokenStatement())
+        ..statements.add(
+          _updateStateStatement({'isCreating': literalBool(true)}),
+        )
+        ..statements.add(declareFinal('result').assign(resultCall).statement)
+        ..statements.add(
+          _resultFold(
+            resultVar: 'result',
+            successParams: ['created'],
+            successBody: Block(
+              (bb) => bb..statements.add(_updateStateStatement(updateArgs)),
+            ),
+            failureParams: ['failure'],
+            failureBody: Block(
+              (bb) => bb
+                ..statements.add(
+                  _updateStateStatement({
+                    'isCreating': literalBool(false),
+                    'error': refer('failure'),
+                  }),
+                ),
+            ),
+          ),
+        ),
+    );
+  }
+
+  Block _buildCreateWithoutStateBody(String entityName, String entityCamel) {
+    final resultCall = refer('_presenter')
+        .property('create$entityName')
+        .call(_callArgsExpressions(entityCamel))
+        .awaited;
+    return Block(
+      (b) => b
+        ..statements.add(_tokenStatement())
+        ..statements.add(declareFinal('result').assign(resultCall).statement)
+        ..statements.add(
+          _resultFold(
+            resultVar: 'result',
+            successParams: ['created'],
+            successBody: Block((bb) => bb),
+            failureParams: ['failure'],
+            failureBody: Block((bb) => bb),
+          ),
+        ),
+    );
+  }
+
+  Block _buildUpdateWithStateBody(
+    GeneratorConfig config,
+    String entityName,
+    String entityCamel,
+    bool hasListMethod,
+    bool hasWatchList,
+  ) {
+    final resultCall = refer('_presenter')
+        .property('update$entityName')
+        .call(_callArgsExpressions('${config.idField}, data'))
+        .awaited;
+    final updateArgs = <String, Expression>{
+      'isUpdating': literalBool(false),
+      entityCamel: CodeExpression(
+        Code(
+          'viewState.$entityCamel?.${config.queryField} == updated.${config.queryField} ? updated : viewState.$entityCamel',
+        ),
+      ),
+    };
+    if (hasListMethod && !hasWatchList) {
+      updateArgs['${entityCamel}List'] = CodeExpression(
+        Code(
+          'viewState.${entityCamel}List.map((e) => e.${config.queryField} == updated.${config.queryField} ? updated : e).toList()',
+        ),
+      );
+    }
+    return Block(
+      (b) => b
+        ..statements.add(_tokenStatement())
+        ..statements.add(
+          _updateStateStatement({'isUpdating': literalBool(true)}),
+        )
+        ..statements.add(declareFinal('result').assign(resultCall).statement)
+        ..statements.add(
+          _resultFold(
+            resultVar: 'result',
+            successParams: ['updated'],
+            successBody: Block(
+              (bb) => bb..statements.add(_updateStateStatement(updateArgs)),
+            ),
+            failureParams: ['failure'],
+            failureBody: Block(
+              (bb) => bb
+                ..statements.add(
+                  _updateStateStatement({
+                    'isUpdating': literalBool(false),
+                    'error': refer('failure'),
+                  }),
+                ),
+            ),
+          ),
+        ),
+    );
+  }
+
+  Block _buildUpdateWithoutStateBody(
+    GeneratorConfig config,
+    String entityName,
+  ) {
+    final resultCall = refer('_presenter')
+        .property('update$entityName')
+        .call(_callArgsExpressions('${config.idField}, data'))
+        .awaited;
+    return Block(
+      (b) => b
+        ..statements.add(_tokenStatement())
+        ..statements.add(declareFinal('result').assign(resultCall).statement)
+        ..statements.add(
+          _resultFold(
+            resultVar: 'result',
+            successParams: ['updated'],
+            successBody: Block((bb) => bb),
+            failureParams: ['failure'],
+            failureBody: Block((bb) => bb),
+          ),
+        ),
+    );
+  }
+
+  Block _buildDeleteWithStateBody(
+    GeneratorConfig config,
+    String entityName,
+    String entityCamel,
+    bool hasListMethod,
+  ) {
+    final resultCall = refer('_presenter')
+        .property('delete$entityName')
+        .call(_callArgsExpressions(config.idField))
+        .awaited;
+    final deleteArgs = <String, Expression>{'isDeleting': literalBool(true)};
+    if (hasListMethod) {
+      deleteArgs['${entityCamel}List'] = CodeExpression(
+        Code(
+          'viewState.${entityCamel}List.where((e) => e.${config.queryField} != ${config.queryField}).toList()',
+        ),
+      );
+    }
+    return Block(
+      (b) => b
+        ..statements.add(_tokenStatement())
+        ..statements.add(_updateStateStatement(deleteArgs))
+        ..statements.add(declareFinal('result').assign(resultCall).statement)
+        ..statements.add(
+          _resultFold(
+            resultVar: 'result',
+            successParams: ['_'],
+            successBody: Block(
+              (bb) => bb
+                ..statements.add(
+                  _updateStateStatement({'isDeleting': literalBool(false)}),
+                ),
+            ),
+            failureParams: ['failure'],
+            failureBody: Block(
+              (bb) => bb
+                ..statements.add(
+                  _updateStateStatement({
+                    'isDeleting': literalBool(false),
+                    'error': refer('failure'),
+                  }),
+                ),
+            ),
+          ),
+        ),
+    );
+  }
+
+  Block _buildDeleteWithoutStateBody(String entityName, String idField) {
+    final resultCall = refer(
+      '_presenter',
+    ).property('delete$entityName').call(_callArgsExpressions(idField)).awaited;
+    return Block(
+      (b) => b
+        ..statements.add(_tokenStatement())
+        ..statements.add(declareFinal('result').assign(resultCall).statement)
+        ..statements.add(
+          _resultFold(
+            resultVar: 'result',
+            successParams: ['_'],
+            successBody: Block((bb) => bb),
+            failureParams: ['failure'],
+            failureBody: Block((bb) => bb),
+          ),
+        ),
+    );
+  }
+
+  Block _buildWatchWithStateBody(
+    String entityName,
+    String entityCamel,
+    String args,
+  ) {
+    final foldStatement = _resultFold(
+      resultVar: 'result',
+      successParams: ['entity'],
+      successBody: Block(
+        (bb) => bb
+          ..statements.add(
+            _updateStateStatement({
+              'isWatching': literalBool(false),
+              entityCamel: refer('entity'),
+            }),
+          ),
+      ),
+      failureParams: ['failure'],
+      failureBody: Block(
+        (bb) => bb
+          ..statements.add(
+            _updateStateStatement({
+              'isWatching': literalBool(false),
+              'error': refer('failure'),
+            }),
+          ),
+      ),
+    );
+    final listenBody = Block((bb) => bb..statements.add(foldStatement));
+    final listenClosure = Method(
+      (m) => m
+        ..requiredParameters.add(Parameter((p) => p..name = 'result'))
+        ..body = listenBody,
+    ).closure;
+    final subscriptionCall = refer('_presenter')
+        .property('watch$entityName')
+        .call(_callArgsExpressions(args))
+        .property('listen')
+        .call([listenClosure]);
+    return Block(
+      (b) => b
+        ..statements.add(_tokenStatement())
+        ..statements.add(
+          _updateStateStatement({'isWatching': literalBool(true)}),
+        )
+        ..statements.add(
+          declareFinal('subscription').assign(subscriptionCall).statement,
+        )
+        ..statements.add(
+          refer('registerSubscription').call([refer('subscription')]).statement,
+        ),
+    );
+  }
+
+  Block _buildWatchWithoutStateBody(String entityName, String args) {
+    final foldStatement = _resultFold(
+      resultVar: 'result',
+      successParams: ['entity'],
+      successBody: Block((bb) => bb),
+      failureParams: ['failure'],
+      failureBody: Block((bb) => bb),
+    );
+    final listenBody = Block((bb) => bb..statements.add(foldStatement));
+    final listenClosure = Method(
+      (m) => m
+        ..requiredParameters.add(Parameter((p) => p..name = 'result'))
+        ..body = listenBody,
+    ).closure;
+    final subscriptionCall = refer('_presenter')
+        .property('watch$entityName')
+        .call(_callArgsExpressions(args))
+        .property('listen')
+        .call([listenClosure]);
+    return Block(
+      (b) => b
+        ..statements.add(_tokenStatement())
+        ..statements.add(
+          declareFinal('subscription').assign(subscriptionCall).statement,
+        )
+        ..statements.add(
+          refer('registerSubscription').call([refer('subscription')]).statement,
+        ),
+    );
+  }
+
+  Block _buildWatchListWithStateBody(String entityName, String entityCamel) {
+    final foldStatement = _resultFold(
+      resultVar: 'result',
+      successParams: ['list'],
+      successBody: Block(
+        (bb) => bb
+          ..statements.add(
+            _updateStateStatement({
+              'isWatchingList': literalBool(false),
+              '${entityCamel}List': refer('list'),
+            }),
+          ),
+      ),
+      failureParams: ['failure'],
+      failureBody: Block(
+        (bb) => bb
+          ..statements.add(
+            _updateStateStatement({
+              'isWatchingList': literalBool(false),
+              'error': refer('failure'),
+            }),
+          ),
+      ),
+    );
+    final listenBody = Block((bb) => bb..statements.add(foldStatement));
+    final listenClosure = Method(
+      (m) => m
+        ..requiredParameters.add(Parameter((p) => p..name = 'result'))
+        ..body = listenBody,
+    ).closure;
+    final subscriptionCall = refer('_presenter')
+        .property('watch${entityName}List')
+        .call(_callArgsExpressions('params'))
+        .property('listen')
+        .call([listenClosure]);
+    return Block(
+      (b) => b
+        ..statements.add(_tokenStatement())
+        ..statements.add(
+          _updateStateStatement({'isWatchingList': literalBool(true)}),
+        )
+        ..statements.add(
+          declareFinal('subscription').assign(subscriptionCall).statement,
+        )
+        ..statements.add(
+          refer('registerSubscription').call([refer('subscription')]).statement,
+        ),
+    );
+  }
+
+  Block _buildWatchListWithoutStateBody(String entityName) {
+    final foldStatement = _resultFold(
+      resultVar: 'result',
+      successParams: ['list'],
+      successBody: Block((bb) => bb),
+      failureParams: ['failure'],
+      failureBody: Block((bb) => bb),
+    );
+    final listenBody = Block((bb) => bb..statements.add(foldStatement));
+    final listenClosure = Method(
+      (m) => m
+        ..requiredParameters.add(Parameter((p) => p..name = 'result'))
+        ..body = listenBody,
+    ).closure;
+    final subscriptionCall = refer('_presenter')
+        .property('watch${entityName}List')
+        .call(_callArgsExpressions('params'))
+        .property('listen')
+        .call([listenClosure]);
+    return Block(
+      (b) => b
+        ..statements.add(_tokenStatement())
+        ..statements.add(
+          declareFinal('subscription').assign(subscriptionCall).statement,
+        )
+        ..statements.add(
+          refer('registerSubscription').call([refer('subscription')]).statement,
+        ),
     );
   }
 
@@ -541,11 +867,55 @@ registerSubscription(subscription);
     );
   }
 
-  String _callArgs(String args) {
-    if (args.isEmpty) {
-      return 'token';
-    }
-    return '$args, token';
+  List<Expression> _callArgsExpressions(String args) {
+    final parts = args
+        .split(',')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+    final expressions = parts.map(refer).toList();
+    expressions.add(refer('token'));
+    return expressions;
+  }
+
+  Code _tokenStatement() {
+    return declareFinal('token')
+        .assign(
+          refer('cancelToken').ifNullThen(refer('createCancelToken').call([])),
+        )
+        .statement;
+  }
+
+  Code _updateStateStatement(Map<String, Expression> updates) {
+    return refer('updateState').call([
+      refer('viewState').property('copyWith').call([], updates),
+    ]).statement;
+  }
+
+  Code _resultFold({
+    required String resultVar,
+    required List<String> successParams,
+    required Block successBody,
+    required List<String> failureParams,
+    required Block failureBody,
+  }) {
+    final success = Method(
+      (m) => m
+        ..requiredParameters.addAll(
+          successParams.map((name) => Parameter((p) => p..name = name)),
+        )
+        ..body = successBody,
+    );
+    final failure = Method(
+      (m) => m
+        ..requiredParameters.addAll(
+          failureParams.map((name) => Parameter((p) => p..name = name)),
+        )
+        ..body = failureBody,
+    );
+    return refer(
+      resultVar,
+    ).property('fold').call([success.closure, failure.closure]).statement;
   }
 
   List<String> _buildImports(

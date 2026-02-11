@@ -1,20 +1,28 @@
 import '../../core/plugin_system/plugin_interface.dart';
-import '../../generator/observer_generator.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import 'builders/observer_builder.dart';
 
 class ObserverPlugin extends FileGeneratorPlugin {
   final String outputDir;
   final bool dryRun;
   final bool force;
   final bool verbose;
+  late final ObserverBuilder observerBuilder;
 
   ObserverPlugin({
     required this.outputDir,
     required this.dryRun,
     required this.force,
     required this.verbose,
-  });
+  }) {
+    observerBuilder = ObserverBuilder(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+  }
 
   @override
   String get id => 'observer';
@@ -30,14 +38,7 @@ class ObserverPlugin extends FileGeneratorPlugin {
     if (!config.generateObserver) {
       return [];
     }
-    final generator = ObserverGenerator(
-      config: config,
-      outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
-    final file = await generator.generate();
+    final file = await observerBuilder.generate(config);
     return [file];
   }
 }

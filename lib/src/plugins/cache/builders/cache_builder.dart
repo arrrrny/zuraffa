@@ -1,53 +1,45 @@
 import 'dart:io';
+
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
-import '../core/builder/shared/spec_library.dart';
-import '../core/generation/generation_context.dart';
-import '../models/generator_config.dart';
-import '../models/generated_file.dart';
-import '../utils/file_utils.dart';
-import '../utils/entity_analyzer.dart';
-import '../utils/string_utils.dart';
 
-class CacheGenerator {
-  final GeneratorConfig config;
+import '../../../core/builder/shared/spec_library.dart';
+import '../../../models/generated_file.dart';
+import '../../../models/generator_config.dart';
+import '../../../utils/entity_analyzer.dart';
+import '../../../utils/file_utils.dart';
+import '../../../utils/string_utils.dart';
+
+class CacheBuilder {
   final String outputDir;
   final bool dryRun;
   final bool force;
   final bool verbose;
+  final SpecLibrary specLibrary;
 
-  CacheGenerator({
-    required this.config,
+  CacheBuilder({
     required this.outputDir,
-    this.dryRun = false,
-    this.force = false,
-    this.verbose = false,
-  });
+    required this.dryRun,
+    required this.force,
+    required this.verbose,
+    SpecLibrary? specLibrary,
+  }) : specLibrary = specLibrary ?? const SpecLibrary();
 
-  CacheGenerator.fromContext(GenerationContext context)
-    : this(
-        config: context.config,
-        outputDir: context.outputDir,
-        dryRun: context.dryRun,
-        force: context.force,
-        verbose: context.verbose,
-      );
-
-  Future<List<GeneratedFile>> generate() async {
+  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     if (!config.enableCache || config.cacheStorage != 'hive') {
       return [];
     }
 
     final files = <GeneratedFile>[];
-    files.add(await _generateCacheInitFile());
-    files.add(await _generateCachePolicyFile());
+    files.add(await _generateCacheInitFile(config));
+    files.add(await _generateCachePolicyFile(config));
     files.add(await _generateTimestampCacheFile());
     await _regenerateHiveRegistrar();
     await _regenerateCacheIndex();
     return files;
   }
 
-  Future<GeneratedFile> _generateCacheInitFile() async {
+  Future<GeneratedFile> _generateCacheInitFile(GeneratorConfig config) async {
     final entityName = config.name;
     final entitySnake = config.nameSnake;
     final boxName = '${entitySnake}s';
@@ -59,14 +51,27 @@ class CacheGenerator {
       Directive.import('package:hive_ce_flutter/hive_ce_flutter.dart'),
       Directive.import('../domain/entities/$entitySnake/$entitySnake.dart'),
     ];
-    final content = const SpecLibrary().emitCode(
-      '''
-// Auto-generated cache for $entityName
-Future<void> init${entityName}Cache() async {
-  await Hive.openBox<$entityName>('$boxName');
-}
-''',
-      directives: directives,
+
+    final method = Method(
+      (m) => m
+        ..name = 'init${entityName}Cache'
+        ..returns = _futureVoidType()
+        ..modifier = MethodModifier.async
+        ..docs.add('Auto-generated cache for $entityName')
+        ..body = Block(
+          (b) => b
+            ..statements.add(
+              refer('Hive')
+                  .property('openBox')
+                  .call([literalString(boxName)], const {}, [refer(entityName)])
+                  .awaited
+                  .statement,
+            ),
+        ),
+    );
+
+    final content = specLibrary.emitLibrary(
+      specLibrary.library(specs: [method], directives: directives),
     );
 
     return FileUtils.writeFile(
@@ -86,14 +91,31 @@ Future<void> init${entityName}Cache() async {
     final directives = [
       Directive.import('package:hive_ce_flutter/hive_ce_flutter.dart'),
     ];
-    final content = const SpecLibrary().emitCode(
-      '''
-// Auto-generated timestamp cache
-Future<void> initTimestampCache() async {
-  await Hive.openBox<int>('cache_timestamps');
-}
-''',
-      directives: directives,
+
+    final method = Method(
+      (m) => m
+        ..name = 'initTimestampCache'
+        ..returns = _futureVoidType()
+        ..modifier = MethodModifier.async
+        ..docs.add('Auto-generated timestamp cache')
+        ..body = Block(
+          (b) => b
+            ..statements.add(
+              refer('Hive')
+                  .property('openBox')
+                  .call(
+                    [literalString('cache_timestamps')],
+                    const {},
+                    [refer('int')],
+                  )
+                  .awaited
+                  .statement,
+            ),
+        ),
+    );
+
+    final content = specLibrary.emitLibrary(
+      specLibrary.library(specs: [method], directives: directives),
     );
 
     return FileUtils.writeFile(
@@ -106,49 +128,30 @@ Future<void> initTimestampCache() async {
     );
   }
 
-  Future<GeneratedFile> _generateCachePolicyFile() async {
+  Future<GeneratedFile> _generateCachePolicyFile(GeneratorConfig config) async {
     final policyType = config.cachePolicy;
-    final ttlMinutes = config.ttlMinutes ?? 1440; // Default 24 hours
+    final ttlMinutes = config.ttlMinutes ?? 1440;
 
     String fileName;
     String policyName;
-    String policyImpl;
+    String policyClass;
+    Expression? ttlExpression;
 
     if (policyType == 'daily') {
       fileName = 'daily_cache_policy.dart';
       policyName = 'createDailyCachePolicy';
-      policyImpl = '''
-  final timestampBox = Hive.box<int>('cache_timestamps');
-  return DailyCachePolicy(
-    getTimestamps: () async => Map<String, int>.from(timestampBox.toMap()),
-    setTimestamp: (key, timestamp) async => await timestampBox.put(key, timestamp),
-    removeTimestamp: (key) async => await timestampBox.delete(key),
-    clearAll: () async => await timestampBox.clear(),
-  );''';
+      policyClass = 'DailyCachePolicy';
     } else if (policyType == 'restart') {
       fileName = 'app_restart_cache_policy.dart';
       policyName = 'createAppRestartCachePolicy';
-      policyImpl = '''
-  final timestampBox = Hive.box<int>('cache_timestamps');
-  return AppRestartCachePolicy(
-    getTimestamps: () async => Map<String, int>.from(timestampBox.toMap()),
-    setTimestamp: (key, timestamp) async => await timestampBox.put(key, timestamp),
-    removeTimestamp: (key) async => await timestampBox.delete(key),
-    clearAll: () async => await timestampBox.clear(),
-  );''';
+      policyClass = 'AppRestartCachePolicy';
     } else {
       fileName = 'ttl_${ttlMinutes}_minutes_cache_policy.dart';
       policyName = 'createTtl${ttlMinutes}MinutesCachePolicy';
-      policyImpl =
-          '''
-  final timestampBox = Hive.box<int>('cache_timestamps');
-  return TtlCachePolicy(
-    ttl: const Duration(minutes: $ttlMinutes),
-    getTimestamps: () async => Map<String, int>.from(timestampBox.toMap()),
-    setTimestamp: (key, timestamp) async => await timestampBox.put(key, timestamp),
-    removeTimestamp: (key) async => await timestampBox.delete(key),
-    clearAll: () async => await timestampBox.clear(),
-  );''';
+      policyClass = 'TtlCachePolicy';
+      ttlExpression = refer(
+        'Duration',
+      ).constInstance([], {'minutes': literalNum(ttlMinutes)});
     }
 
     final cachePath = path.join(outputDir, 'cache', fileName);
@@ -157,14 +160,66 @@ Future<void> initTimestampCache() async {
       Directive.import('package:hive_ce_flutter/hive_ce_flutter.dart'),
       Directive.import('package:zuraffa/zuraffa.dart'),
     ];
-    final content = const SpecLibrary().emitCode(
-      '''
-// Auto-generated cache policy
-CachePolicy $policyName() {
-$policyImpl
-}
-''',
-      directives: directives,
+
+    final timestampBoxDecl = declareFinal('timestampBox').assign(
+      refer('Hive')
+          .property('box')
+          .call([literalString('cache_timestamps')], const {}, [refer('int')]),
+    );
+
+    final getTimestamps = _asyncLambda(
+      [],
+      refer('Map').newInstanceNamed(
+        'from',
+        [refer('timestampBox').property('toMap').call([])],
+        const {},
+        [refer('String'), refer('int')],
+      ),
+    );
+
+    final setTimestamp = _asyncLambda(
+      [
+        Parameter((p) => p..name = 'key'),
+        Parameter((p) => p..name = 'timestamp'),
+      ],
+      refer(
+        'timestampBox',
+      ).property('put').call([refer('key'), refer('timestamp')]).awaited,
+    );
+
+    final removeTimestamp = _asyncLambda([
+      Parameter((p) => p..name = 'key'),
+    ], refer('timestampBox').property('delete').call([refer('key')]).awaited);
+
+    final clearAll = _asyncLambda(
+      [],
+      refer('timestampBox').property('clear').call([]).awaited,
+    );
+
+    final policyArguments = {
+      'getTimestamps': getTimestamps,
+      'setTimestamp': setTimestamp,
+      'removeTimestamp': removeTimestamp,
+      'clearAll': clearAll,
+      'ttl': ?ttlExpression,
+    };
+
+    final policyCall = refer(policyClass).call([], policyArguments);
+
+    final method = Method(
+      (m) => m
+        ..name = policyName
+        ..returns = refer('CachePolicy')
+        ..docs.add('Auto-generated cache policy')
+        ..body = Block(
+          (b) => b
+            ..statements.add(timestampBoxDecl.statement)
+            ..statements.add(policyCall.returned.statement),
+        ),
+    );
+
+    final content = specLibrary.emitLibrary(
+      specLibrary.library(specs: [method], directives: directives),
     );
 
     return FileUtils.writeFile(
@@ -203,62 +258,62 @@ $policyImpl
 
     final exports = <String>[];
     final imports = <String>[];
-    final inits = <String>[];
+    final statements = <Code>[];
 
-    // Add timestamp cache first
     final timestampFile = File(path.join(dirPath, 'timestamp_cache.dart'));
     if (timestampFile.existsSync()) {
       exports.add('timestamp_cache.dart');
       imports.add('timestamp_cache.dart');
-      inits.add('  await initTimestampCache();');
+      statements.add(refer('initTimestampCache').call([]).awaited.statement);
     }
 
-    // Add registrar import
     final registrarFile = File(path.join(dirPath, 'hive_registrar.dart'));
     if (registrarFile.existsSync()) {
       exports.add('hive_registrar.dart');
       imports.add('package:hive_ce_flutter/hive_ce_flutter.dart');
       imports.add('hive_registrar.dart');
-      inits.insert(0, '  Hive.registerAdapters();');
+      statements.insert(
+        0,
+        refer('Hive').property('registerAdapters').call([]).statement,
+      );
     }
 
     for (final file in files) {
       final fileName = path.basename(file.path);
+      final entitySnake = fileName.replaceAll('_cache.dart', '');
+      final entityName = StringUtils.convertToPascalCase(entitySnake);
       exports.add(fileName);
       imports.add(fileName);
-
-      final content = file.readAsStringSync();
-      final match = RegExp(
-        r'Future<void> (init\w+Cache)\(\)',
-      ).firstMatch(content);
-      if (match != null) {
-        inits.add('  await ${match.group(1)}();');
-      }
+      statements.add(
+        refer('init${entityName}Cache').call([]).awaited.statement,
+      );
     }
 
-    // Check if cache_policy files exist
     final policyFiles = dir
         .listSync()
         .whereType<File>()
         .where((f) => f.path.endsWith('_cache_policy.dart'))
         .toList();
     for (final policyFile in policyFiles) {
-      final fileName = path.basename(policyFile.path);
-      exports.add(fileName);
+      exports.add(path.basename(policyFile.path));
     }
 
     final directives = [
       ...exports.map(Directive.export),
       ...imports.map(Directive.import),
     ];
-    final content = const SpecLibrary().emitCode(
-      '''
-// Auto-generated - DO NOT EDIT
-Future<void> initAllCaches() async {
-${inits.join('\n')}
-}
-''',
-      directives: directives,
+
+    final initAllCaches = Method(
+      (m) => m
+        ..name = 'initAllCaches'
+        ..returns = _futureVoidType()
+        ..modifier = MethodModifier.async
+        ..docs.add('Auto-generated - DO NOT EDIT')
+        ..body = Block((b) => b..statements.addAll(statements)),
+    );
+
+    final content = specLibrary.emitLibrary(
+      specLibrary.library(specs: [initAllCaches], directives: directives),
     );
 
     await FileUtils.writeFile(
@@ -280,7 +335,6 @@ ${inits.join('\n')}
       return;
     }
 
-    // Find all entity cache files
     final files = dir
         .listSync()
         .whereType<File>()
@@ -297,11 +351,9 @@ ${inits.join('\n')}
     }
 
     final imports = <String>[];
-    final adapterSpecs = <String>[];
-    final registrations = <String>[];
+    final adapterEntities = <String>[];
     final processedEntities = <String>{};
 
-    // Check for manual additions file
     final manualAdditionsPath = path.join(
       outputDir,
       'cache',
@@ -315,86 +367,95 @@ ${inits.join('\n')}
         final trimmed = line.trim();
         if (trimmed.isEmpty || trimmed.startsWith('#')) continue;
 
-        // Format: import_path|EntityName
-        // Example: ../domain/entities/enums/index.dart|ParserType
         final parts = trimmed.split('|');
         if (parts.length == 2) {
           final importPath = parts[0].trim();
           final entityName = parts[1].trim();
 
-          if (!imports.contains("import '$importPath';")) {
+          if (!imports.contains(importPath)) {
             imports.add(importPath);
           }
           if (!processedEntities.contains(entityName)) {
             processedEntities.add(entityName);
-            adapterSpecs.add('AdapterSpec<$entityName>()');
-            registrations.add('    registerAdapter(${entityName}Adapter());');
+            adapterEntities.add(entityName);
           }
         }
       }
     }
 
     for (final file in files) {
-      final content = file.readAsStringSync();
-      // Extract entity name from import
-      final importMatch = RegExp(
-        r"import '\.\./domain/entities/(\w+)/(\w+)\.dart';",
-      ).firstMatch(content);
-      if (importMatch != null) {
-        final entitySnake = importMatch.group(1);
-        final entityFile = importMatch.group(2);
+      final fileName = path.basename(file.path);
+      final entitySnake = fileName.replaceAll('_cache.dart', '');
+      final entityName = StringUtils.convertToPascalCase(entitySnake);
+      final importPath = '../domain/entities/$entitySnake/$entitySnake.dart';
 
-        // Convert snake_case to PascalCase
-        final entityName = entityFile!
-            .split('_')
-            .map((word) => word[0].toUpperCase() + word.substring(1))
-            .join('');
-
-        final importPath = '../domain/entities/$entitySnake/$entityFile.dart';
-        if (!imports.contains("import '$importPath';")) {
-          imports.add(importPath);
-        }
-        if (!processedEntities.contains(entityName)) {
-          processedEntities.add(entityName);
-          adapterSpecs.add('AdapterSpec<$entityName>()');
-          registrations.add('    registerAdapter(${entityName}Adapter());');
-        }
-
-        // Auto-detect nested entities and polymorphic subtypes
-        await _collectNestedEntitiesForHive(
-          entityName,
-          imports,
-          adapterSpecs,
-          registrations,
-          processedEntities,
-        );
+      if (!imports.contains(importPath)) {
+        imports.add(importPath);
       }
+      if (!processedEntities.contains(entityName)) {
+        processedEntities.add(entityName);
+        adapterEntities.add(entityName);
+      }
+
+      await _collectNestedEntitiesForHive(
+        entityName,
+        imports,
+        adapterEntities,
+        processedEntities,
+      );
     }
+
+    final adapterSpecs = adapterEntities
+        .map(
+          (entity) => refer('AdapterSpec').call([], const {}, [refer(entity)]),
+        )
+        .toList();
+
+    final registrationStatements = adapterEntities
+        .map(
+          (entity) => refer(
+            'registerAdapter',
+          ).call([refer('${entity}Adapter').call([])]).statement,
+        )
+        .toList();
 
     final directives = [
       Directive.import('package:hive_ce_flutter/hive_ce_flutter.dart'),
       ...imports.map(Directive.import),
       Directive.part('hive_registrar.g.dart'),
     ];
-    final content = const SpecLibrary().emitCode(
-      '''
-// Auto-generated Hive registrar
-@GenerateAdapters([
-  ${adapterSpecs.join(',\n  ')}
-])
-extension HiveRegistrar on HiveInterface {
-  void registerAdapters() {
-${registrations.join('\n')}
-  }
-}
 
-extension IsolatedHiveRegistrar on IsolatedHiveInterface {
-  void registerAdapters() {
-${registrations.join('\n')}
-  }
-}
-''',
-      directives: directives,
+    final generateAdapters = refer(
+      'GenerateAdapters',
+    ).call([literalList(adapterSpecs)]);
+
+    final registerMethod = Method(
+      (m) => m
+        ..name = 'registerAdapters'
+        ..returns = refer('void')
+        ..body = Block((b) => b..statements.addAll(registrationStatements)),
+    );
+
+    final hiveRegistrarExtension = Extension(
+      (e) => e
+        ..name = 'HiveRegistrar'
+        ..on = refer('HiveInterface')
+        ..annotations.add(generateAdapters)
+        ..methods.add(registerMethod),
+    );
+
+    final isolatedRegistrarExtension = Extension(
+      (e) => e
+        ..name = 'IsolatedHiveRegistrar'
+        ..on = refer('IsolatedHiveInterface')
+        ..methods.add(registerMethod),
+    );
+
+    final content = specLibrary.emitLibrary(
+      specLibrary.library(
+        specs: [hiveRegistrarExtension, isolatedRegistrarExtension],
+        directives: directives,
+      ),
     );
 
     await FileUtils.writeFile(
@@ -406,7 +467,6 @@ ${registrations.join('\n')}
       verbose: verbose,
     );
 
-    // Create template file if it doesn't exist
     if (!manualAdditionsFile.existsSync()) {
       final template = '''# Hive Manual Additions
 # Add nested entities and enums that need Hive adapters
@@ -432,11 +492,9 @@ ${registrations.join('\n')}
   Future<void> _collectNestedEntitiesForHive(
     String entityName,
     List<String> imports,
-    List<String> adapterSpecs,
-    List<String> registrations,
+    List<String> adapterEntities,
     Set<String> processedEntities,
   ) async {
-    // Check for polymorphic subtypes
     final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
       entityName,
       outputDir,
@@ -447,24 +505,20 @@ ${registrations.join('\n')}
         final subtypeSnake = StringUtils.camelToSnake(subtype);
         final importPath =
             '../domain/entities/$subtypeSnake/$subtypeSnake.dart';
-        if (!imports.contains("import '$importPath';")) {
+        if (!imports.contains(importPath)) {
           imports.add(importPath);
         }
-        adapterSpecs.add('AdapterSpec<$subtype>()');
-        registrations.add('    registerAdapter(${subtype}Adapter());');
+        adapterEntities.add(subtype);
 
-        // Recursively process nested entities in subtypes
         await _collectNestedEntitiesForHive(
           subtype,
           imports,
-          adapterSpecs,
-          registrations,
+          adapterEntities,
           processedEntities,
         );
       }
     }
 
-    // Get entity fields
     final entityFields = EntityAnalyzer.analyzeEntity(entityName, outputDir);
 
     for (final entry in entityFields.entries) {
@@ -484,38 +538,33 @@ ${registrations.join('\n')}
               'dynamic',
             ].contains(baseType) &&
             !processedEntities.contains(baseType)) {
-          // Check if it's a polymorphic type
           final nestedSubtypes = EntityAnalyzer.getPolymorphicSubtypes(
             baseType,
             outputDir,
           );
           if (nestedSubtypes.isNotEmpty) {
-            // Import the abstract type (needed for type references like List<UrlTemplate>)
             final baseTypeSnake = StringUtils.camelToSnake(baseType);
             final abstractImportPath =
                 '../domain/entities/$baseTypeSnake/$baseTypeSnake.dart';
-            if (!imports.contains("import '$abstractImportPath';")) {
+            if (!imports.contains(abstractImportPath)) {
               imports.add(abstractImportPath);
             }
 
-            // Process subtypes instead of abstract type (generate adapters)
             for (final subtype in nestedSubtypes) {
               if (!processedEntities.contains(subtype)) {
                 processedEntities.add(subtype);
                 final subtypeSnake = StringUtils.camelToSnake(subtype);
                 final importPath =
                     '../domain/entities/$subtypeSnake/$subtypeSnake.dart';
-                if (!imports.contains("import '$importPath';")) {
+                if (!imports.contains(importPath)) {
                   imports.add(importPath);
                 }
-                adapterSpecs.add('AdapterSpec<$subtype>()');
-                registrations.add('    registerAdapter(${subtype}Adapter());');
+                adapterEntities.add(subtype);
 
                 await _collectNestedEntitiesForHive(
                   subtype,
                   imports,
-                  adapterSpecs,
-                  registrations,
+                  adapterEntities,
                   processedEntities,
                 );
               }
@@ -523,7 +572,6 @@ ${registrations.join('\n')}
             continue;
           }
 
-          // Check if it's an entity
           final nestedFields = EntityAnalyzer.analyzeEntity(
             baseType,
             outputDir,
@@ -533,29 +581,24 @@ ${registrations.join('\n')}
             final baseTypeSnake = StringUtils.camelToSnake(baseType);
             final importPath =
                 '../domain/entities/$baseTypeSnake/$baseTypeSnake.dart';
-            if (!imports.contains("import '$importPath';")) {
+            if (!imports.contains(importPath)) {
               imports.add(importPath);
             }
-            adapterSpecs.add('AdapterSpec<$baseType>()');
-            registrations.add('    registerAdapter(${baseType}Adapter());');
+            adapterEntities.add(baseType);
 
-            // Recursively process nested entities
             await _collectNestedEntitiesForHive(
               baseType,
               imports,
-              adapterSpecs,
-              registrations,
+              adapterEntities,
               processedEntities,
             );
           } else if (_isEnum(baseType)) {
-            // It's an enum - add adapter
             processedEntities.add(baseType);
             final enumImportPath = '../domain/entities/enums/index.dart';
-            if (!imports.contains("import '$enumImportPath';")) {
+            if (!imports.contains(enumImportPath)) {
               imports.add(enumImportPath);
             }
-            adapterSpecs.add('AdapterSpec<$baseType>()');
-            registrations.add('    registerAdapter(${baseType}Adapter());');
+            adapterEntities.add(baseType);
           }
         }
       }
@@ -563,7 +606,6 @@ ${registrations.join('\n')}
   }
 
   bool _isEnum(String typeName) {
-    // Check if enum file exists
     final enumsDir = Directory(
       path.join(outputDir, 'domain', 'entities', 'enums'),
     );
@@ -584,12 +626,9 @@ ${registrations.join('\n')}
     final types = <String>[];
     var baseType = fieldType.replaceAll('?', '');
 
-    // Handle List<Type>
     if (baseType.startsWith('List<') && baseType.endsWith('>')) {
       baseType = baseType.substring(5, baseType.length - 1);
-    }
-    // Handle Map<K,V> - extract value type
-    else if (baseType.startsWith('Map<') && baseType.endsWith('>')) {
+    } else if (baseType.startsWith('Map<') && baseType.endsWith('>')) {
       final innerTypes = baseType.substring(4, baseType.length - 1);
       final typeParts = innerTypes.split(',').map((s) => s.trim()).toList();
       if (typeParts.length == 2) {
@@ -599,7 +638,6 @@ ${registrations.join('\n')}
       }
     }
 
-    // Handle zorphy entity indicator ($EntityName)
     if (baseType.startsWith('\$')) {
       baseType = baseType.substring(1);
     }
@@ -615,5 +653,24 @@ ${registrations.join('\n')}
     }
 
     return types;
+  }
+
+  Expression _asyncLambda(List<Parameter> params, Expression body) {
+    final method = Method(
+      (m) => m
+        ..requiredParameters.addAll(params)
+        ..modifier = MethodModifier.async
+        ..lambda = true
+        ..body = body.code,
+    );
+    return method.closure;
+  }
+
+  Reference _futureVoidType() {
+    return TypeReference(
+      (b) => b
+        ..symbol = 'Future'
+        ..types.add(refer('void')),
+    );
   }
 }

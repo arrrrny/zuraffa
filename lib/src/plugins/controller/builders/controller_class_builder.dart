@@ -66,10 +66,15 @@ class ControllerClassBuilder {
         ..name = 'onDisposed'
         ..annotations.add(refer('override'))
         ..returns = refer('void')
-        ..body = Code('''
-_presenter.dispose();
-super.onDisposed();
-'''),
+        ..body = Block(
+          (b) => b
+            ..statements.add(
+              refer('_presenter').property('dispose').call([]).statement,
+            )
+            ..statements.add(
+              refer('super').property('onDisposed').call([]).statement,
+            ),
+        ),
     );
     spec.methods.add(onDisposed);
 
