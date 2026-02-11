@@ -95,8 +95,22 @@ class StreamUseCaseGenerator {
     }
 
     final executeBody = dependencyFields.isNotEmpty
-        ? 'return ${dependencyFields.first.name}.${_methodName(config)}(params);'
-        : 'throw UnimplementedError();';
+        ? Block(
+            (b) => b
+              ..statements.add(
+                refer(dependencyFields.first.name)
+                    .property(_methodName(config))
+                    .call([refer('params')])
+                    .returned
+                    .statement,
+              ),
+          )
+        : Block(
+            (b) => b
+              ..statements.add(
+                refer('UnimplementedError').call([]).thrown.statement,
+              ),
+          );
 
     final executeMethod = Method(
       (b) => b
@@ -117,7 +131,7 @@ class StreamUseCaseGenerator {
           ),
         )
         ..annotations.add(CodeExpression(Code('override')))
-        ..body = Code(executeBody),
+        ..body = executeBody,
     );
 
     final spec = UseCaseClassSpec(

@@ -260,7 +260,7 @@ class MockBuilder {
     final clazz = Class(
       (c) => c
         ..name = '${entityName}MockData'
-        ..docs.add('Mock data for $entityName')
+        ..docs.add('/// Mock data for $entityName')
         ..fields.add(dataListField)
         ..methods.addAll([
           sampleMethod,
@@ -391,7 +391,7 @@ class MockBuilder {
         ..name = '${entityName}MockDataSource'
         ..mixins.addAll([refer('Loggable'), refer('FailureHandler')])
         ..implements.add(refer('${entityName}DataSource'))
-        ..docs.add('Mock data source for $entityName')
+        ..docs.add('/// Mock data source for $entityName')
         ..fields.add(delayField)
         ..constructors.add(constructor)
         ..methods.addAll(methods),
@@ -930,21 +930,30 @@ class MockBuilder {
                             ).property('${entityCamel}s'),
                           )
                           .statement,
-                      const Code(
-                        'if (params.limit != null && params.limit! > 0) {',
-                      ),
-                      refer('items')
-                          .assign(
-                            refer('items')
-                                .property('take')
-                                .call([
-                                  refer('params').property('limit').nullChecked,
-                                ])
-                                .property('toList')
-                                .call([]),
+                      refer('params')
+                          .property('limit')
+                          .notEqualTo(literalNull)
+                          .and(
+                            refer('params')
+                                .property('limit')
+                                .nullChecked
+                                .greaterThan(literalNum(0)),
+                          )
+                          .conditional(
+                            literalNull,
+                            refer('items').assign(
+                              refer('items')
+                                  .property('take')
+                                  .call([
+                                    refer('params')
+                                        .property('limit')
+                                        .nullChecked,
+                                  ])
+                                  .property('toList')
+                                  .call([]),
+                            ),
                           )
                           .statement,
-                      const Code('}'),
                       refer('logger').property('info').call([
                         literalString(
                           'Successfully retrieved \${items.length} ${entityName}s',
@@ -1122,13 +1131,14 @@ class MockBuilder {
                     ]),
                   )
                   .statement,
-              const Code('if (!exists) {'),
-              refer('throw').call([
-                refer(
-                  'notFoundFailure',
-                ).call([literalString('$entityName not found')]),
-              ]).statement,
-              const Code('}'),
+              refer('exists')
+                  .conditional(
+                    literalNull,
+                    refer('notFoundFailure')
+                        .call([literalString('$entityName not found')])
+                        .thrown,
+                  )
+                  .statement,
             ]);
           }
 
@@ -1233,23 +1243,30 @@ class MockBuilder {
                                       ).property('${entityCamel}s'),
                                     )
                                     .statement,
-                                const Code(
-                                  'if (params.limit != null && params.limit! > 0) {',
-                                ),
-                                refer('items')
-                                    .assign(
-                                      refer('items')
-                                          .property('take')
-                                          .call([
-                                            refer(
-                                              'params',
-                                            ).property('limit').nullChecked,
-                                          ])
-                                          .property('toList')
-                                          .call([]),
+                                refer('params')
+                                    .property('limit')
+                                    .notEqualTo(literalNull)
+                                    .and(
+                                      refer('params')
+                                          .property('limit')
+                                          .nullChecked
+                                          .greaterThan(literalNum(0)),
+                                    )
+                                    .conditional(
+                                      literalNull,
+                                      refer('items').assign(
+                                        refer('items')
+                                            .property('take')
+                                            .call([
+                                              refer('params')
+                                                  .property('limit')
+                                                  .nullChecked,
+                                            ])
+                                            .property('toList')
+                                            .call([]),
+                                      ),
                                     )
                                     .statement,
-                                const Code('}'),
                                 refer('items').returned.statement,
                               ]),
                           ),

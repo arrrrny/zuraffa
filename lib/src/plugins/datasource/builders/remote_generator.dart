@@ -51,12 +51,18 @@ class RemoteDataSourceBuilder {
               ),
             )
             ..modifier = MethodModifier.async
-            ..body = Code(
-              [
-                "logger.info('Initializing $dataSourceName');",
-                '// TODO: Initialize remote connection, auth, etc.',
-                "logger.info('$dataSourceName initialized');",
-              ].join('\n'),
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer('logger').property('info').call([
+                    literalString('Initializing $dataSourceName'),
+                  ]).statement,
+                )
+                ..statements.add(
+                  refer('logger').property('info').call([
+                    literalString('$dataSourceName initialized'),
+                  ]).statement,
+                ),
             ),
         ),
       );
@@ -67,7 +73,16 @@ class RemoteDataSourceBuilder {
             ..type = MethodType.getter
             ..annotations.add(refer('override'))
             ..returns = refer('Stream<bool>')
-            ..body = Code('return Stream.value(true);'),
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer('Stream')
+                      .property('value')
+                      .call([literalBool(true)])
+                      .returned
+                      .statement,
+                ),
+            ),
         ),
       );
     }
@@ -100,12 +115,7 @@ class RemoteDataSourceBuilder {
                   ),
                 )
                 ..modifier = MethodModifier.async
-                ..body = Code(
-                  [
-                    '// TODO: Implement remote API call',
-                    _remoteBody('Implement remote get', gqlConstant),
-                  ].join('\n'),
-                ),
+                ..body = _remoteBody('Implement remote get', gqlConstant),
             ),
           );
           break;
@@ -124,12 +134,7 @@ class RemoteDataSourceBuilder {
                   ),
                 )
                 ..modifier = MethodModifier.async
-                ..body = Code(
-                  [
-                    '// TODO: Implement remote API call',
-                    _remoteBody('Implement remote getList', gqlConstant),
-                  ].join('\n'),
-                ),
+                ..body = _remoteBody('Implement remote getList', gqlConstant),
             ),
           );
           break;
@@ -148,12 +153,7 @@ class RemoteDataSourceBuilder {
                   ),
                 )
                 ..modifier = MethodModifier.async
-                ..body = Code(
-                  [
-                    '// TODO: Implement remote API call',
-                    _remoteBody('Implement remote create', gqlConstant),
-                  ].join('\n'),
-                ),
+                ..body = _remoteBody('Implement remote create', gqlConstant),
             ),
           );
           break;
@@ -177,12 +177,7 @@ class RemoteDataSourceBuilder {
                   ),
                 )
                 ..modifier = MethodModifier.async
-                ..body = Code(
-                  [
-                    '// TODO: Implement remote API call',
-                    _remoteBody('Implement remote update', gqlConstant),
-                  ].join('\n'),
-                ),
+                ..body = _remoteBody('Implement remote update', gqlConstant),
             ),
           );
           break;
@@ -201,12 +196,7 @@ class RemoteDataSourceBuilder {
                   ),
                 )
                 ..modifier = MethodModifier.async
-                ..body = Code(
-                  [
-                    '// TODO: Implement remote API call',
-                    _remoteBody('Implement remote delete', gqlConstant),
-                  ].join('\n'),
-                ),
+                ..body = _remoteBody('Implement remote delete', gqlConstant),
             ),
           );
           break;
@@ -224,12 +214,7 @@ class RemoteDataSourceBuilder {
                       ..type = refer('QueryParams<$entityName>'),
                   ),
                 )
-                ..body = Code(
-                  [
-                    '// TODO: Implement remote stream (WebSocket, SSE, etc.)',
-                    _remoteBody('Implement remote watch', gqlConstant),
-                  ].join('\n'),
-                ),
+                ..body = _remoteBody('Implement remote watch', gqlConstant),
             ),
           );
           break;
@@ -247,12 +232,7 @@ class RemoteDataSourceBuilder {
                       ..type = refer('ListQueryParams<$entityName>'),
                   ),
                 )
-                ..body = Code(
-                  [
-                    '// TODO: Implement remote stream (WebSocket, SSE, etc.)',
-                    _remoteBody('Implement remote watchList', gqlConstant),
-                  ].join('\n'),
-                ),
+                ..body = _remoteBody('Implement remote watchList', gqlConstant),
             ),
           );
           break;
@@ -290,11 +270,27 @@ class RemoteDataSourceBuilder {
     );
   }
 
-  String _remoteBody(String fallback, String? gqlConstant) {
+  Code _remoteBody(String fallback, String? gqlConstant) {
     if (gqlConstant != null) {
-      return 'throw UnimplementedError($gqlConstant);';
+      return Block(
+        (b) => b
+          ..statements.add(
+            refer('UnimplementedError')
+                .call([refer(gqlConstant)])
+                .thrown
+                .statement,
+          ),
+      );
     }
-    return "throw UnimplementedError('$fallback');";
+    return Block(
+      (b) => b
+        ..statements.add(
+          refer('UnimplementedError')
+              .call([literalString(fallback)])
+              .thrown
+              .statement,
+        ),
+    );
   }
 
   String _graphqlConstantName(GeneratorConfig config, String method) {

@@ -61,7 +61,7 @@ class ViewClassBuilder {
     );
 
     final presenterCall = _presenterCall(spec);
-    final controllerCall = refer(spec.controllerName).call([], presenterCall);
+    final controllerCall = refer(spec.controllerName).call([presenterCall]);
 
     final createStateMethod = Method(
       (m) => m
@@ -98,7 +98,9 @@ class ViewClassBuilder {
               ..type = refer(spec.controllerName),
           ),
         )
-        ..initializers.add(Code('super(controller)')),
+        ..initializers.add(
+          refer('super').call([refer('controller')]).code,
+        ),
     );
 
     final onInitState = lifecycleBuilder.buildOnInitState(
@@ -153,9 +155,9 @@ class ViewClassBuilder {
     );
   }
 
-  Map<String, Expression> _presenterCall(ViewClassSpec spec) {
+  Expression _presenterCall(ViewClassSpec spec) {
     if (spec.repoPresenterArgs.isEmpty) {
-      return const {};
+      return refer(spec.presenterName).call([]);
     }
     final args = <String, Expression>{};
     for (final arg in spec.repoPresenterArgs) {
@@ -163,7 +165,7 @@ class ViewClassBuilder {
       if (parts.length != 2) continue;
       args[parts[0].trim()] = refer(parts[1].trim());
     }
-    return args;
+    return refer(spec.presenterName).call([], args);
   }
 
   Block _buildBuilderBody(ViewClassSpec spec) {

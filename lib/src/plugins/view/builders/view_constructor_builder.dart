@@ -50,7 +50,10 @@ class ViewConstructorBuilder {
         ..constant = true
         ..optionalParameters.addAll(parameters)
         ..initializers.add(
-          Code('super(key: key, routeObserver: routeObserver)'),
+          refer('super').call([], {
+            'key': refer('key'),
+            'routeObserver': refer('routeObserver'),
+          }).code,
         ),
     );
   }

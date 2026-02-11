@@ -657,7 +657,6 @@ class MethodAppendBuilder {
         )
         ..body = Block(
           (b) => b
-            ..statements.add(Code('// TODO: Implement $methodName'))
             ..statements.add(
               refer(
                 'UnimplementedError',
@@ -671,7 +670,7 @@ class MethodAppendBuilder {
         ..name = providerName
         ..mixins.addAll([refer('Loggable'), refer('FailureHandler')])
         ..implements.add(refer(serviceName))
-        ..docs.add('Provider implementation for $serviceName')
+        ..docs.add('/// Provider implementation for $serviceName')
         ..methods.add(method),
     );
 

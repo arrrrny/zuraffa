@@ -78,7 +78,16 @@ class LocalDataSourceBuilder {
             ..type = MethodType.getter
             ..annotations.add(CodeExpression(Code('override')))
             ..returns = refer('Stream<bool>')
-            ..body = Code('return Stream.value(true);'),
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer('Stream')
+                      .property('value')
+                      .call([literalBool(true)])
+                      .returned
+                      .statement,
+                ),
+            ),
         ),
       );
     }
@@ -110,35 +119,44 @@ class LocalDataSourceBuilder {
 
       if (!hasListMethods) {
         methods.add(
-          _buildMethod(
+          _buildMethodWithBody(
             name: 'save',
             returnType: 'Future<$entityName>',
             parameters: [_param(entityCamel, entityName)],
-            body:
-                "await _box.put('$entitySnake', $entityCamel);\nreturn $entityCamel;",
+            body: _awaitThenReturn(
+              refer('_box').property('put').call([
+                literalString(entitySnake),
+                refer(entityCamel),
+              ]),
+              refer(entityCamel),
+            ),
             isAsync: true,
             override: false,
           ),
         );
       } else {
         methods.add(
-          _buildMethod(
+          _buildMethodWithBody(
             name: 'save',
             returnType: 'Future<$entityName>',
             parameters: [_param(entityCamel, entityName)],
-            body:
-                'await _box.put($entityCamel.${config.idField}, $entityCamel);\nreturn $entityCamel;',
+            body: _awaitThenReturn(
+              refer('_box').property('put').call([
+                refer(entityCamel).property(config.idField),
+                refer(entityCamel),
+              ]),
+              refer(entityCamel),
+            ),
             isAsync: true,
             override: false,
           ),
         );
         methods.add(
-          _buildMethod(
+          _buildMethodWithBody(
             name: 'saveAll',
             returnType: 'Future<void>',
             parameters: [_param('items', 'List<$entityName>')],
-            body:
-                'final map = {for (var item in items) item.${config.idField}: item};\nawait _box.putAll(map);',
+            body: _buildSaveAllBody(config.idField),
             isAsync: true,
             override: false,
           ),
@@ -146,11 +164,11 @@ class LocalDataSourceBuilder {
       }
 
       methods.add(
-        _buildMethod(
+        _buildMethodWithBody(
           name: 'clear',
           returnType: 'Future<void>',
           parameters: const [],
-          body: 'await _box.clear();',
+          body: _awaitBody(refer('_box').property('clear').call([])),
           isAsync: true,
           override: false,
         ),
@@ -160,36 +178,59 @@ class LocalDataSourceBuilder {
         switch (method) {
           case 'get':
             methods.add(
-              _buildMethod(
+              _buildMethodWithBody(
                 name: 'get',
                 returnType: 'Future<$entityName>',
                 parameters: [_param('params', 'QueryParams<$entityName>')],
-                body: 'return _box.values.query(params);',
+                body: _returnBody(
+                  refer('_box')
+                      .property('values')
+                      .property('query')
+                      .call([refer('params')]),
+                ),
                 isAsync: true,
               ),
             );
             break;
           case 'getList':
             methods.add(
-              _buildMethod(
+              _buildMethodWithBody(
                 name: 'getList',
                 returnType: 'Future<List<$entityName>>',
                 parameters: [_param('params', 'ListQueryParams<$entityName>')],
-                body:
-                    'return _box.values.filter(params.filter).orderBy(params.sort);',
+                body: _returnBody(
+                  refer('_box')
+                      .property('values')
+                      .property('filter')
+                      .call([refer('params').property('filter')])
+                      .property('orderBy')
+                      .call([refer('params').property('sort')]),
+                ),
                 isAsync: true,
               ),
             );
             break;
           case 'create':
             methods.add(
-              _buildMethod(
+              _buildMethodWithBody(
                 name: 'create',
                 returnType: 'Future<$entityName>',
                 parameters: [_param(entityCamel, entityName)],
                 body: hasListMethods
-                    ? 'await _box.put($entityCamel.${config.idField}, $entityCamel);\nreturn $entityCamel;'
-                    : "await _box.put('$entitySnake', $entityCamel);\nreturn $entityCamel;",
+                    ? _awaitThenReturn(
+                        refer('_box').property('put').call([
+                          refer(entityCamel).property(config.idField),
+                          refer(entityCamel),
+                        ]),
+                        refer(entityCamel),
+                      )
+                    : _awaitThenReturn(
+                        refer('_box').property('put').call([
+                          literalString(entitySnake),
+                          refer(entityCamel),
+                        ]),
+                        refer(entityCamel),
+                      ),
                 isAsync: true,
               ),
             );
@@ -252,20 +293,23 @@ class LocalDataSourceBuilder {
                 ],
                 body: hasListMethods
                     ? _buildDeleteWithListBody(config, entityName)
-                    : Code("await _box.delete('$entitySnake');"),
+                    : _awaitBody(
+                        refer('_box')
+                            .property('delete')
+                            .call([literalString(entitySnake)]),
+                      ),
                 isAsync: true,
               ),
             );
             break;
           case 'watch':
             methods.add(
-              _buildMethod(
+              _buildMethodWithBody(
                 name: 'watch',
                 returnType: 'Stream<$entityName>',
                 parameters: [_param('params', 'QueryParams<$entityName>')],
-                body: 'yield _box.values.query(params);',
+                body: _buildWatchBody(),
                 isAsync: false,
-                modifier: MethodModifier.asyncStar,
               ),
             );
             break;
@@ -277,7 +321,6 @@ class LocalDataSourceBuilder {
                 parameters: [_param('params', 'ListQueryParams<$entityName>')],
                 body: _buildWatchListBody(),
                 isAsync: false,
-                modifier: MethodModifier.asyncStar,
               ),
             );
             break;
@@ -285,33 +328,33 @@ class LocalDataSourceBuilder {
       }
     } else {
       methods.add(
-        _buildMethod(
+        _buildMethodWithBody(
           name: 'save',
           returnType: 'Future<$entityName>',
           parameters: [_param(entityCamel, entityName)],
-          body: "throw UnimplementedError('Implement local save');",
+          body: _throwBody('Implement local save'),
           isAsync: true,
           override: false,
         ),
       );
       if (config.idType != 'NoParams') {
         methods.add(
-          _buildMethod(
+          _buildMethodWithBody(
             name: 'saveAll',
             returnType: 'Future<void>',
             parameters: [_param('items', 'List<$entityName>')],
-            body: "throw UnimplementedError('Implement local saveAll');",
+            body: _throwBody('Implement local saveAll'),
             isAsync: true,
             override: false,
           ),
         );
       }
       methods.add(
-        _buildMethod(
+        _buildMethodWithBody(
           name: 'clear',
           returnType: 'Future<void>',
           parameters: const [],
-          body: "throw UnimplementedError('Implement local clear');",
+          body: _throwBody('Implement local clear'),
           isAsync: true,
           override: false,
         ),
@@ -324,81 +367,81 @@ class LocalDataSourceBuilder {
         switch (method) {
           case 'get':
             methods.add(
-              _buildMethod(
+              _buildMethodWithBody(
                 name: 'get',
                 returnType: 'Future<$entityName>',
                 parameters: [_param('params', 'QueryParams<$entityName>')],
-                body: "throw UnimplementedError('Implement local get');",
+                body: _throwBody('Implement local get'),
                 isAsync: true,
               ),
             );
             break;
           case 'getList':
             methods.add(
-              _buildMethod(
+              _buildMethodWithBody(
                 name: 'getList',
                 returnType: 'Future<List<$entityName>>',
                 parameters: [_param('params', 'ListQueryParams<$entityName>')],
-                body: "throw UnimplementedError('Implement local getList');",
+                body: _throwBody('Implement local getList'),
                 isAsync: true,
               ),
             );
             break;
           case 'create':
             methods.add(
-              _buildMethod(
+              _buildMethodWithBody(
                 name: 'create',
                 returnType: 'Future<$entityName>',
                 parameters: [_param(entityCamel, entityName)],
-                body: "throw UnimplementedError('Implement local create');",
+                body: _throwBody('Implement local create'),
                 isAsync: true,
               ),
             );
             break;
           case 'update':
             methods.add(
-              _buildMethod(
+              _buildMethodWithBody(
                 name: 'update',
                 returnType: 'Future<${config.name}>',
                 parameters: [
                   _param('params', 'UpdateParams<${config.idType}, $dataType>'),
                 ],
-                body: "throw UnimplementedError('Implement local update');",
+                body: _throwBody('Implement local update'),
                 isAsync: true,
               ),
             );
             break;
           case 'delete':
             methods.add(
-              _buildMethod(
+              _buildMethodWithBody(
                 name: 'delete',
                 returnType: 'Future<void>',
                 parameters: [
                   _param('params', 'DeleteParams<${config.idType}>'),
                 ],
-                body: "throw UnimplementedError('Implement local delete');",
+                body: _throwBody('Implement local delete'),
                 isAsync: true,
               ),
             );
             break;
           case 'watch':
             methods.add(
-              _buildMethod(
+              _buildMethodWithBody(
                 name: 'watch',
                 returnType: 'Stream<$entityName>',
                 parameters: [_param('params', 'QueryParams<$entityName>')],
-                body: "throw UnimplementedError('Implement local watch');",
+                body: _throwBody('Implement local watch'),
                 isAsync: false,
               ),
             );
             break;
           case 'watchList':
             methods.add(
-              _buildMethod(
+              _buildMethodWithBody(
                 name: 'watchList',
                 returnType: 'Stream<List<$entityName>>',
                 parameters: [_param('params', 'ListQueryParams<$entityName>')],
-                body: "throw UnimplementedError('Implement local watchList');",
+                body: _throwBody('Implement local watchList'),
                 isAsync: false,
               ),
             );
@@ -441,26 +484,6 @@ class LocalDataSourceBuilder {
     );
   }
 
-  Method _buildMethod({
-    required String name,
-    required String returnType,
-    required List<Parameter> parameters,
-    required String body,
-    required bool isAsync,
-    bool override = true,
-    MethodModifier? modifier,
-  }) {
-    return Method(
-      (m) => m
-        ..name = name
-        ..annotations.addAll(override ? [CodeExpression(Code('override'))] : [])
-        ..returns = refer(returnType)
-        ..requiredParameters.addAll(parameters)
-        ..modifier = modifier ?? (isAsync ? MethodModifier.async : null)
-        ..body = Code(body),
-    );
-  }
-
   Method _buildMethodWithBody({
     required String name,
     required String returnType,
@@ -481,19 +504,117 @@ class LocalDataSourceBuilder {
     );
   }
 
+  Block _returnBody(Expression expression) {
+    return Block(
+      (b) => b..statements.add(expression.returned.statement),
+    );
+  }
+
+  Block _awaitBody(Expression expression) {
+    return Block(
+      (b) => b..statements.add(expression.awaited.statement),
+    );
+  }
+
+  Block _awaitThenReturn(Expression awaitExpression, Expression returnExpression) {
+    return Block(
+      (b) => b
+        ..statements.add(awaitExpression.awaited.statement)
+        ..statements.add(returnExpression.returned.statement),
+    );
+  }
+
+  Block _throwBody(String message) {
+    return Block(
+      (b) => b
+        ..statements.add(
+          refer('UnimplementedError')
+              .call([literalString(message)])
+              .thrown
+              .statement,
+        ),
+    );
+  }
+
+  Block _buildSaveAllBody(String idField) {
+    final mapExpression = refer('Map').property('fromEntries').call([
+      refer('items').property('map').call([
+        Method(
+          (m) => m
+            ..requiredParameters.add(Parameter((p) => p..name = 'item'))
+            ..lambda = true
+            ..body = refer('MapEntry').call([
+              refer('item').property(idField),
+              refer('item'),
+            ]).code,
+        ).closure,
+      ]),
+    ]);
+    return Block(
+      (b) => b
+        ..statements.add(
+          declareFinal('map').assign(mapExpression).statement,
+        )
+        ..statements.add(
+          refer('_box').property('putAll').call([refer('map')]).awaited.statement,
+        ),
+    );
+  }
+
   Block _buildUpdateWithZorphyBody(GeneratorConfig config, String entityName) {
     return Block(
       (b) => b
         ..statements.add(
-          Code(
-            "final existing = _box.values.firstWhere((item) => item.${config.idField} == params.id, orElse: () => throw notFoundFailure('$entityName not found in cache'),);",
-          ),
+          declareFinal('existing')
+              .assign(
+                refer('_box').property('values').property('firstWhere').call(
+                  [
+                    Method(
+                      (m) => m
+                        ..requiredParameters.add(
+                          Parameter((p) => p..name = 'item'),
+                        )
+                        ..lambda = true
+                        ..body = refer('item')
+                            .property(config.idField)
+                            .equalTo(refer('params').property('id'))
+                            .code,
+                    ).closure,
+                  ],
+                  {
+                    'orElse': Method(
+                      (m) => m
+                        ..lambda = true
+                        ..body = refer('notFoundFailure')
+                            .call([
+                              literalString('$entityName not found in cache'),
+                            ])
+                            .thrown
+                            .code,
+                    ).closure,
+                  },
+                ),
+              )
+              .statement,
         )
-        ..statements.add(Code('final updated = params.data.applyTo(existing);'))
         ..statements.add(
-          Code('await _box.put(updated.${config.idField}, updated);'),
+          declareFinal('updated')
+              .assign(
+                refer('params').property('data').property('applyTo').call([
+                  refer('existing'),
+                ]),
+              )
+              .statement,
         )
-        ..statements.add(Code('return updated;')),
+        ..statements.add(
+          refer('_box')
+              .property('put')
+              .call([
+                refer('updated').property(config.idField),
+                refer('updated'),
+              ]).awaited.statement,
+        )
+        ..statements.add(refer('updated').returned.statement),
     );
   }
 
@@ -504,14 +625,47 @@ class LocalDataSourceBuilder {
     return Block(
       (b) => b
         ..statements.add(
-          Code(
-            "final existing = _box.values.firstWhere((item) => item.${config.idField} == params.id, orElse: () => throw notFoundFailure('$entityName not found in cache'),);",
-          ),
+          declareFinal('existing')
+              .assign(
+                refer('_box').property('values').property('firstWhere').call(
+                  [
+                    Method(
+                      (m) => m
+                        ..requiredParameters.add(
+                          Parameter((p) => p..name = 'item'),
+                        )
+                        ..lambda = true
+                        ..body = refer('item')
+                            .property(config.idField)
+                            .equalTo(refer('params').property('id'))
+                            .code,
+                    ).closure,
+                  ],
+                  {
+                    'orElse': Method(
+                      (m) => m
+                        ..lambda = true
+                        ..body = refer('notFoundFailure')
+                            .call([
+                              literalString('$entityName not found in cache'),
+                            ])
+                            .thrown
+                            .code,
+                    ).closure,
+                  },
+                ),
+              )
+              .statement,
         )
         ..statements.add(
-          Code('await _box.put(existing.${config.idField}, existing);'),
+          refer('_box')
+              .property('put')
+              .call([
+                refer('existing').property(config.idField),
+                refer('existing'),
+              ]).awaited.statement,
         )
-        ..statements.add(Code('return existing;')),
+        ..statements.add(refer('existing').returned.statement),
     );
   }
 
@@ -522,15 +676,45 @@ class LocalDataSourceBuilder {
   ) {
     return Block(
       (b) => b
-        ..statements.add(Code("final existing = _box.get('$entitySnake');"))
         ..statements.add(
-          Code(
-            "if (existing == null) { throw notFoundFailure('$entityName not found in cache'); }",
-          ),
+          declareFinal('existing')
+              .assign(
+                refer('_box').property('get').call([
+                  literalString(entitySnake),
+                ]),
+              )
+              .statement,
         )
-        ..statements.add(Code('final updated = params.data.applyTo(existing);'))
-        ..statements.add(Code("await _box.put('$entitySnake', updated);"))
-        ..statements.add(Code('return updated;')),
+        ..statements.add(
+          refer('existing')
+              .equalTo(literalNull)
+              .conditional(
+                literalNull,
+                refer('notFoundFailure')
+                    .call([
+                      literalString('$entityName not found in cache'),
+                    ])
+                    .thrown,
+              )
+              .statement,
+        )
+        ..statements.add(
+          declareFinal('updated')
+              .assign(
+                refer('params').property('data').property('applyTo').call([
+                  refer('existing'),
+                ]),
+              )
+              .statement,
+        )
+        ..statements.add(
+          refer('_box')
+              .property('put')
+              .call([literalString(entitySnake), refer('updated')])
+              .awaited
+              .statement,
+        )
+        ..statements.add(refer('updated').returned.statement),
     );
   }
 
@@ -541,14 +725,36 @@ class LocalDataSourceBuilder {
   ) {
     return Block(
       (b) => b
-        ..statements.add(Code("final existing = _box.get('$entitySnake');"))
         ..statements.add(
-          Code(
-            "if (existing == null) { throw notFoundFailure('$entityName not found in cache'); }",
-          ),
+          declareFinal('existing')
+              .assign(
+                refer('_box').property('get').call([
+                  literalString(entitySnake),
+                ]),
+              )
+              .statement,
         )
-        ..statements.add(Code("await _box.put('$entitySnake', existing);"))
-        ..statements.add(Code('return existing;')),
+        ..statements.add(
+          refer('existing')
+              .equalTo(literalNull)
+              .conditional(
+                literalNull,
+                refer('notFoundFailure')
+                    .call([
+                      literalString('$entityName not found in cache'),
+                    ])
+                    .thrown,
+              )
+              .statement,
+        )
+        ..statements.add(
+          refer('_box')
+              .property('put')
+              .call([literalString(entitySnake), refer('existing')])
+              .awaited
+              .statement,
+        )
+        ..statements.add(refer('existing').returned.statement),
     );
   }
 
@@ -556,30 +762,141 @@ class LocalDataSourceBuilder {
     return Block(
       (b) => b
         ..statements.add(
-          Code(
-            "final existing = _box.values.firstWhere((item) => item.${config.idField} == params.id, orElse: () => throw notFoundFailure('$entityName not found in cache'),);",
-          ),
+          declareFinal('existing')
+              .assign(
+                refer('_box').property('values').property('firstWhere').call(
+                  [
+                    Method(
+                      (m) => m
+                        ..requiredParameters.add(
+                          Parameter((p) => p..name = 'item'),
+                        )
+                        ..lambda = true
+                        ..body = refer('item')
+                            .property(config.idField)
+                            .equalTo(refer('params').property('id'))
+                            .code,
+                    ).closure,
+                  ],
+                  {
+                    'orElse': Method(
+                      (m) => m
+                        ..lambda = true
+                        ..body = refer('notFoundFailure')
+                            .call([
+                              literalString('$entityName not found in cache'),
+                            ])
+                            .thrown
+                            .code,
+                    ).closure,
+                  },
+                ),
+              )
+              .statement,
         )
         ..statements.add(
-          Code('await _box.delete(existing.${config.idField});'),
+          refer('_box')
+              .property('delete')
+              .call([refer('existing').property(config.idField)])
+              .awaited
+              .statement,
         ),
     );
   }
 
-  Block _buildWatchListBody() {
+  Block _buildWatchBody() {
+    final existingExpression = refer('_box')
+        .property('values')
+        .property('query')
+        .call([refer('params')]);
+    final streamExpression = refer('Stream').property('multi').call([
+      Method(
+        (m) => m
+          ..requiredParameters.add(Parameter((p) => p..name = 'controller'))
+          ..modifier = MethodModifier.async
+          ..body = Block(
+            (bb) => bb
+              ..statements.add(
+                refer('controller')
+                    .property('add')
+                    .call([refer('existing')]).statement,
+              )
+              ..statements.add(
+                refer('controller')
+                    .property('addStream')
+                    .call([
+                      refer('_box').property('watch').call([]).property('map').call([
+                        Method(
+                          (mm) => mm
+                            ..requiredParameters
+                                .add(Parameter((p) => p..name = '_'))
+                            ..lambda = true
+                            ..body = existingExpression.code,
+                        ).closure,
+                      ]),
+                    ]).awaited.statement,
+              ),
+          ),
+      ).closure,
+    ]);
     return Block(
       (b) => b
         ..statements.add(
-          Code(
-            'final existing = _box.values.filter(params.filter).orderBy(params.sort);',
-          ),
+          declareFinal('existing').assign(existingExpression).statement,
         )
-        ..statements.add(Code('yield existing;'))
         ..statements.add(
-          Code(
-            'yield* _box.watch().map((_) => _box.values.filter(params.filter).orderBy(params.sort),);',
+          declareFinal('stream').assign(streamExpression).statement,
+        )
+        ..statements.add(refer('stream').returned.statement),
+    );
+  }
+
+  Block _buildWatchListBody() {
+    final existingExpression = refer('_box')
+        .property('values')
+        .property('filter')
+        .call([refer('params').property('filter')])
+        .property('orderBy')
+        .call([refer('params').property('sort')]);
+    final streamExpression = refer('Stream').property('multi').call([
+      Method(
+        (m) => m
+          ..requiredParameters.add(Parameter((p) => p..name = 'controller'))
+          ..modifier = MethodModifier.async
+          ..body = Block(
+            (bb) => bb
+              ..statements.add(
+                refer('controller')
+                    .property('add')
+                    .call([refer('existing')]).statement,
+              )
+              ..statements.add(
+                refer('controller')
+                    .property('addStream')
+                    .call([
+                      refer('_box').property('watch').call([]).property('map').call([
+                        Method(
+                          (mm) => mm
+                            ..requiredParameters
+                                .add(Parameter((p) => p..name = '_'))
+                            ..lambda = true
+                            ..body = existingExpression.code,
+                        ).closure,
+                      ]),
+                    ]).awaited.statement,
+              ),
           ),
-        ),
+      ).closure,
+    ]);
+    return Block(
+      (b) => b
+        ..statements.add(
+          declareFinal('existing').assign(existingExpression).statement,
+        )
+        ..statements.add(
+          declareFinal('stream').assign(streamExpression).statement,
+        )
+        ..statements.add(refer('stream').returned.statement),
     );
   }
 

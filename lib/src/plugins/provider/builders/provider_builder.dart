@@ -124,23 +124,26 @@ class ProviderBuilder {
   }
 
   Code _buildMethodBody(String methodName) {
-    final throwStatement = refer(
-      'UnimplementedError',
-    ).call([literalString('$methodName not implemented')]).thrown.statement;
-    final logStatement = refer(
-      'logAndHandleError',
-    ).call([refer('e'), refer('stack')]).statement;
-
     return Block(
       (b) => b
-        ..statements.addAll([
-          const Code('try {'),
-          throwStatement,
-          const Code('} catch (e, stack) {'),
-          logStatement,
-          const Code('  rethrow;'),
-          const Code('}'),
-        ]),
+        ..statements.add(
+          declareFinal('error')
+              .assign(
+                refer('UnimplementedError')
+                    .call([literalString('$methodName not implemented')]),
+              )
+              .statement,
+        )
+        ..statements.add(
+          declareFinal('stack')
+              .assign(refer('StackTrace').property('current'))
+              .statement,
+        )
+        ..statements.add(
+          refer('logAndHandleError')
+              .call([refer('error'), refer('stack')]).statement,
+        )
+        ..statements.add(refer('error').thrown.statement),
     );
   }
 

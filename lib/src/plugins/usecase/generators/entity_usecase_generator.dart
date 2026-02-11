@@ -46,7 +46,7 @@ class EntityUseCaseGenerator {
     TypeReference baseClass;
     Reference paramsType;
     Reference returnType;
-    String executeBody;
+    Expression executeExpression;
     bool isStream = false;
     bool isCompletable = false;
     bool needsEntityImport = true;
@@ -61,7 +61,9 @@ class EntityUseCaseGenerator {
               ..types.addAll([refer(entityName), refer('NoParams')]),
           );
           paramsType = refer('NoParams');
-          executeBody = 'return _repository.get(const QueryParams());';
+          executeExpression = refer('_repository').property('get').call([
+            refer('QueryParams').constInstance([]),
+          ]);
         } else {
           baseClass = TypeReference(
             (t) => t
@@ -80,7 +82,9 @@ class EntityUseCaseGenerator {
               ..symbol = 'QueryParams'
               ..types.add(refer(entityName)),
           );
-          executeBody = 'return _repository.get(params);';
+          executeExpression = refer('_repository')
+              .property('get')
+              .call([refer('params')]);
         }
         returnType = refer(entityName);
         break;
@@ -112,7 +116,9 @@ class EntityUseCaseGenerator {
             ..symbol = 'List'
             ..types.add(refer(entityName)),
         );
-        executeBody = 'return _repository.getList(params);';
+        executeExpression = refer('_repository')
+            .property('getList')
+            .call([refer('params')]);
         break;
       case 'create':
         className = 'Create${entityName}UseCase';
@@ -123,7 +129,9 @@ class EntityUseCaseGenerator {
         );
         paramsType = refer(entityName);
         returnType = refer(entityName);
-        executeBody = 'return _repository.create(params);';
+        executeExpression = refer('_repository')
+            .property('create')
+            .call([refer('params')]);
         break;
       case 'update':
         className = 'Update${entityName}UseCase';
@@ -154,7 +162,9 @@ class EntityUseCaseGenerator {
             ]),
         );
         returnType = refer(entityName);
-        executeBody = 'return _repository.update(params);';
+        executeExpression = refer('_repository')
+            .property('update')
+            .call([refer('params')]);
         break;
       case 'delete':
         className = 'Delete${entityName}UseCase';
@@ -175,7 +185,9 @@ class EntityUseCaseGenerator {
             ..types.add(refer(config.idType)),
         );
         returnType = refer('void');
-        executeBody = 'return _repository.delete(params);';
+        executeExpression = refer('_repository')
+            .property('delete')
+            .call([refer('params')]);
         isCompletable = true;
         needsEntityImport = false;
         break;
@@ -188,7 +200,9 @@ class EntityUseCaseGenerator {
               ..types.addAll([refer(entityName), refer('NoParams')]),
           );
           paramsType = refer('NoParams');
-          executeBody = 'return _repository.watch(const QueryParams());';
+          executeExpression = refer('_repository').property('watch').call([
+            refer('QueryParams').constInstance([]),
+          ]);
         } else {
           baseClass = TypeReference(
             (t) => t
@@ -207,7 +221,9 @@ class EntityUseCaseGenerator {
               ..symbol = 'QueryParams'
               ..types.add(refer(entityName)),
           );
-          executeBody = 'return _repository.watch(params);';
+          executeExpression = refer('_repository')
+              .property('watch')
+              .call([refer('params')]);
         }
         returnType = refer(entityName);
         isStream = true;
@@ -240,7 +256,9 @@ class EntityUseCaseGenerator {
             ..symbol = 'List'
             ..types.add(refer(entityName)),
         );
-        executeBody = 'return _repository.watchList(params);';
+        executeExpression = refer('_repository')
+            .property('watchList')
+            .call([refer('params')]);
         isStream = true;
         break;
       default:
@@ -308,8 +326,20 @@ class EntityUseCaseGenerator {
           ),
         ])
         ..modifier = isStream ? null : MethodModifier.async
-        ..body = Code(
-          ['cancelToken?.throwIfCancelled();', executeBody].join('\n'),
+        ..body = Block(
+          (b) => b
+            ..statements.add(
+              refer('cancelToken')
+                  .equalTo(literalNull)
+                  .conditional(
+                    literalNull,
+                    refer('cancelToken')
+                        .property('throwIfCancelled')
+                        .call([]),
+                  )
+                  .statement,
+            )
+            ..statements.add(executeExpression.returned.statement),
         );
     });
 

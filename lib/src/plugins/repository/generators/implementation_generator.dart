@@ -134,10 +134,14 @@ class RepositoryImplementationGenerator {
           ..type = MethodType.getter
           ..annotations.add(refer('override'))
           ..returns = refer('Stream<bool>')
-          ..body = Code(
-            config.enableCache
-                ? '_remoteDataSource.isInitialized'
-                : '_dataSource.isInitialized',
+          ..body = Block(
+            (b) => b
+              ..statements.add(
+                refer(config.enableCache ? '_remoteDataSource' : '_dataSource')
+                    .property('isInitialized')
+                    .returned
+                    .statement,
+              ),
           ),
       );
       final initializeMethod = Method(
@@ -152,10 +156,15 @@ class RepositoryImplementationGenerator {
                 ..type = refer('InitializationParams'),
             ),
           )
-          ..body = Code(
-            config.enableCache
-                ? 'return _remoteDataSource.initialize(params);'
-                : 'return _dataSource.initialize(params);',
+          ..body = Block(
+            (b) => b
+              ..statements.add(
+                refer(config.enableCache ? '_remoteDataSource' : '_dataSource')
+                    .property('initialize')
+                    .call([refer('params')])
+                    .returned
+                    .statement,
+              ),
           ),
       );
       methods.add(isInitializedGetter);
@@ -263,7 +272,16 @@ class RepositoryImplementationGenerator {
                   ..type = refer('QueryParams<$entityName>'),
               ),
             )
-            ..body = Code('return _dataSource.get(params);'),
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer('_dataSource')
+                      .property('get')
+                      .call([refer('params')])
+                      .returned
+                      .statement,
+                ),
+            ),
         );
       case 'getList':
         return Method(
@@ -278,7 +296,16 @@ class RepositoryImplementationGenerator {
                   ..type = refer('ListQueryParams<$entityName>'),
               ),
             )
-            ..body = Code('return _dataSource.getList(params);'),
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer('_dataSource')
+                      .property('getList')
+                      .call([refer('params')])
+                      .returned
+                      .statement,
+                ),
+            ),
         );
       case 'create':
         return Method(
@@ -293,7 +320,16 @@ class RepositoryImplementationGenerator {
                   ..type = refer(entityName),
               ),
             )
-            ..body = Code('return _dataSource.create($entityCamel);'),
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer('_dataSource')
+                      .property('create')
+                      .call([refer(entityCamel)])
+                      .returned
+                      .statement,
+                ),
+            ),
         );
       case 'update':
         final dataType = config.useZorphy
@@ -311,7 +347,16 @@ class RepositoryImplementationGenerator {
                   ..type = refer('UpdateParams<${config.idType}, $dataType>'),
               ),
             )
-            ..body = Code('return _dataSource.update(params);'),
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer('_dataSource')
+                      .property('update')
+                      .call([refer('params')])
+                      .returned
+                      .statement,
+                ),
+            ),
         );
       case 'delete':
         return Method(
@@ -326,7 +371,16 @@ class RepositoryImplementationGenerator {
                   ..type = refer('DeleteParams<${config.idType}>'),
               ),
             )
-            ..body = Code('return _dataSource.delete(params);'),
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer('_dataSource')
+                      .property('delete')
+                      .call([refer('params')])
+                      .returned
+                      .statement,
+                ),
+            ),
         );
       case 'watch':
         return Method(
@@ -341,7 +395,16 @@ class RepositoryImplementationGenerator {
                   ..type = refer('QueryParams<$entityName>'),
               ),
             )
-            ..body = Code('return _dataSource.watch(params);'),
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer('_dataSource')
+                      .property('watch')
+                      .call([refer('params')])
+                      .returned
+                      .statement,
+                ),
+            ),
         );
       case 'watchList':
         return Method(
@@ -356,7 +419,16 @@ class RepositoryImplementationGenerator {
                   ..type = refer('ListQueryParams<$entityName>'),
               ),
             )
-            ..body = Code('return _dataSource.watchList(params);'),
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer('_dataSource')
+                      .property('watchList')
+                      .call([refer('params')])
+                      .returned
+                      .statement,
+                ),
+            ),
         );
       default:
         return Method((m) => m..name = '_noop');
@@ -564,37 +636,82 @@ class RepositoryImplementationGenerator {
   }
 
   Block _buildCacheAwareGetBody(String baseCacheKey) {
+    final localCall = refer('_localDataSource').property('get').call([
+      refer('params'),
+    ]);
+    final remoteCall = refer('_remoteDataSource').property('get').call([
+      refer('params'),
+    ]);
+    final catchClosure = Method(
+      (m) => m
+        ..requiredParameters.add(Parameter((p) => p..name = 'e'))
+        ..modifier = MethodModifier.async
+        ..body = Block(
+          (bb) => bb
+            ..statements.add(
+              refer('logger').property('severe').call([
+                literalString('Cache miss, fetching from remote'),
+              ]).statement,
+            )
+            ..statements.add(
+              declareFinal('remote')
+                  .assign(remoteCall.awaited)
+                  .statement,
+            )
+            ..statements.add(
+              refer('_localDataSource')
+                  .property('save')
+                  .call([refer('remote')]).awaited.statement,
+            )
+            ..statements.add(
+              refer('_cachePolicy')
+                  .property('markFresh')
+                  .call([literalString(baseCacheKey)])
+                  .awaited
+                  .statement,
+            )
+            ..statements.add(refer('remote').returned.statement),
+        ),
+    ).closure;
     return Block(
       (b) => b
         ..statements.add(
-          Code("if (await _cachePolicy.isValid('$baseCacheKey')) {"),
-        )
-        ..statements.add(Code('  try {'))
-        ..statements.add(Code('    return await _localDataSource.get(params);'))
-        ..statements.add(Code('  } catch (e) {'))
-        ..statements.add(
-          Code("    logger.severe('Cache miss, fetching from remote');"),
-        )
-        ..statements.add(Code('  }'))
-        ..statements.add(Code('}'))
-        ..statements.add(
-          declareFinal('data')
+          declareFinal('cacheValid')
               .assign(
-                refer(
-                  '_remoteDataSource',
-                ).property('get').call([refer('params')]).awaited,
+                refer('_cachePolicy')
+                    .property('isValid')
+                    .call([literalString(baseCacheKey)])
+                    .awaited,
               )
               .statement,
         )
         ..statements.add(
-          refer(
-            '_localDataSource',
-          ).property('save').call([refer('data')]).awaited.statement,
+          declareFinal('data')
+              .assign(
+                refer('cacheValid').conditional(
+                  localCall.property('catchError').call([catchClosure]).awaited,
+                  remoteCall.awaited,
+                ),
+              )
+              .statement,
         )
         ..statements.add(
-          refer('_cachePolicy')
-              .property('markFresh')
-              .call([literalString(baseCacheKey)])
+          refer('cacheValid')
+              .conditional(
+                refer('Future').property('value').call([]),
+                refer('_localDataSource').property('save').call([refer('data')]),
+              )
+              .awaited
+              .statement,
+        )
+        ..statements.add(
+          refer('cacheValid')
+              .conditional(
+                refer('Future').property('value').call([]),
+                refer('_cachePolicy')
+                    .property('markFresh')
+                    .call([literalString(baseCacheKey)]),
+              )
               .awaited
               .statement,
         )
@@ -603,46 +720,104 @@ class RepositoryImplementationGenerator {
   }
 
   Block _buildCacheAwareGetListBody(String baseCacheKey) {
+    final localCall = refer('_localDataSource').property('getList').call([
+      refer('params'),
+    ]);
+    final remoteCall = refer('_remoteDataSource').property('getList').call([
+      refer('params'),
+    ]);
+    final catchClosure = Method(
+      (m) => m
+        ..requiredParameters.add(Parameter((p) => p..name = 'e'))
+        ..modifier = MethodModifier.async
+        ..body = Block(
+          (bb) => bb
+            ..statements.add(
+              refer('logger').property('severe').call([
+                literalString('Cache miss, fetching from remote'),
+              ]).statement,
+            )
+            ..statements.add(
+              declareFinal('remote')
+                  .assign(remoteCall.awaited)
+                  .statement,
+            )
+            ..statements.add(
+              refer('_localDataSource')
+                  .property('saveAll')
+                  .call([refer('remote')]).awaited.statement,
+            )
+            ..statements.add(
+              refer('_cachePolicy')
+                  .property('markFresh')
+                  .call([refer('listCacheKey')])
+                  .awaited
+                  .statement,
+            )
+            ..statements.add(refer('remote').returned.statement),
+        ),
+    ).closure;
     return Block(
       (b) => b
         ..statements.add(
-          declareFinal('listCacheKey')
+          declareFinal('listCacheKeyBuffer')
               .assign(
-                CodeExpression(Code("'${baseCacheKey}_\${params.hashCode}'")),
+                refer('StringBuffer')
+                    .call([literalString('${baseCacheKey}_')]),
               )
               .statement,
         )
         ..statements.add(
-          Code('if (await _cachePolicy.isValid(listCacheKey)) {'),
+          refer('listCacheKeyBuffer')
+              .property('write')
+              .call([refer('params').property('hashCode')]).statement,
         )
-        ..statements.add(Code('  try {'))
         ..statements.add(
-          Code('    return await _localDataSource.getList(params);'),
+          declareFinal('listCacheKey')
+              .assign(
+                refer('listCacheKeyBuffer').property('toString').call([]),
+              )
+              .statement,
         )
-        ..statements.add(Code('  } catch (e) {'))
         ..statements.add(
-          Code("    logger.severe('Cache miss, fetching from remote');"),
+          declareFinal('cacheValid')
+              .assign(
+                refer('_cachePolicy')
+                    .property('isValid')
+                    .call([refer('listCacheKey')])
+                    .awaited,
+              )
+              .statement,
         )
-        ..statements.add(Code('  }'))
-        ..statements.add(Code('}'))
         ..statements.add(
           declareFinal('data')
               .assign(
-                refer(
-                  '_remoteDataSource',
-                ).property('getList').call([refer('params')]).awaited,
+                refer('cacheValid').conditional(
+                  localCall.property('catchError').call([catchClosure]).awaited,
+                  remoteCall.awaited,
+                ),
               )
               .statement,
         )
         ..statements.add(
-          refer(
-            '_localDataSource',
-          ).property('saveAll').call([refer('data')]).awaited.statement,
+          refer('cacheValid')
+              .conditional(
+                refer('Future').property('value').call([]),
+                refer('_localDataSource')
+                    .property('saveAll')
+                    .call([refer('data')]),
+              )
+              .awaited
+              .statement,
         )
         ..statements.add(
-          refer('_cachePolicy')
-              .property('markFresh')
-              .call([refer('listCacheKey')])
+          refer('cacheValid')
+              .conditional(
+                refer('Future').property('value').call([]),
+                refer('_cachePolicy')
+                    .property('markFresh')
+                    .call([refer('listCacheKey')]),
+              )
               .awaited
               .statement,
         )
@@ -731,109 +906,257 @@ class RepositoryImplementationGenerator {
 
   Block _buildWatchBody(GeneratorConfig config, String entityName) {
     final baseCacheKey = '${config.nameSnake}_cache';
+    final saveWarningClosure = Method(
+      (m) => m
+        ..requiredParameters.add(Parameter((p) => p..name = 'e'))
+        ..lambda = true
+        ..body = refer('logger').property('warning').call([
+          literalString('Failed to persist remote update'),
+        ]).code,
+    ).closure;
+    final dataHandler = Method(
+      (m) => m
+        ..requiredParameters.add(Parameter((p) => p..name = 'data'))
+        ..modifier = MethodModifier.async
+        ..body = Block(
+          (bb) => bb
+            ..statements.add(
+              refer('_localDataSource')
+                  .property('save')
+                  .call([refer('data')])
+                  .property('catchError')
+                  .call([saveWarningClosure])
+                  .awaited
+                  .statement,
+            )
+            ..statements.add(
+              refer('_cachePolicy')
+                  .property('markFresh')
+                  .call([literalString(baseCacheKey)])
+                  .awaited
+                  .statement,
+            ),
+        ),
+    ).closure;
+    final remoteErrorHandler = Method(
+      (m) => m
+        ..requiredParameters.add(Parameter((p) => p..name = 'e'))
+        ..lambda = true
+        ..body = refer('logger')
+            .property('warning')
+            .call([refer('e').property('toString').call([])]).code,
+    ).closure;
+    final onListen = Method(
+      (m) => m
+        ..body = Block(
+          (bb) => bb
+            ..statements.add(
+              refer('localSub')
+                  .assign(
+                    refer('_localDataSource')
+                        .property('watch')
+                        .call([refer('params')])
+                        .property('listen')
+                        .call(
+                      [refer('controller').property('add')],
+                      {'onError': refer('controller').property('addError')},
+                    ),
+                  )
+                  .statement,
+            )
+            ..statements.add(
+              refer('remoteSub')
+                  .assign(
+                    refer('_remoteDataSource')
+                        .property('watch')
+                        .call([refer('params')])
+                        .property('listen')
+                        .call(
+                      [dataHandler],
+                      {'onError': remoteErrorHandler},
+                    ),
+                  )
+                  .statement,
+            ),
+        ),
+    ).closure;
+    final onCancel = Method(
+      (m) => m
+        ..modifier = MethodModifier.async
+        ..body = Block(
+          (bb) => bb
+            ..statements.add(
+              refer('remoteSub').property('cancel').call([]).awaited.statement,
+            )
+            ..statements.add(
+              refer('localSub').property('cancel').call([]).awaited.statement,
+            ),
+        ),
+    ).closure;
     return Block(
       (b) => b
         ..statements.add(
-          Code('late final StreamController<$entityName> controller;'),
+          declareVar(
+            'controller',
+            type: refer('StreamController<$entityName>'),
+            late: true,
+          ).statement,
         )
-        ..statements.add(Code('StreamSubscription<$entityName>? localSub;'))
-        ..statements.add(Code('StreamSubscription<$entityName>? remoteSub;'))
-        ..statements.add(Code('controller = StreamController<$entityName>('))
-        ..statements.add(Code('  onListen: () {'))
         ..statements.add(
-          Code('    localSub = _localDataSource.watch(params).listen('),
+          declareVar(
+            'localSub',
+            type: refer('StreamSubscription<$entityName>'),
+            late: true,
+          ).statement,
         )
-        ..statements.add(Code('      controller.add,'))
-        ..statements.add(Code('      onError: controller.addError,'))
-        ..statements.add(Code('    );'))
         ..statements.add(
-          Code('    remoteSub = _remoteDataSource.watch(params).listen('),
+          declareVar(
+            'remoteSub',
+            type: refer('StreamSubscription<$entityName>'),
+            late: true,
+          ).statement,
         )
-        ..statements.add(Code('      (data) async {'))
-        ..statements.add(Code('        try {'))
-        ..statements.add(Code('          await _localDataSource.save(data);'))
         ..statements.add(
-          Code("          await _cachePolicy.markFresh('$baseCacheKey');"),
+          refer('controller')
+              .assign(
+                refer('StreamController<$entityName>').call(
+                  [],
+                  {'onListen': onListen, 'onCancel': onCancel},
+                ),
+              )
+              .statement,
         )
-        ..statements.add(Code('        } catch (e) {'))
         ..statements.add(
-          Code(
-            "          logger.warning('Failed to persist remote update: \${e}');",
-          ),
-        )
-        ..statements.add(Code('        }'))
-        ..statements.add(Code('      },'))
-        ..statements.add(
-          Code(
-            "      onError: (e) => logger.warning('Remote watch error: \${e}'),",
-          ),
-        )
-        ..statements.add(Code('    );'))
-        ..statements.add(Code('  },'))
-        ..statements.add(Code('  onCancel: () async {'))
-        ..statements.add(Code('    await remoteSub?.cancel();'))
-        ..statements.add(Code('    await localSub?.cancel();'))
-        ..statements.add(Code('  },'))
-        ..statements.add(Code(');'))
-        ..statements.add(Code('return controller.stream;')),
+          refer('controller').property('stream').returned.statement,
+        ),
     );
   }
 
   Block _buildWatchListBody(GeneratorConfig config, String entityName) {
     final baseCacheKey = '${config.nameSnake}_cache';
+    final saveWarningClosure = Method(
+      (m) => m
+        ..requiredParameters.add(Parameter((p) => p..name = 'e'))
+        ..lambda = true
+        ..body = refer('logger').property('warning').call([
+          literalString('Failed to persist remote update'),
+        ]).code,
+    ).closure;
+    final dataHandler = Method(
+      (m) => m
+        ..requiredParameters.add(Parameter((p) => p..name = 'data'))
+        ..modifier = MethodModifier.async
+        ..body = Block(
+          (bb) => bb
+            ..statements.add(
+              refer('_localDataSource')
+                  .property('saveAll')
+                  .call([refer('data')])
+                  .property('catchError')
+                  .call([saveWarningClosure])
+                  .awaited
+                  .statement,
+            )
+            ..statements.add(
+              refer('_cachePolicy')
+                  .property('markFresh')
+                  .call([literalString(baseCacheKey)])
+                  .awaited
+                  .statement,
+            ),
+        ),
+    ).closure;
+    final remoteErrorHandler = Method(
+      (m) => m
+        ..requiredParameters.add(Parameter((p) => p..name = 'e'))
+        ..lambda = true
+        ..body = refer('logger')
+            .property('warning')
+            .call([refer('e').property('toString').call([])]).code,
+    ).closure;
+    final onListen = Method(
+      (m) => m
+        ..body = Block(
+          (bb) => bb
+            ..statements.add(
+              refer('localSub')
+                  .assign(
+                    refer('_localDataSource')
+                        .property('watchList')
+                        .call([refer('params')])
+                        .property('listen')
+                        .call(
+                      [refer('controller').property('add')],
+                      {'onError': refer('controller').property('addError')},
+                    ),
+                  )
+                  .statement,
+            )
+            ..statements.add(
+              refer('remoteSub')
+                  .assign(
+                    refer('_remoteDataSource')
+                        .property('watchList')
+                        .call([refer('params')])
+                        .property('listen')
+                        .call(
+                      [dataHandler],
+                      {'onError': remoteErrorHandler},
+                    ),
+                  )
+                  .statement,
+            ),
+        ),
+    ).closure;
+    final onCancel = Method(
+      (m) => m
+        ..modifier = MethodModifier.async
+        ..body = Block(
+          (bb) => bb
+            ..statements.add(
+              refer('remoteSub').property('cancel').call([]).awaited.statement,
+            )
+            ..statements.add(
+              refer('localSub').property('cancel').call([]).awaited.statement,
+            ),
+        ),
+    ).closure;
     return Block(
       (b) => b
         ..statements.add(
-          Code('late final StreamController<List<$entityName>> controller;'),
+          declareVar(
+            'controller',
+            type: refer('StreamController<List<$entityName>>'),
+            late: true,
+          ).statement,
         )
         ..statements.add(
-          Code('StreamSubscription<List<$entityName>>? localSub;'),
+          declareVar(
+            'localSub',
+            type: refer('StreamSubscription<List<$entityName>>'),
+            late: true,
+          ).statement,
         )
         ..statements.add(
-          Code('StreamSubscription<List<$entityName>>? remoteSub;'),
+          declareVar(
+            'remoteSub',
+            type: refer('StreamSubscription<List<$entityName>>'),
+            late: true,
+          ).statement,
         )
         ..statements.add(
-          Code('controller = StreamController<List<$entityName>>('),
-        )
-        ..statements.add(Code('  onListen: () {'))
-        ..statements.add(
-          Code('    localSub = _localDataSource.watchList(params).listen('),
-        )
-        ..statements.add(Code('      controller.add,'))
-        ..statements.add(Code('      onError: controller.addError,'))
-        ..statements.add(Code('    );'))
-        ..statements.add(
-          Code('    remoteSub = _remoteDataSource.watchList(params).listen('),
-        )
-        ..statements.add(Code('      (data) async {'))
-        ..statements.add(Code('        try {'))
-        ..statements.add(
-          Code('          await _localDataSource.saveAll(data);'),
+          refer('controller')
+              .assign(
+                refer('StreamController<List<$entityName>>').call(
+                  [],
+                  {'onListen': onListen, 'onCancel': onCancel},
+                ),
+              )
+              .statement,
         )
         ..statements.add(
-          Code("          await _cachePolicy.markFresh('$baseCacheKey');"),
-        )
-        ..statements.add(Code('        } catch (e) {'))
-        ..statements.add(
-          Code(
-            "          logger.warning('Failed to persist remote update: \${e}');",
-          ),
-        )
-        ..statements.add(Code('        }'))
-        ..statements.add(Code('      },'))
-        ..statements.add(
-          Code(
-            "      onError: (e) => logger.warning('Remote watch error: \${e}'),",
-          ),
-        )
-        ..statements.add(Code('    );'))
-        ..statements.add(Code('  },'))
-        ..statements.add(Code('  onCancel: () async {'))
-        ..statements.add(Code('    await remoteSub?.cancel();'))
-        ..statements.add(Code('    await localSub?.cancel();'))
-        ..statements.add(Code('  },'))
-        ..statements.add(Code(');'))
-        ..statements.add(Code('return controller.stream;')),
+          refer('controller').property('stream').returned.statement,
+        ),
     );
   }
 }

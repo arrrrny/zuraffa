@@ -157,7 +157,7 @@ class StateBuilder {
         ..modifier = FieldModifier.final$
         ..type = type
         ..name = name
-        ..docs.add(doc),
+        ..docs.add('/// $doc'),
     );
   }
 
@@ -248,7 +248,7 @@ class StateBuilder {
         Parameter(
           (p) => p
             ..name = '${entityCamel}List'
-            ..type = _listOf(entityName)
+            ..type = _nullableListOf(entityName)
             ..named = true,
         ),
       );
@@ -325,7 +325,7 @@ class StateBuilder {
         ..name = 'isLoading'
         ..type = MethodType.getter
         ..returns = refer('bool')
-        ..docs.add('Whether any operation is currently loading')
+        ..docs.add('/// Whether any operation is currently loading')
         ..body = Block((b) => b..statements.add(expression.returned.statement)),
     );
   }
@@ -337,7 +337,7 @@ class StateBuilder {
         ..name = 'hasError'
         ..type = MethodType.getter
         ..returns = refer('bool')
-        ..docs.add('Whether there is an error to display')
+        ..docs.add('/// Whether there is an error to display')
         ..body = Block((b) => b..statements.add(expression.returned.statement)),
     );
   }
@@ -469,6 +469,15 @@ class StateBuilder {
     return TypeReference(
       (b) => b
         ..symbol = 'List'
+        ..types.add(refer(entityName)),
+    );
+  }
+
+  Reference _nullableListOf(String entityName) {
+    return TypeReference(
+      (b) => b
+        ..symbol = 'List'
+        ..isNullable = true
         ..types.add(refer(entityName)),
     );
   }

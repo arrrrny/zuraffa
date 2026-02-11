@@ -469,19 +469,11 @@ class TestBuilder {
                 : refer('params');
 
             final testBody = Block((t) {
-              t.statements.add(const Code('// Arrange'));
-              t.statements.add(
-                const Code('// TODO: Mock returns from child usecases'),
-              );
-              t.statements.add(const Code(''));
-              t.statements.add(const Code('// Act'));
               t.statements.add(
                 declareFinal(
                   'result',
                 ).assign(refer('useCase').call([callArgs]).awaited).statement,
               );
-              t.statements.add(const Code(''));
-              t.statements.add(const Code('// Assert'));
               t.statements.add(
                 refer('expect').call([
                   refer('result'),
@@ -623,20 +615,12 @@ class TestBuilder {
                   : refer('params');
 
               final testBody = Block((t) {
-                t.statements.add(const Code('// Arrange'));
-                t.statements.add(
-                  const Code('// TODO: Mock return from repository'),
-                );
-                t.statements.add(const Code(''));
-                t.statements.add(const Code('// Act'));
                 if (config.useCaseType == 'stream') {
                   t.statements.add(
                     declareFinal(
                       'result',
                     ).assign(refer('useCase').call([callArgs])).statement,
                   );
-                  t.statements.add(const Code(''));
-                  t.statements.add(const Code('// Assert'));
                   t.statements.add(
                     refer('expectLater')
                         .call([
@@ -654,8 +638,6 @@ class TestBuilder {
                         .assign(refer('useCase').call([callArgs]).awaited)
                         .statement,
                   );
-                  t.statements.add(const Code(''));
-                  t.statements.add(const Code('// Assert'));
                   t.statements.add(
                     refer('expect').call([
                       refer('result'),
@@ -945,7 +927,6 @@ class TestBuilder {
         literalString('should call repository.$method and return result'),
         successTest.toClosure(asAsync: true),
       ]).statement,
-      const Code(''),
       refer('test').call([
         literalString('should return Failure when repository throws'),
         failureTest.toClosure(asAsync: true),
@@ -1103,7 +1084,6 @@ class TestBuilder {
         literalString('should emit values from repository stream'),
         successTest.toClosure(asAsync: true),
       ]).statement,
-      const Code(''),
       refer('test').call([
         literalString('should emit Failure when repository stream errors'),
         failureTest.toClosure(asAsync: true),
@@ -1121,11 +1101,6 @@ class TestBuilder {
         : <Expression>[];
 
     final testContent = Block((t) {
-      t.statements.add(const Code('// Arrange'));
-      t.statements.add(const Code('// TODO: Mock return from repositories'));
-      t.statements.add(const Code(''));
-      t.statements.add(const Code('// Act'));
-
       if (useCaseType == 'background') {
         final args = callArgs is List<Expression>
             ? callArgs
@@ -1135,8 +1110,6 @@ class TestBuilder {
             'result',
           ).assign(refer('useCase').property('buildTask').call(args)).statement,
         );
-        t.statements.add(const Code(''));
-        t.statements.add(const Code('// Assert'));
         t.statements.add(
           refer('expect').call([
             refer('result'),
@@ -1150,8 +1123,6 @@ class TestBuilder {
         t.statements.add(
           declareFinal('result').assign(refer('useCase').call(args)).statement,
         );
-        t.statements.add(const Code(''));
-        t.statements.add(const Code('// Assert'));
         t.statements.add(
           refer('expectLater')
               .call([
@@ -1172,8 +1143,6 @@ class TestBuilder {
             'result',
           ).assign(refer('useCase').call(args).awaited).statement,
         );
-        t.statements.add(const Code(''));
-        t.statements.add(const Code('// Assert'));
         t.statements.add(
           refer('expect').call([
             refer('result').property('isSuccess'),

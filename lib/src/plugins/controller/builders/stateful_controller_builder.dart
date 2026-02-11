@@ -9,7 +9,12 @@ class StatefulControllerBuilder {
         ..name = 'createInitialState'
         ..annotations.add(refer('override'))
         ..returns = refer(stateClassName)
-        ..body = Code('return const $stateClassName();'),
+        ..body = Block(
+          (b) => b
+            ..statements.add(
+              refer(stateClassName).constInstance([]).returned.statement,
+            ),
+        ),
     );
   }
 }

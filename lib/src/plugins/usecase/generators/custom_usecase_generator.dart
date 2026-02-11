@@ -415,9 +415,23 @@ class CustomUseCaseGenerator {
         : '';
 
     if (config.useCaseType == 'stream') {
-      final body = depField.isEmpty
-          ? 'throw UnimplementedError();'
-          : 'return $depField.$methodName(params);';
+      final executeBody = depField.isEmpty
+          ? Block(
+              (b) => b
+                ..statements.add(
+                  refer('UnimplementedError').call([]).thrown.statement,
+                ),
+            )
+          : Block(
+              (b) => b
+                ..statements.add(
+                  refer(depField)
+                      .property(methodName)
+                      .call([refer('params')])
+                      .returned
+                      .statement,
+                ),
+            );
       return [
         Method(
           (b) => b
@@ -438,15 +452,29 @@ class CustomUseCaseGenerator {
               ),
             )
             ..annotations.add(CodeExpression(Code('override')))
-            ..body = Code(body),
+            ..body = executeBody,
         ),
       ];
     }
 
     if (config.useCaseType == 'sync') {
-      final body = depField.isEmpty
-          ? 'throw UnimplementedError();'
-          : 'return $depField.$methodName(params);';
+      final executeBody = depField.isEmpty
+          ? Block(
+              (b) => b
+                ..statements.add(
+                  refer('UnimplementedError').call([]).thrown.statement,
+                ),
+            )
+          : Block(
+              (b) => b
+                ..statements.add(
+                  refer(depField)
+                      .property(methodName)
+                      .call([refer('params')])
+                      .returned
+                      .statement,
+                ),
+            );
       return [
         Method(
           (b) => b
@@ -460,17 +488,32 @@ class CustomUseCaseGenerator {
               ),
             )
             ..annotations.add(CodeExpression(Code('override')))
-            ..body = Code(body),
+            ..body = executeBody,
         ),
       ];
     }
-
-    final body = [
-      'cancelToken?.throwIfCancelled();',
-      depField.isEmpty
-          ? 'throw UnimplementedError();'
-          : 'return await $depField.$methodName(params);',
-    ].join('\n');
+    final executeBody = Block(
+      (b) => b
+        ..statements.add(
+          refer('cancelToken')
+              .equalTo(literalNull)
+              .conditional(
+                literalNull,
+                refer('cancelToken').property('throwIfCancelled').call([]),
+              )
+              .statement,
+        )
+        ..statements.add(
+          depField.isEmpty
+              ? refer('UnimplementedError').call([]).thrown.statement
+              : refer(depField)
+                  .property(methodName)
+                  .call([refer('params')])
+                  .awaited
+                  .returned
+                  .statement,
+        ),
+    );
 
     final returnTypeRef = config.useCaseType == 'completable'
         ? 'Future<void>'
@@ -497,7 +540,7 @@ class CustomUseCaseGenerator {
             ),
           )
           ..annotations.add(CodeExpression(Code('override')))
-          ..body = Code(body),
+          ..body = executeBody,
       ),
     ];
   }
@@ -508,7 +551,9 @@ class CustomUseCaseGenerator {
         ..name = 'buildTask'
         ..returns = refer('BackgroundTask<$paramsType>')
         ..annotations.add(CodeExpression(Code('override')))
-        ..body = Code('return _process;'),
+        ..body = Block(
+          (bb) => bb..statements.add(refer('_process').returned.statement),
+        ),
     );
 
     final processMethod = Method(
@@ -523,15 +568,70 @@ class CustomUseCaseGenerator {
               ..type = refer('BackgroundTaskContext<$paramsType>'),
           ),
         )
-        ..body = Code(
-          'try {\n'
-          '  final params = context.params;\n'
-          '  final result = processData(params);\n'
-          '  context.sendData(result);\n'
-          '  context.sendDone();\n'
-          '} catch (e, stackTrace) {\n'
-          '  context.sendError(e, stackTrace);\n'
-          '}',
+        ..body = Block(
+          (bb) => bb
+            ..statements.add(
+              declareFinal('params')
+                  .assign(refer('context').property('params'))
+                  .statement,
+            )
+            ..statements.add(
+              refer('Future')
+                  .property('sync')
+                  .call([
+                    Method(
+                      (m) => m
+                        ..lambda = true
+                        ..body = refer('processData')
+                            .call([refer('params')])
+                            .code,
+                    ).closure,
+                  ])
+                  .property('then')
+                  .call([
+                    Method(
+                      (m) => m
+                        ..requiredParameters
+                            .add(Parameter((p) => p..name = 'result'))
+                        ..body = Block(
+                          (bbb) => bbb
+                            ..statements.add(
+                              refer('context')
+                                  .property('sendData')
+                                  .call([refer('result')]).statement,
+                            )
+                            ..statements.add(
+                              refer('context')
+                                  .property('sendDone')
+                                  .call([]).statement,
+                            ),
+                        ),
+                    ).closure,
+                  ])
+                  .property('catchError')
+                  .call([
+                    Method(
+                      (m) => m
+                        ..requiredParameters.addAll([
+                          Parameter((p) => p..name = 'error'),
+                          Parameter((p) => p..name = 'stackTrace'),
+                        ])
+                        ..body = Block(
+                          (bbb) => bbb
+                            ..statements.add(
+                              refer('context')
+                                  .property('sendError')
+                                  .call([
+                                    refer('error'),
+                                    refer('stackTrace'),
+                                  ])
+                                  .statement,
+                            ),
+                        ),
+                    ).closure,
+                  ])
+                  .statement,
+            ),
         ),
     );
 
@@ -547,8 +647,18 @@ class CustomUseCaseGenerator {
               ..type = refer(paramsType),
           ),
         )
-        ..body = Code(
-          "throw UnimplementedError('Implement your background processing logic');",
+        ..body = Block(
+          (bb) => bb
+            ..statements.add(
+              refer('UnimplementedError')
+                  .call([
+                    literalString(
+                      'Implement your background processing logic',
+                    ),
+                  ])
+                  .thrown
+                  .statement,
+            ),
         ),
     );
 
@@ -568,10 +678,31 @@ class CustomUseCaseGenerator {
         ? returnsType
         : 'Future<$returnsType>';
     final isAsync = config.useCaseType != 'sync';
-    final body = [
-      'cancelToken?.throwIfCancelled();',
-      "throw UnimplementedError('Implement orchestration logic');",
-    ].join('\n');
+    final executeBody = Block(
+      (b) => b
+        ..statements.addAll(
+          config.useCaseType == 'sync'
+              ? [
+                  refer('UnimplementedError')
+                      .call([literalString('Implement orchestration logic')])
+                      .thrown
+                      .statement,
+                ]
+              : [
+                  refer('cancelToken')
+                      .equalTo(literalNull)
+                      .conditional(
+                        literalNull,
+                        refer('cancelToken').property('throwIfCancelled').call([]),
+                      )
+                      .statement,
+                  refer('UnimplementedError')
+                      .call([literalString('Implement orchestration logic')])
+                      .thrown
+                      .statement,
+                ],
+        ),
+    );
 
     return Method((b) {
       b
@@ -586,7 +717,7 @@ class CustomUseCaseGenerator {
           ),
         )
         ..annotations.add(CodeExpression(Code('override')))
-        ..body = Code(body);
+        ..body = executeBody;
       if (config.useCaseType != 'sync') {
         b.requiredParameters.add(
           Parameter(
@@ -613,9 +744,35 @@ class CustomUseCaseGenerator {
         ? returnsType
         : 'Future<$returnsType>';
     final isAsync = config.useCaseType != 'sync';
-    final body = config.useCaseType == 'sync'
-        ? "throw UnimplementedError('Implement $variant variant');"
-        : "throw UnimplementedError('Implement $variant variant');";
+    final executeBody = Block(
+      (b) => b
+        ..statements.addAll(
+          config.useCaseType == 'sync'
+              ? [
+                  refer('UnimplementedError')
+                      .call([
+                        literalString('Implement $variant variant'),
+                      ])
+                      .thrown
+                      .statement,
+                ]
+              : [
+                  refer('cancelToken')
+                      .equalTo(literalNull)
+                      .conditional(
+                        literalNull,
+                        refer('cancelToken').property('throwIfCancelled').call([]),
+                      )
+                      .statement,
+                  refer('UnimplementedError')
+                      .call([
+                        literalString('Implement $variant variant'),
+                      ])
+                      .thrown
+                      .statement,
+                ],
+        ),
+    );
 
     return Method((b) {
       b
@@ -630,7 +787,7 @@ class CustomUseCaseGenerator {
           ),
         )
         ..annotations.add(CodeExpression(Code('override')))
-        ..body = Code(body);
+        ..body = executeBody;
       if (config.useCaseType != 'sync') {
         b.requiredParameters.add(
           Parameter(
@@ -671,12 +828,18 @@ class CustomUseCaseGenerator {
       );
     }
 
-    final switchCases = config.variants
-        .map(
-          (variant) =>
-              "      $variant$paramsType => _${StringUtils.pascalToCamel(variant)},",
-        )
-        .join('\n');
+    final variantMap = <Expression, Expression>{
+      for (final variant in config.variants)
+        refer('$variant$paramsType'):
+            refer('_${StringUtils.pascalToCamel(variant)}'),
+    };
+    final selection = literalMap(variantMap)
+        .index(refer('params').property('runtimeType'))
+        .ifNullThen(
+          refer('UnimplementedError')
+              .call([literalString('Unknown params type')])
+              .thrown,
+        );
 
     final forParamsMethod = Method(
       (b) => b
@@ -689,11 +852,8 @@ class CustomUseCaseGenerator {
               ..type = refer(paramsType),
           ),
         )
-        ..body = Code(
-          'return switch (params.runtimeType) {\n'
-          '$switchCases\n'
-          "      _ => throw UnimplementedError('Unknown params type: \${params.runtimeType}'),\n"
-          '    };',
+        ..body = Block(
+          (b) => b..statements.add(selection.returned.statement),
         ),
     );
 
