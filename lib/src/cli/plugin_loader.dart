@@ -7,6 +7,15 @@ import '../core/plugin_system/plugin_interface.dart';
 import '../plugins/controller/controller_plugin.dart';
 import '../plugins/datasource/datasource_plugin.dart';
 import '../plugins/di/di_plugin.dart';
+import '../plugins/graphql/graphql_plugin.dart';
+import '../plugins/cache/cache_plugin.dart';
+import '../plugins/route/route_plugin.dart';
+import '../plugins/provider/provider_plugin.dart';
+import '../plugins/state/state_plugin.dart';
+import '../plugins/observer/observer_plugin.dart';
+import '../plugins/test/test_plugin.dart';
+import '../plugins/mock/mock_plugin.dart';
+import '../plugins/method_append/method_append_plugin.dart';
 import '../plugins/presenter/presenter_plugin.dart';
 import '../plugins/repository/repository_plugin.dart';
 import '../plugins/service/service_plugin.dart';
@@ -127,6 +136,12 @@ class PluginLoader {
         force: force,
         verbose: verbose,
       ),
+      ProviderPlugin(
+        outputDir: outputDir,
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+      ),
       UseCasePlugin(
         outputDir: outputDir,
         dryRun: dryRun,
@@ -151,6 +166,30 @@ class PluginLoader {
         force: force,
         verbose: verbose,
       ),
+      StatePlugin(
+        outputDir: outputDir,
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+      ),
+      ObserverPlugin(
+        outputDir: outputDir,
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+      ),
+      TestPlugin(
+        outputDir: outputDir,
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+      ),
+      MockPlugin(
+        outputDir: outputDir,
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+      ),
       DiPlugin(
         outputDir: outputDir,
         dryRun: dryRun,
@@ -167,6 +206,29 @@ class PluginLoader {
         outputDir: outputDir,
         dryRun: dryRun,
         force: force,
+        verbose: verbose,
+      ),
+      RoutePlugin(
+        outputDir: outputDir,
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+      ),
+      CachePlugin(
+        outputDir: outputDir,
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+      ),
+      GraphqlPlugin(
+        outputDir: outputDir,
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+      ),
+      MethodAppendPlugin(
+        outputDir: outputDir,
+        dryRun: dryRun,
         verbose: verbose,
       ),
     ];

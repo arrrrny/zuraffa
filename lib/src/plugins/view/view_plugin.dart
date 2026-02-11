@@ -207,16 +207,18 @@ class ViewPlugin extends FileGeneratorPlugin {
       return 'controller.$methodName$entityName();';
     }
     if (_needsIdParam(config) && config.queryField == config.idField) {
-      return '''
-if (widget.${config.idField} != null) {
-  controller.$methodName$entityName(widget.${config.idField}!);
-}''';
+      return [
+        'if (widget.${config.idField} != null) {',
+        '  controller.$methodName$entityName(widget.${config.idField}!);',
+        '}',
+      ].join('\n');
     }
     if (_needsQueryParam(config)) {
-      return '''
-if (widget.${config.queryField} != null) {
-  controller.$methodName$entityName(widget.${config.queryField}!);
-}''';
+      return [
+        'if (widget.${config.queryField} != null) {',
+        '  controller.$methodName$entityName(widget.${config.queryField}!);',
+        '}',
+      ].join('\n');
     }
     return '';
   }

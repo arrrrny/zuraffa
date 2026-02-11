@@ -6,28 +6,34 @@ import '../../../core/builder/shared/spec_library.dart';
 class EntityRoutesBuilder {
   final SpecLibrary specLibrary;
   final RouteFactory routeFactory;
+  final DartEmitter emitter;
 
-  const EntityRoutesBuilder({
+  EntityRoutesBuilder({
     this.specLibrary = const SpecLibrary(),
     this.routeFactory = const RouteFactory(),
-  });
+    DartEmitter? emitter,
+  }) : emitter =
+           emitter ??
+           DartEmitter(orderDirectives: true, useNullSafetySyntax: true);
 
   String buildFile({
     required String className,
     required Map<String, String> routes,
     required String routesGetterName,
-    required List<String> goRoutes,
+    required List<Expression> goRoutes,
     required List<String> imports,
   }) {
     final routesClass = routeFactory.build(
       RouteSpecConfig(className: className, routes: routes),
     );
 
+    final goRoutesSrc =
+        goRoutes.map((e) => e.accept(emitter).toString()).join(',\n');
     final getRoutesMethod = Method(
       (m) => m
         ..name = routesGetterName
         ..returns = refer('List<GoRoute>')
-        ..body = Code('return [\n${goRoutes.join(',\n')}\n];'),
+        ..body = Code('return [\n$goRoutesSrc\n];'),
     );
 
     final library = specLibrary.library(

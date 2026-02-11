@@ -34,7 +34,7 @@ class RouteGenerator {
     EntityRoutesBuilder? entityRoutesBuilder,
     AppendExecutor? appendExecutor,
   }) : appRoutesBuilder = appRoutesBuilder ?? AppRoutesBuilder(),
-       entityRoutesBuilder = entityRoutesBuilder ?? const EntityRoutesBuilder(),
+       entityRoutesBuilder = entityRoutesBuilder ?? EntityRoutesBuilder(),
        appendExecutor = appendExecutor ?? AppendExecutor();
 
   RouteGenerator.fromContext(GenerationContext context)
@@ -241,8 +241,8 @@ class RouteGenerator {
       hasWatch: hasWatch,
     );
 
-    final goRoutes = <String>[
-      _buildListRoute(
+    final goRoutes = <Expression>[
+      _buildListRouteExpr(
         entityName,
         entitySnake,
         entityCamel,
@@ -253,7 +253,7 @@ class RouteGenerator {
         viewParam,
       ),
       if (hasSubRoutes && (hasUpdate || hasDelete || hasGet || hasWatch))
-        _buildDetailRoute(
+        _buildDetailRouteExpr(
           entityName,
           entitySnake,
           entityCamel,
@@ -265,7 +265,7 @@ class RouteGenerator {
           viewParam,
         ),
       if (hasCreate)
-        _buildCreateRoute(
+        _buildCreateRouteExpr(
           entityName,
           entitySnake,
           entityCamel,
@@ -276,7 +276,7 @@ class RouteGenerator {
           viewParam,
         ),
       if (hasUpdate)
-        _buildUpdateRoute(
+        _buildUpdateRouteExpr(
           entityName,
           entitySnake,
           entityCamel,
@@ -311,7 +311,7 @@ class RouteGenerator {
     );
   }
 
-  String _buildListRoute(
+  Expression _buildListRouteExpr(
     String entityName,
     String entitySnake,
     String entityCamel,
@@ -321,16 +321,22 @@ class RouteGenerator {
     bool needsQueryParam,
     String viewParam,
   ) {
-    return '''  GoRoute(
-    path: ${entityName}Routes.${routeNameBase}List,
-    name: '${routeBase}_list',
-    builder: (context, state) => ${entityName}View(
-      ${entityCamel}Repository: getIt<${entityName}Repository>(),
-    ),
-  )''';
+    final pathExpr =
+        refer('${entityName}Routes').property('${routeNameBase}List');
+    final nameExpr = literalString('${routeBase}_list');
+    final builderExpr = CodeExpression(Code(
+        '(context, state) => ${entityName}View(${entityCamel}Repository: getIt<${entityName}Repository>(),)'));
+    return refer('GoRoute').call(
+      [],
+      {
+        'path': pathExpr,
+        'name': nameExpr,
+        'builder': builderExpr,
+      },
+    );
   }
 
-  String _buildDetailRoute(
+  Expression _buildDetailRouteExpr(
     String entityName,
     String entitySnake,
     String entityCamel,
@@ -341,19 +347,27 @@ class RouteGenerator {
     bool needsQueryParam,
     String viewParam,
   ) {
-    return '''  GoRoute(
-    path: ${entityName}Routes.${routeNameBase}Detail,
-    name: '${routeBase}_detail',
-    builder: (context, state) {
+    final pathExpr =
+        refer('${entityName}Routes').property('${routeNameBase}Detail');
+    final nameExpr = literalString('${routeBase}_detail');
+    final builderExpr = CodeExpression(Code(
+        '''(context, state) {
       return ${entityName}View(
         ${entityCamel}Repository: getIt<${entityName}Repository>(),
         id: state.pathParameters['id']!,
       );
-    },
-  )''';
+    }'''));
+    return refer('GoRoute').call(
+      [],
+      {
+        'path': pathExpr,
+        'name': nameExpr,
+        'builder': builderExpr,
+      },
+    );
   }
 
-  String _buildCreateRoute(
+  Expression _buildCreateRouteExpr(
     String entityName,
     String entitySnake,
     String entityCamel,
@@ -363,16 +377,22 @@ class RouteGenerator {
     bool needsQueryParam,
     String viewParam,
   ) {
-    return '''  GoRoute(
-    path: ${entityName}Routes.${routeNameBase}Create,
-    name: '${routeBase}_create',
-    builder: (context, state) => ${entityName}View(
-      ${entityCamel}Repository: getIt<${entityName}Repository>(),
-    ),
-  )''';
+    final pathExpr =
+        refer('${entityName}Routes').property('${routeNameBase}Create');
+    final nameExpr = literalString('${routeBase}_create');
+    final builderExpr = CodeExpression(Code(
+        '(context, state) => ${entityName}View(${entityCamel}Repository: getIt<${entityName}Repository>(),)'));
+    return refer('GoRoute').call(
+      [],
+      {
+        'path': pathExpr,
+        'name': nameExpr,
+        'builder': builderExpr,
+      },
+    );
   }
 
-  String _buildUpdateRoute(
+  Expression _buildUpdateRouteExpr(
     String entityName,
     String entitySnake,
     String entityCamel,
@@ -383,16 +403,24 @@ class RouteGenerator {
     bool needsQueryParam,
     String viewParam,
   ) {
-    return '''  GoRoute(
-    path: ${entityName}Routes.${routeNameBase}Update,
-    name: '${routeBase}_update',
-    builder: (context, state) {
+    final pathExpr =
+        refer('${entityName}Routes').property('${routeNameBase}Update');
+    final nameExpr = literalString('${routeBase}_update');
+    final builderExpr = CodeExpression(Code(
+        '''(context, state) {
       return ${entityName}View(
         ${entityCamel}Repository: getIt<${entityName}Repository>(),
         id: state.pathParameters['id']!,
       );
-    },
-  )''';
+    }'''));
+    return refer('GoRoute').call(
+      [],
+      {
+        'path': pathExpr,
+        'name': nameExpr,
+        'builder': builderExpr,
+      },
+    );
   }
 
   Future<void> _regenerateIndexFile() async {

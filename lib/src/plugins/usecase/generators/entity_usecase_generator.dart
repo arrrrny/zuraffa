@@ -1,9 +1,11 @@
 import 'dart:io';
+import 'package:code_builder/code_builder.dart';
 
 import 'package:path/path.dart' as path;
 
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
+import '../../../core/builder/shared/spec_library.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -41,9 +43,9 @@ class EntityUseCaseGenerator {
     final repoName = config.effectiveRepos.first;
     final relativePath = '../';
     String className;
-    String baseClass;
-    String paramsType;
-    String returnType;
+    TypeReference baseClass;
+    Reference paramsType;
+    Reference returnType;
     String executeBody;
     bool isStream = false;
     bool isCompletable = false;
@@ -53,28 +55,46 @@ class EntityUseCaseGenerator {
       case 'get':
         className = 'Get${entityName}UseCase';
         if (config.queryFieldType == 'NoParams') {
-          baseClass = 'UseCase<$entityName, NoParams>';
-          paramsType = 'NoParams';
+          baseClass = TypeReference((t) => t
+            ..symbol = 'UseCase'
+            ..types.addAll([refer(entityName), refer('NoParams')]));
+          paramsType = refer('NoParams');
           executeBody = 'return _repository.get(const QueryParams());';
         } else {
-          baseClass = 'UseCase<$entityName, QueryParams<$entityName>>';
-          paramsType = 'QueryParams<$entityName>';
+          baseClass = TypeReference((t) => t
+            ..symbol = 'UseCase'
+            ..types.addAll([
+              refer(entityName),
+              TypeReference((tr) => tr
+                ..symbol = 'QueryParams'
+                ..types.add(refer(entityName)))
+            ]));
+          paramsType = TypeReference((tr) => tr
+            ..symbol = 'QueryParams'
+            ..types.add(refer(entityName)));
           executeBody = 'return _repository.get(params);';
         }
-        returnType = entityName;
+        returnType = refer(entityName);
         break;
       case 'getList':
         className = 'Get${entityName}ListUseCase';
-        baseClass = 'UseCase<List<$entityName>, ListQueryParams<$entityName>>';
-        paramsType = 'ListQueryParams<$entityName>';
-        returnType = 'List<$entityName>';
+        baseClass = TypeReference((t) => t
+          ..symbol = 'UseCase'
+          ..types.addAll([
+            TypeReference((tr) => tr..symbol = 'List'..types.add(refer(entityName))),
+            TypeReference((tr) => tr..symbol = 'ListQueryParams'..types.add(refer(entityName))),
+          ]));
+        paramsType = TypeReference((tr) => tr..symbol = 'ListQueryParams'..types.add(refer(entityName)));
+        returnType = TypeReference((tr) => tr..symbol = 'List'..types.add(refer(entityName)));
         executeBody = 'return _repository.getList(params);';
         break;
       case 'create':
         className = 'Create${entityName}UseCase';
-        baseClass = 'UseCase<$entityName, $entityName>';
-        paramsType = entityName;
-        returnType = entityName;
+        baseClass = TypeReference((t) => t
+          ..symbol = 'UseCase'
+          ..types.addAll([refer(entityName), refer(entityName)]));
+        paramsType = refer(entityName);
+        returnType = refer(entityName);
         executeBody = 'return _repository.create(params);';
         break;
       case 'update':
@@ -82,17 +102,27 @@ class EntityUseCaseGenerator {
         final dataType = config.useZorphy
             ? '${entityName}Patch'
             : 'Partial<$entityName>';
-        baseClass =
-            'UseCase<$entityName, UpdateParams<${config.idType}, $dataType>>';
-        paramsType = 'UpdateParams<${config.idType}, $dataType>';
-        returnType = entityName;
+        baseClass = TypeReference((t) => t
+          ..symbol = 'UseCase'
+          ..types.addAll([
+            refer(entityName),
+            TypeReference((tr) => tr
+              ..symbol = 'UpdateParams'
+              ..types.addAll([refer(config.idType), _parseType(dataType, entityName)])),
+          ]));
+        paramsType = TypeReference((tr) => tr
+          ..symbol = 'UpdateParams'
+          ..types.addAll([refer(config.idType), _parseType(dataType, entityName)]));
+        returnType = refer(entityName);
         executeBody = 'return _repository.update(params);';
         break;
       case 'delete':
         className = 'Delete${entityName}UseCase';
-        baseClass = 'CompletableUseCase<DeleteParams<${config.idType}>>';
-        paramsType = 'DeleteParams<${config.idType}>';
-        returnType = 'void';
+        baseClass = TypeReference((t) => t
+          ..symbol = 'CompletableUseCase'
+          ..types.add(TypeReference((tr) => tr..symbol = 'DeleteParams'..types.add(refer(config.idType)))));
+        paramsType = TypeReference((tr) => tr..symbol = 'DeleteParams'..types.add(refer(config.idType)));
+        returnType = refer('void');
         executeBody = 'return _repository.delete(params);';
         isCompletable = true;
         needsEntityImport = false;
@@ -100,23 +130,34 @@ class EntityUseCaseGenerator {
       case 'watch':
         className = 'Watch${entityName}UseCase';
         if (config.queryFieldType == 'NoParams') {
-          baseClass = 'StreamUseCase<$entityName, NoParams>';
-          paramsType = 'NoParams';
+          baseClass = TypeReference((t) => t
+            ..symbol = 'StreamUseCase'
+            ..types.addAll([refer(entityName), refer('NoParams')]));
+          paramsType = refer('NoParams');
           executeBody = 'return _repository.watch(const QueryParams());';
         } else {
-          baseClass = 'StreamUseCase<$entityName, QueryParams<$entityName>>';
-          paramsType = 'QueryParams<$entityName>';
+          baseClass = TypeReference((t) => t
+            ..symbol = 'StreamUseCase'
+            ..types.addAll([
+              refer(entityName),
+              TypeReference((tr) => tr..symbol = 'QueryParams'..types.add(refer(entityName))),
+            ]));
+          paramsType = TypeReference((tr) => tr..symbol = 'QueryParams'..types.add(refer(entityName)));
           executeBody = 'return _repository.watch(params);';
         }
-        returnType = entityName;
+        returnType = refer(entityName);
         isStream = true;
         break;
       case 'watchList':
         className = 'Watch${entityName}ListUseCase';
-        baseClass =
-            'StreamUseCase<List<$entityName>, ListQueryParams<$entityName>>';
-        paramsType = 'ListQueryParams<$entityName>';
-        returnType = 'List<$entityName>';
+        baseClass = TypeReference((t) => t
+          ..symbol = 'StreamUseCase'
+          ..types.addAll([
+            TypeReference((tr) => tr..symbol = 'List'..types.add(refer(entityName))),
+            TypeReference((tr) => tr..symbol = 'ListQueryParams'..types.add(refer(entityName))),
+          ]));
+        paramsType = TypeReference((tr) => tr..symbol = 'ListQueryParams'..types.add(refer(entityName)));
+        returnType = TypeReference((tr) => tr..symbol = 'List'..types.add(refer(entityName)));
         executeBody = 'return _repository.watchList(params);';
         isStream = true;
         break;
@@ -137,63 +178,76 @@ class EntityUseCaseGenerator {
     );
     final filePath = path.join(usecaseDirPath, fileName);
 
-    final imports = <String>["import 'package:zuraffa/zuraffa.dart';"];
+    final imports = <String>['package:zuraffa/zuraffa.dart'];
     if (needsEntityImport) {
       final entityPath =
           '$relativePath../entities/$entitySnake/$entitySnake.dart';
-      imports.add("import '$entityPath';");
+      imports.add(entityPath);
     }
     final repoPath =
         '$relativePath../repositories/${StringUtils.camelToSnake(repoName.replaceAll('Repository', ''))}_repository.dart';
-    imports.add("import '$repoPath';");
+    imports.add(repoPath);
 
-    String executeMethod;
-    if (isStream) {
-      executeMethod =
-          '''
-  @override
-  Stream<$returnType> execute($paramsType $paramName, CancelToken? cancelToken) {
-    cancelToken?.throwIfCancelled();
-    $executeBody
-  }''';
-    } else if (isCompletable) {
-      executeMethod =
-          '''
-  @override
-  Future<void> execute($paramsType $paramName, CancelToken? cancelToken) async {
-    cancelToken?.throwIfCancelled();
-    $executeBody
-  }''';
-    } else {
-      executeMethod =
-          '''
-  @override
-  Future<$returnType> execute($paramsType $paramName, CancelToken? cancelToken) async {
-    cancelToken?.throwIfCancelled();
-    $executeBody
-  }''';
-    }
+    final executeMethod = Method(
+      (m) {
+        m
+          ..name = 'execute'
+          ..annotations.add(refer('override'))
+          ..returns = isStream
+              ? TypeReference((tr) => tr..symbol = 'Stream'..types.add(returnType))
+              : isCompletable
+                  ? TypeReference((tr) => tr..symbol = 'Future'..types.add(refer('void')))
+                  : TypeReference((tr) => tr..symbol = 'Future'..types.add(returnType))
+          ..requiredParameters.addAll([
+            Parameter((p) => p..name = paramName..type = paramsType),
+            Parameter((p) => p
+              ..name = 'cancelToken'
+              ..type = TypeReference((tr) => tr..symbol = 'CancelToken'..isNullable = true)),
+          ])
+          ..modifier = isStream ? null : MethodModifier.async
+          ..body = Code([
+            'cancelToken?.throwIfCancelled();',
+            executeBody,
+          ].join('\n'));
+      },
+    );
 
-    final content =
-        '''
-// Generated by zfa
-
-${imports.join('\n')}
-
-class $className extends $baseClass {
-  final $repoName _repository;
-
-  $className(this._repository);
-
-$executeMethod
-}
-''';
+    final repoField = Field(
+      (f) => f
+        ..modifier = FieldModifier.final$
+        ..type = refer(repoName)
+        ..name = '_repository',
+    );
+    final ctor = Constructor(
+      (c) => c
+        ..requiredParameters.add(
+          Parameter(
+            (p) => p
+              ..name = '_repository'
+              ..type = refer(repoName)
+              ..toThis = true,
+          ),
+        ),
+    );
+    final useCaseClass = Class(
+      (c) => c
+        ..name = className
+        ..extend = baseClass
+        ..fields.add(repoField)
+        ..constructors.add(ctor)
+        ..methods.add(executeMethod),
+    );
+    final library = const SpecLibrary().library(
+      specs: [useCaseClass],
+      directives: imports.map(Directive.import),
+    );
+    final content = const SpecLibrary().emitLibrary(library);
 
     return _writeOrAppend(
       config: config,
       filePath: filePath,
       className: className,
-      executeMethodSource: executeMethod,
+      executeMethodSource: executeMethod.accept(DartEmitter(orderDirectives: true, useNullSafetySyntax: true)).toString(),
       content: content,
     );
   }
@@ -240,5 +294,14 @@ $executeMethod
       dryRun: dryRun,
       verbose: verbose,
     );
+  }
+
+  Reference _parseType(String raw, String entityName) {
+    if (raw.startsWith('Partial<')) {
+      return TypeReference((tr) => tr
+        ..symbol = 'Partial'
+        ..types.add(refer(entityName)));
+    }
+    return refer(raw);
   }
 }

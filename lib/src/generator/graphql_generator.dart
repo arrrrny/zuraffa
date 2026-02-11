@@ -1,6 +1,8 @@
 import 'package:path/path.dart' as path;
 import '../core/generation/generation_context.dart';
 import '../models/generator_config.dart';
+import 'package:code_builder/code_builder.dart';
+import '../core/builder/shared/spec_library.dart';
 import '../models/generated_file.dart';
 import '../utils/file_utils.dart';
 import '../utils/string_utils.dart';
@@ -11,6 +13,7 @@ class GraphQLGenerator {
   final bool dryRun;
   final bool force;
   final bool verbose;
+  final SpecLibrary specLibrary;
 
   GraphQLGenerator({
     required this.config,
@@ -18,7 +21,8 @@ class GraphQLGenerator {
     this.dryRun = false,
     this.force = false,
     this.verbose = false,
-  });
+    SpecLibrary? specLibrary,
+  }) : specLibrary = specLibrary ?? const SpecLibrary();
 
   GraphQLGenerator.fromContext(GenerationContext context)
     : this(
@@ -193,61 +197,68 @@ class GraphQLGenerator {
 
     switch (method) {
       case 'get':
-        return '''
-  $operationType $wrapperName(\$${config.idField}: ${_getGraphQLType(config.idType)}!) {
-    $camelCaseOpName(${config.idField}: \$${config.idField}) {
-$returnFields
-    }
-  }''';
+        return _lines([
+          '  $operationType $wrapperName(\$${config.idField}: ${_getGraphQLType(config.idType)}!) {',
+          '    $camelCaseOpName(${config.idField}: \$${config.idField}) {',
+          returnFields,
+          '    }',
+          '  }',
+        ]);
 
       case 'getList':
         if (config.gqlInputType != null) {
-          return '''
-  $operationType $wrapperName(\$$inputName: $inputType!) {
-    $camelCaseOpName($inputName: \$$inputName) {
-$returnFields
-    }
-  }''';
+          return _lines([
+            '  $operationType $wrapperName(\$$inputName: $inputType!) {',
+            '    $camelCaseOpName($inputName: \$$inputName) {',
+            returnFields,
+            '    }',
+            '  }',
+          ]);
         } else {
-          return '''
-  $operationType $wrapperName {
-    $camelCaseOpName {
-$returnFields
-    }
-  }''';
+          return _lines([
+            '  $operationType $wrapperName {',
+            '    $camelCaseOpName {',
+            returnFields,
+            '    }',
+            '  }',
+          ]);
         }
 
       case 'create':
-        return '''
-  $operationType $wrapperName(\$$inputName: ${inputType.startsWith('Create') ? inputType : 'Create$inputType'}!) {
-    $camelCaseOpName($inputName: \$$inputName) {
-$returnFields
-    }
-  }''';
+        return _lines([
+          '  $operationType $wrapperName(\$$inputName: ${inputType.startsWith('Create') ? inputType : 'Create$inputType'}!) {',
+          '    $camelCaseOpName($inputName: \$$inputName) {',
+          returnFields,
+          '    }',
+          '  }',
+        ]);
 
       case 'update':
-        return '''
-  $operationType $wrapperName(\$${config.idField}: ${_getGraphQLType(config.idType)}!, \$$inputName: ${inputType.startsWith('Update') ? inputType : 'Update$inputType'}!) {
-    $camelCaseOpName(${config.idField}: \$${config.idField}, $inputName: \$$inputName) {
-$returnFields
-    }
-  }''';
+        return _lines([
+          '  $operationType $wrapperName(\$${config.idField}: ${_getGraphQLType(config.idType)}!, \$$inputName: ${inputType.startsWith('Update') ? inputType : 'Update$inputType'}!) {',
+          '    $camelCaseOpName(${config.idField}: \$${config.idField}, $inputName: \$$inputName) {',
+          returnFields,
+          '    }',
+          '  }',
+        ]);
 
       case 'delete':
-        return '''
-  $operationType $wrapperName(\$${config.idField}: ${_getGraphQLType(config.idType)}!) {
-    $camelCaseOpName(${config.idField}: \$${config.idField}) {
-      success
-    }
-  }''';
+        return _lines([
+          '  $operationType $wrapperName(\$${config.idField}: ${_getGraphQLType(config.idType)}!) {',
+          '    $camelCaseOpName(${config.idField}: \$${config.idField}) {',
+          '      success',
+          '    }',
+          '  }',
+        ]);
 
       default:
-        return '''
-  $operationType $wrapperName {
-    $camelCaseOpName {
-$returnFields
-    }
-  }''';
+        return _lines([
+          '  $operationType $wrapperName {',
+          '    $camelCaseOpName {',
+          returnFields,
+          '    }',
+          '  }',
+        ]);
     }
   }
 
@@ -267,19 +278,21 @@ $returnFields
     ); // camelCase for inner
 
     if (paramsType == 'NoParams' && config.gqlInputType == null) {
-      return '''
-  $operationType $wrapperName {
-    $camelCaseOpName {
-$returnFields
-    }
-  }''';
+      return _lines([
+        '  $operationType $wrapperName {',
+        '    $camelCaseOpName {',
+        returnFields,
+        '    }',
+        '  }',
+      ]);
     } else {
-      return '''
-  $operationType $wrapperName(\$$inputName: $inputType!) {
-    $camelCaseOpName($inputName: \$$inputName) {
-$returnFields
-    }
-  }''';
+      return _lines([
+        '  $operationType $wrapperName(\$$inputName: $inputType!) {',
+        '    $camelCaseOpName($inputName: \$$inputName) {',
+        returnFields,
+        '    }',
+        '  }',
+      ]);
     }
   }
 
@@ -289,9 +302,11 @@ $returnFields
     }
 
     // Auto-generate common fields
-    return '''      ${config.idField}
-      createdAt
-      updatedAt''';
+    return _lines([
+      '      ${config.idField}',
+      '      createdAt',
+      '      updatedAt',
+    ]);
   }
 
   String _getCustomReturnFields(String returnsType) {
@@ -304,9 +319,11 @@ $returnFields
     }
 
     // Auto-generate common fields for the return type
-    return '''      id
-      createdAt
-      updatedAt''';
+    return _lines([
+      '      id',
+      '      createdAt',
+      '      updatedAt',
+    ]);
   }
 
   String _formatGraphQLFields(String fieldsStr) {
@@ -389,10 +406,22 @@ $returnFields
         StringUtils.pascalToCamel(operationName) +
         StringUtils.convertToPascalCase(operationType);
 
-    return '''
-// Generated GraphQL $operationType for $operationName
-const String $constantName = r\'\'\'$gqlString
-\'\'\';
-''';
+    final field = Field(
+      (f) => f
+        ..name = constantName
+        ..type = refer('String')
+        ..modifier = FieldModifier.constant
+        ..assignment = Code(_graphqlLiteral(gqlString)),
+    );
+    return specLibrary.emitLibrary(
+      specLibrary.library(specs: [field]),
+    );
+  }
+
+  String _lines(List<String> lines) => lines.join('\n');
+
+  String _graphqlLiteral(String gqlString) {
+    final escaped = gqlString.replaceAll(r'$', r'\$');
+    return 'r"""$escaped"""';
   }
 }

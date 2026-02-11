@@ -1,7 +1,9 @@
 import 'dart:io';
+import 'package:code_builder/code_builder.dart';
 
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
+import '../../../core/builder/shared/spec_library.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -31,51 +33,121 @@ class RepositoryImplementationGenerator {
     final fileName = 'data_${entitySnake}_repository.dart';
     final filePath = '$outputDir/data/repositories/$fileName';
 
-    final methods = <String>[];
+    final methods = <Method>[];
 
     final dataSourceName = '${entityName}DataSource';
     final localDataSourceName = '${entityName}LocalDataSource';
 
-    final constructorParams = config.generateLocal
-        ? '''  final $localDataSourceName _dataSource;
-
-  $dataRepoName(this._dataSource);'''
-        : config.enableCache
-        ? '''  final $dataSourceName _remoteDataSource;
-  final $localDataSourceName _localDataSource;
-  final CachePolicy _cachePolicy;
-
-  $dataRepoName(
-    this._remoteDataSource,
-    this._localDataSource,
-    this._cachePolicy,
-  );'''
-        : '''  final $dataSourceName _dataSource;
-
-  $dataRepoName(this._dataSource);''';
+    final fields = <Field>[];
+    final constructors = <Constructor>[];
+    if (config.generateLocal) {
+      fields.add(
+        Field(
+          (f) => f
+            ..modifier = FieldModifier.final$
+            ..type = refer(localDataSourceName)
+            ..name = '_dataSource',
+        ),
+      );
+      constructors.add(
+        Constructor(
+          (c) => c
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = '_dataSource'
+                  ..toThis = true,
+              ),
+            ),
+        ),
+      );
+    } else if (config.enableCache) {
+      fields.addAll([
+        Field(
+          (f) => f
+            ..modifier = FieldModifier.final$
+            ..type = refer(dataSourceName)
+            ..name = '_remoteDataSource',
+        ),
+        Field(
+          (f) => f
+            ..modifier = FieldModifier.final$
+            ..type = refer(localDataSourceName)
+            ..name = '_localDataSource',
+        ),
+        Field(
+          (f) => f
+            ..modifier = FieldModifier.final$
+            ..type = refer('CachePolicy')
+            ..name = '_cachePolicy',
+        ),
+      ]);
+      constructors.add(
+        Constructor(
+          (c) => c
+            ..requiredParameters.addAll([
+              Parameter((p) => p..name = '_remoteDataSource'..toThis = true),
+              Parameter((p) => p..name = '_localDataSource'..toThis = true),
+              Parameter((p) => p..name = '_cachePolicy'..toThis = true),
+            ]),
+        ),
+      );
+    } else {
+      fields.add(
+        Field(
+          (f) => f
+            ..modifier = FieldModifier.final$
+            ..type = refer(dataSourceName)
+            ..name = '_dataSource',
+        ),
+      );
+      constructors.add(
+        Constructor(
+          (c) => c
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = '_dataSource'
+                  ..toThis = true,
+              ),
+            ),
+        ),
+      );
+    }
 
     if (config.generateInit) {
-      if (config.enableCache) {
-        methods.add('''
-  @override
-  Stream<bool> get isInitialized => _remoteDataSource.isInitialized;''');
-
-        methods.add('''
-  @override
-  Future<void> initialize(InitializationParams params) {
-    return _remoteDataSource.initialize(params);
-  }''');
-      } else {
-        methods.add('''
-  @override
-  Stream<bool> get isInitialized => _dataSource.isInitialized;''');
-
-        methods.add('''
-  @override
-  Future<void> initialize(InitializationParams params) {
-    return _dataSource.initialize(params);
-  }''');
-      }
+      final isInitializedGetter = Method(
+        (m) => m
+          ..name = 'isInitialized'
+          ..type = MethodType.getter
+          ..annotations.add(refer('override'))
+          ..returns = refer('Stream<bool>')
+          ..body = Code(
+            config.enableCache
+                ? '_remoteDataSource.isInitialized'
+                : '_dataSource.isInitialized',
+          ),
+      );
+      final initializeMethod = Method(
+        (m) => m
+          ..name = 'initialize'
+          ..annotations.add(refer('override'))
+          ..returns = refer('Future<void>')
+          ..requiredParameters.add(
+            Parameter(
+              (p) => p
+                ..name = 'params'
+                ..type = refer('InitializationParams'),
+            ),
+          )
+          ..body = Code(
+            config.enableCache
+                ? 'return _remoteDataSource.initialize(params);'
+                : 'return _dataSource.initialize(params);',
+          ),
+      );
+      methods.add(isInitializedGetter);
+      methods.add(initializeMethod);
     }
 
     for (final method in config.methods) {
@@ -90,36 +162,46 @@ class RepositoryImplementationGenerator {
       }
     }
 
-    final dataSourceImport = config.generateLocal
-        ? '''import '../data_sources/$entitySnake/${entitySnake}_local_data_source.dart';'''
+    final dataSourceImports = config.generateLocal
+        ? [
+            '../data_sources/$entitySnake/${entitySnake}_local_data_source.dart',
+          ]
         : config.enableCache
-        ? '''import '../data_sources/$entitySnake/${entitySnake}_data_source.dart';
-import '../data_sources/$entitySnake/${entitySnake}_local_data_source.dart';'''
-        : '''import '../data_sources/$entitySnake/${entitySnake}_data_source.dart';''';
+        ? [
+            '../data_sources/$entitySnake/${entitySnake}_data_source.dart',
+            '../data_sources/$entitySnake/${entitySnake}_local_data_source.dart',
+          ]
+        : [
+            '../data_sources/$entitySnake/${entitySnake}_data_source.dart',
+          ];
 
     final hasWatchMethods = config.methods.any(
       (m) => m == 'watch' || m == 'watchList',
     );
-    final asyncImport = config.enableCache && hasWatchMethods
-        ? "import 'dart:async';\n\n"
-        : '';
+    final includeAsyncImport = config.enableCache && hasWatchMethods;
 
-    final content =
-        '''
-// Generated by zfa
-// zfa generate $entityName --methods=${config.methods.join(',')} --data${config.enableCache ? ' --cache=${config.cachePolicy}' : ''}${config.generateLocal ? ' --local' : ''}
+    final directives = <Directive>[
+      if (includeAsyncImport) Directive.import('dart:async'),
+      Directive.import('package:zuraffa/zuraffa.dart'),
+      Directive.import('../../domain/entities/$entitySnake/$entitySnake.dart'),
+      Directive.import('../../domain/repositories/${entitySnake}_repository.dart'),
+      ...dataSourceImports.map(Directive.import),
+    ];
 
-${asyncImport}import 'package:zuraffa/zuraffa.dart';
-import '../../domain/entities/$entitySnake/$entitySnake.dart';
-import '../../domain/repositories/${entitySnake}_repository.dart';
-$dataSourceImport
-
-class $dataRepoName with Loggable, FailureHandler implements $repoName {
-$constructorParams
-
-${methods.join('\n\n')}
-}
-''';
+    final clazz = Class(
+      (c) => c
+        ..name = dataRepoName
+        ..mixins.addAll([refer('Loggable'), refer('FailureHandler')])
+        ..implements.add(refer(repoName))
+        ..fields.addAll(fields)
+        ..constructors.addAll(constructors)
+        ..methods.addAll(methods),
+    );
+    final library = const SpecLibrary().library(
+      specs: [clazz],
+      directives: directives,
+    );
+    final content = const SpecLibrary().emitLibrary(library);
 
     if (config.appendToExisting && File(filePath).existsSync()) {
       final existing = await File(filePath).readAsString();
@@ -151,7 +233,7 @@ ${methods.join('\n\n')}
     );
   }
 
-  String _generateSimpleMethod(
+  Method _generateSimpleMethod(
     GeneratorConfig config,
     String method,
     String entityName,
@@ -159,49 +241,91 @@ ${methods.join('\n\n')}
   ) {
     switch (method) {
       case 'get':
-        return '''  @override
-  Future<$entityName> get(QueryParams<$entityName> params) {
-    return _dataSource.get(params);
-  }''';
+        return Method(
+          (m) => m
+            ..name = 'get'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Future<$entityName>')
+            ..requiredParameters.add(
+              Parameter((p) => p..name = 'params'..type = refer('QueryParams<$entityName>')),
+            )
+            ..body = Code('return _dataSource.get(params);'),
+        );
       case 'getList':
-        return '''  @override
-  Future<List<$entityName>> getList(ListQueryParams<$entityName> params) {
-    return _dataSource.getList(params);
-  }''';
+        return Method(
+          (m) => m
+            ..name = 'getList'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Future<List<$entityName>>')
+            ..requiredParameters.add(
+              Parameter((p) => p..name = 'params'..type = refer('ListQueryParams<$entityName>')),
+            )
+            ..body = Code('return _dataSource.getList(params);'),
+        );
       case 'create':
-        return '''  @override
-  Future<$entityName> create($entityName $entityCamel) {
-    return _dataSource.create($entityCamel);
-  }''';
+        return Method(
+          (m) => m
+            ..name = 'create'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Future<$entityName>')
+            ..requiredParameters.add(
+              Parameter((p) => p..name = entityCamel..type = refer(entityName)),
+            )
+            ..body = Code('return _dataSource.create($entityCamel);'),
+        );
       case 'update':
         final dataType = config.useZorphy
             ? '${config.name}Patch'
             : 'Partial<${config.name}>';
-        return '''  @override
-  Future<${config.name}> update(UpdateParams<${config.idType}, $dataType> params) {
-    return _dataSource.update(params);
-  }''';
+        return Method(
+          (m) => m
+            ..name = 'update'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Future<${config.name}>')
+            ..requiredParameters.add(
+              Parameter((p) => p..name = 'params'..type = refer('UpdateParams<${config.idType}, $dataType>')),
+            )
+            ..body = Code('return _dataSource.update(params);'),
+        );
       case 'delete':
-        return '''  @override
-  Future<void> delete(DeleteParams<${config.idType}> params) {
-    return _dataSource.delete(params);
-  }''';
+        return Method(
+          (m) => m
+            ..name = 'delete'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Future<void>')
+            ..requiredParameters.add(
+              Parameter((p) => p..name = 'params'..type = refer('DeleteParams<${config.idType}>')),
+            )
+            ..body = Code('return _dataSource.delete(params);'),
+        );
       case 'watch':
-        return '''  @override
-  Stream<$entityName> watch(QueryParams<$entityName> params) {
-    return _dataSource.watch(params);
-  }''';
+        return Method(
+          (m) => m
+            ..name = 'watch'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Stream<$entityName>')
+            ..requiredParameters.add(
+              Parameter((p) => p..name = 'params'..type = refer('QueryParams<$entityName>')),
+            )
+            ..body = Code('return _dataSource.watch(params);'),
+        );
       case 'watchList':
-        return '''  @override
-  Stream<List<$entityName>> watchList(ListQueryParams<$entityName> params) {
-    return _dataSource.watchList(params);
-  }''';
+        return Method(
+          (m) => m
+            ..name = 'watchList'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Stream<List<$entityName>>')
+            ..requiredParameters.add(
+              Parameter((p) => p..name = 'params'..type = refer('ListQueryParams<$entityName>')),
+            )
+            ..body = Code('return _dataSource.watchList(params);'),
+        );
       default:
-        return '';
+        return Method((m) => m..name = '_noop');
     }
   }
 
-  String _generateCachedMethod(
+  Method _generateCachedMethod(
     GeneratorConfig config,
     String method,
     String entityName,
@@ -211,9 +335,16 @@ ${methods.join('\n\n')}
 
     switch (method) {
       case 'get':
-        return '''  @override
-  Future<$entityName> get(QueryParams<$entityName> params) async {
-    // Check cache validity
+        return Method(
+          (m) => m
+            ..name = 'get'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Future<$entityName>')
+            ..modifier = MethodModifier.async
+            ..requiredParameters.add(
+              Parameter((p) => p..name = 'params'..type = refer('QueryParams<$entityName>')),
+            )
+            ..body = Code('''
     if (await _cachePolicy.isValid('$baseCacheKey')) {
       try {
         return await _localDataSource.get(params);
@@ -221,23 +352,24 @@ ${methods.join('\n\n')}
         logger.severe('Cache miss, fetching from remote');
       }
     }
-
-    // Fetch from remote
     final data = await _remoteDataSource.get(params);
-
-    // Update cache
     await _localDataSource.save(data);
     await _cachePolicy.markFresh('$baseCacheKey');
-
     return data;
-  }''';
+'''),
+        );
       case 'getList':
-        return '''  @override
-  Future<List<$entityName>> getList(ListQueryParams<$entityName> params) async {
-    // Include params in cache key for granular caching
+        return Method(
+          (m) => m
+            ..name = 'getList'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Future<List<$entityName>>')
+            ..modifier = MethodModifier.async
+            ..requiredParameters.add(
+              Parameter((p) => p..name = 'params'..type = refer('ListQueryParams<$entityName>')),
+            )
+            ..body = Code('''
     final listCacheKey = '${baseCacheKey}_\${params.hashCode}';
-
-    // Check cache validity
     if (await _cachePolicy.isValid(listCacheKey)) {
       try {
         return await _localDataSource.getList(params);
@@ -245,65 +377,89 @@ ${methods.join('\n\n')}
         logger.severe('Cache miss, fetching from remote');
       }
     }
-
-    // Fetch from remote
     final data = await _remoteDataSource.getList(params);
-
-    // Update cache
     await _localDataSource.saveAll(data);
     await _cachePolicy.markFresh(listCacheKey);
-
     return data;
-  }''';
+'''),
+        );
       case 'create':
-        return '''  @override
-  Future<$entityName> create($entityName $entityCamel) async {
-    // Create on remote
+        return Method(
+          (m) => m
+            ..name = 'create'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Future<$entityName>')
+            ..modifier = MethodModifier.async
+            ..requiredParameters.add(
+              Parameter((p) => p..name = entityCamel..type = refer(entityName)),
+            )
+            ..body = Code('''
     final created = await _remoteDataSource.create($entityCamel);
-
-    // Update local cache
     await _localDataSource.save(created);
-
-    // Invalidate list cache since a new item was added
     await _cachePolicy.invalidate('$baseCacheKey');
-
     return created;
-  }''';
+'''),
+        );
       case 'update':
         final dataType = config.useZorphy
             ? '${config.name}Patch'
             : 'Partial<${config.name}>';
-        return '''  @override
-  Future<${config.name}> update(UpdateParams<${config.idType}, $dataType> params) async {
-    // Update on remote
+        return Method(
+          (m) => m
+            ..name = 'update'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Future<${config.name}>')
+            ..modifier = MethodModifier.async
+            ..requiredParameters.add(
+              Parameter((p) => p..name = 'params'..type = refer('UpdateParams<${config.idType}, $dataType>')),
+            )
+            ..body = Code('''
     final updated = await _remoteDataSource.update(params);
-
-    // Update local cache
     await _localDataSource.update(params);
-
-    // Invalidate cache since data was modified
     await _cachePolicy.invalidate('$baseCacheKey');
-
     return updated;
-  }''';
+'''),
+        );
       case 'delete':
-        return '''  @override
-  Future<void> delete(DeleteParams<${config.idType}> params) async {
-    // Delete from remote
+        return Method(
+          (m) => m
+            ..name = 'delete'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Future<void>')
+            ..modifier = MethodModifier.async
+            ..requiredParameters.add(
+              Parameter((p) => p..name = 'params'..type = refer('DeleteParams<${config.idType}>')),
+            )
+            ..body = Code('''
     await _remoteDataSource.delete(params);
-
-    // Delete from local cache
     await _localDataSource.delete(params);
-
-    // Invalidate all cache since data was removed
     await _cachePolicy.invalidate('$baseCacheKey');
-  }''';
+'''),
+        );
       case 'watch':
-        return _buildWatchBody(config, entityName);
+        return Method(
+          (m) => m
+            ..name = 'watch'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Stream<$entityName>')
+            ..requiredParameters.add(
+              Parameter((p) => p..name = 'params'..type = refer('QueryParams<$entityName>')),
+            )
+            ..body = Code(_buildWatchBody(config, entityName)),
+        );
       case 'watchList':
-        return _buildWatchListBody(config, entityName);
+        return Method(
+          (m) => m
+            ..name = 'watchList'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Stream<List<$entityName>>')
+            ..requiredParameters.add(
+              Parameter((p) => p..name = 'params'..type = refer('ListQueryParams<$entityName>')),
+            )
+            ..body = Code(_buildWatchListBody(config, entityName)),
+        );
       default:
-        return '';
+        return Method((m) => m..name = '_noop');
     }
   }
 
@@ -349,10 +505,12 @@ ${methods.join('\n\n')}
   String _appendMethods({
     required String source,
     required String className,
-    required List<String> methods,
+    required List<Method> methods,
   }) {
     var updated = source;
-    for (final methodSource in methods) {
+    final emitter = DartEmitter(orderDirectives: true, useNullSafetySyntax: true);
+    for (final method in methods) {
+      final methodSource = method.accept(emitter).toString();
       final result = appendExecutor.execute(
         AppendRequest.method(
           source: updated,

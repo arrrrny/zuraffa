@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
+import '../core/builder/shared/spec_library.dart';
 import '../core/generation/generation_context.dart';
 import '../models/generator_config.dart';
 import '../models/generated_file.dart';
@@ -256,6 +258,23 @@ class MethodAppender {
     return '../../../domain/entities/$entitySnake/$entitySnake.dart';
   }
 
+  String _emitMethod(Method method) {
+    final buffer = StringBuffer();
+    method.accept(
+      DartEmitter(useNullSafetySyntax: true),
+      buffer,
+    );
+    return buffer.toString();
+  }
+
+  String _indent(String code, int spaces) {
+    final pad = ' ' * spaces;
+    return code
+        .split('\n')
+        .map((line) => line.isEmpty ? line : '$pad$line')
+        .join('\n');
+  }
+
   Future<AppendResult> appendMethod() async {
     final updatedFiles = <GeneratedFile>[];
     final warnings = <String>[];
@@ -457,8 +476,23 @@ class MethodAppender {
     final lastBrace = content.lastIndexOf('}');
     if (lastBrace == -1) return false;
 
-    final methodSignature =
-        '  $returnSignature $methodName($paramsType params);\n';
+    final methodSignature = _indent(
+      _emitMethod(
+        Method(
+          (m) => m
+            ..name = methodName
+            ..returns = refer(returnSignature)
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer(paramsType),
+              ),
+            ),
+        ),
+      ),
+      2,
+    ).trimRight() + '\n';
     final newContent =
         content.substring(0, lastBrace) +
         methodSignature +
@@ -494,13 +528,28 @@ class MethodAppender {
 
     final isStream = config.useCaseType == 'stream';
     final isSync = config.useCaseType == 'sync';
-    final methodImpl =
-        '''
-  @override
-  $returnSignature $methodName($paramsType params) ${isStream || isSync ? '' : 'async '}{\n    ${isStream || isSync ? 'return' : 'return await'} $dataSourceField.$methodName(params);
-  }
-
-''';
+    final methodImpl = _indent(
+      _emitMethod(
+        Method(
+          (m) => m
+            ..name = methodName
+            ..returns = refer(returnSignature)
+            ..annotations.add(refer('override'))
+            ..modifier = isStream || isSync ? null : MethodModifier.async
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer(paramsType),
+              ),
+            )
+            ..body = Code(
+              'return ${isStream || isSync ? '' : 'await '}$dataSourceField.$methodName(params);',
+            ),
+        ),
+      ),
+      2,
+    ).trimRight() + '\n\n';
 
     final newContent =
         content.substring(0, lastBrace) +
@@ -528,8 +577,23 @@ class MethodAppender {
     final lastBrace = content.lastIndexOf('}');
     if (lastBrace == -1) return false;
 
-    final methodSignature =
-        '  $returnSignature $methodName($paramsType params);\n';
+    final methodSignature = _indent(
+      _emitMethod(
+        Method(
+          (m) => m
+            ..name = methodName
+            ..returns = refer(returnSignature)
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer(paramsType),
+              ),
+            ),
+        ),
+      ),
+      2,
+    ).trimRight() + '\n';
     final newContent =
         content.substring(0, lastBrace) +
         methodSignature +
@@ -556,14 +620,30 @@ class MethodAppender {
     final lastBrace = content.lastIndexOf('}');
     if (lastBrace == -1) return false;
 
-    final methodImpl =
-        '''
-  @override
-  $returnSignature $methodName($paramsType params) ${config.useCaseType == 'stream' || config.useCaseType == 'sync' ? '' : 'async '}{\n    // TODO: Implement remote $methodName
-    throw UnimplementedError('Implement remote $methodName');
-  }
-
-''';
+    final isStream = config.useCaseType == 'stream';
+    final isSync = config.useCaseType == 'sync';
+    final methodImpl = _indent(
+      _emitMethod(
+        Method(
+          (m) => m
+            ..name = methodName
+            ..returns = refer(returnSignature)
+            ..annotations.add(refer('override'))
+            ..modifier = isStream || isSync ? null : MethodModifier.async
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer(paramsType),
+              ),
+            )
+            ..body = Code(
+              "throw UnimplementedError('Implement remote $methodName');",
+            ),
+        ),
+      ),
+      2,
+    ).trimRight() + '\n\n';
 
     final newContent =
         content.substring(0, lastBrace) +
@@ -593,14 +673,28 @@ class MethodAppender {
 
     final isStream = config.useCaseType == 'stream';
     final isSync = config.useCaseType == 'sync';
-    final methodImpl =
-        '''
-  @override
-  $returnSignature $methodName($paramsType params) ${isStream || isSync ? '' : 'async '}{\n    // TODO: Return mock data
-    throw UnimplementedError('Return mock data for $methodName');
-  }
-
-''';
+    final methodImpl = _indent(
+      _emitMethod(
+        Method(
+          (m) => m
+            ..name = methodName
+            ..returns = refer(returnSignature)
+            ..annotations.add(refer('override'))
+            ..modifier = isStream || isSync ? null : MethodModifier.async
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer(paramsType),
+              ),
+            )
+            ..body = Code(
+              "throw UnimplementedError('Return mock data for $methodName');",
+            ),
+        ),
+      ),
+      2,
+    ).trimRight() + '\n\n';
 
     final newContent =
         content.substring(0, lastBrace) +
@@ -630,14 +724,28 @@ class MethodAppender {
 
     final isStream = config.useCaseType == 'stream';
     final isSync = config.useCaseType == 'sync';
-    final methodImpl =
-        '''
-  @override
-  $returnSignature $methodName($paramsType params) ${isStream || isSync ? '' : 'async '}{\n    // TODO: Implement local storage $methodName
-    throw UnimplementedError('Implement local storage $methodName');
-  }
-
-''';
+    final methodImpl = _indent(
+      _emitMethod(
+        Method(
+          (m) => m
+            ..name = methodName
+            ..returns = refer(returnSignature)
+            ..annotations.add(refer('override'))
+            ..modifier = isStream || isSync ? null : MethodModifier.async
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer(paramsType),
+              ),
+            )
+            ..body = Code(
+              "throw UnimplementedError('Implement local storage $methodName');",
+            ),
+        ),
+      ),
+      2,
+    ).trimRight() + '\n\n';
 
     final newContent =
         content.substring(0, lastBrace) +
@@ -762,15 +870,16 @@ class MethodAppender {
     final file = File(filePath);
     await file.parent.create(recursive: true);
 
-    final content =
-        '''
+    final content = const SpecLibrary().emitCode(
+      '''
 // Generated by zfa
 // Repository interface for $repoName
 
 abstract class ${repoName}Repository {
   $returnSignature $methodName($paramsType params);
 }
-''';
+''',
+    );
 
     await _writeFile(filePath, content, 'append');
   }
@@ -903,8 +1012,23 @@ abstract class ${repoName}Repository {
     final lastBrace = content.lastIndexOf('}');
     if (lastBrace == -1) return false;
 
-    final methodSignature =
-        '  $returnSignature $methodName($paramsType params);\n';
+    final methodSignature = _indent(
+      _emitMethod(
+        Method(
+          (m) => m
+            ..name = methodName
+            ..returns = refer(returnSignature)
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer(paramsType),
+              ),
+            ),
+        ),
+      ),
+      2,
+    ).trimRight() + '\n';
     final newContent =
         content.substring(0, lastBrace) +
         methodSignature +
@@ -921,17 +1045,20 @@ abstract class ${repoName}Repository {
     String returnSignature,
     String paramsType,
   ) async {
-    final content =
-        '''
+    final directives = [
+      Directive.import('package:zuraffa/zuraffa.dart'),
+    ];
+    final content = const SpecLibrary().emitCode(
+      '''
 // Generated by zfa
 // Service interface for ${config.name}
-
-import 'package:zuraffa/zuraffa.dart';
 
 abstract class $serviceName {
   $returnSignature $methodName($paramsType params);
 }
-''';
+''',
+      directives: directives,
+    );
 
     await _writeFile(filePath, content, 'append');
   }
@@ -955,15 +1082,28 @@ abstract class $serviceName {
 
     final isStream = config.useCaseType == 'stream';
     final isSync = config.useCaseType == 'sync';
-    final methodImpl =
-        '''
-  @override
-  $returnSignature $methodName($paramsType params) ${isStream || isSync ? '' : 'async '}{
-    // TODO: Implement $methodName
-    throw UnimplementedError('Implement $methodName');
-  }
-
-''';
+    final methodImpl = _indent(
+      _emitMethod(
+        Method(
+          (m) => m
+            ..name = methodName
+            ..returns = refer(returnSignature)
+            ..annotations.add(refer('override'))
+            ..modifier = isStream || isSync ? null : MethodModifier.async
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer(paramsType),
+              ),
+            )
+            ..body = Code(
+              "throw UnimplementedError('Implement $methodName');",
+            ),
+        ),
+      ),
+      2,
+    ).trimRight() + '\n\n';
 
     final newContent =
         content.substring(0, lastBrace) +
@@ -992,16 +1132,15 @@ abstract class $serviceName {
 
     // Build imports
     final imports = <String>[
-      "import 'package:zuraffa/zuraffa.dart';",
-      "import '../../../domain/services/${serviceSnake}_service.dart';",
+      'package:zuraffa/zuraffa.dart',
+      '../../../domain/services/${serviceSnake}_service.dart',
     ];
 
-    final content =
-        '''
+    final directives = imports.map(Directive.import).toList();
+    final content = const SpecLibrary().emitCode(
+      '''
 // Generated by zfa
 // Provider implementation for $serviceName
-
-${imports.join('\n')}
 
 class $providerName with Loggable, FailureHandler implements $serviceName {
   @override
@@ -1010,7 +1149,9 @@ class $providerName with Loggable, FailureHandler implements $serviceName {
     throw UnimplementedError('Implement $methodName');
   }
 }
-''';
+''',
+      directives: directives,
+    );
 
     await _writeFile(filePath, content, 'append');
   }

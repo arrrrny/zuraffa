@@ -1,7 +1,15 @@
 import '../models/generator_config.dart';
 import '../models/generator_result.dart';
 import '../models/generated_file.dart';
-import 'provider_generator.dart';
+import '../plugins/provider/provider_plugin.dart';
+import '../plugins/state/state_plugin.dart';
+import '../plugins/observer/observer_plugin.dart';
+import '../plugins/test/test_plugin.dart';
+import '../plugins/mock/mock_plugin.dart';
+import '../plugins/graphql/graphql_plugin.dart';
+import '../plugins/cache/cache_plugin.dart';
+import '../plugins/route/route_plugin.dart';
+import '../plugins/method_append/method_append_plugin.dart';
 import '../plugins/usecase/usecase_plugin.dart';
 import '../plugins/repository/repository_plugin.dart';
 import '../plugins/view/view_plugin.dart';
@@ -10,11 +18,6 @@ import '../plugins/controller/controller_plugin.dart';
 import '../plugins/di/di_plugin.dart';
 import '../plugins/datasource/datasource_plugin.dart';
 import '../plugins/service/service_plugin.dart';
-import 'state_generator.dart';
-import 'observer_generator.dart';
-import 'test_generator.dart';
-import 'mock_generator.dart';
-import '../core/generation/code_builder_factory.dart';
 import '../core/generation/generation_context.dart';
 import '../core/transaction/generation_transaction.dart';
 import '../core/context/progress_reporter.dart';
@@ -29,11 +32,10 @@ class CodeGenerator {
   final bool verbose;
   final Set<String> disabledPlugins;
   final GenerationContext context;
-  late final CodeBuilderFactory builderFactory;
   late final PluginRegistry pluginRegistry;
 
   late final RepositoryPlugin _repositoryPlugin;
-  late final ProviderGenerator _providerGenerator;
+  late final ProviderPlugin _providerPlugin;
   late final UseCasePlugin _useCasePlugin;
   late final ViewPlugin _viewPlugin;
   late final PresenterPlugin _presenterPlugin;
@@ -41,9 +43,14 @@ class CodeGenerator {
   late final DiPlugin _diPlugin;
   late final DataSourcePlugin _dataSourcePlugin;
   late final ServicePlugin _servicePlugin;
-  late final StateGenerator _stateGenerator;
-  late final ObserverGenerator _observerGenerator;
-  late final TestGenerator _testGenerator;
+  late final StatePlugin _statePlugin;
+  late final ObserverPlugin _observerPlugin;
+  late final TestPlugin _testPlugin;
+  late final MockPlugin _mockPlugin;
+  late final GraphqlPlugin _graphqlPlugin;
+  late final CachePlugin _cachePlugin;
+  late final RoutePlugin _routePlugin;
+  late final MethodAppendPlugin _methodAppendPlugin;
 
   CodeGenerator({
     required this.config,
@@ -63,7 +70,6 @@ class CodeGenerator {
          progressReporter: progressReporter,
        ),
        disabledPlugins = disabledPluginIds ?? {} {
-    builderFactory = CodeBuilderFactory(context);
     pluginRegistry = PluginRegistry();
     _repositoryPlugin = RepositoryPlugin(
       outputDir: outputDir,
@@ -71,7 +77,12 @@ class CodeGenerator {
       force: force,
       verbose: verbose,
     );
-    _providerGenerator = builderFactory.provider();
+    _providerPlugin = ProviderPlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
     _useCasePlugin = UseCasePlugin(
       outputDir: outputDir,
       dryRun: dryRun,
@@ -114,11 +125,56 @@ class CodeGenerator {
       force: force,
       verbose: verbose,
     );
-    _stateGenerator = builderFactory.state();
-    _observerGenerator = builderFactory.observer();
-    _testGenerator = builderFactory.test();
+    _statePlugin = StatePlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+    _observerPlugin = ObserverPlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+    _testPlugin = TestPlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+    _mockPlugin = MockPlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+    _graphqlPlugin = GraphqlPlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+    _cachePlugin = CachePlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+    _routePlugin = RoutePlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+    _methodAppendPlugin = MethodAppendPlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      verbose: verbose,
+    );
 
     _registerPlugin(_repositoryPlugin);
+    _registerPlugin(_providerPlugin);
     _registerPlugin(_useCasePlugin);
     _registerPlugin(_viewPlugin);
     _registerPlugin(_presenterPlugin);
@@ -126,6 +182,14 @@ class CodeGenerator {
     _registerPlugin(_diPlugin);
     _registerPlugin(_dataSourcePlugin);
     _registerPlugin(_servicePlugin);
+    _registerPlugin(_statePlugin);
+    _registerPlugin(_observerPlugin);
+    _registerPlugin(_testPlugin);
+    _registerPlugin(_mockPlugin);
+    _registerPlugin(_graphqlPlugin);
+    _registerPlugin(_cachePlugin);
+    _registerPlugin(_routePlugin);
+    _registerPlugin(_methodAppendPlugin);
   }
 
   Future<GeneratorResult> generate() async {
@@ -184,8 +248,7 @@ class CodeGenerator {
         await pluginRegistry.beforeGenerateAll(config);
 
         if (config.appendToExisting) {
-          final appender = builderFactory.methodAppender();
-          final appendResult = await appender.appendMethod();
+          final appendResult = await _methodAppendPlugin.appendMethod(config);
 
           if (_isPluginEnabled('usecase')) {
             progress.update('usecase');
@@ -202,10 +265,13 @@ class CodeGenerator {
           }
 
           if (config.generateGql) {
-            progress.update('graphql');
-            final graphqlGenerator = builderFactory.graphql();
-            final graphqlFiles = await graphqlGenerator.generate();
-            files.addAll(graphqlFiles);
+            if (_isPluginEnabled('graphql')) {
+              progress.update('graphql');
+              currentPluginId = 'graphql';
+              final graphqlFiles = await _graphqlPlugin.generate(config);
+              files.addAll(graphqlFiles);
+              currentPluginId = null;
+            }
           }
 
           await pluginRegistry.afterGenerateAll(config);
@@ -292,23 +358,31 @@ class CodeGenerator {
           }
         }
 
-        if (config.generateState) {
+        if (config.generateState && _isPluginEnabled('state')) {
           progress.update('state');
-          final file = await _stateGenerator.generate();
-          files.add(file);
+          currentPluginId = 'state';
+          final stateFiles = await _statePlugin.generate(config);
+          files.addAll(stateFiles);
+          currentPluginId = null;
         }
 
-        if (config.generateObserver) {
+        if (config.generateObserver && _isPluginEnabled('observer')) {
           progress.update('observer');
-          final file = await _observerGenerator.generate();
-          files.add(file);
+          currentPluginId = 'observer';
+          final observerFiles = await _observerPlugin.generate(config);
+          files.addAll(observerFiles);
+          currentPluginId = null;
         }
 
         if (config.generateData || config.generateDataSource) {
           if (config.hasService && config.generateData) {
-            progress.update('provider');
-            final providerFile = await _providerGenerator.generate();
-            files.add(providerFile);
+            if (_isPluginEnabled('provider')) {
+              progress.update('provider');
+              currentPluginId = 'provider';
+              final providerFiles = await _providerPlugin.generate(config);
+              files.addAll(providerFiles);
+              currentPluginId = null;
+            }
             nextSteps.add(
               'Implement ${config.effectiveProvider} with external service client',
             );
@@ -334,16 +408,13 @@ class CodeGenerator {
           }
         }
 
-        if (config.generateMock || config.generateMockDataOnly) {
+        if ((config.generateMock || config.generateMockDataOnly) &&
+            _isPluginEnabled('mock')) {
           progress.update('mock');
-          final mockFiles = await MockGenerator.generate(
-            config,
-            outputDir,
-            dryRun: dryRun,
-            force: force,
-            verbose: verbose,
-          );
+          currentPluginId = 'mock';
+          final mockFiles = await _mockPlugin.generate(config);
           files.addAll(mockFiles);
+          currentPluginId = null;
 
           if (config.generateMockDataOnly) {
             nextSteps.add(
@@ -382,37 +453,15 @@ class CodeGenerator {
           nextSteps.add('Implement TODO sections in generated usecases');
         }
 
-        if (config.generateTest && config.isEntityBased) {
-          for (final method in config.methods) {
-            progress.update('test');
-            final testFile = await _testGenerator.generateForMethod(method);
-            files.add(testFile);
-          }
-          nextSteps.add('Run tests: flutter test ');
-        }
-
-        if (config.generateTest && config.isOrchestrator) {
+        if (config.generateTest && _isPluginEnabled('test')) {
           progress.update('test');
-          final testFile = await _testGenerator.generateOrchestrator();
-          files.add(testFile);
-          nextSteps.add('Run tests: flutter test ');
-        }
-
-        if (config.generateTest && config.isPolymorphic) {
-          progress.update('test');
-          final testFiles = await _testGenerator.generatePolymorphic();
+          currentPluginId = 'test';
+          final testFiles = await _testPlugin.generate(config);
           files.addAll(testFiles);
-          nextSteps.add('Run tests: flutter test ');
-        }
-
-        if (config.generateTest &&
-            config.isCustomUseCase &&
-            !config.isPolymorphic &&
-            !config.isOrchestrator) {
-          progress.update('test');
-          final testFile = await _testGenerator.generateCustom();
-          files.add(testFile);
-          nextSteps.add('Run tests: flutter test ');
+          currentPluginId = null;
+          if (testFiles.isNotEmpty) {
+            nextSteps.add('Run tests: flutter test ');
+          }
         }
 
         if (config.generateDi) {
@@ -425,29 +474,32 @@ class CodeGenerator {
           }
         }
 
-        if (config.generateRoute) {
+        if (config.generateRoute && _isPluginEnabled('route')) {
           progress.update('route');
-          final routeGenerator = builderFactory.route();
-          final routeFiles = await routeGenerator.generate();
+          currentPluginId = 'route';
+          final routeFiles = await _routePlugin.generate(config);
           files.addAll(routeFiles);
+          currentPluginId = null;
           nextSteps.add('Add go_router to your pubspec.yaml dependencies');
           nextSteps.add('Import routes from lib/src/routing/index.dart');
         }
 
-        if (config.enableCache) {
+        if (config.enableCache && _isPluginEnabled('cache')) {
           progress.update('cache');
-          final cacheGenerator = builderFactory.cache();
-          final cacheFiles = await cacheGenerator.generate();
+          currentPluginId = 'cache';
+          final cacheFiles = await _cachePlugin.generate(config);
           files.addAll(cacheFiles);
+          currentPluginId = null;
           nextSteps.add('Run: dart run build_runner build');
           nextSteps.add('Call initAllCaches() before DI setup');
         }
 
-        if (config.generateGql) {
+        if (config.generateGql && _isPluginEnabled('graphql')) {
           progress.update('graphql');
-          final graphqlGenerator = builderFactory.graphql();
-          final graphqlFiles = await graphqlGenerator.generate();
+          currentPluginId = 'graphql';
+          final graphqlFiles = await _graphqlPlugin.generate(config);
           files.addAll(graphqlFiles);
+          currentPluginId = null;
         }
 
         await pluginRegistry.afterGenerateAll(config);
@@ -463,6 +515,7 @@ class CodeGenerator {
         if (verbose) {
           errors.add('Stack trace:\n$stack');
         }
+        print('Generation error: $e');
         progress.failed(e.toString());
         return GeneratorResult(
           name: config.name,
@@ -511,24 +564,27 @@ class CodeGenerator {
     if (config.generateVpc || config.generateView) {
       if (_isPluginEnabled('view')) steps += 1;
     }
-    if (config.generateState) steps += 1;
-    if (config.generateObserver) steps += 1;
+    if (config.generateState && _isPluginEnabled('state')) steps += 1;
+    if (config.generateObserver && _isPluginEnabled('observer')) steps += 1;
     if (config.generateData || config.generateDataSource) {
       if (config.hasService && config.generateData) {
-        steps += 1;
+        if (_isPluginEnabled('provider')) steps += 1;
       } else {
         if (_isPluginEnabled('datasource')) steps += 1;
         if (!config.isEntityBased && _isPluginEnabled('repository')) steps += 1;
       }
     }
-    if (config.generateMock || config.generateMockDataOnly) steps += 1;
-    if (config.generateTest) {
-      steps += config.methods.isEmpty ? 1 : config.methods.length;
+    if ((config.generateMock || config.generateMockDataOnly) &&
+        _isPluginEnabled('mock')) {
+      steps += 1;
+    }
+    if (config.generateTest && _isPluginEnabled('test')) {
+      steps += 1;
     }
     if (config.generateDi && _isPluginEnabled('di')) steps += 1;
-    if (config.generateRoute) steps += 1;
-    if (config.enableCache) steps += 1;
-    if (config.generateGql) steps += 1;
+    if (config.generateRoute && _isPluginEnabled('route')) steps += 1;
+    if (config.enableCache && _isPluginEnabled('cache')) steps += 1;
+    if (config.generateGql && _isPluginEnabled('graphql')) steps += 1;
     return steps;
   }
 }

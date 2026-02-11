@@ -53,6 +53,11 @@ class GenerationTransaction {
 
     final validation = validate();
     if (!validation.success) {
+      if (validation.conflicts.isNotEmpty) {
+        for (final c in validation.conflicts) {
+          print('[conflict] $c');
+        }
+      }
       return validation;
     }
 
