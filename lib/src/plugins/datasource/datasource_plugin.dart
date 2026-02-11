@@ -1,9 +1,9 @@
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
-import 'generators/interface_generator.dart';
-import 'generators/local_generator.dart';
-import 'generators/remote_generator.dart';
+import 'builders/interface_generator.dart';
+import 'builders/local_generator.dart';
+import 'builders/remote_generator.dart';
 
 class DataSourcePlugin extends FileGeneratorPlugin {
   final String outputDir;
