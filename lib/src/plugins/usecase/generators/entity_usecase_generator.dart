@@ -61,9 +61,9 @@ class EntityUseCaseGenerator {
               ..types.addAll([refer(entityName), refer('NoParams')]),
           );
           paramsType = refer('NoParams');
-          executeExpression = refer('_repository').property('get').call([
-            refer('QueryParams').constInstance([]),
-          ]);
+          executeExpression = refer(
+            '_repository',
+          ).property('get').call([refer('QueryParams').constInstance([])]);
         } else {
           baseClass = TypeReference(
             (t) => t
@@ -82,9 +82,9 @@ class EntityUseCaseGenerator {
               ..symbol = 'QueryParams'
               ..types.add(refer(entityName)),
           );
-          executeExpression = refer('_repository')
-              .property('get')
-              .call([refer('params')]);
+          executeExpression = refer(
+            '_repository',
+          ).property('get').call([refer('params')]);
         }
         returnType = refer(entityName);
         break;
@@ -116,9 +116,9 @@ class EntityUseCaseGenerator {
             ..symbol = 'List'
             ..types.add(refer(entityName)),
         );
-        executeExpression = refer('_repository')
-            .property('getList')
-            .call([refer('params')]);
+        executeExpression = refer(
+          '_repository',
+        ).property('getList').call([refer('params')]);
         break;
       case 'create':
         className = 'Create${entityName}UseCase';
@@ -129,9 +129,9 @@ class EntityUseCaseGenerator {
         );
         paramsType = refer(entityName);
         returnType = refer(entityName);
-        executeExpression = refer('_repository')
-            .property('create')
-            .call([refer('params')]);
+        executeExpression = refer(
+          '_repository',
+        ).property('create').call([refer('params')]);
         break;
       case 'update':
         className = 'Update${entityName}UseCase';
@@ -162,9 +162,9 @@ class EntityUseCaseGenerator {
             ]),
         );
         returnType = refer(entityName);
-        executeExpression = refer('_repository')
-            .property('update')
-            .call([refer('params')]);
+        executeExpression = refer(
+          '_repository',
+        ).property('update').call([refer('params')]);
         break;
       case 'delete':
         className = 'Delete${entityName}UseCase';
@@ -185,9 +185,9 @@ class EntityUseCaseGenerator {
             ..types.add(refer(config.idType)),
         );
         returnType = refer('void');
-        executeExpression = refer('_repository')
-            .property('delete')
-            .call([refer('params')]);
+        executeExpression = refer(
+          '_repository',
+        ).property('delete').call([refer('params')]);
         isCompletable = true;
         needsEntityImport = false;
         break;
@@ -200,9 +200,9 @@ class EntityUseCaseGenerator {
               ..types.addAll([refer(entityName), refer('NoParams')]),
           );
           paramsType = refer('NoParams');
-          executeExpression = refer('_repository').property('watch').call([
-            refer('QueryParams').constInstance([]),
-          ]);
+          executeExpression = refer(
+            '_repository',
+          ).property('watch').call([refer('QueryParams').constInstance([])]);
         } else {
           baseClass = TypeReference(
             (t) => t
@@ -221,9 +221,9 @@ class EntityUseCaseGenerator {
               ..symbol = 'QueryParams'
               ..types.add(refer(entityName)),
           );
-          executeExpression = refer('_repository')
-              .property('watch')
-              .call([refer('params')]);
+          executeExpression = refer(
+            '_repository',
+          ).property('watch').call([refer('params')]);
         }
         returnType = refer(entityName);
         isStream = true;
@@ -256,9 +256,9 @@ class EntityUseCaseGenerator {
             ..symbol = 'List'
             ..types.add(refer(entityName)),
         );
-        executeExpression = refer('_repository')
-            .property('watchList')
-            .call([refer('params')]);
+        executeExpression = refer(
+          '_repository',
+        ).property('watchList').call([refer('params')]);
         isStream = true;
         break;
       default:
@@ -328,9 +328,7 @@ class EntityUseCaseGenerator {
         ..modifier = isStream ? null : MethodModifier.async
         ..body = Block(
           (b) => b
-            ..statements.add(
-              Code('cancelToken?.throwIfCancelled();'),
-            )
+            ..statements.add(Code('cancelToken?.throwIfCancelled();'))
             ..statements.add(executeExpression.returned.statement),
         );
     });
@@ -385,6 +383,17 @@ class EntityUseCaseGenerator {
     required String content,
   }) async {
     if (config.appendToExisting && File(filePath).existsSync()) {
+      if (force) {
+        return FileUtils.writeFile(
+          filePath,
+          content,
+          'usecase',
+          force: true,
+          dryRun: dryRun,
+          verbose: verbose,
+        );
+      }
+
       var updatedSource = await File(filePath).readAsString();
       final result = appendExecutor.execute(
         AppendRequest.method(

@@ -20,6 +20,25 @@ class AstModifier {
         source.substring(insertOffset);
   }
 
+  static String replaceMethodInClass({
+    required String source,
+    required ClassDeclaration classNode,
+    required MethodDeclaration oldMethod,
+    required String methodSource,
+  }) {
+    final startOffset = oldMethod.offset;
+    final endOffset = oldMethod.end;
+    final methodIndent = _indentBeforeOffset(source, startOffset);
+    final normalized = methodSource.trimRight();
+    final indented = normalized
+        .split('\n')
+        .map((line) => line.isEmpty ? '' : '$methodIndent$line')
+        .join('\n');
+    return source.substring(0, startOffset) +
+        indented +
+        source.substring(endOffset);
+  }
+
   static String addFieldToClass({
     required String source,
     required ClassDeclaration classNode,

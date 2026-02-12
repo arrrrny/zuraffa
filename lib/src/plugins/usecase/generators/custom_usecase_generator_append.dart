@@ -61,6 +61,17 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
     required String content,
   }) async {
     if (config.appendToExisting && File(filePath).existsSync()) {
+      if (force) {
+        return FileUtils.writeFile(
+          filePath,
+          content,
+          'usecase',
+          force: true,
+          dryRun: dryRun,
+          verbose: verbose,
+        );
+      }
+
       var updatedSource = await File(filePath).readAsString();
       var changed = false;
       for (final methodSource in methodSources) {

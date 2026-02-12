@@ -211,6 +211,17 @@ class StreamUseCaseGenerator {
     required String content,
   }) async {
     if (config.appendToExisting && File(filePath).existsSync()) {
+      if (force) {
+        return FileUtils.writeFile(
+          filePath,
+          content,
+          'usecase',
+          force: true,
+          dryRun: dryRun,
+          verbose: verbose,
+        );
+      }
+
       final existing = await File(filePath).readAsString();
       final result = appendExecutor.execute(
         AppendRequest.method(

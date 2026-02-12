@@ -53,13 +53,20 @@ class MethodAppendStrategy implements AppendStrategy {
     }
 
     final existingMethods = NodeFinder.findMethods(classNode);
-    final newSignature = _methodSignature(newMethod);
+    final newMethodName = newMethod.name.lexeme;
+
     for (final method in existingMethods) {
-      if (_methodSignature(method) == newSignature) {
-        return AppendResult(
+      if (method.name.lexeme == newMethodName) {
+        final updated = helper.replaceMethodInClass(
           source: request.source,
-          changed: false,
-          message: 'Duplicate method',
+          className: request.className!,
+          methodName: newMethodName,
+          methodSource: request.memberSource!,
+        );
+        return AppendResult(
+          source: updated,
+          changed: updated != request.source,
+          message: 'Method replaced',
         );
       }
     }
@@ -93,11 +100,5 @@ $methodSource
       return null;
     }
     return methods.first;
-  }
-
-  String _methodSignature(MethodDeclaration method) {
-    final params = method.parameters?.toSource() ?? '';
-    final returnType = method.returnType?.toSource() ?? '';
-    return '${method.name.lexeme}::$returnType$params';
   }
 }

@@ -23,13 +23,13 @@ class User {
     expect(result.source.contains('void greet() {}'), isTrue);
   });
 
-  test('MethodAppendStrategy detects duplicate method', () {
+  test('MethodAppendStrategy replaces duplicate method', () {
     const source = '''
 class User {
   void greet() {}
 }
 ''';
-    const methodSource = 'void greet() {}';
+    const methodSource = 'void greet() { print("hello"); }';
     final executor = AppendExecutor();
     final result = executor.execute(
       const AppendRequest.method(
@@ -38,7 +38,9 @@ class User {
         memberSource: methodSource,
       ),
     );
-    expect(result.changed, isFalse);
+    expect(result.changed, isTrue);
+    expect(result.source.contains('print("hello");'), isTrue);
+    expect(result.message, equals('Method replaced'));
   });
 
   test('ExportAppendStrategy adds export when missing', () {
