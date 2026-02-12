@@ -4,6 +4,7 @@ import 'package:code_builder/code_builder.dart';
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/builder/shared/spec_library.dart';
+import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -12,21 +13,56 @@ part 'implementation_generator_append.dart';
 part 'implementation_generator_cached.dart';
 part 'implementation_generator_simple.dart';
 
+/// Generates repository implementation classes.
+///
+/// Builds data repository implementations that delegate to data sources,
+/// with optional cache integration and append behavior.
+///
+/// Example:
+/// ```dart
+/// final generator = RepositoryImplementationGenerator(
+///   outputDir: 'lib/src',
+///   options: const GeneratorOptions(force: true),
+/// );
+/// final file = await generator.generate(GeneratorConfig(name: 'Product'));
+/// ```
 class RepositoryImplementationGenerator {
   final String outputDir;
+  final GeneratorOptions options;
   final bool dryRun;
   final bool force;
   final bool verbose;
   final AppendExecutor appendExecutor;
 
+  /// Creates a [RepositoryImplementationGenerator].
+  ///
+  /// @param outputDir Target directory for generated files.
+  /// @param options Generation flags for writing behavior and logging.
+  /// @param dryRun Deprecated: use [options].
+  /// @param force Deprecated: use [options].
+  /// @param verbose Deprecated: use [options].
+  /// @param appendExecutor Optional append executor override.
   RepositoryImplementationGenerator({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
+    GeneratorOptions options = const GeneratorOptions(),
+    @Deprecated('Use options.dryRun') bool? dryRun,
+    @Deprecated('Use options.force') bool? force,
+    @Deprecated('Use options.verbose') bool? verbose,
     AppendExecutor? appendExecutor,
-  }) : appendExecutor = appendExecutor ?? AppendExecutor();
+  })  : options = options.copyWith(
+          dryRun: dryRun ?? options.dryRun,
+          force: force ?? options.force,
+          verbose: verbose ?? options.verbose,
+        ),
+        dryRun = dryRun ?? options.dryRun,
+        force = force ?? options.force,
+        verbose = verbose ?? options.verbose,
+        appendExecutor = appendExecutor ?? AppendExecutor();
 
+  /// Generates a repository implementation for the given [config].
+  ///
+  /// @param config Generator configuration describing the entity and options.
+  /// @returns Generated repository file metadata.
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final entityName = config.name;
     final entitySnake = config.nameSnake;

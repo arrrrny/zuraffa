@@ -74,8 +74,13 @@ class StreamUseCaseGenerator {
         ),
       );
     } else if (config.hasService) {
-      final serviceName = config.effectiveService!;
-      final serviceSnake = config.serviceSnake!;
+      final serviceName = config.effectiveService;
+      final serviceSnake = config.serviceSnake;
+      if (serviceName == null || serviceSnake == null) {
+        throw ArgumentError(
+          'Service name must be specified via --service or config.service',
+        );
+      }
       dependencyImports.add('../../services/${serviceSnake}_service.dart');
       dependencyFields.add(
         Field(

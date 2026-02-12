@@ -10,6 +10,23 @@ import '../../../utils/entity_analyzer.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 
+part 'cache_policy_builder.dart';
+
+/// Generates cache support files for Hive-backed storage.
+///
+/// Produces cache initialization, policy, and registrar helpers to wire
+/// local data sources with cache policies.
+///
+/// Example:
+/// ```dart
+/// final builder = CacheBuilder(
+///   outputDir: 'lib/src',
+///   dryRun: false,
+///   force: true,
+///   verbose: false,
+/// );
+/// final files = await builder.generate(GeneratorConfig(name: 'Product'));
+/// ```
 class CacheBuilder {
   final String outputDir;
   final bool dryRun;
@@ -17,6 +34,13 @@ class CacheBuilder {
   final bool verbose;
   final SpecLibrary specLibrary;
 
+  /// Creates a [CacheBuilder].
+  ///
+  /// @param outputDir Target directory for generated files.
+  /// @param dryRun If true, files are not written.
+  /// @param force If true, existing files are overwritten.
+  /// @param verbose If true, logs progress to stdout.
+  /// @param specLibrary Optional spec library override.
   CacheBuilder({
     required this.outputDir,
     required this.dryRun,
@@ -25,6 +49,10 @@ class CacheBuilder {
     SpecLibrary? specLibrary,
   }) : specLibrary = specLibrary ?? const SpecLibrary();
 
+  /// Generates cache support files for the given [config].
+  ///
+  /// @param config Generator configuration describing the entity and options.
+  /// @returns List of generated cache files.
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     if (!config.enableCache || config.cacheStorage != 'hive') {
       return [];
@@ -128,109 +156,6 @@ class CacheBuilder {
     );
   }
 
-  Future<GeneratedFile> _generateCachePolicyFile(GeneratorConfig config) async {
-    final policyType = config.cachePolicy;
-    final ttlMinutes = config.ttlMinutes ?? 1440;
-
-    String fileName;
-    String policyName;
-    String policyClass;
-    Expression? ttlExpression;
-
-    if (policyType == 'daily') {
-      fileName = 'daily_cache_policy.dart';
-      policyName = 'createDailyCachePolicy';
-      policyClass = 'DailyCachePolicy';
-    } else if (policyType == 'restart') {
-      fileName = 'app_restart_cache_policy.dart';
-      policyName = 'createAppRestartCachePolicy';
-      policyClass = 'AppRestartCachePolicy';
-    } else {
-      fileName = 'ttl_${ttlMinutes}_minutes_cache_policy.dart';
-      policyName = 'createTtl${ttlMinutes}MinutesCachePolicy';
-      policyClass = 'TtlCachePolicy';
-      ttlExpression = refer(
-        'Duration',
-      ).constInstance([], {'minutes': literalNum(ttlMinutes)});
-    }
-
-    final cachePath = path.join(outputDir, 'cache', fileName);
-
-    final directives = [
-      Directive.import('package:hive_ce_flutter/hive_ce_flutter.dart'),
-      Directive.import('package:zuraffa/zuraffa.dart'),
-    ];
-
-    final timestampBoxDecl = declareFinal('timestampBox').assign(
-      refer('Hive')
-          .property('box')
-          .call([literalString('cache_timestamps')], const {}, [refer('int')]),
-    );
-
-    final getTimestamps = _asyncLambda(
-      [],
-      refer('Map').newInstanceNamed(
-        'from',
-        [refer('timestampBox').property('toMap').call([])],
-        const {},
-        [refer('String'), refer('int')],
-      ),
-    );
-
-    final setTimestamp = _asyncLambda(
-      [
-        Parameter((p) => p..name = 'key'),
-        Parameter((p) => p..name = 'timestamp'),
-      ],
-      refer(
-        'timestampBox',
-      ).property('put').call([refer('key'), refer('timestamp')]).awaited,
-    );
-
-    final removeTimestamp = _asyncLambda([
-      Parameter((p) => p..name = 'key'),
-    ], refer('timestampBox').property('delete').call([refer('key')]).awaited);
-
-    final clearAll = _asyncLambda(
-      [],
-      refer('timestampBox').property('clear').call([]).awaited,
-    );
-
-    final policyArguments = {
-      'getTimestamps': getTimestamps,
-      'setTimestamp': setTimestamp,
-      'removeTimestamp': removeTimestamp,
-      'clearAll': clearAll,
-      'ttl': ?ttlExpression,
-    };
-
-    final policyCall = refer(policyClass).call([], policyArguments);
-
-    final method = Method(
-      (m) => m
-        ..name = policyName
-        ..returns = refer('CachePolicy')
-        ..docs.add('Auto-generated cache policy')
-        ..body = Block(
-          (b) => b
-            ..statements.add(timestampBoxDecl.statement)
-            ..statements.add(policyCall.returned.statement),
-        ),
-    );
-
-    final content = specLibrary.emitLibrary(
-      specLibrary.library(specs: [method], directives: directives),
-    );
-
-    return FileUtils.writeFile(
-      cachePath,
-      content,
-      'cache_policy',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
-    );
-  }
 
   Future<void> _regenerateCacheIndex() async {
     final dirPath = path.join(outputDir, 'cache');
@@ -655,22 +580,4 @@ class CacheBuilder {
     return types;
   }
 
-  Expression _asyncLambda(List<Parameter> params, Expression body) {
-    final method = Method(
-      (m) => m
-        ..requiredParameters.addAll(params)
-        ..modifier = MethodModifier.async
-        ..lambda = true
-        ..body = body.code,
-    );
-    return method.closure;
-  }
-
-  Reference _futureVoidType() {
-    return TypeReference(
-      (b) => b
-        ..symbol = 'Future'
-        ..types.add(refer('void')),
-    );
-  }
 }

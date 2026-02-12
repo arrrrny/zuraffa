@@ -1,25 +1,55 @@
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
+import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../../core/builder/shared/spec_library.dart';
 
+/// Generates remote data source implementations.
+///
+/// Builds remote data source classes with stubbed CRUD and stream methods,
+/// including GraphQL hooks when enabled.
+///
+/// Example:
+/// ```dart
+/// final builder = RemoteDataSourceBuilder(
+///   outputDir: 'lib/src',
+///   dryRun: false,
+///   force: true,
+///   verbose: false,
+/// );
+/// final file = await builder.generate(GeneratorConfig(name: 'Product'));
+/// ```
 class RemoteDataSourceBuilder {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
 
+  /// Creates a [RemoteDataSourceBuilder].
+  ///
+  /// @param outputDir Target directory for generated files.
+  /// @param options Generation flags for writing behavior and logging.
+  /// @param dryRun Deprecated: use [options].
+  /// @param force Deprecated: use [options].
+  /// @param verbose Deprecated: use [options].
   RemoteDataSourceBuilder({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
-  });
+    GeneratorOptions options = const GeneratorOptions(),
+    @Deprecated('Use options.dryRun') bool? dryRun,
+    @Deprecated('Use options.force') bool? force,
+    @Deprecated('Use options.verbose') bool? verbose,
+  }) : options = options.copyWith(
+          dryRun: dryRun ?? options.dryRun,
+          force: force ?? options.force,
+          verbose: verbose ?? options.verbose,
+        );
 
+  /// Generates a remote data source file for the given [config].
+  ///
+  /// @param config Generator configuration describing the entity and options.
+  /// @returns Generated data source file metadata.
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final entityName = config.name;
     final entitySnake = config.nameSnake;
@@ -264,9 +294,9 @@ class RemoteDataSourceBuilder {
       filePath,
       content,
       'remote_datasource',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
     );
   }
 
@@ -307,8 +337,9 @@ class RemoteDataSourceBuilder {
   }
 
   String _getOperationType(GeneratorConfig config, String method) {
-    if (config.gqlType != null) {
-      return config.gqlType!;
+    final gqlType = config.gqlType;
+    if (gqlType != null) {
+      return gqlType;
     }
     switch (method) {
       case 'get':

@@ -28,10 +28,11 @@ class UseCaseClassBuilder {
   const UseCaseClassBuilder({this.specLibrary = const SpecLibrary()});
 
   Library buildLibrary(UseCaseClassSpec spec) {
+    final baseClass = spec.baseClass;
     final clazz = Class(
       (b) => b
         ..name = spec.className
-        ..extend = spec.baseClass != null ? refer(spec.baseClass!) : null
+        ..extend = baseClass != null ? refer(baseClass) : null
         ..abstract = spec.isAbstract
         ..fields.addAll(spec.fields)
         ..constructors.addAll(spec.constructors)

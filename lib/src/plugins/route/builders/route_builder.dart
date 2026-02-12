@@ -6,6 +6,7 @@ import 'package:path/path.dart' as path;
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/builder/shared/spec_library.dart';
+import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -14,8 +15,22 @@ import 'app_routes_builder.dart';
 import 'entity_routes_builder.dart';
 import 'extension_builder.dart';
 
+/// Generates application routes and entity route definitions.
+///
+/// Produces app-level route constants and entity-specific route builders,
+/// updating index files when needed.
+///
+/// Example:
+/// ```dart
+/// final builder = RouteBuilder(
+///   outputDir: 'lib/src',
+///   options: const GeneratorOptions(force: true),
+/// );
+/// final files = await builder.generate(GeneratorConfig(name: 'Product'));
+/// ```
 class RouteBuilder {
   final String outputDir;
+  final GeneratorOptions options;
   final bool dryRun;
   final bool force;
   final bool verbose;
@@ -24,20 +39,44 @@ class RouteBuilder {
   final AppendExecutor appendExecutor;
   final SpecLibrary specLibrary;
 
+  /// Creates a [RouteBuilder].
+  ///
+  /// @param outputDir Target directory for generated files.
+  /// @param options Generation flags for writing behavior and logging.
+  /// @param dryRun Deprecated: use [options].
+  /// @param force Deprecated: use [options].
+  /// @param verbose Deprecated: use [options].
+  /// @param appRoutesBuilder Optional app routes builder override.
+  /// @param entityRoutesBuilder Optional entity routes builder override.
+  /// @param appendExecutor Optional append executor override.
+  /// @param specLibrary Optional spec library override.
   RouteBuilder({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
+    GeneratorOptions options = const GeneratorOptions(),
+    @Deprecated('Use options.dryRun') bool? dryRun,
+    @Deprecated('Use options.force') bool? force,
+    @Deprecated('Use options.verbose') bool? verbose,
     AppRoutesBuilder? appRoutesBuilder,
     EntityRoutesBuilder? entityRoutesBuilder,
     AppendExecutor? appendExecutor,
     SpecLibrary? specLibrary,
-  }) : appRoutesBuilder = appRoutesBuilder ?? AppRoutesBuilder(),
-       entityRoutesBuilder = entityRoutesBuilder ?? EntityRoutesBuilder(),
-       appendExecutor = appendExecutor ?? AppendExecutor(),
-       specLibrary = specLibrary ?? const SpecLibrary();
+  })  : options = options.copyWith(
+          dryRun: dryRun ?? options.dryRun,
+          force: force ?? options.force,
+          verbose: verbose ?? options.verbose,
+        ),
+        dryRun = dryRun ?? options.dryRun,
+        force = force ?? options.force,
+        verbose = verbose ?? options.verbose,
+        appRoutesBuilder = appRoutesBuilder ?? AppRoutesBuilder(),
+        entityRoutesBuilder = entityRoutesBuilder ?? EntityRoutesBuilder(),
+        appendExecutor = appendExecutor ?? AppendExecutor(),
+        specLibrary = specLibrary ?? const SpecLibrary();
 
+  /// Generates route files for the given [config].
+  ///
+  /// @param config Generator configuration describing the entity and options.
+  /// @returns List of generated route files.
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     final files = <GeneratedFile>[];
 

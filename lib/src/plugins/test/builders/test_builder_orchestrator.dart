@@ -1,6 +1,10 @@
 part of 'test_builder.dart';
 
 extension TestBuilderOrchestrator on TestBuilder {
+  /// Generates a test file for an orchestrator use case.
+  ///
+  /// @param config Generator configuration describing the use case and options.
+  /// @returns Generated test file metadata.
   Future<GeneratedFile> generateOrchestrator(GeneratorConfig config) async {
     final useCaseName = '${config.name}UseCase';
     final fileName = '${config.nameSnake}_usecase_test.dart';

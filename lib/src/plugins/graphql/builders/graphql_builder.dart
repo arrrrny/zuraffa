@@ -124,8 +124,9 @@ class GraphqlBuilder {
   }
 
   String _getOperationType(GeneratorConfig config, String method) {
-    if (config.gqlType != null) {
-      return config.gqlType!;
+    final gqlType = config.gqlType;
+    if (gqlType != null) {
+      return gqlType;
     }
 
     switch (method) {
@@ -145,8 +146,9 @@ class GraphqlBuilder {
   }
 
   String _getCustomOperationType(GeneratorConfig config) {
-    if (config.gqlType != null) {
-      return config.gqlType!;
+    final gqlType = config.gqlType;
+    if (gqlType != null) {
+      return gqlType;
     }
 
     throw ArgumentError(
@@ -290,8 +292,9 @@ class GraphqlBuilder {
   }
 
   String _getReturnFields(GeneratorConfig config, String entityName) {
-    if (config.gqlReturns != null) {
-      return _formatGraphQLFields(config.gqlReturns!);
+    final gqlReturns = config.gqlReturns;
+    if (gqlReturns != null) {
+      return _formatGraphQLFields(gqlReturns);
     }
 
     return _lines([
@@ -302,8 +305,9 @@ class GraphqlBuilder {
   }
 
   String _getCustomReturnFields(GeneratorConfig config, String returnsType) {
-    if (config.gqlReturns != null) {
-      return _formatGraphQLFields(config.gqlReturns!);
+    final gqlReturns = config.gqlReturns;
+    if (gqlReturns != null) {
+      return _formatGraphQLFields(gqlReturns);
     }
 
     if (returnsType == 'void') {

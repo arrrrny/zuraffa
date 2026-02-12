@@ -32,9 +32,15 @@ class RegistrationDetector {
         r'void (register\w+)\(GetIt getIt\)',
       ).firstMatch(content);
       if (match != null) {
-        registrations.add(
-          RegistrationInfo(fileName: fileName, functionName: match.group(1)!),
-        );
+        final functionName = match.group(1);
+        if (functionName != null) {
+          registrations.add(
+            RegistrationInfo(
+              fileName: fileName,
+              functionName: functionName,
+            ),
+          );
+        }
       }
     }
     return registrations;

@@ -32,8 +32,8 @@ class MethodAppendBuilder {
     required this.verbose,
     AppendExecutor? appendExecutor,
     SpecLibrary? specLibrary,
-  })  : appendExecutor = appendExecutor ?? AppendExecutor(),
-        specLibrary = specLibrary ?? const SpecLibrary();
+  }) : appendExecutor = appendExecutor ?? AppendExecutor(),
+       specLibrary = specLibrary ?? const SpecLibrary();
 
   Future<MethodAppendResult> appendMethod(GeneratorConfig config) async {
     final updatedFiles = <GeneratedFile>[];
@@ -48,9 +48,14 @@ class MethodAppendBuilder {
       return _appendServiceMethod(config);
     }
 
-    final repoName = config.repo!.endsWith('Repository')
-        ? config.repo!.replaceAll('Repository', '')
-        : config.repo!;
+    final repoBase = config.repo;
+    if (repoBase == null) {
+      warnings.add('Repository name required for method append operations');
+      return MethodAppendResult(updatedFiles, warnings);
+    }
+    final repoName = repoBase.endsWith('Repository')
+        ? repoBase.replaceAll('Repository', '')
+        : repoBase;
     final repoSnake = StringUtils.camelToSnake(repoName);
     final methodName = config.getRepoMethodName();
     final paramsType = config.paramsType ?? 'NoParams';
@@ -138,7 +143,7 @@ class MethodAppendBuilder {
       final result = await _appendToRemoteDataSource(
         config,
         remoteDataSourcePath,
-        'Remote${repoName}DataSource',
+        '${repoName}RemoteDataSource',
         methodName,
         returnRef,
         paramsType,
@@ -155,7 +160,7 @@ class MethodAppendBuilder {
       final result = await _appendToLocalDataSource(
         config,
         localDataSourcePath,
-        'Local${repoName}DataSource',
+        '${repoName}LocalDataSource',
         methodName,
         returnRef,
         paramsType,
@@ -170,7 +175,7 @@ class MethodAppendBuilder {
       final result = await _appendToMockDataSource(
         config,
         mockDataSourcePath,
-        'Mock${repoName}DataSource',
+        '${repoName}MockDataSource',
         methodName,
         returnRef,
         paramsType,

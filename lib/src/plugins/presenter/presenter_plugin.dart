@@ -207,41 +207,57 @@ class PresenterPlugin extends FileGeneratorPlugin {
     for (final method in config.methods) {
       switch (method) {
         case 'get':
-          methods.add(
-            _buildGetMethod(config, map['get$entityName']!, entityName),
-          );
+          final info = map['get$entityName'];
+          if (info == null) {
+            throw ArgumentError('Missing get$entityName use case info');
+          }
+          methods.add(_buildGetMethod(config, info, entityName));
           break;
         case 'getList':
-          methods.add(
-            _buildGetListMethod(map['get${entityName}List']!, entityName),
-          );
+          final info = map['get${entityName}List'];
+          if (info == null) {
+            throw ArgumentError('Missing get${entityName}List use case info');
+          }
+          methods.add(_buildGetListMethod(info, entityName));
           break;
         case 'create':
+          final info = map['create$entityName'];
+          if (info == null) {
+            throw ArgumentError('Missing create$entityName use case info');
+          }
           methods.add(
-            _buildCreateMethod(
-              map['create$entityName']!,
-              entityName,
-              entityCamel,
-            ),
+            _buildCreateMethod(info, entityName, entityCamel),
           );
           break;
         case 'update':
-          methods.add(
-            _buildUpdateMethod(config, map['update$entityName']!, entityName),
-          );
+          final info = map['update$entityName'];
+          if (info == null) {
+            throw ArgumentError('Missing update$entityName use case info');
+          }
+          methods.add(_buildUpdateMethod(config, info, entityName));
           break;
         case 'delete':
-          methods.add(_buildDeleteMethod(config, map['delete$entityName']!));
+          final info = map['delete$entityName'];
+          if (info == null) {
+            throw ArgumentError('Missing delete$entityName use case info');
+          }
+          methods.add(_buildDeleteMethod(config, info));
           break;
         case 'watch':
-          methods.add(
-            _buildWatchMethod(config, map['watch$entityName']!, entityName),
-          );
+          final info = map['watch$entityName'];
+          if (info == null) {
+            throw ArgumentError('Missing watch$entityName use case info');
+          }
+          methods.add(_buildWatchMethod(config, info, entityName));
           break;
         case 'watchList':
-          methods.add(
-            _buildWatchListMethod(map['watch${entityName}List']!, entityName),
-          );
+          final info = map['watch${entityName}List'];
+          if (info == null) {
+            throw ArgumentError(
+              'Missing watch${entityName}List use case info',
+            );
+          }
+          methods.add(_buildWatchListMethod(info, entityName));
           break;
       }
     }

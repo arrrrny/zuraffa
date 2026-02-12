@@ -12,6 +12,26 @@ import '../../utils/file_utils.dart';
 import 'builders/registration_builder.dart';
 import 'detectors/registration_detector.dart';
 
+/// Configures dependency injection registrations for generated code.
+///
+/// Generates get_it registrations for:
+/// - UseCases with proper lifecycle management
+/// - Repositories with datasource injection
+/// - Services with provider bindings
+/// - Controllers with presenter injection
+///
+/// Supports mock/remote datasource switching via useMock flag.
+///
+/// Example:
+/// ```dart
+/// final plugin = DiPlugin(
+///   outputDir: 'lib/src',
+///   dryRun: false,
+///   force: true,
+///   verbose: false,
+/// );
+/// final files = await plugin.generate(GeneratorConfig(name: 'Product'));
+/// ```
 class DiPlugin extends FileGeneratorPlugin {
   final String outputDir;
   final bool dryRun;
@@ -21,6 +41,15 @@ class DiPlugin extends FileGeneratorPlugin {
   final RegistrationDetector registrationDetector;
   final AppendExecutor appendExecutor;
 
+  /// Creates a [DiPlugin].
+  ///
+  /// @param outputDir Target directory for generated files.
+  /// @param dryRun If true, files are not written.
+  /// @param force If true, existing files are overwritten.
+  /// @param verbose If true, logs progress to stdout.
+  /// @param registrationBuilder Optional registration builder override.
+  /// @param registrationDetector Optional registration detector override.
+  /// @param appendExecutor Optional append executor override.
   DiPlugin({
     required this.outputDir,
     required this.dryRun,
@@ -34,15 +63,22 @@ class DiPlugin extends FileGeneratorPlugin {
            registrationDetector ?? const RegistrationDetector(),
        appendExecutor = appendExecutor ?? AppendExecutor();
 
+  /// @returns Plugin identifier.
   @override
   String get id => 'di';
 
+  /// @returns Plugin display name.
   @override
   String get name => 'DI Plugin';
 
+  /// @returns Plugin version string.
   @override
   String get version => '1.0.0';
 
+  /// Generates DI registration files for the given [config].
+  ///
+  /// @param config Generator configuration describing the entity and options.
+  /// @returns List of generated DI files.
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     if (!config.generateDi) {
@@ -56,6 +92,8 @@ class DiPlugin extends FileGeneratorPlugin {
         files.add(await _generateLocalDataSourceDI(config));
       } else if (config.useMockInDi) {
         files.add(await _generateMockDataSourceDI(config));
+      } else if (config.generateLocal) {
+        files.add(await _generateLocalDataSourceDI(config));
       } else {
         files.add(await _generateRemoteDataSourceDI(config));
       }
@@ -123,9 +161,7 @@ class DiPlugin extends FileGeneratorPlugin {
         'package:get_it/get_it.dart',
         '../../data/data_sources/$entitySnake/${entitySnake}_remote_data_source.dart',
       ],
-      body: Block(
-        (b) => b..statements.add(registrationCall.statement),
-      ),
+      body: Block((b) => b..statements.add(registrationCall.statement)),
     );
 
     return FileUtils.writeFile(
@@ -153,14 +189,12 @@ class DiPlugin extends FileGeneratorPlugin {
     ];
 
     Expression constructorCall;
-    if (config.cacheStorage == 'hive') {
+    if (config.cacheStorage == 'hive' || config.generateLocal) {
       imports.add('package:hive_ce_flutter/hive_ce_flutter.dart');
       imports.add('../../domain/entities/$entitySnake/$entitySnake.dart');
-      final boxCall = refer('Hive').property('box').call(
-        [literalString('${entitySnake}s')],
-        {},
-        [refer(entityName)],
-      );
+      final boxCall = refer('Hive')
+          .property('box')
+          .call([literalString('${entitySnake}s')], {}, [refer(entityName)]);
       constructorCall = refer(dataSourceName).call([boxCall]);
     } else {
       constructorCall = refer(dataSourceName).call([]);
@@ -182,9 +216,7 @@ class DiPlugin extends FileGeneratorPlugin {
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$dataSourceName',
       imports: imports,
-      body: Block(
-        (b) => b..statements.add(registrationCall.statement),
-      ),
+      body: Block((b) => b..statements.add(registrationCall.statement)),
     );
 
     return FileUtils.writeFile(
@@ -225,9 +257,7 @@ class DiPlugin extends FileGeneratorPlugin {
         'package:get_it/get_it.dart',
         '../../data/data_sources/$entitySnake/${entitySnake}_mock_data_source.dart',
       ],
-      body: Block(
-        (b) => b..statements.add(registrationCall.statement),
-      ),
+      body: Block((b) => b..statements.add(registrationCall.statement)),
     );
 
     return FileUtils.writeFile(
@@ -289,12 +319,21 @@ class DiPlugin extends FileGeneratorPlugin {
         refer(policyFunctionName).call([]),
       ]);
     } else {
-      final dataSourceName = config.useMockInDi
-          ? '${entityName}MockDataSource'
-          : '${entityName}RemoteDataSource';
-      final dataSourceImport = config.useMockInDi
-          ? '../../data/data_sources/$entitySnake/${entitySnake}_mock_data_source.dart'
-          : '../../data/data_sources/$entitySnake/${entitySnake}_remote_data_source.dart';
+      String dataSourceName;
+      String dataSourceImport;
+      if (config.useMockInDi) {
+        dataSourceName = '${entityName}MockDataSource';
+        dataSourceImport =
+            '../../data/data_sources/$entitySnake/${entitySnake}_mock_data_source.dart';
+      } else if (config.generateLocal) {
+        dataSourceName = '${entityName}LocalDataSource';
+        dataSourceImport =
+            '../../data/data_sources/$entitySnake/${entitySnake}_local_data_source.dart';
+      } else {
+        dataSourceName = '${entityName}RemoteDataSource';
+        dataSourceImport =
+            '../../data/data_sources/$entitySnake/${entitySnake}_remote_data_source.dart';
+      }
       imports.add(dataSourceImport);
       constructorCall = refer(dataRepoName).call([
         refer('getIt').call([], {}, [refer(dataSourceName)]),
@@ -317,9 +356,7 @@ class DiPlugin extends FileGeneratorPlugin {
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$repoName',
       imports: imports,
-      body: Block(
-        (b) => b..statements.add(registrationCall.statement),
-      ),
+      body: Block((b) => b..statements.add(registrationCall.statement)),
     );
 
     return FileUtils.writeFile(
@@ -470,9 +507,7 @@ class DiPlugin extends FileGeneratorPlugin {
     } else {
       final directives = importPaths.map(Directive.import).toList();
       final registrationStatements = registrations
-          .map(
-            (r) => refer(r.functionName).call([refer('getIt')]).statement,
-          )
+          .map((r) => refer(r.functionName).call([refer('getIt')]).statement)
           .toList();
       content = registrationBuilder.buildIndexFile(
         functionName: functionName,
@@ -549,8 +584,8 @@ class DiPlugin extends FileGeneratorPlugin {
       ];
       final registrationStatements = registrationCalls
           .map(
-            (call) => refer(call.split('(').first)
-                .call([refer('getIt')]).statement,
+            (call) =>
+                refer(call.split('(').first).call([refer('getIt')]).statement,
           )
           .toList();
       content = registrationBuilder.buildIndexFile(

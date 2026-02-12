@@ -23,10 +23,18 @@ class ProviderBuilder {
   }) : specLibrary = specLibrary ?? const SpecLibrary();
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
-    final serviceName = config.effectiveService!;
-    final providerName = config.effectiveProvider!;
-    final providerSnake = config.providerSnake!;
-    final serviceSnake = config.serviceSnake!;
+    final serviceName = config.effectiveService;
+    final providerName = config.effectiveProvider;
+    final providerSnake = config.providerSnake;
+    final serviceSnake = config.serviceSnake;
+    if (serviceName == null ||
+        providerName == null ||
+        providerSnake == null ||
+        serviceSnake == null) {
+      throw ArgumentError(
+        'Service name must be specified via --service or config.service',
+      );
+    }
 
     final fileName = '${providerSnake}_provider.dart';
     final filePath = path.join(
@@ -181,8 +189,10 @@ class ProviderBuilder {
 
     final genericMatch = RegExp(r'(\w+)<(.+)>').firstMatch(type);
     if (genericMatch != null) {
-      final innerType = genericMatch.group(2)!;
-      results.add(_extractBaseTypes(innerType));
+      final innerType = genericMatch.group(2);
+      if (innerType != null) {
+        results.add(_extractBaseTypes(innerType));
+      }
     } else {
       if (type.isNotEmpty && type != 'void') {
         results.add([type]);

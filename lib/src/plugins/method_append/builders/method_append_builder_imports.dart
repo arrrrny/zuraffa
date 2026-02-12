@@ -27,12 +27,14 @@ extension MethodAppendBuilderImports on MethodAppendBuilder {
 
   Set<String> _collectEntityTypes(GeneratorConfig config) {
     final entities = <String>{};
-    if (config.paramsType != null && config.paramsType != 'NoParams') {
-      final entity = _extractEntityName(config.paramsType!);
+    final paramsType = config.paramsType;
+    if (paramsType != null && paramsType != 'NoParams') {
+      final entity = _extractEntityName(paramsType);
       if (entity != null) entities.add(entity);
     }
-    if (config.returnsType != null && config.returnsType != 'void') {
-      final entity = _extractEntityName(config.returnsType!);
+    final returnsType = config.returnsType;
+    if (returnsType != null && returnsType != 'void') {
+      final entity = _extractEntityName(returnsType);
       if (entity != null) entities.add(entity);
     }
     return entities;
@@ -41,7 +43,10 @@ extension MethodAppendBuilderImports on MethodAppendBuilder {
   String? _extractEntityName(String type) {
     final genericMatch = RegExp(r'^\w+<([^>]+)>').firstMatch(type);
     if (genericMatch != null) {
-      final innerType = genericMatch.group(1)!;
+      final innerType = genericMatch.group(1);
+      if (innerType == null) {
+        return null;
+      }
       if (innerType.contains(',')) {
         return innerType.split(',').first.trim();
       }
@@ -95,7 +100,7 @@ extension MethodAppendBuilderImports on MethodAppendBuilder {
     }
     if (normalizedPath.contains('/data/repositories/') ||
         normalizedPath.contains('\\data\\repositories\\')) {
-      return '../domain/entities/$entitySnake/$entitySnake.dart';
+      return '../../domain/entities/$entitySnake/$entitySnake.dart';
     }
     if (normalizedPath.contains('/domain/repositories/') ||
         normalizedPath.contains('\\domain\\repositories\\')) {

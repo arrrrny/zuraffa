@@ -11,6 +11,21 @@ part 'controller_plugin_bodies.dart';
 part 'controller_plugin_methods.dart';
 part 'controller_plugin_utils.dart';
 
+/// Generates controller classes for the presentation layer.
+///
+/// Builds controller classes that wire presenters and optional state for
+/// entity screens and VPC flows.
+///
+/// Example:
+/// ```dart
+/// final plugin = ControllerPlugin(
+///   outputDir: 'lib/src',
+///   dryRun: false,
+///   force: true,
+///   verbose: false,
+/// );
+/// final files = await plugin.generate(GeneratorConfig(name: 'Product'));
+/// ```
 class ControllerPlugin extends FileGeneratorPlugin {
   final String outputDir;
   final bool dryRun;
@@ -18,6 +33,13 @@ class ControllerPlugin extends FileGeneratorPlugin {
   final bool verbose;
   final ControllerClassBuilder classBuilder;
 
+  /// Creates a [ControllerPlugin].
+  ///
+  /// @param outputDir Target directory for generated files.
+  /// @param dryRun If true, files are not written.
+  /// @param force If true, existing files are overwritten.
+  /// @param verbose If true, logs progress to stdout.
+  /// @param classBuilder Optional class builder override.
   ControllerPlugin({
     required this.outputDir,
     required this.dryRun,
@@ -26,15 +48,22 @@ class ControllerPlugin extends FileGeneratorPlugin {
     ControllerClassBuilder? classBuilder,
   }) : classBuilder = classBuilder ?? const ControllerClassBuilder();
 
+  /// @returns Plugin identifier.
   @override
   String get id => 'controller';
 
+  /// @returns Plugin display name.
   @override
   String get name => 'Controller Plugin';
 
+  /// @returns Plugin version string.
   @override
   String get version => '1.0.0';
 
+  /// Generates controller files for the given [config].
+  ///
+  /// @param config Generator configuration describing the entity and options.
+  /// @returns List of generated controller files.
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     if (!(config.generateController || config.generateVpc)) {

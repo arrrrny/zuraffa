@@ -11,7 +11,12 @@ class ServiceInterfaceBuilder {
   const ServiceInterfaceBuilder({this.specLibrary = const SpecLibrary()});
 
   String build(GeneratorConfig config) {
-    final serviceName = config.effectiveService!;
+    final serviceName = config.effectiveService;
+    if (serviceName == null) {
+      throw ArgumentError(
+        'Service name must be specified via --service or config.service',
+      );
+    }
     final paramsType = config.paramsType ?? 'NoParams';
     final returnsType = config.returnsType ?? 'void';
     final methodName = config.getServiceMethodName();
@@ -99,8 +104,10 @@ class ServiceInterfaceBuilder {
     final results = <String>[];
     final genericMatch = RegExp(r'(\w+)<(.+)>').firstMatch(type);
     if (genericMatch != null) {
-      final innerType = genericMatch.group(2)!;
-      results.addAll(_extractBaseTypes(innerType));
+      final innerType = genericMatch.group(2);
+      if (innerType != null) {
+        results.addAll(_extractBaseTypes(innerType));
+      }
     } else if (type.isNotEmpty && type != 'void') {
       results.add(type);
     }

@@ -1,6 +1,10 @@
 part of 'test_builder.dart';
 
 extension TestBuilderCustom on TestBuilder {
+  /// Generates a test file for a custom use case.
+  ///
+  /// @param config Generator configuration describing the use case and options.
+  /// @returns Generated test file metadata.
   Future<GeneratedFile> generateCustom(GeneratorConfig config) async {
     final useCaseName = '${config.name}UseCase';
     final useCaseType = config.useCaseType;

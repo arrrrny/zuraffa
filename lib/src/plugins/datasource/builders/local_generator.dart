@@ -1,26 +1,62 @@
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
+import '../../../core/generator_options.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 
+part 'local_crud_methods.dart';
+part 'local_helper_methods.dart';
+part 'local_stream_methods.dart';
+
+/// Generates local data source implementations.
+///
+/// Builds local data source classes with CRUD and stream methods, optionally
+/// backed by Hive when local caching is enabled.
+///
+/// Example:
+/// ```dart
+/// final builder = LocalDataSourceBuilder(
+///   outputDir: 'lib/src',
+///   dryRun: false,
+///   force: true,
+///   verbose: false,
+/// );
+/// final file = await builder.generate(GeneratorConfig(name: 'Product'));
+/// ```
 class LocalDataSourceBuilder {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
   final SpecLibrary specLibrary;
 
+  /// Creates a [LocalDataSourceBuilder].
+  ///
+  /// @param outputDir Target directory for generated files.
+  /// @param options Generation flags for writing behavior and logging.
+  /// @param dryRun Deprecated: use [options].
+  /// @param force Deprecated: use [options].
+  /// @param verbose Deprecated: use [options].
+  /// @param specLibrary Optional spec library override.
   LocalDataSourceBuilder({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
+    GeneratorOptions options = const GeneratorOptions(),
+    @Deprecated('Use options.dryRun') bool? dryRun,
+    @Deprecated('Use options.force') bool? force,
+    @Deprecated('Use options.verbose') bool? verbose,
     SpecLibrary? specLibrary,
-  }) : specLibrary = specLibrary ?? const SpecLibrary();
+  }) : options = options.copyWith(
+         dryRun: dryRun ?? options.dryRun,
+         force: force ?? options.force,
+         verbose: verbose ?? options.verbose,
+       ),
+       specLibrary = specLibrary ?? const SpecLibrary();
 
+  /// Generates a local data source file for the given [config].
+  ///
+  /// @param config Generator configuration describing the entity and options.
+  /// @returns Generated data source file metadata.
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final entityName = config.name;
     final entitySnake = config.nameSnake;
@@ -183,10 +219,9 @@ class LocalDataSourceBuilder {
                 returnType: 'Future<$entityName>',
                 parameters: [_param('params', 'QueryParams<$entityName>')],
                 body: _returnBody(
-                  refer('_box')
-                      .property('values')
-                      .property('query')
-                      .call([refer('params')]),
+                  refer('_box').property('values').property('query').call([
+                    refer('params'),
+                  ]),
                 ),
                 isAsync: true,
               ),
@@ -294,9 +329,9 @@ class LocalDataSourceBuilder {
                 body: hasListMethods
                     ? _buildDeleteWithListBody(config, entityName)
                     : _awaitBody(
-                        refer('_box')
-                            .property('delete')
-                            .call([literalString(entitySnake)]),
+                        refer(
+                          '_box',
+                        ).property('delete').call([literalString(entitySnake)]),
                       ),
                 isAsync: true,
               ),
@@ -308,7 +343,7 @@ class LocalDataSourceBuilder {
                 name: 'watch',
                 returnType: 'Stream<$entityName>',
                 parameters: [_param('params', 'QueryParams<$entityName>')],
-                body: _buildWatchBody(),
+                body: _buildWatchBody(entityName),
                 isAsync: false,
               ),
             );
@@ -319,7 +354,7 @@ class LocalDataSourceBuilder {
                 name: 'watchList',
                 returnType: 'Stream<List<$entityName>>',
                 parameters: [_param('params', 'ListQueryParams<$entityName>')],
-                body: _buildWatchListBody(),
+                body: _buildWatchListBody(entityName),
                 isAsync: false,
               ),
             );
@@ -478,433 +513,9 @@ class LocalDataSourceBuilder {
       filePath,
       content,
       'local_datasource',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
-    );
-  }
-
-  Method _buildMethodWithBody({
-    required String name,
-    required String returnType,
-    required List<Parameter> parameters,
-    required Code body,
-    required bool isAsync,
-    bool override = true,
-    MethodModifier? modifier,
-  }) {
-    return Method(
-      (m) => m
-        ..name = name
-        ..annotations.addAll(override ? [CodeExpression(Code('override'))] : [])
-        ..returns = refer(returnType)
-        ..requiredParameters.addAll(parameters)
-        ..modifier = modifier ?? (isAsync ? MethodModifier.async : null)
-        ..body = body,
-    );
-  }
-
-  Block _returnBody(Expression expression) {
-    return Block(
-      (b) => b..statements.add(expression.returned.statement),
-    );
-  }
-
-  Block _awaitBody(Expression expression) {
-    return Block(
-      (b) => b..statements.add(expression.awaited.statement),
-    );
-  }
-
-  Block _awaitThenReturn(Expression awaitExpression, Expression returnExpression) {
-    return Block(
-      (b) => b
-        ..statements.add(awaitExpression.awaited.statement)
-        ..statements.add(returnExpression.returned.statement),
-    );
-  }
-
-  Block _throwBody(String message) {
-    return Block(
-      (b) => b
-        ..statements.add(
-          refer('UnimplementedError')
-              .call([literalString(message)])
-              .thrown
-              .statement,
-        ),
-    );
-  }
-
-  Block _buildSaveAllBody(String idField) {
-    final mapExpression = refer('Map').property('fromEntries').call([
-      refer('items').property('map').call([
-        Method(
-          (m) => m
-            ..requiredParameters.add(Parameter((p) => p..name = 'item'))
-            ..lambda = true
-            ..body = refer('MapEntry').call([
-              refer('item').property(idField),
-              refer('item'),
-            ]).code,
-        ).closure,
-      ]),
-    ]);
-    return Block(
-      (b) => b
-        ..statements.add(
-          declareFinal('map').assign(mapExpression).statement,
-        )
-        ..statements.add(
-          refer('_box').property('putAll').call([refer('map')]).awaited.statement,
-        ),
-    );
-  }
-
-  Block _buildUpdateWithZorphyBody(GeneratorConfig config, String entityName) {
-    return Block(
-      (b) => b
-        ..statements.add(
-          declareFinal('existing')
-              .assign(
-                refer('_box').property('values').property('firstWhere').call(
-                  [
-                    Method(
-                      (m) => m
-                        ..requiredParameters.add(
-                          Parameter((p) => p..name = 'item'),
-                        )
-                        ..lambda = true
-                        ..body = refer('item')
-                            .property(config.idField)
-                            .equalTo(refer('params').property('id'))
-                            .code,
-                    ).closure,
-                  ],
-                  {
-                    'orElse': Method(
-                      (m) => m
-                        ..lambda = true
-                        ..body = refer('notFoundFailure')
-                            .call([
-                              literalString('$entityName not found in cache'),
-                            ])
-                            .thrown
-                            .code,
-                    ).closure,
-                  },
-                ),
-              )
-              .statement,
-        )
-        ..statements.add(
-          declareFinal('updated')
-              .assign(
-                refer('params').property('data').property('applyTo').call([
-                  refer('existing'),
-                ]),
-              )
-              .statement,
-        )
-        ..statements.add(
-          refer('_box')
-              .property('put')
-              .call([
-                refer('updated').property(config.idField),
-                refer('updated'),
-              ]).awaited.statement,
-        )
-        ..statements.add(refer('updated').returned.statement),
-    );
-  }
-
-  Block _buildUpdateWithoutZorphyBody(
-    GeneratorConfig config,
-    String entityName,
-  ) {
-    return Block(
-      (b) => b
-        ..statements.add(
-          declareFinal('existing')
-              .assign(
-                refer('_box').property('values').property('firstWhere').call(
-                  [
-                    Method(
-                      (m) => m
-                        ..requiredParameters.add(
-                          Parameter((p) => p..name = 'item'),
-                        )
-                        ..lambda = true
-                        ..body = refer('item')
-                            .property(config.idField)
-                            .equalTo(refer('params').property('id'))
-                            .code,
-                    ).closure,
-                  ],
-                  {
-                    'orElse': Method(
-                      (m) => m
-                        ..lambda = true
-                        ..body = refer('notFoundFailure')
-                            .call([
-                              literalString('$entityName not found in cache'),
-                            ])
-                            .thrown
-                            .code,
-                    ).closure,
-                  },
-                ),
-              )
-              .statement,
-        )
-        ..statements.add(
-          refer('_box')
-              .property('put')
-              .call([
-                refer('existing').property(config.idField),
-                refer('existing'),
-              ]).awaited.statement,
-        )
-        ..statements.add(refer('existing').returned.statement),
-    );
-  }
-
-  Block _buildUpdateSingleWithZorphyBody(
-    GeneratorConfig config,
-    String entityName,
-    String entitySnake,
-  ) {
-    return Block(
-      (b) => b
-        ..statements.add(
-          declareFinal('existing')
-              .assign(
-                refer('_box').property('get').call([
-                  literalString(entitySnake),
-                ]),
-              )
-              .statement,
-        )
-        ..statements.add(
-          refer('existing')
-              .equalTo(literalNull)
-              .conditional(
-                literalNull,
-                refer('notFoundFailure')
-                    .call([
-                      literalString('$entityName not found in cache'),
-                    ])
-                    .thrown,
-              )
-              .statement,
-        )
-        ..statements.add(
-          declareFinal('updated')
-              .assign(
-                refer('params').property('data').property('applyTo').call([
-                  refer('existing'),
-                ]),
-              )
-              .statement,
-        )
-        ..statements.add(
-          refer('_box')
-              .property('put')
-              .call([literalString(entitySnake), refer('updated')])
-              .awaited
-              .statement,
-        )
-        ..statements.add(refer('updated').returned.statement),
-    );
-  }
-
-  Block _buildUpdateSingleWithoutZorphyBody(
-    GeneratorConfig config,
-    String entityName,
-    String entitySnake,
-  ) {
-    return Block(
-      (b) => b
-        ..statements.add(
-          declareFinal('existing')
-              .assign(
-                refer('_box').property('get').call([
-                  literalString(entitySnake),
-                ]),
-              )
-              .statement,
-        )
-        ..statements.add(
-          refer('existing')
-              .equalTo(literalNull)
-              .conditional(
-                literalNull,
-                refer('notFoundFailure')
-                    .call([
-                      literalString('$entityName not found in cache'),
-                    ])
-                    .thrown,
-              )
-              .statement,
-        )
-        ..statements.add(
-          refer('_box')
-              .property('put')
-              .call([literalString(entitySnake), refer('existing')])
-              .awaited
-              .statement,
-        )
-        ..statements.add(refer('existing').returned.statement),
-    );
-  }
-
-  Block _buildDeleteWithListBody(GeneratorConfig config, String entityName) {
-    return Block(
-      (b) => b
-        ..statements.add(
-          declareFinal('existing')
-              .assign(
-                refer('_box').property('values').property('firstWhere').call(
-                  [
-                    Method(
-                      (m) => m
-                        ..requiredParameters.add(
-                          Parameter((p) => p..name = 'item'),
-                        )
-                        ..lambda = true
-                        ..body = refer('item')
-                            .property(config.idField)
-                            .equalTo(refer('params').property('id'))
-                            .code,
-                    ).closure,
-                  ],
-                  {
-                    'orElse': Method(
-                      (m) => m
-                        ..lambda = true
-                        ..body = refer('notFoundFailure')
-                            .call([
-                              literalString('$entityName not found in cache'),
-                            ])
-                            .thrown
-                            .code,
-                    ).closure,
-                  },
-                ),
-              )
-              .statement,
-        )
-        ..statements.add(
-          refer('_box')
-              .property('delete')
-              .call([refer('existing').property(config.idField)])
-              .awaited
-              .statement,
-        ),
-    );
-  }
-
-  Block _buildWatchBody() {
-    final existingExpression = refer('_box')
-        .property('values')
-        .property('query')
-        .call([refer('params')]);
-    final streamExpression = refer('Stream').property('multi').call([
-      Method(
-        (m) => m
-          ..requiredParameters.add(Parameter((p) => p..name = 'controller'))
-          ..modifier = MethodModifier.async
-          ..body = Block(
-            (bb) => bb
-              ..statements.add(
-                refer('controller')
-                    .property('add')
-                    .call([refer('existing')]).statement,
-              )
-              ..statements.add(
-                refer('controller')
-                    .property('addStream')
-                    .call([
-                      refer('_box').property('watch').call([]).property('map').call([
-                        Method(
-                          (mm) => mm
-                            ..requiredParameters
-                                .add(Parameter((p) => p..name = '_'))
-                            ..lambda = true
-                            ..body = existingExpression.code,
-                        ).closure,
-                      ]),
-                    ]).awaited.statement,
-              ),
-          ),
-      ).closure,
-    ]);
-    return Block(
-      (b) => b
-        ..statements.add(
-          declareFinal('existing').assign(existingExpression).statement,
-        )
-        ..statements.add(
-          declareFinal('stream').assign(streamExpression).statement,
-        )
-        ..statements.add(refer('stream').returned.statement),
-    );
-  }
-
-  Block _buildWatchListBody() {
-    final existingExpression = refer('_box')
-        .property('values')
-        .property('filter')
-        .call([refer('params').property('filter')])
-        .property('orderBy')
-        .call([refer('params').property('sort')]);
-    final streamExpression = refer('Stream').property('multi').call([
-      Method(
-        (m) => m
-          ..requiredParameters.add(Parameter((p) => p..name = 'controller'))
-          ..modifier = MethodModifier.async
-          ..body = Block(
-            (bb) => bb
-              ..statements.add(
-                refer('controller')
-                    .property('add')
-                    .call([refer('existing')]).statement,
-              )
-              ..statements.add(
-                refer('controller')
-                    .property('addStream')
-                    .call([
-                      refer('_box').property('watch').call([]).property('map').call([
-                        Method(
-                          (mm) => mm
-                            ..requiredParameters
-                                .add(Parameter((p) => p..name = '_'))
-                            ..lambda = true
-                            ..body = existingExpression.code,
-                        ).closure,
-                      ]),
-                    ]).awaited.statement,
-              ),
-          ),
-      ).closure,
-    ]);
-    return Block(
-      (b) => b
-        ..statements.add(
-          declareFinal('existing').assign(existingExpression).statement,
-        )
-        ..statements.add(
-          declareFinal('stream').assign(streamExpression).statement,
-        )
-        ..statements.add(refer('stream').returned.statement),
-    );
-  }
-
-  Parameter _param(String name, String type) {
-    return Parameter(
-      (p) => p
-        ..name = name
-        ..type = refer(type),
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
     );
   }
 }

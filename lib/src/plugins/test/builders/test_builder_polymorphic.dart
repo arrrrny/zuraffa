@@ -1,6 +1,10 @@
 part of 'test_builder.dart';
 
 extension TestBuilderPolymorphic on TestBuilder {
+  /// Generates test files for polymorphic use case variants.
+  ///
+  /// @param config Generator configuration describing the variants and options.
+  /// @returns List of generated test file metadata.
   Future<List<GeneratedFile>> generatePolymorphic(
     GeneratorConfig config,
   ) async {

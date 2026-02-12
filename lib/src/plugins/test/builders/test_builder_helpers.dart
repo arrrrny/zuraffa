@@ -25,7 +25,9 @@ extension TestBuilderHelpers on TestBuilder {
   ) {
     final entityName = config.name;
     final idType = config.idType;
-    final idValue = idType == 'int' ? literalNum(1) : literalString('1');
+    final idValue = idType == 'NoParams'
+        ? refer('NoParams').constInstance([])
+        : (idType == 'int' ? literalNum(1) : literalString('1'));
 
     switch (method) {
       case 'get':
@@ -65,7 +67,9 @@ extension TestBuilderHelpers on TestBuilder {
     bool isCompletable,
   ) {
     final idType = config.idType;
-    final idValue = idType == 'int' ? literalNum(1) : literalString('1');
+    final idValue = idType == 'NoParams'
+        ? refer('NoParams').constInstance([])
+        : (idType == 'int' ? literalNum(1) : literalString('1'));
 
     Expression paramsExpr;
     Expression arrangeCall;
@@ -300,15 +304,15 @@ extension TestBuilderHelpers on TestBuilder {
           .call([arrangeCall.toClosure()])
           .property('thenAnswer')
           .call([
-        Method(
-          (m) => m
-            ..requiredParameters.add(Parameter((p) => p..name = '_'))
-            ..lambda = true
-            ..body = refer(
-              'Stream',
-            ).property('value').call([refer(returnConstructor)]).code,
-        ).closure,
-      ]);
+            Method(
+              (m) => m
+                ..requiredParameters.add(Parameter((p) => p..name = '_'))
+                ..lambda = true
+                ..body = refer(
+                  'Stream',
+                ).property('value').call([refer(returnConstructor)]).code,
+            ).closure,
+          ]);
       t.statements.add(arrangeCallExpr.statement);
       t.statements.add(
         declareFinal(
@@ -354,15 +358,15 @@ extension TestBuilderHelpers on TestBuilder {
           .call([arrangeCall.toClosure()])
           .property('thenAnswer')
           .call([
-        Method(
-          (m) => m
-            ..requiredParameters.add(Parameter((p) => p..name = '_'))
-            ..lambda = true
-            ..body = refer(
-              'Stream',
-            ).property('error').call([refer('exception')]).code,
-        ).closure,
-      ]);
+            Method(
+              (m) => m
+                ..requiredParameters.add(Parameter((p) => p..name = '_'))
+                ..lambda = true
+                ..body = refer(
+                  'Stream',
+                ).property('error').call([refer('exception')]).code,
+            ).closure,
+          ]);
       t.statements.add(arrangeCallExpr.statement);
       t.statements.add(
         declareFinal(

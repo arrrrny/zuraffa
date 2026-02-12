@@ -35,7 +35,12 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
       }
     }
     if (config.hasService) {
-      final serviceSnake = config.serviceSnake!;
+      final serviceSnake = config.serviceSnake;
+      if (serviceSnake == null) {
+        throw ArgumentError(
+          'Service name must be specified via --service or config.service',
+        );
+      }
       imports.add('../../services/${serviceSnake}_service.dart');
     }
     imports.addAll(_entityImports([paramsType, returnsType]));
@@ -60,7 +65,12 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
       }
     }
     if (config.hasService) {
-      final serviceName = config.effectiveService!;
+      final serviceName = config.effectiveService;
+      if (serviceName == null) {
+        throw ArgumentError(
+          'Service name must be specified via --service or config.service',
+        );
+      }
       final serviceBaseName = serviceName.endsWith('Service')
           ? serviceName.substring(0, serviceName.length - 7)
           : serviceName;

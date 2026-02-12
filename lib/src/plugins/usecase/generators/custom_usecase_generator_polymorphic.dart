@@ -13,8 +13,11 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
       'usecases',
       config.effectiveDomain,
     );
-    final paramsType = config.paramsType!;
-    final returnsType = config.returnsType!;
+    final paramsType = config.paramsType;
+    final returnsType = config.returnsType;
+    if (paramsType == null || returnsType == null) {
+      throw ArgumentError('paramsType and returnsType are required');
+    }
 
     final baseClass = _baseClass(config, paramsType, returnsType);
     final abstractSpec = UseCaseClassSpec(
@@ -43,10 +46,11 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
       final variantFileName = '${variantSnake}_usecase.dart';
       final variantFilePath = path.join(usecaseDirPath, variantFileName);
 
-      final repoClassName = config.repo != null
-          ? (config.repo!.endsWith('Repository')
-              ? config.repo!
-              : '${config.repo}Repository')
+      final repoBase = config.repo;
+      final repoClassName = repoBase != null
+          ? (repoBase.endsWith('Repository')
+              ? repoBase
+              : '${repoBase}Repository')
           : null;
 
       final fields = <Field>[];

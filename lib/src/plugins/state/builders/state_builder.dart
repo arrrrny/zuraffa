@@ -2,25 +2,61 @@ import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../../core/builder/shared/spec_library.dart';
+import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 
+/// Generates state classes for presentation controllers.
+///
+/// Builds immutable state classes with flags, copyWith, and helpers based on
+/// the configured entity methods.
+///
+/// Example:
+/// ```dart
+/// final builder = StateBuilder(
+///   outputDir: 'lib/src',
+///   options: const GeneratorOptions(force: true),
+/// );
+/// final file = await builder.generate(GeneratorConfig(name: 'Product'));
+/// ```
 class StateBuilder {
   final String outputDir;
+  final GeneratorOptions options;
   final bool dryRun;
   final bool force;
   final bool verbose;
   final SpecLibrary specLibrary;
 
+  /// Creates a [StateBuilder].
+  ///
+  /// @param outputDir Target directory for generated files.
+  /// @param options Generation flags for writing behavior and logging.
+  /// @param dryRun Deprecated: use [options].
+  /// @param force Deprecated: use [options].
+  /// @param verbose Deprecated: use [options].
+  /// @param specLibrary Optional spec library override.
   StateBuilder({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
+    GeneratorOptions options = const GeneratorOptions(),
+    @Deprecated('Use options.dryRun') bool? dryRun,
+    @Deprecated('Use options.force') bool? force,
+    @Deprecated('Use options.verbose') bool? verbose,
     SpecLibrary? specLibrary,
-  }) : specLibrary = specLibrary ?? const SpecLibrary();
+  })  : options = options.copyWith(
+          dryRun: dryRun ?? options.dryRun,
+          force: force ?? options.force,
+          verbose: verbose ?? options.verbose,
+        ),
+        dryRun = dryRun ?? options.dryRun,
+        force = force ?? options.force,
+        verbose = verbose ?? options.verbose,
+        specLibrary = specLibrary ?? const SpecLibrary();
 
+  /// Generates a state file for the given [config].
+  ///
+  /// @param config Generator configuration describing the entity and options.
+  /// @returns Generated state file metadata.
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final entityName = config.name;
     final entitySnake = config.nameSnake;

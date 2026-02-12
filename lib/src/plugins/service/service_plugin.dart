@@ -35,7 +35,10 @@ class ServicePlugin extends FileGeneratorPlugin {
     if (!config.isCustomUseCase || !config.hasService) {
       return [];
     }
-    final serviceSnake = config.serviceSnake!;
+    final serviceSnake = config.serviceSnake;
+    if (serviceSnake == null) {
+      return [];
+    }
     final fileName = '${serviceSnake}_service.dart';
     final filePath = path.join(outputDir, 'domain', 'services', fileName);
     final content = interfaceBuilder.build(config);

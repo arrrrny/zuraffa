@@ -103,8 +103,13 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
     final file = File(filePath);
     await file.parent.create(recursive: true);
 
-    final serviceSnake = config.serviceSnake!;
-    final providerName = config.effectiveProvider!;
+    final serviceSnake = config.serviceSnake;
+    final providerName = config.effectiveProvider;
+    if (serviceSnake == null || providerName == null) {
+      throw ArgumentError(
+        'Service name must be specified via --service or config.service',
+      );
+    }
     final isStream = config.useCaseType == 'stream';
     final isSync = config.useCaseType == 'sync';
 

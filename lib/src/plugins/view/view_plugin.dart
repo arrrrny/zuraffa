@@ -8,6 +8,21 @@ import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
 import 'builders/view_class_builder.dart';
 
+/// Generates Flutter view classes for presentation pages.
+///
+/// Produces view widgets wired to controllers and presenters, with optional
+/// state integration and route argument handling.
+///
+/// Example:
+/// ```dart
+/// final plugin = ViewPlugin(
+///   outputDir: 'lib/src',
+///   dryRun: false,
+///   force: true,
+///   verbose: false,
+/// );
+/// final files = await plugin.generate(GeneratorConfig(name: 'Product'));
+/// ```
 class ViewPlugin extends FileGeneratorPlugin {
   final String outputDir;
   final bool dryRun;
@@ -15,6 +30,13 @@ class ViewPlugin extends FileGeneratorPlugin {
   final bool verbose;
   final ViewClassBuilder classBuilder;
 
+  /// Creates a [ViewPlugin].
+  ///
+  /// @param outputDir Target directory for generated files.
+  /// @param dryRun If true, files are not written.
+  /// @param force If true, existing files are overwritten.
+  /// @param verbose If true, logs progress to stdout.
+  /// @param classBuilder Optional view class builder override.
   ViewPlugin({
     required this.outputDir,
     required this.dryRun,
@@ -23,15 +45,22 @@ class ViewPlugin extends FileGeneratorPlugin {
     ViewClassBuilder? classBuilder,
   }) : classBuilder = classBuilder ?? const ViewClassBuilder();
 
+  /// @returns Plugin identifier.
   @override
   String get id => 'view';
 
+  /// @returns Plugin display name.
   @override
   String get name => 'View Plugin';
 
+  /// @returns Plugin version string.
   @override
   String get version => '1.0.0';
 
+  /// Generates view files for the given [config].
+  ///
+  /// @param config Generator configuration describing the entity and options.
+  /// @returns List of generated view files.
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     if (!(config.generateView || config.generateVpc)) {

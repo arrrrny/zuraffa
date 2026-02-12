@@ -7,8 +7,13 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     final updatedFiles = <GeneratedFile>[];
     final warnings = <String>[];
 
-    final serviceName = config.effectiveService!;
-    final serviceSnake = config.serviceSnake!;
+    final serviceName = config.effectiveService;
+    final serviceSnake = config.serviceSnake;
+    if (serviceName == null || serviceSnake == null) {
+      throw ArgumentError(
+        'Service name must be specified via --service or config.service',
+      );
+    }
     final methodName = config.getServiceMethodName();
     final paramsType = config.paramsType ?? 'NoParams';
     final returnsType = config.returnsType ?? 'void';
@@ -53,6 +58,16 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
 
     if (config.generateData) {
       final domainSnake = StringUtils.camelToSnake(config.effectiveDomain);
+      assert(
+        config.effectiveProvider != null,
+        'Provider name must be specified for service append operations',
+      );
+      final providerName = config.effectiveProvider;
+      if (providerName == null) {
+        throw ArgumentError(
+          'Provider name must be specified for service append operations',
+        );
+      }
       final providerPath = path.join(
         outputDir,
         'data',
@@ -65,7 +80,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         final result = await _appendToProvider(
           config,
           providerPath,
-          config.effectiveProvider!,
+          providerName,
           methodName,
           returnRef,
           paramsType,

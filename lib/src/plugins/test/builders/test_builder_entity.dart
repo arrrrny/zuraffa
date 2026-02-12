@@ -1,6 +1,11 @@
 part of 'test_builder.dart';
 
 extension TestBuilderEntity on TestBuilder {
+  /// Generates a test file for a single entity use case method.
+  ///
+  /// @param config Generator configuration describing the entity and options.
+  /// @param method Use case method name to generate tests for.
+  /// @returns Generated test file metadata.
   Future<GeneratedFile> generateForMethod(
     GeneratorConfig config,
     String method,

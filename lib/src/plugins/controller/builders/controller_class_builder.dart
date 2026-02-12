@@ -54,10 +54,11 @@ class ControllerClassBuilder {
     });
     constructors.add(ctor);
 
-    if (spec.withState && spec.stateClassName != null) {
+    final stateClassName = spec.stateClassName;
+    if (spec.withState && stateClassName != null) {
       spec.methods.insert(
         0,
-        statefulBuilder.buildCreateInitialState(spec.stateClassName!),
+        statefulBuilder.buildCreateInitialState(stateClassName),
       );
     }
 

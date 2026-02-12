@@ -21,8 +21,8 @@ class MockDataSourceBuilder {
     required this.verbose,
     SpecLibrary? specLibrary,
     MockTypeHelper? typeHelper,
-  })  : specLibrary = specLibrary ?? const SpecLibrary(),
-        typeHelper = typeHelper ?? const MockTypeHelper();
+  }) : specLibrary = specLibrary ?? const SpecLibrary(),
+       typeHelper = typeHelper ?? const MockTypeHelper();
 
   Future<GeneratedFile> generateMockDataSource(GeneratorConfig config) async {
     final entityName = config.name;
@@ -257,9 +257,9 @@ class MockDataSourceBuilder {
                               refer('items')
                                   .property('take')
                                   .call([
-                                    refer('params')
-                                        .property('limit')
-                                        .nullChecked,
+                                    refer(
+                                      'params',
+                                    ).property('limit').nullChecked,
                                   ])
                                   .property('toList')
                                   .call([]),
@@ -279,6 +279,7 @@ class MockDataSourceBuilder {
           break;
 
         case 'create':
+          final isNoParamsCreate = config.idType == 'NoParams';
           methods.add(
             Method(
               (m) => m
@@ -297,7 +298,11 @@ class MockDataSourceBuilder {
                   (b) => b
                     ..statements.addAll([
                       refer('logger').property('info').call([
-                        literalString('Creating $entityName: \${item.id}'),
+                        isNoParamsCreate
+                            ? literalString('Creating $entityName')
+                            : literalString(
+                                'Creating $entityName: \${item.id}',
+                              ),
                       ]).statement,
                       refer('Future')
                           .property('delayed')
@@ -305,9 +310,11 @@ class MockDataSourceBuilder {
                           .awaited
                           .statement,
                       refer('logger').property('info').call([
-                        literalString(
-                          'Successfully created $entityName: \${item.id}',
-                        ),
+                        isNoParamsCreate
+                            ? literalString('Successfully created $entityName')
+                            : literalString(
+                                'Successfully created $entityName: \${item.id}',
+                              ),
                       ]).statement,
                       refer('item').returned.statement,
                     ]),
@@ -320,22 +327,38 @@ class MockDataSourceBuilder {
           final dataType = config.useZorphy
               ? '${entityName}Patch'
               : 'Map<String, dynamic>';
-          final updateParamsType =
-              config.useZorphy ? 'UpdateParams<${config.idType}, $dataType>' : dataType;
+          final updateParamsType = config.useZorphy
+              ? 'UpdateParams<${config.idType}, $dataType>'
+              : dataType;
           final hasList = config.methods.contains('getList');
           final hasWatch = config.methods.contains('watch');
+          final isNoParams = config.idType == 'NoParams';
           final bodyStatements = <Code>[
             refer('logger').property('info').call([
-              literalString('Updating $entityName: \${params.id}'),
+              isNoParams
+                  ? literalString('Updating $entityName')
+                  : literalString('Updating $entityName: \${params.id}'),
             ]).statement,
-            refer('Future')
-                .property('delayed')
-                .call([refer('_delay')])
-                .awaited
-                .statement,
+            refer(
+              'Future',
+            ).property('delayed').call([refer('_delay')]).awaited.statement,
           ];
 
-          if (hasList || hasWatch) {
+          if (isNoParams) {
+            bodyStatements.addAll([
+              declareFinal('existing')
+                  .assign(
+                    refer(
+                      '${entityName}MockData',
+                    ).property('sample$entityName'),
+                  )
+                  .statement,
+              refer('logger').property('info').call([
+                literalString('Successfully updated $entityName'),
+              ]).statement,
+              refer('existing').returned.statement,
+            ]);
+          } else if (hasList || hasWatch) {
             final orElse = Method(
               (m) => m
                 ..requiredParameters.add(Parameter((p) => p..name = '_'))
@@ -354,8 +377,9 @@ class MockDataSourceBuilder {
                           [
                             Method(
                               (m) => m
-                                ..requiredParameters
-                                    .add(Parameter((p) => p..name = 'item'))
+                                ..requiredParameters.add(
+                                  Parameter((p) => p..name = 'item'),
+                                )
                                 ..lambda = true
                                 ..body = refer('item')
                                     .property(config.idField)
@@ -409,18 +433,25 @@ class MockDataSourceBuilder {
 
         case 'delete':
           final deleteParamsType = 'DeleteParams<${config.idType}>';
+          final isNoParams = config.idType == 'NoParams';
           final bodyStatements = <Code>[
             refer('logger').property('info').call([
-              literalString('Deleting $entityName: \${params.id}'),
+              isNoParams
+                  ? literalString('Deleting $entityName')
+                  : literalString('Deleting $entityName: \${params.id}'),
             ]).statement,
-            refer('Future')
-                .property('delayed')
-                .call([refer('_delay')])
-                .awaited
-                .statement,
+            refer(
+              'Future',
+            ).property('delayed').call([refer('_delay')]).awaited.statement,
           ];
 
-          if (hasListMethods) {
+          if (isNoParams) {
+            bodyStatements.addAll([
+              refer('logger').property('info').call([
+                literalString('Successfully deleted $entityName'),
+              ]).statement,
+            ]);
+          } else if (hasListMethods) {
             final orElse = Method(
               (m) => m
                 ..requiredParameters.add(Parameter((p) => p..name = '_'))
@@ -439,8 +470,9 @@ class MockDataSourceBuilder {
                           [
                             Method(
                               (m) => m
-                                ..requiredParameters
-                                    .add(Parameter((p) => p..name = 'item'))
+                                ..requiredParameters.add(
+                                  Parameter((p) => p..name = 'item'),
+                                )
                                 ..lambda = true
                                 ..body = refer('item')
                                     .property(config.idField)
@@ -462,7 +494,6 @@ class MockDataSourceBuilder {
               refer('logger').property('info').call([
                 literalString('Successfully deleted $entityName'),
               ]).statement,
-              refer('params').returned.statement,
             ]);
           }
 
@@ -576,9 +607,9 @@ class MockDataSourceBuilder {
                                         refer('items')
                                             .property('take')
                                             .call([
-                                              refer('params')
-                                                  .property('limit')
-                                                  .nullChecked,
+                                              refer(
+                                                'params',
+                                              ).property('limit').nullChecked,
                                             ])
                                             .property('toList')
                                             .call([]),
