@@ -411,142 +411,50 @@ extension RepositoryImplementationGeneratorCached
   }
 
   Block _buildWatchBody(GeneratorConfig config, String entityName) {
-    final remoteDataSource = config.generateLocal
-        ? refer('_dataSource')
-        : refer('_remoteDataSource');
-    final localDataSource = config.generateLocal
-        ? refer('_dataSource')
-        : refer('_localDataSource');
-    final dataHandler = Method(
-      (m) => m
-        ..requiredParameters.add(
-          Parameter((p) => p..name = 'data'),
-        )
-        ..body = Block(
-          (bb) => bb
-            ..statements.add(
-              refer('controller').property('add').call([refer('data')]).statement,
-            )
-            ..statements.add(
-              localDataSource
-                  .property('save')
-                  .call([refer('data')]).awaited.statement,
-            ),
-        ),
-    ).closure;
-    final remoteErrorHandler = Method(
-      (m) => m
-        ..requiredParameters.add(
-          Parameter((p) => p..name = 'error'),
-        )
-        ..body = Block(
-          (bb) => bb
-            ..statements.add(
-              refer('controller')
-                  .property('addError')
-                  .call([refer('error')]).statement,
-            ),
-        ),
-    ).closure;
-    final onListen = Method(
-      (m) => m
-        ..body = Block(
-          (bb) => bb
-            ..statements.add(
-              refer('localSub')
-                  .assign(
-                    localDataSource
-                        .property('watch')
-                        .call([refer('params')])
-                        .property('listen')
-                        .call(
-                      [refer('controller').property('add')],
-                      {'onError': refer('controller').property('addError')},
-                    ),
-                  )
-                  .statement,
-            )
-            ..statements.add(
-              refer('remoteSub')
-                  .assign(
-                    remoteDataSource
-                        .property('watch')
-                        .call([refer('params')])
-                        .property('listen')
-                        .call(
-                      [dataHandler],
-                      {'onError': remoteErrorHandler},
-                    ),
-                  )
-                  .statement,
-            ),
-        ),
-    ).closure;
-    final onCancel = Method(
-      (m) => m
-        ..modifier = MethodModifier.async
-        ..body = Block(
-          (bb) => bb
-            ..statements.add(
-              refer('remoteSub').property('cancel').call([]).awaited.statement,
-            )
-            ..statements.add(
-              refer('localSub').property('cancel').call([]).awaited.statement,
-            ),
-        ),
-    ).closure;
-
-    return Block(
-      (b) => b
-        ..statements.add(
-          declareFinal('controller')
-              .assign(
-                refer('StreamController').call(
-                  const [],
-                  {},
-                  [refer(entityName)],
-                ),
-              )
-              .statement,
-        )
-        ..statements.add(
-          declareVar('localSub', type: refer('StreamSubscription<$entityName>'))
-              .statement,
-        )
-        ..statements.add(
-          declareVar(
-            'remoteSub',
-            type: refer('StreamSubscription<$entityName>'),
-          ).statement,
-        )
-        ..statements.add(
-          refer('controller')
-              .property('onListen')
-              .assign(onListen)
-              .statement,
-        )
-        ..statements.add(
-          refer('controller')
-              .property('onCancel')
-              .assign(onCancel)
-              .statement,
-        )
-        ..statements.add(refer('controller').property('stream').returned.statement),
+    final remoteDataSource = _remoteDataSourceRef(config);
+    final localDataSource = _localDataSourceRef(config);
+    final dataHandler = _buildStreamDataHandler(localDataSource, false);
+    final errorHandler = _buildStreamErrorHandler();
+    final onListen = _buildOnListen(
+      localDataSource: localDataSource,
+      remoteDataSource: remoteDataSource,
+      dataHandler: dataHandler,
+      errorHandler: errorHandler,
+      isList: false,
     );
+    final onCancel = _buildOnCancel();
+    return _buildStreamControllerBlock(entityName, false, onListen, onCancel);
   }
 
   Block _buildWatchListBody(GeneratorConfig config, String entityName) {
-    final remoteDataSource = config.generateLocal
-        ? refer('_dataSource')
-        : refer('_remoteDataSource');
-    final localDataSource = config.generateLocal
-        ? refer('_dataSource')
-        : refer('_localDataSource');
-    final dataHandler = Method(
+    final remoteDataSource = _remoteDataSourceRef(config);
+    final localDataSource = _localDataSourceRef(config);
+    final dataHandler = _buildStreamDataHandler(localDataSource, true);
+    final errorHandler = _buildStreamErrorHandler();
+    final onListen = _buildOnListen(
+      localDataSource: localDataSource,
+      remoteDataSource: remoteDataSource,
+      dataHandler: dataHandler,
+      errorHandler: errorHandler,
+      isList: true,
+    );
+    final onCancel = _buildOnCancel();
+    return _buildStreamControllerBlock(entityName, true, onListen, onCancel);
+  }
+
+  Expression _remoteDataSourceRef(GeneratorConfig config) {
+    return config.generateLocal ? refer('_dataSource') : refer('_remoteDataSource');
+  }
+
+  Expression _localDataSourceRef(GeneratorConfig config) {
+    return config.generateLocal ? refer('_dataSource') : refer('_localDataSource');
+  }
+
+  Expression _buildStreamDataHandler(Expression localDataSource, bool isList) {
+    final saveMethod = isList ? 'saveAll' : 'save';
+    return Method(
       (m) => m
-        ..requiredParameters.add(
-          Parameter((p) => p..name = 'data'),
-        )
+        ..requiredParameters.add(Parameter((p) => p..name = 'data'))
         ..body = Block(
           (bb) => bb
             ..statements.add(
@@ -554,16 +462,19 @@ extension RepositoryImplementationGeneratorCached
             )
             ..statements.add(
               localDataSource
-                  .property('saveAll')
-                  .call([refer('data')]).awaited.statement,
+                  .property(saveMethod)
+                  .call([refer('data')])
+                  .awaited
+                  .statement,
             ),
         ),
     ).closure;
-    final remoteErrorHandler = Method(
+  }
+
+  Expression _buildStreamErrorHandler() {
+    return Method(
       (m) => m
-        ..requiredParameters.add(
-          Parameter((p) => p..name = 'error'),
-        )
+        ..requiredParameters.add(Parameter((p) => p..name = 'error'))
         ..body = Block(
           (bb) => bb
             ..statements.add(
@@ -573,7 +484,17 @@ extension RepositoryImplementationGeneratorCached
             ),
         ),
     ).closure;
-    final onListen = Method(
+  }
+
+  Expression _buildOnListen({
+    required Expression localDataSource,
+    required Expression remoteDataSource,
+    required Expression dataHandler,
+    required Expression errorHandler,
+    required bool isList,
+  }) {
+    final watchMethod = isList ? 'watchList' : 'watch';
+    return Method(
       (m) => m
         ..body = Block(
           (bb) => bb
@@ -581,7 +502,7 @@ extension RepositoryImplementationGeneratorCached
               refer('localSub')
                   .assign(
                     localDataSource
-                        .property('watchList')
+                        .property(watchMethod)
                         .call([refer('params')])
                         .property('listen')
                         .call(
@@ -595,19 +516,22 @@ extension RepositoryImplementationGeneratorCached
               refer('remoteSub')
                   .assign(
                     remoteDataSource
-                        .property('watchList')
+                        .property(watchMethod)
                         .call([refer('params')])
                         .property('listen')
                         .call(
                       [dataHandler],
-                      {'onError': remoteErrorHandler},
+                      {'onError': errorHandler},
                     ),
                   )
                   .statement,
             ),
         ),
     ).closure;
-    final onCancel = Method(
+  }
+
+  Expression _buildOnCancel() {
+    return Method(
       (m) => m
         ..modifier = MethodModifier.async
         ..body = Block(
@@ -620,7 +544,15 @@ extension RepositoryImplementationGeneratorCached
             ),
         ),
     ).closure;
+  }
 
+  Block _buildStreamControllerBlock(
+    String entityName,
+    bool isList,
+    Expression onListen,
+    Expression onCancel,
+  ) {
+    final streamType = isList ? 'List<$entityName>' : entityName;
     return Block(
       (b) => b
         ..statements.add(
@@ -629,7 +561,7 @@ extension RepositoryImplementationGeneratorCached
                 refer('StreamController').call(
                   const [],
                   {},
-                  [refer('List<$entityName>')],
+                  [refer(streamType)],
                 ),
               )
               .statement,
@@ -637,13 +569,13 @@ extension RepositoryImplementationGeneratorCached
         ..statements.add(
           declareVar(
             'localSub',
-            type: refer('StreamSubscription<List<$entityName>>'),
+            type: refer('StreamSubscription<$streamType>'),
           ).statement,
         )
         ..statements.add(
           declareVar(
             'remoteSub',
-            type: refer('StreamSubscription<List<$entityName>>'),
+            type: refer('StreamSubscription<$streamType>'),
           ).statement,
         )
         ..statements.add(
@@ -658,7 +590,9 @@ extension RepositoryImplementationGeneratorCached
               .assign(onCancel)
               .statement,
         )
-        ..statements.add(refer('controller').property('stream').returned.statement),
+        ..statements.add(
+          refer('controller').property('stream').returned.statement,
+        ),
     );
   }
 }

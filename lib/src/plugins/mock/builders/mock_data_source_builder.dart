@@ -162,6 +162,7 @@ class MockDataSourceBuilder {
     for (final method in config.methods) {
       switch (method) {
         case 'get':
+          final isNoParams = config.idType == 'NoParams';
           methods.add(
             Method(
               (m) => m
@@ -189,14 +190,24 @@ class MockDataSourceBuilder {
                           .call([refer('_delay')])
                           .awaited
                           .statement,
-                      declareFinal('item')
-                          .assign(
-                            refer('${entityName}MockData')
-                                .property('${entityCamel}s')
-                                .property('query')
-                                .call([refer('params')]),
-                          )
-                          .statement,
+                      if (isNoParams) ...[
+                        declareFinal('item')
+                            .assign(
+                              refer(
+                                '${entityName}MockData',
+                              ).property('sample$entityName'),
+                            )
+                            .statement,
+                      ] else ...[
+                        declareFinal('item')
+                            .assign(
+                              refer('${entityName}MockData')
+                                  .property('${entityCamel}s')
+                                  .property('query')
+                                  .call([refer('params')]),
+                            )
+                            .statement,
+                      ],
                       refer('logger').property('info').call([
                         literalString('Successfully retrieved $entityName'),
                       ]).statement,
@@ -517,6 +528,7 @@ class MockDataSourceBuilder {
           break;
 
         case 'watch':
+          final isNoParamsWatch = config.idType == 'NoParams';
           methods.add(
             Method(
               (m) => m
@@ -542,11 +554,15 @@ class MockDataSourceBuilder {
                             Parameter((p) => p..name = 'count'),
                           )
                           ..lambda = true
-                          ..body = refer('${entityName}MockData')
-                              .property('${entityCamel}s')
-                              .property('query')
-                              .call([refer('params')])
-                              .code,
+                          ..body = isNoParamsWatch
+                              ? refer(
+                                  '${entityName}MockData',
+                                ).property('sample$entityName').code
+                              : refer('${entityName}MockData')
+                                    .property('${entityCamel}s')
+                                    .property('query')
+                                    .call([refer('params')])
+                                    .code,
                       ).closure,
                     ])
                     .property('take')

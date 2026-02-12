@@ -19,6 +19,7 @@ class AppRoutesBuilder {
   String buildFile({
     required Map<String, String> routes,
     required List<ExtensionMethodSpec> extensionMethods,
+    String? entityRouteImport,
   }) {
     final fields = routes.entries
         .map(
@@ -28,7 +29,7 @@ class AppRoutesBuilder {
               ..static = true
               ..modifier = FieldModifier.constant
               ..type = refer('String')
-              ..assignment = literalString(entry.value).code,
+              ..assignment = Code(entry.value),
           ),
         )
         .toList();
@@ -45,12 +46,15 @@ class AppRoutesBuilder {
       methods: extensionMethods,
     );
 
+    final directives = <Directive>[
+      Directive.import('package:flutter/material.dart'),
+      Directive.import('package:go_router/go_router.dart'),
+      if (entityRouteImport != null) Directive.import(entityRouteImport),
+    ];
+
     final library = specLibrary.library(
       specs: [appRoutes, extension],
-      directives: [
-        Directive.import('package:flutter/material.dart'),
-        Directive.import('package:go_router/go_router.dart'),
-      ],
+      directives: directives,
     );
 
     return specLibrary.emitLibrary(library);
@@ -63,13 +67,14 @@ class AppRoutesBuilder {
         ..static = true
         ..modifier = FieldModifier.constant
         ..type = refer('String')
-        ..assignment = literalString(value).code,
+        ..assignment = Code(value),
     );
     return field.accept(emitter).toString();
   }
 
   String buildMethodSource(ExtensionMethodSpec spec) {
     final method = extensionBuilder.buildMethod(spec);
-    return method.accept(emitter).toString();
+    final methodCode = method.accept(emitter).toString();
+    return methodCode.endsWith(';') ? methodCode : '$methodCode;';
   }
 }

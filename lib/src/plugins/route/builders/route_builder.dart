@@ -60,18 +60,18 @@ class RouteBuilder {
     EntityRoutesBuilder? entityRoutesBuilder,
     AppendExecutor? appendExecutor,
     SpecLibrary? specLibrary,
-  })  : options = options.copyWith(
-          dryRun: dryRun ?? options.dryRun,
-          force: force ?? options.force,
-          verbose: verbose ?? options.verbose,
-        ),
-        dryRun = dryRun ?? options.dryRun,
-        force = force ?? options.force,
-        verbose = verbose ?? options.verbose,
-        appRoutesBuilder = appRoutesBuilder ?? AppRoutesBuilder(),
-        entityRoutesBuilder = entityRoutesBuilder ?? EntityRoutesBuilder(),
-        appendExecutor = appendExecutor ?? AppendExecutor(),
-        specLibrary = specLibrary ?? const SpecLibrary();
+  }) : options = options.copyWith(
+         dryRun: dryRun ?? options.dryRun,
+         force: force ?? options.force,
+         verbose: verbose ?? options.verbose,
+       ),
+       dryRun = dryRun ?? options.dryRun,
+       force = force ?? options.force,
+       verbose = verbose ?? options.verbose,
+       appRoutesBuilder = appRoutesBuilder ?? AppRoutesBuilder(),
+       entityRoutesBuilder = entityRoutesBuilder ?? EntityRoutesBuilder(),
+       appendExecutor = appendExecutor ?? AppendExecutor(),
+       specLibrary = specLibrary ?? const SpecLibrary();
 
   /// Generates route files for the given [config].
   ///
@@ -80,7 +80,7 @@ class RouteBuilder {
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     final files = <GeneratedFile>[];
 
-    if (!config.generateVpc && !config.generateView) {
+    if (!config.generateRoute) {
       return files;
     }
 
@@ -131,17 +131,19 @@ class RouteBuilder {
     );
 
     String content;
-    if (file.existsSync() && !force) {
+    if (file.existsSync()) {
       final existingContent = file.readAsStringSync();
       content = _updateAppRoutesFile(
         existingContent,
         routeConstants,
         extensionMethods,
+        config.nameSnake,
       );
     } else {
       content = appRoutesBuilder.buildFile(
         routes: routeConstants,
         extensionMethods: extensionMethods,
+        entityRouteImport: '${config.nameSnake}_routes.dart',
       );
     }
 
@@ -159,8 +161,23 @@ class RouteBuilder {
     String existingContent,
     Map<String, String> newRouteConstants,
     List<ExtensionMethodSpec> newExtensionMethods,
+    String entitySnake,
   ) {
     var content = _ensureAppRoutesImports(existingContent);
+
+    final entityRouteImport = '${entitySnake}_routes.dart';
+    if (!content.contains(entityRouteImport)) {
+      final importLine = "import '$entityRouteImport';";
+      if (content.contains('import ')) {
+        final lastImportEnd = content.lastIndexOf("';") + 2;
+        content =
+            content.substring(0, lastImportEnd) +
+            '\n$importLine' +
+            content.substring(lastImportEnd);
+      } else {
+        content = '$importLine\n$content';
+      }
+    }
 
     if (!content.contains('class AppRoutes') ||
         !content.contains('extension RouterExtension')) {
@@ -206,36 +223,11 @@ class RouteBuilder {
     final entityCamel = config.nameCamel;
     final fileName = '${entitySnake}_routes.dart';
 
-    final String dependencyImportPath;
-    final String viewParam;
-
-    if (config.isEntityBased) {
-      dependencyImportPath =
-          '../domain/repositories/${entitySnake}_repository.dart';
-      viewParam = '${entityCamel}Repository';
-    } else if (config.hasService) {
-      final serviceName = config.effectiveService;
-      final serviceSnake = config.serviceSnake;
-      if (serviceName == null || serviceSnake == null) {
-        dependencyImportPath = '';
-        viewParam = '';
-      } else {
-        dependencyImportPath =
-            '../domain/services/${serviceSnake}_service.dart';
-        viewParam = StringUtils.pascalToCamel(serviceName);
-      }
-    } else if (config.hasRepo) {
-      final repoName = config.effectiveRepos.first;
-      final repoSnake = StringUtils.camelToSnake(
-        repoName.replaceAll('Repository', ''),
-      );
-      dependencyImportPath =
-          '../domain/repositories/${repoSnake}_repository.dart';
-      viewParam = StringUtils.pascalToCamel(repoName);
-    } else {
-      dependencyImportPath = '';
-      viewParam = '';
-    }
+    final dependencyInfo = _resolveDependencyInfo(
+      config,
+      entitySnake,
+      entityCamel,
+    );
 
     final routesPath = path.join(outputDir, 'routing', fileName);
 
@@ -273,15 +265,16 @@ class RouteBuilder {
           entityCamel: entityCamel,
           routeBase: routeBase,
           routeNameBase: routeNameBase,
-          viewParam: viewParam,
+          viewParam: dependencyInfo.viewParam,
         ),
       if (needsIdParam)
         _buildDetailRouteExpr(
+          config: config,
           entityName: entityName,
           entityCamel: entityCamel,
           routeBase: routeBase,
           routeNameBase: routeNameBase,
-          viewParam: viewParam,
+          viewParam: dependencyInfo.viewParam,
         ),
       if (hasCreate)
         _buildCreateRouteExpr(
@@ -289,15 +282,16 @@ class RouteBuilder {
           entityCamel: entityCamel,
           routeBase: routeBase,
           routeNameBase: routeNameBase,
-          viewParam: viewParam,
+          viewParam: dependencyInfo.viewParam,
         ),
       if (hasUpdate)
         _buildUpdateRouteExpr(
+          config: config,
           entityName: entityName,
           entityCamel: entityCamel,
           routeBase: routeBase,
           routeNameBase: routeNameBase,
-          viewParam: viewParam,
+          viewParam: dependencyInfo.viewParam,
         ),
     ];
 
@@ -305,7 +299,7 @@ class RouteBuilder {
       'package:go_router/go_router.dart',
       '../../main.dart',
       '../presentation/pages/$entitySnake/${entitySnake}_view.dart',
-      if (dependencyImportPath.isNotEmpty) dependencyImportPath,
+      if (dependencyInfo.importPath.isNotEmpty) dependencyInfo.importPath,
     ];
 
     final content = entityRoutesBuilder.buildFile(
@@ -326,6 +320,44 @@ class RouteBuilder {
     );
   }
 
+  _DependencyInfo _resolveDependencyInfo(
+    GeneratorConfig config,
+    String entitySnake,
+    String entityCamel,
+  ) {
+    if (config.isEntityBased) {
+      return _DependencyInfo(
+        importPath: '../domain/repositories/${entitySnake}_repository.dart',
+        viewParam: '${entityCamel}Repository',
+      );
+    }
+
+    if (config.hasService) {
+      final serviceName = config.effectiveService;
+      final serviceSnake = config.serviceSnake;
+      if (serviceName == null || serviceSnake == null) {
+        return const _DependencyInfo.empty();
+      }
+      return _DependencyInfo(
+        importPath: '../domain/services/${serviceSnake}_service.dart',
+        viewParam: StringUtils.pascalToCamel(serviceName),
+      );
+    }
+
+    if (config.hasRepo) {
+      final repoName = config.effectiveRepos.first;
+      final repoSnake = StringUtils.camelToSnake(
+        repoName.replaceAll('Repository', ''),
+      );
+      return _DependencyInfo(
+        importPath: '../domain/repositories/${repoSnake}_repository.dart',
+        viewParam: StringUtils.pascalToCamel(repoName),
+      );
+    }
+
+    return const _DependencyInfo.empty();
+  }
+
   Expression _buildListRouteExpr({
     required String entityName,
     required String entityCamel,
@@ -338,19 +370,11 @@ class RouteBuilder {
     ).property('${routeNameBase}List');
     final nameExpr = literalString('${routeBase}_list');
 
-    final builderExpr = Method(
-      (m) => m
-        ..requiredParameters.addAll([
-          Parameter((p) => p..name = 'context'),
-          Parameter((p) => p..name = 'state'),
-        ])
-        ..lambda = true
-        ..body = refer('${entityName}View').call([], {
-          viewParam: refer(
-            'getIt',
-          ).call([], {}, [refer('${entityName}Repository')]),
-        }).code,
-    ).closure;
+    final builderExpr = _buildViewBuilderExpr(
+      entityName: entityName,
+      viewParam: viewParam,
+      withId: false,
+    );
 
     return refer(
       'GoRoute',
@@ -358,6 +382,7 @@ class RouteBuilder {
   }
 
   Expression _buildDetailRouteExpr({
+    required GeneratorConfig config,
     required String entityName,
     required String entityCamel,
     required String routeBase,
@@ -369,30 +394,11 @@ class RouteBuilder {
     ).property('${routeNameBase}Detail');
     final nameExpr = literalString('${routeBase}_detail');
 
-    final builderExpr = Method(
-      (m) => m
-        ..requiredParameters.addAll([
-          Parameter((p) => p..name = 'context'),
-          Parameter((p) => p..name = 'state'),
-        ])
-        ..body = Block(
-          (b) => b
-            ..statements.add(
-              refer('${entityName}View')
-                  .call([], {
-                    viewParam: refer(
-                      'getIt',
-                    ).call([], {}, [refer('${entityName}Repository')]),
-                    'id': refer('state')
-                        .property('pathParameters')
-                        .index(literalString('id'))
-                        .nullChecked,
-                  })
-                  .returned
-                  .statement,
-            ),
-        ),
-    ).closure;
+    final builderExpr = _buildViewBuilderExpr(
+      entityName: entityName,
+      viewParam: viewParam,
+      withId: config.idType != 'NoParams',
+    );
 
     return refer(
       'GoRoute',
@@ -411,19 +417,11 @@ class RouteBuilder {
     ).property('${routeNameBase}Create');
     final nameExpr = literalString('${routeBase}_create');
 
-    final builderExpr = Method(
-      (m) => m
-        ..requiredParameters.addAll([
-          Parameter((p) => p..name = 'context'),
-          Parameter((p) => p..name = 'state'),
-        ])
-        ..lambda = true
-        ..body = refer('${entityName}View').call([], {
-          viewParam: refer(
-            'getIt',
-          ).call([], {}, [refer('${entityName}Repository')]),
-        }).code,
-    ).closure;
+    final builderExpr = _buildViewBuilderExpr(
+      entityName: entityName,
+      viewParam: viewParam,
+      withId: false,
+    );
 
     return refer(
       'GoRoute',
@@ -431,6 +429,7 @@ class RouteBuilder {
   }
 
   Expression _buildUpdateRouteExpr({
+    required GeneratorConfig config,
     required String entityName,
     required String entityCamel,
     required String routeBase,
@@ -442,34 +441,51 @@ class RouteBuilder {
     ).property('${routeNameBase}Update');
     final nameExpr = literalString('${routeBase}_update');
 
-    final builderExpr = Method(
+    final builderExpr = _buildViewBuilderExpr(
+      entityName: entityName,
+      viewParam: viewParam,
+      withId: config.idType != 'NoParams',
+    );
+
+    return refer(
+      'GoRoute',
+    ).call([], {'path': pathExpr, 'name': nameExpr, 'builder': builderExpr});
+  }
+
+  Expression _buildViewBuilderExpr({
+    required String entityName,
+    required String viewParam,
+    required bool withId,
+  }) {
+    final viewArgs = <String, Expression>{
+      viewParam: refer(
+        'getIt',
+      ).call([], {}, [refer('${entityName}Repository')]),
+    };
+    if (withId) {
+      viewArgs['id'] = refer(
+        'state',
+      ).property('pathParameters').index(literalString('id')).nullChecked;
+    }
+    final builderMethod = Method(
       (m) => m
         ..requiredParameters.addAll([
           Parameter((p) => p..name = 'context'),
           Parameter((p) => p..name = 'state'),
         ])
-        ..body = Block(
-          (b) => b
-            ..statements.add(
-              refer('${entityName}View')
-                  .call([], {
-                    viewParam: refer(
-                      'getIt',
-                    ).call([], {}, [refer('${entityName}Repository')]),
-                    'id': refer('state')
-                        .property('pathParameters')
-                        .index(literalString('id'))
-                        .nullChecked,
-                  })
-                  .returned
-                  .statement,
-            ),
-        ),
-    ).closure;
-
-    return refer(
-      'GoRoute',
-    ).call([], {'path': pathExpr, 'name': nameExpr, 'builder': builderExpr});
+        ..lambda = !withId
+        ..body = withId
+            ? Block(
+                (b) => b
+                  ..statements.add(
+                    refer(
+                      '${entityName}View',
+                    ).call([], viewArgs).returned.statement,
+                  ),
+              )
+            : refer('${entityName}View').call([], viewArgs).code,
+    );
+    return builderMethod.closure;
   }
 
   Future<void> _regenerateIndexFile() async {
@@ -545,16 +561,22 @@ class RouteBuilder {
     required bool hasGet,
     required bool hasWatch,
   }) {
-    final routes = <String, String>{'${routeNameBase}List': '/$routeBase'};
+    final entityPascal = StringUtils.convertToPascalCase(routeBase);
+    final routes = <String, String>{
+      '${routeNameBase}List': '${entityPascal}Routes.${routeNameBase}List',
+    };
 
     if (hasSubRoutes && (hasUpdate || hasDelete || hasGet || hasWatch)) {
-      routes['${routeNameBase}Detail'] = '\$${routeNameBase}List/:id';
+      routes['${routeNameBase}Detail'] =
+          '${entityPascal}Routes.${routeNameBase}Detail';
     }
     if (hasCreate) {
-      routes['${routeNameBase}Create'] = '\$${routeNameBase}List/create';
+      routes['${routeNameBase}Create'] =
+          '${entityPascal}Routes.${routeNameBase}Create';
     }
     if (hasUpdate) {
-      routes['${routeNameBase}Update'] = '\$${routeNameBase}List/:id/edit';
+      routes['${routeNameBase}Update'] =
+          '${entityPascal}Routes.${routeNameBase}Update';
     }
     return routes;
   }
@@ -656,4 +678,13 @@ class RouteBuilder {
     }
     return content;
   }
+}
+
+class _DependencyInfo {
+  final String importPath;
+  final String viewParam;
+
+  const _DependencyInfo({required this.importPath, required this.viewParam});
+
+  const _DependencyInfo.empty() : importPath = '', viewParam = '';
 }

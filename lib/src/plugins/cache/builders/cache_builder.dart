@@ -420,114 +420,170 @@ class CacheBuilder {
     List<String> adapterEntities,
     Set<String> processedEntities,
   ) async {
+    await _collectSubtypeAdapters(
+      entityName,
+      imports,
+      adapterEntities,
+      processedEntities,
+    );
+    final entityFields = EntityAnalyzer.analyzeEntity(entityName, outputDir);
+
+    for (final entry in entityFields.entries) {
+      await _collectFieldAdapters(
+        entry.value,
+        imports,
+        adapterEntities,
+        processedEntities,
+      );
+    }
+  }
+
+  Future<void> _collectSubtypeAdapters(
+    String entityName,
+    List<String> imports,
+    List<String> adapterEntities,
+    Set<String> processedEntities,
+  ) async {
     final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
       entityName,
       outputDir,
     );
     for (final subtype in subtypes) {
-      if (!processedEntities.contains(subtype)) {
-        processedEntities.add(subtype);
-        final subtypeSnake = StringUtils.camelToSnake(subtype);
-        final importPath =
-            '../domain/entities/$subtypeSnake/$subtypeSnake.dart';
-        if (!imports.contains(importPath)) {
-          imports.add(importPath);
-        }
-        adapterEntities.add(subtype);
+      await _registerAdapterEntity(
+        subtype,
+        imports,
+        adapterEntities,
+        processedEntities,
+      );
+      await _collectNestedEntitiesForHive(
+        subtype,
+        imports,
+        adapterEntities,
+        processedEntities,
+      );
+    }
+  }
 
-        await _collectNestedEntitiesForHive(
-          subtype,
+  Future<void> _collectFieldAdapters(
+    String fieldType,
+    List<String> imports,
+    List<String> adapterEntities,
+    Set<String> processedEntities,
+  ) async {
+    final baseTypes = _extractEntityTypes(fieldType);
+    for (final baseType in baseTypes) {
+      if (!_shouldProcessEntityType(baseType, processedEntities)) {
+        continue;
+      }
+      final nestedSubtypes = EntityAnalyzer.getPolymorphicSubtypes(
+        baseType,
+        outputDir,
+      );
+      if (nestedSubtypes.isNotEmpty) {
+        _registerAbstractImport(baseType, imports);
+        for (final subtype in nestedSubtypes) {
+          await _registerAdapterEntity(
+            subtype,
+            imports,
+            adapterEntities,
+            processedEntities,
+          );
+          await _collectNestedEntitiesForHive(
+            subtype,
+            imports,
+            adapterEntities,
+            processedEntities,
+          );
+        }
+        continue;
+      }
+
+      final nestedFields = EntityAnalyzer.analyzeEntity(baseType, outputDir);
+      if (nestedFields.isNotEmpty) {
+        await _registerAdapterEntity(
+          baseType,
           imports,
           adapterEntities,
           processedEntities,
         );
+        await _collectNestedEntitiesForHive(
+          baseType,
+          imports,
+          adapterEntities,
+          processedEntities,
+        );
+        continue;
+      }
+
+      if (_isEnum(baseType)) {
+        _registerEnumAdapter(baseType, imports, adapterEntities, processedEntities);
       }
     }
+  }
 
-    final entityFields = EntityAnalyzer.analyzeEntity(entityName, outputDir);
-
-    for (final entry in entityFields.entries) {
-      final fieldType = entry.value;
-      final baseTypes = _extractEntityTypes(fieldType);
-
-      for (final baseType in baseTypes) {
-        if (baseType.isNotEmpty &&
-            baseType[0] == baseType[0].toUpperCase() &&
-            ![
-              'String',
-              'int',
-              'double',
-              'bool',
-              'DateTime',
-              'Object',
-              'dynamic',
-            ].contains(baseType) &&
-            !processedEntities.contains(baseType)) {
-          final nestedSubtypes = EntityAnalyzer.getPolymorphicSubtypes(
-            baseType,
-            outputDir,
-          );
-          if (nestedSubtypes.isNotEmpty) {
-            final baseTypeSnake = StringUtils.camelToSnake(baseType);
-            final abstractImportPath =
-                '../domain/entities/$baseTypeSnake/$baseTypeSnake.dart';
-            if (!imports.contains(abstractImportPath)) {
-              imports.add(abstractImportPath);
-            }
-
-            for (final subtype in nestedSubtypes) {
-              if (!processedEntities.contains(subtype)) {
-                processedEntities.add(subtype);
-                final subtypeSnake = StringUtils.camelToSnake(subtype);
-                final importPath =
-                    '../domain/entities/$subtypeSnake/$subtypeSnake.dart';
-                if (!imports.contains(importPath)) {
-                  imports.add(importPath);
-                }
-                adapterEntities.add(subtype);
-
-                await _collectNestedEntitiesForHive(
-                  subtype,
-                  imports,
-                  adapterEntities,
-                  processedEntities,
-                );
-              }
-            }
-            continue;
-          }
-
-          final nestedFields = EntityAnalyzer.analyzeEntity(
-            baseType,
-            outputDir,
-          );
-          if (nestedFields.isNotEmpty) {
-            processedEntities.add(baseType);
-            final baseTypeSnake = StringUtils.camelToSnake(baseType);
-            final importPath =
-                '../domain/entities/$baseTypeSnake/$baseTypeSnake.dart';
-            if (!imports.contains(importPath)) {
-              imports.add(importPath);
-            }
-            adapterEntities.add(baseType);
-
-            await _collectNestedEntitiesForHive(
-              baseType,
-              imports,
-              adapterEntities,
-              processedEntities,
-            );
-          } else if (_isEnum(baseType)) {
-            processedEntities.add(baseType);
-            final enumImportPath = '../domain/entities/enums/index.dart';
-            if (!imports.contains(enumImportPath)) {
-              imports.add(enumImportPath);
-            }
-            adapterEntities.add(baseType);
-          }
-        }
-      }
+  bool _shouldProcessEntityType(
+    String baseType,
+    Set<String> processedEntities,
+  ) {
+    if (baseType.isEmpty) {
+      return false;
     }
+    if (baseType[0] != baseType[0].toUpperCase()) {
+      return false;
+    }
+    if (processedEntities.contains(baseType)) {
+      return false;
+    }
+    return ![
+      'String',
+      'int',
+      'double',
+      'bool',
+      'DateTime',
+      'Object',
+      'dynamic',
+    ].contains(baseType);
+  }
+
+  Future<void> _registerAdapterEntity(
+    String entityName,
+    List<String> imports,
+    List<String> adapterEntities,
+    Set<String> processedEntities,
+  ) async {
+    if (processedEntities.contains(entityName)) {
+      return;
+    }
+    processedEntities.add(entityName);
+    final entitySnake = StringUtils.camelToSnake(entityName);
+    final importPath = '../domain/entities/$entitySnake/$entitySnake.dart';
+    if (!imports.contains(importPath)) {
+      imports.add(importPath);
+    }
+    adapterEntities.add(entityName);
+  }
+
+  void _registerAbstractImport(String baseType, List<String> imports) {
+    final baseTypeSnake = StringUtils.camelToSnake(baseType);
+    final abstractImportPath =
+        '../domain/entities/$baseTypeSnake/$baseTypeSnake.dart';
+    if (!imports.contains(abstractImportPath)) {
+      imports.add(abstractImportPath);
+    }
+  }
+
+  void _registerEnumAdapter(
+    String baseType,
+    List<String> imports,
+    List<String> adapterEntities,
+    Set<String> processedEntities,
+  ) {
+    processedEntities.add(baseType);
+    const enumImportPath = '../domain/entities/enums/index.dart';
+    if (!imports.contains(enumImportPath)) {
+      imports.add(enumImportPath);
+    }
+    adapterEntities.add(baseType);
   }
 
   bool _isEnum(String typeName) {

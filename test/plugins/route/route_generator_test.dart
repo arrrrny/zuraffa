@@ -29,13 +29,14 @@ void main() {
 
     final builder = AppRoutesBuilder();
     final initialContent = builder.buildFile(
-      routes: {'home': '/'},
+      routes: {'home': 'HomeRoutes.home'},
       extensionMethods: [
         ExtensionMethodSpec(
           name: 'goToHome',
           body: refer('go').call([refer('AppRoutes').property('home')]),
         ),
       ],
+      entityRouteImport: 'home_routes.dart',
     );
     appRoutesPath.writeAsStringSync(initialContent);
 
@@ -50,15 +51,20 @@ void main() {
       GeneratorConfig(
         name: 'Product',
         methods: const ['get', 'create'],
-        generateView: true,
+        generateRoute: true,
       ),
     );
     final updated = appRoutesPath.readAsStringSync();
 
-    expect(updated.contains("static const String home = '/'"), isTrue);
+    expect(
+      updated.contains("static const String home = HomeRoutes.home"),
+      isTrue,
+    );
     expect(updated.contains('goToHome'), isTrue);
     expect(
-      updated.contains('static const String productList = \'/product\''),
+      updated.contains(
+        'static const String productList = ProductRoutes.productList',
+      ),
       isTrue,
     );
     expect(updated.contains('goToProductList'), isTrue);
@@ -76,7 +82,7 @@ void main() {
       GeneratorConfig(
         name: 'Order',
         methods: const ['get', 'update'],
-        generateView: true,
+        generateRoute: true,
       ),
     );
     final entityFile = files.firstWhere(
