@@ -51,12 +51,13 @@ class PresenterPlugin extends FileGeneratorPlugin {
     );
     final filePath = path.join(presenterDirPath, fileName);
 
-    final repoFields = _buildRepoFields(config);
+    final useDi = config.generateDi;
+    final repoFields = useDi ? [] : _buildRepoFields(config);
     final usecaseInfo = _buildUseCaseInfo(config, entityName);
     final usecaseFields = _buildUseCaseFields(usecaseInfo);
-    final constructor = _buildConstructor(config, usecaseInfo);
+    final constructor = _buildConstructor(config, usecaseInfo, useDi);
     final methods = _buildMethods(config, usecaseInfo, entityName, entityCamel);
-    final imports = _buildImports(config, usecaseInfo, entitySnake);
+    final imports = _buildImports(config, usecaseInfo, entitySnake, useDi);
 
     final content = classBuilder.build(
       PresenterClassSpec(
@@ -160,7 +161,28 @@ class PresenterPlugin extends FileGeneratorPlugin {
   Constructor _buildConstructor(
     GeneratorConfig config,
     List<_UseCaseInfo> useCases,
+    bool useDi,
   ) {
+    final registrations = <Code>[];
+
+    if (useDi) {
+      for (final info in useCases) {
+        registrations.add(
+          refer('_${info.fieldName}')
+              .assign(
+                refer('registerUseCase').call([
+                  refer('getIt').call([], {}, [refer(info.className)]),
+                ]),
+              )
+              .statement,
+        );
+      }
+
+      return Constructor(
+        (c) => c..body = Block((b) => b..statements.addAll(registrations)),
+      );
+    }
+
     final repoParams = config.effectiveRepos
         .map(
           (repo) => Parameter(
@@ -177,17 +199,17 @@ class PresenterPlugin extends FileGeneratorPlugin {
         ? StringUtils.pascalToCamel(config.effectiveRepos.first)
         : 'repository';
 
-    final registrations = useCases
-        .map(
-          (info) => refer('_${info.fieldName}')
-              .assign(
-                refer('registerUseCase').call([
-                  refer(info.className).call([refer(mainRepo)]),
-                ]),
-              )
-              .statement,
-        )
-        .toList();
+    for (final info in useCases) {
+      registrations.add(
+        refer('_${info.fieldName}')
+            .assign(
+              refer('registerUseCase').call([
+                refer(info.className).call([refer(mainRepo)]),
+              ]),
+            )
+            .statement,
+      );
+    }
 
     return Constructor(
       (c) => c
@@ -225,9 +247,7 @@ class PresenterPlugin extends FileGeneratorPlugin {
           if (info == null) {
             throw ArgumentError('Missing create$entityName use case info');
           }
-          methods.add(
-            _buildCreateMethod(info, entityName, entityCamel),
-          );
+          methods.add(_buildCreateMethod(info, entityName, entityCamel));
           break;
         case 'update':
           final info = map['update$entityName'];
@@ -253,9 +273,7 @@ class PresenterPlugin extends FileGeneratorPlugin {
         case 'watchList':
           final info = map['watch${entityName}List'];
           if (info == null) {
-            throw ArgumentError(
-              'Missing watch${entityName}List use case info',
-            );
+            throw ArgumentError('Missing watch${entityName}List use case info');
           }
           methods.add(_buildWatchListMethod(info, entityName));
           break;
@@ -513,17 +531,24 @@ class PresenterPlugin extends FileGeneratorPlugin {
     GeneratorConfig config,
     List<_UseCaseInfo> useCases,
     String entitySnake,
+    bool useDi,
   ) {
     final imports = <String>[
       'package:zuraffa/zuraffa.dart',
       '../../../domain/entities/$entitySnake/$entitySnake.dart',
     ];
 
-    for (final repo in config.effectiveRepos) {
-      final repoSnake = StringUtils.camelToSnake(
-        repo.replaceAll('Repository', ''),
-      );
-      imports.add('../../../domain/repositories/${repoSnake}_repository.dart');
+    if (useDi) {
+      imports.add('../../../di/service_locator.dart');
+    } else {
+      for (final repo in config.effectiveRepos) {
+        final repoSnake = StringUtils.camelToSnake(
+          repo.replaceAll('Repository', ''),
+        );
+        imports.add(
+          '../../../domain/repositories/${repoSnake}_repository.dart',
+        );
+      }
     }
 
     for (final info in useCases) {

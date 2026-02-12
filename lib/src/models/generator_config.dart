@@ -47,6 +47,9 @@ class GeneratorConfig {
   final String? gqlInputType;
   final String? gqlInputName;
   final String? gqlName;
+  final String? customPresenterName;
+  final String? customControllerName;
+  final String? customStateName;
 
   GeneratorConfig({
     required this.name,
@@ -95,6 +98,9 @@ class GeneratorConfig {
     this.gqlInputType,
     this.gqlInputName,
     this.gqlName,
+    this.customPresenterName,
+    this.customControllerName,
+    this.customStateName,
   }) : queryFieldType = queryFieldType ?? idType;
 
   factory GeneratorConfig.fromJson(Map<String, dynamic> json, String name) {
@@ -150,6 +156,10 @@ class GeneratorConfig {
       gqlInputType: json['gql_input_type'],
       gqlInputName: json['gql_input_name'],
       gqlName: json['gql_name'],
+      customPresenterName: json['presenter'] ?? json['custom_presenter_name'],
+      customControllerName:
+          json['controller'] ?? json['custom_controller_name'],
+      customStateName: json['state_class'] ?? json['custom_state_name'],
     );
   }
 
@@ -162,6 +172,19 @@ class GeneratorConfig {
   bool get isPolymorphic => variants.isNotEmpty;
 
   String get effectiveDomain => domain ?? nameSnake;
+
+  String get effectivePresenterName =>
+      customPresenterName ?? '${name}Presenter';
+
+  String get effectiveControllerName =>
+      customControllerName ?? '${name}Controller';
+
+  String get effectiveStateName => customStateName ?? '${name}State';
+
+  bool get usesCustomVpc =>
+      customPresenterName != null ||
+      customControllerName != null ||
+      customStateName != null;
 
   // Get repository method name (default: UseCase name in camelCase)
   String getRepoMethodName([String? variantPrefix]) {
@@ -296,6 +319,9 @@ class GeneratorConfig {
     'gql_input_type': gqlInputType,
     'gql_input_name': gqlInputName,
     'gql_name': gqlName,
+    'custom_presenter_name': customPresenterName,
+    'custom_controller_name': customControllerName,
+    'custom_state_name': customStateName,
   };
 
   String get nameSnake => _camelToSnake(name);

@@ -97,24 +97,16 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
     }
     final executeBody = Block(
       (b) => b
-        ..statements.add(
-          refer('cancelToken')
-              .equalTo(literalNull)
-              .conditional(
-                literalNull,
-                refer('cancelToken').property('throwIfCancelled').call([]),
-              )
-              .statement,
-        )
+        ..statements.add(Code('cancelToken?.throwIfCancelled();'))
         ..statements.add(
           depField.isEmpty
               ? refer('UnimplementedError').call([]).thrown.statement
               : refer(depField)
-                  .property(methodName)
-                  .call([refer('params')])
-                  .awaited
-                  .returned
-                  .statement,
+                    .property(methodName)
+                    .call([refer('params')])
+                    .awaited
+                    .returned
+                    .statement,
         ),
     );
 
@@ -174,9 +166,9 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
         ..body = Block(
           (bb) => bb
             ..statements.add(
-              declareFinal('params')
-                  .assign(refer('context').property('params'))
-                  .statement,
+              declareFinal(
+                'params',
+              ).assign(refer('context').property('params')).statement,
             )
             ..statements.add(
               refer('Future')
@@ -185,28 +177,29 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
                     Method(
                       (m) => m
                         ..lambda = true
-                        ..body = refer('processData')
-                            .call([refer('params')])
-                            .code,
+                        ..body = refer(
+                          'processData',
+                        ).call([refer('params')]).code,
                     ).closure,
                   ])
                   .property('then')
                   .call([
                     Method(
                       (m) => m
-                        ..requiredParameters
-                            .add(Parameter((p) => p..name = 'result'))
+                        ..requiredParameters.add(
+                          Parameter((p) => p..name = 'result'),
+                        )
                         ..body = Block(
                           (bbb) => bbb
                             ..statements.add(
-                              refer('context')
-                                  .property('sendData')
-                                  .call([refer('result')]).statement,
+                              refer('context').property('sendData').call([
+                                refer('result'),
+                              ]).statement,
                             )
                             ..statements.add(
-                              refer('context')
-                                  .property('sendDone')
-                                  .call([]).statement,
+                              refer(
+                                'context',
+                              ).property('sendDone').call([]).statement,
                             ),
                         ),
                     ).closure,
@@ -222,13 +215,10 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
                         ..body = Block(
                           (bbb) => bbb
                             ..statements.add(
-                              refer('context')
-                                  .property('sendError')
-                                  .call([
-                                    refer('error'),
-                                    refer('stackTrace'),
-                                  ])
-                                  .statement,
+                              refer('context').property('sendError').call([
+                                refer('error'),
+                                refer('stackTrace'),
+                              ]).statement,
                             ),
                         ),
                     ).closure,
@@ -255,9 +245,7 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
             ..statements.add(
               refer('UnimplementedError')
                   .call([
-                    literalString(
-                      'Implement your background processing logic',
-                    ),
+                    literalString('Implement your background processing logic'),
                   ])
                   .thrown
                   .statement,
@@ -276,10 +264,10 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
     final signature = config.useCaseType == 'stream'
         ? 'Stream<$returnsType>'
         : config.useCaseType == 'completable'
-            ? 'Future<void>'
-            : config.useCaseType == 'sync'
-                ? returnsType
-                : 'Future<$returnsType>';
+        ? 'Future<void>'
+        : config.useCaseType == 'sync'
+        ? returnsType
+        : 'Future<$returnsType>';
     final isAsync = config.useCaseType != 'sync';
     final executeBody = Block(
       (b) => b
@@ -292,13 +280,7 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
                       .statement,
                 ]
               : [
-                  refer('cancelToken')
-                      .equalTo(literalNull)
-                      .conditional(
-                        literalNull,
-                        refer('cancelToken').property('throwIfCancelled').call([]),
-                      )
-                      .statement,
+                  Code('cancelToken?.throwIfCancelled();'),
                   refer('UnimplementedError')
                       .call([literalString('Implement orchestration logic')])
                       .thrown
@@ -342,10 +324,10 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
     final signature = config.useCaseType == 'stream'
         ? 'Stream<$returnsType>'
         : config.useCaseType == 'completable'
-            ? 'Future<void>'
-            : config.useCaseType == 'sync'
-                ? returnsType
-                : 'Future<$returnsType>';
+        ? 'Future<void>'
+        : config.useCaseType == 'sync'
+        ? returnsType
+        : 'Future<$returnsType>';
     final isAsync = config.useCaseType != 'sync';
     final executeBody = Block(
       (b) => b
@@ -353,24 +335,14 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
           config.useCaseType == 'sync'
               ? [
                   refer('UnimplementedError')
-                      .call([
-                        literalString('Implement $variant variant'),
-                      ])
+                      .call([literalString('Implement $variant variant')])
                       .thrown
                       .statement,
                 ]
               : [
-                  refer('cancelToken')
-                      .equalTo(literalNull)
-                      .conditional(
-                        literalNull,
-                        refer('cancelToken').property('throwIfCancelled').call([]),
-                      )
-                      .statement,
+                  Code('cancelToken?.throwIfCancelled();'),
                   refer('UnimplementedError')
-                      .call([
-                        literalString('Implement $variant variant'),
-                      ])
+                      .call([literalString('Implement $variant variant')])
                       .thrown
                       .statement,
                 ],
@@ -433,15 +405,16 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
 
     final variantMap = <Expression, Expression>{
       for (final variant in config.variants)
-        refer('$variant$paramsType'):
-            refer('_${StringUtils.pascalToCamel(variant)}'),
+        refer('$variant$paramsType'): refer(
+          '_${StringUtils.pascalToCamel(variant)}',
+        ),
     };
     final selection = literalMap(variantMap)
         .index(refer('params').property('runtimeType'))
         .ifNullThen(
-          refer('UnimplementedError')
-              .call([literalString('Unknown params type')])
-              .thrown,
+          refer(
+            'UnimplementedError',
+          ).call([literalString('Unknown params type')]).thrown,
         );
 
     final forParamsMethod = Method(
@@ -455,9 +428,7 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
               ..type = refer(paramsType),
           ),
         )
-        ..body = Block(
-          (b) => b..statements.add(selection.returned.statement),
-        ),
+        ..body = Block((b) => b..statements.add(selection.returned.statement)),
     );
 
     final factorySpec = UseCaseClassSpec(

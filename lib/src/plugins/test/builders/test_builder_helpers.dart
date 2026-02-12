@@ -18,6 +18,24 @@ extension TestBuilderHelpers on TestBuilder {
     return packageName;
   }
 
+  String _findUseCaseDomain(String usecaseSnake, String defaultDomain) {
+    final usecasesDir = Directory(path.join(outputDir, 'domain', 'usecases'));
+    if (usecasesDir.existsSync()) {
+      for (final dir in usecasesDir.listSync()) {
+        if (dir is Directory) {
+          final useCaseFile = File(
+            path.join(dir.path, '${usecaseSnake}_usecase.dart'),
+          );
+          if (useCaseFile.existsSync()) {
+            return path.basename(dir.path);
+          }
+        }
+      }
+    }
+    // Fallback to the default domain if not found
+    return defaultDomain;
+  }
+
   List<Expression> _getFallbackValues(
     GeneratorConfig config,
     String method,

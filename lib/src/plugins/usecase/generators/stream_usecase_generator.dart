@@ -5,6 +5,7 @@ import 'package:path/path.dart' as path;
 
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
+import '../../../core/constants/known_types.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -183,14 +184,7 @@ class StreamUseCaseGenerator {
       final matches = regex.allMatches(type);
       for (final match in matches) {
         final name = match.group(0);
-        if (name != null &&
-            name != 'List' &&
-            name != 'Map' &&
-            name != 'Set' &&
-            name != 'NoParams' &&
-            !RegExp(
-              r'^(int|double|bool|String|void|dynamic)$',
-            ).hasMatch(name)) {
+        if (name != null && !KnownTypes.isExcluded(name)) {
           entityNames.add(name);
         }
       }

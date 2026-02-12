@@ -9,7 +9,9 @@ import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/file_utils.dart';
+import '../../utils/string_utils.dart';
 import 'builders/registration_builder.dart';
+import 'builders/service_locator_builder.dart';
 import 'detectors/registration_detector.dart';
 
 /// Configures dependency injection registrations for generated code.
@@ -40,6 +42,7 @@ class DiPlugin extends FileGeneratorPlugin {
   final RegistrationBuilder registrationBuilder;
   final RegistrationDetector registrationDetector;
   final AppendExecutor appendExecutor;
+  final ServiceLocatorBuilder serviceLocatorBuilder;
 
   /// Creates a [DiPlugin].
   ///
@@ -50,6 +53,7 @@ class DiPlugin extends FileGeneratorPlugin {
   /// @param registrationBuilder Optional registration builder override.
   /// @param registrationDetector Optional registration detector override.
   /// @param appendExecutor Optional append executor override.
+  /// @param serviceLocatorBuilder Optional service locator builder override.
   DiPlugin({
     required this.outputDir,
     required this.dryRun,
@@ -58,10 +62,13 @@ class DiPlugin extends FileGeneratorPlugin {
     RegistrationBuilder? registrationBuilder,
     RegistrationDetector? registrationDetector,
     AppendExecutor? appendExecutor,
+    ServiceLocatorBuilder? serviceLocatorBuilder,
   }) : registrationBuilder = registrationBuilder ?? const RegistrationBuilder(),
        registrationDetector =
            registrationDetector ?? const RegistrationDetector(),
-       appendExecutor = appendExecutor ?? AppendExecutor();
+       appendExecutor = appendExecutor ?? AppendExecutor(),
+       serviceLocatorBuilder =
+           serviceLocatorBuilder ?? const ServiceLocatorBuilder();
 
   /// @returns Plugin identifier.
   @override
@@ -86,7 +93,10 @@ class DiPlugin extends FileGeneratorPlugin {
     }
     final files = <GeneratedFile>[];
 
-    if (config.generateData && !config.hasService) {
+    // Generate UseCase DI files for all UseCase types
+    files.addAll(await _generateUseCaseDIFiles(config));
+
+    if (config.generateData && !config.hasService && !config.isOrchestrator) {
       if (config.enableCache) {
         files.add(await _generateRemoteDataSourceDI(config));
         files.add(await _generateLocalDataSourceDI(config));
@@ -100,13 +110,15 @@ class DiPlugin extends FileGeneratorPlugin {
     }
 
     if ((config.generateData || config.generateRepository) &&
-        !config.hasService) {
+        !config.hasService &&
+        !config.isOrchestrator) {
       files.add(await _generateRepositoryDI(config));
     }
 
     if (config.generateMock &&
         !config.generateMockDataOnly &&
-        !config.hasService) {
+        !config.hasService &&
+        !config.isOrchestrator) {
       files.add(await _generateMockDataSourceDI(config));
     }
 
@@ -129,6 +141,7 @@ class DiPlugin extends FileGeneratorPlugin {
     }
 
     await _regenerateIndexFiles();
+    await _generateServiceLocator();
 
     return files;
   }
@@ -192,9 +205,13 @@ class DiPlugin extends FileGeneratorPlugin {
     if (config.cacheStorage == 'hive' || config.generateLocal) {
       imports.add('package:hive_ce_flutter/hive_ce_flutter.dart');
       imports.add('../../domain/entities/$entitySnake/$entitySnake.dart');
-      final boxCall = refer('Hive')
-          .property('box')
-          .call([literalString('${entitySnake}s')], {}, [refer(entityName)]);
+      final hasListMethod =
+          config.methods.contains('getList') ||
+          config.methods.contains('watchList');
+      final boxName = hasListMethod ? '${entitySnake}s' : entitySnake;
+      final boxCall = refer(
+        'Hive',
+      ).property('box').call([literalString(boxName)], {}, [refer(entityName)]);
       constructorCall = refer(dataSourceName).call([boxCall]);
     } else {
       constructorCall = refer(dataSourceName).call([]);
@@ -469,7 +486,271 @@ class DiPlugin extends FileGeneratorPlugin {
     );
   }
 
+  Future<List<GeneratedFile>> _generateUseCaseDIFiles(
+    GeneratorConfig config,
+  ) async {
+    final files = <GeneratedFile>[];
+
+    if (config.isOrchestrator) {
+      files.add(await _generateOrchestratorUseCaseDI(config));
+    } else if (config.isEntityBased) {
+      files.addAll(await _generateEntityUseCaseDIFiles(config));
+    } else if (config.isCustomUseCase) {
+      files.add(await _generateCustomUseCaseDI(config));
+    }
+
+    return files;
+  }
+
+  Future<GeneratedFile> _generateOrchestratorUseCaseDI(
+    GeneratorConfig config,
+  ) async {
+    final className = '${config.name}UseCase';
+    final classSnake = config.nameSnake;
+    final domainSnake = config.effectiveDomain;
+    final fileName = '${classSnake}_usecase_di.dart';
+    final diPath = path.join(outputDir, 'di', 'usecases', fileName);
+
+    final imports = <String>[
+      'package:get_it/get_it.dart',
+      '../../domain/usecases/$domainSnake/${classSnake}_usecase.dart',
+    ];
+
+    final usecaseParams = <Expression>[];
+    for (final usecaseName in config.usecases) {
+      final usecaseClassName = usecaseName.endsWith('UseCase')
+          ? usecaseName
+          : '${usecaseName}UseCase';
+      final usecaseSnake = StringUtils.camelToSnake(
+        usecaseClassName.replaceAll('UseCase', ''),
+      );
+
+      // Find the actual domain for this usecase
+      final usecaseDomain = _findUseCaseDomain(usecaseSnake, domainSnake);
+      imports.add(
+        '../../domain/usecases/$usecaseDomain/${usecaseSnake}_usecase.dart',
+      );
+      usecaseParams.add(refer('getIt').call([], {}, [refer(usecaseClassName)]));
+    }
+
+    final constructorCall = refer(className).call(usecaseParams);
+    final registrationCall = refer('getIt')
+        .property('registerLazySingleton')
+        .call(
+          [
+            Method(
+              (m) => m
+                ..lambda = true
+                ..body = constructorCall.code,
+            ).closure,
+          ],
+          {},
+          [refer(className)],
+        );
+
+    final content = registrationBuilder.buildRegistrationFile(
+      functionName: 'register$className',
+      imports: imports,
+      body: Block((b) => b..statements.add(registrationCall.statement)),
+    );
+
+    return FileUtils.writeFile(
+      diPath,
+      content,
+      'di_usecase',
+      force: force,
+      dryRun: dryRun,
+      verbose: verbose,
+    );
+  }
+
+  String _findUseCaseDomain(String usecaseSnake, String defaultDomain) {
+    final usecasesDir = Directory(path.join(outputDir, 'domain', 'usecases'));
+    if (usecasesDir.existsSync()) {
+      for (final dir in usecasesDir.listSync()) {
+        if (dir is Directory) {
+          final useCaseFile = File(
+            path.join(dir.path, '${usecaseSnake}_usecase.dart'),
+          );
+          if (useCaseFile.existsSync()) {
+            return path.basename(dir.path);
+          }
+        }
+      }
+    }
+    // Fallback to the default domain if not found
+    return defaultDomain;
+  }
+
+  Future<List<GeneratedFile>> _generateEntityUseCaseDIFiles(
+    GeneratorConfig config,
+  ) async {
+    final files = <GeneratedFile>[];
+    final entityName = config.name;
+    final entitySnake = config.nameSnake;
+    final domainSnake = config.effectiveDomain;
+
+    final repoName = '${entityName}Repository';
+    final repoSnake = entitySnake;
+
+    for (final method in config.methods) {
+      final usecaseInfo = _getUseCaseInfo(method, entityName);
+      final className = usecaseInfo.className;
+      final classSnake = StringUtils.camelToSnake(
+        className.replaceAll('UseCase', ''),
+      );
+      final fileName = '${classSnake}_usecase_di.dart';
+      final diPath = path.join(outputDir, 'di', 'usecases', fileName);
+
+      final imports = <String>[
+        'package:get_it/get_it.dart',
+        '../../domain/usecases/$domainSnake/${classSnake}_usecase.dart',
+        '../../domain/repositories/${repoSnake}_repository.dart',
+      ];
+
+      final constructorCall = refer(className).call([
+        refer('getIt').call([], {}, [refer(repoName)]),
+      ]);
+
+      final registrationCall = refer('getIt')
+          .property('registerLazySingleton')
+          .call(
+            [
+              Method(
+                (m) => m
+                  ..lambda = true
+                  ..body = constructorCall.code,
+              ).closure,
+            ],
+            {},
+            [refer(className)],
+          );
+
+      final content = registrationBuilder.buildRegistrationFile(
+        functionName: 'register$className',
+        imports: imports,
+        body: Block((b) => b..statements.add(registrationCall.statement)),
+      );
+
+      files.add(
+        await FileUtils.writeFile(
+          diPath,
+          content,
+          'di_usecase',
+          force: force,
+          dryRun: dryRun,
+          verbose: verbose,
+        ),
+      );
+    }
+
+    return files;
+  }
+
+  Future<GeneratedFile> _generateCustomUseCaseDI(GeneratorConfig config) async {
+    final className = '${config.name}UseCase';
+    final classSnake = config.nameSnake;
+    final domainSnake = config.effectiveDomain;
+    final fileName = '${classSnake}_usecase_di.dart';
+    final diPath = path.join(outputDir, 'di', 'usecases', fileName);
+
+    final imports = <String>[
+      'package:get_it/get_it.dart',
+      '../../domain/usecases/$domainSnake/${classSnake}_usecase.dart',
+    ];
+
+    final constructorParams = <Expression>[];
+
+    if (config.hasRepo) {
+      for (final repo in config.effectiveRepos) {
+        final repoSnake = StringUtils.camelToSnake(
+          repo.replaceAll('Repository', ''),
+        );
+        imports.add('../../domain/repositories/${repoSnake}_repository.dart');
+        constructorParams.add(refer('getIt').call([], {}, [refer(repo)]));
+      }
+    }
+
+    if (config.hasService) {
+      final serviceName = config.effectiveService;
+      if (serviceName != null) {
+        final serviceSnake = config.serviceSnake;
+        if (serviceSnake != null) {
+          imports.add('../../domain/services/${serviceSnake}_service.dart');
+          constructorParams.add(
+            refer('getIt').call([], {}, [refer(serviceName)]),
+          );
+        }
+      }
+    }
+
+    final constructorCall = refer(className).call(constructorParams);
+    final registrationCall = refer('getIt')
+        .property('registerLazySingleton')
+        .call(
+          [
+            Method(
+              (m) => m
+                ..lambda = true
+                ..body = constructorCall.code,
+            ).closure,
+          ],
+          {},
+          [refer(className)],
+        );
+
+    final content = registrationBuilder.buildRegistrationFile(
+      functionName: 'register$className',
+      imports: imports,
+      body: Block((b) => b..statements.add(registrationCall.statement)),
+    );
+
+    return FileUtils.writeFile(
+      diPath,
+      content,
+      'di_usecase',
+      force: force,
+      dryRun: dryRun,
+      verbose: verbose,
+    );
+  }
+
+  ({String className, String methodPrefix}) _getUseCaseInfo(
+    String method,
+    String entityName,
+  ) {
+    return switch (method) {
+      'get' => (className: 'Get${entityName}UseCase', methodPrefix: 'get'),
+      'getList' => (
+        className: 'Get${entityName}ListUseCase',
+        methodPrefix: 'getList',
+      ),
+      'create' => (
+        className: 'Create${entityName}UseCase',
+        methodPrefix: 'create',
+      ),
+      'update' => (
+        className: 'Update${entityName}UseCase',
+        methodPrefix: 'update',
+      ),
+      'delete' => (
+        className: 'Delete${entityName}UseCase',
+        methodPrefix: 'delete',
+      ),
+      'watch' => (
+        className: 'Watch${entityName}UseCase',
+        methodPrefix: 'watch',
+      ),
+      'watchList' => (
+        className: 'Watch${entityName}ListUseCase',
+        methodPrefix: 'watchList',
+      ),
+      _ => throw ArgumentError('Unknown method: $method'),
+    };
+  }
+
   Future<void> _regenerateIndexFiles() async {
+    await _regenerateIndexFile('usecases', 'UseCases');
     await _regenerateIndexFile('datasources', 'DataSources');
     await _regenerateIndexFile('repositories', 'Repositories');
     await _regenerateIndexFile('services', 'Services');
@@ -529,6 +810,7 @@ class DiPlugin extends FileGeneratorPlugin {
   Future<void> _regenerateMainIndex() async {
     final mainIndexPath = path.join(outputDir, 'di', 'index.dart');
 
+    final usecasesDir = Directory(path.join(outputDir, 'di', 'usecases'));
     final datasourcesDir = Directory(path.join(outputDir, 'di', 'datasources'));
     final repositoriesDir = Directory(
       path.join(outputDir, 'di', 'repositories'),
@@ -539,6 +821,12 @@ class DiPlugin extends FileGeneratorPlugin {
     final exportPaths = <String>[];
     final importPaths = <String>['package:get_it/get_it.dart'];
     final registrationCalls = <String>[];
+
+    if (usecasesDir.existsSync() && _hasIndexFile(usecasesDir)) {
+      exportPaths.add('usecases/index.dart');
+      importPaths.add('usecases/index.dart');
+      registrationCalls.add('registerAllUseCases(getIt);');
+    }
 
     if (datasourcesDir.existsSync() && _hasIndexFile(datasourcesDir)) {
       exportPaths.add('datasources/index.dart');
@@ -645,5 +933,29 @@ class DiPlugin extends FileGeneratorPlugin {
     }
 
     return content;
+  }
+
+  Future<void> _generateServiceLocator() async {
+    final serviceLocatorPath = path.join(
+      outputDir,
+      'di',
+      'service_locator.dart',
+    );
+
+    final file = File(serviceLocatorPath);
+    if (file.existsSync() && !force) {
+      return;
+    }
+
+    final content = serviceLocatorBuilder.build();
+
+    await FileUtils.writeFile(
+      serviceLocatorPath,
+      content,
+      'di_service_locator',
+      force: force,
+      dryRun: dryRun,
+      verbose: verbose,
+    );
   }
 }

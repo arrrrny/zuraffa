@@ -38,9 +38,14 @@ extension TestBuilderOrchestrator on TestBuilder {
       );
 
       final usecaseSnake = StringUtils.camelToSnake(usecase);
+      // Find the actual domain for this usecase
+      final usecaseDomain = _findUseCaseDomain(
+        usecaseSnake,
+        config.effectiveDomain,
+      );
       directives.add(
         Directive.import(
-          'package:$packageName/src/domain/usecases/$usecaseSnake/${usecaseSnake}_usecase.dart',
+          'package:$packageName/src/domain/usecases/$usecaseDomain/${usecaseSnake}_usecase.dart',
         ),
       );
     }

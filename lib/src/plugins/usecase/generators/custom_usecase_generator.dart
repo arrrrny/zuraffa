@@ -5,6 +5,7 @@ import 'package:path/path.dart' as path;
 
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
+import '../../../core/constants/known_types.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -33,6 +34,6 @@ class CustomUseCaseGenerator {
     required this.verbose,
     UseCaseClassBuilder? classBuilder,
     AppendExecutor? appendExecutor,
-  })  : classBuilder = classBuilder ?? const UseCaseClassBuilder(),
-        appendExecutor = appendExecutor ?? AppendExecutor();
+  }) : classBuilder = classBuilder ?? const UseCaseClassBuilder(),
+       appendExecutor = appendExecutor ?? AppendExecutor();
 }

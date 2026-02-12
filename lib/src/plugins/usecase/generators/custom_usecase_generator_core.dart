@@ -107,14 +107,7 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
       final matches = regex.allMatches(type);
       for (final match in matches) {
         final name = match.group(0);
-        if (name != null &&
-            name != 'List' &&
-            name != 'Map' &&
-            name != 'Set' &&
-            name != 'NoParams' &&
-            !RegExp(
-              r'^(int|double|bool|String|void|dynamic)$',
-            ).hasMatch(name)) {
+        if (name != null && !KnownTypes.isExcluded(name)) {
           entityNames.add(name);
         }
       }
@@ -132,6 +125,30 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
         ? usecaseName.substring(0, usecaseName.length - 7)
         : usecaseName;
     final snakeName = StringUtils.camelToSnake(name);
+    final fileName = '${snakeName}_usecase.dart';
+
+    final usecasesDir = path.join(outputDir, 'domain', 'usecases');
+    final usecasesDirectory = Directory(usecasesDir);
+
+    if (usecasesDirectory.existsSync()) {
+      for (final domainDir in usecasesDirectory.listSync()) {
+        if (domainDir is Directory) {
+          final usecaseFile = File(path.join(domainDir.path, fileName));
+          if (usecaseFile.existsSync()) {
+            final domainName = path.basename(domainDir.path);
+            return '../$domainName/$fileName';
+          }
+          final subfolderFile = File(
+            path.join(domainDir.path, snakeName, fileName),
+          );
+          if (subfolderFile.existsSync()) {
+            final domainName = path.basename(domainDir.path);
+            return '../$domainName/$snakeName/$fileName';
+          }
+        }
+      }
+    }
+
     return '../$snakeName/${snakeName}_usecase.dart';
   }
 }

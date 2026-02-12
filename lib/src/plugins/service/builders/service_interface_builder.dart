@@ -79,8 +79,19 @@ class ServiceInterfaceBuilder {
       'dynamic',
       'Object',
       'NoParams',
+      'Params',
+      'QueryParams',
+      'ListQueryParams',
+      'UpdateParams',
+      'DeleteParams',
+      'CreateParams',
       'Map',
       'Set',
+      'List',
+      'Result',
+      'AppFailure',
+      'Duration',
+      'DateTime',
     };
 
     for (final type in types) {

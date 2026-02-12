@@ -39,6 +39,11 @@ class MethodAppendBuilder {
     final updatedFiles = <GeneratedFile>[];
     final warnings = <String>[];
 
+    // Orchestrators use composed UseCases, not repo/service
+    if (config.isOrchestrator) {
+      return MethodAppendResult(updatedFiles, warnings);
+    }
+
     if (config.repo == null && config.service == null) {
       warnings.add('⚠️  --append requires --repo or --service flag');
       return MethodAppendResult(updatedFiles, warnings);

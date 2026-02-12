@@ -69,23 +69,33 @@ class ViewPlugin extends FileGeneratorPlugin {
     final entityName = config.name;
     final entitySnake = config.nameSnake;
     final viewName = '${entityName}View';
-    final controllerName = '${entityName}Controller';
-    final presenterName = '${entityName}Presenter';
+    final controllerName = config.effectiveControllerName;
+    final presenterName = config.effectivePresenterName;
     final fileName = '${entitySnake}_view.dart';
 
+    final domainSnake = config.effectiveDomain;
     final viewDirPath = path.join(
       outputDir,
       'presentation',
       'pages',
-      entitySnake,
+      domainSnake,
     );
     final filePath = path.join(viewDirPath, fileName);
 
-    final repoFields = _buildRepoFields(config);
+    final useDi = config.generateDi && !config.usesCustomVpc;
+    final repoFields = useDi ? <Field>[] : _buildRepoFields(config);
     final routeFields = _buildRouteFields(config);
-    final repoPresenterArgs = _buildRepoPresenterArgs(config);
-    final imports = _buildImports(config, entitySnake);
-    final initialMethodCall = _buildInitialMethodCall(config, entityName);
+    final repoPresenterArgs = useDi
+        ? <String>[]
+        : _buildRepoPresenterArgs(config);
+    final imports = _buildImports(config, entitySnake, useDi);
+    final effectiveEntityName = config.usesCustomVpc
+        ? config.effectivePresenterName.replaceAll('Presenter', '')
+        : entityName;
+    final initialMethodCall = _buildInitialMethodCall(
+      config,
+      effectiveEntityName,
+    );
 
     final content = classBuilder.build(
       ViewClassSpec(
@@ -98,7 +108,7 @@ class ViewPlugin extends FileGeneratorPlugin {
         repoPresenterArgs: repoPresenterArgs,
         initialMethodCall: initialMethodCall,
         imports: imports,
-        withState: config.generateState,
+        withState: config.generateState || config.customStateName != null,
       ),
     );
 
@@ -113,24 +123,42 @@ class ViewPlugin extends FileGeneratorPlugin {
     return [file];
   }
 
-  List<String> _buildImports(GeneratorConfig config, String entitySnake) {
+  List<String> _buildImports(
+    GeneratorConfig config,
+    String entitySnake,
+    bool useDi,
+  ) {
     final relativePath = '../../';
     final imports = <String>[
       'package:flutter/material.dart',
       'package:zuraffa/zuraffa.dart',
     ];
 
-    for (final repo in config.effectiveRepos) {
-      final repoSnake = StringUtils.camelToSnake(
-        repo.replaceAll('Repository', ''),
-      );
-      imports.add(
-        '$relativePath../domain/repositories/${repoSnake}_repository.dart',
-      );
+    if (!useDi) {
+      for (final repo in config.effectiveRepos) {
+        final repoSnake = StringUtils.camelToSnake(
+          repo.replaceAll('Repository', ''),
+        );
+        imports.add(
+          '$relativePath../domain/repositories/${repoSnake}_repository.dart',
+        );
+      }
     }
 
-    imports.add('${entitySnake}_controller.dart');
-    imports.add('${entitySnake}_presenter.dart');
+    final controllerSnake = StringUtils.camelToSnake(
+      config.effectiveControllerName.replaceAll('Controller', ''),
+    );
+    final presenterSnake = StringUtils.camelToSnake(
+      config.effectivePresenterName.replaceAll('Presenter', ''),
+    );
+
+    if (config.usesCustomVpc) {
+      imports.add('${controllerSnake}_controller.dart');
+      imports.add('${presenterSnake}_presenter.dart');
+    } else {
+      imports.add('${entitySnake}_controller.dart');
+      imports.add('${entitySnake}_presenter.dart');
+    }
     return imports;
   }
 
@@ -208,7 +236,9 @@ class ViewPlugin extends FileGeneratorPlugin {
       return Block(
         (b) => b
           ..statements.add(
-            refer('controller').property('get${entityName}List').call([]).statement,
+            refer(
+              'controller',
+            ).property('get${entityName}List').call([]).statement,
           ),
       );
     }
@@ -216,7 +246,9 @@ class ViewPlugin extends FileGeneratorPlugin {
       return Block(
         (b) => b
           ..statements.add(
-            refer('controller').property('watch${entityName}List').call([]).statement,
+            refer(
+              'controller',
+            ).property('watch${entityName}List').call([]).statement,
           ),
       );
     }
@@ -246,10 +278,9 @@ class ViewPlugin extends FileGeneratorPlugin {
       return Block(
         (b) => b
           ..statements.add(
-            refer('controller')
-                .property('$methodName$entityName')
-                .call([])
-                .statement,
+            refer(
+              'controller',
+            ).property('$methodName$entityName').call([]).statement,
           ),
       );
     }
@@ -261,9 +292,9 @@ class ViewPlugin extends FileGeneratorPlugin {
             idValue
                 .notEqualTo(literalNull)
                 .conditional(
-                  refer('controller')
-                      .property('$methodName$entityName')
-                      .call([idValue.nullChecked]),
+                  refer('controller').property('$methodName$entityName').call([
+                    idValue.nullChecked,
+                  ]),
                   literalNull,
                 )
                 .statement,
@@ -278,9 +309,9 @@ class ViewPlugin extends FileGeneratorPlugin {
             queryValue
                 .notEqualTo(literalNull)
                 .conditional(
-                  refer('controller')
-                      .property('$methodName$entityName')
-                      .call([queryValue.nullChecked]),
+                  refer('controller').property('$methodName$entityName').call([
+                    queryValue.nullChecked,
+                  ]),
                   literalNull,
                 )
                 .statement,

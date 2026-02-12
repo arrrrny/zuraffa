@@ -14,10 +14,13 @@ extension CustomUseCaseGeneratorOrchestrator on CustomUseCaseGenerator {
     final filePath = path.join(usecaseDirPath, fileName);
 
     final paramsType = config.paramsType;
-    final returnsType = config.returnsType;
-    if (paramsType == null || returnsType == null) {
-      throw ArgumentError('paramsType and returnsType are required');
+    if (paramsType == null) {
+      throw ArgumentError('paramsType is required');
     }
+    // Completable orchestrators use 'void' as returnsType
+    final returnsType = config.useCaseType == 'completable'
+        ? 'void'
+        : (config.returnsType ?? 'void');
     final baseClass = _baseClass(config, paramsType, returnsType);
 
     final usecaseImports = <String>['package:zuraffa/zuraffa.dart'];

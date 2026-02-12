@@ -137,19 +137,21 @@ class ProviderBuilder {
         ..statements.add(
           declareFinal('error')
               .assign(
-                refer('UnimplementedError')
-                    .call([literalString('$methodName not implemented')]),
+                refer(
+                  'UnimplementedError',
+                ).call([literalString('$methodName not implemented')]),
               )
               .statement,
         )
         ..statements.add(
-          declareFinal('stack')
-              .assign(refer('StackTrace').property('current'))
-              .statement,
+          declareFinal(
+            'stack',
+          ).assign(refer('StackTrace').property('current')).statement,
         )
         ..statements.add(
-          refer('logAndHandleError')
-              .call([refer('error'), refer('stack')]).statement,
+          refer(
+            'logAndHandleError',
+          ).call([refer('error'), refer('stack')]).statement,
         )
         ..statements.add(refer('error').thrown.statement),
     );
@@ -166,8 +168,19 @@ class ProviderBuilder {
       'dynamic',
       'Object',
       'NoParams',
+      'Params',
+      'QueryParams',
+      'ListQueryParams',
+      'UpdateParams',
+      'DeleteParams',
+      'CreateParams',
       'Map',
       'Set',
+      'List',
+      'Result',
+      'AppFailure',
+      'Duration',
+      'DateTime',
     };
 
     for (final type in types) {

@@ -295,8 +295,8 @@ class RouteBuilder {
 
     final imports = [
       'package:go_router/go_router.dart',
-      '../../main.dart',
       '../presentation/pages/$entitySnake/${entitySnake}_view.dart',
+      if (!config.generateDi) '../di/service_locator.dart',
       if (dependencyInfo.importPath.isNotEmpty) dependencyInfo.importPath,
     ];
 
@@ -323,6 +323,10 @@ class RouteBuilder {
     String entitySnake,
     String entityCamel,
   ) {
+    if (config.generateDi) {
+      return const _DependencyInfo.empty();
+    }
+
     if (config.isEntityBased) {
       return _DependencyInfo(
         importPath: '../domain/repositories/${entitySnake}_repository.dart',
@@ -455,24 +459,29 @@ class RouteBuilder {
     required String viewParam,
     required bool withId,
   }) {
-    final viewArgs = <String, Expression>{
-      viewParam: refer(
+    final viewArgs = <String, Expression>{};
+
+    if (viewParam.isNotEmpty) {
+      viewArgs[viewParam] = refer(
         'getIt',
-      ).call([], {}, [refer('${entityName}Repository')]),
-    };
+      ).call([], {}, [refer('${entityName}Repository')]);
+    }
+
     if (withId) {
       viewArgs['id'] = refer(
         'state',
       ).property('pathParameters').index(literalString('id')).nullChecked;
     }
+
+    final hasArgs = viewArgs.isNotEmpty;
     final builderMethod = Method(
       (m) => m
         ..requiredParameters.addAll([
           Parameter((p) => p..name = 'context'),
           Parameter((p) => p..name = 'state'),
         ])
-        ..lambda = !withId
-        ..body = withId
+        ..lambda = !hasArgs
+        ..body = hasArgs
             ? Block(
                 (b) => b
                   ..statements.add(
@@ -481,7 +490,7 @@ class RouteBuilder {
                     ).call([], viewArgs).returned.statement,
                   ),
               )
-            : refer('${entityName}View').call([], viewArgs).code,
+            : refer('${entityName}View').constInstance([]).code,
     );
     return builderMethod.closure;
   }
