@@ -329,15 +329,7 @@ class EntityUseCaseGenerator {
         ..body = Block(
           (b) => b
             ..statements.add(
-              refer('cancelToken')
-                  .equalTo(literalNull)
-                  .conditional(
-                    literalNull,
-                    refer('cancelToken')
-                        .property('throwIfCancelled')
-                        .call([]),
-                  )
-                  .statement,
+              Code('cancelToken?.throwIfCancelled();'),
             )
             ..statements.add(executeExpression.returned.statement),
         );

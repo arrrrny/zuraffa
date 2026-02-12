@@ -207,17 +207,17 @@ extension ControllerPluginBodies on ControllerPlugin {
         .property('update$entityName')
         .call(_callArgsExpressions('${config.idField}, data'))
         .awaited;
-    final currentEntity = refer('viewState').property(entityCamel);
+    final updateMatch = CodeExpression(
+      Code(
+        'viewState.$entityCamel?.${config.queryField} == updated.${config.queryField}',
+      ),
+    );
     final updateArgs = <String, Expression>{
       'isUpdating': literalBool(false),
-      entityCamel: currentEntity
-          .notEqualTo(literalNull)
-          .and(
-            currentEntity
-                .property(config.queryField)
-                .equalTo(refer('updated').property(config.queryField)),
-          )
-          .conditional(refer('updated'), currentEntity),
+      entityCamel: updateMatch.conditional(
+        refer('updated'),
+        refer('viewState').property(entityCamel),
+      ),
     };
     if (hasListMethod && !hasWatchList) {
       final listUpdateClosure = Method(

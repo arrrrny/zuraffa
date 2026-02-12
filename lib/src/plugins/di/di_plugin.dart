@@ -333,8 +333,11 @@ class DiPlugin extends FileGeneratorPlugin {
   }
 
   Future<GeneratedFile?> _generateServiceDI(GeneratorConfig config) async {
-    final serviceName = config.effectiveService!;
-    final serviceSnake = config.serviceSnake!;
+    final serviceName = config.effectiveService;
+    final serviceSnake = config.serviceSnake;
+    if (serviceName == null || serviceSnake == null) {
+      return null;
+    }
     final fileName = '${serviceSnake}_service_di.dart';
     final diPath = path.join(outputDir, 'di', 'services', fileName);
 
@@ -374,10 +377,16 @@ class DiPlugin extends FileGeneratorPlugin {
   }
 
   Future<GeneratedFile?> _generateProviderDI(GeneratorConfig config) async {
-    final serviceName = config.effectiveService!;
-    final providerName = config.effectiveProvider!;
-    final providerSnake = config.providerSnake!;
-    final serviceSnake = config.serviceSnake!;
+    final serviceName = config.effectiveService;
+    final providerName = config.effectiveProvider;
+    final providerSnake = config.providerSnake;
+    final serviceSnake = config.serviceSnake;
+    if (serviceName == null ||
+        providerName == null ||
+        providerSnake == null ||
+        serviceSnake == null) {
+      return null;
+    }
     final fileName = '${providerSnake}_provider_di.dart';
     final diPath = path.join(outputDir, 'di', 'providers', fileName);
 

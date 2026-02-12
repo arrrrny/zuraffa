@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:code_builder/code_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/di/builders/registration_builder.dart';
@@ -88,7 +89,7 @@ void main() {
     final builder = RegistrationBuilder();
     final initialIndex = builder.buildIndexFile(
       functionName: 'registerAllDataSources',
-      registrations: const ['registerProductRemoteDataSource(getIt);'],
+      registrations: const [Code('registerProductRemoteDataSource(getIt);')],
       directives: const [],
     );
     File('${diDir.path}/index.dart').writeAsStringSync(initialIndex);
@@ -99,8 +100,14 @@ void main() {
         'package:get_it/get_it.dart',
         '../../data/data_sources/product/product_remote_data_source.dart',
       ],
-      registrationBody:
-          'getIt.registerLazySingleton<ProductRemoteDataSource>(() => ProductRemoteDataSource());',
+      body: Block(
+        (b) => b
+          ..statements.add(
+            Code(
+              'getIt.registerLazySingleton<ProductRemoteDataSource>(() => ProductRemoteDataSource());',
+            ),
+          ),
+      ),
     );
     File(
       '${diDir.path}/product_remote_data_source_di.dart',
@@ -112,8 +119,14 @@ void main() {
         'package:get_it/get_it.dart',
         '../../data/data_sources/product/product_local_data_source.dart',
       ],
-      registrationBody:
-          'getIt.registerLazySingleton<ProductLocalDataSource>(() => ProductLocalDataSource());',
+      body: Block(
+        (b) => b
+          ..statements.add(
+            Code(
+              'getIt.registerLazySingleton<ProductLocalDataSource>(() => ProductLocalDataSource());',
+            ),
+          ),
+      ),
     );
     File(
       '${diDir.path}/product_local_data_source_di.dart',

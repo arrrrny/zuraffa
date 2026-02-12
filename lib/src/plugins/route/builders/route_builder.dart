@@ -175,10 +175,16 @@ class RouteBuilder {
           '../domain/repositories/${entitySnake}_repository.dart';
       viewParam = '${entityCamel}Repository';
     } else if (config.hasService) {
-      final serviceName = config.effectiveService!;
-      final serviceSnake = config.serviceSnake!;
-      dependencyImportPath = '../domain/services/${serviceSnake}_service.dart';
-      viewParam = StringUtils.pascalToCamel(serviceName);
+      final serviceName = config.effectiveService;
+      final serviceSnake = config.serviceSnake;
+      if (serviceName == null || serviceSnake == null) {
+        dependencyImportPath = '';
+        viewParam = '';
+      } else {
+        dependencyImportPath =
+            '../domain/services/${serviceSnake}_service.dart';
+        viewParam = StringUtils.pascalToCamel(serviceName);
+      }
     } else if (config.hasRepo) {
       final repoName = config.effectiveRepos.first;
       final repoSnake = StringUtils.camelToSnake(

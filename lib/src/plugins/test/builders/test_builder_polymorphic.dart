@@ -28,8 +28,9 @@ extension TestBuilderPolymorphic on TestBuilder {
       ];
 
       final mockSpecs = <Class>[];
-      if (config.repo != null) {
-        final repoName = '${config.repo}Repository';
+      final repoBase = config.repo;
+      if (repoBase != null) {
+        final repoName = '${repoBase}Repository';
         mockSpecs.add(
           Class(
             (c) => c
@@ -40,7 +41,7 @@ extension TestBuilderPolymorphic on TestBuilder {
         );
 
         final repoSnake = StringUtils.camelToSnake(
-          config.repo!.replaceAll('Repository', ''),
+          repoBase.replaceAll('Repository', ''),
         );
         directives.add(
           Directive.import(
@@ -61,26 +62,26 @@ extension TestBuilderPolymorphic on TestBuilder {
                 late: true,
               ).statement,
             );
-            if (config.repo != null) {
+            if (repoBase != null) {
               b.statements.add(
                 declareVar(
-                  'mock${config.repo}Repository',
-                  type: refer('Mock${config.repo}Repository'),
+                  'mock${repoBase}Repository',
+                  type: refer('Mock${repoBase}Repository'),
                   late: true,
                 ).statement,
               );
             }
 
             final setUpBody = Block((s) {
-              if (config.repo != null) {
+              if (repoBase != null) {
                 s.statements.add(
-                  refer('mock${config.repo}Repository')
-                      .assign(refer('Mock${config.repo}Repository').call([]))
+                  refer('mock${repoBase}Repository')
+                      .assign(refer('Mock${repoBase}Repository').call([]))
                       .statement,
                 );
               }
-              final setupArgs = config.repo != null
-                  ? [refer('mock${config.repo}Repository')]
+              final setupArgs = repoBase != null
+                  ? [refer('mock${repoBase}Repository')]
                   : <Expression>[];
               s.statements.add(
                 refer(
