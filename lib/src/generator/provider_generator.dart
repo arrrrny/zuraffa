@@ -1,4 +1,6 @@
+import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
+import '../core/builder/shared/spec_library.dart';
 import '../core/generation/generation_context.dart';
 import '../models/generator_config.dart';
 import '../models/generated_file.dart';
@@ -19,6 +21,7 @@ class ProviderGenerator {
   final bool dryRun;
   final bool force;
   final bool verbose;
+  final SpecLibrary specLibrary;
 
   ProviderGenerator({
     required this.config,
@@ -26,7 +29,8 @@ class ProviderGenerator {
     this.dryRun = false,
     this.force = false,
     this.verbose = false,
-  });
+    SpecLibrary? specLibrary,
+  }) : specLibrary = specLibrary ?? const SpecLibrary();
 
   ProviderGenerator.fromContext(GenerationContext context)
     : this(
@@ -57,119 +61,77 @@ class ProviderGenerator {
     final returnsType = config.returnsType ?? 'void';
     final methodName = config.getServiceMethodName();
 
-    // Determine return type based on usecase type
     String returnSignature;
-    String implementationComment;
     switch (config.useCaseType) {
       case 'stream':
         returnSignature = 'Stream<$returnsType>';
-        implementationComment =
-            '''
-    // TODO: Implement stream logic
-    // Return a stream of $returnsType
-    throw UnimplementedError('$methodName not implemented');''';
         break;
       case 'completable':
         returnSignature = 'Future<void>';
-        implementationComment = '''
-    // TODO: Implement void operation logic
-    throw UnimplementedError('$methodName not implemented');''';
         break;
       case 'sync':
         returnSignature = returnsType;
-        implementationComment =
-            '''
-    // TODO: Implement synchronous logic
-    // Return $returnsType immediately
-    throw UnimplementedError('$methodName not implemented');''';
         break;
       default: // usecase, background
         returnSignature = 'Future<$returnsType>';
-        implementationComment =
-            '''
-    // TODO: Implement business logic
-    // Return $returnsType
-    throw UnimplementedError('$methodName not implemented');''';
     }
 
-    // Build method signature
-    final methodSignature = paramsType == 'NoParams'
-        ? (config.useCaseType == 'sync'
-              ? '  @override\n  $returnSignature $methodName() {'
-              : '  @override\n  $returnSignature $methodName() async {')
-        : (config.useCaseType == 'sync'
-              ? '  @override\n  $returnSignature $methodName($paramsType params) {'
-              : '  @override\n  $returnSignature $methodName($paramsType params) async {');
+    final directives = <Directive>[
+      Directive.import('package:zuraffa/zuraffa.dart'),
+      Directive.import(
+        '../../../domain/services/${serviceSnake}_service.dart',
+      ),
+    ];
 
-    // Build imports
-    final imports = <String>[];
-    imports.add("import 'package:zuraffa/zuraffa.dart';");
-
-    // Service is at domain/services/{service_name}_service.dart
-    // Provider is at data/providers/{domain}/{provider_name}_provider.dart
-    // So we need: ../../../domain/services/{service_name}_service.dart
-    imports.add(
-      "import '../../../domain/services/${serviceSnake}_service.dart';",
-    );
-
-    // Auto-import potential entity types from params and returns
     final entityImports = _getPotentialEntityImports([paramsType, returnsType]);
     for (final entityImport in entityImports) {
       final entitySnake = StringUtils.camelToSnake(entityImport);
       final entityPath =
           '../../../domain/entities/$entitySnake/$entitySnake.dart';
-      imports.add("import '$entityPath';");
+      directives.add(Directive.import(entityPath));
     }
 
-    final cliCommand =
-        '// zfa generate ${config.name} --service=${config.service} --domain=${config.effectiveDomain} --params=$paramsType --returns=$returnsType${config.useCaseType != 'usecase' ? ' --type=${config.useCaseType}' : ''}${config.serviceMethod != null ? ' --service-method=${config.serviceMethod}' : ''} --data';
+    final method = Method(
+      (m) => m
+        ..name = methodName
+        ..returns = refer(returnSignature)
+        ..annotations.add(refer('override'))
+        ..modifier =
+            config.useCaseType == 'sync' ? null : MethodModifier.async
+        ..requiredParameters.addAll(
+          paramsType == 'NoParams'
+              ? const []
+              : [
+                  Parameter(
+                    (p) => p
+                      ..name = 'params'
+                      ..type = refer(paramsType),
+                  ),
+                ],
+        )
+        ..body = Code(
+          _lines([
+            'try {',
+            "  throw UnimplementedError('$methodName not implemented');",
+            '} catch (e, stack) {',
+            '  logAndHandleError(e, stack);',
+            '  rethrow;',
+            '}',
+          ]),
+        ),
+    );
 
-    final content =
-        '''
-$cliCommand
+    final providerClass = Class(
+      (c) => c
+        ..name = providerName
+        ..mixins.addAll([refer('Loggable'), refer('FailureHandler')])
+        ..implements.add(refer(serviceName))
+        ..methods.add(method),
+    );
 
-${imports.join('\n')}
-
-/// Provider implementation of [$serviceName].
-///
-/// This class implements the service interface in the data layer,
-/// handling external API integrations, third-party SDKs, or
-/// infrastructure operations.
-///
-/// ## Implementation Notes
-/// - Add external service client as a dependency (e.g., SmtpClient, StripeClient)
-/// - Implement error handling specific to the external service
-/// - Add retry logic, rate limiting, or caching as needed
-///
-/// ## Example
-/// ```dart
-/// class SmtpEmailProvider implements EmailService {
-///   final SmtpClient _client;
-///
-///   SmtpEmailProvider(this._client);
-///
-///   @override
-///   Future<void> sendEmail(EmailMessage params) async {
-///     await _client.send(
-///       to: params.to,
-///       subject: params.subject,
-///       body: params.body,
-///     );
-///   }
-/// }
-/// ```
-class $providerName with Loggable, FailureHandler implements $serviceName {
-${_generateMethodDocstring(methodName, paramsType, returnsType)}
-$methodSignature
-    try {
-$implementationComment
-    } catch (e, stack) {
-      logAndHandleError(e, stack);
-      rethrow;
-    }
-  }
-}
-''';
+    final content = specLibrary.emitLibrary(
+      specLibrary.library(specs: [providerClass], directives: directives),
+    );
 
     return FileUtils.writeFile(
       filePath,
@@ -179,24 +141,6 @@ $implementationComment
       dryRun: dryRun,
       verbose: verbose,
     );
-  }
-
-  String _generateMethodDocstring(
-    String methodName,
-    String paramsType,
-    String returnsType,
-  ) {
-    final paramsDoc = paramsType == 'NoParams'
-        ? ''
-        : '\n  /// [params] - The parameters for the operation';
-
-    return '''  /// Implements the [$methodName] method.
-  ///
-  ///$paramsDoc
-  ///
-  /// Returns a [$returnsType].
-  ///
-  /// Throws [Exception] if the operation fails.''';
   }
 
   /// Extract potential entity types from type strings for auto-imports.
@@ -249,4 +193,6 @@ $implementationComment
 
     return results.expand((e) => e).toList();
   }
+
+  String _lines(List<String> lines) => lines.join('\n');
 }

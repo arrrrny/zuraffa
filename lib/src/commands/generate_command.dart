@@ -160,11 +160,7 @@ class GenerateCommand {
     }
 
     if (debug) {
-      await artifactSaver.save(
-        config: config,
-        result: result,
-        args: args,
-      );
+      await artifactSaver.save(config: config, result: result, args: args);
     }
 
     // Run build if requested and generation succeeded

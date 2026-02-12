@@ -41,7 +41,7 @@ class ProductPresenter extends Presenter {
 
   Future<Result<Product, AppFailure>> getProduct(
     String id, [
-    CancelToken? cancelToken = null,
+    CancelToken? cancelToken,
   ]) {
     return _getProduct.call(
       QueryParams<Product>(filter: Eq(ProductFields.id, id)),
@@ -51,14 +51,14 @@ class ProductPresenter extends Presenter {
 
   Future<Result<List<Product>, AppFailure>> getProductList([
     ListQueryParams<Product> params = const ListQueryParams(),
-    CancelToken? cancelToken = null,
+    CancelToken? cancelToken,
   ]) {
     return _getProductList.call(params, cancelToken: cancelToken);
   }
 
   Future<Result<Product, AppFailure>> createProduct(
     Product product, [
-    CancelToken? cancelToken = null,
+    CancelToken? cancelToken,
   ]) {
     return _createProduct.call(product, cancelToken: cancelToken);
   }
@@ -66,7 +66,7 @@ class ProductPresenter extends Presenter {
   Future<Result<Product, AppFailure>> updateProduct(
     String id,
     ProductPatch data, [
-    CancelToken? cancelToken = null,
+    CancelToken? cancelToken,
   ]) {
     return _updateProduct.call(
       UpdateParams<String, ProductPatch>(id: id, data: data),
@@ -76,7 +76,7 @@ class ProductPresenter extends Presenter {
 
   Future<Result<void, AppFailure>> deleteProduct(
     String id, [
-    CancelToken? cancelToken = null,
+    CancelToken? cancelToken,
   ]) {
     return _deleteProduct.call(
       DeleteParams<String>(id: id),
@@ -86,7 +86,7 @@ class ProductPresenter extends Presenter {
 
   Stream<Result<Product, AppFailure>> watchProduct(
     String id, [
-    CancelToken? cancelToken = null,
+    CancelToken? cancelToken,
   ]) {
     return _watchProduct.call(
       QueryParams<Product>(filter: Eq(ProductFields.id, id)),
@@ -96,7 +96,7 @@ class ProductPresenter extends Presenter {
 
   Stream<Result<List<Product>, AppFailure>> watchProductList([
     ListQueryParams<Product> params = const ListQueryParams(),
-    CancelToken? cancelToken = null,
+    CancelToken? cancelToken,
   ]) {
     return _watchProductList.call(params, cancelToken: cancelToken);
   }

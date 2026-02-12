@@ -24,9 +24,13 @@ class SpecLibrary {
     if (!format) {
       return raw;
     }
-    return DartFormatter(
-      languageVersion: DartFormatter.latestLanguageVersion,
-    ).format(raw);
+    try {
+      return DartFormatter(
+        languageVersion: DartFormatter.latestLanguageVersion,
+      ).format(raw);
+    } catch (_) {
+      return raw;
+    }
   }
 
   String emitSpec(
@@ -36,6 +40,17 @@ class SpecLibrary {
   }) {
     return emitLibrary(
       library(specs: [spec], directives: directives),
+      format: format,
+    );
+  }
+
+  String emitCode(
+    String code, {
+    Iterable<Directive> directives = const [],
+    bool format = true,
+  }) {
+    return emitLibrary(
+      library(specs: [Code(code)], directives: directives),
       format: format,
     );
   }

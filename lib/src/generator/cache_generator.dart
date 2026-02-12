@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
+import '../core/builder/shared/spec_library.dart';
 import '../core/generation/generation_context.dart';
 import '../models/generator_config.dart';
 import '../models/generated_file.dart';
@@ -53,16 +55,19 @@ class CacheGenerator {
 
     final cachePath = path.join(outputDir, 'cache', fileName);
 
-    final content =
-        '''
+    final directives = [
+      Directive.import('package:hive_ce_flutter/hive_ce_flutter.dart'),
+      Directive.import('../domain/entities/$entitySnake/$entitySnake.dart'),
+    ];
+    final content = const SpecLibrary().emitCode(
+      '''
 // Auto-generated cache for $entityName
-import 'package:hive_ce_flutter/hive_ce_flutter.dart';
-import '../domain/entities/$entitySnake/$entitySnake.dart';
-
 Future<void> init${entityName}Cache() async {
   await Hive.openBox<$entityName>('$boxName');
 }
-''';
+''',
+      directives: directives,
+    );
 
     return FileUtils.writeFile(
       cachePath,
@@ -78,14 +83,18 @@ Future<void> init${entityName}Cache() async {
     final fileName = 'timestamp_cache.dart';
     final cachePath = path.join(outputDir, 'cache', fileName);
 
-    final content = '''
+    final directives = [
+      Directive.import('package:hive_ce_flutter/hive_ce_flutter.dart'),
+    ];
+    final content = const SpecLibrary().emitCode(
+      '''
 // Auto-generated timestamp cache
-import 'package:hive_ce_flutter/hive_ce_flutter.dart';
-
 Future<void> initTimestampCache() async {
   await Hive.openBox<int>('cache_timestamps');
 }
-''';
+''',
+      directives: directives,
+    );
 
     return FileUtils.writeFile(
       cachePath,
@@ -144,16 +153,19 @@ Future<void> initTimestampCache() async {
 
     final cachePath = path.join(outputDir, 'cache', fileName);
 
-    final content =
-        '''
+    final directives = [
+      Directive.import('package:hive_ce_flutter/hive_ce_flutter.dart'),
+      Directive.import('package:zuraffa/zuraffa.dart'),
+    ];
+    final content = const SpecLibrary().emitCode(
+      '''
 // Auto-generated cache policy
-import 'package:hive_ce_flutter/hive_ce_flutter.dart';
-import 'package:zuraffa/zuraffa.dart';
-
 CachePolicy $policyName() {
 $policyImpl
 }
-''';
+''',
+      directives: directives,
+    );
 
     return FileUtils.writeFile(
       cachePath,
@@ -196,24 +208,24 @@ $policyImpl
     // Add timestamp cache first
     final timestampFile = File(path.join(dirPath, 'timestamp_cache.dart'));
     if (timestampFile.existsSync()) {
-      exports.add("export 'timestamp_cache.dart';");
-      imports.add("import 'timestamp_cache.dart';");
+      exports.add('timestamp_cache.dart');
+      imports.add('timestamp_cache.dart');
       inits.add('  await initTimestampCache();');
     }
 
     // Add registrar import
     final registrarFile = File(path.join(dirPath, 'hive_registrar.dart'));
     if (registrarFile.existsSync()) {
-      exports.add("export 'hive_registrar.dart';");
-      imports.add("import 'package:hive_ce_flutter/hive_ce_flutter.dart';");
-      imports.add("import 'hive_registrar.dart';");
+      exports.add('hive_registrar.dart');
+      imports.add('package:hive_ce_flutter/hive_ce_flutter.dart');
+      imports.add('hive_registrar.dart');
       inits.insert(0, '  Hive.registerAdapters();');
     }
 
     for (final file in files) {
       final fileName = path.basename(file.path);
-      exports.add("export '$fileName';");
-      imports.add("import '$fileName';");
+      exports.add(fileName);
+      imports.add(fileName);
 
       final content = file.readAsStringSync();
       final match = RegExp(
@@ -232,20 +244,22 @@ $policyImpl
         .toList();
     for (final policyFile in policyFiles) {
       final fileName = path.basename(policyFile.path);
-      exports.add("export '$fileName';");
+      exports.add(fileName);
     }
 
-    final content =
-        '''
+    final directives = [
+      ...exports.map(Directive.export),
+      ...imports.map(Directive.import),
+    ];
+    final content = const SpecLibrary().emitCode(
+      '''
 // Auto-generated - DO NOT EDIT
-${exports.join('\n')}
-
-${imports.join('\n')}
-
 Future<void> initAllCaches() async {
 ${inits.join('\n')}
 }
-''';
+''',
+      directives: directives,
+    );
 
     await FileUtils.writeFile(
       indexPath,
@@ -309,7 +323,7 @@ ${inits.join('\n')}
           final entityName = parts[1].trim();
 
           if (!imports.contains("import '$importPath';")) {
-            imports.add("import '$importPath';");
+            imports.add(importPath);
           }
           if (!processedEntities.contains(entityName)) {
             processedEntities.add(entityName);
@@ -338,7 +352,7 @@ ${inits.join('\n')}
 
         final importPath = '../domain/entities/$entitySnake/$entityFile.dart';
         if (!imports.contains("import '$importPath';")) {
-          imports.add("import '$importPath';");
+          imports.add(importPath);
         }
         if (!processedEntities.contains(entityName)) {
           processedEntities.add(entityName);
@@ -357,14 +371,14 @@ ${inits.join('\n')}
       }
     }
 
-    final content =
-        '''
+    final directives = [
+      Directive.import('package:hive_ce_flutter/hive_ce_flutter.dart'),
+      ...imports.map(Directive.import),
+      Directive.part('hive_registrar.g.dart'),
+    ];
+    final content = const SpecLibrary().emitCode(
+      '''
 // Auto-generated Hive registrar
-import 'package:hive_ce_flutter/hive_ce_flutter.dart';
-${imports.join('\n')}
-
-part 'hive_registrar.g.dart';
-
 @GenerateAdapters([
   ${adapterSpecs.join(',\n  ')}
 ])
@@ -379,7 +393,9 @@ extension IsolatedHiveRegistrar on IsolatedHiveInterface {
 ${registrations.join('\n')}
   }
 }
-''';
+''',
+      directives: directives,
+    );
 
     await FileUtils.writeFile(
       registrarPath,
@@ -432,7 +448,7 @@ ${registrations.join('\n')}
         final importPath =
             '../domain/entities/$subtypeSnake/$subtypeSnake.dart';
         if (!imports.contains("import '$importPath';")) {
-          imports.add("import '$importPath';");
+          imports.add(importPath);
         }
         adapterSpecs.add('AdapterSpec<$subtype>()');
         registrations.add('    registerAdapter(${subtype}Adapter());');
@@ -479,7 +495,7 @@ ${registrations.join('\n')}
             final abstractImportPath =
                 '../domain/entities/$baseTypeSnake/$baseTypeSnake.dart';
             if (!imports.contains("import '$abstractImportPath';")) {
-              imports.add("import '$abstractImportPath';");
+              imports.add(abstractImportPath);
             }
 
             // Process subtypes instead of abstract type (generate adapters)
@@ -490,7 +506,7 @@ ${registrations.join('\n')}
                 final importPath =
                     '../domain/entities/$subtypeSnake/$subtypeSnake.dart';
                 if (!imports.contains("import '$importPath';")) {
-                  imports.add("import '$importPath';");
+                  imports.add(importPath);
                 }
                 adapterSpecs.add('AdapterSpec<$subtype>()');
                 registrations.add('    registerAdapter(${subtype}Adapter());');
@@ -518,7 +534,7 @@ ${registrations.join('\n')}
             final importPath =
                 '../domain/entities/$baseTypeSnake/$baseTypeSnake.dart';
             if (!imports.contains("import '$importPath';")) {
-              imports.add("import '$importPath';");
+              imports.add(importPath);
             }
             adapterSpecs.add('AdapterSpec<$baseType>()');
             registrations.add('    registerAdapter(${baseType}Adapter());');
@@ -536,7 +552,7 @@ ${registrations.join('\n')}
             processedEntities.add(baseType);
             final enumImportPath = '../domain/entities/enums/index.dart';
             if (!imports.contains("import '$enumImportPath';")) {
-              imports.add("import '$enumImportPath';");
+              imports.add(enumImportPath);
             }
             adapterSpecs.add('AdapterSpec<$baseType>()');
             registrations.add('    registerAdapter(${baseType}Adapter());');

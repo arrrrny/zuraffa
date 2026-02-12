@@ -1,9 +1,9 @@
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
-import 'generators/interface_generator.dart';
-import 'generators/local_generator.dart';
-import 'generators/remote_generator.dart';
+import 'builders/interface_generator.dart';
+import 'builders/local_generator.dart';
+import 'builders/remote_generator.dart';
 
 class DataSourcePlugin extends FileGeneratorPlugin {
   final String outputDir;
@@ -11,9 +11,9 @@ class DataSourcePlugin extends FileGeneratorPlugin {
   final bool force;
   final bool verbose;
 
-  late final DataSourceInterfaceGenerator interfaceGenerator;
-  late final RemoteDataSourceGenerator remoteGenerator;
-  late final LocalDataSourceGenerator localGenerator;
+  late final DataSourceInterfaceBuilder interfaceGenerator;
+  late final RemoteDataSourceBuilder remoteGenerator;
+  late final LocalDataSourceBuilder localGenerator;
 
   DataSourcePlugin({
     required this.outputDir,
@@ -21,19 +21,19 @@ class DataSourcePlugin extends FileGeneratorPlugin {
     required this.force,
     required this.verbose,
   }) {
-    interfaceGenerator = DataSourceInterfaceGenerator(
+    interfaceGenerator = DataSourceInterfaceBuilder(
       outputDir: outputDir,
       dryRun: dryRun,
       force: force,
       verbose: verbose,
     );
-    remoteGenerator = RemoteDataSourceGenerator(
+    remoteGenerator = RemoteDataSourceBuilder(
       outputDir: outputDir,
       dryRun: dryRun,
       force: force,
       verbose: verbose,
     );
-    localGenerator = LocalDataSourceGenerator(
+    localGenerator = LocalDataSourceBuilder(
       outputDir: outputDir,
       dryRun: dryRun,
       force: force,

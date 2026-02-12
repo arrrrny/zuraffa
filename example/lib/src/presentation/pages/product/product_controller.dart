@@ -15,7 +15,7 @@ class ProductController extends Controller
     return const ProductState();
   }
 
-  Future<void> getProduct(String id, [CancelToken? cancelToken = null]) async {
+  Future<void> getProduct(String id, [CancelToken? cancelToken]) async {
     final token = cancelToken ?? createCancelToken();
     updateState(viewState.copyWith(isGetting: true));
     final result = await _presenter.getProduct(id, token);
@@ -30,7 +30,7 @@ class ProductController extends Controller
 
   Future<void> getProductList([
     ListQueryParams<Product> params = const ListQueryParams(),
-    CancelToken? cancelToken = null,
+    CancelToken? cancelToken,
   ]) async {
     final token = cancelToken ?? createCancelToken();
     updateState(viewState.copyWith(isGettingList: true));
@@ -47,7 +47,7 @@ class ProductController extends Controller
 
   Future<void> createProduct(
     Product product, [
-    CancelToken? cancelToken = null,
+    CancelToken? cancelToken,
   ]) async {
     final token = cancelToken ?? createCancelToken();
     updateState(viewState.copyWith(isCreating: true));
@@ -63,7 +63,7 @@ class ProductController extends Controller
   Future<void> updateProduct(
     String id,
     ProductPatch data, [
-    CancelToken? cancelToken = null,
+    CancelToken? cancelToken,
   ]) async {
     final token = cancelToken ?? createCancelToken();
     updateState(viewState.copyWith(isUpdating: true));
@@ -84,7 +84,7 @@ class ProductController extends Controller
 
   Future<void> deleteProduct(
     String id, [
-    CancelToken? cancelToken = null,
+    CancelToken? cancelToken,
   ]) async {
     final token = cancelToken ?? createCancelToken();
     updateState(
@@ -103,7 +103,7 @@ class ProductController extends Controller
     );
   }
 
-  void watchProduct(String id, [CancelToken? cancelToken = null]) {
+  void watchProduct(String id, [CancelToken? cancelToken]) {
     final token = cancelToken ?? createCancelToken();
     updateState(viewState.copyWith(isWatching: true));
     final subscription = _presenter.watchProduct(id, token).listen((result) {
@@ -119,7 +119,7 @@ class ProductController extends Controller
 
   void watchProductList([
     ListQueryParams<Product> params = const ListQueryParams(),
-    CancelToken? cancelToken = null,
+    CancelToken? cancelToken,
   ]) {
     final token = cancelToken ?? createCancelToken();
     updateState(viewState.copyWith(isWatchingList: true));

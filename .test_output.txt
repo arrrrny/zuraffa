@@ -1,0 +1,522 @@
+00:00 +0: loading /Users/arrrrny/Developer/zuraffa/test/benchmark/large_file_generation_test.dart
+00:00 +0: /Users/arrrrny/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +1: /Users/arrrrny/Developer/zuraffa/test/core/transaction/transaction_test.dart: GenerationTransaction commits create operations
+00:00 +2: /Users/arrrrny/Developer/zuraffa/test/core/transaction/transaction_test.dart: GenerationTransaction commits update operations
+00:00 +3: /Users/arrrrny/Developer/zuraffa/test/core/transaction/transaction_test.dart: GenerationTransaction commits delete operations
+00:00 +4: /Users/arrrrny/Developer/zuraffa/test/core/transaction/transaction_test.dart: GenerationTransaction detects conflicts before commit
+00:00 +5: /Users/arrrrny/Developer/zuraffa/test/core/transaction/transaction_test.dart: GenerationTransaction rolls back on failed commit
+00:01 +6: /Users/arrrrny/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert TimeoutException to TimeoutFailure
+00:01 +7: /Users/arrrrny/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert FormatException to ValidationFailure
+00:01 +8: /Users/arrrrny/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert ArgumentError to ValidationFailure
+00:01 +9: /Users/arrrrny/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert CancelledException to CancellationFailure
+00:01 +10: /Users/arrrrny/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert RangeError to ValidationFailure
+00:01 +11: /Users/arrrrny/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert IndexError to ValidationFailure
+00:01 +12: /Users/arrrrny/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert StateError to StateFailure
+00:01 +13: /Users/arrrrny/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert UnimplementedError to UnimplementedFailure
+00:01 +14: /Users/arrrrny/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert UnsupportedError to UnsupportedFailure
+00:01 +15: /Users/arrrrny/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert TypeError to TypeFailure
+00:01 +16: /Users/arrrrny/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert PlatformException to PlatformFailure
+00:01 +17: /Users/arrrrny/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert MissingPluginException to UnsupportedFailure
+00:01 +18: /Users/arrrrny/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert ConcurrentModificationError to StateFailure
+00:01 +19: /Users/arrrrny/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should check for NoSuchMethodError and convert to TypeFailure
+00:01 +20: /Users/arrrrny/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should use AppFailure.from for unknown exceptions
+00:01 +21: /Users/arrrrny/Developer/zuraffa/test/core/context/file_system_test.dart: DefaultFileSystem writes, reads, and deletes with root
+00:02 +22: /Users/arrrrny/Developer/zuraffa/test/core/context/file_system_test.dart: DefaultFileSystem creates directories
+00:03 +23: /Users/arrrrny/Developer/zuraffa/test/core/context/progress_reporter_test.dart: ProgressReporter NullProgressReporter ignores all reports
+00:03 +24: /Users/arrrrny/Developer/zuraffa/test/core/context/progress_reporter_test.dart: ProgressReporter CliProgressReporter formats started message
+00:03 +25: /Users/arrrrny/Developer/zuraffa/test/core/context/progress_reporter_test.dart: ProgressReporter ProgressReport calculates percentages correctly
+00:03 +26: /Users/arrrrny/Developer/zuraffa/test/core/context/context_store_test.dart: ContextStore stores and retrieves values by type
+00:03 +27: /Users/arrrrny/Developer/zuraffa/test/core/context/context_store_test.dart: ContextStore returns default value when missing
+00:03 +28: /Users/arrrrny/Developer/zuraffa/test/core/context/context_store_test.dart: ContextStore throws for missing key without default
+00:04 +29: /Users/arrrrny/Developer/zuraffa/test/core/context/context_store_test.dart: ContextStore throws for type mismatch
+00:04 +30: /Users/arrrrny/Developer/zuraffa/test/core/context/context_store_test.dart: ContextStore getOrNull returns null for missing or mismatch
+00:04 +31: /Users/arrrrny/Developer/zuraffa/test/core/context/context_store_test.dart: ContextStore notifies listeners on set and remove
+00:04 +32: /Users/arrrrny/Developer/zuraffa/test/core/context/context_store_test.dart: ContextStore clear resets data and listeners
+00:04 +33: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Success isSuccess returns true
+00:04 +34: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Success value returns the wrapped value
+00:04 +35: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Success fold calls onSuccess
+00:04 +36: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Success map transforms the value
+00:04 +37: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Success mapFailure returns unchanged Success
+00:04 +38: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Success flatMap chains operations
+00:04 +39: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Success getOrElse returns the value
+00:04 +40: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Success getOrNull returns the value
+00:04 +41: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Success getOrThrow returns the value
+00:04 +42: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Success getFailureOrNull returns null
+00:04 +43: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Success onSuccess executes the action
+00:04 +44: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Success onFailure does not execute the action
+00:04 +45: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Success equality works correctly
+00:04 +46: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Success hashCode is consistent with equality
+00:04 +47: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Success toString returns readable representation
+00:04 +48: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Failure isFailure returns true
+00:04 +49: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Failure error returns the wrapped error
+00:04 +50: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Failure fold calls onFailure
+00:04 +51: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Failure map returns unchanged Failure
+00:04 +52: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Failure mapFailure transforms the error
+00:04 +53: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Failure flatMap returns unchanged Failure
+00:04 +54: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Failure getOrElse returns the default value
+00:04 +55: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Failure getOrNull returns null
+00:04 +56: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Failure getOrThrow throws the error
+00:04 +57: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Failure getOrThrow wraps non-exception errors
+00:04 +58: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Failure getFailureOrNull returns the error
+00:04 +59: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Failure onSuccess does not execute the action
+00:04 +60: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Failure onFailure executes the action
+00:04 +61: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Failure equality works correctly
+00:04 +62: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Failure hashCode is consistent with equality
+00:04 +63: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Failure toString returns readable representation
+00:04 +64: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Result factory constructors Result.success creates Success
+00:04 +65: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result Result factory constructors Result.failure creates Failure
+00:04 +66: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result foldAsync calls onSuccess for Success
+00:04 +67: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result foldAsync calls onFailure for Failure
+00:04 +68: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result toFuture completes with value for Success
+00:04 +69: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: Result toFuture throws for Failure
+00:05 +70: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: ResultAsyncExtensions mapAsync transforms value asynchronously
+00:05 +71: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: ResultAsyncExtensions mapAsync preserves Failure
+00:05 +72: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: ResultAsyncExtensions flatMapAsync chains operations
+00:05 +73: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: FutureResultExtensions map transforms success value
+00:05 +74: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: FutureResultExtensions flatMap chains futures
+00:05 +75: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: FutureResultExtensions getOrElse returns value for success
+00:05 +76: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: FutureResultExtensions getOrElse returns default for failure
+00:05 +77: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: FutureResultExtensions getOrNull returns value for success
+00:05 +78: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: FutureResultExtensions getOrNull returns null for failure
+00:05 +79: /Users/arrrrny/Developer/zuraffa/test/core/result_test.dart: FutureResultExtensions fold works on future
+00:05 +80: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken initial state isCancelled is false initially
+00:05 +81: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken initial state cancelReason is null initially
+00:05 +82: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken cancel() sets isCancelled to true
+00:05 +83: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken cancel() stores cancel reason
+00:05 +84: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken cancel() is idempotent - multiple cancels have no effect
+00:05 +85: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken cancel() emits on onCancel stream
+00:05 +86: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken cancel() onCancel stream closes after cancel
+00:05 +87: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken throwIfCancelled() does nothing when not cancelled
+00:05 +88: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken throwIfCancelled() throws CancelledException when cancelled
+00:05 +89: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken throwIfCancelled() throws with cancel reason
+00:05 +90: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken linkTo() child is cancelled when parent is cancelled
+00:05 +91: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken linkTo() parent is not cancelled when child is cancelled
+00:05 +92: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken linkTo() child inherits cancelled state from parent
+00:05 +93: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken linkTo() throws when trying to link twice
+00:05 +94: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken linkTo() isCancelled returns true if parent is cancelled
+00:05 +95: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken createChild() creates a linked child token
+00:05 +96: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken createChild() child is independent until parent cancels
+00:05 +97: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken createChild() multiple children are all cancelled
+00:05 +98: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken createChild() grandchildren are cancelled
+00:05 +99: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken dispose() closes the stream
+00:05 +100: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken dispose() clears children
+00:05 +101: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken timeout factory creates token that cancels after timeout
+00:05 +102: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken timeout factory can be cancelled before timeout
+00:05 +103: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken fromFuture factory cancels when future completes
+00:05 +104: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken fromFuture factory does not cancel if already cancelled
+00:05 +105: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelledException has default message
+00:05 +106: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelledException accepts custom message
+00:05 +107: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelledException toString returns formatted message
+00:05 +108: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelTokenFutureExtension withCancellation completes normally if not cancelled
+00:05 +109: /Users/arrrrny/Developer/zuraffa/test/core/plugin_system/plugin_interface_test.dart: ZuraffaPlugin validate defaults to success
+00:05 +110: /Users/arrrrny/Developer/zuraffa/test/core/plugin_system/plugin_interface_test.dart: ZuraffaPlugin validate defaults to success
+00:05 +111: /Users/arrrrny/Developer/zuraffa/test/core/plugin_system/plugin_interface_test.dart: ZuraffaPlugin validate defaults to success
+00:05 +112: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelTokenFutureExtension withCancellation with null token just returns future
+00:05 +113: /Users/arrrrny/Developer/zuraffa/test/core/plugin_system/plugin_interface_test.dart: FileGeneratorPlugin implements ZuraffaPlugin
+00:05 +114: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelTokenStreamExtension withCancellation forwards events normally
+00:05 +115: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelTokenStreamExtension withCancellation closes stream on cancel
+00:05 +116: /Users/arrrrny/Developer/zuraffa/test/core/cancel_token_test.dart: CancelTokenStreamExtension withCancellation with null token returns original stream
+00:05 +117: /Users/arrrrny/Developer/zuraffa/test/core/plugin_system/plugin_registry_test.dart: PluginRegistry registers and retrieves plugins
+00:05 +118: /Users/arrrrny/Developer/zuraffa/test/core/plugin_system/plugin_registry_test.dart: PluginRegistry discovers plugin factories
+00:05 +119: /Users/arrrrny/Developer/zuraffa/test/core/plugin_system/plugin_registry_test.dart: PluginRegistry validates all plugins
+00:06 +120: /Users/arrrrny/Developer/zuraffa/test/core/plugin_system/plugin_registry_lifecycle_test.dart: PluginRegistry forwards lifecycle calls
+00:06 +121: /Users/arrrrny/Developer/zuraffa/test/core/plugin_system/validation_result_test.dart: ValidationResult success merges with success
+00:06 +122: /Users/arrrrny/Developer/zuraffa/test/core/plugin_system/validation_result_test.dart: ValidationResult failure merges reasons
+00:06 +123: /Users/arrrrny/Developer/zuraffa/test/core/query_params_test.dart: QueryParams should store filter and optional params
+00:07 +124: /Users/arrrrny/Developer/zuraffa/test/core/query_params_test.dart: QueryParams should work with null filter and params
+00:07 +125: /Users/arrrrny/Developer/zuraffa/test/core/query_params_test.dart: QueryParams should work with only filter
+00:07 +126: /Users/arrrrny/Developer/zuraffa/test/core/query_params_test.dart: QueryParams copyWith should update fields correctly
+00:07 +127: /Users/arrrrny/Developer/zuraffa/test/core/query_params_test.dart: QueryParams copyWith should clear fields when requested
+00:07 +128: /Users/arrrrny/Developer/zuraffa/test/core/query_params_test.dart: QueryParams equality should work correctly
+00:07 +129: /Users/arrrrny/Developer/zuraffa/test/core/query_params_test.dart: QueryParams hashCode should be consistent for same instance
+00:07 +130: /Users/arrrrny/Developer/zuraffa/test/core/query_params_test.dart: QueryParams toString should be descriptive
+00:07 +131: /Users/arrrrny/Developer/zuraffa/test/core/query_params_test.dart: QueryParams toQueryMap should serialize filter and params
+00:07 +132: /Users/arrrrny/Developer/zuraffa/test/core/params_wrappers_test.dart: QueryParams should store filter and optional params
+00:07 +133: /Users/arrrrny/Developer/zuraffa/test/core/params_wrappers_test.dart: QueryParams toQueryMap serializes correctly
+00:07 +134: /Users/arrrrny/Developer/zuraffa/test/core/params_wrappers_test.dart: QueryParams copyWith should allow partial updates and clearing
+00:07 +135: /Users/arrrrny/Developer/zuraffa/test/core/params_wrappers_test.dart: QueryParams equality should work correctly
+00:07 +136: /Users/arrrrny/Developer/zuraffa/test/core/params_wrappers_test.dart: QueryParams query extension should find matching entity
+00:07 +137: /Users/arrrrny/Developer/zuraffa/test/core/params_wrappers_test.dart: QueryParams query extension should return first when no filter
+00:07 +138: /Users/arrrrny/Developer/zuraffa/test/core/params_wrappers_test.dart: ListQueryParams should store all query options
+00:07 +139: /Users/arrrrny/Developer/zuraffa/test/core/params_wrappers_test.dart: ListQueryParams copyWith should allow partial updates and clearing
+00:07 +140: /Users/arrrrny/Developer/zuraffa/test/core/params_wrappers_test.dart: ListQueryParams equality and hashCode
+00:07 +141: /Users/arrrrny/Developer/zuraffa/test/core/params_wrappers_test.dart: ListQueryParams toQueryMap serializes correctly
+00:07 +142: /Users/arrrrny/Developer/zuraffa/test/core/params_wrappers_test.dart: ListQueryParams default constructor works without type parameter
+00:07 +143: /Users/arrrrny/Developer/zuraffa/test/core/params_wrappers_test.dart: CreateParams should store data and optional params
+00:07 +144: /Users/arrrrny/Developer/zuraffa/test/core/params_wrappers_test.dart: CreateParams toMap serializes correctly
+00:07 +145: /Users/arrrrny/Developer/zuraffa/test/core/params_wrappers_test.dart: CreateParams copyWith should work correctly
+00:07 +146: /Users/arrrrny/Developer/zuraffa/test/core/params_wrappers_test.dart: CreateParams equality should work correctly
+00:07 +147: /Users/arrrrny/Developer/zuraffa/test/core/params_wrappers_test.dart: UpdateParams should store id, data, and optional params
+00:07 +148: /Users/arrrrny/Developer/zuraffa/test/core/params_wrappers_test.dart: UpdateParams toMap serializes correctly
+00:07 +149: /Users/arrrrny/Developer/zuraffa/test/core/params_wrappers_test.dart: UpdateParams copyWith should work correctly
+00:07 +150: /Users/arrrrny/Developer/zuraffa/test/core/params_wrappers_test.dart: UpdateParams equality should work correctly
+00:07 +151: /Users/arrrrny/Developer/zuraffa/test/core/params_wrappers_test.dart: DeleteParams should store id and optional params
+00:07 +152: /Users/arrrrny/Developer/zuraffa/test/core/params_wrappers_test.dart: DeleteParams toMap serializes correctly
+00:07 +153: /Users/arrrrny/Developer/zuraffa/test/core/params_wrappers_test.dart: DeleteParams copyWith should work correctly
+00:07 +154: /Users/arrrrny/Developer/zuraffa/test/core/params_wrappers_test.dart: DeleteParams equality should work correctly
+00:07 +155: /Users/arrrrny/Developer/zuraffa/test/core/ast/ast_helper_test.dart: AstHelper parses source and finds nodes
+00:08 +156: /Users/arrrrny/Developer/zuraffa/test/core/ast/ast_helper_test.dart: AstHelper adds method to class
+00:08 +157: /Users/arrrrny/Developer/zuraffa/test/core/ast/ast_helper_test.dart: AstHelper adds field to class
+00:08 +158: /Users/arrrrny/Developer/zuraffa/test/core/ast/append_strategy_test.dart: MethodAppendStrategy appends method when missing
+00:08 +159: /Users/arrrrny/Developer/zuraffa/test/core/ast/append_strategy_test.dart: MethodAppendStrategy appends method when missing
+00:08 +160: /Users/arrrrny/Developer/zuraffa/test/core/ast/append_strategy_test.dart: MethodAppendStrategy appends method when missing
+00:08 +161: /Users/arrrrny/Developer/zuraffa/test/core/ast/append_strategy_test.dart: MethodAppendStrategy appends method when missing
+00:08 +162: /Users/arrrrny/Developer/zuraffa/test/core/ast/append_strategy_test.dart: MethodAppendStrategy detects duplicate method
+00:08 +163: /Users/arrrrny/Developer/zuraffa/test/core/ast/append_strategy_test.dart: ExportAppendStrategy adds export when missing
+00:08 +164: /Users/arrrrny/Developer/zuraffa/test/core/ast/append_strategy_test.dart: ImportAppendStrategy adds import when missing
+00:08 +165: /Users/arrrrny/Developer/zuraffa/test/core/ast/append_strategy_test.dart: FieldAppendStrategy appends field when missing
+00:08 +166: /Users/arrrrny/Developer/zuraffa/test/core/ast/append_strategy_test.dart: ExtensionMethodAppendStrategy appends method
+00:08 +167: /Users/arrrrny/Developer/zuraffa/test/core/ast/append_strategy_test.dart: FunctionStatementAppendStrategy appends statement
+00:08 +168: /Users/arrrrny/Developer/zuraffa/test/core/ast/append_strategy_test.dart: AppendExecutor returns no strategy found for unknown
+00:08 +169: /Users/arrrrny/Developer/zuraffa/test/core/builder/patterns/vpc_patterns_test.dart: VpcPatterns builds controller class
+00:09 +170: /Users/arrrrny/Developer/zuraffa/test/core/builder/patterns/repository_patterns_test.dart: RepositoryPatterns builds repository interface
+00:09 +171: /Users/arrrrny/Developer/zuraffa/test/core/builder/patterns/usecase_patterns_test.dart: UseCasePatterns builds usecase class
+00:10 +172: /Users/arrrrny/Developer/zuraffa/test/core/builder/patterns/common_patterns_test.dart: CommonPatterns builds fields and constructors
+00:10 +173: /Users/arrrrny/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:11 +174: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure factory constructor from() returns same instance if already AppFailure
+00:11 +175: /Users/arrrrny/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds repository library
+00:11 +176: /Users/arrrrny/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds repository library
+00:11 +177: /Users/arrrrny/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds repository library
+00:11 +178: /Users/arrrrny/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds repository library
+00:11 +179: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure factory constructor from() creates TimeoutFailure for timeout errors
+00:11 +180: /Users/arrrrny/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds route library
+00:11 +181: /Users/arrrrny/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds route library
+00:11 +182: /Users/arrrrny/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds route library
+00:11 +183: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure factory constructor from() creates NotFoundFailure for "does not exist" errors
+00:11 +184: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure factory constructor from() creates UnauthorizedFailure for 401 errors
+00:11 +185: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure factory constructor from() creates UnauthorizedFailure for token errors
+00:11 +186: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure factory constructor from() creates ForbiddenFailure for 403 errors
+00:11 +187: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure factory constructor from() creates ServerFailure for 500 errors
+00:11 +188: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure factory constructor from() creates ServerFailure for 502 errors
+00:11 +189: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure factory constructor from() creates ServerFailure for 503 errors
+00:11 +190: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure factory constructor from() creates UnknownFailure for unrecognized errors
+00:11 +191: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure factory constructor from() preserves stackTrace
+00:11 +192: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure factory constructor from() preserves cause
+00:11 +193: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure ServerFailure stores statusCode
+00:11 +194: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure ServerFailure toString includes statusCode when present
+00:11 +195: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure ServerFailure toString works without statusCode
+00:11 +196: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure NetworkFailure stores message
+00:11 +197: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure NetworkFailure toString returns correct format
+00:11 +198: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure CacheFailure stores message
+00:11 +199: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure CacheFailure toString returns correct format
+00:11 +200: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure ValidationFailure stores fieldErrors
+00:11 +201: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure ValidationFailure hasErrorFor returns true for fields with errors
+00:11 +202: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure ValidationFailure errorsFor returns errors for field
+00:11 +203: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure ValidationFailure firstErrorFor returns first error
+00:11 +204: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure ValidationFailure toString includes fieldErrors when present
+00:11 +205: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure ValidationFailure toString works without fieldErrors
+00:11 +206: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure NotFoundFailure stores resourceId and resourceType
+00:11 +207: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure NotFoundFailure toString includes resource info when present
+00:11 +208: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure NotFoundFailure toString works without resource info
+00:11 +209: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure UnauthorizedFailure stores message
+00:11 +210: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure UnauthorizedFailure toString returns correct format
+00:11 +211: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure ForbiddenFailure stores requiredPermission
+00:11 +212: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure ForbiddenFailure toString returns correct format
+00:11 +213: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure ConflictFailure stores conflictType
+00:11 +214: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure ConflictFailure toString returns correct format
+00:11 +215: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure TimeoutFailure stores timeout duration
+00:11 +216: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure TimeoutFailure toString includes timeout when present
+00:11 +217: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure TimeoutFailure toString works without timeout
+00:11 +218: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure CancellationFailure has default message
+00:11 +219: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure CancellationFailure accepts custom message
+00:11 +220: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure CancellationFailure toString returns correct format
+00:11 +221: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure UnknownFailure stores message
+00:11 +222: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure UnknownFailure toString returns correct format
+00:11 +223: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure ExceptionToFailure extension converts Exception to AppFailure
+00:11 +224: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure ExceptionToFailure extension preserves stackTrace
+00:11 +225: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure ErrorToFailure extension converts Error to AppFailure
+00:11 +226: /Users/arrrrny/Developer/zuraffa/test/core/failure_test.dart: AppFailure sealed class exhaustiveness all failure types can be matched in switch
+00:11 +227: /Users/arrrrny/Developer/zuraffa/test/core/generation/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:11 +228: /Users/arrrrny/Developer/zuraffa/test/core/generation/code_builder_factory_test.dart: CodeBuilderFactory builds repository library
+00:11 +229: /Users/arrrrny/Developer/zuraffa/test/core/generation/code_builder_factory_test.dart: CodeBuilderFactory builds route library
+00:11 +230: /Users/arrrrny/Developer/zuraffa/test/core/generation/code_builder_factory_test.dart: CodeBuilderFactory builds vpc controller
+00:11 +231: /Users/arrrrny/Developer/zuraffa/test/core/generation/code_builder_factory_test.dart: CodeBuilderFactory builds vpc presenter
+00:11 +232: /Users/arrrrny/Developer/zuraffa/test/core/generation/code_builder_factory_test.dart: CodeBuilderFactory builds vpc state
+00:11 +233: /Users/arrrrny/Developer/zuraffa/test/core/generation/code_builder_factory_test.dart: CodeBuilderFactory emits formatted dart code
+00:11 +234: /Users/arrrrny/Developer/zuraffa/test/core/generation/generation_context_test.dart: GenerationContext creates context with defaults
+00:12 +235: /Users/arrrrny/Developer/zuraffa/test/core/generation/generation_context_test.dart: GenerationContext creates context with verbose progress reporter
+00:12 +236: /Users/arrrrny/Developer/zuraffa/test/core/generation/generation_context_test.dart: GenerationContext uses provided progress reporter
+00:12 +237: /Users/arrrrny/Developer/zuraffa/test/plugins/datasource/datasource_plugin_test.dart: generates datasource interface and remote implementation
+00:13 +238: /Users/arrrrny/Developer/zuraffa/test/plugins/repository/repository_plugin_test.dart: generates repository interface
+00:13 +239: /Users/arrrrny/Developer/zuraffa/test/plugins/repository/repository_plugin_test.dart: generates repository interface
+00:13 +240: /Users/arrrrny/Developer/zuraffa/test/plugins/repository/repository_plugin_test.dart: generates repository interface
+00:14 +241: /Users/arrrrny/Developer/zuraffa/test/plugins/repository/repository_plugin_test.dart: generates data repository implementation
+00:14 +242: /Users/arrrrny/Developer/zuraffa/test/plugins/repository/repository_plugin_test.dart: append mode preserves existing methods
+00:14 +243: /Users/arrrrny/Developer/zuraffa/test/plugins/di/di_plugin_test.dart: generates repository and datasource registrations
+00:15 +244: /Users/arrrrny/Developer/zuraffa/test/plugins/route/route_generator_test.dart: updates app routes using AST append
+00:15 +245: /Users/arrrrny/Developer/zuraffa/test/plugins/route/route_generator_test.dart: updates app routes using AST append
+00:15 +246: /Users/arrrrny/Developer/zuraffa/test/plugins/route/route_generator_test.dart: updates app routes using AST append
+00:15 +247: /Users/arrrrny/Developer/zuraffa/test/plugins/presenter/presenter_plugin_test.dart: generates presenter with usecase wiring
+00:15 +248: /Users/arrrrny/Developer/zuraffa/test/plugins/presenter/presenter_plugin_test.dart: generates presenter with usecase wiring
+00:15 +249: /Users/arrrrny/Developer/zuraffa/test/plugins/controller/controller_plugin_test.dart: generates stateful controller with cancel tokens
+00:15 +250: /Users/arrrrny/Developer/zuraffa/test/plugins/controller/controller_plugin_test.dart: generates stateful controller with cancel tokens
+00:15 +251: /Users/arrrrny/Developer/zuraffa/test/plugins/controller/controller_plugin_test.dart: generates stateful controller with cancel tokens
+00:15 +252: /Users/arrrrny/Developer/zuraffa/test/plugins/view/view_plugin_test.dart: generates view with route params
+00:15 +253: /Users/arrrrny/Developer/zuraffa/test/plugins/view/view_plugin_test.dart: generates view with route params
+00:16 +254: /Users/arrrrny/Developer/zuraffa/test/plugins/service/service_plugin_test.dart: generates service interface for custom usecase
+00:16 +255: /Users/arrrrny/Developer/zuraffa/test/plugins/service/service_plugin_test.dart: generates service interface for custom usecase
+00:16 +256: /Users/arrrrny/Developer/zuraffa/test/plugins/service/service_plugin_test.dart: generates service interface for custom usecase
+00:16 +257: /Users/arrrrny/Developer/zuraffa/test/plugins/service/service_plugin_test.dart: uses stream return type for stream usecases
+00:17 +258: /Users/arrrrny/Developer/zuraffa/test/plugins/usecase/usecase_plugin_test.dart: generates entity usecase with code_builder
+00:17 +258 -1: /Users/arrrrny/Developer/zuraffa/test/plugins/usecase/usecase_plugin_test.dart: generates entity usecase with code_builder [E]
+  FormatException: Illegal scheme character (at character 7)
+  import 'package:zuraffa/zuraffa.dart';
+        ^
+  
+  dart:core                                                                            Uri.parse
+  package:code_builder/src/specs/directive.dart 137:22                                 _compareDirectives
+  package:code_builder/src/specs/directive.dart 96:37                                  Directive.compareTo
+  dart:collection                                                                      ListBase.sort
+  package:code_builder/src/emitter.dart 521:18                                         DartEmitter.visitLibrary
+  package:code_builder/src/specs/library.dart 53:15                                    Library.accept
+  package:zuraffa/src/core/builder/shared/spec_library.dart 23:25                      SpecLibrary.emitLibrary
+  package:zuraffa/src/core/builder/shared/spec_library.dart 48:12                      SpecLibrary.emitCode
+  package:zuraffa/src/plugins/usecase/generators/entity_usecase_generator.dart 180:41  EntityUseCaseGenerator._generateForMethod
+  package:zuraffa/src/plugins/usecase/generators/entity_usecase_generator.dart 32:23   EntityUseCaseGenerator.generate
+  package:zuraffa/src/plugins/usecase/usecase_plugin.dart 56:30                        UseCasePlugin.generate
+  test/plugins/usecase/usecase_plugin_test.dart 34:32                                  main.<fn>
+  
+00:17 +258 -1: /Users/arrrrny/Developer/zuraffa/test/plugins/usecase/usecase_plugin_test.dart: generates custom sync usecase with repo dependency
+00:18 +259 -1: /Users/arrrrny/Developer/zuraffa/test/plugins/usecase/usecase_plugin_test.dart: generates custom sync usecase with repo dependency
+00:18 +260 -1: /Users/arrrrny/Developer/zuraffa/test/plugins/usecase/usecase_plugin_test.dart: generates custom stream usecase with service dependency
+00:18 +261 -1: /Users/arrrrny/Developer/zuraffa/test/plugins/usecase/usecase_plugin_test.dart: generates orchestrator usecase
+00:18 +262 -1: /Users/arrrrny/Developer/zuraffa/test/plugins/usecase/usecase_plugin_test.dart: generates polymorphic usecases and factory
+00:18 +263 -1: /Users/arrrrny/Developer/zuraffa/test/plugins/usecase/usecase_plugin_test.dart: smart append adds execute method to existing class
+00:18 +264 -1: /Users/arrrrny/Developer/zuraffa/test/integration/multi_entity_test.dart: generates multiple entities without conflicts
+00:21 +264 -2: /Users/arrrrny/Developer/zuraffa/test/integration/performance_benchmark_test.dart: full generation completes under 5 seconds
+00:21 +264 -2: /Users/arrrrny/Developer/zuraffa/test/integration/multi_entity_test.dart: generates multiple entities without conflicts [E]
+  Expected: true
+    Actual: <false>
+  
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test/integration/multi_entity_test.dart 49:5        main.<fn>
+  
+00:22 +264 -3: /Users/arrrrny/Developer/zuraffa/test/integration/append_mode_test.dart: append mode updates repository and datasources
+00:22 +264 -3: /Users/arrrrny/Developer/zuraffa/test/integration/performance_benchmark_test.dart: full generation completes under 5 seconds [E]
+  Expected: true
+    Actual: <false>
+  
+  package:matcher                                        expect
+  package:flutter_test/src/widget_tester.dart 473:18     expect
+  test/integration/performance_benchmark_test.dart 43:5  main.<fn>
+  
+00:23 +264 -4: /Users/arrrrny/Developer/zuraffa/test/integration/full_entity_workflow_test.dart: generates full entity workflow
+00:23 +264 -4: /Users/arrrrny/Developer/zuraffa/test/integration/append_mode_test.dart: append mode updates repository and datasources [E]
+  Expected: true
+    Actual: <false>
+  
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test/integration/append_mode_test.dart 35:5         main.<fn>
+  
+00:23 +264 -5: /Users/arrrrny/Developer/zuraffa/test/integration/custom_usecase_workflow_test.dart: generates custom usecase with service and provider
+00:23 +264 -5: /Users/arrrrny/Developer/zuraffa/test/integration/full_entity_workflow_test.dart: generates full entity workflow [E]
+  Expected: true
+    Actual: <false>
+  
+  package:matcher                                       expect
+  package:flutter_test/src/widget_tester.dart 473:18    expect
+  test/integration/full_entity_workflow_test.dart 49:5  main.<fn>
+  
+00:23 +265 -5: /Users/arrrrny/Developer/zuraffa/test/integration/custom_usecase_workflow_test.dart: generates custom usecase with service and provider
+00:24 +266 -5: /Users/arrrrny/Developer/zuraffa/test/integration/custom_usecase_workflow_test.dart: generates custom usecase with service and provider
+00:24 +267 -5: /Users/arrrrny/Developer/zuraffa/test/integration/custom_usecase_workflow_test.dart: generates custom usecase with service and provider
+00:24 +268 -5: /Users/arrrrny/Developer/zuraffa/test/integration/custom_usecase_workflow_test.dart: generates custom usecase with service and provider
+00:24 +269 -5: /Users/arrrrny/Developer/zuraffa/test/integration/custom_usecase_workflow_test.dart: generates custom usecase with service and provider
+00:24 +270 -5: /Users/arrrrny/Developer/zuraffa/test/integration/custom_usecase_workflow_test.dart: generates custom usecase with service and provider
+00:24 +271 -5: /Users/arrrrny/Developer/zuraffa/test/integration/custom_usecase_workflow_test.dart: generates custom usecase with service and provider
+00:24 +272 -5: /Users/arrrrny/Developer/zuraffa/test/integration/custom_usecase_workflow_test.dart: generates custom usecase with service and provider
+00:24 +273 -5: /Users/arrrrny/Developer/zuraffa/test/integration/custom_usecase_workflow_test.dart: generates custom usecase with service and provider
+00:24 +274 -5: /Users/arrrrny/Developer/zuraffa/test/integration/custom_usecase_workflow_test.dart: generates custom usecase with service and provider
+00:24 +275 -5: /Users/arrrrny/Developer/zuraffa/test/integration/custom_usecase_workflow_test.dart: generates custom usecase with service and provider
+00:24 +276 -5: /Users/arrrrny/Developer/zuraffa/test/integration/custom_usecase_workflow_test.dart: generates custom usecase with service and provider
+00:24 +277 -5: /Users/arrrrny/Developer/zuraffa/test/integration/custom_usecase_workflow_test.dart: generates custom usecase with service and provider
+00:24 +278 -5: /Users/arrrrny/Developer/zuraffa/test/integration/custom_usecase_workflow_test.dart: generates custom usecase with service and provider
+00:24 +279 -5: /Users/arrrrny/Developer/zuraffa/test/integration/caching_workflow_test.dart: generates caching workflow with remote and local datasource
+00:24 +279 -6: /Users/arrrrny/Developer/zuraffa/test/graphql/graphql_schema_translator_test.dart: GraphQLSchemaTranslator extractEntitySpecs returns correct entities from schema
+00:24 +280 -6: /Users/arrrrny/Developer/zuraffa/test/graphql/graphql_schema_translator_test.dart: GraphQLSchemaTranslator extractEntitySpecs maps scalar types correctly
+00:24 +281 -6: /Users/arrrrny/Developer/zuraffa/test/graphql/graphql_schema_translator_test.dart: GraphQLSchemaTranslator extractEntitySpecs handles nullable vs non-null fields
+00:24 +282 -6: /Users/arrrrny/Developer/zuraffa/test/graphql/graphql_schema_translator_test.dart: GraphQLSchemaTranslator extractEntitySpecs infers id field correctly
+00:24 +283 -6: /Users/arrrrny/Developer/zuraffa/test/graphql/graphql_schema_translator_test.dart: GraphQLSchemaTranslator extractEntitySpecs infers entityNameId field when id is missing
+00:24 +284 -6: /Users/arrrrny/Developer/zuraffa/test/graphql/graphql_schema_translator_test.dart: GraphQLSchemaTranslator extractEntitySpecs include filter works
+00:24 +284 -6: /Users/arrrrny/Developer/zuraffa/test/integration/caching_workflow_test.dart: generates caching workflow with remote and local datasource [E]
+  Expected: true
+    Actual: <false>
+  
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test/integration/caching_workflow_test.dart 41:5    main.<fn>
+  
+00:24 +285 -6: /Users/arrrrny/Developer/zuraffa/test/graphql/graphql_schema_translator_test.dart: GraphQLSchemaTranslator extractEntitySpecs exclude filter works
+00:24 +286 -6: /Users/arrrrny/Developer/zuraffa/test/graphql/graphql_schema_translator_test.dart: GraphQLSchemaTranslator extractEntitySpecs handles list fields
+00:24 +287 -6: /Users/arrrrny/Developer/zuraffa/test/graphql/graphql_schema_translator_test.dart: GraphQLSchemaTranslator extractEnumSpecs returns correct enums with values
+00:24 +288 -6: /Users/arrrrny/Developer/zuraffa/test/graphql/graphql_schema_translator_test.dart: GraphQLSchemaTranslator extractEnumSpecs include filter works for enums
+00:25 +289 -6: /Users/arrrrny/Developer/zuraffa/test/graphql/graphql_schema_translator_test.dart: GraphQLSchemaTranslator extractEnumSpecs exclude filter works for enums
+00:25 +290 -6: /Users/arrrrny/Developer/zuraffa/test/graphql/graphql_schema_translator_test.dart: GraphQLSchemaTranslator custom scalar mappings uses custom scalar mappings
+00:25 +291 -6: /Users/arrrrny/Developer/zuraffa/test/graphql/graphql_schema_translator_test.dart: GraphQLSchemaTranslator referenced entities detects referenced entity types
+00:26 +292 -6: /Users/arrrrny/Developer/zuraffa/test/regression/compare_outputs_test.dart: plugin outputs include expected files for entity with data
+00:28 +292 -7: /Users/arrrrny/Developer/zuraffa/test/regression/output_quality_test.dart: (setUpAll)
+00:29 +292 -7: /Users/arrrrny/Developer/zuraffa/test/regression/compare_outputs_test.dart: plugin outputs include expected files for entity with data [E]
+  Expected: contains 'data/data_sources/product/product_data_source.dart'
+    Actual: _CompactKeysIterable<String>:[
+              'domain/repositories/product_repository.dart',
+              'data/repositories/data_product_repository.dart'
+            ]
+     Which: does not contain 'data/data_sources/product/product_data_source.dart'
+  
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test/regression/compare_outputs_test.dart 27:5      main.<fn>
+  
+00:29 +293 -7: /Users/arrrrny/Developer/zuraffa/test/regression/output_quality_test.dart: (setUpAll)
+00:30 +294 -7: /Users/arrrrny/Developer/zuraffa/test/regression/output_quality_test.dart: (setUpAll)
+00:31 +294 -8: /Users/arrrrny/Developer/zuraffa/test/regression/output_quality_test.dart: (setUpAll)
+00:31 +294 -8: /Users/arrrrny/Developer/zuraffa/test/regression/pattern_compliance_test.dart: usecases include cancel token handling [E]
+  PathNotFoundException: Cannot open file, path = '/var/folders/kr/r0xwwn3j5ln_jfwng70qlr200000gn/T/zuraffa_patterns_lGsZcf/lib/src/domain/usecases/product/get_product_usecase.dart' (OS Error: No such file or directory, errno = 2)
+  dart:io                                             _File.readAsStringSync
+  test/regression/pattern_compliance_test.dart 14:46  main.<fn>
+  
+00:31 +294 -9: /Users/arrrrny/Developer/zuraffa/test/regression/output_quality_test.dart: (setUpAll)
+00:32 +294 -9: /Users/arrrrny/Developer/zuraffa/test/regression/pattern_compliance_test.dart: views use controlled widget builder and view state [E]
+  PathNotFoundException: Cannot open file, path = '/var/folders/kr/r0xwwn3j5ln_jfwng70qlr200000gn/T/zuraffa_view_patterns_RkOC7X/lib/src/presentation/pages/product/product_view.dart' (OS Error: No such file or directory, errno = 2)
+  dart:io                                             _File.readAsStringSync
+  test/regression/pattern_compliance_test.dart 28:40  main.<fn>
+  
+00:32 +295 -9: /Users/arrrrny/Developer/zuraffa/test/regression/output_quality_test.dart: (setUpAll)
+00:33 +296 -9: /Users/arrrrny/Developer/zuraffa/test/regression/output_quality_test.dart: (setUpAll)
+00:33 +297 -9: /Users/arrrrny/Developer/zuraffa/test/regression/output_quality_test.dart: (setUpAll)
+00:33 +297 -9: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli generate from flags creates output
+00:33 +298 -9: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli generate from flags creates output
+00:33 +299 -9: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli generate from flags creates output
+00:33 +300 -9: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli generate from flags creates output
+00:33 +301 -9: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli generate from flags creates output
+00:33 +302 -9: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli generate from flags creates output
+00:33 +302 -10: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli generate from flags creates output
+00:33 +303 -10: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli generate from flags creates output
+00:33 +304 -10: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli generate from flags creates output
+00:33 +305 -10: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli generate from flags creates output
+00:33 +306 -10: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli generate from flags creates output
+00:33 +306 -10: /Users/arrrrny/Developer/zuraffa/test/regression/file_structure_test.dart: entity generation produces clean architecture layout [E]
+  Expected: true
+    Actual: <false>
+  
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test/regression/file_structure_test.dart 27:7       main.<fn>
+  
+00:33 +307 -10: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli generate from flags creates output
+00:33 +308 -10: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli generate from flags creates output
+00:33 +309 -10: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli generate from flags creates output
+00:33 +310 -10: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli generate from flags creates output
+00:33 +311 -10: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli generate from flags creates output
+00:33 +311 -11: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli generate from flags creates output
+00:33 +311 -11: /Users/arrrrny/Developer/zuraffa/test/regression/output_quality_test.dart: generated output passes dart analyze [E]
+  Expected: <0>
+    Actual: <64>
+  
+  
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test/regression/output_quality_test.dart 31:7       main.<fn>
+  
+00:34 +312 -11: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli generate from flags creates output
+00:57 +312 -12: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli generate from flags creates output [E]
+  Expected: <0>
+    Actual: <1>
+  
+  Running build hooks...Running build hooks...[_] Generating Product
+  [===>       ] 1/3
+  [======>    ] 2/3
+  [✗] FormatException: Illegal scheme character (at character 7)
+  import 'package:zuraffa/zuraffa.dart';
+        ^
+  
+  ❌ Generation failed
+     • [usecase] FormatException: Illegal scheme character (at character 7)
+  import 'package:zuraffa/zuraffa.dart';
+        ^
+  
+  
+  
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test/regression/cli_command_test.dart 25:5          main.<fn>
+  
+00:57 +312 -12: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli generate from json keeps config format
+01:17 +312 -13: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli generate from json keeps config format [E]
+  Expected: <0>
+    Actual: <1>
+  
+  Running build hooks...Running build hooks...[_] Generating Order
+  [===>       ] 1/3
+  [======>    ] 2/3
+  [✗] FormatException: Illegal scheme character (at character 7)
+  import 'package:zuraffa/zuraffa.dart';
+        ^
+  
+  ❌ Generation failed
+     • [usecase] FormatException: Illegal scheme character (at character 7)
+  import 'package:zuraffa/zuraffa.dart';
+        ^
+  
+  
+  
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test/regression/cli_command_test.dart 67:5          main.<fn>
+  
+01:17 +312 -13: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli plugin list prints available plugins
+01:34 +313 -13: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli plugin disable and enable updates config
+02:00 +314 -13: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli generate skips disabled plugins
+02:15 +314 -14: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli generate skips disabled plugins [E]
+  Expected: <0>
+    Actual: <1>
+  
+  Running build hooks...Running build hooks...[_] Generating Product
+  [==>        ] 1/4
+  [=====>     ] 2/4
+  [✗] FormatException: Illegal scheme character (at character 7)
+  import 'package:zuraffa/zuraffa.dart';
+        ^
+  
+  ❌ Generation failed
+     • [usecase] FormatException: Illegal scheme character (at character 7)
+  import 'package:zuraffa/zuraffa.dart';
+        ^
+  
+  
+  
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test/regression/cli_command_test.dart 176:5         main.<fn>
+  
+02:15 +314 -14: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli debug saves artifacts
+02:33 +314 -15: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli debug saves artifacts [E]
+  Expected: <0>
+    Actual: <1>
+  
+  Running build hooks...Running build hooks...[_] Generating Product
+  [=====>     ] 1/2
+  [==========>] 2/2
+  [✗] FormatException: Illegal scheme character (at character 7)
+  import 'package:zuraffa/zuraffa.dart';
+        ^
+  
+  ❌ Generation failed
+     • [usecase] FormatException: Illegal scheme character (at character 7)
+  import 'package:zuraffa/zuraffa.dart';
+        ^
+  
+  
+  
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test/regression/cli_command_test.dart 220:5         main.<fn>
+  
+02:33 +314 -15: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli error suggestions include id-field-type hint
+03:03 +314 -16: /Users/arrrrny/Developer/zuraffa/test/regression/cli_command_test.dart: cli error suggestions include id-field-type hint [E]
+  TimeoutException after 0:00:30.000000: Test timed out after 30 seconds. See https://pub.dev/packages/test#timeouts
+  dart:isolate  _RawReceivePort._handleMessage
+  
+03:04 +314 -16: Some tests failed.
