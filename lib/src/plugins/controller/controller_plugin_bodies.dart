@@ -207,17 +207,19 @@ extension ControllerPluginBodies on ControllerPlugin {
         .property('update$entityName')
         .call(_callArgsExpressions('${config.idField}, data'))
         .awaited;
-    final updateMatch = CodeExpression(
-      Code(
-        'viewState.$entityCamel?.${config.queryField} == updated.${config.queryField}',
-      ),
-    );
+    final isNoParams = config.idType == 'NoParams';
     final updateArgs = <String, Expression>{
       'isUpdating': literalBool(false),
-      entityCamel: updateMatch.conditional(
-        refer('updated'),
-        refer('viewState').property(entityCamel),
-      ),
+      entityCamel: isNoParams
+          ? refer('updated')
+          : CodeExpression(
+              Code(
+                'viewState.$entityCamel?.${config.queryField} == updated.${config.queryField}',
+              ),
+            ).conditional(
+              refer('updated'),
+              refer('viewState').property(entityCamel),
+            ),
     };
     if (hasListMethod && !hasWatchList) {
       final listUpdateClosure = Method(

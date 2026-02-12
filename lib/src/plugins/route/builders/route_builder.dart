@@ -171,9 +171,7 @@ class RouteBuilder {
       if (content.contains('import ')) {
         final lastImportEnd = content.lastIndexOf("';") + 2;
         content =
-            content.substring(0, lastImportEnd) +
-            '\n$importLine' +
-            content.substring(lastImportEnd);
+            '${content.substring(0, lastImportEnd)}\n$importLine${content.substring(lastImportEnd)}';
       } else {
         content = '$importLine\n$content';
       }
