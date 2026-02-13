@@ -1,21 +1,28 @@
 import '../models/generator_config.dart';
 import '../models/generator_result.dart';
 import '../models/generated_file.dart';
-import 'repository_generator.dart';
-import 'service_generator.dart';
-import 'provider_generator.dart';
-import 'usecase_generator.dart';
-import 'vpc_generator.dart';
-import 'state_generator.dart';
-import 'observer_generator.dart';
-import 'data_layer_generator.dart';
-import 'test_generator.dart';
-import 'mock_generator.dart';
-import 'di_generator.dart';
-import 'cache_generator.dart';
-import 'graphql_generator.dart';
-import 'route_generator.dart';
-import 'method_appender.dart';
+import '../plugins/provider/provider_plugin.dart';
+import '../plugins/state/state_plugin.dart';
+import '../plugins/observer/observer_plugin.dart';
+import '../plugins/test/test_plugin.dart';
+import '../plugins/mock/mock_plugin.dart';
+import '../plugins/graphql/graphql_plugin.dart';
+import '../plugins/cache/cache_plugin.dart';
+import '../plugins/route/route_plugin.dart';
+import '../plugins/method_append/method_append_plugin.dart';
+import '../plugins/usecase/usecase_plugin.dart';
+import '../plugins/repository/repository_plugin.dart';
+import '../plugins/view/view_plugin.dart';
+import '../plugins/presenter/presenter_plugin.dart';
+import '../plugins/controller/controller_plugin.dart';
+import '../plugins/di/di_plugin.dart';
+import '../plugins/datasource/datasource_plugin.dart';
+import '../plugins/service/service_plugin.dart';
+import '../core/generation/generation_context.dart';
+import '../core/transaction/generation_transaction.dart';
+import '../core/context/progress_reporter.dart';
+import '../core/plugin_system/plugin_registry.dart';
+import '../core/plugin_system/plugin_interface.dart';
 
 class CodeGenerator {
   final GeneratorConfig config;
@@ -23,16 +30,27 @@ class CodeGenerator {
   final bool dryRun;
   final bool force;
   final bool verbose;
+  final Set<String> disabledPlugins;
+  final GenerationContext context;
+  late final PluginRegistry pluginRegistry;
 
-  late final RepositoryGenerator _repositoryGenerator;
-  late final ServiceGenerator _serviceGenerator;
-  late final ProviderGenerator _providerGenerator;
-  late final UseCaseGenerator _useCaseGenerator;
-  late final VpcGenerator _vpcGenerator;
-  late final StateGenerator _stateGenerator;
-  late final ObserverGenerator _observerGenerator;
-  late final DataLayerGenerator _dataLayerGenerator;
-  late final TestGenerator _testGenerator;
+  late final RepositoryPlugin _repositoryPlugin;
+  late final ProviderPlugin _providerPlugin;
+  late final UseCasePlugin _useCasePlugin;
+  late final ViewPlugin _viewPlugin;
+  late final PresenterPlugin _presenterPlugin;
+  late final ControllerPlugin _controllerPlugin;
+  late final DiPlugin _diPlugin;
+  late final DataSourcePlugin _dataSourcePlugin;
+  late final ServicePlugin _servicePlugin;
+  late final StatePlugin _statePlugin;
+  late final ObserverPlugin _observerPlugin;
+  late final TestPlugin _testPlugin;
+  late final MockPlugin _mockPlugin;
+  late final GraphqlPlugin _graphqlPlugin;
+  late final CachePlugin _cachePlugin;
+  late final RoutePlugin _routePlugin;
+  late final MethodAppendPlugin _methodAppendPlugin;
 
   CodeGenerator({
     required this.config,
@@ -40,121 +58,164 @@ class CodeGenerator {
     this.dryRun = false,
     this.force = false,
     this.verbose = false,
-  }) {
-    _repositoryGenerator = RepositoryGenerator(
-      config: config,
+    ProgressReporter? progressReporter,
+    Set<String>? disabledPluginIds,
+  }) : context = GenerationContext.create(
+         config: config,
+         outputDir: outputDir,
+         dryRun: dryRun,
+         force: force,
+         verbose: verbose,
+         root: outputDir,
+         progressReporter: progressReporter,
+       ),
+       disabledPlugins = disabledPluginIds ?? {} {
+    pluginRegistry = PluginRegistry();
+    _repositoryPlugin = RepositoryPlugin(
       outputDir: outputDir,
       dryRun: dryRun,
       force: force,
       verbose: verbose,
     );
-    _serviceGenerator = ServiceGenerator(
-      config: config,
+    _providerPlugin = ProviderPlugin(
       outputDir: outputDir,
       dryRun: dryRun,
       force: force,
       verbose: verbose,
     );
-    _providerGenerator = ProviderGenerator(
-      config: config,
+    _useCasePlugin = UseCasePlugin(
       outputDir: outputDir,
       dryRun: dryRun,
       force: force,
       verbose: verbose,
     );
-    _useCaseGenerator = UseCaseGenerator(
-      config: config,
+    _viewPlugin = ViewPlugin(
       outputDir: outputDir,
       dryRun: dryRun,
       force: force,
       verbose: verbose,
     );
-    _vpcGenerator = VpcGenerator(
-      config: config,
+    _presenterPlugin = PresenterPlugin(
       outputDir: outputDir,
       dryRun: dryRun,
       force: force,
       verbose: verbose,
     );
-    _stateGenerator = StateGenerator(
-      config: config,
+    _controllerPlugin = ControllerPlugin(
       outputDir: outputDir,
       dryRun: dryRun,
       force: force,
       verbose: verbose,
     );
-    _observerGenerator = ObserverGenerator(
-      config: config,
+    _diPlugin = DiPlugin(
       outputDir: outputDir,
       dryRun: dryRun,
       force: force,
       verbose: verbose,
     );
-    _dataLayerGenerator = DataLayerGenerator(
-      config: config,
+    _dataSourcePlugin = DataSourcePlugin(
       outputDir: outputDir,
       dryRun: dryRun,
       force: force,
       verbose: verbose,
     );
-    _testGenerator = TestGenerator(
-      config: config,
+    _servicePlugin = ServicePlugin(
       outputDir: outputDir,
       dryRun: dryRun,
       force: force,
       verbose: verbose,
     );
+    _statePlugin = StatePlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+    _observerPlugin = ObserverPlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+    _testPlugin = TestPlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+    _mockPlugin = MockPlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+    _graphqlPlugin = GraphqlPlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+    _cachePlugin = CachePlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+    _routePlugin = RoutePlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+    _methodAppendPlugin = MethodAppendPlugin(
+      outputDir: outputDir,
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+
+    _registerPlugin(_repositoryPlugin);
+    _registerPlugin(_providerPlugin);
+    _registerPlugin(_useCasePlugin);
+    _registerPlugin(_viewPlugin);
+    _registerPlugin(_presenterPlugin);
+    _registerPlugin(_controllerPlugin);
+    _registerPlugin(_diPlugin);
+    _registerPlugin(_dataSourcePlugin);
+    _registerPlugin(_servicePlugin);
+    _registerPlugin(_statePlugin);
+    _registerPlugin(_observerPlugin);
+    _registerPlugin(_testPlugin);
+    _registerPlugin(_mockPlugin);
+    _registerPlugin(_graphqlPlugin);
+    _registerPlugin(_cachePlugin);
+    _registerPlugin(_routePlugin);
+    _registerPlugin(_methodAppendPlugin);
   }
 
   Future<GeneratorResult> generate() async {
-    final files = <GeneratedFile>[];
-    final errors = <String>[];
-    final nextSteps = <String>[];
+    final transaction = GenerationTransaction(dryRun: dryRun);
 
-    try {
-      // Handle --append mode
-      if (config.appendToExisting) {
-        final appender = MethodAppender(
-          config: config,
-          outputDir: outputDir,
-          verbose: verbose,
-        );
-        final appendResult = await appender.appendMethod();
+    return GenerationTransaction.run(transaction, () async {
+      final progress = context.progress;
+      final files = <GeneratedFile>[];
+      final errors = <String>[];
+      final nextSteps = <String>[];
+      String? currentPluginId;
 
-        // Generate UseCase file
-        if (config.isPolymorphic) {
-          final polymorphicFiles = await _useCaseGenerator
-              .generatePolymorphic();
-          files.addAll(polymorphicFiles);
-        } else if (config.isOrchestrator) {
-          final file = await _useCaseGenerator.generateOrchestrator();
-          files.add(file);
-        } else {
-          final file = await _useCaseGenerator.generateCustom();
-          files.add(file);
-        }
-
-        // Add updated files to the main list
-        files.addAll(appendResult.updatedFiles);
-
-        // Add warnings to next steps
-        if (appendResult.warnings.isNotEmpty) {
-          nextSteps.addAll(appendResult.warnings.map((w) => '⚠️  $w'));
-        }
-
-        // Generate GraphQL files if requested
-        if (config.generateGql) {
-          final graphqlGenerator = GraphQLGenerator(
-            config: config,
-            outputDir: outputDir,
-            dryRun: dryRun,
-            force: force,
-            verbose: verbose,
+      Future<GeneratorResult> finalizeSuccess() async {
+        final transactionResult = await transaction.commit();
+        if (!transactionResult.success) {
+          errors.addAll(transactionResult.conflicts.map((c) => 'Conflict: $c'));
+          errors.addAll(transactionResult.errors);
+          return GeneratorResult(
+            name: config.name,
+            success: false,
+            files: files,
+            errors: errors,
+            nextSteps: nextSteps,
           );
-          final graphqlFiles = await graphqlGenerator.generate();
-          files.addAll(graphqlFiles);
         }
-
         return GeneratorResult(
           name: config.name,
           success: true,
@@ -164,247 +225,369 @@ class CodeGenerator {
         );
       }
 
-      // Generate repository for entity-based operations only
-      if (config.isEntityBased) {
-        final file = await _repositoryGenerator.generate();
-        files.add(file);
-
-        for (final method in config.methods) {
-          final methodFile = await _useCaseGenerator.generateForMethod(method);
-          files.add(methodFile);
-        }
-      } else if (config.isPolymorphic) {
-        // Generate polymorphic UseCases (abstract + variants + factory)
-        final polymorphicFiles = await _useCaseGenerator.generatePolymorphic();
-        files.addAll(polymorphicFiles);
-      } else if (config.isOrchestrator) {
-        // Generate orchestrator UseCase
-        final orchestratorFile = await _useCaseGenerator.generateOrchestrator();
-        files.add(orchestratorFile);
-      } else if (config.isCustomUseCase) {
-        // Generate service interface if using --service
-        if (config.hasService) {
-          final serviceFile = await _serviceGenerator.generate();
-          files.add(serviceFile);
-        }
-        // Generate custom UseCase
-        final usecaseFile = await _useCaseGenerator.generateCustom();
-        files.add(usecaseFile);
-      }
-
-      if (config.generateVpc || config.generatePresenter) {
-        final file = await _vpcGenerator.generatePresenter();
-        files.add(file);
-      }
-
-      if (config.generateVpc || config.generateController) {
-        final file = await _vpcGenerator.generateController();
-        files.add(file);
-      }
-
-      if (config.generateVpc || config.generateView) {
-        final file = await _vpcGenerator.generateView();
-        files.add(file);
-      }
-
-      if (config.generateState) {
-        final file = await _stateGenerator.generate();
-        files.add(file);
-      }
-
-      if (config.generateObserver) {
-        final file = await _observerGenerator.generate();
-        files.add(file);
-      }
-
-      if (config.generateData || config.generateDataSource) {
-        // Handle service providers (when using --service with --data)
-        if (config.hasService && config.generateData) {
-          final providerFile = await _providerGenerator.generate();
-          files.add(providerFile);
-          nextSteps.add(
-            'Implement ${config.effectiveProvider} with external service client',
+      try {
+        final validation = await pluginRegistry.validateAll(config);
+        if (!validation.isValid) {
+          errors.addAll(validation.reasons);
+          if (validation.message != null) {
+            errors.add(validation.message!);
+          }
+          progress.failed('Validation failed');
+          return GeneratorResult(
+            name: config.name,
+            success: false,
+            files: files,
+            errors: errors,
+            nextSteps: nextSteps,
           );
-        } else {
-          // Handle repository datasources (when using --repo or entity-based)
-          // Always generate abstract datasource first
-          final dataSourceFile = await _dataLayerGenerator.generateDataSource();
-          files.add(dataSourceFile);
+        }
 
-          if (config.enableCache) {
-            // Generate both remote and local datasources
-            final remoteFile = await _dataLayerGenerator
-                .generateRemoteDataSource();
-            final localFile = await _dataLayerGenerator
-                .generateLocalDataSource();
-            files.add(remoteFile);
-            files.add(localFile);
+        final totalSteps = _countSteps(config);
+        if (totalSteps > 0) {
+          progress.started('Generating ${config.name}', totalSteps);
+        }
+        await pluginRegistry.beforeGenerateAll(config);
+
+        if (config.appendToExisting) {
+          final appendResult = await _methodAppendPlugin.appendMethod(config);
+
+          if (_isPluginEnabled('usecase')) {
+            progress.update('usecase');
+            currentPluginId = 'usecase';
+            final usecaseFiles = await _useCasePlugin.generate(config);
+            files.addAll(usecaseFiles);
+            currentPluginId = null;
+          }
+
+          files.addAll(appendResult.updatedFiles);
+
+          if (appendResult.warnings.isNotEmpty) {
+            nextSteps.addAll(appendResult.warnings.map((w) => '⚠️  $w'));
+          }
+
+          if (config.generateGql) {
+            if (_isPluginEnabled('graphql')) {
+              progress.update('graphql');
+              currentPluginId = 'graphql';
+              final graphqlFiles = await _graphqlPlugin.generate(config);
+              files.addAll(graphqlFiles);
+              currentPluginId = null;
+            }
+          }
+
+          await pluginRegistry.afterGenerateAll(config);
+          progress.completed();
+          return finalizeSuccess();
+        }
+
+        if (config.isEntityBased) {
+          if (_isPluginEnabled('repository')) {
+            progress.update('repository');
+            currentPluginId = 'repository';
+            final repoFiles = await _repositoryPlugin.generate(config);
+            files.addAll(repoFiles);
+            currentPluginId = null;
+          }
+
+          if (_isPluginEnabled('usecase')) {
+            progress.update('usecase');
+            currentPluginId = 'usecase';
+            final usecaseFiles = await _useCasePlugin.generate(config);
+            files.addAll(usecaseFiles);
+            currentPluginId = null;
+          }
+        } else if (config.isPolymorphic) {
+          if (_isPluginEnabled('usecase')) {
+            progress.update('usecase');
+            currentPluginId = 'usecase';
+            final usecaseFiles = await _useCasePlugin.generate(config);
+            files.addAll(usecaseFiles);
+            currentPluginId = null;
+          }
+        } else if (config.isOrchestrator) {
+          if (_isPluginEnabled('usecase')) {
+            progress.update('usecase');
+            currentPluginId = 'usecase';
+            final usecaseFiles = await _useCasePlugin.generate(config);
+            files.addAll(usecaseFiles);
+            currentPluginId = null;
+          }
+        } else if (config.isCustomUseCase) {
+          if (config.hasService && _isPluginEnabled('service')) {
+            progress.update('service');
+            currentPluginId = 'service';
+            final serviceFiles = await _servicePlugin.generate(config);
+            files.addAll(serviceFiles);
+            currentPluginId = null;
+          }
+          if (_isPluginEnabled('usecase')) {
+            progress.update('usecase');
+            currentPluginId = 'usecase';
+            final usecaseFiles = await _useCasePlugin.generate(config);
+            files.addAll(usecaseFiles);
+            currentPluginId = null;
+          }
+        }
+
+        if (config.generateVpc || config.generatePresenter) {
+          if (_isPluginEnabled('presenter')) {
+            progress.update('presenter');
+            currentPluginId = 'presenter';
+            final presenterFiles = await _presenterPlugin.generate(config);
+            files.addAll(presenterFiles);
+            currentPluginId = null;
+          }
+        }
+
+        if (config.generateVpc || config.generateController) {
+          if (_isPluginEnabled('controller')) {
+            progress.update('controller');
+            currentPluginId = 'controller';
+            final controllerFiles = await _controllerPlugin.generate(config);
+            files.addAll(controllerFiles);
+            currentPluginId = null;
+          }
+        }
+
+        if (config.generateVpc || config.generateView) {
+          if (_isPluginEnabled('view')) {
+            progress.update('view');
+            currentPluginId = 'view';
+            final viewFiles = await _viewPlugin.generate(config);
+            files.addAll(viewFiles);
+            currentPluginId = null;
+          }
+        }
+
+        if (config.generateState && _isPluginEnabled('state')) {
+          progress.update('state');
+          currentPluginId = 'state';
+          final stateFiles = await _statePlugin.generate(config);
+          files.addAll(stateFiles);
+          currentPluginId = null;
+        }
+
+        if (config.generateObserver && _isPluginEnabled('observer')) {
+          progress.update('observer');
+          currentPluginId = 'observer';
+          final observerFiles = await _observerPlugin.generate(config);
+          files.addAll(observerFiles);
+          currentPluginId = null;
+        }
+
+        if (config.generateData || config.generateDataSource) {
+          if (config.hasService && config.generateData) {
+            if (_isPluginEnabled('provider')) {
+              progress.update('provider');
+              currentPluginId = 'provider';
+              final providerFiles = await _providerPlugin.generate(config);
+              files.addAll(providerFiles);
+              currentPluginId = null;
+            }
             nextSteps.add(
-              'Implement remote and local data sources for ${config.name}',
+              'Implement ${config.effectiveProvider} with external service client',
+            );
+          } else {
+            if (_isPluginEnabled('datasource')) {
+              progress.update('datasource');
+              currentPluginId = 'datasource';
+              final dataSourceFiles = await _dataSourcePlugin.generate(config);
+              files.addAll(dataSourceFiles);
+              currentPluginId = null;
+            }
+
+            if (!config.isEntityBased) {
+              if (_isPluginEnabled('repository')) {
+                progress.update('repository');
+                currentPluginId = 'repository';
+                final dataRepoFile = await _repositoryPlugin
+                    .generateImplementation(config);
+                files.add(dataRepoFile);
+                currentPluginId = null;
+              }
+            }
+          }
+        }
+
+        if ((config.generateMock || config.generateMockDataOnly) &&
+            _isPluginEnabled('mock')) {
+          progress.update('mock');
+          currentPluginId = 'mock';
+          final mockFiles = await _mockPlugin.generate(config);
+          files.addAll(mockFiles);
+          currentPluginId = null;
+
+          if (config.generateMockDataOnly) {
+            nextSteps.add(
+              'Use ${config.name}MockData in your tests and UI previews',
             );
           } else {
             nextSteps.add(
-              'Create a DataSource that implements ${config.name}DataSource in data layer',
+              'Use ${config.name}MockDataSource for rapid prototyping',
+            );
+            nextSteps.add(
+              'Switch to real DataSource implementation when ready',
             );
           }
-
-          // Generate data repository
-          final dataRepoFile = await _dataLayerGenerator
-              .generateDataRepository();
-          files.add(dataRepoFile);
         }
-      }
 
-      // Generate mock data and/or mock data source
-      if (config.generateMock || config.generateMockDataOnly) {
-        final mockFiles = await MockGenerator.generate(
-          config,
-          outputDir,
-          dryRun: dryRun,
-          force: force,
-          verbose: verbose,
-        );
-        files.addAll(mockFiles);
+        if (config.generateRepository &&
+            !(config.generateData || config.generateDataSource)) {
+          nextSteps.add('Implement Data${config.name}Repository in data layer');
+        }
+        if (config.effectiveRepos.isNotEmpty) {
+          nextSteps.add('Register repositories with DI container');
+        }
+        if (config.hasService) {
+          if (config.generateData) {
+            nextSteps.add(
+              'Implement ${config.effectiveProvider} with external service client',
+            );
+          } else {
+            nextSteps.add(
+              'Implement ${config.effectiveService} in data/providers layer',
+            );
+          }
+          nextSteps.add('Register service provider with DI container');
+        }
+        if (files.any((f) => f.type == 'usecase' && (!config.isEntityBased))) {
+          nextSteps.add('Implement TODO sections in generated usecases');
+        }
 
-        if (config.generateMockDataOnly) {
-          nextSteps.add(
-            'Use ${config.name}MockData in your tests and UI previews',
-          );
+        if (config.generateTest && _isPluginEnabled('test')) {
+          progress.update('test');
+          currentPluginId = 'test';
+          final testFiles = await _testPlugin.generate(config);
+          files.addAll(testFiles);
+          currentPluginId = null;
+          if (testFiles.isNotEmpty) {
+            nextSteps.add('Run tests: flutter test ');
+          }
+        }
+
+        if (config.generateDi) {
+          if (_isPluginEnabled('di')) {
+            progress.update('di');
+            currentPluginId = 'di';
+            final diFiles = await _diPlugin.generate(config);
+            files.addAll(diFiles);
+            currentPluginId = null;
+          }
+        }
+
+        if (config.generateRoute && _isPluginEnabled('route')) {
+          progress.update('route');
+          currentPluginId = 'route';
+          final routeFiles = await _routePlugin.generate(config);
+          files.addAll(routeFiles);
+          currentPluginId = null;
+          nextSteps.add('Add go_router to your pubspec.yaml dependencies');
+          nextSteps.add('Import routes from lib/src/routing/index.dart');
+        }
+
+        if (config.enableCache && _isPluginEnabled('cache')) {
+          progress.update('cache');
+          currentPluginId = 'cache';
+          final cacheFiles = await _cachePlugin.generate(config);
+          files.addAll(cacheFiles);
+          currentPluginId = null;
+          nextSteps.add('Run: dart run build_runner build');
+          nextSteps.add('Call initAllCaches() before DI setup');
+        }
+
+        if (config.generateGql && _isPluginEnabled('graphql')) {
+          progress.update('graphql');
+          currentPluginId = 'graphql';
+          final graphqlFiles = await _graphqlPlugin.generate(config);
+          files.addAll(graphqlFiles);
+          currentPluginId = null;
+        }
+
+        await pluginRegistry.afterGenerateAll(config);
+        progress.completed();
+        return finalizeSuccess();
+      } catch (e, stack) {
+        if (currentPluginId != null) {
+          errors.add('Plugin $currentPluginId failed: $e');
         } else {
-          nextSteps.add(
-            'Use ${config.name}MockDataSource for rapid prototyping',
-          );
-          nextSteps.add('Switch to real DataSource implementation when ready');
+          errors.add('Generation failed: $e');
         }
-      }
-
-      if (config.generateRepository &&
-          !(config.generateData || config.generateDataSource)) {
-        nextSteps.add('Implement Data${config.name}Repository in data layer');
-      }
-      if (config.effectiveRepos.isNotEmpty) {
-        nextSteps.add('Register repositories with DI container');
-      }
-      if (config.hasService) {
-        if (config.generateData) {
-          nextSteps.add(
-            'Implement ${config.effectiveProvider} with external service client',
-          );
-        } else {
-          nextSteps.add(
-            'Implement ${config.effectiveService} in data/providers layer',
-          );
+        await pluginRegistry.onErrorAll(config, e, stack);
+        if (verbose) {
+          errors.add('Stack trace:\n$stack');
         }
-        nextSteps.add('Register service provider with DI container');
-      }
-      if (files.any((f) => f.type == 'usecase' && (!config.isEntityBased))) {
-        nextSteps.add('Implement TODO sections in generated usecases');
-      }
-
-      if (config.generateTest && config.isEntityBased) {
-        for (final method in config.methods) {
-          final testFile = await _testGenerator.generateForMethod(method);
-          files.add(testFile);
-        }
-        nextSteps.add('Run tests: flutter test ');
-      }
-
-      if (config.generateTest && config.isOrchestrator) {
-        final testFile = await _testGenerator.generateOrchestrator();
-        files.add(testFile);
-        nextSteps.add('Run tests: flutter test ');
-      }
-
-      if (config.generateTest && config.isPolymorphic) {
-        final testFiles = await _testGenerator.generatePolymorphic();
-        files.addAll(testFiles);
-        nextSteps.add('Run tests: flutter test ');
-      }
-
-      if (config.generateTest &&
-          config.isCustomUseCase &&
-          !config.isPolymorphic &&
-          !config.isOrchestrator) {
-        final testFile = await _testGenerator.generateCustom();
-        files.add(testFile);
-        nextSteps.add('Run tests: flutter test ');
-      }
-
-      // Generate DI files if requested
-      if (config.generateDi) {
-        final diGenerator = DiGenerator(
-          config: config,
-          outputDir: outputDir,
-          dryRun: dryRun,
-          force: force,
-          verbose: verbose,
-        );
-        final diFiles = await diGenerator.generate();
-        files.addAll(diFiles);
-      }
-
-      // Generate routing files if requested
-      if (config.generateRoute) {
-        final routeGenerator = RouteGenerator(
-          config: config,
-          outputDir: outputDir,
-          dryRun: dryRun,
-          force: force,
-          verbose: verbose,
-        );
-        final routeFiles = await routeGenerator.generate();
-        files.addAll(routeFiles);
-        nextSteps.add('Add go_router to your pubspec.yaml dependencies');
-        nextSteps.add('Import routes from lib/src/routing/index.dart');
-      }
-
-      // Generate cache files if requested
-      if (config.enableCache) {
-        final cacheGenerator = CacheGenerator(
-          config: config,
-          outputDir: outputDir,
-          dryRun: dryRun,
-          force: force,
-          verbose: verbose,
-        );
-        final cacheFiles = await cacheGenerator.generate();
-        files.addAll(cacheFiles);
-        nextSteps.add('Run: dart run build_runner build');
-        nextSteps.add('Call initAllCaches() before DI setup');
-      }
-
-      // Generate GraphQL files if requested
-      if (config.generateGql) {
-        final graphqlGenerator = GraphQLGenerator(
-          config: config,
-          outputDir: outputDir,
-          dryRun: dryRun,
-          force: force,
-          verbose: verbose,
-        );
-        final graphqlFiles = await graphqlGenerator.generate();
-        files.addAll(graphqlFiles);
-      }
-
-      return GeneratorResult(
-        name: config.name,
-        success: true,
-        files: files,
-        errors: errors,
-        nextSteps: nextSteps,
-      );
-    } catch (e, stack) {
-      errors.add('Generation failed: $e');
       if (verbose) {
-        errors.add('Stack trace:\n$stack');
+        print('Generation error: $e');
       }
-      return GeneratorResult(
-        name: config.name,
-        success: false,
-        files: files,
-        errors: errors,
-        nextSteps: nextSteps,
-      );
+        progress.failed(e.toString());
+        return GeneratorResult(
+          name: config.name,
+          success: false,
+          files: files,
+          errors: errors,
+          nextSteps: nextSteps,
+        );
+      }
+    });
+  }
+
+  void _registerPlugin(ZuraffaPlugin plugin) {
+    if (!disabledPlugins.contains(plugin.id)) {
+      pluginRegistry.register(plugin);
     }
+  }
+
+  bool _isPluginEnabled(String id) {
+    return pluginRegistry.getById(id) != null;
+  }
+
+  int _countSteps(GeneratorConfig config) {
+    var steps = 0;
+    if (config.appendToExisting) {
+      steps += 1;
+      if (_isPluginEnabled('usecase')) steps += 1;
+      if (config.generateGql) steps += 1;
+      return steps;
+    }
+    if (config.isEntityBased) {
+      if (_isPluginEnabled('repository')) steps += 1;
+      if (_isPluginEnabled('usecase')) steps += 1;
+    } else if (config.isPolymorphic || config.isOrchestrator) {
+      if (_isPluginEnabled('usecase')) steps += 1;
+    } else if (config.isCustomUseCase) {
+      if (config.hasService && _isPluginEnabled('service')) steps += 1;
+      if (_isPluginEnabled('usecase')) steps += 1;
+    }
+    if (config.generateVpc || config.generatePresenter) {
+      if (_isPluginEnabled('presenter')) steps += 1;
+    }
+    if (config.generateVpc || config.generateController) {
+      if (_isPluginEnabled('controller')) steps += 1;
+    }
+    if (config.generateVpc || config.generateView) {
+      if (_isPluginEnabled('view')) steps += 1;
+    }
+    if (config.generateState && _isPluginEnabled('state')) steps += 1;
+    if (config.generateObserver && _isPluginEnabled('observer')) steps += 1;
+    if (config.generateData || config.generateDataSource) {
+      if (config.hasService && config.generateData) {
+        if (_isPluginEnabled('provider')) steps += 1;
+      } else {
+        if (_isPluginEnabled('datasource')) steps += 1;
+        if (!config.isEntityBased && _isPluginEnabled('repository')) steps += 1;
+      }
+    }
+    if ((config.generateMock || config.generateMockDataOnly) &&
+        _isPluginEnabled('mock')) {
+      steps += 1;
+    }
+    if (config.generateTest && _isPluginEnabled('test')) {
+      steps += 1;
+    }
+    if (config.generateDi && _isPluginEnabled('di')) steps += 1;
+    if (config.generateRoute && _isPluginEnabled('route')) steps += 1;
+    if (config.enableCache && _isPluginEnabled('cache')) steps += 1;
+    if (config.generateGql && _isPluginEnabled('graphql')) steps += 1;
+    return steps;
   }
 }

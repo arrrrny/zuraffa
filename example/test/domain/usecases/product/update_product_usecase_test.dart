@@ -17,8 +17,8 @@ void main() {
   late MockProductRepository mockRepository;
 
   setUp(() {
-    registerFallbackValue(UpdateParams<String, Partial<Product>>(
-        id: '1', data: Partial<Product>()));
+    registerFallbackValue(
+        UpdateParams<String, ProductPatch>(id: '1', data: ProductPatch()));
     mockRepository = MockProductRepository();
     useCase = UpdateProductUseCase(mockRepository);
   });
@@ -32,8 +32,8 @@ void main() {
           .thenAnswer((_) async => tProduct);
 
       // Act
-      final result = await useCase(UpdateParams<String, Partial<Product>>(
-          id: '1', data: Partial<Product>()));
+      final result = await useCase(
+          UpdateParams<String, ProductPatch>(id: '1', data: ProductPatch()));
 
       // Assert
       verify(() => mockRepository.update(any())).called(1);
@@ -47,8 +47,8 @@ void main() {
       when(() => mockRepository.update(any())).thenThrow(exception);
 
       // Act
-      final result = await useCase(UpdateParams<String, Partial<Product>>(
-          id: '1', data: Partial<Product>()));
+      final result = await useCase(
+          UpdateParams<String, ProductPatch>(id: '1', data: ProductPatch()));
 
       // Assert
       verify(() => mockRepository.update(any())).called(1);

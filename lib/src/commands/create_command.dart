@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:args/args.dart';
+import '../utils/file_utils.dart';
 import '../utils/string_utils.dart';
 import '../utils/logger.dart';
 
@@ -201,9 +202,7 @@ class ${pascalCaseName}Presenter extends clean.Presenter {
   }
 
   Future<void> _createFile(String path, String content) async {
-    final file = File(path);
-    await file.create(recursive: true);
-    await file.writeAsString(content);
+    await FileUtils.writeFile(path, content, 'create_command', force: true);
     final fileName = path.split('/').last;
     CliLogger.info('Created $fileName');
   }

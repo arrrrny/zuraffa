@@ -128,28 +128,28 @@ export 'src/core/failure.dart';
 export 'src/core/cancel_token.dart';
 
 /// NoParams sentinel for parameterless UseCases
-export 'src/core/no_params.dart';
+export 'src/core/params/no_params.dart';
 
-/// Params class for map-based parameters
-export 'src/core/params.dart';
+/// Params class for map-based parameters (Zorphy entity)
+export 'src/core/params/params.dart';
 
-/// InitializationParams for repository and data source initialization
-export 'src/core/initialization_params.dart';
+/// InitializationParams for repository and data source initialization (Zorphy entity)
+export 'src/core/params/initialization_params.dart';
 
-/// QueryParams for querying a single entity
-export 'src/core/query_params.dart';
+/// QueryParams for querying a single entity (Zorphy entity)
+export 'src/core/params/query_params.dart';
 
-/// ListQueryParams for querying a list of entities
-export 'src/core/list_query_params.dart';
+/// ListQueryParams for querying a list of entities (Zorphy entity)
+export 'src/core/params/list_query_params.dart';
 
-/// CreateParams for creating an entity
-export 'src/core/create_params.dart';
+/// CreateParams for creating an entity (Zorphy entity)
+export 'src/core/params/create_params.dart';
 
-/// UpdateParams for updating an entity
-export 'src/core/update_params.dart';
+/// UpdateParams for updating an entity (Zorphy entity)
+export 'src/core/params/update_params.dart';
 
-/// DeleteParams for deleting an entity
-export 'src/core/delete_params.dart';
+/// DeleteParams for deleting an entity (Zorphy entity)
+export 'src/core/params/delete_params.dart';
 
 /// Partial type for partial updates
 export 'src/core/partial.dart';
@@ -165,6 +165,38 @@ export 'src/core/cache_policy.dart';
 
 /// Concrete cache policy implementations (Daily, AppRestart, TTL)
 export 'src/core/cache_policies.dart';
+
+export 'src/core/generation/generation_context.dart';
+export 'src/core/context/file_system.dart';
+export 'src/core/context/context_store.dart';
+export 'src/core/context/progress_reporter.dart';
+export 'src/core/ast/ast_helper.dart';
+export 'src/core/ast/file_parser.dart';
+export 'src/core/ast/ast_modifier.dart';
+export 'src/core/ast/node_finder.dart';
+export 'src/core/ast/append_executor.dart';
+export 'src/core/ast/strategies/append_strategy.dart';
+export 'src/core/ast/strategies/method_append_strategy.dart';
+export 'src/core/ast/strategies/export_append_strategy.dart';
+export 'src/plugins/usecase/usecase_plugin.dart';
+export 'src/plugins/repository/repository_plugin.dart';
+export 'src/core/builder/code_builder_factory.dart';
+export 'src/core/builder/factories/usecase_factory.dart';
+export 'src/core/builder/factories/repository_factory.dart';
+export 'src/core/builder/factories/vpc_factory.dart';
+export 'src/core/builder/factories/route_factory.dart';
+export 'src/core/builder/patterns/common_patterns.dart';
+export 'src/core/builder/patterns/usecase_patterns.dart';
+export 'src/core/builder/patterns/repository_patterns.dart';
+export 'src/core/builder/patterns/vpc_patterns.dart';
+export 'src/core/builder/shared/spec_library.dart';
+export 'src/core/plugin_system/plugin_interface.dart';
+export 'src/core/plugin_system/plugin_lifecycle.dart';
+export 'src/core/plugin_system/plugin_registry.dart';
+export 'src/core/transaction/file_operation.dart';
+export 'src/core/transaction/generation_transaction.dart';
+export 'src/core/transaction/transaction_result.dart';
+export 'src/core/transaction/conflict_detector.dart';
 
 // ============================================================
 // Zorphy Integration - Type-safe filtering

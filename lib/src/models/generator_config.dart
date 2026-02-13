@@ -47,6 +47,9 @@ class GeneratorConfig {
   final String? gqlInputType;
   final String? gqlInputName;
   final String? gqlName;
+  final String? customPresenterName;
+  final String? customControllerName;
+  final String? customStateName;
 
   GeneratorConfig({
     required this.name,
@@ -95,6 +98,9 @@ class GeneratorConfig {
     this.gqlInputType,
     this.gqlInputName,
     this.gqlName,
+    this.customPresenterName,
+    this.customControllerName,
+    this.customStateName,
   }) : queryFieldType = queryFieldType ?? idType;
 
   factory GeneratorConfig.fromJson(Map<String, dynamic> json, String name) {
@@ -150,6 +156,10 @@ class GeneratorConfig {
       gqlInputType: json['gql_input_type'],
       gqlInputName: json['gql_input_name'],
       gqlName: json['gql_name'],
+      customPresenterName: json['presenter'] ?? json['custom_presenter_name'],
+      customControllerName:
+          json['controller'] ?? json['custom_controller_name'],
+      customStateName: json['state_class'] ?? json['custom_state_name'],
     );
   }
 
@@ -162,6 +172,19 @@ class GeneratorConfig {
   bool get isPolymorphic => variants.isNotEmpty;
 
   String get effectiveDomain => domain ?? nameSnake;
+
+  String get effectivePresenterName =>
+      customPresenterName ?? '${name}Presenter';
+
+  String get effectiveControllerName =>
+      customControllerName ?? '${name}Controller';
+
+  String get effectiveStateName => customStateName ?? '${name}State';
+
+  bool get usesCustomVpc =>
+      customPresenterName != null ||
+      customControllerName != null ||
+      customStateName != null;
 
   // Get repository method name (default: UseCase name in camelCase)
   String getRepoMethodName([String? variantPrefix]) {
@@ -248,6 +271,58 @@ class GeneratorConfig {
         : service!;
     return _camelToSnake(baseName);
   }
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'methods': methods,
+    'repo': repo,
+    'service': service,
+    'usecases': usecases,
+    'variants': variants,
+    'domain': domain,
+    'repo_method': repoMethod,
+    'service_method': serviceMethod,
+    'append': appendToExisting,
+    'repository': generateRepository,
+    'type': useCaseType,
+    'params': paramsType,
+    'returns': returnsType,
+    'id_field': idField,
+    'id_type': idType,
+    'vpc': generateVpc,
+    'view': generateView,
+    'presenter': generatePresenter,
+    'controller': generateController,
+    'observer': generateObserver,
+    'data': generateData,
+    'datasource': generateDataSource,
+    'local': generateLocal,
+    'state': generateState,
+    'init': generateInit,
+    'query_field': queryField,
+    'query_field_type': queryFieldType,
+    'zorphy': useZorphy,
+    'test': generateTest,
+    'cache': enableCache,
+    'cache_policy': cachePolicy,
+    'cache_storage': cacheStorage,
+    'ttl': ttlMinutes,
+    'mock': generateMock,
+    'mock_data_only': generateMockDataOnly,
+    'use_mock': useMockInDi,
+    'di': generateDi,
+    'di_framework': diFramework,
+    'route': generateRoute,
+    'gql': generateGql,
+    'gql_returns': gqlReturns,
+    'gql_type': gqlType,
+    'gql_input_type': gqlInputType,
+    'gql_input_name': gqlInputName,
+    'gql_name': gqlName,
+    'custom_presenter_name': customPresenterName,
+    'custom_controller_name': customControllerName,
+    'custom_state_name': customStateName,
+  };
 
   String get nameSnake => _camelToSnake(name);
 

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:path/path.dart' as p;
+import '../utils/file_utils.dart';
 
 /// Configuration for ZFA CLI
 ///
@@ -106,7 +107,7 @@ class ZfaConfig {
 
     const encoder = JsonEncoder.withIndent('  ');
     final content = encoder.convert(configJson);
-    await configFile.writeAsString(content);
+    await FileUtils.writeFile(configFile.path, content, 'config', force: true);
   }
 
   /// Create a config file template in project root

@@ -50,32 +50,31 @@ class Todo {
     );
   }
 
-  Todo patchWithTodo({
-    TodoPatch? patchInput,
-  }) {
+  Todo patchWithTodo({TodoPatch? patchInput}) {
     final _patcher = patchInput ?? TodoPatch();
     final _patchMap = _patcher.toPatch();
     return Todo(
-        id: _patchMap.containsKey(Todo$.id)
-            ? (_patchMap[Todo$.id] is Function)
+      id: _patchMap.containsKey(Todo$.id)
+          ? (_patchMap[Todo$.id] is Function)
                 ? _patchMap[Todo$.id](this.id)
                 : _patchMap[Todo$.id]
-            : this.id,
-        title: _patchMap.containsKey(Todo$.title)
-            ? (_patchMap[Todo$.title] is Function)
+          : this.id,
+      title: _patchMap.containsKey(Todo$.title)
+          ? (_patchMap[Todo$.title] is Function)
                 ? _patchMap[Todo$.title](this.title)
                 : _patchMap[Todo$.title]
-            : this.title,
-        isCompleted: _patchMap.containsKey(Todo$.isCompleted)
-            ? (_patchMap[Todo$.isCompleted] is Function)
+          : this.title,
+      isCompleted: _patchMap.containsKey(Todo$.isCompleted)
+          ? (_patchMap[Todo$.isCompleted] is Function)
                 ? _patchMap[Todo$.isCompleted](this.isCompleted)
                 : _patchMap[Todo$.isCompleted]
-            : this.isCompleted,
-        createdAt: _patchMap.containsKey(Todo$.createdAt)
-            ? (_patchMap[Todo$.createdAt] is Function)
+          : this.isCompleted,
+      createdAt: _patchMap.containsKey(Todo$.createdAt)
+          ? (_patchMap[Todo$.createdAt] is Function)
                 ? _patchMap[Todo$.createdAt](this.createdAt)
                 : _patchMap[Todo$.createdAt]
-            : this.createdAt);
+          : this.createdAt,
+    );
   }
 
   @override
@@ -116,16 +115,17 @@ class Todo {
   dynamic _sanitizeJson(dynamic json) {
     if (json is Map<String, dynamic>) {
       json.remove('_className_');
-      return json
-        ..forEach((key, value) {
-          json[key] = _sanitizeJson(value);
-        });
+      return json..forEach((key, value) {
+        json[key] = _sanitizeJson(value);
+      });
     } else if (json is List) {
       return json.map((e) => _sanitizeJson(e)).toList();
     }
     return json;
   }
 }
+
+extension TodoPropertyHelpers on Todo {}
 
 extension TodoSerialization on Todo {
   Map<String, dynamic> toJson() => _$TodoToJson(this);
@@ -137,10 +137,9 @@ extension TodoSerialization on Todo {
   dynamic _sanitizeJson(dynamic json) {
     if (json is Map<String, dynamic>) {
       json.remove('_className_');
-      return json
-        ..forEach((key, value) {
-          json[key] = _sanitizeJson(value);
-        });
+      return json..forEach((key, value) {
+        json[key] = _sanitizeJson(value);
+      });
     } else if (json is List) {
       return json.map((e) => _sanitizeJson(e)).toList();
     }

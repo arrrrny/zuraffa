@@ -15,6 +15,7 @@ targets:
           explicit_to_json: false
           include_if_null: false
           generic_argument_factories: true
+
       source_gen:combining_builder:
         enabled: true
       mockito:mockBuilder:

@@ -2,8 +2,11 @@
 library;
 
 import 'dart:io';
+import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 import 'graphql_schema_translator.dart';
+import '../core/builder/shared/spec_library.dart';
+import '../utils/file_utils.dart';
 import '../utils/string_utils.dart';
 
 /// Emits Dart entity and enum files from GraphQL schema specifications.
@@ -13,6 +16,7 @@ class GraphQLEntityEmitter {
   final bool dryRun;
   final bool force;
   final bool verbose;
+  final SpecLibrary specLibrary;
 
   GraphQLEntityEmitter({
     required this.outputDir,
@@ -20,7 +24,8 @@ class GraphQLEntityEmitter {
     this.dryRun = false,
     this.force = false,
     this.verbose = false,
-  });
+    SpecLibrary? specLibrary,
+  }) : specLibrary = specLibrary ?? const SpecLibrary();
 
   /// Generates a Dart entity file from the given [spec].
   ///
@@ -77,8 +82,14 @@ class GraphQLEntityEmitter {
       return filePath;
     }
 
-    await Directory(dirPath).create(recursive: true);
-    await File(filePath).writeAsString(content);
+    await FileUtils.writeFile(
+      filePath,
+      content,
+      'graphql_operation',
+      force: true,
+      dryRun: dryRun,
+      verbose: verbose,
+    );
 
     if (verbose) {
       print('Generated: $filePath');
@@ -242,7 +253,14 @@ class GraphQLEntityEmitter {
     }
 
     await Directory(dirPath).create(recursive: true);
-    await File(filePath).writeAsString(content);
+    await FileUtils.writeFile(
+      filePath,
+      content,
+      'graphql_entity',
+      force: true,
+      dryRun: dryRun,
+      verbose: verbose,
+    );
 
     if (verbose) {
       print('Generated: $filePath');
@@ -275,7 +293,14 @@ class GraphQLEntityEmitter {
     }
 
     await Directory(dirPath).create(recursive: true);
-    await File(filePath).writeAsString(content);
+    await FileUtils.writeFile(
+      filePath,
+      content,
+      'graphql_entity',
+      force: true,
+      dryRun: dryRun,
+      verbose: verbose,
+    );
 
     if (verbose) {
       print('Generated: $filePath');
@@ -285,9 +310,7 @@ class GraphQLEntityEmitter {
   }
 
   String _generateEntityContent(EntitySpec spec, String snakeName) {
-    final buffer = StringBuffer();
-
-    // Collect referenced entities for imports
+    final directives = <Directive>[];
     final referencedEntities = <String>{};
     for (final field in spec.fields) {
       if (field.referencedEntity != null) {
@@ -296,110 +319,27 @@ class GraphQLEntityEmitter {
     }
 
     if (useZorphy) {
-      buffer.writeln(
-        "import 'package:zorphy_annotation/zorphy_annotation.dart';",
+      directives.add(
+        Directive.import('package:zorphy_annotation/zorphy_annotation.dart'),
       );
-      buffer.writeln();
-
-      // Import referenced entities
-      for (final entity in referencedEntities) {
-        final entitySnake = StringUtils.camelToSnake(entity);
-        buffer.writeln("import '../$entitySnake/$entitySnake.dart';");
-      }
-      if (referencedEntities.isNotEmpty) {
-        buffer.writeln();
-      }
-
-      buffer.writeln("part '$snakeName.zorphy.dart';");
-      buffer.writeln();
-
-      // Add description as doc comment
-      if (spec.description != null && spec.description!.isNotEmpty) {
-        buffer.writeln('/// ${spec.description}');
-      }
-
-      buffer.writeln('@Zorphy(generateJson: true)');
-      buffer.writeln('abstract class ${spec.name} {');
-
-      for (final field in spec.fields) {
-        if (field.description != null && field.description!.isNotEmpty) {
-          buffer.writeln('  /// ${field.description}');
-        }
-        final nullableSuffix = field.isNullable ? '?' : '';
-        buffer.writeln('  ${field.dartType}$nullableSuffix get ${field.name};');
-      }
-
-      buffer.writeln('}');
-    } else {
-      // Generate concrete immutable class without Zorphy
-
-      // Import referenced entities
-      for (final entity in referencedEntities) {
-        final entitySnake = StringUtils.camelToSnake(entity);
-        buffer.writeln("import '../$entitySnake/$entitySnake.dart';");
-      }
-      if (referencedEntities.isNotEmpty) {
-        buffer.writeln();
-      }
-
-      // Add description as doc comment
-      if (spec.description != null && spec.description!.isNotEmpty) {
-        buffer.writeln('/// ${spec.description}');
-      }
-
-      buffer.writeln('class ${spec.name} {');
-
-      // Fields
-      for (final field in spec.fields) {
-        if (field.description != null && field.description!.isNotEmpty) {
-          buffer.writeln('  /// ${field.description}');
-        }
-        final nullableSuffix = field.isNullable ? '?' : '';
-        buffer.writeln(
-          '  final ${field.dartType}$nullableSuffix ${field.name};',
-        );
-      }
-
-      buffer.writeln();
-
-      // Constructor
-      buffer.writeln('  const ${spec.name}({');
-      for (final field in spec.fields) {
-        final requiredPrefix = field.isNullable ? '' : 'required ';
-        buffer.writeln('    ${requiredPrefix}this.${field.name},');
-      }
-      buffer.writeln('  });');
-
-      buffer.writeln();
-
-      // fromJson factory
-      buffer.writeln(
-        '  factory ${spec.name}.fromJson(Map<String, dynamic> json) {',
-      );
-      buffer.writeln('    return ${spec.name}(');
-      for (final field in spec.fields) {
-        final jsonAccess = _generateFromJsonField(field);
-        buffer.writeln('      ${field.name}: $jsonAccess,');
-      }
-      buffer.writeln('    );');
-      buffer.writeln('  }');
-
-      buffer.writeln();
-
-      // toJson method
-      buffer.writeln('  Map<String, dynamic> toJson() {');
-      buffer.writeln('    return {');
-      for (final field in spec.fields) {
-        final jsonValue = _generateToJsonField(field);
-        buffer.writeln("      '${field.name}': $jsonValue,");
-      }
-      buffer.writeln('    };');
-      buffer.writeln('  }');
-
-      buffer.writeln('}');
     }
 
-    return buffer.toString();
+    for (final entity in referencedEntities) {
+      final entitySnake = StringUtils.camelToSnake(entity);
+      directives.add(Directive.import('../$entitySnake/$entitySnake.dart'));
+    }
+    if (useZorphy) {
+      directives.add(Directive.part('$snakeName.zorphy.dart'));
+    }
+
+    final classSpec = useZorphy
+        ? _buildZorphyEntityClass(spec)
+        : _buildEntityClass(spec);
+    final library = specLibrary.library(
+      specs: [classSpec],
+      directives: directives,
+    );
+    return specLibrary.emitLibrary(library);
   }
 
   String _generateFromJsonField(FieldSpec field) {
@@ -509,111 +449,199 @@ class GraphQLEntityEmitter {
   }
 
   String _generateEnumContent(EnumSpec spec, String snakeName) {
-    final buffer = StringBuffer();
-
+    final directives = <Directive>[];
     if (useZorphy) {
-      buffer.writeln(
-        "import 'package:zorphy_annotation/zorphy_annotation.dart';",
+      directives.add(
+        Directive.import('package:zorphy_annotation/zorphy_annotation.dart'),
       );
-      buffer.writeln();
-
-      // Add description as doc comment
-      if (spec.description != null && spec.description!.isNotEmpty) {
-        buffer.writeln('/// ${spec.description}');
-      }
-
-      buffer.writeln('@ZorphyEnum()');
-      buffer.writeln('enum ${spec.name} {');
-
-      for (var i = 0; i < spec.values.length; i++) {
-        final value = spec.values[i];
-        final camelValue = _toEnumCase(value);
-        final comma = i < spec.values.length - 1 ? ',' : '';
-        buffer.writeln('  $camelValue$comma');
-      }
-
-      buffer.writeln('}');
-    } else {
-      // Add description as doc comment
-      if (spec.description != null && spec.description!.isNotEmpty) {
-        buffer.writeln('/// ${spec.description}');
-      }
-
-      buffer.writeln('enum ${spec.name} {');
-
-      for (var i = 0; i < spec.values.length; i++) {
-        final value = spec.values[i];
-        final camelValue = _toEnumCase(value);
-        final comma = i < spec.values.length - 1 ? ',' : '';
-        buffer.writeln('  $camelValue$comma');
-      }
-
-      buffer.writeln('}');
     }
 
-    return buffer.toString();
+    final enumSpec = Enum((e) {
+      e
+        ..name = spec.name
+        ..values.addAll(
+          spec.values.map(
+            (value) => EnumValue((v) => v..name = _toEnumCase(value)),
+          ),
+        );
+      if (useZorphy) {
+        e.annotations.add(refer('ZorphyEnum').call([]));
+      }
+      if (spec.description != null && spec.description!.isNotEmpty) {
+        e.docs.add('/// ${spec.description}');
+      }
+    });
+    final library = specLibrary.library(
+      specs: [enumSpec],
+      directives: directives,
+    );
+    return specLibrary.emitLibrary(library);
   }
 
   String _generateOperationContent(OperationSpec spec) {
-    final buffer = StringBuffer();
     final typeName = spec.type[0].toUpperCase() + spec.type.substring(1);
     final varName = '${spec.name}$typeName';
-
-    buffer.writeln(
-      '/// Generated GraphQL ${spec.type} for ${spec.operationName}',
+    final gqlString = _generateGqlString(spec);
+    final field = Field(
+      (f) => f
+        ..name = varName
+        ..type = refer('String')
+        ..modifier = FieldModifier.constant
+        ..assignment = Code(_graphqlLiteral(gqlString))
+        ..docs.add(
+          '/// Generated GraphQL ${spec.type} for ${spec.operationName}',
+        ),
     );
-    buffer.writeln('const String $varName = r\'\'\'');
-    buffer.writeln(_generateGqlString(spec));
-    buffer.writeln('\'\'\';');
-
-    return buffer.toString();
+    final library = specLibrary.library(specs: [field]);
+    return specLibrary.emitLibrary(library);
   }
 
   String _generateGqlString(OperationSpec spec) {
-    final buf = StringBuffer();
     final opName = spec.operationName;
-
-    buf.write('  ${spec.type} $opName');
-
-    if (spec.args.isNotEmpty) {
-      buf.write('(');
-      for (var i = 0; i < spec.args.length; i++) {
-        final arg = spec.args[i];
-        buf.write('\$${arg.name}: ${arg.gqlType}');
-        if (i < spec.args.length - 1) buf.write(', ');
-      }
-      buf.write(')');
-    }
-
-    buf.writeln(' {');
-    buf.write('    ${spec.name}');
-
-    if (spec.args.isNotEmpty) {
-      buf.write('(');
-      for (var i = 0; i < spec.args.length; i++) {
-        final arg = spec.args[i];
-        buf.write('${arg.name}: \$${arg.name}');
-        if (i < spec.args.length - 1) buf.write(', ');
-      }
-      buf.write(')');
-    }
-
+    final argsSignature = spec.args.isNotEmpty
+        ? '(${spec.args.map((arg) => '\$${arg.name}: ${arg.gqlType}').join(', ')})'
+        : '';
+    final callArgs = spec.args.isNotEmpty
+        ? '(${spec.args.map((arg) => '${arg.name}: \$${arg.name}').join(', ')})'
+        : '';
+    final lines = <String>[];
+    lines.add('  ${spec.type} $opName$argsSignature {');
     if (spec.returnFields.isNotEmpty) {
-      buf.writeln(' {');
+      lines.add('    ${spec.name}$callArgs {');
       for (final field in spec.returnFields) {
         if (field.referencedEntity == null) {
-          buf.writeln('      ${field.name}');
+          lines.add('      ${field.name}');
         } else {
-          buf.writeln('      ${field.name} { id }');
+          lines.add('      ${field.name} { id }');
         }
       }
-      buf.writeln('    }');
+      lines.add('    }');
+      lines.add('  }');
+      lines.add('}');
+      return lines.join('\n');
     }
+    lines.add('    ${spec.name}$callArgs');
+    lines.add('}');
+    return lines.join('\n');
+  }
 
-    buf.writeln('  }');
-    buf.write('}');
+  String _graphqlLiteral(String gqlString) {
+    final escaped = gqlString.replaceAll(r'$', r'\$');
+    return 'r"""$escaped"""';
+  }
 
-    return buf.toString();
+  String _fieldType(FieldSpec field) {
+    final nullableSuffix = field.isNullable ? '?' : '';
+    return '${field.dartType}$nullableSuffix';
+  }
+
+  Class _buildZorphyEntityClass(EntitySpec spec) {
+    final getters = spec.fields.map((field) {
+      return Method((m) {
+        m
+          ..name = field.name
+          ..returns = refer(_fieldType(field))
+          ..type = MethodType.getter;
+        if (field.description != null && field.description!.isNotEmpty) {
+          m.docs.add('/// ${field.description}');
+        }
+      });
+    }).toList();
+
+    return Class((c) {
+      c
+        ..name = spec.name
+        ..abstract = true
+        ..annotations.add(
+          refer('Zorphy').call([], {'generateJson': literalBool(true)}),
+        )
+        ..methods.addAll(getters);
+      if (spec.description != null && spec.description!.isNotEmpty) {
+        c.docs.add('/// ${spec.description}');
+      }
+    });
+  }
+
+  Class _buildEntityClass(EntitySpec spec) {
+    final fields = spec.fields.map((field) {
+      return Field((f) {
+        f
+          ..modifier = FieldModifier.final$
+          ..type = refer(_fieldType(field))
+          ..name = field.name;
+        if (field.description != null && field.description!.isNotEmpty) {
+          f.docs.add('/// ${field.description}');
+        }
+      });
+    }).toList();
+
+    final constructor = Constructor(
+      (c) => c
+        ..constant = true
+        ..optionalParameters.addAll(
+          spec.fields.map(
+            (field) => Parameter(
+              (p) => p
+                ..name = field.name
+                ..toThis = true
+                ..named = true
+                ..required = !field.isNullable,
+            ),
+          ),
+        ),
+    );
+
+    final fromJson = Constructor(
+      (c) => c
+        ..factory = true
+        ..name = 'fromJson'
+        ..requiredParameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'json'
+              ..type = refer('Map<String, dynamic>'),
+          ),
+        )
+        ..body = Code(_buildFromJsonBody(spec)),
+    );
+
+    final toJson = Method(
+      (m) => m
+        ..name = 'toJson'
+        ..returns = refer('Map<String, dynamic>')
+        ..body = Code(_buildToJsonBody(spec)),
+    );
+
+    return Class((c) {
+      c
+        ..name = spec.name
+        ..fields.addAll(fields)
+        ..constructors.addAll([constructor, fromJson])
+        ..methods.add(toJson);
+      if (spec.description != null && spec.description!.isNotEmpty) {
+        c.docs.add('/// ${spec.description}');
+      }
+    });
+  }
+
+  String _buildFromJsonBody(EntitySpec spec) {
+    final lines = <String>['return ${spec.name}('];
+    for (final field in spec.fields) {
+      final jsonAccess = _generateFromJsonField(field);
+      lines.add('  ${field.name}: $jsonAccess,');
+    }
+    lines.add(');');
+    return lines.join('\n');
+  }
+
+  String _buildToJsonBody(EntitySpec spec) {
+    final lines = <String>['return {'];
+    for (final field in spec.fields) {
+      final jsonValue = _generateToJsonField(field);
+      lines.add("  '${field.name}': $jsonValue,");
+    }
+    lines.add('};');
+    return lines.join('\n');
   }
 
   /// Converts SCREAMING_SNAKE_CASE to camelCase.
@@ -627,16 +655,10 @@ class GraphQLEntityEmitter {
 
     final parts = value.toLowerCase().split('_');
     if (parts.isEmpty) return value.toLowerCase();
-
-    final buffer = StringBuffer(parts.first);
-    for (var i = 1; i < parts.length; i++) {
-      final part = parts[i];
-      if (part.isNotEmpty) {
-        buffer.write(part[0].toUpperCase());
-        buffer.write(part.substring(1));
-      }
-    }
-
-    return buffer.toString();
+    final tail = parts
+        .skip(1)
+        .where((part) => part.isNotEmpty)
+        .map((part) => part[0].toUpperCase() + part.substring(1));
+    return parts.first + tail.join();
   }
 }

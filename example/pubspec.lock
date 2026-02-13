@@ -69,10 +69,10 @@ packages:
     dependency: "direct main"
     description:
       name: build_runner
-      sha256: ac78098de97893812b7aff1154f29008fa2464cad9e8e7044d39bc905dad4fbc
+      sha256: "39ad4ca8a2876779737c60e4228b4bcd35d4352ef7e14e47514093edc012c734"
       url: "https://pub.dev"
     source: hosted
-    version: "2.11.0"
+    version: "2.11.1"
   built_collection:
     dependency: transitive
     description:
@@ -189,10 +189,10 @@ packages:
     dependency: transitive
     description:
       name: ffi
-      sha256: d07d37192dbf97461359c1518788f203b0c9102cfd2c35a716b823741219542c
+      sha256: "6d7fd89431262d8f3125e81b50d3847a091d846eafcd4fdb88dd06f36d705a45"
       url: "https://pub.dev"
     source: hosted
-    version: "2.1.5"
+    version: "2.2.0"
   file:
     dependency: transitive
     description:
@@ -337,7 +337,7 @@ packages:
     source: hosted
     version: "0.6.1"
   json_annotation:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: json_annotation
       sha256: "805fa86df56383000f640384b282ce0cb8431f1a7a2396de92fb66186d8c57df"
@@ -800,26 +800,24 @@ packages:
   zorphy:
     dependency: transitive
     description:
-      name: zorphy
-      sha256: "54e8708b2e0678558b23161ff923779f99cb6a34b8f2dbb11018256de828ad13"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.5.0"
+      path: "../../zorphy/zorphy"
+      relative: true
+    source: path
+    version: "1.5.5"
   zorphy_annotation:
     dependency: "direct main"
     description:
-      name: zorphy_annotation
-      sha256: "58cde65aee74ae74468dfdb2dd60153afd69944eda5122ecfe51d7a86653ac84"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.5.0"
+      path: "../../zorphy/zorphy_annotation"
+      relative: true
+    source: path
+    version: "1.5.5"
   zuraffa:
     dependency: "direct main"
     description:
       path: ".."
       relative: true
     source: path
-    version: "2.7.0"
+    version: "2.8.1"
 sdks:
   dart: ">=3.10.3 <4.0.0"
   flutter: ">=3.38.4"

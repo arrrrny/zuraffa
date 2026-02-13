@@ -7,6 +7,10 @@ import 'commands/config_command.dart';
 import 'commands/initialize_command.dart';
 import 'commands/entity_command.dart';
 import 'commands/graphql_command.dart';
+import 'commands/plugin_command.dart';
+import 'commands/view_command.dart';
+import 'commands/test_command.dart';
+import 'commands/di_command.dart';
 
 const version = '2.8.0';
 
@@ -43,6 +47,18 @@ Future<void> run(List<String> args) async {
         break;
       case 'graphql':
         await GraphQLCommand().execute(args.skip(1).toList());
+        break;
+      case 'plugin':
+        await PluginCommand().execute(args.skip(1).toList());
+        break;
+      case 'view':
+        await ViewCommand().execute(args.skip(1).toList());
+        break;
+      case 'test':
+        await TestCommand().execute(args.skip(1).toList());
+        break;
+      case 'di':
+        await DiCommand().execute(args.skip(1).toList());
         break;
       case 'build':
         await _handleBuild(args.skip(1).toList());
@@ -122,9 +138,13 @@ CLEAN ARCHITECTURE COMMANDS:
   initialize          Initialize a test entity to quickly try out Zuraffa
   create              Create architecture folders or pages
   config              Manage ZFA configuration (.zfa.json)
+  plugin              Manage plugins (list, enable, disable)
   schema              Output JSON schema for configuration
   validate <file>     Validate JSON configuration file
   graphql             Introspect GraphQL schema and generate entities + usecases
+  view <Name>         Generate an additional view for existing VPC
+  test <UseCaseName>  Generate tests for existing usecases
+  di <UseCaseName>    Generate DI registration for existing usecases
 
 ENTITY GENERATION COMMANDS (powered by Zorphy):
   entity create       Create a new Zorphy entity with fields
@@ -153,6 +173,21 @@ EXAMPLES - CLEAN ARCHITECTURE:
   zfa generate Product --methods=get,getList        # Generate Clean Architecture
   zfa generate OrderUseCase --custom --returns=Order --zorphy
 
+EXAMPLES - ADDITIONAL VIEW:
+  zfa view Payment --domain=checkout --presenter=CheckoutPresenter
+  zfa view Payment --domain=checkout --presenter=CheckoutPresenter --state
+
+EXAMPLES - GENERATE TESTS:
+  zfa test CreateCustomer                          # Generate test for CreateCustomerUseCase
+  zfa test CreateCustomer --domain=customer        # Specify domain folder
+  zfa test CreateCustomer --force                  # Overwrite existing test
+
+EXAMPLES - GENERATE DI:
+  zfa di CreateCustomer                            # Generate DI for CreateCustomerUseCase
+  zfa di CreateCustomer --domain=customer          # Specify domain folder
+  zfa di CreateCustomer --force                    # Overwrite existing DI
+  zfa di CreateCustomer --use-mock                 # Use mock datasource
+
 EXAMPLES - ENTITY GENERATION:
   zfa entity create User --field name:String --field email:String?
   zfa entity enum Status --value active,inactive,pending
@@ -171,6 +206,9 @@ EXAMPLES - BUILD:
 
 For detailed help on each command:
   zfa generate --help
+  zfa view --help
+  zfa test --help
+  zfa di --help
   zfa entity --help
   zfa graphql --help
   zfa initialize --help

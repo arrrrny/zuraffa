@@ -31,8 +31,8 @@ void main() {
           .thenAnswer((_) => Stream.value(tProduct));
 
       // Act
-      final result =
-          useCase(const QueryParams<Product>(params: Params({'id': '1'})));
+      final result = useCase(
+          const QueryParams<Product>(filter: Eq(ProductFields.id, '1')));
 
       // Assert
       await expectLater(
@@ -49,8 +49,8 @@ void main() {
           .thenAnswer((_) => Stream.error(exception));
 
       // Act
-      final result =
-          useCase(const QueryParams<Product>(params: Params({'id': '1'})));
+      final result = useCase(
+          const QueryParams<Product>(filter: Eq(ProductFields.id, '1')));
 
       // Assert
       await expectLater(

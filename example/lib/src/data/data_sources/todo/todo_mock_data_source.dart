@@ -40,29 +40,9 @@ class TodoMockDataSource
   }
 
   @override
-  Stream<Todo> watch(QueryParams<Todo> params) {
-    return Stream.periodic(const Duration(seconds: 1), (count) {
-      final item = TodoMockData.todos.query(params);
-      return item;
-    }).take(10); // Limit for demo
-  }
-
-  @override
-  Stream<List<Todo>> watchList(ListQueryParams<Todo> params) {
-    return Stream.periodic(const Duration(seconds: 2), (count) {
-      var items = TodoMockData.todos;
-      if (params.limit != null && params.limit! > 0) {
-        items = items.take(params.limit!).toList();
-      }
-      return items;
-    }).take(5); // Limit for demo
-  }
-
-  @override
   Future<Todo> create(Todo item) async {
     logger.info('Creating Todo: ${item.id}');
     await Future.delayed(_delay);
-    // In a real implementation, you'd add to storage
     logger.info('Successfully created Todo: ${item.id}');
     return item;
   }
@@ -75,7 +55,6 @@ class TodoMockDataSource
       (item) => item.id == params.id,
       orElse: () => throw notFoundFailure('Todo not found'),
     );
-    // In a real implementation, you'd apply the update
     logger.info('Successfully updated Todo');
     return existing;
   }
@@ -88,7 +67,25 @@ class TodoMockDataSource
     if (!exists) {
       throw notFoundFailure('Todo not found');
     }
-    // In a real implementation, you'd remove from storage
     logger.info('Successfully deleted Todo');
+  }
+
+  @override
+  Stream<Todo> watch(QueryParams<Todo> params) {
+    return Stream.periodic(const Duration(seconds: 1), (count) {
+      final item = TodoMockData.todos.query(params);
+      return item;
+    }).take(10);
+  }
+
+  @override
+  Stream<List<Todo>> watchList(ListQueryParams<Todo> params) {
+    return Stream.periodic(const Duration(seconds: 2), (count) {
+      var items = TodoMockData.todos;
+      if (params.limit != null && params.limit! > 0) {
+        items = items.take(params.limit!).toList();
+      }
+      return items;
+    }).take(5);
   }
 }

@@ -6,7 +6,7 @@ publish_to: none
 version: 2.8.0
 
 environment:
-  sdk: ">=3.0.0 <4.0.0"
+  sdk: ^3.8.0
 
 dependencies:
   flutter:
@@ -14,11 +14,13 @@ dependencies:
   cupertino_icons: ^1.0.8
   zuraffa:
     path: ../
-  zorphy_annotation: ^1.5.0
+  zorphy_annotation:
+    path: ../../zorphy/zorphy_annotation
   build_runner: ^2.11.0
   hive_ce_flutter: ^2.3.4
   json_serializable: ^6.12.0
   get_it: ^9.2.0
+  json_annotation: ^4.10.0
 
 dev_dependencies:
   flutter_test:

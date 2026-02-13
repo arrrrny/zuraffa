@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
+import '../utils/file_utils.dart';
 
 /// Config command - Manage ZFA configuration
 class ConfigCommand {
@@ -81,7 +82,7 @@ class ConfigCommand {
 
     const encoder = JsonEncoder.withIndent('  ');
     final content = encoder.convert(defaultConfig);
-    await configFile.writeAsString(content);
+    await FileUtils.writeFile(configFile.path, content, 'config', force: true);
 
     print('✅ Created configuration file: ${configFile.path}');
     print('');
@@ -207,7 +208,12 @@ class ConfigCommand {
 
       const encoder = JsonEncoder.withIndent('  ');
       final newContent = encoder.convert(json);
-      await configFile.writeAsString(newContent);
+      await FileUtils.writeFile(
+        configFile.path,
+        newContent,
+        'config',
+        force: true,
+      );
 
       print('✅ Updated configuration:');
       print('   • $key: $parsedValue');
