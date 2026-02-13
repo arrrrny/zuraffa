@@ -2,30 +2,44 @@
 // ignore_for_file: UNNECESSARY_CAST
 // ignore_for_file: type=lint
 
-part of 'params.dart';
+part of 'credentials.dart';
 
 // **************************************************************************
 // ZorphyGenerator
 // **************************************************************************
 
 @JsonSerializable(explicitToJson: true)
-class Params {
-  final Map<String, dynamic>? params;
+class Credentials extends Params {
+  const Credentials({Map<String, dynamic>? params}) : super(params: params);
 
-  const Params({this.params});
-
-  Params copyWith({Map<String, dynamic>? params}) {
-    return Params(params: params ?? this.params);
+  Credentials copyWith({Map<String, dynamic>? params}) {
+    return Credentials(params: params ?? this.params);
   }
 
-  Params copyWithParams({Map<String, dynamic>? params}) {
+  Credentials copyWithCredentials({Map<String, dynamic>? params}) {
     return copyWith(params: params);
   }
 
-  Params patchWithParams({ParamsPatch? patchInput}) {
+  Credentials copyWithParams({Map<String, dynamic>? params}) {
+    return copyWith(params: params);
+  }
+
+  Credentials patchWithCredentials({CredentialsPatch? patchInput}) {
+    final _patcher = patchInput ?? CredentialsPatch();
+    final _patchMap = _patcher.toPatch();
+    return Credentials(
+      params: _patchMap.containsKey(Credentials$.params)
+          ? (_patchMap[Credentials$.params] is Function)
+                ? _patchMap[Credentials$.params](this.params)
+                : _patchMap[Credentials$.params]
+          : this.params,
+    );
+  }
+
+  Credentials patchWithParams({ParamsPatch? patchInput}) {
     final _patcher = patchInput ?? ParamsPatch();
     final _patchMap = _patcher.toPatch();
-    return Params(
+    return Credentials(
       params: _patchMap.containsKey(Params$.params)
           ? (_patchMap[Params$.params] is Function)
                 ? _patchMap[Params$.params](this.params)
@@ -37,7 +51,7 @@ class Params {
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is Params && params == other.params;
+    return other is Credentials && params == other.params;
   }
 
   @override
@@ -47,14 +61,15 @@ class Params {
 
   @override
   String toString() {
-    return 'Params(' + 'params: ${params})';
+    return 'Credentials(' + 'params: ${params})';
   }
 
-  /// Creates a [Params] instance from JSON
-  factory Params.fromJson(Map<String, dynamic> json) => _$ParamsFromJson(json);
+  /// Creates a [Credentials] instance from JSON
+  factory Credentials.fromJson(Map<String, dynamic> json) =>
+      _$CredentialsFromJson(json);
 
   Map<String, dynamic> toJsonLean() {
-    final Map<String, dynamic> data = _$ParamsToJson(this);
+    final Map<String, dynamic> data = _$CredentialsToJson(this);
     return _sanitizeJson(data);
   }
 
@@ -71,17 +86,16 @@ class Params {
   }
 }
 
-extension ParamsPropertyHelpers on Params {
-  Map<String, dynamic> get paramsRequired =>
-      params ?? (throw StateError('params is required but was null'));
-  bool get hasParams => params?.isNotEmpty ?? false;
-  bool get noParams => params?.isEmpty ?? true;
-}
+extension CredentialsSerialization on Credentials {
+  Map<String, dynamic> toJson() {
+    final data = _$CredentialsToJson(this);
+    data['params'] = params;
+    return data;
+  }
 
-extension ParamsSerialization on Params {
-  Map<String, dynamic> toJson() => _$ParamsToJson(this);
   Map<String, dynamic> toJsonLean() {
-    final Map<String, dynamic> data = _$ParamsToJson(this);
+    final Map<String, dynamic> data = _$CredentialsToJson(this);
+    if (params != null) data['params'] = params;
     return _sanitizeJson(data);
   }
 
@@ -98,17 +112,19 @@ extension ParamsSerialization on Params {
   }
 }
 
-enum Params$ { params }
+enum Credentials$ { params }
 
-class ParamsPatch implements Patch<Params> {
-  final Map<Params$, dynamic> _patch = {};
+class CredentialsPatch implements Patch<Credentials> {
+  final Map<Credentials$, dynamic> _patch = {};
 
-  static ParamsPatch create([Map<String, dynamic>? diff]) {
-    final patch = ParamsPatch();
+  static CredentialsPatch create([Map<String, dynamic>? diff]) {
+    final patch = CredentialsPatch();
     if (diff != null) {
       diff.forEach((key, value) {
         try {
-          final enumValue = Params$.values.firstWhere((e) => e.name == key);
+          final enumValue = Credentials$.values.firstWhere(
+            (e) => e.name == key,
+          );
           if (value is Function) {
             patch._patch[enumValue] = value();
           } else {
@@ -120,16 +136,16 @@ class ParamsPatch implements Patch<Params> {
     return patch;
   }
 
-  static ParamsPatch fromPatch(Map<Params$, dynamic> patch) {
-    final _patch = ParamsPatch();
+  static CredentialsPatch fromPatch(Map<Credentials$, dynamic> patch) {
+    final _patch = CredentialsPatch();
     _patch._patch.addAll(patch);
     return _patch;
   }
 
-  Map<Params$, dynamic> toPatch() => Map.from(_patch);
+  Map<Credentials$, dynamic> toPatch() => Map.from(_patch);
 
-  Params applyTo(Params entity) {
-    return entity.patchWithParams(patchInput: this);
+  Credentials applyTo(Credentials entity) {
+    return entity.patchWithCredentials(patchInput: this);
   }
 
   Map<String, dynamic> toJson() {
@@ -162,27 +178,27 @@ class ParamsPatch implements Patch<Params> {
     return value.toString();
   }
 
-  static ParamsPatch fromJson(Map<String, dynamic> json) {
+  static CredentialsPatch fromJson(Map<String, dynamic> json) {
     return create(json);
   }
 
-  ParamsPatch withParams(Map<String, dynamic>? value) {
-    _patch[Params$.params] = value;
+  CredentialsPatch withParams(Map<String, dynamic>? value) {
+    _patch[Credentials$.params] = value;
     return this;
   }
 }
 
-/// Field descriptors for [Params] query construction
-abstract final class ParamsFields {
-  static Map<String, dynamic>? _$getparams(Params e) => e.params;
-  static const params = Field<Params, Map<String, dynamic>?>(
+/// Field descriptors for [Credentials] query construction
+abstract final class CredentialsFields {
+  static Map<String, dynamic>? _$getparams(Credentials e) => e.params;
+  static const params = Field<Credentials, Map<String, dynamic>?>(
     'params',
     _$getparams,
   );
 }
 
-extension ParamsCompareE on Params {
-  Map<String, dynamic> compareToParams(Params other) {
+extension CredentialsCompareE on Credentials {
+  Map<String, dynamic> compareToCredentials(Credentials other) {
     final Map<String, dynamic> diff = {};
 
     if (params != other.params) {

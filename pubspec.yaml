@@ -56,3 +56,7 @@ dev_dependencies:
 
 dependency_overrides:
   meta: ^1.18.1
+  zorphy:
+    path: ../zorphy/zorphy
+  zorphy_annotation:
+    path: ../zorphy/zorphy_annotation

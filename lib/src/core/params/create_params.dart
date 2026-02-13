@@ -8,12 +8,9 @@ part 'create_params.g.dart';
 ///
 /// The type parameter [T] represents the entity type being created.
 @Zorphy(generateJson: true, generateFilter: true)
-abstract class $CreateParams<T> {
+abstract class $CreateParams<T> implements $Params {
   const $CreateParams();
 
   /// The entity data to create.
   T get data;
-
-  /// Optional additional parameters for the creation.
-  $Params? get params;
 }

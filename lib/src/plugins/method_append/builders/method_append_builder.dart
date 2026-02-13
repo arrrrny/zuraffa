@@ -99,9 +99,8 @@ class MethodAppendBuilder {
       );
       if (result != null) {
         updatedFiles.add(result);
-      } else {
-        warnings.add('Failed to append to ${repoSnake}_repository.dart');
       }
+      // Don't warn if method already exists - that's expected behavior
     }
 
     final dataRepoPath = path.join(
@@ -139,8 +138,6 @@ class MethodAppendBuilder {
       if (result != null) {
         updatedFiles.add(result);
       }
-    } else {
-      warnings.add('DataSource not found for $repoSnake');
     }
 
     final remoteDataSourcePath = await _findRemoteDataSource(config, repoSnake);
@@ -156,8 +153,6 @@ class MethodAppendBuilder {
       if (result != null) {
         updatedFiles.add(result);
       }
-    } else {
-      warnings.add('RemoteDataSource not found for $repoSnake');
     }
 
     final localDataSourcePath = await _findLocalDataSource(config, repoSnake);

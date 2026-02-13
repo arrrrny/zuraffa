@@ -8,12 +8,9 @@ part 'delete_params.g.dart';
 ///
 /// The type parameter [T] represents the entity type being created.
 @Zorphy(generateJson: true, generateFilter: true)
-abstract class $DeleteParams<I> {
+abstract class $DeleteParams<I> implements $Params {
   const $DeleteParams();
 
   /// The ID of the entity to delete (strongly typed).
   I get id;
-
-  /// Optional additional parameters for the deletion.
-  $Params? get params;
 }

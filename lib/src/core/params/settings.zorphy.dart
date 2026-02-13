@@ -2,30 +2,44 @@
 // ignore_for_file: UNNECESSARY_CAST
 // ignore_for_file: type=lint
 
-part of 'params.dart';
+part of 'settings.dart';
 
 // **************************************************************************
 // ZorphyGenerator
 // **************************************************************************
 
 @JsonSerializable(explicitToJson: true)
-class Params {
-  final Map<String, dynamic>? params;
+class Settings extends Params {
+  const Settings({Map<String, dynamic>? params}) : super(params: params);
 
-  const Params({this.params});
-
-  Params copyWith({Map<String, dynamic>? params}) {
-    return Params(params: params ?? this.params);
+  Settings copyWith({Map<String, dynamic>? params}) {
+    return Settings(params: params ?? this.params);
   }
 
-  Params copyWithParams({Map<String, dynamic>? params}) {
+  Settings copyWithSettings({Map<String, dynamic>? params}) {
     return copyWith(params: params);
   }
 
-  Params patchWithParams({ParamsPatch? patchInput}) {
+  Settings copyWithParams({Map<String, dynamic>? params}) {
+    return copyWith(params: params);
+  }
+
+  Settings patchWithSettings({SettingsPatch? patchInput}) {
+    final _patcher = patchInput ?? SettingsPatch();
+    final _patchMap = _patcher.toPatch();
+    return Settings(
+      params: _patchMap.containsKey(Settings$.params)
+          ? (_patchMap[Settings$.params] is Function)
+                ? _patchMap[Settings$.params](this.params)
+                : _patchMap[Settings$.params]
+          : this.params,
+    );
+  }
+
+  Settings patchWithParams({ParamsPatch? patchInput}) {
     final _patcher = patchInput ?? ParamsPatch();
     final _patchMap = _patcher.toPatch();
-    return Params(
+    return Settings(
       params: _patchMap.containsKey(Params$.params)
           ? (_patchMap[Params$.params] is Function)
                 ? _patchMap[Params$.params](this.params)
@@ -37,7 +51,7 @@ class Params {
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is Params && params == other.params;
+    return other is Settings && params == other.params;
   }
 
   @override
@@ -47,14 +61,15 @@ class Params {
 
   @override
   String toString() {
-    return 'Params(' + 'params: ${params})';
+    return 'Settings(' + 'params: ${params})';
   }
 
-  /// Creates a [Params] instance from JSON
-  factory Params.fromJson(Map<String, dynamic> json) => _$ParamsFromJson(json);
+  /// Creates a [Settings] instance from JSON
+  factory Settings.fromJson(Map<String, dynamic> json) =>
+      _$SettingsFromJson(json);
 
   Map<String, dynamic> toJsonLean() {
-    final Map<String, dynamic> data = _$ParamsToJson(this);
+    final Map<String, dynamic> data = _$SettingsToJson(this);
     return _sanitizeJson(data);
   }
 
@@ -71,17 +86,16 @@ class Params {
   }
 }
 
-extension ParamsPropertyHelpers on Params {
-  Map<String, dynamic> get paramsRequired =>
-      params ?? (throw StateError('params is required but was null'));
-  bool get hasParams => params?.isNotEmpty ?? false;
-  bool get noParams => params?.isEmpty ?? true;
-}
+extension SettingsSerialization on Settings {
+  Map<String, dynamic> toJson() {
+    final data = _$SettingsToJson(this);
+    data['params'] = params;
+    return data;
+  }
 
-extension ParamsSerialization on Params {
-  Map<String, dynamic> toJson() => _$ParamsToJson(this);
   Map<String, dynamic> toJsonLean() {
-    final Map<String, dynamic> data = _$ParamsToJson(this);
+    final Map<String, dynamic> data = _$SettingsToJson(this);
+    if (params != null) data['params'] = params;
     return _sanitizeJson(data);
   }
 
@@ -98,17 +112,17 @@ extension ParamsSerialization on Params {
   }
 }
 
-enum Params$ { params }
+enum Settings$ { params }
 
-class ParamsPatch implements Patch<Params> {
-  final Map<Params$, dynamic> _patch = {};
+class SettingsPatch implements Patch<Settings> {
+  final Map<Settings$, dynamic> _patch = {};
 
-  static ParamsPatch create([Map<String, dynamic>? diff]) {
-    final patch = ParamsPatch();
+  static SettingsPatch create([Map<String, dynamic>? diff]) {
+    final patch = SettingsPatch();
     if (diff != null) {
       diff.forEach((key, value) {
         try {
-          final enumValue = Params$.values.firstWhere((e) => e.name == key);
+          final enumValue = Settings$.values.firstWhere((e) => e.name == key);
           if (value is Function) {
             patch._patch[enumValue] = value();
           } else {
@@ -120,16 +134,16 @@ class ParamsPatch implements Patch<Params> {
     return patch;
   }
 
-  static ParamsPatch fromPatch(Map<Params$, dynamic> patch) {
-    final _patch = ParamsPatch();
+  static SettingsPatch fromPatch(Map<Settings$, dynamic> patch) {
+    final _patch = SettingsPatch();
     _patch._patch.addAll(patch);
     return _patch;
   }
 
-  Map<Params$, dynamic> toPatch() => Map.from(_patch);
+  Map<Settings$, dynamic> toPatch() => Map.from(_patch);
 
-  Params applyTo(Params entity) {
-    return entity.patchWithParams(patchInput: this);
+  Settings applyTo(Settings entity) {
+    return entity.patchWithSettings(patchInput: this);
   }
 
   Map<String, dynamic> toJson() {
@@ -162,27 +176,27 @@ class ParamsPatch implements Patch<Params> {
     return value.toString();
   }
 
-  static ParamsPatch fromJson(Map<String, dynamic> json) {
+  static SettingsPatch fromJson(Map<String, dynamic> json) {
     return create(json);
   }
 
-  ParamsPatch withParams(Map<String, dynamic>? value) {
-    _patch[Params$.params] = value;
+  SettingsPatch withParams(Map<String, dynamic>? value) {
+    _patch[Settings$.params] = value;
     return this;
   }
 }
 
-/// Field descriptors for [Params] query construction
-abstract final class ParamsFields {
-  static Map<String, dynamic>? _$getparams(Params e) => e.params;
-  static const params = Field<Params, Map<String, dynamic>?>(
+/// Field descriptors for [Settings] query construction
+abstract final class SettingsFields {
+  static Map<String, dynamic>? _$getparams(Settings e) => e.params;
+  static const params = Field<Settings, Map<String, dynamic>?>(
     'params',
     _$getparams,
   );
 }
 
-extension ParamsCompareE on Params {
-  Map<String, dynamic> compareToParams(Params other) {
+extension SettingsCompareE on Settings {
+  Map<String, dynamic> compareToSettings(Settings other) {
     final Map<String, dynamic> diff = {};
 
     if (params != other.params) {

@@ -408,11 +408,12 @@ class GenerateCommand {
       );
     }
 
-    // Rule 4: Custom non-orchestrator requires --repo OR --service (except background)
+    // Rule 4: Custom non-orchestrator requires --repo OR --service (except background and sync)
     // Also: --repo and --service are mutually exclusive
     if (config.isCustomUseCase &&
         !config.isOrchestrator &&
-        config.useCaseType != 'background') {
+        config.useCaseType != 'background' &&
+        config.useCaseType != 'sync') {
       if (config.repo != null && config.service != null) {
         print('❌ Error: Cannot use both --repo and --service');
         print(
@@ -423,7 +424,9 @@ class GenerateCommand {
       }
       if (config.repo == null && config.service == null) {
         print('❌ Error: --repo or --service is required for custom UseCases');
-        print('   (except orchestrators with --usecases or --type=background)');
+        print(
+          '   (except orchestrators with --usecases or --type=background or --type=sync)',
+        );
         print('');
         print('Usage:');
         print(

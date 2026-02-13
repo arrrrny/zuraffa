@@ -71,5 +71,37 @@ void main() {
       );
       expect(hasGraphql, isTrue);
     });
+
+    test('allows sync usecase without repo or service', () async {
+      final result = await GenerateCommand().execute([
+        'IsWalkthroughRequire',
+        '--type=sync',
+        '--domain=customer',
+        '--params=Customer',
+        '--returns=bool',
+        '--output',
+        outputDir,
+        '--dry-run',
+      ], exitOnCompletion: false);
+
+      expect(result.success, isTrue);
+      final hasUseCase = result.files.any(
+        (file) => file.path.endsWith(
+          'domain/usecases/customer/is_walkthrough_require_usecase.dart',
+        ),
+      );
+      expect(hasUseCase, isTrue);
+      
+      // Verify content of the generated usecase
+      final useCaseFile = result.files.firstWhere(
+        (file) => file.path.endsWith(
+          'domain/usecases/customer/is_walkthrough_require_usecase.dart',
+        ),
+      );
+      
+      expect(useCaseFile.content, contains('class IsWalkthroughRequireUseCase extends SyncUseCase<bool, Customer>'));
+      expect(useCaseFile.content, isNot(contains('Repository')));
+      expect(useCaseFile.content, isNot(contains('Service')));
+    });
   });
 }

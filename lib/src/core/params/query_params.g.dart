@@ -9,13 +9,9 @@ part of 'query_params.dart';
 QueryParams<T> _$QueryParamsFromJson<T>(
   Map<String, dynamic> json,
   T Function(Object? json) fromJsonT,
-) => QueryParams<T>(
-  params: json['params'] == null
-      ? null
-      : Params.fromJson(json['params'] as Map<String, dynamic>),
-);
+) => QueryParams<T>(params: json['params'] as Map<String, dynamic>?);
 
 Map<String, dynamic> _$QueryParamsToJson<T>(
   QueryParams<T> instance,
   Object? Function(T value) toJsonT,
-) => <String, dynamic>{'params': instance.params?.toJson()};
+) => <String, dynamic>{'params': instance.params};

@@ -4,5 +4,8 @@ part 'params.g.dart';
 
 @Zorphy(generateJson: true, generateFilter: true)
 abstract class $Params {
+  const $Params();
+
+  /// Optional additional parameters.
   Map<String, dynamic>? get params;
 }

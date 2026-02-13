@@ -1,4 +1,5 @@
 import 'package:zorphy/zorphy.dart';
+import 'package:zuraffa/src/core/params/index.dart';
 
 import 'converters/filter_converter.dart';
 import 'converters/sort_converter.dart';
@@ -16,7 +17,7 @@ part 'list_query_params.g.dart';
 /// The type parameter [T] represents the entity type being queried,
 /// enabling type-safe [Filter], [Field], and [Sort] references.
 @Zorphy(generateJson: true, generateFilter: true)
-abstract class $ListQueryParams<T> {
+abstract class $ListQueryParams<T> implements $Params {
   const $ListQueryParams();
 
   /// A search string for filtering results.
@@ -45,7 +46,4 @@ abstract class $ListQueryParams<T> {
 
   /// Number of items to skip.
   int? get offset;
-
-  /// Optional arbitrary additional parameters as an escape hatch
-  $Params? get params;
 }

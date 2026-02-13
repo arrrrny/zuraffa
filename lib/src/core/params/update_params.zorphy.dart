@@ -9,29 +9,45 @@ part of 'update_params.dart';
 // **************************************************************************
 
 @JsonSerializable(explicitToJson: true, genericArgumentFactories: true)
-class UpdateParams<I, P> {
+class UpdateParams<I, P> extends Params {
   final I id;
   final P data;
-  final Params? params;
 
-  const UpdateParams({required this.id, required this.data, this.params});
+  const UpdateParams({
+    Map<String, dynamic>? params,
+    required this.id,
+    required this.data,
+  }) : super(params: params);
 
-  UpdateParams copyWith({I? id, P? data, Params? params}) {
+  UpdateParams copyWith({Map<String, dynamic>? params, I? id, P? data}) {
     return UpdateParams(
+      params: params ?? this.params,
       id: id ?? this.id,
       data: data ?? this.data,
-      params: params ?? this.params,
     );
   }
 
-  UpdateParams copyWithUpdateParams({I? id, P? data, Params? params}) {
-    return copyWith(id: id, data: data, params: params);
+  UpdateParams copyWithUpdateParams({
+    Map<String, dynamic>? params,
+    I? id,
+    P? data,
+  }) {
+    return copyWith(params: params, id: id, data: data);
+  }
+
+  UpdateParams copyWithParams({Map<String, dynamic>? params}) {
+    return copyWith(params: params);
   }
 
   UpdateParams patchWithUpdateParams({UpdateParamsPatch? patchInput}) {
     final _patcher = patchInput ?? UpdateParamsPatch();
     final _patchMap = _patcher.toPatch();
     return UpdateParams(
+      params: _patchMap.containsKey(UpdateParams$.params)
+          ? (_patchMap[UpdateParams$.params] is Function)
+                ? _patchMap[UpdateParams$.params](this.params)
+                : _patchMap[UpdateParams$.params]
+          : this.params,
       id: _patchMap.containsKey(UpdateParams$.id)
           ? (_patchMap[UpdateParams$.id] is Function)
                 ? _patchMap[UpdateParams$.id](this.id)
@@ -42,11 +58,20 @@ class UpdateParams<I, P> {
                 ? _patchMap[UpdateParams$.data](this.data)
                 : _patchMap[UpdateParams$.data]
           : this.data,
-      params: _patchMap.containsKey(UpdateParams$.params)
-          ? (_patchMap[UpdateParams$.params] is Function)
-                ? _patchMap[UpdateParams$.params](this.params)
-                : _patchMap[UpdateParams$.params]
+    );
+  }
+
+  UpdateParams patchWithParams({ParamsPatch? patchInput}) {
+    final _patcher = patchInput ?? ParamsPatch();
+    final _patchMap = _patcher.toPatch();
+    return UpdateParams(
+      params: _patchMap.containsKey(Params$.params)
+          ? (_patchMap[Params$.params] is Function)
+                ? _patchMap[Params$.params](this.params)
+                : _patchMap[Params$.params]
           : this.params,
+      id: this.id,
+      data: this.data,
     );
   }
 
@@ -54,24 +79,24 @@ class UpdateParams<I, P> {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is UpdateParams &&
+        params == other.params &&
         id == other.id &&
-        data == other.data &&
-        params == other.params;
+        data == other.data;
   }
 
   @override
   int get hashCode {
-    return Object.hash(this.id, this.data, this.params);
+    return Object.hash(this.params, this.id, this.data);
   }
 
   @override
   String toString() {
     return 'UpdateParams(' +
+        'params: ${params}' +
+        ', ' +
         'id: ${id}' +
         ', ' +
-        'data: ${data}' +
-        ', ' +
-        'params: ${params})';
+        'data: ${data})';
   }
 
   /// Creates a [UpdateParams] instance from JSON
@@ -80,44 +105,20 @@ class UpdateParams<I, P> {
     I Function(Object? json) fromJsonI,
     P Function(Object? json) fromJsonP,
   ) => _$UpdateParamsFromJson(json, fromJsonI, fromJsonP);
-
-  Map<String, dynamic> toJsonLean(
-    Object? Function(I value) toJsonI,
-    Object? Function(P value) toJsonP,
-  ) {
-    final Map<String, dynamic> data = _$UpdateParamsToJson(
-      this,
-      toJsonI,
-      toJsonP,
-    );
-    return _sanitizeJson(data);
-  }
-
-  dynamic _sanitizeJson(dynamic json) {
-    if (json is Map<String, dynamic>) {
-      json.remove('_className_');
-      return json..forEach((key, value) {
-        json[key] = _sanitizeJson(value);
-      });
-    } else if (json is List) {
-      return json.map((e) => _sanitizeJson(e)).toList();
-    }
-    return json;
-  }
 }
 
-extension UpdateParamsPropertyHelpers<I, P> on UpdateParams<I, P> {
-  bool get hasParams => params != null;
-  bool get noParams => params == null;
-  Params get paramsRequired =>
-      params ?? (throw StateError('params is required but was null'));
-}
+extension UpdateParamsPropertyHelpers<I, P> on UpdateParams<I, P> {}
 
 extension UpdateParamsSerialization<I, P> on UpdateParams<I, P> {
   Map<String, dynamic> toJson(
     Object? Function(I value) toJsonI,
     Object? Function(P value) toJsonP,
-  ) => _$UpdateParamsToJson(this, toJsonI, toJsonP);
+  ) {
+    final data = _$UpdateParamsToJson(this, toJsonI, toJsonP);
+    data['params'] = params;
+    return data;
+  }
+
   Map<String, dynamic> toJsonLean(
     Object? Function(I value) toJsonI,
     Object? Function(P value) toJsonP,
@@ -127,6 +128,7 @@ extension UpdateParamsSerialization<I, P> on UpdateParams<I, P> {
       toJsonI,
       toJsonP,
     );
+    if (params != null) data['params'] = params;
     return _sanitizeJson(data);
   }
 
@@ -143,7 +145,7 @@ extension UpdateParamsSerialization<I, P> on UpdateParams<I, P> {
   }
 }
 
-enum UpdateParams$ { id, data, params }
+enum UpdateParams$ { params, id, data }
 
 class UpdateParamsPatch implements Patch<UpdateParams> {
   final Map<UpdateParams$, dynamic> _patch = {};
@@ -213,6 +215,11 @@ class UpdateParamsPatch implements Patch<UpdateParams> {
     return create(json);
   }
 
+  UpdateParamsPatch withParams(Map<String, dynamic>? value) {
+    _patch[UpdateParams$.params] = value;
+    return this;
+  }
+
   UpdateParamsPatch withId(dynamic value) {
     _patch[UpdateParams$.id] = value;
     return this;
@@ -222,56 +229,37 @@ class UpdateParamsPatch implements Patch<UpdateParams> {
     _patch[UpdateParams$.data] = value;
     return this;
   }
-
-  UpdateParamsPatch withParams(Params? value) {
-    _patch[UpdateParams$.params] = value;
-    return this;
-  }
-
-  UpdateParamsPatch withParamsPatch(ParamsPatch patch) {
-    _patch[UpdateParams$.params] = patch;
-    return this;
-  }
-
-  UpdateParamsPatch withParamsPatchFunc(
-    ParamsPatch Function(ParamsPatch) patch,
-  ) {
-    _patch[UpdateParams$.params] = (dynamic current) {
-      var currentPatch = ParamsPatch();
-      if (current != null) {
-        currentPatch = current as ParamsPatch;
-      }
-      return patch(currentPatch);
-    };
-    return this;
-  }
 }
 
 /// Field descriptors for [UpdateParams] query construction
 abstract final class UpdateParamsFields {
+  static Map<String, dynamic>? _$getparams<I, P>(UpdateParams<I, P> e) =>
+      e.params;
+  static Field<UpdateParams<I, P>, Map<String, dynamic>?> params<I, P>() =>
+      Field<UpdateParams<I, P>, Map<String, dynamic>?>(
+        'params',
+        _$getparams<I, P>,
+      );
   static I _$getid<I, P>(UpdateParams<I, P> e) => e.id;
   static Field<UpdateParams<I, P>, I> id<I, P>() =>
       Field<UpdateParams<I, P>, I>('id', _$getid<I, P>);
   static P _$getdata<I, P>(UpdateParams<I, P> e) => e.data;
   static Field<UpdateParams<I, P>, P> data<I, P>() =>
       Field<UpdateParams<I, P>, P>('data', _$getdata<I, P>);
-  static Params? _$getparams<I, P>(UpdateParams<I, P> e) => e.params;
-  static Field<UpdateParams<I, P>, Params?> params<I, P>() =>
-      Field<UpdateParams<I, P>, Params?>('params', _$getparams<I, P>);
 }
 
 extension UpdateParamsCompareE on UpdateParams {
   Map<String, dynamic> compareToUpdateParams(UpdateParams other) {
     final Map<String, dynamic> diff = {};
 
+    if (params != other.params) {
+      diff['params'] = () => other.params;
+    }
     if (id != other.id) {
       diff['id'] = () => other.id;
     }
     if (data != other.data) {
       diff['data'] = () => other.data;
-    }
-    if (params != other.params) {
-      diff['params'] = () => other.params;
     }
     return diff;
   }

@@ -432,6 +432,7 @@ class CodeGenerator {
         }
 
         if (config.generateRepository &&
+            config.isEntityBased &&
             !(config.generateData || config.generateDataSource)) {
           nextSteps.add('Implement Data${config.name}Repository in data layer');
         }
