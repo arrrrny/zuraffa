@@ -25,6 +25,7 @@ extension TestBuilderEntity on TestBuilder {
         returnTypeConstructor = 't$entityName';
         break;
       case 'getList':
+      case 'list':
         className = 'Get${entityName}ListUseCase';
         returnTypeConstructor = 't${entityName}List';
         break;
@@ -67,7 +68,7 @@ extension TestBuilderEntity on TestBuilder {
     final filePath = path.join(testDirPath, fileName);
 
     String useCaseFileName;
-    if (method == 'getList') {
+    if (method == 'getList' || method == 'list') {
       useCaseFileName = 'get_${entitySnake}_list_usecase.dart';
     } else if (method == 'watchList') {
       useCaseFileName = 'watch_${entitySnake}_list_usecase.dart';

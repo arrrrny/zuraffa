@@ -6,7 +6,7 @@ void main() {
   group('QueryParams', () {
     test('should store filter and optional params', () {
       const filter = Eq<_TestEntity, String>(_TestEntityFields.name, 'test');
-      const params = Params({'key': 'value'});
+      const params = Params(params: {'key': 'value'});
       const queryParams = QueryParams<_TestEntity>(
         filter: filter,
         params: params,
@@ -20,7 +20,7 @@ void main() {
       const filter = Eq<_TestEntity, String>(_TestEntityFields.name, 'test');
       const queryParams = QueryParams<_TestEntity>(
         filter: filter,
-        params: Params({'includeDeleted': true}),
+        params: Params(params: {'includeDeleted': true}),
       );
 
       final map = queryParams.toQueryMap();
@@ -32,7 +32,7 @@ void main() {
       const filter = Eq<_TestEntity, String>(_TestEntityFields.name, 'test');
       const q = QueryParams<_TestEntity>(
         filter: filter,
-        params: Params({'key': 'value'}),
+        params: Params(params: {'key': 'value'}),
       );
 
       final updated = q.copyWith(clearFilter: true);
@@ -162,7 +162,7 @@ void main() {
       const entity = _TestEntity(name: 'Test');
       const createParams = CreateParams<_TestEntity>(
         data: entity,
-        params: Params({'source': 'api'}),
+        params: Params(params: {'source': 'api'}),
       );
 
       final map = createParams.toMap();
@@ -194,7 +194,7 @@ void main() {
   group('UpdateParams', () {
     test('should store id, data, and optional params', () {
       const patch = {'name': 'Updated'};
-      const params = Params({'key': 'value'});
+      const params = Params(params: {'key': 'value'});
       const updateParams = UpdateParams<String, Map<String, dynamic>>(
         id: '123',
         data: patch,
@@ -260,7 +260,7 @@ void main() {
     test('toMap serializes correctly', () {
       const deleteParams = DeleteParams<String>(
         id: '123',
-        params: Params({'soft': true}),
+        params: Params(params: {'soft': true}),
       );
 
       final map = deleteParams.toMap();

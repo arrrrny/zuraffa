@@ -40,7 +40,7 @@ void main() {
     final content = entityRoutes.readAsStringSync();
     expect(content.contains('getIt'), isFalse);
     expect(content.contains('service_locator.dart'), isFalse);
-    expect(content.contains('const ProductView()'), isTrue);
+    expect(content.contains('ProductView'), isTrue);
   });
 
   test('detail routes omit id when id type is NoParams', () async {

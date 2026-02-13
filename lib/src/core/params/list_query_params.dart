@@ -1,10 +1,6 @@
 import 'package:zorphy/zorphy.dart';
 import 'package:zuraffa/src/core/params/index.dart';
 
-import 'converters/filter_converter.dart';
-import 'converters/sort_converter.dart';
-import 'params.dart';
-
 part 'list_query_params.zorphy.dart';
 
 part 'list_query_params.g.dart';

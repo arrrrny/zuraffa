@@ -1,6 +1,9 @@
+import 'package:args/command_runner.dart';
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
+import '../../commands/view_command.dart';
+import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
@@ -23,7 +26,7 @@ import 'builders/view_class_builder.dart';
 /// );
 /// final files = await plugin.generate(GeneratorConfig(name: 'Product'));
 /// ```
-class ViewPlugin extends FileGeneratorPlugin {
+class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final bool dryRun;
   final bool force;
@@ -57,6 +60,9 @@ class ViewPlugin extends FileGeneratorPlugin {
   @override
   String get version => '1.0.0';
 
+  @override
+  Command createCommand() => ViewCommand(this);
+
   /// Generates view files for the given [config].
   ///
   /// @param config Generator configuration describing the entity and options.
@@ -66,6 +72,21 @@ class ViewPlugin extends FileGeneratorPlugin {
     if (!(config.generateView || config.generateVpc)) {
       return [];
     }
+
+    if (config.outputDir != outputDir ||
+        config.dryRun != dryRun ||
+        config.force != force ||
+        config.verbose != verbose) {
+      final delegator = ViewPlugin(
+        outputDir: config.outputDir,
+        dryRun: config.dryRun,
+        force: config.force,
+        verbose: config.verbose,
+        classBuilder: classBuilder,
+      );
+      return delegator.generate(config);
+    }
+
     final entityName = config.name;
     final entitySnake = config.nameSnake;
     final viewName = '${entityName}View';

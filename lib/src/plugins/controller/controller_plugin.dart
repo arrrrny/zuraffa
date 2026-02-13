@@ -1,6 +1,9 @@
+import 'package:args/command_runner.dart';
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
+import '../../commands/controller_command.dart';
+import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
@@ -26,7 +29,7 @@ part 'controller_plugin_utils.dart';
 /// );
 /// final files = await plugin.generate(GeneratorConfig(name: 'Product'));
 /// ```
-class ControllerPlugin extends FileGeneratorPlugin {
+class ControllerPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final bool dryRun;
   final bool force;
@@ -60,6 +63,9 @@ class ControllerPlugin extends FileGeneratorPlugin {
   @override
   String get version => '1.0.0';
 
+  @override
+  Command createCommand() => ControllerCommand(this);
+
   /// Generates controller files for the given [config].
   ///
   /// @param config Generator configuration describing the entity and options.
@@ -69,6 +75,21 @@ class ControllerPlugin extends FileGeneratorPlugin {
     if (!(config.generateController || config.generateVpc)) {
       return [];
     }
+
+    if (config.outputDir != outputDir ||
+        config.dryRun != dryRun ||
+        config.force != force ||
+        config.verbose != verbose) {
+      final delegator = ControllerPlugin(
+        outputDir: config.outputDir,
+        dryRun: config.dryRun,
+        force: config.force,
+        verbose: config.verbose,
+        classBuilder: classBuilder,
+      );
+      return delegator.generate(config);
+    }
+
     final entityName = config.name;
     final entitySnake = config.nameSnake;
     final entityCamel = config.nameCamel;

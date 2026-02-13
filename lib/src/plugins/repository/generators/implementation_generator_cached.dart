@@ -446,6 +446,7 @@ extension RepositoryImplementationGeneratorCached
     return Method(
       (m) => m
         ..requiredParameters.add(Parameter((p) => p..name = 'data'))
+        ..modifier = MethodModifier.async
         ..body = Block(
           (bb) => bb
             ..statements.add(
@@ -487,6 +488,9 @@ extension RepositoryImplementationGeneratorCached
     required bool isList,
   }) {
     final watchMethod = isList ? 'watchList' : 'watch';
+    final onDataHandler = refer('controller').property('add');
+    final onErrorHandler = refer('controller').property('addError');
+
     return Method(
       (m) => m
         ..body = Block(
@@ -498,10 +502,7 @@ extension RepositoryImplementationGeneratorCached
                         .property(watchMethod)
                         .call([refer('params')])
                         .property('listen')
-                        .call(
-                          [refer('controller').property('add')],
-                          {'onError': refer('controller').property('addError')},
-                        ),
+                        .call([onDataHandler], {'onError': onErrorHandler}),
                   )
                   .statement,
             )

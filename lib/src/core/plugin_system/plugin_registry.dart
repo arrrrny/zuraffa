@@ -5,6 +5,7 @@ import 'plugin_lifecycle.dart';
 typedef ZuraffaPluginFactory = ZuraffaPlugin Function();
 
 class PluginRegistry {
+  static final PluginRegistry instance = PluginRegistry();
   final Map<String, ZuraffaPlugin> _plugins = {};
 
   List<ZuraffaPlugin> get plugins {

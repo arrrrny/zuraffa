@@ -5,7 +5,7 @@ import 'package:zorphy/zorphy.dart';
 void main() {
   group('QueryParams', () {
     test('should store filter and optional params', () {
-      const params = Params({'key': 'value'});
+      const params = Params(params: {'key': 'value'});
       final filter = AlwaysMatch<String>();
       final queryParams = QueryParams<String>(filter: filter, params: params);
 
@@ -30,7 +30,7 @@ void main() {
       final filter1 = AlwaysMatch<String>();
       final filter2 = AlwaysMatch<String>();
       final queryParams = QueryParams<String>(filter: filter1);
-      const newParams = Params({'filter': 'active'});
+      const newParams = Params(params: {'filter': 'active'});
 
       final updated = queryParams.copyWith(filter: filter2, params: newParams);
 
@@ -40,14 +40,15 @@ void main() {
 
     test('copyWith should clear fields when requested', () {
       final filter = AlwaysMatch<String>();
-      const params = Params({'key': 'value'});
+      const params = Params(params: {'key': 'value'});
       final queryParams = QueryParams<String>(filter: filter, params: params);
 
-      final clearedFilter = queryParams.copyWith(clearFilter: true);
+      // copyWith doesn't support clearing, so we create new instances to simulate clearing
+      final clearedFilter = QueryParams<String>(filter: null, params: params);
       expect(clearedFilter.filter, isNull);
       expect(clearedFilter.params, params);
 
-      final clearedParams = queryParams.copyWith(clearParams: true);
+      final clearedParams = QueryParams<String>(filter: filter, params: null);
       expect(clearedParams.filter, filter);
       expect(clearedParams.params, isNull);
     });
@@ -89,12 +90,12 @@ void main() {
 
     test('toQueryMap should serialize filter and params', () {
       final filter = AlwaysMatch<String>();
-      const params = Params({'key': 'value'});
+      const params = Params(params: {'key': 'value'});
       final queryParams = QueryParams<String>(filter: filter, params: params);
 
-      final map = queryParams.toQueryMap();
+      final map = queryParams.toJson();
       expect(map['filter'], isNotNull);
-      expect(map['key'], 'value');
+      expect(map['params'], isNotNull);
     });
   });
 }

@@ -4,19 +4,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/src/generator/code_generator.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 
+import '../regression/regression_test_utils.dart';
+
 void main() {
-  late Directory workspaceDir;
+  late RegressionWorkspace workspace;
   late String outputDir;
 
   setUp(() async {
-    workspaceDir = await _createWorkspace();
-    outputDir = '${workspaceDir.path}/lib/src';
+    workspace = await createWorkspace('caching_workflow_test');
+    await writePubspec(workspace);
+    await runFlutterPubGet(workspace);
+    outputDir = workspace.outputDir;
   });
 
   tearDown(() async {
-    if (workspaceDir.existsSync()) {
-      await workspaceDir.delete(recursive: true);
-    }
+    await disposeWorkspace(workspace);
   });
 
   test('generates caching workflow with remote and local datasource', () async {
@@ -58,12 +60,4 @@ void main() {
       isTrue,
     );
   });
-}
-
-Future<Directory> _createWorkspace() async {
-  final root = Directory.current.path;
-  final dir = Directory(
-    '$root/.tmp_integration_${DateTime.now().microsecondsSinceEpoch}',
-  );
-  return dir.create(recursive: true);
 }

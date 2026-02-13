@@ -2,13 +2,13 @@ import 'dart:io';
 
 import '../models/generator_config.dart';
 import 'base_plugin_command.dart';
-import '../plugins/view/view_plugin.dart';
+import '../plugins/presenter/presenter_plugin.dart';
 
-class ViewCommand extends PluginCommand {
+class PresenterCommand extends PluginCommand {
   @override
-  final ViewPlugin plugin;
+  final PresenterPlugin plugin;
 
-  ViewCommand(this.plugin) : super(plugin) {
+  PresenterCommand(this.plugin) : super(plugin) {
     argParser.addOption(
       'methods',
       abbr: 'm',
@@ -20,37 +20,30 @@ class ViewCommand extends PluginCommand {
       help: 'Generate with DI integration',
       defaultsTo: true,
     );
-    argParser.addFlag(
-      'state',
-      help: 'Generate with State integration',
-      defaultsTo: false,
-    );
   }
 
   @override
-  String get name => 'view';
+  String get name => 'presenter';
 
   @override
-  String get description => 'Generate view class for an entity';
+  String get description => 'Generate presenter class for an entity';
 
   @override
   Future<void> run() async {
     if (argResults!.rest.isEmpty) {
-      print('❌ Usage: zfa view <EntityName> [options]');
+      print('❌ Usage: zfa presenter <EntityName> [options]');
       exit(1);
     }
 
     final entityName = argResults!.rest.first;
     final methods = (argResults!['methods'] as String).split(',');
     final generateDi = argResults!['di'] as bool;
-    final generateState = argResults!['state'] as bool;
 
     final config = GeneratorConfig(
       name: entityName,
       methods: methods,
-      generateView: true,
+      generatePresenter: true,
       generateDi: generateDi,
-      generateState: generateState,
       dryRun: isDryRun,
       force: isForce,
       verbose: isVerbose,

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:args/command_runner.dart';
 import 'commands/generate_command.dart';
 import 'commands/schema_command.dart';
 import 'commands/validate_command.dart';
@@ -6,11 +7,25 @@ import 'commands/create_command.dart';
 import 'commands/config_command.dart';
 import 'commands/initialize_command.dart';
 import 'commands/entity_command.dart';
-import 'commands/graphql_command.dart';
 import 'commands/plugin_command.dart';
-import 'commands/view_command.dart';
-import 'commands/test_command.dart';
-import 'commands/di_command.dart';
+import 'commands/make_command.dart';
+import 'core/plugin_system/plugin_registry.dart';
+import 'plugins/di/di_plugin.dart';
+import 'plugins/route/route_plugin.dart';
+import 'plugins/view/view_plugin.dart';
+import 'plugins/controller/controller_plugin.dart';
+import 'plugins/presenter/presenter_plugin.dart';
+import 'plugins/usecase/usecase_plugin.dart';
+import 'plugins/repository/repository_plugin.dart';
+import 'plugins/datasource/datasource_plugin.dart';
+import 'plugins/service/service_plugin.dart';
+import 'plugins/test/test_plugin.dart';
+import 'plugins/state/state_plugin.dart';
+import 'plugins/provider/provider_plugin.dart';
+import 'plugins/mock/mock_plugin.dart';
+import 'plugins/cache/cache_plugin.dart';
+import 'plugins/graphql/graphql_plugin.dart';
+import 'plugins/observer/observer_plugin.dart';
 
 const version = '2.8.0';
 
@@ -20,6 +35,179 @@ Future<void> run(List<String> args) async {
     exit(0);
   }
 
+  // 1. Initialize CommandRunner with description
+  final runner = CommandRunner('zfa', 'Zuraffa Code Generator')
+    ..argParser.addFlag('version', negatable: false, abbr: 'v', help: 'Print version');
+
+  // 2. Register Modular Plugin Commands
+  // Note: In the future, this should iterate over a registry
+  final routePlugin = RoutePlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+  
+  final diPlugin = DiPlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final viewPlugin = ViewPlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final controllerPlugin = ControllerPlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final presenterPlugin = PresenterPlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final useCasePlugin = UseCasePlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final repositoryPlugin = RepositoryPlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final dataSourcePlugin = DataSourcePlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final servicePlugin = ServicePlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final testPlugin = TestPlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final statePlugin = StatePlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final providerPlugin = ProviderPlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final mockPlugin = MockPlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final cachePlugin = CachePlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final graphqlPlugin = GraphqlPlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final observerPlugin = ObserverPlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+  
+  // Register plugins in the registry for MakeCommand to find them
+  PluginRegistry.instance.register(routePlugin);
+  PluginRegistry.instance.register(diPlugin);
+  PluginRegistry.instance.register(viewPlugin);
+  PluginRegistry.instance.register(controllerPlugin);
+  PluginRegistry.instance.register(presenterPlugin);
+  PluginRegistry.instance.register(useCasePlugin);
+  PluginRegistry.instance.register(repositoryPlugin);
+  PluginRegistry.instance.register(dataSourcePlugin);
+  PluginRegistry.instance.register(servicePlugin);
+  PluginRegistry.instance.register(testPlugin);
+  PluginRegistry.instance.register(statePlugin);
+  PluginRegistry.instance.register(providerPlugin);
+  PluginRegistry.instance.register(mockPlugin);
+  PluginRegistry.instance.register(cachePlugin);
+  PluginRegistry.instance.register(graphqlPlugin);
+  PluginRegistry.instance.register(observerPlugin);
+
+  runner.addCommand(routePlugin.createCommand());
+  runner.addCommand(diPlugin.createCommand());
+  runner.addCommand(viewPlugin.createCommand());
+  runner.addCommand(controllerPlugin.createCommand());
+  runner.addCommand(presenterPlugin.createCommand());
+  runner.addCommand(useCasePlugin.createCommand());
+  runner.addCommand(repositoryPlugin.createCommand());
+  runner.addCommand(dataSourcePlugin.createCommand());
+  runner.addCommand(servicePlugin.createCommand());
+  runner.addCommand(testPlugin.createCommand());
+  runner.addCommand(statePlugin.createCommand());
+  runner.addCommand(providerPlugin.createCommand());
+  runner.addCommand(mockPlugin.createCommand());
+  runner.addCommand(cachePlugin.createCommand());
+  runner.addCommand(graphqlPlugin.createCommand());
+  runner.addCommand(observerPlugin.createCommand());
+  runner.addCommand(MakeCommand(PluginRegistry.instance));
+
+  // 3. Dispatch
+  // If the command is one of our new modular commands, let CommandRunner handle it.
+  if (args.isNotEmpty && runner.commands.keys.contains(args[0])) {
+    try {
+      await runner.run(args);
+    } catch (e) {
+      if (e is UsageException) {
+        print(e);
+        exit(64);
+      } else {
+        print('❌ Error: $e');
+        exit(1);
+      }
+    }
+    return;
+  }
+
+  // 4. Fallback to Legacy Switch for existing commands
+  // TODO: Migrate these to CommandRunner commands
   final command = args[0];
 
   try {
@@ -45,20 +233,8 @@ Future<void> run(List<String> args) async {
       case 'entity':
         await EntityCommand().execute(args.skip(1).toList());
         break;
-      case 'graphql':
-        await GraphQLCommand().execute(args.skip(1).toList());
-        break;
       case 'plugin':
         await PluginCommand().execute(args.skip(1).toList());
-        break;
-      case 'view':
-        await ViewCommand().execute(args.skip(1).toList());
-        break;
-      case 'test':
-        await TestCommand().execute(args.skip(1).toList());
-        break;
-      case 'di':
-        await DiCommand().execute(args.skip(1).toList());
         break;
       case 'build':
         await _handleBuild(args.skip(1).toList());
@@ -67,6 +243,9 @@ Future<void> run(List<String> args) async {
       case '--help':
       case '-h':
         _printHelp();
+        // Also show modular commands help
+        print('\nMODULAR COMMANDS:');
+        runner.printUsage();
         break;
       case 'version':
       case '--version':
@@ -75,6 +254,12 @@ Future<void> run(List<String> args) async {
         print('Zuraffa Code Generator');
         break;
       default:
+        // If it looks like a flag but no command, show help
+        if (command.startsWith('-')) {
+             print('zfa v$version');
+             print('Zuraffa Code Generator');
+             return;
+        }
         print('❌ Unknown command: $command\n');
         _printHelp();
         exit(1);
@@ -146,6 +331,9 @@ CLEAN ARCHITECTURE COMMANDS:
   test <UseCaseName>  Generate tests for existing usecases
   di <UseCaseName>    Generate DI registration for existing usecases
 
+MODULAR COMMANDS:
+  route <Name>        Generate route definitions (standalone)
+
 ENTITY GENERATION COMMANDS (powered by Zorphy):
   entity create       Create a new Zorphy entity with fields
   entity new          Quick-create a simple entity
@@ -173,6 +361,9 @@ EXAMPLES - CLEAN ARCHITECTURE:
   zfa generate Product --methods=get,getList        # Generate Clean Architecture
   zfa generate OrderUseCase --custom --returns=Order --zorphy
 
+EXAMPLES - MODULAR:
+  zfa route Product --methods=get,create           # Generate only route definitions
+
 EXAMPLES - ADDITIONAL VIEW:
   zfa view Payment --domain=checkout --presenter=CheckoutPresenter
   zfa view Payment --domain=checkout --presenter=CheckoutPresenter --state
@@ -198,23 +389,5 @@ EXAMPLES - GRAPHQL:
   zfa graphql --url=https://api.example.com/graphql
   zfa graphql --url=https://api.example.com/graphql --auth=token
   zfa graphql --url=https://api.example.com/graphql --include=User,Product
-
-EXAMPLES - BUILD:
-  zfa build                # Run build_runner once
-  zfa build --watch        # Watch for changes
-  zfa build --clean        # Clean and rebuild
-
-For detailed help on each command:
-  zfa generate --help
-  zfa view --help
-  zfa test --help
-  zfa di --help
-  zfa entity --help
-  zfa graphql --help
-  zfa initialize --help
-  zfa create --help
-
-Documentation: https://zuraffa.com/docs
-Zorphy Docs: https://github.com/arrrrny/zorphy
 ''');
 }

@@ -1,12 +1,12 @@
 import '../models/generator_config.dart';
 import 'base_plugin_command.dart';
-import '../plugins/test/test_plugin.dart';
+import '../plugins/state/state_plugin.dart';
 
-class TestCommand extends PluginCommand {
+class StateCommand extends PluginCommand {
   @override
-  final TestPlugin plugin;
+  final StatePlugin plugin;
 
-  TestCommand(this.plugin) : super(plugin) {
+  StateCommand(this.plugin) : super(plugin) {
     argParser.addOption(
       'methods',
       abbr: 'm',
@@ -16,10 +16,10 @@ class TestCommand extends PluginCommand {
   }
 
   @override
-  String get name => 'test';
+  String get name => 'state';
 
   @override
-  String get description => 'Generate Tests';
+  String get description => 'Generate State classes';
 
   @override
   Future<void> run() async {
@@ -29,7 +29,7 @@ class TestCommand extends PluginCommand {
     final config = GeneratorConfig(
       name: entityName,
       methods: methods,
-      generateTest: true,
+      generateState: true,
       dryRun: isDryRun,
       force: isForce,
       verbose: isVerbose,

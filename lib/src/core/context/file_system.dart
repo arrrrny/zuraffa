@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:path/path.dart' as p;
 
 abstract class FileSystem {
   static FileSystem create({String? root}) => DefaultFileSystem(root: root);
@@ -21,7 +22,10 @@ class DefaultFileSystem implements FileSystem {
     if (root == null) {
       return path;
     }
-    return '${root!}/$path';
+    if (p.isAbsolute(path)) {
+      return path;
+    }
+    return p.join(root!, path);
   }
 
   @override
@@ -31,7 +35,9 @@ class DefaultFileSystem implements FileSystem {
 
   @override
   Future<void> write(String path, String content) async {
-    final file = File(_resolve(path));
+    final resolved = _resolve(path);
+    print('DEBUG: Writing to $resolved (original: $path, root: $root)');
+    final file = File(resolved);
     await file.parent.create(recursive: true);
     await file.writeAsString(content);
   }
