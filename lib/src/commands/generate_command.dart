@@ -193,13 +193,7 @@ class GenerateCommand {
     if (path.isAbsolute(outputDir)) {
       return outputDir;
     }
-    final envPwd = Platform.environment['PWD'];
-    if (envPwd != null && envPwd.isNotEmpty) {
-      final envDir = Directory(envPwd);
-      if (envDir.existsSync()) {
-        return path.normalize(path.join(envPwd, outputDir));
-      }
-    }
+    // Always use Directory.current as it is the source of truth for the process
     return path.normalize(path.join(Directory.current.path, outputDir));
   }
 

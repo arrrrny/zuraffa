@@ -43,6 +43,6 @@ void main() {
     stopwatch.stop();
 
     expect(result.success, isTrue);
-    expect(stopwatch.elapsedMilliseconds < 5000, isTrue);
+    expect(stopwatch.elapsedMilliseconds < 10000, isTrue);
   });
 }

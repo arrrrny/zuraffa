@@ -53,15 +53,16 @@ class CodeGenerator {
   late final MethodAppendPlugin _methodAppendPlugin;
 
   CodeGenerator({
-    required this.config,
+    required GeneratorConfig config,
     required this.outputDir,
     this.dryRun = false,
     this.force = false,
     this.verbose = false,
     ProgressReporter? progressReporter,
     Set<String>? disabledPluginIds,
-  }) : context = GenerationContext.create(
-         config: config,
+  }) : config = config.copyWith(outputDir: outputDir),
+       context = GenerationContext.create(
+         config: config.copyWith(outputDir: outputDir),
          outputDir: outputDir,
          dryRun: dryRun,
          force: force,

@@ -320,9 +320,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             ]),
           })
         : refer('QueryParams<$entityName>').call([], {
-            'params': refer('Params').call([
-              literalMap({config.queryField: refer(config.queryField)}),
-            ]),
+            'params': literalMap({config.queryField: refer(config.queryField)}),
           });
 
     final callExpression = refer('_$methodName')
@@ -484,9 +482,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             ]),
           })
         : refer('QueryParams<$entityName>').call([], {
-            'params': refer('Params').call([
-              literalMap({config.queryField: refer(config.queryField)}),
-            ]),
+            'params': literalMap({config.queryField: refer(config.queryField)}),
           });
 
     final callExpression = refer('_$methodName')

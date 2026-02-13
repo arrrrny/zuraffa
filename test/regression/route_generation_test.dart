@@ -19,6 +19,8 @@ void main() {
         name: 'Product',
         methods: const ['get', 'create', 'update'],
         generateView: true,
+        generateRoute: true,
+        outputDir: outputDir,
       ),
     );
     final content = files.map((f) => f.content ?? '').join('\n');
