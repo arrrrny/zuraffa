@@ -516,7 +516,9 @@ class CodeGenerator {
         if (verbose) {
           errors.add('Stack trace:\n$stack');
         }
+      if (verbose) {
         print('Generation error: $e');
+      }
         progress.failed(e.toString());
         return GeneratorResult(
           name: config.name,
