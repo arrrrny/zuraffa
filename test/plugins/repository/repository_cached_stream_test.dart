@@ -35,6 +35,7 @@ void main() {
         generateData: true,
         enableCache: true,
         cacheStorage: 'hive',
+        outputDir: outputDir,
       );
 
       final files = await plugin.generate(config);

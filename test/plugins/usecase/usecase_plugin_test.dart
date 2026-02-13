@@ -30,6 +30,7 @@ void main() {
       name: 'Todo',
       methods: ['get'],
       repo: 'Todo',
+      outputDir: outputDir,
     );
     final files = await plugin.generate(config);
     expect(files.length, equals(1));
@@ -54,6 +55,7 @@ void main() {
       paramsType: 'UserParams',
       returnsType: 'User',
       useCaseType: 'sync',
+      outputDir: outputDir,
     );
     final files = await plugin.generate(config);
     final content = files.first.content ?? '';
@@ -76,6 +78,7 @@ void main() {
       paramsType: 'UserParams',
       returnsType: 'User',
       useCaseType: 'stream',
+      outputDir: outputDir,
     );
     final files = await plugin.generate(config);
     final content = files.first.content ?? '';
@@ -98,6 +101,7 @@ void main() {
       usecases: ['GetOrder', 'SaveOrder'],
       paramsType: 'OrderParams',
       returnsType: 'Order',
+      outputDir: outputDir,
     );
     final files = await plugin.generate(config);
     final content = files.first.content ?? '';
@@ -118,6 +122,7 @@ void main() {
       variants: ['Cached', 'Remote'],
       paramsType: 'UserParams',
       returnsType: 'User',
+      outputDir: outputDir,
     );
     final files = await plugin.generate(config);
     expect(files.length, equals(4));
@@ -149,6 +154,7 @@ void main() {
       paramsType: 'NoParams',
       returnsType: 'void',
       appendToExisting: true,
+      outputDir: outputDir,
     );
     final files = await plugin.generate(config);
     final content = files.first.content ?? '';

@@ -33,6 +33,7 @@ void main() {
         methods: const ['get', 'getList', 'create'],
         generateVpc: true,
         generateRoute: true,
+        outputDir: outputDir,
       ),
     );
 

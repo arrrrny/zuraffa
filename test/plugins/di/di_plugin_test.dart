@@ -35,6 +35,7 @@ void main() {
         methods: const ['get'],
         generateData: true,
         generateDi: true,
+        outputDir: outputDir,
       ),
     );
 
@@ -72,6 +73,7 @@ void main() {
         generateData: true,
         generateDi: true,
         useMockInDi: true,
+        outputDir: outputDir,
       ),
     );
 
@@ -146,6 +148,7 @@ void main() {
         generateData: true,
         generateDi: true,
         enableCache: true,
+        outputDir: outputDir,
       ),
     );
 

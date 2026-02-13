@@ -33,6 +33,7 @@ void main() {
         methods: const ['get'],
         generateRoute: true,
         generateDi: true,
+        outputDir: outputDir,
       ),
     );
 
@@ -57,6 +58,7 @@ void main() {
         methods: const ['get'],
         generateRoute: true,
         idType: 'NoParams',
+        outputDir: outputDir,
       ),
     );
 

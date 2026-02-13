@@ -32,6 +32,7 @@ void main() {
         name: 'Product',
         methods: const ['get', 'create'],
         generateData: true,
+        outputDir: outputDir,
       ),
     );
 
@@ -69,6 +70,7 @@ void main() {
         generateData: true,
         enableCache: true,
         cacheStorage: 'hive',
+        outputDir: outputDir,
       ),
     );
 
@@ -98,6 +100,7 @@ void main() {
         methods: const ['get'],
         generateData: true,
         generateGql: true,
+        outputDir: outputDir,
       ),
     );
 

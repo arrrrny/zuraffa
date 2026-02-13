@@ -35,6 +35,7 @@ void main() {
         domain: 'email',
         paramsType: 'EmailParams',
         returnsType: 'SendResult',
+        outputDir: outputDir,
       ),
     );
 
@@ -66,6 +67,7 @@ void main() {
         paramsType: 'OrderFilter',
         returnsType: 'Order',
         useCaseType: 'stream',
+        outputDir: outputDir,
       ),
     );
 

@@ -30,6 +30,7 @@ void main() {
       name: 'Product',
       methods: const ['get', 'getList'],
       generatePresenter: true,
+      outputDir: outputDir,
     );
     final files = await plugin.generate(config);
     final content = files.first.content ?? '';
@@ -68,6 +69,7 @@ void main() {
       queryFieldType: 'String',
       useZorphy: true,
       generatePresenter: true,
+      outputDir: outputDir,
     );
     final files = await plugin.generate(config);
     final content = files.first.content ?? '';
@@ -87,6 +89,7 @@ void main() {
       name: 'Order',
       methods: const ['watchList'],
       generatePresenter: true,
+      outputDir: outputDir,
     );
     final files = await plugin.generate(config);
     final content = files.first.content ?? '';

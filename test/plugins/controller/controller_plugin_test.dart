@@ -31,6 +31,7 @@ void main() {
       methods: const ['get', 'watchList'],
       generateController: true,
       generateState: true,
+      outputDir: outputDir,
     );
     final files = await plugin.generate(config);
     final content = files.first.content ?? '';
@@ -56,6 +57,7 @@ void main() {
       methods: const ['get', 'delete'],
       generateController: true,
       generateState: false,
+      outputDir: outputDir,
     );
     final files = await plugin.generate(config);
     final content = files.first.content ?? '';

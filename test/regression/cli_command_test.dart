@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+@Timeout(Duration(minutes: 5))
 void main() {
   test('cli generate from flags creates output', () async {
     final tempDir = await Directory.systemTemp.createTemp('zfa_cli_');
@@ -20,7 +21,7 @@ void main() {
       '--output',
       outputDir,
       '--force',
-    ], workingDirectory: Directory.current.path);
+    ], workingDirectory: tempDir.path);
 
     expect(
       result.exitCode,
@@ -62,7 +63,7 @@ void main() {
       '--output',
       outputDir,
       '--force',
-    ], workingDirectory: Directory.current.path);
+    ], workingDirectory: tempDir.path);
 
     expect(
       result.exitCode,
@@ -171,7 +172,7 @@ void main() {
       '--output',
       outputDir,
       '--force',
-    ], workingDirectory: Directory.current.path);
+    ], workingDirectory: tempDir.path);
 
     expect(
       result.exitCode,
@@ -215,7 +216,7 @@ void main() {
       outputDir,
       '--debug',
       '--force',
-    ], workingDirectory: Directory.current.path);
+    ], workingDirectory: tempDir.path);
 
     expect(
       result.exitCode,
@@ -244,7 +245,7 @@ void main() {
       '--id-field-type=BadType',
       '--output',
       outputDir,
-    ], workingDirectory: Directory.current.path);
+    ], workingDirectory: tempDir.path);
 
     expect(result.exitCode, isNot(equals(0)));
     expect(result.stdout.toString(), contains('Suggestions'));

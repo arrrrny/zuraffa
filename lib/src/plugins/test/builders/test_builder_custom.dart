@@ -48,6 +48,23 @@ extension TestBuilderCustom on TestBuilder {
         ),
       );
     }
+    final serviceName = config.effectiveService;
+    final serviceSnake = config.serviceSnake;
+    if (serviceName != null && serviceSnake != null) {
+      mockSpecs.add(
+        Class(
+          (c) => c
+            ..name = 'Mock$serviceName'
+            ..extend = refer('Mock')
+            ..implements.add(refer(serviceName)),
+        ),
+      );
+      directives.add(
+        Directive.import(
+          'package:$packageName/src/domain/services/${serviceSnake}_service.dart',
+        ),
+      );
+    }
 
     final mainMethod = Method(
       (m) => m
@@ -70,6 +87,15 @@ extension TestBuilderCustom on TestBuilder {
               ).statement,
             );
           }
+          if (serviceName != null) {
+            b.statements.add(
+              declareVar(
+                'mock$serviceName',
+                type: refer('Mock$serviceName'),
+                late: true,
+              ).statement,
+            );
+          }
 
           final setUpBody = Block((s) {
             s.statements.add(
@@ -86,13 +112,22 @@ extension TestBuilderCustom on TestBuilder {
                 ).assign(refer('Mock$repo').call([])).statement,
               );
             }
+            if (serviceName != null) {
+              s.statements.add(
+                refer(
+                  'mock$serviceName',
+                ).assign(refer('Mock$serviceName').call([])).statement,
+              );
+            }
             s.statements.add(
               refer('useCase')
                   .assign(
                     refer(useCaseName).call(
-                      config.effectiveRepos
-                          .map((r) => refer('mock$r'))
-                          .toList(),
+                      [
+                        ...config.effectiveRepos
+                            .map((r) => refer('mock$r')),
+                        if (serviceName != null) refer('mock$serviceName'),
+                      ],
                     ),
                   )
                   .statement,

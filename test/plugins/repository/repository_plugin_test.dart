@@ -30,6 +30,7 @@ void main() {
       name: 'Product',
       methods: ['get', 'getList'],
       generateRepository: true,
+      outputDir: outputDir,
     );
     final files = await plugin.generate(config);
     expect(files.isNotEmpty, isTrue);
@@ -50,6 +51,7 @@ void main() {
       name: 'Order',
       methods: ['get'],
       generateData: true,
+      outputDir: outputDir,
     );
     final files = await plugin.generate(config);
     expect(files.length, equals(2));
@@ -78,6 +80,7 @@ void main() {
       methods: ['get'],
       appendToExisting: true,
       generateRepository: true,
+      outputDir: outputDir,
     );
     final files = await plugin.generate(config);
     final content = files.first.content ?? '';

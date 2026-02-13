@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/src/commands/test_command.dart';
+import 'package:zuraffa/src/plugins/test/test_plugin.dart';
 
 void main() {
   group('TestCommand', () {
@@ -51,7 +52,14 @@ class FetchUserUseCase extends UseCase<User, NoParams> {
 }
 ''');
 
-      final result = await TestCommand().execute([
+      final result = await TestCommand(
+        TestPlugin(
+          outputDir: outputDir,
+          dryRun: false,
+          force: false,
+          verbose: false,
+        ),
+      ).execute([
         'FetchUser',
         '--output',
         outputDir,
@@ -83,7 +91,14 @@ class WatchOrdersUseCase extends StreamUseCase<Order, NoParams> {
 }
 ''');
 
-      final result = await TestCommand().execute([
+      final result = await TestCommand(
+        TestPlugin(
+          outputDir: outputDir,
+          dryRun: false,
+          force: false,
+          verbose: false,
+        ),
+      ).execute([
         'WatchOrders',
         '--output',
         outputDir,
@@ -119,7 +134,14 @@ class ProcessCheckoutUseCase extends UseCase<Order, CheckoutParams> {
 }
 ''');
 
-      final result = await TestCommand().execute([
+      final result = await TestCommand(
+        TestPlugin(
+          outputDir: outputDir,
+          dryRun: false,
+          force: false,
+          verbose: false,
+        ),
+      ).execute([
         'ProcessCheckout',
         '--output',
         outputDir,
