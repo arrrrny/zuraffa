@@ -49,8 +49,8 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
       final repoBase = config.repo;
       final repoClassName = repoBase != null
           ? (repoBase.endsWith('Repository')
-              ? repoBase
-              : '${repoBase}Repository')
+                ? repoBase
+                : '${repoBase}Repository')
           : null;
 
       final fields = <Field>[];

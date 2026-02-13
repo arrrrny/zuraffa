@@ -35,10 +35,7 @@ class RegistrationDetector {
         final functionName = match.group(1);
         if (functionName != null) {
           registrations.add(
-            RegistrationInfo(
-              fileName: fileName,
-              functionName: functionName,
-            ),
+            RegistrationInfo(fileName: fileName, functionName: functionName),
           );
         }
       }

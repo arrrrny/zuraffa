@@ -29,13 +29,10 @@ class MockDataBuilder {
     MockValueBuilder? valueBuilder,
     MockEntityHelper? entityHelper,
     MockTypeHelper? typeHelper,
-  })  : specLibrary = specLibrary ?? const SpecLibrary(),
-        valueBuilder = valueBuilder ??
-            MockValueBuilder(
-              outputDir: outputDir,
-            ),
-        entityHelper = entityHelper ?? const MockEntityHelper(),
-        typeHelper = typeHelper ?? const MockTypeHelper();
+  }) : specLibrary = specLibrary ?? const SpecLibrary(),
+       valueBuilder = valueBuilder ?? MockValueBuilder(outputDir: outputDir),
+       entityHelper = entityHelper ?? const MockEntityHelper(),
+       typeHelper = typeHelper ?? const MockTypeHelper();
 
   Future<GeneratedFile> generateMockDataFile(GeneratorConfig config) async {
     final entityName = config.name;
@@ -44,11 +41,15 @@ class MockDataBuilder {
 
     final entityFields = EntityAnalyzer.analyzeEntity(entityName, outputDir);
 
-    final mockInstances =
-        valueBuilder.generateMockDataInstances(entityName, entityFields);
+    final mockInstances = valueBuilder.generateMockDataInstances(
+      entityName,
+      entityFields,
+    );
 
-    final imports =
-        entityHelper.collectNestedEntityImports(entityFields, outputDir);
+    final imports = entityHelper.collectNestedEntityImports(
+      entityFields,
+      outputDir,
+    );
     final directives = <Directive>[
       Directive.import('../../domain/entities/$entitySnake/$entitySnake.dart'),
       ...imports.map(Directive.import),

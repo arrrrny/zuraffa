@@ -14,7 +14,8 @@ class MockEntityGraphBuilder {
 
   Future<List<GeneratedFile>> generateNestedEntityMockFiles({
     required GeneratorConfig config,
-    required Future<GeneratedFile> Function(GeneratorConfig) generateMockDataFile,
+    required Future<GeneratedFile> Function(GeneratorConfig)
+    generateMockDataFile,
   }) async {
     final files = <GeneratedFile>[];
     final entityName = config.name;
@@ -96,8 +97,10 @@ class MockEntityGraphBuilder {
                 );
                 files.add(await generateMockDataFile(subtypeConfig));
 
-                final subtypeFields =
-                    EntityAnalyzer.analyzeEntity(subtype, outputDir);
+                final subtypeFields = EntityAnalyzer.analyzeEntity(
+                  subtype,
+                  outputDir,
+                );
                 await _collectAndGenerateNestedEntities(
                   subtypeFields,
                   files,

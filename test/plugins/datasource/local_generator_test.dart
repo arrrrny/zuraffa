@@ -35,10 +35,7 @@ void main() {
       ),
     );
 
-    expect(
-      file.path.endsWith('product_local_data_source.dart'),
-      isTrue,
-    );
+    expect(file.path.endsWith('product_local_data_source.dart'), isTrue);
     final content = File(file.path).readAsStringSync();
     expect(content.contains('class ProductLocalDataSource'), isTrue);
     expect(content.contains('Box<Product>'), isTrue);

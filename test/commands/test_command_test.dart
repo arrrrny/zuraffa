@@ -9,14 +9,12 @@ void main() {
     late String outputDir;
 
     setUp(() async {
-      workspace = await Directory.systemTemp.createTemp(
-        'zfa_test_command_',
-      );
+      workspace = await Directory.systemTemp.createTemp('zfa_test_command_');
       outputDir = '${workspace.path}/lib/src';
       await Directory(outputDir).create(recursive: true);
-      await File('${workspace.path}/pubspec.yaml').writeAsString(
-        'name: zuraffa_test',
-      );
+      await File(
+        '${workspace.path}/pubspec.yaml',
+      ).writeAsString('name: zuraffa_test');
     });
 
     tearDown(() async {
@@ -38,10 +36,7 @@ void main() {
     }
 
     test('generates custom test with repository dependency', () async {
-      await writeUseCase(
-        'account',
-        'fetch_user_usecase.dart',
-        '''
+      await writeUseCase('account', 'fetch_user_usecase.dart', '''
 import 'package:zuraffa/zuraffa.dart';
 
 class FetchUserUseCase extends UseCase<User, NoParams> {
@@ -54,20 +49,16 @@ class FetchUserUseCase extends UseCase<User, NoParams> {
     throw UnimplementedError();
   }
 }
-''',
-      );
+''');
 
-      final result = await TestCommand().execute(
-        [
-          'FetchUser',
-          '--output',
-          outputDir,
-          '--domain',
-          'account',
-          '--dry-run',
-        ],
-        exitOnCompletion: false,
-      );
+      final result = await TestCommand().execute([
+        'FetchUser',
+        '--output',
+        outputDir,
+        '--domain',
+        'account',
+        '--dry-run',
+      ], exitOnCompletion: false);
 
       expect(result.success, isTrue);
       expect(result.files.length, equals(1));
@@ -77,10 +68,7 @@ class FetchUserUseCase extends UseCase<User, NoParams> {
     });
 
     test('generates stream test with service dependency', () async {
-      await writeUseCase(
-        'orders',
-        'watch_orders_usecase.dart',
-        '''
+      await writeUseCase('orders', 'watch_orders_usecase.dart', '''
 import 'package:zuraffa/zuraffa.dart';
 
 class WatchOrdersUseCase extends StreamUseCase<Order, NoParams> {
@@ -93,20 +81,16 @@ class WatchOrdersUseCase extends StreamUseCase<Order, NoParams> {
     return const Stream.empty();
   }
 }
-''',
-      );
+''');
 
-      final result = await TestCommand().execute(
-        [
-          'WatchOrders',
-          '--output',
-          outputDir,
-          '--domain',
-          'orders',
-          '--dry-run',
-        ],
-        exitOnCompletion: false,
-      );
+      final result = await TestCommand().execute([
+        'WatchOrders',
+        '--output',
+        outputDir,
+        '--domain',
+        'orders',
+        '--dry-run',
+      ], exitOnCompletion: false);
 
       expect(result.success, isTrue);
       expect(result.files.length, equals(1));
@@ -116,10 +100,7 @@ class WatchOrdersUseCase extends StreamUseCase<Order, NoParams> {
     });
 
     test('generates orchestrator test with composed usecases', () async {
-      await writeUseCase(
-        'checkout',
-        'process_checkout_usecase.dart',
-        '''
+      await writeUseCase('checkout', 'process_checkout_usecase.dart', '''
 import 'package:zuraffa/zuraffa.dart';
 
 class ProcessCheckoutUseCase extends UseCase<Order, CheckoutParams> {
@@ -136,20 +117,16 @@ class ProcessCheckoutUseCase extends UseCase<Order, CheckoutParams> {
     throw UnimplementedError();
   }
 }
-''',
-      );
+''');
 
-      final result = await TestCommand().execute(
-        [
-          'ProcessCheckout',
-          '--output',
-          outputDir,
-          '--domain',
-          'checkout',
-          '--dry-run',
-        ],
-        exitOnCompletion: false,
-      );
+      final result = await TestCommand().execute([
+        'ProcessCheckout',
+        '--output',
+        outputDir,
+        '--domain',
+        'checkout',
+        '--dry-run',
+      ], exitOnCompletion: false);
 
       expect(result.success, isTrue);
       expect(result.files.length, equals(1));

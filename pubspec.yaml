@@ -27,8 +27,10 @@ dependencies:
   responsive_builder: ^0.7.1
   uuid: ^4.5.2
   # Zorphy for entity generation (bundled with ZFA)
-  zorphy: ^1.5.0
-  zorphy_annotation: ^1.5.0
+  zorphy:
+    path: ../zorphy/zorphy
+  zorphy_annotation:
+    path: ../zorphy/zorphy_annotation
   json_annotation: ^4.10.0
   http: ^1.6.0
   meta: ^1.18.1
@@ -36,6 +38,7 @@ dependencies:
   code_builder: ^4.11.1
   dart_style: ^3.1.5
   analyzer: ^10.0.2
+  json_serializable: ^6.12.0
 
 executables:
   zuraffa:
@@ -47,7 +50,6 @@ dev_dependencies:
     sdk: flutter
   build_runner: ^2.11.0
   flutter_lints: ^6.0.0
-  json_serializable: ^6.12.0
   mocktail: ^1.0.4
   hive_ce_flutter: ^2.3.4
   hive_ce_generator: ^1.11.1

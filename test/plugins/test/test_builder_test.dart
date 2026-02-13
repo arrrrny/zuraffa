@@ -28,11 +28,7 @@ void main() {
     );
 
     final file = await builder.generateForMethod(
-      GeneratorConfig(
-        name: 'Product',
-        methods: const ['get'],
-        repo: 'Product',
-      ),
+      GeneratorConfig(name: 'Product', methods: const ['get'], repo: 'Product'),
       'get',
     );
 

@@ -9,11 +9,7 @@ class GeneratorOptions {
     this.verbose = false,
   });
 
-  GeneratorOptions copyWith({
-    bool? dryRun,
-    bool? force,
-    bool? verbose,
-  }) {
+  GeneratorOptions copyWith({bool? dryRun, bool? force, bool? verbose}) {
     return GeneratorOptions(
       dryRun: dryRun ?? this.dryRun,
       force: force ?? this.force,

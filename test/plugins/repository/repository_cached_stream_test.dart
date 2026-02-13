@@ -19,41 +19,44 @@ void main() {
     }
   });
 
-  test('generates cache-aware watch streams with local and remote sources', () async {
-    final plugin = RepositoryPlugin(
-      outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
-    );
+  test(
+    'generates cache-aware watch streams with local and remote sources',
+    () async {
+      final plugin = RepositoryPlugin(
+        outputDir: outputDir,
+        dryRun: false,
+        force: true,
+        verbose: false,
+      );
 
-    final config = GeneratorConfig(
-      name: 'Order',
-      methods: const ['watch', 'watchList'],
-      generateData: true,
-      enableCache: true,
-      cacheStorage: 'hive',
-    );
+      final config = GeneratorConfig(
+        name: 'Order',
+        methods: const ['watch', 'watchList'],
+        generateData: true,
+        enableCache: true,
+        cacheStorage: 'hive',
+      );
 
-    final files = await plugin.generate(config);
-    final impl = files.firstWhere(
-      (f) => f.path.contains('data_order_repository.dart'),
-    );
-    final content = impl.content ?? '';
+      final files = await plugin.generate(config);
+      final impl = files.firstWhere(
+        (f) => f.path.contains('data_order_repository.dart'),
+      );
+      final content = impl.content ?? '';
 
-    expect(content, contains('Stream<Order> watch'));
-    expect(content, contains('Stream<List<Order>> watchList'));
-    expect(content, contains('StreamController<Order>'));
-    expect(content, contains('StreamController<List<Order>>'));
-    expect(content, contains('_localDataSource'));
-    expect(content, contains('_remoteDataSource'));
-    expect(content, contains('_localDataSource.watch'));
-    expect(content, contains('_remoteDataSource.watch'));
-    expect(content, contains('_localDataSource.watchList'));
-    expect(content, contains('_remoteDataSource.watchList'));
-    expect(content, contains('.save('));
-    expect(content, contains('.saveAll('));
-    expect(content, contains('localSub'));
-    expect(content, contains('remoteSub'));
-  });
+      expect(content, contains('Stream<Order> watch'));
+      expect(content, contains('Stream<List<Order>> watchList'));
+      expect(content, contains('StreamController<Order>'));
+      expect(content, contains('StreamController<List<Order>>'));
+      expect(content, contains('_localDataSource'));
+      expect(content, contains('_remoteDataSource'));
+      expect(content, contains('_localDataSource.watch'));
+      expect(content, contains('_remoteDataSource.watch'));
+      expect(content, contains('_localDataSource.watchList'));
+      expect(content, contains('_remoteDataSource.watchList'));
+      expect(content, contains('.save('));
+      expect(content, contains('.saveAll('));
+      expect(content, contains('localSub'));
+      expect(content, contains('remoteSub'));
+    },
+  );
 }

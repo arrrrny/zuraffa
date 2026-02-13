@@ -53,35 +53,35 @@ class MockBuilder {
     MockDataBuilder? dataBuilder,
     MockDataSourceBuilder? dataSourceBuilder,
     MockEntityGraphBuilder? entityGraphBuilder,
-  })  : options = options.copyWith(
-          dryRun: dryRun ?? options.dryRun,
-          force: force ?? options.force,
-          verbose: verbose ?? options.verbose,
-        ),
-        dryRun = dryRun ?? options.dryRun,
-        force = force ?? options.force,
-        verbose = verbose ?? options.verbose,
-        specLibrary = specLibrary ?? const SpecLibrary(),
-        dataBuilder = dataBuilder ??
-            MockDataBuilder(
-              outputDir: outputDir,
-              dryRun: dryRun ?? options.dryRun,
-              force: force ?? options.force,
-              verbose: verbose ?? options.verbose,
-              specLibrary: specLibrary ?? const SpecLibrary(),
-            ),
-        dataSourceBuilder = dataSourceBuilder ??
-            MockDataSourceBuilder(
-              outputDir: outputDir,
-              dryRun: dryRun ?? options.dryRun,
-              force: force ?? options.force,
-              verbose: verbose ?? options.verbose,
-              specLibrary: specLibrary ?? const SpecLibrary(),
-            ),
-        entityGraphBuilder = entityGraphBuilder ??
-            MockEntityGraphBuilder(
-              outputDir: outputDir,
-            );
+  }) : options = options.copyWith(
+         dryRun: dryRun ?? options.dryRun,
+         force: force ?? options.force,
+         verbose: verbose ?? options.verbose,
+       ),
+       dryRun = dryRun ?? options.dryRun,
+       force = force ?? options.force,
+       verbose = verbose ?? options.verbose,
+       specLibrary = specLibrary ?? const SpecLibrary(),
+       dataBuilder =
+           dataBuilder ??
+           MockDataBuilder(
+             outputDir: outputDir,
+             dryRun: dryRun ?? options.dryRun,
+             force: force ?? options.force,
+             verbose: verbose ?? options.verbose,
+             specLibrary: specLibrary ?? const SpecLibrary(),
+           ),
+       dataSourceBuilder =
+           dataSourceBuilder ??
+           MockDataSourceBuilder(
+             outputDir: outputDir,
+             dryRun: dryRun ?? options.dryRun,
+             force: force ?? options.force,
+             verbose: verbose ?? options.verbose,
+             specLibrary: specLibrary ?? const SpecLibrary(),
+           ),
+       entityGraphBuilder =
+           entityGraphBuilder ?? MockEntityGraphBuilder(outputDir: outputDir);
 
   /// Generates mock files for the given [config].
   ///

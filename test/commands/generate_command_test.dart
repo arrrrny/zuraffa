@@ -15,9 +15,9 @@ void main() {
       );
       outputDir = '${workspace.path}/lib/src';
       await Directory(outputDir).create(recursive: true);
-      await File('${workspace.path}/pubspec.yaml').writeAsString(
-        'name: zuraffa_test',
-      );
+      await File(
+        '${workspace.path}/pubspec.yaml',
+      ).writeAsString('name: zuraffa_test');
       previousCwd = Directory.current.path;
       Directory.current = workspace.path;
     });
@@ -30,21 +30,18 @@ void main() {
     });
 
     test('uses routeByDefault when vpc is enabled', () async {
-      await File('${workspace.path}/.zfa.json').writeAsString(
-        '{"routeByDefault": true, "diByDefault": false}',
-      );
+      await File(
+        '${workspace.path}/.zfa.json',
+      ).writeAsString('{"routeByDefault": true, "diByDefault": false}');
 
-      final result = await GenerateCommand().execute(
-        [
-          'Product',
-          '--methods=get',
-          '--vpc',
-          '--output',
-          outputDir,
-          '--dry-run',
-        ],
-        exitOnCompletion: false,
-      );
+      final result = await GenerateCommand().execute([
+        'Product',
+        '--methods=get',
+        '--vpc',
+        '--output',
+        outputDir,
+        '--dry-run',
+      ], exitOnCompletion: false);
 
       expect(result.success, isTrue);
       final hasRoutes = result.files.any(
@@ -54,27 +51,23 @@ void main() {
     });
 
     test('uses gqlByDefault for entity-based generation', () async {
-      await File('${workspace.path}/.zfa.json').writeAsString(
-        '{"gqlByDefault": true}',
-      );
+      await File(
+        '${workspace.path}/.zfa.json',
+      ).writeAsString('{"gqlByDefault": true}');
 
-      final result = await GenerateCommand().execute(
-        [
-          'Product',
-          '--methods=get',
-          '--output',
-          outputDir,
-          '--dry-run',
-        ],
-        exitOnCompletion: false,
-      );
+      final result = await GenerateCommand().execute([
+        'Product',
+        '--methods=get',
+        '--output',
+        outputDir,
+        '--dry-run',
+      ], exitOnCompletion: false);
 
       expect(result.success, isTrue);
       final hasGraphql = result.files.any(
-        (file) =>
-            file.path.endsWith(
-              'data/data_sources/product/graphql/get_product_query.dart',
-            ),
+        (file) => file.path.endsWith(
+          'data/data_sources/product/graphql/get_product_query.dart',
+        ),
       );
       expect(hasGraphql, isTrue);
     });

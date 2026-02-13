@@ -51,13 +51,13 @@ class TestBuilder {
     @Deprecated('Use options.force') bool? force,
     @Deprecated('Use options.verbose') bool? verbose,
     SpecLibrary? specLibrary,
-  })  : options = options.copyWith(
-          dryRun: dryRun ?? options.dryRun,
-          force: force ?? options.force,
-          verbose: verbose ?? options.verbose,
-        ),
-        dryRun = dryRun ?? options.dryRun,
-        force = force ?? options.force,
-        verbose = verbose ?? options.verbose,
-        specLibrary = specLibrary ?? const SpecLibrary();
+  }) : options = options.copyWith(
+         dryRun: dryRun ?? options.dryRun,
+         force: force ?? options.force,
+         verbose: verbose ?? options.verbose,
+       ),
+       dryRun = dryRun ?? options.dryRun,
+       force = force ?? options.force,
+       verbose = verbose ?? options.verbose,
+       specLibrary = specLibrary ?? const SpecLibrary();
 }

@@ -98,9 +98,7 @@ class ViewClassBuilder {
               ..type = refer(spec.controllerName),
           ),
         )
-        ..initializers.add(
-          refer('super').call([refer('controller')]).code,
-        ),
+        ..initializers.add(refer('super').call([refer('controller')]).code),
     );
 
     final onInitState = lifecycleBuilder.buildOnInitState(

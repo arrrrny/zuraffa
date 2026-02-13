@@ -25,11 +25,9 @@ extension RepositoryImplementationGeneratorSimple
             ..body = Block(
               (b) => b
                 ..statements.add(
-                  refer('_dataSource')
-                      .property('get')
-                      .call([refer('params')])
-                      .returned
-                      .statement,
+                  refer(
+                    '_dataSource',
+                  ).property('get').call([refer('params')]).returned.statement,
                 ),
             ),
         );

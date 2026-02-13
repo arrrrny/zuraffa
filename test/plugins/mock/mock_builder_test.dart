@@ -20,9 +20,7 @@ void main() {
   });
 
   test('generates mock data and mock data source', () async {
-    final entityDir = Directory(
-      '$outputDir/domain/entities/product',
-    );
+    final entityDir = Directory('$outputDir/domain/entities/product');
     await entityDir.create(recursive: true);
     final entityFile = File('${entityDir.path}/product.dart');
     await entityFile.writeAsString(

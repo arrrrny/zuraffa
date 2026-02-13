@@ -49,15 +49,15 @@ class RepositoryImplementationGenerator {
     @Deprecated('Use options.force') bool? force,
     @Deprecated('Use options.verbose') bool? verbose,
     AppendExecutor? appendExecutor,
-  })  : options = options.copyWith(
-          dryRun: dryRun ?? options.dryRun,
-          force: force ?? options.force,
-          verbose: verbose ?? options.verbose,
-        ),
-        dryRun = dryRun ?? options.dryRun,
-        force = force ?? options.force,
-        verbose = verbose ?? options.verbose,
-        appendExecutor = appendExecutor ?? AppendExecutor();
+  }) : options = options.copyWith(
+         dryRun: dryRun ?? options.dryRun,
+         force: force ?? options.force,
+         verbose: verbose ?? options.verbose,
+       ),
+       dryRun = dryRun ?? options.dryRun,
+       force = force ?? options.force,
+       verbose = verbose ?? options.verbose,
+       appendExecutor = appendExecutor ?? AppendExecutor();
 
   /// Generates a repository implementation for the given [config].
   ///
@@ -177,10 +177,9 @@ class RepositoryImplementationGenerator {
           ..body = Block(
             (b) => b
               ..statements.add(
-                refer(config.enableCache ? '_remoteDataSource' : '_dataSource')
-                    .property('isInitialized')
-                    .returned
-                    .statement,
+                refer(
+                  config.enableCache ? '_remoteDataSource' : '_dataSource',
+                ).property('isInitialized').returned.statement,
               ),
           ),
       );
@@ -226,11 +225,11 @@ class RepositoryImplementationGenerator {
     final dataSourceImports = config.generateLocal
         ? ['../data_sources/$entitySnake/${entitySnake}_local_data_source.dart']
         : config.enableCache
-            ? [
-                '../data_sources/$entitySnake/${entitySnake}_data_source.dart',
-                '../data_sources/$entitySnake/${entitySnake}_local_data_source.dart',
-              ]
-            : ['../data_sources/$entitySnake/${entitySnake}_data_source.dart'];
+        ? [
+            '../data_sources/$entitySnake/${entitySnake}_data_source.dart',
+            '../data_sources/$entitySnake/${entitySnake}_local_data_source.dart',
+          ]
+        : ['../data_sources/$entitySnake/${entitySnake}_data_source.dart'];
 
     final hasWatchMethods = config.methods.any(
       (m) => m == 'watch' || m == 'watchList',

@@ -156,7 +156,6 @@ class CacheBuilder {
     );
   }
 
-
   Future<void> _regenerateCacheIndex() async {
     final dirPath = path.join(outputDir, 'cache');
     final indexPath = path.join(dirPath, 'index.dart');
@@ -516,7 +515,12 @@ class CacheBuilder {
       }
 
       if (_isEnum(baseType)) {
-        _registerEnumAdapter(baseType, imports, adapterEntities, processedEntities);
+        _registerEnumAdapter(
+          baseType,
+          imports,
+          adapterEntities,
+          processedEntities,
+        );
       }
     }
   }
@@ -635,5 +639,4 @@ class CacheBuilder {
 
     return types;
   }
-
 }

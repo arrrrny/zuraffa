@@ -41,10 +41,10 @@ class RemoteDataSourceBuilder {
     @Deprecated('Use options.force') bool? force,
     @Deprecated('Use options.verbose') bool? verbose,
   }) : options = options.copyWith(
-          dryRun: dryRun ?? options.dryRun,
-          force: force ?? options.force,
-          verbose: verbose ?? options.verbose,
-        );
+         dryRun: dryRun ?? options.dryRun,
+         force: force ?? options.force,
+         verbose: verbose ?? options.verbose,
+       );
 
   /// Generates a remote data source file for the given [config].
   ///
@@ -305,20 +305,18 @@ class RemoteDataSourceBuilder {
       return Block(
         (b) => b
           ..statements.add(
-            refer('UnimplementedError')
-                .call([refer(gqlConstant)])
-                .thrown
-                .statement,
+            refer(
+              'UnimplementedError',
+            ).call([refer(gqlConstant)]).thrown.statement,
           ),
       );
     }
     return Block(
       (b) => b
         ..statements.add(
-          refer('UnimplementedError')
-              .call([literalString(fallback)])
-              .thrown
-              .statement,
+          refer(
+            'UnimplementedError',
+          ).call([literalString(fallback)]).thrown.statement,
         ),
     );
   }

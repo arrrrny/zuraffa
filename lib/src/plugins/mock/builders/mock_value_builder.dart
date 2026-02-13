@@ -8,10 +8,8 @@ class MockValueBuilder {
   final String outputDir;
   final MockEntityHelper entityHelper;
 
-  MockValueBuilder({
-    required this.outputDir,
-    MockEntityHelper? entityHelper,
-  }) : entityHelper = entityHelper ?? const MockEntityHelper();
+  MockValueBuilder({required this.outputDir, MockEntityHelper? entityHelper})
+    : entityHelper = entityHelper ?? const MockEntityHelper();
 
   List<Expression> generateMockDataInstances(
     String entityName,
@@ -360,11 +358,9 @@ class MockValueBuilder {
       return refer('${subtype}MockData').property('sample$subtype');
     }
 
-    final entityFields = EntityAnalyzer.analyzeEntity(
-      cleanType,
-      outputDir,
-    );
-    if (entityFields.isNotEmpty && !entityHelper.isDefaultFields(entityFields)) {
+    final entityFields = EntityAnalyzer.analyzeEntity(cleanType, outputDir);
+    if (entityFields.isNotEmpty &&
+        !entityHelper.isDefaultFields(entityFields)) {
       return refer('${cleanType}MockData').property('sample$cleanType');
     }
 
@@ -435,11 +431,9 @@ class MockValueBuilder {
       return refer('${subtype}MockData').property('sample$subtype');
     }
 
-    final entityFields = EntityAnalyzer.analyzeEntity(
-      cleanType,
-      outputDir,
-    );
-    if (entityFields.isNotEmpty && !entityHelper.isDefaultFields(entityFields)) {
+    final entityFields = EntityAnalyzer.analyzeEntity(cleanType, outputDir);
+    if (entityFields.isNotEmpty &&
+        !entityHelper.isDefaultFields(entityFields)) {
       return refer('${cleanType}MockData').property('sample$cleanType');
     }
 
@@ -480,10 +474,7 @@ class MockValueBuilder {
       return literalList(items);
     }
 
-    final entityFields = EntityAnalyzer.analyzeEntity(
-      cleanListType,
-      outputDir,
-    );
+    final entityFields = EntityAnalyzer.analyzeEntity(cleanListType, outputDir);
     if (entityFields.isNotEmpty &&
         !entityHelper.isDefaultFields(entityFields)) {
       return literalList([

@@ -130,12 +130,12 @@ extension RepositoryImplementationGeneratorCached
   }
 
   Block _buildCacheAwareGetBody(String baseCacheKey) {
-    final localCall = refer('_localDataSource').property('get').call([
-      refer('params'),
-    ]);
-    final remoteCall = refer('_remoteDataSource').property('get').call([
-      refer('params'),
-    ]);
+    final localCall = refer(
+      '_localDataSource',
+    ).property('get').call([refer('params')]);
+    final remoteCall = refer(
+      '_remoteDataSource',
+    ).property('get').call([refer('params')]);
     final catchClosure = Method(
       (m) => m
         ..requiredParameters.add(Parameter((p) => p..name = 'e'))
@@ -148,14 +148,12 @@ extension RepositoryImplementationGeneratorCached
               ]).statement,
             )
             ..statements.add(
-              declareFinal('remote')
-                  .assign(remoteCall.awaited)
-                  .statement,
+              declareFinal('remote').assign(remoteCall.awaited).statement,
             )
             ..statements.add(
-              refer('_localDataSource')
-                  .property('save')
-                  .call([refer('remote')]).awaited.statement,
+              refer(
+                '_localDataSource',
+              ).property('save').call([refer('remote')]).awaited.statement,
             )
             ..statements.add(
               refer('_cachePolicy')
@@ -172,10 +170,9 @@ extension RepositoryImplementationGeneratorCached
         ..statements.add(
           declareFinal('cacheValid')
               .assign(
-                refer('_cachePolicy')
-                    .property('isValid')
-                    .call([literalString(baseCacheKey)])
-                    .awaited,
+                refer('_cachePolicy').property('isValid').call([
+                  literalString(baseCacheKey),
+                ]).awaited,
               )
               .statement,
         )
@@ -193,7 +190,9 @@ extension RepositoryImplementationGeneratorCached
           refer('cacheValid')
               .conditional(
                 refer('Future').property('value').call([]),
-                refer('_localDataSource').property('save').call([refer('data')]),
+                refer(
+                  '_localDataSource',
+                ).property('save').call([refer('data')]),
               )
               .awaited
               .statement,
@@ -202,9 +201,9 @@ extension RepositoryImplementationGeneratorCached
           refer('cacheValid')
               .conditional(
                 refer('Future').property('value').call([]),
-                refer('_cachePolicy')
-                    .property('markFresh')
-                    .call([literalString(baseCacheKey)]),
+                refer(
+                  '_cachePolicy',
+                ).property('markFresh').call([literalString(baseCacheKey)]),
               )
               .awaited
               .statement,
@@ -214,12 +213,12 @@ extension RepositoryImplementationGeneratorCached
   }
 
   Block _buildCacheAwareGetListBody(String baseCacheKey) {
-    final localCall = refer('_localDataSource').property('getList').call([
-      refer('params'),
-    ]);
-    final remoteCall = refer('_remoteDataSource').property('getList').call([
-      refer('params'),
-    ]);
+    final localCall = refer(
+      '_localDataSource',
+    ).property('getList').call([refer('params')]);
+    final remoteCall = refer(
+      '_remoteDataSource',
+    ).property('getList').call([refer('params')]);
     final catchClosure = Method(
       (m) => m
         ..requiredParameters.add(Parameter((p) => p..name = 'e'))
@@ -232,14 +231,12 @@ extension RepositoryImplementationGeneratorCached
               ]).statement,
             )
             ..statements.add(
-              declareFinal('remote')
-                  .assign(remoteCall.awaited)
-                  .statement,
+              declareFinal('remote').assign(remoteCall.awaited).statement,
             )
             ..statements.add(
-              refer('_localDataSource')
-                  .property('saveAll')
-                  .call([refer('remote')]).awaited.statement,
+              refer(
+                '_localDataSource',
+              ).property('saveAll').call([refer('remote')]).awaited.statement,
             )
             ..statements.add(
               refer('_cachePolicy')
@@ -262,30 +259,26 @@ extension RepositoryImplementationGeneratorCached
               .statement,
         )
         ..statements.add(
-          refer('listCacheKeyBuffer')
-              .property('write')
-              .call([literalString('${baseCacheKey}_')])
-              .statement,
+          refer('listCacheKeyBuffer').property('write').call([
+            literalString('${baseCacheKey}_'),
+          ]).statement,
         )
         ..statements.add(
-          refer('listCacheKeyBuffer')
-              .property('write')
-              .call([refer('params').property('hashCode')]).statement,
+          refer('listCacheKeyBuffer').property('write').call([
+            refer('params').property('hashCode'),
+          ]).statement,
         )
         ..statements.add(
           declareFinal('listCacheKey')
-              .assign(
-                refer('listCacheKeyBuffer').property('toString').call([]),
-              )
+              .assign(refer('listCacheKeyBuffer').property('toString').call([]))
               .statement,
         )
         ..statements.add(
           declareFinal('cacheValid')
               .assign(
-                refer('_cachePolicy')
-                    .property('isValid')
-                    .call([refer('listCacheKey')])
-                    .awaited,
+                refer(
+                  '_cachePolicy',
+                ).property('isValid').call([refer('listCacheKey')]).awaited,
               )
               .statement,
         )
@@ -303,9 +296,9 @@ extension RepositoryImplementationGeneratorCached
           refer('cacheValid')
               .conditional(
                 refer('Future').property('value').call([]),
-                refer('_localDataSource')
-                    .property('saveAll')
-                    .call([refer('data')]),
+                refer(
+                  '_localDataSource',
+                ).property('saveAll').call([refer('data')]),
               )
               .awaited
               .statement,
@@ -314,9 +307,9 @@ extension RepositoryImplementationGeneratorCached
           refer('cacheValid')
               .conditional(
                 refer('Future').property('value').call([]),
-                refer('_cachePolicy')
-                    .property('markFresh')
-                    .call([refer('listCacheKey')]),
+                refer(
+                  '_cachePolicy',
+                ).property('markFresh').call([refer('listCacheKey')]),
               )
               .awaited
               .statement,
@@ -331,17 +324,16 @@ extension RepositoryImplementationGeneratorCached
         ..statements.add(
           declareFinal('data')
               .assign(
-                refer('_remoteDataSource')
-                    .property('create')
-                    .call([refer(entityCamel)])
-                    .awaited,
+                refer(
+                  '_remoteDataSource',
+                ).property('create').call([refer(entityCamel)]).awaited,
               )
               .statement,
         )
         ..statements.add(
-          refer('_localDataSource')
-              .property('save')
-              .call([refer('data')]).awaited.statement,
+          refer(
+            '_localDataSource',
+          ).property('save').call([refer('data')]).awaited.statement,
         )
         ..statements.add(
           refer('_cachePolicy')
@@ -360,17 +352,16 @@ extension RepositoryImplementationGeneratorCached
         ..statements.add(
           declareFinal('data')
               .assign(
-                refer('_remoteDataSource')
-                    .property('update')
-                    .call([refer('params')])
-                    .awaited,
+                refer(
+                  '_remoteDataSource',
+                ).property('update').call([refer('params')]).awaited,
               )
               .statement,
         )
         ..statements.add(
-          refer('_localDataSource')
-              .property('save')
-              .call([refer('data')]).awaited.statement,
+          refer(
+            '_localDataSource',
+          ).property('save').call([refer('data')]).awaited.statement,
         )
         ..statements.add(
           refer('_cachePolicy')
@@ -387,18 +378,14 @@ extension RepositoryImplementationGeneratorCached
     return Block(
       (b) => b
         ..statements.add(
-          refer('_remoteDataSource')
-              .property('delete')
-              .call([refer('params')])
-              .awaited
-              .statement,
+          refer(
+            '_remoteDataSource',
+          ).property('delete').call([refer('params')]).awaited.statement,
         )
         ..statements.add(
-          refer('_localDataSource')
-              .property('delete')
-              .call([refer('params')])
-              .awaited
-              .statement,
+          refer(
+            '_localDataSource',
+          ).property('delete').call([refer('params')]).awaited.statement,
         )
         ..statements.add(
           refer('_cachePolicy')
@@ -443,11 +430,15 @@ extension RepositoryImplementationGeneratorCached
   }
 
   Expression _remoteDataSourceRef(GeneratorConfig config) {
-    return config.generateLocal ? refer('_dataSource') : refer('_remoteDataSource');
+    return config.generateLocal
+        ? refer('_dataSource')
+        : refer('_remoteDataSource');
   }
 
   Expression _localDataSourceRef(GeneratorConfig config) {
-    return config.generateLocal ? refer('_dataSource') : refer('_localDataSource');
+    return config.generateLocal
+        ? refer('_dataSource')
+        : refer('_localDataSource');
   }
 
   Expression _buildStreamDataHandler(Expression localDataSource, bool isList) {
@@ -458,7 +449,9 @@ extension RepositoryImplementationGeneratorCached
         ..body = Block(
           (bb) => bb
             ..statements.add(
-              refer('controller').property('add').call([refer('data')]).statement,
+              refer(
+                'controller',
+              ).property('add').call([refer('data')]).statement,
             )
             ..statements.add(
               localDataSource
@@ -478,9 +471,9 @@ extension RepositoryImplementationGeneratorCached
         ..body = Block(
           (bb) => bb
             ..statements.add(
-              refer('controller')
-                  .property('addError')
-                  .call([refer('error')]).statement,
+              refer(
+                'controller',
+              ).property('addError').call([refer('error')]).statement,
             ),
         ),
     ).closure;
@@ -506,9 +499,9 @@ extension RepositoryImplementationGeneratorCached
                         .call([refer('params')])
                         .property('listen')
                         .call(
-                      [refer('controller').property('add')],
-                      {'onError': refer('controller').property('addError')},
-                    ),
+                          [refer('controller').property('add')],
+                          {'onError': refer('controller').property('addError')},
+                        ),
                   )
                   .statement,
             )
@@ -519,10 +512,7 @@ extension RepositoryImplementationGeneratorCached
                         .property(watchMethod)
                         .call([refer('params')])
                         .property('listen')
-                        .call(
-                      [dataHandler],
-                      {'onError': errorHandler},
-                    ),
+                        .call([dataHandler], {'onError': errorHandler}),
                   )
                   .statement,
             ),
@@ -558,11 +548,9 @@ extension RepositoryImplementationGeneratorCached
         ..statements.add(
           declareFinal('controller')
               .assign(
-                refer('StreamController').call(
-                  const [],
-                  {},
-                  [refer(streamType)],
-                ),
+                refer(
+                  'StreamController',
+                ).call(const [], {}, [refer(streamType)]),
               )
               .statement,
         )
@@ -579,16 +567,10 @@ extension RepositoryImplementationGeneratorCached
           ).statement,
         )
         ..statements.add(
-          refer('controller')
-              .property('onListen')
-              .assign(onListen)
-              .statement,
+          refer('controller').property('onListen').assign(onListen).statement,
         )
         ..statements.add(
-          refer('controller')
-              .property('onCancel')
-              .assign(onCancel)
-              .statement,
+          refer('controller').property('onCancel').assign(onCancel).statement,
         )
         ..statements.add(
           refer('controller').property('stream').returned.statement,

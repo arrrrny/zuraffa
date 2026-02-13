@@ -62,28 +62,28 @@ class Product {
     return Product(
       id: _patchMap.containsKey(Product$.id)
           ? (_patchMap[Product$.id] is Function)
-              ? _patchMap[Product$.id](this.id)
-              : _patchMap[Product$.id]
+                ? _patchMap[Product$.id](this.id)
+                : _patchMap[Product$.id]
           : this.id,
       name: _patchMap.containsKey(Product$.name)
           ? (_patchMap[Product$.name] is Function)
-              ? _patchMap[Product$.name](this.name)
-              : _patchMap[Product$.name]
+                ? _patchMap[Product$.name](this.name)
+                : _patchMap[Product$.name]
           : this.name,
       description: _patchMap.containsKey(Product$.description)
           ? (_patchMap[Product$.description] is Function)
-              ? _patchMap[Product$.description](this.description)
-              : _patchMap[Product$.description]
+                ? _patchMap[Product$.description](this.description)
+                : _patchMap[Product$.description]
           : this.description,
       price: _patchMap.containsKey(Product$.price)
           ? (_patchMap[Product$.price] is Function)
-              ? _patchMap[Product$.price](this.price)
-              : _patchMap[Product$.price]
+                ? _patchMap[Product$.price](this.price)
+                : _patchMap[Product$.price]
           : this.price,
       createdAt: _patchMap.containsKey(Product$.createdAt)
           ? (_patchMap[Product$.createdAt] is Function)
-              ? _patchMap[Product$.createdAt](this.createdAt)
-              : _patchMap[Product$.createdAt]
+                ? _patchMap[Product$.createdAt](this.createdAt)
+                : _patchMap[Product$.createdAt]
           : this.createdAt,
     );
   }
@@ -136,10 +136,9 @@ class Product {
   dynamic _sanitizeJson(dynamic json) {
     if (json is Map<String, dynamic>) {
       json.remove('_className_');
-      return json
-        ..forEach((key, value) {
-          json[key] = _sanitizeJson(value);
-        });
+      return json..forEach((key, value) {
+        json[key] = _sanitizeJson(value);
+      });
     } else if (json is List) {
       return json.map((e) => _sanitizeJson(e)).toList();
     }
@@ -159,10 +158,9 @@ extension ProductSerialization on Product {
   dynamic _sanitizeJson(dynamic json) {
     if (json is Map<String, dynamic>) {
       json.remove('_className_');
-      return json
-        ..forEach((key, value) {
-          json[key] = _sanitizeJson(value);
-        });
+      return json..forEach((key, value) {
+        json[key] = _sanitizeJson(value);
+      });
     } else if (json is List) {
       return json.map((e) => _sanitizeJson(e)).toList();
     }

@@ -5,7 +5,6 @@ import '../models/generator_config.dart';
 import '../models/generator_result.dart';
 import '../generator/code_generator.dart';
 import '../utils/string_utils.dart';
-import '../config/zfa_config.dart';
 import '../core/context/progress_reporter.dart';
 
 class DiCommand {
@@ -107,11 +106,38 @@ class DiCommand {
 
       final config = _buildConfig(useCaseName, useCaseAnalysis, results);
 
-      print(
-        '📦 Generating DI registration for ${useCaseAnalysis['className']}...',
-      );
+      if (useMock) {
+        print(
+          '📦 Generating DI registration for ${useCaseAnalysis['className']} with mock datasources...',
+        );
+      } else {
+        print(
+          '📦 Generating DI registration for ${useCaseAnalysis['className']}...',
+        );
+      }
 
       final progressReporter = CliProgressReporter(verbose: verbose);
+
+      // When using mock, enable repository and datasource plugins
+      // to generate mock datasource DI
+      final disabledPlugins = {
+        'usecase',
+        'view',
+        'presenter',
+        'controller',
+        'state',
+        'route',
+        'test',
+        'mock',
+        'cache',
+        'graphql',
+        'observer',
+        'provider',
+        'service',
+        'method_append',
+        if (!useMock) 'repository',
+        if (!useMock) 'datasource',
+      };
 
       final generator = CodeGenerator(
         config: config,
@@ -120,24 +146,7 @@ class DiCommand {
         force: force,
         verbose: verbose,
         progressReporter: progressReporter,
-        disabledPluginIds: {
-          'usecase',
-          'repository',
-          'datasource',
-          'view',
-          'presenter',
-          'controller',
-          'state',
-          'route',
-          'test',
-          'mock',
-          'cache',
-          'graphql',
-          'observer',
-          'provider',
-          'service',
-          'method_append',
-        },
+        disabledPluginIds: disabledPlugins,
       );
 
       final result = await generator.generate();
@@ -319,12 +328,19 @@ class DiCommand {
       usecases.addAll(analysis['usecases'] as List<String>);
     }
 
+    // When using mock, we need to generate repository DI as well
+    // to register it with mock datasource
+    final hasRepo = repo != null;
+    final generateRepository = useMock && hasRepo;
+
     return GeneratorConfig(
       name: nameWithoutSuffix,
       domain: analysis['domain'] as String,
       generateDi: true,
-      generateData: false,
-      generateRepository: false,
+      generateData:
+          generateRepository, // Generate mock datasource DI when useMock
+      generateRepository:
+          generateRepository, // Generate repository DI when useMock
       generateTest: false,
       useMockInDi: useMock,
       repo: repo,
