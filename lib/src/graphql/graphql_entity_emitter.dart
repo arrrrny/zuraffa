@@ -520,7 +520,7 @@ class GraphQLEntityEmitter {
       lines.add('}');
       return lines.join('\n');
     }
-    lines.add('    ${spec.name}$callArgs  }');
+    lines.add('    ${spec.name}$callArgs');
     lines.add('}');
     return lines.join('\n');
   }
