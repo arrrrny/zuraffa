@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:zuraffa/src/version.dart' as zfa show version;
+import 'package:zuraffa/src/zfa_cli.dart' as zfa_cli;
 
 /// MCP Server for Zuraffa CLI
 ///
@@ -1245,38 +1246,7 @@ class ZuraffaMcpServer {
 
   /// Execute zfa CLI process
   Future<String> _runZuraffaProcess(List<String> args) async {
-    // Find the Dart executable
-    final dartExecutable = Platform.executable;
-
-    // Check if we're running from the package or need to call it globally
-    // Try to use 'dart run' with the package first
-    final process = await Process.run(
-      dartExecutable,
-      ['run', 'zuraffa:zfa', ...args],
-      environment: {...Platform.environment},
-      workingDirectory: Directory.current.path,
-    );
-
-    final stdoutStr = process.stdout as String;
-    final stderrStr = process.stderr as String;
-
-    if (process.exitCode != 0) {
-      throw ProcessException(
-        'zfa',
-        args,
-        stderrStr.isNotEmpty ? stderrStr : stdoutStr,
-        process.exitCode,
-      );
-    }
-
-    // If the output looks like JSON, pretty-print it for readability
-    try {
-      final json = jsonDecode(stdoutStr) as Map<String, dynamic>;
-      return jsonEncode(json);
-    } catch (_) {
-      // Not JSON, return as-is
-      return stdoutStr;
-    }
+    return await zfa_cli.runCapturing(args);
   }
 
   /// Create a success response

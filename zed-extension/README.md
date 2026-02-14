@@ -17,14 +17,6 @@ This extension provides an MCP (Model Context Protocol) server that exposes Zura
 - **Routing**: Generate GoRouter route definitions
 - **Testing**: Generate unit tests for UseCases
 
-## Requirements
-
-- [Dart SDK](https://dart.dev/get-dart) installed
-- Zuraffa package activated globally:
-  ```bash
-  dart pub global activate zuraffa
-  ```
-
 ## Installation
 
 1. Open Zed
