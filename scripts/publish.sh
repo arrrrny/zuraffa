@@ -86,9 +86,9 @@ echo "  ✓ Zed extension version updated"
 # Update version in zed-extension/src/lib.rs
 echo "📝 Updating version in zed-extension/src/lib.rs..."
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    sed -i '' "s/^const VERSION: &str = \".*\"/const VERSION: &str = \"$VERSION\"/" zed-extension/src/lib.rs
+    sed -i '' "s/^const VERSION: \&str = \".*\"/const VERSION: \&str = \"$VERSION\"/" zed-extension/src/lib.rs
 else
-    sed -i "s/^const VERSION: &str = \".*\"/const VERSION: &str = \"$VERSION\"/" zed-extension/src/lib.rs
+    sed -i "s/^const VERSION: \&str = \".*\"/const VERSION: \&str = \"$VERSION\"/" zed-extension/src/lib.rs
 fi
 echo "  ✓ Zed extension lib.rs version updated"
 
