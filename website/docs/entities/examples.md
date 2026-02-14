@@ -75,6 +75,18 @@ final product = Product(
 );
 ```
 
+**Querying, filtering, sorting:**
+```dart
+final params = ListQueryParams<Product>(
+  filter: And([
+    Eq(ProductFields.status, ProductStatus.available),
+    Gt(ProductFields.price, 10),
+  ]),
+  sort: Sort(ProductFields.price, descending: true),
+  limit: 20,
+);
+```
+
 ### Order Management
 
 ```bash

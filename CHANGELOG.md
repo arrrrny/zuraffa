@@ -1,3 +1,23 @@
+## [3.0.0] - 2026-02-14
+
+### ✨ Highlights
+- Version 3 documentation refresh with cleaner, human-focused guides and plugin mentions
+- Querying, filtering, and sorting examples added to entity docs
+
+### 🐛 Bug Fixes
+- Fixed method append idempotence to avoid unnecessary replacements
+- Restored TestCommand execution for CLI-style tests with dependency analysis
+- Improved custom test generation to include service mocks when applicable
+- Adjusted NoParams string output for clearer test expectations
+
+### 📚 Documentation
+- Rewrote intro, getting started, and architecture pages for v3
+- Refined CLI, entities, and feature docs for clarity
+- Added QueryParams examples to entities intro, field types, and examples
+
+### 🔧 Chore
+- Aligned example app dependency constraints with package requirements
+
 ## [2.8.0] - 2026-02-10
 
 ### ✨ Features

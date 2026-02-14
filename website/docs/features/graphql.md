@@ -1,6 +1,6 @@
 # GraphQL Generation
 
-Zuraffa v3 can generate GraphQL queries, mutations, and subscriptions from your entities and use cases.
+GraphQL is delivered via the GraphQL plugin. Enable it with `--gql` to generate queries, mutations, and subscriptions from entities and custom use cases.
 
 ## Overview
 
@@ -22,7 +22,7 @@ All generated as Dart string constants that work seamlessly with any GraphQL cli
 
 ## How It Works
 
-1. **Define your entities** or **custom UseCases** using Zuraffa
+1. **Define your entities** or **custom UseCases**
 2. **Add the `--gql` flag** to your generation command
 3. **Specify return fields** and other GraphQL options
 4. **Generated files** appear in `data/data_sources/{entity}/graphql/`

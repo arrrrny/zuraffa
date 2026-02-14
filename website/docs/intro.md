@@ -8,7 +8,7 @@ Zuraffa is a clean architecture toolkit for Flutter that ships with Result-based
 - Result and failure types that make error handling explicit
 - Generators for entities, use cases, repositories, and UI layers
 - Built-in patterns for CRUD, orchestration, streaming, and background tasks
-- Dependency injection, caching, and mock data workflows
+- Dependency injection, caching, mock data, and GraphQL generation
 - Plugin system introduced in v3 to customize the generator
 
 ## What’s new in v3

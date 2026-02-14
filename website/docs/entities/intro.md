@@ -447,6 +447,40 @@ final electronics = CategoryNode(
 );
 ```
 
+## Querying, Filtering, Sorting
+
+Zuraffa ships with `QueryParams` and `ListQueryParams` so filtering and sorting is type-safe out of the box.
+
+### Local data source example
+
+```dart
+Future<List<Product>> getList(ListQueryParams<Product> params) async {
+  return _box.values.filter(params.filter).orderBy(params.sort);
+}
+```
+
+### Available filters
+
+- Eq, Neq
+- Gt, Gte, Lt, Lte
+- Contains, InList
+- And, Or
+- Filter.always()
+
+### Example usage
+
+```dart
+final params = ListQueryParams<Product>(
+  filter: And([
+    Eq(ProductFields.status, ProductStatus.available),
+    Gt(ProductFields.price, 10),
+  ]),
+  sort: Sort(ProductFields.price, descending: true),
+  limit: 20,
+  offset: 0,
+);
+```
+
 ## Best Practices
 
 ### 1. Design Before You Code
