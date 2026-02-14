@@ -1,5 +1,3 @@
-import 'package:zuraffa/zuraffa.dart';
-
 /// A sentinel class for UseCases that don't require parameters.
 ///
 /// Use [NoParams] when your UseCase doesn't need any input parameters.
@@ -17,10 +15,22 @@ import 'package:zuraffa/zuraffa.dart';
 /// // Usage
 /// final result = await getAllUsersUseCase(const NoParams());
 /// ```
-part 'no_params.zorphy.dart';
-
-@zorphy
-abstract class $NoParams {
+class NoParams {
   /// Create a [NoParams] instance
-  const $NoParams();
+  const NoParams();
+
+  /// Creates a copy of this [NoParams] instance.
+  ///
+  /// Since [NoParams] has no state, this simply returns a new instance
+  /// (or the same one if using const).
+  NoParams copyWith() => const NoParams();
+
+  @override
+  String toString() => 'NoParams';
+
+  @override
+  bool operator ==(Object other) => other is NoParams;
+
+  @override
+  int get hashCode => 0;
 }
