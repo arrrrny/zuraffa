@@ -1,6 +1,6 @@
 # Real-World Examples
 
-Complete, production-ready entity structures for common use cases.
+Practical entity setups you can adapt for real products.
 
 ## E-commerce Platform
 

@@ -111,7 +111,7 @@ abstract class StreamUseCase<T, Params> with Loggable {
   ///
   /// - Throw [AppFailure] subclasses for expected/recoverable errors
   /// - Any other exception will be wrapped in [UnknownFailure]
-  /// - Check [cancelToken?.isCancelled] for long gaps between emissions
+  /// - Check `cancelToken?.isCancelled` for long gaps between emissions
   ///
   /// Each emitted value will be wrapped in [Success].
   @protected

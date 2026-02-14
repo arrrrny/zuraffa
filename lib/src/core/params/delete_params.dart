@@ -4,9 +4,9 @@ import 'params.dart';
 part 'delete_params.zorphy.dart';
 part 'delete_params.g.dart';
 
-/// Parameters for creating a new entity of type [T].
+/// Parameters for deleting an entity of type [I].
 ///
-/// The type parameter [T] represents the entity type being created.
+/// The type parameter [I] represents the ID type being deleted.
 @Zorphy(generateJson: true, generateFilter: true)
 abstract class $DeleteParams<I> implements $Params {
   const $DeleteParams();

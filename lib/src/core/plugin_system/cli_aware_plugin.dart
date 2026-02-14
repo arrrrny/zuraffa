@@ -7,7 +7,7 @@ import 'package:args/command_runner.dart';
 abstract class CliAwarePlugin {
   /// Creates the [Command] instance for this plugin.
   ///
-  /// The returned command should typically extend [PluginCommand] to ensure
+  /// The returned command should typically extend `PluginCommand` to ensure
   /// consistent behavior and flag handling.
   Command createCommand();
 }

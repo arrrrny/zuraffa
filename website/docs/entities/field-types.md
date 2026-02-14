@@ -1,6 +1,6 @@
 # Field Types Reference
 
-Complete reference for all field types supported by Zorphy entity generation.
+Reference for field types supported by Zorphy entity generation in v3.
 
 ## Basic Types
 

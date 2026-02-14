@@ -8,10 +8,15 @@ import 'base_plugin_command.dart';
 import '../plugins/test/test_plugin.dart';
 import '../utils/string_utils.dart';
 
+/// CLI command that generates tests for existing use cases.
+///
+/// Supports analyzing existing usecase files to infer repositories, services,
+/// and orchestrator dependencies when present.
 class TestCommand extends PluginCommand {
   @override
   final TestPlugin plugin;
 
+  /// Creates a command bound to the provided [plugin].
   TestCommand(this.plugin) : super(plugin) {
     argParser.addOption(
       'methods',
@@ -28,11 +33,17 @@ class TestCommand extends PluginCommand {
   }
 
   @override
+  /// Command identifier used by the CLI registry.
   String get name => 'test';
 
   @override
+  /// Short description shown in help output.
   String get description => 'Generate Tests';
 
+  /// Executes the command for the provided argument list.
+  ///
+  /// Returns a [GeneratorResult] instead of exiting when
+  /// [exitOnCompletion] is false.
   Future<GeneratorResult> execute(
     List<String> args, {
     bool exitOnCompletion = true,
@@ -140,6 +151,7 @@ class TestCommand extends PluginCommand {
   }
 
   @override
+  /// Runs the command using parsed CLI args.
   Future<void> run() async {
     final entityName = argResults!.rest.first;
     final methodsValue = argResults!['methods'] as String;
@@ -172,6 +184,7 @@ class TestCommand extends PluginCommand {
     logSummary(files);
   }
 
+  /// Builds a [GeneratorConfig] by inspecting the existing usecase source.
   Future<GeneratorConfig?> _buildConfigFromUseCase(
     String name,
     String outputDir,
@@ -219,6 +232,7 @@ class TestCommand extends PluginCommand {
     );
   }
 
+  /// Locates and parses the usecase file to infer dependencies.
   Future<Map<String, dynamic>?> _analyzeUseCase(
     String name,
     String outputDir,
@@ -262,6 +276,7 @@ class TestCommand extends PluginCommand {
     return null;
   }
 
+  /// Parses a usecase file to extract dependencies and type metadata.
   Map<String, dynamic> _parseUseCaseFile(
     String content,
     String className,
@@ -318,6 +333,7 @@ class TestCommand extends PluginCommand {
     };
   }
 
+  /// Determines usecase flavor based on inheritance in the source.
   String _resolveUseCaseType(String content) {
     if (content.contains('StreamUseCase')) {
       return 'stream';

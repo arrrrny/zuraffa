@@ -1,6 +1,6 @@
 # GraphQL Generation
 
-Zuraffa provides powerful GraphQL generation capabilities, creating type-safe GraphQL queries, mutations, and subscriptions directly from your entity and UseCase definitions.
+Zuraffa v3 can generate GraphQL queries, mutations, and subscriptions from your entities and use cases.
 
 ## Overview
 

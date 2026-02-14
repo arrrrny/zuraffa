@@ -1,6 +1,6 @@
 # Advanced Patterns
 
-Advanced entity generation patterns including polymorphism, inheritance, generics, and self-referencing types.
+Advanced entity patterns in v3: polymorphism, inheritance, generics, and self-referencing types.
 
 ## Sealed Classes & Polymorphism
 

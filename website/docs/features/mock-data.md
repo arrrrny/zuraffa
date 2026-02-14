@@ -1,6 +1,6 @@
 # Mock Data
 
-Zuraffa provides comprehensive mock data generation for development and testing. The `--mock` and `--mock-data-only` flags generate realistic mock data for your entities and complete DataSource implementations, including complex nested entities.
+Zuraffa v3 generates mock data for development and testing. Use `--mock` or `--mock-data-only` to create mock data sources and sample datasets.
 
 ## Overview
 

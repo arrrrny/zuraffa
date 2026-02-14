@@ -1,6 +1,6 @@
 # Contributing to the Showcase
 
-Learn how to contribute your app to the Built on Zuraffa showcase and help grow our community of Clean Architecture practitioners.
+Share what you built with Zuraffa v3. We keep the showcase simple and readable so new users can learn from real projects.
 
 ## Adding Your App to the Showcase
 
@@ -115,121 +115,8 @@ Here's a complete example of how to format your submission:
 - Dependency injection with get_it for clean separation
 ```
 
-## App Categories
-
-We categorize showcased apps to help visitors find relevant examples:
-
-### Productivity & Business
-- Project management tools
-- CRM systems
-- Task managers
-- Business automation
-
-### Social & Communication
-- Messaging apps
-- Social networks
-- Collaboration tools
-- Community platforms
-
-### E-commerce & Finance
-- Shopping applications
-- Payment systems
-- Banking apps
-- Marketplace platforms
-
-### Media & Entertainment
-- Streaming services
-- Gaming applications
-- Content platforms
-- Creative tools
-
-### Health & Fitness
-- Workout trackers
-- Health monitoring
-- Medical applications
-- Wellness platforms
-
-### Education & Learning
-- Course platforms
-- Learning management
-- Educational tools
-- Training applications
-
-## Review Criteria
-
-Submissions are evaluated based on:
-
-### Technical Merit
-- Proper implementation of Zuraffa patterns
-- Architectural soundness
-- Code quality and organization
-- Use of multiple Zuraffa features
-
-### Public Availability
-- App is publicly accessible
-- Stable and maintained
-- Clear purpose and functionality
-- Professional presentation
-
-### Community Value
-- Demonstrates Zuraffa capabilities
-- Provides learning value to others
-- Represents diverse use cases
-- Encourages Clean Architecture adoption
-
-## Maintaining Your Listing
-
-### Updates
-- Update your listing if download counts change significantly
-- Notify us if your app link becomes invalid
-- Share major updates or new features
-
-### Removal
-Apps may be removed if:
-- They become unavailable or inactive
-- They no longer use Zuraffa significantly
-- They violate community guidelines
-- They receive multiple complaints
-
-## Best Practices for Showcase Apps
-
-### Architecture Excellence
-- Follow Clean Architecture principles
-- Use appropriate Zuraffa patterns for your use case
-- Implement proper error handling with Result types
-- Leverage dependency injection effectively
-
-### Documentation
-- Document your architecture decisions
-- Share lessons learned with Zuraffa
-- Provide insights for other developers
-- Contribute to the community knowledge base
-
-### Performance
-- Optimize for performance with caching strategies
-- Implement proper state management
-- Use background operations appropriately
-- Consider offline-first approaches where relevant
-
-## Getting Help
-
-### Questions
-- Join our [Discord community](https://discord.gg/zuraffa) for discussions
-- Open a [GitHub issue](https://github.com/arrrrny/zuraffa/issues) for technical questions
-- Check the documentation for common patterns and solutions
-
-### Support
-- For technical issues with Zuraffa, use GitHub Issues
-- For showcase-specific questions, contact the maintainers
-- For partnership opportunities, reach out via the website
-
----
-
 ## Next Steps
 
-- [Browse all showcased apps](./showcase) to see what others have built
-- [Learn about architecture patterns](../architecture/overview) to enhance your app
-- [Explore advanced features](../features/dependency-injection) to improve your implementation
-- [Join our community](https://github.com/arrrrny/zuraffa) to connect with other developers
-
-Thank you for contributing to the Zuraffa ecosystem! 🦒
+- [Browse showcased apps](./showcase)
+- [Architecture overview](../architecture/overview)
+- [Features](../features/dependency-injection)

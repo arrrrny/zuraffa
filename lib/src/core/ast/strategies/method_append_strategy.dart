@@ -4,12 +4,14 @@ import '../ast_helper.dart';
 import '../node_finder.dart';
 import 'append_strategy.dart';
 
+/// Appends or replaces methods inside a class declaration.
 class MethodAppendStrategy implements AppendStrategy {
   final AstHelper helper;
 
   const MethodAppendStrategy({this.helper = const AstHelper()});
 
   @override
+  /// Returns true when the request targets a class method append.
   bool canHandle(AppendRequest request) {
     return request.target == AppendTarget.method &&
         request.className != null &&
@@ -17,6 +19,7 @@ class MethodAppendStrategy implements AppendStrategy {
   }
 
   @override
+  /// Applies the append operation, replacing existing methods when needed.
   AppendResult apply(AppendRequest request) {
     if (!canHandle(request)) {
       return AppendResult(

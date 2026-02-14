@@ -1,6 +1,6 @@
 # CLI Commands Reference
 
-The `zfa` CLI provides powerful code generation capabilities for Zuraffa's Clean Architecture. This reference covers all commands, flags, and options for ZFA.
+The `zfa` CLI is the primary way to generate code in Zuraffa v3. It includes core generators plus plugin-aware commands.
 
 ## Commands Overview
 
@@ -1103,4 +1103,3 @@ zfa generate Product --methods=get --quiet || echo "Generation failed"
 - [VPC Generation](../features/vpc-regeneration) - Presentation layer patterns
 - [Caching](../features/caching) - Dual datasource caching setup
 - [Testing](../features/testing) - Testing generated code
-

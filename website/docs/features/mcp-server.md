@@ -1,6 +1,6 @@
 # MCP Server
 
-The `zuraffa_mcp_server` is a **Model Context Protocol (MCP) server** that exposes Zuraffa CLI functionality as MCP tools, enabling seamless integration with AI-powered development environments like Claude Desktop, Cursor, and VS Code.
+The `zuraffa_mcp_server` exposes Zuraffa v3 CLI features over MCP, so AI-enabled IDEs can call generators and inspect project structure safely.
 
 ## What is MCP?
 
