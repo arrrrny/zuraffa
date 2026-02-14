@@ -17,4 +17,4 @@ DeleteParams<I> _$DeleteParamsFromJson<I>(
 Map<String, dynamic> _$DeleteParamsToJson<I>(
   DeleteParams<I> instance,
   Object? Function(I value) toJsonI,
-) => <String, dynamic>{'params': instance.params, 'id': toJsonI(instance.id)};
+) => <String, dynamic>{'params': ?instance.params, 'id': toJsonI(instance.id)};

@@ -1,0 +1,32 @@
+targets:
+  $default:
+    sources:
+      exclude:
+        - example/**
+    builders:
+      zorphy:zorphy:
+        enabled: true
+        generate_for:
+          - lib/src/**
+          - test/**
+      json_serializable:
+        enabled: true
+        generate_for:
+          - lib/src/**
+          - test/**
+        options:
+          explicit_to_json: false
+          include_if_null: false
+          generic_argument_factories: true
+      hive_ce_generator:hive_type_adapter_generator:
+        enabled: false
+      hive_ce_generator:hive_adapters_generator:
+        enabled: false
+      hive_ce_generator:hive_registrar_intermediate_generator:
+        enabled: false
+      hive_ce_generator:hive_registrar_generator:
+        enabled: false
+      source_gen:combining_builder:
+        enabled: true
+      mockito:mockBuilder:
+        enabled: false

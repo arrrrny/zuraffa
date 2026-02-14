@@ -25,9 +25,9 @@ InitializationParams _$InitializationParamsFromJson(
 Map<String, dynamic> _$InitializationParamsToJson(
   InitializationParams instance,
 ) => <String, dynamic>{
-  'params': instance.params,
+  'params': ?instance.params,
   'timeout': instance.timeout.inMicroseconds,
-  'forceRefresh': instance.forceRefresh,
-  'credentials': instance.credentials?.toJson(),
-  'settings': instance.settings?.toJson(),
+  'forceRefresh': ?instance.forceRefresh,
+  'credentials': ?instance.credentials?.toJson(),
+  'settings': ?instance.settings?.toJson(),
 };

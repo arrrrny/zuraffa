@@ -19,14 +19,14 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
 
     if (config.useCaseType == 'stream') {
       final executeBody = depField.isEmpty
-              ? Block(
-                  (b) => b
-                    ..statements.add(Code('// TODO: Implement usecase logic'))
-                    ..statements.add(
-                      refer('UnimplementedError').call([]).thrown.statement,
-                    ),
-                )
-              : Block(
+          ? Block(
+              (b) => b
+                ..statements.add(Code('// TODO: Implement usecase logic'))
+                ..statements.add(
+                  refer('UnimplementedError').call([]).thrown.statement,
+                ),
+            )
+          : Block(
               (b) => b
                 ..statements.add(
                   refer(depField)
@@ -97,26 +97,22 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
         ),
       ];
     }
-    final executeBody = Block(
-      (b) {
-        b.statements.add(Code('cancelToken?.throwIfCancelled();'));
-        if (depField.isEmpty) {
-          b.statements.add(Code('// TODO: Implement usecase logic'));
-          b.statements.add(
-            refer('UnimplementedError').call([]).thrown.statement,
-          );
-        } else {
-          b.statements.add(
-            refer(depField)
-                .property(methodName)
-                .call([refer('params')])
-                .awaited
-                .returned
-                .statement,
-          );
-        }
-      },
-    );
+    final executeBody = Block((b) {
+      b.statements.add(Code('cancelToken?.throwIfCancelled();'));
+      if (depField.isEmpty) {
+        b.statements.add(Code('// TODO: Implement usecase logic'));
+        b.statements.add(refer('UnimplementedError').call([]).thrown.statement);
+      } else {
+        b.statements.add(
+          refer(depField)
+              .property(methodName)
+              .call([refer('params')])
+              .awaited
+              .returned
+              .statement,
+        );
+      }
+    });
 
     final returnTypeRef = config.useCaseType == 'completable'
         ? 'Future<void>'
@@ -277,28 +273,26 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
         ? returnsType
         : 'Future<$returnsType>';
     final isAsync = config.useCaseType != 'sync';
-    final executeBody = Block(
-      (b) {
-        if (config.useCaseType == 'sync') {
-          b.statements.add(Code('// TODO: Implement orchestration logic'));
-          b.statements.add(
-            refer('UnimplementedError')
-                .call([literalString('Implement orchestration logic')])
-                .thrown
-                .statement,
-          );
-        } else {
-          b.statements.add(Code('cancelToken?.throwIfCancelled();'));
-          b.statements.add(Code('// TODO: Implement orchestration logic'));
-          b.statements.add(
-            refer('UnimplementedError')
-                .call([literalString('Implement orchestration logic')])
-                .thrown
-                .statement,
-          );
-        }
-      },
-    );
+    final executeBody = Block((b) {
+      if (config.useCaseType == 'sync') {
+        b.statements.add(Code('// TODO: Implement orchestration logic'));
+        b.statements.add(
+          refer('UnimplementedError')
+              .call([literalString('Implement orchestration logic')])
+              .thrown
+              .statement,
+        );
+      } else {
+        b.statements.add(Code('cancelToken?.throwIfCancelled();'));
+        b.statements.add(Code('// TODO: Implement orchestration logic'));
+        b.statements.add(
+          refer('UnimplementedError')
+              .call([literalString('Implement orchestration logic')])
+              .thrown
+              .statement,
+        );
+      }
+    });
 
     return Method((b) {
       b
@@ -340,28 +334,26 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
         ? returnsType
         : 'Future<$returnsType>';
     final isAsync = config.useCaseType != 'sync';
-    final executeBody = Block(
-      (b) {
-        if (config.useCaseType == 'sync') {
-          b.statements.add(Code('// TODO: Implement $variant variant'));
-          b.statements.add(
-            refer('UnimplementedError')
-                .call([literalString('Implement $variant variant')])
-                .thrown
-                .statement,
-          );
-        } else {
-          b.statements.add(Code('cancelToken?.throwIfCancelled();'));
-          b.statements.add(Code('// TODO: Implement $variant variant'));
-          b.statements.add(
-            refer('UnimplementedError')
-                .call([literalString('Implement $variant variant')])
-                .thrown
-                .statement,
-          );
-        }
-      },
-    );
+    final executeBody = Block((b) {
+      if (config.useCaseType == 'sync') {
+        b.statements.add(Code('// TODO: Implement $variant variant'));
+        b.statements.add(
+          refer('UnimplementedError')
+              .call([literalString('Implement $variant variant')])
+              .thrown
+              .statement,
+        );
+      } else {
+        b.statements.add(Code('cancelToken?.throwIfCancelled();'));
+        b.statements.add(Code('// TODO: Implement $variant variant'));
+        b.statements.add(
+          refer('UnimplementedError')
+              .call([literalString('Implement $variant variant')])
+              .thrown
+              .statement,
+        );
+      }
+    });
 
     return Method((b) {
       b

@@ -14,4 +14,4 @@ QueryParams<T> _$QueryParamsFromJson<T>(
 Map<String, dynamic> _$QueryParamsToJson<T>(
   QueryParams<T> instance,
   Object? Function(T value) toJsonT,
-) => <String, dynamic>{'params': instance.params};
+) => <String, dynamic>{'params': ?instance.params};

@@ -21,7 +21,7 @@ Map<String, dynamic> _$UpdateParamsToJson<I, P>(
   Object? Function(I value) toJsonI,
   Object? Function(P value) toJsonP,
 ) => <String, dynamic>{
-  'params': instance.params,
+  'params': ?instance.params,
   'id': toJsonI(instance.id),
   'data': toJsonP(instance.data),
 };

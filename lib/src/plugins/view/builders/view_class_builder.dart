@@ -41,6 +41,8 @@ class ViewClassBuilder {
     this.lifecycleBuilder = const ViewLifecycleBuilder(),
   });
 
+  static const _ignoreComment = '// ignore_for_file: no_logic_in_create_state';
+
   String build(ViewClassSpec spec) {
     final viewClass = _buildViewClass(spec);
     final stateClass = _buildStateClass(spec);
@@ -51,7 +53,7 @@ class ViewClassBuilder {
       directives: directives,
     );
 
-    return specLibrary.emitLibrary(library);
+    return specLibrary.emitLibrary(library, leadingComment: _ignoreComment);
   }
 
   Class _buildViewClass(ViewClassSpec spec) {

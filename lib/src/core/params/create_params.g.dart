@@ -18,6 +18,6 @@ Map<String, dynamic> _$CreateParamsToJson<T>(
   CreateParams<T> instance,
   Object? Function(T value) toJsonT,
 ) => <String, dynamic>{
-  'params': instance.params,
+  'params': ?instance.params,
   'data': toJsonT(instance.data),
 };

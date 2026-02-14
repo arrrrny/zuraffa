@@ -15,12 +15,19 @@ class SpecLibrary {
     );
   }
 
-  String emitLibrary(Library library, {bool format = true}) {
+  String emitLibrary(
+    Library library, {
+    bool format = true,
+    String? leadingComment,
+  }) {
     final emitter = DartEmitter(
       orderDirectives: true,
       useNullSafetySyntax: true,
     );
-    final raw = library.accept(emitter).toString();
+    var raw = library.accept(emitter).toString();
+    if (leadingComment != null) {
+      raw = '$leadingComment\n$raw';
+    }
     if (!format) {
       return raw;
     }

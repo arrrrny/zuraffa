@@ -20,8 +20,8 @@ Map<String, dynamic> _$ListQueryParamsToJson<T>(
   ListQueryParams<T> instance,
   Object? Function(T value) toJsonT,
 ) => <String, dynamic>{
-  'params': instance.params,
-  'search': instance.search,
-  'limit': instance.limit,
-  'offset': instance.offset,
+  'params': ?instance.params,
+  'search': ?instance.search,
+  'limit': ?instance.limit,
+  'offset': ?instance.offset,
 };
