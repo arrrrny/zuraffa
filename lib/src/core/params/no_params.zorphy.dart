@@ -32,7 +32,7 @@ class NoParams {
 
   @override
   String toString() {
-    return 'NoParams';
+    return 'NoParams()';
   }
 }
 

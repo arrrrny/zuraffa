@@ -9,7 +9,10 @@ import 'commands/initialize_command.dart';
 import 'commands/entity_command.dart';
 import 'commands/plugin_command.dart';
 import 'commands/make_command.dart';
+import 'commands/doctor_command.dart';
 import 'core/plugin_system/plugin_registry.dart';
+import 'version.dart';
+
 import 'plugins/di/di_plugin.dart';
 import 'plugins/route/route_plugin.dart';
 import 'plugins/view/view_plugin.dart';
@@ -26,8 +29,6 @@ import 'plugins/mock/mock_plugin.dart';
 import 'plugins/cache/cache_plugin.dart';
 import 'plugins/graphql/graphql_plugin.dart';
 import 'plugins/observer/observer_plugin.dart';
-
-const version = '3.0.0';
 
 Future<void> run(List<String> args) async {
   if (args.isEmpty) {
@@ -193,6 +194,7 @@ Future<void> run(List<String> args) async {
   runner.addCommand(graphqlPlugin.createCommand());
   runner.addCommand(observerPlugin.createCommand());
   runner.addCommand(MakeCommand(PluginRegistry.instance));
+  runner.addCommand(DoctorCommand());
 
   // 3. Dispatch
   // If the command is one of our new modular commands, let CommandRunner handle it.
@@ -228,6 +230,7 @@ Future<void> run(List<String> args) async {
         break;
       case 'create':
         await CreateCommand().execute(args.skip(1).toList());
+        break;
       case 'config':
         await ConfigCommand().execute(args.skip(1).toList());
         break;
@@ -240,18 +243,6 @@ Future<void> run(List<String> args) async {
         break;
       case 'plugin':
         await PluginCommand().execute(args.skip(1).toList());
-        break;
-      case 'plugin':
-        await PluginCommand().execute(args.skip(1).toList());
-        break;
-      case 'view':
-        await ViewCommand().execute(args.skip(1).toList());
-        break;
-      case 'test':
-        await TestCommand().execute(args.skip(1).toList());
-        break;
-      case 'di':
-        await DiCommand().execute(args.skip(1).toList());
         break;
       case 'build':
         await _handleBuild(args.skip(1).toList());
@@ -340,6 +331,7 @@ CLEAN ARCHITECTURE COMMANDS:
   initialize          Initialize a test entity to quickly try out Zuraffa
   create              Create architecture folders or pages
   config              Manage ZFA configuration (.zfa.json)
+  doctor              Check your environment and dependencies
   plugin              Manage plugins (list, enable, disable)
   schema              Output JSON schema for configuration
   validate <file>     Validate JSON configuration file

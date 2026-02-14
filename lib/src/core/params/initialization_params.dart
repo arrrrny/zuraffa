@@ -2,7 +2,6 @@ import 'package:zorphy/zorphy.dart';
 import 'package:zuraffa/src/core/params/credentials.dart';
 import 'package:zuraffa/src/core/params/settings.dart';
 
-import 'locale.dart';
 import 'params.dart';
 
 part 'initialization_params.zorphy.dart';
@@ -27,7 +26,4 @@ abstract class $InitializationParams implements $Params {
 
   /// Custom settings for the initialization process.
   $Settings? get settings;
-
-  /// The locale to use for the initialization process.
-  $Locale? get locale;
 }

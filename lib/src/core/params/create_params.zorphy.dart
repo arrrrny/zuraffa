@@ -85,15 +85,10 @@ class CreateParams<T> extends Params {
 extension CreateParamsPropertyHelpers<T> on CreateParams<T> {}
 
 extension CreateParamsSerialization<T> on CreateParams<T> {
-  Map<String, dynamic> toJson(Object? Function(T value) toJsonT) {
-    final data = _$CreateParamsToJson(this, toJsonT);
-    data['params'] = params;
-    return data;
-  }
-
+  Map<String, dynamic> toJson(Object? Function(T value) toJsonT) =>
+      _$CreateParamsToJson(this, toJsonT);
   Map<String, dynamic> toJsonLean(Object? Function(T value) toJsonT) {
     final Map<String, dynamic> data = _$CreateParamsToJson(this, toJsonT);
-    if (params != null) data['params'] = params;
     return _sanitizeJson(data);
   }
 

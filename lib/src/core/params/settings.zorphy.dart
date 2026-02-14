@@ -87,15 +87,9 @@ class Settings extends Params {
 }
 
 extension SettingsSerialization on Settings {
-  Map<String, dynamic> toJson() {
-    final data = _$SettingsToJson(this);
-    data['params'] = params;
-    return data;
-  }
-
+  Map<String, dynamic> toJson() => _$SettingsToJson(this);
   Map<String, dynamic> toJsonLean() {
     final Map<String, dynamic> data = _$SettingsToJson(this);
-    if (params != null) data['params'] = params;
     return _sanitizeJson(data);
   }
 

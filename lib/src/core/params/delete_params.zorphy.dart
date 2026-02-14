@@ -83,15 +83,10 @@ class DeleteParams<I> extends Params {
 extension DeleteParamsPropertyHelpers<I> on DeleteParams<I> {}
 
 extension DeleteParamsSerialization<I> on DeleteParams<I> {
-  Map<String, dynamic> toJson(Object? Function(I value) toJsonI) {
-    final data = _$DeleteParamsToJson(this, toJsonI);
-    data['params'] = params;
-    return data;
-  }
-
+  Map<String, dynamic> toJson(Object? Function(I value) toJsonI) =>
+      _$DeleteParamsToJson(this, toJsonI);
   Map<String, dynamic> toJsonLean(Object? Function(I value) toJsonI) {
     final Map<String, dynamic> data = _$DeleteParamsToJson(this, toJsonI);
-    if (params != null) data['params'] = params;
     return _sanitizeJson(data);
   }
 

@@ -16,7 +16,6 @@ class InitializationParams extends Params {
   final bool? forceRefresh;
   final Credentials? credentials;
   final Settings? settings;
-  final Locale? locale;
 
   const InitializationParams({
     Map<String, dynamic>? params,
@@ -24,7 +23,6 @@ class InitializationParams extends Params {
     bool? forceRefresh,
     this.credentials,
     this.settings,
-    this.locale,
   }) : this.timeout = timeout ?? const Duration(seconds: 5),
        this.forceRefresh = forceRefresh ?? false,
        super(params: params);
@@ -35,7 +33,6 @@ class InitializationParams extends Params {
     bool? forceRefresh,
     Credentials? credentials,
     Settings? settings,
-    Locale? locale,
   }) {
     return InitializationParams(
       params: params ?? this.params,
@@ -43,7 +40,6 @@ class InitializationParams extends Params {
       forceRefresh: forceRefresh ?? this.forceRefresh,
       credentials: credentials ?? this.credentials,
       settings: settings ?? this.settings,
-      locale: locale ?? this.locale,
     );
   }
 
@@ -53,7 +49,6 @@ class InitializationParams extends Params {
     bool? forceRefresh,
     Credentials? credentials,
     Settings? settings,
-    Locale? locale,
   }) {
     return copyWith(
       params: params,
@@ -61,7 +56,6 @@ class InitializationParams extends Params {
       forceRefresh: forceRefresh,
       credentials: credentials,
       settings: settings,
-      locale: locale,
     );
   }
 
@@ -102,11 +96,6 @@ class InitializationParams extends Params {
                 ? _patchMap[InitializationParams$.settings](this.settings)
                 : _patchMap[InitializationParams$.settings]
           : this.settings,
-      locale: _patchMap.containsKey(InitializationParams$.locale)
-          ? (_patchMap[InitializationParams$.locale] is Function)
-                ? _patchMap[InitializationParams$.locale](this.locale)
-                : _patchMap[InitializationParams$.locale]
-          : this.locale,
     );
   }
 
@@ -123,7 +112,6 @@ class InitializationParams extends Params {
       forceRefresh: this.forceRefresh,
       credentials: this.credentials,
       settings: this.settings,
-      locale: this.locale,
     );
   }
 
@@ -135,8 +123,7 @@ class InitializationParams extends Params {
         timeout == other.timeout &&
         forceRefresh == other.forceRefresh &&
         credentials == other.credentials &&
-        settings == other.settings &&
-        locale == other.locale;
+        settings == other.settings;
   }
 
   @override
@@ -147,7 +134,6 @@ class InitializationParams extends Params {
       this.forceRefresh,
       this.credentials,
       this.settings,
-      this.locale,
     );
   }
 
@@ -162,9 +148,7 @@ class InitializationParams extends Params {
         ', ' +
         'credentials: ${credentials}' +
         ', ' +
-        'settings: ${settings}' +
-        ', ' +
-        'locale: ${locale})';
+        'settings: ${settings})';
   }
 
   /// Creates a [InitializationParams] instance from JSON
@@ -203,22 +187,12 @@ extension InitializationParamsPropertyHelpers on InitializationParams {
   bool get noSettings => settings == null;
   Settings get settingsRequired =>
       settings ?? (throw StateError('settings is required but was null'));
-  bool get hasLocale => locale != null;
-  bool get noLocale => locale == null;
-  Locale get localeRequired =>
-      locale ?? (throw StateError('locale is required but was null'));
 }
 
 extension InitializationParamsSerialization on InitializationParams {
-  Map<String, dynamic> toJson() {
-    final data = _$InitializationParamsToJson(this);
-    data['params'] = params;
-    return data;
-  }
-
+  Map<String, dynamic> toJson() => _$InitializationParamsToJson(this);
   Map<String, dynamic> toJsonLean() {
     final Map<String, dynamic> data = _$InitializationParamsToJson(this);
-    if (params != null) data['params'] = params;
     return _sanitizeJson(data);
   }
 
@@ -241,7 +215,6 @@ enum InitializationParams$ {
   forceRefresh,
   credentials,
   settings,
-  locale,
 }
 
 class InitializationParamsPatch implements Patch<InitializationParams> {
@@ -334,13 +307,26 @@ class InitializationParamsPatch implements Patch<InitializationParams> {
     return this;
   }
 
-  InitializationParamsPatch withSettings(Settings? value) {
-    _patch[InitializationParams$.settings] = value;
+  InitializationParamsPatch withCredentialsPatch(CredentialsPatch patch) {
+    _patch[InitializationParams$.credentials] = patch;
     return this;
   }
 
-  InitializationParamsPatch withLocale(Locale? value) {
-    _patch[InitializationParams$.locale] = value;
+  InitializationParamsPatch withCredentialsPatchFunc(
+    CredentialsPatch Function(CredentialsPatch) patch,
+  ) {
+    _patch[InitializationParams$.credentials] = (dynamic current) {
+      var currentPatch = CredentialsPatch();
+      if (current != null) {
+        currentPatch = current as CredentialsPatch;
+      }
+      return patch(currentPatch);
+    };
+    return this;
+  }
+
+  InitializationParamsPatch withSettings(Settings? value) {
+    _patch[InitializationParams$.settings] = value;
     return this;
   }
 }
@@ -372,11 +358,6 @@ abstract final class InitializationParamsFields {
     'settings',
     _$getsettings,
   );
-  static Locale? _$getlocale(InitializationParams e) => e.locale;
-  static const locale = Field<InitializationParams, Locale?>(
-    'locale',
-    _$getlocale,
-  );
 }
 
 extension InitializationParamsCompareE on InitializationParams {
@@ -399,9 +380,6 @@ extension InitializationParamsCompareE on InitializationParams {
     }
     if (settings != other.settings) {
       diff['settings'] = () => other.settings;
-    }
-    if (locale != other.locale) {
-      diff['locale'] = () => other.locale;
     }
     return diff;
   }

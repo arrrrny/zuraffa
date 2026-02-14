@@ -87,15 +87,9 @@ class Credentials extends Params {
 }
 
 extension CredentialsSerialization on Credentials {
-  Map<String, dynamic> toJson() {
-    final data = _$CredentialsToJson(this);
-    data['params'] = params;
-    return data;
-  }
-
+  Map<String, dynamic> toJson() => _$CredentialsToJson(this);
   Map<String, dynamic> toJsonLean() {
     final Map<String, dynamic> data = _$CredentialsToJson(this);
-    if (params != null) data['params'] = params;
     return _sanitizeJson(data);
   }
 

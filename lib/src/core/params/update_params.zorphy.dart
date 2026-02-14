@@ -113,12 +113,7 @@ extension UpdateParamsSerialization<I, P> on UpdateParams<I, P> {
   Map<String, dynamic> toJson(
     Object? Function(I value) toJsonI,
     Object? Function(P value) toJsonP,
-  ) {
-    final data = _$UpdateParamsToJson(this, toJsonI, toJsonP);
-    data['params'] = params;
-    return data;
-  }
-
+  ) => _$UpdateParamsToJson(this, toJsonI, toJsonP);
   Map<String, dynamic> toJsonLean(
     Object? Function(I value) toJsonI,
     Object? Function(P value) toJsonP,
@@ -128,7 +123,6 @@ extension UpdateParamsSerialization<I, P> on UpdateParams<I, P> {
       toJsonI,
       toJsonP,
     );
-    if (params != null) data['params'] = params;
     return _sanitizeJson(data);
   }
 

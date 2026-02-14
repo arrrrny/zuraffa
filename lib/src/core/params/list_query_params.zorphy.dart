@@ -220,7 +220,6 @@ extension ListQueryParamsPropertyHelpers<T> on ListQueryParams<T> {
 extension ListQueryParamsSerialization<T> on ListQueryParams<T> {
   Map<String, dynamic> toJson(Object? Function(T value) toJsonT) {
     final data = _$ListQueryParamsToJson(this, toJsonT);
-    data['params'] = params;
     if (filter != null) data['filter'] = FilterConverter.toJson(filter!);
     if (sort != null) data['sort'] = SortConverter.toJson(sort!);
     return data;
@@ -228,7 +227,6 @@ extension ListQueryParamsSerialization<T> on ListQueryParams<T> {
 
   Map<String, dynamic> toJsonLean(Object? Function(T value) toJsonT) {
     final Map<String, dynamic> data = _$ListQueryParamsToJson(this, toJsonT);
-    if (params != null) data['params'] = params;
     if (filter != null) data['filter'] = FilterConverter.toJson(filter!);
     if (sort != null) data['sort'] = SortConverter.toJson(sort!);
     return _sanitizeJson(data);

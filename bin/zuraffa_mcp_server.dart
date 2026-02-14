@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:zuraffa/src/zfa_cli.dart' as zfa show version;
+import 'package:zuraffa/src/version.dart' as zfa show version;
 
 /// MCP Server for Zuraffa CLI
 ///
@@ -188,6 +188,11 @@ class ZuraffaMcpServer {
           _configShowToolDefinition(),
           _configSetToolDefinition(),
           _graphqlToolDefinition(),
+          _doctorToolDefinition(),
+          _viewToolDefinition(),
+          _testToolDefinition(),
+          _diToolDefinition(),
+          _routeToolDefinition(),
         ],
       },
       'id': id,
@@ -505,6 +510,21 @@ class ZuraffaMcpServer {
           break;
         case 'graphql':
           result = await _runGraphqlCommand(args);
+          break;
+        case 'doctor':
+          result = await _runDoctorCommand();
+          break;
+        case 'view':
+          result = await _runViewCommand(args);
+          break;
+        case 'test':
+          result = await _runTestCommand(args);
+          break;
+        case 'di':
+          result = await _runDiCommand(args);
+          break;
+        case 'route':
+          result = await _runRouteCommand(args);
           break;
         default:
           return _error(id, -32602, 'Unknown tool: $toolName');
@@ -1075,6 +1095,152 @@ class ZuraffaMcpServer {
       }
       rethrow;
     }
+  }
+
+  /// Doctor tool definition
+  Map<String, dynamic> _doctorToolDefinition() {
+    return {
+      'name': 'doctor',
+      'description': 'Show information about the installed tooling',
+      'inputSchema': {'type': 'object', 'properties': {}},
+    };
+  }
+
+  /// Run doctor command
+  Future<String> _runDoctorCommand() async {
+    return await _runZuraffaProcess(['doctor']);
+  }
+
+  /// View tool definition
+  Map<String, dynamic> _viewToolDefinition() {
+    return {
+      'name': 'view',
+      'description': 'Generate view class for an entity',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'name': {'type': 'string', 'description': 'Entity name'},
+          'methods': {
+            'type': 'string',
+            'description': 'Comma-separated list of methods',
+          },
+          'di': {
+            'type': 'boolean',
+            'description': 'Generate with DI integration',
+          },
+          'state': {
+            'type': 'boolean',
+            'description': 'Generate with State integration',
+          },
+          'output': {'type': 'string', 'description': 'Output directory'},
+        },
+        'required': ['name'],
+      },
+    };
+  }
+
+  /// Run view command
+  Future<String> _runViewCommand(Map<String, dynamic> args) async {
+    final List<String> cliArgs = ['view', args['name'] as String];
+
+    if (args['methods'] != null) cliArgs.add('--methods=${args["methods"]}');
+    if (args['di'] == true) cliArgs.add('--di');
+    if (args['di'] == false) cliArgs.add('--no-di');
+    if (args['state'] == true) cliArgs.add('--state');
+    if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
+
+    return await _runZuraffaProcess(cliArgs);
+  }
+
+  /// Test tool definition
+  Map<String, dynamic> _testToolDefinition() {
+    return {
+      'name': 'test',
+      'description': 'Generate Unit Tests for an entity',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'name': {'type': 'string', 'description': 'Entity name'},
+          'methods': {
+            'type': 'string',
+            'description': 'Comma-separated list of methods',
+          },
+          'domain': {'type': 'string', 'description': 'Domain folder'},
+          'output': {'type': 'string', 'description': 'Output directory'},
+        },
+        'required': ['name'],
+      },
+    };
+  }
+
+  /// Run test command
+  Future<String> _runTestCommand(Map<String, dynamic> args) async {
+    final List<String> cliArgs = ['test', args['name'] as String];
+
+    if (args['methods'] != null) cliArgs.add('--methods=${args["methods"]}');
+    if (args['domain'] != null) cliArgs.add('--domain=${args["domain"]}');
+    if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
+
+    return await _runZuraffaProcess(cliArgs);
+  }
+
+  /// DI tool definition
+  Map<String, dynamic> _diToolDefinition() {
+    return {
+      'name': 'di',
+      'description': 'Generate dependency injection for a UseCase',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'name': {'type': 'string', 'description': 'UseCase name'},
+          'domain': {'type': 'string', 'description': 'Domain folder'},
+          'output': {'type': 'string', 'description': 'Output directory'},
+          'use_mock': {'type': 'boolean', 'description': 'Use mock datasource'},
+        },
+        'required': ['name'],
+      },
+    };
+  }
+
+  /// Run DI command
+  Future<String> _runDiCommand(Map<String, dynamic> args) async {
+    final List<String> cliArgs = ['di', args['name'] as String];
+
+    if (args['domain'] != null) cliArgs.add('--domain=${args["domain"]}');
+    if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
+    if (args['use_mock'] == true) cliArgs.add('--use-mock');
+
+    return await _runZuraffaProcess(cliArgs);
+  }
+
+  /// Route tool definition
+  Map<String, dynamic> _routeToolDefinition() {
+    return {
+      'name': 'route',
+      'description': 'Generate route definitions for an entity',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'name': {'type': 'string', 'description': 'Entity name'},
+          'methods': {
+            'type': 'string',
+            'description': 'Comma-separated list of methods',
+          },
+          'output': {'type': 'string', 'description': 'Output directory'},
+        },
+        'required': ['name'],
+      },
+    };
+  }
+
+  /// Run route command
+  Future<String> _runRouteCommand(Map<String, dynamic> args) async {
+    final List<String> cliArgs = ['route', args['name'] as String];
+
+    if (args['methods'] != null) cliArgs.add('--methods=${args["methods"]}');
+    if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
+
+    return await _runZuraffaProcess(cliArgs);
   }
 
   /// Execute zfa CLI process

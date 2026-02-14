@@ -113,14 +113,12 @@ extension QueryParamsPropertyHelpers<T> on QueryParams<T> {
 extension QueryParamsSerialization<T> on QueryParams<T> {
   Map<String, dynamic> toJson(Object? Function(T value) toJsonT) {
     final data = _$QueryParamsToJson(this, toJsonT);
-    data['params'] = params;
     if (filter != null) data['filter'] = FilterConverter.toJson(filter!);
     return data;
   }
 
   Map<String, dynamic> toJsonLean(Object? Function(T value) toJsonT) {
     final Map<String, dynamic> data = _$QueryParamsToJson(this, toJsonT);
-    if (params != null) data['params'] = params;
     if (filter != null) data['filter'] = FilterConverter.toJson(filter!);
     return _sanitizeJson(data);
   }

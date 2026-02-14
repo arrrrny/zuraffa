@@ -20,9 +20,6 @@ InitializationParams _$InitializationParamsFromJson(
   settings: json['settings'] == null
       ? null
       : Settings.fromJson(json['settings'] as Map<String, dynamic>),
-  locale: json['locale'] == null
-      ? null
-      : Locale.fromJson(json['locale'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$InitializationParamsToJson(
@@ -33,5 +30,4 @@ Map<String, dynamic> _$InitializationParamsToJson(
   'forceRefresh': instance.forceRefresh,
   'credentials': instance.credentials?.toJson(),
   'settings': instance.settings?.toJson(),
-  'locale': instance.locale?.toJson(),
 };

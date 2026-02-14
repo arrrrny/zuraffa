@@ -22,4 +22,3 @@ export 'initialization_params.dart';
 export 'settings.dart';
 export 'credentials.dart';
 export 'converters/index.dart';
-export 'locale.dart';
