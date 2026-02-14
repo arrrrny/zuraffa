@@ -1,6 +1,6 @@
 # SyncUseCase
 
-Zuraffa provides a `SyncUseCase` base class for synchronous operations that don't require asynchronous processing. Unlike other UseCase types that work with async operations, `SyncUseCase` executes business logic immediately and returns a result synchronously.
+Zuraffa v3 provides a `SyncUseCase` base class for synchronous operations that don’t need async work. It executes immediately and returns a `Result`.
 
 ## Overview
 

@@ -9,7 +9,7 @@ part of 'query_params.dart';
 // **************************************************************************
 
 @JsonSerializable(explicitToJson: true, genericArgumentFactories: true)
-class QueryParams<T> {
+class QueryParams<T> extends Params {
   @JsonKey(
     includeFromJson: false,
     includeToJson: false,
@@ -17,35 +17,55 @@ class QueryParams<T> {
     fromJson: FilterConverter.fromJson,
   )
   final Filter<T>? filter;
-  final Params? params;
 
-  const QueryParams({this.filter, this.params});
+  const QueryParams({Map<String, dynamic>? params, this.filter})
+    : super(params: params);
 
-  QueryParams copyWith({Filter<T>? filter, Params? params}) {
+  QueryParams copyWith({Map<String, dynamic>? params, Filter<T>? filter}) {
     return QueryParams(
-      filter: filter ?? this.filter,
       params: params ?? this.params,
+      filter: filter ?? this.filter,
     );
   }
 
-  QueryParams copyWithQueryParams({Filter<T>? filter, Params? params}) {
-    return copyWith(filter: filter, params: params);
+  QueryParams copyWithQueryParams({
+    Map<String, dynamic>? params,
+    Filter<T>? filter,
+  }) {
+    return copyWith(params: params, filter: filter);
+  }
+
+  QueryParams copyWithParams({Map<String, dynamic>? params}) {
+    return copyWith(params: params);
   }
 
   QueryParams patchWithQueryParams({QueryParamsPatch? patchInput}) {
     final _patcher = patchInput ?? QueryParamsPatch();
     final _patchMap = _patcher.toPatch();
     return QueryParams(
-      filter: _patchMap.containsKey(QueryParams$.filter)
-          ? (_patchMap[QueryParams$.filter] is Function)
-                ? _patchMap[QueryParams$.filter](this.filter)
-                : _patchMap[QueryParams$.filter]
-          : this.filter,
       params: _patchMap.containsKey(QueryParams$.params)
           ? (_patchMap[QueryParams$.params] is Function)
                 ? _patchMap[QueryParams$.params](this.params)
                 : _patchMap[QueryParams$.params]
           : this.params,
+      filter: _patchMap.containsKey(QueryParams$.filter)
+          ? (_patchMap[QueryParams$.filter] is Function)
+                ? _patchMap[QueryParams$.filter](this.filter)
+                : _patchMap[QueryParams$.filter]
+          : this.filter,
+    );
+  }
+
+  QueryParams patchWithParams({ParamsPatch? patchInput}) {
+    final _patcher = patchInput ?? ParamsPatch();
+    final _patchMap = _patcher.toPatch();
+    return QueryParams(
+      params: _patchMap.containsKey(Params$.params)
+          ? (_patchMap[Params$.params] is Function)
+                ? _patchMap[Params$.params](this.params)
+                : _patchMap[Params$.params]
+          : this.params,
+      filter: this.filter,
     );
   }
 
@@ -53,18 +73,18 @@ class QueryParams<T> {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is QueryParams &&
-        filter == other.filter &&
-        params == other.params;
+        params == other.params &&
+        filter == other.filter;
   }
 
   @override
   int get hashCode {
-    return Object.hash(this.filter, this.params);
+    return Object.hash(this.params, this.filter);
   }
 
   @override
   String toString() {
-    return 'QueryParams(' + 'filter: ${filter}' + ', ' + 'params: ${params})';
+    return 'QueryParams(' + 'params: ${params}' + ', ' + 'filter: ${filter})';
   }
 
   /// Creates a [QueryParams] instance from JSON
@@ -74,30 +94,12 @@ class QueryParams<T> {
   ) {
     final instance = _$QueryParamsFromJson(json, fromJsonT);
     return QueryParams(
+      params: instance.params,
       filter: json['filter'] != null
           ? FilterConverter.fromJson(json['filter'] as Map<String, dynamic>)
                 as Filter<T>?
           : null,
-      params: instance.params,
     );
-  }
-
-  Map<String, dynamic> toJsonLean(Object? Function(T value) toJsonT) {
-    final Map<String, dynamic> data = _$QueryParamsToJson(this, toJsonT);
-    if (filter != null) data['filter'] = FilterConverter.toJson(filter!);
-    return _sanitizeJson(data);
-  }
-
-  dynamic _sanitizeJson(dynamic json) {
-    if (json is Map<String, dynamic>) {
-      json.remove('_className_');
-      return json..forEach((key, value) {
-        json[key] = _sanitizeJson(value);
-      });
-    } else if (json is List) {
-      return json.map((e) => _sanitizeJson(e)).toList();
-    }
-    return json;
   }
 }
 
@@ -106,10 +108,6 @@ extension QueryParamsPropertyHelpers<T> on QueryParams<T> {
   bool get noFilter => filter == null;
   Filter<T> get filterRequired =>
       filter ?? (throw StateError('filter is required but was null'));
-  bool get hasParams => params != null;
-  bool get noParams => params == null;
-  Params get paramsRequired =>
-      params ?? (throw StateError('params is required but was null'));
 }
 
 extension QueryParamsSerialization<T> on QueryParams<T> {
@@ -138,7 +136,7 @@ extension QueryParamsSerialization<T> on QueryParams<T> {
   }
 }
 
-enum QueryParams$ { filter, params }
+enum QueryParams$ { params, filter }
 
 class QueryParamsPatch implements Patch<QueryParams> {
   final Map<QueryParams$, dynamic> _patch = {};
@@ -208,54 +206,36 @@ class QueryParamsPatch implements Patch<QueryParams> {
     return create(json);
   }
 
-  QueryParamsPatch withFilter(dynamic value) {
-    _patch[QueryParams$.filter] = value;
-    return this;
-  }
-
-  QueryParamsPatch withParams(Params? value) {
+  QueryParamsPatch withParams(Map<String, dynamic>? value) {
     _patch[QueryParams$.params] = value;
     return this;
   }
 
-  QueryParamsPatch withParamsPatch(ParamsPatch patch) {
-    _patch[QueryParams$.params] = patch;
-    return this;
-  }
-
-  QueryParamsPatch withParamsPatchFunc(
-    ParamsPatch Function(ParamsPatch) patch,
-  ) {
-    _patch[QueryParams$.params] = (dynamic current) {
-      var currentPatch = ParamsPatch();
-      if (current != null) {
-        currentPatch = current as ParamsPatch;
-      }
-      return patch(currentPatch);
-    };
+  QueryParamsPatch withFilter(dynamic value) {
+    _patch[QueryParams$.filter] = value;
     return this;
   }
 }
 
 /// Field descriptors for [QueryParams] query construction
 abstract final class QueryParamsFields {
+  static Map<String, dynamic>? _$getparams<T>(QueryParams<T> e) => e.params;
+  static Field<QueryParams<T>, Map<String, dynamic>?> params<T>() =>
+      Field<QueryParams<T>, Map<String, dynamic>?>('params', _$getparams<T>);
   static Filter<T>? _$getfilter<T>(QueryParams<T> e) => e.filter;
   static Field<QueryParams<T>, Filter<T>?> filter<T>() =>
       Field<QueryParams<T>, Filter<T>?>('filter', _$getfilter<T>);
-  static Params? _$getparams<T>(QueryParams<T> e) => e.params;
-  static Field<QueryParams<T>, Params?> params<T>() =>
-      Field<QueryParams<T>, Params?>('params', _$getparams<T>);
 }
 
 extension QueryParamsCompareE on QueryParams {
   Map<String, dynamic> compareToQueryParams(QueryParams other) {
     final Map<String, dynamic> diff = {};
 
-    if (filter != other.filter) {
-      diff['filter'] = () => other.filter;
-    }
     if (params != other.params) {
       diff['params'] = () => other.params;
+    }
+    if (filter != other.filter) {
+      diff['filter'] = () => other.filter;
     }
     return diff;
   }

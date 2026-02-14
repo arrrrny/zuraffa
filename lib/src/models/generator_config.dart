@@ -51,6 +51,12 @@ class GeneratorConfig {
   final String? customControllerName;
   final String? customStateName;
 
+  // Execution flags
+  final bool dryRun;
+  final bool force;
+  final bool verbose;
+  final String outputDir;
+
   GeneratorConfig({
     required this.name,
     this.methods = const [],
@@ -101,7 +107,12 @@ class GeneratorConfig {
     this.customPresenterName,
     this.customControllerName,
     this.customStateName,
-  }) : queryFieldType = queryFieldType ?? idType;
+    this.dryRun = false,
+    this.force = false,
+    this.verbose = false,
+    this.outputDir = 'lib/src',
+  }) : queryFieldType =
+           queryFieldType ?? (queryField == 'id' ? 'String' : 'String');
 
   factory GeneratorConfig.fromJson(Map<String, dynamic> json, String name) {
     return GeneratorConfig(
@@ -185,6 +196,118 @@ class GeneratorConfig {
       customPresenterName != null ||
       customControllerName != null ||
       customStateName != null;
+
+  GeneratorConfig copyWith({
+    String? name,
+    List<String>? methods,
+    String? repo,
+    String? service,
+    List<String>? usecases,
+    List<String>? variants,
+    String? domain,
+    String? repoMethod,
+    String? serviceMethod,
+    bool? appendToExisting,
+    bool? generateRepository,
+    String? useCaseType,
+    String? paramsType,
+    String? returnsType,
+    String? idField,
+    String? idType,
+    bool? generateVpc,
+    bool? generateView,
+    bool? generatePresenter,
+    bool? generateController,
+    bool? generateObserver,
+    bool? generateData,
+    bool? generateDataSource,
+    bool? generateLocal,
+    bool? generateState,
+    bool? generateInit,
+    String? queryField,
+    String? queryFieldType,
+    bool? useZorphy,
+    bool? generateTest,
+    bool? enableCache,
+    String? cachePolicy,
+    String? cacheStorage,
+    int? ttlMinutes,
+    bool? generateMock,
+    bool? generateMockDataOnly,
+    bool? useMockInDi,
+    bool? generateDi,
+    String? diFramework,
+    bool? generateRoute,
+    bool? generateGql,
+    String? gqlReturns,
+    String? gqlType,
+    String? gqlInputType,
+    String? gqlInputName,
+    String? gqlName,
+    String? customPresenterName,
+    String? customControllerName,
+    String? customStateName,
+    bool? dryRun,
+    bool? force,
+    bool? verbose,
+    String? outputDir,
+  }) {
+    return GeneratorConfig(
+      name: name ?? this.name,
+      methods: methods ?? this.methods,
+      repo: repo ?? this.repo,
+      service: service ?? this.service,
+      usecases: usecases ?? this.usecases,
+      variants: variants ?? this.variants,
+      domain: domain ?? this.domain,
+      repoMethod: repoMethod ?? this.repoMethod,
+      serviceMethod: serviceMethod ?? this.serviceMethod,
+      appendToExisting: appendToExisting ?? this.appendToExisting,
+      generateRepository: generateRepository ?? this.generateRepository,
+      useCaseType: useCaseType ?? this.useCaseType,
+      paramsType: paramsType ?? this.paramsType,
+      returnsType: returnsType ?? this.returnsType,
+      idField: idField ?? this.idField,
+      idType: idType ?? this.idType,
+      generateVpc: generateVpc ?? this.generateVpc,
+      generateView: generateView ?? this.generateView,
+      generatePresenter: generatePresenter ?? this.generatePresenter,
+      generateController: generateController ?? this.generateController,
+      generateObserver: generateObserver ?? this.generateObserver,
+      generateData: generateData ?? this.generateData,
+      generateDataSource: generateDataSource ?? this.generateDataSource,
+      generateLocal: generateLocal ?? this.generateLocal,
+      generateState: generateState ?? this.generateState,
+      generateInit: generateInit ?? this.generateInit,
+      queryField: queryField ?? this.queryField,
+      queryFieldType: queryFieldType ?? this.queryFieldType,
+      useZorphy: useZorphy ?? this.useZorphy,
+      generateTest: generateTest ?? this.generateTest,
+      enableCache: enableCache ?? this.enableCache,
+      cachePolicy: cachePolicy ?? this.cachePolicy,
+      cacheStorage: cacheStorage ?? this.cacheStorage,
+      ttlMinutes: ttlMinutes ?? this.ttlMinutes,
+      generateMock: generateMock ?? this.generateMock,
+      generateMockDataOnly: generateMockDataOnly ?? this.generateMockDataOnly,
+      useMockInDi: useMockInDi ?? this.useMockInDi,
+      generateDi: generateDi ?? this.generateDi,
+      diFramework: diFramework ?? this.diFramework,
+      generateRoute: generateRoute ?? this.generateRoute,
+      generateGql: generateGql ?? this.generateGql,
+      gqlReturns: gqlReturns ?? this.gqlReturns,
+      gqlType: gqlType ?? this.gqlType,
+      gqlInputType: gqlInputType ?? this.gqlInputType,
+      gqlInputName: gqlInputName ?? this.gqlInputName,
+      gqlName: gqlName ?? this.gqlName,
+      customPresenterName: customPresenterName ?? this.customPresenterName,
+      customControllerName: customControllerName ?? this.customControllerName,
+      customStateName: customStateName ?? this.customStateName,
+      dryRun: dryRun ?? this.dryRun,
+      force: force ?? this.force,
+      verbose: verbose ?? this.verbose,
+      outputDir: outputDir ?? this.outputDir,
+    );
+  }
 
   // Get repository method name (default: UseCase name in camelCase)
   String getRepoMethodName([String? variantPrefix]) {

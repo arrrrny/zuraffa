@@ -1,6 +1,6 @@
 # Field Types Reference
 
-Complete reference for all field types supported by Zorphy entity generation.
+Reference for field types supported by Zorphy entity generation in v3.
 
 ## Basic Types
 
@@ -458,6 +458,27 @@ zfa entity create -n Group --field members:List<String>
 
 # ⚠️  Sets serialize to Lists in JSON anyway
 zfa entity create -n Group --field members:Set<String>
+```
+
+## Querying, Filtering, Sorting
+
+Zuraffa includes `QueryParams` and `ListQueryParams` to keep querying type-safe.
+
+```dart
+Future<List<Product>> getList(ListQueryParams<Product> params) async {
+  return _box.values.filter(params.filter).orderBy(params.sort);
+}
+```
+
+```dart
+final params = ListQueryParams<Product>(
+  filter: And([
+    Eq(ProductFields.status, ProductStatus.available),
+    Gt(ProductFields.price, 10),
+  ]),
+  sort: Sort(ProductFields.price, descending: true),
+  limit: 20,
+);
 ```
 
 ## What's Next?

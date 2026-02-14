@@ -19,3 +19,6 @@ export 'create_params.dart';
 export 'update_params.dart';
 export 'delete_params.dart';
 export 'initialization_params.dart';
+export 'settings.dart';
+export 'credentials.dart';
+export 'converters/index.dart';

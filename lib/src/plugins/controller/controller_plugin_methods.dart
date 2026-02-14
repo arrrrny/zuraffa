@@ -15,6 +15,7 @@ extension ControllerPluginMethods on ControllerPlugin {
             _buildGetMethod(config, entityName, entityCamel, withState),
           );
           break;
+        case 'list':
         case 'getList':
           methods.add(_buildGetListMethod(entityName, entityCamel, withState));
           break;

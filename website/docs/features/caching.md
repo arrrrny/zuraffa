@@ -1,6 +1,6 @@
 # Caching
 
-Zuraffa provides sophisticated caching capabilities using a **dual DataSource pattern**. The `--cache` flag generates complete caching infrastructure with configurable cache policies.
+Zuraffa v3 supports caching with a dual data source pattern. The `--cache` flag generates the full setup with configurable policies.
 
 ## Overview
 

@@ -48,10 +48,4 @@ class Order {
       'Order(id: $id, customerId: $customerId, total: $total, status: $status)';
 }
 
-enum OrderStatus {
-  pending,
-  confirmed,
-  shipped,
-  delivered,
-  cancelled,
-}
+enum OrderStatus { pending, confirmed, shipped, delivered, cancelled }

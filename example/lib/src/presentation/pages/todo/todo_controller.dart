@@ -19,68 +19,51 @@ class TodoController extends Controller with StatefulController<TodoState> {
     final result = await _presenter.getTodo(id);
 
     result.fold(
-      (entity) => updateState(viewState.copyWith(
-        isGetting: false,
-        todo: entity,
-      )),
-      (failure) => updateState(viewState.copyWith(
-        isGetting: false,
-        error: failure,
-      )),
+      (entity) =>
+          updateState(viewState.copyWith(isGetting: false, todo: entity)),
+      (failure) =>
+          updateState(viewState.copyWith(isGetting: false, error: failure)),
     );
   }
 
-  Future<void> getTodoList(
-      [ListQueryParams<Todo> params = const ListQueryParams()]) async {
+  Future<void> getTodoList([
+    ListQueryParams<Todo> params = const ListQueryParams(),
+  ]) async {
     updateState(viewState.copyWith(isGettingList: true));
     final result = await _presenter.getTodoList(params);
 
     result.fold(
-      (list) => updateState(viewState.copyWith(
-        isGettingList: false,
-        todoList: list,
-      )),
-      (failure) => updateState(viewState.copyWith(
-        isGettingList: false,
-        error: failure,
-      )),
+      (list) =>
+          updateState(viewState.copyWith(isGettingList: false, todoList: list)),
+      (failure) =>
+          updateState(viewState.copyWith(isGettingList: false, error: failure)),
     );
   }
 
   void watchTodo(int id) {
     updateState(viewState.copyWith(isWatching: true));
-    _presenter.watchTodo(id).listen(
-      (result) {
-        result.fold(
-          (entity) => updateState(viewState.copyWith(
-            isWatching: false,
-            todo: entity,
-          )),
-          (failure) => updateState(viewState.copyWith(
-            isWatching: false,
-            error: failure,
-          )),
-        );
-      },
-    );
+    _presenter.watchTodo(id).listen((result) {
+      result.fold(
+        (entity) =>
+            updateState(viewState.copyWith(isWatching: false, todo: entity)),
+        (failure) =>
+            updateState(viewState.copyWith(isWatching: false, error: failure)),
+      );
+    });
   }
 
   void watchTodoList([ListQueryParams<Todo> params = const ListQueryParams()]) {
     updateState(viewState.copyWith(isWatchingList: true));
-    _presenter.watchTodoList(params).listen(
-      (result) {
-        result.fold(
-          (list) => updateState(viewState.copyWith(
-            isWatchingList: false,
-            todoList: list,
-          )),
-          (failure) => updateState(viewState.copyWith(
-            isWatchingList: false,
-            error: failure,
-          )),
-        );
-      },
-    );
+    _presenter.watchTodoList(params).listen((result) {
+      result.fold(
+        (list) => updateState(
+          viewState.copyWith(isWatchingList: false, todoList: list),
+        ),
+        (failure) => updateState(
+          viewState.copyWith(isWatchingList: false, error: failure),
+        ),
+      );
+    });
   }
 
   Future<void> createTodo(Todo todo) async {
@@ -88,13 +71,9 @@ class TodoController extends Controller with StatefulController<TodoState> {
     final result = await _presenter.createTodo(todo);
 
     result.fold(
-      (created) => updateState(viewState.copyWith(
-        isCreating: false,
-      )),
-      (failure) => updateState(viewState.copyWith(
-        isCreating: false,
-        error: failure,
-      )),
+      (created) => updateState(viewState.copyWith(isCreating: false)),
+      (failure) =>
+          updateState(viewState.copyWith(isCreating: false, error: failure)),
     );
   }
 
@@ -103,33 +82,33 @@ class TodoController extends Controller with StatefulController<TodoState> {
     final result = await _presenter.updateTodo(id, data);
 
     result.fold(
-      (updated) => updateState(viewState.copyWith(
-        isUpdating: false,
-        todo: viewState.todo?.id == updated.id ? updated : viewState.todo,
-      )),
-      (failure) => updateState(viewState.copyWith(
-        isUpdating: false,
-        error: failure,
-      )),
+      (updated) => updateState(
+        viewState.copyWith(
+          isUpdating: false,
+          todo: viewState.todo?.id == updated.id ? updated : viewState.todo,
+        ),
+      ),
+      (failure) =>
+          updateState(viewState.copyWith(isUpdating: false, error: failure)),
     );
   }
 
   Future<void> deleteTodo(int id) async {
     // Immediately remove from list for optimistic UI update
     // This prevents Dismissible error where widget must be removed synchronously
-    updateState(viewState.copyWith(
-      isDeleting: true,
-      todoList: viewState.todoList.where((e) => e.id != id).toList(),
-    ));
+    updateState(
+      viewState.copyWith(
+        isDeleting: true,
+        todoList: viewState.todoList.where((e) => e.id != id).toList(),
+      ),
+    );
 
     final result = await _presenter.deleteTodo(id);
 
     result.fold(
       (_) => updateState(viewState.copyWith(isDeleting: false)),
-      (failure) => updateState(viewState.copyWith(
-        isDeleting: false,
-        error: failure,
-      )),
+      (failure) =>
+          updateState(viewState.copyWith(isDeleting: false, error: failure)),
     );
   }
 

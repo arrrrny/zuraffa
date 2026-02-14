@@ -236,10 +236,10 @@ packages:
     dependency: "direct main"
     description:
       name: get_it
-      sha256: "1d648d2dd2047d7f7450d5727ca24ee435f240385753d90b49650e3cdff32e56"
+      sha256: ae78de7c3f2304b8d81f2bb6e320833e5e81de942188542328f074978cc0efa9
       url: "https://pub.dev"
     source: hosted
-    version: "9.2.0"
+    version: "8.3.0"
   glob:
     dependency: transitive
     description:
@@ -800,24 +800,26 @@ packages:
   zorphy:
     dependency: transitive
     description:
-      path: "../../zorphy/zorphy"
-      relative: true
-    source: path
-    version: "1.5.5"
+      name: zorphy
+      sha256: "276dbadc960d7358c7d8c2c8d87949a70c3aafcbf37b6fd2e7a50e8a31ad9142"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.5.8"
   zorphy_annotation:
     dependency: "direct main"
     description:
-      path: "../../zorphy/zorphy_annotation"
-      relative: true
-    source: path
-    version: "1.5.5"
+      name: zorphy_annotation
+      sha256: d565ca64e33e655e7dd3c1070032ab05b457979fe7e6641fb0523d09af646a8f
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.5.8"
   zuraffa:
     dependency: "direct main"
     description:
       path: ".."
       relative: true
     source: path
-    version: "2.8.1"
+    version: "3.0.1"
 sdks:
   dart: ">=3.10.3 <4.0.0"
   flutter: ">=3.38.4"

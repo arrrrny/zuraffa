@@ -85,7 +85,7 @@ abstract class UseCase<T, Params> with Loggable {
   ///
   /// - Throw [AppFailure] subclasses for expected/recoverable errors
   /// - Any other exception will be wrapped in [UnknownFailure]
-  /// - Periodically check [cancelToken?.throwIfCancelled()] for long operations
+  /// - Periodically check `cancelToken?.throwIfCancelled()` for long operations
   ///
   /// The returned value will be wrapped in [Success].
   @protected

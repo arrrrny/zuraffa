@@ -32,6 +32,7 @@ void main() {
         name: 'Product',
         methods: const ['get', 'getList', 'create'],
         generateState: true,
+        outputDir: outputDir,
       ),
     );
 

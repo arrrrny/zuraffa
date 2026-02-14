@@ -1,6 +1,6 @@
 # Dependency Injection
 
-Zuraffa provides automated dependency injection setup using **get_it**. The `--di` flag generates all necessary registration files for your architecture components.
+Zuraffa v3 provides automated dependency injection setup using get_it. The `--di` flag generates registration files for repositories, data sources, and services.
 
 ## Overview
 

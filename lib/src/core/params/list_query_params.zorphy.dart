@@ -9,7 +9,7 @@ part of 'list_query_params.dart';
 // **************************************************************************
 
 @JsonSerializable(explicitToJson: true, genericArgumentFactories: true)
-class ListQueryParams<T> {
+class ListQueryParams<T> extends Params {
   final String? search;
   @JsonKey(
     includeFromJson: false,
@@ -27,57 +27,65 @@ class ListQueryParams<T> {
   final Sort<T>? sort;
   final int? limit;
   final int? offset;
-  final Params? params;
 
   const ListQueryParams({
+    Map<String, dynamic>? params,
     this.search,
     this.filter,
     this.sort,
     this.limit,
     this.offset,
-    this.params,
-  });
+  }) : super(params: params);
 
   ListQueryParams copyWith({
+    Map<String, dynamic>? params,
     String? search,
     Filter<T>? filter,
     Sort<T>? sort,
     int? limit,
     int? offset,
-    Params? params,
   }) {
     return ListQueryParams(
+      params: params ?? this.params,
       search: search ?? this.search,
       filter: filter ?? this.filter,
       sort: sort ?? this.sort,
       limit: limit ?? this.limit,
       offset: offset ?? this.offset,
-      params: params ?? this.params,
     );
   }
 
   ListQueryParams copyWithListQueryParams({
+    Map<String, dynamic>? params,
     String? search,
     Filter<T>? filter,
     Sort<T>? sort,
     int? limit,
     int? offset,
-    Params? params,
   }) {
     return copyWith(
+      params: params,
       search: search,
       filter: filter,
       sort: sort,
       limit: limit,
       offset: offset,
-      params: params,
     );
+  }
+
+  ListQueryParams copyWithParams({Map<String, dynamic>? params}) {
+    return copyWith(params: params);
   }
 
   ListQueryParams patchWithListQueryParams({ListQueryParamsPatch? patchInput}) {
     final _patcher = patchInput ?? ListQueryParamsPatch();
     final _patchMap = _patcher.toPatch();
     return ListQueryParams(
+      params: _patchMap.containsKey(ListQueryParams$.params)
+          ? (_patchMap[ListQueryParams$.params] is Function)
+                ? _patchMap[ListQueryParams$.params](this.params)
+                : _patchMap[ListQueryParams$.params]
+          : this.params,
       search: _patchMap.containsKey(ListQueryParams$.search)
           ? (_patchMap[ListQueryParams$.search] is Function)
                 ? _patchMap[ListQueryParams$.search](this.search)
@@ -103,11 +111,23 @@ class ListQueryParams<T> {
                 ? _patchMap[ListQueryParams$.offset](this.offset)
                 : _patchMap[ListQueryParams$.offset]
           : this.offset,
-      params: _patchMap.containsKey(ListQueryParams$.params)
-          ? (_patchMap[ListQueryParams$.params] is Function)
-                ? _patchMap[ListQueryParams$.params](this.params)
-                : _patchMap[ListQueryParams$.params]
+    );
+  }
+
+  ListQueryParams patchWithParams({ParamsPatch? patchInput}) {
+    final _patcher = patchInput ?? ParamsPatch();
+    final _patchMap = _patcher.toPatch();
+    return ListQueryParams(
+      params: _patchMap.containsKey(Params$.params)
+          ? (_patchMap[Params$.params] is Function)
+                ? _patchMap[Params$.params](this.params)
+                : _patchMap[Params$.params]
           : this.params,
+      search: this.search,
+      filter: this.filter,
+      sort: this.sort,
+      limit: this.limit,
+      offset: this.offset,
     );
   }
 
@@ -115,29 +135,31 @@ class ListQueryParams<T> {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is ListQueryParams &&
+        params == other.params &&
         search == other.search &&
         filter == other.filter &&
         sort == other.sort &&
         limit == other.limit &&
-        offset == other.offset &&
-        params == other.params;
+        offset == other.offset;
   }
 
   @override
   int get hashCode {
     return Object.hash(
+      this.params,
       this.search,
       this.filter,
       this.sort,
       this.limit,
       this.offset,
-      this.params,
     );
   }
 
   @override
   String toString() {
     return 'ListQueryParams(' +
+        'params: ${params}' +
+        ', ' +
         'search: ${search}' +
         ', ' +
         'filter: ${filter}' +
@@ -146,9 +168,7 @@ class ListQueryParams<T> {
         ', ' +
         'limit: ${limit}' +
         ', ' +
-        'offset: ${offset}' +
-        ', ' +
-        'params: ${params})';
+        'offset: ${offset})';
   }
 
   /// Creates a [ListQueryParams] instance from JSON
@@ -158,6 +178,7 @@ class ListQueryParams<T> {
   ) {
     final instance = _$ListQueryParamsFromJson(json, fromJsonT);
     return ListQueryParams(
+      params: instance.params,
       search: instance.search,
       filter: json['filter'] != null
           ? FilterConverter.fromJson(json['filter'] as Map<String, dynamic>)
@@ -169,27 +190,7 @@ class ListQueryParams<T> {
           : null,
       limit: instance.limit,
       offset: instance.offset,
-      params: instance.params,
     );
-  }
-
-  Map<String, dynamic> toJsonLean(Object? Function(T value) toJsonT) {
-    final Map<String, dynamic> data = _$ListQueryParamsToJson(this, toJsonT);
-    if (filter != null) data['filter'] = FilterConverter.toJson(filter!);
-    if (sort != null) data['sort'] = SortConverter.toJson(sort!);
-    return _sanitizeJson(data);
-  }
-
-  dynamic _sanitizeJson(dynamic json) {
-    if (json is Map<String, dynamic>) {
-      json.remove('_className_');
-      return json..forEach((key, value) {
-        json[key] = _sanitizeJson(value);
-      });
-    } else if (json is List) {
-      return json.map((e) => _sanitizeJson(e)).toList();
-    }
-    return json;
   }
 }
 
@@ -214,10 +215,6 @@ extension ListQueryParamsPropertyHelpers<T> on ListQueryParams<T> {
   bool get noOffset => offset == null;
   int get offsetRequired =>
       offset ?? (throw StateError('offset is required but was null'));
-  bool get hasParams => params != null;
-  bool get noParams => params == null;
-  Params get paramsRequired =>
-      params ?? (throw StateError('params is required but was null'));
 }
 
 extension ListQueryParamsSerialization<T> on ListQueryParams<T> {
@@ -248,7 +245,7 @@ extension ListQueryParamsSerialization<T> on ListQueryParams<T> {
   }
 }
 
-enum ListQueryParams$ { search, filter, sort, limit, offset, params }
+enum ListQueryParams$ { params, search, filter, sort, limit, offset }
 
 class ListQueryParamsPatch implements Patch<ListQueryParams> {
   final Map<ListQueryParams$, dynamic> _patch = {};
@@ -318,6 +315,11 @@ class ListQueryParamsPatch implements Patch<ListQueryParams> {
     return create(json);
   }
 
+  ListQueryParamsPatch withParams(Map<String, dynamic>? value) {
+    _patch[ListQueryParams$.params] = value;
+    return this;
+  }
+
   ListQueryParamsPatch withSearch(String? value) {
     _patch[ListQueryParams$.search] = value;
     return this;
@@ -342,15 +344,16 @@ class ListQueryParamsPatch implements Patch<ListQueryParams> {
     _patch[ListQueryParams$.offset] = value;
     return this;
   }
-
-  ListQueryParamsPatch withParams(Params? value) {
-    _patch[ListQueryParams$.params] = value;
-    return this;
-  }
 }
 
 /// Field descriptors for [ListQueryParams] query construction
 abstract final class ListQueryParamsFields {
+  static Map<String, dynamic>? _$getparams<T>(ListQueryParams<T> e) => e.params;
+  static Field<ListQueryParams<T>, Map<String, dynamic>?> params<T>() =>
+      Field<ListQueryParams<T>, Map<String, dynamic>?>(
+        'params',
+        _$getparams<T>,
+      );
   static String? _$getsearch<T>(ListQueryParams<T> e) => e.search;
   static Field<ListQueryParams<T>, String?> search<T>() =>
       Field<ListQueryParams<T>, String?>('search', _$getsearch<T>);
@@ -366,15 +369,15 @@ abstract final class ListQueryParamsFields {
   static int? _$getoffset<T>(ListQueryParams<T> e) => e.offset;
   static Field<ListQueryParams<T>, int?> offset<T>() =>
       Field<ListQueryParams<T>, int?>('offset', _$getoffset<T>);
-  static Params? _$getparams<T>(ListQueryParams<T> e) => e.params;
-  static Field<ListQueryParams<T>, Params?> params<T>() =>
-      Field<ListQueryParams<T>, Params?>('params', _$getparams<T>);
 }
 
 extension ListQueryParamsCompareE on ListQueryParams {
   Map<String, dynamic> compareToListQueryParams(ListQueryParams other) {
     final Map<String, dynamic> diff = {};
 
+    if (params != other.params) {
+      diff['params'] = () => other.params;
+    }
     if (search != other.search) {
       diff['search'] = () => other.search;
     }
@@ -389,9 +392,6 @@ extension ListQueryParamsCompareE on ListQueryParams {
     }
     if (offset != other.offset) {
       diff['offset'] = () => other.offset;
-    }
-    if (params != other.params) {
-      diff['params'] = () => other.params;
     }
     return diff;
   }

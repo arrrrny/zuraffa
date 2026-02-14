@@ -37,7 +37,7 @@ dependencies:
     sdk: flutter
   zuraffa:
     path: ${path.normalize(repoRoot)}
-  get_it: ^7.6.0
+  get_it: ^8.0.0
 dependency_overrides:
   meta: 1.17.0
 ''';

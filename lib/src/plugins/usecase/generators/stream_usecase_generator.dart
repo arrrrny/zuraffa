@@ -113,6 +113,7 @@ class StreamUseCaseGenerator {
           )
         : Block(
             (b) => b
+              ..statements.add(Code('// TODO: Implement logic'))
               ..statements.add(
                 refer('UnimplementedError').call([]).thrown.statement,
               ),

@@ -71,6 +71,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'features/dependency-injection',
         'features/caching',
+        'features/graphql',
         'features/mock-data',
         'features/testing',
         'features/vpc-regeneration',

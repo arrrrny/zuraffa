@@ -1,6 +1,9 @@
+import 'package:args/command_runner.dart';
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
+import '../../commands/presenter_command.dart';
+import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
@@ -8,7 +11,7 @@ import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
 import 'builders/presenter_class_builder.dart';
 
-class PresenterPlugin extends FileGeneratorPlugin {
+class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final bool dryRun;
   final bool force;
@@ -33,10 +36,28 @@ class PresenterPlugin extends FileGeneratorPlugin {
   String get version => '1.0.0';
 
   @override
+  Command createCommand() => PresenterCommand(this);
+
+  @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     if (!(config.generatePresenter || config.generateVpc)) {
       return [];
     }
+
+    if (config.outputDir != outputDir ||
+        config.dryRun != dryRun ||
+        config.force != force ||
+        config.verbose != verbose) {
+      final delegator = PresenterPlugin(
+        outputDir: config.outputDir,
+        dryRun: config.dryRun,
+        force: config.force,
+        verbose: config.verbose,
+        classBuilder: classBuilder,
+      );
+      return delegator.generate(config);
+    }
+
     final entityName = config.name;
     final entitySnake = config.nameSnake;
     final entityCamel = config.nameCamel;
@@ -123,6 +144,7 @@ class PresenterPlugin extends FileGeneratorPlugin {
           className: 'Get${entityName}UseCase',
           fieldName: 'get$entityName',
         );
+      case 'list':
       case 'getList':
         return _UseCaseInfo(
           className: 'Get${entityName}ListUseCase',
@@ -298,9 +320,7 @@ class PresenterPlugin extends FileGeneratorPlugin {
             ]),
           })
         : refer('QueryParams<$entityName>').call([], {
-            'params': refer('Params').call([
-              literalMap({config.queryField: refer(config.queryField)}),
-            ]),
+            'params': literalMap({config.queryField: refer(config.queryField)}),
           });
 
     final callExpression = refer('_$methodName')
@@ -462,9 +482,7 @@ class PresenterPlugin extends FileGeneratorPlugin {
             ]),
           })
         : refer('QueryParams<$entityName>').call([], {
-            'params': refer('Params').call([
-              literalMap({config.queryField: refer(config.queryField)}),
-            ]),
+            'params': literalMap({config.queryField: refer(config.queryField)}),
           });
 
     final callExpression = refer('_$methodName')

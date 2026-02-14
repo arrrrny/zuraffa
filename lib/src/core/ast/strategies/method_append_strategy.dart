@@ -4,12 +4,14 @@ import '../ast_helper.dart';
 import '../node_finder.dart';
 import 'append_strategy.dart';
 
+/// Appends or replaces methods inside a class declaration.
 class MethodAppendStrategy implements AppendStrategy {
   final AstHelper helper;
 
   const MethodAppendStrategy({this.helper = const AstHelper()});
 
   @override
+  /// Returns true when the request targets a class method append.
   bool canHandle(AppendRequest request) {
     return request.target == AppendTarget.method &&
         request.className != null &&
@@ -17,6 +19,7 @@ class MethodAppendStrategy implements AppendStrategy {
   }
 
   @override
+  /// Applies the append operation, replacing existing methods when needed.
   AppendResult apply(AppendRequest request) {
     if (!canHandle(request)) {
       return AppendResult(
@@ -57,6 +60,17 @@ class MethodAppendStrategy implements AppendStrategy {
 
     for (final method in existingMethods) {
       if (method.name.lexeme == newMethodName) {
+        final existingSource = request.source.substring(
+          method.offset,
+          method.end,
+        );
+        if (_isSameMethodSource(existingSource, request.memberSource!)) {
+          return AppendResult(
+            source: request.source,
+            changed: false,
+            message: 'Method already exists',
+          );
+        }
         final updated = helper.replaceMethodInClass(
           source: request.source,
           className: request.className!,
@@ -77,6 +91,14 @@ class MethodAppendStrategy implements AppendStrategy {
       methodSource: request.memberSource!,
     );
     return AppendResult(source: updated, changed: updated != request.source);
+  }
+
+  bool _isSameMethodSource(String existingSource, String newSource) {
+    return _normalizeSource(existingSource) == _normalizeSource(newSource);
+  }
+
+  String _normalizeSource(String source) {
+    return source.replaceAll(RegExp(r'\s+'), '');
   }
 
   MethodDeclaration? _parseMethod(String methodSource) {

@@ -1,3 +1,6 @@
+import 'package:args/command_runner.dart';
+import '../../commands/usecase_command.dart';
+import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
@@ -5,7 +8,7 @@ import 'generators/custom_usecase_generator.dart';
 import 'generators/entity_usecase_generator.dart';
 import 'generators/stream_usecase_generator.dart';
 
-class UseCasePlugin extends FileGeneratorPlugin {
+class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final bool dryRun;
   final bool force;
@@ -42,6 +45,9 @@ class UseCasePlugin extends FileGeneratorPlugin {
   }
 
   @override
+  Command createCommand() => UseCaseCommand(this);
+
+  @override
   String get id => 'usecase';
 
   @override
@@ -52,6 +58,19 @@ class UseCasePlugin extends FileGeneratorPlugin {
 
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
+    if (config.outputDir != outputDir ||
+        config.dryRun != dryRun ||
+        config.force != force ||
+        config.verbose != verbose) {
+      final delegator = UseCasePlugin(
+        outputDir: config.outputDir,
+        dryRun: config.dryRun,
+        force: config.force,
+        verbose: config.verbose,
+      );
+      return delegator.generate(config);
+    }
+
     if (config.isEntityBased) {
       return entityGenerator.generate(config);
     }

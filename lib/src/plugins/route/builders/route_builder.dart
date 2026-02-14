@@ -6,7 +6,6 @@ import 'package:path/path.dart' as path;
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/builder/shared/spec_library.dart';
-import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -30,7 +29,6 @@ import 'extension_builder.dart';
 /// ```
 class RouteBuilder {
   final String outputDir;
-  final GeneratorOptions options;
   final bool dryRun;
   final bool force;
   final bool verbose;
@@ -42,33 +40,23 @@ class RouteBuilder {
   /// Creates a [RouteBuilder].
   ///
   /// @param outputDir Target directory for generated files.
-  /// @param options Generation flags for writing behavior and logging.
-  /// @param dryRun Deprecated: use [options].
-  /// @param force Deprecated: use [options].
-  /// @param verbose Deprecated: use [options].
+  /// @param dryRun Whether to perform a dry run.
+  /// @param force Whether to force overwrite existing files.
+  /// @param verbose Whether to output verbose logs.
   /// @param appRoutesBuilder Optional app routes builder override.
   /// @param entityRoutesBuilder Optional entity routes builder override.
   /// @param appendExecutor Optional append executor override.
   /// @param specLibrary Optional spec library override.
   RouteBuilder({
     required this.outputDir,
-    GeneratorOptions options = const GeneratorOptions(),
-    @Deprecated('Use options.dryRun') bool? dryRun,
-    @Deprecated('Use options.force') bool? force,
-    @Deprecated('Use options.verbose') bool? verbose,
+    this.dryRun = false,
+    this.force = false,
+    this.verbose = false,
     AppRoutesBuilder? appRoutesBuilder,
     EntityRoutesBuilder? entityRoutesBuilder,
     AppendExecutor? appendExecutor,
     SpecLibrary? specLibrary,
-  }) : options = options.copyWith(
-         dryRun: dryRun ?? options.dryRun,
-         force: force ?? options.force,
-         verbose: verbose ?? options.verbose,
-       ),
-       dryRun = dryRun ?? options.dryRun,
-       force = force ?? options.force,
-       verbose = verbose ?? options.verbose,
-       appRoutesBuilder = appRoutesBuilder ?? AppRoutesBuilder(),
+  }) : appRoutesBuilder = appRoutesBuilder ?? AppRoutesBuilder(),
        entityRoutesBuilder = entityRoutesBuilder ?? EntityRoutesBuilder(),
        appendExecutor = appendExecutor ?? AppendExecutor(),
        specLibrary = specLibrary ?? const SpecLibrary();
@@ -151,7 +139,7 @@ class RouteBuilder {
       routesPath,
       content,
       'route_constants',
-      force: true,
+      force: force,
       dryRun: dryRun,
       verbose: verbose,
     );
@@ -312,7 +300,7 @@ class RouteBuilder {
       routesPath,
       content,
       'entity_routes',
-      force: true,
+      force: force,
       dryRun: dryRun,
       verbose: verbose,
     );

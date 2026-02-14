@@ -13,7 +13,7 @@ class TodoMockDataSource
   final Duration _delay;
 
   TodoMockDataSource({Duration? delay})
-      : _delay = delay ?? const Duration(milliseconds: 100);
+    : _delay = delay ?? const Duration(milliseconds: 100);
 
   @override
   Future<Todo> get(QueryParams<Todo> params) async {

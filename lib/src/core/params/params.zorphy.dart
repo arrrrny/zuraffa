@@ -12,7 +12,7 @@ part of 'params.dart';
 class Params {
   final Map<String, dynamic>? params;
 
-  Params({this.params});
+  const Params({this.params});
 
   Params copyWith({Map<String, dynamic>? params}) {
     return Params(params: params ?? this.params);

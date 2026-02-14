@@ -13,7 +13,7 @@ class ProductMockDataSource
   final Duration _delay;
 
   ProductMockDataSource({Duration? delay})
-      : _delay = delay ?? const Duration(milliseconds: 100);
+    : _delay = delay ?? const Duration(milliseconds: 100);
 
   @override
   Future<Product> get(QueryParams<Product> params) async {

@@ -42,7 +42,7 @@ void main() {
 
     final generator = RouteBuilder(
       outputDir: outputDir,
-      force: false,
+      force: true,
       dryRun: false,
       verbose: false,
     );
@@ -52,6 +52,7 @@ void main() {
         name: 'Product',
         methods: const ['get', 'create'],
         generateRoute: true,
+        outputDir: outputDir,
       ),
     );
     final updated = appRoutesPath.readAsStringSync();
@@ -83,6 +84,7 @@ void main() {
         name: 'Order',
         methods: const ['get', 'update'],
         generateRoute: true,
+        outputDir: outputDir,
       ),
     );
     final entityFile = files.firstWhere(

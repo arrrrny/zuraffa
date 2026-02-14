@@ -1,168 +1,79 @@
 # Welcome to Zuraffa
 
-**Zuraffa** (Zürafa means Giraffe in Türkçe) is a comprehensive Clean Architecture framework for Flutter applications with **Result-based error handling**, **type-safe failures**, **minimal boilerplate**, and **integrated entity generation**.
+Zuraffa is a clean architecture toolkit for Flutter that ships with Result-based error handling, a CLI that generates production-ready structure, and a plugin system so you can extend the generator without forking it. Version 3 focuses on clarity: fewer moving parts, more predictable output, and documentation that reads like it was written by a human.
 
-## Why Zuraffa?
+## Why teams choose Zuraffa
 
-- ✅ **Clean Architecture Enforced**: Entity-based, Single (Responsibility) Repository, Orchestrator, and Polymorphic patterns
-- ✅ **Entity Generation**: Built-in Zorphy integration for type-safe entities with JSON serialization
-- ✅ **UseCase Pattern**: Single-shot, streaming, and background operations
-- ✅ **State Management Included**: Simple state management with automatic cleanup
-- ✅ **ZFA CLI Tool**: Single command for entities, architecture, and boilerplate
-- ✅ **MCP Server**: AI/IDE integration via Model Context Protocol
-- ✅ **Cancellation**: Cooperative cancellation with `CancelToken`
-- ✅ **Fine-grained Rebuilds**: Optimize performance with selective widget updates
-- ✅ **Caching**: Built-in dual datasource pattern with flexible cache policies
-- ✅ **Result Type**: Type-safe error handling with `Result<T, AppFailure>`
-- ✅ **Sealed Failures**: Exhaustive pattern matching for error cases
+- Clean architecture that stays consistent across features
+- Result and failure types that make error handling explicit
+- Generators for entities, use cases, repositories, and UI layers
+- Built-in patterns for CRUD, orchestration, streaming, and background tasks
+- Dependency injection, caching, mock data, and GraphQL generation
+- Plugin system introduced in v3 to customize the generator
 
-## Complete Development Workflow
+## What’s new in v3
 
-Zuraffa now provides **everything you need** in a single CLI:
+- Plugins are first-class: extend the CLI without editing core code
+- Docs are streamlined and focused on how you actually build features
+- Better defaults and more predictable CLI output
 
-### 1. Entity Generation (NEW!)
+## Quick start
 
-Create type-safe entities, enums, and data models:
-
-```bash
-# Create an entity with fields
-zfa entity create -n User --field name:String --field email:String? --field age:int
-
-# Create enums
-zfa entity enum -n Status --value active,inactive,pending
-
-# Create from JSON
-zfa entity from-json api_response.json
-
-# List all entities
-zfa entity list
-```
-
-**Features:**
-- ✅ Type-safe entities with null safety
-- ✅ JSON serialization (built-in)
-- ✅ Sealed classes for polymorphism
-- ✅ Multiple inheritance support
-- ✅ Generic types (`List<T>`, `Map<K,V>`)
-- ✅ Nested entities with auto-imports
-- ✅ Self-referencing types (trees, graphs)
-
-### 2. Clean Architecture Generation
-
-Generate complete architecture around your entities:
-
-```bash
-zfa generate User --methods=get,getList,create,update,delete --data --vpc --state
-```
-
-### 3. Build Everything
-
-```bash
-zfa build --watch
-```
-
-## ZFA - Complete Clean Architecture Framework
-
-ZFA transforms from a CRUD generator into a **complete Clean Architecture framework** with four powerful patterns:
-
-### 1. Entity-Based Pattern
-Perfect for standard CRUD operations on entities:
-```bash
-# First create the entity
-zfa entity create -n Product --field name:String --field price:double
-
-# Then generate architecture
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc
-```
-
-### 2. Single (Responsibility) Repository Pattern (Recommended)
-One UseCase, one repository for focused business logic:
-```bash
-zfa generate ProcessCheckout --domain=checkout --repo=CheckoutRepository --params=Request --returns=Result
-```
-
-### 3. Orchestrator Pattern (NEW)
-Compose multiple UseCases into complex workflows:
-```bash
-zfa generate ProcessCheckout --domain=checkout --usecases=ValidateCart,CreateOrder,ProcessPayment --params=Request --returns=Result
-```
-
-### 4. Polymorphic Pattern (NEW)
-Generate abstract base + concrete variants + factory:
-```bash
-zfa generate SparkSearch --domain=search --variants=Barcode,Url,Text --params=Spark --returns=Listing --type=stream
-```
-
-## Quick Start
-
-### Installation
-
-Add this to your package's `pubspec.yaml` file:
+### Install
 
 ```yaml
 dependencies:
-  zuraffa: ^2.2.2
+  zuraffa: ^3.0.0
 ```
-
-Then run:
 
 ```bash
 flutter pub get
-```
-
-### Activate the CLI
-
-```bash
 dart pub global activate zuraffa
 ```
 
-### Generate Your First Complete Feature
+### Generate your first feature
 
 ```bash
-# 1. Create an entity
 zfa entity create -n Product \
   --field name:String \
   --field description:String? \
-  --field price:double \
-  --field category:String
+  --field price:double
 
-# 2. Create an enum
-zfa entity enum -n ProductStatus --value available,out_of_stock,discontinued
-
-# 3. Update the entity to use the enum
-zfa entity add-field -n Product --field status:ProductStatus
-
-# 4. Generate complete Clean Architecture
 zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --di --test
-
-# 5. Build everything
-zfa build
 ```
 
-**That's it!** You now have:
-- ✅ Type-safe entity with JSON support
-- ✅ Enum with automatic barrel export
-- ✅ Domain layer (UseCases + Repository interface)
-- ✅ Data layer (DataRepository + DataSource)
-- ✅ Presentation layer (View, Presenter, Controller, State)
-- ✅ Dependency injection setup (get_it)
-- ✅ Unit tests with mock setup
+You get a full feature slice: entities, use cases, repositories, data sources, presentation, DI, and tests.
 
-### Custom UseCase Patterns
+## Core patterns
+
+### Entity-based CRUD
 
 ```bash
-# Single Repository: Custom business logic
-zfa generate ProcessCheckout --domain=checkout --repo=Checkout --params=CheckoutRequest --returns=OrderConfirmation
+zfa generate Product --methods=get,getList,create,update,delete --data --vpc
+```
 
-# Orchestrator: Compose multiple UseCases
+### Custom use case with a repository
+
+```bash
+zfa generate ProcessCheckout --domain=checkout --repo=Checkout --params=CheckoutRequest --returns=OrderConfirmation
+```
+
+### Orchestrator use case
+
+```bash
 zfa generate ProcessCheckout --domain=checkout --usecases=ValidateCart,CreateOrder,ProcessPayment --params=CheckoutRequest --returns=Order
 ```
 
-## What's Next?
+### Polymorphic variants
 
-- [Entity Generation Guide](./entities/intro) - Complete guide to entity generation with 50+ examples
-- [Architecture Overview](./architecture/overview) - Deep dive into Clean Architecture patterns
-- [UseCase Types](./architecture/usecases) - Explore all UseCase patterns and ZFA patterns
-- [CLI Reference](./cli/commands) - Complete CLI documentation with all flags and options
-- [Features](./features/dependency-injection) - Explore advanced features like caching, mock data, and testing
-- [GitHub Repository](https://github.com/arrrrny/zuraffa) - Source code and examples
+```bash
+zfa generate Search --domain=search --variants=Barcode,Url,Text --params=SearchInput --returns=Listing --type=stream
+```
+
+## Where to go next
+
+- [Getting Started](./guides/getting-started)
+- [Architecture Overview](./architecture/overview)
+- [UseCase Types](./architecture/usecases)
+- [CLI Reference](./cli/commands)
+- [Features](./features/dependency-injection)

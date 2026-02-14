@@ -30,6 +30,7 @@ void main() {
       name: 'Product',
       methods: const ['get', 'update'],
       generateView: true,
+      outputDir: outputDir,
     );
     final files = await plugin.generate(config);
     expect(files.isNotEmpty, isTrue);
@@ -52,6 +53,7 @@ void main() {
       queryField: 'slug',
       queryFieldType: 'String',
       generateView: true,
+      outputDir: outputDir,
     );
     final files = await plugin.generate(config);
     final content = files.first.content ?? '';
@@ -70,6 +72,7 @@ void main() {
       name: 'Product',
       methods: const ['getList'],
       generateView: true,
+      outputDir: outputDir,
     );
     final files = await plugin.generate(config);
     final content = files.first.content ?? '';

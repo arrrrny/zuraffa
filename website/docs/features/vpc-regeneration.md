@@ -1,6 +1,6 @@
 # VPC Regeneration
 
-Zuraffa provides powerful VPC (View-Presenter-Controller) regeneration capabilities. The `--pc`, `--pcs`, `--vpc`, and `--vpcs` flags allow you to regenerate business logic while preserving custom UI code.
+Zuraffa v3 supports VPC regeneration so you can evolve logic without losing UI work. Use `--pc`, `--pcs`, `--vpc`, and `--vpcs` to control the scope.
 
 ## Overview
 

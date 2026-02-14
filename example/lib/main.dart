@@ -44,9 +44,7 @@ class ZuraffaExampleApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: TodoView(
-        todoRepository: getIt<TodoRepository>(),
-      ),
+      home: TodoView(todoRepository: getIt<TodoRepository>()),
     );
   }
 }

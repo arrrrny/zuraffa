@@ -18,7 +18,8 @@ void main() {
 
   setUp(() {
     registerFallbackValue(
-        UpdateParams<String, ProductPatch>(id: '1', data: ProductPatch()));
+      UpdateParams<String, ProductPatch>(id: '1', data: ProductPatch()),
+    );
     mockRepository = MockProductRepository();
     useCase = UpdateProductUseCase(mockRepository);
   });
@@ -28,12 +29,14 @@ void main() {
 
     test('should call repository.update and return result', () async {
       // Arrange
-      when(() => mockRepository.update(any()))
-          .thenAnswer((_) async => tProduct);
+      when(
+        () => mockRepository.update(any()),
+      ).thenAnswer((_) async => tProduct);
 
       // Act
       final result = await useCase(
-          UpdateParams<String, ProductPatch>(id: '1', data: ProductPatch()));
+        UpdateParams<String, ProductPatch>(id: '1', data: ProductPatch()),
+      );
 
       // Assert
       verify(() => mockRepository.update(any())).called(1);
@@ -48,7 +51,8 @@ void main() {
 
       // Act
       final result = await useCase(
-          UpdateParams<String, ProductPatch>(id: '1', data: ProductPatch()));
+        UpdateParams<String, ProductPatch>(id: '1', data: ProductPatch()),
+      );
 
       // Assert
       verify(() => mockRepository.update(any())).called(1);

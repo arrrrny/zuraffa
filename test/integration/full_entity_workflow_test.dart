@@ -4,19 +4,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/src/generator/code_generator.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 
+import '../regression/regression_test_utils.dart';
+
+@Timeout(Duration(minutes: 2))
 void main() {
-  late Directory workspaceDir;
+  late RegressionWorkspace workspace;
   late String outputDir;
 
   setUp(() async {
-    workspaceDir = await _createWorkspace();
-    outputDir = '${workspaceDir.path}/lib/src';
+    workspace = await createWorkspace('full_entity_workflow');
+    await writePubspec(workspace);
+    await runFlutterPubGet(workspace);
+    outputDir = workspace.outputDir;
   });
 
   tearDown(() async {
-    if (workspaceDir.existsSync()) {
-      await workspaceDir.delete(recursive: true);
-    }
+    await disposeWorkspace(workspace);
   });
 
   test('generates full entity workflow', () async {
@@ -102,32 +105,6 @@ void main() {
       'class Product { final String id; const Product({required this.id}); }',
     );
 
-    await _expectAnalyzeClean([
-      '$outputDir/domain/repositories/product_repository.dart',
-      '$outputDir/data/repositories/data_product_repository.dart',
-      '$outputDir/data/data_sources/product/product_data_source.dart',
-      '$outputDir/presentation/pages/product/product_view.dart',
-    ]);
+    await runDartAnalyze(workspace);
   });
-}
-
-Future<Directory> _createWorkspace() async {
-  final root = Directory.current.path;
-  final dir = Directory(
-    '$root/.tmp_integration_${DateTime.now().microsecondsSinceEpoch}',
-  );
-  return dir.create(recursive: true);
-}
-
-Future<void> _expectAnalyzeClean(List<String> paths) async {
-  final result = await Process.run('dart', [
-    'analyze',
-    ...paths,
-  ], workingDirectory: Directory.current.path);
-
-  expect(
-    result.exitCode,
-    equals(0),
-    reason: '${result.stdout}\n${result.stderr}',
-  );
 }

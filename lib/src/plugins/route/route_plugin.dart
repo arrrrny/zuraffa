@@ -1,9 +1,12 @@
+import 'package:args/command_runner.dart';
+import '../../commands/route_command.dart';
+import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'builders/route_builder.dart';
 
-class RoutePlugin extends FileGeneratorPlugin {
+class RoutePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final bool dryRun;
   final bool force;
@@ -25,6 +28,9 @@ class RoutePlugin extends FileGeneratorPlugin {
   }
 
   @override
+  Command createCommand() => RouteCommand(this);
+
+  @override
   String get id => 'route';
 
   @override
@@ -38,6 +44,13 @@ class RoutePlugin extends FileGeneratorPlugin {
     if (!config.generateRoute) {
       return [];
     }
-    return routeBuilder.generate(config);
+    // Re-create builder with config flags if needed, or update builder to use config
+    final builder = RouteBuilder(
+      outputDir: config.outputDir,
+      dryRun: config.dryRun,
+      force: config.force,
+      verbose: config.verbose,
+    );
+    return builder.generate(config);
   }
 }

@@ -89,6 +89,7 @@ class EntityUseCaseGenerator {
         returnType = refer(entityName);
         break;
       case 'getList':
+      case 'list':
         className = 'Get${entityName}ListUseCase';
         baseClass = TypeReference(
           (t) => t
@@ -345,7 +346,6 @@ class EntityUseCaseGenerator {
           Parameter(
             (p) => p
               ..name = '_repository'
-              ..type = refer(repoName)
               ..toThis = true,
           ),
         ),

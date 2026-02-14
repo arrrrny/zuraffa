@@ -1,9 +1,12 @@
+import 'package:args/command_runner.dart';
+import '../../commands/mock_command.dart';
+import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'builders/mock_builder.dart';
 
-class MockPlugin extends FileGeneratorPlugin {
+class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final bool dryRun;
   final bool force;
@@ -25,6 +28,9 @@ class MockPlugin extends FileGeneratorPlugin {
   }
 
   @override
+  Command createCommand() => MockCommand(this);
+
+  @override
   String get id => 'mock';
 
   @override
@@ -35,6 +41,19 @@ class MockPlugin extends FileGeneratorPlugin {
 
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
+    if (config.outputDir != outputDir ||
+        config.dryRun != dryRun ||
+        config.force != force ||
+        config.verbose != verbose) {
+      final delegator = MockPlugin(
+        outputDir: config.outputDir,
+        dryRun: config.dryRun,
+        force: config.force,
+        verbose: config.verbose,
+      );
+      return delegator.generate(config);
+    }
+
     if (!config.generateMock && !config.generateMockDataOnly) {
       return [];
     }

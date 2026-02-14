@@ -31,7 +31,8 @@ void main() {
 
       // Act
       final result = await useCase(
-          const QueryParams<Todo>(filter: Eq(TodoFields.id, '1')));
+        const QueryParams<Todo>(filter: Eq(TodoFields.id, '1')),
+      );
 
       // Assert
       verify(() => mockRepository.get(any())).called(1);
@@ -46,7 +47,8 @@ void main() {
 
       // Act
       final result = await useCase(
-          const QueryParams<Todo>(filter: Eq(TodoFields.id, '1')));
+        const QueryParams<Todo>(filter: Eq(TodoFields.id, '1')),
+      );
 
       // Assert
       verify(() => mockRepository.get(any())).called(1);

@@ -39,6 +39,7 @@ void main() {
         name: 'Product',
         methods: const ['get'],
         generateMock: true,
+        outputDir: outputDir,
       ),
     );
 

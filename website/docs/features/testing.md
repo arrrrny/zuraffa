@@ -1,6 +1,6 @@
 # Testing
 
-Zuraffa provides comprehensive testing capabilities with automated test generation. The `--test` flag generates complete unit tests for your UseCases with proper mock setup and test scenarios.
+Zuraffa v3 can generate tests for your use cases. The `--test` flag creates unit tests with mock setup and common scenarios.
 
 ## Overview
 

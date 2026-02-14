@@ -127,29 +127,20 @@ export 'src/core/failure.dart';
 /// Cancellation token for cooperative cancellation
 export 'src/core/cancel_token.dart';
 
-/// NoParams sentinel for parameterless UseCases
-export 'src/core/params/no_params.dart';
-
-/// Params class for map-based parameters (Zorphy entity)
-export 'src/core/params/params.dart';
-
-/// InitializationParams for repository and data source initialization (Zorphy entity)
-export 'src/core/params/initialization_params.dart';
-
-/// QueryParams for querying a single entity (Zorphy entity)
-export 'src/core/params/query_params.dart';
-
-/// ListQueryParams for querying a list of entities (Zorphy entity)
-export 'src/core/params/list_query_params.dart';
-
-/// CreateParams for creating an entity (Zorphy entity)
-export 'src/core/params/create_params.dart';
-
-/// UpdateParams for updating an entity (Zorphy entity)
-export 'src/core/params/update_params.dart';
-
-/// DeleteParams for deleting an entity (Zorphy entity)
-export 'src/core/params/delete_params.dart';
+/// Parameter types for UseCases
+///
+/// Includes:
+/// - [NoParams] - For UseCases that don't need parameters
+/// - [Params] - Generic map-based parameters
+/// - [QueryParams] - For querying a single entity
+/// - [ListQueryParams] - For querying lists with filtering, sorting, pagination
+/// - [CreateParams] - For creating entities
+/// - [UpdateParams] - For updating entities
+/// - [DeleteParams] - For deleting entities
+/// - [InitializationParams] - For repository/data source initialization
+/// - [Settings] - Custom settings
+/// - [Credentials] - Authentication credentials
+export 'src/core/params/index.dart';
 
 /// Partial type for partial updates
 export 'src/core/partial.dart';

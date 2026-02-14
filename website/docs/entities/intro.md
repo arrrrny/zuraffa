@@ -1,6 +1,6 @@
 # Entity Generation
 
-Zuraffa includes **complete Zorphy entity generation** - create type-safe entities, enums, and manage data models with full JSON serialization support.
+Zuraffa v3 includes Zorphy entity generation for type-safe models, enums, and JSON-ready data classes.
 
 ## Why Entity Generation?
 
@@ -8,14 +8,12 @@ Entity generation provides the foundation for your Flutter application's data la
 
 ### Benefits
 
-- ✅ **Type-Safe**: Compile-time safety for all your data models prevents runtime errors
-- ✅ **JSON Serialization**: Built-in `toJson()` and `fromJson()` for API integration
-- ✅ **Polymorphism**: Sealed classes enable exhaustive pattern matching
-- ✅ **Inheritance**: Multiple interface support for code reuse
-- ✅ **Generics**: Full support for `List<T>`, `Map<K,V>`, and custom generics
-- ✅ **Auto-Imports**: Nested entities automatically imported - no manual import management
-- ✅ **Self-Reference**: Build trees, graphs, and recursive structures
-- ✅ **Generated Methods**: `compareTo`, `copyWith`, `patch` included automatically
+- Type-safe models with null safety
+- JSON serialization out of the box
+- Sealed classes and inheritance options
+- Generics for lists and maps
+- Auto-imports for nested entities
+- Generated helpers like `copyWith` and `patch`
 
 ## What Makes Zorphy Different?
 
@@ -446,6 +444,40 @@ final electronics = CategoryNode(
       children: [],
     ),
   ],
+);
+```
+
+## Querying, Filtering, Sorting
+
+Zuraffa ships with `QueryParams` and `ListQueryParams` so filtering and sorting is type-safe out of the box.
+
+### Local data source example
+
+```dart
+Future<List<Product>> getList(ListQueryParams<Product> params) async {
+  return _box.values.filter(params.filter).orderBy(params.sort);
+}
+```
+
+### Available filters
+
+- Eq, Neq
+- Gt, Gte, Lt, Lte
+- Contains, InList
+- And, Or
+- Filter.always()
+
+### Example usage
+
+```dart
+final params = ListQueryParams<Product>(
+  filter: And([
+    Eq(ProductFields.status, ProductStatus.available),
+    Gt(ProductFields.price, 10),
+  ]),
+  sort: Sort(ProductFields.price, descending: true),
+  limit: 20,
+  offset: 0,
 );
 ```
 

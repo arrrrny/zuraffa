@@ -84,12 +84,13 @@ class GenerateCommand {
     final shouldFormat = results['dart-format'] == true;
     final debug = results['debug'] == true;
     final pluginRoot = _resolvePluginRoot(outputDir);
+    final zfaConfig = ZfaConfig.load(projectRoot: pluginRoot);
     final artifactSaver = DebugArtifactSaver(projectRoot: pluginRoot);
     final errorReporter = ErrorReporter();
     GeneratorConfig config;
 
     try {
-      config = _buildConfig(name, results);
+      config = _buildConfig(name, results, zfaConfig ?? const ZfaConfig());
       _validateConfig(config, exitOnCompletion: false);
     } catch (e, stack) {
       final failure = GeneratorResult(
@@ -115,16 +116,13 @@ class GenerateCommand {
       if (exitOnCompletion) exit(1);
       return failure;
     }
-    final pluginConfig = PluginConfig.load(
-      projectRoot: _resolvePluginRoot(outputDir),
-    );
+    final pluginConfig = PluginConfig.load(projectRoot: pluginRoot);
     final progressReporter = createCliProgressReporter(
       verbose: verbose,
       quiet: quiet,
     );
 
     // Load config to check buildByDefault and formatByDefault
-    final zfaConfig = ZfaConfig.load();
     final runBuild =
         shouldBuild ||
         (config.enableCache && (zfaConfig?.buildByDefault ?? false));
@@ -193,20 +191,15 @@ class GenerateCommand {
     if (path.isAbsolute(outputDir)) {
       return outputDir;
     }
-    final envPwd = Platform.environment['PWD'];
-    if (envPwd != null && envPwd.isNotEmpty) {
-      final envDir = Directory(envPwd);
-      if (envDir.existsSync()) {
-        return path.normalize(path.join(envPwd, outputDir));
-      }
-    }
+    // Always use Directory.current as it is the source of truth for the process
     return path.normalize(path.join(Directory.current.path, outputDir));
   }
 
-  GeneratorConfig _buildConfig(String name, ArgResults results) {
-    // Load ZFA config for defaults
-    final zfaConfig = ZfaConfig.load() ?? const ZfaConfig();
-
+  GeneratorConfig _buildConfig(
+    String name,
+    ArgResults results,
+    ZfaConfig zfaConfig,
+  ) {
     if (results['from-stdin'] == true) {
       final input = stdin.readLineSync() ?? '';
       final json = jsonDecode(input) as Map<String, dynamic>;
@@ -408,11 +401,12 @@ class GenerateCommand {
       );
     }
 
-    // Rule 4: Custom non-orchestrator requires --repo OR --service (except background)
+    // Rule 4: Custom non-orchestrator requires --repo OR --service (except background and sync)
     // Also: --repo and --service are mutually exclusive
     if (config.isCustomUseCase &&
         !config.isOrchestrator &&
-        config.useCaseType != 'background') {
+        config.useCaseType != 'background' &&
+        config.useCaseType != 'sync') {
       if (config.repo != null && config.service != null) {
         print('❌ Error: Cannot use both --repo and --service');
         print(
@@ -423,7 +417,9 @@ class GenerateCommand {
       }
       if (config.repo == null && config.service == null) {
         print('❌ Error: --repo or --service is required for custom UseCases');
-        print('   (except orchestrators with --usecases or --type=background)');
+        print(
+          '   (except orchestrators with --usecases or --type=background or --type=sync)',
+        );
         print('');
         print('Usage:');
         print(

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/src/commands/test_command.dart';
+import 'package:zuraffa/src/plugins/test/test_plugin.dart';
 
 void main() {
   group('TestCommand', () {
@@ -51,14 +52,22 @@ class FetchUserUseCase extends UseCase<User, NoParams> {
 }
 ''');
 
-      final result = await TestCommand().execute([
-        'FetchUser',
-        '--output',
-        outputDir,
-        '--domain',
-        'account',
-        '--dry-run',
-      ], exitOnCompletion: false);
+      final result =
+          await TestCommand(
+            TestPlugin(
+              outputDir: outputDir,
+              dryRun: false,
+              force: false,
+              verbose: false,
+            ),
+          ).execute([
+            'FetchUser',
+            '--output',
+            outputDir,
+            '--domain',
+            'account',
+            '--dry-run',
+          ], exitOnCompletion: false);
 
       expect(result.success, isTrue);
       expect(result.files.length, equals(1));
@@ -83,14 +92,22 @@ class WatchOrdersUseCase extends StreamUseCase<Order, NoParams> {
 }
 ''');
 
-      final result = await TestCommand().execute([
-        'WatchOrders',
-        '--output',
-        outputDir,
-        '--domain',
-        'orders',
-        '--dry-run',
-      ], exitOnCompletion: false);
+      final result =
+          await TestCommand(
+            TestPlugin(
+              outputDir: outputDir,
+              dryRun: false,
+              force: false,
+              verbose: false,
+            ),
+          ).execute([
+            'WatchOrders',
+            '--output',
+            outputDir,
+            '--domain',
+            'orders',
+            '--dry-run',
+          ], exitOnCompletion: false);
 
       expect(result.success, isTrue);
       expect(result.files.length, equals(1));
@@ -119,14 +136,22 @@ class ProcessCheckoutUseCase extends UseCase<Order, CheckoutParams> {
 }
 ''');
 
-      final result = await TestCommand().execute([
-        'ProcessCheckout',
-        '--output',
-        outputDir,
-        '--domain',
-        'checkout',
-        '--dry-run',
-      ], exitOnCompletion: false);
+      final result =
+          await TestCommand(
+            TestPlugin(
+              outputDir: outputDir,
+              dryRun: false,
+              force: false,
+              verbose: false,
+            ),
+          ).execute([
+            'ProcessCheckout',
+            '--output',
+            outputDir,
+            '--domain',
+            'checkout',
+            '--dry-run',
+          ], exitOnCompletion: false);
 
       expect(result.success, isTrue);
       expect(result.files.length, equals(1));

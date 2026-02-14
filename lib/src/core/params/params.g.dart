@@ -10,5 +10,5 @@ Params _$ParamsFromJson(Map<String, dynamic> json) =>
     Params(params: json['params'] as Map<String, dynamic>?);
 
 Map<String, dynamic> _$ParamsToJson(Params instance) => <String, dynamic>{
-  'params': instance.params,
+  'params': ?instance.params,
 };

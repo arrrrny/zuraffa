@@ -315,12 +315,12 @@ class DiCommand {
 
     for (final r in analysis['repos'] as List<String>) {
       final repoName = '${r}Repository';
-      if (repo == null) repo = repoName;
+      repo ??= repoName;
     }
 
     for (final s in analysis['services'] as List<String>) {
       final serviceName = '${s}Service';
-      if (service == null) service = serviceName;
+      service ??= serviceName;
     }
 
     // If orchestrator, collect composed usecases

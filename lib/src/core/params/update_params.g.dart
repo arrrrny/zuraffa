@@ -11,11 +11,9 @@ UpdateParams<I, P> _$UpdateParamsFromJson<I, P>(
   I Function(Object? json) fromJsonI,
   P Function(Object? json) fromJsonP,
 ) => UpdateParams<I, P>(
+  params: json['params'] as Map<String, dynamic>?,
   id: fromJsonI(json['id']),
   data: fromJsonP(json['data']),
-  params: json['params'] == null
-      ? null
-      : Params.fromJson(json['params'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$UpdateParamsToJson<I, P>(
@@ -23,7 +21,7 @@ Map<String, dynamic> _$UpdateParamsToJson<I, P>(
   Object? Function(I value) toJsonI,
   Object? Function(P value) toJsonP,
 ) => <String, dynamic>{
+  'params': ?instance.params,
   'id': toJsonI(instance.id),
   'data': toJsonP(instance.data),
-  'params': instance.params?.toJson(),
 };

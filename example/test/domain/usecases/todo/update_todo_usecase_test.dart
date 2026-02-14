@@ -18,7 +18,8 @@ void main() {
 
   setUp(() {
     registerFallbackValue(
-        UpdateParams<int, TodoPatch>(id: 1, data: TodoPatch()));
+      UpdateParams<int, TodoPatch>(id: 1, data: TodoPatch()),
+    );
     mockRepository = MockTodoRepository();
     useCase = UpdateTodoUseCase(mockRepository);
   });
@@ -31,8 +32,9 @@ void main() {
       when(() => mockRepository.update(any())).thenAnswer((_) async => tTodo);
 
       // Act
-      final result =
-          await useCase(UpdateParams<int, TodoPatch>(id: 1, data: TodoPatch()));
+      final result = await useCase(
+        UpdateParams<int, TodoPatch>(id: 1, data: TodoPatch()),
+      );
 
       // Assert
       verify(() => mockRepository.update(any())).called(1);
@@ -46,8 +48,9 @@ void main() {
       when(() => mockRepository.update(any())).thenThrow(exception);
 
       // Act
-      final result =
-          await useCase(UpdateParams<int, TodoPatch>(id: 1, data: TodoPatch()));
+      final result = await useCase(
+        UpdateParams<int, TodoPatch>(id: 1, data: TodoPatch()),
+      );
 
       // Assert
       verify(() => mockRepository.update(any())).called(1);

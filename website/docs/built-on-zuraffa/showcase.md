@@ -1,21 +1,13 @@
 # Built on Zuraffa
 
-Discover amazing applications built with Zuraffa's Clean Architecture framework. This showcase highlights real-world implementations leveraging Zuraffa's powerful patterns and features.
+Discover real applications built with Zuraffa v3. These projects show how teams use Clean Architecture, Results, and plugins in production.
 
 ## Featured Apps
 
 ### ZikZak AI
 **Downloads:** 750K+  
 **Link:** [zuzu.dev](https://zuzu.dev)  
-**Description:** An innovative AI-powered productivity application that leverages Zuraffa's Clean Architecture for robust business logic management. Features complex orchestrator patterns for AI workflow composition and extensive caching for offline capabilities.
-
-**Zuraffa Features Used:**
-- Entity-based generation for user and task management
-- Orchestrator pattern for AI workflow composition
-- Caching with dual datasources for offline-first experience
-- MCP server integration for AI agent development
-- Mock data generation for rapid prototyping
-- Comprehensive testing with auto-generated test files
+**Description:** AI-powered productivity app using entity-based generation, orchestration, and caching for offline workflows.
 
 ---
 
@@ -64,39 +56,6 @@ Your app must:
 - [Feature 3]
 ```
 
-### Review Process
-
-- Submissions are reviewed within 5-7 business days
-- We may contact you for additional information
-- Approved apps are added to the showcase within 24 hours of approval
-- We reserve the right to remove apps that no longer meet requirements
-
-## Why Showcase Your App?
-
-- **Visibility:** Reach the growing Zuraffa community
-- **Credibility:** Demonstrate your expertise with Clean Architecture
-- **Community:** Inspire other developers to adopt best practices
-- **Feedback:** Get valuable feedback from experienced architects
-- **Recognition:** Be featured in official documentation
-
-## Community Guidelines
-
-- Only submit apps you have developed or have permission to represent
-- Ensure all information is accurate and up-to-date
-- Respect intellectual property rights
-- Maintain professional descriptions
-- Keep submissions relevant to Zuraffa usage
-
 ---
 
-## Contribute to Zuraffa
-
-Beyond showcasing your app, consider contributing to the Zuraffa ecosystem:
-
-- Share your architecture patterns and best practices
-- Contribute to documentation and examples
-- Report bugs and suggest features
-- Help maintain and improve the framework
-- Write blog posts about your Zuraffa journey
-
-Together, we're building the future of Flutter architecture. 🦒
+If your app uses Zuraffa in production, we’d love to add it.

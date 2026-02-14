@@ -5,17 +5,9 @@ class Category {
   final String name;
   final String? parentId;
 
-  const Category({
-    required this.id,
-    required this.name,
-    this.parentId,
-  });
+  const Category({required this.id, required this.name, this.parentId});
 
-  Category copyWith({
-    String? id,
-    String? name,
-    String? parentId,
-  }) {
+  Category copyWith({String? id, String? name, String? parentId}) {
     return Category(
       id: id ?? this.id,
       name: name ?? this.name,

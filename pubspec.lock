@@ -224,6 +224,14 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  get_it:
+    dependency: "direct main"
+    description:
+      name: get_it
+      sha256: ae78de7c3f2304b8d81f2bb6e320833e5e81de942188542328f074978cc0efa9
+      url: "https://pub.dev"
+    source: hosted
+    version: "8.3.0"
   glob:
     dependency: transitive
     description:
@@ -784,17 +792,19 @@ packages:
   zorphy:
     dependency: "direct main"
     description:
-      path: "../zorphy/zorphy"
-      relative: true
-    source: path
-    version: "1.5.5"
+      name: zorphy
+      sha256: "276dbadc960d7358c7d8c2c8d87949a70c3aafcbf37b6fd2e7a50e8a31ad9142"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.5.8"
   zorphy_annotation:
     dependency: "direct main"
     description:
-      path: "../zorphy/zorphy_annotation"
-      relative: true
-    source: path
-    version: "1.5.5"
+      name: zorphy_annotation
+      sha256: d565ca64e33e655e7dd3c1070032ab05b457979fe7e6641fb0523d09af646a8f
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.5.8"
 sdks:
   dart: ">=3.10.3 <4.0.0"
   flutter: ">=3.38.4"

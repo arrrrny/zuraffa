@@ -71,7 +71,7 @@ class ProductLocalDataSource
     final existing = _box.values.filter(params.filter).orderBy(params.sort);
     yield existing;
     yield* _box.watch().map(
-          (_) => _box.values.filter(params.filter).orderBy(params.sort),
-        );
+      (_) => _box.values.filter(params.filter).orderBy(params.sort),
+    );
   }
 }

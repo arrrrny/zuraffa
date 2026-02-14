@@ -1,6 +1,6 @@
 # Real-World Examples
 
-Complete, production-ready entity structures for common use cases.
+Practical entity setups you can adapt for real products.
 
 ## E-commerce Platform
 
@@ -72,6 +72,18 @@ final product = Product(
   reviews: [],
   averageRating: 4.5,
   createdAt: DateTime.now(),
+);
+```
+
+**Querying, filtering, sorting:**
+```dart
+final params = ListQueryParams<Product>(
+  filter: And([
+    Eq(ProductFields.status, ProductStatus.available),
+    Gt(ProductFields.price, 10),
+  ]),
+  sort: Sort(ProductFields.price, descending: true),
+  limit: 20,
 );
 ```
 

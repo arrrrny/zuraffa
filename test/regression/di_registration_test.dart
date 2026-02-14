@@ -21,6 +21,7 @@ void main() {
         methods: const ['get', 'getList'],
         generateData: true,
         generateDi: true,
+        outputDir: outputDir,
       ),
     );
 

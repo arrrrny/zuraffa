@@ -53,15 +53,16 @@ class CodeGenerator {
   late final MethodAppendPlugin _methodAppendPlugin;
 
   CodeGenerator({
-    required this.config,
+    required GeneratorConfig config,
     required this.outputDir,
     this.dryRun = false,
     this.force = false,
     this.verbose = false,
     ProgressReporter? progressReporter,
     Set<String>? disabledPluginIds,
-  }) : context = GenerationContext.create(
-         config: config,
+  }) : config = config.copyWith(outputDir: outputDir),
+       context = GenerationContext.create(
+         config: config.copyWith(outputDir: outputDir),
          outputDir: outputDir,
          dryRun: dryRun,
          force: force,
@@ -432,6 +433,7 @@ class CodeGenerator {
         }
 
         if (config.generateRepository &&
+            config.isEntityBased &&
             !(config.generateData || config.generateDataSource)) {
           nextSteps.add('Implement Data${config.name}Repository in data layer');
         }
@@ -516,9 +518,9 @@ class CodeGenerator {
         if (verbose) {
           errors.add('Stack trace:\n$stack');
         }
-      if (verbose) {
-        print('Generation error: $e');
-      }
+        if (verbose) {
+          print('Generation error: $e');
+        }
         progress.failed(e.toString());
         return GeneratorResult(
           name: config.name,

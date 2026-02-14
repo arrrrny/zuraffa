@@ -1,6 +1,6 @@
 # Entity Commands Reference
 
-Complete reference for Zorphy entity generation commands in Zuraffa. These commands create type-safe entities, enums, and manage data models with full JSON serialization support.
+Reference for Zorphy entity generation in Zuraffa v3. Use these commands to create type-safe entities, enums, and JSON-ready models.
 
 ## Commands Overview
 

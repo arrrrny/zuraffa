@@ -35,6 +35,7 @@ void main() {
         generateData: true,
         enableCache: true,
         cacheStorage: 'hive',
+        outputDir: outputDir,
       );
 
       final files = await plugin.generate(config);
@@ -49,10 +50,12 @@ void main() {
       expect(content, contains('StreamController<List<Order>>'));
       expect(content, contains('_localDataSource'));
       expect(content, contains('_remoteDataSource'));
-      expect(content, contains('_localDataSource.watch'));
-      expect(content, contains('_remoteDataSource.watch'));
-      expect(content, contains('_localDataSource.watchList'));
-      expect(content, contains('_remoteDataSource.watchList'));
+
+      final normalized = content.replaceAll(RegExp(r'\s+'), '');
+      expect(normalized, contains('_localDataSource.watch'));
+      expect(normalized, contains('_remoteDataSource.watch'));
+      expect(normalized, contains('_localDataSource.watchList'));
+      expect(normalized, contains('_remoteDataSource.watchList'));
       expect(content, contains('.save('));
       expect(content, contains('.saveAll('));
       expect(content, contains('localSub'));

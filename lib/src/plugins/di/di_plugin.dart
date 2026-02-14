@@ -5,6 +5,9 @@ import 'package:path/path.dart' as path;
 
 import '../../core/ast/append_executor.dart';
 import '../../core/ast/strategies/append_strategy.dart';
+import 'package:args/command_runner.dart';
+import '../../commands/modular_di_command.dart';
+import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
@@ -34,7 +37,7 @@ import 'detectors/registration_detector.dart';
 /// );
 /// final files = await plugin.generate(GeneratorConfig(name: 'Product'));
 /// ```
-class DiPlugin extends FileGeneratorPlugin {
+class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final bool dryRun;
   final bool force;
@@ -70,6 +73,9 @@ class DiPlugin extends FileGeneratorPlugin {
        serviceLocatorBuilder =
            serviceLocatorBuilder ?? const ServiceLocatorBuilder();
 
+  @override
+  Command createCommand() => ModularDiCommand(this);
+
   /// @returns Plugin identifier.
   @override
   String get id => 'di';
@@ -91,6 +97,31 @@ class DiPlugin extends FileGeneratorPlugin {
     if (!config.generateDi) {
       return [];
     }
+    // Use flags from config if they differ from instance (though this plugin uses instance fields directly in methods)
+    // To support dynamic flags without refactoring all internal methods, we need to ensure this instance
+    // or a new instance is used with correct flags.
+    // However, DiPlugin methods access `this.dryRun`, `this.outputDir` etc.
+    // If we want to respect config flags, we should create a new instance or refactor methods to take flags.
+    // Given the complexity, let's create a new instance with correct flags and delegate.
+
+    // Avoid recursion if flags match (primitive check, or just check if this is a "delegator")
+    if (config.outputDir != outputDir ||
+        config.dryRun != dryRun ||
+        config.force != force ||
+        config.verbose != verbose) {
+      final delegator = DiPlugin(
+        outputDir: config.outputDir,
+        dryRun: config.dryRun,
+        force: config.force,
+        verbose: config.verbose,
+        registrationBuilder: registrationBuilder,
+        registrationDetector: registrationDetector,
+        appendExecutor: appendExecutor,
+        serviceLocatorBuilder: serviceLocatorBuilder,
+      );
+      return delegator.generate(config);
+    }
+
     final files = <GeneratedFile>[];
 
     // Generate UseCase DI files for all UseCase types
@@ -721,6 +752,10 @@ class DiPlugin extends FileGeneratorPlugin {
   ) {
     return switch (method) {
       'get' => (className: 'Get${entityName}UseCase', methodPrefix: 'get'),
+      'list' => (
+        className: 'Get${entityName}ListUseCase',
+        methodPrefix: 'getList',
+      ),
       'getList' => (
         className: 'Get${entityName}ListUseCase',
         methodPrefix: 'getList',
