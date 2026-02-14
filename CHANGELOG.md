@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [3.0.6] - 2026-02-15
+
+### Change
+- Updated MCP server not to required zfa
+
 ## [3.0.5] - 2026-02-15
 
 ### Change
