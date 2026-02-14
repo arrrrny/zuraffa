@@ -74,6 +74,24 @@ else
 fi
 echo "  ✓ CLI version updated"
 
+# Update version in zed-extension/extension.toml
+echo "📝 Updating version in zed-extension/extension.toml..."
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" zed-extension/extension.toml
+else
+    sed -i "s/^version = \".*\"/version = \"$VERSION\"/" zed-extension/extension.toml
+fi
+echo "  ✓ Zed extension version updated"
+
+# Update version in zed-extension/src/lib.rs
+echo "📝 Updating version in zed-extension/src/lib.rs..."
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' "s/^const VERSION: &str = \".*\"/const VERSION: &str = \"$VERSION\"/" zed-extension/src/lib.rs
+else
+    sed -i "s/^const VERSION: &str = \".*\"/const VERSION: &str = \"$VERSION\"/" zed-extension/src/lib.rs
+fi
+echo "  ✓ Zed extension lib.rs version updated"
+
 # Update version in example/pubspec.yaml
 echo "📝 Updating version in example/pubspec.yaml..."
 if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -135,7 +153,7 @@ echo "  ✓ CHANGELOG.md updated"
 
 # Step 3: Commit changes
 echo "🔨 Committing changes..."
-git add pubspec.yaml CHANGELOG.md lib/src/zfa_cli.dart example/pubspec.yaml
+git add pubspec.yaml CHANGELOG.md lib/src/zfa_cli.dart example/pubspec.yaml zed-extension/extension.toml zed-extension/src/lib.rs
 git commit -m "chore: release $VERSION"
 echo "  ✓ Changes committed"
 
@@ -179,7 +197,56 @@ echo "🧪 Running tests..."
 flutter test
 echo "  ✓ Tests passed"
 
-# Step 7: Publish to pub.dev
+# Step 7: Build MCP server binaries
+echo "🔧 Building MCP server binaries..."
+OUTPUT_DIR="build/mcp_binaries"
+mkdir -p "$OUTPUT_DIR"
+
+echo "  Building for macOS ARM64..."
+dart compile exe bin/zuraffa_mcp_server.dart -o "$OUTPUT_DIR/zuraffa_mcp_server-macos-arm64"
+
+echo "  Building for macOS x64..."
+dart compile exe bin/zuraffa_mcp_server.dart -o "$OUTPUT_DIR/zuraffa_mcp_server-macos-x64"
+
+echo "  Building for Linux x64..."
+dart compile exe bin/zuraffa_mcp_server.dart -o "$OUTPUT_DIR/zuraffa_mcp_server-linux-x64"
+
+echo "  Building for Windows x64..."
+dart compile exe bin/zuraffa_mcp_server.dart -o "$OUTPUT_DIR/zuraffa_mcp_server-windows-x64.exe"
+
+echo "  ✓ MCP binaries built"
+
+# Step 8: Upload binaries to GitHub release
+if command -v gh &> /dev/null; then
+    echo "📤 Uploading binaries to GitHub release..."
+    
+    RELEASE_EXISTS=$(gh release view "v$VERSION" 2>/dev/null && echo "true" || echo "false")
+    
+    if [ "$RELEASE_EXISTS" = "false" ]; then
+        echo "  Creating release v$VERSION..."
+        gh release create "v$VERSION" \
+            --title "v$VERSION" \
+            --notes "$DESCRIPTION" \
+            "$OUTPUT_DIR/zuraffa_mcp_server-macos-arm64" \
+            "$OUTPUT_DIR/zuraffa_mcp_server-macos-x64" \
+            "$OUTPUT_DIR/zuraffa_mcp_server-linux-x64" \
+            "$OUTPUT_DIR/zuraffa_mcp_server-windows-x64.exe"
+    else
+        echo "  Uploading to existing release v$VERSION..."
+        gh release upload "v$VERSION" \
+            "$OUTPUT_DIR/zuraffa_mcp_server-macos-arm64" \
+            "$OUTPUT_DIR/zuraffa_mcp_server-macos-x64" \
+            "$OUTPUT_DIR/zuraffa_mcp_server-linux-x64" \
+            "$OUTPUT_DIR/zuraffa_mcp_server-windows-x64.exe" \
+            --clobber
+    fi
+    echo "  ✓ Binaries uploaded to GitHub release"
+else
+    echo "⚠️  GitHub CLI (gh) not found. Skipping release upload."
+    echo "   Please upload binaries manually to: https://github.com/arrrrny/zuraffa/releases/tag/v$VERSION"
+fi
+
+# Step 9: Publish to pub.dev
 echo "📦 Publishing to pub.dev..."
 dart pub publish --force
 
@@ -191,3 +258,4 @@ echo "Date: $DATE"
 echo "Description: $DESCRIPTION"
 echo ""
 echo "View on pub.dev: https://pub.dev/packages/zuraffa/$VERSION"
+echo "Download binaries: https://github.com/arrrrny/zuraffa/releases/tag/v$VERSION"
