@@ -13,7 +13,7 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
       final processSource =
           'static void _process(BackgroundTaskContext<$paramsType> context) {\n  try {\n    final params = context.params;\n    final result = processData(params);\n    context.sendData(result);\n    context.sendDone();\n  } catch (e, stackTrace) {\n    context.sendError(e, stackTrace);\n  }\n}';
       final processDataSource =
-          'static $returnsType processData($paramsType params) {\n  throw UnimplementedError(\'Implement your background processing logic\');\n}';
+          'static $returnsType processData($paramsType params) {\n  // TODO: Implement your background processing logic\n  throw UnimplementedError(\'Implement your background processing logic\');\n}';
       return [buildTaskSource, processSource, processDataSource];
     }
 
@@ -26,7 +26,7 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
 
     if (config.useCaseType == 'stream') {
       final body = depField.isEmpty
-          ? 'throw UnimplementedError();'
+          ? '// TODO: Implement logic\n  throw UnimplementedError();'
           : 'return $depField.$methodName(params);';
       return [
         '@override\nStream<$returnsType> execute($paramsType params, CancelToken? cancelToken) {\n  $body\n}',
@@ -35,7 +35,7 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
 
     if (config.useCaseType == 'sync') {
       final body = depField.isEmpty
-          ? 'throw UnimplementedError();'
+          ? '// TODO: Implement logic\n  throw UnimplementedError();'
           : 'return $depField.$methodName(params);';
       return [
         '@override\n$returnsType execute($paramsType params) {\n  $body\n}',
@@ -46,7 +46,7 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
         ? 'Future<void>'
         : 'Future<$returnsType>';
     final body = depField.isEmpty
-        ? 'throw UnimplementedError();'
+        ? '// TODO: Implement logic\n  throw UnimplementedError();'
         : 'return await $depField.$methodName(params);';
     return [
       '@override\n$returnTypeRef execute($paramsType params, CancelToken? cancelToken) async {\n  cancelToken?.throwIfCancelled();\n  $body\n}',

@@ -346,7 +346,6 @@ class EntityUseCaseGenerator {
           Parameter(
             (p) => p
               ..name = '_repository'
-              ..type = refer(repoName)
               ..toThis = true,
           ),
         ),
