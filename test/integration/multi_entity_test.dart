@@ -6,6 +6,7 @@ import 'package:zuraffa/src/models/generator_config.dart';
 
 import '../regression/regression_test_utils.dart';
 
+@Timeout(Duration(minutes: 2))
 void main() {
   late RegressionWorkspace workspace;
   late String outputDir;

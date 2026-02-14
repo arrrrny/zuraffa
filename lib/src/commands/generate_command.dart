@@ -84,12 +84,13 @@ class GenerateCommand {
     final shouldFormat = results['dart-format'] == true;
     final debug = results['debug'] == true;
     final pluginRoot = _resolvePluginRoot(outputDir);
+    final zfaConfig = ZfaConfig.load(projectRoot: pluginRoot);
     final artifactSaver = DebugArtifactSaver(projectRoot: pluginRoot);
     final errorReporter = ErrorReporter();
     GeneratorConfig config;
 
     try {
-      config = _buildConfig(name, results);
+      config = _buildConfig(name, results, zfaConfig ?? const ZfaConfig());
       _validateConfig(config, exitOnCompletion: false);
     } catch (e, stack) {
       final failure = GeneratorResult(
@@ -115,16 +116,13 @@ class GenerateCommand {
       if (exitOnCompletion) exit(1);
       return failure;
     }
-    final pluginConfig = PluginConfig.load(
-      projectRoot: _resolvePluginRoot(outputDir),
-    );
+    final pluginConfig = PluginConfig.load(projectRoot: pluginRoot);
     final progressReporter = createCliProgressReporter(
       verbose: verbose,
       quiet: quiet,
     );
 
     // Load config to check buildByDefault and formatByDefault
-    final zfaConfig = ZfaConfig.load();
     final runBuild =
         shouldBuild ||
         (config.enableCache && (zfaConfig?.buildByDefault ?? false));
@@ -197,10 +195,11 @@ class GenerateCommand {
     return path.normalize(path.join(Directory.current.path, outputDir));
   }
 
-  GeneratorConfig _buildConfig(String name, ArgResults results) {
-    // Load ZFA config for defaults
-    final zfaConfig = ZfaConfig.load() ?? const ZfaConfig();
-
+  GeneratorConfig _buildConfig(
+    String name,
+    ArgResults results,
+    ZfaConfig zfaConfig,
+  ) {
     if (results['from-stdin'] == true) {
       final input = stdin.readLineSync() ?? '';
       final json = jsonDecode(input) as Map<String, dynamic>;
