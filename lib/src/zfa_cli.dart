@@ -27,7 +27,7 @@ import 'plugins/cache/cache_plugin.dart';
 import 'plugins/graphql/graphql_plugin.dart';
 import 'plugins/observer/observer_plugin.dart';
 
-const version = '2.8.0';
+const version = '3.0.0';
 
 Future<void> run(List<String> args) async {
   if (args.isEmpty) {
