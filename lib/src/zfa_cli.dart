@@ -241,6 +241,18 @@ Future<void> run(List<String> args) async {
       case 'plugin':
         await PluginCommand().execute(args.skip(1).toList());
         break;
+      case 'plugin':
+        await PluginCommand().execute(args.skip(1).toList());
+        break;
+      case 'view':
+        await ViewCommand().execute(args.skip(1).toList());
+        break;
+      case 'test':
+        await TestCommand().execute(args.skip(1).toList());
+        break;
+      case 'di':
+        await DiCommand().execute(args.skip(1).toList());
+        break;
       case 'build':
         await _handleBuild(args.skip(1).toList());
         break;
