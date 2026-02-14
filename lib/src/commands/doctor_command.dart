@@ -82,23 +82,28 @@ class DoctorCommand extends Command {
     try {
       final result = await Process.run('dart', ['analyze']);
       final output = result.stdout.toString();
-      
+
       // Clear the loading message (CR)
       stdout.write('\r');
-      
+
       if (output.contains('Dead code') || output.contains('dead_code')) {
         print('Dead Code Analysis: ⚠️ Found dead code issues');
-        
+
         final lines = output.split('\n');
-        final deadCodeLines = lines.where((line) => 
-          line.contains('Dead code') || line.contains('dead_code')
-        ).take(5).toList(); // Show top 5
-        
+        final deadCodeLines = lines
+            .where(
+              (line) =>
+                  line.contains('Dead code') || line.contains('dead_code'),
+            )
+            .take(5)
+            .toList(); // Show top 5
+
         for (final line in deadCodeLines) {
-           print('  $line');
+          print('  $line');
         }
-        
-        if (deadCodeLines.length < lines.where((l) => l.contains('dead_code')).length) {
+
+        if (deadCodeLines.length <
+            lines.where((l) => l.contains('dead_code')).length) {
           print('  ... and more.');
         }
       } else {

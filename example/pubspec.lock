@@ -801,25 +801,25 @@ packages:
     dependency: transitive
     description:
       name: zorphy
-      sha256: "3c9b4b67dad671f57a9c84051f682806f4c94218f037ba781d4690129f96679f"
+      sha256: "4a47a4a0436a2a63545b24dca6ba93796084d4638d0db896dbecf4bc6f471c78"
       url: "https://pub.dev"
     source: hosted
-    version: "1.5.6"
+    version: "1.5.7"
   zorphy_annotation:
     dependency: "direct main"
     description:
       name: zorphy_annotation
-      sha256: "97249bc370638661c1ddc0fa73448f10c596fc5fd2a837a3299612c34da41c45"
+      sha256: "606987fd9093f520551342f7b284b1ded0b973397f6166da4058277bc218a082"
       url: "https://pub.dev"
     source: hosted
-    version: "1.5.6"
+    version: "1.5.7"
   zuraffa:
     dependency: "direct main"
     description:
       path: ".."
       relative: true
     source: path
-    version: "3.0.0"
+    version: "3.0.1"
 sdks:
   dart: ">=3.10.3 <4.0.0"
   flutter: ">=3.38.4"
