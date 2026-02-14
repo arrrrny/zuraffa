@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [3.0.4] - 2026-02-15
+
+### Change
+- Fix MCP server to properly locate zuraffa installation
+
 ## [3.0.3] - 2026-02-14
 
 ### Change

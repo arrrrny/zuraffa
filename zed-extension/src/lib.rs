@@ -3,7 +3,7 @@ use zed_extension_api::{
     self as zed, Command, ContextServerId, DownloadedFileType, Project, Result,
 };
 
-const VERSION: &str = "3.0.3";
+const VERSION: &str = "3.0.4";
 
 struct ZuraffaExtension;
 
