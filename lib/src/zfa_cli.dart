@@ -12,6 +12,7 @@ import 'commands/plugin_command.dart';
 import 'commands/make_command.dart';
 import 'commands/doctor_command.dart';
 import 'core/plugin_system/plugin_registry.dart';
+import 'core/error/suggestion_engine.dart';
 import 'version.dart';
 
 import 'plugins/di/di_plugin.dart';
@@ -34,6 +35,9 @@ import 'plugins/observer/observer_plugin.dart';
 Future<void> run(List<String> args) async {
   final result = await runCapturing(args);
   stdout.write(result);
+  if (result.contains('❌ Error:') || result.contains('❌ Generation failed')) {
+    exit(1);
+  }
 }
 
 /// Run zfa CLI and capture all output as a string.
@@ -234,7 +238,10 @@ Future<String> runCapturing(List<String> args) async {
       () async {
         switch (command) {
           case 'generate':
-            await GenerateCommand().execute(args.skip(1).toList());
+            await GenerateCommand().execute(
+              args.skip(1).toList(),
+              exitOnCompletion: false,
+            );
             break;
           case 'schema':
             SchemaCommand().execute();
@@ -292,6 +299,18 @@ Future<String> runCapturing(List<String> args) async {
     );
   } catch (e, stack) {
     output.writeln('❌ Error: $e');
+
+    final suggestionEngine = SuggestionEngine();
+    final suggestions = suggestionEngine.suggestionsFor(errors: [e.toString()]);
+
+    if (suggestions.isNotEmpty) {
+      output.writeln('');
+      output.writeln('💡 Suggestions:');
+      for (final suggestion in suggestions) {
+        output.writeln('   • $suggestion');
+      }
+    }
+
     if (args.contains('--verbose') || args.contains('-v')) {
       output.writeln('\nStack trace:\n$stack');
     }

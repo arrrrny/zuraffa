@@ -1,3 +1,10 @@
+## [Unreleased]
+
+## [3.0.6] - 2026-02-15
+
+### Change
+- Embed zfa CLI directly in MCP server - no external activation required, fix suggestions for id-field-type errors
+
 ## [3.0.7] - 2026-02-15
 
 ## [3.0.6] - 2026-02-15

@@ -1,6 +1,6 @@
 id = "zuraffa"
 name = "Zuraffa"
-version = "3.0.7"
+version = "3.0.6"
 schema_version = 1
 description = "Clean Architecture Flutter code generation with AI-first MCP server for generating UseCases, Repositories, Views, Controllers, and more"
 repository = "https://github.com/arrrrny/zuraffa"
@@ -8,7 +8,7 @@ authors = ["ARRRRNY <ahmettok@gmail.com>"]
 
 [lib]
 kind = "Rust"
-version = "3.0.7"
+version = "3.0.6"
 
 [context_servers.zuraffa]
 
