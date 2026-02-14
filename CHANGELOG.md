@@ -1,4 +1,4 @@
-## [Unreleased]
+## [3.0.0] - 2026-02-14
 
 ### ✨ Highlights
 - Version 3 documentation refresh with cleaner, human-focused guides and plugin mentions
