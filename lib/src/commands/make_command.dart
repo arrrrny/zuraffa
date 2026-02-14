@@ -74,7 +74,9 @@ class MakeCommand extends Command<void> {
     if (pluginNames.isEmpty) {
       print('❌ No plugins specified.');
       print('Usage: zfa make <Name> <plugin1> <plugin2> ... [options]');
-      print('Available plugins: ${registry.plugins.map((p) => p.id).join(", ")}');
+      print(
+        'Available plugins: ${registry.plugins.map((p) => p.id).join(", ")}',
+      );
       exit(1);
     }
 
@@ -121,7 +123,9 @@ class MakeCommand extends Command<void> {
         continue;
       }
       if (plugin is! FileGeneratorPlugin) {
-        print('⚠️  Warning: Plugin "$pluginName" does not support file generation.');
+        print(
+          '⚠️  Warning: Plugin "$pluginName" does not support file generation.',
+        );
         continue;
       }
 
@@ -136,7 +140,7 @@ class MakeCommand extends Command<void> {
         }
       }
     }
-    
+
     print('✅ Done.');
   }
 

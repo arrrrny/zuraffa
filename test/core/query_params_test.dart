@@ -8,8 +8,11 @@ void main() {
       const filter = Eq<_TestEntity, String>(_TestEntityFields.name, 'test');
       // Use Map directly instead of Params wrapper
       const params1 = {'a': 1};
-      
-      final queryParams = QueryParams<_TestEntity>(filter: filter, params: params1);
+
+      final queryParams = QueryParams<_TestEntity>(
+        filter: filter,
+        params: params1,
+      );
 
       expect(queryParams.filter, equals(filter));
       expect(queryParams.params, equals(params1));
@@ -93,7 +96,10 @@ void main() {
     test('toQueryMap should serialize filter and params', () {
       const filter = Eq<_TestEntity, String>(_TestEntityFields.name, 'test');
       const params = {'includeDeleted': true};
-      final queryParams = QueryParams<_TestEntity>(filter: filter, params: params);
+      final queryParams = QueryParams<_TestEntity>(
+        filter: filter,
+        params: params,
+      );
 
       // Provide a dummy serializer for the generic type T
       final map = queryParams.toJson((_) => {});

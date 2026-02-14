@@ -26,8 +26,9 @@ void main() {
 
     test('should call repository.create and return result', () async {
       // Arrange
-      when(() => mockRepository.create(any()))
-          .thenAnswer((_) async => tProduct);
+      when(
+        () => mockRepository.create(any()),
+      ).thenAnswer((_) async => tProduct);
 
       // Act
       final result = await useCase(tProduct);

@@ -122,13 +122,10 @@ extension TestBuilderCustom on TestBuilder {
             s.statements.add(
               refer('useCase')
                   .assign(
-                    refer(useCaseName).call(
-                      [
-                        ...config.effectiveRepos
-                            .map((r) => refer('mock$r')),
-                        if (serviceName != null) refer('mock$serviceName'),
-                      ],
-                    ),
+                    refer(useCaseName).call([
+                      ...config.effectiveRepos.map((r) => refer('mock$r')),
+                      if (serviceName != null) refer('mock$serviceName'),
+                    ]),
                   )
                   .statement,
             );

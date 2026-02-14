@@ -56,10 +56,10 @@ class RouteBuilder {
     EntityRoutesBuilder? entityRoutesBuilder,
     AppendExecutor? appendExecutor,
     SpecLibrary? specLibrary,
-  })  : appRoutesBuilder = appRoutesBuilder ?? AppRoutesBuilder(),
-        entityRoutesBuilder = entityRoutesBuilder ?? EntityRoutesBuilder(),
-        appendExecutor = appendExecutor ?? AppendExecutor(),
-        specLibrary = specLibrary ?? const SpecLibrary();
+  }) : appRoutesBuilder = appRoutesBuilder ?? AppRoutesBuilder(),
+       entityRoutesBuilder = entityRoutesBuilder ?? EntityRoutesBuilder(),
+       appendExecutor = appendExecutor ?? AppendExecutor(),
+       specLibrary = specLibrary ?? const SpecLibrary();
 
   /// Generates route files for the given [config].
   ///

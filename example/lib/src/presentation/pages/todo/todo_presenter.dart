@@ -23,9 +23,7 @@ class TodoPresenter extends Presenter {
   late final UpdateTodoUseCase _updateTodo;
   late final DeleteTodoUseCase _deleteTodo;
 
-  TodoPresenter({
-    required this.todoRepository,
-  }) {
+  TodoPresenter({required this.todoRepository}) {
     _getTodo = registerUseCase(GetTodoUseCase(todoRepository));
     _getTodoList = registerUseCase(GetTodoListUseCase(todoRepository));
     _watchTodo = registerUseCase(WatchTodoUseCase(todoRepository));
@@ -39,8 +37,9 @@ class TodoPresenter extends Presenter {
     return _getTodo.call(QueryParams<Todo>(filter: Eq(TodoFields.id, id)));
   }
 
-  Future<Result<List<Todo>, AppFailure>> getTodoList(
-      [ListQueryParams<Todo> params = const ListQueryParams()]) {
+  Future<Result<List<Todo>, AppFailure>> getTodoList([
+    ListQueryParams<Todo> params = const ListQueryParams(),
+  ]) {
     return _getTodoList.call(params);
   }
 
@@ -48,8 +47,9 @@ class TodoPresenter extends Presenter {
     return _watchTodo.call(QueryParams<Todo>(filter: Eq(TodoFields.id, id)));
   }
 
-  Stream<Result<List<Todo>, AppFailure>> watchTodoList(
-      [ListQueryParams<Todo> params = const ListQueryParams()]) {
+  Stream<Result<List<Todo>, AppFailure>> watchTodoList([
+    ListQueryParams<Todo> params = const ListQueryParams(),
+  ]) {
     return _watchTodoList.call(params);
   }
 

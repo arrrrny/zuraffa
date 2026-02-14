@@ -60,8 +60,10 @@ class MethodAppendStrategy implements AppendStrategy {
 
     for (final method in existingMethods) {
       if (method.name.lexeme == newMethodName) {
-        final existingSource =
-            request.source.substring(method.offset, method.end);
+        final existingSource = request.source.substring(
+          method.offset,
+          method.end,
+        );
         if (_isSameMethodSource(existingSource, request.memberSource!)) {
           return AppendResult(
             source: request.source,

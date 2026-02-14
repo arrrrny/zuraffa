@@ -13,22 +13,10 @@ class GraphqlCommand extends PluginCommand {
       help: 'GraphQL operation type (query, mutation)',
       defaultsTo: 'query',
     );
-    argParser.addOption(
-      'returns',
-      help: 'Return type',
-    );
-    argParser.addOption(
-      'input-type',
-      help: 'Input type name',
-    );
-    argParser.addOption(
-      'input-name',
-      help: 'Input variable name',
-    );
-    argParser.addOption(
-      'op-name',
-      help: 'Operation name',
-    );
+    argParser.addOption('returns', help: 'Return type');
+    argParser.addOption('input-type', help: 'Input type name');
+    argParser.addOption('input-name', help: 'Input variable name');
+    argParser.addOption('op-name', help: 'Operation name');
   }
 
   @override

@@ -50,7 +50,7 @@ void main() {
       expect(content, contains('StreamController<List<Order>>'));
       expect(content, contains('_localDataSource'));
       expect(content, contains('_remoteDataSource'));
-      
+
       final normalized = content.replaceAll(RegExp(r'\s+'), '');
       expect(normalized, contains('_localDataSource.watch'));
       expect(normalized, contains('_remoteDataSource.watch'));

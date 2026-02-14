@@ -111,7 +111,8 @@ class GeneratorConfig {
     this.force = false,
     this.verbose = false,
     this.outputDir = 'lib/src',
-  }) : queryFieldType = queryFieldType ?? (queryField == 'id' ? 'String' : 'String');
+  }) : queryFieldType =
+           queryFieldType ?? (queryField == 'id' ? 'String' : 'String');
 
   factory GeneratorConfig.fromJson(Map<String, dynamic> json, String name) {
     return GeneratorConfig(

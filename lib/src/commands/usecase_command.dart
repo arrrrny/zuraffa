@@ -39,10 +39,10 @@ class UseCaseCommand extends PluginCommand {
       methods: methods,
       useCaseType: type == 'stream' ? 'stream' : 'future',
       // If type is custom, we might need to handle it differently in GeneratorConfig
-      // But typically GeneratorConfig.fromArgs handles this. 
+      // But typically GeneratorConfig.fromArgs handles this.
       // For now, let's rely on how the plugin uses config.
       // If type is entity (default), it's implied by name only.
-      // If type is custom, we might need to set isCustomUseCase=true? 
+      // If type is custom, we might need to set isCustomUseCase=true?
       // GeneratorConfig logic:
       // isEntityBased => !isCustomUseCase && !isOrchestrator && !isPolymorphic
       // isCustomUseCase => inferred if methods are empty? or explicit flag?
@@ -54,11 +54,11 @@ class UseCaseCommand extends PluginCommand {
       verbose: isVerbose,
       outputDir: outputDir,
     );
-    
+
     // For custom usecase, usually we just give a name.
     // If user says "zfa usecase MyCustomAction --type custom"
     // We need to ensure config reflects that.
-    
+
     final files = await plugin.generate(config);
     logSummary(files);
   }

@@ -103,20 +103,23 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     // However, DiPlugin methods access `this.dryRun`, `this.outputDir` etc.
     // If we want to respect config flags, we should create a new instance or refactor methods to take flags.
     // Given the complexity, let's create a new instance with correct flags and delegate.
-    
+
     // Avoid recursion if flags match (primitive check, or just check if this is a "delegator")
-    if (config.outputDir != outputDir || config.dryRun != dryRun || config.force != force || config.verbose != verbose) {
-       final delegator = DiPlugin(
-         outputDir: config.outputDir,
-         dryRun: config.dryRun,
-         force: config.force,
-         verbose: config.verbose,
-         registrationBuilder: registrationBuilder,
-         registrationDetector: registrationDetector,
-         appendExecutor: appendExecutor,
-         serviceLocatorBuilder: serviceLocatorBuilder,
-       );
-       return delegator.generate(config);
+    if (config.outputDir != outputDir ||
+        config.dryRun != dryRun ||
+        config.force != force ||
+        config.verbose != verbose) {
+      final delegator = DiPlugin(
+        outputDir: config.outputDir,
+        dryRun: config.dryRun,
+        force: config.force,
+        verbose: config.verbose,
+        registrationBuilder: registrationBuilder,
+        registrationDetector: registrationDetector,
+        appendExecutor: appendExecutor,
+        serviceLocatorBuilder: serviceLocatorBuilder,
+      );
+      return delegator.generate(config);
     }
 
     final files = <GeneratedFile>[];

@@ -13,12 +13,7 @@ class Customer {
     this.phone,
   });
 
-  Customer copyWith({
-    String? id,
-    String? name,
-    String? email,
-    String? phone,
-  }) {
+  Customer copyWith({String? id, String? name, String? email, String? phone}) {
     return Customer(
       id: id ?? this.id,
       name: name ?? this.name,

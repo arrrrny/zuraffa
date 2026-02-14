@@ -29,8 +29,9 @@ void main() {
 
     test('should call repository.getList and return result', () async {
       // Arrange
-      when(() => mockRepository.getList(any()))
-          .thenAnswer((_) async => tTodoList);
+      when(
+        () => mockRepository.getList(any()),
+      ).thenAnswer((_) async => tTodoList);
 
       // Act
       final result = await useCase(const ListQueryParams<Todo>());

@@ -65,11 +65,9 @@ class CalculatePrimesUseCase
     stopwatch.stop();
 
     // Send the result back to the main isolate
-    context.sendData(PrimeResult(
-      nthPrime: n,
-      value: candidate,
-      duration: stopwatch.elapsed,
-    ));
+    context.sendData(
+      PrimeResult(nthPrime: n, value: candidate, duration: stopwatch.elapsed),
+    );
 
     // Signal completion
     context.sendDone();

@@ -91,15 +91,20 @@ void main() {
         ),
       );
       expect(hasUseCase, isTrue);
-      
+
       // Verify content of the generated usecase
       final useCaseFile = result.files.firstWhere(
         (file) => file.path.endsWith(
           'domain/usecases/customer/is_walkthrough_require_usecase.dart',
         ),
       );
-      
-      expect(useCaseFile.content, contains('class IsWalkthroughRequireUseCase extends SyncUseCase<bool, Customer>'));
+
+      expect(
+        useCaseFile.content,
+        contains(
+          'class IsWalkthroughRequireUseCase extends SyncUseCase<bool, Customer>',
+        ),
+      );
       expect(useCaseFile.content, isNot(contains('Repository')));
       expect(useCaseFile.content, isNot(contains('Service')));
     });

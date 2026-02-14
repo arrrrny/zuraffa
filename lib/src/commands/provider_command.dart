@@ -7,7 +7,7 @@ class ProviderCommand extends PluginCommand {
   final ProviderPlugin plugin;
 
   ProviderCommand(this.plugin) : super(plugin) {
-     argParser.addFlag(
+    argParser.addFlag(
       'data',
       help: 'Generate data layer dependencies',
       defaultsTo: true,
@@ -32,7 +32,8 @@ class ProviderCommand extends PluginCommand {
       // GeneratorConfig.hasService returns true if service != null || generateVpc (via defaults).
       // Let's ensure service is not null, or we assume it generates a provider for a service.
       // Usually provider wraps a service.
-      service: entityName, // Assume service name matches entity name for standalone
+      service:
+          entityName, // Assume service name matches entity name for standalone
       generateData: generateData,
       dryRun: isDryRun,
       force: isForce,

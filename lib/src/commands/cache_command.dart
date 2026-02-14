@@ -12,14 +12,8 @@ class CacheCommand extends PluginCommand {
       help: 'Cache policy (daily, hourly, etc.)',
       defaultsTo: 'daily',
     );
-    argParser.addOption(
-      'storage',
-      help: 'Storage backend (hive, etc.)',
-    );
-    argParser.addOption(
-      'ttl',
-      help: 'Time to live in minutes',
-    );
+    argParser.addOption('storage', help: 'Storage backend (hive, etc.)');
+    argParser.addOption('ttl', help: 'Time to live in minutes');
   }
 
   @override

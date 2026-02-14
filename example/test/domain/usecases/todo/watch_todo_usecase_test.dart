@@ -27,12 +27,14 @@ void main() {
 
     test('should emit values from repository stream', () async {
       // Arrange
-      when(() => mockRepository.watch(any()))
-          .thenAnswer((_) => Stream.value(tTodo));
+      when(
+        () => mockRepository.watch(any()),
+      ).thenAnswer((_) => Stream.value(tTodo));
 
       // Act
-      final result =
-          useCase(const QueryParams<Todo>(filter: Eq(TodoFields.id, '1')));
+      final result = useCase(
+        const QueryParams<Todo>(filter: Eq(TodoFields.id, '1')),
+      );
 
       // Assert
       await expectLater(
@@ -45,18 +47,17 @@ void main() {
     test('should emit Failure when repository stream errors', () async {
       // Arrange
       final exception = Exception('Stream Error');
-      when(() => mockRepository.watch(any()))
-          .thenAnswer((_) => Stream.error(exception));
+      when(
+        () => mockRepository.watch(any()),
+      ).thenAnswer((_) => Stream.error(exception));
 
       // Act
-      final result =
-          useCase(const QueryParams<Todo>(filter: Eq(TodoFields.id, '1')));
+      final result = useCase(
+        const QueryParams<Todo>(filter: Eq(TodoFields.id, '1')),
+      );
 
       // Assert
-      await expectLater(
-        result,
-        emits(isA<Failure>()),
-      );
+      await expectLater(result, emits(isA<Failure>()));
       verify(() => mockRepository.watch(any())).called(1);
     });
   });

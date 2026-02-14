@@ -21,12 +21,8 @@ class TodoView extends CleanView {
 
   @override
   State<TodoView> createState() => _TodoViewState(
-        TodoController(
-          TodoPresenter(
-            todoRepository: todoRepository,
-          ),
-        ),
-      );
+    TodoController(TodoPresenter(todoRepository: todoRepository)),
+  );
 }
 
 class _TodoViewState extends CleanViewState<TodoView, TodoController> {
@@ -51,9 +47,7 @@ class _TodoViewState extends CleanViewState<TodoView, TodoController> {
   Widget get view {
     return Scaffold(
       key: globalKey,
-      appBar: AppBar(
-        title: const Text('Clean Architecture Demo'),
-      ),
+      appBar: AppBar(title: const Text('Clean Architecture Demo')),
       body: Column(
         children: [
           // Error banner
@@ -137,9 +131,7 @@ class _TodoViewState extends CleanViewState<TodoView, TodoController> {
         final state = controller.viewState;
 
         if (state.isLoading && state.todos.isEmpty) {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
+          return const Center(child: CircularProgressIndicator());
         }
 
         if (state.todos.isEmpty) {
@@ -155,17 +147,12 @@ class _TodoViewState extends CleanViewState<TodoView, TodoController> {
                 const SizedBox(height: 16),
                 Text(
                   'No todos yet!',
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Add one above to get started.',
-                  style: TextStyle(
-                    color: Colors.grey.shade500,
-                  ),
+                  style: TextStyle(color: Colors.grey.shade500),
                 ),
               ],
             ),
@@ -209,10 +196,7 @@ class _TodoViewState extends CleanViewState<TodoView, TodoController> {
         ),
         subtitle: Text(
           'Created ${_formatDate(todo.createdAt)}',
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey.shade600,
-          ),
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
         ),
       ),
     );
@@ -228,9 +212,7 @@ class _TodoViewState extends CleanViewState<TodoView, TodoController> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.grey.shade100,
-            border: Border(
-              top: BorderSide(color: Colors.grey.shade300),
-            ),
+            border: Border(top: BorderSide(color: Colors.grey.shade300)),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,

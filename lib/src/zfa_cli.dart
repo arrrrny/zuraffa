@@ -37,7 +37,12 @@ Future<void> run(List<String> args) async {
 
   // 1. Initialize CommandRunner with description
   final runner = CommandRunner('zfa', 'Zuraffa Code Generator')
-    ..argParser.addFlag('version', negatable: false, abbr: 'v', help: 'Print version');
+    ..argParser.addFlag(
+      'version',
+      negatable: false,
+      abbr: 'v',
+      help: 'Print version',
+    );
 
   // 2. Register Modular Plugin Commands
   // Note: In the future, this should iterate over a registry
@@ -47,7 +52,7 @@ Future<void> run(List<String> args) async {
     force: false,
     verbose: false,
   );
-  
+
   final diPlugin = DiPlugin(
     outputDir: 'lib/src',
     dryRun: false,
@@ -152,7 +157,7 @@ Future<void> run(List<String> args) async {
     force: false,
     verbose: false,
   );
-  
+
   // Register plugins in the registry for MakeCommand to find them
   PluginRegistry.instance.register(routePlugin);
   PluginRegistry.instance.register(diPlugin);
@@ -256,9 +261,9 @@ Future<void> run(List<String> args) async {
       default:
         // If it looks like a flag but no command, show help
         if (command.startsWith('-')) {
-             print('zfa v$version');
-             print('Zuraffa Code Generator');
-             return;
+          print('zfa v$version');
+          print('Zuraffa Code Generator');
+          return;
         }
         print('❌ Unknown command: $command\n');
         _printHelp();

@@ -32,10 +32,8 @@ class ProductMockData {
   static List<Product> get sampleList => products;
   static List<Product> get emptyList => [];
 
-  static List<Product> get largeProductList => List.generate(
-        100,
-        (index) => _createProduct(index + 1000),
-      );
+  static List<Product> get largeProductList =>
+      List.generate(100, (index) => _createProduct(index + 1000));
 
   static Product _createProduct(int seed) {
     return Product(

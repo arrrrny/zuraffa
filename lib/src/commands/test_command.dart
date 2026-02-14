@@ -117,7 +117,8 @@ class TestCommand extends PluginCommand {
       force: force,
       verbose: verbose,
     );
-    final config = analyzed ??
+    final config =
+        analyzed ??
         GeneratorConfig(
           name: entityName,
           methods: methods,
@@ -168,7 +169,8 @@ class TestCommand extends PluginCommand {
       force: isForce,
       verbose: isVerbose,
     );
-    final config = analyzed ??
+    final config =
+        analyzed ??
         GeneratorConfig(
           name: entityName,
           methods: methods,

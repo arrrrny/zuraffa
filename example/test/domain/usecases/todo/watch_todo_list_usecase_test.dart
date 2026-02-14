@@ -29,8 +29,9 @@ void main() {
 
     test('should emit values from repository stream', () async {
       // Arrange
-      when(() => mockRepository.watchList(any()))
-          .thenAnswer((_) => Stream.value(tTodoList));
+      when(
+        () => mockRepository.watchList(any()),
+      ).thenAnswer((_) => Stream.value(tTodoList));
 
       // Act
       final result = useCase(const ListQueryParams<Todo>());
@@ -39,7 +40,8 @@ void main() {
       await expectLater(
         result,
         emits(
-            isA<Success>().having((s) => s.value, 'value', equals(tTodoList))),
+          isA<Success>().having((s) => s.value, 'value', equals(tTodoList)),
+        ),
       );
       verify(() => mockRepository.watchList(any())).called(1);
     });
@@ -47,17 +49,15 @@ void main() {
     test('should emit Failure when repository stream errors', () async {
       // Arrange
       final exception = Exception('Stream Error');
-      when(() => mockRepository.watchList(any()))
-          .thenAnswer((_) => Stream.error(exception));
+      when(
+        () => mockRepository.watchList(any()),
+      ).thenAnswer((_) => Stream.error(exception));
 
       // Act
       final result = useCase(const ListQueryParams<Todo>());
 
       // Assert
-      await expectLater(
-        result,
-        emits(isA<Failure>()),
-      );
+      await expectLater(result, emits(isA<Failure>()));
       verify(() => mockRepository.watchList(any())).called(1);
     });
   });

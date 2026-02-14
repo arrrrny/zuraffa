@@ -17,11 +17,7 @@ class DataSourceCommand extends PluginCommand {
       help: 'Generate remote data source (and API integration)',
       defaultsTo: true,
     );
-    argParser.addFlag(
-      'cache',
-      help: 'Enable caching',
-      defaultsTo: false,
-    );
+    argParser.addFlag('cache', help: 'Enable caching', defaultsTo: false);
   }
 
   @override
@@ -46,7 +42,7 @@ class DataSourceCommand extends PluginCommand {
       verbose: isVerbose,
       outputDir: outputDir,
     );
-    
+
     final files = await plugin.generate(config);
     logSummary(files);
   }

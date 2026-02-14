@@ -73,8 +73,9 @@ class ProductController extends Controller
       (updated) => updateState(
         viewState.copyWith(
           isUpdating: false,
-          product:
-              viewState.product?.id == updated.id ? updated : viewState.product,
+          product: viewState.product?.id == updated.id
+              ? updated
+              : viewState.product,
         ),
       ),
       (failure) =>
@@ -82,10 +83,7 @@ class ProductController extends Controller
     );
   }
 
-  Future<void> deleteProduct(
-    String id, [
-    CancelToken? cancelToken,
-  ]) async {
+  Future<void> deleteProduct(String id, [CancelToken? cancelToken]) async {
     final token = cancelToken ?? createCancelToken();
     updateState(
       viewState.copyWith(

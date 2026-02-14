@@ -25,30 +25,31 @@ class ServiceCommand extends PluginCommand {
     final serviceName = args.first;
 
     final config = GeneratorConfig(
-      name: serviceName, 
+      name: serviceName,
       service: serviceName,
-      methods: [], // Empty methods to likely trigger custom usecase path if needed, or just to avoid entity defaults
+      methods:
+          [], // Empty methods to likely trigger custom usecase path if needed, or just to avoid entity defaults
       dryRun: isDryRun,
       force: isForce,
       verbose: isVerbose,
       outputDir: outputDir,
     );
-    
-    // NOTE: GeneratorConfig might default to EntityBased if not careful. 
+
+    // NOTE: GeneratorConfig might default to EntityBased if not careful.
     // If I pass name='MyService', methods=['get'] (default), it's entity based.
     // I should pass methods=[].
     // GeneratorConfig(name: '...', methods: [])
-    // But ServicePlugin checks `!config.isCustomUseCase`. 
+    // But ServicePlugin checks `!config.isCustomUseCase`.
     // If methods=[], isCustomUseCase might be true.
     // Let's verify GeneratorConfig later if needed. For now, best effort.
-    
-    // Wait, ServicePlugin.generate line 35: 
+
+    // Wait, ServicePlugin.generate line 35:
     // if (!config.isCustomUseCase || !config.hasService)
-    // This strictly limits standalone service generation. 
+    // This strictly limits standalone service generation.
     // Maybe we should allow standalone service generation?
     // The user said "work in legacy full mode", but didn't say "don't improve standalone".
     // I'll stick to what the plugin does for now.
-    
+
     final files = await plugin.generate(config);
     logSummary(files);
   }

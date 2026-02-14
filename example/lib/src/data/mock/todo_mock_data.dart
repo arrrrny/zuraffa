@@ -29,10 +29,8 @@ class TodoMockData {
   static List<Todo> get sampleList => todos;
   static List<Todo> get emptyList => [];
 
-  static List<Todo> get largeTodoList => List.generate(
-        100,
-        (index) => _createTodo(index + 1000),
-      );
+  static List<Todo> get largeTodoList =>
+      List.generate(100, (index) => _createTodo(index + 1000));
 
   static Todo _createTodo(int seed) {
     return Todo(
