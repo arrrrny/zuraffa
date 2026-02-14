@@ -14,8 +14,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   zuraffa:
     path: ../
-  zorphy_annotation:
-    path: ../../zorphy/zorphy_annotation
+  zorphy_annotation: ^1.5.6
   build_runner: ^2.11.0
   hive_ce_flutter: ^2.3.4
   json_serializable: ^6.12.0
