@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'commands/generate_command.dart';
@@ -31,12 +32,24 @@ import 'plugins/graphql/graphql_plugin.dart';
 import 'plugins/observer/observer_plugin.dart';
 
 Future<void> run(List<String> args) async {
-  if (args.isEmpty) {
-    _printHelp();
-    exit(0);
+  final result = await runCapturing(args);
+  stdout.write(result);
+}
+
+/// Run zfa CLI and capture all output as a string.
+/// Does not call exit() - suitable for embedding in MCP server.
+Future<String> runCapturing(List<String> args) async {
+  final output = StringBuffer();
+
+  void capturePrint(Object? object) {
+    output.writeln(object);
   }
 
-  // 1. Initialize CommandRunner with description
+  if (args.isEmpty) {
+    _printHelpTo(capturePrint);
+    return output.toString();
+  }
+
   final runner = CommandRunner('zfa', 'Zuraffa Code Generator')
     ..argParser.addFlag(
       'version',
@@ -45,8 +58,346 @@ Future<void> run(List<String> args) async {
       help: 'Print version',
     );
 
-  // 2. Register Modular Plugin Commands
-  // Note: In the future, this should iterate over a registry
+  final routePlugin = RoutePlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final diPlugin = DiPlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final viewPlugin = ViewPlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final controllerPlugin = ControllerPlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final presenterPlugin = PresenterPlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final useCasePlugin = UseCasePlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final repositoryPlugin = RepositoryPlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final dataSourcePlugin = DataSourcePlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final servicePlugin = ServicePlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final testPlugin = TestPlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final statePlugin = StatePlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final providerPlugin = ProviderPlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final mockPlugin = MockPlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final cachePlugin = CachePlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final graphqlPlugin = GraphqlPlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  final observerPlugin = ObserverPlugin(
+    outputDir: 'lib/src',
+    dryRun: false,
+    force: false,
+    verbose: false,
+  );
+
+  PluginRegistry.instance.register(routePlugin);
+  PluginRegistry.instance.register(diPlugin);
+  PluginRegistry.instance.register(viewPlugin);
+  PluginRegistry.instance.register(controllerPlugin);
+  PluginRegistry.instance.register(presenterPlugin);
+  PluginRegistry.instance.register(useCasePlugin);
+  PluginRegistry.instance.register(repositoryPlugin);
+  PluginRegistry.instance.register(dataSourcePlugin);
+  PluginRegistry.instance.register(servicePlugin);
+  PluginRegistry.instance.register(testPlugin);
+  PluginRegistry.instance.register(statePlugin);
+  PluginRegistry.instance.register(providerPlugin);
+  PluginRegistry.instance.register(mockPlugin);
+  PluginRegistry.instance.register(cachePlugin);
+  PluginRegistry.instance.register(graphqlPlugin);
+  PluginRegistry.instance.register(observerPlugin);
+
+  runner.addCommand(routePlugin.createCommand());
+  runner.addCommand(diPlugin.createCommand());
+  runner.addCommand(viewPlugin.createCommand());
+  runner.addCommand(controllerPlugin.createCommand());
+  runner.addCommand(presenterPlugin.createCommand());
+  runner.addCommand(useCasePlugin.createCommand());
+  runner.addCommand(repositoryPlugin.createCommand());
+  runner.addCommand(dataSourcePlugin.createCommand());
+  runner.addCommand(servicePlugin.createCommand());
+  runner.addCommand(testPlugin.createCommand());
+  runner.addCommand(statePlugin.createCommand());
+  runner.addCommand(providerPlugin.createCommand());
+  runner.addCommand(mockPlugin.createCommand());
+  runner.addCommand(cachePlugin.createCommand());
+  runner.addCommand(graphqlPlugin.createCommand());
+  runner.addCommand(observerPlugin.createCommand());
+  runner.addCommand(MakeCommand(PluginRegistry.instance));
+  runner.addCommand(DoctorCommand());
+
+  if (args.isNotEmpty && runner.commands.keys.contains(args[0])) {
+    try {
+      await runZoned(
+        () => runner.run(args),
+        zoneSpecification: ZoneSpecification(
+          print: (self, parent, zone, line) {
+            output.writeln(line);
+          },
+        ),
+      );
+    } catch (e) {
+      if (e is UsageException) {
+        output.writeln('Error: ${e.message}');
+        output.writeln(e.usage);
+      } else {
+        output.writeln('❌ Error: $e');
+      }
+    }
+    return output.toString();
+  }
+
+  final command = args[0];
+
+  try {
+    await runZoned(
+      () async {
+        switch (command) {
+          case 'generate':
+            await GenerateCommand().execute(args.skip(1).toList());
+            break;
+          case 'schema':
+            SchemaCommand().execute();
+            break;
+          case 'validate':
+            await ValidateCommand().execute(args.skip(1).toList());
+            break;
+          case 'create':
+            await CreateCommand().execute(args.skip(1).toList());
+            break;
+          case 'config':
+            await ConfigCommand().execute(args.skip(1).toList());
+            break;
+          case 'initialize':
+          case 'init':
+            await InitializeCommand().execute(args.skip(1).toList());
+            break;
+          case 'entity':
+            await EntityCommand().execute(args.skip(1).toList());
+            break;
+          case 'plugin':
+            await PluginCommand().execute(args.skip(1).toList());
+            break;
+          case 'build':
+            await _handleBuildCapturing(args.skip(1).toList(), capturePrint);
+            break;
+          case 'help':
+          case '--help':
+          case '-h':
+            _printHelpTo(capturePrint);
+            output.writeln('\nMODULAR COMMANDS:');
+            output.writeln(runner.usage);
+            break;
+          case 'version':
+          case '--version':
+          case '-v':
+            output.writeln('zfa v$version');
+            output.writeln('Zuraffa Code Generator');
+            break;
+          default:
+            if (command.startsWith('-')) {
+              output.writeln('zfa v$version');
+              output.writeln('Zuraffa Code Generator');
+              return output.toString();
+            }
+            output.writeln('❌ Unknown command: $command\n');
+            _printHelpTo(capturePrint);
+        }
+      },
+      zoneSpecification: ZoneSpecification(
+        print: (self, parent, zone, line) {
+          output.writeln(line);
+        },
+      ),
+    );
+  } catch (e, stack) {
+    output.writeln('❌ Error: $e');
+    if (args.contains('--verbose') || args.contains('-v')) {
+      output.writeln('\nStack trace:\n$stack');
+    }
+  }
+
+  return output.toString();
+}
+
+void _printHelpTo(void Function(Object?) printFn) {
+  printFn('''
+zfa - Zuraffa Code Generator v$version
+
+USAGE:
+  zfa <command> [options]
+
+CLEAN ARCHITECTURE COMMANDS:
+  generate <Name>     Generate Clean Architecture code for an entity or usecase
+  initialize          Initialize a test entity to quickly try out Zuraffa
+  create              Create architecture folders or pages
+  config              Manage ZFA configuration (.zfa.json)
+  doctor              Check your environment and dependencies
+  plugin              Manage plugins (list, enable, disable)
+  schema              Output JSON schema for configuration
+  validate <file>     Validate JSON configuration file
+  graphql             Introspect GraphQL schema and generate entities + usecases
+  view <Name>         Generate an additional view for existing VPC
+  test <UseCaseName>  Generate tests for existing usecases
+  di <UseCaseName>    Generate DI registration for existing usecases
+
+MODULAR COMMANDS:
+  route <Name>        Generate route definitions (standalone)
+
+ENTITY GENERATION COMMANDS (powered by Zorphy):
+  entity create       Create a new Zorphy entity with fields
+  entity new          Quick-create a simple entity
+  entity enum         Create a new enum
+  entity add-field    Add field(s) to an existing entity
+  entity from-json    Create entity/ies from JSON file
+  entity list         List all Zorphy entities
+
+BUILD COMMANDS:
+  build               Run code generation (build_runner)
+    -w, --watch       Watch for changes
+    -c, --clean       Clean before build
+
+HELP:
+  help                Show this help message
+  version             Show version
+''');
+}
+
+Future<void> _handleBuildCapturing(
+  List<String> args,
+  void Function(Object?) printFn,
+) async {
+  final watch = args.contains('-w') || args.contains('--watch');
+  final clean = args.contains('-c') || args.contains('--clean');
+
+  printFn('🔨 Building generated code...');
+
+  if (clean) {
+    printFn('🧹 Cleaning before build...');
+  }
+
+  if (watch) {
+    printFn('👀 Watching for changes...');
+    printFn('Press Ctrl+C to stop\n');
+  }
+
+  final buildArgs = ['run', 'build_runner'];
+  if (clean) buildArgs.add('clean');
+  buildArgs.add('build');
+  if (watch) buildArgs.add('--watch');
+
+  final process = await Process.start(
+    'dart',
+    buildArgs,
+    mode: ProcessStartMode.inheritStdio,
+  );
+
+  final exitCode = await process.exitCode;
+
+  if (exitCode != 0) {
+    printFn('\n❌ Build failed with exit code $exitCode');
+    return;
+  }
+
+  printFn('\n✅ Build complete!');
+}
+
+/// Run zfa CLI directly - calls exit() on completion/errors
+/// This is the entry point for the standalone CLI
+Future<void> runDirect(List<String> args) async {
+  if (args.isEmpty) {
+    _printHelp();
+    exit(0);
+  }
+
+  final runner = CommandRunner('zfa', 'Zuraffa Code Generator')
+    ..argParser.addFlag(
+      'version',
+      negatable: false,
+      abbr: 'v',
+      help: 'Print version',
+    );
+
   final routePlugin = RoutePlugin(
     outputDir: 'lib/src',
     dryRun: false,

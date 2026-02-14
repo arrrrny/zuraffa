@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [3.0.5] - 2026-02-15
+
+### Change
+- Embed zfa CLI directly in MCP server - no external activation required
+
 ## [3.0.4] - 2026-02-15
 
 ### Change
