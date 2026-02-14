@@ -1,6 +1,6 @@
 name: zuraffa
 description: AI first Flutter Clean Architecture Framework and CLI with Result types, UseCase patterns, Dependency Injection and MCP server for building type-safe, scalable apps with AI agents.
-version: 3.0.0
+version: 3.0.1
 homepage: https://zuraffa.com
 repository: https://github.com/arrrrny/zuraffa
 issue_tracker: https://github.com/arrrrny/zuraffa/issues

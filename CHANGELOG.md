@@ -1,3 +1,10 @@
+## [Unreleased]
+
+## [3.0.1] - 2026-02-14
+
+### Feat
+- Added zfa doctor feature, detect dead code, updated zorphy dependency
+
 ## [3.0.0] - 2026-02-14
 
 ### ✨ Highlights
