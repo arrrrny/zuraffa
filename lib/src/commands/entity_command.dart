@@ -80,7 +80,7 @@ class EntityCommand {
     }
 
     final outputDir = parsed['output'] as String? ?? 'lib/src/domain/entities';
-    final fields = _parseFields(parsed['field'] as List<String>?);
+    final fields = _parseFields(parsed['field']);
     final useFilter =
         parsed['filter'] == true || (config?.filterByDefault ?? false);
 
@@ -95,7 +95,7 @@ class EntityCommand {
       isNonSealed: parsed['non-sealed'] as bool? ?? false,
       generateFilter: useFilter,
       extendsInterface: parsed['extends'] as String?,
-      explicitSubtypes: (parsed['subtypes'] as List<String>?) ?? [],
+      explicitSubtypes: _asStringList(parsed['subtypes']),
       generateSubtypes: parsed['generate-subs'] as bool? ?? false,
       dryRun: parsed['dry-run'] as bool? ?? false,
     );
@@ -130,7 +130,7 @@ class EntityCommand {
       exit(1);
     }
 
-    final values = (parsed['value'] as List<String>?) ?? [];
+    final values = _asStringList(parsed['value']);
     if (values.isEmpty) {
       print(
         'Error: Enum values are required. Use --value with comma-separated values.',
@@ -165,8 +165,8 @@ class EntityCommand {
       exit(1);
     }
 
-    final fieldStrings = parsed['field'] as List<String>?;
-    if (fieldStrings == null || fieldStrings.isEmpty) {
+    final fieldStrings = _asStringList(parsed['field']);
+    if (fieldStrings.isEmpty) {
       print('Error: At least one field is required. Use --field to specify.');
       exit(1);
     }
@@ -331,6 +331,14 @@ class EntityCommand {
       }
     }
     return fields;
+  }
+
+  List<String> _asStringList(dynamic value) {
+    if (value == null) return [];
+    if (value is List<String>) return value;
+    if (value is String) return [value];
+    if (value is List) return value.map((e) => e.toString()).toList();
+    return [];
   }
 
   List<String> _smartSplit(String input) {
