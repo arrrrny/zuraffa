@@ -1,3 +1,8 @@
+## [3.15.0] - 2026-02-15
+
+### Change
+- ZFA CLI binaries are published for faster mcp tool calls
+
 ## [3.14.0] - 2026-02-15
 
 ### Change
