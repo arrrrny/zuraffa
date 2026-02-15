@@ -8,9 +8,14 @@ set -e
 
 VERSION="$1"
 PROMOTE_MODE=false
+SKIP_CHANGELOG_UPDATE=false
 
-# Check if we should promote [Unreleased]
-if [ $# -eq 1 ]; then
+# Check if version already exists in CHANGELOG
+if grep -q "^## \[$VERSION\]" CHANGELOG.md; then
+    echo "📋 Version $VERSION already exists in CHANGELOG.md, skipping changelog update..."
+    SKIP_CHANGELOG_UPDATE=true
+    DESCRIPTION="Release $VERSION"
+elif [ $# -eq 1 ]; then
     if grep -q "^## \[Unreleased\]" CHANGELOG.md; then
         echo "✨ Detected [Unreleased] section. Promoting to version $VERSION..."
         PROMOTE_MODE=true
@@ -84,58 +89,66 @@ fi
 echo "  ✓ Example version updated"
 
 # Step 2: Update CHANGELOG.md
-echo "📝 Updating CHANGELOG.md..."
-
-# Check if [Unreleased] section exists, if not add it
-if ! grep -q "^## \[Unreleased\]" CHANGELOG.md; then
-    echo "  ⚠️  No [Unreleased] section found, adding it..."
-    # Insert ## [Unreleased] at the top of the file
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' "1s/^/## [Unreleased]\\n\\n/" CHANGELOG.md
-    else
-        sed -i "1s/^/## [Unreleased]\n\n/" CHANGELOG.md
-    fi
-fi
-
-if [ "$PROMOTE_MODE" = true ]; then
-    # Replace [Unreleased] with version and date
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' "s/^## \[Unreleased\]/## [$VERSION] - $DATE/" CHANGELOG.md
-    else
-        sed -i "s/^## \[Unreleased\]/## [$VERSION] - $DATE/" CHANGELOG.md
-    fi
-    
-    # We still need a description for the commit/PR/Tag messages later
-    # Extract description from the changelog section we just promoted?
-    # Or just use "Release $VERSION" as default since users didn't provide it?
-    DESCRIPTION="Release $VERSION"
+if [ "$SKIP_CHANGELOG_UPDATE" = true ]; then
+    echo "📝 Skipping CHANGELOG.md update (version already exists)..."
 else
-    # Insert new version after [Unreleased]
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS sed syntax
-        sed -i '' "/^## \[Unreleased\]/a\\
-\\
-## [$VERSION] - $DATE\\
-\\
-### $TYPE_CAPITALIZED\\
-- $DESCRIPTION
-" CHANGELOG.md
-    else
-        # Linux sed syntax
-        sed -i "/^## \[Unreleased\]/a\\
-\\
-## [$VERSION] - $DATE\\
-\\
-### $TYPE_CAPITALIZED\\
-- $DESCRIPTION
-" CHANGELOG.md
+    echo "📝 Updating CHANGELOG.md..."
+
+    # Check if [Unreleased] section exists, if not add it
+    if ! grep -q "^## \[Unreleased\]" CHANGELOG.md; then
+        echo "  ⚠️  No [Unreleased] section found, adding it..."
+        # Insert ## [Unreleased] at the top of the file
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "1s/^/## [Unreleased]\\n\\n/" CHANGELOG.md
+        else
+            sed -i "1s/^/## [Unreleased]\n\n/" CHANGELOG.md
+        fi
     fi
+
+    if [ "$PROMOTE_MODE" = true ]; then
+        # Replace [Unreleased] with version and date
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s/^## \[Unreleased\]/## [$VERSION] - $DATE/" CHANGELOG.md
+        else
+            sed -i "s/^## \[Unreleased\]/## [$VERSION] - $DATE/" CHANGELOG.md
+        fi
+        
+        # We still need a description for the commit/PR/Tag messages later
+        # Extract description from the changelog section we just promoted?
+        # Or just use "Release $VERSION" as default since users didn't provide it?
+        DESCRIPTION="Release $VERSION"
+    else
+        # Insert new version after [Unreleased]
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS sed syntax
+            sed -i '' "/^## \[Unreleased\]/a\\
+\\
+## [$VERSION] - $DATE\\
+\\
+### $TYPE_CAPITALIZED\\
+- $DESCRIPTION
+" CHANGELOG.md
+        else
+            # Linux sed syntax
+            sed -i "/^## \[Unreleased\]/a\\
+\\
+## [$VERSION] - $DATE\\
+\\
+### $TYPE_CAPITALIZED\\
+- $DESCRIPTION
+" CHANGELOG.md
+        fi
+    fi
+    echo "  ✓ CHANGELOG.md updated"
 fi
-echo "  ✓ CHANGELOG.md updated"
 
 # Step 3: Commit changes
 echo "🔨 Committing changes..."
-git add pubspec.yaml CHANGELOG.md lib/src/zfa_cli.dart example/pubspec.yaml
+if [ "$SKIP_CHANGELOG_UPDATE" = true ]; then
+    git add pubspec.yaml lib/src/zfa_cli.dart example/pubspec.yaml
+else
+    git add pubspec.yaml CHANGELOG.md lib/src/zfa_cli.dart example/pubspec.yaml
+fi
 git commit -m "chore: release $VERSION"
 echo "  ✓ Changes committed"
 
@@ -143,6 +156,10 @@ echo "  ✓ Changes committed"
 if command -v gh &> /dev/null; then
     echo "🔄 Creating pull request to master..."
     CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+    CHANGES_LIST="- Bump version to $VERSION"
+    if [ "$SKIP_CHANGELOG_UPDATE" = false ]; then
+        CHANGES_LIST="$CHANGES_LIST\n- Update CHANGELOG.md"
+    fi
     PR_BODY="Release $VERSION
 
 **Description:** $DESCRIPTION
@@ -150,8 +167,7 @@ if command -v gh &> /dev/null; then
 **Date:** $DATE
 
 **Changes:**
-- Bump version to $VERSION
-- Update CHANGELOG.md
+$CHANGES_LIST
 
 Please review and merge this PR to master before proceeding with the release tag and publication."
 
