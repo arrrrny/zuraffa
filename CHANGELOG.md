@@ -1,3 +1,8 @@
+## [3.12.0] - 2026-02-15
+
+### Change
+- Improved timeout on doctor command,added zuraff_ prefix to mcp commands
+
 ## [3.11.0] - 2026-02-15
 
 ### Chore
