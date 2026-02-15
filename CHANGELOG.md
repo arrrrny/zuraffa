@@ -1,3 +1,8 @@
+## [3.14.0] - 2026-02-15
+
+### Change
+- Added build command, better error message if zuraffa is not installed
+
 ## [3.13.0] - 2026-02-15
 
 ### Change
