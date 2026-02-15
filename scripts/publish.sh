@@ -175,24 +175,36 @@ echo "🧪 Running tests..."
 flutter test
 echo "  ✓ Tests passed"
 
-# Step 7: Build MCP server binaries
-echo "🔧 Building MCP server binaries..."
+# Step 7: Build MCP server and CLI binaries
+echo "🔧 Building MCP server and CLI binaries..."
 OUTPUT_DIR="build/mcp_binaries"
 mkdir -p "$OUTPUT_DIR"
 
-echo "  Building for macOS ARM64..."
+echo "  Building MCP server for macOS ARM64..."
 dart compile exe bin/zuraffa_mcp_server.dart -o "$OUTPUT_DIR/zuraffa_mcp_server-macos-arm64"
 
-echo "  Building for macOS x64..."
+echo "  Building MCP server for macOS x64..."
 dart compile exe bin/zuraffa_mcp_server.dart -o "$OUTPUT_DIR/zuraffa_mcp_server-macos-x64"
 
-echo "  Building for Linux x64..."
+echo "  Building MCP server for Linux x64..."
 dart compile exe bin/zuraffa_mcp_server.dart -o "$OUTPUT_DIR/zuraffa_mcp_server-linux-x64"
 
-echo "  Building for Windows x64..."
+echo "  Building MCP server for Windows x64..."
 dart compile exe bin/zuraffa_mcp_server.dart -o "$OUTPUT_DIR/zuraffa_mcp_server-windows-x64.exe"
 
-echo "  ✓ MCP binaries built"
+echo "  Building CLI for macOS ARM64..."
+dart compile exe bin/zfa.dart -o "$OUTPUT_DIR/zfa-macos-arm64"
+
+echo "  Building CLI for macOS x64..."
+dart compile exe bin/zfa.dart -o "$OUTPUT_DIR/zfa-macos-x64"
+
+echo "  Building CLI for Linux x64..."
+dart compile exe bin/zfa.dart -o "$OUTPUT_DIR/zfa-linux-x64"
+
+echo "  Building CLI for Windows x64..."
+dart compile exe bin/zfa.dart -o "$OUTPUT_DIR/zfa-windows-x64.exe"
+
+echo "  ✓ MCP and CLI binaries built"
 
 # Step 8: Upload binaries to GitHub release
 if command -v gh &> /dev/null; then
@@ -208,7 +220,11 @@ if command -v gh &> /dev/null; then
             "$OUTPUT_DIR/zuraffa_mcp_server-macos-arm64" \
             "$OUTPUT_DIR/zuraffa_mcp_server-macos-x64" \
             "$OUTPUT_DIR/zuraffa_mcp_server-linux-x64" \
-            "$OUTPUT_DIR/zuraffa_mcp_server-windows-x64.exe"
+            "$OUTPUT_DIR/zuraffa_mcp_server-windows-x64.exe" \
+            "$OUTPUT_DIR/zfa-macos-arm64" \
+            "$OUTPUT_DIR/zfa-macos-x64" \
+            "$OUTPUT_DIR/zfa-linux-x64" \
+            "$OUTPUT_DIR/zfa-windows-x64.exe"
     else
         echo "  Uploading to existing release v$VERSION..."
         gh release upload "v$VERSION" \
@@ -216,6 +232,10 @@ if command -v gh &> /dev/null; then
             "$OUTPUT_DIR/zuraffa_mcp_server-macos-x64" \
             "$OUTPUT_DIR/zuraffa_mcp_server-linux-x64" \
             "$OUTPUT_DIR/zuraffa_mcp_server-windows-x64.exe" \
+            "$OUTPUT_DIR/zfa-macos-arm64" \
+            "$OUTPUT_DIR/zfa-macos-x64" \
+            "$OUTPUT_DIR/zfa-linux-x64" \
+            "$OUTPUT_DIR/zfa-windows-x64.exe" \
             --clobber
     fi
     echo "  ✓ Binaries uploaded to GitHub release"
@@ -227,10 +247,12 @@ if command -v gh &> /dev/null; then
         cd "$ZED_EXTENSION_DIR"
         if [[ "$OSTYPE" == "darwin"* ]]; then
             sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" extension.toml
+            sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
         else
             sed -i "s/^version = \".*\"/version = \"$VERSION\"/" extension.toml
+            sed -i "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
         fi
-        git add extension.toml
+        git add extension.toml Cargo.toml
         git commit -m "chore: update version to $VERSION"
         git push
         echo "  ✓ zuraffa-zed version updated and pushed"
