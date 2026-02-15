@@ -90,12 +90,11 @@ class ZuraffaMcpServer {
 
   /// Process stdin messages from the provided stream
   Future<void> _processStream(Stream<String> stream) async {
-    final completer = Completer<void>();
-
-    // Use subscription instead of await-for to prevent early exit
-    stream.listen(
-      (line) async {
-        if (line.isEmpty) return;
+    // Process messages sequentially using await for
+    // This prevents concurrent writes to stdout
+    try {
+      await for (final line in stream) {
+        if (line.isEmpty) continue;
 
         try {
           final request = jsonDecode(line) as Map<String, dynamic>;
@@ -103,6 +102,7 @@ class ZuraffaMcpServer {
           // Only send response if it's not a notification (notifications have id == null)
           if (response != null) {
             stdout.writeln(jsonEncode(response));
+            await stdout.flush();
           }
         } catch (e, stackTrace) {
           stderr.writeln('Error processing request: $e\n$stackTrace');
@@ -115,22 +115,17 @@ class ZuraffaMcpServer {
             'id': null,
           };
           stdout.writeln(jsonEncode(errorResponse));
+          await stdout.flush();
         }
-      },
-      onError: (e) {
-        stderr.writeln('Stream error: $e');
-        // Don't complete - keep listening
-      },
-      onDone: () {
-        // Stdin closed - but don't log anything to avoid confusing Zed
-        // Just keep the process alive silently
-        // Don't complete the completer - process stays alive forever
-      },
-      cancelOnError: false,
-    );
+      }
+    } catch (e) {
+      stderr.writeln('Stream error: $e');
+    }
 
-    // Wait forever - never complete this future
-    await completer.future;
+    // Keep alive after stdin closes (shouldn't happen in normal MCP usage)
+    stderr.writeln('Stdin closed, keeping process alive');
+    final keepAlive = Completer<void>();
+    await keepAlive.future;
   }
 
   /// Handle incoming JSON-RPC requests
@@ -202,6 +197,7 @@ class ZuraffaMcpServer {
           _entityAddFieldToolDefinition(),
           _entityFromJsonToolDefinition(),
           _entityListToolDefinition(),
+          _buildToolDefinition(),
           _configInitToolDefinition(),
           _configShowToolDefinition(),
           _configSetToolDefinition(),
@@ -221,15 +217,42 @@ class ZuraffaMcpServer {
   Map<String, dynamic> _generateToolDefinition() {
     return {
       'name': 'zuraffa_generate',
-      'description':
-          'Generate Clean Architecture code for Flutter projects including UseCases, Repositories, Views, Presenters, Controllers, State objects, and Data layers. Use --state with --vpc for automatic state management, or --vpc alone for custom controller implementation.',
+      'description': '''Generate Clean Architecture code. TWO MODES:
+
+## MODE 1: Entity-Based (with methods)
+When "methods" is provided, generates CRUD UseCases for an ENTITY.
+
+Example: name="Category", methods=["get","getList"]
+Generates:
+- GetCategoryUseCase, GetCategoryListUseCase
+- CategoryRepository interface
+- With vpc=true: CategoryView, CategoryPresenter, CategoryController
+
+⚠️ Use the ENTITY NAME (Category), not UseCase name (GetCategory).
+
+## MODE 2: Custom UseCase (without methods)
+When "methods" is NOT provided, generates a standalone CUSTOM USECASE.
+
+Example: name="SearchProducts", domain="products", repo="Product", params="SearchQuery", returns="List<Product>"
+Generates:
+- SearchProductsUseCase (single UseCase in domain/products/usecases/)
+- Injects ProductRepository
+
+⚠️ For custom UseCases, "domain" is REQUIRED to specify the folder location.
+
+Common patterns:
+- Entity CRUD: name="Product", methods=["get","getList","create","update","delete"], vpc=true, state=true, data=true
+- Custom UseCase: name="ProcessPayment", domain="payment", repo="Payment", params="PaymentRequest", returns="PaymentResult"
+- Orchestrator: name="Checkout", domain="checkout", usecases=["ValidateCart","ProcessPayment","CreateOrder"]
+
+TIP: Use dry_run=true to preview files.''',
       'inputSchema': {
         'type': 'object',
         'properties': {
           'name': {
             'type': 'string',
             'description':
-                'Entity or UseCase name in PascalCase (e.g., Product, ProcessOrder)',
+                'ENTITY name (with methods) OR UseCase name (without methods). PascalCase.',
           },
           'methods': {
             'type': 'array',
@@ -245,17 +268,19 @@ class ZuraffaMcpServer {
                 'watchList',
               ],
             },
-            'description': 'Methods to generate for entity-based UseCases',
+            'description':
+                'If provided: generates entity CRUD UseCases. If NOT provided: generates single custom UseCase.',
           },
           'vpc': {
             'type': 'boolean',
             'description':
-                'Generate View, Presenter, and Controller (presentation layer)',
+                'Generate View + Presenter + Controller (presentation layer). Use with state=true for full MVVM.',
           },
+
           'pc': {
             'type': 'boolean',
             'description':
-                'Generate Presenter and Controller only (preserve custom View)',
+                'Generate Presenter + Controller only (preserve custom View)',
           },
           'pcs': {
             'type': 'boolean',
@@ -265,7 +290,7 @@ class ZuraffaMcpServer {
           'state': {
             'type': 'boolean',
             'description':
-                'Generate State object with granular loading states (isGetting, isCreating, etc.). When enabled with --vpc, the Controller will use StatefulController mixin and automatically update state. When disabled, Controller methods are generated with empty handlers for custom implementation.',
+                'Generate State class with loading flags (isGetting, isCreating, etc.). Recommended with vpc=true.',
           },
           'data': {
             'type': 'boolean',
@@ -533,6 +558,9 @@ class ZuraffaMcpServer {
           break;
         case 'zuraffa_graphql':
           result = await _runGraphqlCommand(args);
+          break;
+        case 'zuraffa_build':
+          result = await _runBuildCommand();
           break;
         case 'zuraffa_doctor':
           result = await _runDoctorCommand(args);
@@ -806,6 +834,28 @@ class ZuraffaMcpServer {
         },
       },
     };
+  }
+
+  /// Build tool definition
+  Map<String, dynamic> _buildToolDefinition() {
+    return {
+      'name': 'zuraffa_build',
+      'description': '''Run build_runner to generate code from annotations.
+
+CALL THIS AFTER:
+- Creating/modifying entities with zuraffa_entity_create
+- When you see .g.dart files are missing
+- After adding new Zorphy annotations
+
+This runs "dart run build_runner build --delete-conflicting-outputs".
+May take 30-60 seconds depending on project size.''',
+      'inputSchema': {'type': 'object', 'properties': {}},
+    };
+  }
+
+  /// Run build command
+  Future<String> _runBuildCommand() async {
+    return await _runZuraffaProcess(['build']);
   }
 
   /// Config Init tool definition
@@ -1408,50 +1458,25 @@ Use quick for fast diagnostics, full for troubleshooting.''',
     return await _runZuraffaProcess(cliArgs);
   }
 
+  /// Cached path to the zfa executable (resolved once, reused)
+  String? _cachedExecutable;
+  bool _cachedIsDartRun = false;
+
   /// Execute zfa CLI process by spawning a subprocess
   /// This avoids importing the heavy zuraffa package which causes slow JIT startup
   Future<String> _runZuraffaProcess(List<String> args) async {
     try {
-      // Try multiple ways to find the zfa executable
-      String? executable;
-      List<String> executableArgs = args;
-
-      // 1. Check for zfa in PATH (global install)
-      final whichResult = await Process.run('which', ['zfa']);
-      if (whichResult.exitCode == 0) {
-        executable = 'zfa';
+      // Resolve executable once and cache it
+      if (_cachedExecutable == null) {
+        await _resolveExecutable();
       }
 
-      // 2. Check for compiled zuraffa next to mcp server
-      if (executable == null) {
-        final currentDir = Directory.current.path;
-        final localExe = File('$currentDir/zuraffa');
-        if (await localExe.exists()) {
-          executable = localExe.path;
-        }
-      }
-
-      // 3. Fall back to dart run (requires zuraffa in pubspec)
-      if (executable == null) {
-        // Check if zuraffa is in pubspec.yaml first
-        final pubspecFile = File('${Directory.current.path}/pubspec.yaml');
-        if (!await pubspecFile.exists()) {
-          // No pubspec - return doctor output
-          return await _runQuickDoctor();
-        }
-
-        final pubspecContent = await pubspecFile.readAsString();
-        if (!pubspecContent.contains('zuraffa:')) {
-          // zuraffa not in dependencies - return doctor output
-          return await _runQuickDoctor();
-        }
-
-        executable = 'dart';
-        executableArgs = ['run', 'zuraffa:zuraffa', ...args];
-      }
+      final executableArgs = _cachedIsDartRun
+          ? ['run', 'zuraffa:zuraffa', ...args]
+          : args;
 
       final result = await Process.run(
-        executable,
+        _cachedExecutable!,
         executableArgs,
         workingDirectory: Directory.current.path,
         environment: Platform.environment,
@@ -1469,6 +1494,54 @@ Use quick for fast diagnostics, full for troubleshooting.''',
       stderr.writeln('Process error: $e\n$stack');
       return 'Error: $e';
     }
+  }
+
+  /// Resolve the zfa executable path once
+  Future<void> _resolveExecutable() async {
+    // 1. Check for compiled binary next to this MCP server (Zed extension scenario)
+    final selfPath = Platform.resolvedExecutable;
+    final selfDir = File(selfPath).parent.path;
+    for (final name in ['zfa', 'zuraffa', 'zuraffa_mcp_server']) {
+      final candidate = File('$selfDir/$name');
+      if (await candidate.exists()) {
+        // Don't use ourselves as the CLI
+        if (candidate.resolveSymbolicLinksSync() != selfPath) {
+          _cachedExecutable = candidate.path;
+          return;
+        }
+      }
+    }
+
+    // 2. Check for zfa in PATH (global install)
+    final whichResult = await Process.run('which', ['zfa']);
+    if (whichResult.exitCode == 0) {
+      _cachedExecutable = 'zfa';
+      return;
+    }
+
+    // 3. Check for compiled zuraffa in current directory
+    final currentDir = Directory.current.path;
+    final localExe = File('$currentDir/zuraffa');
+    if (await localExe.exists()) {
+      _cachedExecutable = localExe.path;
+      return;
+    }
+
+    // 4. Fall back to dart run (requires zuraffa in pubspec)
+    final pubspecFile = File('${Directory.current.path}/pubspec.yaml');
+    if (!await pubspecFile.exists()) {
+      _cachedExecutable = 'echo';
+      return;
+    }
+
+    final pubspecContent = await pubspecFile.readAsString();
+    if (!pubspecContent.contains('zuraffa:')) {
+      _cachedExecutable = 'echo';
+      return;
+    }
+
+    _cachedExecutable = 'dart';
+    _cachedIsDartRun = true;
   }
 
   /// Create a success response
