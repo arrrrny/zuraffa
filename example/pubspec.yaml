@@ -3,7 +3,7 @@ description: Example app demonstrating Zuraffa.
 
 publish_to: none
 
-version: 3.0.9
+version: 3.10.0
 
 environment:
   sdk: ^3.8.0
