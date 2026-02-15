@@ -2,8 +2,24 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:zuraffa/src/version.dart' as zfa show version;
-import 'package:zuraffa/src/zfa_cli.dart' as zfa_cli;
+/// Version loaded lazily to avoid heavy imports at startup
+String? _version;
+
+/// Get version lazily
+Future<String> _getVersion() async {
+  if (_version != null) return _version!;
+  final versionFile = File('lib/src/version.dart');
+  if (await versionFile.exists()) {
+    final content = await versionFile.readAsString();
+    final match = RegExp(
+      "version\\s*=\\s*['\"]([^'\"]+)['\"]",
+    ).firstMatch(content);
+    _version = match?.group(1) ?? '0.0.0';
+  } else {
+    _version = '0.0.0';
+  }
+  return _version!;
+}
 
 /// MCP Server for Zuraffa CLI
 ///
@@ -126,7 +142,7 @@ class ZuraffaMcpServer {
 
     switch (method) {
       case 'initialize':
-        return _initialize(id);
+        return await _initialize(id);
       case 'tools/list':
         return _listTools(id);
       case 'tools/call':
@@ -156,7 +172,8 @@ class ZuraffaMcpServer {
   }
 
   /// Handle initialize request
-  Map<String, dynamic> _initialize(dynamic id) {
+  Future<Map<String, dynamic>> _initialize(dynamic id) async {
+    final version = await _getVersion();
     return {
       'jsonrpc': '2.0',
       'result': {
@@ -165,7 +182,7 @@ class ZuraffaMcpServer {
           'tools': {'listChanged': true},
           'resources': {'subscribe': true, 'listChanged': true},
         },
-        'serverInfo': {'name': 'zfa-mcp-server', 'version': zfa.version},
+        'serverInfo': {'name': 'zfa-mcp-server', 'version': version},
       },
       'id': id,
     };
@@ -518,7 +535,7 @@ class ZuraffaMcpServer {
           result = await _runGraphqlCommand(args);
           break;
         case 'zuraffa_doctor':
-          result = await _runDoctorCommand();
+          result = await _runDoctorCommand(args);
           break;
         case 'zuraffa_view':
           result = await _runViewCommand(args);
@@ -1112,14 +1129,151 @@ class ZuraffaMcpServer {
   Map<String, dynamic> _doctorToolDefinition() {
     return {
       'name': 'zuraffa_doctor',
-      'description': 'Show information about the installed tooling',
-      'inputSchema': {'type': 'object', 'properties': {}},
+      'description': '''Show information about installed tooling.
+
+MODES:
+- quick (default): Fast check - Dart/Flutter versions, zuraffa in pubspec
+- full: Complete check - dependencies, zorphy CLI, dead code analysis
+
+Use quick for fast diagnostics, full for troubleshooting.''',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'mode': {
+            'type': 'string',
+            'enum': ['quick', 'full'],
+            'description':
+                'quick (default) - fast check, full - complete analysis',
+          },
+        },
+      },
     };
   }
 
   /// Run doctor command
-  Future<String> _runDoctorCommand() async {
-    return await _runZuraffaProcess(['doctor']);
+  Future<String> _runDoctorCommand(Map<String, dynamic> args) async {
+    final mode = args['mode']?.toString() ?? 'quick';
+
+    if (mode == 'quick') {
+      return await _runQuickDoctor();
+    } else {
+      return await _runZuraffaProcess(['doctor']);
+    }
+  }
+
+  /// Quick doctor - fast checks without subprocess
+  Future<String> _runQuickDoctor() async {
+    final output = StringBuffer();
+    output.writeln('Zuraffa Doctor (quick mode)');
+    output.writeln('');
+
+    // Check Dart version
+    try {
+      final result = await Process.run('dart', ['--version']);
+      final dartVersion = result.stderr.toString().trim();
+      if (dartVersion.isNotEmpty) {
+        output.writeln('Dart: ✅ $dartVersion');
+      }
+    } catch (e) {
+      output.writeln('Dart: ❌ Not found');
+    }
+
+    // Check Flutter version
+    try {
+      final result = await Process.run('flutter', ['--version']);
+      final flutterVersion = result.stderr.toString().split('\n').first.trim();
+      if (flutterVersion.isNotEmpty) {
+        output.writeln('Flutter: ✅ $flutterVersion');
+      }
+    } catch (e) {
+      output.writeln('Flutter: ❌ Not found');
+    }
+
+    // Check pubspec.yaml
+    final pubspecFile = File('${Directory.current.path}/pubspec.yaml');
+    if (!await pubspecFile.exists()) {
+      output.writeln('');
+      output.writeln('Project: ❌ No pubspec.yaml in current directory');
+      output.writeln('   Make sure you are in a Flutter/Dart project root.');
+      return output.toString();
+    }
+
+    output.writeln('');
+    output.writeln('Project: ✅ pubspec.yaml found');
+
+    // Check zuraffa dependency
+    try {
+      final pubspecContent = await pubspecFile.readAsString();
+      final zuraffaMatch = RegExp(
+        r'zuraffa:\s*(.+)',
+      ).firstMatch(pubspecContent);
+      if (zuraffaMatch != null) {
+        output.writeln(
+          '  zuraffa: ✅ ${zuraffaMatch.group(1)?.trim() ?? "installed"}',
+        );
+      } else {
+        output.writeln('  zuraffa: ❌ Not in dependencies');
+        output.writeln('     Run: dart pub add zuraffa');
+      }
+
+      // Check zorphy_annotation
+      final zorphyMatch = RegExp(
+        r'zorphy_annotation:\s*(.+)',
+      ).firstMatch(pubspecContent);
+      if (zorphyMatch != null) {
+        output.writeln(
+          '  zorphy_annotation: ✅ ${zorphyMatch.group(1)?.trim() ?? "installed"}',
+        );
+      } else {
+        output.writeln(
+          '  zorphy_annotation: ⚠️  Not found (optional for entities)',
+        );
+      }
+
+      // Check build_runner
+      if (pubspecContent.contains('build_runner:')) {
+        output.writeln('  build_runner: ✅ installed');
+      } else {
+        output.writeln('  build_runner: ⚠️  Not found (optional for code gen)');
+      }
+    } catch (e) {
+      output.writeln('  Error reading pubspec: $e');
+    }
+
+    // Check for zfa CLI globally
+    try {
+      final result = await Process.run('which', ['zfa']);
+      if (result.exitCode == 0) {
+        output.writeln('');
+        output.writeln('zfa CLI: ✅ Globally installed');
+      } else {
+        output.writeln('');
+        output.writeln('zfa CLI: ℹ️  Not installed globally (optional)');
+        output.writeln('     Install: dart pub global activate zuraffa');
+      }
+    } catch (e) {
+      output.writeln('');
+      output.writeln('zfa CLI: ℹ️  Not installed globally (optional)');
+    }
+
+    // Check .zfa.json config
+    final configFile = File('${Directory.current.path}/.zfa.json');
+    if (await configFile.exists()) {
+      output.writeln('');
+      output.writeln('Config: ✅ .zfa.json found');
+    } else {
+      output.writeln('');
+      output.writeln(
+        'Config: ℹ️  No .zfa.json (use zfa config init to create)',
+      );
+    }
+
+    output.writeln('');
+    output.writeln(
+      '💡 Run zuraffa_doctor with mode=full for complete diagnostics',
+    );
+
+    return output.toString();
   }
 
   /// View tool definition
@@ -1254,9 +1408,67 @@ class ZuraffaMcpServer {
     return await _runZuraffaProcess(cliArgs);
   }
 
-  /// Execute zfa CLI process
+  /// Execute zfa CLI process by spawning a subprocess
+  /// This avoids importing the heavy zuraffa package which causes slow JIT startup
   Future<String> _runZuraffaProcess(List<String> args) async {
-    return await zfa_cli.runCapturing(args);
+    try {
+      // Try multiple ways to find the zfa executable
+      String? executable;
+      List<String> executableArgs = args;
+
+      // 1. Check for zfa in PATH (global install)
+      final whichResult = await Process.run('which', ['zfa']);
+      if (whichResult.exitCode == 0) {
+        executable = 'zfa';
+      }
+
+      // 2. Check for compiled zuraffa next to mcp server
+      if (executable == null) {
+        final currentDir = Directory.current.path;
+        final localExe = File('$currentDir/zuraffa');
+        if (await localExe.exists()) {
+          executable = localExe.path;
+        }
+      }
+
+      // 3. Fall back to dart run (requires zuraffa in pubspec)
+      if (executable == null) {
+        // Check if zuraffa is in pubspec.yaml first
+        final pubspecFile = File('${Directory.current.path}/pubspec.yaml');
+        if (!await pubspecFile.exists()) {
+          // No pubspec - return doctor output
+          return await _runQuickDoctor();
+        }
+
+        final pubspecContent = await pubspecFile.readAsString();
+        if (!pubspecContent.contains('zuraffa:')) {
+          // zuraffa not in dependencies - return doctor output
+          return await _runQuickDoctor();
+        }
+
+        executable = 'dart';
+        executableArgs = ['run', 'zuraffa:zuraffa', ...args];
+      }
+
+      final result = await Process.run(
+        executable,
+        executableArgs,
+        workingDirectory: Directory.current.path,
+        environment: Platform.environment,
+      );
+
+      final output = result.stdout.toString();
+      final error = result.stderr.toString();
+
+      if (result.exitCode != 0) {
+        return 'Error (exit ${result.exitCode}): ${error.isNotEmpty ? error : output}';
+      }
+
+      return output.isNotEmpty ? output : 'Success';
+    } catch (e, stack) {
+      stderr.writeln('Process error: $e\n$stack');
+      return 'Error: $e';
+    }
   }
 
   /// Create a success response

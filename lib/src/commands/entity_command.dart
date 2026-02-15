@@ -27,6 +27,14 @@ class EntityCommand {
     final runBuild = shouldBuild || (config?.buildByDefault ?? false);
     final runFormat = shouldFormat || (config?.formatByDefault ?? false);
 
+    // Check dependencies before any entity operation
+    final depCheck = _checkDependencies();
+    if (depCheck != null) {
+      print(depCheck);
+      if (exitOnCompletion) exit(1);
+      return;
+    }
+
     try {
       switch (subCommand) {
         case 'create':
@@ -63,6 +71,55 @@ class EntityCommand {
     } catch (e) {
       print('❌ Error: $e');
       if (exitOnCompletion) exit(1);
+    }
+  }
+
+  /// Check for required dependencies in pubspec.yaml
+  /// Returns null if OK, or error message if dependencies missing
+  String? _checkDependencies() {
+    final pubspecFile = File('pubspec.yaml');
+
+    if (!pubspecFile.existsSync()) {
+      return '''
+❌ No pubspec.yaml found in current directory.
+
+   Make sure you are in a Flutter/Dart project root.
+   Run this command in the directory containing pubspec.yaml.
+''';
+    }
+
+    try {
+      final content = pubspecFile.readAsStringSync();
+      final missing = <String>[];
+
+      if (!content.contains('zorphy_annotation:')) {
+        missing.add('zorphy_annotation');
+      }
+
+      if (!content.contains('build_runner:')) {
+        // Check in dev_dependencies section
+        if (!content.contains('build_runner:')) {
+          missing.add('build_runner (dev)');
+        }
+      }
+
+      if (missing.isNotEmpty) {
+        return '''
+⚠️  Missing required dependencies in pubspec.yaml:
+
+${missing.map((d) => '   • $d').join('\n')}
+
+   Add them with:
+   ${missing.contains('zorphy_annotation') ? 'dart pub add zorphy_annotation' : ''}
+   ${missing.contains('build_runner (dev)') ? 'dart pub add dev:build_runner' : ''}
+   
+   Or run: zfa doctor
+''';
+      }
+
+      return null;
+    } catch (e) {
+      return '❌ Could not read pubspec.yaml: $e';
     }
   }
 
@@ -106,7 +163,7 @@ class EntityCommand {
     if (result.isSuccess) {
       print('✓ Created entity: ${result.filePath}');
       print('\n📋 Next steps:');
-      print('  1. Run: dart run build_runner build');
+      print('  1. Run: zfa build');
       print('  2. Import and use your ${entityConfig.className} class');
 
       if (fields.isNotEmpty) {
@@ -210,10 +267,12 @@ class EntityCommand {
         if (await dartFile.exists()) {
           final contents = await dartFile.readAsString();
           print('  📄 $entityName');
-          if (contents.contains('generateJson: true'))
+          if (contents.contains('generateJson: true')) {
             print('     ✓ JSON support');
-          if (contents.contains('abstract class \$\$'))
+          }
+          if (contents.contains('abstract class \$\$')) {
             print('     🔒 Sealed class');
+          }
         }
       }
     }
@@ -402,8 +461,9 @@ class EntityCommand {
 
   String _inferType(dynamic value) {
     if (value == null) return 'dynamic';
-    if (value is String)
+    if (value is String) {
       return DateTime.tryParse(value) != null ? 'DateTime' : 'String';
+    }
     if (value is int) return 'int';
     if (value is double) return 'double';
     if (value is bool) return 'bool';

@@ -112,8 +112,11 @@ class DoctorCommand extends Command {
         final zorphyVersion = match?.group(1) ?? 'unknown';
         _print('zorphy CLI: ✅ v$zorphyVersion (globally installed)');
       } else {
-        _print('zorphy CLI: ⚠️ Not installed globally');
-        _print('             Install: dart pub global activate zorphy');
+        _print('zorphy CLI: ℹ️  Not installed globally (optional)');
+        _print('             zfa entity commands work without it (bundled)');
+        _print(
+          '             For standalone use: dart pub global activate zorphy',
+        );
       }
     } on TimeoutException {
       _print('zorphy CLI: ⚠️ Timeout checking global packages');
@@ -126,16 +129,22 @@ class DoctorCommand extends Command {
   }
 
   Future<void> _checkDeadCode() async {
-    stdout.write('Dead Code Analysis: ⏳ Running dart analyze...');
-    stdout.flush();
-    try {
-      final result = await Process.run('dart', [
-        'analyze',
-      ]).timeout(const Duration(seconds: 30));
-      final output = result.stdout.toString();
+    _print('Dead Code Analysis: ⏳ Running dart analyze...');
 
-      stdout.write('\r');
-      stdout.flush();
+    // Count entities for dynamic timeout (min 60s, max 120s)
+    final entitiesDir = Directory('lib/src/domain/entities');
+    int entityCount = 0;
+    if (await entitiesDir.exists()) {
+      entityCount = await entitiesDir
+          .list()
+          .where((e) => e is Directory)
+          .length;
+    }
+    final timeout = Duration(seconds: (entityCount * 5 + 60).clamp(60, 120));
+
+    try {
+      final result = await Process.run('dart', ['analyze']).timeout(timeout);
+      final output = result.stdout.toString();
 
       if (output.contains('Dead code') || output.contains('dead_code')) {
         _print('Dead Code Analysis: ⚠️ Found dead code issues');
@@ -161,12 +170,8 @@ class DoctorCommand extends Command {
         _print('Dead Code Analysis: ✅ No dead code found');
       }
     } on TimeoutException {
-      stdout.write('\r');
-      stdout.flush();
       _print('Dead Code Analysis: ⚠️ Timeout (skipped)');
     } catch (e) {
-      stdout.write('\r');
-      stdout.flush();
       _print('Dead Code Analysis: ❌ Failed to run analysis: $e');
     }
   }

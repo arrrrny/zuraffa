@@ -12,6 +12,7 @@ import '../commands/entity_command.dart';
 import '../commands/plugin_command.dart' as plugincmd;
 import '../commands/make_command.dart';
 import '../commands/doctor_command.dart';
+import '../commands/build_command.dart';
 import '../core/plugin_system/cli_aware_plugin.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/error/suggestion_engine.dart';
@@ -73,6 +74,7 @@ class CliRunner {
     _runner.addCommand(_PluginCommand());
     _runner.addCommand(MakeCommand(registry));
     _runner.addCommand(DoctorCommand());
+    _runner.addCommand(BuildCommand());
   }
 
   /// Run CLI with arguments.
