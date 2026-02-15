@@ -1,4 +1,15 @@
-## [Unreleased]
+## [3.11.0] - 2026-02-15
+
+### Chore
+- Downgraded analyzer version to match flutter_test meta 1.17
+
+## [3.10.0] - 2026-02-15
+
+### Fix
+- Added _asStringList helper to handle String or List<String>
+- Fixed field, subtypes, and values parsing
+- All tests passing
+- MCP server entity_create and entity_enum working correctly
 
 ## [3.0.9] - 2026-02-15
 
