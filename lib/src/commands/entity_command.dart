@@ -8,10 +8,15 @@ import '../config/zfa_config.dart';
 /// the zfa CLI.
 class EntityCommand {
   /// Execute the entity command by delegating to zorphy CLI
-  Future<void> execute(List<String> args) async {
+  /// [exitOnCompletion] - if false, won't call exit() (for MCP/embedded use)
+  Future<void> execute(
+    List<String> args, {
+    bool exitOnCompletion = true,
+  }) async {
     if (args.isEmpty) {
       _printHelp();
-      exit(0);
+      if (exitOnCompletion) exit(0);
+      return;
     }
 
     final subCommand = args[0];
@@ -19,9 +24,16 @@ class EntityCommand {
     // Check for --build and --dart-format flags
     final shouldBuild = args.contains('--build');
     final shouldFormat = args.contains('--dart-format');
+    final forceYes = args.contains('--yes') || args.contains('-y');
     final subArgs = args
         .skip(1)
-        .where((arg) => arg != '--build' && arg != '--dart-format')
+        .where(
+          (arg) =>
+              arg != '--build' &&
+              arg != '--dart-format' &&
+              arg != '--yes' &&
+              arg != '-y',
+        )
         .toList();
 
     // Load config to check buildByDefault and formatByDefault
@@ -30,7 +42,12 @@ class EntityCommand {
     final runFormat = shouldFormat || (config?.formatByDefault ?? false);
 
     try {
-      await _executeZorphy(subCommand, subArgs);
+      await _executeZorphy(
+        subCommand,
+        subArgs,
+        forceYes: forceYes,
+        exitOnCompletion: exitOnCompletion,
+      );
 
       // Run build if requested
       if (runBuild) {
@@ -47,12 +64,17 @@ class EntityCommand {
       }
     } catch (e) {
       print('❌ Error executing entity command: $e');
-      exit(1);
+      if (exitOnCompletion) exit(1);
     }
   }
 
   /// Execute zorphy CLI with the given command and arguments
-  Future<void> _executeZorphy(String command, List<String> args) async {
+  Future<void> _executeZorphy(
+    String command,
+    List<String> args, {
+    bool forceYes = false,
+    bool exitOnCompletion = true,
+  }) async {
     // Load config to check for defaults
     final config = ZfaConfig.load();
 
@@ -70,7 +92,8 @@ class EntityCommand {
     if (!pubspecFile.existsSync()) {
       print('❌ Error: pubspec.yaml not found in current directory.');
       print('   Please run this command from your Flutter/Dart project root.');
-      exit(1);
+      if (exitOnCompletion) exit(1);
+      return;
     }
 
     final pubspecContent = await pubspecFile.readAsString();
@@ -85,19 +108,21 @@ class EntityCommand {
       print('To add it, run:');
       print('  dart pub add zorphy_annotation');
       print('');
-      print('Or add manually to pubspec.yaml:');
-      print('');
-      print('  dependencies:');
-      print('    zorphy_annotation: ^1.0.0');
-      print('');
-      print('Continue anyway? (y/N): ');
 
-      final response = stdin.readLineSync()?.toLowerCase().trim();
-      if (response != 'y' && response != 'yes') {
-        print('Cancelled.');
-        exit(0);
+      // Skip prompt if forceYes or running non-interactive
+      if (!forceYes && exitOnCompletion && stdin.hasTerminal) {
+        print('Continue anyway? (y/N): ');
+        final response = stdin.readLineSync()?.toLowerCase().trim();
+        if (response != 'y' && response != 'yes') {
+          print('Cancelled.');
+          if (exitOnCompletion) exit(0);
+          return;
+        }
+        print('');
+      } else {
+        print('Continuing anyway (non-interactive mode)...');
+        print('');
       }
-      print('');
     }
 
     // Build the zorphy CLI command
@@ -118,7 +143,8 @@ class EntityCommand {
 
     if (exitCode != 0) {
       print('\n❌ Zorphy CLI exited with code $exitCode');
-      exit(exitCode);
+      if (exitOnCompletion) exit(exitCode);
+      return;
     }
 
     print('\n✅ Entity command completed successfully!');

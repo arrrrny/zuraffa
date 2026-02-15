@@ -560,7 +560,12 @@ class ZuraffaMcpServer {
 
   /// Run entity create command
   Future<String> _runEntityCreateCommand(Map<String, dynamic> args) async {
-    final List<String> cliArgs = ['entity', 'create', '--name=${args["name"]}'];
+    final List<String> cliArgs = [
+      'entity',
+      'create',
+      '--name=${args["name"]}',
+      '--yes',
+    ];
 
     if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
     if (args['json'] == true) cliArgs.add('--json');

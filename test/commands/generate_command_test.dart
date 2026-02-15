@@ -2,6 +2,9 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/src/commands/generate_command.dart';
+import 'package:zuraffa/src/models/generator_config.dart';
+import 'package:zuraffa/src/cli/plugin_loader.dart';
+import 'package:zuraffa/src/core/orchestration/plugin_orchestrator.dart';
 
 void main() {
   group('GenerateCommand', () {
@@ -34,14 +37,30 @@ void main() {
         '${workspace.path}/.zfa.json',
       ).writeAsString('{"routeByDefault": true, "diByDefault": false}');
 
-      final result = await GenerateCommand().execute([
-        'Product',
-        '--methods=get',
-        '--vpc',
-        '--output',
-        outputDir,
-        '--dry-run',
-      ], exitOnCompletion: false);
+      final config = GeneratorConfig(
+        name: 'Product',
+        methods: ['get'],
+        outputDir: outputDir,
+        dryRun: true,
+        generateVpc: true,
+        generateView: true,
+        generatePresenter: true,
+        generateController: true,
+        generateRoute: true,
+      );
+
+      final pluginConfig = PluginConfig.load(projectRoot: workspace.path);
+      final loader = PluginLoader(
+        outputDir: outputDir,
+        dryRun: true,
+        force: false,
+        verbose: false,
+        config: pluginConfig,
+      );
+      final registry = loader.buildRegistry();
+      final orchestrator = PluginOrchestrator(registry: registry);
+
+      final result = await orchestrator.runAllMatching(config);
 
       expect(result.success, isTrue);
       final hasRoutes = result.files.any(
@@ -55,13 +74,26 @@ void main() {
         '${workspace.path}/.zfa.json',
       ).writeAsString('{"gqlByDefault": true}');
 
-      final result = await GenerateCommand().execute([
-        'Product',
-        '--methods=get',
-        '--output',
-        outputDir,
-        '--dry-run',
-      ], exitOnCompletion: false);
+      final config = GeneratorConfig(
+        name: 'Product',
+        methods: ['get'],
+        outputDir: outputDir,
+        dryRun: true,
+        generateGql: true,
+      );
+
+      final pluginConfig = PluginConfig.load(projectRoot: workspace.path);
+      final loader = PluginLoader(
+        outputDir: outputDir,
+        dryRun: true,
+        force: false,
+        verbose: false,
+        config: pluginConfig,
+      );
+      final registry = loader.buildRegistry();
+      final orchestrator = PluginOrchestrator(registry: registry);
+
+      final result = await orchestrator.runAllMatching(config);
 
       expect(result.success, isTrue);
       final hasGraphql = result.files.any(
@@ -73,16 +105,29 @@ void main() {
     });
 
     test('allows sync usecase without repo or service', () async {
-      final result = await GenerateCommand().execute([
-        'IsWalkthroughRequire',
-        '--type=sync',
-        '--domain=customer',
-        '--params=Customer',
-        '--returns=bool',
-        '--output',
-        outputDir,
-        '--dry-run',
-      ], exitOnCompletion: false);
+      final config = GeneratorConfig(
+        name: 'IsWalkthroughRequire',
+        methods: [],
+        domain: 'customer',
+        paramsType: 'Customer',
+        returnsType: 'bool',
+        useCaseType: 'sync',
+        outputDir: outputDir,
+        dryRun: true,
+      );
+
+      final pluginConfig = PluginConfig.load(projectRoot: workspace.path);
+      final loader = PluginLoader(
+        outputDir: outputDir,
+        dryRun: true,
+        force: false,
+        verbose: false,
+        config: pluginConfig,
+      );
+      final registry = loader.buildRegistry();
+      final orchestrator = PluginOrchestrator(registry: registry);
+
+      final result = await orchestrator.runAllMatching(config);
 
       expect(result.success, isTrue);
       final hasUseCase = result.files.any(
@@ -92,7 +137,6 @@ void main() {
       );
       expect(hasUseCase, isTrue);
 
-      // Verify content of the generated usecase
       final useCaseFile = result.files.firstWhere(
         (file) => file.path.endsWith(
           'domain/usecases/customer/is_walkthrough_require_usecase.dart',
