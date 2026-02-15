@@ -1,3 +1,10 @@
+## [3.0.8] - 2026-02-15
+
+### Change
+- Integrated zorphy entity generation directly into zuraffa (no subprocess)
+- Entity command now works without zorphy installed
+- Published zorphy 1.6.0 with clean SOLID architecture
+
 ## [3.0.7] - 2026-02-15
 
 ### Change
