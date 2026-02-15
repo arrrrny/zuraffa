@@ -1,3 +1,8 @@
+## [3.13.0] - 2026-02-15
+
+### Change
+- Added zuraffa_build to mcp server tools
+
 ## [3.12.0] - 2026-02-15
 
 ### Change
