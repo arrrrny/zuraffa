@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:args/command_runner.dart';
+import 'package:args/args.dart';
 import '../commands/generate_command.dart';
 import '../commands/schema_command.dart';
 import '../commands/validate_command.dart';
@@ -275,10 +276,21 @@ class _EntityCommand extends Command<void> {
   String get name => 'entity';
 
   @override
-  String get description => 'Create and manage Zorphy entities';
+  String get description =>
+      'Create and manage Zorphy entities (passthrough to zorphy_cli)';
+
+  @override
+  List<String> get aliases => ['z'];
+
+  @override
+  ArgParser get argParser {
+    final parser = ArgParser.allowAnything();
+    return parser;
+  }
 
   @override
   Future<void> run() async {
-    await EntityCommand().execute(argResults!.rest.toList());
+    final allArgs = argResults!.arguments;
+    await EntityCommand().execute(allArgs);
   }
 }

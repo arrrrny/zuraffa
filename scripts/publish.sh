@@ -74,24 +74,6 @@ else
 fi
 echo "  ✓ CLI version updated"
 
-# Update version in zed-extension/extension.toml
-echo "📝 Updating version in zed-extension/extension.toml..."
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" zed-extension/extension.toml
-else
-    sed -i "s/^version = \".*\"/version = \"$VERSION\"/" zed-extension/extension.toml
-fi
-echo "  ✓ Zed extension version updated"
-
-# Update version in zed-extension/src/lib.rs
-echo "📝 Updating version in zed-extension/src/lib.rs..."
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    sed -i '' "s/^const VERSION: \&str = \".*\"/const VERSION: \&str = \"$VERSION\"/" zed-extension/src/lib.rs
-else
-    sed -i "s/^const VERSION: \&str = \".*\"/const VERSION: \&str = \"$VERSION\"/" zed-extension/src/lib.rs
-fi
-echo "  ✓ Zed extension lib.rs version updated"
-
 # Update version in example/pubspec.yaml
 echo "📝 Updating version in example/pubspec.yaml..."
 if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -153,7 +135,7 @@ echo "  ✓ CHANGELOG.md updated"
 
 # Step 3: Commit changes
 echo "🔨 Committing changes..."
-git add pubspec.yaml CHANGELOG.md lib/src/zfa_cli.dart example/pubspec.yaml zed-extension/extension.toml zed-extension/src/lib.rs
+git add pubspec.yaml CHANGELOG.md lib/src/zfa_cli.dart example/pubspec.yaml
 git commit -m "chore: release $VERSION"
 echo "  ✓ Changes committed"
 
@@ -241,6 +223,25 @@ if command -v gh &> /dev/null; then
             --clobber
     fi
     echo "  ✓ Binaries uploaded to GitHub release"
+    
+    # Step 9: Update zuraffa-zed extension version
+    echo "📝 Updating zuraffa-zed extension version..."
+    ZED_EXTENSION_DIR="$HOME/Developer/zuraffa-zed"
+    if [ -d "$ZED_EXTENSION_DIR" ]; then
+        cd "$ZED_EXTENSION_DIR"
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" extension.toml
+        else
+            sed -i "s/^version = \".*\"/version = \"$VERSION\"/" extension.toml
+        fi
+        git add extension.toml
+        git commit -m "chore: update version to $VERSION"
+        git push
+        echo "  ✓ zuraffa-zed version updated and pushed"
+        cd "$PACKAGE_DIR"
+    else
+        echo "  ⚠️  zuraffa-zed directory not found at $ZED_EXTENSION_DIR"
+    fi
 else
     echo "⚠️  GitHub CLI (gh) not found. Skipping release upload."
     echo "   Please upload binaries manually to: https://github.com/arrrrny/zuraffa/releases/tag/v$VERSION"

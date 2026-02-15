@@ -801,10 +801,10 @@ packages:
     dependency: transitive
     description:
       name: zorphy
-      sha256: "276dbadc960d7358c7d8c2c8d87949a70c3aafcbf37b6fd2e7a50e8a31ad9142"
+      sha256: bec74a96ee1d1cb395b30e85e91873ca4190828fdd11e6a2c03833e3f6ddfedf
       url: "https://pub.dev"
     source: hosted
-    version: "1.5.8"
+    version: "1.6.0"
   zorphy_annotation:
     dependency: "direct main"
     description:
