@@ -94,50 +94,30 @@ if [ "$SKIP_CHANGELOG_UPDATE" = true ]; then
 else
     echo "📝 Updating CHANGELOG.md..."
 
-    # Check if [Unreleased] section exists, if not add it
-    if ! grep -q "^## \[Unreleased\]" CHANGELOG.md; then
-        echo "  ⚠️  No [Unreleased] section found, adding it..."
-        # Insert ## [Unreleased] at the top of the file
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' "1s/^/## [Unreleased]\\n\\n/" CHANGELOG.md
-        else
-            sed -i "1s/^/## [Unreleased]\n\n/" CHANGELOG.md
-        fi
-    fi
-
+    # Check if [Unreleased] section exists for promote mode
     if [ "$PROMOTE_MODE" = true ]; then
-        # Replace [Unreleased] with version and date
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' "s/^## \[Unreleased\]/## [$VERSION] - $DATE/" CHANGELOG.md
-        else
-            sed -i "s/^## \[Unreleased\]/## [$VERSION] - $DATE/" CHANGELOG.md
+        if ! grep -q "^## \[Unreleased\]" CHANGELOG.md; then
+            echo "❌ [Unreleased] section not found in CHANGELOG.md for promote mode."
+            exit 1
         fi
-        
-        # We still need a description for the commit/PR/Tag messages later
-        # Extract description from the changelog section we just promoted?
-        # Or just use "Release $VERSION" as default since users didn't provide it?
+        # Replace [Unreleased] with version and date
+        awk -v version="$VERSION" -v date="$DATE" '
+        /^## \[Unreleased\]/ { print "## [" version "] - " date; next }
+        { print }
+        ' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
         DESCRIPTION="Release $VERSION"
     else
-        # Insert new version after [Unreleased]
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            # macOS sed syntax
-            sed -i '' "/^## \[Unreleased\]/a\\
-\\
-## [$VERSION] - $DATE\\
-\\
-### $TYPE_CAPITALIZED\\
-- $DESCRIPTION
-" CHANGELOG.md
-        else
-            # Linux sed syntax
-            sed -i "/^## \[Unreleased\]/a\\
-\\
-## [$VERSION] - $DATE\\
-\\
-### $TYPE_CAPITALIZED\\
-- $DESCRIPTION
-" CHANGELOG.md
-        fi
+        # Insert new version at the top of the file
+        awk -v version="$VERSION" -v date="$DATE" -v type="$TYPE_CAPITALIZED" -v desc="$DESCRIPTION" '
+        BEGIN {
+            print "## [" version "] - " date
+            print ""
+            print "### " type
+            print "- " desc
+            print ""
+        }
+        { print }
+        ' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
     fi
     echo "  ✓ CHANGELOG.md updated"
 fi

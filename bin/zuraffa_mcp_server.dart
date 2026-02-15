@@ -203,7 +203,7 @@ class ZuraffaMcpServer {
   /// Generate tool definition
   Map<String, dynamic> _generateToolDefinition() {
     return {
-      'name': 'generate',
+      'name': 'zuraffa_generate',
       'description':
           'Generate Clean Architecture code for Flutter projects including UseCases, Repositories, Views, Presenters, Controllers, State objects, and Data layers. Use --state with --vpc for automatic state management, or --vpc alone for custom controller implementation.',
       'inputSchema': {
@@ -434,7 +434,7 @@ class ZuraffaMcpServer {
   /// Schema tool definition
   Map<String, dynamic> _schemaToolDefinition() {
     return {
-      'name': 'schema',
+      'name': 'zuraffa_schema',
       'description':
           'Get the JSON schema for ZFA configuration validation. Useful for AI agents to validate configs before generation.',
       'inputSchema': {'type': 'object', 'properties': {}},
@@ -444,7 +444,7 @@ class ZuraffaMcpServer {
   /// Validate tool definition
   Map<String, dynamic> _validateToolDefinition() {
     return {
-      'name': 'validate',
+      'name': 'zuraffa_validate',
       'description':
           'Validate a JSON configuration file against the ZFA schema',
       'inputSchema': {
@@ -466,65 +466,70 @@ class ZuraffaMcpServer {
     Map<String, dynamic> params,
   ) async {
     final toolName = params['name'] as String;
-    final args = params['arguments'] as Map<String, dynamic>? ?? {};
+    final rawArgs = params['arguments'];
+    final args = rawArgs == null
+        ? <String, dynamic>{}
+        : (rawArgs is Map<String, dynamic>
+              ? rawArgs
+              : Map<String, dynamic>.from(rawArgs as Map));
 
     try {
       String result;
 
       switch (toolName) {
-        case 'generate':
+        case 'zuraffa_generate':
           result = await _runGenerateCommand(args);
           break;
-        case 'schema':
+        case 'zuraffa_schema':
           result = await _runSchemaCommand();
           break;
-        case 'validate':
+        case 'zuraffa_validate':
           result = await _runValidateCommand(args);
           break;
-        case 'entity_create':
+        case 'zuraffa_entity_create':
           result = await _runEntityCreateCommand(args);
           break;
-        case 'entity_enum':
+        case 'zuraffa_entity_enum':
           result = await _runEntityEnumCommand(args);
           break;
-        case 'entity_add_field':
+        case 'zuraffa_entity_add_field':
           result = await _runEntityAddFieldCommand(args);
           break;
-        case 'entity_from_json':
+        case 'zuraffa_entity_from_json':
           result = await _runEntityFromJsonCommand(args);
           break;
-        case 'entity_list':
+        case 'zuraffa_entity_list':
           result = await _runEntityListCommand(args);
           break;
-        case 'config_init':
+        case 'zuraffa_config_init':
           result = await _runConfigCommand(['init', ...?_configArgs(args)]);
           break;
-        case 'config_show':
+        case 'zuraffa_config_show':
           result = await _runConfigCommand(['show']);
           break;
-        case 'config_set':
+        case 'zuraffa_config_set':
           result = await _runConfigCommand([
             'set',
             args['key'] as String,
             args['value'].toString(),
           ]);
           break;
-        case 'graphql':
+        case 'zuraffa_graphql':
           result = await _runGraphqlCommand(args);
           break;
-        case 'doctor':
+        case 'zuraffa_doctor':
           result = await _runDoctorCommand();
           break;
-        case 'view':
+        case 'zuraffa_view':
           result = await _runViewCommand(args);
           break;
-        case 'test':
+        case 'zuraffa_test':
           result = await _runTestCommand(args);
           break;
-        case 'di':
+        case 'zuraffa_di':
           result = await _runDiCommand(args);
           break;
-        case 'route':
+        case 'zuraffa_route':
           result = await _runRouteCommand(args);
           break;
         default:
@@ -658,7 +663,7 @@ class ZuraffaMcpServer {
   /// Entity Create tool definition
   Map<String, dynamic> _entityCreateToolDefinition() {
     return {
-      'name': 'entity_create',
+      'name': 'zuraffa_entity_create',
       'description':
           'Create a new Zorphy entity with fields. Supports JSON serialization, sealed classes, inheritance, and all Zorphy features.',
       'inputSchema': {
@@ -708,7 +713,7 @@ class ZuraffaMcpServer {
   /// Entity Enum tool definition
   Map<String, dynamic> _entityEnumToolDefinition() {
     return {
-      'name': 'entity_enum',
+      'name': 'zuraffa_entity_enum',
       'description': 'Create a new enum in the entities/enums directory',
       'inputSchema': {
         'type': 'object',
@@ -729,7 +734,7 @@ class ZuraffaMcpServer {
   /// Entity Add-Field tool definition
   Map<String, dynamic> _entityAddFieldToolDefinition() {
     return {
-      'name': 'entity_add_field',
+      'name': 'zuraffa_entity_add_field',
       'description': 'Add field(s) to an existing Zorphy entity',
       'inputSchema': {
         'type': 'object',
@@ -750,7 +755,7 @@ class ZuraffaMcpServer {
   /// Entity From-JSON tool definition
   Map<String, dynamic> _entityFromJsonToolDefinition() {
     return {
-      'name': 'entity_from_json',
+      'name': 'zuraffa_entity_from_json',
       'description': 'Create Zorphy entity/ies from a JSON file',
       'inputSchema': {
         'type': 'object',
@@ -775,7 +780,7 @@ class ZuraffaMcpServer {
   /// Entity List tool definition
   Map<String, dynamic> _entityListToolDefinition() {
     return {
-      'name': 'entity_list',
+      'name': 'zuraffa_entity_list',
       'description': 'List all Zorphy entities and enums',
       'inputSchema': {
         'type': 'object',
@@ -789,7 +794,7 @@ class ZuraffaMcpServer {
   /// Config Init tool definition
   Map<String, dynamic> _configInitToolDefinition() {
     return {
-      'name': 'config_init',
+      'name': 'zuraffa_config_init',
       'description':
           'Initialize ZFA configuration file (.zfa.json) with default settings for entity generation, GraphQL, caching, and more.',
       'inputSchema': {
@@ -808,7 +813,7 @@ class ZuraffaMcpServer {
   /// Config Show tool definition
   Map<String, dynamic> _configShowToolDefinition() {
     return {
-      'name': 'config_show',
+      'name': 'zuraffa_config_show',
       'description': 'Show current ZFA configuration settings from .zfa.json',
       'inputSchema': {'type': 'object', 'properties': {}},
     };
@@ -817,7 +822,7 @@ class ZuraffaMcpServer {
   /// Config Set tool definition
   Map<String, dynamic> _configSetToolDefinition() {
     return {
-      'name': 'config_set',
+      'name': 'zuraffa_config_set',
       'description':
           'Update a ZFA configuration value in .zfa.json. Valid keys: zorphyByDefault, jsonByDefault, compareByDefault, filterByDefault, defaultEntityOutput, gqlByDefault, buildByDefault, appendByDefault, routeByDefault, diByDefault.',
       'inputSchema': {
@@ -851,7 +856,7 @@ class ZuraffaMcpServer {
   /// GraphQL tool definition
   Map<String, dynamic> _graphqlToolDefinition() {
     return {
-      'name': 'graphql',
+      'name': 'zuraffa_graphql',
       'description':
           'Introspect a GraphQL schema and generate Zorphy entities, enums, and UseCases. Can generate complete Clean Architecture layers from a GraphQL endpoint.',
       'inputSchema': {
@@ -1106,7 +1111,7 @@ class ZuraffaMcpServer {
   /// Doctor tool definition
   Map<String, dynamic> _doctorToolDefinition() {
     return {
-      'name': 'doctor',
+      'name': 'zuraffa_doctor',
       'description': 'Show information about the installed tooling',
       'inputSchema': {'type': 'object', 'properties': {}},
     };
@@ -1120,7 +1125,7 @@ class ZuraffaMcpServer {
   /// View tool definition
   Map<String, dynamic> _viewToolDefinition() {
     return {
-      'name': 'view',
+      'name': 'zuraffa_view',
       'description': 'Generate view class for an entity',
       'inputSchema': {
         'type': 'object',
@@ -1161,7 +1166,7 @@ class ZuraffaMcpServer {
   /// Test tool definition
   Map<String, dynamic> _testToolDefinition() {
     return {
-      'name': 'test',
+      'name': 'zuraffa_test',
       'description': 'Generate Unit Tests for an entity',
       'inputSchema': {
         'type': 'object',
@@ -1193,7 +1198,7 @@ class ZuraffaMcpServer {
   /// DI tool definition
   Map<String, dynamic> _diToolDefinition() {
     return {
-      'name': 'di',
+      'name': 'zuraffa_di',
       'description': 'Generate dependency injection for a UseCase',
       'inputSchema': {
         'type': 'object',
@@ -1222,7 +1227,7 @@ class ZuraffaMcpServer {
   /// Route tool definition
   Map<String, dynamic> _routeToolDefinition() {
     return {
-      'name': 'route',
+      'name': 'zuraffa_route',
       'description': 'Generate route definitions for an entity',
       'inputSchema': {
         'type': 'object',

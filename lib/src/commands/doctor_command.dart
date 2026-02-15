@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import '../version.dart';
@@ -9,85 +10,135 @@ class DoctorCommand extends Command {
   @override
   final String description = 'Show information about the installed tooling.';
 
+  static const _timeout = Duration(seconds: 10);
+
+  void _print(String message) {
+    print(message);
+  }
+
   @override
   Future<void> run() async {
-    print('🩺 Zuraffa Doctor\n');
+    _print('🩺 Zuraffa Doctor\n');
 
-    // Check Zuraffa version
-    print('Zuraffa CLI: v$version');
+    _print('Zuraffa CLI: v$version');
 
-    // Check Dart version
     try {
-      final dartResult = await Process.run('dart', ['--version']);
-      // dart --version prints to stderr
+      final dartResult = await Process.run('dart', [
+        '--version',
+      ]).timeout(_timeout);
       final dartOutput = dartResult.stdout.toString().trim().isNotEmpty
           ? dartResult.stdout.toString().trim()
           : dartResult.stderr.toString().trim();
-      print('Dart: $dartOutput');
+      _print('Dart: $dartOutput');
+    } on TimeoutException {
+      _print('Dart: ⚠️ Timeout');
     } catch (e) {
-      print('Dart: ❌ Not found');
+      _print('Dart: ❌ Not found');
     }
 
-    // Check Flutter version
     try {
-      final flutterResult = await Process.run('flutter', ['--version']);
+      final flutterResult = await Process.run('flutter', [
+        '--version',
+      ]).timeout(_timeout);
       if (flutterResult.exitCode == 0) {
-        final flutterOutput = flutterResult.stdout.toString().split('\n').first;
-        print('Flutter: $flutterOutput');
+        final flutterOutput = flutterResult.stderr
+            .toString()
+            .split('\n')
+            .first
+            .trim();
+        if (flutterOutput.isEmpty) {
+          _print('Flutter: ✅ Installed');
+        } else {
+          _print('Flutter: $flutterOutput');
+        }
       } else {
-        print('Flutter: ⚠️ Not found (exit code ${flutterResult.exitCode})');
+        _print('Flutter: ⚠️ Not found (exit code ${flutterResult.exitCode})');
       }
+    } on TimeoutException {
+      _print('Flutter: ⚠️ Timeout (this is fine if you are only using Dart)');
     } catch (e) {
-      print('Flutter: ⚠️ Not found (this is fine if you are only using Dart)');
+      _print('Flutter: ⚠️ Not found (this is fine if you are only using Dart)');
     }
 
-    print(''); // Spacer
+    _print('');
 
-    // Check Project Config
     final configFile = File('.zfa.json');
     if (configFile.existsSync()) {
-      print('Configuration: ✅ Found .zfa.json');
+      _print('Configuration: ✅ Found .zfa.json');
     } else {
-      print(
+      _print(
         'Configuration: ⚠️ No .zfa.json found (run "zfa config init" to create one)',
       );
     }
 
-    // Check pubspec.yaml
     final pubspecFile = File('pubspec.yaml');
     if (pubspecFile.existsSync()) {
-      print('Project: ✅ Found pubspec.yaml');
+      _print('Project: ✅ Found pubspec.yaml');
 
-      // Check if zuraffa is in dependencies
       try {
         final content = await pubspecFile.readAsString();
         if (content.contains('zuraffa:')) {
-          print('Dependencies: ✅ Zuraffa package found');
+          _print('Dependencies: ✅ Zuraffa package found');
         } else {
-          print('Dependencies: ⚠️ Zuraffa package not found in pubspec.yaml');
+          _print('Dependencies: ⚠️ Zuraffa package not found in pubspec.yaml');
+        }
+
+        if (content.contains('zorphy_annotation:')) {
+          _print('              ✅ zorphy_annotation found');
+        } else {
+          _print(
+            '              ⚠️ zorphy_annotation not found - required for entity generation',
+          );
+          _print('                 Add: dart pub add zorphy_annotation');
         }
       } catch (e) {
-        print('Dependencies: ❌ Could not read pubspec.yaml');
+        _print('Dependencies: ❌ Could not read pubspec.yaml');
       }
     } else {
-      print('Project: ❌ No pubspec.yaml found');
+      _print('Project: ❌ No pubspec.yaml found');
     }
 
-    print(''); // Spacer
+    _print('');
+
+    try {
+      final zorphyResult = await Process.run('dart', [
+        'pub',
+        'global',
+        'list',
+      ]).timeout(_timeout);
+      final output = zorphyResult.stdout.toString();
+      if (output.contains('zorphy')) {
+        final match = RegExp(r'zorphy\s+(\S+)').firstMatch(output);
+        final zorphyVersion = match?.group(1) ?? 'unknown';
+        _print('zorphy CLI: ✅ v$zorphyVersion (globally installed)');
+      } else {
+        _print('zorphy CLI: ⚠️ Not installed globally');
+        _print('             Install: dart pub global activate zorphy');
+      }
+    } on TimeoutException {
+      _print('zorphy CLI: ⚠️ Timeout checking global packages');
+    } catch (e) {
+      _print('zorphy CLI: ❌ Could not check: $e');
+    }
+
+    _print('');
     await _checkDeadCode();
   }
 
   Future<void> _checkDeadCode() async {
     stdout.write('Dead Code Analysis: ⏳ Running dart analyze...');
+    stdout.flush();
     try {
-      final result = await Process.run('dart', ['analyze']);
+      final result = await Process.run('dart', [
+        'analyze',
+      ]).timeout(const Duration(seconds: 30));
       final output = result.stdout.toString();
 
-      // Clear the loading message (CR)
       stdout.write('\r');
+      stdout.flush();
 
       if (output.contains('Dead code') || output.contains('dead_code')) {
-        print('Dead Code Analysis: ⚠️ Found dead code issues');
+        _print('Dead Code Analysis: ⚠️ Found dead code issues');
 
         final lines = output.split('\n');
         final deadCodeLines = lines
@@ -96,22 +147,27 @@ class DoctorCommand extends Command {
                   line.contains('Dead code') || line.contains('dead_code'),
             )
             .take(5)
-            .toList(); // Show top 5
+            .toList();
 
         for (final line in deadCodeLines) {
-          print('  $line');
+          _print('  $line');
         }
 
         if (deadCodeLines.length <
             lines.where((l) => l.contains('dead_code')).length) {
-          print('  ... and more.');
+          _print('  ... and more.');
         }
       } else {
-        print('Dead Code Analysis: ✅ No dead code found');
+        _print('Dead Code Analysis: ✅ No dead code found');
       }
+    } on TimeoutException {
+      stdout.write('\r');
+      stdout.flush();
+      _print('Dead Code Analysis: ⚠️ Timeout (skipped)');
     } catch (e) {
       stdout.write('\r');
-      print('Dead Code Analysis: ❌ Failed to run analysis: $e');
+      stdout.flush();
+      _print('Dead Code Analysis: ❌ Failed to run analysis: $e');
     }
   }
 }

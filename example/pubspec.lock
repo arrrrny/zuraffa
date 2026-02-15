@@ -5,18 +5,18 @@ packages:
     dependency: transitive
     description:
       name: _fe_analyzer_shared
-      sha256: "796d97d925add7ffcdf5595f33a2066a6e3cee97971e6dbef09b76b7880fd760"
+      sha256: "8d7ff3948166b8ec5da0fbb5962000926b8e02f2ed9b3e51d1738905fbd4c98d"
       url: "https://pub.dev"
     source: hosted
-    version: "94.0.0"
+    version: "93.0.0"
   analyzer:
     dependency: transitive
     description:
       name: analyzer
-      sha256: "9c8ebb304d72c0a0c8764344627529d9503fc83d7d73e43ed727dc532f822e4b"
+      sha256: "92584d8f77b0095cb0cc7041dd4baea8bb3ec1a5a5f84037c93b1cf414942633"
       url: "https://pub.dev"
     source: hosted
-    version: "10.0.2"
+    version: "10.0.0"
   args:
     dependency: transitive
     description:
@@ -801,25 +801,25 @@ packages:
     dependency: transitive
     description:
       name: zorphy
-      sha256: "63adafc95b881efc53fda7b1573bfdbe16b592a3dde16b5d18ac0cc6c3fc8552"
+      sha256: "104e2b931d378d6b5171ef0d08cd03d4eb3a075e60749fdd9226d281c17ddf4d"
       url: "https://pub.dev"
     source: hosted
-    version: "1.6.1"
+    version: "1.6.3"
   zorphy_annotation:
     dependency: "direct main"
     description:
       name: zorphy_annotation
-      sha256: eb415ef67eeb9c709903d317e160dfbf12d8b8d715cf45ab4e96fd51f719e0dd
+      sha256: "955c49dd20457fdc33e8bb0a099dd9ea045ad2d3286977a7f318c47a8e57400e"
       url: "https://pub.dev"
     source: hosted
-    version: "1.6.1"
+    version: "1.6.3"
   zuraffa:
     dependency: "direct main"
     description:
       path: ".."
       relative: true
     source: path
-    version: "3.0.9"
+    version: "3.11.0"
 sdks:
   dart: ">=3.10.3 <4.0.0"
   flutter: ">=3.38.4"

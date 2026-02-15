@@ -123,126 +123,31 @@ DESCRIPTION:
 
   String _generateEntityContent(String entityName) {
     return '''
-/// Sample $entityName entity for testing Zuraffa.
-/// 
-/// This is a simple entity with common fields to help you get started.
-/// Feel free to modify or replace with your own entity structure.
-class $entityName {
-  final String id;
-  final String name;
-  final String description;
-  final double price;
-  final String category;
-  final bool isActive;
-  final DateTime createdAt;
-  final DateTime? updatedAt;
+import 'package:zorphy_annotation/zorphy.dart';
 
-  const $entityName({
-    required this.id,
-    required this.name,
-    required this.description,
-    required this.price,
-    required this.category,
-    this.isActive = true,
-    required this.createdAt,
-    this.updatedAt,
-  });
+part '${entityName}.zorphy.dart';
 
-  $entityName copyWith({
-    String? id,
-    String? name,
+@Zorphy(
+  json: true,
+  copyWith: true,
+  equal: true,
+)
+class $entityName with _\$$entityName {
+  const $entityName._();
+
+  const factory $entityName({
+    @Default('') String id,
+    required String name,
     String? description,
-    double? price,
+    required double price,
     String? category,
-    bool? isActive,
-    DateTime? createdAt,
+    @Default(true) bool isActive,
+    required DateTime createdAt,
     DateTime? updatedAt,
-  }) {
-    return $entityName(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      description: description ?? this.description,
-      price: price ?? this.price,
-      category: category ?? this.category,
-      isActive: isActive ?? this.isActive,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
-    );
-  }
+  }) = _\$$entityName${entityName}Impl;
 
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    return other is $entityName &&
-        other.id == id &&
-        other.name == name &&
-        other.description == description &&
-        other.price == price &&
-        other.category == category &&
-        other.isActive == isActive &&
-        other.createdAt == createdAt &&
-        other.updatedAt == updatedAt;
-  }
-
-  @override
-  int get hashCode {
-    return Object.hash(
-      id,
-      name,
-      description,
-      price,
-      category,
-      isActive,
-      createdAt,
-      updatedAt,
-    );
-  }
-
-  @override
-  String toString() {
-    return '$entityName(id: \$id, name: \$name, price: \$price, category: \$category, isActive: \$isActive)';
-  }
-
-  // Example factory constructors
-  factory $entityName.sample() {
-    return $entityName(
-      id: '1',
-      name: 'Sample $entityName',
-      description: 'This is a sample $entityName for testing',
-      price: 99.99,
-      category: 'Electronics',
-      createdAt: DateTime.now(),
-    );
-  }
-
-  // JSON serialization helpers (optional - you can use code generation instead)
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'description': description,
-      'price': price,
-      'category': category,
-      'isActive': isActive,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt?.toIso8601String(),
-    };
-  }
-
-  factory $entityName.fromJson(Map<String, dynamic> json) {
-    return $entityName(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      description: json['description'] as String,
-      price: (json['price'] as num).toDouble(),
-      category: json['category'] as String,
-      isActive: json['isActive'] as bool? ?? true,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: json['updatedAt'] != null 
-          ? DateTime.parse(json['updatedAt'] as String)
-          : null,
-    );
-  }
+  factory $entityName.fromJson(Map<String, dynamic> json) =>
+      _\$${entityName}FromJson(json);
 }
 ''';
   }
