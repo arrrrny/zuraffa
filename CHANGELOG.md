@@ -1,3 +1,9 @@
+## [3.0.9] - 2026-02-15
+
+### Change
+- Updated zorphy dependency to 1.6.0
+- Entity command now uses zorphy library directly (no subprocess)
+
 ## [3.0.8] - 2026-02-15
 
 ### Change
