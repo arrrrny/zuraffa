@@ -1,7 +1,5 @@
 ## [3.0.7] - 2026-02-15
 
-## [3.0.7] - 2026-02-15
-
 ### Change
 - Refactor CLI to clean plugin-based architecture with Command<void>
 
