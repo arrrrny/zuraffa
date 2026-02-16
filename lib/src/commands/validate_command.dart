@@ -1,9 +1,18 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:args/command_runner.dart';
 import '../models/generator_config.dart';
 
-class ValidateCommand {
-  Future<void> execute(List<String> args) async {
+class ValidateCommand extends Command<void> {
+  @override
+  String get name => 'validate';
+
+  @override
+  String get description => 'Validate JSON configuration file';
+
+  @override
+  Future<void> run() async {
+    final args = argResults!.rest;
     if (args.isEmpty) {
       print('❌ Usage: zfa validate <json-file>');
       exit(1);

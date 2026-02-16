@@ -1,22 +1,21 @@
+import 'dart:convert';
 import 'dart:io';
+import 'package:zorphy/zorphy.dart';
 import '../config/zfa_config.dart';
 
-/// Entity Command - Delegates to Zorphy CLI for entity generation
-///
-/// This command provides a convenient wrapper around Zorphy's CLI,
-/// allowing users to create entities, enums, and manage them through
-/// the zfa CLI.
 class EntityCommand {
-  /// Execute the entity command by delegating to zorphy CLI
-  Future<void> execute(List<String> args) async {
+  Future<void> execute(
+    List<String> args, {
+    bool exitOnCompletion = true,
+  }) async {
     if (args.isEmpty) {
       _printHelp();
-      exit(0);
+      if (exitOnCompletion) exit(0);
+      return;
     }
 
     final subCommand = args[0];
 
-    // Check for --build and --dart-format flags
     final shouldBuild = args.contains('--build');
     final shouldFormat = args.contains('--dart-format');
     final subArgs = args
@@ -24,107 +23,461 @@ class EntityCommand {
         .where((arg) => arg != '--build' && arg != '--dart-format')
         .toList();
 
-    // Load config to check buildByDefault and formatByDefault
     final config = ZfaConfig.load();
     final runBuild = shouldBuild || (config?.buildByDefault ?? false);
     final runFormat = shouldFormat || (config?.formatByDefault ?? false);
 
-    try {
-      await _executeZorphy(subCommand, subArgs);
+    // Check dependencies before any entity operation
+    final depCheck = _checkDependencies();
+    if (depCheck != null) {
+      print(depCheck);
+      if (exitOnCompletion) exit(1);
+      return;
+    }
 
-      // Run build if requested
+    try {
+      switch (subCommand) {
+        case 'create':
+        case 'new':
+          await _handleCreate(subCommand, subArgs, config);
+          break;
+        case 'enum':
+          await _handleEnum(subArgs);
+          break;
+        case 'add-field':
+          await _handleAddField(subArgs);
+          break;
+        case 'list':
+          await _handleList(subArgs);
+          break;
+        case 'from-json':
+          await _handleFromJson(subArgs, config);
+          break;
+        default:
+          print('Unknown subcommand: $subCommand');
+          _printHelp();
+          if (exitOnCompletion) exit(1);
+      }
+
       if (runBuild) {
-        print('');
-        print('🔨 Running build_runner...');
+        print('\n🔨 Running build_runner...');
         await _runBuild();
       }
 
-      // Run dart format if requested
       if (runFormat) {
-        print('');
-        print('🎨 Formatting generated code...');
+        print('\n🎨 Formatting generated code...');
         await _runFormat();
       }
     } catch (e) {
-      print('❌ Error executing entity command: $e');
-      exit(1);
+      print('❌ Error: $e');
+      if (exitOnCompletion) exit(1);
     }
   }
 
-  /// Execute zorphy CLI with the given command and arguments
-  Future<void> _executeZorphy(String command, List<String> args) async {
-    // Load config to check for defaults
-    final config = ZfaConfig.load();
-
-    // Add --filter if filterByDefault is true and not already present
-    final shouldAddFilter =
-        config?.filterByDefault == true &&
-        (command == 'create' || command == 'new') &&
-        !args.contains('--filter') &&
-        !args.contains('--no-filter');
-
-    final finalArgs = shouldAddFilter ? [...args, '--filter'] : args;
-
-    // Check if we're in a Dart/Flutter project
+  /// Check for required dependencies in pubspec.yaml
+  /// Returns null if OK, or error message if dependencies missing
+  String? _checkDependencies() {
     final pubspecFile = File('pubspec.yaml');
+
     if (!pubspecFile.existsSync()) {
-      print('❌ Error: pubspec.yaml not found in current directory.');
-      print('   Please run this command from your Flutter/Dart project root.');
+      return '''
+❌ No pubspec.yaml found in current directory.
+
+   Make sure you are in a Flutter/Dart project root.
+   Run this command in the directory containing pubspec.yaml.
+''';
+    }
+
+    try {
+      final content = pubspecFile.readAsStringSync();
+      final missing = <String>[];
+
+      if (!content.contains('zorphy_annotation:')) {
+        missing.add('zorphy_annotation');
+      }
+
+      if (!content.contains('build_runner:')) {
+        // Check in dev_dependencies section
+        if (!content.contains('build_runner:')) {
+          missing.add('build_runner (dev)');
+        }
+      }
+
+      if (missing.isNotEmpty) {
+        return '''
+⚠️  Missing required dependencies in pubspec.yaml:
+
+${missing.map((d) => '   • $d').join('\n')}
+
+   Add them with:
+   ${missing.contains('zorphy_annotation') ? 'dart pub add zorphy_annotation' : ''}
+   ${missing.contains('build_runner (dev)') ? 'dart pub add dev:build_runner' : ''}
+   
+   Or run: zfa doctor
+''';
+      }
+
+      return null;
+    } catch (e) {
+      return '❌ Could not read pubspec.yaml: $e';
+    }
+  }
+
+  Future<void> _handleCreate(
+    String command,
+    List<String> args,
+    ZfaConfig? config,
+  ) async {
+    final parsed = _parseArgs(args);
+    final name = parsed['name'] as String?;
+
+    if (name == null || name.isEmpty) {
+      print('Error: Entity name is required. Use -n or --name to specify.');
       exit(1);
     }
 
-    final pubspecContent = await pubspecFile.readAsString();
-    final hasZorphyAnnotation = pubspecContent.contains('zorphy_annotation:');
+    final outputDir = parsed['output'] as String? ?? 'lib/src/domain/entities';
+    final fields = _parseFields(parsed['field']);
+    final useFilter =
+        parsed['filter'] == true || (config?.filterByDefault ?? false);
 
-    if (!hasZorphyAnnotation) {
-      print('⚠️  Warning: zorphy_annotation not found in pubspec.yaml');
-      print('');
-      print('Entity generation requires the zorphy_annotation package.');
-      print('Generated entities will have warnings without it.');
-      print('');
-      print('To add it, run:');
-      print('  dart pub add zorphy_annotation');
-      print('');
-      print('Or add manually to pubspec.yaml:');
-      print('');
-      print('  dependencies:');
-      print('    zorphy_annotation: ^1.0.0');
-      print('');
-      print('Continue anyway? (y/N): ');
+    final entityConfig = EntityConfig(
+      name: name,
+      outputDir: outputDir,
+      fields: fields,
+      generateJson: parsed['json'] as bool? ?? true,
+      generateCopyWithFn: parsed['copywith-fn'] as bool? ?? false,
+      generateCompareTo: parsed['compare'] as bool? ?? true,
+      isSealed: parsed['sealed'] as bool? ?? false,
+      isNonSealed: parsed['non-sealed'] as bool? ?? false,
+      generateFilter: useFilter,
+      extendsInterface: parsed['extends'] as String?,
+      explicitSubtypes: _asStringList(parsed['subtypes']),
+      generateSubtypes: parsed['generate-subs'] as bool? ?? false,
+      dryRun: parsed['dry-run'] as bool? ?? false,
+    );
 
-      final response = stdin.readLineSync()?.toLowerCase().trim();
-      if (response != 'y' && response != 'yes') {
-        print('Cancelled.');
-        exit(0);
+    final creator = EntityCreator(baseOutputDir: outputDir);
+    final result = await creator.create(entityConfig);
+
+    if (result.isSuccess) {
+      print('✓ Created entity: ${result.filePath}');
+      print('\n📋 Next steps:');
+      print('  1. Run: zfa build');
+      print('  2. Import and use your ${entityConfig.className} class');
+
+      if (fields.isNotEmpty) {
+        print('\n✨ Generated ${fields.length} fields:');
+        for (final field in fields) {
+          print('  - ${field.name}: ${field.fullType}');
+        }
       }
-      print('');
+    } else {
+      print('❌ ${result.error}');
+      exit(1);
     }
-
-    // Build the zorphy CLI command
-    final zorphyArgs = [command, ...finalArgs];
-
-    print('🦒 Running Zorphy: zorphy_cli ${zorphyArgs.join(' ')}');
-    print('   (Zorphy is bundled with ZFA - no setup required!)');
-    print('');
-
-    // Run zorphy CLI as a subprocess using the bundled version
-    final process = await Process.start('dart', [
-      'run',
-      'zorphy:zorphy_cli',
-      ...zorphyArgs,
-    ], mode: ProcessStartMode.inheritStdio);
-
-    final exitCode = await process.exitCode;
-
-    if (exitCode != 0) {
-      print('\n❌ Zorphy CLI exited with code $exitCode');
-      exit(exitCode);
-    }
-
-    print('\n✅ Entity command completed successfully!');
   }
 
-  /// Run build_runner
+  Future<void> _handleEnum(List<String> args) async {
+    final parsed = _parseArgs(args);
+    final name = parsed['name'] as String?;
+
+    if (name == null || name.isEmpty) {
+      print('Error: Enum name is required. Use -n or --name to specify.');
+      exit(1);
+    }
+
+    final values = _asStringList(parsed['value']);
+    if (values.isEmpty) {
+      print(
+        'Error: Enum values are required. Use --value with comma-separated values.',
+      );
+      exit(1);
+    }
+
+    final enumConfig = EnumConfig(
+      name: name,
+      outputDir: parsed['output'] as String?,
+      values: values,
+      dryRun: parsed['dry-run'] as bool? ?? false,
+    );
+
+    final creator = EntityCreator(baseOutputDir: parsed['output'] as String?);
+    final result = await creator.createEnum(enumConfig);
+
+    if (result.isSuccess) {
+      print('✓ Created enum: ${result.filePath}');
+    } else {
+      print('❌ ${result.error}');
+      exit(1);
+    }
+  }
+
+  Future<void> _handleAddField(List<String> args) async {
+    final parsed = _parseArgs(args);
+    final name = parsed['name'] as String?;
+
+    if (name == null || name.isEmpty) {
+      print('Error: Entity name is required. Use -n or --name to specify.');
+      exit(1);
+    }
+
+    final fieldStrings = _asStringList(parsed['field']);
+    if (fieldStrings.isEmpty) {
+      print('Error: At least one field is required. Use --field to specify.');
+      exit(1);
+    }
+
+    final fields = _parseFields(fieldStrings);
+    final creator = EntityCreator(baseOutputDir: parsed['output'] as String?);
+    final result = await creator.addFields(
+      name,
+      fields,
+      outputDir: parsed['output'] as String?,
+      dryRun: parsed['dry-run'] as bool? ?? false,
+    );
+
+    if (result.isSuccess) {
+      print('✓ Added ${fields.length} field(s) to ${result.className}');
+      for (final field in fields) {
+        print('  + ${field.name}: ${field.fullType}');
+      }
+    } else {
+      print('❌ ${result.error}');
+      exit(1);
+    }
+  }
+
+  Future<void> _handleList(List<String> args) async {
+    final parsed = _parseArgs(args);
+    final outputDir = parsed['output'] as String? ?? 'lib/src/domain/entities';
+    final dir = Directory(outputDir);
+
+    if (!await dir.exists()) {
+      print('No entities found. Directory does not exist: $outputDir');
+      return;
+    }
+
+    print('📂 Zorphy Entities in $outputDir:\n');
+
+    await for (final entity in dir.list()) {
+      if (entity is Directory) {
+        final entityName = entity.path.split('/').last;
+        final dartFile = File('${entity.path}/$entityName.dart');
+        if (await dartFile.exists()) {
+          final contents = await dartFile.readAsString();
+          print('  📄 $entityName');
+          if (contents.contains('generateJson: true')) {
+            print('     ✓ JSON support');
+          }
+          if (contents.contains('abstract class \$\$')) {
+            print('     🔒 Sealed class');
+          }
+        }
+      }
+    }
+  }
+
+  Future<void> _handleFromJson(List<String> args, ZfaConfig? config) async {
+    final rest = args.where((a) => !a.startsWith('-')).toList();
+    if (rest.isEmpty) {
+      print('Error: JSON file path is required.');
+      exit(1);
+    }
+
+    final jsonFile = File(rest.first);
+    if (!await jsonFile.exists()) {
+      print('Error: JSON file not found: ${jsonFile.path}');
+      exit(1);
+    }
+
+    final parsed = _parseArgs(args);
+    final content = await jsonFile.readAsString();
+    final json = _parseJsonContent(content);
+
+    final name =
+        parsed['name'] as String? ??
+        jsonFile.path.split('/').last.replaceAll('.json', '');
+    final fields = _extractFieldsFromJson(json);
+
+    final entityConfig = EntityConfig(
+      name: name,
+      outputDir: parsed['output'] as String?,
+      fields: fields,
+      generateJson: parsed['json'] as bool? ?? true,
+      generateFilter:
+          parsed['filter'] == true || (config?.filterByDefault ?? false),
+      dryRun: parsed['dry-run'] as bool? ?? false,
+    );
+
+    final creator = EntityCreator(baseOutputDir: parsed['output'] as String?);
+    final result = await creator.create(entityConfig);
+
+    if (result.isSuccess) {
+      print('✓ Created entity: ${result.filePath}');
+    } else {
+      print('❌ ${result.error}');
+      exit(1);
+    }
+  }
+
+  Map<String, dynamic> _parseArgs(List<String> args) {
+    final result = <String, dynamic>{};
+    for (var i = 0; i < args.length; i++) {
+      final arg = args[i];
+      if (arg.startsWith('--')) {
+        final parts = arg.substring(2).split('=');
+        final key = parts[0].replaceAll('-', '_');
+        if (parts.length > 1) {
+          final value = parts.sublist(1).join('=');
+          _addValue(result, key, value);
+        } else if (i + 1 < args.length && !args[i + 1].startsWith('-')) {
+          _addValue(result, key, args[++i]);
+        } else {
+          result[key] = true;
+        }
+      } else if (arg.startsWith('-') && arg.length == 2) {
+        final key = _shortFlagToKey(arg[1]);
+        if (i + 1 < args.length && !args[i + 1].startsWith('-')) {
+          _addValue(result, key, args[++i]);
+        } else {
+          result[key] = true;
+        }
+      }
+    }
+    return result;
+  }
+
+  void _addValue(Map<String, dynamic> result, String key, String value) {
+    if (result.containsKey(key)) {
+      final existing = result[key];
+      if (existing is List<String>) {
+        existing.add(value);
+      } else {
+        result[key] = [existing as String, value];
+      }
+    } else {
+      result[key] = value;
+    }
+  }
+
+  String _shortFlagToKey(String flag) {
+    const mapping = {'n': 'name', 'o': 'output', 'p': 'package', 'f': 'field'};
+    return mapping[flag] ?? flag;
+  }
+
+  List<FieldDefinition> _parseFields(dynamic fieldStrings) {
+    if (fieldStrings == null) return [];
+
+    final fields = <FieldDefinition>[];
+    List<String> fieldList;
+    if (fieldStrings is List<String>) {
+      fieldList = fieldStrings;
+    } else if (fieldStrings is String) {
+      fieldList = [fieldStrings];
+    } else {
+      return fields;
+    }
+
+    for (final group in fieldList) {
+      final parts = _smartSplit(group);
+      for (final part in parts) {
+        try {
+          fields.add(FieldDefinition.parse(part));
+        } catch (e) {
+          print('Warning: $e');
+        }
+      }
+    }
+    return fields;
+  }
+
+  List<String> _asStringList(dynamic value) {
+    if (value == null) return [];
+    if (value is List<String>) return value;
+    if (value is String) return [value];
+    if (value is List) return value.map((e) => e.toString()).toList();
+    return [];
+  }
+
+  List<String> _smartSplit(String input) {
+    final parts = <String>[];
+    var depth = 0;
+    var current = StringBuffer();
+
+    for (final char in input.split('')) {
+      if (char == '<') depth++;
+      if (char == '>') depth--;
+      if (char == ',' && depth == 0) {
+        if (current.toString().trim().isNotEmpty) {
+          parts.add(current.toString().trim());
+        }
+        current = StringBuffer();
+      } else {
+        current.write(char);
+      }
+    }
+    if (current.toString().trim().isNotEmpty) {
+      parts.add(current.toString().trim());
+    }
+    return parts;
+  }
+
+  Map<String, dynamic> _parseJsonContent(String content) {
+    return Map<String, dynamic>.from(
+      const JsonDecoder().convert(content) as Map,
+    );
+  }
+
+  List<FieldDefinition> _extractFieldsFromJson(Map<String, dynamic> json) {
+    final fields = <FieldDefinition>[];
+    for (final entry in json.entries) {
+      final key = entry.key;
+      final value = entry.value;
+      final isNullable = key.endsWith('?');
+      final fieldName = isNullable ? key.substring(0, key.length - 1) : key;
+
+      String type;
+      if (value is Map<String, dynamic>) {
+        final nestedName = NamingUtils.toPascalCase(fieldName);
+        type = '\$$nestedName';
+      } else if (value is List && value.isNotEmpty && value.first is Map) {
+        final nestedName = NamingUtils.toPascalCase(_singularize(fieldName));
+        type = 'List<\$$nestedName>';
+      } else {
+        type = _inferType(value);
+      }
+
+      fields.add(
+        FieldDefinition(
+          name: fieldName,
+          type: type,
+          nullable: isNullable || value == null,
+        ),
+      );
+    }
+    return fields;
+  }
+
+  String _inferType(dynamic value) {
+    if (value == null) return 'dynamic';
+    if (value is String) {
+      return DateTime.tryParse(value) != null ? 'DateTime' : 'String';
+    }
+    if (value is int) return 'int';
+    if (value is double) return 'double';
+    if (value is bool) return 'bool';
+    if (value is List) return 'List<dynamic>';
+    return 'dynamic';
+  }
+
+  String _singularize(String s) {
+    if (s.endsWith('ies')) return '${s.substring(0, s.length - 3)}y';
+    if (s.endsWith('es')) return s.substring(0, s.length - 2);
+    if (s.endsWith('s')) return s.substring(0, s.length - 1);
+    return s;
+  }
+
   Future<void> _runBuild() async {
     final process = await Process.start('dart', [
       'run',
@@ -134,33 +487,17 @@ class EntityCommand {
     ], mode: ProcessStartMode.inheritStdio);
 
     final exitCode = await process.exitCode;
-
-    if (exitCode != 0) {
-      print('\n❌ build_runner exited with code $exitCode');
-      exit(exitCode);
-    }
-
-    print('\n✅ Build completed successfully!');
+    if (exitCode != 0) exit(exitCode);
   }
 
-  /// Run dart format
   Future<void> _runFormat() async {
     final process = await Process.start('dart', [
       'format',
       '.',
     ], mode: ProcessStartMode.inheritStdio);
-
-    final exitCode = await process.exitCode;
-
-    if (exitCode != 0) {
-      print('\n⚠️  dart format exited with code $exitCode (non-critical)');
-      return;
-    }
-
-    print('✅ Code formatted successfully!');
+    await process.exitCode;
   }
 
-  /// Print help for the entity command
   void _printHelp() {
     print('''
 zfa entity - Zorphy Entity Generation Commands
@@ -168,130 +505,36 @@ zfa entity - Zorphy Entity Generation Commands
 USAGE:
   zfa entity <subcommand> [options]
 
-NOTE:
-  Zorphy is bundled with ZFA - no additional installation needed!
-  However, your project needs zorphy_annotation for generated entities:
-
-    dart pub add zorphy_annotation
-
 SUBCOMMANDS:
   create      Create a new Zorphy entity with fields
   new         Quick-create a simple entity (basic defaults)
   enum        Create a new Zorphy enum
   add-field   Add field(s) to an existing entity
-  from-json   Create entity/ies from JSON file
+  from-json   Create entity from JSON file
   list        List all Zorphy entities
-  help        Show this help message
 
 CREATE COMMAND:
-  zfa entity create [options]
+  zfa entity create -n <Name> [options]
   Options:
     -n, --name              Entity name (required)
-    -o, --output            Output base directory (default: lib/src/domain/entities)
+    -o, --output            Output directory
     --json                  Enable JSON serialization (default: true)
-    --filter                Enable type-safe filters (default: false)
-    --copywith-fn           Enable function-based copyWith (default: false)
+    --filter                Enable type-safe filters
+    --copywith-fn           Function-based copyWith
     --compare               Enable compareTo (default: true)
-    --sealed                Create sealed class (default: false)
-    --non-sealed            Create non-sealed class (default: false)
-    -f, --fields            Interactive field prompts (default: true)
-    --field                 Add one or more fields ("name:type" or "id:int,name:String")
-    --extends               Interface to extend (e.g., BaseEntity)
-    --subtype               Explicit subtypes (e.g., Dog,Cat)
-
-ENUM COMMAND:
-  zfa entity enum [options]
-  Options:
-    -n, --name              Enum name (required)
-    -o, --output            Output base directory (default: lib/src/domain/entities)
-    --value                 Enum values (comma-separated)
-
-NEW COMMAND:
-  zfa entity new [options]
-  Options:
-    -n, --name              Entity name (required)
-    -o, --output            Output base directory (default: lib/src/domain/entities)
-    --json                  Enable JSON (default: true)
-    --filter                Enable type-safe filters (default: false)
-
- ADD-FIELD COMMAND:
-   zfa entity add-field [options]
-   Options:
-     -n, --name              Entity name (required)
-     -o, --output            Output base directory (default: lib/src/domain/entities)
-     --field                 Add one or more fields ("name:type" or "name:type?")
-
- GLOBAL OPTIONS:
-   --build                  Run build_runner after generation (auto if buildByDefault=true)
-   --dart-format            Run dart format after generation (auto if formatByDefault=true)
-
- FROM-JSON COMMAND:
-  zfa entity from-json <file.json> [options]
-  Options:
-    --name                  Entity name (inferred from file if not provided)
-    -o, --output            Output base directory (default: lib/src/domain/entities)
-    --json                  Enable JSON serialization (default: true)
-    --prefix-nested         Prefix nested entities with parent name (default: true)
-
-LIST COMMAND:
-  zfa entity list [options]
-  Options:
-    -o, --output            Directory to search (default: lib/src/domain/entities)
+    --sealed                Create sealed class
+    --non-sealed            Create non-sealed class
+    --field                 Add field(s) "name:type"
+    --extends               Interface to extend
+    --subtypes              Explicit subtypes
+    --generate-subs         Generate subtype files
 
 EXAMPLES:
-  # Interactive entity creation
-  zfa entity create -n User
-
-  # Create with fields (basic types)
-  zfa entity create -n User --field name:String --field age:int --field email:String?
-
-  # Create with type-safe filters enabled
+  zfa entity create -n User --field id:String --field name:String
   zfa entity create -n Product --field name:String --field price:double --filter
-
-  # Create with multiple fields and generic types
-  zfa entity create -n Order --field "customer:Customer,status:OrderStatus,items:List<OrderItem>,data:Map<String, dynamic>"
-
-  # Create enum
-  zfa entity enum -n OrderStatus --value pending,processing,shipped,delivered
-
-  # Create nested entity
-  zfa entity create -n Address --field street:String --field city:String --field zipCode:String
-
-  # Quick create simple entity
-  zfa entity new -n Product
-
-  # Add field to existing entity
-  zfa entity add-field -n User --field phone:String?
-
-  # Create from JSON
-  zfa entity from-json user_data.json
-
-  # List entities
+  zfa entity enum -n Status --value pending,active,completed
+  zfa entity add-field -n User --field email:String?
   zfa entity list
-
-FIELD TYPES:
-  Basic types: String, int, double, bool, num, DateTime
-  Nullable types: Add ? after type (e.g., String?, int?)
-  Generic types: List<Type>, Set<Type>, Map<KeyType, ValueType>
-  Custom types: Any other class name
-  Zorphy Objects: TypeName (e.g., User, Address). Automatically detected and prefixed.
-  Enums: TypeName (will be imported from enums/index.dart)
-
-BULK OPERATION:
-  Multiple fields can be added in a single --field flag using commas:
-  --field "id:String,name:String,data:Map<String, dynamic>"
-  (Commas inside Map or List generics are safely handled)
-
-  Examples:
-    name:String              → String field
-    age:int?                 → Nullable int field
-    tags:List<String>        → List of strings
-    order:Order              → Order entity (auto-prefixed with \$)
-    status:OrderStatus       → OrderStatus enum
-    metadata:Map<String, dynamic> → Map field (internal commas handled)
-
-  Note: \$ and \$\$ prefixes are now handled automatically by the CLI.
-  You can still use them manually if you prefer.
 
 For more information, visit: https://github.com/arrrrny/zorphy
 ''');

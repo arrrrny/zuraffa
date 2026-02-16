@@ -2,7 +2,24 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:zuraffa/src/version.dart' as zfa show version;
+/// Version loaded lazily to avoid heavy imports at startup
+String? _version;
+
+/// Get version lazily
+Future<String> _getVersion() async {
+  if (_version != null) return _version!;
+  final versionFile = File('lib/src/version.dart');
+  if (await versionFile.exists()) {
+    final content = await versionFile.readAsString();
+    final match = RegExp(
+      "version\\s*=\\s*['\"]([^'\"]+)['\"]",
+    ).firstMatch(content);
+    _version = match?.group(1) ?? '0.0.0';
+  } else {
+    _version = '0.0.0';
+  }
+  return _version!;
+}
 
 /// MCP Server for Zuraffa CLI
 ///
@@ -73,12 +90,11 @@ class ZuraffaMcpServer {
 
   /// Process stdin messages from the provided stream
   Future<void> _processStream(Stream<String> stream) async {
-    final completer = Completer<void>();
-
-    // Use subscription instead of await-for to prevent early exit
-    stream.listen(
-      (line) async {
-        if (line.isEmpty) return;
+    // Process messages sequentially using await for
+    // This prevents concurrent writes to stdout
+    try {
+      await for (final line in stream) {
+        if (line.isEmpty) continue;
 
         try {
           final request = jsonDecode(line) as Map<String, dynamic>;
@@ -86,6 +102,7 @@ class ZuraffaMcpServer {
           // Only send response if it's not a notification (notifications have id == null)
           if (response != null) {
             stdout.writeln(jsonEncode(response));
+            await stdout.flush();
           }
         } catch (e, stackTrace) {
           stderr.writeln('Error processing request: $e\n$stackTrace');
@@ -98,22 +115,17 @@ class ZuraffaMcpServer {
             'id': null,
           };
           stdout.writeln(jsonEncode(errorResponse));
+          await stdout.flush();
         }
-      },
-      onError: (e) {
-        stderr.writeln('Stream error: $e');
-        // Don't complete - keep listening
-      },
-      onDone: () {
-        // Stdin closed - but don't log anything to avoid confusing Zed
-        // Just keep the process alive silently
-        // Don't complete the completer - process stays alive forever
-      },
-      cancelOnError: false,
-    );
+      }
+    } catch (e) {
+      stderr.writeln('Stream error: $e');
+    }
 
-    // Wait forever - never complete this future
-    await completer.future;
+    // Keep alive after stdin closes (shouldn't happen in normal MCP usage)
+    stderr.writeln('Stdin closed, keeping process alive');
+    final keepAlive = Completer<void>();
+    await keepAlive.future;
   }
 
   /// Handle incoming JSON-RPC requests
@@ -125,7 +137,7 @@ class ZuraffaMcpServer {
 
     switch (method) {
       case 'initialize':
-        return _initialize(id);
+        return await _initialize(id);
       case 'tools/list':
         return _listTools(id);
       case 'tools/call':
@@ -155,7 +167,8 @@ class ZuraffaMcpServer {
   }
 
   /// Handle initialize request
-  Map<String, dynamic> _initialize(dynamic id) {
+  Future<Map<String, dynamic>> _initialize(dynamic id) async {
+    final version = await _getVersion();
     return {
       'jsonrpc': '2.0',
       'result': {
@@ -164,7 +177,7 @@ class ZuraffaMcpServer {
           'tools': {'listChanged': true},
           'resources': {'subscribe': true, 'listChanged': true},
         },
-        'serverInfo': {'name': 'zfa-mcp-server', 'version': zfa.version},
+        'serverInfo': {'name': 'zfa-mcp-server', 'version': version},
       },
       'id': id,
     };
@@ -184,6 +197,7 @@ class ZuraffaMcpServer {
           _entityAddFieldToolDefinition(),
           _entityFromJsonToolDefinition(),
           _entityListToolDefinition(),
+          _buildToolDefinition(),
           _configInitToolDefinition(),
           _configShowToolDefinition(),
           _configSetToolDefinition(),
@@ -202,16 +216,43 @@ class ZuraffaMcpServer {
   /// Generate tool definition
   Map<String, dynamic> _generateToolDefinition() {
     return {
-      'name': 'generate',
-      'description':
-          'Generate Clean Architecture code for Flutter projects including UseCases, Repositories, Views, Presenters, Controllers, State objects, and Data layers. Use --state with --vpc for automatic state management, or --vpc alone for custom controller implementation.',
+      'name': 'zuraffa_generate',
+      'description': '''Generate Clean Architecture code. TWO MODES:
+
+## MODE 1: Entity-Based (with methods)
+When "methods" is provided, generates CRUD UseCases for an ENTITY.
+
+Example: name="Category", methods=["get","getList"]
+Generates:
+- GetCategoryUseCase, GetCategoryListUseCase
+- CategoryRepository interface
+- With vpc=true: CategoryView, CategoryPresenter, CategoryController
+
+⚠️ Use the ENTITY NAME (Category), not UseCase name (GetCategory).
+
+## MODE 2: Custom UseCase (without methods)
+When "methods" is NOT provided, generates a standalone CUSTOM USECASE.
+
+Example: name="SearchProducts", domain="products", repo="Product", params="SearchQuery", returns="List<Product>"
+Generates:
+- SearchProductsUseCase (single UseCase in domain/products/usecases/)
+- Injects ProductRepository
+
+⚠️ For custom UseCases, "domain" is REQUIRED to specify the folder location.
+
+Common patterns:
+- Entity CRUD: name="Product", methods=["get","getList","create","update","delete"], vpc=true, state=true, data=true
+- Custom UseCase: name="ProcessPayment", domain="payment", repo="Payment", params="PaymentRequest", returns="PaymentResult"
+- Orchestrator: name="Checkout", domain="checkout", usecases=["ValidateCart","ProcessPayment","CreateOrder"]
+
+TIP: Use dry_run=true to preview files.''',
       'inputSchema': {
         'type': 'object',
         'properties': {
           'name': {
             'type': 'string',
             'description':
-                'Entity or UseCase name in PascalCase (e.g., Product, ProcessOrder)',
+                'ENTITY name (with methods) OR UseCase name (without methods). PascalCase.',
           },
           'methods': {
             'type': 'array',
@@ -227,17 +268,19 @@ class ZuraffaMcpServer {
                 'watchList',
               ],
             },
-            'description': 'Methods to generate for entity-based UseCases',
+            'description':
+                'If provided: generates entity CRUD UseCases. If NOT provided: generates single custom UseCase.',
           },
           'vpc': {
             'type': 'boolean',
             'description':
-                'Generate View, Presenter, and Controller (presentation layer)',
+                'Generate View + Presenter + Controller (presentation layer). Use with state=true for full MVVM.',
           },
+
           'pc': {
             'type': 'boolean',
             'description':
-                'Generate Presenter and Controller only (preserve custom View)',
+                'Generate Presenter + Controller only (preserve custom View)',
           },
           'pcs': {
             'type': 'boolean',
@@ -247,7 +290,7 @@ class ZuraffaMcpServer {
           'state': {
             'type': 'boolean',
             'description':
-                'Generate State object with granular loading states (isGetting, isCreating, etc.). When enabled with --vpc, the Controller will use StatefulController mixin and automatically update state. When disabled, Controller methods are generated with empty handlers for custom implementation.',
+                'Generate State class with loading flags (isGetting, isCreating, etc.). Recommended with vpc=true.',
           },
           'data': {
             'type': 'boolean',
@@ -433,7 +476,7 @@ class ZuraffaMcpServer {
   /// Schema tool definition
   Map<String, dynamic> _schemaToolDefinition() {
     return {
-      'name': 'schema',
+      'name': 'zuraffa_schema',
       'description':
           'Get the JSON schema for ZFA configuration validation. Useful for AI agents to validate configs before generation.',
       'inputSchema': {'type': 'object', 'properties': {}},
@@ -443,7 +486,7 @@ class ZuraffaMcpServer {
   /// Validate tool definition
   Map<String, dynamic> _validateToolDefinition() {
     return {
-      'name': 'validate',
+      'name': 'zuraffa_validate',
       'description':
           'Validate a JSON configuration file against the ZFA schema',
       'inputSchema': {
@@ -465,65 +508,73 @@ class ZuraffaMcpServer {
     Map<String, dynamic> params,
   ) async {
     final toolName = params['name'] as String;
-    final args = params['arguments'] as Map<String, dynamic>? ?? {};
+    final rawArgs = params['arguments'];
+    final args = rawArgs == null
+        ? <String, dynamic>{}
+        : (rawArgs is Map<String, dynamic>
+              ? rawArgs
+              : Map<String, dynamic>.from(rawArgs as Map));
 
     try {
       String result;
 
       switch (toolName) {
-        case 'generate':
+        case 'zuraffa_generate':
           result = await _runGenerateCommand(args);
           break;
-        case 'schema':
+        case 'zuraffa_schema':
           result = await _runSchemaCommand();
           break;
-        case 'validate':
+        case 'zuraffa_validate':
           result = await _runValidateCommand(args);
           break;
-        case 'entity_create':
+        case 'zuraffa_entity_create':
           result = await _runEntityCreateCommand(args);
           break;
-        case 'entity_enum':
+        case 'zuraffa_entity_enum':
           result = await _runEntityEnumCommand(args);
           break;
-        case 'entity_add_field':
+        case 'zuraffa_entity_add_field':
           result = await _runEntityAddFieldCommand(args);
           break;
-        case 'entity_from_json':
+        case 'zuraffa_entity_from_json':
           result = await _runEntityFromJsonCommand(args);
           break;
-        case 'entity_list':
+        case 'zuraffa_entity_list':
           result = await _runEntityListCommand(args);
           break;
-        case 'config_init':
+        case 'zuraffa_config_init':
           result = await _runConfigCommand(['init', ...?_configArgs(args)]);
           break;
-        case 'config_show':
+        case 'zuraffa_config_show':
           result = await _runConfigCommand(['show']);
           break;
-        case 'config_set':
+        case 'zuraffa_config_set':
           result = await _runConfigCommand([
             'set',
             args['key'] as String,
             args['value'].toString(),
           ]);
           break;
-        case 'graphql':
+        case 'zuraffa_graphql':
           result = await _runGraphqlCommand(args);
           break;
-        case 'doctor':
-          result = await _runDoctorCommand();
+        case 'zuraffa_build':
+          result = await _runBuildCommand();
           break;
-        case 'view':
+        case 'zuraffa_doctor':
+          result = await _runDoctorCommand(args);
+          break;
+        case 'zuraffa_view':
           result = await _runViewCommand(args);
           break;
-        case 'test':
+        case 'zuraffa_test':
           result = await _runTestCommand(args);
           break;
-        case 'di':
+        case 'zuraffa_di':
           result = await _runDiCommand(args);
           break;
-        case 'route':
+        case 'zuraffa_route':
           result = await _runRouteCommand(args);
           break;
         default:
@@ -559,7 +610,12 @@ class ZuraffaMcpServer {
 
   /// Run entity create command
   Future<String> _runEntityCreateCommand(Map<String, dynamic> args) async {
-    final List<String> cliArgs = ['entity', 'create', '--name=${args["name"]}'];
+    final List<String> cliArgs = [
+      'entity',
+      'create',
+      '--name=${args["name"]}',
+      '--yes',
+    ];
 
     if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
     if (args['json'] == true) cliArgs.add('--json');
@@ -652,7 +708,7 @@ class ZuraffaMcpServer {
   /// Entity Create tool definition
   Map<String, dynamic> _entityCreateToolDefinition() {
     return {
-      'name': 'entity_create',
+      'name': 'zuraffa_entity_create',
       'description':
           'Create a new Zorphy entity with fields. Supports JSON serialization, sealed classes, inheritance, and all Zorphy features.',
       'inputSchema': {
@@ -702,7 +758,7 @@ class ZuraffaMcpServer {
   /// Entity Enum tool definition
   Map<String, dynamic> _entityEnumToolDefinition() {
     return {
-      'name': 'entity_enum',
+      'name': 'zuraffa_entity_enum',
       'description': 'Create a new enum in the entities/enums directory',
       'inputSchema': {
         'type': 'object',
@@ -723,7 +779,7 @@ class ZuraffaMcpServer {
   /// Entity Add-Field tool definition
   Map<String, dynamic> _entityAddFieldToolDefinition() {
     return {
-      'name': 'entity_add_field',
+      'name': 'zuraffa_entity_add_field',
       'description': 'Add field(s) to an existing Zorphy entity',
       'inputSchema': {
         'type': 'object',
@@ -744,7 +800,7 @@ class ZuraffaMcpServer {
   /// Entity From-JSON tool definition
   Map<String, dynamic> _entityFromJsonToolDefinition() {
     return {
-      'name': 'entity_from_json',
+      'name': 'zuraffa_entity_from_json',
       'description': 'Create Zorphy entity/ies from a JSON file',
       'inputSchema': {
         'type': 'object',
@@ -769,7 +825,7 @@ class ZuraffaMcpServer {
   /// Entity List tool definition
   Map<String, dynamic> _entityListToolDefinition() {
     return {
-      'name': 'entity_list',
+      'name': 'zuraffa_entity_list',
       'description': 'List all Zorphy entities and enums',
       'inputSchema': {
         'type': 'object',
@@ -780,10 +836,32 @@ class ZuraffaMcpServer {
     };
   }
 
+  /// Build tool definition
+  Map<String, dynamic> _buildToolDefinition() {
+    return {
+      'name': 'zuraffa_build',
+      'description': '''Run build_runner to generate code from annotations.
+
+CALL THIS AFTER:
+- Creating/modifying entities with zuraffa_entity_create
+- When you see .g.dart files are missing
+- After adding new Zorphy annotations
+
+This runs "dart run build_runner build --delete-conflicting-outputs".
+May take 30-60 seconds depending on project size.''',
+      'inputSchema': {'type': 'object', 'properties': {}},
+    };
+  }
+
+  /// Run build command
+  Future<String> _runBuildCommand() async {
+    return await _runZuraffaProcess(['build']);
+  }
+
   /// Config Init tool definition
   Map<String, dynamic> _configInitToolDefinition() {
     return {
-      'name': 'config_init',
+      'name': 'zuraffa_config_init',
       'description':
           'Initialize ZFA configuration file (.zfa.json) with default settings for entity generation, GraphQL, caching, and more.',
       'inputSchema': {
@@ -802,7 +880,7 @@ class ZuraffaMcpServer {
   /// Config Show tool definition
   Map<String, dynamic> _configShowToolDefinition() {
     return {
-      'name': 'config_show',
+      'name': 'zuraffa_config_show',
       'description': 'Show current ZFA configuration settings from .zfa.json',
       'inputSchema': {'type': 'object', 'properties': {}},
     };
@@ -811,7 +889,7 @@ class ZuraffaMcpServer {
   /// Config Set tool definition
   Map<String, dynamic> _configSetToolDefinition() {
     return {
-      'name': 'config_set',
+      'name': 'zuraffa_config_set',
       'description':
           'Update a ZFA configuration value in .zfa.json. Valid keys: zorphyByDefault, jsonByDefault, compareByDefault, filterByDefault, defaultEntityOutput, gqlByDefault, buildByDefault, appendByDefault, routeByDefault, diByDefault.',
       'inputSchema': {
@@ -845,7 +923,7 @@ class ZuraffaMcpServer {
   /// GraphQL tool definition
   Map<String, dynamic> _graphqlToolDefinition() {
     return {
-      'name': 'graphql',
+      'name': 'zuraffa_graphql',
       'description':
           'Introspect a GraphQL schema and generate Zorphy entities, enums, and UseCases. Can generate complete Clean Architecture layers from a GraphQL endpoint.',
       'inputSchema': {
@@ -1100,21 +1178,158 @@ class ZuraffaMcpServer {
   /// Doctor tool definition
   Map<String, dynamic> _doctorToolDefinition() {
     return {
-      'name': 'doctor',
-      'description': 'Show information about the installed tooling',
-      'inputSchema': {'type': 'object', 'properties': {}},
+      'name': 'zuraffa_doctor',
+      'description': '''Show information about installed tooling.
+
+MODES:
+- quick (default): Fast check - Dart/Flutter versions, zuraffa in pubspec
+- full: Complete check - dependencies, zorphy CLI, dead code analysis
+
+Use quick for fast diagnostics, full for troubleshooting.''',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'mode': {
+            'type': 'string',
+            'enum': ['quick', 'full'],
+            'description':
+                'quick (default) - fast check, full - complete analysis',
+          },
+        },
+      },
     };
   }
 
   /// Run doctor command
-  Future<String> _runDoctorCommand() async {
-    return await _runZuraffaProcess(['doctor']);
+  Future<String> _runDoctorCommand(Map<String, dynamic> args) async {
+    final mode = args['mode']?.toString() ?? 'quick';
+
+    if (mode == 'quick') {
+      return await _runQuickDoctor();
+    } else {
+      return await _runZuraffaProcess(['doctor']);
+    }
+  }
+
+  /// Quick doctor - fast checks without subprocess
+  Future<String> _runQuickDoctor() async {
+    final output = StringBuffer();
+    output.writeln('Zuraffa Doctor (quick mode)');
+    output.writeln('');
+
+    // Check Dart version
+    try {
+      final result = await Process.run('dart', ['--version']);
+      final dartVersion = result.stderr.toString().trim();
+      if (dartVersion.isNotEmpty) {
+        output.writeln('Dart: ✅ $dartVersion');
+      }
+    } catch (e) {
+      output.writeln('Dart: ❌ Not found');
+    }
+
+    // Check Flutter version
+    try {
+      final result = await Process.run('flutter', ['--version']);
+      final flutterVersion = result.stderr.toString().split('\n').first.trim();
+      if (flutterVersion.isNotEmpty) {
+        output.writeln('Flutter: ✅ $flutterVersion');
+      }
+    } catch (e) {
+      output.writeln('Flutter: ❌ Not found');
+    }
+
+    // Check pubspec.yaml
+    final pubspecFile = File('${Directory.current.path}/pubspec.yaml');
+    if (!await pubspecFile.exists()) {
+      output.writeln('');
+      output.writeln('Project: ❌ No pubspec.yaml in current directory');
+      output.writeln('   Make sure you are in a Flutter/Dart project root.');
+      return output.toString();
+    }
+
+    output.writeln('');
+    output.writeln('Project: ✅ pubspec.yaml found');
+
+    // Check zuraffa dependency
+    try {
+      final pubspecContent = await pubspecFile.readAsString();
+      final zuraffaMatch = RegExp(
+        r'zuraffa:\s*(.+)',
+      ).firstMatch(pubspecContent);
+      if (zuraffaMatch != null) {
+        output.writeln(
+          '  zuraffa: ✅ ${zuraffaMatch.group(1)?.trim() ?? "installed"}',
+        );
+      } else {
+        output.writeln('  zuraffa: ❌ Not in dependencies');
+        output.writeln('     Run: dart pub add zuraffa');
+      }
+
+      // Check zorphy_annotation
+      final zorphyMatch = RegExp(
+        r'zorphy_annotation:\s*(.+)',
+      ).firstMatch(pubspecContent);
+      if (zorphyMatch != null) {
+        output.writeln(
+          '  zorphy_annotation: ✅ ${zorphyMatch.group(1)?.trim() ?? "installed"}',
+        );
+      } else {
+        output.writeln(
+          '  zorphy_annotation: ⚠️  Not found (optional for entities)',
+        );
+      }
+
+      // Check build_runner
+      if (pubspecContent.contains('build_runner:')) {
+        output.writeln('  build_runner: ✅ installed');
+      } else {
+        output.writeln('  build_runner: ⚠️  Not found (optional for code gen)');
+      }
+    } catch (e) {
+      output.writeln('  Error reading pubspec: $e');
+    }
+
+    // Check for zfa CLI globally
+    try {
+      final result = await Process.run('which', ['zfa']);
+      if (result.exitCode == 0) {
+        output.writeln('');
+        output.writeln('zfa CLI: ✅ Globally installed');
+      } else {
+        output.writeln('');
+        output.writeln('zfa CLI: ℹ️  Not installed globally (optional)');
+        output.writeln('     Install: dart pub global activate zuraffa');
+      }
+    } catch (e) {
+      output.writeln('');
+      output.writeln('zfa CLI: ℹ️  Not installed globally (optional)');
+    }
+
+    // Check .zfa.json config
+    final configFile = File('${Directory.current.path}/.zfa.json');
+    if (await configFile.exists()) {
+      output.writeln('');
+      output.writeln('Config: ✅ .zfa.json found');
+    } else {
+      output.writeln('');
+      output.writeln(
+        'Config: ℹ️  No .zfa.json (use zfa config init to create)',
+      );
+    }
+
+    output.writeln('');
+    output.writeln(
+      '💡 Run zuraffa_doctor with mode=full for complete diagnostics',
+    );
+
+    return output.toString();
   }
 
   /// View tool definition
   Map<String, dynamic> _viewToolDefinition() {
     return {
-      'name': 'view',
+      'name': 'zuraffa_view',
       'description': 'Generate view class for an entity',
       'inputSchema': {
         'type': 'object',
@@ -1155,7 +1370,7 @@ class ZuraffaMcpServer {
   /// Test tool definition
   Map<String, dynamic> _testToolDefinition() {
     return {
-      'name': 'test',
+      'name': 'zuraffa_test',
       'description': 'Generate Unit Tests for an entity',
       'inputSchema': {
         'type': 'object',
@@ -1187,7 +1402,7 @@ class ZuraffaMcpServer {
   /// DI tool definition
   Map<String, dynamic> _diToolDefinition() {
     return {
-      'name': 'di',
+      'name': 'zuraffa_di',
       'description': 'Generate dependency injection for a UseCase',
       'inputSchema': {
         'type': 'object',
@@ -1216,7 +1431,7 @@ class ZuraffaMcpServer {
   /// Route tool definition
   Map<String, dynamic> _routeToolDefinition() {
     return {
-      'name': 'route',
+      'name': 'zuraffa_route',
       'description': 'Generate route definitions for an entity',
       'inputSchema': {
         'type': 'object',
@@ -1243,40 +1458,90 @@ class ZuraffaMcpServer {
     return await _runZuraffaProcess(cliArgs);
   }
 
-  /// Execute zfa CLI process
+  /// Cached path to the zfa executable (resolved once, reused)
+  String? _cachedExecutable;
+  bool _cachedIsDartRun = false;
+
+  /// Execute zfa CLI process by spawning a subprocess
+  /// This avoids importing the heavy zuraffa package which causes slow JIT startup
   Future<String> _runZuraffaProcess(List<String> args) async {
-    // Find the Dart executable
-    final dartExecutable = Platform.executable;
-
-    // Check if we're running from the package or need to call it globally
-    // Try to use 'dart run' with the package first
-    final process = await Process.run(
-      dartExecutable,
-      ['run', 'zuraffa:zfa', ...args],
-      environment: {...Platform.environment},
-      workingDirectory: Directory.current.path,
-    );
-
-    final stdoutStr = process.stdout as String;
-    final stderrStr = process.stderr as String;
-
-    if (process.exitCode != 0) {
-      throw ProcessException(
-        'zfa',
-        args,
-        stderrStr.isNotEmpty ? stderrStr : stdoutStr,
-        process.exitCode,
-      );
-    }
-
-    // If the output looks like JSON, pretty-print it for readability
     try {
-      final json = jsonDecode(stdoutStr) as Map<String, dynamic>;
-      return jsonEncode(json);
-    } catch (_) {
-      // Not JSON, return as-is
-      return stdoutStr;
+      // Resolve executable once and cache it
+      if (_cachedExecutable == null) {
+        await _resolveExecutable();
+      }
+
+      final executableArgs = _cachedIsDartRun
+          ? ['run', 'zuraffa:zuraffa', ...args]
+          : args;
+
+      final result = await Process.run(
+        _cachedExecutable!,
+        executableArgs,
+        workingDirectory: Directory.current.path,
+        environment: Platform.environment,
+      );
+
+      final output = result.stdout.toString();
+      final error = result.stderr.toString();
+
+      if (result.exitCode != 0) {
+        return 'Error (exit ${result.exitCode}): ${error.isNotEmpty ? error : output}';
+      }
+
+      return output.isNotEmpty ? output : 'Success';
+    } catch (e, stack) {
+      stderr.writeln('Process error: $e\n$stack');
+      return 'Error: $e';
     }
+  }
+
+  /// Resolve the zfa executable path once
+  Future<void> _resolveExecutable() async {
+    // 1. Check for compiled binary next to this MCP server (Zed extension scenario)
+    final selfPath = Platform.resolvedExecutable;
+    final selfDir = File(selfPath).parent.path;
+    for (final name in ['zfa', 'zuraffa', 'zuraffa_mcp_server']) {
+      final candidate = File('$selfDir/$name');
+      if (await candidate.exists()) {
+        // Don't use ourselves as the CLI
+        if (candidate.resolveSymbolicLinksSync() != selfPath) {
+          _cachedExecutable = candidate.path;
+          return;
+        }
+      }
+    }
+
+    // 2. Check for zfa in PATH (global install)
+    final whichResult = await Process.run('which', ['zfa']);
+    if (whichResult.exitCode == 0) {
+      _cachedExecutable = 'zfa';
+      return;
+    }
+
+    // 3. Check for compiled zuraffa in current directory
+    final currentDir = Directory.current.path;
+    final localExe = File('$currentDir/zuraffa');
+    if (await localExe.exists()) {
+      _cachedExecutable = localExe.path;
+      return;
+    }
+
+    // 4. Fall back to dart run (requires zuraffa in pubspec)
+    final pubspecFile = File('${Directory.current.path}/pubspec.yaml');
+    if (!await pubspecFile.exists()) {
+      _cachedExecutable = 'echo';
+      return;
+    }
+
+    final pubspecContent = await pubspecFile.readAsString();
+    if (!pubspecContent.contains('zuraffa:')) {
+      _cachedExecutable = 'echo';
+      return;
+    }
+
+    _cachedExecutable = 'dart';
+    _cachedIsDartRun = true;
   }
 
   /// Create a success response

@@ -493,7 +493,7 @@ class CodeGenerator {
           final cacheFiles = await _cachePlugin.generate(config);
           files.addAll(cacheFiles);
           currentPluginId = null;
-          nextSteps.add('Run: dart run build_runner build');
+          nextSteps.add('Run: zfa build');
           nextSteps.add('Call initAllCaches() before DI setup');
         }
 

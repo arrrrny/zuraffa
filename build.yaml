@@ -3,6 +3,8 @@ targets:
     sources:
       exclude:
         - example/**
+        - benchmark/**
+        - test/fixtures/**
     builders:
       zorphy:zorphy:
         enabled: true
@@ -28,5 +30,3 @@ targets:
         enabled: false
       source_gen:combining_builder:
         enabled: true
-      mockito:mockBuilder:
-        enabled: false

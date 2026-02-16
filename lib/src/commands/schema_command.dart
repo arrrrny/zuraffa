@@ -1,7 +1,15 @@
 import 'dart:convert';
+import 'package:args/command_runner.dart';
 
-class SchemaCommand {
-  void execute() {
+class SchemaCommand extends Command<void> {
+  @override
+  String get name => 'schema';
+
+  @override
+  String get description => 'Output JSON schema for configuration';
+
+  @override
+  void run() {
     final schema = {
       '\$schema': 'http://json-schema.org/draft-07/schema#',
       'title': 'ZFA Generator Configuration',

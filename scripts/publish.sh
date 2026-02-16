@@ -8,9 +8,14 @@ set -e
 
 VERSION="$1"
 PROMOTE_MODE=false
+SKIP_CHANGELOG_UPDATE=false
 
-# Check if we should promote [Unreleased]
-if [ $# -eq 1 ]; then
+# Check if version already exists in CHANGELOG
+if grep -q "^## \[$VERSION\]" CHANGELOG.md; then
+    echo "📋 Version $VERSION already exists in CHANGELOG.md, skipping changelog update..."
+    SKIP_CHANGELOG_UPDATE=true
+    DESCRIPTION="Release $VERSION"
+elif [ $# -eq 1 ]; then
     if grep -q "^## \[Unreleased\]" CHANGELOG.md; then
         echo "✨ Detected [Unreleased] section. Promoting to version $VERSION..."
         PROMOTE_MODE=true
@@ -102,58 +107,46 @@ fi
 echo "  ✓ Example version updated"
 
 # Step 2: Update CHANGELOG.md
-echo "📝 Updating CHANGELOG.md..."
-
-# Check if [Unreleased] section exists, if not add it
-if ! grep -q "^## \[Unreleased\]" CHANGELOG.md; then
-    echo "  ⚠️  No [Unreleased] section found, adding it..."
-    # Insert ## [Unreleased] at the top of the file
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' "1s/^/## [Unreleased]\\n\\n/" CHANGELOG.md
-    else
-        sed -i "1s/^/## [Unreleased]\n\n/" CHANGELOG.md
-    fi
-fi
-
-if [ "$PROMOTE_MODE" = true ]; then
-    # Replace [Unreleased] with version and date
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' "s/^## \[Unreleased\]/## [$VERSION] - $DATE/" CHANGELOG.md
-    else
-        sed -i "s/^## \[Unreleased\]/## [$VERSION] - $DATE/" CHANGELOG.md
-    fi
-    
-    # We still need a description for the commit/PR/Tag messages later
-    # Extract description from the changelog section we just promoted?
-    # Or just use "Release $VERSION" as default since users didn't provide it?
-    DESCRIPTION="Release $VERSION"
+if [ "$SKIP_CHANGELOG_UPDATE" = true ]; then
+    echo "📝 Skipping CHANGELOG.md update (version already exists)..."
 else
-    # Insert new version after [Unreleased]
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS sed syntax
-        sed -i '' "/^## \[Unreleased\]/a\\
-\\
-## [$VERSION] - $DATE\\
-\\
-### $TYPE_CAPITALIZED\\
-- $DESCRIPTION
-" CHANGELOG.md
+    echo "📝 Updating CHANGELOG.md..."
+
+    # Check if [Unreleased] section exists for promote mode
+    if [ "$PROMOTE_MODE" = true ]; then
+        if ! grep -q "^## \[Unreleased\]" CHANGELOG.md; then
+            echo "❌ [Unreleased] section not found in CHANGELOG.md for promote mode."
+            exit 1
+        fi
+        # Replace [Unreleased] with version and date
+        awk -v version="$VERSION" -v date="$DATE" '
+        /^## \[Unreleased\]/ { print "## [" version "] - " date; next }
+        { print }
+        ' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
+        DESCRIPTION="Release $VERSION"
     else
-        # Linux sed syntax
-        sed -i "/^## \[Unreleased\]/a\\
-\\
-## [$VERSION] - $DATE\\
-\\
-### $TYPE_CAPITALIZED\\
-- $DESCRIPTION
-" CHANGELOG.md
+        # Insert new version at the top of the file
+        awk -v version="$VERSION" -v date="$DATE" -v type="$TYPE_CAPITALIZED" -v desc="$DESCRIPTION" '
+        BEGIN {
+            print "## [" version "] - " date
+            print ""
+            print "### " type
+            print "- " desc
+            print ""
+        }
+        { print }
+        ' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
     fi
+    echo "  ✓ CHANGELOG.md updated"
 fi
-echo "  ✓ CHANGELOG.md updated"
 
 # Step 3: Commit changes
 echo "🔨 Committing changes..."
-git add pubspec.yaml CHANGELOG.md lib/src/zfa_cli.dart example/pubspec.yaml zed-extension/extension.toml zed-extension/src/lib.rs
+if [ "$SKIP_CHANGELOG_UPDATE" = true ]; then
+    git add pubspec.yaml lib/src/zfa_cli.dart example/pubspec.yaml
+else
+    git add pubspec.yaml CHANGELOG.md lib/src/zfa_cli.dart example/pubspec.yaml
+fi
 git commit -m "chore: release $VERSION"
 echo "  ✓ Changes committed"
 
@@ -161,6 +154,10 @@ echo "  ✓ Changes committed"
 if command -v gh &> /dev/null; then
     echo "🔄 Creating pull request to master..."
     CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+    CHANGES_LIST="- Bump version to $VERSION"
+    if [ "$SKIP_CHANGELOG_UPDATE" = false ]; then
+        CHANGES_LIST="$CHANGES_LIST\n- Update CHANGELOG.md"
+    fi
     PR_BODY="Release $VERSION
 
 **Description:** $DESCRIPTION
@@ -168,8 +165,7 @@ if command -v gh &> /dev/null; then
 **Date:** $DATE
 
 **Changes:**
-- Bump version to $VERSION
-- Update CHANGELOG.md
+$CHANGES_LIST
 
 Please review and merge this PR to master before proceeding with the release tag and publication."
 
@@ -197,24 +193,36 @@ echo "🧪 Running tests..."
 flutter test
 echo "  ✓ Tests passed"
 
-# Step 7: Build MCP server binaries
-echo "🔧 Building MCP server binaries..."
+# Step 7: Build MCP server and CLI binaries
+echo "🔧 Building MCP server and CLI binaries..."
 OUTPUT_DIR="build/mcp_binaries"
 mkdir -p "$OUTPUT_DIR"
 
-echo "  Building for macOS ARM64..."
+echo "  Building MCP server for macOS ARM64..."
 dart compile exe bin/zuraffa_mcp_server.dart -o "$OUTPUT_DIR/zuraffa_mcp_server-macos-arm64"
 
-echo "  Building for macOS x64..."
+echo "  Building MCP server for macOS x64..."
 dart compile exe bin/zuraffa_mcp_server.dart -o "$OUTPUT_DIR/zuraffa_mcp_server-macos-x64"
 
-echo "  Building for Linux x64..."
+echo "  Building MCP server for Linux x64..."
 dart compile exe bin/zuraffa_mcp_server.dart -o "$OUTPUT_DIR/zuraffa_mcp_server-linux-x64"
 
-echo "  Building for Windows x64..."
+echo "  Building MCP server for Windows x64..."
 dart compile exe bin/zuraffa_mcp_server.dart -o "$OUTPUT_DIR/zuraffa_mcp_server-windows-x64.exe"
 
-echo "  ✓ MCP binaries built"
+echo "  Building CLI for macOS ARM64..."
+dart compile exe bin/zfa.dart -o "$OUTPUT_DIR/zfa-macos-arm64"
+
+echo "  Building CLI for macOS x64..."
+dart compile exe bin/zfa.dart -o "$OUTPUT_DIR/zfa-macos-x64"
+
+echo "  Building CLI for Linux x64..."
+dart compile exe bin/zfa.dart -o "$OUTPUT_DIR/zfa-linux-x64"
+
+echo "  Building CLI for Windows x64..."
+dart compile exe bin/zfa.dart -o "$OUTPUT_DIR/zfa-windows-x64.exe"
+
+echo "  ✓ MCP and CLI binaries built"
 
 # Step 8: Upload binaries to GitHub release
 if command -v gh &> /dev/null; then
@@ -230,7 +238,11 @@ if command -v gh &> /dev/null; then
             "$OUTPUT_DIR/zuraffa_mcp_server-macos-arm64" \
             "$OUTPUT_DIR/zuraffa_mcp_server-macos-x64" \
             "$OUTPUT_DIR/zuraffa_mcp_server-linux-x64" \
-            "$OUTPUT_DIR/zuraffa_mcp_server-windows-x64.exe"
+            "$OUTPUT_DIR/zuraffa_mcp_server-windows-x64.exe" \
+            "$OUTPUT_DIR/zfa-macos-arm64" \
+            "$OUTPUT_DIR/zfa-macos-x64" \
+            "$OUTPUT_DIR/zfa-linux-x64" \
+            "$OUTPUT_DIR/zfa-windows-x64.exe"
     else
         echo "  Uploading to existing release v$VERSION..."
         gh release upload "v$VERSION" \
@@ -238,9 +250,34 @@ if command -v gh &> /dev/null; then
             "$OUTPUT_DIR/zuraffa_mcp_server-macos-x64" \
             "$OUTPUT_DIR/zuraffa_mcp_server-linux-x64" \
             "$OUTPUT_DIR/zuraffa_mcp_server-windows-x64.exe" \
+            "$OUTPUT_DIR/zfa-macos-arm64" \
+            "$OUTPUT_DIR/zfa-macos-x64" \
+            "$OUTPUT_DIR/zfa-linux-x64" \
+            "$OUTPUT_DIR/zfa-windows-x64.exe" \
             --clobber
     fi
     echo "  ✓ Binaries uploaded to GitHub release"
+    
+    # Step 9: Update zuraffa-zed extension version
+    echo "📝 Updating zuraffa-zed extension version..."
+    ZED_EXTENSION_DIR="$HOME/Developer/zuraffa-zed"
+    if [ -d "$ZED_EXTENSION_DIR" ]; then
+        cd "$ZED_EXTENSION_DIR"
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" extension.toml
+            sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
+        else
+            sed -i "s/^version = \".*\"/version = \"$VERSION\"/" extension.toml
+            sed -i "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
+        fi
+        git add extension.toml Cargo.toml
+        git commit -m "chore: update version to $VERSION"
+        git push
+        echo "  ✓ zuraffa-zed version updated and pushed"
+        cd "$PACKAGE_DIR"
+    else
+        echo "  ⚠️  zuraffa-zed directory not found at $ZED_EXTENSION_DIR"
+    fi
 else
     echo "⚠️  GitHub CLI (gh) not found. Skipping release upload."
     echo "   Please upload binaries manually to: https://github.com/arrrrny/zuraffa/releases/tag/v$VERSION"

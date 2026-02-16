@@ -442,7 +442,6 @@ zfa generate Product --methods=get,getList --repository --data --cache --cache-s
 # App restart cache
 zfa generate Product --methods=get,getList --repository --data --cache --cache-policy=restart
 
-# TTL cache (6 hours)
-zfa generate Product --methods=get,getList --repository --data --cache --cache-policy=ttl
+# TTL cache (5 minutes)
+zfa generate Product --methods=get,getList --repository --data --cache --cache-policy=ttl --ttl=5
 ```
-
