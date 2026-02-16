@@ -77,6 +77,11 @@
 ### Change
 - Add Zed extension support with prebuilt MCP binaries
 
+## [3.0.3] - 2026-02-14
+
+### Feat
+- ZED extension is added
+
 ## [3.0.2] - 2026-02-14
 
 ### Fix
