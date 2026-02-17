@@ -1,3 +1,11 @@
+## [3.16.0] - 2026-02-17
+
+### Fix
+- Resolved conflict between `--domain` and entity-based generation in `zfa generate`
+- Fixed `NoParams.toString()` format
+- Added `// TODO` comments to generated usecase templates
+- Added dead code check to `zfa doctor`
+
 ## [3.15.0] - 2026-02-15
 
 ### Change
