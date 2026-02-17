@@ -217,42 +217,36 @@ class ZuraffaMcpServer {
   Map<String, dynamic> _generateToolDefinition() {
     return {
       'name': 'zuraffa_generate',
-      'description': '''Generate Clean Architecture code. TWO MODES:
+      'description': '''Generate Clean Architecture code for an ENTITY.
 
-## MODE 1: Entity-Based (with methods)
-When "methods" is provided, generates CRUD UseCases for an ENTITY.
+⚠️ IMPORTANT: The "name" parameter is the ENTITY NAME, not a UseCase name.
 
-Example: name="Category", methods=["get","getList"]
-Generates:
-- GetCategoryUseCase, GetCategoryListUseCase
-- CategoryRepository interface
-- With vpc=true: CategoryView, CategoryPresenter, CategoryController
+For example, if the entity is "Category", the name should be "Category" (not "GetCategory").
+This will generate:
+- GetCategoryUseCase (get single Category by ID)
+- GetCategoryListUseCase (get all Categories)
+- CreateCategoryUseCase (create a Category)
+- UpdateCategoryUseCase (update a Category)
+- DeleteCategoryUseCase (delete a Category)
 
-⚠️ Use the ENTITY NAME (Category), not UseCase name (GetCategory).
+USE THIS TOOL WHEN:
+- Creating new features for existing entities
+- Building CRUD operations for an entity
+- Setting up MVVM architecture (View/Presenter/Controller)
 
-## MODE 2: Custom UseCase (without methods)
-When "methods" is NOT provided, generates a standalone CUSTOM USECASE.
+COMMON PATTERNS:
+- Full feature: name="Product", methods=["get","getList","create","update","delete"], vpc=true, state=true, data=true
+- Domain only: name="Product", methods=["get","getList"]
+- With caching: name="Product", methods=["get","getList"], data=true, cache=true
 
-Example: name="SearchProducts", domain="products", repo="Product", params="SearchQuery", returns="List<Product>"
-Generates:
-- SearchProductsUseCase (single UseCase in domain/products/usecases/)
-- Injects ProductRepository
-
-⚠️ For custom UseCases, "domain" is REQUIRED to specify the folder location.
-
-Common patterns:
-- Entity CRUD: name="Product", methods=["get","getList","create","update","delete"], vpc=true, state=true, data=true
-- Custom UseCase: name="ProcessPayment", domain="payment", repo="Payment", params="PaymentRequest", returns="PaymentResult"
-- Orchestrator: name="Checkout", domain="checkout", usecases=["ValidateCart","ProcessPayment","CreateOrder"]
-
-TIP: Use dry_run=true to preview files.''',
+TIP: Use dry_run=true to preview generated files before writing.''',
       'inputSchema': {
         'type': 'object',
         'properties': {
           'name': {
             'type': 'string',
             'description':
-                'ENTITY name (with methods) OR UseCase name (without methods). PascalCase.',
+                'ENTITY NAME in PascalCase (e.g., Category, Product, Order). This is NOT a UseCase name. UseCase names are auto-generated from this entity name.',
           },
           'methods': {
             'type': 'array',
@@ -269,14 +263,13 @@ TIP: Use dry_run=true to preview files.''',
               ],
             },
             'description':
-                'If provided: generates entity CRUD UseCases. If NOT provided: generates single custom UseCase.',
+                'CRUD methods to generate. Each method generates a UseCase: get=GetOne, getList=GetAll, create=Insert, update=Modify, delete=Remove, watch=StreamOne, watchList=StreamAll',
           },
           'vpc': {
             'type': 'boolean',
             'description':
                 'Generate View + Presenter + Controller (presentation layer). Use with state=true for full MVVM.',
           },
-
           'pc': {
             'type': 'boolean',
             'description':
@@ -1471,9 +1464,11 @@ Use quick for fast diagnostics, full for troubleshooting.''',
         await _resolveExecutable();
       }
 
-      final executableArgs = _cachedIsDartRun
-          ? ['run', 'zuraffa:zuraffa', ...args]
-          : args;
+      final executableArgs =
+          _cachedIsDartRun ? ['run', 'zuraffa:zuraffa', ...args] : args;
+
+      stderr.writeln('[zfa-exec] Running: $_cachedExecutable ${executableArgs.join(' ')}');
+      final stopwatch = Stopwatch()..start();
 
       final result = await Process.run(
         _cachedExecutable!,
@@ -1481,6 +1476,9 @@ Use quick for fast diagnostics, full for troubleshooting.''',
         workingDirectory: Directory.current.path,
         environment: Platform.environment,
       );
+
+      stopwatch.stop();
+      stderr.writeln('[zfa-exec] Completed in ${stopwatch.elapsedMilliseconds}ms (exit ${result.exitCode})');
 
       final output = result.stdout.toString();
       final error = result.stderr.toString();
@@ -1498,50 +1496,101 @@ Use quick for fast diagnostics, full for troubleshooting.''',
 
   /// Resolve the zfa executable path once
   Future<void> _resolveExecutable() async {
-    // 1. Check for compiled binary next to this MCP server (Zed extension scenario)
     final selfPath = Platform.resolvedExecutable;
     final selfDir = File(selfPath).parent.path;
-    for (final name in ['zfa', 'zuraffa', 'zuraffa_mcp_server']) {
+    stderr.writeln('[zfa-resolve] MCP server at: $selfPath');
+    stderr.writeln('[zfa-resolve] Looking for CLI in: $selfDir');
+
+    // 1. Check for compiled binary next to this MCP server (Zed extension scenario)
+    // Look for exact name first, then platform-specific names (zfa-macos-arm64, etc.)
+    final candidates = ['zfa', 'zuraffa'];
+    // Add platform-specific binary names from Zed extension downloads
+    try {
+      final entries = Directory(selfDir).listSync();
+      for (final entry in entries) {
+        final name = entry.uri.pathSegments.last;
+        if (name.startsWith('zfa-') && entry is File) {
+          candidates.add(name);
+        }
+      }
+    } catch (_) {}
+
+    for (final name in candidates) {
       final candidate = File('$selfDir/$name');
       if (await candidate.exists()) {
         // Don't use ourselves as the CLI
-        if (candidate.resolveSymbolicLinksSync() != selfPath) {
-          _cachedExecutable = candidate.path;
+        try {
+          if (candidate.resolveSymbolicLinksSync() != selfPath) {
+            _cachedExecutable = candidate.path;
+            stderr.writeln('[zfa-resolve] ✓ Found CLI binary: $_cachedExecutable');
+            return;
+          }
+        } catch (_) {}
+      }
+    }
+
+    // 2. Check for compiled binary in current directory
+    final currentDir = Directory.current.path;
+    for (final name in ['zfa', 'zuraffa']) {
+      final localExe = File('$currentDir/$name');
+      if (await localExe.exists()) {
+        // Only use if it's a real binary, not a shell script
+        if (await _isCompiledBinary(localExe.path)) {
+          _cachedExecutable = localExe.path;
+          stderr.writeln(
+              '[zfa-resolve] ✓ Found compiled binary: $_cachedExecutable');
           return;
         }
       }
     }
 
-    // 2. Check for zfa in PATH (global install)
+    // 3. Check for zfa in PATH — but only if it's a compiled binary
     final whichResult = await Process.run('which', ['zfa']);
     if (whichResult.exitCode == 0) {
-      _cachedExecutable = 'zfa';
-      return;
-    }
-
-    // 3. Check for compiled zuraffa in current directory
-    final currentDir = Directory.current.path;
-    final localExe = File('$currentDir/zuraffa');
-    if (await localExe.exists()) {
-      _cachedExecutable = localExe.path;
-      return;
+      final zfaPath = whichResult.stdout.toString().trim();
+      if (await _isCompiledBinary(zfaPath)) {
+        _cachedExecutable = 'zfa';
+        stderr.writeln('[zfa-resolve] ✓ Found compiled zfa in PATH');
+        return;
+      } else {
+        stderr.writeln(
+            '[zfa-resolve] ⚠ zfa in PATH is a script (JIT), skipping');
+      }
     }
 
     // 4. Fall back to dart run (requires zuraffa in pubspec)
     final pubspecFile = File('${Directory.current.path}/pubspec.yaml');
     if (!await pubspecFile.exists()) {
       _cachedExecutable = 'echo';
+      stderr.writeln('[zfa-resolve] ⚠ No pubspec.yaml found, no CLI available');
       return;
     }
 
     final pubspecContent = await pubspecFile.readAsString();
     if (!pubspecContent.contains('zuraffa:')) {
       _cachedExecutable = 'echo';
+      stderr.writeln('[zfa-resolve] ⚠ zuraffa not in pubspec, no CLI available');
       return;
     }
 
     _cachedExecutable = 'dart';
     _cachedIsDartRun = true;
+    stderr.writeln('[zfa-resolve] ⚠ Falling back to dart run (slow JIT)');
+  }
+
+  /// Check if a file is a compiled binary (not a shell script)
+  Future<bool> _isCompiledBinary(String path) async {
+    try {
+      final file = File(path);
+      final bytes = await file.openRead(0, 4).first;
+      // Shell scripts start with '#!' (0x23 0x21)
+      if (bytes.length >= 2 && bytes[0] == 0x23 && bytes[1] == 0x21) {
+        return false;
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Create a success response

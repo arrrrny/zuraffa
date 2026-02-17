@@ -52,44 +52,30 @@ echo "📥 Getting dependencies..."
 cd "$PACKAGE_DIR"
 dart pub get
 
-# Compile MCP server to executable
-echo "🔨 Compiling zuraffa_mcp_server to executable..."
-mkdir -p "$PACKAGE_DIR/build"
-dart compile exe bin/zuraffa_mcp_server.dart -o "$PACKAGE_DIR/build/zuraffa_mcp_server"
-
 # Create the pub bin directory if it doesn't exist
 mkdir -p "$PUB_BIN"
 
-# Activate the package globally so it persists across IDE restarts
+# Remove existing binaries to prevent UTF-8 decode errors during activation
+rm -f "$PUB_BIN/zfa" "$PUB_BIN/zuraffa_mcp_server" 2>/dev/null || true
+
+# Activate the package globally FIRST (before build/ exists)
 echo "🌍 Activating package globally..."
-cd "$PACKAGE_DIR"
 dart pub global activate --source=path .
 
-# Now create our custom wrappers (after activation to override pub's wrappers)
-echo "📝 Creating custom wrapper scripts..."
+# Compile binaries to AOT executables (after activation to avoid binary scan issues)
+echo "🔨 Compiling zfa CLI to executable..."
+mkdir -p "$PACKAGE_DIR/build"
+dart compile exe bin/zfa.dart -o "$PACKAGE_DIR/build/zfa"
 
-# Create zfa wrapper (uses dart run for flexibility)
-cat > "$PUB_BIN/zfa" << 'WRAPPER_EOF'
-#!/usr/bin/env bash
-# ZFA CLI wrapper - runs dart directly to avoid pub noise
-exec dart run "PACKAGE_DIR_PLACEHOLDER/bin/zfa.dart" "$@"
-WRAPPER_EOF
+echo "🔨 Compiling zuraffa_mcp_server to executable..."
+dart compile exe bin/zuraffa_mcp_server.dart -o "$PACKAGE_DIR/build/zuraffa_mcp_server"
 
-# Replace placeholder with actual path
-sed -i.bak "s|PACKAGE_DIR_PLACEHOLDER|$PACKAGE_DIR|g" "$PUB_BIN/zfa"
-rm -f "$PUB_BIN/zfa.bak"
+# Install compiled binaries (overrides pub's JIT wrappers)
+echo "📝 Installing compiled binaries..."
+cp "$PACKAGE_DIR/build/zfa" "$PUB_BIN/zfa"
 chmod +x "$PUB_BIN/zfa"
 
-# Create zuraffa_mcp_server wrapper (uses dart run for better compatibility)
-cat > "$PUB_BIN/zuraffa_mcp_server" << 'WRAPPER_EOF'
-#!/usr/bin/env bash
-# ZFA MCP Server wrapper - uses dart run for compatibility
-exec dart run "PACKAGE_DIR_PLACEHOLDER/bin/zuraffa_mcp_server.dart" "$@"
-WRAPPER_EOF
-
-# Replace placeholder with actual path
-sed -i.bak "s|PACKAGE_DIR_PLACEHOLDER|$PACKAGE_DIR|g" "$PUB_BIN/zuraffa_mcp_server"
-rm -f "$PUB_BIN/zuraffa_mcp_server.bak"
+cp "$PACKAGE_DIR/build/zuraffa_mcp_server" "$PUB_BIN/zuraffa_mcp_server"
 chmod +x "$PUB_BIN/zuraffa_mcp_server"
 
 echo ""
