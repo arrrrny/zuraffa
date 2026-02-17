@@ -81,6 +81,19 @@ class RouteBuilder {
 
   Future<GeneratedFile> _generateRouteConstants(GeneratorConfig config) async {
     final routesPath = path.join(outputDir, 'routing', 'app_routes.dart');
+
+    // Skip deletion of shared route constants file during revert
+    if (config.revert) {
+      if (verbose) {
+        print('  ⏭ Skipping deletion of shared file: $routesPath');
+      }
+      return GeneratedFile(
+        path: routesPath,
+        type: 'route_constants',
+        action: 'skipped',
+      );
+    }
+
     final file = File(routesPath);
 
     final routeBase = config.nameSnake;
@@ -142,6 +155,7 @@ class RouteBuilder {
       force: force,
       dryRun: dryRun,
       verbose: verbose,
+      revert: config.revert,
     );
   }
 
@@ -303,6 +317,7 @@ class RouteBuilder {
       force: force,
       dryRun: dryRun,
       verbose: verbose,
+      revert: config.revert,
     );
   }
 
@@ -504,6 +519,13 @@ class RouteBuilder {
         .toList();
 
     if (files.isEmpty) {
+      if (File(indexPath).existsSync()) {
+        if (dryRun) {
+          if (verbose) print('  Dry run: Deleting $indexPath');
+        } else {
+          File(indexPath).deleteSync();
+        }
+      }
       return;
     }
 

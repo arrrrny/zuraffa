@@ -104,7 +104,12 @@ class DiCommand {
         print('  Is Orchestrator: ${useCaseAnalysis['isOrchestrator']}');
       }
 
-      final config = _buildConfig(useCaseName, useCaseAnalysis, results);
+      final config = _buildConfig(
+        useCaseName,
+        useCaseAnalysis,
+        results,
+        outputDir,
+      );
 
       if (useMock) {
         print(
@@ -304,6 +309,7 @@ class DiCommand {
     String name,
     Map<String, dynamic> analysis,
     ArgResults results,
+    String outputDir,
   ) {
     final nameWithoutSuffix = name.replaceAll('UseCase', '');
     final useMock = results['use-mock'] == true;
@@ -346,6 +352,7 @@ class DiCommand {
       repo: repo,
       service: service,
       usecases: usecases,
+      outputDir: outputDir,
     );
   }
 

@@ -39,6 +39,11 @@ class MethodAppendBuilder {
     final updatedFiles = <GeneratedFile>[];
     final warnings = <String>[];
 
+    if (config.revert) {
+      warnings.add('Skipping revert for append operation: append cannot be safely undone.');
+      return MethodAppendResult(updatedFiles, warnings);
+    }
+
     // Orchestrators use composed UseCases, not repo/service
     if (config.isOrchestrator) {
       return MethodAppendResult(updatedFiles, warnings);

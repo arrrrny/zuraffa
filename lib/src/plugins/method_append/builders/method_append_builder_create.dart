@@ -163,6 +163,7 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
       force: true,
       dryRun: dryRun,
       verbose: verbose,
+      revert: config.revert,
     );
   }
 }

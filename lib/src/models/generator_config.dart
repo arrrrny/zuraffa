@@ -252,6 +252,7 @@ class GeneratorConfig {
     bool? dryRun,
     bool? force,
     bool? verbose,
+    bool? revert,
     String? outputDir,
   }) {
     return GeneratorConfig(
@@ -307,6 +308,7 @@ class GeneratorConfig {
       dryRun: dryRun ?? this.dryRun,
       force: force ?? this.force,
       verbose: verbose ?? this.verbose,
+      revert: revert ?? this.revert,
       outputDir: outputDir ?? this.outputDir,
     );
   }

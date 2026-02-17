@@ -164,6 +164,7 @@ class MockDataBuilder {
       force: force,
       dryRun: dryRun,
       verbose: verbose,
+      revert: config.revert,
     );
   }
 }

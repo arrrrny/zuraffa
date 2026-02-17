@@ -23,6 +23,7 @@ Future<void> main(List<String> args) async {
       generateDi: true,
       generateRoute: true,
       generateMock: true,
+      outputDir: outputDir,
     );
 
     final generator = CodeGenerator(

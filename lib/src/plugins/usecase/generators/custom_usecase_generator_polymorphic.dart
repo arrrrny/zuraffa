@@ -114,6 +114,7 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
           force: force,
           dryRun: dryRun,
           verbose: verbose,
+          revert: config.revert,
         ),
       );
     }

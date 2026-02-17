@@ -125,7 +125,7 @@ DESCRIPTION:
     return '''
 import 'package:zorphy_annotation/zorphy.dart';
 
-part '${entityName}.zorphy.dart';
+part '$entityName.zorphy.dart';
 
 @Zorphy(
   json: true,

@@ -220,6 +220,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       force: force,
       dryRun: dryRun,
       verbose: verbose,
+      revert: config.revert,
     );
   }
 
@@ -279,6 +280,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       force: force,
       dryRun: dryRun,
       verbose: verbose,
+      revert: config.revert,
     );
   }
 
@@ -320,6 +322,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       force: force,
       dryRun: dryRun,
       verbose: verbose,
+      revert: config.revert,
     );
   }
 
@@ -1045,12 +1048,20 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       'service_locator.dart',
     );
 
-    final file = File(serviceLocatorPath);
-    if (file.existsSync() && !force && !revert) {
+    // Skip deletion of shared service locator file during revert
+    if (revert) {
+      if (verbose) {
+        print('  ⏭ Skipping deletion of shared file: $serviceLocatorPath');
+      }
       return null;
     }
 
-    final content = revert ? '' : serviceLocatorBuilder.build();
+    final file = File(serviceLocatorPath);
+    if (file.existsSync() && !force) {
+      return null;
+    }
+
+    final content = serviceLocatorBuilder.build();
 
     return FileUtils.writeFile(
       serviceLocatorPath,
@@ -1059,7 +1070,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       force: force,
       dryRun: dryRun,
       verbose: verbose,
-      revert: revert,
+      revert: false, // Never revert shared file
     );
   }
 }

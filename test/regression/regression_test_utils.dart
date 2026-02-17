@@ -144,6 +144,7 @@ Future<GeneratorResult> generateFullFeature(
       generateState: true,
       generateDi: true,
       generateRoute: true,
+      outputDir: workspace.outputDir,
     ),
     outputDir: workspace.outputDir,
     dryRun: false,

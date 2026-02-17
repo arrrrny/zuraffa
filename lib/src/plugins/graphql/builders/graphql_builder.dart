@@ -78,6 +78,7 @@ class GraphqlBuilder {
       force: force,
       dryRun: dryRun,
       verbose: verbose,
+      revert: config.revert,
     );
   }
 
@@ -120,6 +121,7 @@ class GraphqlBuilder {
       force: force,
       dryRun: dryRun,
       verbose: verbose,
+      revert: config.revert,
     );
   }
 

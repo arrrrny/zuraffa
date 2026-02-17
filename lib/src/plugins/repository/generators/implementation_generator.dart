@@ -262,6 +262,17 @@ class RepositoryImplementationGenerator {
     final content = const SpecLibrary().emitLibrary(library);
 
     if (config.appendToExisting && File(filePath).existsSync()) {
+      if (config.revert) {
+        if (verbose) {
+          print('  ⚠️ Cannot revert append operation for $filePath');
+        }
+        return GeneratedFile(
+          path: filePath,
+          type: 'data_repository',
+          action: 'skipped',
+        );
+      }
+
       final existing = await File(filePath).readAsString();
       final importPaths = _buildImportPaths(config, entitySnake);
       final importLines = _buildImportLines(importPaths);

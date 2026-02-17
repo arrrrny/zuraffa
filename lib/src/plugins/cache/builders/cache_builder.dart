@@ -61,9 +61,9 @@ class CacheBuilder {
     final files = <GeneratedFile>[];
     files.add(await _generateCacheInitFile(config));
     files.add(await _generateCachePolicyFile(config));
-    files.add(await _generateTimestampCacheFile());
-    await _regenerateHiveRegistrar();
-    await _regenerateCacheIndex();
+    files.add(await _generateTimestampCacheFile(config));
+    await _regenerateHiveRegistrar(config);
+    await _regenerateCacheIndex(config);
     return files;
   }
 
@@ -109,10 +109,11 @@ class CacheBuilder {
       force: force,
       dryRun: dryRun,
       verbose: verbose,
+      revert: config.revert,
     );
   }
 
-  Future<GeneratedFile> _generateTimestampCacheFile() async {
+  Future<GeneratedFile> _generateTimestampCacheFile(GeneratorConfig config) async {
     final fileName = 'timestamp_cache.dart';
     final cachePath = path.join(outputDir, 'cache', fileName);
 
@@ -153,10 +154,11 @@ class CacheBuilder {
       force: force,
       dryRun: dryRun,
       verbose: verbose,
+      revert: config.revert,
     );
   }
 
-  Future<void> _regenerateCacheIndex() async {
+  Future<void> _regenerateCacheIndex(GeneratorConfig config) async {
     final dirPath = path.join(outputDir, 'cache');
     final indexPath = path.join(dirPath, 'index.dart');
 
@@ -177,6 +179,13 @@ class CacheBuilder {
         .toList();
 
     if (files.isEmpty) {
+      if (File(indexPath).existsSync()) {
+        if (dryRun) {
+          if (verbose) print('  Dry run: Deleting $indexPath');
+        } else {
+          File(indexPath).deleteSync();
+        }
+      }
       return;
     }
 
@@ -250,7 +259,7 @@ class CacheBuilder {
     );
   }
 
-  Future<void> _regenerateHiveRegistrar() async {
+  Future<void> _regenerateHiveRegistrar(GeneratorConfig config) async {
     final dirPath = path.join(outputDir, 'cache');
     final registrarPath = path.join(dirPath, 'hive_registrar.dart');
 
@@ -271,6 +280,13 @@ class CacheBuilder {
         .toList();
 
     if (files.isEmpty) {
+      if (File(registrarPath).existsSync()) {
+        if (dryRun) {
+          if (verbose) print('  Dry run: Deleting $registrarPath');
+        } else {
+          File(registrarPath).deleteSync();
+        }
+      }
       return;
     }
 
@@ -391,7 +407,7 @@ class CacheBuilder {
       verbose: verbose,
     );
 
-    if (!manualAdditionsFile.existsSync()) {
+    if (!manualAdditionsFile.existsSync() && !config.revert) {
       final template = '''# Hive Manual Additions
 # Add nested entities and enums that need Hive adapters
 # Format: import_path|EntityName
