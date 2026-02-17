@@ -85,13 +85,13 @@ Generate a complete CRUD stack for an entity:
 zfa generate Product --methods=get,getList,create,update,delete
 
 # With VPC layer (View, Presenter, Controller)
-zfa generate Product --methods=get,getList,create,update,delete --vpc
+zfa generate Product --methods=get,getList,create,update,delete --vpcs
 
 # With data layer (DataRepository + DataSource)
 zfa generate Product --methods=get,getList,create,update,delete --data
 
 # Complete feature with state management, caching, DI, and tests
-zfa generate Product --methods=get,getList,create,update,delete,watchList --data --vpc --state --cache --di --test
+zfa generate Product --methods=get,getList,create,update,delete,watchList --data --vpcs --state --cache --di --test
 
 # Complete feature with GraphQL generation
 zfa generate Product --methods=get,getList,create,update,delete --data --gql --gql_returns="id,name,description,price,isActive,createdAt"
@@ -169,7 +169,7 @@ Generate the presentation layer with View, Presenter, and Controller.
 
 | Flag | Description |
 |------|-------------|
-| `--vpc` | Generate View + Presenter + Controller |
+| `--vpcs` | Generate View + Presenter + Controller |
 | `--vpcs` | Generate View, Presenter, Controller, and State |
 | `--pc` | Generate Presenter + Controller only (preserve View) |
 | `--pcs` | Generate Presenter, Controller, and State (preserve View) |
@@ -526,7 +526,7 @@ sealed class AppFailure {
 
 ### VPC Architecture
 
-When `--vpc` is used:
+When `--vpcs` is used:
 - **View** → Pure UI, uses `ControlledWidgetBuilder`
 - **Controller** → Manages state, calls Presenter methods
 - **Presenter** → Contains UseCases, orchestrates business logic
@@ -613,7 +613,7 @@ Zuraffa can automatically generate dependency injection setup using get_it:
 
 ```bash
 # Generate DI files alongside your code
-zfa generate Product --methods=get,getList,create --data --vpc --di
+zfa generate Product --methods=get,getList,create --data --vpcs --di
 
 # Use mock datasource in DI (for development/testing)
 zfa generate Product --methods=get,getList --data --mock --di --use-mock
@@ -628,7 +628,7 @@ Zuraffa can generate realistic mock data for your entities:
 
 ```bash
 # Generate mock data alongside other layers
-zfa generate Product --methods=get,getList,create --vpc --mock
+zfa generate Product --methods=get,getList,create --vpcs --mock
 
 # Generate only mock data files
 zfa generate Product --mock-data-only
@@ -680,12 +680,12 @@ dart pub global activate zuraffa
 
 3. **Generate Presentation Layer**
    ```bash
-   zfa generate Product --methods=get,getList,create --vpc --state --force
+   zfa generate Product --methods=get,getList,create --vpcs --state --force
    ```
 
 4. **Generate with Advanced Features**
    ```bash
-   zfa generate Product --methods=get,getList,create,update,delete,watchList --data --vpc --state --cache --di --test
+   zfa generate Product --methods=get,getList,create,update,delete,watchList --data --vpcs --state --cache --di --test
    ```
 
 5. **Implement DataSource** (create concrete implementation)
@@ -736,7 +736,7 @@ zfa validate config.json
 
 2. **Complete Feature with Presentation:**
    ```bash
-   zfa generate Product --methods=get,getList,create,update,delete --vpc --state
+   zfa generate Product --methods=get,getList,create,update,delete --vpcs --state
    ```
 
 3. **Complete Feature with Data Layer:**
@@ -746,7 +746,7 @@ zfa validate config.json
 
 # Complete Feature with All Layers:
 ```bash
-zfa generate Product --methods=get,getList,create,update,delete,watchList --data --vpc --state --cache --di --test
+zfa generate Product --methods=get,getList,create,update,delete,watchList --data --vpcs --state --cache --di --test
 ```
 
 ### GraphQL Generation
@@ -815,7 +815,7 @@ zfa generate Product --methods=get,getList,create,update,delete,watchList --data
 
 3. **With Dependency Injection:**
    ```bash
-   zfa generate Product --methods=get,getList --data --vpc --di
+   zfa generate Product --methods=get,getList --data --vpcs --di
    ```
 
 4. **With Tests:**

@@ -79,7 +79,7 @@ class ControllerPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   /// @returns List of generated controller files.
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
-    if (!(config.generateController || config.generateVpc)) {
+    if (!(config.generateController || config.generateVpcs)) {
       return [];
     }
 

@@ -42,7 +42,7 @@ void main() {
         methods: ['get'],
         outputDir: outputDir,
         dryRun: true,
-        generateVpc: true,
+        generateVpcs: true,
         generateView: true,
         generatePresenter: true,
         generateController: true,

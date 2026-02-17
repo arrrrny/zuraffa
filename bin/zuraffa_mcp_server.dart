@@ -316,10 +316,10 @@ TIP: Use dry_run=true to preview generated files before writing.''',
             'description':
                 'CRUD methods to generate. Each method generates a UseCase: get=GetOne, getList=GetAll, create=Insert, update=Modify, delete=Remove, watch=StreamOne, watchList=StreamAll',
           },
-          'vpc': {
+          'vpcs': {
             'type': 'boolean',
             'description':
-                'Generate View + Presenter + Controller (presentation layer). Use with state=true for full MVVM.',
+                'Generate View + Presenter + Controller + State (presentation layer)',
           },
           'pc': {
             'type': 'boolean',
@@ -344,6 +344,11 @@ TIP: Use dry_run=true to preview generated files before writing.''',
           'datasource': {
             'type': 'boolean',
             'description': 'Generate DataSource only',
+          },
+          'local': {
+            'type': 'boolean',
+            'description':
+                'Generate local data source (instead of remote)',
           },
           'init': {
             'type': 'boolean',
@@ -1096,7 +1101,7 @@ May take 30-60 seconds depending on project size.''',
         cliArgs.add('--methods=${methods.join(',')}');
       }
     }
-    if (args['vpc'] == true) cliArgs.add('--vpc');
+    if (args['vpc'] == true) cliArgs.add('--vpcs');
     if (args['state'] == true) cliArgs.add('--state');
     if (args['data'] == true) cliArgs.add('--data');
     if (args['datasource'] == true) cliArgs.add('--datasource');

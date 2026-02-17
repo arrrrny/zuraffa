@@ -6,7 +6,7 @@ Based on the actual implementation in /Users/arrrrny/Developer/zuraffa/lib/src/c
 
 ### Boolean Flags (each can be true/false):
 1. `--data` or `-d` (Generate data repository implementation + data source)
-2. `--vpc` (Generate View + Presenter + Controller)
+2. `--vpcs` (Generate View + Presenter + Controller)
 3. `--vpcs` (Generate View + Presenter + Controller + State)
 4. `--pc` (Generate Presenter + Controller only)
 5. `--pcs` (Generate Presenter + Controller + State)
@@ -53,7 +53,7 @@ Based on the actual implementation in /Users/arrrrny/Developer/zuraffa/lib/src/c
 19. `--from-json` or `-j` (JSON configuration file)
 
 ## Important Constraints (Reduce Actual Valid Combinations):
-1. `--vpc`, `--vpcs`, `--pc`, `--pcs`, `--view`, `--presenter`, `--controller` are mutually exclusive in some contexts
+1. `--vpcs`, `--vpcs`, `--pc`, `--pcs`, `--view`, `--presenter`, `--controller` are mutually exclusive in some contexts
 2. Entity-based generation cannot use `--domain`, `--repo`, `--usecases`, `--variants`
 3. Custom UseCases require `--domain`
 4. Orchestrator (`--usecases`) cannot have `--repo`
@@ -69,14 +69,14 @@ After applying constraints, realistic total: ~5,000,000 valid combinations
 zfa generate Product
 zfa generate Product --methods=get,getList,create,update,delete
 zfa generate Product --methods=get,getList,create,update,delete --data
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --mock
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --zorphy
-zfa generate Product --methods=watch,watchList --data --vpc --state --test --cache --di
+zfa generate Product --methods=get,getList,create,update,delete --data --vpcs
+zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --state
+zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --state --test
+zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --state --test --cache
+zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --state --test --cache --di
+zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --state --test --cache --di --mock
+zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --state --test --cache --di --zorphy
+zfa generate Product --methods=watch,watchList --data --vpcs --state --test --cache --di
 ```
 
 ### Custom UseCase Generation:
@@ -104,7 +104,7 @@ zfa generate ProcessNotification --domain=notification --variants=Email,SMS,Push
 
 ### With Various Boolean Combinations:
 ```
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --zorphy --mock --use-mock --init --observer --verbose
+zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --state --test --cache --di --zorphy --mock --use-mock --init --observer --verbose
 zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --test --cache --di --zorphy --mock --init --observer --quiet
 zfa generate Product --methods=get,getList,create,update,delete --data --pc --test --cache --di --zorphy --mock --init --observer
 zfa generate Product --methods=get,getList,create,update,delete --data --pcs --test --cache --di --zorphy --mock --init --observer
@@ -112,15 +112,15 @@ zfa generate Product --methods=get,getList,create,update,delete --data --pcs --t
 
 ### With Different String Options:
 ```
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --cache-policy=daily --cache-storage=hive --di --output=lib/features/products
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --cache-policy=ttl --ttl=120 --di
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --id-field=productId --id-field-type=int
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --query-field=name --query-field-type=String
+zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --state --test --cache --cache-policy=daily --cache-storage=hive --di --output=lib/features/products
+zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --state --test --cache --cache-policy=ttl --ttl=120 --di
+zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --state --test --cache --di --id-field=productId --id-field-type=int
+zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --state --test --cache --di --query-field=name --query-field-type=String
 ```
 
 ### Dry Run Versions:
 ```
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --test --cache --di --dry-run
+zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --state --test --cache --di --dry-run
 zfa generate ProcessOrder --domain=order --repo=OrderRepository --params=OrderRequest --returns=OrderResult --test --dry-run
 zfa generate ProcessOrder --domain=order --usecases=CreateOrder,ProcessPayment --params=OrderRequest --returns=OrderResult --di --dry-run
 ```

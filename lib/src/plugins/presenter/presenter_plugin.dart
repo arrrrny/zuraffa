@@ -47,7 +47,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
-    if (!(config.generatePresenter || config.generateVpc)) {
+    if (!(config.generatePresenter || config.generateVpcs)) {
       return [];
     }
 

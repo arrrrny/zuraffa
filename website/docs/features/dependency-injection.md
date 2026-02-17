@@ -170,7 +170,7 @@ For entity-based generation, DI handles the complete stack:
 zfa generate Product \
   --methods=get,getList,create,update,delete \
   --data \
-  --vpc \
+  --vpcs \
   --di
 ```
 

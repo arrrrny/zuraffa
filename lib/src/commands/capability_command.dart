@@ -57,6 +57,11 @@ class CapabilityCommand extends Command<void> {
       negatable: false,
       help: 'Preview changes without executing',
     );
+    argParser.addFlag(
+      'revert',
+      negatable: false,
+      help: 'Revert generated files (delete them)',
+    );
   }
 
   @override
@@ -105,6 +110,11 @@ class CapabilityCommand extends Command<void> {
           args[key] = argResults![key];
         }
       }
+    }
+
+    // Handle global flags
+    if (argResults?['revert'] == true) {
+      args['revert'] = true;
     }
 
     final isDryRun = argResults?['dry-run'] == true;

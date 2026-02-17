@@ -27,7 +27,7 @@ void main() {
       name: 'Profile',
       methods: const ['get', 'getList', 'create', 'update', 'delete'],
       generateData: true,
-      generateVpc: true,
+      generateVpcs: true,
       generateState: true,
       generateDi: true,
       outputDir: outputDir,

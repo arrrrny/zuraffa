@@ -543,22 +543,22 @@ Once you have your entities, generate the complete Clean Architecture:
 
 ```bash
 # E-commerce
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state
-zfa generate Order --methods=get,getList,create --data --vpc --state
-zfa generate Customer --methods=get,getList,create --data --vpc --state
+zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --state
+zfa generate Order --methods=get,getList,create --data --vpcs --state
+zfa generate Customer --methods=get,getList,create --data --vpcs --state
 
 # Social Media
-zfa generate User --methods=get,getList,create --data --vpc --state
-zfa generate Post --methods=get,getList,create,delete --data --vpc --state
-zfa generate Comment --methods=get,getList,create --data --vpc --state
+zfa generate User --methods=get,getList,create --data --vpcs --state
+zfa generate Post --methods=get,getList,create,delete --data --vpcs --state
+zfa generate Comment --methods=get,getList,create --data --vpcs --state
 
 # Task Management
-zfa generate Task --methods=get,getList,create,update,delete --data --vpc --state
-zfa generate Project --methods=get,getList,create,update --data --vpc --state
+zfa generate Task --methods=get,getList,create,update,delete --data --vpcs --state
+zfa generate Project --methods=get,getList,create,update --data --vpcs --state
 
 # Blog
-zfa generate BlogPost --methods=get,getList,create --data --vpc --state
-zfa generate Category --methods=get,getList --data --vpc --state
+zfa generate BlogPost --methods=get,getList,create --data --vpcs --state
+zfa generate Category --methods=get,getList --data --vpcs --state
 
 # Build everything
 zfa build --watch

@@ -74,7 +74,7 @@ class ConfigCommand {
         'Set "buildByDefault": true to auto-run build_runner after entity/cache operations',
         'Set "appendByDefault": true to auto-append to existing repositories/datasources',
         'Set "formatByDefault": true to auto-run dart format after generation',
-        'Set "routeByDefault": true to auto-generate routing files with --vpc/--vpcs',
+        'Set "routeByDefault": true to auto-generate routing files with --vpcs/--vpcs',
         'Set "diByDefault": true to auto-generate DI files',
         'Adjust "defaultEntityOutput" to change where entities are created',
       ],

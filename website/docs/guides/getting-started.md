@@ -22,7 +22,7 @@ zfa entity create -n Product \
   --field price:double \
   --field description:String?
 
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --di --test
+zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --state --di --test
 ```
 
 You now have:
@@ -37,7 +37,7 @@ You now have:
 ### Entity-based CRUD
 
 ```bash
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc
+zfa generate Product --methods=get,getList,create,update,delete --data --vpcs
 ```
 
 ### Custom use case with repository

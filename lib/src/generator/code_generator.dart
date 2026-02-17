@@ -340,7 +340,7 @@ class CodeGenerator {
           }
         }
 
-        if (executionConfig.generateVpc || executionConfig.generatePresenter) {
+        if (executionConfig.generateVpcs || executionConfig.generatePresenter) {
           if (_isPluginEnabled('presenter')) {
             tasks.add(() async {
               progress.update('presenter');
@@ -350,7 +350,7 @@ class CodeGenerator {
           }
         }
 
-        if (executionConfig.generateVpc || executionConfig.generateController) {
+        if (executionConfig.generateVpcs || executionConfig.generateController) {
           if (_isPluginEnabled('controller')) {
             tasks.add(() async {
               progress.update('controller');
@@ -360,7 +360,7 @@ class CodeGenerator {
           }
         }
 
-        if (executionConfig.generateVpc || executionConfig.generateView) {
+        if (executionConfig.generateVpcs || executionConfig.generateView) {
           if (_isPluginEnabled('view')) {
             tasks.add(() async {
               progress.update('view');
@@ -568,13 +568,13 @@ class CodeGenerator {
       if (config.hasService && _isPluginEnabled('service')) steps += 1;
       if (_isPluginEnabled('usecase')) steps += 1;
     }
-    if (config.generateVpc || config.generatePresenter) {
+    if (config.generateVpcs || config.generatePresenter) {
       if (_isPluginEnabled('presenter')) steps += 1;
     }
-    if (config.generateVpc || config.generateController) {
+    if (config.generateVpcs || config.generateController) {
       if (_isPluginEnabled('controller')) steps += 1;
     }
-    if (config.generateVpc || config.generateView) {
+    if (config.generateVpcs || config.generateView) {
       if (_isPluginEnabled('view')) steps += 1;
     }
     if (config.generateState && _isPluginEnabled('state')) steps += 1;

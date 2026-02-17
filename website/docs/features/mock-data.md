@@ -456,7 +456,7 @@ zfa generate Product \
   --methods=get,getList \
   --data \
   --mock \
-  --vpc \
+  --vpcs \
   --state
 ```
 

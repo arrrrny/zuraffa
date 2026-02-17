@@ -17,7 +17,7 @@ class GeneratorConfig {
   final String? returnsType;
   final String idField;
   final String idType;
-  final bool generateVpc;
+  final bool generateVpcs;
   final bool generateView;
   final bool generatePresenter;
   final bool generateController;
@@ -75,7 +75,7 @@ class GeneratorConfig {
     this.returnsType,
     this.idField = 'id',
     this.idType = 'String',
-    this.generateVpc = false,
+    this.generateVpcs = false,
     this.generateView = false,
     this.generatePresenter = false,
     this.generateController = false,
@@ -134,7 +134,7 @@ class GeneratorConfig {
       returnsType: json['returns'],
       idField: json['id_field'] ?? 'id',
       idType: json['id_type'] ?? json['id_field_type'] ?? 'String',
-      generateVpc: json['vpc'] == true,
+      generateVpcs: json['vpcs'] == true || json['vpc'] == true,
       generateView: json['view'] == true,
       generatePresenter: json['presenter'] == true,
       generateController: json['controller'] == true,
@@ -216,7 +216,7 @@ class GeneratorConfig {
     String? returnsType,
     String? idField,
     String? idType,
-    bool? generateVpc,
+    bool? generateVpcs,
     bool? generateView,
     bool? generatePresenter,
     bool? generateController,
@@ -272,7 +272,7 @@ class GeneratorConfig {
       returnsType: returnsType ?? this.returnsType,
       idField: idField ?? this.idField,
       idType: idType ?? this.idType,
-      generateVpc: generateVpc ?? this.generateVpc,
+      generateVpcs: generateVpcs ?? this.generateVpcs,
       generateView: generateView ?? this.generateView,
       generatePresenter: generatePresenter ?? this.generatePresenter,
       generateController: generateController ?? this.generateController,
@@ -416,7 +416,7 @@ class GeneratorConfig {
     'returns': returnsType,
     'id_field': idField,
     'id_type': idType,
-    'vpc': generateVpc,
+    'vpcs': generateVpcs,
     'view': generateView,
     'presenter': generatePresenter,
     'controller': generateController,

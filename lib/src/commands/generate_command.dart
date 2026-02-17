@@ -75,11 +75,6 @@ class GenerateCommand extends Command<void> {
       help: 'Detailed output',
     );
     argParser.addFlag(
-      'vpc',
-      help: 'Generate View + Presenter + Controller',
-      defaultsTo: false,
-    );
-    argParser.addFlag(
       'vpcs',
       help: 'Generate View + Presenter + Controller + State',
       defaultsTo: false,
@@ -118,6 +113,11 @@ class GenerateCommand extends Command<void> {
     argParser.addFlag(
       'datasource',
       help: 'Generate data source only',
+      defaultsTo: false,
+    );
+    argParser.addFlag(
+      'local',
+      help: 'Generate local data source (instead of remote)',
       defaultsTo: false,
     );
     argParser.addFlag('cache', help: 'Enable caching', defaultsTo: false);
@@ -363,8 +363,6 @@ class GenerateCommand extends Command<void> {
     final idField = argResults!['id-field'] as String;
     final queryField = argResults!['query-field'] as String? ?? idField;
 
-    final generateVpc =
-        argResults!['vpc'] == true || argResults!['vpcs'] == true;
     final generateVpcs = argResults!['vpcs'] == true;
     final generatePc = argResults!['pc'] == true || argResults!['pcs'] == true;
     final generatePcs = argResults!['pcs'] == true;
@@ -388,16 +386,17 @@ class GenerateCommand extends Command<void> {
       idType: idFieldType,
       queryField: queryField,
       queryFieldType: queryFieldType,
-      generateVpc: generateVpc,
-      generateView: generateVpc || generateVpcs,
+      generateVpcs: generateVpcs,
+      generateView: generateVpcs || generateVpcs,
       generatePresenter:
-          generateVpc || generateVpcs || generatePc || generatePcs,
+          generateVpcs || generateVpcs || generatePc || generatePcs,
       generateController:
-          generateVpc || generateVpcs || generatePc || generatePcs,
+          generateVpcs || generateVpcs || generatePc || generatePcs,
       generateState:
           argResults!['state'] == true || generateVpcs || generatePcs,
       generateData: argResults!['data'] == true,
       generateDataSource: argResults!['datasource'] == true,
+      generateLocal: argResults!['local'] == true,
       generateInit: argResults!['init'] == true,
       useZorphy: argResults!['zorphy'] == true,
       generateTest: argResults!['test'] == true,

@@ -140,7 +140,7 @@ Future<GeneratorResult> generateFullFeature(
         'watchList',
       ],
       generateData: true,
-      generateVpc: true,
+      generateVpcs: true,
       generateState: true,
       generateDi: true,
       generateRoute: true,

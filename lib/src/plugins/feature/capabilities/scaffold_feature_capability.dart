@@ -6,6 +6,7 @@ import '../../usecase/usecase_plugin.dart';
 import '../../repository/repository_plugin.dart';
 import '../../view/view_plugin.dart';
 import '../../controller/controller_plugin.dart';
+import '../../state/state_plugin.dart';
 
 class ScaffoldFeatureCapability implements ZuraffaCapability {
   final FeaturePlugin plugin;
@@ -26,9 +27,9 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
             'type': 'string',
             'description': 'Name of the feature (e.g. UserProfile)'
           },
-          'vpc': {
+          'vpcs': {
             'type': 'boolean',
-            'description': 'Generate View, Presenter, Controller',
+            'description': 'Generate View, Presenter, Controller, State',
             'default': true
           },
           'repository': {
@@ -106,11 +107,12 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
   Future<List<GeneratedFile>> _generateFiles(Map<String, dynamic> args, {required bool dryRun}) async {
     final outputDir = args['outputDir'] ?? 'lib/src';
     final featureName = args['name'];
-    final generateVpc = args['vpc'] ?? true;
+    final generateVpcs = args['vpcs'] ?? true;
     final generateRepo = args['repository'] ?? true;
     final usecases = (args['usecases'] as List?)?.cast<String>() ?? [];
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
+    final revert = args['revert'] ?? false;
 
     final allFiles = <GeneratedFile>[];
 
@@ -131,6 +133,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         dryRun: dryRun,
         force: force,
         verbose: verbose,
+        revert: revert,
       );
       allFiles.addAll(await repoPlugin.generate(config));
     }
@@ -155,16 +158,18 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
           name: ucName,
           outputDir: outputDir,
           useCaseType: 'entity', // Default
+          repo: '${featureName}Repository',
           dryRun: dryRun,
           force: force,
           verbose: verbose,
+          revert: revert,
         );
         allFiles.addAll(await usecasePlugin.generate(config));
       }
     }
 
     // VPC
-    if (generateVpc) {
+    if (generateVpcs) {
       // View, Presenter, Controller, State, DI
       // This requires instantiating multiple plugins.
       // For brevity, let's just do View and Controller for now as proof of concept.
@@ -180,19 +185,31 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         force: force,
         verbose: verbose,
       );
-
-      final config = GeneratorConfig(
-        name: featureName,
+      final statePlugin = StatePlugin(
         outputDir: outputDir,
-        generateView: true,
-        generateController: true,
         dryRun: dryRun,
         force: force,
         verbose: verbose,
       );
 
+      final config = GeneratorConfig(
+        name: featureName,
+        outputDir: outputDir,
+        idField: 'id',
+        idType: 'String',
+        generateVpcs: generateVpcs,
+        generateView: generateVpcs,
+        generateController: generateVpcs,
+        generateState: generateVpcs,
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+        revert: revert,
+      );
+
       allFiles.addAll(await viewPlugin.generate(config));
       allFiles.addAll(await controllerPlugin.generate(config));
+      allFiles.addAll(await statePlugin.generate(config));
     }
 
     return allFiles;

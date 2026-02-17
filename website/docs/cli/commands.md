@@ -201,7 +201,7 @@ Generate presentation layer components.
 
 | Flag | Description |
 |------|-------------|
-| `--vpc` | Generate View + Presenter + Controller |
+| `--vpcs` | Generate View + Presenter + Controller |
 | `--vpcs` | Generate View + Presenter + Controller + State |
 | `--pc` | Generate Presenter + Controller only (preserve custom View) |
 | `--pcs` | Generate Presenter + Controller + State (preserve custom View) |
@@ -595,7 +595,7 @@ Perfect for standard CRUD operations on entities:
 zfa generate Product \
   --methods=get,getList,create,update,delete,watch,watchList \
   --data \
-  --vpc \
+  --vpcs \
   --state \
   --test \
   --cache \
@@ -690,7 +690,7 @@ Generate everything needed for a full feature:
 zfa generate Product \
   --methods=get,getList,create,update,delete,watch,watchList \
   --data \
-  --vpc \
+  --vpcs \
   --state \
   --di \
   --test \

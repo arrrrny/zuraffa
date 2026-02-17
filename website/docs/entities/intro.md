@@ -202,7 +202,7 @@ Once you have entities, generate the complete Clean Architecture around them:
 zfa generate Product \
   --methods=get,getList,create,update,delete \
   --data \
-  --vpc \
+  --vpcs \
   --state \
   --di
 
@@ -332,15 +332,15 @@ zfa entity create -n Order \
 # Generate Clean Architecture for each entity
 zfa generate Product \
   --methods=get,getList,create,update,delete \
-  --data --vpc --state --di
+  --data --vpcs --state --di
 
 zfa generate Order \
   --methods=get,getList,create \
-  --data --vpc --state --di
+  --data --vpcs --state --di
 
 zfa generate Customer \
   --methods=get,getList,create \
-  --data --vpc --state --di
+  --data --vpcs --state --di
 
 # Build everything
 zfa build --watch

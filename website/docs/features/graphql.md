@@ -405,7 +405,7 @@ zfa generate Product \
   --data \
   --gql \
   --gql-returns="id,name,price,category,images,stock,isActive" \
-  --vpc --state --di
+  --vpcs --state --di
 
 # Order management with GraphQL
 zfa generate Order \
@@ -413,7 +413,7 @@ zfa generate Order \
   --data \
   --gql \
   --gql-returns="id,total,status,items{id,quantity,price},customer{id,name,address}" \
-  --vpc --state --di
+  --vpcs --state --di
 
 # Real-time order updates
 zfa generate Order --methods=watchList \

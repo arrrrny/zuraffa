@@ -34,7 +34,7 @@ void main() {
         'watchList',
       ],
       generateData: true,
-      generateVpc: true,
+      generateVpcs: true,
       generateState: true,
       generateDi: true,
       generateMock: true,

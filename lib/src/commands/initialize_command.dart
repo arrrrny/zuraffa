@@ -79,12 +79,12 @@ class InitializeCommand {
       print('\n📝 Next steps:');
       print('   • Generate complete feature:');
       print(
-        '     zfa generate $entityName --methods=get,getList,create,update,delete --data --vpc --state',
+        '     zfa generate $entityName --methods=get,getList,create,update,delete --data --vpcs --state',
       );
       print('   • Or generate incrementally:');
       print('     zfa generate $entityName --methods=get,getList');
       print(
-        '     zfa generate $entityName --methods=get,getList --vpc --state --force',
+        '     zfa generate $entityName --methods=get,getList --vpcs --state --force',
       );
       print(
         '     zfa generate $entityName --methods=get,getList --data --force',

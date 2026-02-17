@@ -31,7 +31,7 @@ void main() {
       GeneratorConfig(
         name: 'Product',
         methods: const ['get', 'getList', 'create'],
-        generateVpc: true,
+        generateVpcs: true,
         generateRoute: true,
         outputDir: outputDir,
       ),

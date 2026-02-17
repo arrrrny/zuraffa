@@ -188,7 +188,7 @@ void main() {
         'generate',
         'Product',
         '--methods=get',
-        '--vpc',
+        '--vpcs',
         '--output',
         outputDir,
         '--force',

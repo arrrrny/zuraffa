@@ -36,7 +36,7 @@ dependencies:
 Regenerate with the v2 CLI to align with the current architecture:
 
 ```bash
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --di --force
+zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --state --di --force
 ```
 
 If you are in a subdirectory (like example), make sure the output is correct:

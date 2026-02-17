@@ -76,7 +76,7 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   /// @returns List of generated view files.
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
-    if (!(config.generateView || config.generateVpc)) {
+    if (!(config.generateView || config.generateVpcs)) {
       return [];
     }
 

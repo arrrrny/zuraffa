@@ -34,6 +34,11 @@ abstract class PluginCommand extends Command<void> {
       negatable: false,
       help: 'Enable detailed logging',
     );
+    argParser.addFlag(
+      'revert',
+      negatable: false,
+      help: 'Revert generated files (delete them)',
+    );
     
     // Auto-register capabilities as subcommands
     for (final capability in plugin.capabilities) {
@@ -58,6 +63,10 @@ abstract class PluginCommand extends Command<void> {
   /// Returns true if verbose logging is enabled.
   @protected
   bool get isVerbose => argResults?['verbose'] == true;
+
+  /// Returns true if revert mode is enabled.
+  @protected
+  bool get isRevert => argResults?['revert'] == true;
 
   /// Returns the resolved output directory.
   @protected

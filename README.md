@@ -80,7 +80,7 @@ Generate the entire Clean Architecture stack for your entity in one command:
 
 ```bash
 # Generate everything: Data, Domain, Presentation (VPC), State, and Tests
-zfa generate Order --methods=get,create,update --data --vpc --state --test
+zfa generate Order --methods=get,create,update --data --vpcs --state --test
 ```
 
 ### 4. Build Code
@@ -132,7 +132,7 @@ The `zfa` CLI is your power tool for development.
 Customize `zfa generate` with these flags:
 
 - `--data`: Generate Data Layer (Repository Impl + DataSources).
-- `--vpc`: Generate View-Presenter-Controller.
+- `--vpcs`: Generate View-Presenter-Controller.
 - `--state`: Generate State class.
 - `--test`: Generate Unit Tests.
 - `--mock`: Generate Mock DataSources.
