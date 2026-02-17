@@ -79,24 +79,6 @@ else
 fi
 echo "  ✓ CLI version updated"
 
-# Update version in zed-extension/extension.toml
-echo "📝 Updating version in zed-extension/extension.toml..."
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" zed-extension/extension.toml
-else
-    sed -i "s/^version = \".*\"/version = \"$VERSION\"/" zed-extension/extension.toml
-fi
-echo "  ✓ Zed extension version updated"
-
-# Update version in zed-extension/src/lib.rs
-echo "📝 Updating version in zed-extension/src/lib.rs..."
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    sed -i '' "s/^const VERSION: &str = \".*\"/const VERSION: &str = \"$VERSION\"/" zed-extension/src/lib.rs
-else
-    sed -i "s/^const VERSION: &str = \".*\"/const VERSION: &str = \"$VERSION\"/" zed-extension/src/lib.rs
-fi
-echo "  ✓ Zed extension lib.rs version updated"
-
 # Update version in example/pubspec.yaml
 echo "📝 Updating version in example/pubspec.yaml..."
 if [[ "$OSTYPE" == "darwin"* ]]; then
