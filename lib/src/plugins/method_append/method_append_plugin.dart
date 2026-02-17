@@ -1,7 +1,9 @@
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/capability.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'builders/method_append_builder.dart';
+import 'capabilities/append_method_capability.dart';
 
 class MethodAppendPlugin extends FileGeneratorPlugin {
   final String outputDir;
@@ -23,6 +25,11 @@ class MethodAppendPlugin extends FileGeneratorPlugin {
       verbose: verbose,
     );
   }
+
+  @override
+  List<ZuraffaCapability> get capabilities => [
+        AppendMethodCapability(this),
+      ];
 
   @override
   String get id => 'method_append';

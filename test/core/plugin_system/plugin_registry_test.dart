@@ -53,7 +53,7 @@ void main() {
       registry.registerAll([_ValidPlugin(), _InvalidPlugin()]);
 
       final result = await registry.validateAll(
-        GeneratorConfig(name: 'Product'),
+        GeneratorConfig(name: 'Product', outputDir: 'lib/src'),
       );
 
       expect(result.isValid, isFalse);

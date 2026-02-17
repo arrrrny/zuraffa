@@ -4,10 +4,12 @@ import 'package:path/path.dart' as path;
 import '../../commands/service_command.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/capability.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/file_utils.dart';
 import 'builders/service_interface_builder.dart';
+import 'capabilities/create_service_capability.dart';
 
 class ServicePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
@@ -23,6 +25,11 @@ class ServicePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     required this.verbose,
     ServiceInterfaceBuilder? interfaceBuilder,
   }) : interfaceBuilder = interfaceBuilder ?? const ServiceInterfaceBuilder();
+
+  @override
+  List<ZuraffaCapability> get capabilities => [
+        CreateServiceCapability(this),
+      ];
 
   @override
   Command createCommand() => ServiceCommand(this);

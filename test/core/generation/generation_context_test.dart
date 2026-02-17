@@ -6,7 +6,7 @@ import 'package:zuraffa/src/models/generator_config.dart';
 void main() {
   group('GenerationContext', () {
     test('creates context with defaults', () {
-      final config = GeneratorConfig(name: 'Product');
+      final config = GeneratorConfig(name: 'Product', outputDir: 'lib/src');
       final context = GenerationContext.create(config: config);
 
       expect(context.config, equals(config));
@@ -18,14 +18,14 @@ void main() {
     });
 
     test('creates context with verbose progress reporter', () {
-      final config = GeneratorConfig(name: 'Order');
+      final config = GeneratorConfig(name: 'Order', outputDir: 'lib/src');
       final context = GenerationContext.create(config: config, verbose: true);
 
       expect(context.progress, isA<CliProgressReporter>());
     });
 
     test('uses provided progress reporter', () {
-      final config = GeneratorConfig(name: 'User');
+      final config = GeneratorConfig(name: 'User', outputDir: 'lib/src');
       final reporter = _TestProgressReporter();
       final context = GenerationContext.create(
         config: config,

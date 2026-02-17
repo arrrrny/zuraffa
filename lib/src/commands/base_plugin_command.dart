@@ -2,6 +2,7 @@ import 'package:args/command_runner.dart';
 import 'package:meta/meta.dart';
 import '../core/plugin_system/plugin_interface.dart';
 import '../models/generated_file.dart';
+import 'capability_command.dart';
 
 /// Base class for all plugin-based CLI commands.
 ///
@@ -33,6 +34,11 @@ abstract class PluginCommand extends Command<void> {
       negatable: false,
       help: 'Enable detailed logging',
     );
+    
+    // Auto-register capabilities as subcommands
+    for (final capability in plugin.capabilities) {
+      addSubcommand(CapabilityCommand(capability));
+    }
   }
 
   @override

@@ -30,6 +30,7 @@ void main() {
       enableCache: true,
       cacheStorage: 'hive',
       generateDi: true,
+      outputDir: outputDir,
     );
     final generator = CodeGenerator(
       config: config,

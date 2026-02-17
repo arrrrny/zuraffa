@@ -30,6 +30,7 @@ void main() {
       generateVpc: true,
       generateState: true,
       generateDi: true,
+      outputDir: outputDir,
     );
     final generator = CodeGenerator(
       config: config,

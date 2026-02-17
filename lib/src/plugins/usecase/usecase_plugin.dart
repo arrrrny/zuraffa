@@ -7,6 +7,8 @@ import '../../models/generator_config.dart';
 import 'generators/custom_usecase_generator.dart';
 import 'generators/entity_usecase_generator.dart';
 import 'generators/stream_usecase_generator.dart';
+import 'capabilities/create_usecase_capability.dart';
+import '../../core/plugin_system/capability.dart';
 
 class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
@@ -43,6 +45,11 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       verbose: verbose,
     );
   }
+
+  @override
+  List<ZuraffaCapability> get capabilities => [
+        CreateUseCaseCapability(this),
+      ];
 
   @override
   Command createCommand() => UseCaseCommand(this);

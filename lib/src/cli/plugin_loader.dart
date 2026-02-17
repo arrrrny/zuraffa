@@ -21,6 +21,7 @@ import '../plugins/repository/repository_plugin.dart';
 import '../plugins/service/service_plugin.dart';
 import '../plugins/usecase/usecase_plugin.dart';
 import '../plugins/view/view_plugin.dart';
+import '../plugins/feature/feature_plugin.dart';
 
 class PluginConfig {
   final Set<String> disabled;
@@ -161,6 +162,12 @@ class PluginLoader {
         verbose: verbose,
       ),
       ViewPlugin(
+        outputDir: outputDir,
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+      ),
+      FeaturePlugin(
         outputDir: outputDir,
         dryRun: dryRun,
         force: force,

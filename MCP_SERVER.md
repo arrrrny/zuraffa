@@ -1,437 +1,98 @@
-# ZFA MCP Server
-
-The `zuraffa_mcp_server` is a Model Context Protocol (MCP) server that exposes the Zuraffa CLI functionality as MCP tools, enabling seamless integration with AI-powered development environments like Claude Desktop, Cursor, and VS Code.
-
-## Installation
-
-### Option 1: From pub.dev (Recommended)
-
-```bash
-# Activate globally
-dart pub global activate zuraffa
-
-# MCP server is immediately available
-zuraffa_mcp_server
-```
-
-The executable is automatically compiled and cached by Dart, providing fast startup times.
-
-### Option 2: Pre-compiled Binary (Fastest)
-
-Download the pre-compiled binary for your platform from [GitHub Releases](https://github.com/arrrrny/zuraffa/releases):
-
-- **macOS ARM64**: `zuraffa_mcp_server-macos-arm64`
-- **macOS x64**: `zuraffa_mcp_server-macos-x64`
-- **Linux x64**: `zuraffa_mcp_server-linux-x64`
-- **Windows x64**: `zuraffa_mcp_server-windows-x64.exe`
-
-```bash
-# macOS/Linux: Make executable
-chmod +x zuraffa_mcp_server-macos-arm64
-
-# Move to PATH (optional)
-sudo mv zuraffa_mcp_server-macos-arm64 /usr/local/bin/zuraffa_mcp_server
-```
-
-### Option 3: Compile from Source
-
-```bash
-# Clone the repository
-git clone https://github.com/arrrrny/zuraffa.git
-cd zuraffa
-
-# Compile
-dart compile exe bin/zuraffa_mcp_server.dart -o zuraffa_mcp_server
-
-# Move to PATH (optional)
-sudo mv zuraffa_mcp_server /usr/local/bin/
-```
-
-## Configuration
-
-### Claude Desktop
-
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
-
-```json
-{
-  "mcpServers": {
-    "zuraffa": {
-      "command": "/usr/local/bin/zuraffa_mcp_server",
-      "args": [],
-      "cwd": "/path/to/your/flutter/project"
-    }
-  }
-}
-```
-
-**Note**: Use the full path to the binary for reliability. Find it with `which zuraffa_mcp_server`.
-
-### Cursor / VS Code
-
-Add to your workspace settings (`.vscode/settings.json`) or MCP configuration:
-
-```json
-{
-  "mcp.servers": {
-    "zfa": {
-      "command": "zuraffa_mcp_server",
-      "args": [],
-      "cwd": "${workspaceFolder}"
-    }
-  }
-}
-```
-or in ZED settings:
-```json
-{
-  /// The name of your MCP server
-  "flutter-clean-architecture": {
-    /// The command which runs the MCP server
-    "command": "/usr/local/bin/dart",
-    /// The arguments to pass to the MCP server
-    "args": ["pub","global","run","zuraffa:zuraffa_mcp_server"],
-    /// The environment variables to set
-    "env": {}
-  }
-}
-```
-
-## Available Tools
-
-### zuraffa_generate
-
-Generate Clean Architecture code for your Flutter project.
-
-**Parameters:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| name | string | Yes | Entity or UseCase name in PascalCase |
-| methods | array | No | Methods: get, getList, create, update, delete, watch, watchList |
-| repository | boolean | No | Generate repository interface |
-| vpc | boolean | No | Generate View, Presenter, Controller |
-| data | boolean | No | Generate data layer (DataRepository + DataSource) |
-| datasource | boolean | No | Generate DataSource only |
-| id_field | string | No | ID field name (default: id) |
-| id_field_type | string | No | ID field type (default: String) |
-| query_field | string | No | Query field name for get/watch (default: id) |
-| query_field_type | string | No | Query field type (default: matches id_field_type) |
-| zorphy | boolean | No | Use Zorphy-style typed patches |
-| repo | string | No | Repository to inject (single, enforces SRP) |
-| repos | array | No | Repository names to inject (deprecated: use repo) |
-| service | string | No | Service to inject (alternative to repo) |
-| service_method | string | No | Service method name (default: auto-generated) |
-| domain | string | No | Domain folder (required for custom usecases) |
-| params | string | No | Params type (default: NoParams) |
-| returns | string | No | Return type (default: void) |
-| type | string | No | UseCase type: usecase, stream, background, completable |
-| output | string | No | Output directory (default: lib/src) |
-| dry_run | boolean | No | Preview without writing files |
-| force | boolean | No | Overwrite existing files |
-| state | boolean | No | Generate immutable State class |
-| pc | boolean | No | Generate Presenter + Controller only (preserve View) |
-| pcs | boolean | No | Generate Presenter + Controller + State (preserve View) |
-| cache | boolean | No | Enable caching with dual datasources |
-| cache_policy | string | No | Cache policy: daily, restart, ttl |
-| cache_storage | string | No | Local storage: hive, sqlite, shared_preferences |
-| mock | boolean | No | Generate mock data files |
-| mock_data_only | boolean | No | Generate only mock data files |
-| use_mock | boolean | No | Use mock datasource in DI (default: remote) |
-| di | boolean | No | Generate dependency injection files (get_it) |
-| init | boolean | No | Generate initialize method for repository |
-| test | boolean | No | Generate unit tests |
-| gql | boolean | No | Generate GraphQL query/mutation/subscription files |
-| gql_type | string | No | GraphQL operation type: query, mutation, subscription |
-| gql_returns | string | No | GraphQL return fields (comma-separated) |
-| gql_input_type | string | No | GraphQL input type name |
-| gql_input_name | string | No | GraphQL input variable name |
-| gql_name | string | No | Custom GraphQL operation name |
-
-**Example:**
-```json
-{
-  "name": "generate",
-  "arguments": {
-    "name": "Product",
-    "methods": ["get", "getList", "create"],
-    "repository": true,
-    "vpc": true
-  }
-}
-```
-
-**Example with DI:**
-```json
-{
-  "name": "generate",
-  "arguments": {
-    "name": "Product",
-    "methods": ["get", "getList"],
-    "repository": true,
-    "data": true,
-    "vpc": true,
-    "di": true
-  }
-}
-```
-
-**Example with Mock DataSource:**
-```json
-{
-  "name": "generate",
-  "arguments": {
-    "name": "Product",
-    "methods": ["get", "getList"],
-    "repository": true,
-    "data": true,
-    "mock": true,
-    "di": true,
-    "use_mock": true
-  }
-}
-```
-
-**Example regenerating business logic without View:**
-```json
-{
-  "name": "generate",
-  "arguments": {
-    "name": "Product",
-    "methods": ["get", "getList", "create"],
-    "pcs": true,
-    "force": true
-  }
-}
-```
-
-**Example with Service (alternative to Repository):**
-```json
-{
-  "name": "generate",
-  "arguments": {
-    "name": "SendEmail",
-    "service": "Email",
-    "domain": "notifications",
-    "params": "EmailMessage",
-    "returns": "void",
-    "data": true
-  }
-}
-```
-
-**Example with GraphQL generation:**
-```json
-{
-  "name": "generate",
-  "arguments": {
-    "name": "Product",
-    "methods": ["get", "getList", "create"],
-    "gql": true,
-    "gql_type": "query",
-    "gql_returns": "id,name,description,price,isActive,createdAt"
-  }
-}
-```
-
-**Example with GraphQL for custom UseCase:**
-```json
-{
-  "name": "generate",
-  "arguments": {
-    "name": "SearchProducts",
-    "service": "Search",
-    "domain": "products",
-    "params": "SearchQuery",
-    "returns": "List<Product>",
-    "gql": true,
-    "gql_type": "query",
-    "gql_name": "searchProducts",
-    "gql_input_type": "SearchInput",
-    "gql_returns": "id,name,price,category"
-  }
-}
-```
-
-**Example with complete GraphQL integration:**
-```json
-{
-  "name": "generate",
-  "arguments": {
-    "name": "Product",
-    "methods": ["get", "getList", "create", "update", "delete"],
-    "repository": true,
-    "data": true,
-    "gql": true,
-    "gql_type": "query",
-    "gql_returns": "id,name,description,price,category,isActive,createdAt,updatedAt",
-    "di": true
-  }
-}
-```
-
-### zuraffa_schema
-
-Get the JSON schema for ZFA configuration validation.
-
-**Parameters:** None
-
-### zuraffa_validate
-
-Validate a JSON configuration file.
-
-**Parameters:**
-- config (object, required): The configuration to validate
-
-## Resources
-
-The MCP server also provides access to generated project resources:
-
-### resources/list
-
-List all available files in the project's Clean Architecture directories. The server scans the following directories recursively for `.dart` files:
-
-- `lib/src/domain/repositories` - Repository interfaces
-- `lib/src/domain/services` - Service interfaces
-- `lib/src/domain/usecases` - UseCase implementations
-- `lib/src/data/data_sources` - Data source implementations
-- `lib/src/data/providers` - Service provider implementations
-- `lib/src/data/repositories` - Data repository implementations
-- `lib/src/presentation` - Views, Presenters, Controllers
-- `lib/src/domain/entities` - Entity definitions
-
-**Example response:**
-```json
-{
-  "resources": [
-    {
-      "uri": "file://lib/src/domain/repositories/product_repository.dart",
-      "name": "product_repository",
-      "description": "product_repository.dart",
-      "mimeType": "text/dart"
-    },
-    {
-      "uri": "file://lib/src/domain/usecases/product/get_product_usecase.dart",
-      "name": "product.get_product_usecase",
-      "description": "product/get_product_usecase.dart",
-      "mimeType": "text/dart"
-    }
-  ]
-}
-```
-
-### resources/read
-
-Read the contents of a specific file using its URI from `resources/list`.
-
-**Parameters:**
-- `uri` (string, required): File URI to read (from the `resources/list` response)
-
-**Example:**
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "resources/read",
-  "id": 10,
-  "params": {
-    "uri": "file://lib/src/domain/repositories/product_repository.dart"
-  }
-}
-```
-
-**Response:**
-```json
-{
-  "jsonrpc": "2.0",
-  "result": {
-    "contents": [
-      {
-        "uri": "file://lib/src/domain/repositories/product_repository.dart",
-        "mimeType": "text/dart",
-        "text": "abstract class ProductRepository {\n  Future<Product> get(String id);\n  Future<List<Product>> getList();\n  Future<Product> create(Product product);\n  Future<Product> update(Product product);\n  Future<void> delete(String id);\n}"
-      }
-    ]
-  },
-  "id": 10
-}
-```
-
-## Notifications
-
-When the `zuraffa_generate` tool creates new files, the MCP server automatically sends resource change notifications to the agent. This ensures the agent is aware of newly generated files without needing to explicitly query them.
-
-**Example notification sent after generating code:**
-
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "notifications/resources/list_changed",
-  "params": {
-    "changes": [
-      {
-        "type": "created",
-        "uri": "file://lib/src/domain/repositories/product_repository.dart"
-      },
-      {
-        "type": "created",
-        "uri": "file://lib/src/domain/usecases/product/get_product_usecase.dart"
-      }
-    ]
-  }
-}
-```
-
-This enables the agent to:
-- Automatically become aware of new files as they are created
-- Update its context with generated code without manual intervention
-- Call `resources/list` to see all available files in the project
-- Call `resources/read` to read the contents of specific files
-- Continue working with the generated files seamlessly
-
-## Testing
-
-Test the server directly:
-
-```bash
-# Test initialize (using precompiled binary)
-echo '{"jsonrpc":"2.0","method":"initialize","id":1}' | zuraffa_mcp_server
-
-# List tools
-echo '{"jsonrpc":"2.0","method":"tools/list","id":2}' | zuraffa_mcp_server
-
-# Get schema
-echo '{"jsonrpc":"2.0","method":"tools/call","id":3,"params":{"name":"zuraffa_schema","arguments":{}}}' | zuraffa_mcp_server
-```
-
-## Troubleshooting
-
-### Timeout Issues
-
-**Problem**: MCP client times out during connection or requests.
-
-**Cause**: Using `dart run` compiles the package on every invocation, taking 10-30 seconds.
-
-**Solution**: Use a precompiled executable:
-
-```bash
-# From zuraffa directory
-dart compile exe bin/zuraffa_mcp_server.dart -o zuraffa_mcp_server
-
-# Then update your MCP configuration to use the precompiled binary:
-"command": "zuraffa_mcp_server"
-```
-
-**Alternative**: If you must use `dart run`, increase your MCP client timeout setting to at least 90 seconds.
-
-### General Issues
-
-- Ensure Dart is in your PATH (if using `dart run`)
-- Check the working directory in your MCP configuration
-- Make sure the entity file exists at the expected path before generating
-- Recompile the executable if you've made code changes to `zuraffa_mcp_server.dart`
-
-## Related Documentation
-
-- [CLI Guide](./CLI_GUIDE.md) - Comprehensive CLI documentation
-- [AGENTS.md](./AGENTS.md) - AI Agent integration guide
-- [README](./README.md) - Package overview and API reference
+# 🤖 Zuraffa MCP Server Reference
+
+The **Zuraffa MCP Server** exposes the full power of the Zuraffa CLI to AI agents and IDEs supporting the [Model Context Protocol](https://modelcontextprotocol.io/). This allows AI assistants (like Trae, Cursor, Windsurf) to directly manipulate your codebase, creating entities, generating features, and diagnosing issues with context-aware precision.
+
+## 🛠️ Available Tools
+
+The server provides a suite of tools categorized by function.
+
+### 1. Project Management & Health
+
+| Tool | Description | Key Arguments |
+|------|-------------|---------------|
+| `zuraffa_doctor` | 🏥 Diagnoses project health, checking for misconfigurations, missing dependencies, or dead code. | None |
+| `zuraffa_config_init` | Initializes Zuraffa configuration in a new project. | None |
+| `zuraffa_config_show` | Displays the current configuration. | None |
+| `zuraffa_config_set` | Modifies a configuration value. | `key`, `value` |
+| `zuraffa_build` | 🏗️ Runs `build_runner` to generate code (JSON serialization, Zorphy entities). | None |
+
+### 2. Domain Modeling (Entities)
+
+Manage your domain layer directly through AI.
+
+| Tool | Description | Key Arguments |
+|------|-------------|---------------|
+| `zuraffa_entity_create` | Creates a new Zorphy entity with specified fields. | `name` (required), `fields` (e.g., "name:String"), `output` |
+| `zuraffa_entity_enum` | Creates a new Enum. | `name` (required), `values` (comma-separated) |
+| `zuraffa_entity_add_field` | Adds a new field to an existing entity. | `entity`, `field` (name:type) |
+| `zuraffa_entity_list` | Lists all detected entities in the project. | None |
+| `zuraffa_entity_from_json` | Generates an entity from a JSON structure. | `name`, `json` |
+
+### 3. Feature Generation (`zuraffa_generate`)
+
+This is the **primary tool** for scaffolding Clean Architecture features. It corresponds to the `zfa generate` CLI command but with structured inputs for AI.
+
+**Core Arguments:**
+- `name` (Required): The name of the Entity (e.g., "Product").
+- `methods`: List of CRUD methods to generate (`get`, `getList`, `create`, `update`, `delete`, `watch`, `watchList`).
+
+**Layer Control:**
+- `data`: Generate Data Layer (Repository Implementation + DataSources).
+- `vpc`: Generate Presentation Layer (View + Presenter + Controller).
+- `state`: Generate State class (Recommended with `vpc`).
+- `test`: Generate Unit Tests for UseCases.
+- `di`: Generate Dependency Injection setup.
+
+**Data Source Fine-Tuning:**
+- `remote`: Generate Remote DataSource (API). Default: `true`.
+- `local`: Generate Local DataSource (Cache/DB). Default: `true`.
+- `mock`: Generate Mock DataSource.
+- `cache`: Enable Caching repository logic.
+
+**Example Usage by AI:**
+> "Generate a full feature for the 'Order' entity including UI, data layer with caching, and tests."
+>
+> **Tool Call:**
+> ```json
+> {
+>   "name": "Order",
+>   "methods": ["get", "getList", "create"],
+>   "vpc": true,
+>   "state": true,
+>   "data": true,
+>   "cache": true,
+>   "test": true
+> }
+> ```
+
+### 4. Specialized Generation
+
+Tools for specific tasks or isolated generation.
+
+| Tool | Description |
+|------|-------------|
+| `zuraffa_graphql` | Generates GraphQL queries, mutations, or subscriptions. |
+| `zuraffa_view` | Generates only the View layer for an entity. |
+| `zuraffa_test` | Generates tests for existing features. |
+| `zuraffa_di` | Regenerates the Dependency Injection container. |
+| `zuraffa_route` | Generates GoRouter routing configuration. |
+| `zuraffa_mock` | Generates Mock DataSource for testing or preview. |
+
+### 5. Validation & Schemas
+
+| Tool | Description |
+|------|-------------|
+| `zuraffa_validate` | Validates a `zuraffa.json` configuration file. |
+| `zuraffa_schema` | Returns the JSON schema for Zuraffa configuration. |
+
+## 🏗️ How AI Uses the Architecture
+
+When you ask an AI to "create a feature," it follows this flow using the tools above:
+
+1.  **Analysis**: Calls `zuraffa_entity_list` to understand existing domain objects.
+2.  **Modeling**: Calls `zuraffa_entity_create` to define new data structures if needed.
+3.  **Scaffolding**: Calls `zuraffa_generate` with specific flags to build the UseCases, Repositories, and UI.
+4.  **Refinement**: Calls `zuraffa_build` to finalize code generation.
+5.  **Verification**: Calls `zuraffa_doctor` or runs tests to ensure integrity.
+
+This structured approach ensures that the AI respects your project's architecture, enforcing separation of concerns and type safety at every step.

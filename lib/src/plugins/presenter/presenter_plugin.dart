@@ -5,11 +5,13 @@ import 'package:path/path.dart' as path;
 import '../../commands/presenter_command.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/capability.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
 import 'builders/presenter_class_builder.dart';
+import 'capabilities/create_presenter_capability.dart';
 
 class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
@@ -25,6 +27,11 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     required this.verbose,
     PresenterClassBuilder? classBuilder,
   }) : classBuilder = classBuilder ?? const PresenterClassBuilder();
+
+  @override
+  List<ZuraffaCapability> get capabilities => [
+        CreatePresenterCapability(this),
+      ];
 
   @override
   String get id => 'presenter';

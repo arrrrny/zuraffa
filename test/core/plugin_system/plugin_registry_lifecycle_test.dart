@@ -43,7 +43,7 @@ void main() {
     final plugin = _LifecyclePlugin(calls);
     final registry = PluginRegistry();
     registry.register(plugin);
-    final config = GeneratorConfig(name: 'User');
+    final config = GeneratorConfig(name: 'User', outputDir: 'lib/src');
 
     await registry.beforeGenerateAll(config);
     await registry.afterGenerateAll(config);

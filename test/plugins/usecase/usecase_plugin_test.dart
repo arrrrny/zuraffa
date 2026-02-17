@@ -153,6 +153,7 @@ void main() {
       name: 'Login',
       paramsType: 'NoParams',
       returnsType: 'void',
+      useCaseType: 'sync',
       appendToExisting: true,
       outputDir: outputDir,
     );

@@ -1,6 +1,7 @@
-import '../models/generator_config.dart';
+import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import '../plugins/cache/cache_plugin.dart';
+import '../plugins/cache/capabilities/create_cache_capability.dart';
 
 class CacheCommand extends PluginCommand {
   @override
@@ -30,19 +31,26 @@ class CacheCommand extends PluginCommand {
     final ttlStr = argResults!['ttl'] as String?;
     final ttl = ttlStr != null ? int.tryParse(ttlStr) : null;
 
-    final config = GeneratorConfig(
-      name: entityName,
-      enableCache: true,
-      cachePolicy: policy,
-      cacheStorage: storage,
-      ttlMinutes: ttl,
-      dryRun: isDryRun,
-      force: isForce,
-      verbose: isVerbose,
-      outputDir: outputDir,
-    );
+    final capability = plugin.capabilities.firstWhere(
+      (c) => c is CreateCacheCapability,
+    ) as CreateCacheCapability;
 
-    final files = await plugin.generate(config);
-    logSummary(files);
+    final result = await capability.execute({
+      'name': entityName,
+      'policy': policy,
+      'storage': storage,
+      'ttl': ttl,
+      'dryRun': isDryRun,
+      'force': isForce,
+      'verbose': isVerbose,
+      'outputDir': outputDir,
+    });
+
+    if (result.success) {
+      final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      logSummary(files);
+    } else {
+      print('Failed to generate cache');
+    }
   }
 }

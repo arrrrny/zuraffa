@@ -31,6 +31,7 @@ void main() {
       paramsType: 'EmailParams',
       returnsType: 'SendResult',
       generateData: true,
+      outputDir: outputDir,
     );
     final generator = CodeGenerator(
       config: config,

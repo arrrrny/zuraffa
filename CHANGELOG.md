@@ -1,3 +1,15 @@
+## [3.17.0] - 2026-02-17
+
+### Change
+- Standardized all CLI commands to use `capability.execute()` pattern
+- Updated MCP server `zuraffa_generate` tool with `remote` and `local` flags
+- Refactored `CodeGenerator` to execute independent plugin generations in parallel
+
+### Fix
+- Fixed hardcoded `dryRun: false` in all capabilities
+- Corrected `CreateDataSourceCapability` input schema (added `remote`, removed duplicate `cache`)
+- Resolved timeout in `full_entity_workflow_test.dart` by parallelizing plugin execution
+
 ## [3.16.0] - 2026-02-17
 
 ### Fix

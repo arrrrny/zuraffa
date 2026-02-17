@@ -2,9 +2,11 @@ import 'package:args/command_runner.dart';
 import '../../commands/state_command.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/capability.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'builders/state_builder.dart';
+import 'capabilities/create_state_capability.dart';
 
 class StatePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
@@ -26,6 +28,11 @@ class StatePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       verbose: verbose,
     );
   }
+
+  @override
+  List<ZuraffaCapability> get capabilities => [
+        CreateStateCapability(this),
+      ];
 
   @override
   Command createCommand() => StateCommand(this);

@@ -9,12 +9,14 @@ import 'package:args/command_runner.dart';
 import '../../commands/modular_di_command.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/capability.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
 import 'builders/registration_builder.dart';
 import 'builders/service_locator_builder.dart';
+import 'capabilities/create_di_capability.dart';
 import 'detectors/registration_detector.dart';
 
 /// Configures dependency injection registrations for generated code.
@@ -72,6 +74,11 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
        appendExecutor = appendExecutor ?? AppendExecutor(),
        serviceLocatorBuilder =
            serviceLocatorBuilder ?? const ServiceLocatorBuilder();
+
+  @override
+  List<ZuraffaCapability> get capabilities => [
+        CreateDiCapability(this),
+      ];
 
   @override
   Command createCommand() => ModularDiCommand(this);
@@ -825,18 +832,16 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final dirPath = path.join(outputDir, 'di', folder);
     final indexPath = path.join(dirPath, 'index.dart');
 
-    var registrations = registrationDetector.detectRegistrations(dirPath);
+    var registrations = registrationDetector.detectRegistrations(
+      dirPath,
+      pendingFiles: files,
+    );
 
-    // Filter out deleted files
+    // Filter out deleted files logic is now handled inside RegistrationDetector
     final deletedPaths = files
         .where((f) => f.action == 'deleted')
         .map((f) => f.path)
         .toSet();
-
-    registrations = registrations.where((r) {
-      final fullPath = path.join(dirPath, r.fileName);
-      return !deletedPaths.contains(fullPath);
-    }).toList();
 
     if (registrations.isEmpty) {
       if (deletedPaths.isNotEmpty) {
@@ -921,31 +926,31 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final importPaths = <String>['package:get_it/get_it.dart'];
     final registrationCalls = <String>[];
 
-    if (usecasesDir.existsSync() && hasIndex(usecasesDir)) {
+    if (hasIndex(usecasesDir)) {
       exportPaths.add('usecases/index.dart');
       importPaths.add('usecases/index.dart');
       registrationCalls.add('registerAllUseCases(getIt);');
     }
 
-    if (datasourcesDir.existsSync() && hasIndex(datasourcesDir)) {
+    if (hasIndex(datasourcesDir)) {
       exportPaths.add('datasources/index.dart');
       importPaths.add('datasources/index.dart');
       registrationCalls.add('registerAllDataSources(getIt);');
     }
 
-    if (repositoriesDir.existsSync() && hasIndex(repositoriesDir)) {
+    if (hasIndex(repositoriesDir)) {
       exportPaths.add('repositories/index.dart');
       importPaths.add('repositories/index.dart');
       registrationCalls.add('registerAllRepositories(getIt);');
     }
 
-    if (servicesDir.existsSync() && hasIndex(servicesDir)) {
+    if (hasIndex(servicesDir)) {
       exportPaths.add('services/index.dart');
       importPaths.add('services/index.dart');
       registrationCalls.add('registerAllServices(getIt);');
     }
 
-    if (providersDir.existsSync() && hasIndex(providersDir)) {
+    if (hasIndex(providersDir)) {
       exportPaths.add('providers/index.dart');
       importPaths.add('providers/index.dart');
       registrationCalls.add('registerAllProviders(getIt);');

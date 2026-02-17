@@ -2,9 +2,11 @@ import 'package:args/command_runner.dart';
 import '../../commands/graphql_command.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/capability.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'builders/graphql_builder.dart';
+import 'capabilities/create_graphql_capability.dart';
 
 class GraphqlPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
@@ -26,6 +28,11 @@ class GraphqlPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       verbose: verbose,
     );
   }
+
+  @override
+  List<ZuraffaCapability> get capabilities => [
+        CreateGraphqlCapability(this),
+      ];
 
   @override
   Command createCommand() => GraphqlCommand(this);

@@ -38,6 +38,7 @@ void main() {
       generateState: true,
       generateDi: true,
       generateMock: true,
+      outputDir: outputDir,
     );
     final generator = CodeGenerator(
       config: config,

@@ -1,8 +1,9 @@
 import 'dart:io';
 
-import '../models/generator_config.dart';
+import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import '../plugins/presenter/presenter_plugin.dart';
+import '../plugins/presenter/capabilities/create_presenter_capability.dart';
 
 class PresenterCommand extends PluginCommand {
   @override
@@ -39,18 +40,25 @@ class PresenterCommand extends PluginCommand {
     final methods = (argResults!['methods'] as String).split(',');
     final generateDi = argResults!['di'] as bool;
 
-    final config = GeneratorConfig(
-      name: entityName,
-      methods: methods,
-      generatePresenter: true,
-      generateDi: generateDi,
-      dryRun: isDryRun,
-      force: isForce,
-      verbose: isVerbose,
-      outputDir: outputDir,
-    );
+    final capability = plugin.capabilities.firstWhere(
+      (c) => c is CreatePresenterCapability,
+    ) as CreatePresenterCapability;
 
-    final files = await plugin.generate(config);
-    logSummary(files);
+    final result = await capability.execute({
+      'name': entityName,
+      'methods': methods,
+      'di': generateDi,
+      'dryRun': isDryRun,
+      'force': isForce,
+      'verbose': isVerbose,
+      'outputDir': outputDir,
+    });
+
+    if (result.success) {
+      final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      logSummary(files);
+    } else {
+      print('Failed to generate presenter');
+    }
   }
 }

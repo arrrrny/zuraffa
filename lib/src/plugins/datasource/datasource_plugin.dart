@@ -2,11 +2,13 @@ import 'package:args/command_runner.dart';
 import '../../commands/datasource_command.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/capability.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'builders/interface_generator.dart';
 import 'builders/local_generator.dart';
 import 'builders/remote_generator.dart';
+import 'capabilities/create_datasource_capability.dart';
 
 class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
@@ -43,6 +45,11 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       verbose: verbose,
     );
   }
+
+  @override
+  List<ZuraffaCapability> get capabilities => [
+        CreateDataSourceCapability(this),
+      ];
 
   @override
   Command createCommand() => DataSourceCommand(this);

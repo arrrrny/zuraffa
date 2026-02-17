@@ -2,9 +2,11 @@ import 'package:args/command_runner.dart';
 import '../../commands/provider_command.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/capability.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'builders/provider_builder.dart';
+import 'capabilities/create_provider_capability.dart';
 
 class ProviderPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
@@ -26,6 +28,11 @@ class ProviderPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       verbose: verbose,
     );
   }
+
+  @override
+  List<ZuraffaCapability> get capabilities => [
+        CreateProviderCapability(this),
+      ];
 
   @override
   Command createCommand() => ProviderCommand(this);

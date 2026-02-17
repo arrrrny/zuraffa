@@ -1,6 +1,6 @@
-import '../core/plugin_system/plugin_interface.dart';
-import '../models/generator_config.dart';
+import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
+import '../plugins/di/capabilities/create_di_capability.dart';
 
 class ModularDiCommand extends PluginCommand {
   ModularDiCommand(super.plugin) {
@@ -32,23 +32,27 @@ class ModularDiCommand extends PluginCommand {
 
     final name = args[0];
     final domain = argResults!['domain'] as String?;
+    final useMock = argResults!['use-mock'] as bool;
 
-    final config = GeneratorConfig(
-      name: name,
-      domain: domain,
-      generateDi: true,
-      dryRun: isDryRun,
-      force: isForce,
-      verbose: isVerbose,
-      outputDir: outputDir,
-    );
+    final capability = plugin.capabilities.firstWhere(
+      (c) => c is CreateDiCapability,
+    ) as CreateDiCapability;
 
-    // Cast plugin to FileGeneratorPlugin to call generate
-    if (plugin is FileGeneratorPlugin) {
-      final files = await (plugin as FileGeneratorPlugin).generate(config);
+    final result = await capability.execute({
+      'name': name,
+      'domain': domain,
+      'useMock': useMock,
+      'dryRun': isDryRun,
+      'force': isForce,
+      'verbose': isVerbose,
+      'outputDir': outputDir,
+    });
+
+    if (result.success) {
+      final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
       logSummary(files);
     } else {
-      print('❌ Plugin ${plugin.name} is not a FileGeneratorPlugin');
+      print('Failed to generate DI');
     }
   }
 }

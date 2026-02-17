@@ -7,12 +7,13 @@ import 'package:zuraffa/src/models/generator_config.dart';
 
 void main() {
   test('plugin outputs include expected files for entity with data', () async {
+    final outputDir = _tempOutputDir();
     final scenario = GeneratorConfig(
       name: 'Product',
       methods: const ['get', 'getList'],
       generateData: true,
+      outputDir: outputDir,
     );
-    final outputDir = _tempOutputDir();
 
     final outputs = await _generateCurrentOutputs(scenario, outputDir);
 

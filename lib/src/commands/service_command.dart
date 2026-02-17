@@ -1,12 +1,33 @@
-import '../models/generator_config.dart';
+import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import '../plugins/service/service_plugin.dart';
+import '../plugins/service/capabilities/create_service_capability.dart';
 
 class ServiceCommand extends PluginCommand {
   @override
   final ServicePlugin plugin;
 
-  ServiceCommand(this.plugin) : super(plugin);
+  ServiceCommand(this.plugin) : super(plugin) {
+    argParser.addOption(
+      'params',
+      abbr: 'p',
+      help: 'Parameter type for the service method (e.g. String, MyParams)',
+      defaultsTo: 'NoParams',
+    );
+    argParser.addOption(
+      'returns',
+      abbr: 'r',
+      help: 'Return type for the service method (e.g. String, List<int>)',
+      defaultsTo: 'void',
+    );
+    argParser.addOption(
+      'type',
+      abbr: 't',
+      help: 'Service method type (sync, stream, completable)',
+      allowed: ['sync', 'stream', 'completable', 'usecase'],
+      defaultsTo: 'usecase',
+    );
+  }
 
   @override
   String get name => 'service';
@@ -23,34 +44,30 @@ class ServiceCommand extends PluginCommand {
     }
 
     final serviceName = args.first;
+    final paramsType = argResults!['params'] as String;
+    final returnsType = argResults!['returns'] as String;
+    final useCaseType = argResults!['type'] as String;
 
-    final config = GeneratorConfig(
-      name: serviceName,
-      service: serviceName,
-      methods:
-          [], // Empty methods to likely trigger custom usecase path if needed, or just to avoid entity defaults
-      dryRun: isDryRun,
-      force: isForce,
-      verbose: isVerbose,
-      outputDir: outputDir,
-    );
+    final capability = plugin.capabilities.firstWhere(
+      (c) => c is CreateServiceCapability,
+    ) as CreateServiceCapability;
 
-    // NOTE: GeneratorConfig might default to EntityBased if not careful.
-    // If I pass name='MyService', methods=['get'] (default), it's entity based.
-    // I should pass methods=[].
-    // GeneratorConfig(name: '...', methods: [])
-    // But ServicePlugin checks `!config.isCustomUseCase`.
-    // If methods=[], isCustomUseCase might be true.
-    // Let's verify GeneratorConfig later if needed. For now, best effort.
+    final result = await capability.execute({
+      'name': serviceName,
+      'params': paramsType,
+      'returns': returnsType,
+      'type': useCaseType,
+      'dryRun': isDryRun,
+      'force': isForce,
+      'verbose': isVerbose,
+      'outputDir': outputDir,
+    });
 
-    // Wait, ServicePlugin.generate line 35:
-    // if (!config.isCustomUseCase || !config.hasService)
-    // This strictly limits standalone service generation.
-    // Maybe we should allow standalone service generation?
-    // The user said "work in legacy full mode", but didn't say "don't improve standalone".
-    // I'll stick to what the plugin does for now.
-
-    final files = await plugin.generate(config);
-    logSummary(files);
+    if (result.success) {
+      final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      logSummary(files);
+    } else {
+      print('Failed to generate service');
+    }
   }
 }

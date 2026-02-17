@@ -9,7 +9,9 @@ import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
+import '../../core/plugin_system/capability.dart';
 import 'builders/view_class_builder.dart';
+import 'capabilities/create_view_capability.dart';
 
 /// Generates Flutter view classes for presentation pages.
 ///
@@ -47,6 +49,11 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     required this.verbose,
     ViewClassBuilder? classBuilder,
   }) : classBuilder = classBuilder ?? const ViewClassBuilder();
+
+  @override
+  List<ZuraffaCapability> get capabilities => [
+        CreateViewCapability(this),
+      ];
 
   /// @returns Plugin identifier.
   @override

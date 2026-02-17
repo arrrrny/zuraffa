@@ -1,6 +1,7 @@
-import '../models/generator_config.dart';
+import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import '../plugins/observer/observer_plugin.dart';
+import '../plugins/observer/capabilities/create_observer_capability.dart';
 
 class ObserverCommand extends PluginCommand {
   @override
@@ -18,16 +19,23 @@ class ObserverCommand extends PluginCommand {
   Future<void> run() async {
     final entityName = argResults!.rest.first;
 
-    final config = GeneratorConfig(
-      name: entityName,
-      generateObserver: true,
-      dryRun: isDryRun,
-      force: isForce,
-      verbose: isVerbose,
-      outputDir: outputDir,
-    );
+    final capability = plugin.capabilities.firstWhere(
+      (c) => c is CreateObserverCapability,
+    ) as CreateObserverCapability;
 
-    final files = await plugin.generate(config);
-    logSummary(files);
+    final result = await capability.execute({
+      'name': entityName,
+      'dryRun': isDryRun,
+      'force': isForce,
+      'verbose': isVerbose,
+      'outputDir': outputDir,
+    });
+
+    if (result.success) {
+      final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      logSummary(files);
+    } else {
+      print('Failed to generate observer');
+    }
   }
 }

@@ -32,6 +32,15 @@ class EffectReport {
   /// Unique ID for this plan (for future reference/execution).
   final String planId;
 
+  /// The ID of the plugin that generated this plan.
+  final String pluginId;
+
+  /// The name of the capability that generated this plan.
+  final String capabilityName;
+
+  /// The arguments used to generate this plan.
+  final Map<String, dynamic> args;
+
   /// List of effects that will occur.
   final List<Effect> changes;
 
@@ -43,6 +52,9 @@ class EffectReport {
 
   EffectReport({
     required this.planId,
+    required this.pluginId,
+    required this.capabilityName,
+    required this.args,
     required this.changes,
     this.isValid = true,
     this.message,
@@ -50,6 +62,9 @@ class EffectReport {
 
   Map<String, dynamic> toJson() => {
         'plan_id': planId,
+        'plugin_id': pluginId,
+        'capability_name': capabilityName,
+        'args': args,
         'valid': isValid,
         if (message != null) 'message': message,
         'changes': changes.map((e) => e.toJson()).toList(),
@@ -67,16 +82,21 @@ class ExecutionResult {
   /// Optional message or error description.
   final String? message;
 
+  /// Optional additional data returned by the execution.
+  final Map<String, dynamic>? data;
+
   ExecutionResult({
     required this.success,
     this.files = const [],
     this.message,
+    this.data,
   });
 
   Map<String, dynamic> toJson() => {
         'success': success,
         'files': files,
         if (message != null) 'message': message,
+        if (data != null) 'data': data,
       };
 }
 

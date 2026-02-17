@@ -6,6 +6,8 @@ import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'generators/interface_generator.dart';
 import 'generators/implementation_generator.dart';
+import 'capabilities/create_repository_capability.dart';
+import '../../core/plugin_system/capability.dart';
 
 class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
@@ -35,6 +37,11 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       verbose: verbose,
     );
   }
+
+  @override
+  List<ZuraffaCapability> get capabilities => [
+        CreateRepositoryCapability(this),
+      ];
 
   @override
   Command createCommand() => RepositoryCommand(this);

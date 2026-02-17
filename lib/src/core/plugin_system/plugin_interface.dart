@@ -1,5 +1,6 @@
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import 'capability.dart';
 import 'plugin_lifecycle.dart';
 
 abstract class ZuraffaPlugin {
@@ -7,6 +8,9 @@ abstract class ZuraffaPlugin {
   String get name;
   String get version;
   int get order => 0;
+
+  /// Returns the list of capabilities exposed by this plugin.
+  List<ZuraffaCapability> get capabilities => [];
 
   Future<ValidationResult> validate(GeneratorConfig config) async {
     return ValidationResult.success();

@@ -1,6 +1,7 @@
-import '../models/generator_config.dart';
+import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import '../plugins/mock/mock_plugin.dart';
+import '../plugins/mock/capabilities/create_mock_capability.dart';
 
 class MockCommand extends PluginCommand {
   @override
@@ -25,17 +26,24 @@ class MockCommand extends PluginCommand {
     final entityName = argResults!.rest.first;
     final dataOnly = argResults!['data-only'] as bool;
 
-    final config = GeneratorConfig(
-      name: entityName,
-      generateMock: !dataOnly,
-      generateMockDataOnly: dataOnly,
-      dryRun: isDryRun,
-      force: isForce,
-      verbose: isVerbose,
-      outputDir: outputDir,
-    );
+    final capability = plugin.capabilities.firstWhere(
+      (c) => c is CreateMockCapability,
+    ) as CreateMockCapability;
 
-    final files = await plugin.generate(config);
-    logSummary(files);
+    final result = await capability.execute({
+      'name': entityName,
+      'data-only': dataOnly,
+      'dryRun': isDryRun,
+      'force': isForce,
+      'verbose': isVerbose,
+      'outputDir': outputDir,
+    });
+
+    if (result.success) {
+      final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      logSummary(files);
+    } else {
+      print('Failed to generate mock');
+    }
   }
 }

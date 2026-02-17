@@ -5,10 +5,12 @@ import 'package:path/path.dart' as path;
 import '../../commands/controller_command.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/capability.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/file_utils.dart';
 import 'builders/controller_class_builder.dart';
+import 'capabilities/create_controller_capability.dart';
 
 part 'controller_plugin_bodies.dart';
 part 'controller_plugin_methods.dart';
@@ -50,6 +52,11 @@ class ControllerPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     required this.verbose,
     ControllerClassBuilder? classBuilder,
   }) : classBuilder = classBuilder ?? const ControllerClassBuilder();
+
+  @override
+  List<ZuraffaCapability> get capabilities => [
+        CreateControllerCapability(this),
+      ];
 
   /// @returns Plugin identifier.
   @override
