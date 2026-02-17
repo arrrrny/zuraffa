@@ -221,6 +221,11 @@ class GenerateCommand extends Command<void> {
     argParser.addOption('ttl', help: 'TTL duration in minutes');
     argParser.addOption('method', help: 'Dependency method name');
     argParser.addOption('service-method', help: 'Service method name');
+    argParser.addFlag(
+      'revert',
+      negatable: false,
+      help: 'Revert generation (undo created files)',
+    );
   }
 
   @override
@@ -299,7 +304,7 @@ class GenerateCommand extends Command<void> {
       );
     }
 
-    _printResult(result, config.verbose);
+    _printResult(result, config);
 
     if (!result.success) {
       exit(1);
@@ -415,6 +420,7 @@ class GenerateCommand extends Command<void> {
       dryRun: argResults!['dry-run'] == true,
       force: argResults!['force'] == true,
       verbose: argResults!['verbose'] == true,
+      revert: argResults!['revert'] == true,
     );
   }
 
@@ -481,7 +487,7 @@ class GenerateCommand extends Command<void> {
     return Directory.current.path;
   }
 
-  void _printResult(OrchestrationResult result, bool verbose) {
+  void _printResult(OrchestrationResult result, GeneratorConfig config) {
     final format = argResults!['format'] as String;
     final quiet = argResults!['quiet'] == true;
 
@@ -498,17 +504,38 @@ class GenerateCommand extends Command<void> {
 
     if (!quiet) {
       if (result.success) {
-        print('\n✅ Generated ${result.files.length} files:');
+        if (config.revert) {
+          print('\n🗑️  Reverted ${result.files.length} files:');
+        } else {
+          print('\n✅ Generated ${result.files.length} files:');
+        }
+
         for (final entry in result.filesByPlugin.entries) {
           final count = entry.value.where((f) => f.action == 'created').length;
-          if (count > 0) {
+          // If we are reverting, we count deleted files
+          final revertedCount =
+              entry.value.where((f) => f.action == 'deleted').length;
+
+          if (count > 0 && !config.revert) {
             print('  ${entry.key}: $count files');
+          } else if (revertedCount > 0 && config.revert) {
+            print('  ${entry.key}: $revertedCount files reverted');
           }
         }
-        if (verbose) {
-          for (final file in result.files) {
-            print('    ${file.path}');
+
+        // Always show file list unless quiet
+        for (final file in result.files) {
+          var icon = '';
+          if (file.action == 'created') {
+            icon = '✨';
+          } else if (file.action == 'overwritten') {
+            icon = '📝';
+          } else if (file.action == 'skipped') {
+            icon = '⏭ ';
+          } else if (file.action == 'deleted') {
+            icon = '🗑 ';
           }
+          print('    $icon ${file.path}');
         }
       } else {
         print('\n❌ Generation failed:');

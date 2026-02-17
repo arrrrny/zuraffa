@@ -118,7 +118,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         registrationDetector: registrationDetector,
         appendExecutor: appendExecutor,
         serviceLocatorBuilder: serviceLocatorBuilder,
-      );
+        );
       return delegator.generate(config);
     }
 
@@ -171,8 +171,13 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       }
     }
 
-    await _regenerateIndexFiles();
-    await _generateServiceLocator();
+    final indexFiles = await _regenerateIndexFiles(files);
+    files.addAll(indexFiles);
+    
+    final serviceLocatorFile = await _generateServiceLocator(revert: config.revert);
+    if (serviceLocatorFile != null) {
+      files.add(serviceLocatorFile);
+    }
 
     return files;
   }
@@ -414,6 +419,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       force: force,
       dryRun: dryRun,
       verbose: verbose,
+      revert: config.revert,
     );
   }
 
@@ -458,6 +464,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       force: force,
       dryRun: dryRun,
       verbose: verbose,
+      revert: config.revert,
     );
   }
 
@@ -514,6 +521,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       force: force,
       dryRun: dryRun,
       verbose: verbose,
+      revert: config.revert,
     );
   }
 
@@ -592,6 +600,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       force: force,
       dryRun: dryRun,
       verbose: verbose,
+      revert: config.revert,
     );
   }
 
@@ -671,6 +680,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           force: force,
           dryRun: dryRun,
           verbose: verbose,
+          revert: config.revert,
         ),
       );
     }
@@ -743,6 +753,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       force: force,
       dryRun: dryRun,
       verbose: verbose,
+      revert: config.revert,
     );
   }
 
@@ -784,22 +795,57 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     };
   }
 
-  Future<void> _regenerateIndexFiles() async {
-    await _regenerateIndexFile('usecases', 'UseCases');
-    await _regenerateIndexFile('datasources', 'DataSources');
-    await _regenerateIndexFile('repositories', 'Repositories');
-    await _regenerateIndexFile('services', 'Services');
-    await _regenerateIndexFile('providers', 'Providers');
-    await _regenerateMainIndex();
+  Future<List<GeneratedFile>> _regenerateIndexFiles(List<GeneratedFile> files) async {
+    final indexFiles = <GeneratedFile>[];
+
+    void addIfNotNull(GeneratedFile? f) {
+      if (f != null) indexFiles.add(f);
+    }
+
+    addIfNotNull(await _regenerateIndexFile('usecases', 'UseCases', files));
+    addIfNotNull(await _regenerateIndexFile('datasources', 'DataSources', files));
+    addIfNotNull(await _regenerateIndexFile('repositories', 'Repositories', files));
+    addIfNotNull(await _regenerateIndexFile('services', 'Services', files));
+    addIfNotNull(await _regenerateIndexFile('providers', 'Providers', files));
+
+    final allFiles = [...files, ...indexFiles];
+    addIfNotNull(await _regenerateMainIndex(allFiles));
+
+    return indexFiles;
   }
 
-  Future<void> _regenerateIndexFile(String folder, String label) async {
+  Future<GeneratedFile?> _regenerateIndexFile(
+    String folder,
+    String label,
+    List<GeneratedFile> files,
+  ) async {
     final dirPath = path.join(outputDir, 'di', folder);
     final indexPath = path.join(dirPath, 'index.dart');
 
-    final registrations = registrationDetector.detectRegistrations(dirPath);
+    var registrations = registrationDetector.detectRegistrations(dirPath);
+
+    // Filter out deleted files
+    final deletedPaths = files
+        .where((f) => f.action == 'deleted')
+        .map((f) => f.path)
+        .toSet();
+
+    registrations = registrations.where((r) {
+      final fullPath = path.join(dirPath, r.fileName);
+      return !deletedPaths.contains(fullPath);
+    }).toList();
+
     if (registrations.isEmpty) {
-      return;
+      if (deletedPaths.isNotEmpty) {
+        // If we deleted files and no registrations left, delete index file
+        return FileUtils.deleteFile(
+          indexPath,
+          'di_index',
+          dryRun: dryRun,
+          verbose: verbose,
+        );
+      }
+      return null;
     }
 
     final importPaths = [
@@ -832,7 +878,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       );
     }
 
-    await FileUtils.writeFile(
+    return FileUtils.writeFile(
       indexPath,
       content,
       'di_index',
@@ -842,7 +888,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     );
   }
 
-  Future<void> _regenerateMainIndex() async {
+  Future<GeneratedFile?> _regenerateMainIndex(List<GeneratedFile> files) async {
     final mainIndexPath = path.join(outputDir, 'di', 'index.dart');
 
     final usecasesDir = Directory(path.join(outputDir, 'di', 'usecases'));
@@ -853,42 +899,69 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final servicesDir = Directory(path.join(outputDir, 'di', 'services'));
     final providersDir = Directory(path.join(outputDir, 'di', 'providers'));
 
+    final deletedPaths = files
+        .where((f) => f.action == 'deleted')
+        .map((f) => f.path)
+        .toSet();
+
+    bool hasIndex(Directory dir) {
+      final indexPath = path.join(dir.path, 'index.dart');
+      if (deletedPaths.contains(indexPath)) return false;
+      
+      final isJustGenerated = files.any((f) => f.path == indexPath && (f.action == 'created' || f.action == 'updated'));
+      if (isJustGenerated) return true;
+
+      return File(indexPath).existsSync();
+    }
+
     final exportPaths = <String>[];
     final importPaths = <String>['package:get_it/get_it.dart'];
     final registrationCalls = <String>[];
 
-    if (usecasesDir.existsSync() && _hasIndexFile(usecasesDir)) {
+    if (usecasesDir.existsSync() && hasIndex(usecasesDir)) {
       exportPaths.add('usecases/index.dart');
       importPaths.add('usecases/index.dart');
       registrationCalls.add('registerAllUseCases(getIt);');
     }
 
-    if (datasourcesDir.existsSync() && _hasIndexFile(datasourcesDir)) {
+    if (datasourcesDir.existsSync() && hasIndex(datasourcesDir)) {
       exportPaths.add('datasources/index.dart');
       importPaths.add('datasources/index.dart');
       registrationCalls.add('registerAllDataSources(getIt);');
     }
 
-    if (repositoriesDir.existsSync() && _hasIndexFile(repositoriesDir)) {
+    if (repositoriesDir.existsSync() && hasIndex(repositoriesDir)) {
       exportPaths.add('repositories/index.dart');
       importPaths.add('repositories/index.dart');
       registrationCalls.add('registerAllRepositories(getIt);');
     }
 
-    if (servicesDir.existsSync() && _hasIndexFile(servicesDir)) {
+    if (servicesDir.existsSync() && hasIndex(servicesDir)) {
       exportPaths.add('services/index.dart');
       importPaths.add('services/index.dart');
       registrationCalls.add('registerAllServices(getIt);');
     }
 
-    if (providersDir.existsSync() && _hasIndexFile(providersDir)) {
+    if (providersDir.existsSync() && hasIndex(providersDir)) {
       exportPaths.add('providers/index.dart');
       importPaths.add('providers/index.dart');
       registrationCalls.add('registerAllProviders(getIt);');
     }
 
     if (registrationCalls.isEmpty) {
-      return;
+       if (deletedPaths.isNotEmpty && (File(mainIndexPath).existsSync() || files.any((f) => f.path == mainIndexPath))) {
+          // If we have deleted files, check if main index becomes empty (no registrations).
+          // However, main index might contain other things? Usually just exports and registerAll calls.
+          // If registrationCalls is empty, it means no sub-modules.
+          // We should probably delete main index if it exists.
+          return FileUtils.deleteFile(
+            mainIndexPath,
+            'di_main_index',
+            dryRun: dryRun,
+            verbose: verbose,
+          );
+       }
+      return null;
     }
 
     String content;
@@ -918,7 +991,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       );
     }
 
-    await FileUtils.writeFile(
+    return FileUtils.writeFile(
       mainIndexPath,
       content,
       'di_main_index',
@@ -926,11 +999,6 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       dryRun: dryRun,
       verbose: verbose,
     );
-  }
-
-  bool _hasIndexFile(Directory dir) {
-    final indexFile = File(path.join(dir.path, 'index.dart'));
-    return indexFile.existsSync() || !dryRun;
   }
 
   String _updateIndexFile({
@@ -970,7 +1038,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     return content;
   }
 
-  Future<void> _generateServiceLocator() async {
+  Future<GeneratedFile?> _generateServiceLocator({bool revert = false}) async {
     final serviceLocatorPath = path.join(
       outputDir,
       'di',
@@ -978,19 +1046,20 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     );
 
     final file = File(serviceLocatorPath);
-    if (file.existsSync() && !force) {
-      return;
+    if (file.existsSync() && !force && !revert) {
+      return null;
     }
 
-    final content = serviceLocatorBuilder.build();
+    final content = revert ? '' : serviceLocatorBuilder.build();
 
-    await FileUtils.writeFile(
+    return FileUtils.writeFile(
       serviceLocatorPath,
       content,
       'di_service_locator',
       force: force,
       dryRun: dryRun,
       verbose: verbose,
+      revert: revert,
     );
   }
 }

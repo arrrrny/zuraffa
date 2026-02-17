@@ -278,6 +278,7 @@ class RepositoryImplementationGenerator {
         force: true,
         dryRun: dryRun,
         verbose: verbose,
+        revert: config.revert,
       );
     }
 
@@ -288,6 +289,7 @@ class RepositoryImplementationGenerator {
       force: force,
       dryRun: dryRun,
       verbose: verbose,
+      revert: config.revert,
     );
   }
 }

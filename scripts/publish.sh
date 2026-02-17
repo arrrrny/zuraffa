@@ -129,7 +129,7 @@ if [ "$SKIP_CHANGELOG_UPDATE" = true ]; then
 else
     git add pubspec.yaml CHANGELOG.md lib/src/zfa_cli.dart example/pubspec.yaml
 fi
-git commit -m "chore: release $VERSION"
+git commit -m "chore: release $VERSION" || echo "  ⚠️  Nothing to commit, proceeding..."
 echo "  ✓ Changes committed"
 
 # Step 4: Create PR to master
@@ -165,9 +165,15 @@ fi
 
 # Step 5: Create and push git tag
 echo "🏷️  Creating git tag..."
-git tag -a "v$VERSION" -m "Release $VERSION"
-git push origin "$(git rev-parse --abbrev-ref HEAD)"
-git push origin "v$VERSION"
+if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+    echo "  ⚠️  Tag v$VERSION already exists locally, skipping creation..."
+else
+    git tag -a "v$VERSION" -m "Release $VERSION"
+    echo "  ✓ Tag v$VERSION created"
+fi
+
+git push origin "$(git rev-parse --abbrev-ref HEAD)" || echo "  ⚠️  Failed to push branch (maybe up to date?)"
+git push origin "v$VERSION" || echo "  ⚠️  Failed to push tag (maybe already exists on remote?)"
 echo "  ✓ Tag v$VERSION pushed"
 
 # Step 6: Run tests

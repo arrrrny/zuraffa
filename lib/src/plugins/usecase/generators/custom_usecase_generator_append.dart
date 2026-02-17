@@ -60,18 +60,26 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
     required List<String> methodSources,
     required String content,
   }) async {
-    if (config.appendToExisting && File(filePath).existsSync()) {
-      if (force) {
-        return FileUtils.writeFile(
-          filePath,
-          content,
-          'usecase',
-          force: true,
-          dryRun: dryRun,
-          verbose: verbose,
+    if (config.revert) {
+      if (config.appendToExisting) {
+        if (verbose) {
+          print('  ⚠️ Cannot revert append operation for $filePath');
+        }
+        return GeneratedFile(
+          path: filePath,
+          type: 'usecase',
+          action: 'skipped',
         );
       }
+      return FileUtils.deleteFile(
+        filePath,
+        'usecase',
+        dryRun: dryRun,
+        verbose: verbose,
+      );
+    }
 
+    if (config.appendToExisting && File(filePath).existsSync()) {
       var updatedSource = await File(filePath).readAsString();
       var changed = false;
       for (final methodSource in methodSources) {

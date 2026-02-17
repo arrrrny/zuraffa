@@ -16,7 +16,17 @@ class FileUtils {
     bool force = false,
     bool dryRun = false,
     bool verbose = false,
+    bool revert = false,
   }) async {
+    if (revert) {
+      return deleteFile(
+        filePath,
+        type,
+        dryRun: dryRun,
+        verbose: verbose,
+      );
+    }
+
     final file = File(filePath);
     final exists = file.existsSync();
     final formattedContent = _formatDart(content, filePath);

@@ -516,6 +516,7 @@ class LocalDataSourceBuilder {
       force: options.force,
       dryRun: options.dryRun,
       verbose: options.verbose,
+      revert: config.revert,
     );
   }
 }

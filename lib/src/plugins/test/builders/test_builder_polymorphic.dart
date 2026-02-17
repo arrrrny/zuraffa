@@ -172,6 +172,7 @@ extension TestBuilderPolymorphic on TestBuilder {
         force: force,
         dryRun: dryRun,
         verbose: verbose,
+        revert: config.revert,
       );
       files.add(file);
     }

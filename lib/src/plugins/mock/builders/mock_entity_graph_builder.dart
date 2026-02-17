@@ -34,6 +34,7 @@ class MockEntityGraphBuilder {
         final subtypeConfig = GeneratorConfig(
           name: subtype,
           generateMockDataOnly: true,
+          outputDir: outputDir,
         );
         files.add(await generateMockDataFile(subtypeConfig));
 
@@ -94,6 +95,7 @@ class MockEntityGraphBuilder {
                 final subtypeConfig = GeneratorConfig(
                   name: subtype,
                   generateMockDataOnly: true,
+                  outputDir: outputDir,
                 );
                 files.add(await generateMockDataFile(subtypeConfig));
 
@@ -123,6 +125,7 @@ class MockEntityGraphBuilder {
             final nestedConfig = GeneratorConfig(
               name: baseType,
               generateMockDataOnly: true,
+              outputDir: outputDir,
             );
             files.add(await generateMockDataFile(nestedConfig));
 

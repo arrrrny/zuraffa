@@ -55,6 +55,7 @@ class GeneratorConfig {
   final bool dryRun;
   final bool force;
   final bool verbose;
+  final bool revert;
   final String outputDir;
 
   GeneratorConfig({
@@ -110,9 +111,9 @@ class GeneratorConfig {
     this.dryRun = false,
     this.force = false,
     this.verbose = false,
-    this.outputDir = 'lib/src',
-  }) : queryFieldType =
-           queryFieldType ?? (queryField == 'id' ? 'String' : 'String');
+    this.revert = false,
+    required this.outputDir,
+  }) : queryFieldType = queryFieldType ?? idType;
 
   factory GeneratorConfig.fromJson(Map<String, dynamic> json, String name) {
     return GeneratorConfig(
@@ -171,6 +172,7 @@ class GeneratorConfig {
       customControllerName:
           json['controller'] ?? json['custom_controller_name'],
       customStateName: json['state_class'] ?? json['custom_state_name'],
+      outputDir: json['output_dir'] ?? 'lib/src',
     );
   }
 

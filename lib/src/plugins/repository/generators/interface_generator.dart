@@ -52,6 +52,25 @@ class RepositoryInterfaceGenerator {
     final normalizedContent = content.replaceAll('\n\nimport', '\nimport');
     final output = '$header\n\n$normalizedContent';
 
+    if (config.revert) {
+      if (config.appendToExisting) {
+        if (verbose) {
+          print('  ⚠️ Cannot revert append operation for $filePath');
+        }
+        return GeneratedFile(
+          path: filePath,
+          type: 'repository',
+          action: 'skipped',
+        );
+      }
+      return FileUtils.deleteFile(
+        filePath,
+        'repository',
+        dryRun: dryRun,
+        verbose: verbose,
+      );
+    }
+
     if (config.appendToExisting && File(filePath).existsSync()) {
       final existing = await File(filePath).readAsString();
       final importLines = _buildImportLines(importPaths);

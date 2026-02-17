@@ -97,6 +97,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       force: force,
       dryRun: dryRun,
       verbose: verbose,
+      revert: config.revert,
     );
     return [file];
   }

@@ -2,6 +2,15 @@ part of 'custom_usecase_generator.dart';
 
 extension CustomUseCaseGeneratorGenerate on CustomUseCaseGenerator {
   Future<GeneratedFile> generate(GeneratorConfig config) async {
+    if (!config.revert &&
+        config.useCaseType != 'sync' &&
+        !config.hasRepo &&
+        !config.hasService) {
+      throw ArgumentError(
+        'For ${config.useCaseType} usecases, you must specify a repository or service using --repo or --service. Use --type=sync for independent usecases.',
+      );
+    }
+
     final baseName = config.name.endsWith('UseCase')
         ? config.name.substring(0, config.name.length - 7)
         : config.name;

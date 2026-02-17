@@ -297,6 +297,7 @@ class RemoteDataSourceBuilder {
       force: options.force,
       dryRun: options.dryRun,
       verbose: options.verbose,
+      revert: config.revert,
     );
   }
 

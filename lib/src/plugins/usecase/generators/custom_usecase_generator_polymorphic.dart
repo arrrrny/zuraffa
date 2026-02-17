@@ -37,6 +37,7 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
         force: force,
         dryRun: dryRun,
         verbose: verbose,
+        revert: config.revert,
       ),
     );
 
@@ -148,6 +149,7 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
         force: force,
         dryRun: dryRun,
         verbose: verbose,
+        revert: config.revert,
       ),
     );
 
