@@ -320,7 +320,25 @@ class GenerateCommand extends Command<void> {
       return GeneratorConfig.fromJson(json, name);
     }
 
-    final methodsStr = argResults!['methods'] as String?;
+    var methodsStr = argResults!['methods'] as String?;
+    final methodsWasParsed = argResults!.wasParsed('methods');
+
+    // If methods were not explicitly provided, but other flags indicate a custom usecase,
+    // ignore the default methods value.
+    if (!methodsWasParsed) {
+      final isCustomUseCase = argResults!['domain'] != null ||
+          argResults!['params'] != null ||
+          argResults!['returns'] != null ||
+          argResults!['usecases'] != null ||
+          argResults!['variants'] != null ||
+          argResults!['repo'] != null ||
+          argResults!['service'] != null ||
+          argResults!['type'] != null;
+
+      if (isCustomUseCase) {
+        methodsStr = null;
+      }
+    }
     final usecasesStr = argResults!['usecases'] as String?;
     final variantsStr = argResults!['variants'] as String?;
 
