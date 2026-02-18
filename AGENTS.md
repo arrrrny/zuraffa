@@ -31,7 +31,7 @@ lib/src/
 │   ├── repositories/          # Repository interfaces (contracts)
 │   └── usecases/              # Business operations
 ├── data/                      # Data layer (external dependencies)
-│   ├── data_sources/          # Data source interfaces & implementations
+│   ├── datasources/          # Data source interfaces & implementations
 │   └── repositories/          # Repository implementations
 └── presentation/              # UI layer (Flutter)
     └── pages/
@@ -282,7 +282,7 @@ zfa generate Product --methods=get,getList,create,update,delete --data --gql --g
 
 Generated files are placed in:
 ```
-lib/src/data/data_sources/{entity}/graphql/
+lib/src/data/datasources/{entity}/graphql/
 ├── get_product_query.dart
 ├── get_product_list_query.dart
 ├── create_product_mutation.dart
@@ -658,7 +658,7 @@ dart pub global activate zuraffa
 | Entity | `{entity_snake}.dart` | `product.dart` |
 | Repository | `{entity_snake}_repository.dart` | `product_repository.dart` |
 | UseCase | `{action}_{entity_snake}_usecase.dart` | `get_product_usecase.dart` |
-| DataSource | `{entity_snake}_data_source.dart` | `product_data_source.dart` |
+| DataSource | `{entity_snake}_datasource.dart` | `product_datasource.dart` |
 | View | `{entity_snake}_view.dart` | `product_view.dart` |
 | Presenter | `{entity_snake}_presenter.dart` | `product_presenter.dart` |
 | Controller | `{entity_snake}_controller.dart` | `product_controller.dart` |

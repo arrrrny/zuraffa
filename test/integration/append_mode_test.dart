@@ -47,6 +47,7 @@ void main() {
         returnsType: 'Product',
         appendToExisting: true,
         outputDir: outputDir,
+        domain: 'product',
       ),
       outputDir: outputDir,
       dryRun: false,
@@ -65,7 +66,7 @@ void main() {
       '$outputDir/data/repositories/data_product_repository.dart',
     ).readAsStringSync();
     final dataSourceContent = File(
-      '$outputDir/data/data_sources/product/product_data_source.dart',
+      '$outputDir/data/datasources/product/product_datasource.dart',
     ).readAsStringSync();
 
     expect(repoContent.contains('fetchProductStats'), isTrue);

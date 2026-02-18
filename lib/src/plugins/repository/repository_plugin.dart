@@ -9,6 +9,8 @@ import 'generators/implementation_generator.dart';
 import 'capabilities/create_repository_capability.dart';
 import '../../core/plugin_system/capability.dart';
 
+import '../../core/plugin_system/plugin_action.dart';
+
 class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final bool dryRun;
@@ -56,7 +58,26 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   String get version => '1.0.0';
 
   @override
-  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
+  Future<List<GeneratedFile>> create(GeneratorConfig config) async {
+    return _dispatch(config.copyWith(action: PluginAction.create));
+  }
+
+  @override
+  Future<List<GeneratedFile>> delete(GeneratorConfig config) async {
+    return _dispatch(config.copyWith(action: PluginAction.delete));
+  }
+
+  @override
+  Future<List<GeneratedFile>> add(GeneratorConfig config) async {
+    return _dispatch(config.copyWith(action: PluginAction.add));
+  }
+
+  @override
+  Future<List<GeneratedFile>> remove(GeneratorConfig config) async {
+    return _dispatch(config.copyWith(action: PluginAction.remove));
+  }
+
+  Future<List<GeneratedFile>> _dispatch(GeneratorConfig config) async {
     if (config.outputDir != outputDir ||
         config.dryRun != dryRun ||
         config.force != force ||
@@ -67,11 +88,17 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         force: config.force,
         verbose: config.verbose,
       );
-      return delegator.generate(config);
+      // Pass the action down
+      return delegator._dispatch(config);
     }
 
     final files = <GeneratedFile>[];
-    if (config.isEntityBased) {
+    // If deleting, we don't strictly need methods to identify the file path
+    // But we need to ensure we have a name.
+    final shouldRunInterface = config.isEntityBased ||
+        (config.action == PluginAction.delete && config.name.isNotEmpty);
+
+    if (shouldRunInterface) {
       files.add(await interfaceGenerator.generate(config));
     }
     if ((config.generateData || config.generateDataSource) &&
@@ -79,6 +106,12 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       files.add(await implementationGenerator.generate(config));
     }
     return files;
+  }
+
+  @override
+  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
+    // Default generate calls dispatch with existing config action (default create)
+    return _dispatch(config);
   }
 
   Future<GeneratedFile> generateInterface(GeneratorConfig config) {

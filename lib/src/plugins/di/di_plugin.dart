@@ -195,7 +195,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final entityName = config.name;
     final entitySnake = config.nameSnake;
     final dataSourceName = '${entityName}RemoteDataSource';
-    final fileName = '${entitySnake}_remote_data_source_di.dart';
+    final fileName = '${entitySnake}_remote_datasource_di.dart';
     final diPath = path.join(outputDir, 'di', 'datasources', fileName);
     final registrationCall = refer('getIt')
         .property('registerLazySingleton')
@@ -215,7 +215,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       functionName: 'register$dataSourceName',
       imports: [
         'package:get_it/get_it.dart',
-        '../../data/data_sources/$entitySnake/${entitySnake}_remote_data_source.dart',
+        '../../data/datasources/$entitySnake/${entitySnake}_remote_datasource.dart',
       ],
       body: Block((b) => b..statements.add(registrationCall.statement)),
     );
@@ -237,12 +237,12 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final entityName = config.name;
     final entitySnake = config.nameSnake;
     final dataSourceName = '${entityName}LocalDataSource';
-    final fileName = '${entitySnake}_local_data_source_di.dart';
+    final fileName = '${entitySnake}_local_datasource_di.dart';
     final diPath = path.join(outputDir, 'di', 'datasources', fileName);
 
     final imports = <String>[
       'package:get_it/get_it.dart',
-      '../../data/data_sources/$entitySnake/${entitySnake}_local_data_source.dart',
+      '../../data/datasources/$entitySnake/${entitySnake}_local_datasource.dart',
     ];
 
     Expression constructorCall;
@@ -297,7 +297,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final entityName = config.name;
     final entitySnake = config.nameSnake;
     final dataSourceName = '${entityName}MockDataSource';
-    final fileName = '${entitySnake}_mock_data_source_di.dart';
+    final fileName = '${entitySnake}_mock_datasource_di.dart';
     final diPath = path.join(outputDir, 'di', 'datasources', fileName);
     final registrationCall = refer('getIt')
         .property('registerLazySingleton')
@@ -317,7 +317,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       functionName: 'register$dataSourceName',
       imports: [
         'package:get_it/get_it.dart',
-        '../../data/data_sources/$entitySnake/${entitySnake}_mock_data_source.dart',
+        '../../data/datasources/$entitySnake/${entitySnake}_mock_datasource.dart',
       ],
       body: Block((b) => b..statements.add(registrationCall.statement)),
     );
@@ -363,11 +363,11 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           : 'createTtl${ttlMinutes}MinutesCachePolicy';
 
       final remoteImport = config.useMockInDi
-          ? '../../data/data_sources/$entitySnake/${entitySnake}_mock_data_source.dart'
-          : '../../data/data_sources/$entitySnake/${entitySnake}_remote_data_source.dart';
+          ? '../../data/datasources/$entitySnake/${entitySnake}_mock_datasource.dart'
+          : '../../data/datasources/$entitySnake/${entitySnake}_remote_datasource.dart';
       imports.add(remoteImport);
       imports.add(
-        '../../data/data_sources/$entitySnake/${entitySnake}_local_data_source.dart',
+        '../../data/datasources/$entitySnake/${entitySnake}_local_datasource.dart',
       );
       imports.add(
         '../../cache/${policyType == 'ttl'
@@ -387,15 +387,15 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       if (config.useMockInDi) {
         dataSourceName = '${entityName}MockDataSource';
         dataSourceImport =
-            '../../data/data_sources/$entitySnake/${entitySnake}_mock_data_source.dart';
+            '../../data/datasources/$entitySnake/${entitySnake}_mock_datasource.dart';
       } else if (config.generateLocal) {
         dataSourceName = '${entityName}LocalDataSource';
         dataSourceImport =
-            '../../data/data_sources/$entitySnake/${entitySnake}_local_data_source.dart';
+            '../../data/datasources/$entitySnake/${entitySnake}_local_datasource.dart';
       } else {
         dataSourceName = '${entityName}RemoteDataSource';
         dataSourceImport =
-            '../../data/data_sources/$entitySnake/${entitySnake}_remote_data_source.dart';
+            '../../data/datasources/$entitySnake/${entitySnake}_remote_datasource.dart';
       }
       imports.add(dataSourceImport);
       constructorCall = refer(dataRepoName).call([

@@ -1,10 +1,16 @@
+import 'dart:io';
+
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
+import '../../../core/ast/append_executor.dart';
+import '../../../core/ast/strategies/append_strategy.dart';
+import '../../../core/ast/ast_helper.dart';
+import '../../../core/builder/shared/spec_library.dart';
+import '../../../core/plugin_system/plugin_action.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
-import '../../../core/builder/shared/spec_library.dart';
 
 class DataSourceInterfaceBuilder {
   final String outputDir;
@@ -12,6 +18,7 @@ class DataSourceInterfaceBuilder {
   final bool force;
   final bool verbose;
   final SpecLibrary specLibrary;
+  final AppendExecutor appendExecutor;
 
   DataSourceInterfaceBuilder({
     required this.outputDir,
@@ -19,24 +26,188 @@ class DataSourceInterfaceBuilder {
     required this.force,
     required this.verbose,
     SpecLibrary? specLibrary,
-  }) : specLibrary = specLibrary ?? const SpecLibrary();
+    AppendExecutor? appendExecutor,
+  }) : specLibrary = specLibrary ?? const SpecLibrary(),
+       appendExecutor = appendExecutor ?? AppendExecutor();
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final entityName = config.name;
     final entitySnake = config.nameSnake;
-    final entityCamel = config.nameCamel;
     final dataSourceName = '${entityName}DataSource';
-    final fileName = '${entitySnake}_data_source.dart';
+    final fileName = '${entitySnake}_datasource.dart';
 
     final dataSourceDirPath = path.join(
       outputDir,
       'data',
-      'data_sources',
+      'datasources',
       entitySnake,
     );
     final filePath = path.join(dataSourceDirPath, fileName);
 
+    final methods = _buildMethods(config);
+    final importPaths = _buildImportPaths(config);
+
+    final content = specLibrary.emitLibrary(
+      specLibrary.library(
+        specs: [
+          Class(
+            (c) => c
+              ..name = dataSourceName
+              ..abstract = true
+              ..mixins.addAll([refer('Loggable'), refer('FailureHandler')])
+              ..methods.addAll(methods),
+          ),
+        ],
+        directives: importPaths.map(Directive.import),
+      ),
+    );
+
+    if (config.verbose) {
+      print('Generating datasource interface for ${config.name} at $filePath');
+      print('Action: ${config.action}');
+    }
+
+    if (config.action == PluginAction.delete) {
+      return FileUtils.deleteFile(
+        filePath,
+        'datasource_interface',
+        dryRun: dryRun,
+        verbose: verbose,
+      );
+    }
+
+    if (File(filePath).existsSync()) {
+      final existing = await File(filePath).readAsString();
+
+      if (config.action == PluginAction.remove) {
+        final reverted = _removeMethods(
+          source: existing,
+          className: dataSourceName,
+          methods: methods,
+        );
+        return FileUtils.writeFile(
+          filePath,
+          reverted,
+          'datasource_interface',
+          force: true,
+          dryRun: dryRun,
+          verbose: verbose,
+          revert: false,
+        );
+      }
+
+      if (config.action == PluginAction.add ||
+          config.action == PluginAction.create) {
+        if (config.action == PluginAction.create && force) {
+          // Fall through to write new file logic
+        } else {
+          final importLines = _buildImportLines(importPaths);
+          final mergedImports = _mergeImports(existing, importLines);
+          final appended = _appendMethods(
+            source: mergedImports,
+            className: dataSourceName,
+            methods: methods,
+          );
+          return FileUtils.writeFile(
+            filePath,
+            appended,
+            'datasource_interface',
+            force: true,
+            dryRun: dryRun,
+            verbose: verbose,
+            revert: false,
+          );
+        }
+      }
+    }
+
+    if (config.action == PluginAction.remove) {
+      return GeneratedFile(path: filePath, type: 'datasource_interface', action: 'skipped');
+    }
+
+    return FileUtils.writeFile(
+      filePath,
+      content,
+      'datasource_interface',
+      force: force,
+      dryRun: dryRun,
+      verbose: verbose,
+      revert: config.revert,
+    );
+  }
+
+  String _removeMethods({
+    required String source,
+    required String className,
+    required List<Method> methods,
+  }) {
+    var updated = source;
+    final helper = const AstHelper();
+    for (final method in methods) {
+      final methodName = method.name!;
+      updated = helper.removeMethodFromClass(
+        source: updated,
+        className: className,
+        methodName: methodName,
+      );
+    }
+    return updated;
+  }
+
+  String _appendMethods({
+    required String source,
+    required String className,
+    required List<Method> methods,
+  }) {
+    var updated = source;
+    for (final method in methods) {
+      final methodSource = _emitMethod(method);
+      final result = appendExecutor.execute(
+        AppendRequest.method(
+          source: updated,
+          className: className,
+          memberSource: methodSource,
+        ),
+      );
+      updated = result.source;
+    }
+    return updated;
+  }
+
+  String _mergeImports(String source, List<String> imports) {
+    var updated = source;
+    for (final importLine in imports) {
+      if (!updated.contains(importLine)) {
+        updated = '$importLine\n$updated';
+      }
+    }
+    return updated;
+  }
+
+  List<String> _buildImportLines(List<String> importPaths) {
+    return importPaths.map((path) => "import '$path';").toList();
+  }
+
+  String _emitMethod(Method method) {
+    final emitter = DartEmitter(
+      orderDirectives: true,
+      useNullSafetySyntax: true,
+    );
+    return method.accept(emitter).toString();
+  }
+
+  List<String> _buildImportPaths(GeneratorConfig config) {
+    final entitySnake = config.nameSnake;
+    return [
+      'package:zuraffa/zuraffa.dart',
+      '../../../domain/entities/$entitySnake/$entitySnake.dart',
+    ];
+  }
+
+  List<Method> _buildMethods(GeneratorConfig config) {
     final methods = <Method>[];
+    final entityName = config.name;
+    final entityCamel = config.nameCamel;
 
     if (config.generateInit) {
       methods.add(
@@ -182,34 +353,23 @@ class DataSourceInterfaceBuilder {
             ),
           );
           break;
+        default:
+          methods.add(
+            Method(
+              (m) => m
+                ..name = method
+                ..returns = refer('Future<void>')
+                ..requiredParameters.add(
+                  Parameter(
+                    (p) => p
+                      ..name = 'params'
+                      ..type = refer('dynamic'),
+                  ),
+                ),
+            ),
+          );
       }
     }
-
-    final directives = <Directive>[
-      Directive.import('package:zuraffa/zuraffa.dart'),
-      Directive.import(
-        '../../../domain/entities/$entitySnake/$entitySnake.dart',
-      ),
-    ];
-    final clazz = Class(
-      (c) => c
-        ..name = dataSourceName
-        ..abstract = true
-        ..mixins.addAll([refer('Loggable'), refer('FailureHandler')])
-        ..methods.addAll(methods),
-    );
-    final content = specLibrary.emitLibrary(
-      specLibrary.library(specs: [clazz], directives: directives),
-    );
-
-    return FileUtils.writeFile(
-      filePath,
-      content,
-      'datasource',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
-      revert: config.revert,
-    );
+    return methods;
   }
 }

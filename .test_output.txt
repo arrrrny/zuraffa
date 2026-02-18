@@ -358,12 +358,12 @@
 00:26 +292 -6: /Users/arrrrny/Developer/zuraffa/test/regression/compare_outputs_test.dart: plugin outputs include expected files for entity with data
 00:28 +292 -7: /Users/arrrrny/Developer/zuraffa/test/regression/output_quality_test.dart: (setUpAll)
 00:29 +292 -7: /Users/arrrrny/Developer/zuraffa/test/regression/compare_outputs_test.dart: plugin outputs include expected files for entity with data [E]
-  Expected: contains 'data/data_sources/product/product_data_source.dart'
+  Expected: contains 'data/datasources/product/product_datasource.dart'
     Actual: _CompactKeysIterable<String>:[
               'domain/repositories/product_repository.dart',
               'data/repositories/data_product_repository.dart'
             ]
-     Which: does not contain 'data/data_sources/product/product_data_source.dart'
+     Which: does not contain 'data/datasources/product/product_datasource.dart'
   
   package:matcher                                     expect
   package:flutter_test/src/widget_tester.dart 473:18  expect

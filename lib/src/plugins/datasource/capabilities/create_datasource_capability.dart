@@ -29,13 +29,8 @@ class CreateDataSourceCapability implements ZuraffaCapability {
           },
           'local': {
             'type': 'boolean',
-            'description': 'Generate local data source',
-            'default': true,
-          },
-          'remote': {
-            'type': 'boolean',
-            'description': 'Generate remote data source',
-            'default': true,
+            'description': 'Generate local data source (instead of remote)',
+            'default': false,
           },
           'cache': {
             'type': 'boolean',
@@ -105,7 +100,7 @@ class CreateDataSourceCapability implements ZuraffaCapability {
   Future<List<GeneratedFile>> _generateFiles(Map<String, dynamic> args, {required bool dryRun}) async {
     final name = args['name'];
     final outputDir = args['outputDir'] ?? 'lib/src';
-    final generateLocal = args['local'] ?? true;
+    final generateLocal = args['local'] ?? false;
     final enableCache = args['cache'] ?? false;
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;

@@ -57,12 +57,12 @@ class GraphQLEntityEmitter {
     final snakeName = StringUtils.camelToSnake(spec.name);
     final opType = spec.type;
 
-    // Path: lib/src/data/data_sources/[domain]/graphql/[operation_name]_[type].dart
+    // Path: lib/src/data/datasources/[domain]/graphql/[operation_name]_[type].dart
     final domainDir = domain ?? 'graphql';
     final dirPath = path.join(
       outputDir,
       'data',
-      'data_sources',
+      'datasources',
       domainDir,
       'graphql',
     );

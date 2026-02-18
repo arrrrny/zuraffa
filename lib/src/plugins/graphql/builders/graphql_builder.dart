@@ -52,7 +52,7 @@ class GraphqlBuilder {
     final filePath = path.join(
       outputDir,
       'data',
-      'data_sources',
+      'datasources',
       entitySnake,
       'graphql',
       fileName,
@@ -97,7 +97,7 @@ class GraphqlBuilder {
     final filePath = path.join(
       outputDir,
       'data',
-      'data_sources',
+      'datasources',
       domain,
       'graphql',
       fileName,

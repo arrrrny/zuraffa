@@ -60,7 +60,7 @@ zfa generate Product --data --cache --cache-storage=hive
 ### Local DataSource
 
 ```dart
-// lib/src/data/data_sources/product/product_local_data_source.dart
+// lib/src/data/datasources/product/product_local_datasource.dart
 import 'package:hive_ce/hive_ce.dart';
 import '../../../domain/entities/product/product.dart';
 
@@ -101,7 +101,7 @@ class ProductLocalDataSource {
 ### Remote DataSource
 
 ```dart
-// lib/src/data/data_sources/product/product_remote_data_source.dart
+// lib/src/data/datasources/product/product_remote_datasource.dart
 import '../../../domain/entities/product/product.dart';
 
 class ProductRemoteDataSource {
@@ -138,8 +138,8 @@ class ProductRemoteDataSource {
 // lib/src/data/repositories/data_product_repository.dart
 import 'package:zuraffa/zuraffa.dart';
 import '../../domain/entities/product/product.dart';
-import '../data_sources/product/product_remote_data_source.dart';
-import '../data_sources/product/product_local_data_source.dart';
+import '../datasources/product/product_remote_datasource.dart';
+import '../datasources/product/product_local_datasource.dart';
 import '../../cache/product_cache.dart';
 
 class DataProductRepository extends ProductRepository {

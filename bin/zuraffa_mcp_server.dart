@@ -1654,7 +1654,7 @@ Use quick for fast diagnostics, full for troubleshooting.''',
     final directories = [
       'lib/src/domain/repositories',
       'lib/src/domain/usecases',
-      'lib/src/data/data_sources',
+      'lib/src/data/datasources',
       'lib/src/data/repositories',
       'lib/src/presentation',
     ];

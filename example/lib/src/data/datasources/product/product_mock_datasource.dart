@@ -5,7 +5,7 @@ import 'dart:async';
 import 'package:zuraffa/zuraffa.dart';
 import '../../../domain/entities/product/product.dart';
 import '../../mock/product_mock_data.dart';
-import 'product_data_source.dart';
+import 'product_datasource.dart';
 
 class ProductMockDataSource
     with Loggable, FailureHandler

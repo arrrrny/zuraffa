@@ -613,8 +613,8 @@ lib/src/
 │   └── repositories/
 │       └── product_repository.dart      # Abstract interface
 └── data/
-    ├── data_sources/product/
-    │   └── product_data_source.dart     # Abstract DataSource
+    ├── datasources/product/
+    │   └── product_datasource.dart     # Abstract DataSource
     └── repositories/
         └── data_product_repository.dart # Implementation
 ```
@@ -984,9 +984,9 @@ lib/src/
 │           ├── delete_product_usecase.dart
 │           └── watch_product_list_usecase.dart
 ├── data/
-│   ├── data_sources/
+│   ├── datasources/
 │   │   └── product/
-│   │       └── product_data_source.dart  # Generated interface
+│   │       └── product_datasource.dart  # Generated interface
 │   └── repositories/
 │       └── data_product_repository.dart  # Generated implementation
 └── presentation/

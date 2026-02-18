@@ -12,15 +12,15 @@ void main() {
     final expected = [
       '${workspace.outputDir}/domain/repositories/product_repository.dart',
       '${workspace.outputDir}/domain/usecases/product/get_product_usecase.dart',
-      '${workspace.outputDir}/data/data_sources/product/product_data_source.dart',
-      '${workspace.outputDir}/data/data_sources/product/product_remote_data_source.dart',
+      '${workspace.outputDir}/data/datasources/product/product_datasource.dart',
+      '${workspace.outputDir}/data/datasources/product/product_remote_datasource.dart',
       '${workspace.outputDir}/data/repositories/data_product_repository.dart',
       '${workspace.outputDir}/presentation/pages/product/product_view.dart',
       '${workspace.outputDir}/presentation/pages/product/product_presenter.dart',
       '${workspace.outputDir}/presentation/pages/product/product_controller.dart',
       '${workspace.outputDir}/presentation/pages/product/product_state.dart',
       '${workspace.outputDir}/di/repositories/product_repository_di.dart',
-      '${workspace.outputDir}/di/datasources/product_remote_data_source_di.dart',
+      '${workspace.outputDir}/di/datasources/product_remote_datasource_di.dart',
     ];
 
     for (final path in expected) {

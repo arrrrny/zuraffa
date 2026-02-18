@@ -39,6 +39,28 @@ class AstModifier {
         source.substring(endOffset);
   }
 
+  static String removeMethodFromClass({
+    required String source,
+    required MethodDeclaration method,
+  }) {
+    return source.substring(0, method.offset) + source.substring(method.end);
+  }
+
+  static String removeField({
+    required String source,
+    required VariableDeclaration field,
+  }) {
+    final parent = field.parent;
+    if (parent is VariableDeclarationList) {
+      final grandParent = parent.parent;
+      if (grandParent is FieldDeclaration) {
+        return source.substring(0, grandParent.offset) +
+            source.substring(grandParent.end);
+      }
+    }
+    return source.substring(0, field.offset) + source.substring(field.end);
+  }
+
   static String addFieldToClass({
     required String source,
     required ClassDeclaration classNode,

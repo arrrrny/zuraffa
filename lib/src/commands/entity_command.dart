@@ -47,6 +47,9 @@ class EntityCommand {
         case 'add-field':
           await _handleAddField(subArgs);
           break;
+        case 'remove-field':
+          await _handleRemoveField(subArgs);
+          break;
         case 'list':
           await _handleList(subArgs);
           break;
@@ -246,6 +249,106 @@ ${missing.map((d) => '   • $d').join('\n')}
       print('❌ ${result.error}');
       exit(1);
     }
+  }
+
+  Future<void> _handleRemoveField(List<String> args) async {
+    final parsed = _parseArgs(args);
+    final name = parsed['name'] as String?;
+
+    if (name == null || name.isEmpty) {
+      print('Error: Entity name is required. Use -n or --name to specify.');
+      exit(1);
+    }
+
+    final fieldArg = parsed['field'];
+    if (fieldArg == null) {
+      print(
+          'Error: At least one field is required to remove. Use --field to specify.');
+      exit(1);
+    }
+
+    final fieldsToRemove = <String>[];
+    final fieldList = _asStringList(fieldArg);
+    for (final f in fieldList) {
+      // Split by comma if user provided "field1,field2"
+      final parts = f.split(',');
+      for (final part in parts) {
+        // Handle "name:type" or just "name"
+        final nameOnly = part.split(':').first.trim();
+        if (nameOnly.isNotEmpty) {
+          fieldsToRemove.add(nameOnly);
+        }
+      }
+    }
+
+    if (fieldsToRemove.isEmpty) {
+      print('Error: No valid fields to remove.');
+      exit(1);
+    }
+
+    final outputDir = parsed['output'] as String? ?? 'lib/src/domain/entities';
+    final entitySnake = _camelToSnake(name);
+    final entityDir = Directory('$outputDir/$entitySnake');
+    final entityFile = File('${entityDir.path}/$entitySnake.dart');
+
+    if (!await entityFile.exists()) {
+      print('Error: Entity file not found: ${entityFile.path}');
+      exit(1);
+    }
+
+    var content = await entityFile.readAsString();
+    int removedCount = 0;
+    final dryRun = parsed['dry-run'] as bool? ?? false;
+
+    for (final field in fieldsToRemove) {
+      // Regex to match getter: Type? get name; or Type get name;
+      // We look for "get fieldName;"
+      final regex = RegExp(
+        r'^\s*[\w\?<>,\s]+\s+get\s+' + RegExp.escape(field) + r'\s*;\s*$',
+        multiLine: true,
+      );
+
+      if (regex.hasMatch(content)) {
+        content = content.replaceAll(regex, '');
+        removedCount++;
+        print('✓ Scheduled removal: $field');
+      } else {
+        print('⚠️ Field not found in entity: $field');
+      }
+    }
+
+    if (removedCount > 0) {
+      if (dryRun) {
+        print('Dry run: Changes not written to ${entityFile.path}');
+      } else {
+        await entityFile.writeAsString(content);
+        print('✓ Updated entity: ${entityFile.path}');
+
+        // Run build_runner if configured
+        final config = ZfaConfig.load();
+        final runBuild =
+            parsed['build'] == true || (config?.buildByDefault ?? false);
+        if (runBuild) {
+          print('\n🔨 Running build_runner...');
+          await _runBuild();
+        }
+      }
+    } else {
+      print('No changes made.');
+    }
+  }
+
+  String _camelToSnake(String input) {
+    if (input.isEmpty) return '';
+    final buffer = StringBuffer();
+    for (var i = 0; i < input.length; i++) {
+      final char = input[i];
+      if (i > 0 && char.toUpperCase() == char && char != '_') {
+        buffer.write('_');
+      }
+      buffer.write(char.toLowerCase());
+    }
+    return buffer.toString();
   }
 
   Future<void> _handleList(List<String> args) async {

@@ -37,10 +37,10 @@ void main() {
     );
 
     final interfaceFile = File(
-      '$outputDir/data/data_sources/product/product_data_source.dart',
+      '$outputDir/data/datasources/product/product_datasource.dart',
     );
     final remoteFile = File(
-      '$outputDir/data/data_sources/product/product_remote_data_source.dart',
+      '$outputDir/data/datasources/product/product_remote_datasource.dart',
     );
 
     expect(interfaceFile.existsSync(), isTrue);
@@ -75,10 +75,10 @@ void main() {
     );
 
     final localFile = File(
-      '$outputDir/data/data_sources/order/order_local_data_source.dart',
+      '$outputDir/data/datasources/order/order_local_datasource.dart',
     );
     final remoteFile = File(
-      '$outputDir/data/data_sources/order/order_remote_data_source.dart',
+      '$outputDir/data/datasources/order/order_remote_datasource.dart',
     );
 
     expect(localFile.existsSync(), isTrue);
@@ -105,7 +105,7 @@ void main() {
     );
 
     final remoteFile = File(
-      '$outputDir/data/data_sources/profile/profile_remote_data_source.dart',
+      '$outputDir/data/datasources/profile/profile_remote_datasource.dart',
     );
 
     final content = remoteFile.readAsStringSync();

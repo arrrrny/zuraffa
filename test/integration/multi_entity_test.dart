@@ -65,13 +65,13 @@ void main() {
     );
     expect(
       File(
-        '$outputDir/data/data_sources/product/product_remote_data_source.dart',
+        '$outputDir/data/datasources/product/product_remote_datasource.dart',
       ).existsSync(),
       isTrue,
     );
     expect(
       File(
-        '$outputDir/data/data_sources/order/order_remote_data_source.dart',
+        '$outputDir/data/datasources/order/order_remote_datasource.dart',
       ).existsSync(),
       isTrue,
     );

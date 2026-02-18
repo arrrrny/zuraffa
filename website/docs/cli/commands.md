@@ -368,7 +368,7 @@ zfa generate Product --methods=get,getList,create,update,delete --data --gql --g
 
 Generated files are placed in:
 ```
-lib/src/data/data_sources/{entity}/graphql/
+lib/src/data/datasources/{entity}/graphql/
 ├── get_product_query.dart
 ├── get_product_list_query.dart
 ├── create_product_mutation.dart

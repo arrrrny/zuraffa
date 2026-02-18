@@ -30,10 +30,10 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
               (b) => b
                 ..statements.add(
                   refer(depField)
-                      .property(methodName)
-                      .call([refer('params')])
-                      .returned
-                      .statement,
+                    .property(methodName)
+                    .call([refer('params')])
+                    .returned
+                    .statement,
                 ),
             );
       return [
@@ -48,7 +48,7 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
                   ..type = refer(paramsType),
               ),
             )
-            ..requiredParameters.add(
+            ..optionalParameters.add(
               Parameter(
                 (p) => p
                   ..name = 'cancelToken'
@@ -131,7 +131,7 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
                 ..type = refer(paramsType),
             ),
           )
-          ..requiredParameters.add(
+          ..optionalParameters.add(
             Parameter(
               (p) => p
                 ..name = 'cancelToken'
@@ -309,7 +309,7 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
         ..annotations.add(CodeExpression(Code('override')))
         ..body = executeBody;
       if (config.useCaseType != 'sync') {
-        b.requiredParameters.add(
+        b.optionalParameters.add(
           Parameter(
             (p) => p
               ..name = 'cancelToken'
@@ -370,7 +370,7 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
         ..annotations.add(CodeExpression(Code('override')))
         ..body = executeBody;
       if (config.useCaseType != 'sync') {
-        b.requiredParameters.add(
+        b.optionalParameters.add(
           Parameter(
             (p) => p
               ..name = 'cancelToken'

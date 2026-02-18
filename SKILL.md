@@ -316,11 +316,11 @@ lib/src/
 │       ├── {entity}/          # Entity-specific usecases
 │       └── {domain}/          # Domain-specific usecases
 ├── data/                      # External dependencies
-│   ├── data_sources/          # Data source implementations
+│   ├── datasources/          # Data source implementations
 │   │   └── {entity}/
 │   │       ├── graphql/       # GraphQL operations
-│   │       ├── {entity}_data_source.dart
-│   │       └── {entity}_remote_data_source.dart
+│   │       ├── {entity}_datasource.dart
+│   │       └── {entity}_remote_datasource.dart
 │   ├── providers/             # Service provider implementations
 │   └── repositories/          # Repository implementations
 ├── presentation/              # UI layer (use --vpcs)
@@ -422,8 +422,8 @@ zfa generate Product --methods=watch --pc --force
 | Service | `{service}_service.dart` | `payment_service.dart` |
 | Provider | `{service}_provider.dart` | `payment_provider.dart` |
 | UseCase | `{action}_{entity_snake}_usecase.dart` | `get_product_usecase.dart` |
-| DataSource | `{entity_snake}_data_source.dart` | `product_data_source.dart` |
-| RemoteDataSource | `{entity_snake}_remote_data_source.dart` | `product_remote_data_source.dart` |
+| DataSource | `{entity_snake}_datasource.dart` | `product_datasource.dart` |
+| RemoteDataSource | `{entity_snake}_remote_datasource.dart` | `product_remote_datasource.dart` |
 | View | `{entity_snake}_view.dart` | `product_view.dart` |
 | Presenter | `{entity_snake}_presenter.dart` | `product_presenter.dart` |
 | Controller | `{entity_snake}_controller.dart` | `product_controller.dart` |

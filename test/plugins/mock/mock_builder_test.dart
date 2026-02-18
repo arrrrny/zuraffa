@@ -50,7 +50,7 @@ void main() {
     );
     expect(
       File(
-        '$outputDir/data/data_sources/product/product_mock_data_source.dart',
+        '$outputDir/data/datasources/product/product_mock_datasource.dart',
       ).existsSync(),
       isTrue,
     );

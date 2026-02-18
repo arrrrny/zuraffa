@@ -27,7 +27,7 @@ void main() {
 
     final repoPath = '$outputDir/di/repositories/product_repository_di.dart';
     final dataSourcePath =
-        '$outputDir/di/datasources/product_remote_data_source_di.dart';
+        '$outputDir/di/datasources/product_remote_datasource_di.dart';
     final repoContent = File(repoPath).readAsStringSync();
     final dataSourceContent = File(dataSourcePath).readAsStringSync();
 

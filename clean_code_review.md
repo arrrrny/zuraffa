@@ -241,7 +241,7 @@ $ find lib/src/plugins -name "*.dart" -exec wc -l {} + | sort -n | tail -10
    580 lib/src/plugins/repository/generators/implementation_generator_cached.dart
    587 lib/src/plugins/state/builders/state_builder.dart
    642 lib/src/plugins/cache/builders/cache_builder.dart
-   652 lib/src/plugins/mock/builders/mock_data_source_builder.dart
+   652 lib/src/plugins/mock/builders/mock_datasource_builder.dart
    697 lib/src/plugins/route/builders/route_builder.dart
    961 lib/src/plugins/di/di_plugin.dart
 ```

@@ -1,6 +1,6 @@
 import 'package:get_it/get_it.dart';
 
-import '../../data/data_sources/todo/todo_mock_data_source.dart';
+import '../../data/datasources/todo/todo_mock_datasource.dart';
 
 void registerTodoMockDataSource(GetIt getIt) {
   getIt.registerLazySingleton<TodoMockDataSource>(() => TodoMockDataSource());

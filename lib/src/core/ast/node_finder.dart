@@ -4,7 +4,7 @@ class NodeFinder {
   static ClassDeclaration? findClass(CompilationUnit unit, String className) {
     for (final declaration in unit.declarations) {
       if (declaration is ClassDeclaration &&
-          declaration.namePart.typeName.lexeme == className) {
+          declaration.name.lexeme == className) {
         return declaration;
       }
     }

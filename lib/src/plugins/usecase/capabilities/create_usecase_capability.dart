@@ -24,9 +24,19 @@ class CreateUseCaseCapability implements ZuraffaCapability {
           },
           'type': {
             'type': 'string',
-            'enum': ['entity', 'custom', 'stream'],
-            'default': 'entity'
+            'enum': ['future', 'stream', 'completable', 'sync', 'background'],
+            'default': 'future'
           },
+          'usecases': {
+            'type': 'array',
+            'items': {'type': 'string'},
+            'description': 'List of usecases to orchestrate'
+          },
+          'domain': {'type': 'string', 'description': 'Domain name (required for non-entity usecases)'},
+          'repo': {'type': 'string', 'description': 'Repository class to inject'},
+          'service': {'type': 'string', 'description': 'Service class to inject'},
+          'params': {'type': 'string', 'description': 'Parameter type'},
+          'returns': {'type': 'string', 'description': 'Return type'},
           'methods': {
             'type': 'array',
             'items': {'type': 'string'},
@@ -95,20 +105,41 @@ class CreateUseCaseCapability implements ZuraffaCapability {
 
   Future<List<GeneratedFile>> _generateFiles(Map<String, dynamic> args, {required bool dryRun}) async {
     final name = args['name'];
-    final type = args['type'] ?? 'entity';
-    final useCaseType = type == 'stream' ? 'stream' : 'future';
+    var useCaseType = args['type'];
+    final returns = args['returns'] as String?;
+
+    // Smart Type Inference if not explicitly set
+    if (useCaseType == null || useCaseType == 'future') {
+      if (returns != null) {
+        if (returns.startsWith('Stream<')) {
+          useCaseType = 'stream';
+        } else if (returns == 'void' || returns == 'Future<void>') {
+           // Maybe we want to default to 'completable' here?
+           // But 'future' (void) is also valid. 
+           // Let's stick to future unless user asks for completable.
+        }
+      }
+    }
+    useCaseType ??= 'future';
+    
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
 
     final config = GeneratorConfig(
       name: name,
       useCaseType: useCaseType,
-      methods: (args['methods'] as List<dynamic>?)?.cast<String>() ??
-          ['get', 'list', 'create', 'update', 'delete'],
+      methods: (args['methods'] as List<dynamic>?)?.cast<String>() ?? [],
       outputDir: args['outputDir'] ?? 'lib/src',
+      domain: args['domain'],
+      repo: args['repo'],
+      service: args['service'],
+      usecases: (args['usecases'] as List<dynamic>?)?.cast<String>() ?? [],
+      paramsType: args['params'],
+      returnsType: returns,
       dryRun: dryRun,
       force: force,
       verbose: verbose,
+      revert: args['revert'] ?? false,
     );
 
     return await plugin.generate(config);

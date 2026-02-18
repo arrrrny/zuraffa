@@ -243,7 +243,7 @@ test/
 │       └── checkout/
 │           └── process_checkout_usecase_test.dart
 ├── data/
-│   ├── data_sources/
+│   ├── datasources/
 │   └── repositories/
 └── presentation/
     └── pages/

@@ -27,10 +27,10 @@ void main() {
     );
     expect(
       outputs.keys,
-      contains('data/data_sources/product/product_data_source.dart'),
+      contains('data/datasources/product/product_datasource.dart'),
     );
     expect(
-      outputs['data/data_sources/product/product_data_source.dart'],
+      outputs['data/datasources/product/product_datasource.dart'],
       contains('abstract class ProductDataSource'),
     );
     expect(

@@ -1,7 +1,7 @@
 import 'package:zuraffa/zuraffa.dart';
 
 import '../../../domain/entities/product/product.dart';
-import 'product_data_source.dart';
+import 'product_datasource.dart';
 
 class ProductRemoteDataSource
     with Loggable, FailureHandler

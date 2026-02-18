@@ -4,8 +4,8 @@ import 'package:zuraffa/zuraffa.dart';
 
 import '../../domain/entities/product/product.dart';
 import '../../domain/repositories/product_repository.dart';
-import '../data_sources/product/product_data_source.dart';
-import '../data_sources/product/product_local_data_source.dart';
+import '../datasources/product/product_datasource.dart';
+import '../datasources/product/product_local_datasource.dart';
 
 class DataProductRepository
     with Loggable, FailureHandler

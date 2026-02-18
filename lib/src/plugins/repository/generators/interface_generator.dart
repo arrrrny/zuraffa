@@ -4,10 +4,13 @@ import 'package:code_builder/code_builder.dart';
 
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
+import '../../../core/ast/ast_helper.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
+
+import '../../../core/plugin_system/plugin_action.dart';
 
 class RepositoryInterfaceGenerator {
   final String outputDir;
@@ -52,17 +55,12 @@ class RepositoryInterfaceGenerator {
     final normalizedContent = content.replaceAll('\n\nimport', '\nimport');
     final output = '$header\n\n$normalizedContent';
 
-    if (config.revert) {
-      if (config.appendToExisting) {
-        if (verbose) {
-          print('  ⚠️ Cannot revert append operation for $filePath');
-        }
-        return GeneratedFile(
-          path: filePath,
-          type: 'repository',
-          action: 'skipped',
-        );
-      }
+    if (config.verbose) {
+      print('Generating repository interface for ${config.name} at $filePath');
+      print('Action: ${config.action}');
+    }
+
+    if (config.action == PluginAction.delete) {
       return FileUtils.deleteFile(
         filePath,
         'repository',
@@ -71,23 +69,61 @@ class RepositoryInterfaceGenerator {
       );
     }
 
-    if (config.appendToExisting && File(filePath).existsSync()) {
+    if (File(filePath).existsSync()) {
       final existing = await File(filePath).readAsString();
-      final importLines = _buildImportLines(importPaths);
-      final mergedImports = _mergeImports(existing, importLines);
-      final appended = _appendMethods(
-        source: mergedImports,
-        className: repoName,
-        methods: methods,
-      );
-      return FileUtils.writeFile(
-        filePath,
-        appended,
-        'repository',
-        force: true,
-        dryRun: dryRun,
-        verbose: verbose,
-      );
+
+      if (config.action == PluginAction.remove) {
+        final reverted = _removeMethods(
+          source: existing,
+          className: repoName,
+          methods: methods,
+        );
+        // If we removed methods, write back. If no methods left, maybe user wants to keep the file?
+        // Or should we delete if empty? For now just write back.
+        return FileUtils.writeFile(
+          filePath,
+          reverted,
+          'repository',
+          force: true,
+          dryRun: dryRun,
+          verbose: verbose,
+          revert: false,
+        );
+      }
+
+      if (config.action == PluginAction.add ||
+          config.action == PluginAction.create) {
+        // Create usually implies create new, but if exists, maybe overwrite?
+        // But logic here says if exists, we append.
+        // If action is explicit create, and force is true, we might want to overwrite?
+        // But let's stick to existing logic: if exists, we merge/append.
+        // Wait, if action is create and force is true, we should overwrite.
+        if (config.action == PluginAction.create && force) {
+          // Fall through to write new file logic at end
+        } else {
+          final importLines = _buildImportLines(importPaths);
+          final mergedImports = _mergeImports(existing, importLines);
+          final appended = _appendMethods(
+            source: mergedImports,
+            className: repoName,
+            methods: methods,
+          );
+          return FileUtils.writeFile(
+            filePath,
+            appended,
+            'repository',
+            force: true,
+            dryRun: dryRun,
+            verbose: verbose,
+            revert: false,
+          );
+        }
+      }
+    }
+
+    if (config.action == PluginAction.remove) {
+      // Trying to remove from non-existent file
+      return GeneratedFile(path: filePath, type: 'repository', action: 'skipped');
     }
 
     return FileUtils.writeFile(
@@ -97,7 +133,26 @@ class RepositoryInterfaceGenerator {
       force: force,
       dryRun: dryRun,
       verbose: verbose,
+      revert: false,
     );
+  }
+
+  String _removeMethods({
+    required String source,
+    required String className,
+    required List<Method> methods,
+  }) {
+    var updated = source;
+    final helper = const AstHelper();
+    for (final method in methods) {
+      final methodName = method.name!;
+      updated = helper.removeMethodFromClass(
+        source: updated,
+        className: className,
+        methodName: methodName,
+      );
+    }
+    return updated;
   }
 
   List<String> _buildImportPaths(GeneratorConfig config) {
@@ -105,6 +160,7 @@ class RepositoryInterfaceGenerator {
         config.methods.any(
           (method) =>
               method == 'getList' ||
+              method == 'list' ||
               method == 'update' ||
               method == 'delete' ||
               method == 'watchList',
@@ -159,9 +215,10 @@ class RepositoryInterfaceGenerator {
           );
           break;
         case 'getList':
+        case 'list':
           methods.add(
             _buildMethod(
-              name: 'getList',
+              name: method,
               returnType: 'Future<List<${config.name}>>',
               paramsType: 'ListQueryParams<${config.name}>',
               paramsName: 'params',
@@ -221,6 +278,15 @@ class RepositoryInterfaceGenerator {
             ),
           );
           break;
+        default:
+          methods.add(
+            _buildMethod(
+              name: method,
+              returnType: 'Future<void>',
+              paramsType: 'dynamic',
+              paramsName: 'params',
+            ),
+          );
       }
     }
     return methods;

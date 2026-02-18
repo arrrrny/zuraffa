@@ -40,9 +40,9 @@ lib/src/
 │   ├── entities/product/product.dart
 │   └── repositories/product_repository.dart
 └── data/
-    ├── data_sources/product/
-    │   ├── product_remote_data_source.dart  # API calls
-    │   └── product_local_data_source.dart   # Local storage (Hive)
+    ├── datasources/product/
+    │   ├── product_remote_datasource.dart  # API calls
+    │   └── product_local_datasource.dart   # Local storage (Hive)
     └── repositories/
         └── data_product_repository.dart     # Caching logic
 ```
@@ -50,7 +50,7 @@ lib/src/
 ### 3. Implement Remote DataSource
 
 ```dart
-// product_remote_data_source.dart
+// product_remote_datasource.dart
 import 'package:http/http.dart' as http;
 import 'package:zuraffa/zuraffa.dart';
 
@@ -88,7 +88,7 @@ class ProductRemoteDataSource with Loggable, FailureHandler {
 When using `--cache-storage=hive`, the local datasource is fully generated:
 
 ```dart
-// product_local_data_source.dart (auto-generated)
+// product_local_datasource.dart (auto-generated)
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:zuraffa/zuraffa.dart';
 

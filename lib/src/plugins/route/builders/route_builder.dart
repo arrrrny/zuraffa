@@ -5,6 +5,7 @@ import 'package:path/path.dart' as path;
 
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
+import '../../../core/ast/ast_helper.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
@@ -81,19 +82,6 @@ class RouteBuilder {
 
   Future<GeneratedFile> _generateRouteConstants(GeneratorConfig config) async {
     final routesPath = path.join(outputDir, 'routing', 'app_routes.dart');
-
-    // Skip deletion of shared route constants file during revert
-    if (config.revert) {
-      if (verbose) {
-        print('  ⏭ Skipping deletion of shared file: $routesPath');
-      }
-      return GeneratedFile(
-        path: routesPath,
-        type: 'route_constants',
-        action: 'skipped',
-      );
-    }
-
     final file = File(routesPath);
 
     final routeBase = config.nameSnake;
@@ -131,9 +119,51 @@ class RouteBuilder {
       hasWatch: hasWatch,
     );
 
+    if (config.revert) {
+      if (!file.existsSync()) {
+        if (verbose) {
+          print('  ⏭ File does not exist, skipping revert: $routesPath');
+        }
+        return GeneratedFile(
+          path: routesPath,
+          type: 'route_constants',
+          action: 'skipped',
+        );
+      }
+
+      var content = await file.readAsString();
+      final helper = const AstHelper();
+
+      for (final fieldName in routeConstants.keys) {
+        content = helper.removeFieldFromClass(
+          source: content,
+          className: 'AppRoutes',
+          fieldName: fieldName,
+        );
+      }
+
+      for (final method in extensionMethods) {
+        content = helper.removeMethodFromExtension(
+          source: content,
+          extensionName: 'RouterExtension',
+          methodName: method.name,
+        );
+      }
+
+      return FileUtils.writeFile(
+        routesPath,
+        content,
+        'route_constants',
+        force: true,
+        dryRun: dryRun,
+        verbose: verbose,
+        revert: false,
+      );
+    }
+
     String content;
     if (file.existsSync()) {
-      final existingContent = file.readAsStringSync();
+      final existingContent = await file.readAsString();
       content = _updateAppRoutesFile(
         existingContent,
         routeConstants,
@@ -155,7 +185,7 @@ class RouteBuilder {
       force: force,
       dryRun: dryRun,
       verbose: verbose,
-      revert: config.revert,
+      revert: false,
     );
   }
 

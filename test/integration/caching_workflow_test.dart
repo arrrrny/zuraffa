@@ -45,13 +45,13 @@ void main() {
     expect(result.success, isTrue);
     expect(
       File(
-        '$outputDir/data/data_sources/order/order_remote_data_source.dart',
+        '$outputDir/data/datasources/order/order_remote_datasource.dart',
       ).existsSync(),
       isTrue,
     );
     expect(
       File(
-        '$outputDir/data/data_sources/order/order_local_data_source.dart',
+        '$outputDir/data/datasources/order/order_local_datasource.dart',
       ).existsSync(),
       isTrue,
     );

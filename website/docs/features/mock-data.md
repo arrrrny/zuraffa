@@ -46,7 +46,7 @@ Useful for:
 ### Mock DataSource with Nested Entities
 
 ```dart
-// lib/src/data/data_sources/product/product_mock_data_source.dart
+// lib/src/data/datasources/product/product_mock_datasource.dart
 import '../../../domain/entities/product/product.dart';
 
 class ProductMockDataSource {
@@ -153,7 +153,7 @@ class BarcodeListing {
 Zuraffa generates:
 
 ```dart
-// lib/src/data/data_sources/barcode_listing/barcode_listing_mock_data_source.dart
+// lib/src/data/datasources/barcode_listing/barcode_listing_mock_datasource.dart
 import '../../../domain/entities/barcode_listing/barcode_listing.dart';
 import '../listing_offer/listing_offer_mock_data.dart';
 
@@ -206,7 +206,7 @@ class BarcodeListingMockDataSource {
 ### Generated Mock Data Class
 
 ```dart
-// lib/src/data/data_sources/barcode_listing/barcode_listing_mock_data.dart
+// lib/src/data/datasources/barcode_listing/barcode_listing_mock_data.dart
 import '../../domain/entities/barcode_listing/barcode_listing.dart';
 import '../listing_offer/listing_offer_mock_data.dart';
 

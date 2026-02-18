@@ -40,7 +40,7 @@ void main() {
     );
 
     final remoteFile = File(
-      '$outputDir/di/datasources/product_remote_data_source_di.dart',
+      '$outputDir/di/datasources/product_remote_datasource_di.dart',
     );
     final repoFile = File(
       '$outputDir/di/repositories/product_repository_di.dart',
@@ -100,7 +100,7 @@ void main() {
       functionName: 'registerProductRemoteDataSource',
       imports: [
         'package:get_it/get_it.dart',
-        '../../data/data_sources/product/product_remote_data_source.dart',
+        '../../data/datasources/product/product_remote_datasource.dart',
       ],
       body: Block(
         (b) => b
@@ -112,14 +112,14 @@ void main() {
       ),
     );
     File(
-      '${diDir.path}/product_remote_data_source_di.dart',
+      '${diDir.path}/product_remote_datasource_di.dart',
     ).writeAsStringSync(remoteFile);
 
     final localFile = builder.buildRegistrationFile(
       functionName: 'registerProductLocalDataSource',
       imports: [
         'package:get_it/get_it.dart',
-        '../../data/data_sources/product/product_local_data_source.dart',
+        '../../data/datasources/product/product_local_datasource.dart',
       ],
       body: Block(
         (b) => b
@@ -131,7 +131,7 @@ void main() {
       ),
     );
     File(
-      '${diDir.path}/product_local_data_source_di.dart',
+      '${diDir.path}/product_local_datasource_di.dart',
     ).writeAsStringSync(localFile);
 
     final plugin = DiPlugin(
@@ -156,11 +156,11 @@ void main() {
     expect(updated.contains('registerProductRemoteDataSource(getIt);'), isTrue);
     expect(updated.contains('registerProductLocalDataSource(getIt);'), isTrue);
     expect(
-      updated.contains("import 'product_remote_data_source_di.dart';"),
+      updated.contains("import 'product_remote_datasource_di.dart';"),
       isTrue,
     );
     expect(
-      updated.contains("import 'product_local_data_source_di.dart';"),
+      updated.contains("import 'product_local_datasource_di.dart';"),
       isTrue,
     );
   });

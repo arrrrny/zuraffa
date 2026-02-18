@@ -1,22 +1,22 @@
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:zuraffa/zuraffa.dart';
 
-import '../../../domain/entities/todo/todo.dart';
-import 'todo_data_source.dart';
+import '../../../domain/entities/product/product.dart';
+import 'product_datasource.dart';
 
-class TodoLocalDataSource
+class ProductLocalDataSource
     with Loggable, FailureHandler
-    implements TodoDataSource {
-  TodoLocalDataSource(this._box);
+    implements ProductDataSource {
+  ProductLocalDataSource(this._box);
 
-  final Box<Todo> _box;
+  final Box<Product> _box;
 
-  Future<Todo> save(Todo todo) async {
-    await _box.put(todo.id, todo);
-    return todo;
+  Future<Product> save(Product product) async {
+    await _box.put(product.id, product);
+    return product;
   }
 
-  Future<void> saveAll(List<Todo> items) async {
+  Future<void> saveAll(List<Product> items) async {
     final map = {for (var item in items) item.id: item};
     await _box.putAll(map);
   }
@@ -26,26 +26,26 @@ class TodoLocalDataSource
   }
 
   @override
-  Future<Todo> get(QueryParams<Todo> params) async {
+  Future<Product> get(QueryParams<Product> params) async {
     return _box.values.query(params);
   }
 
   @override
-  Future<List<Todo>> getList(ListQueryParams<Todo> params) async {
+  Future<List<Product>> getList(ListQueryParams<Product> params) async {
     return _box.values.filter(params.filter).orderBy(params.sort);
   }
 
   @override
-  Future<Todo> create(Todo todo) async {
-    await _box.put(todo.id, todo);
-    return todo;
+  Future<Product> create(Product product) async {
+    await _box.put(product.id, product);
+    return product;
   }
 
   @override
-  Future<Todo> update(UpdateParams<int, TodoPatch> params) async {
+  Future<Product> update(UpdateParams<String, ProductPatch> params) async {
     final existing = _box.values.firstWhere(
       (item) => item.id == params.id,
-      orElse: () => throw notFoundFailure('Todo not found in cache'),
+      orElse: () => throw notFoundFailure('Product not found in cache'),
     );
     final updated = params.data.applyTo(existing);
     await _box.put(updated.id, updated);
@@ -53,21 +53,21 @@ class TodoLocalDataSource
   }
 
   @override
-  Future<void> delete(DeleteParams<int> params) async {
+  Future<void> delete(DeleteParams<String> params) async {
     final existing = _box.values.firstWhere(
       (item) => item.id == params.id,
-      orElse: () => throw notFoundFailure('Todo not found in cache'),
+      orElse: () => throw notFoundFailure('Product not found in cache'),
     );
     await _box.delete(existing.id);
   }
 
   @override
-  Stream<Todo> watch(QueryParams<Todo> params) async* {
+  Stream<Product> watch(QueryParams<Product> params) async* {
     yield _box.values.query(params);
   }
 
   @override
-  Stream<List<Todo>> watchList(ListQueryParams<Todo> params) async* {
+  Stream<List<Product>> watchList(ListQueryParams<Product> params) async* {
     final existing = _box.values.filter(params.filter).orderBy(params.sort);
     yield existing;
     yield* _box.watch().map(

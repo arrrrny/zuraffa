@@ -2,6 +2,7 @@ import 'package:args/command_runner.dart';
 import '../../commands/usecase_command.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/plugin_action.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'generators/custom_usecase_generator.dart';
@@ -78,6 +79,30 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return delegator.generate(config);
     }
 
+    return _dispatch(config);
+  }
+
+  @override
+  Future<List<GeneratedFile>> create(GeneratorConfig config) async {
+    return _dispatch(config.copyWith(action: PluginAction.create));
+  }
+
+  @override
+  Future<List<GeneratedFile>> delete(GeneratorConfig config) async {
+    return _dispatch(config.copyWith(action: PluginAction.delete));
+  }
+
+  @override
+  Future<List<GeneratedFile>> add(GeneratorConfig config) async {
+    return _dispatch(config.copyWith(action: PluginAction.add));
+  }
+
+  @override
+  Future<List<GeneratedFile>> remove(GeneratorConfig config) async {
+    return _dispatch(config.copyWith(action: PluginAction.remove));
+  }
+
+  Future<List<GeneratedFile>> _dispatch(GeneratorConfig config) async {
     if (config.isEntityBased) {
       return entityGenerator.generate(config);
     }
@@ -89,9 +114,11 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return [file];
     }
     if (config.isCustomUseCase) {
-      if (config.useCaseType == 'stream') {
-        return [await streamGenerator.generate(config)];
-      }
+      // StreamUseCaseGenerator is legacy/redundant if CustomUseCaseGenerator handles stream
+      // But let's check if CustomUseCaseGenerator handles stream properly.
+      // Based on my read of custom_usecase_generator_core.dart, it handles 'stream' type.
+      // However, StreamUseCaseGenerator might have specific logic.
+      // Let's defer to customGenerator for everything now that it supports multiple types.
       return [await customGenerator.generate(config)];
     }
     return [];

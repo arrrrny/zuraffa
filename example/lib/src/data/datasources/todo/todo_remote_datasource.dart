@@ -1,7 +1,7 @@
 import 'package:zuraffa/zuraffa.dart';
 
 import '../../../domain/entities/todo/todo.dart';
-import 'todo_data_source.dart';
+import 'todo_datasource.dart';
 
 class TodoRemoteDataSource
     with Loggable, FailureHandler

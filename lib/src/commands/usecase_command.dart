@@ -17,9 +17,35 @@ class UseCaseCommand extends PluginCommand {
     argParser.addOption(
       'type',
       abbr: 't',
-      allowed: ['entity', 'custom', 'stream'],
-      defaultsTo: 'entity',
-      help: 'Type of usecase to generate',
+      allowed: ['future', 'stream', 'completable', 'sync', 'background'],
+      defaultsTo: 'future',
+      help: 'Execution strategy (default: future/fetch)',
+    );
+    argParser.addMultiOption(
+      'usecases',
+      abbr: 'u',
+      help: 'List of usecases to orchestrate (e.g. GetUser,GetProfile)',
+      splitCommas: true,
+    );
+    argParser.addOption(
+      'domain',
+      help: 'Domain name (required for non-entity usecases)',
+    );
+    argParser.addOption(
+      'repo',
+      help: 'Repository class to inject (e.g. UserRepository)',
+    );
+    argParser.addOption(
+      'service',
+      help: 'Service class to inject (e.g. AuthService)',
+    );
+    argParser.addOption(
+      'params',
+      help: 'Parameter type (e.g. String, UserParams)',
+    );
+    argParser.addOption(
+      'returns',
+      help: 'Return type (e.g. void, User, List<User>)',
     );
   }
 
@@ -32,8 +58,22 @@ class UseCaseCommand extends PluginCommand {
   @override
   Future<void> run() async {
     final entityName = argResults!.rest.first;
-    final methods = (argResults!['methods'] as String).split(',');
+    var methods = (argResults!['methods'] as String).split(',');
     final type = argResults!['type'] as String;
+    final usecases = (argResults!['usecases'] as List?)?.cast<String>() ?? [];
+    
+    // If not using standard entity methods (explicitly passed), 
+    // and we are running 'usecase' command directly, we generally default to empty methods
+    // unless the user asked for them.
+    if (!argResults!.wasParsed('methods')) {
+      methods = [];
+    }
+
+    final domain = argResults!['domain'] as String?;
+    final repo = argResults!['repo'] as String?;
+    final service = argResults!['service'] as String?;
+    final params = argResults!['params'] as String?;
+    final returns = argResults!['returns'] as String?;
 
     final capability = plugin.capabilities.firstWhere(
       (c) => c is CreateUseCaseCapability,
@@ -43,9 +83,16 @@ class UseCaseCommand extends PluginCommand {
       'name': entityName,
       'methods': methods,
       'type': type,
+      'usecases': usecases,
+      'domain': domain,
+      'repo': repo,
+      'service': service,
+      'params': params,
+      'returns': returns,
       'dryRun': isDryRun,
       'force': isForce,
       'verbose': isVerbose,
+      'revert': isRevert,
       'outputDir': outputDir,
     });
 

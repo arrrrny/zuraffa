@@ -8,18 +8,18 @@ extension MethodAppendBuilderFind on MethodAppendBuilder {
     final directPath = path.join(
       outputDir,
       'data',
-      'data_sources',
+      'datasources',
       repoSnake,
-      '${repoSnake}_data_source.dart',
+      '${repoSnake}_datasource.dart',
     );
     if (File(directPath).existsSync()) return directPath;
     if (config.domain != null) {
       final domainPath = path.join(
         outputDir,
         'data',
-        'data_sources',
+        'datasources',
         config.domain,
-        '${repoSnake}_data_source.dart',
+        '${repoSnake}_datasource.dart',
       );
       if (File(domainPath).existsSync()) return domainPath;
     }
@@ -33,18 +33,18 @@ extension MethodAppendBuilderFind on MethodAppendBuilder {
     final directPath = path.join(
       outputDir,
       'data',
-      'data_sources',
+      'datasources',
       repoSnake,
-      '${repoSnake}_remote_data_source.dart',
+      '${repoSnake}_remote_datasource.dart',
     );
     if (File(directPath).existsSync()) return directPath;
     if (config.domain != null) {
       final domainPath = path.join(
         outputDir,
         'data',
-        'data_sources',
+        'datasources',
         config.domain,
-        '${repoSnake}_remote_data_source.dart',
+        '${repoSnake}_remote_datasource.dart',
       );
       if (File(domainPath).existsSync()) return domainPath;
     }
@@ -58,18 +58,18 @@ extension MethodAppendBuilderFind on MethodAppendBuilder {
     final directPath = path.join(
       outputDir,
       'data',
-      'data_sources',
+      'datasources',
       repoSnake,
-      '${repoSnake}_local_data_source.dart',
+      '${repoSnake}_local_datasource.dart',
     );
     if (File(directPath).existsSync()) return directPath;
     if (config.domain != null) {
       final domainPath = path.join(
         outputDir,
         'data',
-        'data_sources',
+        'datasources',
         config.domain,
-        '${repoSnake}_local_data_source.dart',
+        '${repoSnake}_local_datasource.dart',
       );
       if (File(domainPath).existsSync()) return domainPath;
     }
@@ -83,18 +83,18 @@ extension MethodAppendBuilderFind on MethodAppendBuilder {
     final directPath = path.join(
       outputDir,
       'data',
-      'data_sources',
+      'datasources',
       repoSnake,
-      '${repoSnake}_mock_data_source.dart',
+      '${repoSnake}_mock_datasource.dart',
     );
     if (File(directPath).existsSync()) return directPath;
     if (config.domain != null) {
       final domainPath = path.join(
         outputDir,
         'data',
-        'data_sources',
+        'datasources',
         config.domain,
-        '${repoSnake}_mock_data_source.dart',
+        '${repoSnake}_mock_datasource.dart',
       );
       if (File(domainPath).existsSync()) return domainPath;
     }

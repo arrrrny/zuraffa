@@ -4,7 +4,7 @@ import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/entity_analyzer.dart';
 import 'mock_data_builder.dart';
-import 'mock_data_source_builder.dart';
+import 'mock_datasource_builder.dart';
 import 'mock_entity_graph_builder.dart';
 
 /// Generates mock data builders for entities and their variants.

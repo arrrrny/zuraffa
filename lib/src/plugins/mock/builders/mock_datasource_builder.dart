@@ -35,7 +35,7 @@ class MockDataSourceBuilder {
         '../../../domain/entities/$entitySnake/$entitySnake.dart',
       ),
       Directive.import('../../mock/${entitySnake}_mock_data.dart'),
-      Directive.import('${entitySnake}_data_source.dart'),
+      Directive.import('${entitySnake}_datasource.dart'),
     ];
 
     final delayField = Field(
@@ -140,11 +140,11 @@ class MockDataSourceBuilder {
     );
 
     final filePath =
-        '$outputDir/data/data_sources/$entitySnake/${entitySnake}_mock_data_source.dart';
+        '$outputDir/data/datasources/$entitySnake/${entitySnake}_mock_datasource.dart';
     return FileUtils.writeFile(
       filePath,
       content,
-      'mock_data_source',
+      'mock_datasource',
       force: force,
       dryRun: dryRun,
       verbose: verbose,

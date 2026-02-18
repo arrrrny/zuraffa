@@ -94,8 +94,8 @@ extension MethodAppendBuilderImports on MethodAppendBuilder {
 
   String _getRelativeImportPath(String filePath, String entitySnake) {
     final normalizedPath = path.normalize(filePath);
-    if (normalizedPath.contains('/data/data_sources/') ||
-        normalizedPath.contains('\\data\\data_sources\\')) {
+    if (normalizedPath.contains('/data/datasources/') ||
+        normalizedPath.contains('\\data\\datasources\\')) {
       return '../../../domain/entities/$entitySnake/$entitySnake.dart';
     }
     if (normalizedPath.contains('/data/repositories/') ||

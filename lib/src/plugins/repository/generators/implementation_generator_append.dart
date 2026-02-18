@@ -20,18 +20,18 @@ extension RepositoryImplementationGeneratorAppend
 
     if (config.generateLocal) {
       imports.add(
-        '../data_sources/$entitySnake/${entitySnake}_local_data_source.dart',
+        '../datasources/$entitySnake/${entitySnake}_local_datasource.dart',
       );
     } else if (config.enableCache) {
       imports.add(
-        '../data_sources/$entitySnake/${entitySnake}_data_source.dart',
+        '../datasources/$entitySnake/${entitySnake}_datasource.dart',
       );
       imports.add(
-        '../data_sources/$entitySnake/${entitySnake}_local_data_source.dart',
+        '../datasources/$entitySnake/${entitySnake}_local_datasource.dart',
       );
     } else {
       imports.add(
-        '../data_sources/$entitySnake/${entitySnake}_data_source.dart',
+        '../datasources/$entitySnake/${entitySnake}_datasource.dart',
       );
     }
     return imports;
@@ -61,6 +61,24 @@ extension RepositoryImplementationGeneratorAppend
         ),
       );
       updated = result.source;
+    }
+    return updated;
+  }
+
+  String _removeMethods({
+    required String source,
+    required String className,
+    required List<Method> methods,
+  }) {
+    var updated = source;
+    final helper = const AstHelper();
+    for (final method in methods) {
+      final methodName = method.name!;
+      updated = helper.removeMethodFromClass(
+        source: updated,
+        className: className,
+        methodName: methodName,
+      );
     }
     return updated;
   }

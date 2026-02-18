@@ -98,7 +98,7 @@ void main() {
       expect(result.success, isTrue);
       final hasGraphql = result.files.any(
         (file) => file.path.endsWith(
-          'data/data_sources/product/graphql/get_product_query.dart',
+          'data/datasources/product/graphql/get_product_query.dart',
         ),
       );
       expect(hasGraphql, isTrue);

@@ -15,6 +15,7 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
         return 'CompletableUseCase<$paramsType>';
       case 'sync':
         return 'SyncUseCase<$returnsType, $paramsType>';
+      case 'future':
       default:
         return 'UseCase<$returnsType, $paramsType>';
     }
