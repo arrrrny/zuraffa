@@ -66,7 +66,8 @@ class CommonPatterns {
     return Method((b) {
       b
         ..name = name
-        ..returns = refer(returnType);
+        ..returns = refer(returnType)
+        ..body = Code('throw UnimplementedError();');
       for (final parameter in parameters) {
         if (parameter.named) {
           b.optionalParameters.add(parameter);

@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:args/command_runner.dart';
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
@@ -7,7 +5,6 @@ import 'package:path/path.dart' as path;
 import '../../commands/view_command.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
-import '../../core/plugin_system/plugin_action.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/file_utils.dart';
@@ -97,23 +94,6 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return delegator.generate(config);
     }
 
-    return _dispatch(config);
-  }
-
-  Future<List<GeneratedFile>> _dispatch(GeneratorConfig config) async {
-    switch (config.action) {
-      case PluginAction.create:
-        return _create(config);
-      case PluginAction.delete:
-        return _delete(config);
-      case PluginAction.add:
-      case PluginAction.remove:
-        // ViewPlugin does not support adding/removing members dynamically yet.
-        return [];
-    }
-  }
-
-  Future<List<GeneratedFile>> _create(GeneratorConfig config) async {
     final entityName = config.name;
     final entitySnake = config.nameSnake;
     final viewName = '${entityName}View';
@@ -170,32 +150,6 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       revert: config.revert,
     );
     return [file];
-  }
-
-  Future<List<GeneratedFile>> _delete(GeneratorConfig config) async {
-    final entitySnake = config.nameSnake;
-    final fileName = '${entitySnake}_view.dart';
-    final domainSnake = config.effectiveDomain;
-    final viewDirPath = path.join(
-      outputDir,
-      'presentation',
-      'pages',
-      domainSnake,
-    );
-    final filePath = path.join(viewDirPath, fileName);
-    final file = File(filePath);
-
-    if (!file.existsSync()) {
-      return [];
-    }
-
-    if (!dryRun) {
-      await file.delete();
-    }
-
-    return [
-      GeneratedFile(path: filePath, type: 'view', action: 'deleted'),
-    ];
   }
 
   List<String> _buildImports(

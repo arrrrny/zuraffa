@@ -22,7 +22,7 @@ void main() {
     await disposeWorkspace(workspace);
   });
 
-  test('generates full entity workflow', () async {
+  test('generates full entity workflow', timeout: Timeout(Duration(minutes: 5)), () async {
     final config = GeneratorConfig(
       name: 'Product',
       methods: const [

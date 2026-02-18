@@ -2,7 +2,6 @@ import 'package:args/command_runner.dart';
 import '../../commands/usecase_command.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
-import '../../core/plugin_system/plugin_action.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'generators/custom_usecase_generator.dart';
@@ -79,30 +78,6 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return delegator.generate(config);
     }
 
-    return _dispatch(config);
-  }
-
-  @override
-  Future<List<GeneratedFile>> create(GeneratorConfig config) async {
-    return _dispatch(config.copyWith(action: PluginAction.create));
-  }
-
-  @override
-  Future<List<GeneratedFile>> delete(GeneratorConfig config) async {
-    return _dispatch(config.copyWith(action: PluginAction.delete));
-  }
-
-  @override
-  Future<List<GeneratedFile>> add(GeneratorConfig config) async {
-    return _dispatch(config.copyWith(action: PluginAction.add));
-  }
-
-  @override
-  Future<List<GeneratedFile>> remove(GeneratorConfig config) async {
-    return _dispatch(config.copyWith(action: PluginAction.remove));
-  }
-
-  Future<List<GeneratedFile>> _dispatch(GeneratorConfig config) async {
     if (config.isEntityBased) {
       return entityGenerator.generate(config);
     }

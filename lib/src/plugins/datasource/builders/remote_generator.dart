@@ -1,42 +1,59 @@
-import 'dart:io';
-
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
-import '../../../core/ast/append_executor.dart';
-import '../../../core/ast/strategies/append_strategy.dart';
-import '../../../core/ast/ast_helper.dart';
-import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
-import '../../../core/plugin_system/plugin_action.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
+import '../../../core/builder/shared/spec_library.dart';
 
 /// Generates remote data source implementations.
+///
+/// Builds remote data source classes with stubbed CRUD and stream methods,
+/// including GraphQL hooks when enabled.
+///
+/// Example:
+/// ```dart
+/// final builder = RemoteDataSourceBuilder(
+///   outputDir: 'lib/src',
+///   dryRun: false,
+///   force: true,
+///   verbose: false,
+/// );
+/// final file = await builder.generate(GeneratorConfig(name: 'Product'));
+/// ```
 class RemoteDataSourceBuilder {
   final String outputDir;
   final GeneratorOptions options;
-  final AppendExecutor appendExecutor;
 
+  /// Creates a [RemoteDataSourceBuilder].
+  ///
+  /// @param outputDir Target directory for generated files.
+  /// @param options Generation flags for writing behavior and logging.
+  /// @param dryRun Deprecated: use [options].
+  /// @param force Deprecated: use [options].
+  /// @param verbose Deprecated: use [options].
   RemoteDataSourceBuilder({
     required this.outputDir,
     GeneratorOptions options = const GeneratorOptions(),
     @Deprecated('Use options.dryRun') bool? dryRun,
     @Deprecated('Use options.force') bool? force,
     @Deprecated('Use options.verbose') bool? verbose,
-    AppendExecutor? appendExecutor,
   }) : options = options.copyWith(
          dryRun: dryRun ?? options.dryRun,
          force: force ?? options.force,
          verbose: verbose ?? options.verbose,
-       ),
-       appendExecutor = appendExecutor ?? AppendExecutor();
+       );
 
+  /// Generates a remote data source file for the given [config].
+  ///
+  /// @param config Generator configuration describing the entity and options.
+  /// @returns Generated data source file metadata.
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final entityName = config.name;
     final entitySnake = config.nameSnake;
+    final entityCamel = config.nameCamel;
     final dataSourceName = '${entityName}RemoteDataSource';
     final fileName = '${entitySnake}_remote_datasource.dart';
 
@@ -48,178 +65,7 @@ class RemoteDataSourceBuilder {
     );
     final filePath = path.join(dataSourceDirPath, fileName);
 
-    final methods = _buildMethods(config);
-    final importPaths = _buildImportPaths(config);
-
-    final content = const SpecLibrary().emitLibrary(
-      const SpecLibrary().library(
-        specs: [
-          Class(
-            (c) => c
-              ..name = dataSourceName
-              ..mixins.addAll([refer('Loggable'), refer('FailureHandler')])
-              ..implements.add(refer('${entityName}DataSource'))
-              ..methods.addAll(methods),
-          ),
-        ],
-        directives: importPaths.map(Directive.import),
-      ),
-    );
-
-    if (config.action == PluginAction.delete) {
-      return FileUtils.deleteFile(
-        filePath,
-        'datasource_remote',
-        dryRun: options.dryRun,
-        verbose: options.verbose,
-      );
-    }
-
-    if (File(filePath).existsSync()) {
-      final existing = await File(filePath).readAsString();
-
-      if (config.action == PluginAction.remove) {
-        final reverted = _removeMethods(
-          source: existing,
-          className: dataSourceName,
-          methods: methods,
-        );
-        return FileUtils.writeFile(
-          filePath,
-          reverted,
-          'datasource_remote',
-          force: true,
-          dryRun: options.dryRun,
-          verbose: options.verbose,
-          revert: false,
-        );
-      }
-
-      if (config.action == PluginAction.add ||
-          config.action == PluginAction.create) {
-        if (config.action == PluginAction.create && options.force) {
-          // Fall through to write new file logic
-        } else {
-          final importLines = _buildImportLines(importPaths);
-          final mergedImports = _mergeImports(existing, importLines);
-          final appended = _appendMethods(
-            source: mergedImports,
-            className: dataSourceName,
-            methods: methods,
-          );
-          return FileUtils.writeFile(
-            filePath,
-            appended,
-            'datasource_remote',
-            force: true,
-            dryRun: options.dryRun,
-            verbose: options.verbose,
-            revert: false,
-          );
-        }
-      }
-    }
-
-    if (config.action == PluginAction.remove) {
-      return GeneratedFile(path: filePath, type: 'datasource_remote', action: 'skipped');
-    }
-
-    return FileUtils.writeFile(
-      filePath,
-      content,
-      'remote_datasource',
-      force: options.force,
-      dryRun: options.dryRun,
-      verbose: options.verbose,
-      revert: config.revert,
-    );
-  }
-
-  String _removeMethods({
-    required String source,
-    required String className,
-    required List<Method> methods,
-  }) {
-    var updated = source;
-    final helper = const AstHelper();
-    for (final method in methods) {
-      final methodName = method.name!;
-      updated = helper.removeMethodFromClass(
-        source: updated,
-        className: className,
-        methodName: methodName,
-      );
-    }
-    return updated;
-  }
-
-  String _appendMethods({
-    required String source,
-    required String className,
-    required List<Method> methods,
-  }) {
-    var updated = source;
-    for (final method in methods) {
-      final methodSource = _emitMethod(method);
-      final result = appendExecutor.execute(
-        AppendRequest.method(
-          source: updated,
-          className: className,
-          memberSource: methodSource,
-        ),
-      );
-      updated = result.source;
-    }
-    return updated;
-  }
-
-  String _mergeImports(String source, List<String> imports) {
-    var updated = source;
-    for (final importLine in imports) {
-      if (!updated.contains(importLine)) {
-        updated = '$importLine\n$updated';
-      }
-    }
-    return updated;
-  }
-
-  List<String> _buildImportLines(List<String> importPaths) {
-    return importPaths.map((path) => "import '$path';").toList();
-  }
-
-  String _emitMethod(Method method) {
-    final emitter = DartEmitter(
-      orderDirectives: true,
-      useNullSafetySyntax: true,
-    );
-    return method.accept(emitter).toString();
-  }
-
-  List<String> _buildImportPaths(GeneratorConfig config) {
-    final entitySnake = config.nameSnake;
-    final imports = [
-      'package:zuraffa/zuraffa.dart',
-      '../../../domain/entities/$entitySnake/$entitySnake.dart',
-      '${entitySnake}_datasource.dart',
-    ];
-
-    for (final method in config.methods) {
-      final gqlFile = config.generateGql
-          ? _graphqlFileName(config, method)
-          : null;
-      if (gqlFile != null) {
-        imports.add('graphql/$gqlFile');
-      }
-    }
-    return imports;
-  }
-
-  List<Method> _buildMethods(GeneratorConfig config) {
     final methods = <Method>[];
-    final entityName = config.name;
-    final entityCamel = config.nameCamel;
-    final dataSourceName = '${entityName}RemoteDataSource';
-
     if (config.generateInit) {
       methods.add(
         Method(
@@ -271,11 +117,18 @@ class RemoteDataSourceBuilder {
       );
     }
 
+    final gqlImports = <String>[];
+
     for (final method in config.methods) {
       final gqlConstant = config.generateGql
           ? _graphqlConstantName(config, method)
           : null;
-
+      final gqlFile = config.generateGql
+          ? _graphqlFileName(config, method)
+          : null;
+      if (gqlFile != null) {
+        gqlImports.add('graphql/$gqlFile');
+      }
       switch (method) {
         case 'get':
           methods.add(
@@ -414,36 +267,40 @@ class RemoteDataSourceBuilder {
           );
           break;
         default:
-          methods.add(
-            Method(
-              (m) => m
-                ..name = method
-                ..annotations.add(refer('override'))
-                ..returns = refer('Future<void>')
-                ..requiredParameters.add(
-                  Parameter(
-                    (p) => p
-                      ..name = 'params'
-                      ..type = refer('dynamic'),
-                  ),
-                )
-                ..modifier = MethodModifier.async
-                ..body = Block(
-                  (b) => b
-                    ..statements.add(
-                      refer('throw UnimplementedError').call([
-                        literalString('Implement remote $method'),
-                      ]).statement,
-                    ),
-                ),
-            ),
-          );
       }
     }
-    return methods;
+
+    final directives = <Directive>[
+      Directive.import('package:zuraffa/zuraffa.dart'),
+      Directive.import(
+        '../../../domain/entities/$entitySnake/$entitySnake.dart',
+      ),
+      Directive.import('${entitySnake}_datasource.dart'),
+      ...gqlImports.map(Directive.import),
+    ];
+
+    final clazz = Class(
+      (c) => c
+        ..name = dataSourceName
+        ..mixins.addAll([refer('Loggable'), refer('FailureHandler')])
+        ..implements.add(refer('${entityName}DataSource'))
+        ..methods.addAll(methods),
+    );
+
+    final content = const SpecLibrary().emitLibrary(
+      const SpecLibrary().library(specs: [clazz], directives: directives),
+    );
+
+    return FileUtils.writeFile(
+      filePath,
+      content,
+      'remote_datasource',
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
+      revert: config.revert,
+    );
   }
-
-
 
   Code _remoteBody(String fallback, String? gqlConstant) {
     if (gqlConstant != null) {

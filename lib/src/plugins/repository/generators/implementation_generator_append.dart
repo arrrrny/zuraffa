@@ -65,6 +65,7 @@ extension RepositoryImplementationGeneratorAppend
     return updated;
   }
 
+  /*
   String _removeMethods({
     required String source,
     required String className,
@@ -82,6 +83,7 @@ extension RepositoryImplementationGeneratorAppend
     }
     return updated;
   }
+  */
 
   String _mergeImports(String source, List<String> imports) {
     var updated = source;

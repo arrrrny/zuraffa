@@ -11,8 +11,6 @@ import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 
-import '../../../core/plugin_system/plugin_action.dart';
-
 class EntityUseCaseGenerator {
   final String outputDir;
   final bool dryRun;
@@ -29,25 +27,6 @@ class EntityUseCaseGenerator {
   }) : appendExecutor = appendExecutor ?? AppendExecutor();
 
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
-    // If action is delete/remove, delete the files
-    if (config.action == PluginAction.delete ||
-        config.action == PluginAction.remove) {
-      final files = <GeneratedFile>[];
-      for (final method in config.methods) {
-        final file = await _generateForMethod(config, method);
-        if (File(file.path).existsSync()) {
-          if (!dryRun) {
-            File(file.path).deleteSync();
-            if (verbose) print('Deleted: ${file.path}');
-          } else {
-            if (verbose) print('Dry run: would delete ${file.path}');
-          }
-        }
-        files.add(file); // Return file info even if deleted
-      }
-      return files;
-    }
-
     final files = <GeneratedFile>[];
     for (final method in config.methods) {
       files.add(await _generateForMethod(config, method));
@@ -140,7 +119,7 @@ class EntityUseCaseGenerator {
         );
         executeExpression = refer(
           '_repository',
-        ).property(method).call([refer('params')]);
+        ).property('getList').call([refer('params')]);
         break;
       case 'create':
         className = 'Create${entityName}UseCase';

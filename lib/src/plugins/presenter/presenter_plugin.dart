@@ -1,17 +1,9 @@
-import 'dart:io';
-import 'package:analyzer/dart/ast/ast.dart' as analyzer;
 import 'package:args/command_runner.dart';
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../commands/presenter_command.dart';
-import '../../core/ast/append_executor.dart';
-import '../../core/ast/ast_modifier.dart';
-import '../../core/ast/file_parser.dart';
-import '../../core/ast/node_finder.dart';
-import '../../core/ast/strategies/append_strategy.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
-import '../../core/plugin_system/plugin_action.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../models/generated_file.dart';
@@ -53,255 +45,6 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   @override
   Command createCommand() => PresenterCommand(this);
 
-  @override
-  Future<List<GeneratedFile>> create(GeneratorConfig config) =>
-      _dispatch(config, PluginAction.create);
-
-  @override
-  Future<List<GeneratedFile>> delete(GeneratorConfig config) =>
-      _dispatch(config, PluginAction.delete);
-
-  @override
-  Future<List<GeneratedFile>> add(GeneratorConfig config) =>
-      _dispatch(config, PluginAction.add);
-
-  @override
-  Future<List<GeneratedFile>> remove(GeneratorConfig config) =>
-      _dispatch(config, PluginAction.remove);
-
-  Future<List<GeneratedFile>> _dispatch(
-    GeneratorConfig config,
-    PluginAction action,
-  ) async {
-    if (config.outputDir != outputDir ||
-        config.dryRun != dryRun ||
-        config.force != force ||
-        config.verbose != verbose) {
-      final delegator = PresenterPlugin(
-        outputDir: config.outputDir,
-        dryRun: config.dryRun,
-        force: config.force,
-        verbose: config.verbose,
-        classBuilder: classBuilder,
-      );
-      return delegator._dispatch(config, action);
-    }
-
-    switch (action) {
-      case PluginAction.create:
-        return generate(config);
-      case PluginAction.delete:
-        return _delete(config);
-      case PluginAction.add:
-        return _add(config);
-      case PluginAction.remove:
-        return _remove(config);
-    }
-  }
-
-  Future<List<GeneratedFile>> _remove(GeneratorConfig config) async {
-    final entitySnake = config.nameSnake;
-    final fileName = '${entitySnake}_presenter.dart';
-    final presenterDirPath = path.join(
-      outputDir,
-      'presentation',
-      'pages',
-      entitySnake,
-    );
-    final filePath = path.join(presenterDirPath, fileName);
-    final file = File(filePath);
-
-    if (!file.existsSync()) {
-      return [];
-    }
-
-    var source = await file.readAsString();
-    final originalSource = source;
-
-    // Identify use cases to remove
-    final useCases = _buildUseCaseInfo(config, config.name);
-    
-    final parseResult = await FileParser().parseFile(filePath);
-    if (parseResult.unit == null) return [];
-
-    final classNode = NodeFinder.findClass(parseResult.unit!, '${config.name}Presenter');
-    if (classNode == null) return [];
-
-    final nodesToRemove = <analyzer.AstNode>[];
-
-    for (final info in useCases) {
-      // Find method
-      for (final member in classNode.members) {
-        if (member is analyzer.MethodDeclaration &&
-            member.name.lexeme == info.fieldName) {
-          nodesToRemove.add(member);
-        } else if (member is analyzer.FieldDeclaration) {
-          final fieldName = '_${info.fieldName}';
-          if (member.fields.variables.any((v) => v.name.lexeme == fieldName)) {
-            nodesToRemove.add(member);
-          }
-        }
-      }
-
-      // Find imports
-      final usecaseSnake = StringUtils.camelToSnake(
-        info.className.replaceAll('UseCase', ''),
-      );
-      final useCaseFileName = '${usecaseSnake}_usecase.dart';
-      for (final directive in parseResult.unit!.directives) {
-        if (directive is analyzer.ImportDirective &&
-            directive.uri.stringValue?.endsWith(useCaseFileName) == true) {
-          nodesToRemove.add(directive);
-        }
-      }
-
-      // Find constructor statements
-      for (final member in classNode.members) {
-        if (member is analyzer.ConstructorDeclaration) {
-          final body = member.body;
-          if (body is analyzer.BlockFunctionBody) {
-            for (final statement in body.block.statements) {
-              if (statement is analyzer.ExpressionStatement) {
-                final expression = statement.expression;
-                if (expression is analyzer.AssignmentExpression) {
-                  final lhs = expression.leftHandSide;
-                  if (lhs is analyzer.SimpleIdentifier &&
-                      lhs.name == '_${info.fieldName}') {
-                    nodesToRemove.add(statement);
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // Sort descending to remove safely
-    nodesToRemove.sort((a, b) => b.offset.compareTo(a.offset));
-
-    // Remove duplicates if any (though unlikely with this logic)
-    final uniqueNodes = nodesToRemove.toSet().toList();
-    uniqueNodes.sort((a, b) => b.offset.compareTo(a.offset));
-
-    for (final node in uniqueNodes) {
-      source = source.substring(0, node.offset) + source.substring(node.end);
-    }
-
-    if (source != originalSource) {
-      await FileUtils.writeFile(
-        filePath,
-        source,
-        'presenter',
-        force: true,
-        dryRun: dryRun,
-        verbose: verbose,
-        revert: false, // Do not delete file when removing members
-      );
-      return [
-        GeneratedFile(path: filePath, type: 'presenter', action: 'updated'),
-      ];
-    }
-    return [];
-  }
-
-  Future<List<GeneratedFile>> _add(GeneratorConfig config) async {
-    final entitySnake = config.nameSnake;
-    final fileName = '${entitySnake}_presenter.dart';
-    final presenterDirPath = path.join(
-      outputDir,
-      'presentation',
-      'pages',
-      entitySnake,
-    );
-    final filePath = path.join(presenterDirPath, fileName);
-    final file = File(filePath);
-
-    if (!file.existsSync()) {
-      return [];
-    }
-
-    var source = await file.readAsString();
-    final originalSource = source;
-    final executor = AppendExecutor();
-
-    // Identify use cases
-    final useCases = _buildUseCaseInfo(config, config.name);
-    
-    final parseResult = await FileParser().parseFile(filePath);
-    final classNode = NodeFinder.findClass(parseResult.unit!, '${config.name}Presenter');
-    if (classNode == null) return [];
-    
-    final existingMembers = classNode.members.map((m) {
-        if (m is analyzer.FieldDeclaration) {
-            return m.fields.variables.first.name.lexeme;
-        } else if (m is analyzer.MethodDeclaration) {
-            return m.name.lexeme;
-        }
-        return '';
-    }).toSet();
-
-    for (final info in useCases) {
-      // Check if field exists
-      final fieldName = '_${info.fieldName}';
-      if (existingMembers.contains(fieldName)) continue;
-      
-      // Add import
-      final usecaseSnake = StringUtils.camelToSnake(
-        info.className.replaceAll('UseCase', ''),
-      );
-      final useCaseFileName = '${usecaseSnake}_usecase.dart';
-      final importPath = '../../../domain/usecases/$entitySnake/$useCaseFileName';
-      
-      var result = executor.execute(AppendRequest.import(
-        source: source,
-        importPath: importPath,
-      ));
-      if (result.changed) source = result.source;
-
-      // Add field
-      final fieldSource = 'late final ${info.className} $fieldName = registerUseCase(getIt<${info.className}>());';
-      result = executor.execute(AppendRequest.field(
-        source: source,
-        className: '${config.name}Presenter',
-        memberSource: fieldSource,
-      ));
-      if (result.changed) source = result.source;
-
-      // Add method
-      if (!existingMembers.contains(info.fieldName)) {
-          final methodSource = '''
-  Future<Result<void, AppFailure>> ${info.fieldName}() async {
-    // TODO: Implement ${info.fieldName}
-    throw UnimplementedError();
-  }''';
-          result = executor.execute(AppendRequest.method(
-            source: source,
-            className: '${config.name}Presenter',
-            memberSource: methodSource,
-          ));
-          if (result.changed) source = result.source;
-      }
-    }
-
-    if (source != originalSource) {
-      await FileUtils.writeFile(
-        filePath,
-        source,
-        'presenter',
-        force: true,
-        dryRun: dryRun,
-        verbose: verbose,
-      );
-      return [GeneratedFile(path: filePath, type: 'presenter', action: 'updated')];
-    }
-    return [];
-  }
-
-  /// Generates presenter files for the given [config].
-  ///
-  /// @param config Generator configuration describing the entity and options.
-  /// @returns List of generated presenter files.
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     if (!(config.generatePresenter || config.generateVpcs)) {
@@ -364,31 +107,6 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       revert: config.revert,
     );
     return [file];
-  }
-
-  Future<List<GeneratedFile>> _delete(GeneratorConfig config) async {
-    final entitySnake = config.nameSnake;
-    final fileName = '${entitySnake}_presenter.dart';
-    final presenterDirPath = path.join(
-      outputDir,
-      'presentation',
-      'pages',
-      entitySnake,
-    );
-    final filePath = path.join(presenterDirPath, fileName);
-    final file = File(filePath);
-
-    if (!file.existsSync()) {
-      return [];
-    }
-
-    if (!dryRun) {
-      await file.delete();
-    }
-
-    return [
-      GeneratedFile(path: filePath, type: 'presenter', action: 'deleted'),
-    ];
   }
 
   List<Field> _buildRepoFields(GeneratorConfig config) {
@@ -466,16 +184,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           fieldName: 'watch${entityName}List',
         );
       default:
-        // Handle custom use cases
-        // Assumes method name is the use case name without 'UseCase' suffix if provided
-        // e.g. 'activateProduct' -> ActivateProductUseCase, _activateProduct
-        final useCaseName = StringUtils.convertToPascalCase(method);
-        final className = '${useCaseName}UseCase';
-        final fieldName = StringUtils.pascalToCamel(useCaseName);
-        return _UseCaseInfo(
-          className: className,
-          fieldName: fieldName,
-        );
+        throw ArgumentError('Unsupported method: $method');
     }
   }
 
@@ -598,31 +307,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           }
           methods.add(_buildWatchListMethod(info, entityName));
           break;
-        default:
-          final useCaseName = StringUtils.convertToPascalCase(method);
-          final fieldName = StringUtils.pascalToCamel(useCaseName);
-          final info = map[fieldName];
-          if (info != null) {
-            methods.add(_buildCustomMethod(info));
-          }
-          break;
       }
     }
     return methods;
-  }
-
-  Method _buildCustomMethod(_UseCaseInfo info) {
-    return Method(
-      (m) => m
-        ..name = info.fieldName
-        ..returns = refer('Future<Result<void, AppFailure>>')
-        ..modifier = MethodModifier.async
-        ..body = Block(
-          (b) => b
-            ..statements.add(Code('// TODO: Implement ${info.fieldName}'))
-            ..statements.add(Code('throw UnimplementedError();')),
-        ),
-    );
   }
 
   Method _buildGetMethod(

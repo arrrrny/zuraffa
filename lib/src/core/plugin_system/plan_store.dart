@@ -7,12 +7,17 @@ import 'capability.dart';
 class PlanStore {
   static final PlanStore _instance = PlanStore._();
   static PlanStore get instance => _instance;
+  
+  // For testing
+  String? _rootDirectory;
+  set rootDirectory(String? path) => _rootDirectory = path;
 
   PlanStore._();
 
   File _getPlanFile(String planId) {
     // final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
-    final planDir = path.join(Directory.current.path, '.zuraffa', 'plans');
+    final baseDir = _rootDirectory ?? Directory.current.path;
+    final planDir = path.join(baseDir, '.zuraffa', 'plans');
     return File(path.join(planDir, '$planId.json'));
   }
 

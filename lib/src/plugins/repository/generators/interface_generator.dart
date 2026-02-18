@@ -10,8 +10,6 @@ import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 
-import '../../../core/plugin_system/plugin_action.dart';
-
 class RepositoryInterfaceGenerator {
   final String outputDir;
   final bool dryRun;
@@ -55,31 +53,15 @@ class RepositoryInterfaceGenerator {
     final normalizedContent = content.replaceAll('\n\nimport', '\nimport');
     final output = '$header\n\n$normalizedContent';
 
-    if (config.verbose) {
-      print('Generating repository interface for ${config.name} at $filePath');
-      print('Action: ${config.action}');
-    }
-
-    if (config.action == PluginAction.delete) {
-      return FileUtils.deleteFile(
-        filePath,
-        'repository',
-        dryRun: dryRun,
-        verbose: verbose,
-      );
-    }
-
     if (File(filePath).existsSync()) {
       final existing = await File(filePath).readAsString();
 
-      if (config.action == PluginAction.remove) {
+      if (config.revert) {
         final reverted = _removeMethods(
           source: existing,
           className: repoName,
           methods: methods,
         );
-        // If we removed methods, write back. If no methods left, maybe user wants to keep the file?
-        // Or should we delete if empty? For now just write back.
         return FileUtils.writeFile(
           filePath,
           reverted,
@@ -91,39 +73,31 @@ class RepositoryInterfaceGenerator {
         );
       }
 
-      if (config.action == PluginAction.add ||
-          config.action == PluginAction.create) {
-        // Create usually implies create new, but if exists, maybe overwrite?
-        // But logic here says if exists, we append.
-        // If action is explicit create, and force is true, we might want to overwrite?
-        // But let's stick to existing logic: if exists, we merge/append.
-        // Wait, if action is create and force is true, we should overwrite.
-        if (config.action == PluginAction.create && force) {
-          // Fall through to write new file logic at end
-        } else {
-          final importLines = _buildImportLines(importPaths);
-          final mergedImports = _mergeImports(existing, importLines);
-          final appended = _appendMethods(
-            source: mergedImports,
-            className: repoName,
-            methods: methods,
-          );
-          return FileUtils.writeFile(
-            filePath,
-            appended,
-            'repository',
-            force: true,
-            dryRun: dryRun,
-            verbose: verbose,
-            revert: false,
-          );
-        }
-      }
+      final importLines = _buildImportLines(importPaths);
+      final mergedImports = _mergeImports(existing, importLines);
+      final appended = _appendMethods(
+        source: mergedImports,
+        className: repoName,
+        methods: methods,
+      );
+      return FileUtils.writeFile(
+        filePath,
+        appended,
+        'repository',
+        force: true,
+        dryRun: dryRun,
+        verbose: verbose,
+        revert: false,
+      );
     }
 
-    if (config.action == PluginAction.remove) {
-      // Trying to remove from non-existent file
-      return GeneratedFile(path: filePath, type: 'repository', action: 'skipped');
+    if (config.revert) {
+      return FileUtils.deleteFile(
+        filePath,
+        'repository',
+        dryRun: dryRun,
+        verbose: verbose,
+      );
     }
 
     return FileUtils.writeFile(
@@ -160,7 +134,6 @@ class RepositoryInterfaceGenerator {
         config.methods.any(
           (method) =>
               method == 'getList' ||
-              method == 'list' ||
               method == 'update' ||
               method == 'delete' ||
               method == 'watchList',
@@ -215,10 +188,9 @@ class RepositoryInterfaceGenerator {
           );
           break;
         case 'getList':
-        case 'list':
           methods.add(
             _buildMethod(
-              name: method,
+              name: 'getList',
               returnType: 'Future<List<${config.name}>>',
               paramsType: 'ListQueryParams<${config.name}>',
               paramsName: 'params',
@@ -278,15 +250,6 @@ class RepositoryInterfaceGenerator {
             ),
           );
           break;
-        default:
-          methods.add(
-            _buildMethod(
-              name: method,
-              returnType: 'Future<void>',
-              paramsType: 'dynamic',
-              paramsName: 'params',
-            ),
-          );
       }
     }
     return methods;

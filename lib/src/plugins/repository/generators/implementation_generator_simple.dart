@@ -32,10 +32,9 @@ extension RepositoryImplementationGeneratorSimple
             ),
         );
       case 'getList':
-      case 'list':
         return Method(
           (m) => m
-            ..name = method // Use the actual method name
+            ..name = 'getList'
             ..annotations.add(refer('override'))
             ..returns = refer('Future<List<$entityName>>')
             ..requiredParameters.add(
@@ -49,7 +48,7 @@ extension RepositoryImplementationGeneratorSimple
               (b) => b
                 ..statements.add(
                   refer('_dataSource')
-                      .property(method) // Call same method on datasource
+                      .property('getList')
                       .call([refer('params')])
                       .returned
                       .statement,
@@ -180,29 +179,7 @@ extension RepositoryImplementationGeneratorSimple
             ),
         );
       default:
-        return Method(
-          (m) => m
-            ..name = method
-            ..annotations.add(refer('override'))
-            ..returns = refer('Future<void>')
-            ..requiredParameters.add(
-              Parameter(
-                (p) => p
-                  ..name = 'params'
-                  ..type = refer('dynamic'),
-              ),
-            )
-            ..body = Block(
-              (b) => b
-                ..statements.add(
-                  refer('_dataSource')
-                      .property(method)
-                      .call([refer('params')])
-                      .returned
-                      .statement,
-                ),
-            ),
-        );
+        return Method((m) => m..name = '_noop');
     }
   }
 }

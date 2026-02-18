@@ -163,7 +163,6 @@ class GraphqlBuilder {
       case 'get':
         return 'Get$entityName';
       case 'getList':
-        return 'Get${entityName}List';
       case 'create':
         return 'Create$entityName';
       case 'update':

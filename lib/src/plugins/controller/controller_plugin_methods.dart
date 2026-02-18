@@ -44,34 +44,9 @@ extension ControllerPluginMethods on ControllerPlugin {
             _buildWatchListMethod(entityName, entityCamel, withState),
           );
           break;
-        default:
-          methods.add(
-            _buildCustomMethod(method, entityName, entityCamel, withState),
-          );
-          break;
       }
     }
     return methods;
-  }
-
-  Method _buildCustomMethod(
-    String methodName,
-    String entityName,
-    String entityCamel,
-    bool withState,
-  ) {
-    final name = StringUtils.pascalToCamel(methodName);
-
-    return Method(
-      (m) => m
-        ..name = name
-        ..returns = refer('Future<void>')
-        ..modifier = MethodModifier.async
-        ..body = Block((b) => b
-          ..statements.add(Code('// TODO: Implement $name'))
-          ..statements.add(Code('await presenter.$name();'))
-        ),
-    );
   }
 
   Method _buildGetMethod(

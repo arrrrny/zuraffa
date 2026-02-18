@@ -10,8 +10,6 @@ import 'builders/local_generator.dart';
 import 'builders/remote_generator.dart';
 import 'capabilities/create_datasource_capability.dart';
 
-import '../../core/plugin_system/plugin_action.dart';
-
 class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final bool dryRun;
@@ -66,26 +64,7 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   String get version => '1.0.0';
 
   @override
-  Future<List<GeneratedFile>> create(GeneratorConfig config) async {
-    return _dispatch(config.copyWith(action: PluginAction.create));
-  }
-
-  @override
-  Future<List<GeneratedFile>> delete(GeneratorConfig config) async {
-    return _dispatch(config.copyWith(action: PluginAction.delete));
-  }
-
-  @override
-  Future<List<GeneratedFile>> add(GeneratorConfig config) async {
-    return _dispatch(config.copyWith(action: PluginAction.add));
-  }
-
-  @override
-  Future<List<GeneratedFile>> remove(GeneratorConfig config) async {
-    return _dispatch(config.copyWith(action: PluginAction.remove));
-  }
-
-  Future<List<GeneratedFile>> _dispatch(GeneratorConfig config) async {
+  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     if (config.outputDir != outputDir ||
         config.dryRun != dryRun ||
         config.force != force ||
@@ -96,8 +75,7 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         force: config.force,
         verbose: config.verbose,
       );
-      // Pass the action down
-      return delegator._dispatch(config);
+      return delegator.generate(config);
     }
 
     if (!(config.generateData || config.generateDataSource)) {
@@ -122,11 +100,5 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     files.add(await interfaceGenerator.generate(config));
 
     return files;
-  }
-
-  @override
-  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
-    // Default generate calls dispatch with existing config action (default create)
-    return _dispatch(config);
   }
 }

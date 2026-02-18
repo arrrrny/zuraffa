@@ -29,15 +29,4 @@ abstract class ZuraffaPlugin {
 
 abstract class FileGeneratorPlugin extends ZuraffaPlugin {
   Future<List<GeneratedFile>> generate(GeneratorConfig config);
-
-  // New atomic action methods
-  // These should be implemented by plugins that support atomic actions
-  // If not implemented, they should throw or return empty
-  Future<List<GeneratedFile>> create(GeneratorConfig config) =>
-      generate(config);
-  Future<List<GeneratedFile>> delete(GeneratorConfig config) =>
-      generate(config);
-  Future<List<GeneratedFile>> add(GeneratorConfig config) => generate(config);
-  Future<List<GeneratedFile>> remove(GeneratorConfig config) =>
-      generate(config);
 }

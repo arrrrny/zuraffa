@@ -3,9 +3,7 @@ import 'package:code_builder/code_builder.dart';
 
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
-import '../../../core/ast/ast_helper.dart';
 import '../../../core/generator_options.dart';
-import '../../../core/plugin_system/plugin_action.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -80,7 +78,7 @@ class RepositoryImplementationGenerator {
     final localDataSourceName = '${entityName}LocalDataSource';
 
     // If action is delete, delete the file
-    if (config.action == PluginAction.delete) {
+    if (config.revert) {
       return FileUtils.deleteFile(
         filePath,
         'repository_implementation',
@@ -191,6 +189,7 @@ class RepositoryImplementationGenerator {
     if (File(filePath).existsSync()) {
       final existing = await File(filePath).readAsString();
 
+      /*
       if (config.action == PluginAction.remove) {
         // Remove methods
         final reverted = _removeMethods(
@@ -208,33 +207,30 @@ class RepositoryImplementationGenerator {
           revert: false,
         );
       }
+      */
 
-      if (config.action == PluginAction.add ||
-          config.action == PluginAction.create) {
-        if (config.action == PluginAction.create && force) {
-          // Fall through to create new file logic
-        } else {
-          // Append methods
-          final importLines = _buildImportLines(importPaths);
-          final mergedImports = _mergeImports(existing, importLines);
-          final appended = _appendMethods(
-            source: mergedImports,
-            className: dataRepoName,
-            methods: methods,
-          );
-          return FileUtils.writeFile(
-            filePath,
-            appended,
-            'repository_implementation',
-            force: true,
-            dryRun: dryRun,
-            verbose: verbose,
-            revert: false,
-          );
-        }
+      if (config.appendToExisting) {
+        // Append methods
+        final importLines = _buildImportLines(importPaths);
+        final mergedImports = _mergeImports(existing, importLines);
+        final appended = _appendMethods(
+          source: mergedImports,
+          className: dataRepoName,
+          methods: methods,
+        );
+        return FileUtils.writeFile(
+          filePath,
+          appended,
+          'repository_implementation',
+          force: true,
+          dryRun: dryRun,
+          verbose: verbose,
+          revert: false,
+        );
       }
     }
 
+    /*
     if (config.action == PluginAction.remove) {
       return GeneratedFile(
         path: filePath,
@@ -242,6 +238,7 @@ class RepositoryImplementationGenerator {
         action: 'skipped',
       );
     }
+    */
 
     final library = Library(
       (b) => b

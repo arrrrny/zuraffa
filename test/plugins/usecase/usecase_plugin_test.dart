@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zuraffa/src/core/plugin_system/plugin_action.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/usecase/usecase_plugin.dart';
 
@@ -53,11 +52,11 @@ void main() {
     final config = GeneratorConfig(
       name: 'SyncUser',
       repo: 'User',
+      domain: 'user',
       paramsType: 'UserParams',
       returnsType: 'User',
       useCaseType: 'sync',
       outputDir: outputDir,
-      domain: 'user',
     );
     final files = await plugin.generate(config);
     final content = files.first.content ?? '';
@@ -77,11 +76,11 @@ void main() {
     final config = GeneratorConfig(
       name: 'StreamUser',
       service: 'User',
+      domain: 'user',
       paramsType: 'UserParams',
       returnsType: 'User',
       useCaseType: 'stream',
       outputDir: outputDir,
-      domain: 'user',
     );
     final files = await plugin.generate(config);
     final content = files.first.content ?? '';
@@ -105,7 +104,6 @@ void main() {
       paramsType: 'OrderParams',
       returnsType: 'Order',
       outputDir: outputDir,
-      domain: 'order',
     );
     final files = await plugin.generate(config);
     final content = files.first.content ?? '';
@@ -127,7 +125,6 @@ void main() {
       paramsType: 'UserParams',
       returnsType: 'User',
       outputDir: outputDir,
-      domain: 'user',
     );
     final files = await plugin.generate(config);
     expect(files.length, equals(4));
@@ -156,13 +153,12 @@ void main() {
 
     final config = GeneratorConfig(
       name: 'Login',
+      domain: 'auth',
       paramsType: 'NoParams',
       returnsType: 'void',
       useCaseType: 'sync',
-      action: PluginAction.add,
       appendToExisting: true,
       outputDir: outputDir,
-      domain: 'auth',
     );
     final files = await plugin.generate(config);
     final content = files.first.content ?? '';

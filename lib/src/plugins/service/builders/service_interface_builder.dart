@@ -10,7 +10,13 @@ class ServiceInterfaceBuilder {
 
   const ServiceInterfaceBuilder({this.specLibrary = const SpecLibrary()});
 
-  String buildMethod(GeneratorConfig config) {
+  String build(GeneratorConfig config) {
+    final serviceName = config.effectiveService;
+    if (serviceName == null) {
+      throw ArgumentError(
+        'Service name must be specified via --service or config.service',
+      );
+    }
     final paramsType = config.paramsType ?? 'NoParams';
     final returnsType = config.returnsType ?? 'void';
     final methodName = config.getServiceMethodName();
@@ -32,64 +38,20 @@ class ServiceInterfaceBuilder {
       parameters: params,
     );
 
-    final emitter = DartEmitter();
-    return method.accept(emitter).toString();
-  }
-
-  String build(GeneratorConfig config) {
-    final serviceName = config.effectiveService;
-    if (serviceName == null) {
-      throw ArgumentError(
-        'Service name must be specified via --service or config.service',
-      );
-    }
-
-    final methods = <Method>[];
-    if (config.methods.isNotEmpty) {
-      for (final methodName in config.methods) {
-        methods.add(_buildMethod(config, methodName));
-      }
-    } else {
-      final methodName = config.getServiceMethodName();
-      methods.add(_buildMethod(config, methodName));
-    }
-
     final clazz = Class(
       (b) => b
         ..name = serviceName
         ..abstract = true
-        ..methods.addAll(methods),
+        ..methods.add(method),
     );
 
     final directives = <Directive>[
       Directive.import('package:zuraffa/zuraffa.dart'),
-      ..._entityImports(config, methods).map(Directive.import),
+      ..._entityImports([paramsType, returnsType]).map(Directive.import),
     ];
 
     return specLibrary.emitLibrary(
       specLibrary.library(specs: [clazz], directives: directives),
-    );
-  }
-
-  Method _buildMethod(GeneratorConfig config, String methodName) {
-    final paramsType = config.paramsType ?? 'NoParams';
-    final returnsType = config.returnsType ?? 'void';
-    
-    final returnSignature = _returnSignature(config, returnsType);
-    final params = paramsType == 'NoParams'
-        ? const <Parameter>[]
-        : [
-            Parameter(
-              (p) => p
-                ..name = 'params'
-                ..type = refer(paramsType),
-            ),
-          ];
-
-    return CommonPatterns.abstractMethod(
-      name: methodName,
-      returnType: returnSignature,
-      parameters: params,
     );
   }
 
@@ -106,20 +68,7 @@ class ServiceInterfaceBuilder {
     }
   }
 
-  List<String> _entityImports(GeneratorConfig config, List<Method> methods) {
-    final types = <String>{};
-    // Add param types and return types from methods if needed
-    // For now we use config.paramsType and returnsType as global config
-    // But ideally we should extract from methods if they differ.
-    // Given current architecture, config defines types for all methods in this batch.
-    
-    if (config.paramsType != null) types.add(config.paramsType!);
-    if (config.returnsType != null) types.add(config.returnsType!);
-    
-    return _extractImports(types.toList());
-  }
-
-  List<String> _extractImports(List<String> types) {
+  List<String> _entityImports(List<String> types) {
     final entities = <String>[];
     final primitives = {
       'void',

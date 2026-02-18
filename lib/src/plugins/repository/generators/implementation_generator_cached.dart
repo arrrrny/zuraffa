@@ -28,7 +28,6 @@ extension RepositoryImplementationGeneratorCached
             ..body = _buildCacheAwareGetBody(baseCacheKey),
         );
       case 'getList':
-      case 'list':
         return Method(
           (m) => m
             ..name = 'getList'
@@ -126,30 +125,7 @@ extension RepositoryImplementationGeneratorCached
             ..body = _buildWatchListBody(config, entityName),
         );
       default:
-        return Method(
-          (m) => m
-            ..name = method
-            ..annotations.add(refer('override'))
-            ..returns = refer('Future<void>')
-            ..modifier = MethodModifier.async
-            ..requiredParameters.add(
-              Parameter(
-                (p) => p
-                  ..name = 'params'
-                  ..type = refer('dynamic'),
-              ),
-            )
-            ..body = Block(
-              (b) => b
-                ..statements.add(
-                  refer('_remoteDataSource')
-                      .property(method)
-                      .call([refer('params')])
-                      .awaited
-                      .statement,
-                ),
-            ),
-        );
+        return Method((m) => m..name = '_noop');
     }
   }
 

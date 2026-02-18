@@ -3,25 +3,20 @@ part of 'custom_usecase_generator.dart';
 extension CustomUseCaseGeneratorGenerate on CustomUseCaseGenerator {
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     // 1. Check for required Domain for non-entity usecases
-    if (config.domain == null && !config.isEntityBased) {
+    if (config.useCaseType != 'entity' && config.domain == null) {
       throw ArgumentError(
         'For non-entity usecases (like ${config.useCaseType}), you must specify a domain using --domain.',
       );
     }
 
-    // Skip dependency checks if we are deleting/removing
-    if (config.action != PluginAction.delete &&
-        config.action != PluginAction.remove) {
-      // 2. Check for required dependencies for specific types
-      if (!config.revert &&
-          config.useCaseType != 'sync' &&
-          config.useCaseType != 'future' &&
-          !config.hasRepo &&
-          !config.hasService) {
-        throw ArgumentError(
-          'For ${config.useCaseType} usecases, you must specify a repository or service using --repo or --service. Only --type=sync/future allows no dependencies.',
-        );
-      }
+    // 2. Check for required dependencies for specific types
+    if (!config.revert &&
+        config.useCaseType != 'sync' &&
+        !config.hasRepo &&
+        !config.hasService) {
+      throw ArgumentError(
+        'For ${config.useCaseType} usecases, you must specify a repository or service using --repo or --service. Only --type=sync allows no dependencies.',
+      );
     }
 
     final baseName = config.name.endsWith('UseCase')

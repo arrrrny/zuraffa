@@ -60,13 +60,16 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
     required List<String> methodSources,
     required String content,
   }) async {
-    if (config.action == PluginAction.delete ||
-        config.action == PluginAction.remove) {
-      if (config.action == PluginAction.remove) {
-        // Implement remove logic here if needed, or fallback to delete file
-        // For now, custom usecases are usually one-file-per-usecase, so delete is appropriate
-        // unless we support removing specific methods from a usecase file.
-        // But custom usecases usually have one main execute method.
+    if (config.revert) {
+      if (config.appendToExisting) {
+        if (verbose) {
+          print('  ⚠️ Cannot revert append operation for $filePath');
+        }
+        return GeneratedFile(
+          path: filePath,
+          type: 'usecase',
+          action: 'skipped',
+        );
       }
       return FileUtils.deleteFile(
         filePath,
@@ -76,7 +79,7 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
       );
     }
 
-    if (config.action == PluginAction.add && File(filePath).existsSync()) {
+    if (config.appendToExisting && File(filePath).existsSync()) {
       var updatedSource = await File(filePath).readAsString();
       var changed = false;
       for (final methodSource in methodSources) {
@@ -97,20 +100,16 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
           path: filePath,
           type: 'usecase',
           action: 'skipped',
+          content: updatedSource,
         );
       }
-
-      if (!dryRun) {
-        await File(filePath).writeAsString(updatedSource);
-      }
-      if (verbose) {
-        print('  Modified: $filePath');
-      }
-      return GeneratedFile(
-        path: filePath,
-        type: 'usecase',
-        action: 'modified',
-        content: updatedSource,
+      return FileUtils.writeFile(
+        filePath,
+        updatedSource,
+        'usecase',
+        force: true,
+        dryRun: dryRun,
+        verbose: verbose,
       );
     }
 
@@ -118,6 +117,7 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
       filePath,
       content,
       'usecase',
+      force: force,
       dryRun: dryRun,
       verbose: verbose,
     );
