@@ -116,7 +116,7 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final repoPresenterArgs = useDi
         ? <String>[]
         : _buildRepoPresenterArgs(config);
-    final imports = _buildImports(config, entitySnake, useDi);
+    final imports = _buildImports(config, domainSnake, useDi);
     final effectiveEntityName = config.usesCustomVpc
         ? config.effectivePresenterName.replaceAll('Presenter', '')
         : entityName;
@@ -154,7 +154,7 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   List<String> _buildImports(
     GeneratorConfig config,
-    String entitySnake,
+    String domainSnake,
     bool useDi,
   ) {
     final relativePath = '../../';
@@ -181,13 +181,14 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       config.effectivePresenterName.replaceAll('Presenter', ''),
     );
 
-    if (config.usesCustomVpc) {
-      imports.add('${controllerSnake}_controller.dart');
-      imports.add('${presenterSnake}_presenter.dart');
-    } else {
-      imports.add('${entitySnake}_controller.dart');
-      imports.add('${entitySnake}_presenter.dart');
+    imports.add('${controllerSnake}_controller.dart');
+    imports.add('${presenterSnake}_presenter.dart');
+
+    if (config.generateState) {
+      final stateSnake = config.nameSnake;
+      imports.add('${stateSnake}_state.dart');
     }
+
     return imports;
   }
 

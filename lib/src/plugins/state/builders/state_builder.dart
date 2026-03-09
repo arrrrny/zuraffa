@@ -2,10 +2,12 @@ import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../../core/builder/shared/spec_library.dart';
+import '../../../core/constants/known_types.dart';
 import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
+import '../../../utils/string_utils.dart';
 
 /// Generates state classes for presentation controllers.
 ///
@@ -63,26 +65,40 @@ class StateBuilder {
     final entityCamel = config.nameCamel;
     final stateName = '${entityName}State';
     final fileName = '${entitySnake}_state.dart';
-    final statePathParts = <String>[outputDir, 'presentation', 'pages'];
-    statePathParts.add(entitySnake);
+    final domainSnake = config.effectiveDomain;
+    final statePathParts = <String>[outputDir, 'presentation', 'pages', domainSnake];
     final stateDirPath = path.joinAll(statePathParts);
     final filePath = path.join(stateDirPath, fileName);
 
-    final needsEntityListField = config.methods.any(
+    final needsEntityListField = !config.isCustomUseCase && config.methods.any(
       (m) => ['getList', 'watchList'].contains(m),
     );
-    final needsEntityField = config.methods.any(
+    final needsEntityField = !config.isCustomUseCase && config.methods.any(
       (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
     );
 
     final imports = <String>['package:zuraffa/zuraffa.dart'];
-    if (needsEntityListField || needsEntityField) {
+
+    if (config.isCustomUseCase) {
+      if (config.returnsType != null) {
+        final types = config.returnsType!
+            .replaceAll('List<', '')
+            .replaceAll('>', '')
+            .replaceAll('?', '');
+        for (final type in types.split(',').map((t) => t.trim())) {
+          if (!KnownTypes.isDartPrimitive(type)) {
+            final snake = StringUtils.camelToSnake(type);
+            imports.add('../../../domain/entities/$snake/$snake.dart');
+          }
+        }
+      }
+    } else if (needsEntityListField || needsEntityField) {
       final entityPath =
-          '../../../domain/entities/$entitySnake/$entitySnake.dart';
+          '../../../domain/entities/$domainSnake/$domainSnake.dart';
       imports.add(entityPath);
     }
 
-    final directives = imports.map(Directive.import).toList();
+    final directives = imports.toSet().map(Directive.import).toList();
 
     final fields = <Field>[
       _docField(
@@ -92,99 +108,309 @@ class StateBuilder {
       ),
     ];
 
-    if (needsEntityListField) {
+    if (config.isCustomUseCase) {
       fields.add(
         _docField(
-          'The list of $entityName entities',
-          '${entityCamel}List',
-          _listOf(entityName),
+          'Whether the operation is in progress',
+          'isLoading',
+          refer('bool'),
         ),
       );
-    }
 
-    if (needsEntityField) {
-      fields.add(
-        _docField(
-          'The single $entityName entity',
-          entityCamel,
-          _nullableType(entityName),
+      if (config.returnsType != null && config.returnsType != 'void') {
+        fields.add(
+          _docField(
+            'The result data',
+            'data',
+            refer(config.returnsType!),
+          ),
+        );
+      }
+
+      final constructor = _buildCustomConstructor(config);
+      final copyWith = _buildCustomCopyWith(stateName, config);
+      final hasErrorGetter = _buildHasErrorGetter();
+      final equality = _buildCustomEqualityOperator(stateName, config);
+      final hashCodeGetter = _buildCustomHashCodeGetter(config);
+      final toStringMethod = _buildCustomToString(stateName, config);
+
+      final clazz = Class(
+        (c) => c
+          ..name = stateName
+          ..fields.addAll(fields)
+          ..constructors.add(constructor)
+          ..methods.addAll([
+            copyWith,
+            hasErrorGetter,
+            equality,
+            hashCodeGetter,
+            toStringMethod,
+          ]),
+      );
+
+      final content = specLibrary.emitLibrary(
+        specLibrary.library(specs: [clazz], directives: directives),
+      );
+
+      return FileUtils.writeFile(
+        filePath,
+        content,
+        'state',
+        force: force,
+        dryRun: dryRun,
+        verbose: verbose,
+        revert: config.revert,
+      );
+    } else {
+      if (needsEntityListField) {
+        fields.add(
+          _docField(
+            'The list of $entityName entities',
+            '${entityCamel}List',
+            _listOf(entityName),
+          ),
+        );
+      }
+
+      if (needsEntityField) {
+        fields.add(
+          _docField(
+            'The single $entityName entity',
+            entityCamel,
+            _nullableType(entityName),
+          ),
+        );
+      }
+
+      final boolFields = _boolFieldsForMethods(config.methods);
+      fields.addAll(
+        boolFields.map(
+          (field) => _docField(field.doc, field.name, refer('bool')),
         ),
       );
-    }
 
-    final boolFields = _boolFieldsForMethods(config.methods);
-    fields.addAll(
-      boolFields.map(
-        (field) => _docField(field.doc, field.name, refer('bool')),
+      final constructor = _buildConstructor(
+        entityName: entityName,
+        entityCamel: entityCamel,
+        needsEntityField: needsEntityField,
+        needsEntityListField: needsEntityListField,
+        boolFields: boolFields,
+      );
+
+      final copyWith = _buildCopyWith(
+        stateName: stateName,
+        entityName: entityName,
+        entityCamel: entityCamel,
+        needsEntityField: needsEntityField,
+        needsEntityListField: needsEntityListField,
+        boolFields: boolFields,
+      );
+
+      final isLoadingGetter = _buildIsLoadingGetter(boolFields);
+      final hasErrorGetter = _buildHasErrorGetter();
+      final equality = _buildEqualityOperator(
+        stateName: stateName,
+        entityCamel: entityCamel,
+        needsEntityField: needsEntityField,
+        needsEntityListField: needsEntityListField,
+        boolFields: boolFields,
+      );
+      final hashCodeGetter = _buildHashCodeGetter(
+        entityCamel: entityCamel,
+        needsEntityField: needsEntityField,
+        needsEntityListField: needsEntityListField,
+        boolFields: boolFields,
+      );
+      final toStringMethod = _buildToString(
+        stateName: stateName,
+        entityCamel: entityCamel,
+        needsEntityField: needsEntityField,
+        needsEntityListField: needsEntityListField,
+      );
+
+      final clazz = Class(
+        (c) => c
+          ..name = stateName
+          ..fields.addAll(fields)
+          ..constructors.add(constructor)
+          ..methods.addAll([
+            copyWith,
+            isLoadingGetter,
+            hasErrorGetter,
+            equality,
+            hashCodeGetter,
+            toStringMethod,
+          ]),
+      );
+
+      final content = specLibrary.emitLibrary(
+        specLibrary.library(specs: [clazz], directives: directives),
+      );
+
+      return FileUtils.writeFile(
+        filePath,
+        content,
+        'state',
+        force: force,
+        dryRun: dryRun,
+        verbose: verbose,
+        revert: config.revert,
+      );
+    }
+  }
+
+  Constructor _buildCustomConstructor(GeneratorConfig config) {
+    final params = <Parameter>[
+      Parameter(
+        (p) => p
+          ..name = 'error'
+          ..named = true
+          ..toThis = true,
       ),
-    );
+      Parameter(
+        (p) => p
+          ..name = 'isLoading'
+          ..named = true
+          ..toThis = true
+          ..defaultTo = literalBool(false).code,
+      ),
+    ];
 
-    final constructor = _buildConstructor(
-      entityName: entityName,
-      entityCamel: entityCamel,
-      needsEntityField: needsEntityField,
-      needsEntityListField: needsEntityListField,
-      boolFields: boolFields,
-    );
+    if (config.returnsType != null && config.returnsType != 'void') {
+      params.add(
+        Parameter(
+          (p) => p
+            ..name = 'data'
+            ..named = true
+            ..toThis = true,
+        ),
+      );
+    }
 
-    final copyWith = _buildCopyWith(
-      stateName: stateName,
-      entityName: entityName,
-      entityCamel: entityCamel,
-      needsEntityField: needsEntityField,
-      needsEntityListField: needsEntityListField,
-      boolFields: boolFields,
-    );
-
-    final isLoadingGetter = _buildIsLoadingGetter(boolFields);
-    final hasErrorGetter = _buildHasErrorGetter();
-    final equality = _buildEqualityOperator(
-      stateName: stateName,
-      entityCamel: entityCamel,
-      needsEntityField: needsEntityField,
-      needsEntityListField: needsEntityListField,
-      boolFields: boolFields,
-    );
-    final hashCodeGetter = _buildHashCodeGetter(
-      entityCamel: entityCamel,
-      needsEntityField: needsEntityField,
-      needsEntityListField: needsEntityListField,
-      boolFields: boolFields,
-    );
-    final toStringMethod = _buildToString(
-      stateName: stateName,
-      entityCamel: entityCamel,
-      needsEntityField: needsEntityField,
-      needsEntityListField: needsEntityListField,
-    );
-
-    final clazz = Class(
+    return Constructor(
       (c) => c
-        ..name = stateName
-        ..fields.addAll(fields)
-        ..constructors.add(constructor)
-        ..methods.addAll([
-          copyWith,
-          isLoadingGetter,
-          hasErrorGetter,
-          equality,
-          hashCodeGetter,
-          toStringMethod,
-        ]),
+        ..constant = true
+        ..optionalParameters.addAll(params),
     );
+  }
 
-    final content = specLibrary.emitLibrary(
-      specLibrary.library(specs: [clazz], directives: directives),
+  Method _buildCustomCopyWith(String stateName, GeneratorConfig config) {
+    final params = <Parameter>[
+      Parameter(
+        (p) => p
+          ..name = 'error'
+          ..type = _nullableType('AppFailure')
+          ..named = true,
+      ),
+      Parameter(
+        (p) => p
+          ..name = 'clearError'
+          ..type = refer('bool')
+          ..named = true
+          ..defaultTo = literalBool(false).code,
+      ),
+      Parameter(
+        (p) => p
+          ..name = 'isLoading'
+          ..type = _nullableType('bool')
+          ..named = true,
+      ),
+    ];
+
+    if (config.returnsType != null && config.returnsType != 'void') {
+      params.add(
+        Parameter(
+          (p) => p
+            ..name = 'data'
+            ..type = refer(config.returnsType!)
+            ..named = true,
+        ),
+      );
+    }
+
+    final namedArgs = <String, Expression>{
+      'error': refer('clearError').conditional(
+        literalNull,
+        refer('error').ifNullThen(refer('this').property('error')),
+      ),
+      'isLoading': refer('isLoading').ifNullThen(refer('this').property('isLoading')),
+    };
+
+    if (config.returnsType != null && config.returnsType != 'void') {
+      namedArgs['data'] = refer('data').ifNullThen(refer('this').property('data'));
+    }
+
+    return Method(
+      (m) => m
+        ..name = 'copyWith'
+        ..returns = refer(stateName)
+        ..optionalParameters.addAll(params)
+        ..body = refer(stateName).call([], namedArgs).returned.statement,
     );
+  }
 
-    return FileUtils.writeFile(
-      filePath,
-      content,
-      'state',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
-      revert: config.revert,
+  Method _buildCustomEqualityOperator(String stateName, GeneratorConfig config) {
+    final other = refer('other');
+    var expression = other.isA(refer(stateName));
+
+    expression = expression.and(other.property('error').equalTo(_this('error')));
+    expression = expression.and(other.property('isLoading').equalTo(_this('isLoading')));
+
+    if (config.returnsType != null && config.returnsType != 'void') {
+      expression = expression.and(other.property('data').equalTo(_this('data')));
+    }
+
+    return Method(
+      (m) => m
+        ..name = 'operator =='
+        ..returns = refer('bool')
+        ..requiredParameters.add(Parameter((p) => p..name = 'other'))
+        ..annotations.add(refer('override'))
+        ..lambda = true
+        ..body = expression.code,
+    );
+  }
+
+  Method _buildCustomHashCodeGetter(GeneratorConfig config) {
+    final parts = <Expression>[
+      _this('error').property('hashCode'),
+      _this('isLoading').property('hashCode'),
+    ];
+
+    if (config.returnsType != null && config.returnsType != 'void') {
+      parts.add(_this('data').property('hashCode'));
+    }
+
+    final expression = parts.reduce((a, b) => a.operatorAdd(b));
+
+    return Method(
+      (m) => m
+        ..name = 'hashCode'
+        ..returns = refer('int')
+        ..type = MethodType.getter
+        ..annotations.add(refer('override'))
+        ..lambda = true
+        ..body = expression.code,
+    );
+  }
+
+  Method _buildCustomToString(String stateName, GeneratorConfig config) {
+    final parts = <String>[
+      'error: \$error',
+      'isLoading: \$isLoading',
+    ];
+
+    if (config.returnsType != null && config.returnsType != 'void') {
+      parts.add('data: \$data');
+    }
+
+    return Method(
+      (m) => m
+        ..name = 'toString'
+        ..returns = refer('String')
+        ..annotations.add(refer('override'))
+        ..lambda = true
+        ..body = literalString('$stateName(${parts.join(', ')})').code,
     );
   }
 
@@ -314,25 +540,28 @@ class StateBuilder {
     );
 
     final namedArgs = <String, Expression>{
-      'error': refer(
-        'clearError',
-      ).conditional(literalNull, refer('error').ifNullThen(_this('error'))),
+      'error': refer('clearError').conditional(
+        literalNull,
+        refer('error').ifNullThen(refer('this').property('error')),
+      ),
     };
 
     if (needsEntityListField) {
       namedArgs['${entityCamel}List'] = refer(
         '${entityCamel}List',
-      ).ifNullThen(_this('${entityCamel}List'));
+      ).ifNullThen(refer('this').property('${entityCamel}List'));
     }
 
     if (needsEntityField) {
       namedArgs[entityCamel] = refer(
         entityCamel,
-      ).ifNullThen(_this(entityCamel));
+      ).ifNullThen(refer('this').property(entityCamel));
     }
 
     for (final field in boolFields) {
-      namedArgs[field.name] = refer(field.name).ifNullThen(_this(field.name));
+      namedArgs[field.name] = refer(field.name).ifNullThen(
+        refer('this').property(field.name),
+      );
     }
 
     final ctorCall = refer(stateName).call(const [], namedArgs);
@@ -527,7 +756,7 @@ class StateBuilder {
     );
   }
 
-  Expression _this(String name) => refer('this').property(name);
+  Expression _this(String name) => refer(name);
 
   List<_BoolField> _boolFieldsForMethods(List<String> methods) {
     final fields = <_BoolField>[];

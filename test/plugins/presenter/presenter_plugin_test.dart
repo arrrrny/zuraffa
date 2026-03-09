@@ -100,4 +100,40 @@ void main() {
       isTrue,
     );
   });
+
+  test('generates custom usecase presenter correctly', () async {
+    final plugin = PresenterPlugin(
+      outputDir: outputDir,
+      dryRun: false,
+      force: true,
+      verbose: false,
+    );
+    final config = GeneratorConfig(
+      name: 'GetListingByBarcode',
+      domain: 'listing',
+      paramsType: 'String',
+      returnsType: 'Listing?',
+      generatePresenter: true,
+      outputDir: outputDir,
+    );
+    final files = await plugin.generate(config);
+    final content = files.first.content ?? '';
+    print('--- GENERATED CONTENT ---\n$content\n-------------------------');
+
+    expect(content.contains('class GetListingByBarcodePresenter'), isTrue);
+    expect(
+      content.contains('late final GetListingByBarcodeUseCase _getListingByBarcode;'),
+      isTrue,
+    );
+    expect(
+      content.contains('Future<Result<Listing?, AppFailure>> getListingByBarcode('),
+      isTrue,
+    );
+    expect(
+      content.contains('return _getListingByBarcode.call(params, cancelToken: cancelToken);'),
+      isTrue,
+    );
+    // Path check
+    expect(files.first.path.contains('presentation/pages/listing/get_listing_by_barcode_presenter.dart'), isTrue);
+  });
 }

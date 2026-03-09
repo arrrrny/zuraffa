@@ -3,6 +3,7 @@ import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../commands/presenter_command.dart';
+import '../../core/constants/known_types.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/capability.dart';
@@ -71,11 +72,12 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final presenterName = '${entityName}Presenter';
     final fileName = '${entitySnake}_presenter.dart';
 
+    final domainSnake = config.effectiveDomain;
     final presenterDirPath = path.join(
       outputDir,
       'presentation',
       'pages',
-      entitySnake,
+      domainSnake,
     );
     final filePath = path.join(presenterDirPath, fileName);
 
@@ -85,7 +87,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final usecaseFields = _buildUseCaseFields(usecaseInfo);
     final constructor = _buildConstructor(config, usecaseInfo, useDi);
     final methods = _buildMethods(config, usecaseInfo, entityName, entityCamel);
-    final imports = _buildImports(config, usecaseInfo, entitySnake, useDi);
+    final imports = _buildImports(config, usecaseInfo, domainSnake, useDi);
 
     final content = classBuilder.build(
       PresenterClassSpec(
@@ -126,6 +128,14 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     GeneratorConfig config,
     String entityName,
   ) {
+    if (config.isCustomUseCase) {
+      return [
+        _UseCaseInfo(
+          className: '${config.name}UseCase',
+          fieldName: config.nameCamel,
+        ),
+      ];
+    }
     return config.methods
         .map((method) => _getUseCaseInfo(method, entityName))
         .toList();
@@ -234,7 +244,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         refer('_${info.fieldName}')
             .assign(
               refer('registerUseCase').call([
-                refer(info.className).call([refer(mainRepo)]),
+                refer(info.className).call([
+                  if (config.effectiveRepos.isNotEmpty) refer(mainRepo),
+                ]),
               ]),
             )
             .statement,
@@ -254,6 +266,44 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     String entityName,
     String entityCamel,
   ) {
+    if (config.isCustomUseCase) {
+      final info = useCases.first;
+      final returns = config.returnsType ?? 'void';
+      final params = config.paramsType ?? 'NoParams';
+
+      return [
+        Method(
+          (m) => m
+            ..name = info.fieldName
+            ..returns = refer('Future<Result<$returns, AppFailure>>')
+            ..requiredParameters.addAll(
+              params == 'NoParams'
+                  ? const []
+                  : [
+                      Parameter(
+                        (p) => p
+                          ..name = 'params'
+                          ..type = refer(params),
+                      ),
+                    ],
+            )
+            ..optionalParameters.add(_cancelTokenParam())
+            ..body = Block(
+              (b) => b..statements.add(
+                refer('_${info.fieldName}')
+                    .property('call')
+                    .call([
+                      if (params != 'NoParams') refer('params')
+                      else refer('NoParams').constInstance([]),
+                    ], {'cancelToken': refer('cancelToken')})
+                    .returned
+                    .statement,
+              ),
+            ),
+        ),
+      ];
+    }
+
     final map = {for (final info in useCases) info.fieldName: info};
     final methods = <Method>[];
     for (final method in config.methods) {
@@ -556,13 +606,29 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   List<String> _buildImports(
     GeneratorConfig config,
     List<_UseCaseInfo> useCases,
-    String entitySnake,
+    String domainSnake,
     bool useDi,
   ) {
     final imports = <String>[
       'package:zuraffa/zuraffa.dart',
-      '../../../domain/entities/$entitySnake/$entitySnake.dart',
     ];
+
+    if (config.isCustomUseCase) {
+      if (config.returnsType != null) {
+        final types = config.returnsType!
+            .replaceAll('List<', '')
+            .replaceAll('>', '')
+            .replaceAll('?', '');
+        for (final type in types.split(',').map((t) => t.trim())) {
+          if (!KnownTypes.isDartPrimitive(type)) {
+            final snake = StringUtils.camelToSnake(type);
+            imports.add('../../../domain/entities/$snake/$snake.dart');
+          }
+        }
+      }
+    } else {
+      imports.add('../../../domain/entities/$domainSnake/$domainSnake.dart');
+    }
 
     if (useDi) {
       imports.add('../../../di/service_locator.dart');
@@ -582,7 +648,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         info.className.replaceAll('UseCase', ''),
       );
       imports.add(
-        '../../../domain/usecases/$entitySnake/${usecaseSnake}_usecase.dart',
+        '../../../domain/usecases/$domainSnake/${usecaseSnake}_usecase.dart',
       );
     }
 

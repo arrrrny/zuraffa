@@ -63,24 +63,37 @@ extension ControllerPluginUtils on ControllerPlugin {
 
   List<String> _buildImports(
     GeneratorConfig config,
-    String entitySnake,
+    String domainSnake,
     bool withState,
   ) {
     final imports = <String>[
       'package:zuraffa/zuraffa.dart',
-      '${entitySnake}_presenter.dart',
+      '${config.nameSnake}_presenter.dart',
     ];
 
     if (withState) {
-      imports.add('${entitySnake}_state.dart');
+      imports.add('${config.nameSnake}_state.dart');
     }
 
-    if (config.methods.any(
+    if (config.isCustomUseCase) {
+      if (config.returnsType != null) {
+        final types = config.returnsType!
+            .replaceAll('List<', '')
+            .replaceAll('>', '')
+            .replaceAll('?', '');
+        for (final type in types.split(',').map((t) => t.trim())) {
+          if (!KnownTypes.isDartPrimitive(type)) {
+            final snake = StringUtils.camelToSnake(type);
+            imports.add('../../../domain/entities/$snake/$snake.dart');
+          }
+        }
+      }
+    } else if (config.methods.any(
       (m) =>
           m == 'create' || m == 'update' || m == 'getList' || m == 'watchList',
     )) {
       final entityPath =
-          '../../../domain/entities/$entitySnake/$entitySnake.dart';
+          '../../../domain/entities/$domainSnake/$domainSnake.dart';
       imports.add(entityPath);
     }
 

@@ -42,4 +42,31 @@ void main() {
     expect(content.contains('isGetting'), isTrue);
     expect(content.contains('copyWith'), isTrue);
   });
+
+  test('generates state for custom usecase with domain', () async {
+    final builder = StateBuilder(
+      outputDir: outputDir,
+      dryRun: false,
+      force: true,
+      verbose: false,
+    );
+
+    final file = await builder.generate(
+      GeneratorConfig(
+        name: 'GetListingByBarcode',
+        domain: 'listing',
+        paramsType: 'String',
+        returnsType: 'Listing?',
+        generateState: true,
+        outputDir: outputDir,
+      ),
+    );
+
+    expect(file.path.contains('presentation/pages/listing/get_listing_by_barcode_state.dart'), isTrue);
+    final content = File(file.path).readAsStringSync();
+    expect(content.contains('class GetListingByBarcodeState'), isTrue);
+    expect(content.contains('final Listing? data;'), isTrue);
+    expect(content.contains('final bool isLoading;'), isTrue);
+    expect(content.contains('GetListingByBarcodeState copyWith('), isTrue);
+  });
 }
