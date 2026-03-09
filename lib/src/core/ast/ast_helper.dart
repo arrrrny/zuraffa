@@ -271,4 +271,25 @@ class AstHelper {
       statementSource: statementSource,
     );
   }
+
+  String addElementToReturnListInFunction({
+    required String source,
+    required String functionName,
+    required String elementSource,
+  }) {
+    final parseResult = parseSource(source);
+    final unit = parseResult.unit;
+    if (unit == null) {
+      return source;
+    }
+    final functionNode = findFunction(unit, functionName);
+    if (functionNode == null) {
+      return source;
+    }
+    return AstModifier.addElementToReturnListInFunction(
+      source: source,
+      functionNode: functionNode,
+      elementSource: elementSource,
+    );
+  }
 }

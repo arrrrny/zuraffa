@@ -41,4 +41,20 @@ class EntityRoutesBuilder {
 
     return specLibrary.emitLibrary(library);
   }
+
+  String buildFieldSource(String name, String value) {
+    final field = Field(
+      (b) => b
+        ..name = name
+        ..static = true
+        ..modifier = FieldModifier.constant
+        ..type = refer('String')
+        ..assignment = literalString(value).code,
+    );
+    return field.accept(emitter).toString();
+  }
+
+  String buildRouteSource(Expression routeExpr) {
+    return routeExpr.accept(emitter).toString();
+  }
 }

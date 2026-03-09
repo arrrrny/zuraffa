@@ -122,6 +122,40 @@ class AstModifier {
         source.substring(insertOffset);
   }
 
+  static String addElementToReturnListInFunction({
+    required String source,
+    required FunctionDeclaration functionNode,
+    required String elementSource,
+  }) {
+    final body = functionNode.functionExpression.body;
+    if (body is! BlockFunctionBody) {
+      return source;
+    }
+
+    final returnStatement = body.block.statements.whereType<ReturnStatement>().firstOrNull;
+    if (returnStatement == null) {
+      return source;
+    }
+
+    final expression = returnStatement.expression;
+    if (expression is! ListLiteral) {
+      return source;
+    }
+
+    final insertOffset = expression.rightBracket.offset;
+    final closingIndent = _indentBeforeOffset(source, insertOffset);
+    final elementIndent = '$closingIndent  ';
+    final normalized = elementSource.trimRight();
+    final indented = normalized
+        .split('\n')
+        .map((line) => line.isEmpty ? '' : '$elementIndent$line')
+        .join('\n');
+    final insert = '\n$indented,\n$closingIndent';
+    return source.substring(0, insertOffset) +
+        insert +
+        source.substring(insertOffset);
+  }
+
   static String _indentBeforeOffset(String source, int offset) {
     final lineStart = source.lastIndexOf('\n', offset);
     if (lineStart == -1) {

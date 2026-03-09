@@ -37,6 +37,7 @@ class RouteBuilder {
   final EntityRoutesBuilder entityRoutesBuilder;
   final AppendExecutor appendExecutor;
   final SpecLibrary specLibrary;
+  final DartEmitter emitter;
 
   /// Creates a [RouteBuilder].
   ///
@@ -57,10 +58,12 @@ class RouteBuilder {
     EntityRoutesBuilder? entityRoutesBuilder,
     AppendExecutor? appendExecutor,
     SpecLibrary? specLibrary,
+    DartEmitter? emitter,
   }) : appRoutesBuilder = appRoutesBuilder ?? AppRoutesBuilder(),
        entityRoutesBuilder = entityRoutesBuilder ?? EntityRoutesBuilder(),
        appendExecutor = appendExecutor ?? AppendExecutor(),
-       specLibrary = specLibrary ?? const SpecLibrary();
+       specLibrary = specLibrary ?? const SpecLibrary(),
+       emitter = emitter ?? DartEmitter(orderDirectives: true, useNullSafetySyntax: true);
 
   /// Generates route files for the given [config].
   ///
@@ -97,9 +100,14 @@ class RouteBuilder {
     final hasSubRoutes =
         !isCustom && (hasCreate || hasUpdate || hasDelete || hasGet || hasWatch);
 
+    final domainSnake = config.effectiveDomain;
+    final domainPascal = StringUtils.convertToPascalCase(domainSnake);
+
     final routeConstants = _buildAppRouteConstants(
       routeNameBase: routeNameBase,
       routeBase: routeBase,
+      isCustom: isCustom,
+      domainPascal: domainPascal,
       hasSubRoutes: hasSubRoutes,
       hasCreate: hasCreate,
       hasUpdate: hasUpdate,
@@ -112,6 +120,7 @@ class RouteBuilder {
       entityPascal: entityPascal,
       routeNameBase: routeNameBase,
       routeBase: routeBase,
+      isCustom: isCustom,
       hasSubRoutes: hasSubRoutes,
       hasCreate: hasCreate,
       hasUpdate: hasUpdate,
@@ -170,6 +179,8 @@ class RouteBuilder {
         routeConstants,
         extensionMethods,
         config.nameSnake,
+        isCustom,
+        domainSnake,
       );
     } else {
       content = appRoutesBuilder.buildFile(
@@ -190,15 +201,86 @@ class RouteBuilder {
     );
   }
 
+  String _updateEntityRoutesFile(
+    String existingContent, {
+    required String className,
+    required String routesGetterName,
+    required Map<String, String> newRouteConstants,
+    required List<Expression> newGoRoutes,
+    required List<String> imports,
+  }) {
+    var content = existingContent;
+
+    if (content.isEmpty) {
+      return entityRoutesBuilder.buildFile(
+        className: className,
+        routes: newRouteConstants,
+        routesGetterName: routesGetterName,
+        goRoutes: newGoRoutes,
+        imports: imports,
+      );
+    }
+
+    // Add imports
+    for (final import in imports) {
+      if (!content.contains("import '$import';")) {
+        content = "import '$import';\n$content";
+      }
+    }
+
+    final helper = const AstHelper();
+
+    // Add route constants
+    for (final entry in newRouteConstants.entries) {
+      if (content.contains('static const String ${entry.key} =')) {
+        continue;
+      }
+      final fieldSource = entityRoutesBuilder.buildFieldSource(
+        entry.key,
+        entry.value,
+      );
+      content = helper.addFieldToClass(
+        source: content,
+        className: className,
+        fieldSource: fieldSource,
+      );
+    }
+
+    // Add go routes
+    for (final routeExpr in newGoRoutes) {
+      final routeSource = entityRoutesBuilder.buildRouteSource(routeExpr);
+      
+      // Basic normalization for duplicate check: remove spaces, newlines, and trailing commas
+      String normalize(String s) => s.replaceAll(RegExp(r'\s+'), '').replaceAll(RegExp(r',\s*\)'), ')').replaceAll(RegExp(r',$'), '');
+      
+      final normalizedRouteSource = normalize(routeSource);
+      final normalizedContent = normalize(content);
+      
+      if (normalizedContent.contains(normalizedRouteSource)) {
+        continue;
+      }
+      
+      content = helper.addElementToReturnListInFunction(
+        source: content,
+        functionName: routesGetterName,
+        elementSource: routeSource,
+      );
+    }
+
+    return content;
+  }
+
   String _updateAppRoutesFile(
     String existingContent,
     Map<String, String> newRouteConstants,
     List<ExtensionMethodSpec> newExtensionMethods,
     String entitySnake,
+    bool isCustom,
+    String domainSnake,
   ) {
     var content = _ensureAppRoutesImports(existingContent);
 
-    final entityRouteImport = '${entitySnake}_routes.dart';
+    final entityRouteImport = isCustom ? '${domainSnake}_routes.dart' : '${entitySnake}_routes.dart';
     if (!content.contains(entityRouteImport)) {
       final importLine = "import '$entityRouteImport';";
       if (content.contains('import ')) {
@@ -252,7 +334,13 @@ class RouteBuilder {
     final entityName = config.name;
     final entitySnake = config.nameSnake;
     final entityCamel = config.nameCamel;
-    final fileName = '${entitySnake}_routes.dart';
+    final domainSnake = config.effectiveDomain;
+    final isCustom = config.isCustomUseCase;
+
+    final fileName = isCustom ? '${domainSnake}_routes.dart' : '${entitySnake}_routes.dart';
+    final domainPascal = StringUtils.convertToPascalCase(domainSnake);
+    final className = isCustom ? '${domainPascal}Routes' : '${entityName}Routes';
+    final routesGetterName = isCustom ? 'get${domainPascal}Routes' : 'get${entityName}Routes';
 
     final dependencyInfo = _resolveDependencyInfo(
       config,
@@ -261,11 +349,11 @@ class RouteBuilder {
     );
 
     final routesPath = path.join(outputDir, 'routing', fileName);
+    final file = File(routesPath);
 
     final routeBase = config.nameSnake;
     final routeNameBase = config.nameCamel;
 
-    final isCustom = config.isCustomUseCase;
     final hasGet = !isCustom && config.methods.contains('get');
     final hasWatch = !isCustom && config.methods.contains('watch');
     final hasCreate = !isCustom && config.methods.contains('create');
@@ -277,6 +365,7 @@ class RouteBuilder {
     final routeConstants = _buildEntityRouteConstants(
       routeNameBase: routeNameBase,
       routeBase: routeBase,
+      isCustom: isCustom,
       hasSubRoutes: hasSubRoutes,
       hasCreate: hasCreate,
       hasUpdate: hasUpdate,
@@ -293,6 +382,7 @@ class RouteBuilder {
     final goRoutes = <Expression>[
       if (isCustom)
         _buildCustomRouteExpr(
+          className: className,
           entityName: entityName,
           routeBase: routeBase,
           routeNameBase: routeNameBase,
@@ -334,7 +424,6 @@ class RouteBuilder {
         ),
     ];
 
-    final domainSnake = config.effectiveDomain;
     final imports = [
       'package:go_router/go_router.dart',
       '../presentation/pages/$domainSnake/${entitySnake}_view.dart',
@@ -342,13 +431,22 @@ class RouteBuilder {
       if (dependencyInfo.importPath.isNotEmpty) dependencyInfo.importPath,
     ];
 
-    final content = entityRoutesBuilder.buildFile(
-      className: '${entityName}Routes',
-      routes: routeConstants,
-      routesGetterName: 'get${entityName}Routes',
-      goRoutes: goRoutes,
-      imports: imports,
-    );
+    final content = (file.existsSync() || config.appendToExisting)
+        ? _updateEntityRoutesFile(
+          file.existsSync() ? await file.readAsString() : '',
+          className: className,
+          routesGetterName: routesGetterName,
+          newRouteConstants: routeConstants,
+          newGoRoutes: goRoutes,
+          imports: imports,
+        )
+        : entityRoutesBuilder.buildFile(
+          className: className,
+          routes: routeConstants,
+          routesGetterName: routesGetterName,
+          goRoutes: goRoutes,
+          imports: imports,
+        );
 
     return FileUtils.writeFile(
       routesPath,
@@ -404,14 +502,13 @@ class RouteBuilder {
   }
 
   Expression _buildCustomRouteExpr({
+    required String className,
     required String entityName,
     required String routeBase,
     required String routeNameBase,
     required String viewParam,
   }) {
-    final pathExpr = refer(
-      '${entityName}Routes',
-    ).property('${routeNameBase}List');
+    final pathExpr = refer(className).property(routeNameBase);
     final nameExpr = literalString(routeBase);
 
     final builderExpr = _buildViewBuilderExpr(
@@ -633,6 +730,8 @@ class RouteBuilder {
   Map<String, String> _buildAppRouteConstants({
     required String routeNameBase,
     required String routeBase,
+    required bool isCustom,
+    required String domainPascal,
     required bool hasSubRoutes,
     required bool hasCreate,
     required bool hasUpdate,
@@ -640,6 +739,9 @@ class RouteBuilder {
     required bool hasGet,
     required bool hasWatch,
   }) {
+    if (isCustom) {
+      return {routeNameBase: '${domainPascal}Routes.$routeNameBase'};
+    }
     final entityPascal = StringUtils.convertToPascalCase(routeBase);
     final routes = <String, String>{
       '${routeNameBase}List': '${entityPascal}Routes.${routeNameBase}List',
@@ -664,6 +766,7 @@ class RouteBuilder {
     required String entityPascal,
     required String routeNameBase,
     required String routeBase,
+    required bool isCustom,
     required bool hasSubRoutes,
     required bool hasCreate,
     required bool hasUpdate,
@@ -671,12 +774,15 @@ class RouteBuilder {
     required bool hasGet,
     required bool hasWatch,
   }) {
+    final methodName = isCustom ? 'goTo$entityPascal' : 'goTo${entityPascal}List';
+    final propertyName = isCustom ? routeNameBase : '${routeNameBase}List';
+
     final methods = <ExtensionMethodSpec>[
       ExtensionMethodSpec(
-        name: 'goTo${entityPascal}List',
+        name: methodName,
         body: refer(
           'go',
-        ).call([refer('AppRoutes').property('${routeNameBase}List')]),
+        ).call([refer('AppRoutes').property(propertyName)]),
       ),
     ];
 
@@ -726,6 +832,7 @@ class RouteBuilder {
   Map<String, String> _buildEntityRouteConstants({
     required String routeNameBase,
     required String routeBase,
+    required bool isCustom,
     required bool hasSubRoutes,
     required bool hasCreate,
     required bool hasUpdate,
@@ -733,6 +840,9 @@ class RouteBuilder {
     required bool hasGet,
     required bool hasWatch,
   }) {
+    if (isCustom) {
+      return {routeNameBase: '/$routeBase'};
+    }
     final routes = <String, String>{'${routeNameBase}List': '/$routeBase'};
 
     if (hasSubRoutes && (hasUpdate || hasDelete || hasGet || hasWatch)) {
