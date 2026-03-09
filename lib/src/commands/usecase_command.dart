@@ -61,13 +61,6 @@ class UseCaseCommand extends PluginCommand {
     var methods = (argResults!['methods'] as String).split(',');
     final type = argResults!['type'] as String;
     final usecases = (argResults!['usecases'] as List?)?.cast<String>() ?? [];
-    
-    // If not using standard entity methods (explicitly passed), 
-    // and we are running 'usecase' command directly, we generally default to empty methods
-    // unless the user asked for them.
-    if (!argResults!.wasParsed('methods')) {
-      methods = [];
-    }
 
     final domain = argResults!['domain'] as String?;
     final repo = argResults!['repo'] as String?;
@@ -75,9 +68,16 @@ class UseCaseCommand extends PluginCommand {
     final params = argResults!['params'] as String?;
     final returns = argResults!['returns'] as String?;
 
-    final capability = plugin.capabilities.firstWhere(
-      (c) => c is CreateUseCaseCapability,
-    ) as CreateUseCaseCapability;
+    final isCustomUseCase =
+        (repo != null || service != null) && params != null && returns != null;
+
+    if (isCustomUseCase || !argResults!.wasParsed('methods')) {
+      methods = [];
+    }
+
+    final capability =
+        plugin.capabilities.firstWhere((c) => c is CreateUseCaseCapability)
+            as CreateUseCaseCapability;
 
     final result = await capability.execute({
       'name': entityName,
@@ -97,7 +97,8 @@ class UseCaseCommand extends PluginCommand {
     });
 
     if (result.success) {
-      final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      final files =
+          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
       logSummary(files);
     } else {
       print('Failed to generate usecase');

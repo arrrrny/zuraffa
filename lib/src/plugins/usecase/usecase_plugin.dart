@@ -88,12 +88,10 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       final file = await customGenerator.generateOrchestrator(config);
       return [file];
     }
+    if (config.useCaseType == 'stream') {
+      return [await streamGenerator.generate(config)];
+    }
     if (config.isCustomUseCase) {
-      // StreamUseCaseGenerator is legacy/redundant if CustomUseCaseGenerator handles stream
-      // But let's check if CustomUseCaseGenerator handles stream properly.
-      // Based on my read of custom_usecase_generator_core.dart, it handles 'stream' type.
-      // However, StreamUseCaseGenerator might have specific logic.
-      // Let's defer to customGenerator for everything now that it supports multiple types.
       return [await customGenerator.generate(config)];
     }
     return [];

@@ -40,7 +40,6 @@ class CreateUseCaseCapability implements ZuraffaCapability {
           'methods': {
             'type': 'array',
             'items': {'type': 'string'},
-            'default': ['get', 'list', 'create', 'update', 'delete']
           },
           'outputDir': {'type': 'string', 'default': 'lib/src'},
           'dryRun': {
@@ -125,16 +124,24 @@ class CreateUseCaseCapability implements ZuraffaCapability {
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
 
+    final methods = (args['methods'] as List<dynamic>?)?.cast<String>() ?? [];
+    
+    // Determine if it's a custom usecase (provided repo/service AND params AND returns)
+    final repo = args['repo']?.toString();
+    final service = args['service']?.toString();
+    final params = args['params']?.toString();
+    final isCustomUseCase = (repo != null || service != null) && params != null && returns != null;
+
     final config = GeneratorConfig(
       name: name,
       useCaseType: useCaseType,
-      methods: (args['methods'] as List<dynamic>?)?.cast<String>() ?? [],
+      methods: (methods.isEmpty && !isCustomUseCase) ? ['get', 'list', 'create', 'update', 'delete'] : methods,
       outputDir: args['outputDir'] ?? 'lib/src',
       domain: args['domain'],
-      repo: args['repo'],
-      service: args['service'],
+      repo: repo,
+      service: service,
       usecases: (args['usecases'] as List<dynamic>?)?.cast<String>() ?? [],
-      paramsType: args['params'],
+      paramsType: params,
       returnsType: returns,
       dryRun: dryRun,
       force: force,
