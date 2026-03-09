@@ -88,13 +88,14 @@ class RouteBuilder {
     final routeNameBase = config.nameCamel;
     final entityPascal = config.name;
 
-    final hasGet = config.methods.contains('get');
-    final hasWatch = config.methods.contains('watch');
-    final hasCreate = config.methods.contains('create');
-    final hasUpdate = config.methods.contains('update');
-    final hasDelete = config.methods.contains('delete');
+    final isCustom = config.isCustomUseCase;
+    final hasGet = !isCustom && config.methods.contains('get');
+    final hasWatch = !isCustom && config.methods.contains('watch');
+    final hasCreate = !isCustom && config.methods.contains('create');
+    final hasUpdate = !isCustom && config.methods.contains('update');
+    final hasDelete = !isCustom && config.methods.contains('delete');
     final hasSubRoutes =
-        hasCreate || hasUpdate || hasDelete || hasGet || hasWatch;
+        !isCustom && (hasCreate || hasUpdate || hasDelete || hasGet || hasWatch);
 
     final routeConstants = _buildAppRouteConstants(
       routeNameBase: routeNameBase,
@@ -264,13 +265,14 @@ class RouteBuilder {
     final routeBase = config.nameSnake;
     final routeNameBase = config.nameCamel;
 
-    final hasGet = config.methods.contains('get');
-    final hasWatch = config.methods.contains('watch');
-    final hasCreate = config.methods.contains('create');
-    final hasUpdate = config.methods.contains('update');
-    final hasDelete = config.methods.contains('delete');
+    final isCustom = config.isCustomUseCase;
+    final hasGet = !isCustom && config.methods.contains('get');
+    final hasWatch = !isCustom && config.methods.contains('watch');
+    final hasCreate = !isCustom && config.methods.contains('create');
+    final hasUpdate = !isCustom && config.methods.contains('update');
+    final hasDelete = !isCustom && config.methods.contains('delete');
     final hasSubRoutes =
-        hasCreate || hasUpdate || hasDelete || hasGet || hasWatch;
+        !isCustom && (hasCreate || hasUpdate || hasDelete || hasGet || hasWatch);
 
     final routeConstants = _buildEntityRouteConstants(
       routeNameBase: routeNameBase,
@@ -283,12 +285,19 @@ class RouteBuilder {
       hasWatch: hasWatch,
     );
 
-    final needsIdParam = hasUpdate || hasDelete || hasGet || hasWatch;
+    final needsIdParam = !isCustom && (hasUpdate || hasDelete || hasGet || hasWatch);
     final needsQueryParam =
-        config.methods.contains('getList') ||
-        config.methods.contains('watchList');
+        !isCustom && (config.methods.contains('getList') ||
+        config.methods.contains('watchList'));
 
     final goRoutes = <Expression>[
+      if (isCustom)
+        _buildCustomRouteExpr(
+          entityName: entityName,
+          routeBase: routeBase,
+          routeNameBase: routeNameBase,
+          viewParam: dependencyInfo.viewParam,
+        ),
       if (needsQueryParam)
         _buildListRouteExpr(
           entityName: entityName,
@@ -325,9 +334,10 @@ class RouteBuilder {
         ),
     ];
 
+    final domainSnake = config.effectiveDomain;
     final imports = [
       'package:go_router/go_router.dart',
-      '../presentation/pages/$entitySnake/${entitySnake}_view.dart',
+      '../presentation/pages/$domainSnake/${entitySnake}_view.dart',
       if (!config.generateDi) '../di/service_locator.dart',
       if (dependencyInfo.importPath.isNotEmpty) dependencyInfo.importPath,
     ];
@@ -391,6 +401,28 @@ class RouteBuilder {
     }
 
     return const _DependencyInfo.empty();
+  }
+
+  Expression _buildCustomRouteExpr({
+    required String entityName,
+    required String routeBase,
+    required String routeNameBase,
+    required String viewParam,
+  }) {
+    final pathExpr = refer(
+      '${entityName}Routes',
+    ).property('${routeNameBase}List');
+    final nameExpr = literalString(routeBase);
+
+    final builderExpr = _buildViewBuilderExpr(
+      entityName: entityName,
+      viewParam: viewParam,
+      withId: false,
+    );
+
+    return refer(
+      'GoRoute',
+    ).call([], {'path': pathExpr, 'name': nameExpr, 'builder': builderExpr});
   }
 
   Expression _buildListRouteExpr({
