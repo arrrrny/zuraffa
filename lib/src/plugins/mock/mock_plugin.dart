@@ -1,10 +1,13 @@
+import 'dart:io';
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as path;
 import '../../commands/mock_command.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import '../../utils/string_utils.dart';
 import 'builders/mock_builder.dart';
 import 'capabilities/create_mock_capability.dart';
 
@@ -59,6 +62,25 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         verbose: config.verbose,
       );
       return delegator.generate(config);
+    }
+
+    if (config.appendToExisting) {
+      final entityName = config.repo != null
+          ? config.repo!.replaceAll('Repository', '')
+          : config.name;
+      final entitySnake = StringUtils.camelToSnake(entityName);
+      final mockPath = path.join(
+        outputDir,
+        'data',
+        'datasources',
+        entitySnake,
+        '${entitySnake}_mock_datasource.dart',
+      );
+
+      if (File(mockPath).existsSync()) {
+        return mockBuilder.generate(config);
+      }
+      return [];
     }
 
     if (!config.generateMock && !config.generateMockDataOnly) {

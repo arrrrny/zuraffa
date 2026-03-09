@@ -488,7 +488,7 @@ extension TestBuilderHelpers on TestBuilder {
 
   Expression _getDefaultValueForType(String type, String name) {
      return switch (type) {
-       'String' => literalString('any'),
+       'String' => literalString('1'),
        'int' => literal(1),
        'double' => literal(1.0),
        'bool' => literalBool(true),

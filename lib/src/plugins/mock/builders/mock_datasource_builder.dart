@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'package:code_builder/code_builder.dart';
 
+import '../../../core/ast/append_executor.dart';
+import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
@@ -15,6 +18,7 @@ class MockDataSourceBuilder {
   final bool verbose;
   final SpecLibrary specLibrary;
   final MockTypeHelper typeHelper;
+  final AppendExecutor appendExecutor;
 
   MockDataSourceBuilder({
     required this.outputDir,
@@ -23,8 +27,10 @@ class MockDataSourceBuilder {
     required this.verbose,
     SpecLibrary? specLibrary,
     MockTypeHelper? typeHelper,
+    AppendExecutor? appendExecutor,
   }) : specLibrary = specLibrary ?? const SpecLibrary(),
-       typeHelper = typeHelper ?? const MockTypeHelper();
+       typeHelper = typeHelper ?? const MockTypeHelper(),
+       appendExecutor = appendExecutor ?? AppendExecutor();
 
   Future<GeneratedFile> generateMockDataSource(GeneratorConfig config) async {
     final entityName = config.repo != null
@@ -149,12 +155,38 @@ class MockDataSourceBuilder {
         ..methods.addAll(methods),
     );
 
+    final filePath =
+        '$outputDir/data/datasources/$entitySnake/${entitySnake}_mock_datasource.dart';
+
+    if (config.appendToExisting && File(filePath).existsSync()) {
+      final existing = await File(filePath).readAsString();
+      var updated = existing;
+      for (final method in methods) {
+        final methodSource = specLibrary.emitSpec(method);
+        final result = appendExecutor.execute(
+          AppendRequest.method(
+            source: updated,
+            className: '${entityName}MockDataSource',
+            memberSource: methodSource,
+          ),
+        );
+        updated = result.source;
+      }
+      return FileUtils.writeFile(
+        filePath,
+        updated,
+        'mock_datasource',
+        force: true,
+        dryRun: dryRun,
+        verbose: verbose,
+        revert: config.revert,
+      );
+    }
+
     final content = specLibrary.emitLibrary(
       specLibrary.library(specs: [clazz], directives: directives),
     );
 
-    final filePath =
-        '$outputDir/data/datasources/$entitySnake/${entitySnake}_mock_datasource.dart';
     return FileUtils.writeFile(
       filePath,
       content,

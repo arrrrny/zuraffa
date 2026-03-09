@@ -932,7 +932,7 @@ May take 30-60 seconds depending on project size.''',
     return {
       'name': 'zuraffa_config_set',
       'description':
-          'Update a ZFA configuration value in .zfa.json. Valid keys: zorphyByDefault, jsonByDefault, compareByDefault, filterByDefault, defaultEntityOutput, gqlByDefault, buildByDefault, appendByDefault, routeByDefault, diByDefault.',
+          'Update a ZFA configuration value in .zfa.json. Valid keys: zorphyByDefault, jsonByDefault, compareByDefault, filterByDefault, defaultEntityOutput, gqlByDefault, buildByDefault, appendByDefault, routeByDefault, diByDefault, mockByDefault, testByDefault.',
       'inputSchema': {
         'type': 'object',
         'properties': {
@@ -950,6 +950,8 @@ May take 30-60 seconds depending on project size.''',
               'appendByDefault',
               'routeByDefault',
               'diByDefault',
+              'mockByDefault',
+              'testByDefault',
             ],
           },
           'value': {

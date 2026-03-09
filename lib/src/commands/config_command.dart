@@ -69,6 +69,7 @@ class ConfigCommand {
       'routeByDefault': false,
       'diByDefault': false,
       'mockByDefault': false,
+      'testByDefault': false,
       'notes': [
         'Set "zorphyByDefault": false to use manual entity generation',
         'Set "gqlByDefault": true to auto-generate GraphQL for entity operations',
@@ -111,6 +112,9 @@ class ConfigCommand {
     print('');
     print('💡 To enable auto-routing with VPC:');
     print('   zfa config set routeByDefault true');
+    print('');
+    print('💡 To enable auto-test generation:');
+    print('   zfa config set testByDefault true');
     print('');
     print('💡 To enable auto-DI generation:');
     print('   zfa config set diByDefault true');
@@ -195,6 +199,7 @@ class ConfigCommand {
         case 'routeByDefault':
         case 'diByDefault':
         case 'mockByDefault':
+        case 'testByDefault':
           parsedValue = value.toLowerCase() == 'true';
           break;
         case 'defaultEntityOutput':
@@ -203,7 +208,7 @@ class ConfigCommand {
         default:
           print('❌ Unknown configuration key: $key');
           print(
-            '   Valid keys: zorphyByDefault, jsonByDefault, compareByDefault, filterByDefault, defaultEntityOutput, gqlByDefault, buildByDefault, appendByDefault, routeByDefault, diByDefault, mockByDefault',
+            '   Valid keys: zorphyByDefault, jsonByDefault, compareByDefault, filterByDefault, defaultEntityOutput, gqlByDefault, buildByDefault, appendByDefault, routeByDefault, diByDefault, mockByDefault, testByDefault',
           );
           exit(1);
       }
@@ -256,6 +261,7 @@ OPTIONS:
    routeByDefault       Auto-generate routing files with VPC (default: false)
    diByDefault          Auto-generate DI files (default: false)
    mockByDefault        Auto-generate mock datasources (default: false)
+   testByDefault        Auto-generate unit tests (default: false)
    defaultEntityOutput  Default output directory for entities
                         (default: lib/src/domain/entities)
 

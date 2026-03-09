@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as path;
+import '../config/zfa_config.dart';
 import '../core/orchestration/plugin_orchestrator.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../cli/plugin_loader.dart';
@@ -245,12 +246,13 @@ class GenerateCommand extends Command<void> {
     final outputDir = argResults!['output'] as String;
     final projectRoot = _findProjectRoot(outputDir);
     final pluginConfig = PluginConfig.load(projectRoot: projectRoot);
+    final zfaConfig = ZfaConfig.load(projectRoot: projectRoot) ?? const ZfaConfig();
     final debug = argResults!['debug'] == true;
     final artifactSaver = DebugArtifactSaver(projectRoot: projectRoot);
 
     GeneratorConfig config;
     try {
-      config = _buildConfig(name, pluginConfig);
+      config = _buildConfig(name, pluginConfig, zfaConfig);
       _validateConfig(config);
     } catch (e, stack) {
       if (argResults!['format'] == 'json') {
@@ -311,7 +313,7 @@ class GenerateCommand extends Command<void> {
     }
   }
 
-  GeneratorConfig _buildConfig(String name, PluginConfig pluginConfig) {
+  GeneratorConfig _buildConfig(String name, PluginConfig pluginConfig, ZfaConfig zfaConfig) {
     if (argResults!['from-stdin'] == true) {
       final input = stdin.readLineSync() ?? '';
       final json = jsonDecode(input) as Map<String, dynamic>;
@@ -377,7 +379,9 @@ class GenerateCommand extends Command<void> {
       domain: argResults!['domain'] as String?,
       repoMethod: argResults!['method'] as String?,
       serviceMethod: argResults!['service-method'] as String?,
-      appendToExisting: argResults!['append'] == true,
+      appendToExisting: argResults!.wasParsed('append')
+          ? argResults!['append'] == true
+          : zfaConfig.appendByDefault,
       generateRepository: true,
       useCaseType: argResults!['type'] as String? ?? 'usecase',
       paramsType: argResults!['params'] as String?,
@@ -398,18 +402,30 @@ class GenerateCommand extends Command<void> {
       generateDataSource: argResults!['datasource'] == true,
       generateLocal: argResults!['local'] == true,
       generateInit: argResults!['init'] == true,
-      useZorphy: argResults!['zorphy'] == true,
-      generateTest: argResults!['test'] == true,
+      useZorphy: argResults!.wasParsed('zorphy')
+          ? argResults!['zorphy'] == true
+          : zfaConfig.zorphyByDefault,
+      generateTest: argResults!.wasParsed('test')
+          ? argResults!['test'] == true
+          : zfaConfig.testByDefault,
       enableCache: argResults!['cache'] == true,
       cachePolicy: argResults!['cache-policy'] as String? ?? 'daily',
       cacheStorage: argResults!['cache-storage'] as String?,
       ttlMinutes: argResults!['ttl'] != null
           ? int.tryParse(argResults!['ttl'])
           : null,
-      generateMock: argResults!['mock'] == true,
-      generateDi: argResults!['di'] == true,
-      generateRoute: argResults!['route'] == true,
-      generateGql: argResults!['gql'] == true,
+      generateMock: argResults!.wasParsed('mock')
+          ? argResults!['mock'] == true
+          : zfaConfig.mockByDefault,
+      generateDi: argResults!.wasParsed('di')
+          ? argResults!['di'] == true
+          : zfaConfig.diByDefault,
+      generateRoute: argResults!.wasParsed('route')
+          ? argResults!['route'] == true
+          : zfaConfig.routeByDefault,
+      generateGql: argResults!.wasParsed('gql')
+          ? argResults!['gql'] == true
+          : zfaConfig.gqlByDefault,
       gqlReturns: argResults!['gql-returns'] as String?,
       gqlType: argResults!['gql-type'] as String?,
       gqlInputType: argResults!['gql-input-type'] as String?,

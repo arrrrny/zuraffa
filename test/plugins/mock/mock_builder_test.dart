@@ -55,4 +55,49 @@ void main() {
       isTrue,
     );
   });
+
+  test('appends methods to existing mock datasource', () async {
+    final entityDir = Directory('$outputDir/domain/entities/product');
+    await entityDir.create(recursive: true);
+    final entityFile = File('${entityDir.path}/product.dart');
+    await entityFile.writeAsString(
+      'class Product { final String id; const Product(this.id); }',
+    );
+
+    final builder = MockBuilder(
+      outputDir: outputDir,
+      dryRun: false,
+      force: true,
+      verbose: false,
+    );
+
+    // 1. Initial generation
+    await builder.generate(
+      GeneratorConfig(
+        name: 'Product',
+        methods: const ['get'],
+        generateMock: true,
+        outputDir: outputDir,
+      ),
+    );
+
+    final mockFile = File(
+      '$outputDir/data/datasources/product/product_mock_datasource.dart',
+    );
+    expect(mockFile.readAsStringSync().contains('Future<Product> get'), isTrue);
+    expect(mockFile.readAsStringSync().contains('Future<Product> create'), isFalse);
+
+    // 2. Append generation
+    await builder.generate(
+      GeneratorConfig(
+        name: 'Product',
+        methods: const ['create'],
+        appendToExisting: true,
+        outputDir: outputDir,
+      ),
+    );
+
+    expect(mockFile.readAsStringSync().contains('Future<Product> get'), isTrue);
+    expect(mockFile.readAsStringSync().contains('Future<Product> create'), isTrue);
+  });
 }
