@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import '../config/zfa_config.dart';
 import '../core/plugin_system/plugin_interface.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../models/generator_config.dart';
@@ -97,6 +98,20 @@ class MakeCommand extends Command<void> {
 
     final entityName = args[0];
     final pluginNames = args.skip(1).toList();
+
+    // Load project configuration
+    final configData = ZfaConfig.load();
+    if (configData != null) {
+      if (configData.appendByDefault && !pluginNames.contains('method_append')) {
+        pluginNames.add('method_append');
+      }
+      if (configData.mockByDefault && !pluginNames.contains('mock')) {
+        pluginNames.add('mock');
+      }
+      if (configData.diByDefault && !pluginNames.contains('di')) {
+        pluginNames.add('di');
+      }
+    }
 
     if (pluginNames.isEmpty) {
       print('❌ No plugins specified.');

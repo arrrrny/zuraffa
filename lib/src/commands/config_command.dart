@@ -68,6 +68,7 @@ class ConfigCommand {
       'formatByDefault': false,
       'routeByDefault': false,
       'diByDefault': false,
+      'mockByDefault': false,
       'notes': [
         'Set "zorphyByDefault": false to use manual entity generation',
         'Set "gqlByDefault": true to auto-generate GraphQL for entity operations',
@@ -76,6 +77,7 @@ class ConfigCommand {
         'Set "formatByDefault": true to auto-run dart format after generation',
         'Set "routeByDefault": true to auto-generate routing files with --vpcs/--vpcs',
         'Set "diByDefault": true to auto-generate DI files',
+        'Set "mockByDefault": true to auto-generate mock datasources',
         'Adjust "defaultEntityOutput" to change where entities are created',
       ],
     };
@@ -102,6 +104,7 @@ class ConfigCommand {
     );
     print('  • routeByDefault: false (auto-routing disabled by default)');
     print('  • diByDefault: false (auto-DI generation disabled by default)');
+    print('  • mockByDefault: false (auto-mock generation disabled by default)');
     print('');
     print('💡 To disable Zorphy by default, edit .zfa.json and set:');
     print('   "zorphyByDefault": false');
@@ -191,6 +194,7 @@ class ConfigCommand {
         case 'formatByDefault':
         case 'routeByDefault':
         case 'diByDefault':
+        case 'mockByDefault':
           parsedValue = value.toLowerCase() == 'true';
           break;
         case 'defaultEntityOutput':
@@ -199,7 +203,7 @@ class ConfigCommand {
         default:
           print('❌ Unknown configuration key: $key');
           print(
-            '   Valid keys: zorphyByDefault, jsonByDefault, compareByDefault, filterByDefault, defaultEntityOutput, gqlByDefault, buildByDefault, appendByDefault, routeByDefault, diByDefault',
+            '   Valid keys: zorphyByDefault, jsonByDefault, compareByDefault, filterByDefault, defaultEntityOutput, gqlByDefault, buildByDefault, appendByDefault, routeByDefault, diByDefault, mockByDefault',
           );
           exit(1);
       }
@@ -251,6 +255,7 @@ OPTIONS:
    formatByDefault      Auto-run dart format after generation (default: false)
    routeByDefault       Auto-generate routing files with VPC (default: false)
    diByDefault          Auto-generate DI files (default: false)
+   mockByDefault        Auto-generate mock datasources (default: false)
    defaultEntityOutput  Default output directory for entities
                         (default: lib/src/domain/entities)
 
