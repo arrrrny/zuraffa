@@ -221,7 +221,7 @@ class DataSourceInterfaceBuilder {
         ..methods.addAll(methods),
     );
 
-    if (config.appendToExisting) {
+    if (config.appendToExisting && File(filePath).existsSync() && !config.force) {
       final existing = await File(filePath).readAsString();
       var updated = existing;
       for (final method in methods) {

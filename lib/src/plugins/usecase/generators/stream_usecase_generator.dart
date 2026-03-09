@@ -53,28 +53,7 @@ class StreamUseCaseGenerator {
     final dependencyFields = <Field>[];
     final constructorParams = <Parameter>[];
 
-    if (config.hasRepo) {
-      final repoName = config.effectiveRepos.first;
-      final repoSnake = StringUtils.camelToSnake(
-        repoName.replaceAll('Repository', ''),
-      );
-      dependencyImports.add('../../repositories/${repoSnake}_repository.dart');
-      dependencyFields.add(
-        Field(
-          (b) => b
-            ..name = '_repository'
-            ..type = refer(repoName)
-            ..modifier = FieldModifier.final$,
-        ),
-      );
-      constructorParams.add(
-        Parameter(
-          (p) => p
-            ..name = '_repository'
-            ..toThis = true,
-        ),
-      );
-    } else if (config.hasService) {
+    if (config.hasService) {
       final serviceName = config.effectiveService;
       final serviceSnake = config.serviceSnake;
       if (serviceName == null || serviceSnake == null) {
@@ -83,10 +62,15 @@ class StreamUseCaseGenerator {
         );
       }
       dependencyImports.add('../../services/${serviceSnake}_service.dart');
+      final serviceBaseName = serviceName.endsWith('Service')
+          ? serviceName.substring(0, serviceName.length - 7)
+          : serviceName;
+      final serviceFieldName =
+          '_${StringUtils.pascalToCamel(serviceBaseName)}Service';
       dependencyFields.add(
         Field(
           (b) => b
-            ..name = '_service'
+            ..name = serviceFieldName
             ..type = refer(serviceName)
             ..modifier = FieldModifier.final$,
         ),
@@ -94,11 +78,35 @@ class StreamUseCaseGenerator {
       constructorParams.add(
         Parameter(
           (p) => p
-            ..name = '_service'
+            ..name = serviceFieldName
             ..toThis = true,
         ),
       );
-    }
+    } else if (config.hasRepo) {
+       final repoName = config.effectiveRepos.first;
+       final repoSnake = StringUtils.camelToSnake(
+         repoName.replaceAll('Repository', ''),
+       );
+       dependencyImports.add('../../repositories/${repoSnake}_repository.dart');
+       final repoBaseName = repoName.replaceAll('Repository', '');
+       final repoFieldName =
+           '_${StringUtils.pascalToCamel(repoBaseName)}Repository';
+       dependencyFields.add(
+         Field(
+           (b) => b
+             ..name = repoFieldName
+             ..type = refer(repoName)
+             ..modifier = FieldModifier.final$,
+         ),
+       );
+       constructorParams.add(
+         Parameter(
+           (p) => p
+             ..name = repoFieldName
+             ..toThis = true,
+         ),
+       );
+     }
 
     final executeBody = dependencyFields.isNotEmpty
         ? Block(

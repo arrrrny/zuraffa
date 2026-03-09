@@ -1,6 +1,8 @@
 import 'package:code_builder/code_builder.dart';
+import 'dart:io';
 import 'package:path/path.dart' as path;
 
+import '../../../core/ast/ast_helper.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
@@ -13,6 +15,7 @@ class ProviderBuilder {
   final bool force;
   final bool verbose;
   final SpecLibrary specLibrary;
+  final DartEmitter emitter;
 
   ProviderBuilder({
     required this.outputDir,
@@ -20,7 +23,9 @@ class ProviderBuilder {
     required this.force,
     required this.verbose,
     SpecLibrary? specLibrary,
-  }) : specLibrary = specLibrary ?? const SpecLibrary();
+    DartEmitter? emitter,
+  }) : specLibrary = specLibrary ?? const SpecLibrary(),
+       emitter = emitter ?? DartEmitter(orderDirectives: true, useNullSafetySyntax: true);
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final serviceName = config.effectiveService;
@@ -91,6 +96,64 @@ class ProviderBuilder {
         ..implements.add(refer(serviceName))
         ..methods.add(method),
     );
+
+    final file = File(filePath);
+    if (config.appendToExisting && file.existsSync()) {
+      var content = await file.readAsString();
+      final helper = const AstHelper();
+
+      // Add imports if missing
+      for (final directive in directives) {
+        final importLine = specLibrary.emitLibrary(
+          specLibrary.library(specs: [], directives: [directive]),
+        );
+        if (!content.contains(importLine.trim()) || config.force) {
+          // If force is true, we might want to replace the import, but adding it again is safe if we don't duplicate.
+          // Actually, adding if missing is usually enough.
+          if (!content.contains(importLine.trim())) {
+             content = '${importLine.trim()}\n$content';
+          }
+        }
+      }
+
+      final methodSource = method.accept(emitter).toString();
+      if (config.force) {
+        // Check if method exists to decide between replace and add
+        if (content.contains(' ${method.name}(')) {
+          content = helper.replaceMethodInClass(
+            source: content,
+            className: providerName,
+            methodName: method.name!,
+            methodSource: methodSource,
+          );
+        } else {
+          content = helper.addMethodToClass(
+            source: content,
+            className: providerName,
+            methodSource: methodSource,
+          );
+        }
+      } else {
+        // Add method to class if missing
+        if (!content.contains(' ${method.name}(')) {
+          content = helper.addMethodToClass(
+            source: content,
+            className: providerName,
+            methodSource: methodSource,
+          );
+        }
+      }
+
+      return FileUtils.writeFile(
+        filePath,
+        content,
+        'provider',
+        force: true,
+        dryRun: dryRun,
+        verbose: verbose,
+        revert: config.revert,
+      );
+    }
 
     final content = specLibrary.emitLibrary(
       specLibrary.library(specs: [providerClass], directives: directives),
@@ -199,17 +262,18 @@ class ProviderBuilder {
   }
 
   List<String> _extractBaseTypes(String type) {
+    final cleanType = type.replaceAll('?', '');
     final results = <List<String>>[];
 
-    final genericMatch = RegExp(r'(\w+)<(.+)>').firstMatch(type);
+    final genericMatch = RegExp(r'(\w+)<(.+)>').firstMatch(cleanType);
     if (genericMatch != null) {
       final innerType = genericMatch.group(2);
       if (innerType != null) {
         results.add(_extractBaseTypes(innerType));
       }
     } else {
-      if (type.isNotEmpty && type != 'void') {
-        results.add([type]);
+      if (cleanType.isNotEmpty && cleanType != 'void') {
+        results.add([cleanType]);
       }
     }
 

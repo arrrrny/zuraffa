@@ -53,7 +53,7 @@ class RepositoryInterfaceGenerator {
     final normalizedContent = content.replaceAll('\n\nimport', '\nimport');
     final output = '$header\n\n$normalizedContent';
 
-    if (File(filePath).existsSync()) {
+    if (File(filePath).existsSync() && !config.force) {
       final existing = await File(filePath).readAsString();
 
       if (config.revert) {

@@ -102,9 +102,9 @@ class ControllerPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final entityName = config.name;
     final entitySnake = config.nameSnake;
     final entityCamel = config.nameCamel;
-    final controllerName = '${entityName}Controller';
-    final presenterName = '${entityName}Presenter';
-    final stateName = '${entityName}State';
+    final controllerName = config.effectiveControllerName;
+    final presenterName = config.effectivePresenterName;
+    final stateName = config.effectiveStateName;
     final fileName = '${entitySnake}_controller.dart';
 
     final domainSnake = config.effectiveDomain;
@@ -116,7 +116,7 @@ class ControllerPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     );
     final filePath = path.join(controllerDirPath, fileName);
 
-    final withState = config.generateState;
+    final withState = config.generateState || config.customStateName != null;
     final methods = _buildMethods(config, entityName, entityCamel, withState);
     final imports = _buildImports(config, domainSnake, withState);
 

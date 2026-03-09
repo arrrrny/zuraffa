@@ -15,11 +15,13 @@ class AppendRequest {
   final String? exportPath;
   final String? importPath;
   final String? functionName;
+  final bool force;
 
   const AppendRequest.method({
     required this.source,
     required this.className,
     required this.memberSource,
+    this.force = false,
   }) : target = AppendTarget.method,
        exportPath = null,
        importPath = null,
@@ -29,6 +31,7 @@ class AppendRequest {
     required this.source,
     required this.className,
     required this.memberSource,
+    this.force = false,
   }) : target = AppendTarget.field,
        exportPath = null,
        importPath = null,
@@ -38,6 +41,7 @@ class AppendRequest {
     required this.source,
     required this.className,
     required this.memberSource,
+    this.force = false,
   }) : target = AppendTarget.extensionMethod,
        exportPath = null,
        importPath = null,
@@ -47,6 +51,7 @@ class AppendRequest {
     required this.source,
     required this.functionName,
     required this.memberSource,
+    this.force = false,
   }) : target = AppendTarget.functionStatement,
        className = null,
        exportPath = null,
@@ -57,14 +62,16 @@ class AppendRequest {
       className = null,
       memberSource = null,
       importPath = null,
-      functionName = null;
+      functionName = null,
+      force = false;
 
   const AppendRequest.import({required this.source, required this.importPath})
     : target = AppendTarget.importDirective,
       className = null,
       memberSource = null,
       exportPath = null,
-      functionName = null;
+      functionName = null,
+      force = false;
 }
 
 class AppendResult {

@@ -137,6 +137,7 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         initialMethodCall: initialMethodCall,
         imports: imports,
         withState: config.generateState || config.customStateName != null,
+        stateClassName: config.effectiveStateName,
       ),
     );
 
@@ -186,6 +187,11 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     if (config.generateState) {
       final stateSnake = config.nameSnake;
+      imports.add('${stateSnake}_state.dart');
+    } else if (config.customStateName != null) {
+      final stateSnake = StringUtils.camelToSnake(
+        config.customStateName!.replaceAll('State', ''),
+      );
       imports.add('${stateSnake}_state.dart');
     }
 

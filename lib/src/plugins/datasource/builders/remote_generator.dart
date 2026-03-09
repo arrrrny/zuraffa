@@ -311,7 +311,7 @@ class RemoteDataSourceBuilder {
         ..methods.addAll(methods),
     );
 
-    if (config.appendToExisting) {
+    if (config.appendToExisting && File(filePath).existsSync() && !options.force) {
       final existing = await File(filePath).readAsString();
       var updated = existing;
       for (final method in methods) {

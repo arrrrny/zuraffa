@@ -171,6 +171,9 @@ class MakeCommand extends Command<void> {
       generateController: pluginNames.contains('controller'),
       generateRepository: pluginNames.contains('repository'),
       generateDataSource: pluginNames.contains('datasource'),
+      generateData: pluginNames.contains('datasource') ||
+          pluginNames.contains('repository') ||
+          pluginNames.contains('provider'),
       generateState: pluginNames.contains('state'),
       generateTest: pluginNames.contains('test'),
       enableCache: pluginNames.contains('cache'),

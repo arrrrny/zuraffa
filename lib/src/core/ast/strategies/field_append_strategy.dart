@@ -55,6 +55,19 @@ class FieldAppendStrategy implements AppendStrategy {
     final existingFields = NodeFinder.findFields(classNode);
     for (final field in existingFields) {
       if (field.name.lexeme == newField.name.lexeme) {
+        if (request.force) {
+          final updated = helper.replaceFieldInClass(
+            source: request.source,
+            className: request.className!,
+            fieldName: newField.name.lexeme,
+            fieldSource: request.memberSource!,
+          );
+          return AppendResult(
+            source: updated,
+            changed: updated != request.source,
+            message: 'Field replaced',
+          );
+        }
         return AppendResult(
           source: request.source,
           changed: false,

@@ -39,6 +39,42 @@ class AstModifier {
         source.substring(endOffset);
   }
 
+  static String replaceFieldInClass({
+    required String source,
+    required ClassDeclaration classNode,
+    required VariableDeclaration oldField,
+    required String fieldSource,
+  }) {
+    final parent = oldField.parent;
+    if (parent is VariableDeclarationList) {
+      final grandParent = parent.parent;
+      if (grandParent is FieldDeclaration) {
+        final startOffset = grandParent.offset;
+        final endOffset = grandParent.end;
+        final fieldIndent = _indentBeforeOffset(source, startOffset);
+        final normalized = fieldSource.trimRight();
+        final indented = normalized
+            .split('\n')
+            .map((line) => line.isEmpty ? '' : '$fieldIndent$line')
+            .join('\n');
+        return source.substring(0, startOffset) +
+            indented +
+            source.substring(endOffset);
+      }
+    }
+    final startOffset = oldField.offset;
+    final endOffset = oldField.end;
+    final fieldIndent = _indentBeforeOffset(source, startOffset);
+    final normalized = fieldSource.trimRight();
+    final indented = normalized
+        .split('\n')
+        .map((line) => line.isEmpty ? '' : '$fieldIndent$line')
+        .join('\n');
+    return source.substring(0, startOffset) +
+        indented +
+        source.substring(endOffset);
+  }
+
   static String removeMethodFromClass({
     required String source,
     required MethodDeclaration method,

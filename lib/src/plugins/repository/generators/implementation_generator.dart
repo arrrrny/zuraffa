@@ -186,7 +186,7 @@ class RepositoryImplementationGenerator {
     final importPaths = _buildImportPaths(config, entitySnake);
 
     // If file exists, handle append/remove/add
-    if (File(filePath).existsSync()) {
+    if (File(filePath).existsSync() && !config.force) {
       final existing = await File(filePath).readAsString();
 
       /*

@@ -50,21 +50,7 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
 
   List<Field> _buildDependencyFields(GeneratorConfig config) {
     final fields = <Field>[];
-    if (config.hasRepo) {
-      for (final repo in config.effectiveRepos) {
-        final repoBaseName = repo.replaceAll('Repository', '');
-        final repoFieldName =
-            '_${StringUtils.pascalToCamel(repoBaseName)}Repository';
-        fields.add(
-          Field(
-            (b) => b
-              ..name = repoFieldName
-              ..type = refer(repo)
-              ..modifier = FieldModifier.final$,
-          ),
-        );
-      }
-    }
+    // For custom usecases, prefer service over repo if both provided
     if (config.hasService) {
       final serviceName = config.effectiveService;
       if (serviceName == null) {
@@ -85,6 +71,26 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
             ..modifier = FieldModifier.final$,
         ),
       );
+      
+      // If we have a service, we don't necessarily need the repo in a custom usecase 
+      // unless it's explicitly an orchestrator/polymorphic which handles its own fields.
+      return fields;
+    }
+    
+    if (config.hasRepo) {
+      for (final repo in config.effectiveRepos) {
+        final repoBaseName = repo.replaceAll('Repository', '');
+        final repoFieldName =
+            '_${StringUtils.pascalToCamel(repoBaseName)}Repository';
+        fields.add(
+          Field(
+            (b) => b
+              ..name = repoFieldName
+              ..type = refer(repo)
+              ..modifier = FieldModifier.final$,
+          ),
+        );
+      }
     }
     return fields;
   }
@@ -104,8 +110,9 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
   List<String> _entityImports(List<String> types) {
     final entityNames = <String>{};
     for (final type in types) {
+      final cleanType = type.replaceAll(RegExp(r'<[^>]*>'), ' ');
       final regex = RegExp(r'[A-Z][a-zA-Z0-9_]*');
-      final matches = regex.allMatches(type);
+      final matches = regex.allMatches(cleanType);
       for (final match in matches) {
         final name = match.group(0);
         if (name != null && !KnownTypes.isExcluded(name)) {
@@ -113,12 +120,10 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
         }
       }
     }
-    return entityNames
-        .map(
-          (e) =>
-              '../../entities/${StringUtils.camelToSnake(e)}/${StringUtils.camelToSnake(e)}.dart',
-        )
-        .toList();
+    return entityNames.map((e) {
+      final snake = StringUtils.camelToSnake(e);
+      return '../../entities/$snake/$snake.dart';
+    }).toList();
   }
 
   String _resolveUseCasePath(GeneratorConfig config, String usecaseName) {

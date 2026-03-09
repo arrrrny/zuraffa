@@ -112,15 +112,16 @@ class ServiceInterfaceBuilder {
   }
 
   List<String> _extractBaseTypes(String type) {
+    final cleanType = type.replaceAll('?', '');
     final results = <String>[];
-    final genericMatch = RegExp(r'(\w+)<(.+)>').firstMatch(type);
+    final genericMatch = RegExp(r'(\w+)<(.+)>').firstMatch(cleanType);
     if (genericMatch != null) {
       final innerType = genericMatch.group(2);
       if (innerType != null) {
         results.addAll(_extractBaseTypes(innerType));
       }
-    } else if (type.isNotEmpty && type != 'void') {
-      results.add(type);
+    } else if (cleanType.isNotEmpty && cleanType != 'void') {
+      results.add(cleanType);
     }
 
     return results;

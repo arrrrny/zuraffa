@@ -79,7 +79,7 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
       );
     }
 
-    if (config.appendToExisting && File(filePath).existsSync()) {
+    if (config.appendToExisting && File(filePath).existsSync() && !config.force) {
       var updatedSource = await File(filePath).readAsString();
       var changed = false;
       for (final methodSource in methodSources) {

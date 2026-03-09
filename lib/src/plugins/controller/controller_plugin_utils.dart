@@ -72,7 +72,14 @@ extension ControllerPluginUtils on ControllerPlugin {
     ];
 
     if (withState) {
-      imports.add('${config.nameSnake}_state.dart');
+      if (config.generateState) {
+        imports.add('${config.nameSnake}_state.dart');
+      } else if (config.customStateName != null) {
+        final stateSnake = StringUtils.camelToSnake(
+          config.customStateName!.replaceAll('State', ''),
+        );
+        imports.add('${stateSnake}_state.dart');
+      }
     }
 
     if (config.isCustomUseCase) {

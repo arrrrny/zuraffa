@@ -13,8 +13,12 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
     final methodName = config.hasService
         ? config.getServiceMethodName()
         : config.getRepoMethodName();
+    
+    // Prefer service over repo if both exist
     final depField = dependencyFields.isNotEmpty
-        ? dependencyFields.first.name
+        ? (config.hasService 
+            ? dependencyFields.firstWhere((f) => f.name.endsWith('Service'), orElse: () => dependencyFields.first).name
+            : dependencyFields.first.name)
         : '';
 
     if (config.useCaseType == 'stream') {

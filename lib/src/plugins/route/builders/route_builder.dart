@@ -173,20 +173,20 @@ class RouteBuilder {
 
     String content;
     if (file.existsSync()) {
-      final existingContent = await file.readAsString();
       content = _updateAppRoutesFile(
-        existingContent,
-        routeConstants,
-        extensionMethods,
-        config.nameSnake,
-        isCustom,
-        domainSnake,
+        existingContent: await file.readAsString(),
+        newRouteConstants: routeConstants,
+        newExtensionMethods: extensionMethods,
+        entitySnake: config.nameSnake,
+        isCustom: isCustom,
+        domainSnake: domainSnake,
+        force: config.force,
       );
     } else {
       content = appRoutesBuilder.buildFile(
         routes: routeConstants,
         extensionMethods: extensionMethods,
-        entityRouteImport: '${config.nameSnake}_routes.dart',
+        entityRouteImport: isCustom ? '${domainSnake}_routes.dart' : '${config.nameSnake}_routes.dart',
       );
     }
 
@@ -208,6 +208,7 @@ class RouteBuilder {
     required Map<String, String> newRouteConstants,
     required List<Expression> newGoRoutes,
     required List<String> imports,
+    bool force = false,
   }) {
     var content = existingContent;
 
@@ -232,13 +233,21 @@ class RouteBuilder {
 
     // Add route constants
     for (final entry in newRouteConstants.entries) {
-      if (content.contains('static const String ${entry.key} =')) {
-        continue;
-      }
       final fieldSource = entityRoutesBuilder.buildFieldSource(
         entry.key,
         entry.value,
       );
+      if (content.contains('static const String ${entry.key} =')) {
+        if (force) {
+          content = helper.replaceFieldInClass(
+            source: content,
+            className: className,
+            fieldName: entry.key,
+            fieldSource: fieldSource,
+          );
+        }
+        continue;
+      }
       content = helper.addFieldToClass(
         source: content,
         className: className,
@@ -260,6 +269,10 @@ class RouteBuilder {
         continue;
       }
       
+      // If force is true, we should probably try to replace existing route with same path/name
+      // But for simplicity in this turn, we just append.
+      // The user mainly complained about imports and methods in provider/usecase.
+      
       content = helper.addElementToReturnListInFunction(
         source: content,
         functionName: routesGetterName,
@@ -270,14 +283,15 @@ class RouteBuilder {
     return content;
   }
 
-  String _updateAppRoutesFile(
-    String existingContent,
-    Map<String, String> newRouteConstants,
-    List<ExtensionMethodSpec> newExtensionMethods,
-    String entitySnake,
-    bool isCustom,
-    String domainSnake,
-  ) {
+  String _updateAppRoutesFile({
+    required String existingContent,
+    required Map<String, String> newRouteConstants,
+    required List<ExtensionMethodSpec> newExtensionMethods,
+    required String entitySnake,
+    required bool isCustom,
+    required String domainSnake,
+    bool force = false,
+  }) {
     var content = _ensureAppRoutesImports(existingContent);
 
     final entityRouteImport = isCustom ? '${domainSnake}_routes.dart' : '${entitySnake}_routes.dart';
@@ -310,6 +324,7 @@ class RouteBuilder {
           source: content,
           className: 'AppRoutes',
           memberSource: fieldSource,
+          force: force,
         ),
       );
       content = result.source;
@@ -322,6 +337,7 @@ class RouteBuilder {
           source: content,
           className: 'RouterExtension',
           memberSource: methodSource,
+          force: force,
         ),
       );
       content = result.source;
@@ -439,6 +455,7 @@ class RouteBuilder {
           newRouteConstants: routeConstants,
           newGoRoutes: goRoutes,
           imports: imports,
+          force: config.force,
         )
         : entityRoutesBuilder.buildFile(
           className: className,

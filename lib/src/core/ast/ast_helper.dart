@@ -110,6 +110,33 @@ class AstHelper {
     );
   }
 
+  String replaceFieldInClass({
+    required String source,
+    required String className,
+    required String fieldName,
+    required String fieldSource,
+  }) {
+    final parseResult = parseSource(source);
+    final unit = parseResult.unit;
+    if (unit == null) {
+      return source;
+    }
+    final classNode = findClass(unit, className);
+    if (classNode == null) {
+      return source;
+    }
+    final fields = findFields(classNode, name: fieldName);
+    if (fields.isEmpty) {
+      return source;
+    }
+    return AstModifier.replaceFieldInClass(
+      source: source,
+      classNode: classNode,
+      oldField: fields.first,
+      fieldSource: fieldSource,
+    );
+  }
+
   String removeMethodFromClass({
     required String source,
     required String className,

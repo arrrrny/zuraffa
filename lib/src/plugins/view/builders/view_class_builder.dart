@@ -9,6 +9,7 @@ class ViewClassSpec {
   final String controllerName;
   final String presenterName;
   final String entityName;
+  final String? stateClassName;
   final List<Field> repoFields;
   final List<Field> routeFields;
   final List<String> repoPresenterArgs;
@@ -27,6 +28,7 @@ class ViewClassSpec {
     required this.initialMethodCall,
     required this.imports,
     required this.withState,
+    this.stateClassName,
   });
 }
 
@@ -175,6 +177,7 @@ class ViewClassBuilder {
           ..statements.add(
             declareFinal(
               'viewState',
+              type: spec.stateClassName != null ? refer(spec.stateClassName!) : null,
             ).assign(refer('controller').property('viewState')).statement,
           )
           ..statements.add(

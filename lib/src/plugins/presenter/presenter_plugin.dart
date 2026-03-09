@@ -69,7 +69,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final entityName = config.name;
     final entitySnake = config.nameSnake;
     final entityCamel = config.nameCamel;
-    final presenterName = '${entityName}Presenter';
+    final presenterName = config.effectivePresenterName;
     final fileName = '${entitySnake}_presenter.dart';
 
     final domainSnake = config.effectiveDomain;
@@ -647,8 +647,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       final usecaseSnake = StringUtils.camelToSnake(
         info.className.replaceAll('UseCase', ''),
       );
+      final usecaseDomain = config.isCustomUseCase ? domainSnake : domainSnake;
       imports.add(
-        '../../../domain/usecases/$domainSnake/${usecaseSnake}_usecase.dart',
+        '../../../domain/usecases/$usecaseDomain/${usecaseSnake}_usecase.dart',
       );
     }
 

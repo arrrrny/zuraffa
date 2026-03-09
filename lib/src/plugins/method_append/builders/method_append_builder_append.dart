@@ -154,6 +154,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       source: source,
       className: className,
       memberSource: memberSource,
+      force: config.force,
     );
 
     final result = appendExecutor.execute(request);
@@ -225,6 +226,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       source: source,
       className: className,
       memberSource: memberSource,
+      force: config.force,
     );
 
     final result = appendExecutor.execute(request);
@@ -351,6 +353,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       source: source,
       className: className,
       memberSource: memberSource,
+      force: config.force,
     );
 
     final result = appendExecutor.execute(request);
@@ -438,6 +441,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       source: source,
       className: className,
       memberSource: memberSource,
+      force: config.force,
     );
 
     final result = appendExecutor.execute(request);

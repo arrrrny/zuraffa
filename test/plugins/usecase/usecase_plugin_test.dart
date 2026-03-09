@@ -89,6 +89,35 @@ void main() {
     expect(content.contains('Stream<User> execute'), isTrue);
     expect(content.contains('UserParams'), isTrue);
     expect(content.contains('CancelToken?'), isTrue);
+    expect(content.contains('final UserService _userService;'), isTrue);
+    expect(content.contains('StreamUserUseCase(this._userService);'), isTrue);
+    expect(content.contains('return _userService.streamUser(params);'), isTrue);
+  });
+
+  test('generates custom future usecase with service dependency', () async {
+    final plugin = UseCasePlugin(
+      outputDir: outputDir,
+      dryRun: false,
+      force: true,
+      verbose: false,
+    );
+    final config = GeneratorConfig(
+      name: 'GetListingByBarcode',
+      service: 'Listing',
+      domain: 'listing',
+      paramsType: 'String',
+      returnsType: 'Listing?',
+      useCaseType: 'future',
+      outputDir: outputDir,
+    );
+    final files = await plugin.generate(config);
+    final content = files.first.content ?? '';
+    
+    expect(content.contains('class GetListingByBarcodeUseCase'), isTrue);
+    expect(content.contains('UseCase<Listing?, String>'), isTrue);
+    expect(content.contains('final ListingService _listingService;'), isTrue);
+    expect(content.contains('GetListingByBarcodeUseCase(this._listingService);'), isTrue);
+    expect(content.contains('return await _listingService.getListingByBarcode(params);'), isTrue);
   });
 
   test('generates orchestrator usecase', () async {
