@@ -40,10 +40,9 @@ class MockDataBuilder {
         : config.name;
     final entitySnake = StringUtils.camelToSnake(entityName);
     final entityCamel = StringUtils.pascalToCamel(entityName);
+    final collectionName = '${entityCamel}s';
 
-    final Map<String, String> entityFields = config.repo != null
-        ? <String, String>{}
-        : EntityAnalyzer.analyzeEntity(entityName, outputDir);
+    final entityFields = EntityAnalyzer.analyzeEntity(entityName, outputDir);
 
     final mockInstances = valueBuilder.generateMockDataInstances(
       entityName,
@@ -55,107 +54,107 @@ class MockDataBuilder {
       outputDir,
     );
     final directives = <Directive>[
-      if (config.repo == null)
-        Directive.import(
-          '../../domain/entities/$entitySnake/$entitySnake.dart',
-        ),
+      Directive.import(
+        '../../domain/entities/$entitySnake/$entitySnake.dart',
+      ),
       ...imports.map(Directive.import),
     ];
-
-    final sampleMethod = Method(
-      (m) => m
-        ..name = 'sample$entityName'
-        ..type = MethodType.getter
-        ..static = true
-        ..returns = refer(entityName)
-        ..lambda = true
-        ..body = refer('${entityCamel}s').property('first').code,
-    );
-
-    final sampleListMethod = Method(
-      (m) => m
-        ..name = 'sampleList'
-        ..type = MethodType.getter
-        ..static = true
-        ..returns = typeHelper.listOf(entityName)
-        ..lambda = true
-        ..body = refer('${entityCamel}s').code,
-    );
-
-    final emptyListMethod = Method(
-      (m) => m
-        ..name = 'emptyList'
-        ..type = MethodType.getter
-        ..static = true
-        ..returns = typeHelper.listOf(entityName)
-        ..lambda = true
-        ..body = literalConstList([], refer(entityName)).code,
-    );
-
-    final largeListMethod = Method(
-      (m) => m
-        ..name = 'large${entityName}List'
-        ..type = MethodType.getter
-        ..static = true
-        ..returns = typeHelper.listOf(entityName)
-        ..lambda = true
-        ..body = refer('List').property('generate').call([
-          literalNum(100),
-          Method(
-            (m) => m
-              ..requiredParameters.add(Parameter((p) => p..name = 'index'))
-              ..lambda = true
-              ..body = refer(
-                '_create$entityName',
-              ).call([refer('index').operatorAdd(literalNum(1000))]).code,
-          ).closure,
-        ]).code,
-    );
-
-    final createMethod = Method(
-      (m) => m
-        ..name = '_create$entityName'
-        ..static = true
-        ..returns = refer(entityName)
-        ..requiredParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'seed'
-              ..type = refer('int'),
-          ),
-        )
-        ..lambda = true
-        ..body = refer(entityName)
-            .call(
-              const [],
-              valueBuilder.generateConstructorCallArgs(
-                entityFields,
-                useSeeds: true,
-              ),
-            )
-            .code,
-    );
-
-    final dataListField = Field(
-      (f) => f
-        ..name = '${entityCamel}s'
-        ..static = true
-        ..modifier = FieldModifier.final$
-        ..type = typeHelper.listOf(entityName)
-        ..assignment = literalList(mockInstances).code,
-    );
 
     final clazz = Class(
       (c) => c
         ..name = '${entityName}MockData'
         ..docs.add('/// Mock data for $entityName')
-        ..fields.add(dataListField)
+        ..fields.addAll([
+          Field(
+            (f) => f
+              ..name = collectionName
+              ..static = true
+              ..modifier = FieldModifier.final$
+              ..type = typeHelper.listOf(entityName)
+              ..assignment = literalList(mockInstances).code,
+          ),
+        ])
         ..methods.addAll([
-          sampleMethod,
-          sampleListMethod,
-          emptyListMethod,
-          largeListMethod,
-          createMethod,
+          Method(
+            (m) => m
+              ..name = 'sample$entityName'
+              ..static = true
+              ..type = MethodType.getter
+              ..returns = refer(entityName)
+              ..lambda = true
+              ..body = refer(collectionName).property('first').code,
+          ),
+          Method(
+            (m) => m
+              ..name = 'sampleList'
+              ..static = true
+              ..type = MethodType.getter
+              ..returns = typeHelper.listOf(entityName)
+              ..lambda = true
+              ..body = refer(collectionName).code,
+          ),
+          Method(
+            (m) => m
+              ..name = 'emptyList'
+              ..static = true
+              ..type = MethodType.getter
+              ..returns = typeHelper.listOf(entityName)
+              ..lambda = true
+              ..body = refer('const <$entityName>[]').code,
+          ),
+          Method(
+            (m) => m
+              ..name = 'large${entityName}List'
+              ..static = true
+              ..type = MethodType.getter
+              ..returns = typeHelper.listOf(entityName)
+              ..lambda = true
+              ..body = refer('List')
+                  .property('generate')
+                  .call([
+                    literalNum(100),
+                    Method(
+                      (m) => m
+                        ..requiredParameters.add(
+                          Parameter((p) => p..name = 'index'),
+                        )
+                        ..lambda = true
+                        ..body = refer('_create$entityName').call([
+                          refer('index').operatorAdd(literalNum(1000)),
+                        ]).code,
+                    ).closure,
+                  ])
+                  .code,
+          ),
+          Method(
+            (m) => m
+              ..name = '_create$entityName'
+              ..static = true
+              ..returns = refer(entityName)
+              ..requiredParameters.add(
+                Parameter(
+                  (p) => p
+                    ..name = 'seed'
+                    ..type = refer('int'),
+                ),
+              )
+              ..body = Block(
+                (b) => b
+                  ..statements.add(
+                    refer(entityName)
+                        .call(
+                          [],
+                          valueBuilder.generateConstructorCallArgs(
+                            entityFields,
+                            seed: 1,
+                            useSeeds: true,
+                          ),
+                        )
+                        .returned
+                        .statement,
+                  ),
+              ),
+          ),
         ]),
     );
 

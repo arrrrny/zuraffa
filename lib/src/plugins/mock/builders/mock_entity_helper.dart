@@ -1,40 +1,12 @@
 import '../../../utils/entity_analyzer.dart';
 import '../../../utils/string_utils.dart';
+import '../../../utils/entity_utils.dart';
 
 class MockEntityHelper {
   const MockEntityHelper();
 
   List<String> extractEntityTypesFromField(String fieldType) {
-    final types = <String>[];
-    var baseType = fieldType.replaceAll('?', '');
-
-    if (baseType.startsWith('List<') && baseType.endsWith('>')) {
-      baseType = baseType.substring(5, baseType.length - 1);
-    } else if (baseType.startsWith('Map<') && baseType.endsWith('>')) {
-      final innerTypes = baseType.substring(4, baseType.length - 1);
-      final typeParts = innerTypes.split(',').map((s) => s.trim()).toList();
-      if (typeParts.length == 2) {
-        baseType = typeParts[1];
-      } else {
-        return types;
-      }
-    }
-
-    if (baseType.startsWith('\$')) {
-      baseType = baseType.substring(1);
-    }
-
-    baseType = baseType
-        .replaceAll('<', '')
-        .replaceAll('>', '')
-        .split(',')[0]
-        .trim();
-
-    if (baseType.isNotEmpty) {
-      types.add(baseType);
-    }
-
-    return types;
+    return EntityUtils.extractEntityTypes(fieldType);
   }
 
   bool isDefaultFields(Map<String, String> fields) {
@@ -60,38 +32,9 @@ class MockEntityHelper {
 
     for (final entry in fields.entries) {
       final fieldType = entry.value;
-      var baseType = fieldType.replaceAll('?', '');
+      final baseTypes = EntityUtils.extractEntityTypes(fieldType);
 
-      if (baseType.startsWith('List<') && baseType.endsWith('>')) {
-        baseType = baseType.substring(5, baseType.length - 1);
-      }
-
-      if (baseType.startsWith('Map<') && baseType.endsWith('>')) {
-        final innerTypes = baseType.substring(4, baseType.length - 1);
-        final typeParts = innerTypes.split(',').map((s) => s.trim()).toList();
-        if (typeParts.length == 2) {
-          baseType = typeParts[1];
-        } else {
-          continue;
-        }
-      }
-
-      if (baseType.startsWith('\$')) {
-        baseType = baseType.substring(1);
-      }
-
-      if ([
-        'String',
-        'int',
-        'double',
-        'bool',
-        'DateTime',
-        'Object',
-      ].contains(baseType)) {
-        continue;
-      }
-
-      if (baseType.isNotEmpty && baseType[0] == baseType[0].toUpperCase()) {
+      for (final baseType in baseTypes) {
         final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
           baseType,
           outputDir,
@@ -107,8 +50,10 @@ class MockEntityHelper {
         final entityFields = EntityAnalyzer.analyzeEntity(baseType, outputDir);
         if (entityFields.isNotEmpty && !isDefaultFields(entityFields)) {
           final entitySnake = StringUtils.camelToSnake(baseType);
-          imports.add('../mock/${entitySnake}_mock_data.dart');
-        } else {
+          imports.add('${entitySnake}_mock_data.dart');
+        } else if (entityFields.isEmpty &&
+            !['String', 'int', 'double', 'bool', 'DateTime', 'List', 'Map']
+                .contains(baseType)) {
           hasEnums = true;
         }
       }

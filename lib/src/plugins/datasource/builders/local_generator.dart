@@ -6,6 +6,8 @@ import '../../../core/builder/shared/spec_library.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
+import '../../../utils/string_utils.dart';
+import '../../../utils/entity_utils.dart';
 
 part 'local_crud_methods.dart';
 part 'local_helper_methods.dart';
@@ -58,9 +60,11 @@ class LocalDataSourceBuilder {
   /// @param config Generator configuration describing the entity and options.
   /// @returns Generated data source file metadata.
   Future<GeneratedFile> generate(GeneratorConfig config) async {
-    final entityName = config.name;
-    final entitySnake = config.nameSnake;
-    final entityCamel = config.nameCamel;
+    final entityName = config.repo != null
+        ? config.repo!.replaceAll('Repository', '')
+        : config.name;
+    final entitySnake = StringUtils.camelToSnake(entityName);
+    final entityCamel = StringUtils.pascalToCamel(entityName);
     final dataSourceName = '${entityName}LocalDataSource';
     final fileName = '${entitySnake}_local_datasource.dart';
 
@@ -124,6 +128,29 @@ class LocalDataSourceBuilder {
                       .statement,
                 ),
             ),
+        ),
+      );
+    }
+
+    // If it's a custom usecase, generate a method for it
+    if (config.isCustomUseCase) {
+      final methodName = StringUtils.pascalToCamel(config.name);
+      final returns = config.returnsType ?? 'void';
+      methods.add(
+        Method(
+          (m) => m
+            ..name = methodName
+            ..annotations.add(CodeExpression(Code('override')))
+            ..returns = refer('Future<$returns>')
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer(config.paramsType ?? 'NoParams'),
+              ),
+            )
+            ..modifier = MethodModifier.async
+            ..body = _throwBody('Implement local $methodName'),
         ),
       );
     }
@@ -502,9 +529,19 @@ class LocalDataSourceBuilder {
       if (useHive)
         Directive.import('package:hive_ce_flutter/hive_ce_flutter.dart'),
       Directive.import('package:zuraffa/zuraffa.dart'),
-      Directive.import(
-        '../../../domain/entities/$entitySnake/$entitySnake.dart',
-      ),
+      if (config.repo == null)
+        Directive.import(
+          '../../../domain/entities/$entitySnake/$entitySnake.dart',
+        ),
+      if (config.isCustomUseCase && config.returnsType != null)
+        ...EntityUtils.extractEntityTypes(config.returnsType!).map(
+          (type) {
+            final snake = StringUtils.camelToSnake(type);
+            return Directive.import(
+              '../../../domain/entities/$snake/$snake.dart',
+            );
+          },
+        ),
       Directive.import('${entitySnake}_datasource.dart'),
     ];
 

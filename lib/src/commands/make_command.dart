@@ -122,6 +122,17 @@ class MakeCommand extends Command<void> {
       exit(1);
     }
 
+    // Ensure method_append runs after datasource/repository/etc if they are in the list
+    if (pluginNames.contains('method_append')) {
+      pluginNames.remove('method_append');
+      pluginNames.add('method_append');
+    }
+    // Ensure di runs after everything else
+    if (pluginNames.contains('di')) {
+      pluginNames.remove('di');
+      pluginNames.add('di');
+    }
+
     final outputDir = argResults!['output'] as String;
     final dryRun = argResults!['dry-run'] == true;
     final force = argResults!['force'] == true;

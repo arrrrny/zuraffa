@@ -10,6 +10,7 @@ import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
+import '../../../utils/entity_utils.dart';
 
 part 'method_append_builder_append.dart';
 part 'method_append_builder_create.dart';

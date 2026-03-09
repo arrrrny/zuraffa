@@ -6,6 +6,7 @@ import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
+import '../../../utils/entity_utils.dart';
 import '../../../core/builder/shared/spec_library.dart';
 
 /// Generates remote data source implementations.
@@ -51,9 +52,11 @@ class RemoteDataSourceBuilder {
   /// @param config Generator configuration describing the entity and options.
   /// @returns Generated data source file metadata.
   Future<GeneratedFile> generate(GeneratorConfig config) async {
-    final entityName = config.name;
-    final entitySnake = config.nameSnake;
-    final entityCamel = config.nameCamel;
+    final entityName = config.repo != null
+        ? config.repo!.replaceAll('Repository', '')
+        : config.name;
+    final entitySnake = StringUtils.camelToSnake(entityName);
+    final entityCamel = StringUtils.pascalToCamel(entityName);
     final dataSourceName = '${entityName}RemoteDataSource';
     final fileName = '${entitySnake}_remote_datasource.dart';
 
@@ -113,6 +116,29 @@ class RemoteDataSourceBuilder {
                       .statement,
                 ),
             ),
+        ),
+      );
+    }
+
+    // If it's a custom usecase, generate a method for it
+    if (config.isCustomUseCase) {
+      final methodName = StringUtils.pascalToCamel(config.name);
+      final returns = config.returnsType ?? 'void';
+      methods.add(
+        Method(
+          (m) => m
+            ..name = methodName
+            ..annotations.add(refer('override'))
+            ..returns = refer('Future<$returns>')
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer(config.paramsType ?? 'NoParams'),
+              ),
+            )
+            ..modifier = MethodModifier.async
+            ..body = _remoteBody('Implement remote $methodName', null),
         ),
       );
     }
@@ -272,9 +298,19 @@ class RemoteDataSourceBuilder {
 
     final directives = <Directive>[
       Directive.import('package:zuraffa/zuraffa.dart'),
-      Directive.import(
-        '../../../domain/entities/$entitySnake/$entitySnake.dart',
-      ),
+      if (config.repo == null)
+        Directive.import(
+          '../../../domain/entities/$entitySnake/$entitySnake.dart',
+        ),
+      if (config.isCustomUseCase && config.returnsType != null)
+        ...EntityUtils.extractEntityTypes(config.returnsType!).map(
+          (type) {
+            final snake = StringUtils.camelToSnake(type);
+            return Directive.import(
+              '../../../domain/entities/$snake/$snake.dart',
+            );
+          },
+        ),
       Directive.import('${entitySnake}_datasource.dart'),
       ...gqlImports.map(Directive.import),
     ];

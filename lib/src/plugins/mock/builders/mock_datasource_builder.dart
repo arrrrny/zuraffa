@@ -5,6 +5,7 @@ import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
+import '../../../utils/entity_utils.dart';
 import 'mock_type_helper.dart';
 
 class MockDataSourceBuilder {
@@ -37,6 +38,15 @@ class MockDataSourceBuilder {
       if (config.repo == null)
         Directive.import(
           '../../../domain/entities/$entitySnake/$entitySnake.dart',
+        ),
+      if (config.isCustomUseCase && config.returnsType != null)
+        ...EntityUtils.extractEntityTypes(config.returnsType!).map(
+          (type) {
+            final snake = StringUtils.camelToSnake(type);
+            return Directive.import(
+              '../../../domain/entities/$snake/$snake.dart',
+            );
+          },
         ),
       Directive.import('../../mock/${entitySnake}_mock_data.dart'),
       Directive.import('${entitySnake}_datasource.dart'),
@@ -157,12 +167,68 @@ class MockDataSourceBuilder {
   }
 
   List<Method> _generateMockDataSourceMethods(GeneratorConfig config) {
-    final entityName = config.name;
-    final entityCamel = config.nameCamel;
+    final entityName = config.repo != null
+        ? config.repo!.replaceAll('Repository', '')
+        : config.name;
+    final entityCamel = StringUtils.pascalToCamel(entityName);
     final methods = <Method>[];
     final hasListMethods = config.methods.any(
       (m) => m == 'getList' || m == 'watchList',
     );
+
+    // If it's a custom usecase, generate a method for it
+    if (config.isCustomUseCase) {
+      final methodName = StringUtils.pascalToCamel(config.name);
+      final returns = config.returnsType ?? 'void';
+      final isNullable = returns.endsWith('?');
+      final baseReturns = returns.replaceAll('?', '');
+      final isList = baseReturns.startsWith('List<');
+      final listEntity =
+          isList ? baseReturns.substring(5, baseReturns.length - 1) : '';
+
+      methods.add(
+        Method(
+          (m) => m
+            ..name = methodName
+            ..annotations.add(refer('override'))
+            ..returns = refer('Future<$returns>')
+            ..modifier = MethodModifier.async
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer(config.paramsType ?? 'NoParams'),
+              ),
+            )
+            ..body = Block(
+              (b) => b
+                ..statements.addAll([
+                  refer('logger').property('info').call([
+                    literalString('$methodName called with params: \$params'),
+                  ]).statement,
+                  refer('Future')
+                      .property('delayed')
+                      .call([refer('_delay')])
+                      .awaited
+                      .statement,
+                  if (isList) ...[
+                    refer('${entityName}MockData')
+                        .property('sampleList')
+                        .returned
+                        .statement,
+                  ] else if (baseReturns == 'void') ...[
+                    refer('Future').property('value').call([]).returned.statement,
+                  ] else ...[
+                    refer('${entityName}MockData')
+                        .property('sample$entityName')
+                        .returned
+                        .statement,
+                  ],
+                ]),
+            ),
+        ),
+      );
+    }
 
     for (final method in config.methods) {
       switch (method) {
