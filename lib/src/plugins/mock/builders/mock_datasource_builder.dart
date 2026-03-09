@@ -4,6 +4,7 @@ import '../../../core/builder/shared/spec_library.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
+import '../../../utils/string_utils.dart';
 import 'mock_type_helper.dart';
 
 class MockDataSourceBuilder {
@@ -25,15 +26,18 @@ class MockDataSourceBuilder {
        typeHelper = typeHelper ?? const MockTypeHelper();
 
   Future<GeneratedFile> generateMockDataSource(GeneratorConfig config) async {
-    final entityName = config.name;
-    final entitySnake = config.nameSnake;
+    final entityName = config.repo != null
+        ? config.repo!.replaceAll('Repository', '')
+        : config.name;
+    final entitySnake = StringUtils.camelToSnake(entityName);
 
     final directives = [
       Directive.import('dart:async'),
       Directive.import('package:zuraffa/zuraffa.dart'),
-      Directive.import(
-        '../../../domain/entities/$entitySnake/$entitySnake.dart',
-      ),
+      if (config.repo == null)
+        Directive.import(
+          '../../../domain/entities/$entitySnake/$entitySnake.dart',
+        ),
       Directive.import('../../mock/${entitySnake}_mock_data.dart'),
       Directive.import('${entitySnake}_datasource.dart'),
     ];

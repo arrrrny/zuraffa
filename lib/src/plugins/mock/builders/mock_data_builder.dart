@@ -35,11 +35,15 @@ class MockDataBuilder {
        typeHelper = typeHelper ?? const MockTypeHelper();
 
   Future<GeneratedFile> generateMockDataFile(GeneratorConfig config) async {
-    final entityName = config.name;
+    final entityName = config.repo != null
+        ? config.repo!.replaceAll('Repository', '')
+        : config.name;
     final entitySnake = StringUtils.camelToSnake(entityName);
     final entityCamel = StringUtils.pascalToCamel(entityName);
 
-    final entityFields = EntityAnalyzer.analyzeEntity(entityName, outputDir);
+    final Map<String, String> entityFields = config.repo != null
+        ? <String, String>{}
+        : EntityAnalyzer.analyzeEntity(entityName, outputDir);
 
     final mockInstances = valueBuilder.generateMockDataInstances(
       entityName,
@@ -51,7 +55,10 @@ class MockDataBuilder {
       outputDir,
     );
     final directives = <Directive>[
-      Directive.import('../../domain/entities/$entitySnake/$entitySnake.dart'),
+      if (config.repo == null)
+        Directive.import(
+          '../../domain/entities/$entitySnake/$entitySnake.dart',
+        ),
       ...imports.map(Directive.import),
     ];
 

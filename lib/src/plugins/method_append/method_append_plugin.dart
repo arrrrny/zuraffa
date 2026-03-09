@@ -42,6 +42,10 @@ class MethodAppendPlugin extends FileGeneratorPlugin {
 
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
+    if (config.appendToExisting) {
+      final result = await appendMethod(config);
+      return result.updatedFiles;
+    }
     return [];
   }
 

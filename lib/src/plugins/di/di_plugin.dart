@@ -192,10 +192,12 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   Future<GeneratedFile> _generateRemoteDataSourceDI(
     GeneratorConfig config,
   ) async {
-    final entityName = config.name;
-    final entitySnake = config.nameSnake;
-    final dataSourceName = '${entityName}RemoteDataSource';
-    final fileName = '${entitySnake}_remote_datasource_di.dart';
+    final baseName = config.repo != null
+        ? config.repo!.replaceAll('Repository', '')
+        : config.name;
+    final baseSnake = StringUtils.camelToSnake(baseName);
+    final dataSourceName = '${baseName}RemoteDataSource';
+    final fileName = '${baseSnake}_remote_datasource_di.dart';
     final diPath = path.join(outputDir, 'di', 'datasources', fileName);
     final registrationCall = refer('getIt')
         .property('registerLazySingleton')
@@ -215,7 +217,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       functionName: 'register$dataSourceName',
       imports: [
         'package:get_it/get_it.dart',
-        '../../data/datasources/$entitySnake/${entitySnake}_remote_datasource.dart',
+        '../../data/datasources/$baseSnake/${baseSnake}_remote_datasource.dart',
       ],
       body: Block((b) => b..statements.add(registrationCall.statement)),
     );
@@ -234,28 +236,30 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   Future<GeneratedFile> _generateLocalDataSourceDI(
     GeneratorConfig config,
   ) async {
-    final entityName = config.name;
-    final entitySnake = config.nameSnake;
-    final dataSourceName = '${entityName}LocalDataSource';
-    final fileName = '${entitySnake}_local_datasource_di.dart';
+    final baseName = config.repo != null
+        ? config.repo!.replaceAll('Repository', '')
+        : config.name;
+    final baseSnake = StringUtils.camelToSnake(baseName);
+    final dataSourceName = '${baseName}LocalDataSource';
+    final fileName = '${baseSnake}_local_datasource_di.dart';
     final diPath = path.join(outputDir, 'di', 'datasources', fileName);
 
     final imports = <String>[
       'package:get_it/get_it.dart',
-      '../../data/datasources/$entitySnake/${entitySnake}_local_datasource.dart',
+      '../../data/datasources/$baseSnake/${baseSnake}_local_datasource.dart',
     ];
 
     Expression constructorCall;
     if (config.cacheStorage == 'hive' || config.generateLocal) {
       imports.add('package:hive_ce_flutter/hive_ce_flutter.dart');
-      imports.add('../../domain/entities/$entitySnake/$entitySnake.dart');
+      imports.add('../../domain/entities/$baseSnake/$baseSnake.dart');
       final hasListMethod =
           config.methods.contains('getList') ||
           config.methods.contains('watchList');
-      final boxName = hasListMethod ? '${entitySnake}s' : entitySnake;
+      final boxName = hasListMethod ? '${baseSnake}s' : baseSnake;
       final boxCall = refer(
         'Hive',
-      ).property('box').call([literalString(boxName)], {}, [refer(entityName)]);
+      ).property('box').call([literalString(boxName)], {}, [refer(baseName)]);
       constructorCall = refer(dataSourceName).call([boxCall]);
     } else {
       constructorCall = refer(dataSourceName).call([]);
@@ -294,10 +298,12 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   Future<GeneratedFile> _generateMockDataSourceDI(
     GeneratorConfig config,
   ) async {
-    final entityName = config.name;
-    final entitySnake = config.nameSnake;
-    final dataSourceName = '${entityName}MockDataSource';
-    final fileName = '${entitySnake}_mock_datasource_di.dart';
+    final baseName = config.repo != null
+        ? config.repo!.replaceAll('Repository', '')
+        : config.name;
+    final baseSnake = StringUtils.camelToSnake(baseName);
+    final dataSourceName = '${baseName}MockDataSource';
+    final fileName = '${baseSnake}_mock_datasource_di.dart';
     final diPath = path.join(outputDir, 'di', 'datasources', fileName);
     final registrationCall = refer('getIt')
         .property('registerLazySingleton')
@@ -317,7 +323,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       functionName: 'register$dataSourceName',
       imports: [
         'package:get_it/get_it.dart',
-        '../../data/datasources/$entitySnake/${entitySnake}_mock_datasource.dart',
+        '../../data/datasources/$baseSnake/${baseSnake}_mock_datasource.dart',
       ],
       body: Block((b) => b..statements.add(registrationCall.statement)),
     );
@@ -334,25 +340,27 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }
 
   Future<GeneratedFile> _generateRepositoryDI(GeneratorConfig config) async {
-    final entityName = config.name;
-    final entitySnake = config.nameSnake;
-    final repoName = '${entityName}Repository';
-    final dataRepoName = 'Data${entityName}Repository';
-    final fileName = '${entitySnake}_repository_di.dart';
+    final baseName = config.repo != null
+        ? config.repo!.replaceAll('Repository', '')
+        : config.name;
+    final baseSnake = StringUtils.camelToSnake(baseName);
+    final repoName = '${baseName}Repository';
+    final dataRepoName = 'Data${baseName}Repository';
+    final fileName = '${baseSnake}_repository_di.dart';
     final diPath = path.join(outputDir, 'di', 'repositories', fileName);
 
     final imports = <String>[
       'package:get_it/get_it.dart',
-      '../../domain/repositories/${entitySnake}_repository.dart',
-      '../../data/repositories/data_${entitySnake}_repository.dart',
+      '../../domain/repositories/${baseSnake}_repository.dart',
+      '../../data/repositories/data_${baseSnake}_repository.dart',
     ];
 
     Expression constructorCall;
     if (config.enableCache) {
       final remoteDataSourceName = config.useMockInDi
-          ? '${entityName}MockDataSource'
-          : '${entityName}RemoteDataSource';
-      final localDataSourceName = '${entityName}LocalDataSource';
+          ? '${baseName}MockDataSource'
+          : '${baseName}RemoteDataSource';
+      final localDataSourceName = '${baseName}LocalDataSource';
 
       final policyType = config.cachePolicy;
       final ttlMinutes = config.ttlMinutes ?? 1440;
@@ -363,11 +371,11 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           : 'createTtl${ttlMinutes}MinutesCachePolicy';
 
       final remoteImport = config.useMockInDi
-          ? '../../data/datasources/$entitySnake/${entitySnake}_mock_datasource.dart'
-          : '../../data/datasources/$entitySnake/${entitySnake}_remote_datasource.dart';
+          ? '../../data/datasources/$baseSnake/${baseSnake}_mock_datasource.dart'
+          : '../../data/datasources/$baseSnake/${baseSnake}_remote_datasource.dart';
       imports.add(remoteImport);
       imports.add(
-        '../../data/datasources/$entitySnake/${entitySnake}_local_datasource.dart',
+        '../../data/datasources/$baseSnake/${baseSnake}_local_datasource.dart',
       );
       imports.add(
         '../../cache/${policyType == 'ttl'
@@ -385,17 +393,17 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       String dataSourceName;
       String dataSourceImport;
       if (config.useMockInDi) {
-        dataSourceName = '${entityName}MockDataSource';
+        dataSourceName = '${baseName}MockDataSource';
         dataSourceImport =
-            '../../data/datasources/$entitySnake/${entitySnake}_mock_datasource.dart';
+            '../../data/datasources/$baseSnake/${baseSnake}_mock_datasource.dart';
       } else if (config.generateLocal) {
-        dataSourceName = '${entityName}LocalDataSource';
+        dataSourceName = '${baseName}LocalDataSource';
         dataSourceImport =
-            '../../data/datasources/$entitySnake/${entitySnake}_local_datasource.dart';
+            '../../data/datasources/$baseSnake/${baseSnake}_local_datasource.dart';
       } else {
-        dataSourceName = '${entityName}RemoteDataSource';
+        dataSourceName = '${baseName}RemoteDataSource';
         dataSourceImport =
-            '../../data/datasources/$entitySnake/${entitySnake}_remote_datasource.dart';
+            '../../data/datasources/$baseSnake/${baseSnake}_remote_datasource.dart';
       }
       imports.add(dataSourceImport);
       constructorCall = refer(dataRepoName).call([

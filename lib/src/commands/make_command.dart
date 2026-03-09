@@ -44,9 +44,36 @@ class MakeCommand extends Command<void> {
     );
     // Add other common flags as needed (domain, etc.)
     argParser.addOption(
+      'type',
+      abbr: 't',
+      allowed: ['future', 'stream', 'completable', 'sync', 'background'],
+      defaultsTo: 'future',
+      help: 'Execution strategy (default: future/fetch)',
+    );
+    argParser.addOption(
       'domain',
       abbr: 'd',
       help: 'Domain name (for usecases/DI)',
+    );
+    argParser.addOption(
+      'repo',
+      abbr: 'r',
+      help: 'Repository name for custom usecases',
+    );
+    argParser.addOption(
+      'service',
+      abbr: 's',
+      help: 'Service name for custom usecases',
+    );
+    argParser.addOption(
+      'params',
+      abbr: 'p',
+      help: 'Parameter type for custom usecases (e.g., String, UserParams)',
+    );
+    argParser.addOption(
+      'returns',
+      abbr: 'R',
+      help: 'Return type for custom usecases (e.g., void, User, List<User>)',
     );
   }
 
@@ -85,15 +112,27 @@ class MakeCommand extends Command<void> {
     final force = argResults!['force'] == true;
     final verbose = argResults!['verbose'] == true;
     final methods = (argResults!['methods'] as String).split(',');
+    final type = argResults!['type'] as String;
     final domain = argResults!['domain'] as String?;
+    final repo = argResults!['repo'] as String?;
+    final service = argResults!['service'] as String?;
+    final params = argResults!['params'] as String?;
+    final returns = argResults!['returns'] as String?;
 
     // Create a base config that enables everything requested
-    // Note: GeneratorConfig uses booleans like generateRoute, generateDi.
-    // We map plugin names to these booleans.
     final config = GeneratorConfig(
       name: entityName,
-      methods: methods,
+      methods: pluginNames.contains('usecase') &&
+              (repo == null && service == null)
+          ? methods
+          : [], // Only use CRUD methods if not custom usecase
       domain: domain,
+      repo: repo,
+      service: service,
+      useCaseType: type,
+      paramsType: params,
+      returnsType: returns,
+      appendToExisting: pluginNames.contains('method_append'),
       dryRun: dryRun,
       force: force,
       verbose: verbose,
