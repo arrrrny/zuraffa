@@ -43,6 +43,8 @@ void main() {
     final content = testFile.readAsStringSync();
     expect(content.contains('class MockProductRepository'), isTrue);
     expect(content.contains('GetProductUseCase'), isTrue);
+    expect(content.contains('await useCase.call('), isTrue);
+    expect(content.contains('expect(result.isSuccess, true)'), isTrue);
   });
 
   test('generates custom usecase test with params', () async {
@@ -70,8 +72,8 @@ void main() {
 
     expect(content.contains('class MockListingRepository'), isTrue);
     expect(content.contains('GetListingByBarcodeUseCase'), isTrue);
-    expect(content.contains("await useCase('1')"), isTrue);
-    expect(content.contains("expect(result, isA<Success>())"), isTrue);
+    expect(content.contains("await useCase.call('1')"), isTrue);
+    expect(content.contains("expect(result.isSuccess, true)"), isTrue);
   });
 
   test('generates custom usecase test with custom params type', () async {
@@ -99,7 +101,8 @@ void main() {
 
     expect(content.contains('class MockBarcodeParams'), isTrue);
     expect(content.contains('final tBarcodeParams = MockBarcodeParams();'), isTrue);
-    expect(content.contains('await useCase(tBarcodeParams)'), isTrue);
+    expect(content.contains('await useCase.call(tBarcodeParams)'), isTrue);
+    expect(content.contains('expect(result.isSuccess, true)'), isTrue);
     expect(content.contains('registerFallbackValue(MockBarcodeParams())'), isTrue);
   });
 }

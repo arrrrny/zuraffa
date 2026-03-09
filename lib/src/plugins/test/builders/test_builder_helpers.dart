@@ -190,7 +190,7 @@ extension TestBuilderHelpers on TestBuilder {
       t.statements.add(
         declareFinal(
           'result',
-        ).assign(refer('useCase').call([paramsExpr]).awaited).statement,
+        ).assign(refer('useCase').property('call').call([paramsExpr]).awaited).statement,
       );
       t.statements.add(
         refer('verify').call([verifyCall.toClosure()]).property('called').call([
@@ -199,8 +199,8 @@ extension TestBuilderHelpers on TestBuilder {
       );
       t.statements.add(
         refer('expect').call([
-          refer('result'),
-          refer('isA').call([], {}, [refer('Success')]),
+          refer('result').property('isSuccess'),
+          literalBool(true),
         ]).statement,
       );
       if (!isCompletable) {
@@ -237,7 +237,7 @@ extension TestBuilderHelpers on TestBuilder {
       t.statements.add(
         declareFinal(
           'result',
-        ).assign(refer('useCase').call([paramsExpr]).awaited).statement,
+        ).assign(refer('useCase').property('call').call([paramsExpr]).awaited).statement,
       );
       t.statements.add(
         refer('verify').call([verifyCall.toClosure()]).property('called').call([
@@ -246,8 +246,8 @@ extension TestBuilderHelpers on TestBuilder {
       );
       t.statements.add(
         refer('expect').call([
-          refer('result'),
-          refer('isA').call([], {}, [refer('Failure')]),
+          refer('result').property('isFailure'),
+          literalBool(true),
         ]).statement,
       );
     });
@@ -335,7 +335,7 @@ extension TestBuilderHelpers on TestBuilder {
       t.statements.add(
         declareFinal(
           'result',
-        ).assign(refer('useCase').call([paramsExpr])).statement,
+        ).assign(refer('useCase').property('call').call([paramsExpr])).statement,
       );
       t.statements.add(
         refer('expectLater')
@@ -389,7 +389,7 @@ extension TestBuilderHelpers on TestBuilder {
       t.statements.add(
         declareFinal(
           'result',
-        ).assign(refer('useCase').call([paramsExpr])).statement,
+        ).assign(refer('useCase').property('call').call([paramsExpr])).statement,
       );
       t.statements.add(
         refer('expectLater')
@@ -465,12 +465,12 @@ extension TestBuilderHelpers on TestBuilder {
         t.statements.add(
           declareFinal(
             'result',
-          ).assign(refer('useCase').call(callArgs).awaited).statement,
+          ).assign(refer('useCase').property('call').call(callArgs).awaited).statement,
         );
         t.statements.add(
           refer('expect').call([
-            refer('result'),
-            refer('isA').call([], {}, [refer('Success')]),
+            refer('result').property('isSuccess'),
+            literalBool(true),
           ]).statement,
         );
       }
