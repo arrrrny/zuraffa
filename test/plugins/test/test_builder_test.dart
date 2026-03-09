@@ -70,7 +70,8 @@ void main() {
 
     expect(content.contains('class MockListingRepository'), isTrue);
     expect(content.contains('GetListingByBarcodeUseCase'), isTrue);
-    expect(content.contains("await useCase('any')"), isTrue);
+    expect(content.contains("await useCase('1')"), isTrue);
+    expect(content.contains("expect(result, isA<Success>())"), isTrue);
   });
 
   test('generates custom usecase test with custom params type', () async {

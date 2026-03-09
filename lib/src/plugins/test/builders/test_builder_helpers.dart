@@ -199,8 +199,8 @@ extension TestBuilderHelpers on TestBuilder {
       );
       t.statements.add(
         refer('expect').call([
-          refer('result').property('isSuccess'),
-          literalBool(true),
+          refer('result'),
+          refer('isA').call([], {}, [refer('Success')]),
         ]).statement,
       );
       if (!isCompletable) {
@@ -246,8 +246,8 @@ extension TestBuilderHelpers on TestBuilder {
       );
       t.statements.add(
         refer('expect').call([
-          refer('result').property('isFailure'),
-          literalBool(true),
+          refer('result'),
+          refer('isA').call([], {}, [refer('Failure')]),
         ]).statement,
       );
     });
@@ -469,8 +469,8 @@ extension TestBuilderHelpers on TestBuilder {
         );
         t.statements.add(
           refer('expect').call([
-            refer('result').property('isSuccess'),
-            literalBool(true),
+            refer('result'),
+            refer('isA').call([], {}, [refer('Success')]),
           ]).statement,
         );
       }
