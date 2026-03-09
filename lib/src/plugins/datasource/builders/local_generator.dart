@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
+import '../../../core/ast/append_executor.dart';
+import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/generator_options.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../models/generated_file.dart';
@@ -32,6 +36,7 @@ class LocalDataSourceBuilder {
   final String outputDir;
   final GeneratorOptions options;
   final SpecLibrary specLibrary;
+  final AppendExecutor appendExecutor;
 
   /// Creates a [LocalDataSourceBuilder].
   ///
@@ -41,6 +46,7 @@ class LocalDataSourceBuilder {
   /// @param force Deprecated: use [options].
   /// @param verbose Deprecated: use [options].
   /// @param specLibrary Optional spec library override.
+  /// @param appendExecutor Optional append executor override.
   LocalDataSourceBuilder({
     required this.outputDir,
     GeneratorOptions options = const GeneratorOptions(),
@@ -48,12 +54,14 @@ class LocalDataSourceBuilder {
     @Deprecated('Use options.force') bool? force,
     @Deprecated('Use options.verbose') bool? verbose,
     SpecLibrary? specLibrary,
+    AppendExecutor? appendExecutor,
   }) : options = options.copyWith(
          dryRun: dryRun ?? options.dryRun,
          force: force ?? options.force,
          verbose: verbose ?? options.verbose,
        ),
-       specLibrary = specLibrary ?? const SpecLibrary();
+       specLibrary = specLibrary ?? const SpecLibrary(),
+       appendExecutor = appendExecutor ?? AppendExecutor();
 
   /// Generates a local data source file for the given [config].
   ///
@@ -516,7 +524,7 @@ class LocalDataSourceBuilder {
     }
 
     final clazz = Class(
-      (b) => b
+      (c) => c
         ..name = dataSourceName
         ..mixins.addAll([refer('Loggable'), refer('FailureHandler')])
         ..implements.add(refer('${entityName}DataSource'))
@@ -524,6 +532,31 @@ class LocalDataSourceBuilder {
         ..constructors.addAll(constructors)
         ..methods.addAll(methods),
     );
+
+    if (config.appendToExisting) {
+      final existing = await File(filePath).readAsString();
+      var updated = existing;
+      for (final method in methods) {
+        final methodSource = specLibrary.emitSpec(method);
+        final result = appendExecutor.execute(
+          AppendRequest.method(
+            source: updated,
+            className: dataSourceName,
+            memberSource: methodSource,
+          ),
+        );
+        updated = result.source;
+      }
+      return FileUtils.writeFile(
+        filePath,
+        updated,
+        'local_datasource',
+        force: true,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+        revert: false,
+      );
+    }
 
     final directives = <Directive>[
       if (useHive)

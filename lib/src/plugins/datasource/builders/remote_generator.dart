@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
+import '../../../core/ast/append_executor.dart';
+import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
@@ -27,6 +31,8 @@ import '../../../core/builder/shared/spec_library.dart';
 class RemoteDataSourceBuilder {
   final String outputDir;
   final GeneratorOptions options;
+  final SpecLibrary specLibrary;
+  final AppendExecutor appendExecutor;
 
   /// Creates a [RemoteDataSourceBuilder].
   ///
@@ -35,17 +41,22 @@ class RemoteDataSourceBuilder {
   /// @param dryRun Deprecated: use [options].
   /// @param force Deprecated: use [options].
   /// @param verbose Deprecated: use [options].
+  /// @param specLibrary Optional spec library override.
   RemoteDataSourceBuilder({
     required this.outputDir,
     GeneratorOptions options = const GeneratorOptions(),
     @Deprecated('Use options.dryRun') bool? dryRun,
     @Deprecated('Use options.force') bool? force,
     @Deprecated('Use options.verbose') bool? verbose,
+    SpecLibrary? specLibrary,
+    AppendExecutor? appendExecutor,
   }) : options = options.copyWith(
          dryRun: dryRun ?? options.dryRun,
          force: force ?? options.force,
          verbose: verbose ?? options.verbose,
-       );
+       ),
+       specLibrary = specLibrary ?? const SpecLibrary(),
+       appendExecutor = appendExecutor ?? AppendExecutor();
 
   /// Generates a remote data source file for the given [config].
   ///
@@ -116,29 +127,6 @@ class RemoteDataSourceBuilder {
                       .statement,
                 ),
             ),
-        ),
-      );
-    }
-
-    // If it's a custom usecase, generate a method for it
-    if (config.isCustomUseCase) {
-      final methodName = StringUtils.pascalToCamel(config.name);
-      final returns = config.returnsType ?? 'void';
-      methods.add(
-        Method(
-          (m) => m
-            ..name = methodName
-            ..annotations.add(refer('override'))
-            ..returns = refer('Future<$returns>')
-            ..requiredParameters.add(
-              Parameter(
-                (p) => p
-                  ..name = 'params'
-                  ..type = refer(config.paramsType ?? 'NoParams'),
-              ),
-            )
-            ..modifier = MethodModifier.async
-            ..body = _remoteBody('Implement remote $methodName', null),
         ),
       );
     }
@@ -323,8 +311,33 @@ class RemoteDataSourceBuilder {
         ..methods.addAll(methods),
     );
 
-    final content = const SpecLibrary().emitLibrary(
-      const SpecLibrary().library(specs: [clazz], directives: directives),
+    if (config.appendToExisting) {
+      final existing = await File(filePath).readAsString();
+      var updated = existing;
+      for (final method in methods) {
+        final methodSource = specLibrary.emitSpec(method);
+        final result = appendExecutor.execute(
+          AppendRequest.method(
+            source: updated,
+            className: dataSourceName,
+            memberSource: methodSource,
+          ),
+        );
+        updated = result.source;
+      }
+      return FileUtils.writeFile(
+        filePath,
+        updated,
+        'remote_datasource',
+        force: true,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+        revert: false,
+      );
+    }
+
+    final content = specLibrary.emitLibrary(
+      specLibrary.library(specs: [clazz], directives: directives),
     );
 
     return FileUtils.writeFile(

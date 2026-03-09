@@ -52,7 +52,15 @@ extension MethodAppendBuilderImports on MethodAppendBuilder {
     final normalizedPath = path.normalize(filePath);
     if (normalizedPath.contains('/data/datasources/') ||
         normalizedPath.contains('\\data\\datasources\\')) {
-      return '../../../domain/entities/$entitySnake/$entitySnake.dart';
+      // Check if it's a domain-specific datasource
+      final parts = path.split(normalizedPath);
+      final index = parts.lastIndexOf('datasources');
+      if (index != -1 && index + 2 < parts.length) {
+        // e.g. lib/src/data/datasources/listing/listing_datasource.dart
+        // path from listing/ to src: ../../../
+        return '../../../domain/entities/$entitySnake/$entitySnake.dart';
+      }
+      return '../../domain/entities/$entitySnake/$entitySnake.dart';
     }
     if (normalizedPath.contains('/data/repositories/') ||
         normalizedPath.contains('\\data\\repositories\\')) {

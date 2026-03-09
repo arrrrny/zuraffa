@@ -86,6 +86,48 @@ void main() {
     expect(localFile.readAsStringSync().contains('Box<Order>'), isTrue);
   });
 
+  test('appends methods to existing datasource files', () async {
+    final plugin = DataSourcePlugin(
+      outputDir: outputDir,
+      dryRun: false,
+      force: false,
+      verbose: false,
+    );
+
+    // 1. Initial generation
+    await plugin.generate(
+      GeneratorConfig(
+        name: 'Product',
+        methods: const ['get'],
+        generateData: true,
+        outputDir: outputDir,
+      ),
+    );
+
+    final interfaceFile = File(
+      '$outputDir/data/datasources/product/product_datasource.dart',
+    );
+    final remoteFile = File(
+      '$outputDir/data/datasources/product/product_remote_datasource.dart',
+    );
+
+    expect(interfaceFile.readAsStringSync().contains('Future<Product> get'), isTrue);
+    expect(interfaceFile.readAsStringSync().contains('Future<Product> create'), isFalse);
+
+    // 2. Append generation
+    await plugin.generate(
+      GeneratorConfig(
+        name: 'Product',
+        methods: const ['create'],
+        appendToExisting: true,
+        outputDir: outputDir,
+      ),
+    );
+    expect(interfaceFile.readAsStringSync().contains('Future<Product> get'), isTrue);
+    expect(interfaceFile.readAsStringSync().contains('Future<Product> create'), isTrue);
+    expect(remoteFile.readAsStringSync().contains('Future<Product> create'), isTrue);
+  });
+
   test('uses graphql constants when gql is enabled', () async {
     final plugin = DataSourcePlugin(
       outputDir: outputDir,

@@ -1,10 +1,13 @@
+import 'dart:io';
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as path;
 import '../../commands/datasource_command.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import '../../utils/string_utils.dart';
 import 'builders/interface_generator.dart';
 import 'builders/local_generator.dart';
 import 'builders/remote_generator.dart';
@@ -78,7 +81,7 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return delegator.generate(config);
     }
 
-    if (!(config.generateData || config.generateDataSource)) {
+    if (!(config.generateData || config.generateDataSource || config.appendToExisting)) {
       return [];
     }
     if (config.hasService) {
@@ -86,6 +89,40 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     }
 
     final files = <GeneratedFile>[];
+
+    if (config.appendToExisting) {
+      files.add(await interfaceGenerator.generate(config));
+
+      final repoBase = config.repo ?? config.name;
+      final repoName = repoBase.endsWith('Repository')
+          ? repoBase.replaceAll('Repository', '')
+          : repoBase;
+      final repoSnake = StringUtils.camelToSnake(repoName);
+
+      final remotePath = path.join(
+        outputDir,
+        'data',
+        'datasources',
+        repoSnake,
+        '${repoSnake}_remote_datasource.dart',
+      );
+      if (File(remotePath).existsSync()) {
+        files.add(await remoteGenerator.generate(config));
+      }
+
+      final localPath = path.join(
+        outputDir,
+        'data',
+        'datasources',
+        repoSnake,
+        '${repoSnake}_local_datasource.dart',
+      );
+      if (File(localPath).existsSync()) {
+        files.add(await localGenerator.generate(config));
+      }
+
+      return files;
+    }
 
     if (config.generateLocal) {
       files.add(await localGenerator.generate(config));

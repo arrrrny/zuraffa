@@ -44,4 +44,61 @@ void main() {
     expect(content.contains('class MockProductRepository'), isTrue);
     expect(content.contains('GetProductUseCase'), isTrue);
   });
+
+  test('generates custom usecase test with params', () async {
+    final builder = TestBuilder(
+      outputDir: outputDir,
+      dryRun: false,
+      force: true,
+      verbose: false,
+    );
+
+    final config = GeneratorConfig(
+      name: 'GetListingByBarcode',
+      domain: 'listing',
+      paramsType: 'String',
+      repo: 'Listing',
+      outputDir: outputDir,
+    );
+
+    final file = await builder.generateCustom(config);
+
+    expect(file.path.endsWith('get_listing_by_barcode_usecase_test.dart'), isTrue);
+    final testFile = File(file.path);
+    expect(testFile.existsSync(), isTrue);
+    final content = testFile.readAsStringSync();
+
+    expect(content.contains('class MockListingRepository'), isTrue);
+    expect(content.contains('GetListingByBarcodeUseCase'), isTrue);
+    expect(content.contains("await useCase('any')"), isTrue);
+  });
+
+  test('generates custom usecase test with custom params type', () async {
+    final builder = TestBuilder(
+      outputDir: outputDir,
+      dryRun: false,
+      force: true,
+      verbose: false,
+    );
+
+    final config = GeneratorConfig(
+      name: 'GetListingByBarcode',
+      domain: 'listing',
+      paramsType: 'BarcodeParams',
+      repo: 'Listing',
+      outputDir: outputDir,
+    );
+
+    final file = await builder.generateCustom(config);
+
+    expect(file.path.endsWith('get_listing_by_barcode_usecase_test.dart'), isTrue);
+    final testFile = File(file.path);
+    expect(testFile.existsSync(), isTrue);
+    final content = testFile.readAsStringSync();
+
+    expect(content.contains('class MockBarcodeParams'), isTrue);
+    expect(content.contains('final tBarcodeParams = MockBarcodeParams();'), isTrue);
+    expect(content.contains('await useCase(tBarcodeParams)'), isTrue);
+    expect(content.contains('registerFallbackValue(MockBarcodeParams())'), isTrue);
+  });
 }

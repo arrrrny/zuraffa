@@ -217,11 +217,13 @@ class MakeCommand extends Command<void> {
 
     final created = files.where((f) => f.action == 'created').length;
     final overwritten = files.where((f) => f.action == 'overwritten').length;
+    final updated = files.where((f) => f.action == 'updated').length;
     final skipped = files.where((f) => f.action == 'skipped').length;
     final deleted = files.where((f) => f.action == 'deleted').length;
 
     if (created > 0) print('  ✨ Created: $created files');
     if (overwritten > 0) print('  📝 Overwritten: $overwritten files');
+    if (updated > 0) print('  🔄 Updated: $updated files');
     if (skipped > 0) print('  ⏭ Skipped: $skipped files');
     if (deleted > 0) print('  🗑 Deleted: $deleted files');
 
@@ -232,6 +234,8 @@ class MakeCommand extends Command<void> {
           print('  ✨ ${file.path}');
         } else if (file.action == 'overwritten') {
           print('  📝 ${file.path}');
+        } else if (file.action == 'updated') {
+          print('  🔄 ${file.path}');
         } else if (file.action == 'deleted') {
           print('  🗑 ${file.path}');
         }

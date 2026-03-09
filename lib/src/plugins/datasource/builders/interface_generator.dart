@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
+import '../../../core/ast/append_executor.dart';
+import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -14,6 +18,7 @@ class DataSourceInterfaceBuilder {
   final bool force;
   final bool verbose;
   final SpecLibrary specLibrary;
+  final AppendExecutor appendExecutor;
 
   DataSourceInterfaceBuilder({
     required this.outputDir,
@@ -21,7 +26,9 @@ class DataSourceInterfaceBuilder {
     required this.force,
     required this.verbose,
     SpecLibrary? specLibrary,
-  }) : specLibrary = specLibrary ?? const SpecLibrary();
+    AppendExecutor? appendExecutor,
+  }) : specLibrary = specLibrary ?? const SpecLibrary(),
+       appendExecutor = appendExecutor ?? AppendExecutor();
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final entityName = config.repo != null
@@ -61,26 +68,6 @@ class DataSourceInterfaceBuilder {
                 (p) => p
                   ..name = 'params'
                   ..type = refer('InitializationParams'),
-              ),
-            ),
-        ),
-      );
-    }
-
-    // If it's a custom usecase, generate a method for it
-    if (config.isCustomUseCase) {
-      final methodName = StringUtils.pascalToCamel(config.name);
-      final returns = config.returnsType ?? 'void';
-      methods.add(
-        Method(
-          (m) => m
-            ..name = methodName
-            ..returns = refer('Future<$returns>')
-            ..requiredParameters.add(
-              Parameter(
-                (p) => p
-                  ..name = 'params'
-                  ..type = refer(config.paramsType ?? 'NoParams'),
               ),
             ),
         ),
@@ -233,6 +220,32 @@ class DataSourceInterfaceBuilder {
         ..mixins.addAll([refer('Loggable'), refer('FailureHandler')])
         ..methods.addAll(methods),
     );
+
+    if (config.appendToExisting) {
+      final existing = await File(filePath).readAsString();
+      var updated = existing;
+      for (final method in methods) {
+        final methodSource = specLibrary.emitSpec(method);
+        final result = appendExecutor.execute(
+          AppendRequest.method(
+            source: updated,
+            className: dataSourceName,
+            memberSource: methodSource,
+          ),
+        );
+        updated = result.source;
+      }
+      return FileUtils.writeFile(
+        filePath,
+        updated,
+        'datasource',
+        force: true,
+        dryRun: dryRun,
+        verbose: verbose,
+        revert: false,
+      );
+    }
+
     final content = specLibrary.emitLibrary(
       specLibrary.library(specs: [clazz], directives: directives),
     );
