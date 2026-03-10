@@ -4,7 +4,6 @@ import 'package:path/path.dart' as path;
 
 import '../../commands/presenter_command.dart';
 import '../../core/builder/patterns/common_patterns.dart';
-import '../../core/constants/known_types.dart';
 import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
@@ -23,17 +22,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   PresenterPlugin({
     required this.outputDir,
-    GeneratorOptions options = const GeneratorOptions(),
-    @Deprecated('Use options.dryRun') bool? dryRun,
-    @Deprecated('Use options.force') bool? force,
-    @Deprecated('Use options.verbose') bool? verbose,
-    PresenterClassBuilder? classBuilder,
-  }) : options = options.copyWith(
-         dryRun: dryRun ?? options.dryRun,
-         force: force ?? options.force,
-         verbose: verbose ?? options.verbose,
-       ),
-       classBuilder = classBuilder ?? const PresenterClassBuilder();
+    this.options = const GeneratorOptions(),
+    this.classBuilder = const PresenterClassBuilder(),
+  });
 
   @override
   List<ZuraffaCapability> get capabilities => [CreatePresenterCapability(this)];
@@ -280,15 +271,19 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
       // Parse nullability
       final isNullable = returns.endsWith('?');
-      final baseReturns = isNullable ? returns.substring(0, returns.length - 1) : returns;
+      final baseReturns = isNullable
+          ? returns.substring(0, returns.length - 1)
+          : returns;
 
       final resultType = TypeReference(
         (b) => b
           ..symbol = 'Result'
           ..types.addAll([
-            TypeReference((b) => b
-              ..symbol = baseReturns
-              ..isNullable = isNullable),
+            TypeReference(
+              (b) => b
+                ..symbol = baseReturns
+                ..isNullable = isNullable,
+            ),
             refer('AppFailure'),
           ]),
       );
@@ -654,7 +649,11 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         types.add(config.paramsType!);
       }
 
-      final entityImports = CommonPatterns.entityImports(types, config, depth: 3);
+      final entityImports = CommonPatterns.entityImports(
+        types,
+        config,
+        depth: 3,
+      );
       imports.addAll(entityImports);
     } else {
       imports.add('../../../domain/entities/$domainSnake/$domainSnake.dart');

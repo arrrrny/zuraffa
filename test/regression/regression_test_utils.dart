@@ -145,11 +145,11 @@ Future<GeneratorResult> generateFullFeature(
       generateDi: true,
       generateRoute: true,
       outputDir: workspace.outputDir,
+      dryRun: false,
+      force: true,
+      verbose: false,
     ),
     outputDir: workspace.outputDir,
-    dryRun: false,
-    force: true,
-    verbose: false,
   );
   return generator.generate();
 }

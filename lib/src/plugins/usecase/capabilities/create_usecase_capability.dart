@@ -134,7 +134,8 @@ class CreateUseCaseCapability implements ZuraffaCapability {
     final usecases = (args['usecases'] as List<dynamic>?)?.cast<String>() ?? [];
     final variants = (args['variants'] as List<dynamic>?)?.cast<String>() ?? [];
 
-    final isCustomUseCase = repo != null ||
+    final isCustomUseCase =
+        repo != null ||
         service != null ||
         usecases.isNotEmpty ||
         variants.isNotEmpty ||

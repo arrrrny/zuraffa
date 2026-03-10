@@ -21,20 +21,12 @@ class MockDataBuilder {
 
   MockDataBuilder({
     required this.outputDir,
-    GeneratorOptions options = const GeneratorOptions(),
-    @Deprecated('Use options.dryRun') bool? dryRun,
-    @Deprecated('Use options.force') bool? force,
-    @Deprecated('Use options.verbose') bool? verbose,
+    this.options = const GeneratorOptions(),
     SpecLibrary? specLibrary,
     MockValueBuilder? valueBuilder,
     MockEntityHelper? entityHelper,
     MockTypeHelper? typeHelper,
-  }) : options = options.copyWith(
-         dryRun: dryRun ?? options.dryRun,
-         force: force ?? options.force,
-         verbose: verbose ?? options.verbose,
-       ),
-       specLibrary = specLibrary ?? const SpecLibrary(),
+  }) : specLibrary = specLibrary ?? const SpecLibrary(),
        valueBuilder = valueBuilder ?? MockValueBuilder(outputDir: outputDir),
        entityHelper = entityHelper ?? const MockEntityHelper(),
        typeHelper = typeHelper ?? const MockTypeHelper();

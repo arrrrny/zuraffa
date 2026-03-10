@@ -496,7 +496,7 @@ extension TestBuilderHelpers on TestBuilder {
       'double' => literal(1.0),
       'bool' => literalBool(true),
       'dynamic' => literalNull,
-      _ => refer('t${type}'),
+      _ => refer('t$type'),
     };
   }
 }

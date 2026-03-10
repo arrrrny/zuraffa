@@ -34,26 +34,19 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   UseCasePlugin({
     required this.outputDir,
-    GeneratorOptions options = const GeneratorOptions(),
-    @Deprecated('Use options.dryRun') bool? dryRun,
-    @Deprecated('Use options.force') bool? force,
-    @Deprecated('Use options.verbose') bool? verbose,
-  }) : options = options.copyWith(
-         dryRun: dryRun ?? options.dryRun,
-         force: force ?? options.force,
-         verbose: verbose ?? options.verbose,
-       ) {
+    this.options = const GeneratorOptions(),
+  }) {
     entityGenerator = EntityUseCaseGenerator(
       outputDir: outputDir,
-      options: this.options,
+      options: options,
     );
     customGenerator = CustomUseCaseGenerator(
       outputDir: outputDir,
-      options: this.options,
+      options: options,
     );
     streamGenerator = StreamUseCaseGenerator(
       outputDir: outputDir,
-      options: this.options,
+      options: options,
     );
   }
 

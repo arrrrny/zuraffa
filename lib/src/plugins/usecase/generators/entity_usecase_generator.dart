@@ -32,17 +32,9 @@ class EntityUseCaseGenerator {
 
   EntityUseCaseGenerator({
     required this.outputDir,
-    GeneratorOptions options = const GeneratorOptions(),
-    @Deprecated('Use options.dryRun') bool? dryRun,
-    @Deprecated('Use options.force') bool? force,
-    @Deprecated('Use options.verbose') bool? verbose,
-    AppendExecutor? appendExecutor,
-  }) : options = options.copyWith(
-         dryRun: dryRun ?? options.dryRun,
-         force: force ?? options.force,
-         verbose: verbose ?? options.verbose,
-       ),
-       appendExecutor = appendExecutor ?? AppendExecutor();
+    this.options = const GeneratorOptions(),
+    this.appendExecutor = const AppendExecutor(),
+  });
 
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     final files = <GeneratedFile>[];
@@ -59,7 +51,6 @@ class EntityUseCaseGenerator {
     final entityName = config.name;
     final entitySnake = config.nameSnake;
     final repoName = config.effectiveRepos.first;
-    final relativePath = '../';
     String className;
     TypeReference baseClass;
     Reference paramsType;
@@ -299,8 +290,7 @@ class EntityUseCaseGenerator {
 
     final imports = <String>['package:zuraffa/zuraffa.dart'];
     if (needsEntityImport) {
-      final entityPath =
-          '../../entities/$entitySnake/$entitySnake.dart';
+      final entityPath = '../../entities/$entitySnake/$entitySnake.dart';
       imports.add(entityPath);
     }
     final repoPath =

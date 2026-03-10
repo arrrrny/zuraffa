@@ -1,8 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zuraffa/src/plugins/route/builders/route_builder.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
+import 'package:zuraffa/src/plugins/route/builders/route_builder.dart';
 
 void main() {
   test('routes generate valid go_router configs', () async {
@@ -10,9 +11,11 @@ void main() {
     final outputDir = '${dir.path}/lib/src';
     final generator = RouteBuilder(
       outputDir: outputDir,
-      force: true,
-      dryRun: false,
-      verbose: false,
+      options: const GeneratorOptions(
+        force: true,
+        dryRun: false,
+        verbose: false,
+      ),
     );
     final files = await generator.generate(
       GeneratorConfig(

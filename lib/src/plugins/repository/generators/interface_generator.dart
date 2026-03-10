@@ -32,18 +32,10 @@ class RepositoryInterfaceGenerator {
 
   RepositoryInterfaceGenerator({
     required this.outputDir,
-    GeneratorOptions options = const GeneratorOptions(),
-    @Deprecated('Use options.dryRun') bool? dryRun,
-    @Deprecated('Use options.force') bool? force,
-    @Deprecated('Use options.verbose') bool? verbose,
+    this.options = const GeneratorOptions(),
     AppendExecutor? appendExecutor,
     SpecLibrary? specLibrary,
-  }) : options = options.copyWith(
-         dryRun: dryRun ?? options.dryRun,
-         force: force ?? options.force,
-         verbose: verbose ?? options.verbose,
-       ),
-       appendExecutor = appendExecutor ?? AppendExecutor(),
+  }) : appendExecutor = appendExecutor ?? AppendExecutor(),
        specLibrary = specLibrary ?? const SpecLibrary();
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {

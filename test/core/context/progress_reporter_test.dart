@@ -8,7 +8,7 @@ Future<List<String>> _capturePrints(Future<void> Function() body) async {
   await runZoned(
     body,
     zoneSpecification: ZoneSpecification(
-      print: (_, __, ___, String message) {
+      print: (_, _, _, String message) {
         prints.add(message);
       },
     ),

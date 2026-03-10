@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:code_builder/code_builder.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/plugins/route/builders/route_builder.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/route/builders/app_routes_builder.dart';
@@ -42,9 +43,11 @@ void main() {
 
     final generator = RouteBuilder(
       outputDir: outputDir,
-      force: true,
-      dryRun: false,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
 
     await generator.generate(
@@ -74,9 +77,11 @@ void main() {
   test('generates entity routes with go routes', () async {
     final generator = RouteBuilder(
       outputDir: outputDir,
-      force: true,
-      dryRun: false,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
 
     final files = await generator.generate(

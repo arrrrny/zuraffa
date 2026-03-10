@@ -97,7 +97,11 @@ class AstModifier {
     return source.substring(0, field.offset) + source.substring(field.end);
   }
 
-  static String addImport(String source, CompilationUnit unit, String importPath) {
+  static String addImport(
+    String source,
+    CompilationUnit unit,
+    String importPath,
+  ) {
     final importDirective = "import '$importPath';";
     final imports = unit.directives.whereType<ImportDirective>().toList();
     if (imports.isNotEmpty) {
@@ -106,7 +110,9 @@ class AstModifier {
       return '${source.substring(0, insertOffset)}\n$importDirective'
           '${source.substring(insertOffset)}';
     }
-    final firstDirective = unit.directives.isEmpty ? null : unit.directives.first;
+    final firstDirective = unit.directives.isEmpty
+        ? null
+        : unit.directives.first;
     if (firstDirective != null) {
       final insertOffset = firstDirective.offset;
       return '$importDirective\n${source.substring(insertOffset)}';
@@ -114,7 +120,11 @@ class AstModifier {
     return '$importDirective\n\n$source';
   }
 
-  static String addExport(String source, CompilationUnit unit, String exportPath) {
+  static String addExport(
+    String source,
+    CompilationUnit unit,
+    String exportPath,
+  ) {
     final exportDirective = "export '$exportPath';";
     final exports = unit.directives.whereType<ExportDirective>().toList();
     if (exports.isNotEmpty) {

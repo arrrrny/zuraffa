@@ -46,52 +46,32 @@ class MockBuilder {
   /// @param entityGraphBuilder Optional mock entity graph builder override.
   MockBuilder({
     required this.outputDir,
-    GeneratorOptions options = const GeneratorOptions(),
-    @Deprecated('Use options.dryRun') bool? dryRun,
-    @Deprecated('Use options.force') bool? force,
-    @Deprecated('Use options.verbose') bool? verbose,
+    this.options = const GeneratorOptions(),
     SpecLibrary? specLibrary,
     MockDataBuilder? dataBuilder,
     MockDataSourceBuilder? dataSourceBuilder,
     MockProviderBuilder? providerBuilder,
     MockEntityGraphBuilder? entityGraphBuilder,
-  }) : options = options.copyWith(
-         dryRun: dryRun ?? options.dryRun,
-         force: force ?? options.force,
-         verbose: verbose ?? options.verbose,
-       ),
-       specLibrary = specLibrary ?? const SpecLibrary(),
+  }) : specLibrary = specLibrary ?? const SpecLibrary(),
        dataBuilder =
            dataBuilder ??
            MockDataBuilder(
              outputDir: outputDir,
-             options: options.copyWith(
-               dryRun: dryRun ?? options.dryRun,
-               force: force ?? options.force,
-               verbose: verbose ?? options.verbose,
-             ),
+             options: options,
              specLibrary: specLibrary ?? const SpecLibrary(),
            ),
        dataSourceBuilder =
            dataSourceBuilder ??
            MockDataSourceBuilder(
              outputDir: outputDir,
-             options: options.copyWith(
-               dryRun: dryRun ?? options.dryRun,
-               force: force ?? options.force,
-               verbose: verbose ?? options.verbose,
-             ),
+             options: options,
              specLibrary: specLibrary ?? const SpecLibrary(),
            ),
        providerBuilder =
            providerBuilder ??
            MockProviderBuilder(
              outputDir: outputDir,
-             options: options.copyWith(
-               dryRun: dryRun ?? options.dryRun,
-               force: force ?? options.force,
-               verbose: verbose ?? options.verbose,
-             ),
+             options: options,
              specLibrary: specLibrary ?? const SpecLibrary(),
            ),
        entityGraphBuilder =

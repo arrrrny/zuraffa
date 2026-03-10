@@ -100,9 +100,9 @@ extension LocalDataSourceBuilderImpl on LocalDataSourceBuilder {
               returnType: 'Future<$entityName>',
               parameters: [_param('params', 'QueryParams<$entityName>')],
               body: _returnBody(
-                refer('_box').property('values').property('query').call([
-                  refer('params'),
-                ]),
+                refer(
+                  '_box',
+                ).property('values').property('query').call([refer('params')]),
               ),
               isAsync: true,
             ),
@@ -161,10 +161,7 @@ extension LocalDataSourceBuilderImpl on LocalDataSourceBuilder {
                 name: 'update',
                 returnType: 'Future<${config.name}>',
                 parameters: [
-                  _param(
-                    'params',
-                    'UpdateParams<${config.idType}, $dataType>',
-                  ),
+                  _param('params', 'UpdateParams<${config.idType}, $dataType>'),
                 ],
                 body: config.useZorphy
                     ? _buildUpdateWithZorphyBody(config, entityName)
@@ -178,10 +175,7 @@ extension LocalDataSourceBuilderImpl on LocalDataSourceBuilder {
                 name: 'update',
                 returnType: 'Future<${config.name}>',
                 parameters: [
-                  _param(
-                    'params',
-                    'UpdateParams<${config.idType}, $dataType>',
-                  ),
+                  _param('params', 'UpdateParams<${config.idType}, $dataType>'),
                 ],
                 body: config.useZorphy
                     ? _buildUpdateSingleWithZorphyBody(
@@ -204,9 +198,7 @@ extension LocalDataSourceBuilderImpl on LocalDataSourceBuilder {
             _buildMethodWithBody(
               name: 'delete',
               returnType: 'Future<void>',
-              parameters: [
-                _param('params', 'DeleteParams<${config.idType}>'),
-              ],
+              parameters: [_param('params', 'DeleteParams<${config.idType}>')],
               body: hasListMethods
                   ? _buildDeleteWithListBody(config, entityName)
                   : _awaitBody(
@@ -342,9 +334,7 @@ extension LocalDataSourceBuilderImpl on LocalDataSourceBuilder {
             _buildMethodWithBody(
               name: 'delete',
               returnType: 'Future<void>',
-              parameters: [
-                _param('params', 'DeleteParams<${config.idType}>'),
-              ],
+              parameters: [_param('params', 'DeleteParams<${config.idType}>')],
               body: _throwBody('Implement local delete'),
               isAsync: true,
             ),

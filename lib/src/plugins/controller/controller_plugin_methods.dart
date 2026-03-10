@@ -15,26 +15,26 @@ extension ControllerPluginMethods on ControllerPlugin {
 
       final body = isStream
           ? (withState
-              ? _buildCustomStreamWithStateBody(
-                  config,
-                  methodName,
-                  params,
-                  returns,
-                )
-              : _buildCustomStreamWithoutStateBody(
-                  config,
-                  methodName,
-                  params,
-                  returns,
-                ))
+                ? _buildCustomStreamWithStateBody(
+                    config,
+                    methodName,
+                    params,
+                    returns,
+                  )
+                : _buildCustomStreamWithoutStateBody(
+                    config,
+                    methodName,
+                    params,
+                    returns,
+                  ))
           : (withState
-              ? _buildCustomWithStateBody(config, methodName, params, returns)
-              : _buildCustomWithoutStateBody(
-                  config,
-                  methodName,
-                  params,
-                  returns,
-                ));
+                ? _buildCustomWithStateBody(config, methodName, params, returns)
+                : _buildCustomWithoutStateBody(
+                    config,
+                    methodName,
+                    params,
+                    returns,
+                  ));
 
       return [
         Method(

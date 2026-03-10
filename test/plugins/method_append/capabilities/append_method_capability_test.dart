@@ -1,9 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zuraffa/src/core/plugin_system/capability.dart';
-import 'package:zuraffa/src/plugins/method_append/capabilities/append_method_capability.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/plugins/method_append/method_append_plugin.dart';
+import 'package:zuraffa/src/plugins/method_append/capabilities/append_method_capability.dart';
 
 void main() {
   late Directory tempDir;
@@ -23,9 +23,11 @@ void main() {
   test('AppendMethodCapability plan returns expected effects', () async {
     final plugin = MethodAppendPlugin(
       outputDir: outputDir,
-      dryRun: true,
-      force: false,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: true,
+        force: false,
+        verbose: false,
+      ),
     );
     final capability = AppendMethodCapability(plugin);
 
@@ -57,9 +59,11 @@ abstract class UserRepository {
   test('AppendMethodCapability execute appends method', () async {
     final plugin = MethodAppendPlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
     final capability = AppendMethodCapability(plugin);
 
@@ -85,7 +89,7 @@ abstract class OrderRepository {
     expect(result.success, isTrue);
     expect(result.files, isNotEmpty);
 
-    final filePath = result.files!.first;
+    final filePath = result.files.first;
     expect(filePath, contains('order_repository.dart'));
 
     final file = File(filePath);

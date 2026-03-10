@@ -27,8 +27,7 @@ class NodeFinder {
     String? name,
   }) {
     final fields = <VariableDeclaration>[];
-    for (final member
-        in classNode.members.whereType<FieldDeclaration>()) {
+    for (final member in classNode.members.whereType<FieldDeclaration>()) {
       for (final variable in member.fields.variables) {
         fields.add(variable);
       }

@@ -50,18 +50,10 @@ class LocalDataSourceBuilder {
   /// @param appendExecutor Optional append executor override.
   LocalDataSourceBuilder({
     required this.outputDir,
-    GeneratorOptions options = const GeneratorOptions(),
-    @Deprecated('Use options.dryRun') bool? dryRun,
-    @Deprecated('Use options.force') bool? force,
-    @Deprecated('Use options.verbose') bool? verbose,
+    this.options = const GeneratorOptions(),
     SpecLibrary? specLibrary,
     AppendExecutor? appendExecutor,
-  }) : options = options.copyWith(
-         dryRun: dryRun ?? options.dryRun,
-         force: force ?? options.force,
-         verbose: verbose ?? options.verbose,
-       ),
-       specLibrary = specLibrary ?? const SpecLibrary(),
+  }) : specLibrary = specLibrary ?? const SpecLibrary(),
        appendExecutor = appendExecutor ?? AppendExecutor();
 
   /// Generates a local data source file for the given [config].
@@ -175,12 +167,7 @@ class LocalDataSourceBuilder {
         methods,
       );
     } else {
-      _generateStubImplementation(
-        config,
-        entityName,
-        entityCamel,
-        methods,
-      );
+      _generateStubImplementation(config, entityName, entityCamel, methods);
     }
 
     final clazz = Class(

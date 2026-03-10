@@ -34,16 +34,9 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   TestPlugin({
     required this.outputDir,
-    GeneratorOptions options = const GeneratorOptions(),
-    @Deprecated('Use options.dryRun') bool? dryRun,
-    @Deprecated('Use options.force') bool? force,
-    @Deprecated('Use options.verbose') bool? verbose,
-  }) : options = options.copyWith(
-         dryRun: dryRun ?? options.dryRun,
-         force: force ?? options.force,
-         verbose: verbose ?? options.verbose,
-       ) {
-    testBuilder = TestBuilder(outputDir: outputDir, options: this.options);
+    this.options = const GeneratorOptions(),
+  }) {
+    testBuilder = TestBuilder(outputDir: outputDir, options: options);
   }
 
   @override

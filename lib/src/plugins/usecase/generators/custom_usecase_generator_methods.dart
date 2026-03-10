@@ -268,7 +268,8 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
         : config.useCaseType == 'sync'
         ? returnsType
         : 'Future<$returnsType>';
-    final isAsync = config.useCaseType != 'sync' && config.useCaseType != 'stream';
+    final isAsync =
+        config.useCaseType != 'sync' && config.useCaseType != 'stream';
     final executeBody = Block((b) {
       if (config.useCaseType == 'sync') {
         b.statements.add(Code('// TODO: Implement orchestration logic'));
@@ -329,7 +330,8 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
         : config.useCaseType == 'sync'
         ? returnsType
         : 'Future<$returnsType>';
-    final isAsync = config.useCaseType != 'sync' && config.useCaseType != 'stream';
+    final isAsync =
+        config.useCaseType != 'sync' && config.useCaseType != 'stream';
     final executeBody = Block((b) {
       if (config.useCaseType == 'sync') {
         b.statements.add(Code('// TODO: Implement $variant variant'));

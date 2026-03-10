@@ -223,7 +223,8 @@ extension CacheBuilderRegistrar on CacheBuilder {
       if (File(subEntityPath).existsSync()) {
         processedEntities.add(baseType);
         adapterEntities.add(baseType);
-        final importPath = '../domain/entities/$subEntitySnake/$subEntitySnake.dart';
+        final importPath =
+            '../domain/entities/$subEntitySnake/$subEntitySnake.dart';
         if (!imports.contains(importPath)) {
           imports.add(importPath);
         }

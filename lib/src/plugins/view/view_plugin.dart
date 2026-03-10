@@ -42,17 +42,9 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   /// @param classBuilder Optional view class builder override.
   ViewPlugin({
     required this.outputDir,
-    GeneratorOptions options = const GeneratorOptions(),
-    @Deprecated('Use options.dryRun') bool? dryRun,
-    @Deprecated('Use options.force') bool? force,
-    @Deprecated('Use options.verbose') bool? verbose,
-    ViewClassBuilder? classBuilder,
-  }) : options = options.copyWith(
-         dryRun: dryRun ?? options.dryRun,
-         force: force ?? options.force,
-         verbose: verbose ?? options.verbose,
-       ),
-       classBuilder = classBuilder ?? const ViewClassBuilder();
+    this.options = const GeneratorOptions(),
+    this.classBuilder = const ViewClassBuilder(),
+  });
 
   @override
   List<ZuraffaCapability> get capabilities => [CreateViewCapability(this)];

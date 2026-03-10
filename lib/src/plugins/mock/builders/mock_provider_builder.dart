@@ -22,19 +22,11 @@ class MockProviderBuilder {
 
   MockProviderBuilder({
     required this.outputDir,
-    GeneratorOptions options = const GeneratorOptions(),
-    @Deprecated('Use options.dryRun') bool? dryRun,
-    @Deprecated('Use options.force') bool? force,
-    @Deprecated('Use options.verbose') bool? verbose,
+    this.options = const GeneratorOptions(),
     SpecLibrary? specLibrary,
     MockTypeHelper? typeHelper,
     AppendExecutor? appendExecutor,
-  }) : options = options.copyWith(
-         dryRun: dryRun ?? options.dryRun,
-         force: force ?? options.force,
-         verbose: verbose ?? options.verbose,
-       ),
-       specLibrary = specLibrary ?? const SpecLibrary(),
+  }) : specLibrary = specLibrary ?? const SpecLibrary(),
        typeHelper = typeHelper ?? const MockTypeHelper(),
        appendExecutor = appendExecutor ?? AppendExecutor();
 

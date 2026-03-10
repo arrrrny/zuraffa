@@ -304,9 +304,7 @@ ${missing.map((d) => '   • $d').join('\n')}
         } else {
           final insertPos = lastImportMatch.last.end;
           updated =
-              updated.substring(0, insertPos) +
-              "\n$import" +
-              updated.substring(insertPos);
+              "${updated.substring(0, insertPos)}\n$import${updated.substring(insertPos)}";
         }
       }
     }

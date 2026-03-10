@@ -6,7 +6,6 @@ import 'package:path/path.dart' as path;
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/builder/patterns/common_patterns.dart';
-import '../../../core/constants/known_types.dart';
 import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
@@ -42,17 +41,8 @@ class CustomUseCaseGenerator {
 
   CustomUseCaseGenerator({
     required this.outputDir,
-    GeneratorOptions options = const GeneratorOptions(),
-    @Deprecated('Use options.dryRun') bool? dryRun,
-    @Deprecated('Use options.force') bool? force,
-    @Deprecated('Use options.verbose') bool? verbose,
-    UseCaseClassBuilder? classBuilder,
-    AppendExecutor? appendExecutor,
-  }) : options = options.copyWith(
-         dryRun: dryRun ?? options.dryRun,
-         force: force ?? options.force,
-         verbose: verbose ?? options.verbose,
-       ),
-       classBuilder = classBuilder ?? const UseCaseClassBuilder(),
-       appendExecutor = appendExecutor ?? AppendExecutor();
+    this.options = const GeneratorOptions(),
+    this.classBuilder = const UseCaseClassBuilder(),
+    this.appendExecutor = const AppendExecutor(),
+  });
 }

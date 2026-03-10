@@ -59,25 +59,12 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   /// @param serviceLocatorBuilder Optional service locator builder override.
   DiPlugin({
     required this.outputDir,
-    GeneratorOptions options = const GeneratorOptions(),
-    @Deprecated('Use options.dryRun') bool? dryRun,
-    @Deprecated('Use options.force') bool? force,
-    @Deprecated('Use options.verbose') bool? verbose,
-    RegistrationBuilder? registrationBuilder,
-    RegistrationDetector? registrationDetector,
-    AppendExecutor? appendExecutor,
-    ServiceLocatorBuilder? serviceLocatorBuilder,
-  }) : options = options.copyWith(
-         dryRun: dryRun ?? options.dryRun,
-         force: force ?? options.force,
-         verbose: verbose ?? options.verbose,
-       ),
-       registrationBuilder = registrationBuilder ?? const RegistrationBuilder(),
-       registrationDetector =
-           registrationDetector ?? const RegistrationDetector(),
-       appendExecutor = appendExecutor ?? AppendExecutor(),
-       serviceLocatorBuilder =
-           serviceLocatorBuilder ?? const ServiceLocatorBuilder();
+    this.options = const GeneratorOptions(),
+    this.registrationBuilder = const RegistrationBuilder(),
+    this.registrationDetector = const RegistrationDetector(),
+    this.appendExecutor = const AppendExecutor(),
+    this.serviceLocatorBuilder = const ServiceLocatorBuilder(),
+  });
 
   @override
   List<ZuraffaCapability> get capabilities => [CreateDiCapability(this)];
@@ -499,7 +486,10 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
                         ..lambda = true
                         ..body = refer(
                           config.useMockInDi
-                              ? '${providerName.replaceAll('Provider', 'MockProvider')}'
+                              ? providerName.replaceAll(
+                                  'Provider',
+                                  'MockProvider',
+                                )
                               : providerName,
                         ).call([]).code,
                     ).closure,

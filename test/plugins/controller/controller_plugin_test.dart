@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/controller/controller_plugin.dart';
 
@@ -22,9 +23,11 @@ void main() {
   test('generates stateful controller with cancel tokens', () async {
     final plugin = ControllerPlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
     final config = GeneratorConfig(
       name: 'Product',
@@ -48,9 +51,11 @@ void main() {
   test('generates stateless controller without viewState', () async {
     final plugin = ControllerPlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
     final config = GeneratorConfig(
       name: 'Order',
@@ -73,9 +78,11 @@ void main() {
     () async {
       final plugin = ControllerPlugin(
         outputDir: outputDir,
-        dryRun: false,
-        force: true,
-        verbose: false,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
       );
       final config = GeneratorConfig(
         name: 'GetListingByBarcode',

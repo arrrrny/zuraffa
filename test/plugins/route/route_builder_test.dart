@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/route/builders/route_builder.dart';
 
@@ -22,9 +23,11 @@ void main() {
   test('generates app routes and entity routes', () async {
     final builder = RouteBuilder(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
 
     final files = await builder.generate(
@@ -50,9 +53,11 @@ void main() {
   test('generates routes for custom usecase with domain', () async {
     final builder = RouteBuilder(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
 
     final files = await builder.generate(
@@ -104,9 +109,11 @@ void main() {
   test('appends routes to existing domain routes file', () async {
     final builder = RouteBuilder(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
 
     // 1. Generate first route
@@ -157,9 +164,11 @@ void main() {
   test('prevents duplicate routes when running twice', () async {
     final builder = RouteBuilder(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
 
     final config = GeneratorConfig(
@@ -216,9 +225,11 @@ void main() {
   test('regenerates routes index with correct getter names', () async {
     final builder = RouteBuilder(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
 
     // 1. Generate listing routes

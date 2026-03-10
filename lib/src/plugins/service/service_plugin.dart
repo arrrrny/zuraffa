@@ -19,17 +19,9 @@ class ServicePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   ServicePlugin({
     required this.outputDir,
-    GeneratorOptions options = const GeneratorOptions(),
-    @Deprecated('Use options.dryRun') bool? dryRun,
-    @Deprecated('Use options.force') bool? force,
-    @Deprecated('Use options.verbose') bool? verbose,
-    ServiceInterfaceBuilder? interfaceBuilder,
-  }) : options = options.copyWith(
-         dryRun: dryRun ?? options.dryRun,
-         force: force ?? options.force,
-         verbose: verbose ?? options.verbose,
-       ),
-       interfaceBuilder = interfaceBuilder ?? const ServiceInterfaceBuilder();
+    this.options = const GeneratorOptions(),
+    this.interfaceBuilder = const ServiceInterfaceBuilder(),
+  });
 
   @override
   List<ZuraffaCapability> get capabilities => [CreateServiceCapability(this)];

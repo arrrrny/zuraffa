@@ -132,8 +132,9 @@ class MakeCommand extends Command<void> {
     // If it's an orchestrator, filter out data layer plugins unless explicitly requested
     if (isOrchestrator) {
       final dataLayerPlugins = {'datasource', 'repository', 'provider', 'mock'};
-      pluginNames.removeWhere((p) =>
-          dataLayerPlugins.contains(p) && !userExplicitPlugins.contains(p));
+      pluginNames.removeWhere(
+        (p) => dataLayerPlugins.contains(p) && !userExplicitPlugins.contains(p),
+      );
     }
 
     if (pluginNames.isEmpty) {
@@ -168,15 +169,15 @@ class MakeCommand extends Command<void> {
     final params = argResults!['params'] as String?;
     final returns = argResults!['returns'] as String?;
     final usecasesStr = argResults!['usecases'] as String?;
-    final usecases =
-        usecasesStr != null ? usecasesStr.split(',').map((e) => e.trim()).toList() : null;
+    final usecases = usecasesStr?.split(',').map((e) => e.trim()).toList();
     final useMockInDi = argResults!['use-mock'] == true;
 
     // Create a base config that enables everything requested
     final config = GeneratorConfig(
       name: entityName,
       methods:
-          pluginNames.contains('usecase') && (repo == null && service == null && usecases == null)
+          pluginNames.contains('usecase') &&
+              (repo == null && service == null && usecases == null)
           ? methods
           : [], // Only use CRUD methods if not custom usecase
       domain: domain,

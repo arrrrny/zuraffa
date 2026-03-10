@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/mock/builders/mock_builder.dart';
 import 'package:zuraffa/src/plugins/mock/mock_plugin.dart';
@@ -30,9 +31,11 @@ void main() {
 
     final builder = MockBuilder(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
 
     final files = await builder.generate(
@@ -67,9 +70,11 @@ void main() {
 
     final builder = MockBuilder(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
 
     // 1. Initial generation
@@ -132,9 +137,11 @@ void main() {
 
     final builder = MockBuilder(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
 
     await builder.generate(
@@ -166,9 +173,11 @@ void main() {
   test('generates stream return type for mock custom usecase', () async {
     final builder = MockBuilder(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
 
     await builder.generate(
@@ -199,9 +208,11 @@ void main() {
   test('generates mock provider when service is present', () async {
     final builder = MockBuilder(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
 
     final config = GeneratorConfig(
@@ -256,9 +267,11 @@ void main() {
   test('generates stream return type for mock provider', () async {
     final builder = MockBuilder(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
 
     await builder.generate(
@@ -290,18 +303,13 @@ void main() {
   test(
     'generates mock provider even if appendToExisting is true and file missing',
     () async {
-      final builder = MockBuilder(
-        outputDir: outputDir,
-        dryRun: false,
-        force: true,
-        verbose: false,
-      );
-
       final plugin = MockPlugin(
         outputDir: outputDir,
-        dryRun: false,
-        force: true,
-        verbose: false,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
       );
 
       final config = GeneratorConfig(
@@ -334,9 +342,11 @@ void main() {
     () async {
       final builder = MockBuilder(
         outputDir: outputDir,
-        dryRun: false,
-        force: true,
-        verbose: false,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
       );
 
       final config = GeneratorConfig(
@@ -376,9 +386,11 @@ void main() {
     () async {
       final builder = MockBuilder(
         outputDir: outputDir,
-        dryRun: false,
-        force: true,
-        verbose: false,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
       );
 
       final config = GeneratorConfig(

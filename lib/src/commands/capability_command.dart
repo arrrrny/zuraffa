@@ -113,7 +113,11 @@ class CapabilityCommand extends Command<void> {
     if (argResults != null && argResults!.rest.isNotEmpty) {
       final required = schema['required'] as List?;
       if (required != null) {
-        for (var i = 0; i < argResults!.rest.length && i < required.length; i++) {
+        for (
+          var i = 0;
+          i < argResults!.rest.length && i < required.length;
+          i++
+        ) {
           final key = required[i] as String;
           if (!args.containsKey(key)) {
             args[key] = argResults!.rest[i];

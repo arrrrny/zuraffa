@@ -22,11 +22,11 @@ Future<void> main() async {
       generateDi: true,
       generateMock: true,
       outputDir: outputDir,
+      dryRun: false,
+      force: true,
+      verbose: false,
     ),
     outputDir: outputDir,
-    dryRun: false,
-    force: true,
-    verbose: false,
   );
 
   final todo = CodeGenerator(
@@ -47,11 +47,11 @@ Future<void> main() async {
       generateDi: true,
       generateMock: true,
       outputDir: outputDir,
+      dryRun: false,
+      force: true,
+      verbose: false,
     ),
     outputDir: outputDir,
-    dryRun: false,
-    force: true,
-    verbose: false,
   );
 
   await product.generate();

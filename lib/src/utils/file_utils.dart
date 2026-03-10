@@ -44,8 +44,13 @@ class FileUtils {
           ? await FileOperation.update(
               path: filePath,
               content: formattedContent,
+              force: force,
             )
-          : FileOperation.create(path: filePath, content: formattedContent);
+          : FileOperation.create(
+              path: filePath,
+              content: formattedContent,
+              force: force,
+            );
       transaction.addOperation(operation);
     } else if (!dryRun) {
       await file.parent.create(recursive: true);

@@ -31,23 +31,12 @@ class StateBuilder {
   ///
   /// @param outputDir Target directory for generated files.
   /// @param options Generation flags for writing behavior and logging.
-  /// @param dryRun Deprecated: use [options].
-  /// @param force Deprecated: use [options].
-  /// @param verbose Deprecated: use [options].
   /// @param specLibrary Optional spec library override.
   StateBuilder({
     required this.outputDir,
-    GeneratorOptions options = const GeneratorOptions(),
-    @Deprecated('Use options.dryRun') bool? dryRun,
-    @Deprecated('Use options.force') bool? force,
-    @Deprecated('Use options.verbose') bool? verbose,
+    this.options = const GeneratorOptions(),
     SpecLibrary? specLibrary,
-  }) : options = options.copyWith(
-         dryRun: dryRun ?? options.dryRun,
-         force: force ?? options.force,
-         verbose: verbose ?? options.verbose,
-       ),
-       specLibrary = specLibrary ?? const SpecLibrary();
+  }) : specLibrary = specLibrary ?? const SpecLibrary();
 
   /// Generates a state file for the given [config].
   ///

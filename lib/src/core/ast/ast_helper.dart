@@ -62,10 +62,7 @@ class AstHelper {
         .toList();
   }
 
-  String addImport({
-    required String source,
-    required String importPath,
-  }) {
+  String addImport({required String source, required String importPath}) {
     final parseResult = parseSource(source);
     final unit = parseResult.unit;
     if (unit == null) {
@@ -74,10 +71,7 @@ class AstHelper {
     return AstModifier.addImport(source, unit, importPath);
   }
 
-  String addExport({
-    required String source,
-    required String exportPath,
-  }) {
+  String addExport({required String source, required String exportPath}) {
     final parseResult = parseSource(source);
     final unit = parseResult.unit;
     if (unit == null) {
@@ -199,31 +193,8 @@ class AstHelper {
     if (extensionNode == null) {
       return source;
     }
-    // extensionNode.members is deprecated, use extensionNode.body.members (NodeFinder usage)
-    // Actually, NodeFinder uses extensionNode.body.members which suggests body is available.
-    // Let's assume analyzer package has ExtensionBody.
-    // If not, we should check if we can suppress the warning or use members despite deprecation.
-    // But since NodeFinder uses body.members, we should align.
-    /*
-    final methods = extensionNode.members
-        .whereType<MethodDeclaration>()
-        .where((m) => m.name.lexeme == methodName)
-        .toList();
-    */
-    // Wait, I can't check if body exists without reading the analyzer package source or docs.
-    // But NodeFinder uses it, so it must exist.
-    /*
+    // Use extensionNode.body.members instead of deprecated extensionNode.members
     final methods = extensionNode.body.members
-        .whereType<MethodDeclaration>()
-        .where((m) => m.name.lexeme == methodName)
-        .toList();
-    */
-    // I'll try to use extensionNode.members for now and suppress the warning if I can't fix it properly.
-    // But the warning is annoying.
-    // Let's try to access members via body if available.
-    // I'll just suppress it for now to proceed.
-    // ignore: deprecated_member_use
-    final methods = extensionNode.members
         .whereType<MethodDeclaration>()
         .where((m) => m.name.lexeme == methodName)
         .toList();

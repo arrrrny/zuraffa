@@ -44,19 +44,10 @@ class RepositoryImplementationGenerator {
   /// @param specLibrary Optional spec library override.
   RepositoryImplementationGenerator({
     required this.outputDir,
-    GeneratorOptions options = const GeneratorOptions(),
-    @Deprecated('Use options.dryRun') bool? dryRun,
-    @Deprecated('Use options.force') bool? force,
-    @Deprecated('Use options.verbose') bool? verbose,
-    AppendExecutor? appendExecutor,
-    SpecLibrary? specLibrary,
-  }) : options = options.copyWith(
-         dryRun: dryRun ?? options.dryRun,
-         force: force ?? options.force,
-         verbose: verbose ?? options.verbose,
-       ),
-       appendExecutor = appendExecutor ?? AppendExecutor(),
-       specLibrary = specLibrary ?? const SpecLibrary();
+    this.options = const GeneratorOptions(),
+    this.appendExecutor = const AppendExecutor(),
+    this.specLibrary = const SpecLibrary(),
+  });
 
   /// Generates a repository implementation for the given [config].
   ///

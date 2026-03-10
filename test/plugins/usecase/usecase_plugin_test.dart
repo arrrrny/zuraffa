@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/usecase/usecase_plugin.dart';
 
@@ -22,9 +23,11 @@ void main() {
   test('generates entity usecase with code_builder', () async {
     final plugin = UseCasePlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
     final config = GeneratorConfig(
       name: 'Todo',
@@ -45,9 +48,11 @@ void main() {
   test('generates custom sync usecase with repo dependency', () async {
     final plugin = UseCasePlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
     final config = GeneratorConfig(
       name: 'SyncUser',
@@ -69,9 +74,11 @@ void main() {
   test('generates custom stream usecase with service dependency', () async {
     final plugin = UseCasePlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
     final config = GeneratorConfig(
       name: 'StreamUser',
@@ -97,9 +104,11 @@ void main() {
   test('generates custom future usecase with service dependency', () async {
     final plugin = UseCasePlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
     final config = GeneratorConfig(
       name: 'GetListingByBarcode',
@@ -131,9 +140,11 @@ void main() {
   test('generates orchestrator usecase', () async {
     final plugin = UseCasePlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
     final config = GeneratorConfig(
       name: 'OrchestrateOrders',
@@ -151,9 +162,11 @@ void main() {
   test('generates polymorphic usecases and factory', () async {
     final plugin = UseCasePlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
     final config = GeneratorConfig(
       name: 'FetchUser',
@@ -178,11 +191,13 @@ void main() {
   test('smart append adds execute method to existing class', () async {
     final plugin = UseCasePlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: false,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
-    final filePath = '${outputDir}/domain/usecases/auth/login_usecase.dart';
+    final filePath = '$outputDir/domain/usecases/auth/login_usecase.dart';
     await File(filePath).create(recursive: true);
     await File(filePath).writeAsString(
       'import \'package:zuraffa/zuraffa.dart\';\n\nclass LoginUseCase extends UseCase<void, NoParams> {\n  LoginUseCase();\n}\n',

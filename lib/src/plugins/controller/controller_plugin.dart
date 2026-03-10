@@ -47,17 +47,9 @@ class ControllerPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   /// @param classBuilder Optional class builder override.
   ControllerPlugin({
     required this.outputDir,
-    GeneratorOptions options = const GeneratorOptions(),
-    @Deprecated('Use options.dryRun') bool? dryRun,
-    @Deprecated('Use options.force') bool? force,
-    @Deprecated('Use options.verbose') bool? verbose,
-    ControllerClassBuilder? classBuilder,
-  }) : options = options.copyWith(
-         dryRun: dryRun ?? options.dryRun,
-         force: force ?? options.force,
-         verbose: verbose ?? options.verbose,
-       ),
-       classBuilder = classBuilder ?? const ControllerClassBuilder();
+    this.options = const GeneratorOptions(),
+    this.classBuilder = const ControllerClassBuilder(),
+  });
 
   @override
   List<ZuraffaCapability> get capabilities => [

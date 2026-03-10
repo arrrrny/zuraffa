@@ -92,39 +92,35 @@ extension ControllerPluginBodies on ControllerPlugin {
           _updateStateStatement({'isLoading': literalBool(true)}),
         )
         ..statements.add(
-          streamCall
-              .property('listen')
-              .call([
-                Method(
-                  (m) => m
-                    ..requiredParameters
-                        .add(Parameter((p) => p..name = 'result'))
-                    ..body = _resultFold(
-                      resultVar: 'result',
-                      successParams: ['data'],
-                      successBody: Block(
-                        (bb) => bb
-                          ..statements.add(
-                            _updateStateStatement({
-                              'isLoading': literalBool(false),
-                              'data': refer('data'),
-                            }),
-                          ),
+          streamCall.property('listen').call([
+            Method(
+              (m) => m
+                ..requiredParameters.add(Parameter((p) => p..name = 'result'))
+                ..body = _resultFold(
+                  resultVar: 'result',
+                  successParams: ['data'],
+                  successBody: Block(
+                    (bb) => bb
+                      ..statements.add(
+                        _updateStateStatement({
+                          'isLoading': literalBool(false),
+                          'data': refer('data'),
+                        }),
                       ),
-                      failureParams: ['failure'],
-                      failureBody: Block(
-                        (bb) => bb
-                          ..statements.add(
-                            _updateStateStatement({
-                              'isLoading': literalBool(false),
-                              'error': refer('failure'),
-                            }),
-                          ),
+                  ),
+                  failureParams: ['failure'],
+                  failureBody: Block(
+                    (bb) => bb
+                      ..statements.add(
+                        _updateStateStatement({
+                          'isLoading': literalBool(false),
+                          'error': refer('failure'),
+                        }),
                       ),
-                    ),
-                ).closure,
-              ])
-              .statement,
+                  ),
+                ),
+            ).closure,
+          ]).statement,
         ),
     );
   }
@@ -144,23 +140,19 @@ extension ControllerPluginBodies on ControllerPlugin {
       (b) => b
         ..statements.add(_tokenStatement())
         ..statements.add(
-          streamCall
-              .property('listen')
-              .call([
-                Method(
-                  (m) => m
-                    ..requiredParameters
-                        .add(Parameter((p) => p..name = 'result'))
-                    ..body = _resultFold(
-                      resultVar: 'result',
-                      successParams: ['data'],
-                      successBody: Block((bb) => bb),
-                      failureParams: ['failure'],
-                      failureBody: Block((bb) => bb),
-                    ),
-                ).closure,
-              ])
-              .statement,
+          streamCall.property('listen').call([
+            Method(
+              (m) => m
+                ..requiredParameters.add(Parameter((p) => p..name = 'result'))
+                ..body = _resultFold(
+                  resultVar: 'result',
+                  successParams: ['data'],
+                  successBody: Block((bb) => bb),
+                  failureParams: ['failure'],
+                  failureBody: Block((bb) => bb),
+                ),
+            ).closure,
+          ]).statement,
         ),
     );
   }

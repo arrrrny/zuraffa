@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:code_builder/code_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/di/builders/registration_builder.dart';
 import 'package:zuraffa/src/plugins/di/di_plugin.dart';
@@ -24,9 +25,11 @@ void main() {
   test('generates repository and datasource registrations', () async {
     final plugin = DiPlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: false,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: false,
+        verbose: false,
+      ),
     );
 
     await plugin.generate(
@@ -61,9 +64,11 @@ void main() {
   test('uses mock datasource when useMockInDi is enabled', () async {
     final plugin = DiPlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: false,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: false,
+        verbose: false,
+      ),
     );
 
     await plugin.generate(
@@ -88,9 +93,11 @@ void main() {
   test('generates service DI with mock provider support', () async {
     final plugin = DiPlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
 
     await plugin.generate(
@@ -130,9 +137,11 @@ void main() {
     () async {
       final plugin = DiPlugin(
         outputDir: outputDir,
-        dryRun: false,
-        force: true,
-        verbose: false,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
       );
 
       await plugin.generate(
@@ -170,9 +179,11 @@ void main() {
     () async {
       final plugin = DiPlugin(
         outputDir: outputDir,
-        dryRun: false,
-        force: true,
-        verbose: false,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
       );
 
       await plugin.generate(
@@ -261,9 +272,11 @@ void main() {
 
     final plugin = DiPlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: false,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: false,
+        verbose: false,
+      ),
     );
 
     await plugin.generate(

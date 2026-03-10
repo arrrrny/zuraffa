@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/datasource/datasource_plugin.dart';
 
@@ -22,9 +23,11 @@ void main() {
   test('generates datasource interface and remote implementation', () async {
     final plugin = DataSourcePlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: false,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: false,
+        verbose: false,
+      ),
     );
 
     await plugin.generate(
@@ -58,9 +61,11 @@ void main() {
   test('generates local datasource when cache is enabled', () async {
     final plugin = DataSourcePlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: false,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: false,
+        verbose: false,
+      ),
     );
 
     await plugin.generate(
@@ -89,9 +94,11 @@ void main() {
   test('appends methods to existing datasource files', () async {
     final plugin = DataSourcePlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: false,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: false,
+        verbose: false,
+      ),
     );
 
     // 1. Initial generation
@@ -146,9 +153,11 @@ void main() {
   test('uses graphql constants when gql is enabled', () async {
     final plugin = DataSourcePlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: false,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: false,
+        verbose: false,
+      ),
     );
 
     await plugin.generate(

@@ -68,7 +68,8 @@ class UseCaseCommand extends PluginCommand {
     final params = argResults!['params'] as String?;
     final returns = argResults!['returns'] as String?;
 
-    final isCustomUseCase = repo != null ||
+    final isCustomUseCase =
+        repo != null ||
         service != null ||
         usecases.isNotEmpty ||
         (params != null && returns != null);

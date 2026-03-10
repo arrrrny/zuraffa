@@ -21,7 +21,9 @@ class CommonPatterns {
       }
     }
 
-    final domainSnake = config.domain != null ? StringUtils.camelToSnake(config.domain!) : null;
+    final domainSnake = config.domain != null
+        ? StringUtils.camelToSnake(config.domain!)
+        : null;
     final prefix = List.generate(depth, (_) => '..').join('/');
 
     return entities.map((entity) {

@@ -27,15 +27,8 @@ class FeaturePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   FeaturePlugin({
     required this.outputDir,
-    GeneratorOptions options = const GeneratorOptions(),
-    @Deprecated('Use options.dryRun') bool? dryRun,
-    @Deprecated('Use options.force') bool? force,
-    @Deprecated('Use options.verbose') bool? verbose,
-  }) : options = options.copyWith(
-         dryRun: dryRun ?? options.dryRun,
-         force: force ?? options.force,
-         verbose: verbose ?? options.verbose,
-       );
+    this.options = const GeneratorOptions(),
+  });
 
   @override
   List<ZuraffaCapability> get capabilities => [ScaffoldFeatureCapability(this)];

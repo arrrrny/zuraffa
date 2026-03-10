@@ -29,9 +29,6 @@ Future<void> main(List<String> args) async {
     final generator = CodeGenerator(
       config: config,
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
       progressReporter: NullProgressReporter(),
     );
 

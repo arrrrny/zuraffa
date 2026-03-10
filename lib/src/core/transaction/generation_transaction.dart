@@ -11,9 +11,10 @@ class GenerationTransaction {
   static final Object _zoneKey = Object();
 
   final bool dryRun;
+  final bool force;
   final List<FileOperation> _operations = [];
 
-  GenerationTransaction({required this.dryRun});
+  GenerationTransaction({required this.dryRun, this.force = false});
 
   List<FileOperation> get operations => List.unmodifiable(_operations);
 

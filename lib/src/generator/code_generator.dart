@@ -68,24 +68,16 @@ class CodeGenerator {
   CodeGenerator({
     required GeneratorConfig config,
     required this.outputDir,
-    GeneratorOptions options = const GeneratorOptions(),
-    @Deprecated('Use options.dryRun') bool? dryRun,
-    @Deprecated('Use options.force') bool? force,
-    @Deprecated('Use options.verbose') bool? verbose,
+    this.options = const GeneratorOptions(),
     ProgressReporter? progressReporter,
     Set<String>? disabledPluginIds,
-  }) : options = options.copyWith(
-         dryRun: dryRun ?? options.dryRun,
-         force: force ?? options.force,
-         verbose: verbose ?? options.verbose,
-       ),
-       config = config.copyWith(outputDir: outputDir),
+  }) : config = config.copyWith(outputDir: outputDir),
        context = GenerationContext.create(
          config: config.copyWith(outputDir: outputDir),
          outputDir: outputDir,
-         dryRun: dryRun ?? options.dryRun,
-         force: force ?? options.force,
-         verbose: verbose ?? options.verbose,
+         dryRun: options.dryRun,
+         force: options.force,
+         verbose: options.verbose,
          root: outputDir,
          progressReporter: progressReporter,
        ),
@@ -93,41 +85,32 @@ class CodeGenerator {
     pluginRegistry = PluginRegistry();
     _repositoryPlugin = RepositoryPlugin(
       outputDir: outputDir,
-      options: this.options,
+      options: options,
     );
-    _providerPlugin = ProviderPlugin(
-      outputDir: outputDir,
-      options: this.options,
-    );
-    _useCasePlugin = UseCasePlugin(outputDir: outputDir, options: this.options);
-    _viewPlugin = ViewPlugin(outputDir: outputDir, options: this.options);
-    _presenterPlugin = PresenterPlugin(
-      outputDir: outputDir,
-      options: this.options,
-    );
+    _providerPlugin = ProviderPlugin(outputDir: outputDir, options: options);
+    _useCasePlugin = UseCasePlugin(outputDir: outputDir, options: options);
+    _viewPlugin = ViewPlugin(outputDir: outputDir, options: options);
+    _presenterPlugin = PresenterPlugin(outputDir: outputDir, options: options);
     _controllerPlugin = ControllerPlugin(
       outputDir: outputDir,
-      options: this.options,
+      options: options,
     );
-    _diPlugin = DiPlugin(outputDir: outputDir, options: this.options);
+    _diPlugin = DiPlugin(outputDir: outputDir, options: options);
     _dataSourcePlugin = DataSourcePlugin(
       outputDir: outputDir,
-      options: this.options,
+      options: options,
     );
-    _servicePlugin = ServicePlugin(outputDir: outputDir, options: this.options);
-    _statePlugin = StatePlugin(outputDir: outputDir, options: this.options);
-    _observerPlugin = ObserverPlugin(
-      outputDir: outputDir,
-      options: this.options,
-    );
-    _testPlugin = TestPlugin(outputDir: outputDir, options: this.options);
-    _mockPlugin = MockPlugin(outputDir: outputDir, options: this.options);
-    _graphqlPlugin = GraphqlPlugin(outputDir: outputDir, options: this.options);
-    _cachePlugin = CachePlugin(outputDir: outputDir, options: this.options);
-    _routePlugin = RoutePlugin(outputDir: outputDir, options: this.options);
+    _servicePlugin = ServicePlugin(outputDir: outputDir, options: options);
+    _statePlugin = StatePlugin(outputDir: outputDir, options: options);
+    _observerPlugin = ObserverPlugin(outputDir: outputDir, options: options);
+    _testPlugin = TestPlugin(outputDir: outputDir, options: options);
+    _mockPlugin = MockPlugin(outputDir: outputDir, options: options);
+    _graphqlPlugin = GraphqlPlugin(outputDir: outputDir, options: options);
+    _cachePlugin = CachePlugin(outputDir: outputDir, options: options);
+    _routePlugin = RoutePlugin(outputDir: outputDir, options: options);
     _methodAppendPlugin = MethodAppendPlugin(
       outputDir: outputDir,
-      options: this.options,
+      options: options,
     );
 
     _registerPlugin(_repositoryPlugin);
@@ -150,7 +133,10 @@ class CodeGenerator {
   }
 
   Future<GeneratorResult> generate() async {
-    final transaction = GenerationTransaction(dryRun: options.dryRun);
+    final transaction = GenerationTransaction(
+      dryRun: options.dryRun,
+      force: options.force,
+    );
 
     return GenerationTransaction.run(transaction, () async {
       final progress = context.progress;

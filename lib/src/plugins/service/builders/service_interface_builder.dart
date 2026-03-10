@@ -3,7 +3,6 @@ import 'package:code_builder/code_builder.dart';
 import '../../../core/builder/patterns/common_patterns.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../models/generator_config.dart';
-import '../../../utils/string_utils.dart';
 
 class ServiceInterfaceBuilder {
   final SpecLibrary specLibrary;
@@ -46,13 +45,10 @@ class ServiceInterfaceBuilder {
 
     final directives = <Directive>[
       Directive.import('package:zuraffa/zuraffa.dart'),
-      ...CommonPatterns.entityImports(
-        [
-          paramsType,
-          returnsType,
-        ],
-        config,
-      ).map((path) => Directive.import(path)),
+      ...CommonPatterns.entityImports([
+        paramsType,
+        returnsType,
+      ], config).map((path) => Directive.import(path)),
     ];
 
     return specLibrary.emitSpec(clazz, directives: directives);

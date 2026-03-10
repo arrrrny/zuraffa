@@ -1,9 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zuraffa/src/core/plugin_system/capability.dart';
-import 'package:zuraffa/src/plugins/test/capabilities/create_test_capability.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/plugins/test/test_plugin.dart';
+import 'package:zuraffa/src/plugins/test/capabilities/create_test_capability.dart';
 
 void main() {
   late Directory tempDir;
@@ -23,9 +23,11 @@ void main() {
   test('CreateTestCapability plan returns expected effects', () async {
     final plugin = TestPlugin(
       outputDir: outputDir,
-      dryRun: true,
-      force: false,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: true,
+        force: false,
+        verbose: false,
+      ),
     );
     final capability = CreateTestCapability(plugin);
 
@@ -46,9 +48,11 @@ void main() {
   test('CreateTestCapability execute generates files', () async {
     final plugin = TestPlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
     final capability = CreateTestCapability(plugin);
 

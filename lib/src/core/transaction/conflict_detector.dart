@@ -15,7 +15,7 @@ class ConflictDetector {
     final file = File(operation.path);
     switch (operation.type) {
       case FileOperationType.create:
-        if (file.existsSync()) {
+        if (file.existsSync() && !operation.force) {
           return 'File already exists';
         }
         return null;
@@ -24,7 +24,7 @@ class ConflictDetector {
         if (!file.existsSync()) {
           return 'File missing';
         }
-        if (operation.expectedHash != null) {
+        if (operation.expectedHash != null && !operation.force) {
           final current = file.readAsStringSync();
           final currentHash = hashContent(current);
           if (currentHash != operation.expectedHash) {

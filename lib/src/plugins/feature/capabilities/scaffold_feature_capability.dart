@@ -9,6 +9,7 @@ import '../../view/view_plugin.dart';
 import '../../controller/controller_plugin.dart';
 import '../../state/state_plugin.dart';
 import '../../route/route_plugin.dart';
+import '../../../core/generator_options.dart';
 
 class ScaffoldFeatureCapability implements ZuraffaCapability {
   final FeaturePlugin plugin;
@@ -171,11 +172,14 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
 
     // Repository
     if (generateRepo) {
-      final repoPlugin = RepositoryPlugin(
-        outputDir: outputDir,
+      final options = GeneratorOptions(
         dryRun: dryRun,
         force: force,
         verbose: verbose,
+      );
+      final repoPlugin = RepositoryPlugin(
+        outputDir: outputDir,
+        options: options,
       );
       final config = GeneratorConfig(
         name: featureName,
@@ -199,11 +203,14 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
 
     // UseCases
     if (usecases.isNotEmpty) {
-      final usecasePlugin = UseCasePlugin(
-        outputDir: outputDir,
+      final options = GeneratorOptions(
         dryRun: dryRun,
         force: force,
         verbose: verbose,
+      );
+      final usecasePlugin = UseCasePlugin(
+        outputDir: outputDir,
+        options: options,
       );
 
       final config = GeneratorConfig(
@@ -224,27 +231,20 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
 
     // VPC
     if (generateVpcs) {
+      final options = GeneratorOptions(
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+      );
       // View, Presenter, Controller, State, DI
       // This requires instantiating multiple plugins.
       // For brevity, let's just do View and Controller for now as proof of concept.
-      final viewPlugin = ViewPlugin(
-        outputDir: outputDir,
-        dryRun: dryRun,
-        force: force,
-        verbose: verbose,
-      );
+      final viewPlugin = ViewPlugin(outputDir: outputDir, options: options);
       final controllerPlugin = ControllerPlugin(
         outputDir: outputDir,
-        dryRun: dryRun,
-        force: force,
-        verbose: verbose,
+        options: options,
       );
-      final statePlugin = StatePlugin(
-        outputDir: outputDir,
-        dryRun: dryRun,
-        force: force,
-        verbose: verbose,
-      );
+      final statePlugin = StatePlugin(outputDir: outputDir, options: options);
 
       final config = GeneratorConfig(
         name: featureName,
@@ -270,12 +270,12 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
 
       // Routes
       if (generateRoute) {
-        final routePlugin = RoutePlugin(
-          outputDir: outputDir,
+        final options = GeneratorOptions(
           dryRun: dryRun,
           force: force,
           verbose: verbose,
         );
+        final routePlugin = RoutePlugin(outputDir: outputDir, options: options);
 
         // Map usecases to methods for route generation
         final routeConfig = GeneratorConfig(

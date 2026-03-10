@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/presenter/presenter_plugin.dart';
 
@@ -22,9 +23,11 @@ void main() {
   test('generates presenter with usecase wiring', () async {
     final plugin = PresenterPlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
     final config = GeneratorConfig(
       name: 'Product',
@@ -58,9 +61,11 @@ void main() {
   test('generates query param methods with zorphy filter', () async {
     final plugin = PresenterPlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
     final config = GeneratorConfig(
       name: 'Product',
@@ -81,9 +86,11 @@ void main() {
   test('generates watch list method signature', () async {
     final plugin = PresenterPlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
     final config = GeneratorConfig(
       name: 'Order',
@@ -106,9 +113,11 @@ void main() {
     () async {
       final plugin = PresenterPlugin(
         outputDir: outputDir,
-        dryRun: false,
-        force: true,
-        verbose: false,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
       );
       final config = GeneratorConfig(
         name: 'GetListingByBarcode',
@@ -123,15 +132,11 @@ void main() {
       final content = files.first.content ?? '';
 
       expect(
-        content.contains(
-          "import '../../../entities/barcode/barcode.dart';",
-        ),
+        content.contains("import '../../../entities/barcode/barcode.dart';"),
         isTrue,
       );
       expect(
-        content.contains(
-          "import '../../../entities/listing/listing.dart';",
-        ),
+        content.contains("import '../../../entities/listing/listing.dart';"),
         isTrue,
       );
     },
@@ -140,9 +145,11 @@ void main() {
   test('generates custom usecase presenter correctly', () async {
     final plugin = PresenterPlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
     final config = GeneratorConfig(
       name: 'GetListingByBarcode',

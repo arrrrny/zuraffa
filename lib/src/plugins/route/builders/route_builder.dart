@@ -42,30 +42,20 @@ class RouteBuilder {
   ///
   /// @param outputDir Target directory for generated files.
   /// @param options Generation flags for writing behavior and logging.
-  /// @param dryRun Deprecated: use [options].
-  /// @param force Deprecated: use [options].
-  /// @param verbose Deprecated: use [options].
   /// @param appRoutesBuilder Optional app routes builder override.
   /// @param entityRoutesBuilder Optional entity routes builder override.
   /// @param appendExecutor Optional append executor override.
   /// @param specLibrary Optional spec library override.
+  /// @param emitter Optional code emitter override.
   RouteBuilder({
     required this.outputDir,
-    GeneratorOptions options = const GeneratorOptions(),
-    @Deprecated('Use options.dryRun') bool? dryRun,
-    @Deprecated('Use options.force') bool? force,
-    @Deprecated('Use options.verbose') bool? verbose,
+    this.options = const GeneratorOptions(),
     AppRoutesBuilder? appRoutesBuilder,
     EntityRoutesBuilder? entityRoutesBuilder,
     AppendExecutor? appendExecutor,
     SpecLibrary? specLibrary,
     DartEmitter? emitter,
-  }) : options = options.copyWith(
-         dryRun: dryRun ?? options.dryRun,
-         force: force ?? options.force,
-         verbose: verbose ?? options.verbose,
-       ),
-       appRoutesBuilder = appRoutesBuilder ?? AppRoutesBuilder(),
+  }) : appRoutesBuilder = appRoutesBuilder ?? AppRoutesBuilder(),
        entityRoutesBuilder = entityRoutesBuilder ?? EntityRoutesBuilder(),
        appendExecutor = appendExecutor ?? AppendExecutor(),
        specLibrary = specLibrary ?? const SpecLibrary(),
