@@ -13,6 +13,22 @@ class MockCommand extends PluginCommand {
       help: 'Generate only mock data (fixtures)',
       defaultsTo: false,
     );
+    argParser.addOption(
+      'service',
+      help: 'Service name for mock provider',
+    );
+    argParser.addOption(
+      'domain',
+      help: 'Domain folder for the mock provider',
+    );
+    argParser.addOption(
+      'params',
+      help: 'Parameter type for mock methods',
+    );
+    argParser.addOption(
+      'returns',
+      help: 'Return type for mock methods',
+    );
   }
 
   @override
@@ -23,8 +39,17 @@ class MockCommand extends PluginCommand {
 
   @override
   Future<void> run() async {
+    if (argResults!.rest.isEmpty) {
+      print('❌ Error: Entity name is required.');
+      print('Usage: zfa mock <EntityName> [options]');
+      return;
+    }
     final entityName = argResults!.rest.first;
     final dataOnly = argResults!['data-only'] as bool;
+    final service = argResults!['service'] as String?;
+    final domain = argResults!['domain'] as String?;
+    final params = argResults!['params'] as String?;
+    final returns = argResults!['returns'] as String?;
 
     final capability = plugin.capabilities.firstWhere(
       (c) => c is CreateMockCapability,
@@ -33,6 +58,10 @@ class MockCommand extends PluginCommand {
     final result = await capability.execute({
       'name': entityName,
       'data-only': dataOnly,
+      'service': service,
+      'domain': domain,
+      'params': params,
+      'returns': returns,
       'dryRun': isDryRun,
       'force': isForce,
       'verbose': isVerbose,

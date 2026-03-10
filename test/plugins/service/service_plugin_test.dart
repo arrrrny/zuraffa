@@ -44,10 +44,12 @@ void main() {
     expect(serviceFile.existsSync(), isTrue);
     final content = serviceFile.readAsStringSync();
     expect(content.contains('abstract class EmailService'), isTrue);
+    expect(content.contains('/// Service interface for EmailService'), isTrue);
     expect(
-      content.contains('Future<SendResult> sendEmail(EmailParams params)'),
+      content.contains('Future<SendResult> sendEmail(EmailParams params);'),
       isTrue,
     );
+    expect(content.contains('throw UnimplementedError();'), isFalse);
   });
 
   test('uses stream return type for stream usecases', () async {

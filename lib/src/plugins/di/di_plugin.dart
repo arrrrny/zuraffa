@@ -134,7 +134,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     // Generate UseCase DI files for all UseCase types
     files.addAll(await _generateUseCaseDIFiles(config));
 
-    if (config.generateData && !config.hasService && !config.isOrchestrator) {
+    if ((config.generateData || config.generateDi) && !config.hasService && !config.isOrchestrator) {
       if (config.enableCache) {
         files.add(await _generateRemoteDataSourceDI(config));
         files.add(await _generateLocalDataSourceDI(config));
@@ -147,7 +147,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       }
     }
 
-    if ((config.generateData || config.generateRepository) &&
+    if ((config.generateData || config.generateRepository || config.generateDi) &&
         !config.hasService &&
         !config.isOrchestrator) {
       files.add(await _generateRepositoryDI(config));
@@ -161,14 +161,22 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     }
 
     if (config.hasService) {
-      if (config.generateData) {
+      if (config.generateData || config.generateDi) {
         final serviceFile = await _generateServiceDI(config);
         if (serviceFile != null) {
           files.add(serviceFile);
         }
-        final providerFile = await _generateProviderDI(config);
-        if (providerFile != null) {
-          files.add(providerFile);
+
+        if (config.useMockInDi) {
+          final mockProviderFile = await _generateMockProviderDI(config);
+          if (mockProviderFile != null) {
+            files.add(mockProviderFile);
+          }
+        } else {
+          final providerFile = await _generateProviderDI(config);
+          if (providerFile != null) {
+            files.add(providerFile);
+          }
         }
       } else {
         final serviceFile = await _generateServiceDI(config);
@@ -444,7 +452,8 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   Future<GeneratedFile?> _generateServiceDI(GeneratorConfig config) async {
     final serviceName = config.effectiveService;
     final serviceSnake = config.serviceSnake;
-    if (serviceName == null || serviceSnake == null) {
+    final providerName = config.effectiveProvider;
+    if (serviceName == null || serviceSnake == null || providerName == null) {
       return null;
     }
     final fileName = '${serviceSnake}_service_di.dart';
@@ -454,22 +463,44 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return null;
     }
 
+    final imports = [
+      'package:get_it/get_it.dart',
+      '../../domain/services/${serviceSnake}_service.dart',
+    ];
+
+    if (config.useMockInDi) {
+      imports.add(
+        '../../data/providers/${config.effectiveDomain}/${config.providerSnake}_mock_provider.dart',
+      );
+    } else {
+      imports.add(
+        '../../data/providers/${config.effectiveDomain}/${config.providerSnake}_provider.dart',
+      );
+    }
+
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$serviceName',
-      imports: [
-        'package:get_it/get_it.dart',
-        '../../domain/services/${serviceSnake}_service.dart',
-      ],
+      imports: imports,
       body: Block(
         (b) => b
           ..statements.add(
-            refer('UnimplementedError')
-                .call([
-                  literalString(
-                    'Register your $serviceName implementation in $fileName',
-                  ),
-                ])
-                .thrown
+            refer('getIt')
+                .property('registerLazySingleton')
+                .call(
+                  [
+                    Method(
+                      (m) => m
+                        ..lambda = true
+                        ..body = refer(
+                          config.useMockInDi
+                              ? '${providerName.replaceAll('Provider', 'MockProvider')}'
+                              : providerName,
+                        ).call([]).code,
+                    ).closure,
+                  ],
+                  {},
+                  [refer(serviceName)],
+                )
                 .statement,
           ),
       ),
@@ -479,6 +510,64 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       diPath,
       content,
       'di_service',
+      force: force,
+      dryRun: dryRun,
+      verbose: verbose,
+      revert: config.revert,
+    );
+  }
+
+  Future<GeneratedFile?> _generateMockProviderDI(GeneratorConfig config) async {
+    final serviceName = config.effectiveService;
+    final providerName = config.effectiveProvider;
+    final providerSnake = config.providerSnake;
+    final serviceSnake = config.serviceSnake;
+    if (serviceName == null ||
+        providerName == null ||
+        providerSnake == null ||
+        serviceSnake == null) {
+      return null;
+    }
+    final mockProviderName = providerName.replaceAll('Provider', 'MockProvider');
+    final fileName = '${providerSnake}_mock_provider_di.dart';
+    final diPath = path.join(outputDir, 'di', 'providers', fileName);
+
+    if (File(diPath).existsSync() && !force) {
+      return null;
+    }
+
+    final content = registrationBuilder.buildRegistrationFile(
+      functionName: 'register$mockProviderName',
+      imports: [
+        'package:get_it/get_it.dart',
+        '../../domain/services/${serviceSnake}_service.dart',
+        '../../data/providers/${config.effectiveDomain}/${providerSnake}_mock_provider.dart',
+      ],
+      body: Block(
+        (b) => b
+          ..statements.add(
+            refer('getIt')
+                .property('registerLazySingleton')
+                .call(
+                  [
+                    Method(
+                      (m) => m
+                        ..lambda = true
+                        ..body = refer(mockProviderName).call([]).code,
+                    ).closure,
+                  ],
+                  {},
+                  [refer(serviceName)],
+                )
+                .statement,
+          ),
+      ),
+    );
+
+    return FileUtils.writeFile(
+      diPath,
+      content,
+      'di_mock_provider',
       force: force,
       dryRun: dryRun,
       verbose: verbose,
@@ -651,7 +740,10 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final repoName = '${entityName}Repository';
     final repoSnake = entitySnake;
 
-    for (final method in config.methods) {
+    final methods = config.methods;
+    if (methods.isEmpty) return files;
+
+    for (final method in methods) {
       final usecaseInfo = _getUseCaseInfo(method, entityName);
       final className = usecaseInfo.className;
       final classSnake = StringUtils.camelToSnake(
@@ -720,8 +812,9 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final constructorParams = <Expression>[];
 
-    if (config.hasRepo) {
-      for (final repo in config.effectiveRepos) {
+    final effectiveRepos = config.effectiveRepos;
+    if (effectiveRepos.isNotEmpty) {
+      for (final repo in effectiveRepos) {
         final repoSnake = StringUtils.camelToSnake(
           repo.replaceAll('Repository', ''),
         );
@@ -730,16 +823,14 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       }
     }
 
-    if (config.hasService) {
-      final serviceName = config.effectiveService;
-      if (serviceName != null) {
-        final serviceSnake = config.serviceSnake;
-        if (serviceSnake != null) {
-          imports.add('../../domain/services/${serviceSnake}_service.dart');
-          constructorParams.add(
-            refer('getIt').call([], {}, [refer(serviceName)]),
-          );
-        }
+    final serviceName = config.effectiveService;
+    if (serviceName != null) {
+      final serviceSnake = config.serviceSnake;
+      if (serviceSnake != null) {
+        imports.add('../../domain/services/${serviceSnake}_service.dart');
+        constructorParams.add(
+          refer('getIt').call([], {}, [refer(serviceName)]),
+        );
       }
     }
 

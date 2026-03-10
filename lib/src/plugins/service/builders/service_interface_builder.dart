@@ -42,6 +42,7 @@ class ServiceInterfaceBuilder {
       (b) => b
         ..name = serviceName
         ..abstract = true
+        ..docs.addAll(['/// Service interface for $serviceName'])
         ..methods.add(method),
     );
 

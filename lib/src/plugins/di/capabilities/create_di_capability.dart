@@ -110,6 +110,8 @@ class CreateDiCapability implements ZuraffaCapability {
       domain: domain,
       generateDi: true,
       useMockInDi: useMock,
+      generateData: useMock, // Needed to trigger mock datasource/provider generation
+      generateRepository: useMock, // Needed to trigger repository DI generation
       dryRun: dryRun,
       force: force,
       verbose: verbose,

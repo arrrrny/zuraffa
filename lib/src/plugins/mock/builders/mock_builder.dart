@@ -3,8 +3,10 @@ import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/entity_analyzer.dart';
+import '../../../utils/entity_utils.dart';
 import 'mock_data_builder.dart';
 import 'mock_datasource_builder.dart';
+import 'mock_provider_builder.dart';
 import 'mock_entity_graph_builder.dart';
 
 /// Generates mock data builders for entities and their variants.
@@ -30,6 +32,7 @@ class MockBuilder {
   final SpecLibrary specLibrary;
   final MockDataBuilder dataBuilder;
   final MockDataSourceBuilder dataSourceBuilder;
+  final MockProviderBuilder providerBuilder;
   final MockEntityGraphBuilder entityGraphBuilder;
 
   /// Creates a [MockBuilder].
@@ -42,6 +45,7 @@ class MockBuilder {
   /// @param specLibrary Optional spec library override.
   /// @param dataBuilder Optional mock data builder override.
   /// @param dataSourceBuilder Optional mock data source builder override.
+  /// @param providerBuilder Optional mock provider builder override.
   /// @param entityGraphBuilder Optional mock entity graph builder override.
   MockBuilder({
     required this.outputDir,
@@ -52,6 +56,7 @@ class MockBuilder {
     SpecLibrary? specLibrary,
     MockDataBuilder? dataBuilder,
     MockDataSourceBuilder? dataSourceBuilder,
+    MockProviderBuilder? providerBuilder,
     MockEntityGraphBuilder? entityGraphBuilder,
   }) : options = options.copyWith(
          dryRun: dryRun ?? options.dryRun,
@@ -80,6 +85,15 @@ class MockBuilder {
              verbose: verbose ?? options.verbose,
              specLibrary: specLibrary ?? const SpecLibrary(),
            ),
+       providerBuilder =
+           providerBuilder ??
+           MockProviderBuilder(
+             outputDir: outputDir,
+             dryRun: dryRun ?? options.dryRun,
+             force: force ?? options.force,
+             verbose: verbose ?? options.verbose,
+             specLibrary: specLibrary ?? const SpecLibrary(),
+           ),
        entityGraphBuilder =
            entityGraphBuilder ?? MockEntityGraphBuilder(outputDir: outputDir);
 
@@ -90,25 +104,40 @@ class MockBuilder {
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     final files = <GeneratedFile>[];
 
+    final targetEntity = config.isCustomUseCase && config.returnsType != null
+        ? EntityUtils.extractEntityTypes(config.returnsType!).firstOrNull ??
+            config.name
+        : config.name;
+
     final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
-      config.name,
+      targetEntity,
       outputDir,
     );
     final isPolymorphic = subtypes.isNotEmpty;
 
     if (!isPolymorphic) {
-      files.add(await dataBuilder.generateMockDataFile(config));
+      final dataConfig = config.name == targetEntity
+          ? config
+          : config.copyWith(name: targetEntity);
+      files.add(await dataBuilder.generateMockDataFile(dataConfig));
     }
 
     files.addAll(
       await entityGraphBuilder.generateNestedEntityMockFiles(
-        config: config,
+        config: config.name == targetEntity
+            ? config
+            : config.copyWith(name: targetEntity),
         generateMockDataFile: dataBuilder.generateMockDataFile,
       ),
     );
 
     if (!config.generateMockDataOnly) {
-      files.add(await dataSourceBuilder.generateMockDataSource(config));
+      if (!config.hasService) {
+        files.add(await dataSourceBuilder.generateMockDataSource(config));
+      }
+      if (config.hasService) {
+        files.add(await providerBuilder.generateMockProvider(config));
+      }
     }
 
     return files;

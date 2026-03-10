@@ -57,7 +57,12 @@ class MockDataBuilder {
       Directive.import(
         '../../domain/entities/$entitySnake/$entitySnake.dart',
       ),
-      ...imports.map(Directive.import),
+      ...imports.map((import) {
+        if (import.startsWith('package:')) {
+          return Directive.import(import);
+        }
+        return Directive.import('../mock/$import');
+      }),
     ];
 
     final clazz = Class(

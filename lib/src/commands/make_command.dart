@@ -76,6 +76,11 @@ class MakeCommand extends Command<void> {
       abbr: 'R',
       help: 'Return type for custom usecases (e.g., void, User, List<User>)',
     );
+    argParser.addFlag(
+      'use-mock',
+      negatable: false,
+      help: 'Use mock provider/datasource in DI registration',
+    );
   }
 
   @override
@@ -144,6 +149,7 @@ class MakeCommand extends Command<void> {
     final service = argResults!['service'] as String?;
     final params = argResults!['params'] as String?;
     final returns = argResults!['returns'] as String?;
+    final useMockInDi = argResults!['use-mock'] == true;
 
     // Create a base config that enables everything requested
     final config = GeneratorConfig(
@@ -163,6 +169,7 @@ class MakeCommand extends Command<void> {
       force: force,
       verbose: verbose,
       outputDir: outputDir,
+      useMockInDi: useMockInDi,
       // Map known plugins
       generateRoute: pluginNames.contains('route'),
       generateDi: pluginNames.contains('di'),

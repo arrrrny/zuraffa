@@ -196,6 +196,11 @@ class GenerateCommand extends Command<void> {
       help: 'Generate mock data source',
     );
     argParser.addFlag(
+      'use-mock',
+      negatable: false,
+      help: 'Use mock provider/datasource in DI registration',
+    );
+    argParser.addFlag(
       'gql',
       negatable: false,
       help: 'Generate GraphQL queries/mutations',
@@ -416,6 +421,9 @@ class GenerateCommand extends Command<void> {
           : null,
       generateMock: argResults!.wasParsed('mock')
           ? argResults!['mock'] == true
+          : zfaConfig.mockByDefault,
+      useMockInDi: argResults!.wasParsed('use-mock')
+          ? argResults!['use-mock'] == true
           : zfaConfig.mockByDefault,
       generateDi: argResults!.wasParsed('di')
           ? argResults!['di'] == true

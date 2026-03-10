@@ -85,6 +85,36 @@ void main() {
     expect(repoContent.contains('OrderMockDataSource'), isTrue);
   });
 
+  test('generates service DI with mock provider support', () async {
+    final plugin = DiPlugin(
+      outputDir: outputDir,
+      dryRun: false,
+      force: true,
+      verbose: false,
+    );
+
+    await plugin.generate(
+      GeneratorConfig(
+        name: 'GetListingByBarcode',
+        service: 'Listing',
+        domain: 'listing',
+        generateDi: true,
+        generateData: true,
+        useMockInDi: true,
+        outputDir: outputDir,
+      ),
+    );
+
+    final serviceDiFile = File('$outputDir/di/services/listing_service_di.dart');
+    expect(serviceDiFile.existsSync(), isTrue);
+    final content = serviceDiFile.readAsStringSync();
+
+    expect(content.contains('registerListingService'), isTrue);
+    expect(content.contains('getIt.registerLazySingleton<ListingService>'), isTrue);
+    expect(content.contains('ListingMockProvider()'), isTrue);
+    expect(content.contains("import '../../data/providers/listing/listing_mock_provider.dart';"), isTrue);
+  });
+
   test('updates index files using AST append', () async {
     final diDir = Directory('$outputDir/di/datasources')
       ..createSync(recursive: true);

@@ -47,6 +47,22 @@ class CreateMockCapability implements ZuraffaCapability {
             'description': 'Enable verbose logging',
             'default': false,
           },
+          'service': {
+            'type': 'string',
+            'description': 'Service name for mock provider',
+          },
+          'domain': {
+            'type': 'string',
+            'description': 'Domain folder for the mock provider',
+          },
+          'params': {
+            'type': 'string',
+            'description': 'Parameter type for mock methods',
+          },
+          'returns': {
+            'type': 'string',
+            'description': 'Return type for mock methods',
+          },
         },
         'required': ['name'],
       };
@@ -98,10 +114,18 @@ class CreateMockCapability implements ZuraffaCapability {
     final dataOnly = args['data-only'] ?? false;
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
+    final service = args['service'];
+    final domain = args['domain'];
+    final params = args['params'];
+    final returns = args['returns'];
 
     final config = GeneratorConfig(
       name: name,
       outputDir: outputDir,
+      service: service,
+      domain: domain,
+      paramsType: params,
+      returnsType: returns,
       generateMock: !dataOnly,
       generateMockDataOnly: dataOnly,
       dryRun: dryRun,

@@ -64,6 +64,12 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return delegator.generate(config);
     }
 
+    // If mocks were explicitly requested, always generate/append
+    if (config.generateMock || config.generateMockDataOnly) {
+      return mockBuilder.generate(config);
+    }
+
+    // If not explicitly requested, only run if we are appending to existing mocks
     if (config.appendToExisting) {
       final entityName = config.repo != null
           ? config.repo!.replaceAll('Repository', '')
@@ -77,15 +83,25 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         '${entitySnake}_mock_datasource.dart',
       );
 
+      final providerSnake = config.providerSnake;
+      if (providerSnake != null) {
+        final providerMockPath = path.join(
+          outputDir,
+          'data',
+          'providers',
+          config.effectiveDomain,
+          '${providerSnake}_mock_provider.dart',
+        );
+        if (File(providerMockPath).existsSync()) {
+          return mockBuilder.generate(config);
+        }
+      }
+
       if (File(mockPath).existsSync()) {
         return mockBuilder.generate(config);
       }
-      return [];
     }
 
-    if (!config.generateMock && !config.generateMockDataOnly) {
-      return [];
-    }
-    return mockBuilder.generate(config);
+    return [];
   }
 }

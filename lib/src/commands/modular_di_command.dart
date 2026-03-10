@@ -32,7 +32,7 @@ class ModularDiCommand extends PluginCommand {
 
     final name = args[0];
     final domain = argResults!['domain'] as String?;
-    final useMock = argResults!['use-mock'] as bool;
+    final useMock = argResults!['use-mock'] == true;
 
     final capability = plugin.capabilities.firstWhere(
       (c) => c is CreateDiCapability,
