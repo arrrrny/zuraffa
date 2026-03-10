@@ -99,10 +99,9 @@ class ViewClassBuilder {
           Parameter(
             (p) => p
               ..name = 'controller'
-              ..type = refer(spec.controllerName),
+              ..toSuper = true,
           ),
-        )
-        ..initializers.add(refer('super').call([refer('controller')]).code),
+        ),
     );
 
     final onInitState = lifecycleBuilder.buildOnInitState(

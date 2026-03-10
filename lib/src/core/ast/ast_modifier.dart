@@ -97,6 +97,41 @@ class AstModifier {
     return source.substring(0, field.offset) + source.substring(field.end);
   }
 
+  static String addImport(String source, CompilationUnit unit, String importPath) {
+    final importDirective = "import '$importPath';";
+    final imports = unit.directives.whereType<ImportDirective>().toList();
+    if (imports.isNotEmpty) {
+      final lastImport = imports.last;
+      final insertOffset = lastImport.end;
+      return '${source.substring(0, insertOffset)}\n$importDirective'
+          '${source.substring(insertOffset)}';
+    }
+    final firstDirective = unit.directives.isEmpty ? null : unit.directives.first;
+    if (firstDirective != null) {
+      final insertOffset = firstDirective.offset;
+      return '$importDirective\n${source.substring(insertOffset)}';
+    }
+    return '$importDirective\n\n$source';
+  }
+
+  static String addExport(String source, CompilationUnit unit, String exportPath) {
+    final exportDirective = "export '$exportPath';";
+    final exports = unit.directives.whereType<ExportDirective>().toList();
+    if (exports.isNotEmpty) {
+      final lastExport = exports.last;
+      final insertOffset = lastExport.end;
+      return '${source.substring(0, insertOffset)}\n$exportDirective'
+          '${source.substring(insertOffset)}';
+    }
+    final lastImport = unit.directives.whereType<ImportDirective>().lastOrNull;
+    if (lastImport != null) {
+      final insertOffset = lastImport.end;
+      return '${source.substring(0, insertOffset)}\n\n$exportDirective'
+          '${source.substring(insertOffset)}';
+    }
+    return '$exportDirective\n\n$source';
+  }
+
   static String addFieldToClass({
     required String source,
     required ClassDeclaration classNode,

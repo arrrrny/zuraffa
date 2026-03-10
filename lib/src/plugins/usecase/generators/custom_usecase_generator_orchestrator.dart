@@ -53,7 +53,11 @@ extension CustomUseCaseGeneratorOrchestrator on CustomUseCaseGenerator {
       );
     }
 
-    final entityImports = _entityImports([paramsType, returnsType]);
+    final entityImports = CommonPatterns.entityImports(
+      [paramsType, returnsType],
+      config,
+      depth: 2,
+    );
     usecaseImports.addAll(entityImports);
 
     final executeMethod = _buildOrchestratorExecute(

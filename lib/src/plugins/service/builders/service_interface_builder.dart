@@ -46,10 +46,13 @@ class ServiceInterfaceBuilder {
 
     final directives = <Directive>[
       Directive.import('package:zuraffa/zuraffa.dart'),
-      ..._entityImports([
-        paramsType,
-        returnsType,
-      ]).map((path) => Directive.import(path)),
+      ...CommonPatterns.entityImports(
+        [
+          paramsType,
+          returnsType,
+        ],
+        config,
+      ).map((path) => Directive.import(path)),
     ];
 
     return specLibrary.emitSpec(clazz, directives: directives);
@@ -66,65 +69,5 @@ class ServiceInterfaceBuilder {
       default:
         return 'Future<$returnsType>';
     }
-  }
-
-  List<String> _entityImports(List<String?> types) {
-    final entities = <String>[];
-    final primitives = {
-      'void',
-      'String',
-      'int',
-      'double',
-      'bool',
-      'dynamic',
-      'Object',
-      'NoParams',
-      'Params',
-      'QueryParams',
-      'ListQueryParams',
-      'UpdateParams',
-      'DeleteParams',
-      'CreateParams',
-      'Map',
-      'Set',
-      'List',
-      'Result',
-      'AppFailure',
-      'Duration',
-      'DateTime',
-    };
-
-    for (final type in types) {
-      if (type == null) continue;
-      final baseTypes = _extractBaseTypes(type);
-      for (final baseType in baseTypes) {
-        if (!primitives.contains(baseType) &&
-            !baseType.startsWith('Map<') &&
-            !baseType.startsWith('Set<')) {
-          entities.add(baseType);
-        }
-      }
-    }
-
-    return entities.toSet().map((entity) {
-      final entitySnake = StringUtils.camelToSnake(entity);
-      return '../entities/$entitySnake/$entitySnake.dart';
-    }).toList();
-  }
-
-  List<String> _extractBaseTypes(String type) {
-    final cleanType = type.replaceAll('?', '');
-    final results = <String>[];
-    final genericMatch = RegExp(r'(\w+)<(.+)>').firstMatch(cleanType);
-    if (genericMatch != null) {
-      final innerType = genericMatch.group(2);
-      if (innerType != null) {
-        results.addAll(_extractBaseTypes(innerType));
-      }
-    } else if (cleanType.isNotEmpty && cleanType != 'void') {
-      results.add(cleanType);
-    }
-
-    return results;
   }
 }

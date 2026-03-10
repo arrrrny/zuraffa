@@ -44,7 +44,9 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
       }
       imports.add('../../services/${serviceSnake}_service.dart');
     }
-    imports.addAll(_entityImports([paramsType, returnsType]));
+    imports.addAll(
+      CommonPatterns.entityImports([paramsType, returnsType], config, depth: 2),
+    );
     return imports;
   }
 
@@ -105,26 +107,6 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
           ),
         )
         .toList();
-  }
-
-  List<String> _entityImports(List<String?> types) {
-    final entityNames = <String>{};
-    for (final type in types) {
-      if (type == null) continue;
-      final cleanType = type.replaceAll(RegExp(r'<[^>]*>'), ' ');
-      final regex = RegExp(r'[A-Z][a-zA-Z0-9_]*');
-      final matches = regex.allMatches(cleanType);
-      for (final match in matches) {
-        final name = match.group(0);
-        if (name != null && !KnownTypes.isExcluded(name)) {
-          entityNames.add(name);
-        }
-      }
-    }
-    return entityNames.map((e) {
-      final snake = StringUtils.camelToSnake(e);
-      return '../../entities/$snake/$snake.dart';
-    }).toList();
   }
 
   String _resolveUseCasePath(GeneratorConfig config, String usecaseName) {

@@ -62,6 +62,30 @@ class AstHelper {
         .toList();
   }
 
+  String addImport({
+    required String source,
+    required String importPath,
+  }) {
+    final parseResult = parseSource(source);
+    final unit = parseResult.unit;
+    if (unit == null) {
+      return source;
+    }
+    return AstModifier.addImport(source, unit, importPath);
+  }
+
+  String addExport({
+    required String source,
+    required String exportPath,
+  }) {
+    final parseResult = parseSource(source);
+    final unit = parseResult.unit;
+    if (unit == null) {
+      return source;
+    }
+    return AstModifier.addExport(source, unit, exportPath);
+  }
+
   String addMethodToClass({
     required String source,
     required String className,

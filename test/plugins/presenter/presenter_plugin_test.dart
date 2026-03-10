@@ -124,13 +124,13 @@ void main() {
 
       expect(
         content.contains(
-          "import '../../../domain/entities/barcode/barcode.dart';",
+          "import '../../../entities/barcode/barcode.dart';",
         ),
         isTrue,
       );
       expect(
         content.contains(
-          "import '../../../domain/entities/listing/listing.dart';",
+          "import '../../../entities/listing/listing.dart';",
         ),
         isTrue,
       );

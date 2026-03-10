@@ -5,6 +5,7 @@ import 'package:path/path.dart' as path;
 
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
+import '../../../core/builder/patterns/common_patterns.dart';
 import '../../../core/constants/known_types.dart';
 import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
@@ -182,7 +183,11 @@ class StreamUseCaseGenerator {
       imports: [
         'package:zuraffa/zuraffa.dart',
         ...dependencyImports,
-        ..._entityImports([paramsType, returnsType]),
+        ...CommonPatterns.entityImports(
+          [paramsType, returnsType],
+          config,
+          depth: 2,
+        ),
       ],
     );
 
@@ -202,27 +207,6 @@ class StreamUseCaseGenerator {
     return config.hasService
         ? config.getServiceMethodName()
         : config.getRepoMethodName();
-  }
-
-  List<String> _entityImports(List<String?> types) {
-    final entityNames = <String>{};
-    for (final type in types) {
-      if (type == null) continue;
-      final regex = RegExp(r'[A-Z][a-zA-Z0-9_]*');
-      final matches = regex.allMatches(type);
-      for (final match in matches) {
-        final name = match.group(0);
-        if (name != null && !KnownTypes.isExcluded(name)) {
-          entityNames.add(name);
-        }
-      }
-    }
-    return entityNames
-        .map(
-          (e) =>
-              '../../entities/${StringUtils.camelToSnake(e)}/${StringUtils.camelToSnake(e)}.dart',
-        )
-        .toList();
   }
 
   Future<GeneratedFile> _writeOrAppend({

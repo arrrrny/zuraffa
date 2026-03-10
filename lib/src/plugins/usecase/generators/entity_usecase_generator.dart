@@ -300,11 +300,11 @@ class EntityUseCaseGenerator {
     final imports = <String>['package:zuraffa/zuraffa.dart'];
     if (needsEntityImport) {
       final entityPath =
-          '$relativePath../entities/$entitySnake/$entitySnake.dart';
+          '../../entities/$entitySnake/$entitySnake.dart';
       imports.add(entityPath);
     }
     final repoPath =
-        '$relativePath../repositories/${StringUtils.camelToSnake(repoName.replaceAll('Repository', ''))}_repository.dart';
+        '../../repositories/${StringUtils.camelToSnake(repoName.replaceAll('Repository', ''))}_repository.dart';
     imports.add(repoPath);
 
     final executeMethod = Method((m) {

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/service/service_plugin.dart';
+import 'package:zuraffa/src/plugins/usecase/usecase_plugin.dart';
 
 void main() {
   late Directory tempDir;
@@ -143,6 +144,82 @@ void main() {
       );
       expect(
         content.contains("import '../entities/listing/listing.dart';"),
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'correctly generates complex entity imports in service interface',
+    () async {
+      final plugin = ServicePlugin(
+        outputDir: outputDir,
+        dryRun: false,
+        force: false,
+        verbose: false,
+      );
+
+      await plugin.generate(
+        GeneratorConfig(
+          name: 'GetListingByBarcode',
+          service: 'Listing',
+          domain: 'listing',
+          paramsType: 'Barcode',
+          returnsType: 'BarcodeListing?',
+          useCaseType: 'stream',
+          outputDir: outputDir,
+        ),
+      );
+
+      final serviceFile = File(
+        '$outputDir/domain/services/listing_service.dart',
+      );
+      final content = serviceFile.readAsStringSync();
+
+      expect(
+        content.contains("import '../entities/barcode/barcode.dart';"),
+        isTrue,
+      );
+      expect(
+        content.contains("import '../entities/listing/barcode_listing.dart';"),
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'correctly generates relative entity imports in usecase',
+    () async {
+      final plugin = UseCasePlugin(
+        outputDir: outputDir,
+        dryRun: false,
+        force: false,
+        verbose: false,
+      );
+
+      await plugin.generate(
+        GeneratorConfig(
+          name: 'GetListingByBarcode',
+          service: 'Listing',
+          domain: 'listing',
+          paramsType: 'Barcode',
+          returnsType: 'BarcodeListing?',
+          useCaseType: 'stream',
+          outputDir: outputDir,
+        ),
+      );
+
+      final usecaseFile = File(
+        '$outputDir/domain/usecases/listing/get_listing_by_barcode_usecase.dart',
+      );
+      final content = usecaseFile.readAsStringSync();
+
+      expect(
+        content.contains("import '../../entities/barcode/barcode.dart';"),
+        isTrue,
+      );
+      expect(
+        content.contains("import '../../entities/listing/barcode_listing.dart';"),
         isTrue,
       );
     },

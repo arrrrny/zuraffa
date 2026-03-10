@@ -5,8 +5,7 @@ extension ControllerPluginUtils on ControllerPlugin {
     return Parameter(
       (p) => p
         ..name = 'cancelToken'
-        ..type = refer('CancelToken?')
-        ..defaultTo = literalNull.code,
+        ..type = refer('CancelToken?'),
     );
   }
 

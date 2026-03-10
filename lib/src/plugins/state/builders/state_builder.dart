@@ -119,8 +119,22 @@ class StateBuilder {
       );
 
       if (config.returnsType != null && config.returnsType != 'void') {
+        final returnsType = config.returnsType!;
+        final isNullable = returnsType.endsWith('?');
+        final symbol = isNullable
+            ? returnsType.substring(0, returnsType.length - 1)
+            : returnsType;
+
         fields.add(
-          _docField('The result data', 'data', refer(config.returnsType!)),
+          _docField(
+            'The result data',
+            'data',
+            TypeReference(
+              (b) => b
+                ..symbol = symbol
+                ..isNullable = true,
+            ),
+          ),
         );
       }
 
@@ -315,11 +329,21 @@ class StateBuilder {
     ];
 
     if (config.returnsType != null && config.returnsType != 'void') {
+      final returnsType = config.returnsType!;
+      final isNullable = returnsType.endsWith('?');
+      final symbol = isNullable
+          ? returnsType.substring(0, returnsType.length - 1)
+          : returnsType;
+
       params.add(
         Parameter(
           (p) => p
             ..name = 'data'
-            ..type = refer(config.returnsType!)
+            ..type = TypeReference(
+              (b) => b
+                ..symbol = symbol
+                ..isNullable = true,
+            )
             ..named = true,
         ),
       );

@@ -90,6 +90,13 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
         variant,
       );
 
+      final entityImports = CommonPatterns.entityImports(
+        [paramsType, returnsType],
+        config,
+        depth: 2,
+      );
+      imports.addAll(entityImports);
+
       final spec = UseCaseClassSpec(
         className: variantClassName,
         baseClass: baseClassName,

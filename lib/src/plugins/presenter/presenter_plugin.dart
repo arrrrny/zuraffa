@@ -3,6 +3,7 @@ import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../commands/presenter_command.dart';
+import '../../core/builder/patterns/common_patterns.dart';
 import '../../core/constants/known_types.dart';
 import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
@@ -277,13 +278,32 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       final params = config.paramsType ?? 'NoParams';
       final isStream = config.useCaseType == 'stream';
 
+      // Parse nullability
+      final isNullable = returns.endsWith('?');
+      final baseReturns = isNullable ? returns.substring(0, returns.length - 1) : returns;
+
+      final resultType = TypeReference(
+        (b) => b
+          ..symbol = 'Result'
+          ..types.addAll([
+            TypeReference((b) => b
+              ..symbol = baseReturns
+              ..isNullable = isNullable),
+            refer('AppFailure'),
+          ]),
+      );
+
+      final returnType = TypeReference(
+        (b) => b
+          ..symbol = isStream ? 'Stream' : 'Future'
+          ..types.add(resultType),
+      );
+
       return [
         Method(
           (m) => m
             ..name = info.fieldName
-            ..returns = isStream
-                ? refer('Stream<Result<$returns, AppFailure>>')
-                : refer('Future<Result<$returns, AppFailure>>')
+            ..returns = returnType
             ..requiredParameters.addAll(
               params == 'NoParams'
                   ? const []
@@ -634,21 +654,8 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         types.add(config.paramsType!);
       }
 
-      for (final rawType in types) {
-        final cleanTypes = rawType
-            .replaceAll('List<', ' ')
-            .replaceAll('Map<', ' ')
-            .replaceAll('>', ' ')
-            .replaceAll('?', ' ')
-            .replaceAll(',', ' ');
-        for (final type
-            in cleanTypes.split(RegExp(r'\s+')).map((t) => t.trim())) {
-          if (type.isNotEmpty && !KnownTypes.isExcluded(type)) {
-            final snake = StringUtils.camelToSnake(type);
-            imports.add('../../../domain/entities/$snake/$snake.dart');
-          }
-        }
-      }
+      final entityImports = CommonPatterns.entityImports(types, config, depth: 3);
+      imports.addAll(entityImports);
     } else {
       imports.add('../../../domain/entities/$domainSnake/$domainSnake.dart');
     }
