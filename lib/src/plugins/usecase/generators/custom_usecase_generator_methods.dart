@@ -30,16 +30,10 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
                   refer('UnimplementedError').call([]).thrown.statement,
                 ),
             )
-          : Block(
-              (b) => b
-                ..statements.add(
-                  refer(depField)
-                    .property(methodName)
-                    .call([refer('params')])
-                    .returned
-                    .statement,
-                ),
-            );
+          : refer(depField)
+              .property(methodName)
+              .call([refer('params')])
+              .code;
       return [
         Method(
           (b) => b
@@ -60,6 +54,7 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
               ),
             )
             ..annotations.add(CodeExpression(Code('override')))
+            ..lambda = depField.isNotEmpty
             ..body = executeBody,
         ),
       ];
@@ -74,16 +69,10 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
                   refer('UnimplementedError').call([]).thrown.statement,
                 ),
             )
-          : Block(
-              (b) => b
-                ..statements.add(
-                  refer(depField)
-                      .property(methodName)
-                      .call([refer('params')])
-                      .returned
-                      .statement,
-                ),
-            );
+          : refer(depField)
+              .property(methodName)
+              .call([refer('params')])
+              .code;
       return [
         Method(
           (b) => b
@@ -97,26 +86,28 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
               ),
             )
             ..annotations.add(CodeExpression(Code('override')))
+            ..lambda = depField.isNotEmpty
             ..body = executeBody,
         ),
       ];
     }
-    final executeBody = Block((b) {
-      b.statements.add(Code('cancelToken?.throwIfCancelled();'));
-      if (depField.isEmpty) {
-        b.statements.add(Code('// TODO: Implement usecase logic'));
-        b.statements.add(refer('UnimplementedError').call([]).thrown.statement);
-      } else {
-        b.statements.add(
-          refer(depField)
-              .property(methodName)
-              .call([refer('params')])
-              .awaited
-              .returned
-              .statement,
-        );
-      }
-    });
+    final executeBody = depField.isEmpty
+        ? Block((b) {
+            b.statements.add(Code('cancelToken?.throwIfCancelled();'));
+            b.statements.add(Code('// TODO: Implement usecase logic'));
+            b.statements.add(refer('UnimplementedError').call([]).thrown.statement);
+          })
+        : Block((b) {
+            b.statements.add(Code('cancelToken?.throwIfCancelled();'));
+            b.statements.add(
+              refer(depField)
+                  .property(methodName)
+                  .call([refer('params')])
+                  .awaited
+                  .returned
+                  .statement,
+            );
+          });
 
     final returnTypeRef = config.useCaseType == 'completable'
         ? 'Future<void>'

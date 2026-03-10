@@ -218,13 +218,16 @@ class MockDataSourceBuilder {
       final listEntity =
           isList ? baseReturns.substring(5, baseReturns.length - 1) : '';
 
+      final isStream = config.useCaseType == 'stream';
+      final returnType = isStream ? 'Stream<$returns>' : 'Future<$returns>';
+
       methods.add(
         Method(
           (m) => m
             ..name = methodName
             ..annotations.add(refer('override'))
-            ..returns = refer('Future<$returns>')
-            ..modifier = MethodModifier.async
+            ..returns = refer(returnType)
+            ..modifier = isStream ? null : MethodModifier.async
             ..requiredParameters.add(
               Parameter(
                 (p) => p
@@ -238,23 +241,61 @@ class MockDataSourceBuilder {
                   refer('logger').property('info').call([
                     literalString('$methodName called with params: \$params'),
                   ]).statement,
-                  refer('Future')
-                      .property('delayed')
-                      .call([refer('_delay')])
-                      .awaited
-                      .statement,
-                  if (isList) ...[
-                    refer('${entityName}MockData')
-                        .property('sampleList')
+                  if (isStream) ...[
+                    refer('Stream')
+                        .property('fromFuture')
+                        .call([
+                          refer('Future')
+                              .property('delayed')
+                              .call([
+                                refer('_delay'),
+                                Method(
+                                  (mm) =>
+                                      mm
+                                        ..lambda = true
+                                        ..body =
+                                            isList
+                                                ? refer('${entityName}MockData')
+                                                    .property('sampleList')
+                                                    .code
+                                                : (baseReturns == 'void'
+                                                    ? refer('Future')
+                                                        .property('value')
+                                                        .call([])
+                                                        .code
+                                                    : refer(
+                                                      '${entityName}MockData',
+                                                    ).property(
+                                                      'sample$entityName',
+                                                    ).code),
+                                ).closure,
+                              ]),
+                        ])
                         .returned
                         .statement,
-                  ] else if (baseReturns == 'void') ...[
-                    refer('Future').property('value').call([]).returned.statement,
                   ] else ...[
-                    refer('${entityName}MockData')
-                        .property('sample$entityName')
-                        .returned
+                    refer('Future')
+                        .property('delayed')
+                        .call([refer('_delay')])
+                        .awaited
                         .statement,
+                    if (isList) ...[
+                      refer('${entityName}MockData')
+                          .property('sampleList')
+                          .returned
+                          .statement,
+                    ] else if (baseReturns == 'void') ...[
+                      refer('Future')
+                          .property('value')
+                          .call([])
+                          .returned
+                          .statement,
+                    ] else ...[
+                      refer('${entityName}MockData')
+                          .property('sample$entityName')
+                          .returned
+                          .statement,
+                    ],
                   ],
                 ]),
             ),

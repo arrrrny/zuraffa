@@ -94,12 +94,43 @@ void main() {
         name: 'Product',
         methods: const ['create'],
         appendToExisting: true,
+        generateMock: true,
         outputDir: outputDir,
       ),
     );
 
     expect(mockFile.readAsStringSync().contains('Future<Product> get'), isTrue);
     expect(mockFile.readAsStringSync().contains('Future<Product> create'), isTrue);
+  });
+
+  test('generates stream return type for mock custom usecase', () async {
+    final builder = MockBuilder(
+      outputDir: outputDir,
+      dryRun: false,
+      force: true,
+      verbose: false,
+    );
+
+    await builder.generate(
+      GeneratorConfig(
+        name: 'ScanBarcode',
+        methods: const [],
+        domain: 'barcode',
+        paramsType: 'NoParams',
+        returnsType: 'Barcode',
+        useCaseType: 'stream',
+        generateMock: true,
+        outputDir: outputDir,
+      ),
+    );
+
+    final mockFile = File(
+      '$outputDir/data/datasources/scan_barcode/scan_barcode_mock_datasource.dart',
+    );
+    expect(mockFile.existsSync(), isTrue);
+    final content = mockFile.readAsStringSync();
+    expect(content.contains('Stream<Barcode> scanBarcode(NoParams params)'), isTrue);
+    expect(content.contains('Stream.fromFuture'), isTrue);
   });
 
   test('generates mock provider when service is present', () async {
@@ -138,6 +169,37 @@ void main() {
     expect(content.contains("import '../../mock/barcode_listing_mock_data.dart';"), isTrue);
   });
 
+  test('generates stream return type for mock provider', () async {
+    final builder = MockBuilder(
+      outputDir: outputDir,
+      dryRun: false,
+      force: true,
+      verbose: false,
+    );
+
+    await builder.generate(
+      GeneratorConfig(
+        name: 'WatchBarcode',
+        methods: const [],
+        service: 'Barcode',
+        domain: 'barcode',
+        paramsType: 'NoParams',
+        returnsType: 'Barcode',
+        useCaseType: 'stream',
+        generateMock: true,
+        outputDir: outputDir,
+      ),
+    );
+
+    final mockFile = File(
+      '$outputDir/data/providers/barcode/barcode_mock_provider.dart',
+    );
+    expect(mockFile.existsSync(), isTrue);
+    final content = mockFile.readAsStringSync();
+    expect(content.contains('Stream<Barcode> watchBarcode(NoParams params)'), isTrue);
+    expect(content.contains('Stream.fromFuture'), isTrue);
+  });
+
   test('generates mock provider even if appendToExisting is true and file missing', () async {
     final builder = MockBuilder(
       outputDir: outputDir,
@@ -172,5 +234,71 @@ void main() {
       '$outputDir/data/providers/listing/listing_mock_provider.dart',
     );
     expect(mockProviderFile.existsSync(), isTrue);
+  });
+
+  test('skips mock data for custom usecase with primitive return type', () async {
+    final builder = MockBuilder(
+      outputDir: outputDir,
+      dryRun: false,
+      force: true,
+      verbose: false,
+    );
+
+    final config = GeneratorConfig(
+      name: 'ScanBarcode',
+      service: 'Barcode',
+      domain: 'barcode',
+      paramsType: 'NoParams',
+      returnsType: 'String',
+      generateMock: true,
+      outputDir: outputDir,
+    );
+
+    final files = await builder.generate(config);
+
+    // Mock data file should be skipped (path is empty in GeneratedFile)
+    final mockDataFile = files.firstWhere((f) => f.type == 'mock_data');
+    expect(mockDataFile.action, equals('skipped'));
+    expect(File('$outputDir/data/mock/scan_barcode_mock_data.dart').existsSync(), isFalse);
+
+    // Mock provider should be generated with hardcoded primitive value
+    final mockProviderFile = File('$outputDir/data/providers/barcode/barcode_mock_provider.dart');
+    expect(mockProviderFile.existsSync(), isTrue);
+    
+    final content = mockProviderFile.readAsStringSync();
+    expect(content.contains("return 'mock_value';"), isTrue);
+    expect(content.contains("ScanBarcodeMockData"), isFalse);
+  });
+
+  test('skips mock data for custom usecase with primitive list return type', () async {
+    final builder = MockBuilder(
+      outputDir: outputDir,
+      dryRun: false,
+      force: true,
+      verbose: false,
+    );
+
+    final config = GeneratorConfig(
+      name: 'GetTags',
+      service: 'Tag',
+      domain: 'tag',
+      paramsType: 'NoParams',
+      returnsType: 'List<String>',
+      generateMock: true,
+      outputDir: outputDir,
+    );
+
+    final files = await builder.generate(config);
+
+    // Mock data file should be skipped
+    final mockDataFile = files.firstWhere((f) => f.type == 'mock_data');
+    expect(mockDataFile.action, equals('skipped'));
+
+    // Mock provider should be generated returning an empty list
+    final mockProviderFile = File('$outputDir/data/providers/tag/tag_mock_provider.dart');
+    expect(mockProviderFile.existsSync(), isTrue);
+    
+    final content = mockProviderFile.readAsStringSync();
+    expect(content.contains("return [];"), isTrue);
   });
 }

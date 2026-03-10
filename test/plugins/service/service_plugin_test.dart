@@ -81,4 +81,33 @@ void main() {
       isTrue,
     );
   });
+
+  test('includes NoParams in service interface if specified', () async {
+    final plugin = ServicePlugin(
+      outputDir: outputDir,
+      dryRun: false,
+      force: false,
+      verbose: false,
+    );
+
+    await plugin.generate(
+      GeneratorConfig(
+        name: 'ScanBarcode',
+        methods: const [],
+        service: 'Barcode',
+        domain: 'barcode',
+        paramsType: 'NoParams',
+        returnsType: 'Barcode',
+        outputDir: outputDir,
+      ),
+    );
+
+    final serviceFile = File('$outputDir/domain/services/barcode_service.dart');
+    final content = serviceFile.readAsStringSync();
+    
+    expect(
+      content.contains('Future<Barcode> scanBarcode(NoParams params);'),
+      isTrue,
+    );
+  });
 }

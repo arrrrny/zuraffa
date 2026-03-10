@@ -38,6 +38,34 @@ class MockDataBuilder {
     final entityName = config.repo != null
         ? config.repo!.replaceAll('Repository', '')
         : config.name;
+
+    // Skip generating mock data if the return type is a primitive
+    if (config.isCustomUseCase && config.returnsType != null) {
+      final primitives = {
+        'String',
+        'int',
+        'double',
+        'bool',
+        'void',
+        'DateTime',
+        'dynamic',
+        'Object'
+      };
+      final baseType = config.returnsType!.replaceAll('?', '');
+      if (primitives.contains(baseType) ||
+          (baseType.startsWith('List<') &&
+              primitives.contains(
+                baseType.substring(5, baseType.length - 1).replaceAll('?', ''),
+              ))) {
+        return GeneratedFile(
+          path: '',
+          content: '',
+          action: 'skipped',
+          type: 'mock_data',
+        );
+      }
+    }
+
     final entitySnake = StringUtils.camelToSnake(entityName);
     final entityCamel = StringUtils.pascalToCamel(entityName);
     final collectionName = '${entityCamel}s';

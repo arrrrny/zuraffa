@@ -61,6 +61,26 @@ class MockProviderBuilder {
             config.name
         : config.name;
 
+    final returns = config.returnsType ?? 'void';
+    final baseReturns = returns.replaceAll('?', '');
+    final isList = baseReturns.startsWith('List<');
+
+    final primitives = {
+      'String',
+      'int',
+      'double',
+      'bool',
+      'void',
+      'DateTime',
+      'dynamic',
+      'Object'
+    };
+    final isPrimitive = primitives.contains(baseReturns) ||
+        (isList &&
+            primitives.contains(
+              baseReturns.substring(5, baseReturns.length - 1).replaceAll('?', ''),
+            ));
+
     final directives = [
       Directive.import('dart:async'),
       Directive.import('package:zuraffa/zuraffa.dart'),
@@ -74,7 +94,8 @@ class MockProviderBuilder {
             );
           },
         ),
-      Directive.import('../../mock/${StringUtils.camelToSnake(targetEntity)}_mock_data.dart'),
+      if (!isPrimitive)
+        Directive.import('../../mock/${StringUtils.camelToSnake(targetEntity)}_mock_data.dart'),
     ];
 
     final delayField = Field(
@@ -171,26 +192,42 @@ class MockProviderBuilder {
         ? EntityUtils.extractEntityTypes(config.returnsType!).firstOrNull ??
             config.name
         : config.name;
+
+    final primitives = {
+      'String',
+      'int',
+      'double',
+      'bool',
+      'void',
+      'DateTime',
+      'dynamic',
+      'Object'
+    };
+    final isPrimitive = primitives.contains(baseReturns) ||
+        (isList &&
+            primitives.contains(
+              baseReturns.substring(5, baseReturns.length - 1).replaceAll('?', ''),
+            ));
+
     final mockDataClass = '${targetEntity}MockData';
     final sampleProperty = 'sample$targetEntity';
+
+    final isStream = config.useCaseType == 'stream';
+    final returnType = isStream ? 'Stream<$returns>' : 'Future<$returns>';
 
     methods.add(
       Method(
         (m) => m
           ..name = methodName
           ..annotations.add(refer('override'))
-          ..returns = refer('Future<$returns>')
-          ..modifier = MethodModifier.async
-          ..requiredParameters.addAll(
-            config.paramsType == 'NoParams' || config.paramsType == null
-                ? const []
-                : [
-                    Parameter(
-                      (p) => p
-                        ..name = 'params'
-                        ..type = refer(config.paramsType!),
-                    ),
-                  ],
+          ..returns = refer(returnType)
+          ..modifier = isStream ? null : MethodModifier.async
+          ..requiredParameters.add(
+            Parameter(
+              (p) => p
+                ..name = 'params'
+                ..type = refer(config.paramsType ?? 'NoParams'),
+            ),
           )
           ..body = Block(
             (b) => b
@@ -198,17 +235,60 @@ class MockProviderBuilder {
                 refer('logger').property('info').call([
                   literalString('$methodName called with params: \$params'),
                 ]).statement,
-                refer('Future')
-                    .property('delayed')
-                    .call([refer('_delay')])
-                    .awaited
-                    .statement,
-                if (isList) ...[
-                  refer(mockDataClass).property('sampleList').returned.statement,
-                ] else if (baseReturns == 'void') ...[
-                  literalNull.returned.statement,
+                if (isStream) ...[
+                  refer('Stream')
+                      .property('fromFuture')
+                      .call([
+                        refer('Future')
+                            .property('delayed')
+                            .call([
+                              refer('_delay'),
+                              Method(
+                                (mm) =>
+                                    mm
+                                      ..lambda = true
+                                      ..body =
+                                          isPrimitive
+                                              ? (isList
+                                                  ? literalList([]).code
+                                                  : (baseReturns == 'void'
+                                                      ? literalNull.code
+                                                      : _primitiveValue(
+                                                        baseReturns,
+                                                      ).code))
+                                              : (isList
+                                                  ? refer(mockDataClass)
+                                                      .property('sampleList')
+                                                      .code
+                                                  : refer(mockDataClass)
+                                                      .property(sampleProperty)
+                                                      .code),
+                              ).closure,
+                            ]),
+                      ])
+                      .returned
+                      .statement,
                 ] else ...[
-                  refer(mockDataClass).property(sampleProperty).returned.statement,
+                  refer('Future')
+                      .property('delayed')
+                      .call([refer('_delay')])
+                      .awaited
+                      .statement,
+                  if (isPrimitive) ...[
+                    if (isList)
+                      literalList([]).returned.statement
+                    else if (baseReturns == 'void')
+                      literalNull.returned.statement
+                    else
+                      _primitiveValue(baseReturns).returned.statement,
+                  ] else if (isList) ...[
+                    refer(mockDataClass).property('sampleList').returned.statement,
+                  ] else ...[
+                    refer(mockDataClass)
+                        .property(sampleProperty)
+                        .returned
+                        .statement,
+                  ],
                 ],
               ]),
           ),
@@ -216,5 +296,22 @@ class MockProviderBuilder {
     );
 
     return methods;
+  }
+
+  Expression _primitiveValue(String type) {
+    switch (type) {
+      case 'String':
+        return literalString('mock_value');
+      case 'int':
+        return literalNum(1);
+      case 'double':
+        return literalNum(1.0);
+      case 'bool':
+        return literalBool(true);
+      case 'DateTime':
+        return refer('DateTime').property('now').call([]);
+      default:
+        return literalNull;
+    }
   }
 }

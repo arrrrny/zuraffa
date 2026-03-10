@@ -22,15 +22,13 @@ class ServiceInterfaceBuilder {
     final methodName = config.getServiceMethodName();
 
     final returnSignature = _returnSignature(config, returnsType);
-    final params = paramsType == 'NoParams'
-        ? const <Parameter>[]
-        : [
-            Parameter(
-              (p) => p
-                ..name = 'params'
-                ..type = refer(paramsType),
-            ),
-          ];
+    final params = [
+      Parameter(
+        (p) => p
+          ..name = 'params'
+          ..type = refer(paramsType),
+      ),
+    ];
 
     final method = CommonPatterns.abstractMethod(
       name: methodName,
@@ -42,7 +40,7 @@ class ServiceInterfaceBuilder {
       (b) => b
         ..name = serviceName
         ..abstract = true
-        ..docs.addAll(['/// Service interface for $serviceName'])
+        ..docs.add('/// Service interface for $serviceName')
         ..methods.add(method),
     );
 
