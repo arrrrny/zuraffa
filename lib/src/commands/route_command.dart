@@ -34,9 +34,9 @@ class RouteCommand extends PluginCommand {
     final entityName = argResults!.rest.first;
     final methods = (argResults!['methods'] as String).split(',');
 
-    final capability = plugin.capabilities.firstWhere(
-      (c) => c is CreateRouteCapability,
-    ) as CreateRouteCapability;
+    final capability =
+        plugin.capabilities.firstWhere((c) => c is CreateRouteCapability)
+            as CreateRouteCapability;
 
     final result = await capability.execute({
       'name': entityName,
@@ -48,7 +48,8 @@ class RouteCommand extends PluginCommand {
     });
 
     if (result.success) {
-      final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      final files =
+          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
       logSummary(files);
     } else {
       print('Failed to generate route');

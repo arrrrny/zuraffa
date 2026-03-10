@@ -8,36 +8,39 @@ extension ControllerPluginBodies on ControllerPlugin {
     String returns,
   ) {
     final args = params == 'NoParams' ? '' : 'params';
-    final resultCall = refer('_presenter')
-        .property(methodName)
-        .call(_callArgsExpressions(args))
-        .awaited;
+    final resultCall = refer(
+      '_presenter',
+    ).property(methodName).call(_callArgsExpressions(args)).awaited;
 
     return Block(
       (b) => b
         ..statements.add(_tokenStatement())
-        ..statements.add(_updateStateStatement({'isLoading': literalBool(true)}))
+        ..statements.add(
+          _updateStateStatement({'isLoading': literalBool(true)}),
+        )
         ..statements.add(declareFinal('result').assign(resultCall).statement)
         ..statements.add(
           _resultFold(
             resultVar: 'result',
             successParams: ['data'],
             successBody: Block(
-              (bb) => bb..statements.add(
-                _updateStateStatement({
-                  'isLoading': literalBool(false),
-                  'data': refer('data'),
-                }),
-              ),
+              (bb) => bb
+                ..statements.add(
+                  _updateStateStatement({
+                    'isLoading': literalBool(false),
+                    'data': refer('data'),
+                  }),
+                ),
             ),
             failureParams: ['failure'],
             failureBody: Block(
-              (bb) => bb..statements.add(
-                _updateStateStatement({
-                  'isLoading': literalBool(false),
-                  'error': refer('failure'),
-                }),
-              ),
+              (bb) => bb
+                ..statements.add(
+                  _updateStateStatement({
+                    'isLoading': literalBool(false),
+                    'error': refer('failure'),
+                  }),
+                ),
             ),
           ),
         ),
@@ -51,10 +54,9 @@ extension ControllerPluginBodies on ControllerPlugin {
     String returns,
   ) {
     final args = params == 'NoParams' ? '' : 'params';
-    final resultCall = refer('_presenter')
-        .property(methodName)
-        .call(_callArgsExpressions(args))
-        .awaited;
+    final resultCall = refer(
+      '_presenter',
+    ).property(methodName).call(_callArgsExpressions(args)).awaited;
 
     return Block(
       (b) => b
@@ -71,6 +73,98 @@ extension ControllerPluginBodies on ControllerPlugin {
         ),
     );
   }
+
+  Block _buildCustomStreamWithStateBody(
+    GeneratorConfig config,
+    String methodName,
+    String params,
+    String returns,
+  ) {
+    final args = params == 'NoParams' ? '' : 'params';
+    final streamCall = refer(
+      '_presenter',
+    ).property(methodName).call(_callArgsExpressions(args));
+
+    return Block(
+      (b) => b
+        ..statements.add(_tokenStatement())
+        ..statements.add(
+          _updateStateStatement({'isLoading': literalBool(true)}),
+        )
+        ..statements.add(
+          streamCall
+              .property('listen')
+              .call([
+                Method(
+                  (m) => m
+                    ..requiredParameters
+                        .add(Parameter((p) => p..name = 'result'))
+                    ..body = _resultFold(
+                      resultVar: 'result',
+                      successParams: ['data'],
+                      successBody: Block(
+                        (bb) => bb
+                          ..statements.add(
+                            _updateStateStatement({
+                              'isLoading': literalBool(false),
+                              'data': refer('data'),
+                            }),
+                          ),
+                      ),
+                      failureParams: ['failure'],
+                      failureBody: Block(
+                        (bb) => bb
+                          ..statements.add(
+                            _updateStateStatement({
+                              'isLoading': literalBool(false),
+                              'error': refer('failure'),
+                            }),
+                          ),
+                      ),
+                    ),
+                ).closure,
+              ])
+              .statement,
+        ),
+    );
+  }
+
+  Block _buildCustomStreamWithoutStateBody(
+    GeneratorConfig config,
+    String methodName,
+    String params,
+    String returns,
+  ) {
+    final args = params == 'NoParams' ? '' : 'params';
+    final streamCall = refer(
+      '_presenter',
+    ).property(methodName).call(_callArgsExpressions(args));
+
+    return Block(
+      (b) => b
+        ..statements.add(_tokenStatement())
+        ..statements.add(
+          streamCall
+              .property('listen')
+              .call([
+                Method(
+                  (m) => m
+                    ..requiredParameters
+                        .add(Parameter((p) => p..name = 'result'))
+                    ..body = _resultFold(
+                      resultVar: 'result',
+                      successParams: ['data'],
+                      successBody: Block((bb) => bb),
+                      failureParams: ['failure'],
+                      failureBody: Block((bb) => bb),
+                    ),
+                ).closure,
+              ])
+              .statement,
+        ),
+    );
+  }
+
   Block _buildGetWithStateBody(
     String entityName,
     String entityCamel,

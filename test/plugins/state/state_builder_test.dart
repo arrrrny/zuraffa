@@ -62,7 +62,12 @@ void main() {
       ),
     );
 
-    expect(file.path.contains('presentation/pages/listing/get_listing_by_barcode_state.dart'), isTrue);
+    expect(
+      file.path.contains(
+        'presentation/pages/listing/get_listing_by_barcode_state.dart',
+      ),
+      isTrue,
+    );
     final content = File(file.path).readAsStringSync();
     expect(content.contains('class GetListingByBarcodeState'), isTrue);
     expect(content.contains('final Listing? data;'), isTrue);

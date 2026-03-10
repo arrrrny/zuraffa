@@ -29,7 +29,7 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
       (c) => c
         ..name = '${repoName}Repository'
         ..abstract = true
-        ..docs.add('Repository interface for $repoName')
+        ..docs.add('/// Repository interface for $repoName')
         ..methods.add(method),
     );
 
@@ -39,8 +39,8 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
       content,
       'repository',
       force: true,
-      dryRun: dryRun,
-      verbose: verbose,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
     );
   }
 
@@ -72,7 +72,7 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
       (c) => c
         ..name = serviceName
         ..abstract = true
-        ..docs.add('Service interface for ${config.name}')
+        ..docs.add('/// Service interface for $serviceName')
         ..methods.add(method),
     );
 
@@ -87,8 +87,8 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
       content,
       'service',
       force: true,
-      dryRun: dryRun,
-      verbose: verbose,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
     );
   }
 
@@ -103,56 +103,40 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
     final file = File(filePath);
     await file.parent.create(recursive: true);
 
-    final serviceSnake = config.serviceSnake;
-    final providerName = config.effectiveProvider;
-    if (serviceSnake == null || providerName == null) {
-      throw ArgumentError(
-        'Service name must be specified via --service or config.service',
-      );
-    }
-    final isStream = config.useCaseType == 'stream';
-    final isSync = config.useCaseType == 'sync';
-
-    final method = Method(
-      (m) => m
-        ..name = methodName
-        ..returns = returnType
-        ..annotations.add(refer('override'))
-        ..modifier = isStream || isSync ? null : MethodModifier.async
-        ..requiredParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'params'
-              ..type = refer(paramsType),
-          ),
-        )
-        ..body = Block(
-          (b) => b
-            ..statements.add(
-              refer(
-                'UnimplementedError',
-              ).call([literalString('Implement $methodName')]).thrown.statement,
-            ),
-        ),
-    );
-
-    final clazz = Class(
+    final providerClass = Class(
       (c) => c
-        ..name = providerName
-        ..mixins.addAll([refer('Loggable'), refer('FailureHandler')])
-        ..implements.add(refer(serviceName))
+        ..name = '${serviceName}Provider'
+        ..extend = refer('BaseProvider')
         ..docs.add('/// Provider implementation for $serviceName')
-        ..methods.add(method),
+        ..methods.add(
+          Method(
+            (m) => m
+              ..name = methodName
+              ..annotations.add(refer('override'))
+              ..returns = returnType
+              ..requiredParameters.add(
+                Parameter(
+                  (p) => p
+                    ..name = 'params'
+                    ..type = refer(paramsType),
+                ),
+              )
+              ..modifier = MethodModifier.async
+              ..body = Block(
+                (b) => b
+                  ..statements.add(
+                    refer(
+                      'throw',
+                    ).call([refer('UnimplementedError').call([])]).statement,
+                  ),
+              ),
+          ),
+        ),
     );
 
     final library = specLibrary.library(
-      specs: [clazz],
-      directives: [
-        Directive.import('package:zuraffa/zuraffa.dart'),
-        Directive.import(
-          '../../../domain/services/${serviceSnake}_service.dart',
-        ),
-      ],
+      specs: [providerClass],
+      directives: [Directive.import('package:zuraffa/zuraffa.dart')],
     );
 
     final content = specLibrary.emitLibrary(library);
@@ -161,9 +145,8 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
       content,
       'provider',
       force: true,
-      dryRun: dryRun,
-      verbose: verbose,
-      revert: config.revert,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
     );
   }
 }

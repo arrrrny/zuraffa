@@ -5,6 +5,7 @@ import 'package:path/path.dart' as path;
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/builder/shared/spec_library.dart';
+import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -14,22 +15,26 @@ import 'mock_type_helper.dart';
 
 class MockProviderBuilder {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
   final SpecLibrary specLibrary;
   final MockTypeHelper typeHelper;
   final AppendExecutor appendExecutor;
 
   MockProviderBuilder({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
+    GeneratorOptions options = const GeneratorOptions(),
+    @Deprecated('Use options.dryRun') bool? dryRun,
+    @Deprecated('Use options.force') bool? force,
+    @Deprecated('Use options.verbose') bool? verbose,
     SpecLibrary? specLibrary,
     MockTypeHelper? typeHelper,
     AppendExecutor? appendExecutor,
-  }) : specLibrary = specLibrary ?? const SpecLibrary(),
+  }) : options = options.copyWith(
+         dryRun: dryRun ?? options.dryRun,
+         force: force ?? options.force,
+         verbose: verbose ?? options.verbose,
+       ),
+       specLibrary = specLibrary ?? const SpecLibrary(),
        typeHelper = typeHelper ?? const MockTypeHelper(),
        appendExecutor = appendExecutor ?? AppendExecutor();
 
@@ -43,10 +48,18 @@ class MockProviderBuilder {
         providerName == null ||
         providerSnake == null ||
         serviceSnake == null) {
-      return GeneratedFile(path: '', content: '', action: 'skip', type: 'mock_provider');
+      return GeneratedFile(
+        path: '',
+        content: '',
+        action: 'skip',
+        type: 'mock_provider',
+      );
     }
 
-    final mockProviderName = providerName.replaceAll('Provider', 'MockProvider');
+    final mockProviderName = providerName.replaceAll(
+      'Provider',
+      'MockProvider',
+    );
     final fileName = '${providerSnake}_mock_provider.dart';
     final filePath = path.join(
       outputDir,
@@ -58,7 +71,7 @@ class MockProviderBuilder {
 
     final targetEntity = config.isCustomUseCase && config.returnsType != null
         ? EntityUtils.extractEntityTypes(config.returnsType!).firstOrNull ??
-            config.name
+              config.name
         : config.name;
 
     final returns = config.returnsType ?? 'void';
@@ -73,30 +86,45 @@ class MockProviderBuilder {
       'void',
       'DateTime',
       'dynamic',
-      'Object'
+      'Object',
     };
-    final isPrimitive = primitives.contains(baseReturns) ||
+    final isPrimitive =
+        primitives.contains(baseReturns) ||
         (isList &&
             primitives.contains(
-              baseReturns.substring(5, baseReturns.length - 1).replaceAll('?', ''),
+              baseReturns
+                  .substring(5, baseReturns.length - 1)
+                  .replaceAll('?', ''),
             ));
 
     final directives = [
       Directive.import('dart:async'),
       Directive.import('package:zuraffa/zuraffa.dart'),
       Directive.import('../../../domain/services/${serviceSnake}_service.dart'),
-      if (config.returnsType != null)
-        ...EntityUtils.extractEntityTypes(config.returnsType!).map(
-          (type) {
-            final snake = StringUtils.camelToSnake(type);
-            return Directive.import(
-              '../../../domain/entities/$snake/$snake.dart',
-            );
-          },
-        ),
-      if (!isPrimitive)
-        Directive.import('../../mock/${StringUtils.camelToSnake(targetEntity)}_mock_data.dart'),
     ];
+
+    final entityTypes = <String>[];
+    if (config.returnsType != null) {
+      entityTypes.addAll(EntityUtils.extractEntityTypes(config.returnsType!));
+    }
+    if (config.paramsType != null) {
+      entityTypes.addAll(EntityUtils.extractEntityTypes(config.paramsType!));
+    }
+
+    for (final type in entityTypes.toSet()) {
+      final snake = StringUtils.camelToSnake(type);
+      directives.add(
+        Directive.import('../../../domain/entities/$snake/$snake.dart'),
+      );
+    }
+
+    if (!isPrimitive) {
+      directives.add(
+        Directive.import(
+          '../../mock/${StringUtils.camelToSnake(targetEntity)}_mock_data.dart',
+        ),
+      );
+    }
 
     final delayField = Field(
       (f) => f
@@ -160,8 +188,8 @@ class MockProviderBuilder {
         updated,
         'mock_provider',
         force: true,
-        dryRun: dryRun,
-        verbose: verbose,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
         revert: config.revert,
       );
     }
@@ -174,9 +202,9 @@ class MockProviderBuilder {
       filePath,
       content,
       'mock_provider',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
       revert: config.revert,
     );
   }
@@ -190,7 +218,7 @@ class MockProviderBuilder {
 
     final targetEntity = config.isCustomUseCase && config.returnsType != null
         ? EntityUtils.extractEntityTypes(config.returnsType!).firstOrNull ??
-            config.name
+              config.name
         : config.name;
 
     final primitives = {
@@ -201,12 +229,15 @@ class MockProviderBuilder {
       'void',
       'DateTime',
       'dynamic',
-      'Object'
+      'Object',
     };
-    final isPrimitive = primitives.contains(baseReturns) ||
+    final isPrimitive =
+        primitives.contains(baseReturns) ||
         (isList &&
             primitives.contains(
-              baseReturns.substring(5, baseReturns.length - 1).replaceAll('?', ''),
+              baseReturns
+                  .substring(5, baseReturns.length - 1)
+                  .replaceAll('?', ''),
             ));
 
     final mockDataClass = '${targetEntity}MockData';
@@ -239,32 +270,28 @@ class MockProviderBuilder {
                   refer('Stream')
                       .property('fromFuture')
                       .call([
-                        refer('Future')
-                            .property('delayed')
-                            .call([
-                              refer('_delay'),
-                              Method(
-                                (mm) =>
-                                    mm
-                                      ..lambda = true
-                                      ..body =
-                                          isPrimitive
-                                              ? (isList
-                                                  ? literalList([]).code
-                                                  : (baseReturns == 'void'
-                                                      ? literalNull.code
-                                                      : _primitiveValue(
-                                                        baseReturns,
-                                                      ).code))
-                                              : (isList
-                                                  ? refer(mockDataClass)
-                                                      .property('sampleList')
-                                                      .code
-                                                  : refer(mockDataClass)
-                                                      .property(sampleProperty)
-                                                      .code),
-                              ).closure,
-                            ]),
+                        refer('Future').property('delayed').call([
+                          refer('_delay'),
+                          Method(
+                            (mm) => mm
+                              ..lambda = true
+                              ..body = isPrimitive
+                                  ? (isList
+                                        ? literalList([]).code
+                                        : (baseReturns == 'void'
+                                              ? literalNull.code
+                                              : _primitiveValue(
+                                                  baseReturns,
+                                                ).code))
+                                  : (isList
+                                        ? refer(
+                                            mockDataClass,
+                                          ).property('sampleList').code
+                                        : refer(
+                                            mockDataClass,
+                                          ).property(sampleProperty).code),
+                          ).closure,
+                        ]),
                       ])
                       .returned
                       .statement,
@@ -282,12 +309,13 @@ class MockProviderBuilder {
                     else
                       _primitiveValue(baseReturns).returned.statement,
                   ] else if (isList) ...[
-                    refer(mockDataClass).property('sampleList').returned.statement,
+                    refer(
+                      mockDataClass,
+                    ).property('sampleList').returned.statement,
                   ] else ...[
-                    refer(mockDataClass)
-                        .property(sampleProperty)
-                        .returned
-                        .statement,
+                    refer(
+                      mockDataClass,
+                    ).property(sampleProperty).returned.statement,
                   ],
                 ],
               ]),

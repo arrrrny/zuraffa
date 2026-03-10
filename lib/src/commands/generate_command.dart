@@ -251,7 +251,8 @@ class GenerateCommand extends Command<void> {
     final outputDir = argResults!['output'] as String;
     final projectRoot = _findProjectRoot(outputDir);
     final pluginConfig = PluginConfig.load(projectRoot: projectRoot);
-    final zfaConfig = ZfaConfig.load(projectRoot: projectRoot) ?? const ZfaConfig();
+    final zfaConfig =
+        ZfaConfig.load(projectRoot: projectRoot) ?? const ZfaConfig();
     final debug = argResults!['debug'] == true;
     final artifactSaver = DebugArtifactSaver(projectRoot: projectRoot);
 
@@ -318,7 +319,11 @@ class GenerateCommand extends Command<void> {
     }
   }
 
-  GeneratorConfig _buildConfig(String name, PluginConfig pluginConfig, ZfaConfig zfaConfig) {
+  GeneratorConfig _buildConfig(
+    String name,
+    PluginConfig pluginConfig,
+    ZfaConfig zfaConfig,
+  ) {
     if (argResults!['from-stdin'] == true) {
       final input = stdin.readLineSync() ?? '';
       final json = jsonDecode(input) as Map<String, dynamic>;
@@ -338,7 +343,8 @@ class GenerateCommand extends Command<void> {
     // If methods were not explicitly provided, but other flags indicate a custom usecase,
     // ignore the default methods value.
     if (!methodsWasParsed) {
-      final isCustomUseCase = argResults!['domain'] != null ||
+      final isCustomUseCase =
+          argResults!['domain'] != null ||
           argResults!['params'] != null ||
           argResults!['returns'] != null ||
           argResults!['usecases'] != null ||
@@ -536,8 +542,9 @@ class GenerateCommand extends Command<void> {
         for (final entry in result.filesByPlugin.entries) {
           final count = entry.value.where((f) => f.action == 'created').length;
           // If we are reverting, we count deleted files
-          final revertedCount =
-              entry.value.where((f) => f.action == 'deleted').length;
+          final revertedCount = entry.value
+              .where((f) => f.action == 'deleted')
+              .length;
 
           if (count > 0 && !config.revert) {
             print('  ${entry.key}: $count files');

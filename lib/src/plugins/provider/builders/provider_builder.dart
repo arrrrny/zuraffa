@@ -4,28 +4,48 @@ import 'package:path/path.dart' as path;
 
 import '../../../core/ast/ast_helper.dart';
 import '../../../core/builder/shared/spec_library.dart';
+import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 
+/// Generates provider implementation classes.
+///
+/// Builds Dart classes that implement domain service interfaces, handling
+/// data mapping and error handling.
+///
+/// Example:
+/// ```dart
+/// final builder = ProviderBuilder(
+///   outputDir: 'lib/src',
+///   options: const GeneratorOptions(force: true),
+/// );
+/// final file = await builder.generate(GeneratorConfig(name: 'Auth'));
+/// ```
 class ProviderBuilder {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
   final SpecLibrary specLibrary;
   final DartEmitter emitter;
 
   ProviderBuilder({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
+    GeneratorOptions options = const GeneratorOptions(),
+    @Deprecated('Use options.dryRun') bool? dryRun,
+    @Deprecated('Use options.force') bool? force,
+    @Deprecated('Use options.verbose') bool? verbose,
     SpecLibrary? specLibrary,
     DartEmitter? emitter,
-  }) : specLibrary = specLibrary ?? const SpecLibrary(),
-       emitter = emitter ?? DartEmitter(orderDirectives: true, useNullSafetySyntax: true);
+  }) : options = options.copyWith(
+         dryRun: dryRun ?? options.dryRun,
+         force: force ?? options.force,
+         verbose: verbose ?? options.verbose,
+       ),
+       specLibrary = specLibrary ?? const SpecLibrary(),
+       emitter =
+           emitter ??
+           DartEmitter(orderDirectives: true, useNullSafetySyntax: true);
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final serviceName = config.effectiveService;
@@ -111,7 +131,7 @@ class ProviderBuilder {
           // If force is true, we might want to replace the import, but adding it again is safe if we don't duplicate.
           // Actually, adding if missing is usually enough.
           if (!content.contains(importLine.trim())) {
-             content = '${importLine.trim()}\n$content';
+            content = '${importLine.trim()}\n$content';
           }
         }
       }
@@ -149,8 +169,8 @@ class ProviderBuilder {
         content,
         'provider',
         force: true,
-        dryRun: dryRun,
-        verbose: verbose,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
         revert: config.revert,
       );
     }
@@ -163,9 +183,9 @@ class ProviderBuilder {
       filePath,
       content,
       'provider',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
       revert: config.revert,
     );
   }

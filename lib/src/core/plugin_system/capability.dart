@@ -14,17 +14,13 @@ class Effect {
   /// Optional diff or description of modification.
   final String? diff;
 
-  Effect({
-    required this.file,
-    required this.action,
-    this.diff,
-  });
+  Effect({required this.file, required this.action, this.diff});
 
   Map<String, dynamic> toJson() => {
-        'file': file,
-        'action': action,
-        if (diff != null) 'diff': diff,
-      };
+    'file': file,
+    'action': action,
+    if (diff != null) 'diff': diff,
+  };
 }
 
 /// The result of planning a capability execution.
@@ -61,14 +57,14 @@ class EffectReport {
   });
 
   Map<String, dynamic> toJson() => {
-        'plan_id': planId,
-        'plugin_id': pluginId,
-        'capability_name': capabilityName,
-        'args': args,
-        'valid': isValid,
-        if (message != null) 'message': message,
-        'changes': changes.map((e) => e.toJson()).toList(),
-      };
+    'plan_id': planId,
+    'plugin_id': pluginId,
+    'capability_name': capabilityName,
+    'args': args,
+    'valid': isValid,
+    if (message != null) 'message': message,
+    'changes': changes.map((e) => e.toJson()).toList(),
+  };
 }
 
 /// The result of executing a capability.
@@ -93,11 +89,11 @@ class ExecutionResult {
   });
 
   Map<String, dynamic> toJson() => {
-        'success': success,
-        'files': files,
-        if (message != null) 'message': message,
-        if (data != null) 'data': data,
-      };
+    'success': success,
+    'files': files,
+    if (message != null) 'message': message,
+    if (data != null) 'data': data,
+  };
 }
 
 /// A strict capability interface that allows the Kernel to "interview" plugins.

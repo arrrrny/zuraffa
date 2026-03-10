@@ -76,10 +76,10 @@ class FeatureCommand extends PluginCommand {
 
     final featureName = argResults!.rest.first;
     final usecases = argResults!['usecases'] as List<String>;
-    
-    final capability = plugin.capabilities.firstWhere(
-      (c) => c is ScaffoldFeatureCapability,
-    ) as ScaffoldFeatureCapability;
+
+    final capability =
+        plugin.capabilities.firstWhere((c) => c is ScaffoldFeatureCapability)
+            as ScaffoldFeatureCapability;
 
     // Build args map
     // We use wasParsed to allow the Capability to fall back to ZfaConfig or defaults
@@ -113,7 +113,8 @@ class FeatureCommand extends PluginCommand {
     final result = await capability.execute(execArgs);
 
     if (result.success) {
-      final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      final files =
+          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
       logSummary(files);
     } else {
       print('Failed to generate feature');

@@ -4,9 +4,10 @@ import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../../core/ast/append_executor.dart';
-import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/ast/ast_helper.dart';
+import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/builder/shared/spec_library.dart';
+import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -30,9 +31,7 @@ import 'extension_builder.dart';
 /// ```
 class RouteBuilder {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
   final AppRoutesBuilder appRoutesBuilder;
   final EntityRoutesBuilder entityRoutesBuilder;
   final AppendExecutor appendExecutor;
@@ -42,28 +41,37 @@ class RouteBuilder {
   /// Creates a [RouteBuilder].
   ///
   /// @param outputDir Target directory for generated files.
-  /// @param dryRun Whether to perform a dry run.
-  /// @param force Whether to force overwrite existing files.
-  /// @param verbose Whether to output verbose logs.
+  /// @param options Generation flags for writing behavior and logging.
+  /// @param dryRun Deprecated: use [options].
+  /// @param force Deprecated: use [options].
+  /// @param verbose Deprecated: use [options].
   /// @param appRoutesBuilder Optional app routes builder override.
   /// @param entityRoutesBuilder Optional entity routes builder override.
   /// @param appendExecutor Optional append executor override.
   /// @param specLibrary Optional spec library override.
   RouteBuilder({
     required this.outputDir,
-    this.dryRun = false,
-    this.force = false,
-    this.verbose = false,
+    GeneratorOptions options = const GeneratorOptions(),
+    @Deprecated('Use options.dryRun') bool? dryRun,
+    @Deprecated('Use options.force') bool? force,
+    @Deprecated('Use options.verbose') bool? verbose,
     AppRoutesBuilder? appRoutesBuilder,
     EntityRoutesBuilder? entityRoutesBuilder,
     AppendExecutor? appendExecutor,
     SpecLibrary? specLibrary,
     DartEmitter? emitter,
-  }) : appRoutesBuilder = appRoutesBuilder ?? AppRoutesBuilder(),
+  }) : options = options.copyWith(
+         dryRun: dryRun ?? options.dryRun,
+         force: force ?? options.force,
+         verbose: verbose ?? options.verbose,
+       ),
+       appRoutesBuilder = appRoutesBuilder ?? AppRoutesBuilder(),
        entityRoutesBuilder = entityRoutesBuilder ?? EntityRoutesBuilder(),
        appendExecutor = appendExecutor ?? AppendExecutor(),
        specLibrary = specLibrary ?? const SpecLibrary(),
-       emitter = emitter ?? DartEmitter(orderDirectives: true, useNullSafetySyntax: true);
+       emitter =
+           emitter ??
+           DartEmitter(orderDirectives: true, useNullSafetySyntax: true);
 
   /// Generates route files for the given [config].
   ///
@@ -98,7 +106,8 @@ class RouteBuilder {
     final hasUpdate = !isCustom && config.methods.contains('update');
     final hasDelete = !isCustom && config.methods.contains('delete');
     final hasSubRoutes =
-        !isCustom && (hasCreate || hasUpdate || hasDelete || hasGet || hasWatch);
+        !isCustom &&
+        (hasCreate || hasUpdate || hasDelete || hasGet || hasWatch);
 
     final domainSnake = config.effectiveDomain;
     final domainPascal = StringUtils.convertToPascalCase(domainSnake);
@@ -131,7 +140,7 @@ class RouteBuilder {
 
     if (config.revert) {
       if (!file.existsSync()) {
-        if (verbose) {
+        if (options.verbose) {
           print('  ⏭ File does not exist, skipping revert: $routesPath');
         }
         return GeneratedFile(
@@ -165,8 +174,8 @@ class RouteBuilder {
         content,
         'route_constants',
         force: true,
-        dryRun: dryRun,
-        verbose: verbose,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
         revert: false,
       );
     }
@@ -186,7 +195,9 @@ class RouteBuilder {
       content = appRoutesBuilder.buildFile(
         routes: routeConstants,
         extensionMethods: extensionMethods,
-        entityRouteImport: isCustom ? '${domainSnake}_routes.dart' : '${config.nameSnake}_routes.dart',
+        entityRouteImport: isCustom
+            ? '${domainSnake}_routes.dart'
+            : '${config.nameSnake}_routes.dart',
       );
     }
 
@@ -194,9 +205,9 @@ class RouteBuilder {
       routesPath,
       content,
       'route_constants',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: config.force || file.existsSync(),
+      dryRun: options.dryRun,
+      verbose: options.verbose,
       revert: false,
     );
   }
@@ -258,21 +269,20 @@ class RouteBuilder {
     // Add go routes
     for (final routeExpr in newGoRoutes) {
       final routeSource = entityRoutesBuilder.buildRouteSource(routeExpr);
-      
+
       // Basic normalization for duplicate check: remove spaces, newlines, and trailing commas
-      String normalize(String s) => s.replaceAll(RegExp(r'\s+'), '').replaceAll(RegExp(r',\s*\)'), ')').replaceAll(RegExp(r',$'), '');
-      
+      String normalize(String s) => s
+          .replaceAll(RegExp(r'\s+'), '')
+          .replaceAll(RegExp(r',\s*\)'), ')')
+          .replaceAll(RegExp(r',$'), '');
+
       final normalizedRouteSource = normalize(routeSource);
       final normalizedContent = normalize(content);
-      
+
       if (normalizedContent.contains(normalizedRouteSource)) {
         continue;
       }
-      
-      // If force is true, we should probably try to replace existing route with same path/name
-      // But for simplicity in this turn, we just append.
-      // The user mainly complained about imports and methods in provider/usecase.
-      
+
       content = helper.addElementToReturnListInFunction(
         source: content,
         functionName: routesGetterName,
@@ -294,7 +304,9 @@ class RouteBuilder {
   }) {
     var content = _ensureAppRoutesImports(existingContent);
 
-    final entityRouteImport = isCustom ? '${domainSnake}_routes.dart' : '${entitySnake}_routes.dart';
+    final entityRouteImport = isCustom
+        ? '${domainSnake}_routes.dart'
+        : '${entitySnake}_routes.dart';
     if (!content.contains(entityRouteImport)) {
       final importLine = "import '$entityRouteImport';";
       if (content.contains('import ')) {
@@ -353,11 +365,15 @@ class RouteBuilder {
     final domainSnake = config.effectiveDomain;
     final isCustom = config.isCustomUseCase;
 
-    final fileName = isCustom ? '${domainSnake}_routes.dart' : '${entitySnake}_routes.dart';
+    final fileName = isCustom
+        ? '${domainSnake}_routes.dart'
+        : '${entitySnake}_routes.dart';
     final domainPascal = StringUtils.convertToPascalCase(domainSnake);
-    final className = isCustom ? '${domainPascal}Routes' : '${entityName}Routes';
-    final routesGetterName = isCustom 
-        ? '${StringUtils.pascalToCamel(domainPascal)}Routes' 
+    final className = isCustom
+        ? '${domainPascal}Routes'
+        : '${entityName}Routes';
+    final routesGetterName = isCustom
+        ? '${StringUtils.pascalToCamel(domainPascal)}Routes'
         : '${StringUtils.pascalToCamel(entityName)}Routes';
 
     final dependencyInfo = _resolveDependencyInfo(
@@ -378,7 +394,8 @@ class RouteBuilder {
     final hasUpdate = !isCustom && config.methods.contains('update');
     final hasDelete = !isCustom && config.methods.contains('delete');
     final hasSubRoutes =
-        !isCustom && (hasCreate || hasUpdate || hasDelete || hasGet || hasWatch);
+        !isCustom &&
+        (hasCreate || hasUpdate || hasDelete || hasGet || hasWatch);
 
     final routeConstants = _buildEntityRouteConstants(
       routeNameBase: routeNameBase,
@@ -392,10 +409,12 @@ class RouteBuilder {
       hasWatch: hasWatch,
     );
 
-    final needsIdParam = !isCustom && (hasUpdate || hasDelete || hasGet || hasWatch);
+    final needsIdParam =
+        !isCustom && (hasUpdate || hasDelete || hasGet || hasWatch);
     final needsQueryParam =
-        !isCustom && (config.methods.contains('getList') ||
-        config.methods.contains('watchList'));
+        !isCustom &&
+        (config.methods.contains('getList') ||
+            config.methods.contains('watchList'));
 
     final goRoutes = <Expression>[
       if (isCustom)
@@ -449,31 +468,32 @@ class RouteBuilder {
       if (dependencyInfo.importPath.isNotEmpty) dependencyInfo.importPath,
     ];
 
-    final content = (file.existsSync() || config.appendToExisting)
+    final isUpdate = file.existsSync() || config.appendToExisting;
+    final content = isUpdate
         ? _updateEntityRoutesFile(
-          file.existsSync() ? await file.readAsString() : '',
-          className: className,
-          routesGetterName: routesGetterName,
-          newRouteConstants: routeConstants,
-          newGoRoutes: goRoutes,
-          imports: imports,
-          force: config.force,
-        )
+            file.existsSync() ? await file.readAsString() : '',
+            className: className,
+            routesGetterName: routesGetterName,
+            newRouteConstants: routeConstants,
+            newGoRoutes: goRoutes,
+            imports: imports,
+            force: config.force,
+          )
         : entityRoutesBuilder.buildFile(
-          className: className,
-          routes: routeConstants,
-          routesGetterName: routesGetterName,
-          goRoutes: goRoutes,
-          imports: imports,
-        );
+            className: className,
+            routes: routeConstants,
+            routesGetterName: routesGetterName,
+            goRoutes: goRoutes,
+            imports: imports,
+          );
 
     return FileUtils.writeFile(
       routesPath,
       content,
       'entity_routes',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: config.force || isUpdate,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
       revert: config.revert,
     );
   }
@@ -698,8 +718,8 @@ class RouteBuilder {
 
     if (files.isEmpty) {
       if (File(indexPath).existsSync()) {
-        if (dryRun) {
-          if (verbose) print('  Dry run: Deleting $indexPath');
+        if (options.dryRun) {
+          if (options.verbose) print('  Dry run: Deleting $indexPath');
         } else {
           File(indexPath).deleteSync();
         }
@@ -721,9 +741,9 @@ class RouteBuilder {
       exports.add(Directive.export(fileName));
       imports.add(Directive.import(fileName));
       routeElements.add(
-        refer('${StringUtils.pascalToCamel(entityPascal)}Routes')
-            .call([])
-            .spread,
+        refer(
+          '${StringUtils.pascalToCamel(entityPascal)}Routes',
+        ).call([]).spread,
       );
     }
 
@@ -745,8 +765,8 @@ class RouteBuilder {
       content,
       'routes_index',
       force: true,
-      dryRun: dryRun,
-      verbose: verbose,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
     );
   }
 
@@ -797,15 +817,15 @@ class RouteBuilder {
     required bool hasGet,
     required bool hasWatch,
   }) {
-    final methodName = isCustom ? 'goTo$entityPascal' : 'goTo${entityPascal}List';
+    final methodName = isCustom
+        ? 'goTo$entityPascal'
+        : 'goTo${entityPascal}List';
     final propertyName = isCustom ? routeNameBase : '${routeNameBase}List';
 
     final methods = <ExtensionMethodSpec>[
       ExtensionMethodSpec(
         name: methodName,
-        body: refer(
-          'go',
-        ).call([refer('AppRoutes').property(propertyName)]),
+        body: refer('go').call([refer('AppRoutes').property(propertyName)]),
       ),
     ];
 

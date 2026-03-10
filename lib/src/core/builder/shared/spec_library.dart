@@ -10,8 +10,8 @@ class SpecLibrary {
   }) {
     return Library(
       (b) => b
-        ..body.addAll(specs)
-        ..directives.addAll(directives),
+        ..directives.addAll(directives)
+        ..body.addAll(specs),
     );
   }
 
@@ -25,6 +25,7 @@ class SpecLibrary {
       useNullSafetySyntax: true,
     );
     var raw = library.accept(emitter).toString();
+
     if (leadingComment != null) {
       raw = '$leadingComment\n$raw';
     }

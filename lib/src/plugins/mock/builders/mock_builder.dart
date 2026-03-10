@@ -26,9 +26,6 @@ import 'mock_entity_graph_builder.dart';
 class MockBuilder {
   final String outputDir;
   final GeneratorOptions options;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
   final SpecLibrary specLibrary;
   final MockDataBuilder dataBuilder;
   final MockDataSourceBuilder dataSourceBuilder;
@@ -63,35 +60,38 @@ class MockBuilder {
          force: force ?? options.force,
          verbose: verbose ?? options.verbose,
        ),
-       dryRun = dryRun ?? options.dryRun,
-       force = force ?? options.force,
-       verbose = verbose ?? options.verbose,
        specLibrary = specLibrary ?? const SpecLibrary(),
        dataBuilder =
            dataBuilder ??
            MockDataBuilder(
              outputDir: outputDir,
-             dryRun: dryRun ?? options.dryRun,
-             force: force ?? options.force,
-             verbose: verbose ?? options.verbose,
+             options: options.copyWith(
+               dryRun: dryRun ?? options.dryRun,
+               force: force ?? options.force,
+               verbose: verbose ?? options.verbose,
+             ),
              specLibrary: specLibrary ?? const SpecLibrary(),
            ),
        dataSourceBuilder =
            dataSourceBuilder ??
            MockDataSourceBuilder(
              outputDir: outputDir,
-             dryRun: dryRun ?? options.dryRun,
-             force: force ?? options.force,
-             verbose: verbose ?? options.verbose,
+             options: options.copyWith(
+               dryRun: dryRun ?? options.dryRun,
+               force: force ?? options.force,
+               verbose: verbose ?? options.verbose,
+             ),
              specLibrary: specLibrary ?? const SpecLibrary(),
            ),
        providerBuilder =
            providerBuilder ??
            MockProviderBuilder(
              outputDir: outputDir,
-             dryRun: dryRun ?? options.dryRun,
-             force: force ?? options.force,
-             verbose: verbose ?? options.verbose,
+             options: options.copyWith(
+               dryRun: dryRun ?? options.dryRun,
+               force: force ?? options.force,
+               verbose: verbose ?? options.verbose,
+             ),
              specLibrary: specLibrary ?? const SpecLibrary(),
            ),
        entityGraphBuilder =
@@ -106,7 +106,7 @@ class MockBuilder {
 
     final targetEntity = config.isCustomUseCase && config.returnsType != null
         ? EntityUtils.extractEntityTypes(config.returnsType!).firstOrNull ??
-            config.name
+              config.name
         : config.name;
 
     final subtypes = EntityAnalyzer.getPolymorphicSubtypes(

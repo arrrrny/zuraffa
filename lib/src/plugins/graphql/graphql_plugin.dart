@@ -1,38 +1,51 @@
 import 'package:args/command_runner.dart';
 import '../../commands/graphql_command.dart';
+import '../../core/generator_options.dart';
+import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
-import '../../core/plugin_system/capability.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'builders/graphql_builder.dart';
 import 'capabilities/create_graphql_capability.dart';
 
+/// Manages GraphQL-related code generation.
+///
+/// Produces GraphQL query and mutation strings, and wires them into
+/// remote data sources.
+///
+/// Example:
+/// ```dart
+/// final plugin = GraphqlPlugin(
+///   outputDir: 'lib/src',
+///   options: const GeneratorOptions(force: true),
+/// );
+/// final files = await plugin.generate(GeneratorConfig(name: 'Product'));
+/// ```
 class GraphqlPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
   late final GraphqlBuilder graphqlBuilder;
 
   GraphqlPlugin({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
-  }) {
+    GeneratorOptions options = const GeneratorOptions(),
+    @Deprecated('Use options.dryRun') bool? dryRun,
+    @Deprecated('Use options.force') bool? force,
+    @Deprecated('Use options.verbose') bool? verbose,
+  }) : options = options.copyWith(
+         dryRun: dryRun ?? options.dryRun,
+         force: force ?? options.force,
+         verbose: verbose ?? options.verbose,
+       ) {
     graphqlBuilder = GraphqlBuilder(
       outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
+      options: this.options,
     );
   }
 
   @override
-  List<ZuraffaCapability> get capabilities => [
-        CreateGraphqlCapability(this),
-      ];
+  List<ZuraffaCapability> get capabilities => [CreateGraphqlCapability(this)];
 
   @override
   Command createCommand() => GraphqlCommand(this);
@@ -49,14 +62,16 @@ class GraphqlPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     if (config.outputDir != outputDir ||
-        config.dryRun != dryRun ||
-        config.force != force ||
-        config.verbose != verbose) {
+        config.dryRun != options.dryRun ||
+        config.force != options.force ||
+        config.verbose != options.verbose) {
       final delegator = GraphqlPlugin(
         outputDir: config.outputDir,
-        dryRun: config.dryRun,
-        force: config.force,
-        verbose: config.verbose,
+        options: GeneratorOptions(
+          dryRun: config.dryRun,
+          force: config.force,
+          verbose: config.verbose,
+        ),
       );
       return delegator.generate(config);
     }

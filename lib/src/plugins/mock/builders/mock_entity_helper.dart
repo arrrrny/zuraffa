@@ -52,8 +52,16 @@ class MockEntityHelper {
           final entitySnake = StringUtils.camelToSnake(baseType);
           imports.add('${entitySnake}_mock_data.dart');
         } else if (entityFields.isEmpty &&
-            !['String', 'int', 'double', 'bool', 'DateTime', 'List', 'Map', 'NoParams']
-                .contains(baseType)) {
+            ![
+              'String',
+              'int',
+              'double',
+              'bool',
+              'DateTime',
+              'List',
+              'Map',
+              'NoParams',
+            ].contains(baseType)) {
           hasEnums = true;
         }
       }

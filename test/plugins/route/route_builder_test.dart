@@ -70,18 +70,35 @@ void main() {
     final entityRoutes = File('$outputDir/routing/listing_routes.dart');
     expect(entityRoutes.existsSync(), isTrue);
     final content = entityRoutes.readAsStringSync();
-    print('--- GENERATED ROUTE CONTENT ---\n$content\n-------------------------------');
-    
+    print(
+      '--- GENERATED ROUTE CONTENT ---\n$content\n-------------------------------',
+    );
+
     // Check path for custom usecase (should be just /get_listing_by_barcode)
-    expect(content.contains("static const String getListingByBarcode = '/get_listing_by_barcode';"), isTrue);
-    
+    expect(
+      content.contains(
+        "static const String getListingByBarcode = '/get_listing_by_barcode';",
+      ),
+      isTrue,
+    );
+
     // Check view import with domain
-    expect(content.contains("../presentation/pages/listing/get_listing_by_barcode_view.dart"), isTrue);
-    
+    expect(
+      content.contains(
+        "../presentation/pages/listing/get_listing_by_barcode_view.dart",
+      ),
+      isTrue,
+    );
+
     // Check goRoute definition
     expect(content.contains("GoRoute("), isTrue);
     expect(content.contains("path: ListingRoutes.getListingByBarcode"), isTrue);
-    expect(content.contains("builder: (context, state) => const GetListingByBarcodeView()"), isTrue);
+    expect(
+      content.contains(
+        "builder: (context, state) => const GetListingByBarcodeView()",
+      ),
+      isTrue,
+    );
   });
 
   test('appends routes to existing domain routes file', () async {
@@ -120,15 +137,18 @@ void main() {
     final entityRoutes = File('$outputDir/routing/listing_routes.dart');
     expect(entityRoutes.existsSync(), isTrue);
     final content = entityRoutes.readAsStringSync();
-    
+
     // Check both constants exist in the same class
-    expect(content.contains('static const String getListingByBarcode ='), isTrue);
+    expect(
+      content.contains('static const String getListingByBarcode ='),
+      isTrue,
+    );
     expect(content.contains('static const String searchListings ='), isTrue);
-    
+
     // Check both routes exist in the same getter
     expect(content.contains('ListingRoutes.getListingByBarcode'), isTrue);
     expect(content.contains('ListingRoutes.searchListings'), isTrue);
-    
+
     // Check both view imports
     expect(content.contains('get_listing_by_barcode_view.dart'), isTrue);
     expect(content.contains('search_listings_view.dart'), isTrue);
@@ -158,11 +178,19 @@ void main() {
     final entityRoutes = File('$outputDir/routing/listing_routes.dart');
     expect(entityRoutes.existsSync(), isTrue);
     final content = entityRoutes.readAsStringSync();
-    print('--- DUPLICATE TEST CONTENT ---\n$content\n------------------------------');
+    print(
+      '--- DUPLICATE TEST CONTENT ---\n$content\n------------------------------',
+    );
 
     // Count occurrences of the constant
-    final constantMatches = 'static const String getListingByBarcode'.allMatches(content).length;
-    expect(constantMatches, equals(1), reason: 'Constant should not be duplicated');
+    final constantMatches = 'static const String getListingByBarcode'
+        .allMatches(content)
+        .length;
+    expect(
+      constantMatches,
+      equals(1),
+      reason: 'Constant should not be duplicated',
+    );
 
     // Count occurrences of GoRoute
     final routeMatches = 'GoRoute('.allMatches(content).length;
@@ -172,10 +200,17 @@ void main() {
     final appRoutes = File('$outputDir/routing/app_routes.dart');
     expect(appRoutes.existsSync(), isTrue);
     final appContent = appRoutes.readAsStringSync();
-    print('--- APP ROUTES CONTENT ---\n$appContent\n--------------------------');
-    
+    print(
+      '--- APP ROUTES CONTENT ---\n$appContent\n--------------------------',
+    );
+
     // It should point to ListingRoutes.getListingByBarcode
-    expect(appContent.contains('static const String getListingByBarcode = ListingRoutes.getListingByBarcode;'), isTrue);
+    expect(
+      appContent.contains(
+        'static const String getListingByBarcode = ListingRoutes.getListingByBarcode;',
+      ),
+      isTrue,
+    );
   });
 
   test('regenerates routes index with correct getter names', () async {
@@ -211,16 +246,16 @@ void main() {
     final indexPath = File('$outputDir/routing/index.dart');
     expect(indexPath.existsSync(), isTrue);
     final content = indexPath.readAsStringSync();
-    
+
     // Check exports
     expect(content.contains("export 'listing_routes.dart';"), isTrue);
     expect(content.contains("export 'product_routes.dart';"), isTrue);
-    
+
     // Check getAllRoutes contains the spread calls to correctly named getters
     // listingRoutes() and productRoutes()
     expect(content.contains("...listingRoutes()"), isTrue);
     expect(content.contains("...productRoutes()"), isTrue);
-    
+
     // Verify it doesn't contain getListingRoutes() or getProductRoutes()
     expect(content.contains("getListingRoutes()"), isFalse);
     expect(content.contains("getProductRoutes()"), isFalse);

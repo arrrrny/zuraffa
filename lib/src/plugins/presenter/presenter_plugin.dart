@@ -4,9 +4,10 @@ import 'package:path/path.dart' as path;
 
 import '../../commands/presenter_command.dart';
 import '../../core/constants/known_types.dart';
+import '../../core/generator_options.dart';
+import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
-import '../../core/plugin_system/capability.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/file_utils.dart';
@@ -16,23 +17,25 @@ import 'capabilities/create_presenter_capability.dart';
 
 class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
   final PresenterClassBuilder classBuilder;
 
   PresenterPlugin({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
+    GeneratorOptions options = const GeneratorOptions(),
+    @Deprecated('Use options.dryRun') bool? dryRun,
+    @Deprecated('Use options.force') bool? force,
+    @Deprecated('Use options.verbose') bool? verbose,
     PresenterClassBuilder? classBuilder,
-  }) : classBuilder = classBuilder ?? const PresenterClassBuilder();
+  }) : options = options.copyWith(
+         dryRun: dryRun ?? options.dryRun,
+         force: force ?? options.force,
+         verbose: verbose ?? options.verbose,
+       ),
+       classBuilder = classBuilder ?? const PresenterClassBuilder();
 
   @override
-  List<ZuraffaCapability> get capabilities => [
-        CreatePresenterCapability(this),
-      ];
+  List<ZuraffaCapability> get capabilities => [CreatePresenterCapability(this)];
 
   @override
   String get id => 'presenter';
@@ -53,14 +56,16 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     }
 
     if (config.outputDir != outputDir ||
-        config.dryRun != dryRun ||
-        config.force != force ||
-        config.verbose != verbose) {
+        config.dryRun != options.dryRun ||
+        config.force != options.force ||
+        config.verbose != options.verbose) {
       final delegator = PresenterPlugin(
         outputDir: config.outputDir,
-        dryRun: config.dryRun,
-        force: config.force,
-        verbose: config.verbose,
+        options: GeneratorOptions(
+          dryRun: config.dryRun,
+          force: config.force,
+          verbose: config.verbose,
+        ),
         classBuilder: classBuilder,
       );
       return delegator.generate(config);
@@ -103,9 +108,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       filePath,
       content,
       'presenter',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
       revert: config.revert,
     );
     return [file];
@@ -244,9 +249,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         refer('_${info.fieldName}')
             .assign(
               refer('registerUseCase').call([
-                refer(info.className).call([
-                  if (config.effectiveRepos.isNotEmpty) refer(mainRepo),
-                ]),
+                refer(
+                  info.className,
+                ).call([if (config.effectiveRepos.isNotEmpty) refer(mainRepo)]),
               ]),
             )
             .statement,
@@ -270,12 +275,15 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       final info = useCases.first;
       final returns = config.returnsType ?? 'void';
       final params = config.paramsType ?? 'NoParams';
+      final isStream = config.useCaseType == 'stream';
 
       return [
         Method(
           (m) => m
             ..name = info.fieldName
-            ..returns = refer('Future<Result<$returns, AppFailure>>')
+            ..returns = isStream
+                ? refer('Stream<Result<$returns, AppFailure>>')
+                : refer('Future<Result<$returns, AppFailure>>')
             ..requiredParameters.addAll(
               params == 'NoParams'
                   ? const []
@@ -289,16 +297,22 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             )
             ..optionalParameters.add(_cancelTokenParam())
             ..body = Block(
-              (b) => b..statements.add(
-                refer('_${info.fieldName}')
-                    .property('call')
-                    .call([
-                      if (params != 'NoParams') refer('params')
-                      else refer('NoParams').constInstance([]),
-                    ], {'cancelToken': refer('cancelToken')})
-                    .returned
-                    .statement,
-              ),
+              (b) => b
+                ..statements.add(
+                  refer('_${info.fieldName}')
+                      .property('call')
+                      .call(
+                        [
+                          if (params != 'NoParams')
+                            refer('params')
+                          else
+                            refer('NoParams').constInstance([]),
+                        ],
+                        {'cancelToken': refer('cancelToken')},
+                      )
+                      .returned
+                      .statement,
+                ),
             ),
         ),
       ];
@@ -609,18 +623,27 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     String domainSnake,
     bool useDi,
   ) {
-    final imports = <String>[
-      'package:zuraffa/zuraffa.dart',
-    ];
+    final imports = <String>['package:zuraffa/zuraffa.dart'];
 
     if (config.isCustomUseCase) {
+      final types = <String>[];
       if (config.returnsType != null) {
-        final types = config.returnsType!
-            .replaceAll('List<', '')
-            .replaceAll('>', '')
-            .replaceAll('?', '');
-        for (final type in types.split(',').map((t) => t.trim())) {
-          if (!KnownTypes.isDartPrimitive(type)) {
+        types.add(config.returnsType!);
+      }
+      if (config.paramsType != null) {
+        types.add(config.paramsType!);
+      }
+
+      for (final rawType in types) {
+        final cleanTypes = rawType
+            .replaceAll('List<', ' ')
+            .replaceAll('Map<', ' ')
+            .replaceAll('>', ' ')
+            .replaceAll('?', ' ')
+            .replaceAll(',', ' ');
+        for (final type
+            in cleanTypes.split(RegExp(r'\s+')).map((t) => t.trim())) {
+          if (type.isNotEmpty && !KnownTypes.isExcluded(type)) {
             final snake = StringUtils.camelToSnake(type);
             imports.add('../../../domain/entities/$snake/$snake.dart');
           }

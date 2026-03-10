@@ -28,9 +28,6 @@ part 'implementation_generator_simple.dart';
 class RepositoryImplementationGenerator {
   final String outputDir;
   final GeneratorOptions options;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
   final AppendExecutor appendExecutor;
 
   /// Creates a [RepositoryImplementationGenerator].
@@ -53,9 +50,6 @@ class RepositoryImplementationGenerator {
          force: force ?? options.force,
          verbose: verbose ?? options.verbose,
        ),
-       dryRun = dryRun ?? options.dryRun,
-       force = force ?? options.force,
-       verbose = verbose ?? options.verbose,
        appendExecutor = appendExecutor ?? AppendExecutor();
 
   /// Generates a repository implementation for the given [config].
@@ -82,8 +76,8 @@ class RepositoryImplementationGenerator {
       return FileUtils.deleteFile(
         filePath,
         'repository_implementation',
-        dryRun: dryRun,
-        verbose: verbose,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
       );
     }
 
@@ -223,8 +217,8 @@ class RepositoryImplementationGenerator {
           appended,
           'repository_implementation',
           force: true,
-          dryRun: dryRun,
-          verbose: verbose,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
           revert: false,
         );
       }
@@ -268,9 +262,9 @@ class RepositoryImplementationGenerator {
       filePath,
       output,
       'repository_implementation',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
     );
   }
 }

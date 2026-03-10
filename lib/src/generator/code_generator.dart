@@ -18,18 +18,31 @@ import '../plugins/controller/controller_plugin.dart';
 import '../plugins/di/di_plugin.dart';
 import '../plugins/datasource/datasource_plugin.dart';
 import '../plugins/service/service_plugin.dart';
+import '../core/generator_options.dart';
 import '../core/generation/generation_context.dart';
 import '../core/transaction/generation_transaction.dart';
 import '../core/context/progress_reporter.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/plugin_system/plugin_interface.dart';
 
+/// Orchestrates the entire code generation process.
+///
+/// Coordinates multiple plugins, manages transactions, and provides progress
+/// reporting during the generation lifecycle.
+///
+/// Example:
+/// ```dart
+/// final generator = CodeGenerator(
+///   config: config,
+///   outputDir: 'lib/src',
+///   options: const GeneratorOptions(force: true),
+/// );
+/// final result = await generator.generate();
+/// ```
 class CodeGenerator {
   final GeneratorConfig config;
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
   final Set<String> disabledPlugins;
   final GenerationContext context;
   late final PluginRegistry pluginRegistry;
@@ -55,18 +68,24 @@ class CodeGenerator {
   CodeGenerator({
     required GeneratorConfig config,
     required this.outputDir,
-    this.dryRun = false,
-    this.force = false,
-    this.verbose = false,
+    GeneratorOptions options = const GeneratorOptions(),
+    @Deprecated('Use options.dryRun') bool? dryRun,
+    @Deprecated('Use options.force') bool? force,
+    @Deprecated('Use options.verbose') bool? verbose,
     ProgressReporter? progressReporter,
     Set<String>? disabledPluginIds,
-  }) : config = config.copyWith(outputDir: outputDir),
+  }) : options = options.copyWith(
+         dryRun: dryRun ?? options.dryRun,
+         force: force ?? options.force,
+         verbose: verbose ?? options.verbose,
+       ),
+       config = config.copyWith(outputDir: outputDir),
        context = GenerationContext.create(
          config: config.copyWith(outputDir: outputDir),
          outputDir: outputDir,
-         dryRun: dryRun,
-         force: force,
-         verbose: verbose,
+         dryRun: dryRun ?? options.dryRun,
+         force: force ?? options.force,
+         verbose: verbose ?? options.verbose,
          root: outputDir,
          progressReporter: progressReporter,
        ),
@@ -74,105 +93,41 @@ class CodeGenerator {
     pluginRegistry = PluginRegistry();
     _repositoryPlugin = RepositoryPlugin(
       outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
+      options: this.options,
     );
     _providerPlugin = ProviderPlugin(
       outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
+      options: this.options,
     );
-    _useCasePlugin = UseCasePlugin(
-      outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
-    _viewPlugin = ViewPlugin(
-      outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
+    _useCasePlugin = UseCasePlugin(outputDir: outputDir, options: this.options);
+    _viewPlugin = ViewPlugin(outputDir: outputDir, options: this.options);
     _presenterPlugin = PresenterPlugin(
       outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
+      options: this.options,
     );
     _controllerPlugin = ControllerPlugin(
       outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
+      options: this.options,
     );
-    _diPlugin = DiPlugin(
-      outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
+    _diPlugin = DiPlugin(outputDir: outputDir, options: this.options);
     _dataSourcePlugin = DataSourcePlugin(
       outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
+      options: this.options,
     );
-    _servicePlugin = ServicePlugin(
-      outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
-    _statePlugin = StatePlugin(
-      outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
+    _servicePlugin = ServicePlugin(outputDir: outputDir, options: this.options);
+    _statePlugin = StatePlugin(outputDir: outputDir, options: this.options);
     _observerPlugin = ObserverPlugin(
       outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
+      options: this.options,
     );
-    _testPlugin = TestPlugin(
-      outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
-    _mockPlugin = MockPlugin(
-      outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
-    _graphqlPlugin = GraphqlPlugin(
-      outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
-    _cachePlugin = CachePlugin(
-      outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
-    _routePlugin = RoutePlugin(
-      outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
+    _testPlugin = TestPlugin(outputDir: outputDir, options: this.options);
+    _mockPlugin = MockPlugin(outputDir: outputDir, options: this.options);
+    _graphqlPlugin = GraphqlPlugin(outputDir: outputDir, options: this.options);
+    _cachePlugin = CachePlugin(outputDir: outputDir, options: this.options);
+    _routePlugin = RoutePlugin(outputDir: outputDir, options: this.options);
     _methodAppendPlugin = MethodAppendPlugin(
       outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
+      options: this.options,
     );
 
     _registerPlugin(_repositoryPlugin);
@@ -195,7 +150,7 @@ class CodeGenerator {
   }
 
   Future<GeneratorResult> generate() async {
-    final transaction = GenerationTransaction(dryRun: dryRun);
+    final transaction = GenerationTransaction(dryRun: options.dryRun);
 
     return GenerationTransaction.run(transaction, () async {
       final progress = context.progress;
@@ -285,9 +240,9 @@ class CodeGenerator {
 
         // Update config with execution flags to prevent plugin re-instantiation
         final executionConfig = config.copyWith(
-          dryRun: dryRun,
-          force: force,
-          verbose: verbose,
+          dryRun: options.dryRun,
+          force: options.force,
+          verbose: options.verbose,
           outputDir: outputDir,
         );
 
@@ -295,7 +250,9 @@ class CodeGenerator {
           if (_isPluginEnabled('repository')) {
             tasks.add(() async {
               progress.update('repository');
-              final repoFiles = await _repositoryPlugin.generate(executionConfig);
+              final repoFiles = await _repositoryPlugin.generate(
+                executionConfig,
+              );
               files.addAll(repoFiles);
             }());
           }
@@ -303,7 +260,9 @@ class CodeGenerator {
           if (_isPluginEnabled('usecase')) {
             tasks.add(() async {
               progress.update('usecase');
-              final usecaseFiles = await _useCasePlugin.generate(executionConfig);
+              final usecaseFiles = await _useCasePlugin.generate(
+                executionConfig,
+              );
               files.addAll(usecaseFiles);
             }());
           }
@@ -311,7 +270,9 @@ class CodeGenerator {
           if (_isPluginEnabled('usecase')) {
             tasks.add(() async {
               progress.update('usecase');
-              final usecaseFiles = await _useCasePlugin.generate(executionConfig);
+              final usecaseFiles = await _useCasePlugin.generate(
+                executionConfig,
+              );
               files.addAll(usecaseFiles);
             }());
           }
@@ -319,7 +280,9 @@ class CodeGenerator {
           if (_isPluginEnabled('usecase')) {
             tasks.add(() async {
               progress.update('usecase');
-              final usecaseFiles = await _useCasePlugin.generate(executionConfig);
+              final usecaseFiles = await _useCasePlugin.generate(
+                executionConfig,
+              );
               files.addAll(usecaseFiles);
             }());
           }
@@ -327,14 +290,18 @@ class CodeGenerator {
           if (executionConfig.hasService && _isPluginEnabled('service')) {
             tasks.add(() async {
               progress.update('service');
-              final serviceFiles = await _servicePlugin.generate(executionConfig);
+              final serviceFiles = await _servicePlugin.generate(
+                executionConfig,
+              );
               files.addAll(serviceFiles);
             }());
           }
           if (_isPluginEnabled('usecase')) {
             tasks.add(() async {
               progress.update('usecase');
-              final usecaseFiles = await _useCasePlugin.generate(executionConfig);
+              final usecaseFiles = await _useCasePlugin.generate(
+                executionConfig,
+              );
               files.addAll(usecaseFiles);
             }());
           }
@@ -344,17 +311,22 @@ class CodeGenerator {
           if (_isPluginEnabled('presenter')) {
             tasks.add(() async {
               progress.update('presenter');
-              final presenterFiles = await _presenterPlugin.generate(executionConfig);
+              final presenterFiles = await _presenterPlugin.generate(
+                executionConfig,
+              );
               files.addAll(presenterFiles);
             }());
           }
         }
 
-        if (executionConfig.generateVpcs || executionConfig.generateController) {
+        if (executionConfig.generateVpcs ||
+            executionConfig.generateController) {
           if (_isPluginEnabled('controller')) {
             tasks.add(() async {
               progress.update('controller');
-              final controllerFiles = await _controllerPlugin.generate(executionConfig);
+              final controllerFiles = await _controllerPlugin.generate(
+                executionConfig,
+              );
               files.addAll(controllerFiles);
             }());
           }
@@ -381,17 +353,22 @@ class CodeGenerator {
         if (executionConfig.generateObserver && _isPluginEnabled('observer')) {
           tasks.add(() async {
             progress.update('observer');
-            final observerFiles = await _observerPlugin.generate(executionConfig);
+            final observerFiles = await _observerPlugin.generate(
+              executionConfig,
+            );
             files.addAll(observerFiles);
           }());
         }
 
-        if (executionConfig.generateData || executionConfig.generateDataSource) {
+        if (executionConfig.generateData ||
+            executionConfig.generateDataSource) {
           tasks.add(() async {
             if (executionConfig.hasService && executionConfig.generateData) {
               if (_isPluginEnabled('provider')) {
                 progress.update('provider');
-                final providerFiles = await _providerPlugin.generate(executionConfig);
+                final providerFiles = await _providerPlugin.generate(
+                  executionConfig,
+                );
                 files.addAll(providerFiles);
               }
               nextSteps.add(
@@ -400,7 +377,9 @@ class CodeGenerator {
             } else {
               if (_isPluginEnabled('datasource')) {
                 progress.update('datasource');
-                final dataSourceFiles = await _dataSourcePlugin.generate(executionConfig);
+                final dataSourceFiles = await _dataSourcePlugin.generate(
+                  executionConfig,
+                );
                 files.addAll(dataSourceFiles);
               }
 
@@ -416,7 +395,8 @@ class CodeGenerator {
           }());
         }
 
-        if ((executionConfig.generateMock || executionConfig.generateMockDataOnly) &&
+        if ((executionConfig.generateMock ||
+                executionConfig.generateMockDataOnly) &&
             _isPluginEnabled('mock')) {
           tasks.add(() async {
             progress.update('mock');
@@ -523,10 +503,10 @@ class CodeGenerator {
           errors.add('Generation failed: $e');
         }
         await pluginRegistry.onErrorAll(config, e, stack);
-        if (verbose) {
+        if (options.verbose) {
           errors.add('Stack trace:\n$stack');
         }
-        if (verbose) {
+        if (options.verbose) {
           print('Generation error: $e');
         }
         progress.failed(e.toString());

@@ -33,9 +33,9 @@ class RepositoryCommand extends PluginCommand {
     final generateData = argResults!['data'] as bool;
     final generateDataSource = argResults!['datasource'] as bool;
 
-    final capability = plugin.capabilities.firstWhere(
-      (c) => c is CreateRepositoryCapability,
-    ) as CreateRepositoryCapability;
+    final capability =
+        plugin.capabilities.firstWhere((c) => c is CreateRepositoryCapability)
+            as CreateRepositoryCapability;
 
     final result = await capability.execute({
       'name': entityName,
@@ -49,7 +49,8 @@ class RepositoryCommand extends PluginCommand {
     });
 
     if (result.success) {
-      final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      final files =
+          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
       logSummary(files);
     } else {
       print('Failed to generate repository');

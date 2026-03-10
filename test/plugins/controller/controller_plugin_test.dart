@@ -67,4 +67,40 @@ void main() {
     );
     expect(content.contains('viewState'), isFalse);
   });
+
+  test(
+    'includes entity imports for custom usecase params and returns',
+    () async {
+      final plugin = ControllerPlugin(
+        outputDir: outputDir,
+        dryRun: false,
+        force: true,
+        verbose: false,
+      );
+      final config = GeneratorConfig(
+        name: 'GetListingByBarcode',
+        service: 'Listing',
+        domain: 'listing',
+        paramsType: 'Barcode',
+        returnsType: 'Listing?',
+        generateController: true,
+        outputDir: outputDir,
+      );
+      final files = await plugin.generate(config);
+      final content = files.first.content ?? '';
+
+      expect(
+        content.contains(
+          "import '../../../domain/entities/barcode/barcode.dart';",
+        ),
+        isTrue,
+      );
+      expect(
+        content.contains(
+          "import '../../../domain/entities/listing/listing.dart';",
+        ),
+        isTrue,
+      );
+    },
+  );
 }

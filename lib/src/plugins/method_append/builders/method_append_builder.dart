@@ -6,6 +6,7 @@ import 'package:path/path.dart' as path;
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/builder/shared/spec_library.dart';
+import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -18,22 +19,39 @@ part 'method_append_builder_find.dart';
 part 'method_append_builder_imports.dart';
 part 'method_append_builder_types.dart';
 
+/// Generates and appends method implementations to existing files.
+///
+/// Builds the method AST and uses [AppendExecutor] to insert it into
+/// the target class while maintaining imports and formatting.
+///
+/// Example:
+/// ```dart
+/// final builder = MethodAppendBuilder(
+///   outputDir: 'lib/src',
+///   options: const GeneratorOptions(force: true),
+/// );
+/// final result = await builder.appendMethod(GeneratorConfig(name: 'Product'));
+/// ```
 class MethodAppendBuilder {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
   final AppendExecutor appendExecutor;
   final SpecLibrary specLibrary;
 
   MethodAppendBuilder({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
+    GeneratorOptions options = const GeneratorOptions(),
+    @Deprecated('Use options.dryRun') bool? dryRun,
+    @Deprecated('Use options.force') bool? force,
+    @Deprecated('Use options.verbose') bool? verbose,
     AppendExecutor? appendExecutor,
     SpecLibrary? specLibrary,
-  }) : appendExecutor = appendExecutor ?? AppendExecutor(),
+  }) : options = options.copyWith(
+         dryRun: dryRun ?? options.dryRun,
+         force: force ?? options.force,
+         verbose: verbose ?? options.verbose,
+       ),
+       appendExecutor = appendExecutor ?? AppendExecutor(),
        specLibrary = specLibrary ?? const SpecLibrary();
 
   Future<MethodAppendResult> appendMethod(GeneratorConfig config) async {
@@ -41,7 +59,9 @@ class MethodAppendBuilder {
     final warnings = <String>[];
 
     if (config.revert) {
-      warnings.add('Skipping revert for append operation: append cannot be safely undone.');
+      warnings.add(
+        'Skipping revert for append operation: append cannot be safely undone.',
+      );
       return MethodAppendResult(updatedFiles, warnings);
     }
 

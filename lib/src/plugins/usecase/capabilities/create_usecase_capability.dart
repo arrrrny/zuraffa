@@ -16,61 +16,64 @@ class CreateUseCaseCapability implements ZuraffaCapability {
 
   @override
   JsonSchema get inputSchema => {
-        'type': 'object',
-        'properties': {
-          'name': {
-            'type': 'string',
-            'description': 'Name of the usecase (e.g. Login)'
-          },
-          'type': {
-            'type': 'string',
-            'enum': ['future', 'stream', 'completable', 'sync', 'background'],
-            'default': 'future'
-          },
-          'usecases': {
-            'type': 'array',
-            'items': {'type': 'string'},
-            'description': 'List of usecases to orchestrate'
-          },
-          'domain': {'type': 'string', 'description': 'Domain name (required for non-entity usecases)'},
-          'repo': {'type': 'string', 'description': 'Repository class to inject'},
-          'service': {'type': 'string', 'description': 'Service class to inject'},
-          'params': {'type': 'string', 'description': 'Parameter type'},
-          'returns': {'type': 'string', 'description': 'Return type'},
-          'methods': {
-            'type': 'array',
-            'items': {'type': 'string'},
-          },
-          'outputDir': {'type': 'string', 'default': 'lib/src'},
-          'dryRun': {
-            'type': 'boolean',
-            'description': 'Run without writing files',
-            'default': false,
-          },
-          'force': {
-            'type': 'boolean',
-            'description': 'Force overwrite existing files',
-            'default': false,
-          },
-          'verbose': {
-            'type': 'boolean',
-            'description': 'Enable verbose logging',
-            'default': false,
-          },
-        },
-        'required': ['name']
-      };
+    'type': 'object',
+    'properties': {
+      'name': {
+        'type': 'string',
+        'description': 'Name of the usecase (e.g. Login)',
+      },
+      'type': {
+        'type': 'string',
+        'enum': ['future', 'stream', 'completable', 'sync', 'background'],
+        'default': 'future',
+      },
+      'usecases': {
+        'type': 'array',
+        'items': {'type': 'string'},
+        'description': 'List of usecases to orchestrate',
+      },
+      'domain': {
+        'type': 'string',
+        'description': 'Domain name (required for non-entity usecases)',
+      },
+      'repo': {'type': 'string', 'description': 'Repository class to inject'},
+      'service': {'type': 'string', 'description': 'Service class to inject'},
+      'params': {'type': 'string', 'description': 'Parameter type'},
+      'returns': {'type': 'string', 'description': 'Return type'},
+      'methods': {
+        'type': 'array',
+        'items': {'type': 'string'},
+      },
+      'outputDir': {'type': 'string', 'default': 'lib/src'},
+      'dryRun': {
+        'type': 'boolean',
+        'description': 'Run without writing files',
+        'default': false,
+      },
+      'force': {
+        'type': 'boolean',
+        'description': 'Force overwrite existing files',
+        'default': false,
+      },
+      'verbose': {
+        'type': 'boolean',
+        'description': 'Enable verbose logging',
+        'default': false,
+      },
+    },
+    'required': ['name'],
+  };
 
   @override
   JsonSchema get outputSchema => {
-        'type': 'object',
-        'properties': {
-          'files': {
-            'type': 'array',
-            'items': {'type': 'string'}
-          }
-        }
-      };
+    'type': 'object',
+    'properties': {
+      'files': {
+        'type': 'array',
+        'items': {'type': 'string'},
+      },
+    },
+  };
 
   @override
   Future<EffectReport> plan(Map<String, dynamic> args) async {
@@ -82,11 +85,7 @@ class CreateUseCaseCapability implements ZuraffaCapability {
       capabilityName: name,
       args: args,
       changes: files
-          .map((f) => Effect(
-                file: f.path,
-                action: f.action,
-                diff: null,
-              ))
+          .map((f) => Effect(file: f.path, action: f.action, diff: null))
           .toList(),
     );
   }
@@ -102,7 +101,10 @@ class CreateUseCaseCapability implements ZuraffaCapability {
     );
   }
 
-  Future<List<GeneratedFile>> _generateFiles(Map<String, dynamic> args, {required bool dryRun}) async {
+  Future<List<GeneratedFile>> _generateFiles(
+    Map<String, dynamic> args, {
+    required bool dryRun,
+  }) async {
     final name = args['name'];
     var useCaseType = args['type'];
     final returns = args['returns'] as String?;
@@ -113,34 +115,42 @@ class CreateUseCaseCapability implements ZuraffaCapability {
         if (returns.startsWith('Stream<')) {
           useCaseType = 'stream';
         } else if (returns == 'void' || returns == 'Future<void>') {
-           // Maybe we want to default to 'completable' here?
-           // But 'future' (void) is also valid. 
-           // Let's stick to future unless user asks for completable.
+          // Maybe we want to default to 'completable' here?
+          // But 'future' (void) is also valid.
+          // Let's stick to future unless user asks for completable.
         }
       }
     }
     useCaseType ??= 'future';
-    
+
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
 
     final methods = (args['methods'] as List<dynamic>?)?.cast<String>() ?? [];
-    
-    // Determine if it's a custom usecase (provided repo/service AND params AND returns)
+
     final repo = args['repo']?.toString();
     final service = args['service']?.toString();
     final params = args['params']?.toString();
-    final isCustomUseCase = (repo != null || service != null) && params != null && returns != null;
+    final usecases = (args['usecases'] as List<dynamic>?)?.cast<String>() ?? [];
+    final variants = (args['variants'] as List<dynamic>?)?.cast<String>() ?? [];
+
+    final isCustomUseCase = repo != null ||
+        service != null ||
+        usecases.isNotEmpty ||
+        variants.isNotEmpty ||
+        (params != null && returns != null);
 
     final config = GeneratorConfig(
       name: name,
       useCaseType: useCaseType,
-      methods: (methods.isEmpty && !isCustomUseCase) ? ['get', 'list', 'create', 'update', 'delete'] : methods,
+      methods: (methods.isEmpty && !isCustomUseCase)
+          ? ['get', 'list', 'create', 'update', 'delete']
+          : methods,
       outputDir: args['outputDir'] ?? 'lib/src',
       domain: args['domain'],
       repo: repo,
       service: service,
-      usecases: (args['usecases'] as List<dynamic>?)?.cast<String>() ?? [],
+      usecases: usecases,
       paramsType: params,
       returnsType: returns,
       dryRun: dryRun,

@@ -112,12 +112,20 @@ void main() {
     );
     final files = await plugin.generate(config);
     final content = files.first.content ?? '';
-    
+
     expect(content.contains('class GetListingByBarcodeUseCase'), isTrue);
     expect(content.contains('UseCase<Listing?, String>'), isTrue);
     expect(content.contains('final ListingService _listingService;'), isTrue);
-    expect(content.contains('GetListingByBarcodeUseCase(this._listingService);'), isTrue);
-    expect(content.contains('return await _listingService.getListingByBarcode(params);'), isTrue);
+    expect(
+      content.contains('GetListingByBarcodeUseCase(this._listingService);'),
+      isTrue,
+    );
+    expect(
+      content.contains(
+        'return await _listingService.getListingByBarcode(params);',
+      ),
+      isTrue,
+    );
   });
 
   test('generates orchestrator usecase', () async {

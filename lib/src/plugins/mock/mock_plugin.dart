@@ -2,40 +2,50 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as path;
 import '../../commands/mock_command.dart';
+import '../../core/generator_options.dart';
+import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
-import '../../core/plugin_system/capability.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/string_utils.dart';
 import 'builders/mock_builder.dart';
 import 'capabilities/create_mock_capability.dart';
 
+/// Manages mock data and provider generation for testing.
+///
+/// Builds mock implementations of data sources and providers, along with
+/// sample data generators to facilitate offline development and unit testing.
+///
+/// Example:
+/// ```dart
+/// final plugin = MockPlugin(
+///   outputDir: 'lib/src',
+///   options: const GeneratorOptions(force: true),
+/// );
+/// final files = await plugin.generate(GeneratorConfig(name: 'Auth'));
+/// ```
 class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
   late final MockBuilder mockBuilder;
 
   MockPlugin({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
-  }) {
-    mockBuilder = MockBuilder(
-      outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-    );
+    GeneratorOptions options = const GeneratorOptions(),
+    @Deprecated('Use options.dryRun') bool? dryRun,
+    @Deprecated('Use options.force') bool? force,
+    @Deprecated('Use options.verbose') bool? verbose,
+  }) : options = options.copyWith(
+         dryRun: dryRun ?? options.dryRun,
+         force: force ?? options.force,
+         verbose: verbose ?? options.verbose,
+       ) {
+    mockBuilder = MockBuilder(outputDir: outputDir, options: this.options);
   }
 
   @override
-  List<ZuraffaCapability> get capabilities => [
-        CreateMockCapability(this),
-      ];
+  List<ZuraffaCapability> get capabilities => [CreateMockCapability(this)];
 
   @override
   Command createCommand() => MockCommand(this);
@@ -52,14 +62,16 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     if (config.outputDir != outputDir ||
-        config.dryRun != dryRun ||
-        config.force != force ||
-        config.verbose != verbose) {
+        config.dryRun != options.dryRun ||
+        config.force != options.force ||
+        config.verbose != options.verbose) {
       final delegator = MockPlugin(
         outputDir: config.outputDir,
-        dryRun: config.dryRun,
-        force: config.force,
-        verbose: config.verbose,
+        options: GeneratorOptions(
+          dryRun: config.dryRun,
+          force: config.force,
+          verbose: config.verbose,
+        ),
       );
       return delegator.generate(config);
     }

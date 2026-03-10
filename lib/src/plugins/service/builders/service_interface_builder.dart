@@ -46,12 +46,13 @@ class ServiceInterfaceBuilder {
 
     final directives = <Directive>[
       Directive.import('package:zuraffa/zuraffa.dart'),
-      ..._entityImports([paramsType, returnsType]).map(Directive.import),
+      ..._entityImports([
+        paramsType,
+        returnsType,
+      ]).map((path) => Directive.import(path)),
     ];
 
-    return specLibrary.emitLibrary(
-      specLibrary.library(specs: [clazz], directives: directives),
-    );
+    return specLibrary.emitSpec(clazz, directives: directives);
   }
 
   String _returnSignature(GeneratorConfig config, String returnsType) {
@@ -67,7 +68,7 @@ class ServiceInterfaceBuilder {
     }
   }
 
-  List<String> _entityImports(List<String> types) {
+  List<String> _entityImports(List<String?> types) {
     final entities = <String>[];
     final primitives = {
       'void',
@@ -94,6 +95,7 @@ class ServiceInterfaceBuilder {
     };
 
     for (final type in types) {
+      if (type == null) continue;
       final baseTypes = _extractBaseTypes(type);
       for (final baseType in baseTypes) {
         if (!primitives.contains(baseType) &&

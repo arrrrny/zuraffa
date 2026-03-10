@@ -27,9 +27,9 @@ class StateCommand extends PluginCommand {
     final entityName = argResults!.rest.first;
     final methods = (argResults!['methods'] as String).split(',');
 
-    final capability = plugin.capabilities.firstWhere(
-      (c) => c is CreateStateCapability,
-    ) as CreateStateCapability;
+    final capability =
+        plugin.capabilities.firstWhere((c) => c is CreateStateCapability)
+            as CreateStateCapability;
 
     final result = await capability.execute({
       'name': entityName,
@@ -41,7 +41,8 @@ class StateCommand extends PluginCommand {
     });
 
     if (result.success) {
-      final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      final files =
+          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
       logSummary(files);
     } else {
       print('Failed to generate state');

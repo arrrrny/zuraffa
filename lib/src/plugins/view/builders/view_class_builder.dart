@@ -177,7 +177,9 @@ class ViewClassBuilder {
           ..statements.add(
             declareFinal(
               'viewState',
-              type: spec.stateClassName != null ? refer(spec.stateClassName!) : null,
+              type: spec.stateClassName != null
+                  ? refer(spec.stateClassName!)
+                  : null,
             ).assign(refer('controller').property('viewState')).statement,
           )
           ..statements.add(

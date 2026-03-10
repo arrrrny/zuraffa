@@ -50,6 +50,23 @@ extension TestBuilderOrchestrator on TestBuilder {
       );
     }
 
+    final entityTypes = <String>[];
+    if (config.returnsType != null) {
+      entityTypes.addAll(EntityUtils.extractEntityTypes(config.returnsType!));
+    }
+    if (config.paramsType != null) {
+      entityTypes.addAll(EntityUtils.extractEntityTypes(config.paramsType!));
+    }
+
+    for (final type in entityTypes.toSet()) {
+      final snake = StringUtils.camelToSnake(type);
+      directives.add(
+        Directive.import(
+          'package:$packageName/src/domain/entities/$snake/$snake.dart',
+        ),
+      );
+    }
+
     final mainMethod = Method(
       (m) => m
         ..name = 'main'
@@ -145,9 +162,9 @@ extension TestBuilderOrchestrator on TestBuilder {
       filePath,
       content,
       'test',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
       revert: config.revert,
     );
   }

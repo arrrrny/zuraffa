@@ -6,28 +6,46 @@ import 'package:path/path.dart' as path;
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/constants/known_types.dart';
+import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../builders/usecase_class_builder.dart';
 
+/// Generates stream-based use cases for the domain layer.
+///
+/// Builds use case classes that return data streams, typically used for
+/// real-time updates and reactive features.
+///
+/// Example:
+/// ```dart
+/// final generator = StreamUseCaseGenerator(
+///   outputDir: 'lib/src',
+///   options: const GeneratorOptions(force: true),
+/// );
+/// final file = await generator.generate(GeneratorConfig(name: 'Chat'));
+/// ```
 class StreamUseCaseGenerator {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
   final UseCaseClassBuilder classBuilder;
   final AppendExecutor appendExecutor;
 
   StreamUseCaseGenerator({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
+    GeneratorOptions options = const GeneratorOptions(),
+    @Deprecated('Use options.dryRun') bool? dryRun,
+    @Deprecated('Use options.force') bool? force,
+    @Deprecated('Use options.verbose') bool? verbose,
     UseCaseClassBuilder? classBuilder,
     AppendExecutor? appendExecutor,
-  }) : classBuilder = classBuilder ?? const UseCaseClassBuilder(),
+  }) : options = options.copyWith(
+         dryRun: dryRun ?? options.dryRun,
+         force: force ?? options.force,
+         verbose: verbose ?? options.verbose,
+       ),
+       classBuilder = classBuilder ?? const UseCaseClassBuilder(),
        appendExecutor = appendExecutor ?? AppendExecutor();
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
@@ -83,30 +101,30 @@ class StreamUseCaseGenerator {
         ),
       );
     } else if (config.hasRepo) {
-       final repoName = config.effectiveRepos.first;
-       final repoSnake = StringUtils.camelToSnake(
-         repoName.replaceAll('Repository', ''),
-       );
-       dependencyImports.add('../../repositories/${repoSnake}_repository.dart');
-       final repoBaseName = repoName.replaceAll('Repository', '');
-       final repoFieldName =
-           '_${StringUtils.pascalToCamel(repoBaseName)}Repository';
-       dependencyFields.add(
-         Field(
-           (b) => b
-             ..name = repoFieldName
-             ..type = refer(repoName)
-             ..modifier = FieldModifier.final$,
-         ),
-       );
-       constructorParams.add(
-         Parameter(
-           (p) => p
-             ..name = repoFieldName
-             ..toThis = true,
-         ),
-       );
-     }
+      final repoName = config.effectiveRepos.first;
+      final repoSnake = StringUtils.camelToSnake(
+        repoName.replaceAll('Repository', ''),
+      );
+      dependencyImports.add('../../repositories/${repoSnake}_repository.dart');
+      final repoBaseName = repoName.replaceAll('Repository', '');
+      final repoFieldName =
+          '_${StringUtils.pascalToCamel(repoBaseName)}Repository';
+      dependencyFields.add(
+        Field(
+          (b) => b
+            ..name = repoFieldName
+            ..type = refer(repoName)
+            ..modifier = FieldModifier.final$,
+        ),
+      );
+      constructorParams.add(
+        Parameter(
+          (p) => p
+            ..name = repoFieldName
+            ..toThis = true,
+        ),
+      );
+    }
 
     final executeBody = dependencyFields.isNotEmpty
         ? Block(
@@ -186,9 +204,10 @@ class StreamUseCaseGenerator {
         : config.getRepoMethodName();
   }
 
-  List<String> _entityImports(List<String> types) {
+  List<String> _entityImports(List<String?> types) {
     final entityNames = <String>{};
     for (final type in types) {
+      if (type == null) continue;
       final regex = RegExp(r'[A-Z][a-zA-Z0-9_]*');
       final matches = regex.allMatches(type);
       for (final match in matches) {
@@ -215,7 +234,7 @@ class StreamUseCaseGenerator {
   }) async {
     if (config.revert) {
       if (config.appendToExisting) {
-        if (verbose) {
+        if (options.verbose) {
           print('  ⚠️ Cannot revert append operation for $filePath');
         }
         return GeneratedFile(
@@ -227,20 +246,20 @@ class StreamUseCaseGenerator {
       return FileUtils.deleteFile(
         filePath,
         'usecase',
-        dryRun: dryRun,
-        verbose: verbose,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
       );
     }
 
     if (config.appendToExisting && File(filePath).existsSync()) {
-      if (force) {
+      if (options.force) {
         return FileUtils.writeFile(
           filePath,
           content,
           'usecase',
           force: true,
-          dryRun: dryRun,
-          verbose: verbose,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
         );
       }
 
@@ -265,8 +284,8 @@ class StreamUseCaseGenerator {
         result.source,
         'usecase',
         force: true,
-        dryRun: dryRun,
-        verbose: verbose,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
       );
     }
 
@@ -274,9 +293,9 @@ class StreamUseCaseGenerator {
       filePath,
       content,
       'usecase',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
     );
   }
 }

@@ -22,9 +22,7 @@ import '../../../core/builder/shared/spec_library.dart';
 /// ```dart
 /// final builder = RemoteDataSourceBuilder(
 ///   outputDir: 'lib/src',
-///   dryRun: false,
-///   force: true,
-///   verbose: false,
+///   options: const GeneratorOptions(force: true),
 /// );
 /// final file = await builder.generate(GeneratorConfig(name: 'Product'));
 /// ```
@@ -291,14 +289,12 @@ class RemoteDataSourceBuilder {
           '../../../domain/entities/$entitySnake/$entitySnake.dart',
         ),
       if (config.isCustomUseCase && config.returnsType != null)
-        ...EntityUtils.extractEntityTypes(config.returnsType!).map(
-          (type) {
-            final snake = StringUtils.camelToSnake(type);
-            return Directive.import(
-              '../../../domain/entities/$snake/$snake.dart',
-            );
-          },
-        ),
+        ...EntityUtils.extractEntityTypes(config.returnsType!).map((type) {
+          final snake = StringUtils.camelToSnake(type);
+          return Directive.import(
+            '../../../domain/entities/$snake/$snake.dart',
+          );
+        }),
       Directive.import('${entitySnake}_datasource.dart'),
       ...gqlImports.map(Directive.import),
     ];
@@ -311,7 +307,9 @@ class RemoteDataSourceBuilder {
         ..methods.addAll(methods),
     );
 
-    if (config.appendToExisting && File(filePath).existsSync() && !options.force) {
+    if (config.appendToExisting &&
+        File(filePath).existsSync() &&
+        !options.force) {
       final existing = await File(filePath).readAsString();
       var updated = existing;
       for (final method in methods) {

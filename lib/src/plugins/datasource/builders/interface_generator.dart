@@ -11,23 +11,41 @@ import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../../utils/entity_utils.dart';
 import '../../../core/builder/shared/spec_library.dart';
+import '../../../core/generator_options.dart';
 
+/// Generates data source interfaces for domain and data layers.
+///
+/// Builds abstract data source classes with CRUD and stream method definitions
+/// that must be implemented by remote and local data source providers.
+///
+/// Example:
+/// ```dart
+/// final builder = DataSourceInterfaceBuilder(
+///   outputDir: 'lib/src',
+///   options: const GeneratorOptions(force: true),
+/// );
+/// final file = await builder.generate(GeneratorConfig(name: 'Product'));
+/// ```
 class DataSourceInterfaceBuilder {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
   final SpecLibrary specLibrary;
   final AppendExecutor appendExecutor;
 
   DataSourceInterfaceBuilder({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
+    GeneratorOptions options = const GeneratorOptions(),
+    @Deprecated('Use options.dryRun') bool? dryRun,
+    @Deprecated('Use options.force') bool? force,
+    @Deprecated('Use options.verbose') bool? verbose,
     SpecLibrary? specLibrary,
     AppendExecutor? appendExecutor,
-  }) : specLibrary = specLibrary ?? const SpecLibrary(),
+  }) : options = options.copyWith(
+         dryRun: dryRun ?? options.dryRun,
+         force: force ?? options.force,
+         verbose: verbose ?? options.verbose,
+       ),
+       specLibrary = specLibrary ?? const SpecLibrary(),
        appendExecutor = appendExecutor ?? AppendExecutor();
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
@@ -204,14 +222,12 @@ class DataSourceInterfaceBuilder {
           '../../../domain/entities/$entitySnake/$entitySnake.dart',
         ),
       if (config.isCustomUseCase && config.returnsType != null)
-        ...EntityUtils.extractEntityTypes(config.returnsType!).map(
-          (type) {
-            final snake = StringUtils.camelToSnake(type);
-            return Directive.import(
-              '../../../domain/entities/$snake/$snake.dart',
-            );
-          },
-        ),
+        ...EntityUtils.extractEntityTypes(config.returnsType!).map((type) {
+          final snake = StringUtils.camelToSnake(type);
+          return Directive.import(
+            '../../../domain/entities/$snake/$snake.dart',
+          );
+        }),
     ];
     final clazz = Class(
       (c) => c
@@ -221,7 +237,9 @@ class DataSourceInterfaceBuilder {
         ..methods.addAll(methods),
     );
 
-    if (config.appendToExisting && File(filePath).existsSync() && !config.force) {
+    if (config.appendToExisting &&
+        File(filePath).existsSync() &&
+        !config.force) {
       final existing = await File(filePath).readAsString();
       var updated = existing;
       for (final method in methods) {
@@ -240,8 +258,8 @@ class DataSourceInterfaceBuilder {
         updated,
         'datasource',
         force: true,
-        dryRun: dryRun,
-        verbose: verbose,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
         revert: false,
       );
     }
@@ -254,9 +272,9 @@ class DataSourceInterfaceBuilder {
       filePath,
       content,
       'datasource',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
       revert: config.revert,
     );
   }

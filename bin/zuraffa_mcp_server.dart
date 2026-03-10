@@ -56,7 +56,7 @@ class ZuraffaMcpServer {
 
   Future<void> _ensurePluginsInitialized() async {
     if (_pluginsInitialized) return;
-    
+
     final registry = PluginRegistry.instance;
     // Only initialize if registry is empty (singleton)
     if (registry.plugins.isEmpty) {
@@ -67,7 +67,7 @@ class ZuraffaMcpServer {
         verbose: false,
         config: PluginConfig.load(), // Load from .zfa.json if available
       );
-      
+
       final loadedRegistry = loader.buildRegistry();
       for (final plugin in loadedRegistry.plugins) {
         if (!registry.plugins.any((p) => p.id == plugin.id)) {
@@ -241,12 +241,12 @@ class ZuraffaMcpServer {
         // Or we can namespace them: zuraffa_<plugin>_<capability>
         // Given user request: zfa <plugin> <command>
         // We use zuraffa_ prefix for consistency in MCP
-        
+
         final toolName = 'zuraffa_${plugin.id}_${capability.name}';
-        
+
         // Convert capability schema to tool schema
         final inputSchema = capability.inputSchema;
-        
+
         tools.add({
           'name': toolName,
           'description': '${capability.description} (Plugin: ${plugin.name})',
@@ -257,9 +257,7 @@ class ZuraffaMcpServer {
 
     return {
       'jsonrpc': '2.0',
-      'result': {
-        'tools': tools,
-      },
+      'result': {'tools': tools},
       'id': id,
     };
   }
@@ -347,8 +345,7 @@ TIP: Use dry_run=true to preview generated files before writing.''',
           },
           'local': {
             'type': 'boolean',
-            'description':
-                'Generate local data source (instead of remote)',
+            'description': 'Generate local data source (instead of remote)',
           },
           'init': {
             'type': 'boolean',
@@ -1369,9 +1366,6 @@ Use quick for fast diagnostics, full for troubleshooting.''',
     return output.toString();
   }
 
-
-
-
   /// Cached path to the zfa executable (resolved once, reused)
   String? _cachedExecutable;
   bool _cachedIsDartRun = false;
@@ -1385,10 +1379,13 @@ Use quick for fast diagnostics, full for troubleshooting.''',
         await _resolveExecutable();
       }
 
-      final executableArgs =
-          _cachedIsDartRun ? ['run', 'zuraffa:zuraffa', ...args] : args;
+      final executableArgs = _cachedIsDartRun
+          ? ['run', 'zuraffa:zuraffa', ...args]
+          : args;
 
-      stderr.writeln('[zfa-exec] Running: $_cachedExecutable ${executableArgs.join(' ')}');
+      stderr.writeln(
+        '[zfa-exec] Running: $_cachedExecutable ${executableArgs.join(' ')}',
+      );
       final stopwatch = Stopwatch()..start();
 
       final result = await Process.run(
@@ -1399,7 +1396,9 @@ Use quick for fast diagnostics, full for troubleshooting.''',
       );
 
       stopwatch.stop();
-      stderr.writeln('[zfa-exec] Completed in ${stopwatch.elapsedMilliseconds}ms (exit ${result.exitCode})');
+      stderr.writeln(
+        '[zfa-exec] Completed in ${stopwatch.elapsedMilliseconds}ms (exit ${result.exitCode})',
+      );
 
       final output = result.stdout.toString();
       final error = result.stderr.toString();
@@ -1443,7 +1442,9 @@ Use quick for fast diagnostics, full for troubleshooting.''',
         try {
           if (candidate.resolveSymbolicLinksSync() != selfPath) {
             _cachedExecutable = candidate.path;
-            stderr.writeln('[zfa-resolve] ✓ Found CLI binary: $_cachedExecutable');
+            stderr.writeln(
+              '[zfa-resolve] ✓ Found CLI binary: $_cachedExecutable',
+            );
             return;
           }
         } catch (_) {}
@@ -1459,7 +1460,8 @@ Use quick for fast diagnostics, full for troubleshooting.''',
         if (await _isCompiledBinary(localExe.path)) {
           _cachedExecutable = localExe.path;
           stderr.writeln(
-              '[zfa-resolve] ✓ Found compiled binary: $_cachedExecutable');
+            '[zfa-resolve] ✓ Found compiled binary: $_cachedExecutable',
+          );
           return;
         }
       }
@@ -1475,7 +1477,8 @@ Use quick for fast diagnostics, full for troubleshooting.''',
         return;
       } else {
         stderr.writeln(
-            '[zfa-resolve] ⚠ zfa in PATH is a script (JIT), skipping');
+          '[zfa-resolve] ⚠ zfa in PATH is a script (JIT), skipping',
+        );
       }
     }
 
@@ -1490,7 +1493,9 @@ Use quick for fast diagnostics, full for troubleshooting.''',
     final pubspecContent = await pubspecFile.readAsString();
     if (!pubspecContent.contains('zuraffa:')) {
       _cachedExecutable = 'echo';
-      stderr.writeln('[zfa-resolve] ⚠ zuraffa not in pubspec, no CLI available');
+      stderr.writeln(
+        '[zfa-resolve] ⚠ zuraffa not in pubspec, no CLI available',
+      );
       return;
     }
 
@@ -1679,27 +1684,29 @@ Use quick for fast diagnostics, full for troubleshooting.''',
     return collected.take(_maxFiles).toList();
   }
 
-
-  Future<String> _runPluginTool(String toolName, Map<String, dynamic> args) async {
+  Future<String> _runPluginTool(
+    String toolName,
+    Map<String, dynamic> args,
+  ) async {
     for (final plugin in PluginRegistry.instance.plugins) {
       for (final capability in plugin.capabilities) {
         if ('zuraffa_${plugin.id}_${capability.name}' == toolName) {
-           final result = await capability.execute(args);
-           if (!result.success) {
-             throw Exception(result.message ?? 'Plugin execution failed');
-           }
-           final buffer = StringBuffer();
-           if (result.message != null) buffer.writeln(result.message);
-           if (result.files.isNotEmpty) {
-             buffer.writeln('Modified files:');
-             for (final file in result.files) {
-               buffer.writeln('- $file');
-             }
-           }
-           if (result.data != null) {
-             buffer.writeln('Data: ${jsonEncode(result.data)}');
-           }
-           return buffer.toString();
+          final result = await capability.execute(args);
+          if (!result.success) {
+            throw Exception(result.message ?? 'Plugin execution failed');
+          }
+          final buffer = StringBuffer();
+          if (result.message != null) buffer.writeln(result.message);
+          if (result.files.isNotEmpty) {
+            buffer.writeln('Modified files:');
+            for (final file in result.files) {
+              buffer.writeln('- $file');
+            }
+          }
+          if (result.data != null) {
+            buffer.writeln('Data: ${jsonEncode(result.data)}');
+          }
+          return buffer.toString();
         }
       }
     }

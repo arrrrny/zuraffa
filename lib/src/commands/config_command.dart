@@ -105,7 +105,9 @@ class ConfigCommand {
     );
     print('  • routeByDefault: false (auto-routing disabled by default)');
     print('  • diByDefault: false (auto-DI generation disabled by default)');
-    print('  • mockByDefault: false (auto-mock generation disabled by default)');
+    print(
+      '  • mockByDefault: false (auto-mock generation disabled by default)',
+    );
     print('');
     print('💡 To disable Zorphy by default, edit .zfa.json and set:');
     print('   "zorphyByDefault": false');

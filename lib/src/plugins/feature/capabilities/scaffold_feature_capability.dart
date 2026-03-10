@@ -19,108 +19,105 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
   String get name => 'scaffold';
 
   @override
-  String get description => 'Scaffold a full feature set (VPC, Repo, UseCase, etc.)';
+  String get description =>
+      'Scaffold a full feature set (VPC, Repo, UseCase, etc.)';
 
   @override
   JsonSchema get inputSchema => {
-        'type': 'object',
-        'properties': {
-          'name': {
-            'type': 'string',
-            'description': 'Name of the feature (e.g. UserProfile)'
-          },
-          'vpcs': {
-            'type': 'boolean',
-            'description': 'Generate View, Presenter, Controller, State',
-            'default': true
-          },
-          'repository': {
-            'type': 'boolean',
-            'description': 'Generate Repository',
-            'default': true
-          },
-          'datasource': {
-            'type': 'boolean',
-            'description': 'Generate DataSource (Remote and/or Local)',
-            'default': true
-          },
-          'local': {
-            'type': 'boolean',
-            'description': 'Generate local data source (instead of remote)',
-            'default': false,
-          },
-          'mock': {
-            'type': 'boolean',
-            'description': 'Generate Mock data',
-            'default': false
-          },
-          'di': {
-            'type': 'boolean',
-            'description': 'Generate Dependency Injection setup',
-            'default': true
-          },
-          'cache': {
-            'type': 'boolean',
-            'description': 'Enable Caching (generates local + remote datasources)',
-            'default': false
-          },
-          'route': {
-            'type': 'boolean',
-            'description': 'Generate Routing definitions',
-            'default': false
-          },
-          'usecases': {
-            'type': 'array',
-            'items': {'type': 'string'},
-            'description': 'List of usecases to generate',
-            'default': ['get', 'update']
-          },
-          'outputDir': {'type': 'string', 'default': 'lib/src'},
-          'dryRun': {
-            'type': 'boolean',
-            'description': 'Run without writing files',
-            'default': false,
-          },
-          'force': {
-            'type': 'boolean',
-            'description': 'Force overwrite existing files',
-            'default': false,
-          },
-          'verbose': {
-            'type': 'boolean',
-            'description': 'Enable verbose logging',
-            'default': false,
-          },
-        },
-        'required': ['name']
-      };
+    'type': 'object',
+    'properties': {
+      'name': {
+        'type': 'string',
+        'description': 'Name of the feature (e.g. UserProfile)',
+      },
+      'vpcs': {
+        'type': 'boolean',
+        'description': 'Generate View, Presenter, Controller, State',
+        'default': true,
+      },
+      'repository': {
+        'type': 'boolean',
+        'description': 'Generate Repository',
+        'default': true,
+      },
+      'datasource': {
+        'type': 'boolean',
+        'description': 'Generate DataSource (Remote and/or Local)',
+        'default': true,
+      },
+      'local': {
+        'type': 'boolean',
+        'description': 'Generate local data source (instead of remote)',
+        'default': false,
+      },
+      'mock': {
+        'type': 'boolean',
+        'description': 'Generate Mock data',
+        'default': false,
+      },
+      'di': {
+        'type': 'boolean',
+        'description': 'Generate Dependency Injection setup',
+        'default': true,
+      },
+      'cache': {
+        'type': 'boolean',
+        'description': 'Enable Caching (generates local + remote datasources)',
+        'default': false,
+      },
+      'route': {
+        'type': 'boolean',
+        'description': 'Generate Routing definitions',
+        'default': false,
+      },
+      'usecases': {
+        'type': 'array',
+        'items': {'type': 'string'},
+        'description': 'List of usecases to generate',
+        'default': ['get', 'update'],
+      },
+      'outputDir': {'type': 'string', 'default': 'lib/src'},
+      'dryRun': {
+        'type': 'boolean',
+        'description': 'Run without writing files',
+        'default': false,
+      },
+      'force': {
+        'type': 'boolean',
+        'description': 'Force overwrite existing files',
+        'default': false,
+      },
+      'verbose': {
+        'type': 'boolean',
+        'description': 'Enable verbose logging',
+        'default': false,
+      },
+    },
+    'required': ['name'],
+  };
 
   @override
   JsonSchema get outputSchema => {
-        'type': 'object',
-        'properties': {
-          'files': {
-            'type': 'array',
-            'items': {'type': 'string'}
-          }
-        }
-      };
+    'type': 'object',
+    'properties': {
+      'files': {
+        'type': 'array',
+        'items': {'type': 'string'},
+      },
+    },
+  };
 
   @override
   Future<EffectReport> plan(Map<String, dynamic> args) async {
     final files = await _generateFiles(args, dryRun: true);
-    
+
     return EffectReport(
       planId: 'plan_${DateTime.now().millisecondsSinceEpoch}',
       pluginId: plugin.id,
       capabilityName: name,
       args: args,
       changes: files
-          .map((f) => Effect(
-                file: f.path,
-                action: f.action,
-                diff: null,
-              ))
+          .map((f) => Effect(file: f.path, action: f.action, diff: null))
           .toList(),
     );
   }
@@ -136,10 +133,13 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
     );
   }
 
-  Future<List<GeneratedFile>> _generateFiles(Map<String, dynamic> args, {required bool dryRun}) async {
+  Future<List<GeneratedFile>> _generateFiles(
+    Map<String, dynamic> args, {
+    required bool dryRun,
+  }) async {
     final outputDir = args['outputDir'] ?? 'lib/src';
     final featureName = args['name'];
-    
+
     // Load global config
     final zfaConfig = ZfaConfig.load();
 
@@ -152,17 +152,17 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
     // Actually, args coming from execute() might not have defaults populated if not called via CommandRunner.
     // Let's assume args contains what user provided.
     // If 'di' is in args, use it. If not, use ZfaConfig.diByDefault.
-    final generateDi = args.containsKey('di') 
-        ? args['di'] 
+    final generateDi = args.containsKey('di')
+        ? args['di']
         : (zfaConfig?.diByDefault ?? true);
-        
+
     final enableCache = args['cache'] ?? false;
     final usecases = (args['usecases'] as List?)?.cast<String>() ?? [];
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
     final revert = args['revert'] ?? false;
     final appendToExisting = zfaConfig?.appendByDefault ?? false;
-    
+
     final generateRoute = args.containsKey('route')
         ? args['route']
         : (zfaConfig?.routeByDefault ?? false);
@@ -205,7 +205,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         force: force,
         verbose: verbose,
       );
-      
+
       final config = GeneratorConfig(
         name: featureName,
         outputDir: outputDir,
@@ -276,7 +276,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
           force: force,
           verbose: verbose,
         );
-        
+
         // Map usecases to methods for route generation
         final routeConfig = GeneratorConfig(
           name: featureName,
@@ -288,7 +288,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
           verbose: verbose,
           revert: revert,
         );
-        
+
         allFiles.addAll(await routePlugin.generate(routeConfig));
       }
     }

@@ -21,11 +21,10 @@ class RegistrationDetector {
     // 1. Read existing files from disk
     final dir = Directory(directoryPath);
     if (dir.existsSync()) {
-      final files = dir
-          .listSync()
-          .whereType<File>()
-          .where((file) => file.path.endsWith('_di.dart'));
-      
+      final files = dir.listSync().whereType<File>().where(
+        (file) => file.path.endsWith('_di.dart'),
+      );
+
       for (final file in files) {
         final fileName = path.basename(file.path);
         if (fileName == 'index.dart') continue;
@@ -38,10 +37,10 @@ class RegistrationDetector {
       // Check if file is in the target directory
       if (path.dirname(file.path) == directoryPath) {
         final fileName = path.basename(file.path);
-        
+
         // Skip index.dart
         if (fileName == 'index.dart') continue;
-        
+
         // Only consider DI files
         if (!fileName.endsWith('_di.dart')) continue;
 
@@ -58,7 +57,7 @@ class RegistrationDetector {
       final match = RegExp(
         r'void\s+(register\w+)\s*\(\s*GetIt\s+getIt\s*\)',
       ).firstMatch(content);
-      
+
       if (match != null) {
         final functionName = match.group(1);
         if (functionName != null) {
@@ -71,7 +70,7 @@ class RegistrationDetector {
 
     // Sort for deterministic output
     registrations.sort((a, b) => a.fileName.compareTo(b.fileName));
-    
+
     return registrations;
   }
 }

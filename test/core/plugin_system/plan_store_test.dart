@@ -20,10 +20,7 @@ void main() {
     });
 
     test('EffectReport serialization', () {
-      final effect = Effect(
-        file: 'lib/main.dart',
-        action: 'create',
-      );
+      final effect = Effect(file: 'lib/main.dart', action: 'create');
       final report = EffectReport(
         planId: 'plan_1',
         pluginId: 'plugin_1',
@@ -67,16 +64,16 @@ void main() {
         pluginId: 'test_plugin',
         capabilityName: 'test_cap',
         args: {'key': 'value'},
-        changes: [
-          Effect(file: 'test.dart', action: 'create'),
-        ],
+        changes: [Effect(file: 'test.dart', action: 'create')],
       );
 
       await PlanStore.instance.savePlan(report);
 
-      final planFile = File(path.join(tempDir.path, '.zuraffa', 'plans', 'plan_123.json'));
+      final planFile = File(
+        path.join(tempDir.path, '.zuraffa', 'plans', 'plan_123.json'),
+      );
       expect(planFile.existsSync(), isTrue);
-      
+
       final content = await planFile.readAsString();
       expect(content, contains('plan_123'));
       expect(content, contains('test_plugin'));
@@ -88,9 +85,7 @@ void main() {
         pluginId: 'test_plugin',
         capabilityName: 'test_cap',
         args: {'foo': 'bar'},
-        changes: [
-          Effect(file: 'test.dart', action: 'modify', diff: 'diff'),
-        ],
+        changes: [Effect(file: 'test.dart', action: 'modify', diff: 'diff')],
       );
 
       await PlanStore.instance.savePlan(report);
@@ -122,8 +117,10 @@ void main() {
       );
 
       await PlanStore.instance.savePlan(report);
-      
-      final planFile = File(path.join(tempDir.path, '.zuraffa', 'plans', 'plan_789.json'));
+
+      final planFile = File(
+        path.join(tempDir.path, '.zuraffa', 'plans', 'plan_789.json'),
+      );
       expect(planFile.existsSync(), isTrue);
 
       await PlanStore.instance.deletePlan('plan_789');

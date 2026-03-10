@@ -104,10 +104,47 @@ void main() {
 
     final serviceFile = File('$outputDir/domain/services/barcode_service.dart');
     final content = serviceFile.readAsStringSync();
-    
+
     expect(
       content.contains('Future<Barcode> scanBarcode(NoParams params);'),
       isTrue,
     );
   });
+
+  test(
+    'correctly generates relative entity imports in service interface',
+    () async {
+      final plugin = ServicePlugin(
+        outputDir: outputDir,
+        dryRun: false,
+        force: false,
+        verbose: false,
+      );
+
+      await plugin.generate(
+        GeneratorConfig(
+          name: 'GetListingByBarcode',
+          service: 'Listing',
+          domain: 'listing',
+          paramsType: 'Barcode',
+          returnsType: 'Listing?',
+          outputDir: outputDir,
+        ),
+      );
+
+      final serviceFile = File(
+        '$outputDir/domain/services/listing_service.dart',
+      );
+      final content = serviceFile.readAsStringSync();
+
+      expect(
+        content.contains("import '../entities/barcode/barcode.dart';"),
+        isTrue,
+      );
+      expect(
+        content.contains("import '../entities/listing/listing.dart';"),
+        isTrue,
+      );
+    },
+  );
 }

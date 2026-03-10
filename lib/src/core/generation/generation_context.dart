@@ -3,6 +3,10 @@ import '../context/context_store.dart';
 import '../context/file_system.dart';
 import '../context/progress_reporter.dart';
 
+/// Encapsulates state and dependencies for a single generation session.
+///
+/// Provides access to configuration, file system abstraction, state store,
+/// and progress reporting across all plugins.
 class GenerationContext {
   final GeneratorConfig config;
   final String outputDir;

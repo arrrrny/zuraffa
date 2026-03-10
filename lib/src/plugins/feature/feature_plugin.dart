@@ -1,29 +1,44 @@
 import 'package:args/command_runner.dart';
 import '../../commands/feature_command.dart';
+import '../../core/generator_options.dart';
+import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'capabilities/scaffold_feature_capability.dart';
-import '../../core/plugin_system/capability.dart';
 
+/// Manages high-level feature scaffolding.
+///
+/// Coordinates multiple plugins to generate a complete feature slice,
+/// including domain, data, and presentation layers in one command.
+///
+/// Example:
+/// ```dart
+/// final plugin = FeaturePlugin(
+///   outputDir: 'lib/src',
+///   options: const GeneratorOptions(force: true),
+/// );
+/// final files = await plugin.generate(GeneratorConfig(name: 'Product'));
+/// ```
 class FeaturePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
 
   FeaturePlugin({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
-  });
+    GeneratorOptions options = const GeneratorOptions(),
+    @Deprecated('Use options.dryRun') bool? dryRun,
+    @Deprecated('Use options.force') bool? force,
+    @Deprecated('Use options.verbose') bool? verbose,
+  }) : options = options.copyWith(
+         dryRun: dryRun ?? options.dryRun,
+         force: force ?? options.force,
+         verbose: verbose ?? options.verbose,
+       );
 
   @override
-  List<ZuraffaCapability> get capabilities => [
-        ScaffoldFeatureCapability(this),
-      ];
+  List<ZuraffaCapability> get capabilities => [ScaffoldFeatureCapability(this)];
 
   @override
   Command createCommand() => FeatureCommand(this);

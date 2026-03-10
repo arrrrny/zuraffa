@@ -46,9 +46,9 @@ class ViewCommand extends PluginCommand {
     final generateDi = argResults!['di'] as bool;
     final generateState = argResults!['state'] as bool;
 
-    final capability = plugin.capabilities.firstWhere(
-      (c) => c is CreateViewCapability,
-    ) as CreateViewCapability;
+    final capability =
+        plugin.capabilities.firstWhere((c) => c is CreateViewCapability)
+            as CreateViewCapability;
 
     final result = await capability.execute({
       'name': entityName,
@@ -62,7 +62,8 @@ class ViewCommand extends PluginCommand {
     });
 
     if (result.success) {
-      final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      final files =
+          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
       logSummary(files);
     } else {
       print('Failed to generate view');

@@ -16,77 +16,70 @@ class CreateServiceCapability implements ZuraffaCapability {
 
   @override
   JsonSchema get inputSchema => {
-        'type': 'object',
-        'properties': {
-          'name': {
-            'type': 'string',
-            'description': 'Name of the service',
-          },
-          'outputDir': {
-            'type': 'string',
-            'description': 'Directory to output the file',
-            'default': 'lib/src',
-          },
-          'params': {
-            'type': 'string',
-            'description': 'Parameter type for the service method',
-            'default': 'NoParams',
-          },
-          'returns': {
-            'type': 'string',
-            'description': 'Return type for the service method',
-            'default': 'void',
-          },
-          'type': {
-            'type': 'string',
-            'description': 'Service method type (sync, stream, completable)',
-            'default': 'usecase',
-          },
-          'dryRun': {
-            'type': 'boolean',
-            'description': 'Run without writing files',
-            'default': false,
-          },
-          'force': {
-            'type': 'boolean',
-            'description': 'Force overwrite existing files',
-            'default': false,
-          },
-          'verbose': {
-            'type': 'boolean',
-            'description': 'Enable verbose logging',
-            'default': false,
-          },
-        },
-        'required': ['name'],
-      };
+    'type': 'object',
+    'properties': {
+      'name': {'type': 'string', 'description': 'Name of the service'},
+      'outputDir': {
+        'type': 'string',
+        'description': 'Directory to output the file',
+        'default': 'lib/src',
+      },
+      'params': {
+        'type': 'string',
+        'description': 'Parameter type for the service method',
+        'default': 'NoParams',
+      },
+      'returns': {
+        'type': 'string',
+        'description': 'Return type for the service method',
+        'default': 'void',
+      },
+      'type': {
+        'type': 'string',
+        'description': 'Service method type (sync, stream, completable)',
+        'default': 'usecase',
+      },
+      'dryRun': {
+        'type': 'boolean',
+        'description': 'Run without writing files',
+        'default': false,
+      },
+      'force': {
+        'type': 'boolean',
+        'description': 'Force overwrite existing files',
+        'default': false,
+      },
+      'verbose': {
+        'type': 'boolean',
+        'description': 'Enable verbose logging',
+        'default': false,
+      },
+    },
+    'required': ['name'],
+  };
 
   @override
   JsonSchema get outputSchema => {
-        'type': 'object',
-        'properties': {
-          'files': {
-            'type': 'array',
-            'items': {'type': 'string'},
-          },
-        },
-      };
+    'type': 'object',
+    'properties': {
+      'files': {
+        'type': 'array',
+        'items': {'type': 'string'},
+      },
+    },
+  };
 
   @override
   Future<EffectReport> plan(Map<String, dynamic> args) async {
     final files = await _generateFiles(args, dryRun: true);
-    
+
     return EffectReport(
       planId: 'plan_${DateTime.now().millisecondsSinceEpoch}',
       pluginId: plugin.id,
       capabilityName: name,
       args: args,
       changes: files
-          .map((f) => Effect(
-                file: f.path,
-                action: f.action,
-                diff: null,
-              ))
+          .map((f) => Effect(file: f.path, action: f.action, diff: null))
           .toList(),
     );
   }
@@ -101,7 +94,10 @@ class CreateServiceCapability implements ZuraffaCapability {
     );
   }
 
-  Future<List<GeneratedFile>> _generateFiles(Map<String, dynamic> args, {required bool dryRun}) async {
+  Future<List<GeneratedFile>> _generateFiles(
+    Map<String, dynamic> args, {
+    required bool dryRun,
+  }) async {
     final name = args['name'];
     final outputDir = args['outputDir'] ?? 'lib/src';
     final paramsType = args['params'];
@@ -109,7 +105,7 @@ class CreateServiceCapability implements ZuraffaCapability {
     final useCaseType = args['type'];
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
-    
+
     final config = GeneratorConfig(
       name: name,
       outputDir: outputDir,
@@ -122,7 +118,7 @@ class CreateServiceCapability implements ZuraffaCapability {
       force: force,
       verbose: verbose,
     );
-    
+
     return await plugin.generate(config);
   }
 }

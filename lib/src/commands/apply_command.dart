@@ -45,13 +45,14 @@ class ApplyCommand extends Command<void> {
 
     final capability = plugin.capabilities.firstWhere(
       (c) => c.name == plan.capabilityName,
-      orElse: () => throw Exception('Capability not found: ${plan.capabilityName}'),
+      orElse: () =>
+          throw Exception('Capability not found: ${plan.capabilityName}'),
     );
 
     print('🚀 Executing plan $planId (${plugin.id}:${capability.name})...');
-    
+
     final result = await capability.execute(plan.args);
-    
+
     if (result.success) {
       print('✅ Success! Created/Modified:');
       for (final file in result.files) {

@@ -71,12 +71,12 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
             ..modifier = FieldModifier.final$,
         ),
       );
-      
-      // If we have a service, we don't necessarily need the repo in a custom usecase 
+
+      // If we have a service, we don't necessarily need the repo in a custom usecase
       // unless it's explicitly an orchestrator/polymorphic which handles its own fields.
       return fields;
     }
-    
+
     if (config.hasRepo) {
       for (final repo in config.effectiveRepos) {
         final repoBaseName = repo.replaceAll('Repository', '');
@@ -107,9 +107,10 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
         .toList();
   }
 
-  List<String> _entityImports(List<String> types) {
+  List<String> _entityImports(List<String?> types) {
     final entityNames = <String>{};
     for (final type in types) {
+      if (type == null) continue;
       final cleanType = type.replaceAll(RegExp(r'<[^>]*>'), ' ');
       final regex = RegExp(r'[A-Z][a-zA-Z0-9_]*');
       final matches = regex.allMatches(cleanType);

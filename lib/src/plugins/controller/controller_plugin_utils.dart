@@ -83,13 +83,24 @@ extension ControllerPluginUtils on ControllerPlugin {
     }
 
     if (config.isCustomUseCase) {
+      final types = <String>[];
       if (config.returnsType != null) {
-        final types = config.returnsType!
-            .replaceAll('List<', '')
-            .replaceAll('>', '')
-            .replaceAll('?', '');
-        for (final type in types.split(',').map((t) => t.trim())) {
-          if (!KnownTypes.isDartPrimitive(type)) {
+        types.add(config.returnsType!);
+      }
+      if (config.paramsType != null) {
+        types.add(config.paramsType!);
+      }
+
+      for (final rawType in types) {
+        final cleanTypes = rawType
+            .replaceAll('List<', ' ')
+            .replaceAll('Map<', ' ')
+            .replaceAll('>', ' ')
+            .replaceAll('?', ' ')
+            .replaceAll(',', ' ');
+        for (final type
+            in cleanTypes.split(RegExp(r'\s+')).map((t) => t.trim())) {
+          if (type.isNotEmpty && !KnownTypes.isExcluded(type)) {
             final snake = StringUtils.camelToSnake(type);
             imports.add('../../../domain/entities/$snake/$snake.dart');
           }

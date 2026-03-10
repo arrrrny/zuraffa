@@ -13,22 +13,10 @@ class MockCommand extends PluginCommand {
       help: 'Generate only mock data (fixtures)',
       defaultsTo: false,
     );
-    argParser.addOption(
-      'service',
-      help: 'Service name for mock provider',
-    );
-    argParser.addOption(
-      'domain',
-      help: 'Domain folder for the mock provider',
-    );
-    argParser.addOption(
-      'params',
-      help: 'Parameter type for mock methods',
-    );
-    argParser.addOption(
-      'returns',
-      help: 'Return type for mock methods',
-    );
+    argParser.addOption('service', help: 'Service name for mock provider');
+    argParser.addOption('domain', help: 'Domain folder for the mock provider');
+    argParser.addOption('params', help: 'Parameter type for mock methods');
+    argParser.addOption('returns', help: 'Return type for mock methods');
   }
 
   @override
@@ -51,9 +39,9 @@ class MockCommand extends PluginCommand {
     final params = argResults!['params'] as String?;
     final returns = argResults!['returns'] as String?;
 
-    final capability = plugin.capabilities.firstWhere(
-      (c) => c is CreateMockCapability,
-    ) as CreateMockCapability;
+    final capability =
+        plugin.capabilities.firstWhere((c) => c is CreateMockCapability)
+            as CreateMockCapability;
 
     final result = await capability.execute({
       'name': entityName,
@@ -69,7 +57,8 @@ class MockCommand extends PluginCommand {
     });
 
     if (result.success) {
-      final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      final files =
+          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
       logSummary(files);
     } else {
       print('Failed to generate mock');

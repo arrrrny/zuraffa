@@ -16,86 +16,79 @@ class CreateProviderCapability implements ZuraffaCapability {
 
   @override
   JsonSchema get inputSchema => {
-        'type': 'object',
-        'properties': {
-          'name': {
-            'type': 'string',
-            'description': 'Name of the provider',
-          },
-          'outputDir': {
-            'type': 'string',
-            'description': 'Directory to output the file',
-            'default': 'lib/src',
-          },
-          'domain': {
-            'type': 'string',
-            'description': 'Domain folder for the provider',
-          },
-          'params': {
-            'type': 'string',
-            'description': 'Parameter type for the provider method',
-            'default': 'NoParams',
-          },
-          'returns': {
-            'type': 'string',
-            'description': 'Return type for the provider method',
-            'default': 'void',
-          },
-          'type': {
-            'type': 'string',
-            'description': 'Provider method type (sync, stream, completable)',
-            'default': 'usecase',
-          },
-          'data': {
-            'type': 'boolean',
-            'description': 'Generate data layer dependencies',
-            'default': true,
-          },
-          'dryRun': {
-            'type': 'boolean',
-            'description': 'Run without writing files',
-            'default': false,
-          },
-          'force': {
-            'type': 'boolean',
-            'description': 'Force overwrite existing files',
-            'default': false,
-          },
-          'verbose': {
-            'type': 'boolean',
-            'description': 'Enable verbose logging',
-            'default': false,
-          },
-        },
-        'required': ['name'],
-      };
+    'type': 'object',
+    'properties': {
+      'name': {'type': 'string', 'description': 'Name of the provider'},
+      'outputDir': {
+        'type': 'string',
+        'description': 'Directory to output the file',
+        'default': 'lib/src',
+      },
+      'domain': {
+        'type': 'string',
+        'description': 'Domain folder for the provider',
+      },
+      'params': {
+        'type': 'string',
+        'description': 'Parameter type for the provider method',
+        'default': 'NoParams',
+      },
+      'returns': {
+        'type': 'string',
+        'description': 'Return type for the provider method',
+        'default': 'void',
+      },
+      'type': {
+        'type': 'string',
+        'description': 'Provider method type (sync, stream, completable)',
+        'default': 'usecase',
+      },
+      'data': {
+        'type': 'boolean',
+        'description': 'Generate data layer dependencies',
+        'default': true,
+      },
+      'dryRun': {
+        'type': 'boolean',
+        'description': 'Run without writing files',
+        'default': false,
+      },
+      'force': {
+        'type': 'boolean',
+        'description': 'Force overwrite existing files',
+        'default': false,
+      },
+      'verbose': {
+        'type': 'boolean',
+        'description': 'Enable verbose logging',
+        'default': false,
+      },
+    },
+    'required': ['name'],
+  };
 
   @override
   JsonSchema get outputSchema => {
-        'type': 'object',
-        'properties': {
-          'files': {
-            'type': 'array',
-            'items': {'type': 'string'},
-          },
-        },
-      };
+    'type': 'object',
+    'properties': {
+      'files': {
+        'type': 'array',
+        'items': {'type': 'string'},
+      },
+    },
+  };
 
   @override
   Future<EffectReport> plan(Map<String, dynamic> args) async {
     final files = await _generateFiles(args, dryRun: true);
-    
+
     return EffectReport(
       planId: 'plan_${DateTime.now().millisecondsSinceEpoch}',
       pluginId: plugin.id,
       capabilityName: name,
       args: args,
       changes: files
-          .map((f) => Effect(
-                file: f.path,
-                action: f.action,
-                diff: null,
-              ))
+          .map((f) => Effect(file: f.path, action: f.action, diff: null))
           .toList(),
     );
   }
@@ -111,7 +104,10 @@ class CreateProviderCapability implements ZuraffaCapability {
     );
   }
 
-  Future<List<GeneratedFile>> _generateFiles(Map<String, dynamic> args, {required bool dryRun}) async {
+  Future<List<GeneratedFile>> _generateFiles(
+    Map<String, dynamic> args, {
+    required bool dryRun,
+  }) async {
     final name = args['name'];
     final outputDir = args['outputDir'] ?? 'lib/src';
     final domain = args['domain'];

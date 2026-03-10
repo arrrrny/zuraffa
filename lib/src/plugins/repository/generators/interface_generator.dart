@@ -6,26 +6,44 @@ import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/ast/ast_helper.dart';
 import '../../../core/builder/shared/spec_library.dart';
+import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 
+/// Generates repository interfaces for the domain layer.
+///
+/// Builds abstract repository classes with method definitions derived from
+/// use cases and data requirements.
+///
+/// Example:
+/// ```dart
+/// final generator = RepositoryInterfaceGenerator(
+///   outputDir: 'lib/src',
+///   options: const GeneratorOptions(force: true),
+/// );
+/// final file = await generator.generate(GeneratorConfig(name: 'Product'));
+/// ```
 class RepositoryInterfaceGenerator {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
   final AppendExecutor appendExecutor;
   final SpecLibrary specLibrary;
 
   RepositoryInterfaceGenerator({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
+    GeneratorOptions options = const GeneratorOptions(),
+    @Deprecated('Use options.dryRun') bool? dryRun,
+    @Deprecated('Use options.force') bool? force,
+    @Deprecated('Use options.verbose') bool? verbose,
     AppendExecutor? appendExecutor,
     SpecLibrary? specLibrary,
-  }) : appendExecutor = appendExecutor ?? AppendExecutor(),
+  }) : options = options.copyWith(
+         dryRun: dryRun ?? options.dryRun,
+         force: force ?? options.force,
+         verbose: verbose ?? options.verbose,
+       ),
+       appendExecutor = appendExecutor ?? AppendExecutor(),
        specLibrary = specLibrary ?? const SpecLibrary();
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
@@ -67,8 +85,8 @@ class RepositoryInterfaceGenerator {
           reverted,
           'repository',
           force: true,
-          dryRun: dryRun,
-          verbose: verbose,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
           revert: false,
         );
       }
@@ -85,8 +103,8 @@ class RepositoryInterfaceGenerator {
         appended,
         'repository',
         force: true,
-        dryRun: dryRun,
-        verbose: verbose,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
         revert: false,
       );
     }
@@ -95,8 +113,8 @@ class RepositoryInterfaceGenerator {
       return FileUtils.deleteFile(
         filePath,
         'repository',
-        dryRun: dryRun,
-        verbose: verbose,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
       );
     }
 
@@ -104,9 +122,9 @@ class RepositoryInterfaceGenerator {
       filePath,
       output,
       'repository',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
       revert: false,
     );
   }

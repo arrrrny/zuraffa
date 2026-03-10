@@ -9,7 +9,7 @@ class ManifestCommand extends Command<void> {
   final PluginRegistry registry;
 
   ManifestCommand([PluginRegistry? registry])
-      : registry = registry ?? PluginRegistry.instance {
+    : registry = registry ?? PluginRegistry.instance {
     argParser.addOption(
       'format',
       abbr: 'f',

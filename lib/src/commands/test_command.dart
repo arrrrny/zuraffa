@@ -161,9 +161,9 @@ class TestCommand extends PluginCommand {
         : methodsValue.split(',').where((m) => m.trim().isNotEmpty).toList();
     final domain = argResults!['domain'] as String? ?? 'general';
 
-    final capability = plugin.capabilities.firstWhere(
-      (c) => c is CreateTestCapability,
-    ) as CreateTestCapability;
+    final capability =
+        plugin.capabilities.firstWhere((c) => c is CreateTestCapability)
+            as CreateTestCapability;
 
     final result = await capability.execute({
       'name': entityName,
@@ -176,7 +176,8 @@ class TestCommand extends PluginCommand {
     });
 
     if (result.success) {
-      final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      final files =
+          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
       logSummary(files);
     } else {
       print('Failed to generate test');

@@ -78,9 +78,9 @@ extension CustomUseCaseGeneratorOrchestrator on CustomUseCaseGenerator {
       filePath,
       content,
       'usecase_orchestrator',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
       revert: config.revert,
     );
   }

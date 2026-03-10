@@ -62,7 +62,7 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
   }) async {
     if (config.revert) {
       if (config.appendToExisting) {
-        if (verbose) {
+        if (options.verbose) {
           print('  ⚠️ Cannot revert append operation for $filePath');
         }
         return GeneratedFile(
@@ -74,12 +74,14 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
       return FileUtils.deleteFile(
         filePath,
         'usecase',
-        dryRun: dryRun,
-        verbose: verbose,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
       );
     }
 
-    if (config.appendToExisting && File(filePath).existsSync() && !config.force) {
+    if (config.appendToExisting &&
+        File(filePath).existsSync() &&
+        !config.force) {
       var updatedSource = await File(filePath).readAsString();
       var changed = false;
       for (final methodSource in methodSources) {
@@ -108,8 +110,9 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
         updatedSource,
         'usecase',
         force: true,
-        dryRun: dryRun,
-        verbose: verbose,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+        revert: false,
       );
     }
 
@@ -117,9 +120,10 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
       filePath,
       content,
       'usecase',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
+      revert: config.revert,
     );
   }
 }

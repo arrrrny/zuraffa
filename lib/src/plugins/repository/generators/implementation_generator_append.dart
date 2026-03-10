@@ -23,16 +23,12 @@ extension RepositoryImplementationGeneratorAppend
         '../datasources/$entitySnake/${entitySnake}_local_datasource.dart',
       );
     } else if (config.enableCache) {
-      imports.add(
-        '../datasources/$entitySnake/${entitySnake}_datasource.dart',
-      );
+      imports.add('../datasources/$entitySnake/${entitySnake}_datasource.dart');
       imports.add(
         '../datasources/$entitySnake/${entitySnake}_local_datasource.dart',
       );
     } else {
-      imports.add(
-        '../datasources/$entitySnake/${entitySnake}_datasource.dart',
-      );
+      imports.add('../datasources/$entitySnake/${entitySnake}_datasource.dart');
     }
     return imports;
   }

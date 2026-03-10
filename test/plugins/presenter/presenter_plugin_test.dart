@@ -101,6 +101,42 @@ void main() {
     );
   });
 
+  test(
+    'includes entity imports for custom usecase params and returns',
+    () async {
+      final plugin = PresenterPlugin(
+        outputDir: outputDir,
+        dryRun: false,
+        force: true,
+        verbose: false,
+      );
+      final config = GeneratorConfig(
+        name: 'GetListingByBarcode',
+        service: 'Listing',
+        domain: 'listing',
+        paramsType: 'Barcode',
+        returnsType: 'Listing?',
+        generatePresenter: true,
+        outputDir: outputDir,
+      );
+      final files = await plugin.generate(config);
+      final content = files.first.content ?? '';
+
+      expect(
+        content.contains(
+          "import '../../../domain/entities/barcode/barcode.dart';",
+        ),
+        isTrue,
+      );
+      expect(
+        content.contains(
+          "import '../../../domain/entities/listing/listing.dart';",
+        ),
+        isTrue,
+      );
+    },
+  );
+
   test('generates custom usecase presenter correctly', () async {
     final plugin = PresenterPlugin(
       outputDir: outputDir,
@@ -122,18 +158,29 @@ void main() {
 
     expect(content.contains('class GetListingByBarcodePresenter'), isTrue);
     expect(
-      content.contains('late final GetListingByBarcodeUseCase _getListingByBarcode;'),
+      content.contains(
+        'late final GetListingByBarcodeUseCase _getListingByBarcode;',
+      ),
       isTrue,
     );
     expect(
-      content.contains('Future<Result<Listing?, AppFailure>> getListingByBarcode('),
+      content.contains(
+        'Future<Result<Listing?, AppFailure>> getListingByBarcode(',
+      ),
       isTrue,
     );
     expect(
-      content.contains('return _getListingByBarcode.call(params, cancelToken: cancelToken);'),
+      content.contains(
+        'return _getListingByBarcode.call(params, cancelToken: cancelToken);',
+      ),
       isTrue,
     );
     // Path check
-    expect(files.first.path.contains('presentation/pages/listing/get_listing_by_barcode_presenter.dart'), isTrue);
+    expect(
+      files.first.path.contains(
+        'presentation/pages/listing/get_listing_by_barcode_presenter.dart',
+      ),
+      isTrue,
+    );
   });
 }

@@ -25,9 +25,6 @@ import '../../../utils/string_utils.dart';
 class StateBuilder {
   final String outputDir;
   final GeneratorOptions options;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
   final SpecLibrary specLibrary;
 
   /// Creates a [StateBuilder].
@@ -50,9 +47,6 @@ class StateBuilder {
          force: force ?? options.force,
          verbose: verbose ?? options.verbose,
        ),
-       dryRun = dryRun ?? options.dryRun,
-       force = force ?? options.force,
-       verbose = verbose ?? options.verbose,
        specLibrary = specLibrary ?? const SpecLibrary();
 
   /// Generates a state file for the given [config].
@@ -66,16 +60,23 @@ class StateBuilder {
     final stateName = '${entityName}State';
     final fileName = '${entitySnake}_state.dart';
     final domainSnake = config.effectiveDomain;
-    final statePathParts = <String>[outputDir, 'presentation', 'pages', domainSnake];
+    final statePathParts = <String>[
+      outputDir,
+      'presentation',
+      'pages',
+      domainSnake,
+    ];
     final stateDirPath = path.joinAll(statePathParts);
     final filePath = path.join(stateDirPath, fileName);
 
-    final needsEntityListField = !config.isCustomUseCase && config.methods.any(
-      (m) => ['getList', 'watchList'].contains(m),
-    );
-    final needsEntityField = !config.isCustomUseCase && config.methods.any(
-      (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
-    );
+    final needsEntityListField =
+        !config.isCustomUseCase &&
+        config.methods.any((m) => ['getList', 'watchList'].contains(m));
+    final needsEntityField =
+        !config.isCustomUseCase &&
+        config.methods.any(
+          (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
+        );
 
     final imports = <String>['package:zuraffa/zuraffa.dart'];
 
@@ -119,11 +120,7 @@ class StateBuilder {
 
       if (config.returnsType != null && config.returnsType != 'void') {
         fields.add(
-          _docField(
-            'The result data',
-            'data',
-            refer(config.returnsType!),
-          ),
+          _docField('The result data', 'data', refer(config.returnsType!)),
         );
       }
 
@@ -156,9 +153,9 @@ class StateBuilder {
         filePath,
         content,
         'state',
-        force: force,
-        dryRun: dryRun,
-        verbose: verbose,
+        force: options.force,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
         revert: config.revert,
       );
     } else {
@@ -251,9 +248,9 @@ class StateBuilder {
         filePath,
         content,
         'state',
-        force: force,
-        dryRun: dryRun,
-        verbose: verbose,
+        force: options.force,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
         revert: config.revert,
       );
     }
@@ -333,11 +330,15 @@ class StateBuilder {
         literalNull,
         refer('error').ifNullThen(refer('this').property('error')),
       ),
-      'isLoading': refer('isLoading').ifNullThen(refer('this').property('isLoading')),
+      'isLoading': refer(
+        'isLoading',
+      ).ifNullThen(refer('this').property('isLoading')),
     };
 
     if (config.returnsType != null && config.returnsType != 'void') {
-      namedArgs['data'] = refer('data').ifNullThen(refer('this').property('data'));
+      namedArgs['data'] = refer(
+        'data',
+      ).ifNullThen(refer('this').property('data'));
     }
 
     return Method(
@@ -349,15 +350,24 @@ class StateBuilder {
     );
   }
 
-  Method _buildCustomEqualityOperator(String stateName, GeneratorConfig config) {
+  Method _buildCustomEqualityOperator(
+    String stateName,
+    GeneratorConfig config,
+  ) {
     final other = refer('other');
     var expression = other.isA(refer(stateName));
 
-    expression = expression.and(other.property('error').equalTo(_this('error')));
-    expression = expression.and(other.property('isLoading').equalTo(_this('isLoading')));
+    expression = expression.and(
+      other.property('error').equalTo(_this('error')),
+    );
+    expression = expression.and(
+      other.property('isLoading').equalTo(_this('isLoading')),
+    );
 
     if (config.returnsType != null && config.returnsType != 'void') {
-      expression = expression.and(other.property('data').equalTo(_this('data')));
+      expression = expression.and(
+        other.property('data').equalTo(_this('data')),
+      );
     }
 
     return Method(
@@ -395,10 +405,7 @@ class StateBuilder {
   }
 
   Method _buildCustomToString(String stateName, GeneratorConfig config) {
-    final parts = <String>[
-      'error: \$error',
-      'isLoading: \$isLoading',
-    ];
+    final parts = <String>['error: \$error', 'isLoading: \$isLoading'];
 
     if (config.returnsType != null && config.returnsType != 'void') {
       parts.add('data: \$data');
@@ -559,9 +566,9 @@ class StateBuilder {
     }
 
     for (final field in boolFields) {
-      namedArgs[field.name] = refer(field.name).ifNullThen(
-        refer('this').property(field.name),
-      );
+      namedArgs[field.name] = refer(
+        field.name,
+      ).ifNullThen(refer('this').property(field.name));
     }
 
     final ctorCall = refer(stateName).call(const [], namedArgs);

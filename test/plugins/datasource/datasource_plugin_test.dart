@@ -111,8 +111,14 @@ void main() {
       '$outputDir/data/datasources/product/product_remote_datasource.dart',
     );
 
-    expect(interfaceFile.readAsStringSync().contains('Future<Product> get'), isTrue);
-    expect(interfaceFile.readAsStringSync().contains('Future<Product> create'), isFalse);
+    expect(
+      interfaceFile.readAsStringSync().contains('Future<Product> get'),
+      isTrue,
+    );
+    expect(
+      interfaceFile.readAsStringSync().contains('Future<Product> create'),
+      isFalse,
+    );
 
     // 2. Append generation
     await plugin.generate(
@@ -123,9 +129,18 @@ void main() {
         outputDir: outputDir,
       ),
     );
-    expect(interfaceFile.readAsStringSync().contains('Future<Product> get'), isTrue);
-    expect(interfaceFile.readAsStringSync().contains('Future<Product> create'), isTrue);
-    expect(remoteFile.readAsStringSync().contains('Future<Product> create'), isTrue);
+    expect(
+      interfaceFile.readAsStringSync().contains('Future<Product> get'),
+      isTrue,
+    );
+    expect(
+      interfaceFile.readAsStringSync().contains('Future<Product> create'),
+      isTrue,
+    );
+    expect(
+      remoteFile.readAsStringSync().contains('Future<Product> create'),
+      isTrue,
+    );
   });
 
   test('uses graphql constants when gql is enabled', () async {

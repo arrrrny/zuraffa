@@ -46,9 +46,9 @@ class ModularDiCommand extends PluginCommand {
     final repo = argResults!['repo'] as String?;
     final useMock = argResults!['use-mock'] == true;
 
-    final capability = plugin.capabilities.firstWhere(
-      (c) => c is CreateDiCapability,
-    ) as CreateDiCapability;
+    final capability =
+        plugin.capabilities.firstWhere((c) => c is CreateDiCapability)
+            as CreateDiCapability;
 
     final result = await capability.execute({
       'name': name,
@@ -63,7 +63,8 @@ class ModularDiCommand extends PluginCommand {
     });
 
     if (result.success) {
-      final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      final files =
+          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
       logSummary(files);
     } else {
       print('Failed to generate DI');

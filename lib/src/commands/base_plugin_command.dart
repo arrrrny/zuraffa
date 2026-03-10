@@ -39,7 +39,7 @@ abstract class PluginCommand extends Command<void> {
       negatable: false,
       help: 'Revert generated files (delete them)',
     );
-    
+
     // Auto-register capabilities as subcommands
     for (final capability in plugin.capabilities) {
       addSubcommand(CapabilityCommand(capability));

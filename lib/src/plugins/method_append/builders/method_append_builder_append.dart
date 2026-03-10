@@ -8,10 +8,9 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       // Append operations cannot be safely reverted without risking data loss
       // or needing complex parsing to remove only the appended method.
       // We skip append operations during revert.
-      return MethodAppendResult(
-        [],
-        ['Skipping revert for append operation: append cannot be safely undone.'],
-      );
+      return MethodAppendResult([], [
+        'Skipping revert for append operation: append cannot be safely undone.',
+      ]);
     }
 
     final updatedFiles = <GeneratedFile>[];
@@ -163,9 +162,9 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         filePath,
         result.source,
         'append',
-        force: true,
-        dryRun: dryRun,
-        verbose: verbose,
+        force: options.force,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
       );
       return GeneratedFile(
         path: filePath,
@@ -236,14 +235,10 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         result.source,
         'append',
         force: true,
-        dryRun: dryRun,
-        verbose: verbose,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
       );
-      return GeneratedFile(
-        path: filePath,
-        type: 'repository',
-        action: 'updated',
-      );
+      return GeneratedFile(path: filePath, type: 'provider', action: 'updated');
     }
     return null;
   }
@@ -326,23 +321,19 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
               refer('logger').property('info').call([
                 literalString('$methodName called with params: \$params'),
               ]).statement,
-              refer('Future')
-                  .property('delayed')
-                  .call([refer('_delay')])
-                  .awaited
-                  .statement,
+              refer(
+                'Future',
+              ).property('delayed').call([refer('_delay')]).awaited.statement,
               if (isList) ...[
-                refer('${entityName}MockData')
-                    .property('sampleList')
-                    .returned
-                    .statement,
+                refer(
+                  '${entityName}MockData',
+                ).property('sampleList').returned.statement,
               ] else if (baseReturns == 'void') ...[
                 refer('Future').property('value').call([]).returned.statement,
               ] else ...[
-                refer('${entityName}MockData')
-                    .property('sample$entityName')
-                    .returned
-                    .statement,
+                refer(
+                  '${entityName}MockData',
+                ).property('sample$entityName').returned.statement,
               ],
             ]),
         ),
@@ -363,8 +354,8 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         result.source,
         'append',
         force: true,
-        dryRun: dryRun,
-        verbose: verbose,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
       );
       return GeneratedFile(
         path: filePath,
@@ -428,10 +419,9 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         ..body = Block(
           (b) => b
             ..statements.add(
-              refer('UnimplementedError')
-                  .call([literalString(errorMessage)])
-                  .thrown
-                  .statement,
+              refer(
+                'UnimplementedError',
+              ).call([literalString(errorMessage)]).thrown.statement,
             ),
         ),
     );
@@ -451,8 +441,8 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         result.source,
         'append',
         force: true,
-        dryRun: dryRun,
-        verbose: verbose,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
       );
       return GeneratedFile(
         path: filePath,

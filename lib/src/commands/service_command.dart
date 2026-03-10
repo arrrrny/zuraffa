@@ -48,9 +48,9 @@ class ServiceCommand extends PluginCommand {
     final returnsType = argResults!['returns'] as String;
     final useCaseType = argResults!['type'] as String;
 
-    final capability = plugin.capabilities.firstWhere(
-      (c) => c is CreateServiceCapability,
-    ) as CreateServiceCapability;
+    final capability =
+        plugin.capabilities.firstWhere((c) => c is CreateServiceCapability)
+            as CreateServiceCapability;
 
     final result = await capability.execute({
       'name': serviceName,
@@ -64,7 +64,8 @@ class ServiceCommand extends PluginCommand {
     });
 
     if (result.success) {
-      final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      final files =
+          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
       logSummary(files);
     } else {
       print('Failed to generate service');

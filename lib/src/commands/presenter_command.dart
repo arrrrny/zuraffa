@@ -40,9 +40,9 @@ class PresenterCommand extends PluginCommand {
     final methods = (argResults!['methods'] as String).split(',');
     final generateDi = argResults!['di'] as bool;
 
-    final capability = plugin.capabilities.firstWhere(
-      (c) => c is CreatePresenterCapability,
-    ) as CreatePresenterCapability;
+    final capability =
+        plugin.capabilities.firstWhere((c) => c is CreatePresenterCapability)
+            as CreatePresenterCapability;
 
     final result = await capability.execute({
       'name': entityName,
@@ -55,7 +55,8 @@ class PresenterCommand extends PluginCommand {
     });
 
     if (result.success) {
-      final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      final files =
+          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
       logSummary(files);
     } else {
       print('Failed to generate presenter');

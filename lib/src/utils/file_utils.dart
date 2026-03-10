@@ -19,12 +19,7 @@ class FileUtils {
     bool revert = false,
   }) async {
     if (revert) {
-      return deleteFile(
-        filePath,
-        type,
-        dryRun: dryRun,
-        verbose: verbose,
-      );
+      return deleteFile(filePath, type, dryRun: dryRun, verbose: verbose);
     }
 
     final file = File(filePath);

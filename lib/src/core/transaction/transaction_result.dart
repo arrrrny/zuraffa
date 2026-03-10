@@ -1,5 +1,9 @@
 import 'file_operation.dart';
 
+/// Represents the outcome of a [GenerationTransaction].
+///
+/// Contains details about applied operations, detected conflicts,
+/// and any errors encountered during commit or rollback.
 class TransactionResult {
   final bool success;
   final bool dryRun;

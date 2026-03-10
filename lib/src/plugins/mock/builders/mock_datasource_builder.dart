@@ -4,6 +4,7 @@ import 'package:code_builder/code_builder.dart';
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/builder/shared/spec_library.dart';
+import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -13,22 +14,26 @@ import 'mock_type_helper.dart';
 
 class MockDataSourceBuilder {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
   final SpecLibrary specLibrary;
   final MockTypeHelper typeHelper;
   final AppendExecutor appendExecutor;
 
   MockDataSourceBuilder({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
+    GeneratorOptions options = const GeneratorOptions(),
+    @Deprecated('Use options.dryRun') bool? dryRun,
+    @Deprecated('Use options.force') bool? force,
+    @Deprecated('Use options.verbose') bool? verbose,
     SpecLibrary? specLibrary,
     MockTypeHelper? typeHelper,
     AppendExecutor? appendExecutor,
-  }) : specLibrary = specLibrary ?? const SpecLibrary(),
+  }) : options = options.copyWith(
+         dryRun: dryRun ?? options.dryRun,
+         force: force ?? options.force,
+         verbose: verbose ?? options.verbose,
+       ),
+       specLibrary = specLibrary ?? const SpecLibrary(),
        typeHelper = typeHelper ?? const MockTypeHelper(),
        appendExecutor = appendExecutor ?? AppendExecutor();
 
@@ -46,14 +51,12 @@ class MockDataSourceBuilder {
           '../../../domain/entities/$entitySnake/$entitySnake.dart',
         ),
       if (config.isCustomUseCase && config.returnsType != null)
-        ...EntityUtils.extractEntityTypes(config.returnsType!).map(
-          (type) {
-            final snake = StringUtils.camelToSnake(type);
-            return Directive.import(
-              '../../../domain/entities/$snake/$snake.dart',
-            );
-          },
-        ),
+        ...EntityUtils.extractEntityTypes(config.returnsType!).map((type) {
+          final snake = StringUtils.camelToSnake(type);
+          return Directive.import(
+            '../../../domain/entities/$snake/$snake.dart',
+          );
+        }),
       Directive.import('../../mock/${entitySnake}_mock_data.dart'),
       Directive.import('${entitySnake}_datasource.dart'),
     ];
@@ -177,8 +180,8 @@ class MockDataSourceBuilder {
         updated,
         'mock_datasource',
         force: true,
-        dryRun: dryRun,
-        verbose: verbose,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
         revert: config.revert,
       );
     }
@@ -191,9 +194,9 @@ class MockDataSourceBuilder {
       filePath,
       content,
       'mock_datasource',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
       revert: config.revert,
     );
   }
@@ -212,11 +215,8 @@ class MockDataSourceBuilder {
     if (config.isCustomUseCase) {
       final methodName = StringUtils.pascalToCamel(config.name);
       final returns = config.returnsType ?? 'void';
-      final isNullable = returns.endsWith('?');
       final baseReturns = returns.replaceAll('?', '');
       final isList = baseReturns.startsWith('List<');
-      final listEntity =
-          isList ? baseReturns.substring(5, baseReturns.length - 1) : '';
 
       final isStream = config.useCaseType == 'stream';
       final returnType = isStream ? 'Stream<$returns>' : 'Future<$returns>';
@@ -245,31 +245,24 @@ class MockDataSourceBuilder {
                     refer('Stream')
                         .property('fromFuture')
                         .call([
-                          refer('Future')
-                              .property('delayed')
-                              .call([
-                                refer('_delay'),
-                                Method(
-                                  (mm) =>
-                                      mm
-                                        ..lambda = true
-                                        ..body =
-                                            isList
-                                                ? refer('${entityName}MockData')
-                                                    .property('sampleList')
-                                                    .code
-                                                : (baseReturns == 'void'
-                                                    ? refer('Future')
-                                                        .property('value')
-                                                        .call([])
-                                                        .code
-                                                    : refer(
-                                                      '${entityName}MockData',
-                                                    ).property(
-                                                      'sample$entityName',
-                                                    ).code),
-                                ).closure,
-                              ]),
+                          refer('Future').property('delayed').call([
+                            refer('_delay'),
+                            Method(
+                              (mm) => mm
+                                ..lambda = true
+                                ..body = isList
+                                    ? refer(
+                                        '${entityName}MockData',
+                                      ).property('sampleList').code
+                                    : (baseReturns == 'void'
+                                          ? refer(
+                                              'Future',
+                                            ).property('value').call([]).code
+                                          : refer('${entityName}MockData')
+                                                .property('sample$entityName')
+                                                .code),
+                            ).closure,
+                          ]),
                         ])
                         .returned
                         .statement,
@@ -280,21 +273,17 @@ class MockDataSourceBuilder {
                         .awaited
                         .statement,
                     if (isList) ...[
-                      refer('${entityName}MockData')
-                          .property('sampleList')
-                          .returned
-                          .statement,
+                      refer(
+                        '${entityName}MockData',
+                      ).property('sampleList').returned.statement,
                     ] else if (baseReturns == 'void') ...[
-                      refer('Future')
-                          .property('value')
-                          .call([])
-                          .returned
-                          .statement,
+                      refer(
+                        'Future',
+                      ).property('value').call([]).returned.statement,
                     ] else ...[
-                      refer('${entityName}MockData')
-                          .property('sample$entityName')
-                          .returned
-                          .statement,
+                      refer(
+                        '${entityName}MockData',
+                      ).property('sample$entityName').returned.statement,
                     ],
                   ],
                 ]),

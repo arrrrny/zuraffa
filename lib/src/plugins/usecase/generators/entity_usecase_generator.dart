@@ -6,25 +6,43 @@ import 'package:path/path.dart' as path;
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/builder/shared/spec_library.dart';
+import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 
+/// Generates entity-based use cases for the domain layer.
+///
+/// Builds standard CRUD and stream use case classes that delegate to
+/// domain repositories.
+///
+/// Example:
+/// ```dart
+/// final generator = EntityUseCaseGenerator(
+///   outputDir: 'lib/src',
+///   options: const GeneratorOptions(force: true),
+/// );
+/// final files = await generator.generate(GeneratorConfig(name: 'Product'));
+/// ```
 class EntityUseCaseGenerator {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
   final AppendExecutor appendExecutor;
 
   EntityUseCaseGenerator({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
+    GeneratorOptions options = const GeneratorOptions(),
+    @Deprecated('Use options.dryRun') bool? dryRun,
+    @Deprecated('Use options.force') bool? force,
+    @Deprecated('Use options.verbose') bool? verbose,
     AppendExecutor? appendExecutor,
-  }) : appendExecutor = appendExecutor ?? AppendExecutor();
+  }) : options = options.copyWith(
+         dryRun: dryRun ?? options.dryRun,
+         force: force ?? options.force,
+         verbose: verbose ?? options.verbose,
+       ),
+       appendExecutor = appendExecutor ?? AppendExecutor();
 
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     final files = <GeneratedFile>[];
@@ -275,7 +293,7 @@ class EntityUseCaseGenerator {
       outputDir,
       'domain',
       'usecases',
-      entitySnake,
+      config.effectiveDomain,
     );
     final filePath = path.join(usecaseDirPath, fileName);
 
@@ -386,20 +404,20 @@ class EntityUseCaseGenerator {
       return FileUtils.deleteFile(
         filePath,
         'usecase',
-        dryRun: dryRun,
-        verbose: verbose,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
       );
     }
 
     if (File(filePath).existsSync()) {
-      if (force) {
+      if (options.force) {
         return FileUtils.writeFile(
           filePath,
           content,
           'usecase',
           force: true,
-          dryRun: dryRun,
-          verbose: verbose,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
         );
       }
 
@@ -424,8 +442,8 @@ class EntityUseCaseGenerator {
         result.source,
         'usecase',
         force: true,
-        dryRun: dryRun,
-        verbose: verbose,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
       );
     }
 
@@ -433,9 +451,9 @@ class EntityUseCaseGenerator {
       filePath,
       content,
       'usecase',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
     );
   }
 

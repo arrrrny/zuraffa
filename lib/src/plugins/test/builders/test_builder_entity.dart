@@ -219,9 +219,9 @@ extension TestBuilderEntity on TestBuilder {
       filePath,
       content,
       'test',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
       revert: config.revert,
     );
   }

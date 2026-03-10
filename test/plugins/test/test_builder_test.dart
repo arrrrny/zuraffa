@@ -65,7 +65,10 @@ void main() {
 
     final file = await builder.generateCustom(config);
 
-    expect(file.path.endsWith('get_listing_by_barcode_usecase_test.dart'), isTrue);
+    expect(
+      file.path.endsWith('get_listing_by_barcode_usecase_test.dart'),
+      isTrue,
+    );
     final testFile = File(file.path);
     expect(testFile.existsSync(), isTrue);
     final content = testFile.readAsStringSync();
@@ -94,15 +97,60 @@ void main() {
 
     final file = await builder.generateCustom(config);
 
-    expect(file.path.endsWith('get_listing_by_barcode_usecase_test.dart'), isTrue);
+    expect(
+      file.path.endsWith('get_listing_by_barcode_usecase_test.dart'),
+      isTrue,
+    );
     final testFile = File(file.path);
     expect(testFile.existsSync(), isTrue);
     final content = testFile.readAsStringSync();
-
     expect(content.contains('class MockBarcodeParams'), isTrue);
-    expect(content.contains('final tBarcodeParams = MockBarcodeParams();'), isTrue);
-    expect(content.contains('await useCase.call(tBarcodeParams)'), isTrue);
-    expect(content.contains('expect(result.isSuccess, true)'), isTrue);
-    expect(content.contains('registerFallbackValue(MockBarcodeParams())'), isTrue);
   });
+
+  test(
+    'includes entity imports for custom usecase params and returns in test',
+    () async {
+      final builder = TestBuilder(
+        outputDir: outputDir,
+        dryRun: false,
+        force: true,
+        verbose: false,
+      );
+
+      final config = GeneratorConfig(
+        name: 'GetListingByBarcode',
+        service: 'Listing',
+        domain: 'listing',
+        paramsType: 'BarcodeParams',
+        returnsType: 'Listing?',
+        outputDir: outputDir,
+      );
+
+      final file = await builder.generateCustom(config);
+      final content = File(file.path).readAsStringSync();
+
+      expect(
+        content.contains(
+          "import 'package:your_app/src/domain/entities/barcode_params/barcode_params.dart';",
+        ),
+        isTrue,
+      );
+      expect(
+        content.contains(
+          "import 'package:your_app/src/domain/entities/listing/listing.dart';",
+        ),
+        isTrue,
+      );
+      expect(
+        content.contains('final tBarcodeParams = MockBarcodeParams();'),
+        isTrue,
+      );
+      expect(content.contains('await useCase.call(tBarcodeParams)'), isTrue);
+      expect(content.contains('expect(result.isSuccess, true)'), isTrue);
+      expect(
+        content.contains('registerFallbackValue(MockBarcodeParams())'),
+        isTrue,
+      );
+    },
+  );
 }

@@ -164,11 +164,7 @@ ${missing.map((d) => '   • $d').join('\n')}
     final result = await creator.create(entityConfig);
 
     if (result.isSuccess) {
-      await _fixEntityImports(
-        result.filePath,
-        fields,
-        outputDir,
-      );
+      await _fixEntityImports(result.filePath, fields, outputDir);
       print('✓ Created entity: ${result.filePath}');
       print('\n📋 Next steps:');
       print('  1. Run: zfa build');
@@ -298,15 +294,17 @@ ${missing.map((d) => '   • $d').join('\n')}
     for (final import in imports) {
       if (!updated.contains(import)) {
         // Insert after existing imports or at the top
-        final lastImportMatch = RegExp(r'^import .*;', multiLine: true)
-            .allMatches(updated)
-            .toList();
+        final lastImportMatch = RegExp(
+          r'^import .*;',
+          multiLine: true,
+        ).allMatches(updated).toList();
 
         if (lastImportMatch.isEmpty) {
           updated = "$import\n$updated";
         } else {
           final insertPos = lastImportMatch.last.end;
-          updated = updated.substring(0, insertPos) +
+          updated =
+              updated.substring(0, insertPos) +
               "\n$import" +
               updated.substring(insertPos);
         }

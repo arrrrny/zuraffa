@@ -168,7 +168,9 @@ class AstModifier {
       return source;
     }
 
-    final returnStatement = body.block.statements.whereType<ReturnStatement>().firstOrNull;
+    final returnStatement = body.block.statements
+        .whereType<ReturnStatement>()
+        .firstOrNull;
     if (returnStatement == null) {
       return source;
     }

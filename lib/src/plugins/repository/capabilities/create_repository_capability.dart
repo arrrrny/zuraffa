@@ -16,62 +16,62 @@ class CreateRepositoryCapability implements ZuraffaCapability {
 
   @override
   JsonSchema get inputSchema => {
-        'type': 'object',
-        'properties': {
-          'name': {
-            'type': 'string',
-            'description': 'Name of the entity (e.g. User)'
-          },
-          'outputDir': {
-            'type': 'string',
-            'description': 'Directory to output the file',
-            'default': 'lib/src',
-          },
-          'data': {
-            'type': 'boolean',
-            'description': 'Generate repository implementation',
-            'default': true,
-          },
-          'datasource': {
-            'type': 'boolean',
-            'description': 'Generate data sources along with repository',
-            'default': true,
-          },
-          'methods': {
-            'type': 'array',
-            'items': {'type': 'string'},
-            'description': 'List of methods (get,create,update,delete,list)',
-            'default': ['get', 'list', 'create', 'update', 'delete']
-          },
-          'dryRun': {
-            'type': 'boolean',
-            'description': 'Run without writing files',
-            'default': false,
-          },
-          'force': {
-            'type': 'boolean',
-            'description': 'Force overwrite existing files',
-            'default': false,
-          },
-          'verbose': {
-            'type': 'boolean',
-            'description': 'Enable verbose logging',
-            'default': false,
-          },
-        },
-        'required': ['name']
-      };
+    'type': 'object',
+    'properties': {
+      'name': {
+        'type': 'string',
+        'description': 'Name of the entity (e.g. User)',
+      },
+      'outputDir': {
+        'type': 'string',
+        'description': 'Directory to output the file',
+        'default': 'lib/src',
+      },
+      'data': {
+        'type': 'boolean',
+        'description': 'Generate repository implementation',
+        'default': true,
+      },
+      'datasource': {
+        'type': 'boolean',
+        'description': 'Generate data sources along with repository',
+        'default': true,
+      },
+      'methods': {
+        'type': 'array',
+        'items': {'type': 'string'},
+        'description': 'List of methods (get,create,update,delete,list)',
+        'default': ['get', 'list', 'create', 'update', 'delete'],
+      },
+      'dryRun': {
+        'type': 'boolean',
+        'description': 'Run without writing files',
+        'default': false,
+      },
+      'force': {
+        'type': 'boolean',
+        'description': 'Force overwrite existing files',
+        'default': false,
+      },
+      'verbose': {
+        'type': 'boolean',
+        'description': 'Enable verbose logging',
+        'default': false,
+      },
+    },
+    'required': ['name'],
+  };
 
   @override
   JsonSchema get outputSchema => {
-        'type': 'object',
-        'properties': {
-          'files': {
-            'type': 'array',
-            'items': {'type': 'string'}
-          }
-        }
-      };
+    'type': 'object',
+    'properties': {
+      'files': {
+        'type': 'array',
+        'items': {'type': 'string'},
+      },
+    },
+  };
 
   @override
   Future<EffectReport> plan(Map<String, dynamic> args) async {
@@ -83,11 +83,7 @@ class CreateRepositoryCapability implements ZuraffaCapability {
       capabilityName: name,
       args: args,
       changes: files
-          .map((f) => Effect(
-                file: f.path,
-                action: f.action,
-                diff: null,
-              ))
+          .map((f) => Effect(file: f.path, action: f.action, diff: null))
           .toList(),
     );
   }
@@ -103,12 +99,17 @@ class CreateRepositoryCapability implements ZuraffaCapability {
     );
   }
 
-  Future<List<GeneratedFile>> _generateFiles(Map<String, dynamic> args, {required bool dryRun}) async {
+  Future<List<GeneratedFile>> _generateFiles(
+    Map<String, dynamic> args, {
+    required bool dryRun,
+  }) async {
     final name = args['name'];
     final outputDir = args['outputDir'] ?? 'lib/src';
     final generateData = args['data'] ?? true;
     final generateDataSource = args['datasource'] ?? true;
-    final methods = (args['methods'] as List?)?.cast<String>() ?? ['get', 'list', 'create', 'update', 'delete'];
+    final methods =
+        (args['methods'] as List?)?.cast<String>() ??
+        ['get', 'list', 'create', 'update', 'delete'];
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
 

@@ -107,7 +107,8 @@ class MakeCommand extends Command<void> {
     // Load project configuration
     final configData = ZfaConfig.load();
     if (configData != null) {
-      if (configData.appendByDefault && !pluginNames.contains('method_append')) {
+      if (configData.appendByDefault &&
+          !pluginNames.contains('method_append')) {
         pluginNames.add('method_append');
       }
       if (configData.mockByDefault && !pluginNames.contains('mock')) {
@@ -154,8 +155,8 @@ class MakeCommand extends Command<void> {
     // Create a base config that enables everything requested
     final config = GeneratorConfig(
       name: entityName,
-      methods: pluginNames.contains('usecase') &&
-              (repo == null && service == null)
+      methods:
+          pluginNames.contains('usecase') && (repo == null && service == null)
           ? methods
           : [], // Only use CRUD methods if not custom usecase
       domain: domain,
@@ -178,7 +179,8 @@ class MakeCommand extends Command<void> {
       generateController: pluginNames.contains('controller'),
       generateRepository: pluginNames.contains('repository'),
       generateDataSource: pluginNames.contains('datasource'),
-      generateData: pluginNames.contains('datasource') ||
+      generateData:
+          pluginNames.contains('datasource') ||
           pluginNames.contains('repository') ||
           pluginNames.contains('provider'),
       generateState: pluginNames.contains('state'),

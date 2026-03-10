@@ -3,6 +3,10 @@ import 'dart:async';
 import 'file_operation.dart';
 import 'transaction_result.dart';
 
+/// Manages atomic file operations during generation.
+///
+/// Ensures that multiple file changes (writes, deletes, appends) are validated
+/// for conflicts and applied together, with rollback support on failure.
 class GenerationTransaction {
   static final Object _zoneKey = Object();
 

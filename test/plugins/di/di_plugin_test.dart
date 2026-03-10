@@ -105,78 +105,110 @@ void main() {
       ),
     );
 
-    final serviceDiFile = File('$outputDir/di/services/listing_service_di.dart');
+    final serviceDiFile = File(
+      '$outputDir/di/services/listing_service_di.dart',
+    );
     expect(serviceDiFile.existsSync(), isTrue);
     final content = serviceDiFile.readAsStringSync();
 
     expect(content.contains('registerListingService'), isTrue);
-    expect(content.contains('getIt.registerLazySingleton<ListingService>'), isTrue);
+    expect(
+      content.contains('getIt.registerLazySingleton<ListingService>'),
+      isTrue,
+    );
     expect(content.contains('ListingMockProvider()'), isTrue);
-    expect(content.contains("import '../../data/providers/listing/listing_mock_provider.dart';"), isTrue);
-  });
-
-  test('prevents over-generation of datasource DI when using service', () async {
-    final plugin = DiPlugin(
-      outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
-    );
-
-    await plugin.generate(
-      GeneratorConfig(
-        name: 'GetListingByBarcode',
-        service: 'Listing',
-        domain: 'listing',
-        generateDi: true,
-        generateData: true,
-        outputDir: outputDir,
+    expect(
+      content.contains(
+        "import '../../data/providers/listing/listing_mock_provider.dart';",
       ),
+      isTrue,
     );
-
-    final datasourceDiDir = Directory('$outputDir/di/datasources');
-    final repoDiDir = Directory('$outputDir/di/repositories');
-
-    // These should NOT exist because we have a service/provider pattern
-    expect(datasourceDiDir.existsSync(), isFalse);
-    expect(repoDiDir.existsSync(), isFalse);
-    
-    // Service and Provider DI SHOULD exist
-    expect(File('$outputDir/di/services/listing_service_di.dart').existsSync(), isTrue);
-    expect(File('$outputDir/di/providers/listing_provider_di.dart').existsSync(), isTrue);
   });
 
-  test('mock provider registration does not duplicate service interface', () async {
-    final plugin = DiPlugin(
-      outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
-    );
-
-    await plugin.generate(
-      GeneratorConfig(
-        name: 'GetListingByBarcode',
-        service: 'Listing',
-        domain: 'listing',
-        generateDi: true,
-        generateData: true,
-        useMockInDi: true,
+  test(
+    'prevents over-generation of datasource DI when using service',
+    () async {
+      final plugin = DiPlugin(
         outputDir: outputDir,
-      ),
-    );
+        dryRun: false,
+        force: true,
+        verbose: false,
+      );
 
-    final mockProviderDiFile = File('$outputDir/di/providers/listing_mock_provider_di.dart');
-    expect(mockProviderDiFile.existsSync(), isTrue);
-    final content = mockProviderDiFile.readAsStringSync();
+      await plugin.generate(
+        GeneratorConfig(
+          name: 'GetListingByBarcode',
+          service: 'Listing',
+          domain: 'listing',
+          generateDi: true,
+          generateData: true,
+          outputDir: outputDir,
+        ),
+      );
 
-    // Should register ListingMockProvider but NOT as ListingService (that's the service DI's job)
-    expect(content.contains('getIt.registerLazySingleton<ListingMockProvider>'), isFalse);
-    expect(content.contains('getIt.registerLazySingleton(() => ListingMockProvider())'), isTrue);
-    
-    // Should NOT import the service interface
-    expect(content.contains('listing_service.dart'), isFalse);
-  });
+      final datasourceDiDir = Directory('$outputDir/di/datasources');
+      final repoDiDir = Directory('$outputDir/di/repositories');
+
+      // These should NOT exist because we have a service/provider pattern
+      expect(datasourceDiDir.existsSync(), isFalse);
+      expect(repoDiDir.existsSync(), isFalse);
+
+      // Service and Provider DI SHOULD exist
+      expect(
+        File('$outputDir/di/services/listing_service_di.dart').existsSync(),
+        isTrue,
+      );
+      expect(
+        File('$outputDir/di/providers/listing_provider_di.dart').existsSync(),
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'mock provider registration does not duplicate service interface',
+    () async {
+      final plugin = DiPlugin(
+        outputDir: outputDir,
+        dryRun: false,
+        force: true,
+        verbose: false,
+      );
+
+      await plugin.generate(
+        GeneratorConfig(
+          name: 'GetListingByBarcode',
+          service: 'Listing',
+          domain: 'listing',
+          generateDi: true,
+          generateData: true,
+          useMockInDi: true,
+          outputDir: outputDir,
+        ),
+      );
+
+      final mockProviderDiFile = File(
+        '$outputDir/di/providers/listing_mock_provider_di.dart',
+      );
+      expect(mockProviderDiFile.existsSync(), isTrue);
+      final content = mockProviderDiFile.readAsStringSync();
+
+      // Should register ListingMockProvider but NOT as ListingService (that's the service DI's job)
+      expect(
+        content.contains('getIt.registerLazySingleton<ListingMockProvider>'),
+        isFalse,
+      );
+      expect(
+        content.contains(
+          'getIt.registerLazySingleton(() => ListingMockProvider())',
+        ),
+        isTrue,
+      );
+
+      // Should NOT import the service interface
+      expect(content.contains('listing_service.dart'), isFalse);
+    },
+  );
 
   test('updates index files using AST append', () async {
     final diDir = Directory('$outputDir/di/datasources')

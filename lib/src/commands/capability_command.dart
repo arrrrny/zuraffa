@@ -47,11 +47,8 @@ class CapabilityCommand extends Command<void> {
     }
 
     // Add generic JSON input option
-    argParser.addOption(
-      'json',
-      help: 'Pass arguments as JSON string',
-    );
-    
+    argParser.addOption('json', help: 'Pass arguments as JSON string');
+
     argParser.addFlag(
       'dry-run',
       negatable: false,
@@ -71,7 +68,7 @@ class CapabilityCommand extends Command<void> {
     // or just use the full name if ambiguous.
     // For now, let's just use the last part if it contains underscores.
     if (capability.name.contains('_')) {
-      return capability.name.split('_').first; 
+      return capability.name.split('_').first;
       // Wait, "create_usecase" inside "usecase" command should be "create".
       // But standard naming is often "verb_noun".
       // Let's try to be smart or just use the full name?
@@ -89,7 +86,7 @@ class CapabilityCommand extends Command<void> {
   @override
   Future<void> run() async {
     final args = <String, dynamic>{};
-    
+
     // Parse JSON if provided
     if (argResults?['json'] != null) {
       final jsonArgs = jsonDecode(argResults!['json']);
@@ -108,6 +105,19 @@ class CapabilityCommand extends Command<void> {
         } else if (!args.containsKey(key) && argResults?[key] != null) {
           // Use default from ArgParser if not in JSON
           args[key] = argResults![key];
+        }
+      }
+    }
+
+    // Handle rest arguments (map to required properties)
+    if (argResults != null && argResults!.rest.isNotEmpty) {
+      final required = schema['required'] as List?;
+      if (required != null) {
+        for (var i = 0; i < argResults!.rest.length && i < required.length; i++) {
+          final key = required[i] as String;
+          if (!args.containsKey(key)) {
+            args[key] = argResults!.rest[i];
+          }
         }
       }
     }

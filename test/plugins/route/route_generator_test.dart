@@ -93,7 +93,7 @@ void main() {
     final content = entityFile.content ?? '';
 
     expect(content.contains('abstract class OrderRoutes'), isTrue);
-    expect(content.contains('List<GoRoute> getOrderRoutes'), isTrue);
+    expect(content.contains('List<GoRoute> orderRoutes'), isTrue);
     expect(content.contains('GoRoute('), isTrue);
     expect(content.contains('OrderView'), isTrue);
   });

@@ -40,9 +40,9 @@ class DataSourceCommand extends PluginCommand {
     final generateRemote = argResults!['remote'] as bool;
     final enableCache = argResults!['cache'] as bool;
 
-    final capability = plugin.capabilities.firstWhere(
-      (c) => c is CreateDataSourceCapability,
-    ) as CreateDataSourceCapability;
+    final capability =
+        plugin.capabilities.firstWhere((c) => c is CreateDataSourceCapability)
+            as CreateDataSourceCapability;
 
     final result = await capability.execute({
       'name': entityName,
@@ -56,7 +56,8 @@ class DataSourceCommand extends PluginCommand {
     });
 
     if (result.success) {
-      final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      final files =
+          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
       logSummary(files);
     } else {
       print('Failed to generate datasource');

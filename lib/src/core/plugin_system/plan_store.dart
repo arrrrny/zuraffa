@@ -7,7 +7,7 @@ import 'capability.dart';
 class PlanStore {
   static final PlanStore _instance = PlanStore._();
   static PlanStore get instance => _instance;
-  
+
   // For testing
   String? _rootDirectory;
   set rootDirectory(String? path) => _rootDirectory = path;
@@ -41,17 +41,16 @@ class PlanStore {
       capabilityName: json['capability_name'],
       args: json['args'],
       changes: (json['changes'] as List)
-          .map((e) => Effect(
-                file: e['file'],
-                action: e['action'],
-                diff: e['diff'],
-              ))
+          .map(
+            (e) =>
+                Effect(file: e['file'], action: e['action'], diff: e['diff']),
+          )
           .toList(),
       isValid: json['valid'] ?? true,
       message: json['message'],
     );
   }
-  
+
   Future<void> deletePlan(String planId) async {
     final file = _getPlanFile(planId);
     if (file.existsSync()) {

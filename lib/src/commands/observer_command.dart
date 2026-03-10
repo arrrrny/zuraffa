@@ -19,9 +19,9 @@ class ObserverCommand extends PluginCommand {
   Future<void> run() async {
     final entityName = argResults!.rest.first;
 
-    final capability = plugin.capabilities.firstWhere(
-      (c) => c is CreateObserverCapability,
-    ) as CreateObserverCapability;
+    final capability =
+        plugin.capabilities.firstWhere((c) => c is CreateObserverCapability)
+            as CreateObserverCapability;
 
     final result = await capability.execute({
       'name': entityName,
@@ -32,7 +32,8 @@ class ObserverCommand extends PluginCommand {
     });
 
     if (result.success) {
-      final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      final files =
+          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
       logSummary(files);
     } else {
       print('Failed to generate observer');

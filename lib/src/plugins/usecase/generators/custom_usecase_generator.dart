@@ -6,6 +6,7 @@ import 'package:path/path.dart' as path;
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/constants/known_types.dart';
+import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -19,21 +20,38 @@ part 'custom_usecase_generator_methods.dart';
 part 'custom_usecase_generator_orchestrator.dart';
 part 'custom_usecase_generator_polymorphic.dart';
 
+/// Generates custom use cases for the domain layer.
+///
+/// Builds specialized use case classes such as orchestrators, background tasks,
+/// and polymorphic variants.
+///
+/// Example:
+/// ```dart
+/// final generator = CustomUseCaseGenerator(
+///   outputDir: 'lib/src',
+///   options: const GeneratorOptions(force: true),
+/// );
+/// final file = await generator.generate(GeneratorConfig(name: 'Auth'));
+/// ```
 class CustomUseCaseGenerator {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
   final UseCaseClassBuilder classBuilder;
   final AppendExecutor appendExecutor;
 
   CustomUseCaseGenerator({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
+    GeneratorOptions options = const GeneratorOptions(),
+    @Deprecated('Use options.dryRun') bool? dryRun,
+    @Deprecated('Use options.force') bool? force,
+    @Deprecated('Use options.verbose') bool? verbose,
     UseCaseClassBuilder? classBuilder,
     AppendExecutor? appendExecutor,
-  }) : classBuilder = classBuilder ?? const UseCaseClassBuilder(),
+  }) : options = options.copyWith(
+         dryRun: dryRun ?? options.dryRun,
+         force: force ?? options.force,
+         verbose: verbose ?? options.verbose,
+       ),
+       classBuilder = classBuilder ?? const UseCaseClassBuilder(),
        appendExecutor = appendExecutor ?? AppendExecutor();
 }

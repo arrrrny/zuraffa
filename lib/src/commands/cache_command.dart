@@ -31,9 +31,9 @@ class CacheCommand extends PluginCommand {
     final ttlStr = argResults!['ttl'] as String?;
     final ttl = ttlStr != null ? int.tryParse(ttlStr) : null;
 
-    final capability = plugin.capabilities.firstWhere(
-      (c) => c is CreateCacheCapability,
-    ) as CreateCacheCapability;
+    final capability =
+        plugin.capabilities.firstWhere((c) => c is CreateCacheCapability)
+            as CreateCacheCapability;
 
     final result = await capability.execute({
       'name': entityName,
@@ -47,7 +47,8 @@ class CacheCommand extends PluginCommand {
     });
 
     if (result.success) {
-      final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      final files =
+          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
       logSummary(files);
     } else {
       print('Failed to generate cache');

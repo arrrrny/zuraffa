@@ -35,9 +35,9 @@ class GraphqlCommand extends PluginCommand {
     final inputName = argResults!['input-name'] as String?;
     final opName = argResults!['op-name'] as String?;
 
-    final capability = plugin.capabilities.firstWhere(
-      (c) => c is CreateGraphqlCapability,
-    ) as CreateGraphqlCapability;
+    final capability =
+        plugin.capabilities.firstWhere((c) => c is CreateGraphqlCapability)
+            as CreateGraphqlCapability;
 
     final result = await capability.execute({
       'name': entityName,
@@ -53,7 +53,8 @@ class GraphqlCommand extends PluginCommand {
     });
 
     if (result.success) {
-      final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      final files =
+          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
       logSummary(files);
     } else {
       print('Failed to generate graphql');

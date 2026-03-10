@@ -22,90 +22,96 @@ void main() {
     await disposeWorkspace(workspace);
   });
 
-  test('generates full entity workflow', timeout: Timeout(Duration(minutes: 5)), () async {
-    final config = GeneratorConfig(
-      name: 'Product',
-      methods: const [
-        'get',
-        'getList',
-        'create',
-        'update',
-        'delete',
-        'watchList',
-      ],
-      generateData: true,
-      generateVpcs: true,
-      generateState: true,
-      generateDi: true,
-      generateMock: true,
-      outputDir: outputDir,
-    );
-    final generator = CodeGenerator(
-      config: config,
-      outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
-    );
+  test(
+    'generates full entity workflow',
+    timeout: Timeout(Duration(minutes: 5)),
+    () async {
+      final config = GeneratorConfig(
+        name: 'Product',
+        methods: const [
+          'get',
+          'getList',
+          'create',
+          'update',
+          'delete',
+          'watchList',
+        ],
+        generateData: true,
+        generateVpcs: true,
+        generateState: true,
+        generateDi: true,
+        generateMock: true,
+        outputDir: outputDir,
+      );
+      final generator = CodeGenerator(
+        config: config,
+        outputDir: outputDir,
+        dryRun: false,
+        force: true,
+        verbose: false,
+      );
 
-    final result = await generator.generate();
+      final result = await generator.generate();
 
-    expect(result.success, isTrue);
-    expect(
-      File(
-        '$outputDir/domain/repositories/product_repository.dart',
-      ).existsSync(),
-      isTrue,
-    );
-    expect(
-      File(
-        '$outputDir/data/repositories/data_product_repository.dart',
-      ).existsSync(),
-      isTrue,
-    );
-    expect(
-      File(
-        '$outputDir/data/datasources/product/product_datasource.dart',
-      ).existsSync(),
-      isTrue,
-    );
-    expect(
-      File(
-        '$outputDir/data/datasources/product/product_remote_datasource.dart',
-      ).existsSync(),
-      isTrue,
-    );
-    expect(
-      File(
-        '$outputDir/presentation/pages/product/product_view.dart',
-      ).existsSync(),
-      isTrue,
-    );
-    expect(
-      File(
-        '$outputDir/presentation/pages/product/product_controller.dart',
-      ).existsSync(),
-      isTrue,
-    );
-    expect(
-      File(
-        '$outputDir/presentation/pages/product/product_presenter.dart',
-      ).existsSync(),
-      isTrue,
-    );
-    expect(
-      File(
-        '$outputDir/presentation/pages/product/product_state.dart',
-      ).existsSync(),
-      isTrue,
-    );
+      expect(result.success, isTrue);
+      expect(
+        File(
+          '$outputDir/domain/repositories/product_repository.dart',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(
+        File(
+          '$outputDir/data/repositories/data_product_repository.dart',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(
+        File(
+          '$outputDir/data/datasources/product/product_datasource.dart',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(
+        File(
+          '$outputDir/data/datasources/product/product_remote_datasource.dart',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(
+        File(
+          '$outputDir/presentation/pages/product/product_view.dart',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(
+        File(
+          '$outputDir/presentation/pages/product/product_controller.dart',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(
+        File(
+          '$outputDir/presentation/pages/product/product_presenter.dart',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(
+        File(
+          '$outputDir/presentation/pages/product/product_state.dart',
+        ).existsSync(),
+        isTrue,
+      );
 
-    final entityFile = File('$outputDir/domain/entities/product/product.dart');
-    await entityFile.parent.create(recursive: true);
-    await entityFile.writeAsString(
-      'class Product { final String id; const Product({required this.id}); }',
-    );
+      final entityFile = File(
+        '$outputDir/domain/entities/product/product.dart',
+      );
+      await entityFile.parent.create(recursive: true);
+      await entityFile.writeAsString(
+        'class Product { final String id; const Product({required this.id}); }',
+      );
 
-    await runDartAnalyze(workspace);
-  });
+      await runDartAnalyze(workspace);
+    },
+  );
 }

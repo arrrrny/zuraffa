@@ -230,10 +230,7 @@ class AstHelper {
     if (fields.isEmpty) {
       return source;
     }
-    return AstModifier.removeField(
-      source: source,
-      field: fields.first,
-    );
+    return AstModifier.removeField(source: source, field: fields.first);
   }
 
   String addFieldToClass({

@@ -54,9 +54,9 @@ class ProviderCommand extends PluginCommand {
     final returns = argResults!['returns'];
     final type = argResults!['type'];
 
-    final capability = plugin.capabilities.firstWhere(
-      (c) => c is CreateProviderCapability,
-    ) as CreateProviderCapability;
+    final capability =
+        plugin.capabilities.firstWhere((c) => c is CreateProviderCapability)
+            as CreateProviderCapability;
 
     final result = await capability.execute({
       'name': entityName,
@@ -72,7 +72,8 @@ class ProviderCommand extends PluginCommand {
     });
 
     if (result.success) {
-      final files = result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      final files =
+          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
       logSummary(files);
     } else {
       // Handle error

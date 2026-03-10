@@ -4,9 +4,10 @@ import 'package:path/path.dart' as path;
 
 import '../../commands/controller_command.dart';
 import '../../core/constants/known_types.dart';
+import '../../core/generator_options.dart';
+import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
-import '../../core/plugin_system/capability.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/file_utils.dart';
@@ -27,38 +28,41 @@ part 'controller_plugin_utils.dart';
 /// ```dart
 /// final plugin = ControllerPlugin(
 ///   outputDir: 'lib/src',
-///   dryRun: false,
-///   force: true,
-///   verbose: false,
+///   options: const GeneratorOptions(force: true),
 /// );
 /// final files = await plugin.generate(GeneratorConfig(name: 'Product'));
 /// ```
 class ControllerPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
   final ControllerClassBuilder classBuilder;
 
   /// Creates a [ControllerPlugin].
   ///
   /// @param outputDir Target directory for generated files.
-  /// @param dryRun If true, files are not written.
-  /// @param force If true, existing files are overwritten.
-  /// @param verbose If true, logs progress to stdout.
+  /// @param options Generation flags for writing behavior and logging.
+  /// @param dryRun Deprecated: use [options].
+  /// @param force Deprecated: use [options].
+  /// @param verbose Deprecated: use [options].
   /// @param classBuilder Optional class builder override.
   ControllerPlugin({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
+    GeneratorOptions options = const GeneratorOptions(),
+    @Deprecated('Use options.dryRun') bool? dryRun,
+    @Deprecated('Use options.force') bool? force,
+    @Deprecated('Use options.verbose') bool? verbose,
     ControllerClassBuilder? classBuilder,
-  }) : classBuilder = classBuilder ?? const ControllerClassBuilder();
+  }) : options = options.copyWith(
+         dryRun: dryRun ?? options.dryRun,
+         force: force ?? options.force,
+         verbose: verbose ?? options.verbose,
+       ),
+       classBuilder = classBuilder ?? const ControllerClassBuilder();
 
   @override
   List<ZuraffaCapability> get capabilities => [
-        CreateControllerCapability(this),
-      ];
+    CreateControllerCapability(this),
+  ];
 
   /// @returns Plugin identifier.
   @override
@@ -86,14 +90,16 @@ class ControllerPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     }
 
     if (config.outputDir != outputDir ||
-        config.dryRun != dryRun ||
-        config.force != force ||
-        config.verbose != verbose) {
+        config.dryRun != options.dryRun ||
+        config.force != options.force ||
+        config.verbose != options.verbose) {
       final delegator = ControllerPlugin(
         outputDir: config.outputDir,
-        dryRun: config.dryRun,
-        force: config.force,
-        verbose: config.verbose,
+        options: GeneratorOptions(
+          dryRun: config.dryRun,
+          force: config.force,
+          verbose: config.verbose,
+        ),
         classBuilder: classBuilder,
       );
       return delegator.generate(config);
@@ -135,9 +141,9 @@ class ControllerPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       filePath,
       content,
       'controller',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
       revert: config.revert,
     );
     return [file];
