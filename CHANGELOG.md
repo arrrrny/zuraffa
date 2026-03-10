@@ -1,3 +1,17 @@
+## [3.18.0] - 2026-03-10
+
+### Change
+- Refactored all plugins to use unified `GeneratorOptions` pattern (removed deprecated `dryRun`, `force`, `verbose` parameters)
+- Updated `CodeGenerator` to accept `GeneratorOptions` for consistent configuration
+- Migrated test files to use new `GeneratorOptions` API
+
+### Fix
+- Fixed generate configs for orchestrate usecases
+- Fixed `zfa make` command with orchestrate usecases
+- Fixed mock provider builder
+- Fixed dependency injection configuration
+- Fixed provider implementation
+
 ## [3.17.0] - 2026-02-17
 
 ### Change
