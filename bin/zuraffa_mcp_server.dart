@@ -319,7 +319,6 @@ TIP: Use dry_run=true to preview generated files before writing.''',
             'description':
                 'Generate View + Presenter + Controller + State (presentation layer)',
           },
-
           'pc': {
             'type': 'boolean',
             'description':
@@ -1518,54 +1517,6 @@ Use quick for fast diagnostics, full for troubleshooting.''',
     } catch (_) {
       return false;
     }
-  }
-
-  /// Resolve the zfa executable path once
-  Future<void> _resolveExecutable() async {
-    // 1. Check for compiled binary next to this MCP server (Zed extension scenario)
-    final selfPath = Platform.resolvedExecutable;
-    final selfDir = File(selfPath).parent.path;
-    for (final name in ['zfa', 'zuraffa', 'zuraffa_mcp_server']) {
-      final candidate = File('$selfDir/$name');
-      if (await candidate.exists()) {
-        // Don't use ourselves as the CLI
-        if (candidate.resolveSymbolicLinksSync() != selfPath) {
-          _cachedExecutable = candidate.path;
-          return;
-        }
-      }
-    }
-
-    // 2. Check for zfa in PATH (global install)
-    final whichResult = await Process.run('which', ['zfa']);
-    if (whichResult.exitCode == 0) {
-      _cachedExecutable = 'zfa';
-      return;
-    }
-
-    // 3. Check for compiled zuraffa in current directory
-    final currentDir = Directory.current.path;
-    final localExe = File('$currentDir/zuraffa');
-    if (await localExe.exists()) {
-      _cachedExecutable = localExe.path;
-      return;
-    }
-
-    // 4. Fall back to dart run (requires zuraffa in pubspec)
-    final pubspecFile = File('${Directory.current.path}/pubspec.yaml');
-    if (!await pubspecFile.exists()) {
-      _cachedExecutable = 'echo';
-      return;
-    }
-
-    final pubspecContent = await pubspecFile.readAsString();
-    if (!pubspecContent.contains('zuraffa:')) {
-      _cachedExecutable = 'echo';
-      return;
-    }
-
-    _cachedExecutable = 'dart';
-    _cachedIsDartRun = true;
   }
 
   /// Create a success response
