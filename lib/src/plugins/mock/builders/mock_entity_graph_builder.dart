@@ -34,6 +34,8 @@ class MockEntityGraphBuilder {
         final subtypeConfig = GeneratorConfig(
           name: subtype,
           generateMockDataOnly: true,
+          outputDir: outputDir,
+          revert: config.revert,
         );
         files.add(await generateMockDataFile(subtypeConfig));
 
@@ -43,6 +45,7 @@ class MockEntityGraphBuilder {
           files,
           processedEntities,
           generateMockDataFile,
+          revert: config.revert,
         );
       }
     }
@@ -52,6 +55,7 @@ class MockEntityGraphBuilder {
       files,
       processedEntities,
       generateMockDataFile,
+      revert: config.revert,
     );
 
     return files;
@@ -61,8 +65,9 @@ class MockEntityGraphBuilder {
     Map<String, String> fields,
     List<GeneratedFile> files,
     Set<String> processedEntities,
-    Future<GeneratedFile> Function(GeneratorConfig) generateMockDataFile,
-  ) async {
+    Future<GeneratedFile> Function(GeneratorConfig) generateMockDataFile, {
+    required bool revert,
+  }) async {
     for (final entry in fields.entries) {
       final fieldType = entry.value;
       final baseTypes = entityHelper.extractEntityTypesFromField(fieldType);
@@ -94,6 +99,8 @@ class MockEntityGraphBuilder {
                 final subtypeConfig = GeneratorConfig(
                   name: subtype,
                   generateMockDataOnly: true,
+                  outputDir: outputDir,
+                  revert: revert,
                 );
                 files.add(await generateMockDataFile(subtypeConfig));
 
@@ -106,6 +113,7 @@ class MockEntityGraphBuilder {
                   files,
                   processedEntities,
                   generateMockDataFile,
+                  revert: revert,
                 );
               }
             }
@@ -123,6 +131,8 @@ class MockEntityGraphBuilder {
             final nestedConfig = GeneratorConfig(
               name: baseType,
               generateMockDataOnly: true,
+              outputDir: outputDir,
+              revert: revert,
             );
             files.add(await generateMockDataFile(nestedConfig));
 
@@ -131,6 +141,7 @@ class MockEntityGraphBuilder {
               files,
               processedEntities,
               generateMockDataFile,
+              revert: revert,
             );
           }
         }

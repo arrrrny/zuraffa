@@ -11,9 +11,7 @@ class StatefulControllerBuilder {
         ..returns = refer(stateClassName)
         ..body = Block(
           (b) => b
-            ..statements.add(
-              refer(stateClassName).constInstance([]).returned.statement,
-            ),
+            ..statements.add(refer(stateClassName).call([]).returned.statement),
         ),
     );
   }

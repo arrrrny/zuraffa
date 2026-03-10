@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/repository/repository_plugin.dart';
 
@@ -24,9 +25,11 @@ void main() {
     () async {
       final plugin = RepositoryPlugin(
         outputDir: outputDir,
-        dryRun: false,
-        force: true,
-        verbose: false,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
       );
 
       final config = GeneratorConfig(

@@ -7,6 +7,58 @@ extension ControllerPluginMethods on ControllerPlugin {
     String entityCamel,
     bool withState,
   ) {
+    if (config.isCustomUseCase) {
+      final returns = config.returnsType ?? 'void';
+      final params = config.paramsType ?? 'NoParams';
+      final methodName = config.nameCamel;
+      final isStream = config.useCaseType == 'stream';
+
+      final body = isStream
+          ? (withState
+                ? _buildCustomStreamWithStateBody(
+                    config,
+                    methodName,
+                    params,
+                    returns,
+                  )
+                : _buildCustomStreamWithoutStateBody(
+                    config,
+                    methodName,
+                    params,
+                    returns,
+                  ))
+          : (withState
+                ? _buildCustomWithStateBody(config, methodName, params, returns)
+                : _buildCustomWithoutStateBody(
+                    config,
+                    methodName,
+                    params,
+                    returns,
+                  ));
+
+      return [
+        Method(
+          (m) => m
+            ..name = methodName
+            ..returns = isStream ? refer('void') : refer('Future<void>')
+            ..modifier = isStream ? null : MethodModifier.async
+            ..requiredParameters.addAll(
+              params == 'NoParams'
+                  ? const []
+                  : [
+                      Parameter(
+                        (p) => p
+                          ..name = 'params'
+                          ..type = refer(params),
+                      ),
+                    ],
+            )
+            ..optionalParameters.add(_cancelTokenParam())
+            ..body = body,
+        ),
+      ];
+    }
+
     final methods = <Method>[];
     for (final method in config.methods) {
       switch (method) {

@@ -39,7 +39,7 @@ zfa entity create -n Product \
   --field description:String? \
   --field price:double
 
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state --di --test
+zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --state --di --test
 ```
 
 You get a full feature slice: entities, use cases, repositories, data sources, presentation, DI, and tests.
@@ -49,7 +49,7 @@ You get a full feature slice: entities, use cases, repositories, data sources, p
 ### Entity-based CRUD
 
 ```bash
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc
+zfa generate Product --methods=get,getList,create,update,delete --data --vpcs
 ```
 
 ### Custom use case with a repository

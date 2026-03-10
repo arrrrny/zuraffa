@@ -1,12 +1,12 @@
 import 'dart:io';
 import 'package:args/args.dart';
-import 'package:path/path.dart' as path;
 
 import '../models/generator_config.dart';
+import '../models/generated_file.dart';
 import '../models/generator_result.dart';
 import 'base_plugin_command.dart';
 import '../plugins/test/test_plugin.dart';
-import '../utils/string_utils.dart';
+import '../plugins/test/capabilities/create_test_capability.dart';
 
 /// CLI command that generates tests for existing use cases.
 ///
@@ -109,7 +109,7 @@ class TestCommand extends PluginCommand {
     final force = results['force'] == true;
     final verbose = results['verbose'] == true;
 
-    final analyzed = await _buildConfigFromUseCase(
+    final analyzed = await plugin.buildConfigFromUseCase(
       entityName,
       output,
       domain,
@@ -161,191 +161,26 @@ class TestCommand extends PluginCommand {
         : methodsValue.split(',').where((m) => m.trim().isNotEmpty).toList();
     final domain = argResults!['domain'] as String? ?? 'general';
 
-    final analyzed = await _buildConfigFromUseCase(
-      entityName,
-      outputDir,
-      domain,
-      dryRun: isDryRun,
-      force: isForce,
-      verbose: isVerbose,
-    );
-    final config =
-        analyzed ??
-        GeneratorConfig(
-          name: entityName,
-          methods: methods,
-          domain: domain,
-          generateTest: true,
-          dryRun: isDryRun,
-          force: isForce,
-          verbose: isVerbose,
-          outputDir: outputDir,
-        );
+    final capability =
+        plugin.capabilities.firstWhere((c) => c is CreateTestCapability)
+            as CreateTestCapability;
 
-    final files = await plugin.generate(config);
-    logSummary(files);
-  }
-
-  /// Builds a [GeneratorConfig] by inspecting the existing usecase source.
-  Future<GeneratorConfig?> _buildConfigFromUseCase(
-    String name,
-    String outputDir,
-    String domain, {
-    required bool dryRun,
-    required bool force,
-    required bool verbose,
-  }) async {
-    final analysis = await _analyzeUseCase(name, outputDir, domain);
-    if (analysis == null) {
-      return null;
-    }
-
-    final nameWithoutSuffix = name.replaceAll('UseCase', '');
-    String? repo;
-    String? service;
-    final usecases = <String>[];
-
-    for (final r in analysis['repos'] as List<String>) {
-      final repoName = '${r}Repository';
-      repo ??= repoName;
-    }
-
-    for (final s in analysis['services'] as List<String>) {
-      final serviceName = '${s}Service';
-      service ??= serviceName;
-    }
-
-    if (analysis['isOrchestrator'] == true) {
-      usecases.addAll(analysis['usecases'] as List<String>);
-    }
-
-    return GeneratorConfig(
-      name: nameWithoutSuffix,
-      domain: analysis['domain'] as String,
-      usecases: usecases,
-      repo: repo,
-      service: service,
-      useCaseType: analysis['useCaseType'] as String,
-      generateTest: true,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-      outputDir: outputDir,
-    );
-  }
-
-  /// Locates and parses the usecase file to infer dependencies.
-  Future<Map<String, dynamic>?> _analyzeUseCase(
-    String name,
-    String outputDir,
-    String domain,
-  ) async {
-    final nameWithoutSuffix = name.replaceAll('UseCase', '');
-    final useCaseSnake = StringUtils.camelToSnake(nameWithoutSuffix);
-    final className = '${nameWithoutSuffix}UseCase';
-
-    final domainDir = Directory(
-      path.join(outputDir, 'domain', 'usecases', domain),
-    );
-    if (domainDir.existsSync()) {
-      final useCaseFile = File(
-        path.join(domainDir.path, '${useCaseSnake}_usecase.dart'),
-      );
-
-      if (useCaseFile.existsSync()) {
-        final content = await useCaseFile.readAsString();
-        return _parseUseCaseFile(content, className, domain);
-      }
-    }
-
-    final usecasesDir = Directory(path.join(outputDir, 'domain', 'usecases'));
-    if (usecasesDir.existsSync()) {
-      for (final dir in usecasesDir.listSync()) {
-        if (dir is Directory) {
-          final foundDomain = path.basename(dir.path);
-          final useCaseFile = File(
-            path.join(dir.path, '${useCaseSnake}_usecase.dart'),
-          );
-
-          if (useCaseFile.existsSync()) {
-            final content = await useCaseFile.readAsString();
-            return _parseUseCaseFile(content, className, foundDomain);
-          }
-        }
-      }
-    }
-
-    return null;
-  }
-
-  /// Parses a usecase file to extract dependencies and type metadata.
-  Map<String, dynamic> _parseUseCaseFile(
-    String content,
-    String className,
-    String domain,
-  ) {
-    final repoMatches = RegExp(
-      r'final\s+(\w+)Repository\s+(\w+)',
-    ).allMatches(content);
-    final repos = repoMatches
-        .map((m) => m.group(1))
-        .whereType<String>()
-        .toList();
-
-    final serviceMatches = RegExp(
-      r'final\s+(\w+)Service\s+(\w+)',
-    ).allMatches(content);
-    final services = serviceMatches
-        .map((m) => m.group(1))
-        .whereType<String>()
-        .toList();
-
-    final usecaseMatches = RegExp(
-      r'final\s+\w+UseCase\s+_(\w+)',
-    ).allMatches(content);
-    final composedUsecases = usecaseMatches
-        .map((m) {
-          final fieldName = m.group(1);
-          if (fieldName == null) return null;
-          final baseName = fieldName.startsWith('_')
-              ? fieldName.substring(1)
-              : fieldName;
-          final classBase =
-              baseName.substring(0, 1).toUpperCase() + baseName.substring(1);
-          return classBase.endsWith('UseCase')
-              ? classBase
-              : '${classBase}UseCase';
-        })
-        .whereType<String>()
-        .toList();
-
-    final isOrchestrator =
-        composedUsecases.isNotEmpty && repos.isEmpty && services.isEmpty;
-
-    final useCaseType = _resolveUseCaseType(content);
-
-    return {
-      'className': className,
-      'repos': repos,
-      'services': services,
-      'usecases': composedUsecases,
+    final result = await capability.execute({
+      'name': entityName,
+      'methods': methods,
       'domain': domain,
-      'isOrchestrator': isOrchestrator,
-      'useCaseType': useCaseType,
-    };
-  }
+      'dryRun': isDryRun,
+      'force': isForce,
+      'verbose': isVerbose,
+      'outputDir': outputDir,
+    });
 
-  /// Determines usecase flavor based on inheritance in the source.
-  String _resolveUseCaseType(String content) {
-    if (content.contains('StreamUseCase')) {
-      return 'stream';
+    if (result.success) {
+      final files =
+          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      logSummary(files);
+    } else {
+      print('Failed to generate test');
     }
-    if (content.contains('SyncUseCase')) {
-      return 'sync';
-    }
-    if (content.contains('BackgroundUseCase')) {
-      return 'background';
-    }
-    return 'usecase';
   }
 }

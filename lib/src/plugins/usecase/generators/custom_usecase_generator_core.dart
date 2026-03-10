@@ -15,6 +15,7 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
         return 'CompletableUseCase<$paramsType>';
       case 'sync':
         return 'SyncUseCase<$returnsType, $paramsType>';
+      case 'future':
       default:
         return 'UseCase<$returnsType, $paramsType>';
     }
@@ -43,27 +44,15 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
       }
       imports.add('../../services/${serviceSnake}_service.dart');
     }
-    imports.addAll(_entityImports([paramsType, returnsType]));
+    imports.addAll(
+      CommonPatterns.entityImports([paramsType, returnsType], config, depth: 2),
+    );
     return imports;
   }
 
   List<Field> _buildDependencyFields(GeneratorConfig config) {
     final fields = <Field>[];
-    if (config.hasRepo) {
-      for (final repo in config.effectiveRepos) {
-        final repoBaseName = repo.replaceAll('Repository', '');
-        final repoFieldName =
-            '_${StringUtils.pascalToCamel(repoBaseName)}Repository';
-        fields.add(
-          Field(
-            (b) => b
-              ..name = repoFieldName
-              ..type = refer(repo)
-              ..modifier = FieldModifier.final$,
-          ),
-        );
-      }
-    }
+    // For custom usecases, prefer service over repo if both provided
     if (config.hasService) {
       final serviceName = config.effectiveService;
       if (serviceName == null) {
@@ -84,6 +73,26 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
             ..modifier = FieldModifier.final$,
         ),
       );
+
+      // If we have a service, we don't necessarily need the repo in a custom usecase
+      // unless it's explicitly an orchestrator/polymorphic which handles its own fields.
+      return fields;
+    }
+
+    if (config.hasRepo) {
+      for (final repo in config.effectiveRepos) {
+        final repoBaseName = repo.replaceAll('Repository', '');
+        final repoFieldName =
+            '_${StringUtils.pascalToCamel(repoBaseName)}Repository';
+        fields.add(
+          Field(
+            (b) => b
+              ..name = repoFieldName
+              ..type = refer(repo)
+              ..modifier = FieldModifier.final$,
+          ),
+        );
+      }
     }
     return fields;
   }
@@ -96,26 +105,6 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
               ..name = field.name
               ..toThis = true,
           ),
-        )
-        .toList();
-  }
-
-  List<String> _entityImports(List<String> types) {
-    final entityNames = <String>{};
-    for (final type in types) {
-      final regex = RegExp(r'[A-Z][a-zA-Z0-9_]*');
-      final matches = regex.allMatches(type);
-      for (final match in matches) {
-        final name = match.group(0);
-        if (name != null && !KnownTypes.isExcluded(name)) {
-          entityNames.add(name);
-        }
-      }
-    }
-    return entityNames
-        .map(
-          (e) =>
-              '../../entities/${StringUtils.camelToSnake(e)}/${StringUtils.camelToSnake(e)}.dart',
         )
         .toList();
   }

@@ -28,7 +28,36 @@ extension TestBuilderCustom on TestBuilder {
       ),
     ];
 
+    final entityTypes = <String>[];
+    if (config.returnsType != null) {
+      entityTypes.addAll(EntityUtils.extractEntityTypes(config.returnsType!));
+    }
+    if (config.paramsType != null) {
+      entityTypes.addAll(EntityUtils.extractEntityTypes(config.paramsType!));
+    }
+
+    for (final type in entityTypes.toSet()) {
+      final snake = StringUtils.camelToSnake(type);
+      directives.add(
+        Directive.import(
+          'package:$packageName/src/domain/entities/$snake/$snake.dart',
+        ),
+      );
+    }
+
     final mockSpecs = <Class>[];
+
+    if (paramsType != 'NoParams' && !KnownTypes.isDartPrimitive(paramsType)) {
+      mockSpecs.add(
+        Class(
+          (c) => c
+            ..name = 'Mock$paramsType'
+            ..extend = refer('Mock')
+            ..implements.add(refer(paramsType)),
+        ),
+      );
+    }
+
     for (final repo in config.effectiveRepos) {
       mockSpecs.add(
         Class(
@@ -105,6 +134,16 @@ extension TestBuilderCustom on TestBuilder {
                 ).constInstance(const [], const {}, [refer('dynamic')]),
               ]).statement,
             );
+
+            if (paramsType != 'NoParams' &&
+                !KnownTypes.isDartPrimitive(paramsType)) {
+              s.statements.add(
+                refer(
+                  'registerFallbackValue',
+                ).call([refer('Mock$paramsType').call([])]).statement,
+              );
+            }
+
             for (final repo in config.effectiveRepos) {
               s.statements.add(
                 refer(
@@ -136,6 +175,15 @@ extension TestBuilderCustom on TestBuilder {
           );
 
           final groupBody = Block((g) {
+            if (paramsType != 'NoParams' &&
+                !KnownTypes.isDartPrimitive(paramsType)) {
+              g.statements.add(
+                declareFinal(
+                  't$paramsType',
+                ).assign(refer('Mock$paramsType').call([])).statement,
+              );
+            }
+
             final testCall = _generateCustomTestBody(
               config,
               paramsType,
@@ -164,9 +212,10 @@ extension TestBuilderCustom on TestBuilder {
       filePath,
       content,
       'test',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
+      revert: config.revert,
     );
   }
 }

@@ -1,40 +1,40 @@
 import 'package:args/command_runner.dart';
 import '../../commands/repository_command.dart';
+import '../../core/generator_options.dart';
+import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
-import 'generators/interface_generator.dart';
+import 'capabilities/create_repository_capability.dart';
 import 'generators/implementation_generator.dart';
+import 'generators/interface_generator.dart';
 
 class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
 
   late final RepositoryInterfaceGenerator interfaceGenerator;
   late final RepositoryImplementationGenerator implementationGenerator;
 
   RepositoryPlugin({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
+    this.options = const GeneratorOptions(),
   }) {
     interfaceGenerator = RepositoryInterfaceGenerator(
       outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
+      options: options,
     );
     implementationGenerator = RepositoryImplementationGenerator(
       outputDir: outputDir,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
+      options: options,
     );
   }
+
+  @override
+  List<ZuraffaCapability> get capabilities => [
+    CreateRepositoryCapability(this),
+  ];
 
   @override
   Command createCommand() => RepositoryCommand(this);
@@ -51,14 +51,16 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     if (config.outputDir != outputDir ||
-        config.dryRun != dryRun ||
-        config.force != force ||
-        config.verbose != verbose) {
+        config.dryRun != options.dryRun ||
+        config.force != options.force ||
+        config.verbose != options.verbose) {
       final delegator = RepositoryPlugin(
         outputDir: config.outputDir,
-        dryRun: config.dryRun,
-        force: config.force,
-        verbose: config.verbose,
+        options: GeneratorOptions(
+          dryRun: config.dryRun,
+          force: config.force,
+          verbose: config.verbose,
+        ),
       );
       return delegator.generate(config);
     }

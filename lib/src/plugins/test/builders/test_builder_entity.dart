@@ -85,7 +85,7 @@ extension TestBuilderEntity on TestBuilder {
     final directives = [
       Directive.import('package:flutter_test/flutter_test.dart'),
       Directive.import('package:mocktail/mocktail.dart'),
-      if (method != 'create') Directive.import('package:zuraffa/zuraffa.dart'),
+      Directive.import('package:zuraffa/zuraffa.dart'),
       Directive.import(
         'package:$packageName/src/domain/entities/$entitySnake/$entitySnake.dart',
       ),
@@ -219,9 +219,10 @@ extension TestBuilderEntity on TestBuilder {
       filePath,
       content,
       'test',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
+      revert: config.revert,
     );
   }
 }

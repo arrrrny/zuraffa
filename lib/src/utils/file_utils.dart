@@ -16,7 +16,12 @@ class FileUtils {
     bool force = false,
     bool dryRun = false,
     bool verbose = false,
+    bool revert = false,
   }) async {
+    if (revert) {
+      return deleteFile(filePath, type, dryRun: dryRun, verbose: verbose);
+    }
+
     final file = File(filePath);
     final exists = file.existsSync();
     final formattedContent = _formatDart(content, filePath);
@@ -39,8 +44,13 @@ class FileUtils {
           ? await FileOperation.update(
               path: filePath,
               content: formattedContent,
+              force: force,
             )
-          : FileOperation.create(path: filePath, content: formattedContent);
+          : FileOperation.create(
+              path: filePath,
+              content: formattedContent,
+              force: force,
+            );
       transaction.addOperation(operation);
     } else if (!dryRun) {
       await file.parent.create(recursive: true);

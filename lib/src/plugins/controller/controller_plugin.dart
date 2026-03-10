@@ -3,12 +3,17 @@ import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../commands/controller_command.dart';
+import '../../core/constants/known_types.dart';
+import '../../core/generator_options.dart';
+import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/file_utils.dart';
+import '../../utils/string_utils.dart';
 import 'builders/controller_class_builder.dart';
+import 'capabilities/create_controller_capability.dart';
 
 part 'controller_plugin_bodies.dart';
 part 'controller_plugin_methods.dart';
@@ -23,33 +28,33 @@ part 'controller_plugin_utils.dart';
 /// ```dart
 /// final plugin = ControllerPlugin(
 ///   outputDir: 'lib/src',
-///   dryRun: false,
-///   force: true,
-///   verbose: false,
+///   options: const GeneratorOptions(force: true),
 /// );
 /// final files = await plugin.generate(GeneratorConfig(name: 'Product'));
 /// ```
 class ControllerPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
   final ControllerClassBuilder classBuilder;
 
   /// Creates a [ControllerPlugin].
   ///
   /// @param outputDir Target directory for generated files.
-  /// @param dryRun If true, files are not written.
-  /// @param force If true, existing files are overwritten.
-  /// @param verbose If true, logs progress to stdout.
+  /// @param options Generation flags for writing behavior and logging.
+  /// @param dryRun Deprecated: use [options].
+  /// @param force Deprecated: use [options].
+  /// @param verbose Deprecated: use [options].
   /// @param classBuilder Optional class builder override.
   ControllerPlugin({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
-    ControllerClassBuilder? classBuilder,
-  }) : classBuilder = classBuilder ?? const ControllerClassBuilder();
+    this.options = const GeneratorOptions(),
+    this.classBuilder = const ControllerClassBuilder(),
+  });
+
+  @override
+  List<ZuraffaCapability> get capabilities => [
+    CreateControllerCapability(this),
+  ];
 
   /// @returns Plugin identifier.
   @override
@@ -72,19 +77,21 @@ class ControllerPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   /// @returns List of generated controller files.
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
-    if (!(config.generateController || config.generateVpc)) {
+    if (!(config.generateController || config.generateVpcs)) {
       return [];
     }
 
     if (config.outputDir != outputDir ||
-        config.dryRun != dryRun ||
-        config.force != force ||
-        config.verbose != verbose) {
+        config.dryRun != options.dryRun ||
+        config.force != options.force ||
+        config.verbose != options.verbose) {
       final delegator = ControllerPlugin(
         outputDir: config.outputDir,
-        dryRun: config.dryRun,
-        force: config.force,
-        verbose: config.verbose,
+        options: GeneratorOptions(
+          dryRun: config.dryRun,
+          force: config.force,
+          verbose: config.verbose,
+        ),
         classBuilder: classBuilder,
       );
       return delegator.generate(config);
@@ -93,22 +100,23 @@ class ControllerPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final entityName = config.name;
     final entitySnake = config.nameSnake;
     final entityCamel = config.nameCamel;
-    final controllerName = '${entityName}Controller';
-    final presenterName = '${entityName}Presenter';
-    final stateName = '${entityName}State';
+    final controllerName = config.effectiveControllerName;
+    final presenterName = config.effectivePresenterName;
+    final stateName = config.effectiveStateName;
     final fileName = '${entitySnake}_controller.dart';
 
+    final domainSnake = config.effectiveDomain;
     final controllerDirPath = path.join(
       outputDir,
       'presentation',
       'pages',
-      entitySnake,
+      domainSnake,
     );
     final filePath = path.join(controllerDirPath, fileName);
 
-    final withState = config.generateState;
+    final withState = config.generateState || config.customStateName != null;
     final methods = _buildMethods(config, entityName, entityCamel, withState);
-    final imports = _buildImports(config, entitySnake, withState);
+    final imports = _buildImports(config, domainSnake, withState);
 
     final content = classBuilder.build(
       ControllerClassSpec(
@@ -125,9 +133,10 @@ class ControllerPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       filePath,
       content,
       'controller',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
+      revert: config.revert,
     );
     return [file];
   }

@@ -1,6 +1,7 @@
 import 'package:code_builder/code_builder.dart';
 
 import '../../../core/builder/shared/spec_library.dart';
+import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/entity_analyzer.dart';
@@ -12,9 +13,7 @@ import 'mock_value_builder.dart';
 
 class MockDataBuilder {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
   final SpecLibrary specLibrary;
   final MockValueBuilder valueBuilder;
   final MockEntityHelper entityHelper;
@@ -22,9 +21,7 @@ class MockDataBuilder {
 
   MockDataBuilder({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
+    this.options = const GeneratorOptions(),
     SpecLibrary? specLibrary,
     MockValueBuilder? valueBuilder,
     MockEntityHelper? entityHelper,
@@ -35,9 +32,40 @@ class MockDataBuilder {
        typeHelper = typeHelper ?? const MockTypeHelper();
 
   Future<GeneratedFile> generateMockDataFile(GeneratorConfig config) async {
-    final entityName = config.name;
+    final entityName = config.repo != null
+        ? config.repo!.replaceAll('Repository', '')
+        : config.name;
+
+    // Skip generating mock data if the return type is a primitive
+    if (config.isCustomUseCase && config.returnsType != null) {
+      final primitives = {
+        'String',
+        'int',
+        'double',
+        'bool',
+        'void',
+        'DateTime',
+        'dynamic',
+        'Object',
+      };
+      final baseType = config.returnsType!.replaceAll('?', '');
+      if (primitives.contains(baseType) ||
+          (baseType.startsWith('List<') &&
+              primitives.contains(
+                baseType.substring(5, baseType.length - 1).replaceAll('?', ''),
+              ))) {
+        return GeneratedFile(
+          path: '',
+          content: '',
+          action: 'skipped',
+          type: 'mock_data',
+        );
+      }
+    }
+
     final entitySnake = StringUtils.camelToSnake(entityName);
     final entityCamel = StringUtils.pascalToCamel(entityName);
+    final collectionName = '${entityCamel}s';
 
     final entityFields = EntityAnalyzer.analyzeEntity(entityName, outputDir);
 
@@ -52,108 +80,111 @@ class MockDataBuilder {
     );
     final directives = <Directive>[
       Directive.import('../../domain/entities/$entitySnake/$entitySnake.dart'),
-      ...imports.map(Directive.import),
+      ...imports.map((import) {
+        if (import.startsWith('package:')) {
+          return Directive.import(import);
+        }
+        return Directive.import('../mock/$import');
+      }),
     ];
-
-    final sampleMethod = Method(
-      (m) => m
-        ..name = 'sample$entityName'
-        ..type = MethodType.getter
-        ..static = true
-        ..returns = refer(entityName)
-        ..lambda = true
-        ..body = refer('${entityCamel}s').property('first').code,
-    );
-
-    final sampleListMethod = Method(
-      (m) => m
-        ..name = 'sampleList'
-        ..type = MethodType.getter
-        ..static = true
-        ..returns = typeHelper.listOf(entityName)
-        ..lambda = true
-        ..body = refer('${entityCamel}s').code,
-    );
-
-    final emptyListMethod = Method(
-      (m) => m
-        ..name = 'emptyList'
-        ..type = MethodType.getter
-        ..static = true
-        ..returns = typeHelper.listOf(entityName)
-        ..lambda = true
-        ..body = literalConstList([], refer(entityName)).code,
-    );
-
-    final largeListMethod = Method(
-      (m) => m
-        ..name = 'large${entityName}List'
-        ..type = MethodType.getter
-        ..static = true
-        ..returns = typeHelper.listOf(entityName)
-        ..lambda = true
-        ..body = refer('List').property('generate').call([
-          literalNum(100),
-          Method(
-            (m) => m
-              ..requiredParameters.add(Parameter((p) => p..name = 'index'))
-              ..lambda = true
-              ..body = refer(
-                '_create$entityName',
-              ).call([refer('index').operatorAdd(literalNum(1000))]).code,
-          ).closure,
-        ]).code,
-    );
-
-    final createMethod = Method(
-      (m) => m
-        ..name = '_create$entityName'
-        ..static = true
-        ..returns = refer(entityName)
-        ..requiredParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'seed'
-              ..type = refer('int'),
-          ),
-        )
-        ..lambda = true
-        ..body = refer(entityName)
-            .call(
-              const [],
-              valueBuilder.generateConstructorCallArgs(
-                entityFields,
-                useSeeds: true,
-              ),
-            )
-            .code,
-    );
-
-    final dataListField = Field(
-      (f) => f
-        ..name = '${entityCamel}s'
-        ..static = true
-        ..modifier = FieldModifier.final$
-        ..type = typeHelper.listOf(entityName)
-        ..assignment = literalList(mockInstances).code,
-    );
 
     final clazz = Class(
       (c) => c
         ..name = '${entityName}MockData'
         ..docs.add('/// Mock data for $entityName')
-        ..fields.add(dataListField)
+        ..fields.addAll([
+          Field(
+            (f) => f
+              ..name = collectionName
+              ..static = true
+              ..modifier = FieldModifier.final$
+              ..type = typeHelper.listOf(entityName)
+              ..assignment = literalList(mockInstances).code,
+          ),
+        ])
         ..methods.addAll([
-          sampleMethod,
-          sampleListMethod,
-          emptyListMethod,
-          largeListMethod,
-          createMethod,
+          Method(
+            (m) => m
+              ..name = 'sample$entityName'
+              ..static = true
+              ..type = MethodType.getter
+              ..returns = refer(entityName)
+              ..lambda = true
+              ..body = refer(collectionName).property('first').code,
+          ),
+          Method(
+            (m) => m
+              ..name = 'sampleList'
+              ..static = true
+              ..type = MethodType.getter
+              ..returns = typeHelper.listOf(entityName)
+              ..lambda = true
+              ..body = refer(collectionName).code,
+          ),
+          Method(
+            (m) => m
+              ..name = 'emptyList'
+              ..static = true
+              ..type = MethodType.getter
+              ..returns = typeHelper.listOf(entityName)
+              ..lambda = true
+              ..body = literalList([], refer(entityName)).code,
+          ),
+          Method(
+            (m) => m
+              ..name = 'large${entityName}List'
+              ..static = true
+              ..type = MethodType.getter
+              ..returns = typeHelper.listOf(entityName)
+              ..lambda = true
+              ..body = refer('List').property('generate').call([
+                literalNum(100),
+                Method(
+                  (m) => m
+                    ..requiredParameters.add(
+                      Parameter((p) => p..name = 'index'),
+                    )
+                    ..lambda = true
+                    ..body = refer(
+                      '_create$entityName',
+                    ).call([refer('index').operatorAdd(literalNum(1000))]).code,
+                ).closure,
+              ]).code,
+          ),
+          Method(
+            (m) => m
+              ..name = '_create$entityName'
+              ..static = true
+              ..returns = refer(entityName)
+              ..requiredParameters.add(
+                Parameter(
+                  (p) => p
+                    ..name = 'seed'
+                    ..type = refer('int'),
+                ),
+              )
+              ..body = Block(
+                (b) => b
+                  ..statements.add(
+                    refer(entityName)
+                        .call(
+                          [],
+                          valueBuilder.generateConstructorCallArgs(
+                            entityFields,
+                            useSeeds: true,
+                          ),
+                        )
+                        .returned
+                        .statement,
+                  ),
+              ),
+          ),
         ]),
     );
 
     final content = specLibrary.emitLibrary(
       specLibrary.library(specs: [clazz], directives: directives),
+      leadingComment: '// Generated by zfa',
     );
 
     final filePath = '$outputDir/data/mock/${entitySnake}_mock_data.dart';
@@ -161,9 +192,10 @@ class MockDataBuilder {
       filePath,
       content,
       'mock_data',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
+      revert: config.revert,
     );
   }
 }

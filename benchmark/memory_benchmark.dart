@@ -18,19 +18,17 @@ Future<void> main(List<String> args) async {
       name: 'Profile',
       methods: const ['get', 'getList', 'create', 'update', 'delete'],
       generateData: true,
-      generateVpc: true,
+      generateVpcs: true,
       generateState: true,
       generateDi: true,
       generateRoute: true,
       generateMock: true,
+      outputDir: outputDir,
     );
 
     final generator = CodeGenerator(
       config: config,
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
       progressReporter: NullProgressReporter(),
     );
 

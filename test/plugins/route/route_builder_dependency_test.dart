@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/plugins/route/builders/route_builder.dart';
 
 void main() {
@@ -22,9 +23,11 @@ void main() {
   test('omits repository injection when DI is enabled', () async {
     final builder = RouteBuilder(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
 
     await builder.generate(
@@ -47,9 +50,11 @@ void main() {
   test('detail routes omit id when id type is NoParams', () async {
     final builder = RouteBuilder(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
 
     await builder.generate(

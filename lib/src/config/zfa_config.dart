@@ -40,6 +40,12 @@ class ZfaConfig {
   /// Auto-generate DI files
   final bool diByDefault;
 
+  /// Auto-generate mock datasources
+  final bool mockByDefault;
+
+  /// Auto-generate unit tests
+  final bool testByDefault;
+
   const ZfaConfig({
     this.zorphyByDefault = true,
     this.jsonByDefault = true,
@@ -52,6 +58,8 @@ class ZfaConfig {
     this.formatByDefault = false,
     this.routeByDefault = false,
     this.diByDefault = false,
+    this.mockByDefault = false,
+    this.testByDefault = false,
   });
 
   /// Load configuration from .zfa.json in project root
@@ -79,6 +87,8 @@ class ZfaConfig {
         formatByDefault: json['formatByDefault'] ?? false,
         routeByDefault: json['routeByDefault'] ?? false,
         diByDefault: json['diByDefault'] ?? false,
+        mockByDefault: json['mockByDefault'] ?? false,
+        testByDefault: json['testByDefault'] ?? false,
       );
     } catch (e) {
       // Return defaults if config is invalid
@@ -101,6 +111,8 @@ class ZfaConfig {
       'formatByDefault': config.formatByDefault,
       'routeByDefault': config.routeByDefault,
       'diByDefault': config.diByDefault,
+      'mockByDefault': config.mockByDefault,
+      'testByDefault': config.testByDefault,
       if (config.defaultEntityOutput != null)
         'defaultEntityOutput': config.defaultEntityOutput,
     };

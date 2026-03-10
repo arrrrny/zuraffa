@@ -2,6 +2,23 @@ part of 'custom_usecase_generator.dart';
 
 extension CustomUseCaseGeneratorGenerate on CustomUseCaseGenerator {
   Future<GeneratedFile> generate(GeneratorConfig config) async {
+    // 1. Check for required Domain for non-entity usecases
+    if (config.useCaseType != 'entity' && config.domain == null) {
+      throw ArgumentError(
+        'For non-entity usecases (like ${config.useCaseType}), you must specify a domain using --domain.',
+      );
+    }
+
+    // 2. Check for required dependencies for specific types
+    if (!config.revert &&
+        config.useCaseType != 'sync' &&
+        !config.hasRepo &&
+        !config.hasService) {
+      throw ArgumentError(
+        'For ${config.useCaseType} usecases, you must specify a repository or service using --repo or --service. Only --type=sync allows no dependencies.',
+      );
+    }
+
     final baseName = config.name.endsWith('UseCase')
         ? config.name.substring(0, config.name.length - 7)
         : config.name;

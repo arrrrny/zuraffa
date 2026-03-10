@@ -404,7 +404,7 @@ List all available files in your project's Clean Architecture and entity directo
 
 - `lib/src/domain/repositories` - Repository interfaces
 - `lib/src/domain/usecases` - UseCase implementations
-- `lib/src/data/data_sources` - Data source implementations
+- `lib/src/data/datasources` - Data source implementations
 - `lib/src/data/repositories` - Data repository implementations
 - `lib/src/presentation` - Views, Presenters, Controllers
 - `lib/src/domain/entities` - Entity definitions (Zorphy entities)

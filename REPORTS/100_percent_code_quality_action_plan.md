@@ -152,7 +152,7 @@ DiPlugin({
 lib/src/plugins/mock/builders/
 ├── mock_builder.dart
 ├── mock_data_builder.dart
-├── mock_data_source_builder.dart
+├── mock_datasource_builder.dart
 ├── mock_entity_graph_builder.dart
 ├── mock_entity_helper.dart
 ├── mock_type_helper.dart

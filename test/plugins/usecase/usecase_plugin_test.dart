@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/usecase/usecase_plugin.dart';
 
@@ -22,9 +23,11 @@ void main() {
   test('generates entity usecase with code_builder', () async {
     final plugin = UseCasePlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
     final config = GeneratorConfig(
       name: 'Todo',
@@ -45,13 +48,16 @@ void main() {
   test('generates custom sync usecase with repo dependency', () async {
     final plugin = UseCasePlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
     final config = GeneratorConfig(
       name: 'SyncUser',
       repo: 'User',
+      domain: 'user',
       paramsType: 'UserParams',
       returnsType: 'User',
       useCaseType: 'sync',
@@ -68,13 +74,16 @@ void main() {
   test('generates custom stream usecase with service dependency', () async {
     final plugin = UseCasePlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
     final config = GeneratorConfig(
       name: 'StreamUser',
       service: 'User',
+      domain: 'user',
       paramsType: 'UserParams',
       returnsType: 'User',
       useCaseType: 'stream',
@@ -87,14 +96,55 @@ void main() {
     expect(content.contains('Stream<User> execute'), isTrue);
     expect(content.contains('UserParams'), isTrue);
     expect(content.contains('CancelToken?'), isTrue);
+    expect(content.contains('final UserService _userService;'), isTrue);
+    expect(content.contains('StreamUserUseCase(this._userService);'), isTrue);
+    expect(content.contains('return _userService.streamUser(params);'), isTrue);
+  });
+
+  test('generates custom future usecase with service dependency', () async {
+    final plugin = UseCasePlugin(
+      outputDir: outputDir,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
+    );
+    final config = GeneratorConfig(
+      name: 'GetListingByBarcode',
+      service: 'Listing',
+      domain: 'listing',
+      paramsType: 'String',
+      returnsType: 'Listing?',
+      useCaseType: 'future',
+      outputDir: outputDir,
+    );
+    final files = await plugin.generate(config);
+    final content = files.first.content ?? '';
+
+    expect(content.contains('class GetListingByBarcodeUseCase'), isTrue);
+    expect(content.contains('UseCase<Listing?, String>'), isTrue);
+    expect(content.contains('final ListingService _listingService;'), isTrue);
+    expect(
+      content.contains('GetListingByBarcodeUseCase(this._listingService);'),
+      isTrue,
+    );
+    expect(
+      content.contains(
+        'return await _listingService.getListingByBarcode(params);',
+      ),
+      isTrue,
+    );
   });
 
   test('generates orchestrator usecase', () async {
     final plugin = UseCasePlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
     final config = GeneratorConfig(
       name: 'OrchestrateOrders',
@@ -112,9 +162,11 @@ void main() {
   test('generates polymorphic usecases and factory', () async {
     final plugin = UseCasePlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
     final config = GeneratorConfig(
       name: 'FetchUser',
@@ -139,11 +191,13 @@ void main() {
   test('smart append adds execute method to existing class', () async {
     final plugin = UseCasePlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: false,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
-    final filePath = '${outputDir}/domain/usecases/auth/login_usecase.dart';
+    final filePath = '$outputDir/domain/usecases/auth/login_usecase.dart';
     await File(filePath).create(recursive: true);
     await File(filePath).writeAsString(
       'import \'package:zuraffa/zuraffa.dart\';\n\nclass LoginUseCase extends UseCase<void, NoParams> {\n  LoginUseCase();\n}\n',
@@ -151,8 +205,10 @@ void main() {
 
     final config = GeneratorConfig(
       name: 'Login',
+      domain: 'auth',
       paramsType: 'NoParams',
       returnsType: 'void',
+      useCaseType: 'sync',
       appendToExisting: true,
       outputDir: outputDir,
     );

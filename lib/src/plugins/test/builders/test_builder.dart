@@ -5,8 +5,10 @@ import 'package:path/path.dart' as path;
 
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
+import '../../../core/constants/known_types.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
+import '../../../utils/entity_utils.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 
@@ -31,9 +33,6 @@ part 'test_builder_polymorphic.dart';
 class TestBuilder {
   final String outputDir;
   final GeneratorOptions options;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
   final SpecLibrary specLibrary;
 
   /// Creates a [TestBuilder].
@@ -46,18 +45,7 @@ class TestBuilder {
   /// @param specLibrary Optional spec library override.
   TestBuilder({
     required this.outputDir,
-    GeneratorOptions options = const GeneratorOptions(),
-    @Deprecated('Use options.dryRun') bool? dryRun,
-    @Deprecated('Use options.force') bool? force,
-    @Deprecated('Use options.verbose') bool? verbose,
+    this.options = const GeneratorOptions(),
     SpecLibrary? specLibrary,
-  }) : options = options.copyWith(
-         dryRun: dryRun ?? options.dryRun,
-         force: force ?? options.force,
-         verbose: verbose ?? options.verbose,
-       ),
-       dryRun = dryRun ?? options.dryRun,
-       force = force ?? options.force,
-       verbose = verbose ?? options.verbose,
-       specLibrary = specLibrary ?? const SpecLibrary();
+  }) : specLibrary = specLibrary ?? const SpecLibrary();
 }

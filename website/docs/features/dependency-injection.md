@@ -17,8 +17,8 @@ When using `--di`, Zuraffa generates registration files for each component:
 ```
 lib/src/di/
 ├── datasources/
-│   ├── product_remote_data_source_di.dart
-│   └── product_local_data_source_di.dart
+│   ├── product_remote_datasource_di.dart
+│   └── product_local_datasource_di.dart
 ├── repositories/
 │   └── product_repository_di.dart
 └── index.dart
@@ -117,7 +117,7 @@ This registers `ProductMockDataSource` instead of `ProductRemoteDataSource` for 
 // lib/src/di/repositories/product_repository_di.dart
 import 'package:get_it/get_it.dart';
 import '../../data/repositories/data_product_repository.dart';
-import '../../data/data_sources/product/product_remote_data_source.dart';
+import '../../data/datasources/product/product_remote_datasource.dart';
 import '../../domain/repositories/product_repository.dart';
 
 Future<void> registerProductRepository(GetIt getIt) async {
@@ -132,9 +132,9 @@ Future<void> registerProductRepository(GetIt getIt) async {
 ### DataSource Registration
 
 ```dart
-// lib/src/di/datasources/product_remote_data_source_di.dart
+// lib/src/di/datasources/product_remote_datasource_di.dart
 import 'package:get_it/get_it.dart';
-import '../../data/data_sources/product/product_remote_data_source.dart';
+import '../../data/datasources/product/product_remote_datasource.dart';
 
 Future<void> registerProductRemoteDataSource(GetIt getIt) async {
   getIt.registerLazySingleton<ProductRemoteDataSource>(() {
@@ -149,7 +149,7 @@ Future<void> registerProductRemoteDataSource(GetIt getIt) async {
 // lib/src/di/index.dart
 import 'package:get_it/get_it.dart';
 import 'repositories/product_repository_di.dart';
-import 'datasources/product_remote_data_source_di.dart';
+import 'datasources/product_remote_datasource_di.dart';
 
 Future<void> setupDependencies(GetIt getIt) async {
   // Register data sources first
@@ -170,7 +170,7 @@ For entity-based generation, DI handles the complete stack:
 zfa generate Product \
   --methods=get,getList,create,update,delete \
   --data \
-  --vpc \
+  --vpcs \
   --di
 ```
 

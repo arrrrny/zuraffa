@@ -1,37 +1,58 @@
+import 'dart:io';
+
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
+import '../../../core/ast/append_executor.dart';
+import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
+import '../../../utils/string_utils.dart';
+import '../../../utils/entity_utils.dart';
 import '../../../core/builder/shared/spec_library.dart';
+import '../../../core/generator_options.dart';
 
+/// Generates data source interfaces for domain and data layers.
+///
+/// Builds abstract data source classes with CRUD and stream method definitions
+/// that must be implemented by remote and local data source providers.
+///
+/// Example:
+/// ```dart
+/// final builder = DataSourceInterfaceBuilder(
+///   outputDir: 'lib/src',
+///   options: const GeneratorOptions(force: true),
+/// );
+/// final file = await builder.generate(GeneratorConfig(name: 'Product'));
+/// ```
 class DataSourceInterfaceBuilder {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
   final SpecLibrary specLibrary;
+  final AppendExecutor appendExecutor;
 
   DataSourceInterfaceBuilder({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
+    this.options = const GeneratorOptions(),
     SpecLibrary? specLibrary,
-  }) : specLibrary = specLibrary ?? const SpecLibrary();
+    AppendExecutor? appendExecutor,
+  }) : specLibrary = specLibrary ?? const SpecLibrary(),
+       appendExecutor = appendExecutor ?? AppendExecutor();
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
-    final entityName = config.name;
-    final entitySnake = config.nameSnake;
-    final entityCamel = config.nameCamel;
+    final entityName = config.repo != null
+        ? config.repo!.replaceAll('Repository', '')
+        : config.name;
+    final entitySnake = StringUtils.camelToSnake(entityName);
+    final entityCamel = StringUtils.pascalToCamel(entityName);
     final dataSourceName = '${entityName}DataSource';
-    final fileName = '${entitySnake}_data_source.dart';
+    final fileName = '${entitySnake}_datasource.dart';
 
     final dataSourceDirPath = path.join(
       outputDir,
       'data',
-      'data_sources',
+      'datasources',
       entitySnake,
     );
     final filePath = path.join(dataSourceDirPath, fileName);
@@ -182,14 +203,23 @@ class DataSourceInterfaceBuilder {
             ),
           );
           break;
+        default:
       }
     }
 
     final directives = <Directive>[
       Directive.import('package:zuraffa/zuraffa.dart'),
-      Directive.import(
-        '../../../domain/entities/$entitySnake/$entitySnake.dart',
-      ),
+      if (config.repo == null)
+        Directive.import(
+          '../../../domain/entities/$entitySnake/$entitySnake.dart',
+        ),
+      if (config.isCustomUseCase && config.returnsType != null)
+        ...EntityUtils.extractEntityTypes(config.returnsType!).map((type) {
+          final snake = StringUtils.camelToSnake(type);
+          return Directive.import(
+            '../../../domain/entities/$snake/$snake.dart',
+          );
+        }),
     ];
     final clazz = Class(
       (c) => c
@@ -198,6 +228,34 @@ class DataSourceInterfaceBuilder {
         ..mixins.addAll([refer('Loggable'), refer('FailureHandler')])
         ..methods.addAll(methods),
     );
+
+    if (config.appendToExisting &&
+        File(filePath).existsSync() &&
+        !config.force) {
+      final existing = await File(filePath).readAsString();
+      var updated = existing;
+      for (final method in methods) {
+        final methodSource = specLibrary.emitSpec(method);
+        final result = appendExecutor.execute(
+          AppendRequest.method(
+            source: updated,
+            className: dataSourceName,
+            memberSource: methodSource,
+          ),
+        );
+        updated = result.source;
+      }
+      return FileUtils.writeFile(
+        filePath,
+        updated,
+        'datasource',
+        force: true,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+        revert: false,
+      );
+    }
+
     final content = specLibrary.emitLibrary(
       specLibrary.library(specs: [clazz], directives: directives),
     );
@@ -206,9 +264,10 @@ class DataSourceInterfaceBuilder {
       filePath,
       content,
       'datasource',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
+      revert: config.revert,
     );
   }
 }

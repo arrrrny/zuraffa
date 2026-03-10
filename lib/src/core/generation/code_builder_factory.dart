@@ -7,6 +7,7 @@ import '../../plugins/route/builders/route_builder.dart';
 import '../../plugins/state/builders/state_builder.dart';
 import '../../plugins/test/builders/test_builder.dart';
 import 'generation_context.dart';
+import '../generator_options.dart';
 
 class CodeBuilderFactory {
   final GenerationContext context;
@@ -15,57 +16,73 @@ class CodeBuilderFactory {
 
   ProviderBuilder provider() => ProviderBuilder(
     outputDir: context.outputDir,
-    dryRun: context.dryRun,
-    force: context.force,
-    verbose: context.verbose,
+    options: GeneratorOptions(
+      dryRun: context.dryRun,
+      force: context.force,
+      verbose: context.verbose,
+    ),
   );
 
   StateBuilder state() => StateBuilder(
     outputDir: context.outputDir,
-    dryRun: context.dryRun,
-    force: context.force,
-    verbose: context.verbose,
+    options: GeneratorOptions(
+      dryRun: context.dryRun,
+      force: context.force,
+      verbose: context.verbose,
+    ),
   );
 
   ObserverBuilder observer() => ObserverBuilder(
     outputDir: context.outputDir,
-    dryRun: context.dryRun,
-    force: context.force,
-    verbose: context.verbose,
+    options: GeneratorOptions(
+      dryRun: context.dryRun,
+      force: context.force,
+      verbose: context.verbose,
+    ),
   );
 
   TestBuilder test() => TestBuilder(
     outputDir: context.outputDir,
-    dryRun: context.dryRun,
-    force: context.force,
-    verbose: context.verbose,
+    options: GeneratorOptions(
+      dryRun: context.dryRun,
+      force: context.force,
+      verbose: context.verbose,
+    ),
   );
 
   CacheBuilder cache() => CacheBuilder(
     outputDir: context.outputDir,
-    dryRun: context.dryRun,
-    force: context.force,
-    verbose: context.verbose,
+    options: GeneratorOptions(
+      dryRun: context.dryRun,
+      force: context.force,
+      verbose: context.verbose,
+    ),
   );
 
   GraphqlBuilder graphql() => GraphqlBuilder(
     outputDir: context.outputDir,
-    dryRun: context.dryRun,
-    force: context.force,
-    verbose: context.verbose,
+    options: GeneratorOptions(
+      dryRun: context.dryRun,
+      force: context.force,
+      verbose: context.verbose,
+    ),
   );
 
   RouteBuilder route() => RouteBuilder(
     outputDir: context.outputDir,
-    dryRun: context.dryRun,
-    force: context.force,
-    verbose: context.verbose,
+    options: GeneratorOptions(
+      dryRun: context.dryRun,
+      force: context.force,
+      verbose: context.verbose,
+    ),
   );
 
   MethodAppendBuilder methodAppender() => MethodAppendBuilder(
     outputDir: context.outputDir,
-    dryRun: context.dryRun,
-    force: context.force,
-    verbose: context.verbose,
+    options: GeneratorOptions(
+      dryRun: context.dryRun,
+      force: context.force,
+      verbose: context.verbose,
+    ),
   );
 }

@@ -2,11 +2,11 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/src/generator/code_generator.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 
 import '../regression/regression_test_utils.dart';
 
-@Timeout(Duration(minutes: 2))
 void main() {
   late RegressionWorkspace workspace;
   late String outputDir;
@@ -30,13 +30,16 @@ void main() {
       enableCache: true,
       cacheStorage: 'hive',
       generateDi: true,
+      outputDir: outputDir,
     );
     final generator = CodeGenerator(
       config: config,
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
 
     final result = await generator.generate();
@@ -44,13 +47,13 @@ void main() {
     expect(result.success, isTrue);
     expect(
       File(
-        '$outputDir/data/data_sources/order/order_remote_data_source.dart',
+        '$outputDir/data/datasources/order/order_remote_datasource.dart',
       ).existsSync(),
       isTrue,
     );
     expect(
       File(
-        '$outputDir/data/data_sources/order/order_local_data_source.dart',
+        '$outputDir/data/datasources/order/order_local_datasource.dart',
       ).existsSync(),
       isTrue,
     );

@@ -56,6 +56,23 @@ class ExtensionMethodAppendStrategy implements AppendStrategy {
     final newSignature = _methodSignature(newMethod);
     for (final method in existingMethods) {
       if (_methodSignature(method) == newSignature) {
+        if (request.force) {
+          final sourceWithoutMethod = helper.removeMethodFromExtension(
+            source: request.source,
+            extensionName: request.className!,
+            methodName: newMethod.name.lexeme,
+          );
+          final updated = helper.addMethodToExtension(
+            source: sourceWithoutMethod,
+            extensionName: request.className!,
+            methodSource: request.memberSource!,
+          );
+          return AppendResult(
+            source: updated,
+            changed: updated != request.source,
+            message: 'Method replaced in extension',
+          );
+        }
         return AppendResult(
           source: request.source,
           changed: false,

@@ -39,6 +39,109 @@ class AstModifier {
         source.substring(endOffset);
   }
 
+  static String replaceFieldInClass({
+    required String source,
+    required ClassDeclaration classNode,
+    required VariableDeclaration oldField,
+    required String fieldSource,
+  }) {
+    final parent = oldField.parent;
+    if (parent is VariableDeclarationList) {
+      final grandParent = parent.parent;
+      if (grandParent is FieldDeclaration) {
+        final startOffset = grandParent.offset;
+        final endOffset = grandParent.end;
+        final fieldIndent = _indentBeforeOffset(source, startOffset);
+        final normalized = fieldSource.trimRight();
+        final indented = normalized
+            .split('\n')
+            .map((line) => line.isEmpty ? '' : '$fieldIndent$line')
+            .join('\n');
+        return source.substring(0, startOffset) +
+            indented +
+            source.substring(endOffset);
+      }
+    }
+    final startOffset = oldField.offset;
+    final endOffset = oldField.end;
+    final fieldIndent = _indentBeforeOffset(source, startOffset);
+    final normalized = fieldSource.trimRight();
+    final indented = normalized
+        .split('\n')
+        .map((line) => line.isEmpty ? '' : '$fieldIndent$line')
+        .join('\n');
+    return source.substring(0, startOffset) +
+        indented +
+        source.substring(endOffset);
+  }
+
+  static String removeMethodFromClass({
+    required String source,
+    required MethodDeclaration method,
+  }) {
+    return source.substring(0, method.offset) + source.substring(method.end);
+  }
+
+  static String removeField({
+    required String source,
+    required VariableDeclaration field,
+  }) {
+    final parent = field.parent;
+    if (parent is VariableDeclarationList) {
+      final grandParent = parent.parent;
+      if (grandParent is FieldDeclaration) {
+        return source.substring(0, grandParent.offset) +
+            source.substring(grandParent.end);
+      }
+    }
+    return source.substring(0, field.offset) + source.substring(field.end);
+  }
+
+  static String addImport(
+    String source,
+    CompilationUnit unit,
+    String importPath,
+  ) {
+    final importDirective = "import '$importPath';";
+    final imports = unit.directives.whereType<ImportDirective>().toList();
+    if (imports.isNotEmpty) {
+      final lastImport = imports.last;
+      final insertOffset = lastImport.end;
+      return '${source.substring(0, insertOffset)}\n$importDirective'
+          '${source.substring(insertOffset)}';
+    }
+    final firstDirective = unit.directives.isEmpty
+        ? null
+        : unit.directives.first;
+    if (firstDirective != null) {
+      final insertOffset = firstDirective.offset;
+      return '$importDirective\n${source.substring(insertOffset)}';
+    }
+    return '$importDirective\n\n$source';
+  }
+
+  static String addExport(
+    String source,
+    CompilationUnit unit,
+    String exportPath,
+  ) {
+    final exportDirective = "export '$exportPath';";
+    final exports = unit.directives.whereType<ExportDirective>().toList();
+    if (exports.isNotEmpty) {
+      final lastExport = exports.last;
+      final insertOffset = lastExport.end;
+      return '${source.substring(0, insertOffset)}\n$exportDirective'
+          '${source.substring(insertOffset)}';
+    }
+    final lastImport = unit.directives.whereType<ImportDirective>().lastOrNull;
+    if (lastImport != null) {
+      final insertOffset = lastImport.end;
+      return '${source.substring(0, insertOffset)}\n\n$exportDirective'
+          '${source.substring(insertOffset)}';
+    }
+    return '$exportDirective\n\n$source';
+  }
+
   static String addFieldToClass({
     required String source,
     required ClassDeclaration classNode,
@@ -95,6 +198,42 @@ class AstModifier {
         .map((line) => line.isEmpty ? '' : '$memberIndent$line')
         .join('\n');
     final insert = '\n$indented\n$closingIndent';
+    return source.substring(0, insertOffset) +
+        insert +
+        source.substring(insertOffset);
+  }
+
+  static String addElementToReturnListInFunction({
+    required String source,
+    required FunctionDeclaration functionNode,
+    required String elementSource,
+  }) {
+    final body = functionNode.functionExpression.body;
+    if (body is! BlockFunctionBody) {
+      return source;
+    }
+
+    final returnStatement = body.block.statements
+        .whereType<ReturnStatement>()
+        .firstOrNull;
+    if (returnStatement == null) {
+      return source;
+    }
+
+    final expression = returnStatement.expression;
+    if (expression is! ListLiteral) {
+      return source;
+    }
+
+    final insertOffset = expression.rightBracket.offset;
+    final closingIndent = _indentBeforeOffset(source, insertOffset);
+    final elementIndent = '$closingIndent  ';
+    final normalized = elementSource.trimRight();
+    final indented = normalized
+        .split('\n')
+        .map((line) => line.isEmpty ? '' : '$elementIndent$line')
+        .join('\n');
+    final insert = '\n$indented,\n$closingIndent';
     return source.substring(0, insertOffset) +
         insert +
         source.substring(insertOffset);

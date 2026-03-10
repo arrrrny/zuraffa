@@ -4,8 +4,8 @@ import 'package:zuraffa/zuraffa.dart';
 
 import '../../domain/entities/todo/todo.dart';
 import '../../domain/repositories/todo_repository.dart';
-import '../data_sources/todo/todo_data_source.dart';
-import '../data_sources/todo/todo_local_data_source.dart';
+import '../datasources/todo/todo_datasource.dart';
+import '../datasources/todo/todo_local_datasource.dart';
 
 class DataTodoRepository
     with Loggable, FailureHandler

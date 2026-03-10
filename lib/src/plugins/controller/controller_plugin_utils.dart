@@ -5,8 +5,7 @@ extension ControllerPluginUtils on ControllerPlugin {
     return Parameter(
       (p) => p
         ..name = 'cancelToken'
-        ..type = refer('CancelToken?')
-        ..defaultTo = literalNull.code,
+        ..type = refer('CancelToken?'),
     );
   }
 
@@ -63,24 +62,55 @@ extension ControllerPluginUtils on ControllerPlugin {
 
   List<String> _buildImports(
     GeneratorConfig config,
-    String entitySnake,
+    String domainSnake,
     bool withState,
   ) {
     final imports = <String>[
       'package:zuraffa/zuraffa.dart',
-      '${entitySnake}_presenter.dart',
+      '${config.nameSnake}_presenter.dart',
     ];
 
     if (withState) {
-      imports.add('${entitySnake}_state.dart');
+      if (config.generateState) {
+        imports.add('${config.nameSnake}_state.dart');
+      } else if (config.customStateName != null) {
+        final stateSnake = StringUtils.camelToSnake(
+          config.customStateName!.replaceAll('State', ''),
+        );
+        imports.add('${stateSnake}_state.dart');
+      }
     }
 
-    if (config.methods.any(
+    if (config.isCustomUseCase) {
+      final types = <String>[];
+      if (config.returnsType != null) {
+        types.add(config.returnsType!);
+      }
+      if (config.paramsType != null) {
+        types.add(config.paramsType!);
+      }
+
+      for (final rawType in types) {
+        final cleanTypes = rawType
+            .replaceAll('List<', ' ')
+            .replaceAll('Map<', ' ')
+            .replaceAll('>', ' ')
+            .replaceAll('?', ' ')
+            .replaceAll(',', ' ');
+        for (final type
+            in cleanTypes.split(RegExp(r'\s+')).map((t) => t.trim())) {
+          if (type.isNotEmpty && !KnownTypes.isExcluded(type)) {
+            final snake = StringUtils.camelToSnake(type);
+            imports.add('../../../domain/entities/$snake/$snake.dart');
+          }
+        }
+      }
+    } else if (config.methods.any(
       (m) =>
           m == 'create' || m == 'update' || m == 'getList' || m == 'watchList',
     )) {
       final entityPath =
-          '../../../domain/entities/$entitySnake/$entitySnake.dart';
+          '../../../domain/entities/$domainSnake/$domainSnake.dart';
       imports.add(entityPath);
     }
 

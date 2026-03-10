@@ -1,18 +1,19 @@
 import 'dart:io';
-
-import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path;
+import 'package:flutter_test/flutter_test.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/generator/code_generator.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 
 void main() {
   test('plugin outputs include expected files for entity with data', () async {
+    final outputDir = _tempOutputDir();
     final scenario = GeneratorConfig(
       name: 'Product',
       methods: const ['get', 'getList'],
       generateData: true,
+      outputDir: outputDir,
     );
-    final outputDir = _tempOutputDir();
 
     final outputs = await _generateCurrentOutputs(scenario, outputDir);
 
@@ -26,10 +27,10 @@ void main() {
     );
     expect(
       outputs.keys,
-      contains('data/data_sources/product/product_data_source.dart'),
+      contains('data/datasources/product/product_datasource.dart'),
     );
     expect(
-      outputs['data/data_sources/product/product_data_source.dart'],
+      outputs['data/datasources/product/product_datasource.dart'],
       contains('abstract class ProductDataSource'),
     );
     expect(
@@ -87,9 +88,7 @@ Future<Map<String, String>> _generateCurrentOutputs(
   final generator = CodeGenerator(
     config: config,
     outputDir: outputDir,
-    dryRun: true,
-    force: true,
-    verbose: false,
+    options: const GeneratorOptions(dryRun: true, force: true, verbose: false),
   );
   final result = await generator.generate();
 

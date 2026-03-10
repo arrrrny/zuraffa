@@ -25,7 +25,7 @@ All generated as Dart string constants that work seamlessly with any GraphQL cli
 1. **Define your entities** or **custom UseCases**
 2. **Add the `--gql` flag** to your generation command
 3. **Specify return fields** and other GraphQL options
-4. **Generated files** appear in `data/data_sources/{entity}/graphql/`
+4. **Generated files** appear in `data/datasources/{entity}/graphql/`
 5. **Use with any GraphQL client** (graphql_flutter, ferry, etc.)
 
 ## Entity-Based Generation
@@ -54,7 +54,7 @@ zfa generate Product \
 ### Generated Files Structure
 
 ```
-lib/src/data/data_sources/product/graphql/
+lib/src/data/datasources/product/graphql/
 ├── get_product_query.dart
 ├── get_product_list_query.dart
 ├── create_product_mutation.dart
@@ -178,8 +178,8 @@ const String searchProductsQuery = r'''
 
 ```dart
 import 'package:graphql_flutter/graphql_flutter.dart';
-import 'package:zuraffa_example/data/data_sources/product/graphql/get_product_query.dart';
-import 'package:zuraffa_example/data/data_sources/product/graphql/create_product_mutation.dart';
+import 'package:zuraffa_example/data/datasources/product/graphql/get_product_query.dart';
+import 'package:zuraffa_example/data/datasources/product/graphql/create_product_mutation.dart';
 
 class ProductGraphQLDataSource {
   final GraphQLClient _client;
@@ -231,7 +231,7 @@ class ProductGraphQLDataSource {
 ```dart
 import 'package:ferry/ferry.dart';
 import 'package:ferry/graphql_flutter.dart';
-import 'package:zuraffa_example/data/data_sources/product/graphql/get_product_query.dart';
+import 'package:zuraffa_example/data/datasources/product/graphql/get_product_query.dart';
 
 class ProductGraphQLDataSource {
   final Client _client;
@@ -250,7 +250,7 @@ class ProductGraphQLDataSource {
 
 ```dart
 import 'package:http/http.dart' as http;
-import 'package:zuraffa_example/data/data_sources/product/graphql/get_product_query.dart';
+import 'package:zuraffa_example/data/datasources/product/graphql/get_product_query.dart';
 
 class ProductGraphQLDataSource {
   final String _endpoint;
@@ -405,7 +405,7 @@ zfa generate Product \
   --data \
   --gql \
   --gql-returns="id,name,price,category,images,stock,isActive" \
-  --vpc --state --di
+  --vpcs --state --di
 
 # Order management with GraphQL
 zfa generate Order \
@@ -413,7 +413,7 @@ zfa generate Order \
   --data \
   --gql \
   --gql-returns="id,total,status,items{id,quantity,price},customer{id,name,address}" \
-  --vpc --state --di
+  --vpcs --state --di
 
 # Real-time order updates
 zfa generate Order --methods=watchList \

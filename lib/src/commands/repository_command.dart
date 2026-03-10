@@ -1,6 +1,7 @@
-import '../models/generator_config.dart';
+import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import '../plugins/repository/repository_plugin.dart';
+import '../plugins/repository/capabilities/create_repository_capability.dart';
 
 class RepositoryCommand extends PluginCommand {
   @override
@@ -28,21 +29,31 @@ class RepositoryCommand extends PluginCommand {
   @override
   Future<void> run() async {
     final entityName = argResults!.rest.first;
+    final methods = (argResults!['methods'] as String).split(',');
     final generateData = argResults!['data'] as bool;
     final generateDataSource = argResults!['datasource'] as bool;
 
-    final config = GeneratorConfig(
-      name: entityName,
-      generateRepository: true,
-      generateData: generateData,
-      generateDataSource: generateDataSource,
-      dryRun: isDryRun,
-      force: isForce,
-      verbose: isVerbose,
-      outputDir: outputDir,
-    );
+    final capability =
+        plugin.capabilities.firstWhere((c) => c is CreateRepositoryCapability)
+            as CreateRepositoryCapability;
 
-    final files = await plugin.generate(config);
-    logSummary(files);
+    final result = await capability.execute({
+      'name': entityName,
+      'methods': methods,
+      'data': generateData,
+      'datasource': generateDataSource,
+      'dryRun': isDryRun,
+      'force': isForce,
+      'verbose': isVerbose,
+      'outputDir': outputDir,
+    });
+
+    if (result.success) {
+      final files =
+          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      logSummary(files);
+    } else {
+      print('Failed to generate repository');
+    }
   }
 }

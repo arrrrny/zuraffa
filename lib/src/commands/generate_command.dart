@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as path;
+import '../config/zfa_config.dart';
 import '../core/orchestration/plugin_orchestrator.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../cli/plugin_loader.dart';
@@ -75,11 +76,6 @@ class GenerateCommand extends Command<void> {
       help: 'Detailed output',
     );
     argParser.addFlag(
-      'vpc',
-      help: 'Generate View + Presenter + Controller',
-      defaultsTo: false,
-    );
-    argParser.addFlag(
       'vpcs',
       help: 'Generate View + Presenter + Controller + State',
       defaultsTo: false,
@@ -118,6 +114,11 @@ class GenerateCommand extends Command<void> {
     argParser.addFlag(
       'datasource',
       help: 'Generate data source only',
+      defaultsTo: false,
+    );
+    argParser.addFlag(
+      'local',
+      help: 'Generate local data source (instead of remote)',
       defaultsTo: false,
     );
     argParser.addFlag('cache', help: 'Enable caching', defaultsTo: false);
@@ -195,6 +196,11 @@ class GenerateCommand extends Command<void> {
       help: 'Generate mock data source',
     );
     argParser.addFlag(
+      'use-mock',
+      negatable: false,
+      help: 'Use mock provider/datasource in DI registration',
+    );
+    argParser.addFlag(
       'gql',
       negatable: false,
       help: 'Generate GraphQL queries/mutations',
@@ -221,6 +227,11 @@ class GenerateCommand extends Command<void> {
     argParser.addOption('ttl', help: 'TTL duration in minutes');
     argParser.addOption('method', help: 'Dependency method name');
     argParser.addOption('service-method', help: 'Service method name');
+    argParser.addFlag(
+      'revert',
+      negatable: false,
+      help: 'Revert generation (undo created files)',
+    );
   }
 
   @override
@@ -240,12 +251,14 @@ class GenerateCommand extends Command<void> {
     final outputDir = argResults!['output'] as String;
     final projectRoot = _findProjectRoot(outputDir);
     final pluginConfig = PluginConfig.load(projectRoot: projectRoot);
+    final zfaConfig =
+        ZfaConfig.load(projectRoot: projectRoot) ?? const ZfaConfig();
     final debug = argResults!['debug'] == true;
     final artifactSaver = DebugArtifactSaver(projectRoot: projectRoot);
 
     GeneratorConfig config;
     try {
-      config = _buildConfig(name, pluginConfig);
+      config = _buildConfig(name, pluginConfig, zfaConfig);
       _validateConfig(config);
     } catch (e, stack) {
       if (argResults!['format'] == 'json') {
@@ -299,14 +312,18 @@ class GenerateCommand extends Command<void> {
       );
     }
 
-    _printResult(result, config.verbose);
+    _printResult(result, config);
 
     if (!result.success) {
       exit(1);
     }
   }
 
-  GeneratorConfig _buildConfig(String name, PluginConfig pluginConfig) {
+  GeneratorConfig _buildConfig(
+    String name,
+    PluginConfig pluginConfig,
+    ZfaConfig zfaConfig,
+  ) {
     if (argResults!['from-stdin'] == true) {
       final input = stdin.readLineSync() ?? '';
       final json = jsonDecode(input) as Map<String, dynamic>;
@@ -320,7 +337,26 @@ class GenerateCommand extends Command<void> {
       return GeneratorConfig.fromJson(json, name);
     }
 
-    final methodsStr = argResults!['methods'] as String?;
+    var methodsStr = argResults!['methods'] as String?;
+    final methodsWasParsed = argResults!.wasParsed('methods');
+
+    // If methods were not explicitly provided, but other flags indicate a custom usecase,
+    // ignore the default methods value.
+    if (!methodsWasParsed) {
+      final isCustomUseCase =
+          argResults!['domain'] != null ||
+          argResults!['params'] != null ||
+          argResults!['returns'] != null ||
+          argResults!['usecases'] != null ||
+          argResults!['variants'] != null ||
+          argResults!['repo'] != null ||
+          argResults!['service'] != null ||
+          argResults!['type'] != null;
+
+      if (isCustomUseCase) {
+        methodsStr = null;
+      }
+    }
     final usecasesStr = argResults!['usecases'] as String?;
     final variantsStr = argResults!['variants'] as String?;
 
@@ -340,8 +376,6 @@ class GenerateCommand extends Command<void> {
     final idField = argResults!['id-field'] as String;
     final queryField = argResults!['query-field'] as String? ?? idField;
 
-    final generateVpc =
-        argResults!['vpc'] == true || argResults!['vpcs'] == true;
     final generateVpcs = argResults!['vpcs'] == true;
     final generatePc = argResults!['pc'] == true || argResults!['pcs'] == true;
     final generatePcs = argResults!['pcs'] == true;
@@ -356,7 +390,9 @@ class GenerateCommand extends Command<void> {
       domain: argResults!['domain'] as String?,
       repoMethod: argResults!['method'] as String?,
       serviceMethod: argResults!['service-method'] as String?,
-      appendToExisting: argResults!['append'] == true,
+      appendToExisting: argResults!.wasParsed('append')
+          ? argResults!['append'] == true
+          : zfaConfig.appendByDefault,
       generateRepository: true,
       useCaseType: argResults!['type'] as String? ?? 'usecase',
       paramsType: argResults!['params'] as String?,
@@ -365,29 +401,45 @@ class GenerateCommand extends Command<void> {
       idType: idFieldType,
       queryField: queryField,
       queryFieldType: queryFieldType,
-      generateVpc: generateVpc,
-      generateView: generateVpc || generateVpcs,
+      generateVpcs: generateVpcs,
+      generateView: generateVpcs || generateVpcs,
       generatePresenter:
-          generateVpc || generateVpcs || generatePc || generatePcs,
+          generateVpcs || generateVpcs || generatePc || generatePcs,
       generateController:
-          generateVpc || generateVpcs || generatePc || generatePcs,
+          generateVpcs || generateVpcs || generatePc || generatePcs,
       generateState:
           argResults!['state'] == true || generateVpcs || generatePcs,
       generateData: argResults!['data'] == true,
       generateDataSource: argResults!['datasource'] == true,
+      generateLocal: argResults!['local'] == true,
       generateInit: argResults!['init'] == true,
-      useZorphy: argResults!['zorphy'] == true,
-      generateTest: argResults!['test'] == true,
+      useZorphy: argResults!.wasParsed('zorphy')
+          ? argResults!['zorphy'] == true
+          : zfaConfig.zorphyByDefault,
+      generateTest: argResults!.wasParsed('test')
+          ? argResults!['test'] == true
+          : zfaConfig.testByDefault,
       enableCache: argResults!['cache'] == true,
       cachePolicy: argResults!['cache-policy'] as String? ?? 'daily',
       cacheStorage: argResults!['cache-storage'] as String?,
       ttlMinutes: argResults!['ttl'] != null
           ? int.tryParse(argResults!['ttl'])
           : null,
-      generateMock: argResults!['mock'] == true,
-      generateDi: argResults!['di'] == true,
-      generateRoute: argResults!['route'] == true,
-      generateGql: argResults!['gql'] == true,
+      generateMock: argResults!.wasParsed('mock')
+          ? argResults!['mock'] == true
+          : zfaConfig.mockByDefault,
+      useMockInDi: argResults!.wasParsed('use-mock')
+          ? argResults!['use-mock'] == true
+          : zfaConfig.mockByDefault,
+      generateDi: argResults!.wasParsed('di')
+          ? argResults!['di'] == true
+          : zfaConfig.diByDefault,
+      generateRoute: argResults!.wasParsed('route')
+          ? argResults!['route'] == true
+          : zfaConfig.routeByDefault,
+      generateGql: argResults!.wasParsed('gql')
+          ? argResults!['gql'] == true
+          : zfaConfig.gqlByDefault,
       gqlReturns: argResults!['gql-returns'] as String?,
       gqlType: argResults!['gql-type'] as String?,
       gqlInputType: argResults!['gql-input-type'] as String?,
@@ -397,6 +449,7 @@ class GenerateCommand extends Command<void> {
       dryRun: argResults!['dry-run'] == true,
       force: argResults!['force'] == true,
       verbose: argResults!['verbose'] == true,
+      revert: argResults!['revert'] == true,
     );
   }
 
@@ -463,7 +516,7 @@ class GenerateCommand extends Command<void> {
     return Directory.current.path;
   }
 
-  void _printResult(OrchestrationResult result, bool verbose) {
+  void _printResult(OrchestrationResult result, GeneratorConfig config) {
     final format = argResults!['format'] as String;
     final quiet = argResults!['quiet'] == true;
 
@@ -480,17 +533,39 @@ class GenerateCommand extends Command<void> {
 
     if (!quiet) {
       if (result.success) {
-        print('\n✅ Generated ${result.files.length} files:');
+        if (config.revert) {
+          print('\n🗑️  Reverted ${result.files.length} files:');
+        } else {
+          print('\n✅ Generated ${result.files.length} files:');
+        }
+
         for (final entry in result.filesByPlugin.entries) {
           final count = entry.value.where((f) => f.action == 'created').length;
-          if (count > 0) {
+          // If we are reverting, we count deleted files
+          final revertedCount = entry.value
+              .where((f) => f.action == 'deleted')
+              .length;
+
+          if (count > 0 && !config.revert) {
             print('  ${entry.key}: $count files');
+          } else if (revertedCount > 0 && config.revert) {
+            print('  ${entry.key}: $revertedCount files reverted');
           }
         }
-        if (verbose) {
-          for (final file in result.files) {
-            print('    ${file.path}');
+
+        // Always show file list unless quiet
+        for (final file in result.files) {
+          var icon = '';
+          if (file.action == 'created') {
+            icon = '✨';
+          } else if (file.action == 'overwritten') {
+            icon = '📝';
+          } else if (file.action == 'skipped') {
+            icon = '⏭ ';
+          } else if (file.action == 'deleted') {
+            icon = '🗑 ';
           }
+          print('    $icon ${file.path}');
         }
       } else {
         print('\n❌ Generation failed:');

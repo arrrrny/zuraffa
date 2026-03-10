@@ -4,6 +4,15 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
   Future<MethodAppendResult> _appendServiceMethod(
     GeneratorConfig config,
   ) async {
+    if (config.revert) {
+      // Append operations cannot be safely reverted without risking data loss
+      // or needing complex parsing to remove only the appended method.
+      // We skip append operations during revert.
+      return MethodAppendResult([], [
+        'Skipping revert for append operation: append cannot be safely undone.',
+      ]);
+    }
+
     final updatedFiles = <GeneratedFile>[];
     final warnings = <String>[];
 
@@ -144,6 +153,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       source: source,
       className: className,
       memberSource: memberSource,
+      force: config.force,
     );
 
     final result = appendExecutor.execute(request);
@@ -152,9 +162,9 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         filePath,
         result.source,
         'append',
-        force: true,
-        dryRun: dryRun,
-        verbose: verbose,
+        force: options.force,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
       );
       return GeneratedFile(
         path: filePath,
@@ -215,6 +225,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       source: source,
       className: className,
       memberSource: memberSource,
+      force: config.force,
     );
 
     final result = appendExecutor.execute(request);
@@ -224,14 +235,10 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         result.source,
         'append',
         force: true,
-        dryRun: dryRun,
-        verbose: verbose,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
       );
-      return GeneratedFile(
-        path: filePath,
-        type: 'repository',
-        action: 'updated',
-      );
+      return GeneratedFile(path: filePath, type: 'provider', action: 'updated');
     }
     return null;
   }
@@ -282,15 +289,81 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     Reference returnType,
     String paramsType,
   ) async {
-    return _appendToDataSourceImpl(
-      config,
-      filePath,
-      className,
-      methodName,
-      returnType,
-      paramsType,
-      'Return mock data for $methodName',
+    final file = File(filePath);
+    if (!file.existsSync()) return null;
+
+    var source = await file.readAsString();
+    source = await _addMissingImports(config, source, filePath);
+
+    final returns = config.returnsType ?? 'void';
+    final baseReturns = returns.replaceAll('?', '');
+    final isList = baseReturns.startsWith('List<');
+    final entityName = config.repo != null
+        ? config.repo!.replaceAll('Repository', '')
+        : config.name;
+
+    final method = Method(
+      (m) => m
+        ..name = methodName
+        ..returns = returnType
+        ..annotations.add(refer('override'))
+        ..modifier = MethodModifier.async
+        ..requiredParameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'params'
+              ..type = refer(paramsType),
+          ),
+        )
+        ..body = Block(
+          (b) => b
+            ..statements.addAll([
+              refer('logger').property('info').call([
+                literalString('$methodName called with params: \$params'),
+              ]).statement,
+              refer(
+                'Future',
+              ).property('delayed').call([refer('_delay')]).awaited.statement,
+              if (isList) ...[
+                refer(
+                  '${entityName}MockData',
+                ).property('sampleList').returned.statement,
+              ] else if (baseReturns == 'void') ...[
+                refer('Future').property('value').call([]).returned.statement,
+              ] else ...[
+                refer(
+                  '${entityName}MockData',
+                ).property('sample$entityName').returned.statement,
+              ],
+            ]),
+        ),
     );
+
+    final memberSource = specLibrary.emitSpec(method);
+    final request = AppendRequest.method(
+      source: source,
+      className: className,
+      memberSource: memberSource,
+      force: config.force,
+    );
+
+    final result = appendExecutor.execute(request);
+    if (result.changed) {
+      await FileUtils.writeFile(
+        filePath,
+        result.source,
+        'append',
+        force: true,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+      );
+      return GeneratedFile(
+        path: filePath,
+        type: 'datasource',
+        action: 'updated',
+      );
+    }
+    return null;
   }
 
   Future<GeneratedFile?> _appendToProvider(
@@ -343,9 +416,14 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
               ..type = refer(paramsType),
           ),
         )
-        ..body = refer(
-          'UnimplementedError',
-        ).call([literalString(errorMessage)]).thrown.statement,
+        ..body = Block(
+          (b) => b
+            ..statements.add(
+              refer(
+                'UnimplementedError',
+              ).call([literalString(errorMessage)]).thrown.statement,
+            ),
+        ),
     );
 
     final memberSource = specLibrary.emitSpec(method);
@@ -353,6 +431,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       source: source,
       className: className,
       memberSource: memberSource,
+      force: config.force,
     );
 
     final result = appendExecutor.execute(request);
@@ -362,8 +441,8 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         result.source,
         'append',
         force: true,
-        dryRun: dryRun,
-        verbose: verbose,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
       );
       return GeneratedFile(
         path: filePath,

@@ -1,11 +1,16 @@
+import 'dart:io';
+
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
+import '../../../core/ast/append_executor.dart';
+import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
+import '../../../utils/entity_utils.dart';
 import '../../../core/builder/shared/spec_library.dart';
 
 /// Generates remote data source implementations.
@@ -17,15 +22,15 @@ import '../../../core/builder/shared/spec_library.dart';
 /// ```dart
 /// final builder = RemoteDataSourceBuilder(
 ///   outputDir: 'lib/src',
-///   dryRun: false,
-///   force: true,
-///   verbose: false,
+///   options: const GeneratorOptions(force: true),
 /// );
 /// final file = await builder.generate(GeneratorConfig(name: 'Product'));
 /// ```
 class RemoteDataSourceBuilder {
   final String outputDir;
   final GeneratorOptions options;
+  final SpecLibrary specLibrary;
+  final AppendExecutor appendExecutor;
 
   /// Creates a [RemoteDataSourceBuilder].
   ///
@@ -34,33 +39,32 @@ class RemoteDataSourceBuilder {
   /// @param dryRun Deprecated: use [options].
   /// @param force Deprecated: use [options].
   /// @param verbose Deprecated: use [options].
+  /// @param specLibrary Optional spec library override.
   RemoteDataSourceBuilder({
     required this.outputDir,
-    GeneratorOptions options = const GeneratorOptions(),
-    @Deprecated('Use options.dryRun') bool? dryRun,
-    @Deprecated('Use options.force') bool? force,
-    @Deprecated('Use options.verbose') bool? verbose,
-  }) : options = options.copyWith(
-         dryRun: dryRun ?? options.dryRun,
-         force: force ?? options.force,
-         verbose: verbose ?? options.verbose,
-       );
+    this.options = const GeneratorOptions(),
+    SpecLibrary? specLibrary,
+    AppendExecutor? appendExecutor,
+  }) : specLibrary = specLibrary ?? const SpecLibrary(),
+       appendExecutor = appendExecutor ?? AppendExecutor();
 
   /// Generates a remote data source file for the given [config].
   ///
   /// @param config Generator configuration describing the entity and options.
   /// @returns Generated data source file metadata.
   Future<GeneratedFile> generate(GeneratorConfig config) async {
-    final entityName = config.name;
-    final entitySnake = config.nameSnake;
-    final entityCamel = config.nameCamel;
+    final entityName = config.repo != null
+        ? config.repo!.replaceAll('Repository', '')
+        : config.name;
+    final entitySnake = StringUtils.camelToSnake(entityName);
+    final entityCamel = StringUtils.pascalToCamel(entityName);
     final dataSourceName = '${entityName}RemoteDataSource';
-    final fileName = '${entitySnake}_remote_data_source.dart';
+    final fileName = '${entitySnake}_remote_datasource.dart';
 
     final dataSourceDirPath = path.join(
       outputDir,
       'data',
-      'data_sources',
+      'datasources',
       entitySnake,
     );
     final filePath = path.join(dataSourceDirPath, fileName);
@@ -266,15 +270,24 @@ class RemoteDataSourceBuilder {
             ),
           );
           break;
+        default:
       }
     }
 
     final directives = <Directive>[
       Directive.import('package:zuraffa/zuraffa.dart'),
-      Directive.import(
-        '../../../domain/entities/$entitySnake/$entitySnake.dart',
-      ),
-      Directive.import('${entitySnake}_data_source.dart'),
+      if (config.repo == null)
+        Directive.import(
+          '../../../domain/entities/$entitySnake/$entitySnake.dart',
+        ),
+      if (config.isCustomUseCase && config.returnsType != null)
+        ...EntityUtils.extractEntityTypes(config.returnsType!).map((type) {
+          final snake = StringUtils.camelToSnake(type);
+          return Directive.import(
+            '../../../domain/entities/$snake/$snake.dart',
+          );
+        }),
+      Directive.import('${entitySnake}_datasource.dart'),
       ...gqlImports.map(Directive.import),
     ];
 
@@ -286,8 +299,35 @@ class RemoteDataSourceBuilder {
         ..methods.addAll(methods),
     );
 
-    final content = const SpecLibrary().emitLibrary(
-      const SpecLibrary().library(specs: [clazz], directives: directives),
+    if (config.appendToExisting &&
+        File(filePath).existsSync() &&
+        !options.force) {
+      final existing = await File(filePath).readAsString();
+      var updated = existing;
+      for (final method in methods) {
+        final methodSource = specLibrary.emitSpec(method);
+        final result = appendExecutor.execute(
+          AppendRequest.method(
+            source: updated,
+            className: dataSourceName,
+            memberSource: methodSource,
+          ),
+        );
+        updated = result.source;
+      }
+      return FileUtils.writeFile(
+        filePath,
+        updated,
+        'remote_datasource',
+        force: true,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+        revert: false,
+      );
+    }
+
+    final content = specLibrary.emitLibrary(
+      specLibrary.library(specs: [clazz], directives: directives),
     );
 
     return FileUtils.writeFile(
@@ -297,6 +337,7 @@ class RemoteDataSourceBuilder {
       force: options.force,
       dryRun: options.dryRun,
       verbose: options.verbose,
+      revert: config.revert,
     );
   }
 

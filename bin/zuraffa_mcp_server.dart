@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:zuraffa/src/cli/plugin_loader.dart';
+import 'package:zuraffa/src/core/plugin_system/plugin_registry.dart';
+
 /// Version loaded lazily to avoid heavy imports at startup
 String? _version;
 
@@ -48,6 +51,32 @@ class ZuraffaMcpServer {
 
   // Maximum files to return to prevent large responses
   static const _maxFiles = 100;
+
+  bool _pluginsInitialized = false;
+
+  Future<void> _ensurePluginsInitialized() async {
+    if (_pluginsInitialized) return;
+
+    final registry = PluginRegistry.instance;
+    // Only initialize if registry is empty (singleton)
+    if (registry.plugins.isEmpty) {
+      final loader = PluginLoader(
+        outputDir: 'lib/src',
+        dryRun: false,
+        force: false,
+        verbose: false,
+        config: PluginConfig.load(), // Load from .zfa.json if available
+      );
+
+      final loadedRegistry = loader.buildRegistry();
+      for (final plugin in loadedRegistry.plugins) {
+        if (!registry.plugins.any((p) => p.id == plugin.id)) {
+          registry.register(plugin);
+        }
+      }
+    }
+    _pluginsInitialized = true;
+  }
 
   /// Main server loop that handles JSON-RPC messages
   Future<void> run() async {
@@ -137,10 +166,13 @@ class ZuraffaMcpServer {
 
     switch (method) {
       case 'initialize':
+        await _ensurePluginsInitialized();
         return await _initialize(id);
       case 'tools/list':
+        await _ensurePluginsInitialized();
         return _listTools(id);
       case 'tools/call':
+        await _ensurePluginsInitialized();
         return await _callTool(
           id,
           request['params'] as Map<String, dynamic>? ?? {},
@@ -185,30 +217,47 @@ class ZuraffaMcpServer {
 
   /// List available tools
   Map<String, dynamic> _listTools(dynamic id) {
+    final tools = [
+      _generateToolDefinition(),
+      _schemaToolDefinition(),
+      _validateToolDefinition(),
+      _entityCreateToolDefinition(),
+      _entityEnumToolDefinition(),
+      _entityAddFieldToolDefinition(),
+      _entityFromJsonToolDefinition(),
+      _entityListToolDefinition(),
+      _buildToolDefinition(),
+      _configInitToolDefinition(),
+      _configShowToolDefinition(),
+      _configSetToolDefinition(),
+      _graphqlToolDefinition(),
+      _doctorToolDefinition(),
+    ];
+
+    // Add plugin tools dynamically
+    for (final plugin in PluginRegistry.instance.plugins) {
+      for (final capability in plugin.capabilities) {
+        // Skip if capability name conflicts with existing tools (simple check)
+        // Or we can namespace them: zuraffa_<plugin>_<capability>
+        // Given user request: zfa <plugin> <command>
+        // We use zuraffa_ prefix for consistency in MCP
+
+        final toolName = 'zuraffa_${plugin.id}_${capability.name}';
+
+        // Convert capability schema to tool schema
+        final inputSchema = capability.inputSchema;
+
+        tools.add({
+          'name': toolName,
+          'description': '${capability.description} (Plugin: ${plugin.name})',
+          'inputSchema': inputSchema,
+        });
+      }
+    }
+
     return {
       'jsonrpc': '2.0',
-      'result': {
-        'tools': [
-          _generateToolDefinition(),
-          _schemaToolDefinition(),
-          _validateToolDefinition(),
-          _entityCreateToolDefinition(),
-          _entityEnumToolDefinition(),
-          _entityAddFieldToolDefinition(),
-          _entityFromJsonToolDefinition(),
-          _entityListToolDefinition(),
-          _buildToolDefinition(),
-          _configInitToolDefinition(),
-          _configShowToolDefinition(),
-          _configSetToolDefinition(),
-          _graphqlToolDefinition(),
-          _doctorToolDefinition(),
-          _viewToolDefinition(),
-          _testToolDefinition(),
-          _diToolDefinition(),
-          _routeToolDefinition(),
-        ],
-      },
+      'result': {'tools': tools},
       'id': id,
     };
   }
@@ -217,42 +266,36 @@ class ZuraffaMcpServer {
   Map<String, dynamic> _generateToolDefinition() {
     return {
       'name': 'zuraffa_generate',
-      'description': '''Generate Clean Architecture code. TWO MODES:
+      'description': '''Generate Clean Architecture code for an ENTITY.
 
-## MODE 1: Entity-Based (with methods)
-When "methods" is provided, generates CRUD UseCases for an ENTITY.
+⚠️ IMPORTANT: The "name" parameter is the ENTITY NAME, not a UseCase name.
 
-Example: name="Category", methods=["get","getList"]
-Generates:
-- GetCategoryUseCase, GetCategoryListUseCase
-- CategoryRepository interface
-- With vpc=true: CategoryView, CategoryPresenter, CategoryController
+For example, if the entity is "Category", the name should be "Category" (not "GetCategory").
+This will generate:
+- GetCategoryUseCase (get single Category by ID)
+- GetCategoryListUseCase (get all Categories)
+- CreateCategoryUseCase (create a Category)
+- UpdateCategoryUseCase (update a Category)
+- DeleteCategoryUseCase (delete a Category)
 
-⚠️ Use the ENTITY NAME (Category), not UseCase name (GetCategory).
+USE THIS TOOL WHEN:
+- Creating new features for existing entities
+- Building CRUD operations for an entity
+- Setting up MVVM architecture (View/Presenter/Controller)
 
-## MODE 2: Custom UseCase (without methods)
-When "methods" is NOT provided, generates a standalone CUSTOM USECASE.
+COMMON PATTERNS:
+- Full feature: name="Product", methods=["get","getList","create","update","delete"], vpc=true, state=true, data=true
+- Domain only: name="Product", methods=["get","getList"]
+- With caching: name="Product", methods=["get","getList"], data=true, cache=true
 
-Example: name="SearchProducts", domain="products", repo="Product", params="SearchQuery", returns="List<Product>"
-Generates:
-- SearchProductsUseCase (single UseCase in domain/products/usecases/)
-- Injects ProductRepository
-
-⚠️ For custom UseCases, "domain" is REQUIRED to specify the folder location.
-
-Common patterns:
-- Entity CRUD: name="Product", methods=["get","getList","create","update","delete"], vpc=true, state=true, data=true
-- Custom UseCase: name="ProcessPayment", domain="payment", repo="Payment", params="PaymentRequest", returns="PaymentResult"
-- Orchestrator: name="Checkout", domain="checkout", usecases=["ValidateCart","ProcessPayment","CreateOrder"]
-
-TIP: Use dry_run=true to preview files.''',
+TIP: Use dry_run=true to preview generated files before writing.''',
       'inputSchema': {
         'type': 'object',
         'properties': {
           'name': {
             'type': 'string',
             'description':
-                'ENTITY name (with methods) OR UseCase name (without methods). PascalCase.',
+                'ENTITY NAME in PascalCase (e.g., Category, Product, Order). This is NOT a UseCase name. UseCase names are auto-generated from this entity name.',
           },
           'methods': {
             'type': 'array',
@@ -269,12 +312,12 @@ TIP: Use dry_run=true to preview files.''',
               ],
             },
             'description':
-                'If provided: generates entity CRUD UseCases. If NOT provided: generates single custom UseCase.',
+                'CRUD methods to generate. Each method generates a UseCase: get=GetOne, getList=GetAll, create=Insert, update=Modify, delete=Remove, watch=StreamOne, watchList=StreamAll',
           },
-          'vpc': {
+          'vpcs': {
             'type': 'boolean',
             'description':
-                'Generate View + Presenter + Controller (presentation layer). Use with state=true for full MVVM.',
+                'Generate View + Presenter + Controller + State (presentation layer)',
           },
 
           'pc': {
@@ -300,6 +343,10 @@ TIP: Use dry_run=true to preview files.''',
           'datasource': {
             'type': 'boolean',
             'description': 'Generate DataSource only',
+          },
+          'local': {
+            'type': 'boolean',
+            'description': 'Generate local data source (instead of remote)',
           },
           'init': {
             'type': 'boolean',
@@ -565,19 +612,11 @@ TIP: Use dry_run=true to preview files.''',
         case 'zuraffa_doctor':
           result = await _runDoctorCommand(args);
           break;
-        case 'zuraffa_view':
-          result = await _runViewCommand(args);
-          break;
-        case 'zuraffa_test':
-          result = await _runTestCommand(args);
-          break;
-        case 'zuraffa_di':
-          result = await _runDiCommand(args);
-          break;
-        case 'zuraffa_route':
-          result = await _runRouteCommand(args);
-          break;
         default:
+          if (toolName.startsWith('zuraffa_')) {
+            result = await _runPluginTool(toolName, args);
+            break;
+          }
           return _error(id, -32602, 'Unknown tool: $toolName');
       }
 
@@ -891,7 +930,7 @@ May take 30-60 seconds depending on project size.''',
     return {
       'name': 'zuraffa_config_set',
       'description':
-          'Update a ZFA configuration value in .zfa.json. Valid keys: zorphyByDefault, jsonByDefault, compareByDefault, filterByDefault, defaultEntityOutput, gqlByDefault, buildByDefault, appendByDefault, routeByDefault, diByDefault.',
+          'Update a ZFA configuration value in .zfa.json. Valid keys: zorphyByDefault, jsonByDefault, compareByDefault, filterByDefault, defaultEntityOutput, gqlByDefault, buildByDefault, appendByDefault, routeByDefault, diByDefault, mockByDefault, testByDefault.',
       'inputSchema': {
         'type': 'object',
         'properties': {
@@ -909,6 +948,8 @@ May take 30-60 seconds depending on project size.''',
               'appendByDefault',
               'routeByDefault',
               'diByDefault',
+              'mockByDefault',
+              'testByDefault',
             ],
           },
           'value': {
@@ -1060,7 +1101,7 @@ May take 30-60 seconds depending on project size.''',
         cliArgs.add('--methods=${methods.join(',')}');
       }
     }
-    if (args['vpc'] == true) cliArgs.add('--vpc');
+    if (args['vpc'] == true) cliArgs.add('--vpcs');
     if (args['state'] == true) cliArgs.add('--state');
     if (args['data'] == true) cliArgs.add('--data');
     if (args['datasource'] == true) cliArgs.add('--datasource');
@@ -1326,138 +1367,6 @@ Use quick for fast diagnostics, full for troubleshooting.''',
     return output.toString();
   }
 
-  /// View tool definition
-  Map<String, dynamic> _viewToolDefinition() {
-    return {
-      'name': 'zuraffa_view',
-      'description': 'Generate view class for an entity',
-      'inputSchema': {
-        'type': 'object',
-        'properties': {
-          'name': {'type': 'string', 'description': 'Entity name'},
-          'methods': {
-            'type': 'string',
-            'description': 'Comma-separated list of methods',
-          },
-          'di': {
-            'type': 'boolean',
-            'description': 'Generate with DI integration',
-          },
-          'state': {
-            'type': 'boolean',
-            'description': 'Generate with State integration',
-          },
-          'output': {'type': 'string', 'description': 'Output directory'},
-        },
-        'required': ['name'],
-      },
-    };
-  }
-
-  /// Run view command
-  Future<String> _runViewCommand(Map<String, dynamic> args) async {
-    final List<String> cliArgs = ['view', args['name'] as String];
-
-    if (args['methods'] != null) cliArgs.add('--methods=${args["methods"]}');
-    if (args['di'] == true) cliArgs.add('--di');
-    if (args['di'] == false) cliArgs.add('--no-di');
-    if (args['state'] == true) cliArgs.add('--state');
-    if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
-
-    return await _runZuraffaProcess(cliArgs);
-  }
-
-  /// Test tool definition
-  Map<String, dynamic> _testToolDefinition() {
-    return {
-      'name': 'zuraffa_test',
-      'description': 'Generate Unit Tests for an entity',
-      'inputSchema': {
-        'type': 'object',
-        'properties': {
-          'name': {'type': 'string', 'description': 'Entity name'},
-          'methods': {
-            'type': 'string',
-            'description': 'Comma-separated list of methods',
-          },
-          'domain': {'type': 'string', 'description': 'Domain folder'},
-          'output': {'type': 'string', 'description': 'Output directory'},
-        },
-        'required': ['name'],
-      },
-    };
-  }
-
-  /// Run test command
-  Future<String> _runTestCommand(Map<String, dynamic> args) async {
-    final List<String> cliArgs = ['test', args['name'] as String];
-
-    if (args['methods'] != null) cliArgs.add('--methods=${args["methods"]}');
-    if (args['domain'] != null) cliArgs.add('--domain=${args["domain"]}');
-    if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
-
-    return await _runZuraffaProcess(cliArgs);
-  }
-
-  /// DI tool definition
-  Map<String, dynamic> _diToolDefinition() {
-    return {
-      'name': 'zuraffa_di',
-      'description': 'Generate dependency injection for a UseCase',
-      'inputSchema': {
-        'type': 'object',
-        'properties': {
-          'name': {'type': 'string', 'description': 'UseCase name'},
-          'domain': {'type': 'string', 'description': 'Domain folder'},
-          'output': {'type': 'string', 'description': 'Output directory'},
-          'use_mock': {'type': 'boolean', 'description': 'Use mock datasource'},
-        },
-        'required': ['name'],
-      },
-    };
-  }
-
-  /// Run DI command
-  Future<String> _runDiCommand(Map<String, dynamic> args) async {
-    final List<String> cliArgs = ['di', args['name'] as String];
-
-    if (args['domain'] != null) cliArgs.add('--domain=${args["domain"]}');
-    if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
-    if (args['use_mock'] == true) cliArgs.add('--use-mock');
-
-    return await _runZuraffaProcess(cliArgs);
-  }
-
-  /// Route tool definition
-  Map<String, dynamic> _routeToolDefinition() {
-    return {
-      'name': 'zuraffa_route',
-      'description': 'Generate route definitions for an entity',
-      'inputSchema': {
-        'type': 'object',
-        'properties': {
-          'name': {'type': 'string', 'description': 'Entity name'},
-          'methods': {
-            'type': 'string',
-            'description': 'Comma-separated list of methods',
-          },
-          'output': {'type': 'string', 'description': 'Output directory'},
-        },
-        'required': ['name'],
-      },
-    };
-  }
-
-  /// Run route command
-  Future<String> _runRouteCommand(Map<String, dynamic> args) async {
-    final List<String> cliArgs = ['route', args['name'] as String];
-
-    if (args['methods'] != null) cliArgs.add('--methods=${args["methods"]}');
-    if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
-
-    return await _runZuraffaProcess(cliArgs);
-  }
-
   /// Cached path to the zfa executable (resolved once, reused)
   String? _cachedExecutable;
   bool _cachedIsDartRun = false;
@@ -1475,11 +1384,21 @@ Use quick for fast diagnostics, full for troubleshooting.''',
           ? ['run', 'zuraffa:zuraffa', ...args]
           : args;
 
+      stderr.writeln(
+        '[zfa-exec] Running: $_cachedExecutable ${executableArgs.join(' ')}',
+      );
+      final stopwatch = Stopwatch()..start();
+
       final result = await Process.run(
         _cachedExecutable!,
         executableArgs,
         workingDirectory: Directory.current.path,
         environment: Platform.environment,
+      );
+
+      stopwatch.stop();
+      stderr.writeln(
+        '[zfa-exec] Completed in ${stopwatch.elapsedMilliseconds}ms (exit ${result.exitCode})',
       );
 
       final output = result.stdout.toString();
@@ -1493,6 +1412,111 @@ Use quick for fast diagnostics, full for troubleshooting.''',
     } catch (e, stack) {
       stderr.writeln('Process error: $e\n$stack');
       return 'Error: $e';
+    }
+  }
+
+  /// Resolve the zfa executable path once
+  Future<void> _resolveExecutable() async {
+    final selfPath = Platform.resolvedExecutable;
+    final selfDir = File(selfPath).parent.path;
+    stderr.writeln('[zfa-resolve] MCP server at: $selfPath');
+    stderr.writeln('[zfa-resolve] Looking for CLI in: $selfDir');
+
+    // 1. Check for compiled binary next to this MCP server (Zed extension scenario)
+    // Look for exact name first, then platform-specific names (zfa-macos-arm64, etc.)
+    final candidates = ['zfa', 'zuraffa'];
+    // Add platform-specific binary names from Zed extension downloads
+    try {
+      final entries = Directory(selfDir).listSync();
+      for (final entry in entries) {
+        final name = entry.uri.pathSegments.last;
+        if (name.startsWith('zfa-') && entry is File) {
+          candidates.add(name);
+        }
+      }
+    } catch (_) {}
+
+    for (final name in candidates) {
+      final candidate = File('$selfDir/$name');
+      if (await candidate.exists()) {
+        // Don't use ourselves as the CLI
+        try {
+          if (candidate.resolveSymbolicLinksSync() != selfPath) {
+            _cachedExecutable = candidate.path;
+            stderr.writeln(
+              '[zfa-resolve] ✓ Found CLI binary: $_cachedExecutable',
+            );
+            return;
+          }
+        } catch (_) {}
+      }
+    }
+
+    // 2. Check for compiled binary in current directory
+    final currentDir = Directory.current.path;
+    for (final name in ['zfa', 'zuraffa']) {
+      final localExe = File('$currentDir/$name');
+      if (await localExe.exists()) {
+        // Only use if it's a real binary, not a shell script
+        if (await _isCompiledBinary(localExe.path)) {
+          _cachedExecutable = localExe.path;
+          stderr.writeln(
+            '[zfa-resolve] ✓ Found compiled binary: $_cachedExecutable',
+          );
+          return;
+        }
+      }
+    }
+
+    // 3. Check for zfa in PATH — but only if it's a compiled binary
+    final whichResult = await Process.run('which', ['zfa']);
+    if (whichResult.exitCode == 0) {
+      final zfaPath = whichResult.stdout.toString().trim();
+      if (await _isCompiledBinary(zfaPath)) {
+        _cachedExecutable = 'zfa';
+        stderr.writeln('[zfa-resolve] ✓ Found compiled zfa in PATH');
+        return;
+      } else {
+        stderr.writeln(
+          '[zfa-resolve] ⚠ zfa in PATH is a script (JIT), skipping',
+        );
+      }
+    }
+
+    // 4. Fall back to dart run (requires zuraffa in pubspec)
+    final pubspecFile = File('${Directory.current.path}/pubspec.yaml');
+    if (!await pubspecFile.exists()) {
+      _cachedExecutable = 'echo';
+      stderr.writeln('[zfa-resolve] ⚠ No pubspec.yaml found, no CLI available');
+      return;
+    }
+
+    final pubspecContent = await pubspecFile.readAsString();
+    if (!pubspecContent.contains('zuraffa:')) {
+      _cachedExecutable = 'echo';
+      stderr.writeln(
+        '[zfa-resolve] ⚠ zuraffa not in pubspec, no CLI available',
+      );
+      return;
+    }
+
+    _cachedExecutable = 'dart';
+    _cachedIsDartRun = true;
+    stderr.writeln('[zfa-resolve] ⚠ Falling back to dart run (slow JIT)');
+  }
+
+  /// Check if a file is a compiled binary (not a shell script)
+  Future<bool> _isCompiledBinary(String path) async {
+    try {
+      final file = File(path);
+      final bytes = await file.openRead(0, 4).first;
+      // Shell scripts start with '#!' (0x23 0x21)
+      if (bytes.length >= 2 && bytes[0] == 0x23 && bytes[1] == 0x21) {
+        return false;
+      }
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -1686,7 +1710,7 @@ Use quick for fast diagnostics, full for troubleshooting.''',
     final directories = [
       'lib/src/domain/repositories',
       'lib/src/domain/usecases',
-      'lib/src/data/data_sources',
+      'lib/src/data/datasources',
       'lib/src/data/repositories',
       'lib/src/presentation',
     ];
@@ -1707,5 +1731,34 @@ Use quick for fast diagnostics, full for troubleshooting.''',
     }
 
     return collected.take(_maxFiles).toList();
+  }
+
+  Future<String> _runPluginTool(
+    String toolName,
+    Map<String, dynamic> args,
+  ) async {
+    for (final plugin in PluginRegistry.instance.plugins) {
+      for (final capability in plugin.capabilities) {
+        if ('zuraffa_${plugin.id}_${capability.name}' == toolName) {
+          final result = await capability.execute(args);
+          if (!result.success) {
+            throw Exception(result.message ?? 'Plugin execution failed');
+          }
+          final buffer = StringBuffer();
+          if (result.message != null) buffer.writeln(result.message);
+          if (result.files.isNotEmpty) {
+            buffer.writeln('Modified files:');
+            for (final file in result.files) {
+              buffer.writeln('- $file');
+            }
+          }
+          if (result.data != null) {
+            buffer.writeln('Data: ${jsonEncode(result.data)}');
+          }
+          return buffer.toString();
+        }
+      }
+    }
+    throw Exception('Tool not found in plugins: $toolName');
   }
 }

@@ -41,7 +41,9 @@ void main() {
   group('ZuraffaPlugin', () {
     test('validate defaults to success', () async {
       final plugin = _TestPlugin();
-      final result = await plugin.validate(GeneratorConfig(name: 'Product'));
+      final result = await plugin.validate(
+        GeneratorConfig(name: 'Product', outputDir: 'lib/src'),
+      );
       expect(result.isValid, isTrue);
     });
   });

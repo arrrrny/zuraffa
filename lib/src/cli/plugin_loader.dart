@@ -4,6 +4,7 @@ import 'package:path/path.dart' as path;
 
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/plugin_system/plugin_interface.dart';
+import '../core/generator_options.dart';
 import '../plugins/controller/controller_plugin.dart';
 import '../plugins/datasource/datasource_plugin.dart';
 import '../plugins/di/di_plugin.dart';
@@ -21,6 +22,7 @@ import '../plugins/repository/repository_plugin.dart';
 import '../plugins/service/service_plugin.dart';
 import '../plugins/usecase/usecase_plugin.dart';
 import '../plugins/view/view_plugin.dart';
+import '../plugins/feature/feature_plugin.dart';
 
 class PluginConfig {
   final Set<String> disabled;
@@ -129,109 +131,31 @@ class PluginLoader {
   }
 
   List<ZuraffaPlugin> _plugins() {
+    final options = GeneratorOptions(
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+
     return [
-      RepositoryPlugin(
-        outputDir: outputDir,
-        dryRun: dryRun,
-        force: force,
-        verbose: verbose,
-      ),
-      ProviderPlugin(
-        outputDir: outputDir,
-        dryRun: dryRun,
-        force: force,
-        verbose: verbose,
-      ),
-      UseCasePlugin(
-        outputDir: outputDir,
-        dryRun: dryRun,
-        force: force,
-        verbose: verbose,
-      ),
-      PresenterPlugin(
-        outputDir: outputDir,
-        dryRun: dryRun,
-        force: force,
-        verbose: verbose,
-      ),
-      ControllerPlugin(
-        outputDir: outputDir,
-        dryRun: dryRun,
-        force: force,
-        verbose: verbose,
-      ),
-      ViewPlugin(
-        outputDir: outputDir,
-        dryRun: dryRun,
-        force: force,
-        verbose: verbose,
-      ),
-      StatePlugin(
-        outputDir: outputDir,
-        dryRun: dryRun,
-        force: force,
-        verbose: verbose,
-      ),
-      ObserverPlugin(
-        outputDir: outputDir,
-        dryRun: dryRun,
-        force: force,
-        verbose: verbose,
-      ),
-      TestPlugin(
-        outputDir: outputDir,
-        dryRun: dryRun,
-        force: force,
-        verbose: verbose,
-      ),
-      MockPlugin(
-        outputDir: outputDir,
-        dryRun: dryRun,
-        force: force,
-        verbose: verbose,
-      ),
-      DiPlugin(
-        outputDir: outputDir,
-        dryRun: dryRun,
-        force: force,
-        verbose: verbose,
-      ),
-      DataSourcePlugin(
-        outputDir: outputDir,
-        dryRun: dryRun,
-        force: force,
-        verbose: verbose,
-      ),
-      ServicePlugin(
-        outputDir: outputDir,
-        dryRun: dryRun,
-        force: force,
-        verbose: verbose,
-      ),
-      RoutePlugin(
-        outputDir: outputDir,
-        dryRun: dryRun,
-        force: force,
-        verbose: verbose,
-      ),
-      CachePlugin(
-        outputDir: outputDir,
-        dryRun: dryRun,
-        force: force,
-        verbose: verbose,
-      ),
-      GraphqlPlugin(
-        outputDir: outputDir,
-        dryRun: dryRun,
-        force: force,
-        verbose: verbose,
-      ),
-      MethodAppendPlugin(
-        outputDir: outputDir,
-        dryRun: dryRun,
-        force: force,
-        verbose: verbose,
-      ),
+      RepositoryPlugin(outputDir: outputDir, options: options),
+      ProviderPlugin(outputDir: outputDir, options: options),
+      UseCasePlugin(outputDir: outputDir, options: options),
+      PresenterPlugin(outputDir: outputDir, options: options),
+      ControllerPlugin(outputDir: outputDir, options: options),
+      ViewPlugin(outputDir: outputDir, options: options),
+      FeaturePlugin(outputDir: outputDir, options: options),
+      StatePlugin(outputDir: outputDir, options: options),
+      ObserverPlugin(outputDir: outputDir, options: options),
+      TestPlugin(outputDir: outputDir, options: options),
+      MockPlugin(outputDir: outputDir, options: options),
+      DiPlugin(outputDir: outputDir, options: options),
+      DataSourcePlugin(outputDir: outputDir, options: options),
+      ServicePlugin(outputDir: outputDir, options: options),
+      RoutePlugin(outputDir: outputDir, options: options),
+      CachePlugin(outputDir: outputDir, options: options),
+      GraphqlPlugin(outputDir: outputDir, options: options),
+      MethodAppendPlugin(outputDir: outputDir, options: options),
     ];
   }
 }

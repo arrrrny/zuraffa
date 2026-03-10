@@ -1,6 +1,6 @@
 ---
 name: zuraffa-cli
-description: Use when generating ANY code for Zuraffa Flutter projects - entities, repositories, use cases, data sources, presenters, controllers, views, state, caching, DI, tests, or mock data. ALWAYS use CLI instead of manual creation or build_runner commands.
+description: Use when generating ANY code for Zuraffa Flutter projects - entities, repositories, use cases, data sources, presenters, controllers, views, state, caching, DI, tests, or mock data. ALWAYS use individual plugin commands (zfa usecase create, zfa repository create, etc.) instead of the legacy generate command. Use CLI instead of manual creation or build_runner commands.
 ---
 
 # Zuraffa CLI (zfa) Skill
@@ -9,7 +9,38 @@ description: Use when generating ANY code for Zuraffa Flutter projects - entitie
 
 Zuraffa CLI (`zfa`) is the **ONLY** way to generate code in Zuraffa projects. Never manually create entities, never run `build_runner` directly, never write boilerplate by hand.
 
-**Core principle:** One command generates everything - entities, all layers, UI, tests, DI. Use the CLI for ALL code generation.
+**Core principle:** Use individual plugin commands for granular control, or `zfa feature scaffold` for complete features. The CLI handles 95% of boilerplate.
+
+## IMPORTANT: Plugin Commands vs generate
+
+The CLI has been refactored to use **individual plugin commands**. Use these instead of `zfa generate`:
+
+| Component | Plugin Command | Legacy (backwards compat) |
+|-----------|---------------|--------------------------|
+| Entity | `zfa entity create` | N/A |
+| UseCase | `zfa usecase create` | `zfa generate` |
+| Repository | `zfa repository create` | `zfa generate --data` |
+| DataSource | `zfa datasource create` | `zfa generate --datasource` |
+| Service | `zfa service create` | `zfa generate --service` |
+| Controller | `zfa controller create` | `zfa generate --vpcs` |
+| Presenter | `zfa presenter create` | `zfa generate --vpcs` |
+| View | `zfa view create` | `zfa generate --vpcs` |
+| State | `zfa state create` | `zfa generate --state` |
+| DI | `zfa di create` | `zfa generate --di` |
+| Mock | `zfa mock create` | `zfa generate --mock` |
+| Test | `zfa test create` | `zfa generate --test` |
+| Route | `zfa route create` | `zfa generate --route` |
+| GraphQL | `zfa graphql create` | `zfa generate --gql` |
+| Cache | `zfa cache create` | `zfa generate --cache` |
+
+**Full feature:** Use `zfa feature scaffold` instead of `zfa generate` with multiple flags.
+
+**Multiple plugins:** Use `zfa make` to run multiple plugins explicitly:
+```bash
+zfa make Product usecase repository datasource --methods=get,list,create
+```
+
+**List capabilities:** Use `zfa manifest` to see all available plugins.
 
 ## When to Use
 
@@ -23,24 +54,26 @@ digraph when_to_use {
 ```
 
 **Use when:**
-- Creating entities, enums, or data models
-- Generating CRUD UseCases for entities
-- Creating custom UseCases with repositories or services
-- Adding data layer (DataRepository, DataSource)
-- Setting up caching with dual datasources
-- Generating dependency injection files
-- Creating mock data for testing
-- Generating unit tests for UseCases
-- Adding GraphQL queries/mutations
-- Orchestrating multiple UseCases
-- Creating polymorphic UseCase variants
-- **Generating UI layers (Views, Presenters, Controllers, State)**
+- Creating entities, enums, or data models → Use `zfa entity create`
+- Generating CRUD UseCases for entities → Use `zfa usecase create`
+- Creating custom UseCases with repositories or services → Use `zfa usecase create`
+- Adding data layer (DataRepository, DataSource) → Use `zfa repository create` or `zfa datasource create`
+- Setting up caching with dual datasources → Use `zfa cache create` or `zfa datasource create --cache`
+- Generating dependency injection files → Use `zfa di create`
+- Creating mock data for testing → Use `zfa mock create`
+- Generating unit tests for UseCases → Use `zfa test create`
+- Adding GraphQL queries/mutations → Use `zfa graphql create`
+- Creating services (non-entity operations) → Use `zfa service create`
+- Creating routes → Use `zfa route create`
+- **Generating full features (all layers)** → Use `zfa feature scaffold`
+- **Generating UI layers (Views, Presenters, Controllers, State)** → Use individual plugin commands
 
 **NEVER:**
 - Manually create entity files → Use `zfa entity create`
 - Run `build_runner` directly → Use `zfa build`
-- Manually write repository/usecase boilerplate → Use `zfa generate`
-- Hand-write View/Presenter/Controller → Use `zfa generate --vpc`
+- Manually write repository/usecase boilerplate → Use `zfa usecase create` or `zfa repository create`
+- Hand-write View/Presenter/Controller → Use `zfa view create`, `zfa presenter create`, `zfa controller create`
+- Use legacy generate for new projects → Use `zfa feature scaffold` or individual plugins
 
 ## Quick Reference
 
@@ -65,101 +98,85 @@ zfa build --watch
 zfa build --clean
 ```
 
-### Complete Feature Generation (All Layers)
+### Complete Feature Generation (Recommended)
 
 ```bash
-# Generate EVERYTHING - domain, data, presentation, tests, DI
-zfa generate Product \
-  --methods=get,getList,create,update,delete,watchList \
-  --data \
-  --vpc \
-  --state \
-  --cache \
+# Scaffold full feature - domain, data, presentation, tests, DI
+zfa feature scaffold -n Product \
+  --usecases=get,getList,create,update,delete \
+  --datasource \
+  --vpcs \
   --di \
   --test
 
-# That's it - one command, complete feature
+# With caching enabled
+zfa feature scaffold -n Product \
+  --usecases=get,getList \
+  --datasource \
+  --cache \
+  --vpcs
 ```
 
-### Domain Layer Only
+### Individual Plugin Commands (Preferred over generate)
 
 ```bash
-# Generate UseCases for entity (repository auto-created)
-zfa generate Product --methods=get,getList,create,update,delete,watchList
+# Domain Layer
+zfa usecase create -n GetProduct --repo=Product
+zfa usecase create -n SearchProducts --domain=search --repo=Product --params=Query --returns=List<Product>
+zfa usecase create -n ProcessPayment --domain=payment --service=Payment --params=Request --returns=Result
 
-# Custom UseCase with repository
-zfa generate SearchProduct --domain=search --repo=Product --params=Query --returns=List<Product>
+# Repository
+zfa repository create -n Product --methods=get,getList,create,update,delete
 
-# Custom UseCase with service (for non-entity operations)
-zfa generate ProcessPayment --domain=payment --service=Payment --params=PaymentRequest --returns=PaymentResult
+# DataSource
+zfa datasource create -n Product
+zfa datasource create -n Product --local
+zfa datasource create -n Product --cache
 
-# Orchestrator (compose UseCases)
-zfa generate ProcessCheckout --domain=checkout --usecases=ValidateCart,ProcessPayment --params=Request --returns=Order
+# Service
+zfa service create -n Payment --params=PaymentRequest --returns=PaymentResult
 
-# Background UseCase (CPU-intensive)
-zfa generate ProcessImages --type=background --params=ImageBatch --returns=ProcessedImage
+# Presentation Layer
+zfa presenter create -n Product --methods=get,getList,create
+zfa controller create -n Product --methods=get,getList --state
+zfa view create -n Product --methods=get,getList --di --state
 
-# Sync UseCase (validation, calculations)
-zfa generate ValidateEmail --type=sync --params=String --returns=bool
+# State
+zfa state create -n Product --methods=get,getList
+
+# DI
+zfa di create -n Product --useMock
+
+# Mock & Test
+zfa mock create -n Product
+zfa test create -n Product --methods=get,create
+
+# Route
+zfa route create -n Product --methods=get,getList,create,update,delete
+
+# GraphQL
+zfa graphql create -n Product --type=query --returns="id,name,price"
+
+# Cache
+zfa cache create -n Product --policy=daily
 ```
 
-### Data Layer Only
+### Legacy: Using generate (Backwards Compatibility Only)
 
 ```bash
-# Generate DataRepository + DataSource
-zfa generate Product --methods=get,getList,create --data
-
-# With caching
-zfa generate Product --methods=get,getList --data --cache --cache-policy=daily
-
-# With GraphQL
-zfa generate Product --methods=get,create --data --gql --gql-returns="id,name,price"
-
-# Append method to existing repository
-zfa generate WatchProduct --domain=product --repo=Product --params=String --returns=Stream<Product> --type=stream --append
+# generate is kept for backwards compatibility ONLY
+# Prefer the plugin commands above or zfa make instead
+zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --di
 ```
 
-### Presentation Layer (UI) Only
+### Using make (Multiple Plugins)
 
 ```bash
-# Generate View + Presenter + Controller
-zfa generate Product --methods=get,getList,create --vpc
+# Run multiple plugins in one command
+zfa make Product usecase repository datasource
 
-# Generate with State object
-zfa generate Product --methods=get,getList,create --vpcs
-
-# Generate Presenter + Controller only (preserve custom View)
-zfa generate Product --methods=get,getList --pc
-
-# Generate Presenter + Controller + State (preserve custom View)
-zfa generate Product --methods=get,getList --pcs
-```
-
-### Testing & Mock Data
-
-```bash
-# Generate unit tests
-zfa generate Product --methods=get,create,update --test
-
-# Generate mock data
-zfa generate Product --mock
-
-# Mock data only
-zfa generate Product --mock-data-only
-```
-
-### Dependency Injection
-
-```bash
-# Generate DI files
-zfa generate Product --methods=get,getList --data --di
-
-# Use mock datasource in DI
-zfa generate Product --methods=get,getList --data --mock --di --use-mock
-
-# With cache initialization
-zfa generate Config --methods=get --data --cache --di
-```
+# With methods and domain
+zfa make Product usecase repository --methods=get,list,create --domain=product
 
 ## Entity Location Convention
 
@@ -178,7 +195,9 @@ lib/src/domain/entities/product/product.dart
 zfa entity create -n Product --field name:String --field price:double
 ```
 
-## Available Methods
+## Available Methods (for entity-based generation)
+
+These methods are used with `zfa usecase create`, `zfa repository create`, `zfa feature scaffold`:
 
 | Method | UseCase Type | Description |
 |--------|--------------|-------------|
@@ -190,101 +209,93 @@ zfa entity create -n Product --field name:String --field price:double
 | `watch` | `StreamUseCase` | Watch single entity changes |
 | `watchList` | `StreamUseCase` | Watch all entities changes |
 
-## Command Flags Reference
+## Plugin Commands Reference
 
-### Entity-Based Generation
+### All Available Plugin Commands
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--methods=<list>` | `-m` | Comma-separated methods to generate |
-| `--data` | `-d` | Generate DataRepository + DataSource |
-| `--datasource` | | Generate DataSource only |
-| `--id-field=<name>` | | ID field name (default: `id`) |
-| `--id-field-type=<type>` | | ID field type (default: `String`) |
-| `--query-field=<name>` | | Query field name for `get`/`watch` (default: `id`) |
-| `--query-field-type=<type>` | | Query field type (default: matches id-type) |
-| `--zorphy` | | Use Zorphy-style typed patches |
-| `--init` | | Add initialize method & isInitialized stream to repos |
-| `--append` | | Append method to existing repository/datasource |
+| Command | Description |
+|---------|-------------|
+| `zfa entity create` | Create Zorphy entities |
+| `zfa usecase create` | Generate UseCases |
+| `zfa repository create` | Generate Repositories + DataSources |
+| `zfa datasource create` | Generate DataSources (remote/local) |
+| `zfa service create` | Generate Service interfaces |
+| `zfa controller create` | Generate Controller classes |
+| `zfa presenter create` | Generate Presenter classes |
+| `zfa view create` | Generate View classes |
+| `zfa state create` | Generate State classes |
+| `zfa di create` | Generate DI registrations |
+| `zfa mock create` | Generate Mock data |
+| `zfa test create` | Generate Unit tests |
+| `zfa route create` | Generate Route definitions |
+| `zfa graphql create` | Generate GraphQL operations |
+| `zfa cache create` | Generate Cache logic |
+| `zfa observer create` | Generate Observer classes |
+| `zfa provider create` | Generate Provider classes |
+| `zfa feature scaffold` | Scaffold full features (recommended) |
+| `zfa manifest` | List all available capabilities |
+| `zfa method_append append` | Append method to existing repo/service |
 
-### Presentation Layer Generation (UI)
+### Feature Scaffold Command
 
-| Flag | Description |
-|------|-------------|
-| `--vpc` | Generate View + Presenter + Controller |
-| `--vpcs` | Generate View + Presenter + Controller + State (shorthand for --vpc --state) |
-| `--pc` | Generate Presenter + Controller only (preserve custom View) |
-| `--pcs` | Generate Presenter + Controller + State (preserve custom View) |
-| `--state` | Generate State object with granular loading states |
+Full feature generation (recommended over legacy generate):
 
-### GraphQL Generation
+```bash
+zfa feature scaffold -n Product \
+  --usecases=get,getList,create,update,delete \
+  --repository \
+  --datasource \
+  --vpcs \
+  --di \
+  --test
+```
 
-| Flag | Description |
-|------|-------------|
-| `--gql` | Enable GraphQL generation |
-| `--gql-type` | Operation type: query, mutation, subscription (auto-detected) |
-| `--gql-returns` | Return fields as comma-separated string |
-| `--gql-input-type` | Input type name |
-| `--gql-input-name` | Input variable name (default: input) |
-| `--gql-name` | Custom operation name |
-
-**Auto-detection for entity methods:**
-- `get`, `getList` → query
-- `create`, `update`, `delete` → mutation
-- `watch`, `watchList` → subscription
-
-### Custom UseCase Options
+### Usecase Create Command
 
 | Flag | Description |
 |------|-------------|
-| `--repo=<name>` | Repository to inject (single, enforces SRP) |
-| `--service=<name>` | Service to inject (alternative to `--repo`) |
-| `--domain=<name>` | Domain folder (required for custom UseCases) |
-| `--type=<type>` | UseCase type: `usecase`, `stream`, `background`, `completable`, `sync` |
-| `--params=<type>` | Params type (default: `NoParams`) |
-| `--returns=<type>` | Return type (default: `void`) |
-| `--usecases=<list>` | Orchestrator: compose UseCases |
-| `--variants=<list>` | Polymorphic: generate variants |
+| `--name`, `-n` | Name of the usecase |
+| `--type` | Type: future, stream, completable, sync, background |
+| `--repo` | Repository to inject |
+| `--service` | Service to inject |
+| `--domain` | Domain folder (required for non-entity usecases) |
+| `--params` | Parameter type |
+| `--returns` | Return type |
+| `--methods` | Entity methods: get, list, create, update, delete |
 
-### Caching
-
-| Flag | Description |
-|------|-------------|
-| `--cache` | Enable caching with dual datasources (remote + local) |
-| `--cache-policy` | Cache expiration: `daily`, `restart`, `ttl` (default: daily) |
-| `--cache-storage` | Local storage: `hive`, `sqlite`, `shared_preferences` (default: hive) |
-| `--ttl` | TTL duration in minutes (default: 1440 = 24 hours) |
-
-### Testing & Mock Data
+### Repository Create Command
 
 | Flag | Description |
 |------|-------------|
-| `--test` | Generate unit tests for each UseCase |
-| `--mock` | Generate mock data files alongside other layers |
-| `--mock-data-only` | Generate only mock data files |
+| `--name`, `-n` | Name of the entity |
+| `--methods` | Methods: get, list, create, update, delete |
+| `--data` | Generate repository implementation (default: true) |
+| `--datasource` | Generate datasources (default: true) |
 
-### Dependency Injection
+### Datasource Create Command
 
 | Flag | Description |
 |------|-------------|
-| `--di` | Generate dependency injection files (get_it) |
-| `--use-mock` | Use mock datasource in DI (default: remote datasource) |
+| `--name`, `-n` | Name of the datasource |
+| `--local` | Generate local datasource instead of remote |
+| `--cache` | Enable caching |
 
-### Additional Features
+### View/Presenter/Controller Create Commands
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--force` | | Overwrite existing files |
-| `--dry-run` | | Preview without writing files |
-| `--format=<type>` | | Output format: `json` or `text` |
-| `--verbose` | `-v` | Verbose output |
-| `--quiet` | `-q` | Minimal output (errors only) |
+| Flag | Description |
+|------|-------------|
+| `--name`, `-n` | Name of the entity |
+| `--methods` | Methods: get, list, create, update, delete |
+| `--di` | Generate with DI integration |
+| `--state` | Generate with State integration |
 
 ## Use Case Types
 
+Used with `zfa usecase create --type`:
+
 | Type | Description | Use When |
 |------|-------------|----------|
-| `usecase` (default) | Single request-response operations | CRUD, API calls |
+| `future` (default) | Async request-response operations | CRUD, API calls |
 | `stream` | Real-time data streams | WebSocket, Firebase listeners |
 | `background` | CPU-intensive work on isolates | Image processing, crypto |
 | `completable` | No return value | Delete, logout, clear cache |
@@ -292,13 +303,13 @@ zfa entity create -n Product --field name:String --field price:double
 
 ## Repository vs Service
 
-**Use `--repo` for:**
+**Use Repository (--repo) for:**
 - CRUD operations on entities
 - Data persistence/retrieval
 - Entity-centric operations
 - Cache/database access
 
-**Use `--service` for:**
+**Use Service (--service) for:**
 - External API integrations
 - Third-party service calls
 - Business logic not involving entities
@@ -316,14 +327,14 @@ lib/src/
 │       ├── {entity}/          # Entity-specific usecases
 │       └── {domain}/          # Domain-specific usecases
 ├── data/                      # External dependencies
-│   ├── data_sources/          # Data source implementations
+│   ├── datasources/          # Data source implementations
 │   │   └── {entity}/
 │   │       ├── graphql/       # GraphQL operations
-│   │       ├── {entity}_data_source.dart
-│   │       └── {entity}_remote_data_source.dart
+│   │       ├── {entity}_datasource.dart
+│   │       └── {entity}_remote_datasource.dart
 │   ├── providers/             # Service provider implementations
 │   └── repositories/          # Repository implementations
-├── presentation/              # UI layer (use --vpc)
+├── presentation/              # UI layer (use --vpcs)
 │   └── pages/
 │       └── {entity}/
 │           ├── {entity}_view.dart
@@ -339,16 +350,15 @@ lib/src/
 
 ## Common Workflows
 
-### Workflow 1: Complete Feature (Recommended)
+### Workflow 1: Complete Feature with Scaffold (Recommended)
 
 ```bash
-# One command - generates EVERYTHING
-zfa generate Product \
-  --methods=get,getList,create,update,delete,watchList \
-  --data \
-  --vpc \
-  --state \
-  --cache \
+# One command - generates EVERYTHING (recommended)
+zfa feature scaffold -n Product \
+  --usecases=get,getList,create,update,delete \
+  --repository \
+  --datasource \
+  --vpcs \
   --di \
   --test
 
@@ -358,51 +368,62 @@ zfa build
 # That's it - feature complete
 ```
 
-### Workflow 2: Domain First, Then UI
+### Workflow 2: Domain First, Then UI (Individual Plugins)
 
 ```bash
 # 1. Create entity
 zfa entity create -n Product --field name:String --field price:double
 zfa build
 
-# 2. Generate domain + data layer
-zfa generate Product --methods=get,getList,create,update,delete --data
+# 2. Generate repository + datasources
+zfa repository create -n Product --methods=get,getList,create,update,delete
 
-# 3. Generate UI layer
-zfa generate Product --methods=get,getList,create --vpc --state
+# 3. Generate usecases
+zfa usecase create -n Product --methods=get,getList,create,update,delete
 
-# 4. Implement DataSource (manual - only this part)
-# 5. Register with DI
-zfa generate Product --methods=get,getList --data --di
+# 4. Generate UI layer
+zfa view create -n Product --methods=get,getList,create --di --state
+zfa presenter create -n Product --methods=get,getList,create
+zfa controller create -n Product --methods=get,getList,create --state
+
+# 5. Generate DI
+zfa di create -n Product
+
+# 6. Implement DataSource (manual - only this part)
 ```
 
 ### Workflow 3: Custom UseCase with Orchestrator
 
 ```bash
 # 1. Create atomic UseCases
-zfa generate ValidateCart --repo=Cart --domain=checkout --params=CartId --returns=bool
-zfa generate CreateOrder --repo=Order --domain=checkout --params=OrderData --returns=Order
-zfa generate ProcessPayment --service=Payment --domain=checkout --params=PaymentData --returns=Receipt
+zfa usecase create -n ValidateCart --repo=Cart --domain=checkout --params=CartId --returns=bool
+zfa usecase create -n CreateOrder --repo=Order --domain=checkout --params=OrderData --returns=Order
+zfa usecase create -n ProcessPayment --service=Payment --domain=checkout --params=PaymentData --returns=Receipt
 
 # 2. Orchestrate them
-zfa generate ProcessCheckout \
+zfa usecase create -n ProcessCheckout \
   --usecases=ValidateCart,CreateOrder,ProcessPayment \
   --domain=checkout \
   --params=CheckoutRequest \
   --returns=Order
 
 # 3. Generate UI for orchestrator
-zfa generate ProcessCheckout --domain=checkout --vpc --state
+zfa presenter create -n ProcessCheckout --domain=checkout
+zfa controller create -n ProcessCheckout --domain=checkout --state
 ```
 
 ### Workflow 4: Adding Method to Existing Entity
 
 ```bash
-# Add watch method to existing entity
-zfa generate WatchProduct --domain=product --repo=Product --params=String --returns=Stream<Product> --type=stream --append
+# Add watch method to existing repository
+zfa repository create -n Product --methods=watch --append
+
+# Add corresponding usecase
+zfa usecase create -n WatchProduct --repo=Product --domain=product --params=String --returns=Stream<Product> --type=stream
 
 # If UI exists, regenerate presenter/controller
-zfa generate Product --methods=watch --pc --force
+zfa presenter create -n Product --methods=watch --force
+zfa controller create -n Product --methods=watch --force
 ```
 
 ## Cache Policies
@@ -422,8 +443,8 @@ zfa generate Product --methods=watch --pc --force
 | Service | `{service}_service.dart` | `payment_service.dart` |
 | Provider | `{service}_provider.dart` | `payment_provider.dart` |
 | UseCase | `{action}_{entity_snake}_usecase.dart` | `get_product_usecase.dart` |
-| DataSource | `{entity_snake}_data_source.dart` | `product_data_source.dart` |
-| RemoteDataSource | `{entity_snake}_remote_data_source.dart` | `product_remote_data_source.dart` |
+| DataSource | `{entity_snake}_datasource.dart` | `product_datasource.dart` |
+| RemoteDataSource | `{entity_snake}_remote_datasource.dart` | `product_remote_datasource.dart` |
 | View | `{entity_snake}_view.dart` | `product_view.dart` |
 | Presenter | `{entity_snake}_presenter.dart` | `product_presenter.dart` |
 | Controller | `{entity_snake}_controller.dart` | `product_controller.dart` |
@@ -464,11 +485,12 @@ zfa generate Product --methods=watch --pc --force
 |---------|-----|
 | Creating entity files manually | Use `zfa entity create -n EntityName` |
 | Running `dart run build_runner build` | Use `zfa build` |
-| Hand-writing repository boilerplate | Use `zfa generate Entity --methods=...` |
-| Manually writing View/Controller | Use `zfa generate Entity --vpc` |
+| Hand-writing repository boilerplate | Use `zfa repository create` or `zfa usecase create` |
+| Manually writing View/Controller | Use `zfa view create` and `zfa controller create` |
+| Using legacy generate for new code | Use `zfa feature scaffold` or individual plugin commands |
 | Entity not found errors | Ensure entity exists at `lib/src/domain/entities/{entity_snake}/{entity_snake}.dart` |
 | Files not overwritten | Use `--force` flag to overwrite existing files |
-| Missing repository methods | Use `--append` to add methods to existing repository |
+| Missing repository methods | Use `zfa repository create` with `--methods` or `--append` |
 | Cache not working | Call `initAllCaches()` before DI setup in `main()` |
 | Tests failing | Run `zfa build` to generate entity code first |
 | DI not working | Call `setupDependencies(getIt)` after cache initialization |
@@ -477,9 +499,10 @@ zfa generate Product --methods=watch --pc --force
 
 1. **NEVER create entity files manually** → Always use `zfa entity create`
 2. **NEVER run build_runner directly** → Always use `zfa build`
-3. **NEVER write boilerplate by hand** → Always use `zfa generate`
-4. **NEVER manually create View/Presenter/Controller** → Always use `zfa generate --vpc`
-5. **ALWAYS use CLI for all code generation** → One command, complete layers
+3. **NEVER write boilerplate by hand** → Always use plugin commands or `zfa feature scaffold`
+4. **NEVER manually create View/Presenter/Controller** → Use `zfa view create`, `zfa presenter create`, `zfa controller create`
+5. **PREFER plugin commands over legacy generate** → Use `zfa usecase create`, `zfa repository create`, etc.
+6. **ALWAYS use CLI for all code generation** → One command, complete layers
 
 ## Troubleshooting
 
@@ -496,12 +519,18 @@ zfa build
 ### Overwriting Files
 Use `--force` flag:
 ```bash
-zfa generate Product --methods=get,getList --force
+zfa usecase create -n Product --methods=get,getList --force
 ```
 
 ### Preview Generation
 ```bash
-zfa generate Product --methods=get --dry-run --format=json
+# Use --dry-run with any command
+zfa usecase create -n Product --methods=get --dry-run
+```
+
+### Check Available Capabilities
+```bash
+zfa manifest --format json
 ```
 
 ## Advanced Features
@@ -509,7 +538,7 @@ zfa generate Product --methods=get --dry-run --format=json
 ### Polymorphic Pattern
 Generate abstract base + concrete variants + factory:
 ```bash
-zfa generate SparkSearch \
+zfa usecase create -n SparkSearch \
   --type=stream \
   --variants=Barcode,Url,Text \
   --domain=search \
@@ -520,13 +549,12 @@ zfa generate SparkSearch \
 
 ### GraphQL with Custom Fields
 ```bash
-zfa generate Order --methods=get --gql \
-  --gql-returns="id,createdAt,customer{id,name},items{id,quantity,price}"
+zfa graphql create -n Order --type=query --returns="id,createdAt,customer{id,name},items{id,quantity,price}"
 ```
 
 ### Sync UseCase for Validation
 ```bash
-zfa generate ValidateEmail --type=sync --params=String --returns=bool
+zfa usecase create -n ValidateEmail --type=sync --params=String --returns=bool
 ```
 
 Generates:
@@ -539,17 +567,52 @@ class ValidateEmailUseCase extends SyncUseCase<bool, String> {
 }
 ```
 
+### Append Method to Existing Repository
+```bash
+zfa method_append append -n WatchProduct --repo=Product --returns=Stream<Product> --params=String
+```
+
+### Using Manifest to Discover Capabilities
+```bash
+# List all available plugins and their capabilities
+zfa manifest --format json
+
+# For MCP integration
+zfa manifest --format mcp
+```
+
 ## CLI vs Manual Work
 
 | Task | CLI Command | Manual? |
 |------|-------------|---------|
 | Create entity | `zfa entity create` | ❌ NEVER |
 | Build code | `zfa build` | ❌ NEVER |
-| Generate UseCases | `zfa generate Entity --methods=...` | ❌ NEVER |
-| Generate UI | `zfa generate Entity --vpc` | ❌ NEVER |
-| Generate DI | `zfa generate Entity --di` | ❌ NEVER |
-| Generate tests | `zfa generate Entity --test` | ❌ NEVER |
+| Generate full feature | `zfa feature scaffold` | ❌ NEVER |
+| Generate UseCases | `zfa usecase create` | ❌ NEVER |
+| Generate Repository | `zfa repository create` | ❌ NEVER |
+| Generate DataSource | `zfa datasource create` | ❌ NEVER |
+| Generate Service | `zfa service create` | ❌ NEVER |
+| Generate View | `zfa view create` | ❌ NEVER |
+| Generate Presenter | `zfa presenter create` | ❌ NEVER |
+| Generate Controller | `zfa controller create` | ❌ NEVER |
+| Generate State | `zfa state create` | ❌ NEVER |
+| Generate DI | `zfa di create` | ❌ NEVER |
+| Generate tests | `zfa test create` | ❌ NEVER |
 | Implement DataSource logic | N/A | ✅ Only manual part |
 | Customize View UI | N/A | ✅ After generation |
 
 **The CLI handles 95% of boilerplate. Only implement business logic and customize UI.**
+
+## Manifest Command (List All Capabilities)
+
+Use `zfa manifest` to see all available plugins and their input/output schemas:
+
+```bash
+# JSON format for parsing
+zfa manifest --format json
+
+# MCP format for AI integration
+zfa manifest --format mcp
+```
+
+(End of file - total ~570 lines)

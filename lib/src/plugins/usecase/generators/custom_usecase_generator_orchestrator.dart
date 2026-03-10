@@ -53,7 +53,11 @@ extension CustomUseCaseGeneratorOrchestrator on CustomUseCaseGenerator {
       );
     }
 
-    final entityImports = _entityImports([paramsType, returnsType]);
+    final entityImports = CommonPatterns.entityImports(
+      [paramsType, returnsType],
+      config,
+      depth: 2,
+    );
     usecaseImports.addAll(entityImports);
 
     final executeMethod = _buildOrchestratorExecute(
@@ -78,9 +82,10 @@ extension CustomUseCaseGeneratorOrchestrator on CustomUseCaseGenerator {
       filePath,
       content,
       'usecase_orchestrator',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
+      revert: config.revert,
     );
   }
 }

@@ -4,6 +4,10 @@ import 'plugin_lifecycle.dart';
 
 typedef ZuraffaPluginFactory = ZuraffaPlugin Function();
 
+/// Registry for managing the lifecycle of generation plugins.
+///
+/// Handles plugin registration, discovery, and execution of lifecycle
+/// hooks (validate, beforeGenerate, afterGenerate, onError).
 class PluginRegistry {
   static final PluginRegistry instance = PluginRegistry();
   final Map<String, ZuraffaPlugin> _plugins = {};

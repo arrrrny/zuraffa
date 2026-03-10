@@ -1,26 +1,43 @@
 import 'package:code_builder/code_builder.dart';
+import 'dart:io';
 import 'package:path/path.dart' as path;
 
+import '../../../core/ast/ast_helper.dart';
 import '../../../core/builder/shared/spec_library.dart';
+import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 
+/// Generates provider implementation classes.
+///
+/// Builds Dart classes that implement domain service interfaces, handling
+/// data mapping and error handling.
+///
+/// Example:
+/// ```dart
+/// final builder = ProviderBuilder(
+///   outputDir: 'lib/src',
+///   options: const GeneratorOptions(force: true),
+/// );
+/// final file = await builder.generate(GeneratorConfig(name: 'Auth'));
+/// ```
 class ProviderBuilder {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
   final SpecLibrary specLibrary;
+  final DartEmitter emitter;
 
   ProviderBuilder({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
+    this.options = const GeneratorOptions(),
     SpecLibrary? specLibrary,
-  }) : specLibrary = specLibrary ?? const SpecLibrary();
+    DartEmitter? emitter,
+  }) : specLibrary = specLibrary ?? const SpecLibrary(),
+       emitter =
+           emitter ??
+           DartEmitter(orderDirectives: true, useNullSafetySyntax: true);
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final serviceName = config.effectiveService;
@@ -92,6 +109,64 @@ class ProviderBuilder {
         ..methods.add(method),
     );
 
+    final file = File(filePath);
+    if (config.appendToExisting && file.existsSync()) {
+      var content = await file.readAsString();
+      final helper = const AstHelper();
+
+      // Add imports if missing
+      for (final directive in directives) {
+        final importLine = specLibrary.emitLibrary(
+          specLibrary.library(specs: [], directives: [directive]),
+        );
+        if (!content.contains(importLine.trim()) || config.force) {
+          // If force is true, we might want to replace the import, but adding it again is safe if we don't duplicate.
+          // Actually, adding if missing is usually enough.
+          if (!content.contains(importLine.trim())) {
+            content = '${importLine.trim()}\n$content';
+          }
+        }
+      }
+
+      final methodSource = method.accept(emitter).toString();
+      if (config.force) {
+        // Check if method exists to decide between replace and add
+        if (content.contains(' ${method.name}(')) {
+          content = helper.replaceMethodInClass(
+            source: content,
+            className: providerName,
+            methodName: method.name!,
+            methodSource: methodSource,
+          );
+        } else {
+          content = helper.addMethodToClass(
+            source: content,
+            className: providerName,
+            methodSource: methodSource,
+          );
+        }
+      } else {
+        // Add method to class if missing
+        if (!content.contains(' ${method.name}(')) {
+          content = helper.addMethodToClass(
+            source: content,
+            className: providerName,
+            methodSource: methodSource,
+          );
+        }
+      }
+
+      return FileUtils.writeFile(
+        filePath,
+        content,
+        'provider',
+        force: true,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+        revert: config.revert,
+      );
+    }
+
     final content = specLibrary.emitLibrary(
       specLibrary.library(specs: [providerClass], directives: directives),
     );
@@ -100,9 +175,10 @@ class ProviderBuilder {
       filePath,
       content,
       'provider',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
+      revert: config.revert,
     );
   }
 
@@ -198,17 +274,18 @@ class ProviderBuilder {
   }
 
   List<String> _extractBaseTypes(String type) {
+    final cleanType = type.replaceAll('?', '');
     final results = <List<String>>[];
 
-    final genericMatch = RegExp(r'(\w+)<(.+)>').firstMatch(type);
+    final genericMatch = RegExp(r'(\w+)<(.+)>').firstMatch(cleanType);
     if (genericMatch != null) {
       final innerType = genericMatch.group(2);
       if (innerType != null) {
         results.add(_extractBaseTypes(innerType));
       }
     } else {
-      if (type.isNotEmpty && type != 'void') {
-        results.add([type]);
+      if (cleanType.isNotEmpty && cleanType != 'void') {
+        results.add([cleanType]);
       }
     }
 

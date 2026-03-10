@@ -55,6 +55,10 @@ class MockValueBuilder {
     final isNullable = fieldType.endsWith('?');
     final baseType = fieldType.replaceAll('?', '');
 
+    if (isNullable && seed % 3 == 0) {
+      return literalNull;
+    }
+
     if (useSeeds) {
       return _generateSeededValueExpr(fieldName, baseType, isNullable);
     }
@@ -69,10 +73,6 @@ class MockValueBuilder {
       return collectionExpr;
     }
 
-    if (isNullable && seed % 3 == 0) {
-      return literalNull;
-    }
-
     final entityExpr = _entityValueExpr(baseType, seed);
     if (entityExpr != null) {
       return entityExpr;
@@ -85,7 +85,7 @@ class MockValueBuilder {
     final cleanListType = listType.startsWith('\$')
         ? listType.substring(1)
         : listType;
-    final itemCount = 2 + (seed % 2);
+    final itemCount = 3; // Always 3 items for better consistency in mocks
 
     if (cleanListType.isNotEmpty &&
         cleanListType[0] == cleanListType[0].toUpperCase() &&
@@ -110,7 +110,7 @@ class MockValueBuilder {
           items.add(
             refer('${subtype}MockData')
                 .property('${StringUtils.pascalToCamel(subtype)}s')
-                .index(literalNum(i % 3)),
+                .index(literalNum((seed + i - 1) % 3)),
           );
         }
         return literalList(items);
@@ -160,15 +160,15 @@ class MockValueBuilder {
 
     final keyType = typeParts[0];
     final valueType = typeParts[1];
-    final itemCount = 2 + (seed % 2);
+    final itemCount = 3;
     final entries = <Expression, Expression>{};
 
     for (int i = 1; i <= itemCount; i++) {
-      final key = _generateSimpleValueExpr(keyType, 'key$i', seed + i);
+      final key = _generateSimpleValueExpr(keyType, 'key$i', seed + i - 1);
       final value = generateMockValueExpr(
         'value$i',
         valueType,
-        seed + i,
+        seed + i - 1,
         false,
       );
       entries[key] = value;
@@ -180,15 +180,15 @@ class MockValueBuilder {
   Expression _generateSimpleValueExpr(String type, String name, int seed) {
     switch (type) {
       case 'String':
-        return literalString(name);
+        return literalString('$name ${seed + 1}');
       case 'int':
-        return literalNum(seed * 10);
+        return literalNum(seed + 1);
       case 'double':
-        return literalNum(seed * 10.5);
+        return literalNum((seed + 1) * 10.5);
       case 'bool':
         return literalBool(seed % 2 == 1);
       default:
-        return literalString(name);
+        return literalString('$name ${seed + 1}');
     }
   }
 
@@ -197,6 +197,19 @@ class MockValueBuilder {
     String baseType,
     bool isNullable,
   ) {
+    if (isNullable) {
+      final isNullExpr = refer(
+        'seed',
+      ).operatorEuclideanModulo(literalNum(3)).equalTo(literalNum(0));
+
+      final valueExpr = _generateSeededValueInternal(fieldName, baseType);
+      return isNullExpr.conditional(literalNull, valueExpr);
+    }
+
+    return _generateSeededValueInternal(fieldName, baseType);
+  }
+
+  Expression _generateSeededValueInternal(String fieldName, String baseType) {
     final primitiveExpr = _seededPrimitiveValueExpr(baseType, fieldName);
     if (primitiveExpr != null) {
       return primitiveExpr;
@@ -212,9 +225,7 @@ class MockValueBuilder {
       return entityExpr;
     }
 
-    return literalString(
-      '$fieldName ',
-    ).operatorAdd(refer('seed').property('toString').call([]));
+    return refer("'$fieldName \$seed'");
   }
 
   Expression _generateSeededListValueExpr(String listType) {
@@ -309,7 +320,7 @@ class MockValueBuilder {
       case 'String':
         return literalString('$fieldName $seed');
       case 'int':
-        return literalNum(seed * 10);
+        return literalNum(seed);
       case 'double':
         return literalNum(seed * 10.5);
       case 'bool':
@@ -370,9 +381,7 @@ class MockValueBuilder {
   Expression? _seededPrimitiveValueExpr(String baseType, String fieldName) {
     switch (baseType) {
       case 'String':
-        return literalString(
-          '$fieldName ',
-        ).operatorAdd(refer('seed').property('toString').call([]));
+        return refer("'$fieldName \$seed'");
       case 'int':
         return refer('seed').operatorMultiply(literalNum(10));
       case 'double':
@@ -390,13 +399,7 @@ class MockValueBuilder {
           }),
         ]);
       case 'Object':
-        return literalMap({
-          literalString('key').operatorAdd(
-            refer('seed').property('toString').call([]),
-          ): literalString(
-            'value',
-          ).operatorAdd(refer('seed').property('toString').call([])),
-        });
+        return literalMap({refer("'key \$seed'"): refer("'value \$seed'")});
       default:
         return null;
     }
@@ -486,6 +489,13 @@ class MockValueBuilder {
             .index(
               refer('seed')
                   .operatorAdd(literalNum(1))
+                  .operatorEuclideanModulo(literalNum(3)),
+            ),
+        refer('${cleanListType}MockData')
+            .property('${StringUtils.pascalToCamel(cleanListType)}s')
+            .index(
+              refer('seed')
+                  .operatorAdd(literalNum(2))
                   .operatorEuclideanModulo(literalNum(3)),
             ),
       ]);

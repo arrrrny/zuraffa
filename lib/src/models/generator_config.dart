@@ -17,7 +17,7 @@ class GeneratorConfig {
   final String? returnsType;
   final String idField;
   final String idType;
-  final bool generateVpc;
+  final bool generateVpcs;
   final bool generateView;
   final bool generatePresenter;
   final bool generateController;
@@ -55,6 +55,7 @@ class GeneratorConfig {
   final bool dryRun;
   final bool force;
   final bool verbose;
+  final bool revert;
   final String outputDir;
 
   GeneratorConfig({
@@ -74,7 +75,7 @@ class GeneratorConfig {
     this.returnsType,
     this.idField = 'id',
     this.idType = 'String',
-    this.generateVpc = false,
+    this.generateVpcs = false,
     this.generateView = false,
     this.generatePresenter = false,
     this.generateController = false,
@@ -110,9 +111,9 @@ class GeneratorConfig {
     this.dryRun = false,
     this.force = false,
     this.verbose = false,
-    this.outputDir = 'lib/src',
-  }) : queryFieldType =
-           queryFieldType ?? (queryField == 'id' ? 'String' : 'String');
+    this.revert = false,
+    required this.outputDir,
+  }) : queryFieldType = queryFieldType ?? idType;
 
   factory GeneratorConfig.fromJson(Map<String, dynamic> json, String name) {
     return GeneratorConfig(
@@ -133,7 +134,7 @@ class GeneratorConfig {
       returnsType: json['returns'],
       idField: json['id_field'] ?? 'id',
       idType: json['id_type'] ?? json['id_field_type'] ?? 'String',
-      generateVpc: json['vpc'] == true,
+      generateVpcs: json['vpcs'] == true || json['vpc'] == true,
       generateView: json['view'] == true,
       generatePresenter: json['presenter'] == true,
       generateController: json['controller'] == true,
@@ -171,6 +172,7 @@ class GeneratorConfig {
       customControllerName:
           json['controller'] ?? json['custom_controller_name'],
       customStateName: json['state_class'] ?? json['custom_state_name'],
+      outputDir: json['output_dir'] ?? 'lib/src',
     );
   }
 
@@ -214,7 +216,7 @@ class GeneratorConfig {
     String? returnsType,
     String? idField,
     String? idType,
-    bool? generateVpc,
+    bool? generateVpcs,
     bool? generateView,
     bool? generatePresenter,
     bool? generateController,
@@ -250,6 +252,7 @@ class GeneratorConfig {
     bool? dryRun,
     bool? force,
     bool? verbose,
+    bool? revert,
     String? outputDir,
   }) {
     return GeneratorConfig(
@@ -269,7 +272,7 @@ class GeneratorConfig {
       returnsType: returnsType ?? this.returnsType,
       idField: idField ?? this.idField,
       idType: idType ?? this.idType,
-      generateVpc: generateVpc ?? this.generateVpc,
+      generateVpcs: generateVpcs ?? this.generateVpcs,
       generateView: generateView ?? this.generateView,
       generatePresenter: generatePresenter ?? this.generatePresenter,
       generateController: generateController ?? this.generateController,
@@ -305,6 +308,7 @@ class GeneratorConfig {
       dryRun: dryRun ?? this.dryRun,
       force: force ?? this.force,
       verbose: verbose ?? this.verbose,
+      revert: revert ?? this.revert,
       outputDir: outputDir ?? this.outputDir,
     );
   }
@@ -412,7 +416,7 @@ class GeneratorConfig {
     'returns': returnsType,
     'id_field': idField,
     'id_type': idType,
-    'vpc': generateVpc,
+    'vpcs': generateVpcs,
     'view': generateView,
     'presenter': generatePresenter,
     'controller': generateController,

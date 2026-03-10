@@ -6,10 +6,12 @@ import 'package:path/path.dart' as path;
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/builder/shared/spec_library.dart';
+import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
+import '../../../utils/entity_utils.dart';
 
 part 'method_append_builder_append.dart';
 part 'method_append_builder_create.dart';
@@ -17,19 +19,28 @@ part 'method_append_builder_find.dart';
 part 'method_append_builder_imports.dart';
 part 'method_append_builder_types.dart';
 
+/// Generates and appends method implementations to existing files.
+///
+/// Builds the method AST and uses [AppendExecutor] to insert it into
+/// the target class while maintaining imports and formatting.
+///
+/// Example:
+/// ```dart
+/// final builder = MethodAppendBuilder(
+///   outputDir: 'lib/src',
+///   options: const GeneratorOptions(force: true),
+/// );
+/// final result = await builder.appendMethod(GeneratorConfig(name: 'Product'));
+/// ```
 class MethodAppendBuilder {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
   final AppendExecutor appendExecutor;
   final SpecLibrary specLibrary;
 
   MethodAppendBuilder({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
+    this.options = const GeneratorOptions(),
     AppendExecutor? appendExecutor,
     SpecLibrary? specLibrary,
   }) : appendExecutor = appendExecutor ?? AppendExecutor(),
@@ -38,6 +49,13 @@ class MethodAppendBuilder {
   Future<MethodAppendResult> appendMethod(GeneratorConfig config) async {
     final updatedFiles = <GeneratedFile>[];
     final warnings = <String>[];
+
+    if (config.revert) {
+      warnings.add(
+        'Skipping revert for append operation: append cannot be safely undone.',
+      );
+      return MethodAppendResult(updatedFiles, warnings);
+    }
 
     // Orchestrators use composed UseCases, not repo/service
     if (config.isOrchestrator) {

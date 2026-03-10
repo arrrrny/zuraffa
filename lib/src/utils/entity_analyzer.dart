@@ -7,9 +7,14 @@ class EntityAnalyzer {
   /// Analyzes an entity file to extract field information for mock data generation
   static Map<String, String> analyzeEntity(
     String entityName,
-    String outputDir,
-  ) {
+    String outputDir, {
+    Set<String>? visited,
+  }) {
     final entitySnake = StringUtils.camelToSnake(entityName);
+    visited ??= {};
+
+    if (visited.contains(entityName)) return {};
+    visited.add(entityName);
 
     // All entities are at entities/{entity_snake}/{entity_snake}.dart
     final entityPath =
@@ -22,6 +27,7 @@ class EntityAnalyzer {
       }
 
       final content = file.readAsStringSync();
+      final fields = <String, String>{};
 
       // Check if this is a Zorphy entity (contains @Zorphy annotation)
       if (content.contains('@Zorphy')) {
@@ -32,34 +38,43 @@ class EntityAnalyzer {
         if (zorphyFile.existsSync()) {
           final zorphyContent = zorphyFile.readAsStringSync();
           final zorphyFields = _parseEntityFields(zorphyContent, entityName);
-          if (zorphyFields.isNotEmpty && !_hasOnlyDefaultFields(zorphyFields)) {
-            return zorphyFields;
-          }
-          // If parsing the class failed, try parsing all final fields in the file
-          final allFieldsRegex = RegExp(
-            r'final\s+([\w\?\$<>,\s\[\]]+)\s+(\w+)\s*;',
-            multiLine: true,
-          );
-          final allFieldMatches = allFieldsRegex.allMatches(zorphyContent);
-          final allFields = <String, String>{};
-          for (final match in allFieldMatches) {
-            final type = match.group(1)?.trim();
-            final name = match.group(2);
-            if (type != null && name != null && !_isIgnoredField(name)) {
-              allFields[name] = type;
-            }
-          }
-          if (allFields.isNotEmpty) {
-            return allFields;
+          if (zorphyFields.isNotEmpty) {
+            fields.addAll(zorphyFields);
           }
         }
       }
 
-      // Try both regular name and zorphy name ($EntityName)
-      var fields = _parseEntityFields(content, entityName);
-      if (fields.isEmpty || _hasOnlyDefaultFields(fields)) {
-        fields = _parseEntityFields(content, '\$$entityName');
+      // Parse current entity fields
+      var currentFields = _parseEntityFields(content, entityName);
+      if (currentFields.isEmpty) {
+        currentFields = _parseEntityFields(content, '\$$entityName');
       }
+      fields.addAll(currentFields);
+
+      // Parse inheritance/implements
+      final superTypes = _parseSuperTypes(content, entityName);
+      if (superTypes.isEmpty) {
+        superTypes.addAll(_parseSuperTypes(content, '\$$entityName'));
+      }
+
+      for (var superType in superTypes) {
+        // Remove $ prefix if present for analysis
+        final cleanSuperType = superType.startsWith('\$')
+            ? superType.substring(1)
+            : superType;
+        final superFields = analyzeEntity(
+          cleanSuperType,
+          outputDir,
+          visited: visited,
+        );
+        // Add super fields if they don't overwrite existing ones
+        for (final entry in superFields.entries) {
+          if (!fields.containsKey(entry.key)) {
+            fields[entry.key] = entry.value;
+          }
+        }
+      }
+
       if (fields.isNotEmpty && !_hasOnlyDefaultFields(fields)) {
         return fields;
       }
@@ -69,6 +84,37 @@ class EntityAnalyzer {
 
     // Fallback to default fields if parsing fails
     return _getDefaultFields();
+  }
+
+  static List<String> _parseSuperTypes(
+    String content,
+    String targetEntityName,
+  ) {
+    final superTypes = <String>[];
+    final classRegex = RegExp(
+      r'(?:abstract\s+)?class\s+' +
+          RegExp.escape(targetEntityName) +
+          r'(?:\s+extends\s+(\$?\w+))?(?:\s+implements\s+([\$?\w\s,]+))?\s*\{',
+      multiLine: true,
+    );
+    final match = classRegex.firstMatch(content);
+
+    if (match != null) {
+      final extendsType = match.group(1);
+      if (extendsType != null) {
+        superTypes.add(extendsType.trim());
+      }
+      final implementsTypes = match.group(2);
+      if (implementsTypes != null) {
+        superTypes.addAll(
+          implementsTypes
+              .split(',')
+              .map((s) => s.trim())
+              .where((s) => s.isNotEmpty),
+        );
+      }
+    }
+    return superTypes;
   }
 
   static Map<String, String> _parseEntityFields(

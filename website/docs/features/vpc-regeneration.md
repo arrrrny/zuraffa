@@ -1,6 +1,6 @@
 # VPC Regeneration
 
-Zuraffa v3 supports VPC regeneration so you can evolve logic without losing UI work. Use `--pc`, `--pcs`, `--vpc`, and `--vpcs` to control the scope.
+Zuraffa v3 supports VPC regeneration so you can evolve logic without losing UI work. Use `--pc`, `--pcs`, `--vpcs`, and `--vpcs` to control the scope.
 
 ## Overview
 
@@ -13,12 +13,12 @@ VPC regeneration enables you to:
 
 ## VPC Generation Flags
 
-### Complete Generation (`--vpc`)
+### Complete Generation (`--vpcs`)
 
 Generates View + Presenter + Controller:
 
 ```bash
-zfa generate Product --methods=get,getList --vpc
+zfa generate Product --methods=get,getList --vpcs
 ```
 
 ### Complete Generation with State (`--vpcs`)
@@ -263,7 +263,7 @@ Regenerate custom UseCase business logic:
 
 ```bash
 # Initial generation
-zfa generate ProcessCheckout --domain=checkout --repo=Checkout --vpc
+zfa generate ProcessCheckout --domain=checkout --repo=Checkout --vpcs
 
 # Add new functionality
 zfa generate ProcessCheckout --domain=checkout --repo=Checkout --params=NewParams --returns=NewResult --pc --force
@@ -339,7 +339,7 @@ Use `--pc` or `--pcs` to preserve custom Views:
 
 ```bash
 # Custom View with complex layout
-zfa generate Product --methods=get,getList --vpc  # Initial generation
+zfa generate Product --methods=get,getList --vpcs  # Initial generation
 
 # Add new features without touching UI
 zfa generate Product --methods=watch --pcs --force  # Regenerates only business logic
@@ -374,7 +374,7 @@ zfa generate SearchProduct --domain=search --pcs --force
 ### Before (1.x)
 ```bash
 # Regeneration affected all layers
-zfa generate Product --methods=get,create --vpc --force
+zfa generate Product --methods=get,create --vpcs --force
 ```
 
 ### After (ZFA)
@@ -391,7 +391,7 @@ zfa generate ProcessCheckout --domain=checkout --pc --force
 ### View Preservation Issues
 
 If your custom View is being overwritten:
-- Use `--pc` or `--pcs` instead of `--vpc` or `--vpcs`
+- Use `--pc` or `--pcs` instead of `--vpcs` or `--vpcs`
 - Ensure you're not accidentally regenerating the View layer
 
 ### State Inconsistencies

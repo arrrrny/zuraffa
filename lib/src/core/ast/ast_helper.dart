@@ -62,6 +62,24 @@ class AstHelper {
         .toList();
   }
 
+  String addImport({required String source, required String importPath}) {
+    final parseResult = parseSource(source);
+    final unit = parseResult.unit;
+    if (unit == null) {
+      return source;
+    }
+    return AstModifier.addImport(source, unit, importPath);
+  }
+
+  String addExport({required String source, required String exportPath}) {
+    final parseResult = parseSource(source);
+    final unit = parseResult.unit;
+    if (unit == null) {
+      return source;
+    }
+    return AstModifier.addExport(source, unit, exportPath);
+  }
+
   String addMethodToClass({
     required String source,
     required String className,
@@ -108,6 +126,106 @@ class AstHelper {
       oldMethod: methods.first,
       methodSource: methodSource,
     );
+  }
+
+  String replaceFieldInClass({
+    required String source,
+    required String className,
+    required String fieldName,
+    required String fieldSource,
+  }) {
+    final parseResult = parseSource(source);
+    final unit = parseResult.unit;
+    if (unit == null) {
+      return source;
+    }
+    final classNode = findClass(unit, className);
+    if (classNode == null) {
+      return source;
+    }
+    final fields = findFields(classNode, name: fieldName);
+    if (fields.isEmpty) {
+      return source;
+    }
+    return AstModifier.replaceFieldInClass(
+      source: source,
+      classNode: classNode,
+      oldField: fields.first,
+      fieldSource: fieldSource,
+    );
+  }
+
+  String removeMethodFromClass({
+    required String source,
+    required String className,
+    required String methodName,
+  }) {
+    final parseResult = parseSource(source);
+    final unit = parseResult.unit;
+    if (unit == null) {
+      return source;
+    }
+    final classNode = findClass(unit, className);
+    if (classNode == null) {
+      return source;
+    }
+    final methods = findMethods(classNode, name: methodName);
+    if (methods.isEmpty) {
+      return source;
+    }
+    return AstModifier.removeMethodFromClass(
+      source: source,
+      method: methods.first,
+    );
+  }
+
+  String removeMethodFromExtension({
+    required String source,
+    required String extensionName,
+    required String methodName,
+  }) {
+    final parseResult = parseSource(source);
+    final unit = parseResult.unit;
+    if (unit == null) {
+      return source;
+    }
+    final extensionNode = findExtension(unit, extensionName);
+    if (extensionNode == null) {
+      return source;
+    }
+    // Use extensionNode.body.members instead of deprecated extensionNode.members
+    final methods = extensionNode.body.members
+        .whereType<MethodDeclaration>()
+        .where((m) => m.name.lexeme == methodName)
+        .toList();
+    if (methods.isEmpty) {
+      return source;
+    }
+    return AstModifier.removeMethodFromClass(
+      source: source,
+      method: methods.first,
+    );
+  }
+
+  String removeFieldFromClass({
+    required String source,
+    required String className,
+    required String fieldName,
+  }) {
+    final parseResult = parseSource(source);
+    final unit = parseResult.unit;
+    if (unit == null) {
+      return source;
+    }
+    final classNode = findClass(unit, className);
+    if (classNode == null) {
+      return source;
+    }
+    final fields = findFields(classNode, name: fieldName);
+    if (fields.isEmpty) {
+      return source;
+    }
+    return AstModifier.removeField(source: source, field: fields.first);
   }
 
   String addFieldToClass({
@@ -170,6 +288,27 @@ class AstHelper {
       source: source,
       functionNode: functionNode,
       statementSource: statementSource,
+    );
+  }
+
+  String addElementToReturnListInFunction({
+    required String source,
+    required String functionName,
+    required String elementSource,
+  }) {
+    final parseResult = parseSource(source);
+    final unit = parseResult.unit;
+    if (unit == null) {
+      return source;
+    }
+    final functionNode = findFunction(unit, functionName);
+    if (functionNode == null) {
+      return source;
+    }
+    return AstModifier.addElementToReturnListInFunction(
+      source: source,
+      functionNode: functionNode,
+      elementSource: elementSource,
     );
   }
 }

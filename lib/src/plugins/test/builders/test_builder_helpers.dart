@@ -188,9 +188,11 @@ extension TestBuilderHelpers on TestBuilder {
         ]).statement,
       );
       t.statements.add(
-        declareFinal(
-          'result',
-        ).assign(refer('useCase').call([paramsExpr]).awaited).statement,
+        declareFinal('result')
+            .assign(
+              refer('useCase').property('call').call([paramsExpr]).awaited,
+            )
+            .statement,
       );
       t.statements.add(
         refer('verify').call([verifyCall.toClosure()]).property('called').call([
@@ -235,9 +237,11 @@ extension TestBuilderHelpers on TestBuilder {
             .statement,
       );
       t.statements.add(
-        declareFinal(
-          'result',
-        ).assign(refer('useCase').call([paramsExpr]).awaited).statement,
+        declareFinal('result')
+            .assign(
+              refer('useCase').property('call').call([paramsExpr]).awaited,
+            )
+            .statement,
       );
       t.statements.add(
         refer('verify').call([verifyCall.toClosure()]).property('called').call([
@@ -333,9 +337,9 @@ extension TestBuilderHelpers on TestBuilder {
           ]);
       t.statements.add(arrangeCallExpr.statement);
       t.statements.add(
-        declareFinal(
-          'result',
-        ).assign(refer('useCase').call([paramsExpr])).statement,
+        declareFinal('result')
+            .assign(refer('useCase').property('call').call([paramsExpr]))
+            .statement,
       );
       t.statements.add(
         refer('expectLater')
@@ -387,9 +391,9 @@ extension TestBuilderHelpers on TestBuilder {
           ]);
       t.statements.add(arrangeCallExpr.statement);
       t.statements.add(
-        declareFinal(
-          'result',
-        ).assign(refer('useCase').call([paramsExpr])).statement,
+        declareFinal('result')
+            .assign(refer('useCase').property('call').call([paramsExpr]))
+            .statement,
       );
       t.statements.add(
         refer('expectLater')
@@ -427,18 +431,15 @@ extension TestBuilderHelpers on TestBuilder {
     String useCaseType,
   ) {
     final callArgs = paramsType == 'NoParams'
-        ? refer('NoParams').constInstance([])
-        : <Expression>[];
+        ? [refer('NoParams').constInstance([])]
+        : [_getDefaultValueForType(paramsType, config.name)];
 
     final testContent = Block((t) {
       if (useCaseType == 'background') {
-        final args = callArgs is List<Expression>
-            ? callArgs
-            : [callArgs as Expression];
         t.statements.add(
-          declareFinal(
-            'result',
-          ).assign(refer('useCase').property('buildTask').call(args)).statement,
+          declareFinal('result')
+              .assign(refer('useCase').property('buildTask').call(callArgs))
+              .statement,
         );
         t.statements.add(
           refer('expect').call([
@@ -447,11 +448,10 @@ extension TestBuilderHelpers on TestBuilder {
           ]).statement,
         );
       } else if (useCaseType == 'stream') {
-        final args = callArgs is List<Expression>
-            ? callArgs
-            : [callArgs as Expression];
         t.statements.add(
-          declareFinal('result').assign(refer('useCase').call(args)).statement,
+          declareFinal(
+            'result',
+          ).assign(refer('useCase').call(callArgs)).statement,
         );
         t.statements.add(
           refer('expectLater')
@@ -465,13 +465,10 @@ extension TestBuilderHelpers on TestBuilder {
               .statement,
         );
       } else {
-        final args = callArgs is List<Expression>
-            ? callArgs
-            : [callArgs as Expression];
         t.statements.add(
-          declareFinal(
-            'result',
-          ).assign(refer('useCase').call(args).awaited).statement,
+          declareFinal('result')
+              .assign(refer('useCase').property('call').call(callArgs).awaited)
+              .statement,
         );
         t.statements.add(
           refer('expect').call([
@@ -490,6 +487,17 @@ extension TestBuilderHelpers on TestBuilder {
       ),
       testContent.toClosure(asAsync: true),
     ]);
+  }
+
+  Expression _getDefaultValueForType(String type, String name) {
+    return switch (type) {
+      'String' => literalString('1'),
+      'int' => literal(1),
+      'double' => literal(1.0),
+      'bool' => literalBool(true),
+      'dynamic' => literalNull,
+      _ => refer('t$type'),
+    };
   }
 }
 

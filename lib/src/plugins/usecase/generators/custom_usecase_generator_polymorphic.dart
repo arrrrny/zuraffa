@@ -34,9 +34,10 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
         abstractFilePath,
         abstractContent,
         'usecase_polymorphic_base',
-        force: force,
-        dryRun: dryRun,
-        verbose: verbose,
+        force: options.force,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+        revert: config.revert,
       ),
     );
 
@@ -89,6 +90,13 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
         variant,
       );
 
+      final entityImports = CommonPatterns.entityImports(
+        [paramsType, returnsType],
+        config,
+        depth: 2,
+      );
+      imports.addAll(entityImports);
+
       final spec = UseCaseClassSpec(
         className: variantClassName,
         baseClass: baseClassName,
@@ -110,9 +118,10 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
           variantFilePath,
           content,
           'usecase_polymorphic_variant',
-          force: force,
-          dryRun: dryRun,
-          verbose: verbose,
+          force: options.force,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+          revert: config.revert,
         ),
       );
     }
@@ -145,9 +154,10 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
         factoryFilePath,
         factoryContent,
         'usecase_polymorphic_factory',
-        force: force,
-        dryRun: dryRun,
-        verbose: verbose,
+        force: options.force,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+        revert: config.revert,
       ),
     );
 

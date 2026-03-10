@@ -12,6 +12,8 @@ class FileOperation {
   final int? expectedHash;
   final bool existedAtPlan;
 
+  final bool force;
+
   const FileOperation._({
     required this.type,
     required this.path,
@@ -19,11 +21,13 @@ class FileOperation {
     required this.previousContent,
     required this.expectedHash,
     required this.existedAtPlan,
+    this.force = false,
   });
 
   factory FileOperation.create({
     required String path,
     required String content,
+    bool force = false,
   }) {
     return FileOperation._(
       type: FileOperationType.create,
@@ -32,12 +36,14 @@ class FileOperation {
       previousContent: null,
       expectedHash: null,
       existedAtPlan: false,
+      force: force,
     );
   }
 
   static Future<FileOperation> update({
     required String path,
     required String content,
+    bool force = false,
   }) async {
     final file = File(path);
     final previous = await file.readAsString();
@@ -48,6 +54,7 @@ class FileOperation {
       previousContent: previous,
       expectedHash: ConflictDetector.hashContent(previous),
       existedAtPlan: true,
+      force: force,
     );
   }
 

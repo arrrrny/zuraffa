@@ -2,27 +2,29 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as path;
 
 import '../../commands/service_command.dart';
+import '../../core/generator_options.dart';
+import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/file_utils.dart';
 import 'builders/service_interface_builder.dart';
+import 'capabilities/create_service_capability.dart';
 
 class ServicePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
   final ServiceInterfaceBuilder interfaceBuilder;
 
   ServicePlugin({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
-    ServiceInterfaceBuilder? interfaceBuilder,
-  }) : interfaceBuilder = interfaceBuilder ?? const ServiceInterfaceBuilder();
+    this.options = const GeneratorOptions(),
+    this.interfaceBuilder = const ServiceInterfaceBuilder(),
+  });
+
+  @override
+  List<ZuraffaCapability> get capabilities => [CreateServiceCapability(this)];
 
   @override
   Command createCommand() => ServiceCommand(this);
@@ -39,14 +41,16 @@ class ServicePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     if (config.outputDir != outputDir ||
-        config.dryRun != dryRun ||
-        config.force != force ||
-        config.verbose != verbose) {
+        config.dryRun != options.dryRun ||
+        config.force != options.force ||
+        config.verbose != options.verbose) {
       final delegator = ServicePlugin(
         outputDir: config.outputDir,
-        dryRun: config.dryRun,
-        force: config.force,
-        verbose: config.verbose,
+        options: GeneratorOptions(
+          dryRun: config.dryRun,
+          force: config.force,
+          verbose: config.verbose,
+        ),
         interfaceBuilder: interfaceBuilder,
       );
       return delegator.generate(config);
@@ -67,9 +71,10 @@ class ServicePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       filePath,
       content,
       'service',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
+      revert: config.revert,
     );
 
     return [file];

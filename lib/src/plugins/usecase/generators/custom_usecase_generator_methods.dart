@@ -13,8 +13,17 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
     final methodName = config.hasService
         ? config.getServiceMethodName()
         : config.getRepoMethodName();
+
+    // Prefer service over repo if both exist
     final depField = dependencyFields.isNotEmpty
-        ? dependencyFields.first.name
+        ? (config.hasService
+              ? dependencyFields
+                    .firstWhere(
+                      (f) => f.name.endsWith('Service'),
+                      orElse: () => dependencyFields.first,
+                    )
+                    .name
+              : dependencyFields.first.name)
         : '';
 
     if (config.useCaseType == 'stream') {
@@ -26,16 +35,7 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
                   refer('UnimplementedError').call([]).thrown.statement,
                 ),
             )
-          : Block(
-              (b) => b
-                ..statements.add(
-                  refer(depField)
-                      .property(methodName)
-                      .call([refer('params')])
-                      .returned
-                      .statement,
-                ),
-            );
+          : refer(depField).property(methodName).call([refer('params')]).code;
       return [
         Method(
           (b) => b
@@ -48,7 +48,7 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
                   ..type = refer(paramsType),
               ),
             )
-            ..requiredParameters.add(
+            ..optionalParameters.add(
               Parameter(
                 (p) => p
                   ..name = 'cancelToken'
@@ -56,6 +56,7 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
               ),
             )
             ..annotations.add(CodeExpression(Code('override')))
+            ..lambda = depField.isNotEmpty
             ..body = executeBody,
         ),
       ];
@@ -70,16 +71,7 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
                   refer('UnimplementedError').call([]).thrown.statement,
                 ),
             )
-          : Block(
-              (b) => b
-                ..statements.add(
-                  refer(depField)
-                      .property(methodName)
-                      .call([refer('params')])
-                      .returned
-                      .statement,
-                ),
-            );
+          : refer(depField).property(methodName).call([refer('params')]).code;
       return [
         Method(
           (b) => b
@@ -93,26 +85,30 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
               ),
             )
             ..annotations.add(CodeExpression(Code('override')))
+            ..lambda = depField.isNotEmpty
             ..body = executeBody,
         ),
       ];
     }
-    final executeBody = Block((b) {
-      b.statements.add(Code('cancelToken?.throwIfCancelled();'));
-      if (depField.isEmpty) {
-        b.statements.add(Code('// TODO: Implement usecase logic'));
-        b.statements.add(refer('UnimplementedError').call([]).thrown.statement);
-      } else {
-        b.statements.add(
-          refer(depField)
-              .property(methodName)
-              .call([refer('params')])
-              .awaited
-              .returned
-              .statement,
-        );
-      }
-    });
+    final executeBody = depField.isEmpty
+        ? Block((b) {
+            b.statements.add(Code('cancelToken?.throwIfCancelled();'));
+            b.statements.add(Code('// TODO: Implement usecase logic'));
+            b.statements.add(
+              refer('UnimplementedError').call([]).thrown.statement,
+            );
+          })
+        : Block((b) {
+            b.statements.add(Code('cancelToken?.throwIfCancelled();'));
+            b.statements.add(
+              refer(depField)
+                  .property(methodName)
+                  .call([refer('params')])
+                  .awaited
+                  .returned
+                  .statement,
+            );
+          });
 
     final returnTypeRef = config.useCaseType == 'completable'
         ? 'Future<void>'
@@ -131,7 +127,7 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
                 ..type = refer(paramsType),
             ),
           )
-          ..requiredParameters.add(
+          ..optionalParameters.add(
             Parameter(
               (p) => p
                 ..name = 'cancelToken'
@@ -272,7 +268,8 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
         : config.useCaseType == 'sync'
         ? returnsType
         : 'Future<$returnsType>';
-    final isAsync = config.useCaseType != 'sync';
+    final isAsync =
+        config.useCaseType != 'sync' && config.useCaseType != 'stream';
     final executeBody = Block((b) {
       if (config.useCaseType == 'sync') {
         b.statements.add(Code('// TODO: Implement orchestration logic'));
@@ -309,7 +306,7 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
         ..annotations.add(CodeExpression(Code('override')))
         ..body = executeBody;
       if (config.useCaseType != 'sync') {
-        b.requiredParameters.add(
+        b.optionalParameters.add(
           Parameter(
             (p) => p
               ..name = 'cancelToken'
@@ -333,7 +330,8 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
         : config.useCaseType == 'sync'
         ? returnsType
         : 'Future<$returnsType>';
-    final isAsync = config.useCaseType != 'sync';
+    final isAsync =
+        config.useCaseType != 'sync' && config.useCaseType != 'stream';
     final executeBody = Block((b) {
       if (config.useCaseType == 'sync') {
         b.statements.add(Code('// TODO: Implement $variant variant'));
@@ -370,7 +368,7 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
         ..annotations.add(CodeExpression(Code('override')))
         ..body = executeBody;
       if (config.useCaseType != 'sync') {
-        b.requiredParameters.add(
+        b.optionalParameters.add(
           Parameter(
             (p) => p
               ..name = 'cancelToken'

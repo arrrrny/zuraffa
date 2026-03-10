@@ -16,7 +16,7 @@ lib/src/
 │   └── index.dart                   # Auto-generated with initAllCaches()
 └── di/
     └── datasources/
-        └── product_local_data_source_di.dart
+        └── product_local_datasource_di.dart
 ```
 
 ## Adding Nested Entities and Enums
@@ -68,9 +68,9 @@ Future<void> initAllCaches() async {
 ### DI File
 
 ```dart
-// lib/src/di/datasources/product_local_data_source_di.dart
+// lib/src/di/datasources/product_local_datasource_di.dart
 import 'package:get_it/get_it.dart';
-import '../../data/data_sources/product/product_local_data_source.dart';
+import '../../data/datasources/product/product_local_datasource.dart';
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import '../../domain/entities/product/product.dart';
 

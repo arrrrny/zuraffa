@@ -29,57 +29,13 @@ extension MethodAppendBuilderImports on MethodAppendBuilder {
     final entities = <String>{};
     final paramsType = config.paramsType;
     if (paramsType != null && paramsType != 'NoParams') {
-      final entity = _extractEntityName(paramsType);
-      if (entity != null) entities.add(entity);
+      entities.addAll(EntityUtils.extractEntityTypes(paramsType));
     }
     final returnsType = config.returnsType;
     if (returnsType != null && returnsType != 'void') {
-      final entity = _extractEntityName(returnsType);
-      if (entity != null) entities.add(entity);
+      entities.addAll(EntityUtils.extractEntityTypes(returnsType));
     }
     return entities;
-  }
-
-  String? _extractEntityName(String type) {
-    final genericMatch = RegExp(r'^\w+<([^>]+)>').firstMatch(type);
-    if (genericMatch != null) {
-      final innerType = genericMatch.group(1);
-      if (innerType == null) {
-        return null;
-      }
-      if (innerType.contains(',')) {
-        return innerType.split(',').first.trim();
-      }
-      return innerType;
-    }
-    if (type.isNotEmpty && _isEntityLike(type)) {
-      return type;
-    }
-    return null;
-  }
-
-  bool _isEntityLike(String typeName) {
-    if (typeName.isEmpty) return false;
-    final commonTypes = {
-      'void',
-      'String',
-      'int',
-      'double',
-      'bool',
-      'num',
-      'dynamic',
-      'NoParams',
-      'Params',
-      'QueryParams',
-      'ListQueryParams',
-      'UpdateParams',
-      'DeleteParams',
-      'InitializationParams',
-      'AppFailure',
-      'Filter',
-    };
-    if (commonTypes.contains(typeName)) return false;
-    return typeName[0].toUpperCase() == typeName[0];
   }
 
   bool _hasEntityImport(String content, String entityName, String entitySnake) {
@@ -94,9 +50,17 @@ extension MethodAppendBuilderImports on MethodAppendBuilder {
 
   String _getRelativeImportPath(String filePath, String entitySnake) {
     final normalizedPath = path.normalize(filePath);
-    if (normalizedPath.contains('/data/data_sources/') ||
-        normalizedPath.contains('\\data\\data_sources\\')) {
-      return '../../../domain/entities/$entitySnake/$entitySnake.dart';
+    if (normalizedPath.contains('/data/datasources/') ||
+        normalizedPath.contains('\\data\\datasources\\')) {
+      // Check if it's a domain-specific datasource
+      final parts = path.split(normalizedPath);
+      final index = parts.lastIndexOf('datasources');
+      if (index != -1 && index + 2 < parts.length) {
+        // e.g. lib/src/data/datasources/listing/listing_datasource.dart
+        // path from listing/ to src: ../../../
+        return '../../../domain/entities/$entitySnake/$entitySnake.dart';
+      }
+      return '../../domain/entities/$entitySnake/$entitySnake.dart';
     }
     if (normalizedPath.contains('/data/repositories/') ||
         normalizedPath.contains('\\data\\repositories\\')) {

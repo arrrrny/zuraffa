@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zuraffa/src/commands/generate_command.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/cli/plugin_loader.dart';
 import 'package:zuraffa/src/core/orchestration/plugin_orchestrator.dart';
@@ -42,7 +41,7 @@ void main() {
         methods: ['get'],
         outputDir: outputDir,
         dryRun: true,
-        generateVpc: true,
+        generateVpcs: true,
         generateView: true,
         generatePresenter: true,
         generateController: true,
@@ -98,7 +97,7 @@ void main() {
       expect(result.success, isTrue);
       final hasGraphql = result.files.any(
         (file) => file.path.endsWith(
-          'data/data_sources/product/graphql/get_product_query.dart',
+          'data/datasources/product/graphql/get_product_query.dart',
         ),
       );
       expect(hasGraphql, isTrue);

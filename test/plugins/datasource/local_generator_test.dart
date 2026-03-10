@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/datasource/builders/local_generator.dart';
 
@@ -22,9 +23,11 @@ void main() {
   test('generates hive-backed local datasource', () async {
     final builder = LocalDataSourceBuilder(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
 
     final file = await builder.generate(
@@ -36,7 +39,7 @@ void main() {
       ),
     );
 
-    expect(file.path.endsWith('product_local_data_source.dart'), isTrue);
+    expect(file.path.endsWith('product_local_datasource.dart'), isTrue);
     final content = File(file.path).readAsStringSync();
     expect(content.contains('class ProductLocalDataSource'), isTrue);
     expect(content.contains('Box<Product>'), isTrue);

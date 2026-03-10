@@ -243,7 +243,7 @@ test/
 │       └── checkout/
 │           └── process_checkout_usecase_test.dart
 ├── data/
-│   ├── data_sources/
+│   ├── datasources/
 │   └── repositories/
 └── presentation/
     └── pages/
@@ -330,7 +330,7 @@ Tests for cached repository behavior.
 zfa generate Product \
   --methods=get,getList \
   --data \
-  --vpc \
+  --vpcs \
   --test
 ```
 
@@ -345,7 +345,7 @@ Includes presentation layer tests.
 zfa generate Product \
   --methods=get,getList,create,update,delete,watch,watchList \
   --data \
-  --vpc \
+  --vpcs \
   --state \
   --test
 ```

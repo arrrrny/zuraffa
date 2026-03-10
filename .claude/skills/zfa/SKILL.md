@@ -40,7 +40,7 @@ digraph when_to_use {
 - Manually create entity files → Use `zfa entity create`
 - Run `build_runner` directly → Use `zfa build`
 - Manually write repository/usecase boilerplate → Use `zfa generate`
-- Hand-write View/Presenter/Controller → Use `zfa generate --vpc`
+- Hand-write View/Presenter/Controller → Use `zfa generate --vpcs`
 
 ## Quick Reference
 
@@ -72,7 +72,7 @@ zfa build --clean
 zfa generate Product \
   --methods=get,getList,create,update,delete,watchList \
   --data \
-  --vpc \
+  --vpcs \
   --state \
   --cache \
   --di \
@@ -123,7 +123,7 @@ zfa generate WatchProduct --domain=product --repo=Product --params=String --retu
 
 ```bash
 # Generate View + Presenter + Controller
-zfa generate Product --methods=get,getList,create --vpc
+zfa generate Product --methods=get,getList,create --vpcs
 
 # Generate with State object
 zfa generate Product --methods=get,getList,create --vpcs
@@ -211,8 +211,8 @@ zfa entity create -n Product --field name:String --field price:double
 
 | Flag | Description |
 |------|-------------|
-| `--vpc` | Generate View + Presenter + Controller |
-| `--vpcs` | Generate View + Presenter + Controller + State (shorthand for --vpc --state) |
+| `--vpcs` | Generate View + Presenter + Controller |
+| `--vpcs` | Generate View + Presenter + Controller + State (shorthand for --vpcs --state) |
 | `--pc` | Generate Presenter + Controller only (preserve custom View) |
 | `--pcs` | Generate Presenter + Controller + State (preserve custom View) |
 | `--state` | Generate State object with granular loading states |
@@ -316,14 +316,14 @@ lib/src/
 │       ├── {entity}/          # Entity-specific usecases
 │       └── {domain}/          # Domain-specific usecases
 ├── data/                      # External dependencies
-│   ├── data_sources/          # Data source implementations
+│   ├── datasources/          # Data source implementations
 │   │   └── {entity}/
 │   │       ├── graphql/       # GraphQL operations
-│   │       ├── {entity}_data_source.dart
-│   │       └── {entity}_remote_data_source.dart
+│   │       ├── {entity}_datasource.dart
+│   │       └── {entity}_remote_datasource.dart
 │   ├── providers/             # Service provider implementations
 │   └── repositories/          # Repository implementations
-├── presentation/              # UI layer (use --vpc)
+├── presentation/              # UI layer (use --vpcs)
 │   └── pages/
 │       └── {entity}/
 │           ├── {entity}_view.dart
@@ -346,7 +346,7 @@ lib/src/
 zfa generate Product \
   --methods=get,getList,create,update,delete,watchList \
   --data \
-  --vpc \
+  --vpcs \
   --state \
   --cache \
   --di \
@@ -369,7 +369,7 @@ zfa build
 zfa generate Product --methods=get,getList,create,update,delete --data
 
 # 3. Generate UI layer
-zfa generate Product --methods=get,getList,create --vpc --state
+zfa generate Product --methods=get,getList,create --vpcs --state
 
 # 4. Implement DataSource (manual - only this part)
 # 5. Register with DI
@@ -392,7 +392,7 @@ zfa generate ProcessCheckout \
   --returns=Order
 
 # 3. Generate UI for orchestrator
-zfa generate ProcessCheckout --domain=checkout --vpc --state
+zfa generate ProcessCheckout --domain=checkout --vpcs --state
 ```
 
 ### Workflow 4: Adding Method to Existing Entity
@@ -422,8 +422,8 @@ zfa generate Product --methods=watch --pc --force
 | Service | `{service}_service.dart` | `payment_service.dart` |
 | Provider | `{service}_provider.dart` | `payment_provider.dart` |
 | UseCase | `{action}_{entity_snake}_usecase.dart` | `get_product_usecase.dart` |
-| DataSource | `{entity_snake}_data_source.dart` | `product_data_source.dart` |
-| RemoteDataSource | `{entity_snake}_remote_data_source.dart` | `product_remote_data_source.dart` |
+| DataSource | `{entity_snake}_datasource.dart` | `product_datasource.dart` |
+| RemoteDataSource | `{entity_snake}_remote_datasource.dart` | `product_remote_datasource.dart` |
 | View | `{entity_snake}_view.dart` | `product_view.dart` |
 | Presenter | `{entity_snake}_presenter.dart` | `product_presenter.dart` |
 | Controller | `{entity_snake}_controller.dart` | `product_controller.dart` |
@@ -465,7 +465,7 @@ zfa generate Product --methods=watch --pc --force
 | Creating entity files manually | Use `zfa entity create -n EntityName` |
 | Running `dart run build_runner build` | Use `zfa build` |
 | Hand-writing repository boilerplate | Use `zfa generate Entity --methods=...` |
-| Manually writing View/Controller | Use `zfa generate Entity --vpc` |
+| Manually writing View/Controller | Use `zfa generate Entity --vpcs` |
 | Entity not found errors | Ensure entity exists at `lib/src/domain/entities/{entity_snake}/{entity_snake}.dart` |
 | Files not overwritten | Use `--force` flag to overwrite existing files |
 | Missing repository methods | Use `--append` to add methods to existing repository |
@@ -478,7 +478,7 @@ zfa generate Product --methods=watch --pc --force
 1. **NEVER create entity files manually** → Always use `zfa entity create`
 2. **NEVER run build_runner directly** → Always use `zfa build`
 3. **NEVER write boilerplate by hand** → Always use `zfa generate`
-4. **NEVER manually create View/Presenter/Controller** → Always use `zfa generate --vpc`
+4. **NEVER manually create View/Presenter/Controller** → Always use `zfa generate --vpcs`
 5. **ALWAYS use CLI for all code generation** → One command, complete layers
 
 ## Troubleshooting
@@ -546,7 +546,7 @@ class ValidateEmailUseCase extends SyncUseCase<bool, String> {
 | Create entity | `zfa entity create` | ❌ NEVER |
 | Build code | `zfa build` | ❌ NEVER |
 | Generate UseCases | `zfa generate Entity --methods=...` | ❌ NEVER |
-| Generate UI | `zfa generate Entity --vpc` | ❌ NEVER |
+| Generate UI | `zfa generate Entity --vpcs` | ❌ NEVER |
 | Generate DI | `zfa generate Entity --di` | ❌ NEVER |
 | Generate tests | `zfa generate Entity --test` | ❌ NEVER |
 | Implement DataSource logic | N/A | ✅ Only manual part |

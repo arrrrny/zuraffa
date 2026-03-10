@@ -1,12 +1,10 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/generator/code_generator.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 
 import '../regression/regression_test_utils.dart';
 
-@Timeout(Duration(minutes: 2))
 void main() {
   late RegressionWorkspace workspace;
   late String outputDir;
@@ -27,16 +25,19 @@ void main() {
       name: 'Profile',
       methods: const ['get', 'getList', 'create', 'update', 'delete'],
       generateData: true,
-      generateVpc: true,
+      generateVpcs: true,
       generateState: true,
       generateDi: true,
+      outputDir: outputDir,
     );
     final generator = CodeGenerator(
       config: config,
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
 
     final stopwatch = Stopwatch()..start();

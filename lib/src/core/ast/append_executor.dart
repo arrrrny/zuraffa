@@ -9,7 +9,7 @@ import 'strategies/method_append_strategy.dart';
 class AppendExecutor {
   final List<AppendStrategy> strategies;
 
-  AppendExecutor({List<AppendStrategy>? strategies})
+  const AppendExecutor({List<AppendStrategy>? strategies})
     : strategies =
           strategies ??
           const [

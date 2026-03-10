@@ -1,3 +1,37 @@
+## [3.18.0] - 2026-03-10
+
+### Change
+- Refactored all plugins to use unified `GeneratorOptions` pattern (removed deprecated `dryRun`, `force`, `verbose` parameters)
+- Updated `CodeGenerator` to accept `GeneratorOptions` for consistent configuration
+- Migrated test files to use new `GeneratorOptions` API
+
+### Fix
+- Fixed generate configs for orchestrate usecases
+- Fixed `zfa make` command with orchestrate usecases
+- Fixed mock provider builder
+- Fixed dependency injection configuration
+- Fixed provider implementation
+
+## [3.17.0] - 2026-02-17
+
+### Change
+- Standardized all CLI commands to use `capability.execute()` pattern
+- Updated MCP server `zuraffa_generate` tool with `remote` and `local` flags
+- Refactored `CodeGenerator` to execute independent plugin generations in parallel
+
+### Fix
+- Fixed hardcoded `dryRun: false` in all capabilities
+- Corrected `CreateDataSourceCapability` input schema (added `remote`, removed duplicate `cache`)
+- Resolved timeout in `full_entity_workflow_test.dart` by parallelizing plugin execution
+
+## [3.16.0] - 2026-02-17
+
+### Fix
+- Resolved conflict between `--domain` and entity-based generation in `zfa generate`
+- Fixed `NoParams.toString()` format
+- Added `// TODO` comments to generated usecase templates
+- Added dead code check to `zfa doctor`
+
 ## [3.15.0] - 2026-02-15
 
 ### Change

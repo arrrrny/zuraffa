@@ -1,7 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:path/path.dart' as p;
 import 'package:zorphy/zorphy.dart';
 import '../config/zfa_config.dart';
+import '../utils/entity_utils.dart';
+import '../utils/string_utils.dart';
 
 class EntityCommand {
   Future<void> execute(
@@ -161,6 +164,7 @@ ${missing.map((d) => '   • $d').join('\n')}
     final result = await creator.create(entityConfig);
 
     if (result.isSuccess) {
+      await _fixEntityImports(result.filePath, fields, outputDir);
       print('✓ Created entity: ${result.filePath}');
       print('\n📋 Next steps:');
       print('  1. Run: zfa build');
@@ -238,6 +242,11 @@ ${missing.map((d) => '   • $d').join('\n')}
     );
 
     if (result.isSuccess) {
+      await _fixEntityImports(
+        result.filePath,
+        fields,
+        parsed['output'] as String? ?? 'lib/src/domain/entities',
+      );
       print('✓ Added ${fields.length} field(s) to ${result.className}');
       for (final field in fields) {
         print('  + ${field.name}: ${field.fullType}');
@@ -245,6 +254,63 @@ ${missing.map((d) => '   • $d').join('\n')}
     } else {
       print('❌ ${result.error}');
       exit(1);
+    }
+  }
+
+  Future<void> _fixEntityImports(
+    String filePath,
+    List<FieldDefinition> fields,
+    String outputDir,
+  ) async {
+    final file = File(filePath);
+    if (!await file.exists()) return;
+
+    var content = await file.readAsString();
+    final imports = <String>{};
+    bool hasEnums = false;
+
+    for (final field in fields) {
+      final types = EntityUtils.extractEntityTypes(field.fullType);
+      for (final type in types) {
+        final typeSnake = StringUtils.camelToSnake(type);
+        final potentialEntityPath = Directory(p.join(outputDir, typeSnake));
+
+        if (await potentialEntityPath.exists()) {
+          imports.add("import '../$typeSnake/$typeSnake.dart';");
+        } else {
+          // If not a primitive and not an entity directory, assume it's an enum
+          hasEnums = true;
+        }
+      }
+    }
+
+    if (hasEnums) {
+      imports.add("import '../enums/index.dart';");
+    }
+
+    if (imports.isEmpty) return;
+
+    var updated = content;
+    for (final import in imports) {
+      if (!updated.contains(import)) {
+        // Insert after existing imports or at the top
+        final lastImportMatch = RegExp(
+          r'^import .*;',
+          multiLine: true,
+        ).allMatches(updated).toList();
+
+        if (lastImportMatch.isEmpty) {
+          updated = "$import\n$updated";
+        } else {
+          final insertPos = lastImportMatch.last.end;
+          updated =
+              "${updated.substring(0, insertPos)}\n$import${updated.substring(insertPos)}";
+        }
+      }
+    }
+
+    if (updated != content) {
+      await file.writeAsString(updated);
     }
   }
 

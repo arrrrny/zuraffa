@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/repository/repository_plugin.dart';
 
@@ -22,9 +23,11 @@ void main() {
   test('generates repository interface', () async {
     final plugin = RepositoryPlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
     final config = GeneratorConfig(
       name: 'Product',
@@ -43,9 +46,11 @@ void main() {
   test('generates data repository implementation', () async {
     final plugin = RepositoryPlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
     final config = GeneratorConfig(
       name: 'Order',
@@ -66,11 +71,13 @@ void main() {
   test('append mode preserves existing methods', () async {
     final plugin = RepositoryPlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: false,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: false,
+        verbose: false,
+      ),
     );
-    final filePath = '${outputDir}/domain/repositories/user_repository.dart';
+    final filePath = '$outputDir/domain/repositories/user_repository.dart';
     await File(filePath).create(recursive: true);
     await File(filePath).writeAsString(
       "import 'package:zuraffa/zuraffa.dart';\n\nabstract class UserRepository {\n  Future<void> custom();\n}\n",

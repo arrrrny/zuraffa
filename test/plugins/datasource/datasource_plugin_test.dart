@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/datasource/datasource_plugin.dart';
 
@@ -22,9 +23,11 @@ void main() {
   test('generates datasource interface and remote implementation', () async {
     final plugin = DataSourcePlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: false,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: false,
+        verbose: false,
+      ),
     );
 
     await plugin.generate(
@@ -37,10 +40,10 @@ void main() {
     );
 
     final interfaceFile = File(
-      '$outputDir/data/data_sources/product/product_data_source.dart',
+      '$outputDir/data/datasources/product/product_datasource.dart',
     );
     final remoteFile = File(
-      '$outputDir/data/data_sources/product/product_remote_data_source.dart',
+      '$outputDir/data/datasources/product/product_remote_datasource.dart',
     );
 
     expect(interfaceFile.existsSync(), isTrue);
@@ -58,9 +61,11 @@ void main() {
   test('generates local datasource when cache is enabled', () async {
     final plugin = DataSourcePlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: false,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: false,
+        verbose: false,
+      ),
     );
 
     await plugin.generate(
@@ -75,10 +80,10 @@ void main() {
     );
 
     final localFile = File(
-      '$outputDir/data/data_sources/order/order_local_data_source.dart',
+      '$outputDir/data/datasources/order/order_local_datasource.dart',
     );
     final remoteFile = File(
-      '$outputDir/data/data_sources/order/order_remote_data_source.dart',
+      '$outputDir/data/datasources/order/order_remote_datasource.dart',
     );
 
     expect(localFile.existsSync(), isTrue);
@@ -86,12 +91,73 @@ void main() {
     expect(localFile.readAsStringSync().contains('Box<Order>'), isTrue);
   });
 
+  test('appends methods to existing datasource files', () async {
+    final plugin = DataSourcePlugin(
+      outputDir: outputDir,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: false,
+        verbose: false,
+      ),
+    );
+
+    // 1. Initial generation
+    await plugin.generate(
+      GeneratorConfig(
+        name: 'Product',
+        methods: const ['get'],
+        generateData: true,
+        outputDir: outputDir,
+      ),
+    );
+
+    final interfaceFile = File(
+      '$outputDir/data/datasources/product/product_datasource.dart',
+    );
+    final remoteFile = File(
+      '$outputDir/data/datasources/product/product_remote_datasource.dart',
+    );
+
+    expect(
+      interfaceFile.readAsStringSync().contains('Future<Product> get'),
+      isTrue,
+    );
+    expect(
+      interfaceFile.readAsStringSync().contains('Future<Product> create'),
+      isFalse,
+    );
+
+    // 2. Append generation
+    await plugin.generate(
+      GeneratorConfig(
+        name: 'Product',
+        methods: const ['create'],
+        appendToExisting: true,
+        outputDir: outputDir,
+      ),
+    );
+    expect(
+      interfaceFile.readAsStringSync().contains('Future<Product> get'),
+      isTrue,
+    );
+    expect(
+      interfaceFile.readAsStringSync().contains('Future<Product> create'),
+      isTrue,
+    );
+    expect(
+      remoteFile.readAsStringSync().contains('Future<Product> create'),
+      isTrue,
+    );
+  });
+
   test('uses graphql constants when gql is enabled', () async {
     final plugin = DataSourcePlugin(
       outputDir: outputDir,
-      dryRun: false,
-      force: false,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: false,
+        verbose: false,
+      ),
     );
 
     await plugin.generate(
@@ -105,7 +171,7 @@ void main() {
     );
 
     final remoteFile = File(
-      '$outputDir/data/data_sources/profile/profile_remote_data_source.dart',
+      '$outputDir/data/datasources/profile/profile_remote_datasource.dart',
     );
 
     final content = remoteFile.readAsStringSync();

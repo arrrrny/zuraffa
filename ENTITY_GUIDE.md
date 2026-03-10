@@ -795,7 +795,7 @@ zfa entity create -n Product \
   --field price:double
 
 # 2. Generate Clean Architecture
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc --state
+zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --state
 
 # 3. Build everything
 zfa build

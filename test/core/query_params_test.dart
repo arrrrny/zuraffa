@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/zuraffa.dart';
-import 'package:zorphy/zorphy.dart';
 
 void main() {
   group('QueryParams', () {
@@ -46,7 +45,6 @@ void main() {
     test('copyWith should clear fields when requested', () {
       final filter = AlwaysMatch<String>();
       const params = {'key': 'value'};
-      final queryParams = QueryParams<String>(filter: filter, params: params);
 
       // copyWith doesn't support clearing, so we create new instances to simulate clearing
       final clearedFilter = QueryParams<String>(filter: null, params: params);

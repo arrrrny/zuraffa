@@ -69,8 +69,6 @@ class DiCommand {
     }
 
     final outputDir = _resolveOutputDir(results['output'] as String?);
-    final dryRun = results['dry-run'] == true;
-    final force = results['force'] == true;
     final verbose = results['verbose'] == true;
     final domain = results['domain'] as String? ?? 'general';
     final useMock = results['use-mock'] == true;
@@ -104,7 +102,12 @@ class DiCommand {
         print('  Is Orchestrator: ${useCaseAnalysis['isOrchestrator']}');
       }
 
-      final config = _buildConfig(useCaseName, useCaseAnalysis, results);
+      final config = _buildConfig(
+        useCaseName,
+        useCaseAnalysis,
+        results,
+        outputDir,
+      );
 
       if (useMock) {
         print(
@@ -142,9 +145,6 @@ class DiCommand {
       final generator = CodeGenerator(
         config: config,
         outputDir: outputDir,
-        dryRun: dryRun,
-        force: force,
-        verbose: verbose,
         progressReporter: progressReporter,
         disabledPluginIds: disabledPlugins,
       );
@@ -304,6 +304,7 @@ class DiCommand {
     String name,
     Map<String, dynamic> analysis,
     ArgResults results,
+    String outputDir,
   ) {
     final nameWithoutSuffix = name.replaceAll('UseCase', '');
     final useMock = results['use-mock'] == true;
@@ -346,6 +347,7 @@ class DiCommand {
       repo: repo,
       service: service,
       usecases: usecases,
+      outputDir: outputDir,
     );
   }
 

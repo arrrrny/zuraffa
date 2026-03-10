@@ -1,12 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/generator/code_generator.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 
 import '../regression/regression_test_utils.dart';
 
-@Timeout(Duration(minutes: 2))
 void main() {
   late RegressionWorkspace workspace;
   late String outputDir;
@@ -28,22 +28,28 @@ void main() {
         name: 'Product',
         methods: const ['get'],
         generateData: true,
+        outputDir: outputDir,
       ),
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
     final order = CodeGenerator(
       config: GeneratorConfig(
         name: 'Order',
         methods: const ['getList'],
         generateData: true,
+        outputDir: outputDir,
       ),
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
 
     final productResult = await product.generate();
@@ -63,13 +69,13 @@ void main() {
     );
     expect(
       File(
-        '$outputDir/data/data_sources/product/product_remote_data_source.dart',
+        '$outputDir/data/datasources/product/product_remote_datasource.dart',
       ).existsSync(),
       isTrue,
     );
     expect(
       File(
-        '$outputDir/data/data_sources/order/order_remote_data_source.dart',
+        '$outputDir/data/datasources/order/order_remote_datasource.dart',
       ).existsSync(),
       isTrue,
     );

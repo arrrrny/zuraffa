@@ -60,16 +60,18 @@ class MethodAppendStrategy implements AppendStrategy {
 
     for (final method in existingMethods) {
       if (method.name.lexeme == newMethodName) {
-        final existingSource = request.source.substring(
-          method.offset,
-          method.end,
-        );
-        if (_isSameMethodSource(existingSource, request.memberSource!)) {
-          return AppendResult(
-            source: request.source,
-            changed: false,
-            message: 'Method already exists',
+        if (!request.force) {
+          final existingSource = request.source.substring(
+            method.offset,
+            method.end,
           );
+          if (_isSameMethodSource(existingSource, request.memberSource!)) {
+            return AppendResult(
+              source: request.source,
+              changed: false,
+              message: 'Method already exists',
+            );
+          }
         }
         final updated = helper.replaceMethodInClass(
           source: request.source,
@@ -80,7 +82,7 @@ class MethodAppendStrategy implements AppendStrategy {
         return AppendResult(
           source: updated,
           changed: updated != request.source,
-          message: 'Method replaced',
+          message: request.force ? 'Method forced replaced' : 'Method replaced',
         );
       }
     }

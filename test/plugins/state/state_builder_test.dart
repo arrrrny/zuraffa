@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/state/builders/state_builder.dart';
 
@@ -22,9 +23,11 @@ void main() {
   test('generates state with fields and helpers', () async {
     final builder = StateBuilder(
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
 
     final file = await builder.generate(
@@ -41,5 +44,39 @@ void main() {
     expect(content.contains('class ProductState'), isTrue);
     expect(content.contains('isGetting'), isTrue);
     expect(content.contains('copyWith'), isTrue);
+  });
+
+  test('generates state for custom usecase with domain', () async {
+    final builder = StateBuilder(
+      outputDir: outputDir,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
+    );
+
+    final file = await builder.generate(
+      GeneratorConfig(
+        name: 'GetListingByBarcode',
+        domain: 'listing',
+        paramsType: 'String',
+        returnsType: 'Listing?',
+        generateState: true,
+        outputDir: outputDir,
+      ),
+    );
+
+    expect(
+      file.path.contains(
+        'presentation/pages/listing/get_listing_by_barcode_state.dart',
+      ),
+      isTrue,
+    );
+    final content = File(file.path).readAsStringSync();
+    expect(content.contains('class GetListingByBarcodeState'), isTrue);
+    expect(content.contains('final Listing? data;'), isTrue);
+    expect(content.contains('final bool isLoading;'), isTrue);
+    expect(content.contains('GetListingByBarcodeState copyWith('), isTrue);
   });
 }

@@ -1,12 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/generator/code_generator.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 
 import '../regression/regression_test_utils.dart';
 
-@Timeout(Duration(minutes: 2))
 void main() {
   late RegressionWorkspace workspace;
   late String outputDir;
@@ -31,13 +31,16 @@ void main() {
       paramsType: 'EmailParams',
       returnsType: 'SendResult',
       generateData: true,
+      outputDir: outputDir,
     );
     final generator = CodeGenerator(
       config: config,
       outputDir: outputDir,
-      dryRun: false,
-      force: true,
-      verbose: false,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
     );
 
     final result = await generator.generate();

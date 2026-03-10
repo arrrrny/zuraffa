@@ -3,6 +3,8 @@ import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../commands/view_command.dart';
+import '../../core/generator_options.dart';
+import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
@@ -10,6 +12,7 @@ import '../../models/generator_config.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
 import 'builders/view_class_builder.dart';
+import 'capabilities/create_view_capability.dart';
 
 /// Generates Flutter view classes for presentation pages.
 ///
@@ -20,33 +23,31 @@ import 'builders/view_class_builder.dart';
 /// ```dart
 /// final plugin = ViewPlugin(
 ///   outputDir: 'lib/src',
-///   dryRun: false,
-///   force: true,
-///   verbose: false,
+///   options: const GeneratorOptions(force: true),
 /// );
 /// final files = await plugin.generate(GeneratorConfig(name: 'Product'));
 /// ```
 class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
-  final bool dryRun;
-  final bool force;
-  final bool verbose;
+  final GeneratorOptions options;
   final ViewClassBuilder classBuilder;
 
   /// Creates a [ViewPlugin].
   ///
   /// @param outputDir Target directory for generated files.
-  /// @param dryRun If true, files are not written.
-  /// @param force If true, existing files are overwritten.
-  /// @param verbose If true, logs progress to stdout.
+  /// @param options Generation flags for writing behavior and logging.
+  /// @param dryRun Deprecated: use [options].
+  /// @param force Deprecated: use [options].
+  /// @param verbose Deprecated: use [options].
   /// @param classBuilder Optional view class builder override.
   ViewPlugin({
     required this.outputDir,
-    required this.dryRun,
-    required this.force,
-    required this.verbose,
-    ViewClassBuilder? classBuilder,
-  }) : classBuilder = classBuilder ?? const ViewClassBuilder();
+    this.options = const GeneratorOptions(),
+    this.classBuilder = const ViewClassBuilder(),
+  });
+
+  @override
+  List<ZuraffaCapability> get capabilities => [CreateViewCapability(this)];
 
   /// @returns Plugin identifier.
   @override
@@ -69,19 +70,21 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   /// @returns List of generated view files.
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
-    if (!(config.generateView || config.generateVpc)) {
+    if (!(config.generateView || config.generateVpcs)) {
       return [];
     }
 
     if (config.outputDir != outputDir ||
-        config.dryRun != dryRun ||
-        config.force != force ||
-        config.verbose != verbose) {
+        config.dryRun != options.dryRun ||
+        config.force != options.force ||
+        config.verbose != options.verbose) {
       final delegator = ViewPlugin(
         outputDir: config.outputDir,
-        dryRun: config.dryRun,
-        force: config.force,
-        verbose: config.verbose,
+        options: GeneratorOptions(
+          dryRun: config.dryRun,
+          force: config.force,
+          verbose: config.verbose,
+        ),
         classBuilder: classBuilder,
       );
       return delegator.generate(config);
@@ -109,7 +112,7 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final repoPresenterArgs = useDi
         ? <String>[]
         : _buildRepoPresenterArgs(config);
-    final imports = _buildImports(config, entitySnake, useDi);
+    final imports = _buildImports(config, domainSnake, useDi);
     final effectiveEntityName = config.usesCustomVpc
         ? config.effectivePresenterName.replaceAll('Presenter', '')
         : entityName;
@@ -130,6 +133,7 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         initialMethodCall: initialMethodCall,
         imports: imports,
         withState: config.generateState || config.customStateName != null,
+        stateClassName: config.effectiveStateName,
       ),
     );
 
@@ -137,16 +141,17 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       filePath,
       content,
       'view',
-      force: force,
-      dryRun: dryRun,
-      verbose: verbose,
+      force: options.force,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
+      revert: config.revert,
     );
     return [file];
   }
 
   List<String> _buildImports(
     GeneratorConfig config,
-    String entitySnake,
+    String domainSnake,
     bool useDi,
   ) {
     final relativePath = '../../';
@@ -173,13 +178,19 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       config.effectivePresenterName.replaceAll('Presenter', ''),
     );
 
-    if (config.usesCustomVpc) {
-      imports.add('${controllerSnake}_controller.dart');
-      imports.add('${presenterSnake}_presenter.dart');
-    } else {
-      imports.add('${entitySnake}_controller.dart');
-      imports.add('${entitySnake}_presenter.dart');
+    imports.add('${controllerSnake}_controller.dart');
+    imports.add('${presenterSnake}_presenter.dart');
+
+    if (config.generateState) {
+      final stateSnake = config.nameSnake;
+      imports.add('${stateSnake}_state.dart');
+    } else if (config.customStateName != null) {
+      final stateSnake = StringUtils.camelToSnake(
+        config.customStateName!.replaceAll('State', ''),
+      );
+      imports.add('${stateSnake}_state.dart');
     }
+
     return imports;
   }
 

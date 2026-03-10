@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-@Timeout(Duration(minutes: 5))
 void main() {
   test(
     'cli generate from flags creates output',
@@ -188,7 +187,7 @@ void main() {
         'generate',
         'Product',
         '--methods=get',
-        '--vpc',
+        '--vpcs',
         '--output',
         outputDir,
         '--force',

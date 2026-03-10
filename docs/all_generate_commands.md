@@ -45,17 +45,17 @@ zfa generate Product --methods=get,getList,create,update,delete --repository --d
 ## Entity Generation with VPC (View, Presenter, Controller)
 
 ```
-zfa generate Product --vpc
-zfa generate Product --methods=get --vpc
-zfa generate Product --methods=get,getList --vpc
-zfa generate Product --methods=get,getList,create --vpc
-zfa generate Product --methods=get,getList,create,update --vpc
-zfa generate Product --methods=get,getList,create,update,delete --vpc
-zfa generate Product --methods=get,getList,create,update,delete,watch --vpc
-zfa generate Product --methods=get,getList,create,update,delete,watch,watchList --vpc
-zfa generate Product --methods=get,getList,create,update,delete --repository --vpc
-zfa generate Product --methods=get,getList,create,update,delete --data --vpc
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc
+zfa generate Product --vpcs
+zfa generate Product --methods=get --vpcs
+zfa generate Product --methods=get,getList --vpcs
+zfa generate Product --methods=get,getList,create --vpcs
+zfa generate Product --methods=get,getList,create,update --vpcs
+zfa generate Product --methods=get,getList,create,update,delete --vpcs
+zfa generate Product --methods=get,getList,create,update,delete,watch --vpcs
+zfa generate Product --methods=get,getList,create,update,delete,watch,watchList --vpcs
+zfa generate Product --methods=get,getList,create,update,delete --repository --vpcs
+zfa generate Product --methods=get,getList,create,update,delete --data --vpcs
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpcs
 ```
 
 ## Entity Generation with State Management
@@ -70,7 +70,7 @@ zfa generate Product --methods=get,getList,create,update,delete --state
 zfa generate Product --methods=get,getList,create,update,delete --repository --state
 zfa generate Product --methods=get,getList,create,update,delete --data --state
 zfa generate Product --methods=get,getList,create,update,delete --repository --data --state
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpcs --state
 ```
 
 ## Entity Generation with Tests
@@ -85,8 +85,8 @@ zfa generate Product --methods=get,getList,create,update,delete --test
 zfa generate Product --methods=get,getList,create,update,delete --repository --test
 zfa generate Product --methods=get,getList,create,update,delete --data --test
 zfa generate Product --methods=get,getList,create,update,delete --repository --data --test
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --test
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --test
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpcs --test
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpcs --state --test
 ```
 
 ## Entity Generation with Caching
@@ -138,8 +138,8 @@ zfa generate Product --methods=get,getList,create,update,delete --di
 zfa generate Product --methods=get,getList,create,update,delete --repository --di
 zfa generate Product --methods=get,getList,create,update,delete --data --di
 zfa generate Product --methods=get,getList,create,update,delete --repository --data --di
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --di
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --di
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpcs --di
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpcs --state --di
 ```
 
 ## Entity Generation with Zorphy
@@ -224,22 +224,22 @@ zfa generate Product --methods=get,getList,create,update,delete --datasource --i
 ## Advanced Combinations
 
 ```
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --test --cache --di
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --test --mock --di
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --test --cache --mock --di
-zfa generate Product --methods=watch,watchList --repository --data --vpc --state --test --cache --di
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --test --cache --di --zorphy
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --test --cache --di --id-field=productId --id-field-type=int
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --test --cache --di --use-mock
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --test --cache --di --output=lib/custom/path
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpcs --state --test --cache --di
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpcs --state --test --mock --di
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpcs --state --test --cache --mock --di
+zfa generate Product --methods=watch,watchList --repository --data --vpcs --state --test --cache --di
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpcs --state --test --cache --di --zorphy
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpcs --state --test --cache --di --id-field=productId --id-field-type=int
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpcs --state --test --cache --di --use-mock
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpcs --state --test --cache --di --output=lib/custom/path
 ```
 
 ## Dry Run Combinations
 
 ```
 zfa generate Product --dry-run
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --test --dry-run
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --test --cache --di --dry-run
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpcs --state --test --dry-run
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpcs --state --test --cache --di --dry-run
 zfa generate ProcessOrder --domain=order --repo=OrderRepository --params=OrderRequest --returns=OrderResult --dry-run
 ```
 
@@ -247,8 +247,8 @@ zfa generate ProcessOrder --domain=order --repo=OrderRepository --params=OrderRe
 
 ```
 zfa generate Product --force
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --test --force
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --test --cache --di --force
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpcs --state --test --force
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpcs --state --test --cache --di --force
 ```
 
 ## JSON Input Combinations
@@ -273,7 +273,7 @@ zfa generate Product --methods=get,getList,create,update,delete --repository --d
 
 ```
 zfa generate Product --verbose
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --test --verbose
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpcs --state --test --verbose
 zfa generate Product --quiet
-zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpc --state --test --quiet
+zfa generate Product --methods=get,getList,create,update,delete --repository --data --vpcs --state --test --quiet
 ```

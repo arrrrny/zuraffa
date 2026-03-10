@@ -4,7 +4,7 @@ class NodeFinder {
   static ClassDeclaration? findClass(CompilationUnit unit, String className) {
     for (final declaration in unit.declarations) {
       if (declaration is ClassDeclaration &&
-          declaration.namePart.typeName.lexeme == className) {
+          declaration.name.lexeme == className) {
         return declaration;
       }
     }
@@ -15,7 +15,7 @@ class NodeFinder {
     ClassDeclaration classNode, {
     String? name,
   }) {
-    final methods = classNode.body.childEntities.whereType<MethodDeclaration>();
+    final methods = classNode.members.whereType<MethodDeclaration>();
     if (name == null) {
       return methods.toList();
     }
@@ -27,8 +27,7 @@ class NodeFinder {
     String? name,
   }) {
     final fields = <VariableDeclaration>[];
-    for (final member
-        in classNode.body.childEntities.whereType<FieldDeclaration>()) {
+    for (final member in classNode.members.whereType<FieldDeclaration>()) {
       for (final variable in member.fields.variables) {
         fields.add(variable);
       }
@@ -56,7 +55,7 @@ class NodeFinder {
     ExtensionDeclaration extensionNode, {
     String? name,
   }) {
-    final methods = extensionNode.body.members.whereType<MethodDeclaration>();
+    final methods = extensionNode.members.whereType<MethodDeclaration>();
     if (name == null) {
       return methods.toList();
     }
