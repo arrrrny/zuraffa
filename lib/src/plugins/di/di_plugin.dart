@@ -134,30 +134,28 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     // Generate UseCase DI files for all UseCase types
     files.addAll(await _generateUseCaseDIFiles(config));
 
-    if ((config.generateData || config.generateDi) && !config.hasService && !config.isOrchestrator) {
-      if (config.enableCache) {
-        files.add(await _generateRemoteDataSourceDI(config));
-        files.add(await _generateLocalDataSourceDI(config));
-      } else if (config.useMockInDi) {
-        files.add(await _generateMockDataSourceDI(config));
-      } else if (config.generateLocal) {
-        files.add(await _generateLocalDataSourceDI(config));
-      } else {
-        files.add(await _generateRemoteDataSourceDI(config));
+    // Only generate DataSource/Repository DI if NOT using a Service/Provider pattern
+    if (!config.hasService && !config.isOrchestrator) {
+      if (config.generateData || config.generateDi) {
+        if (config.enableCache) {
+          files.add(await _generateRemoteDataSourceDI(config));
+          files.add(await _generateLocalDataSourceDI(config));
+        } else if (config.useMockInDi) {
+          files.add(await _generateMockDataSourceDI(config));
+        } else if (config.generateLocal) {
+          files.add(await _generateLocalDataSourceDI(config));
+        } else {
+          files.add(await _generateRemoteDataSourceDI(config));
+        }
       }
-    }
 
-    if ((config.generateData || config.generateRepository || config.generateDi) &&
-        !config.hasService &&
-        !config.isOrchestrator) {
-      files.add(await _generateRepositoryDI(config));
-    }
+      if (config.generateData || config.generateRepository || config.generateDi) {
+        files.add(await _generateRepositoryDI(config));
+      }
 
-    if (config.generateMock &&
-        !config.generateMockDataOnly &&
-        !config.hasService &&
-        !config.isOrchestrator) {
-      files.add(await _generateMockDataSourceDI(config));
+      if (config.generateMock && !config.generateMockDataOnly) {
+        files.add(await _generateMockDataSourceDI(config));
+      }
     }
 
     if (config.hasService) {
@@ -540,7 +538,6 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       functionName: 'register$mockProviderName',
       imports: [
         'package:get_it/get_it.dart',
-        '../../domain/services/${serviceSnake}_service.dart',
         '../../data/providers/${config.effectiveDomain}/${providerSnake}_mock_provider.dart',
       ],
       body: Block(
@@ -556,8 +553,6 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
                         ..body = refer(mockProviderName).call([]).code,
                     ).closure,
                   ],
-                  {},
-                  [refer(serviceName)],
                 )
                 .statement,
           ),
@@ -597,7 +592,6 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       functionName: 'register$providerName',
       imports: [
         'package:get_it/get_it.dart',
-        '../../domain/services/${serviceSnake}_service.dart',
         '../../data/providers/${config.effectiveDomain}/${providerSnake}_provider.dart',
       ],
       body: Block(
@@ -613,8 +607,6 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
                         ..body = refer(providerName).call([]).code,
                     ).closure,
                   ],
-                  {},
-                  [refer(serviceName)],
                 )
                 .statement,
           ),

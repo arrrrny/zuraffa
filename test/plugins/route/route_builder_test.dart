@@ -177,4 +177,52 @@ void main() {
     // It should point to ListingRoutes.getListingByBarcode
     expect(appContent.contains('static const String getListingByBarcode = ListingRoutes.getListingByBarcode;'), isTrue);
   });
+
+  test('regenerates routes index with correct getter names', () async {
+    final builder = RouteBuilder(
+      outputDir: outputDir,
+      dryRun: false,
+      force: true,
+      verbose: false,
+    );
+
+    // 1. Generate listing routes
+    await builder.generate(
+      GeneratorConfig(
+        name: 'GetListingByBarcode',
+        domain: 'listing',
+        paramsType: 'String',
+        returnsType: 'Listing?',
+        generateRoute: true,
+        outputDir: outputDir,
+      ),
+    );
+
+    // 2. Generate product routes (entity-based)
+    await builder.generate(
+      GeneratorConfig(
+        name: 'Product',
+        methods: const ['get', 'getList'],
+        generateRoute: true,
+        outputDir: outputDir,
+      ),
+    );
+
+    final indexPath = File('$outputDir/routing/index.dart');
+    expect(indexPath.existsSync(), isTrue);
+    final content = indexPath.readAsStringSync();
+    
+    // Check exports
+    expect(content.contains("export 'listing_routes.dart';"), isTrue);
+    expect(content.contains("export 'product_routes.dart';"), isTrue);
+    
+    // Check getAllRoutes contains the spread calls to correctly named getters
+    // listingRoutes() and productRoutes()
+    expect(content.contains("...listingRoutes()"), isTrue);
+    expect(content.contains("...productRoutes()"), isTrue);
+    
+    // Verify it doesn't contain getListingRoutes() or getProductRoutes()
+    expect(content.contains("getListingRoutes()"), isFalse);
+    expect(content.contains("getProductRoutes()"), isFalse);
+  });
 }

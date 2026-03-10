@@ -9,6 +9,16 @@ class ModularDiCommand extends PluginCommand {
       abbr: 'd',
       help: 'Domain name for the usecase/entity',
     );
+    argParser.addOption(
+      'service',
+      abbr: 's',
+      help: 'Service name for custom usecases',
+    );
+    argParser.addOption(
+      'repo',
+      abbr: 'r',
+      help: 'Repository name for custom usecases',
+    );
     argParser.addFlag(
       'use-mock',
       negatable: false,
@@ -32,6 +42,8 @@ class ModularDiCommand extends PluginCommand {
 
     final name = args[0];
     final domain = argResults!['domain'] as String?;
+    final service = argResults!['service'] as String?;
+    final repo = argResults!['repo'] as String?;
     final useMock = argResults!['use-mock'] == true;
 
     final capability = plugin.capabilities.firstWhere(
@@ -41,6 +53,8 @@ class ModularDiCommand extends PluginCommand {
     final result = await capability.execute({
       'name': name,
       'domain': domain,
+      'service': service,
+      'repo': repo,
       'useMock': useMock,
       'dryRun': isDryRun,
       'force': isForce,

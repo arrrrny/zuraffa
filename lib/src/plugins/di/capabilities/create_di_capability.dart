@@ -31,6 +31,14 @@ class CreateDiCapability implements ZuraffaCapability {
             'type': 'string',
             'description': 'Domain name for the usecase/entity',
           },
+          'service': {
+            'type': 'string',
+            'description': 'Service name for custom usecases',
+          },
+          'repo': {
+            'type': 'string',
+            'description': 'Repository name for custom usecases',
+          },
           'useMock': {
             'type': 'boolean',
             'description': 'Use mock implementation for datasources',
@@ -100,6 +108,8 @@ class CreateDiCapability implements ZuraffaCapability {
     final name = args['name'];
     final outputDir = args['outputDir'] ?? 'lib/src';
     final domain = args['domain'];
+    final service = args['service'];
+    final repo = args['repo'];
     final useMock = args['useMock'] ?? false;
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
@@ -108,6 +118,8 @@ class CreateDiCapability implements ZuraffaCapability {
       name: name,
       outputDir: outputDir,
       domain: domain,
+      service: service,
+      repo: repo,
       generateDi: true,
       useMockInDi: useMock,
       generateData: useMock, // Needed to trigger mock datasource/provider generation

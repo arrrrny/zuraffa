@@ -356,7 +356,9 @@ class RouteBuilder {
     final fileName = isCustom ? '${domainSnake}_routes.dart' : '${entitySnake}_routes.dart';
     final domainPascal = StringUtils.convertToPascalCase(domainSnake);
     final className = isCustom ? '${domainPascal}Routes' : '${entityName}Routes';
-    final routesGetterName = isCustom ? 'get${domainPascal}Routes' : 'get${entityName}Routes';
+    final routesGetterName = isCustom 
+        ? '${StringUtils.pascalToCamel(domainPascal)}Routes' 
+        : '${StringUtils.pascalToCamel(entityName)}Routes';
 
     final dependencyInfo = _resolveDependencyInfo(
       config,
@@ -718,7 +720,11 @@ class RouteBuilder {
 
       exports.add(Directive.export(fileName));
       imports.add(Directive.import(fileName));
-      routeElements.add(refer('get${entityPascal}Routes').call([]).spread);
+      routeElements.add(
+        refer('${StringUtils.pascalToCamel(entityPascal)}Routes')
+            .call([])
+            .spread,
+      );
     }
 
     final getAllRoutes = Method(
