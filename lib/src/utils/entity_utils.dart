@@ -1,5 +1,5 @@
 class EntityUtils {
-  /// Extracts entity types from a field type string (e.g. List<Product?> -> [Product])
+  /// Extracts entity types from a field type string (e.g. List Product -> [Product])
   static List<String> extractEntityTypes(String fieldType) {
     final types = <String>[];
     var baseType = fieldType.replaceAll('?', '');
