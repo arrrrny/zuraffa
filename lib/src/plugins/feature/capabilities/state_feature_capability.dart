@@ -26,6 +26,10 @@ class StateFeatureCapability implements ZuraffaCapability {
         'items': {'type': 'string'},
         'description': 'List of methods (e.g. get,create,update,delete)',
       },
+      'id-field': {'type': 'string', 'default': 'id'},
+      'id-field-type': {'type': 'string', 'default': 'String'},
+      'query-field': {'type': 'string', 'default': 'id'},
+      'query-field-type': {'type': 'string', 'default': 'String'},
       'outputDir': {'type': 'string', 'default': 'lib/src'},
       'dryRun': {'type': 'boolean', 'default': false},
       'force': {'type': 'boolean', 'default': false},
@@ -76,6 +80,10 @@ class StateFeatureCapability implements ZuraffaCapability {
     final outputDir = args['outputDir'] ?? 'lib/src';
     final featureName = args['name'];
     final methods = (args['methods'] as List?)?.cast<String>() ?? ['get'];
+    final idField = args['id-field'] as String? ?? 'id';
+    final idFieldType = args['id-field-type'] as String? ?? 'String';
+    final queryField = args['query-field'] as String? ?? 'id';
+    final queryFieldType = args['query-field-type'] as String? ?? 'String';
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
     final revert = args['revert'] ?? false;
@@ -92,6 +100,10 @@ class StateFeatureCapability implements ZuraffaCapability {
       name: featureName,
       outputDir: outputDir,
       methods: methods,
+      idField: idField,
+      idFieldType: idFieldType,
+      queryField: queryField,
+      queryFieldType: queryFieldType,
       dryRun: dryRun,
       force: force,
       verbose: verbose,

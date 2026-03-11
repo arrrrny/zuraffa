@@ -12,6 +12,7 @@ import '../../route/route_plugin.dart';
 import '../../di/di_plugin.dart';
 import '../../mock/mock_plugin.dart';
 import '../../test/test_plugin.dart';
+import '../../datasource/datasource_plugin.dart';
 import '../../../core/generator_options.dart';
 
 class ScaffoldFeatureCapability implements ZuraffaCapability {
@@ -234,6 +235,38 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
       allFiles.addAll(await repoPlugin.generate(config));
     }
 
+    // DataSources - generate both local and remote if datasource flag is enabled
+    if (generateDataSource) {
+      final options = GeneratorOptions(
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+      );
+      final datasourcePlugin = DataSourcePlugin(
+        outputDir: outputDir,
+        options: options,
+      );
+
+      final datasourceConfig = GeneratorConfig(
+        name: featureName,
+        outputDir: outputDir,
+        generateDataSource: generateDataSource,
+        generateLocal: generateLocal,
+        generateMock: generateMock,
+        methods: usecases,
+        idField: idField,
+        idFieldType: idFieldType,
+        queryField: queryField,
+        queryFieldType: queryFieldType,
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+        revert: revert,
+      );
+
+      allFiles.addAll(await datasourcePlugin.generate(datasourceConfig));
+    }
+
     // UseCases
     if (usecases.isNotEmpty) {
       final options = GeneratorOptions(
@@ -287,8 +320,10 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
       final config = GeneratorConfig(
         name: featureName,
         outputDir: outputDir,
-        idField: 'id',
-        idFieldType: 'String',
+        idField: idField,
+        idFieldType: idFieldType,
+        queryField: queryField,
+        queryFieldType: queryFieldType,
         generateVpcs: generateVpcs,
         generateView: generateVpcs,
         generateController: generateVpcs,
@@ -323,6 +358,8 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         methods: usecases,
         idField: idField,
         idFieldType: idFieldType,
+        queryField: queryField,
+        queryFieldType: queryFieldType,
         dryRun: dryRun,
         force: force,
         verbose: verbose,
@@ -347,6 +384,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         generateDi: true,
         generateData: generateDataSource,
         generateRepository: generateRepo,
+        generateLocal: generateLocal,
         generateMock: generateMock,
         methods: usecases,
         idField: idField,
@@ -373,6 +411,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         name: featureName,
         outputDir: outputDir,
         generateMock: true,
+        generateLocal: generateLocal,
         methods: usecases,
         idField: idField,
         idFieldType: idFieldType,
@@ -398,6 +437,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         name: featureName,
         outputDir: outputDir,
         generateTest: true,
+        generateLocal: generateLocal,
         methods: usecases,
         idField: idField,
         idFieldType: idFieldType,

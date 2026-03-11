@@ -82,6 +82,8 @@ class RouteFeatureCapability implements ZuraffaCapability {
     final methods = (args['methods'] as List?)?.cast<String>() ?? ['get'];
     final idField = args['id-field'] as String? ?? 'id';
     final idFieldType = args['id-field-type'] as String? ?? 'String';
+    final queryField = args['query-field'] as String? ?? 'id';
+    final queryFieldType = args['query-field-type'] as String? ?? 'String';
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
     final revert = args['revert'] ?? false;
@@ -101,6 +103,8 @@ class RouteFeatureCapability implements ZuraffaCapability {
       methods: methods,
       idField: idField,
       idFieldType: idFieldType,
+      queryField: queryField,
+      queryFieldType: queryFieldType,
       dryRun: dryRun,
       force: force,
       verbose: verbose,

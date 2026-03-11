@@ -23,6 +23,8 @@ class ViewFeatureCapability implements ZuraffaCapability {
       'name': {'type': 'string', 'description': 'Name of the feature'},
       'id-field': {'type': 'string', 'default': 'id'},
       'id-field-type': {'type': 'string', 'default': 'String'},
+      'query-field': {'type': 'string', 'default': 'id'},
+      'query-field-type': {'type': 'string', 'default': 'String'},
       'outputDir': {'type': 'string', 'default': 'lib/src'},
       'dryRun': {'type': 'boolean', 'default': false},
       'force': {'type': 'boolean', 'default': false},
@@ -74,6 +76,8 @@ class ViewFeatureCapability implements ZuraffaCapability {
     final featureName = args['name'];
     final idField = args['id-field'] as String? ?? 'id';
     final idFieldType = args['id-field-type'] as String? ?? 'String';
+    final queryField = args['query-field'] as String? ?? 'id';
+    final queryFieldType = args['query-field-type'] as String? ?? 'String';
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
     final revert = args['revert'] ?? false;
@@ -93,6 +97,8 @@ class ViewFeatureCapability implements ZuraffaCapability {
       generateVpcs: true,
       idField: idField,
       idFieldType: idFieldType,
+      queryField: queryField,
+      queryFieldType: queryFieldType,
       dryRun: dryRun,
       force: force,
       verbose: verbose,

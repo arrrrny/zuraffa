@@ -28,9 +28,16 @@ class DiFeatureCapability implements ZuraffaCapability {
       },
       'id-field': {'type': 'string', 'default': 'id'},
       'id-field-type': {'type': 'string', 'default': 'String'},
+      'query-field': {'type': 'string', 'default': 'id'},
+      'query-field-type': {'type': 'string', 'default': 'String'},
       'mock': {
         'type': 'boolean',
         'description': 'Use mock datasource in DI',
+        'default': false,
+      },
+      'local': {
+        'type': 'boolean',
+        'description': 'Generate local data source instead of remote',
         'default': false,
       },
       'outputDir': {'type': 'string', 'default': 'lib/src'},
@@ -85,7 +92,10 @@ class DiFeatureCapability implements ZuraffaCapability {
     final methods = (args['methods'] as List?)?.cast<String>() ?? ['get'];
     final idField = args['id-field'] as String? ?? 'id';
     final idFieldType = args['id-field-type'] as String? ?? 'String';
+    final queryField = args['query-field'] as String? ?? 'id';
+    final queryFieldType = args['query-field-type'] as String? ?? 'String';
     final useMock = args['mock'] ?? false;
+    final generateLocal = args['local'] ?? false;
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
     final revert = args['revert'] ?? false;
@@ -104,11 +114,14 @@ class DiFeatureCapability implements ZuraffaCapability {
       generateDi: true,
       generateData: true,
       generateRepository: true,
+      generateLocal: generateLocal,
       generateMock: useMock,
       useMockInDi: useMock,
       methods: methods,
       idField: idField,
       idFieldType: idFieldType,
+      queryField: queryField,
+      queryFieldType: queryFieldType,
       dryRun: dryRun,
       force: force,
       verbose: verbose,

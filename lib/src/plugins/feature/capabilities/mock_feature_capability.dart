@@ -28,6 +28,13 @@ class MockFeatureCapability implements ZuraffaCapability {
       },
       'id-field': {'type': 'string', 'default': 'id'},
       'id-field-type': {'type': 'string', 'default': 'String'},
+      'query-field': {'type': 'string', 'default': 'id'},
+      'query-field-type': {'type': 'string', 'default': 'String'},
+      'local': {
+        'type': 'boolean',
+        'description': 'Generate local data source instead of remote',
+        'default': false,
+      },
       'outputDir': {'type': 'string', 'default': 'lib/src'},
       'dryRun': {'type': 'boolean', 'default': false},
       'force': {'type': 'boolean', 'default': false},
@@ -80,6 +87,9 @@ class MockFeatureCapability implements ZuraffaCapability {
     final methods = (args['methods'] as List?)?.cast<String>() ?? ['get'];
     final idField = args['id-field'] as String? ?? 'id';
     final idFieldType = args['id-field-type'] as String? ?? 'String';
+    final queryField = args['query-field'] as String? ?? 'id';
+    final queryFieldType = args['query-field-type'] as String? ?? 'String';
+    final generateLocal = args['local'] ?? false;
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
     final revert = args['revert'] ?? false;
@@ -96,9 +106,12 @@ class MockFeatureCapability implements ZuraffaCapability {
       name: featureName,
       outputDir: outputDir,
       generateMock: true,
+      generateLocal: generateLocal,
       methods: methods,
       idField: idField,
       idFieldType: idFieldType,
+      queryField: queryField,
+      queryFieldType: queryFieldType,
       dryRun: dryRun,
       force: force,
       verbose: verbose,
