@@ -73,7 +73,9 @@ extension RepositoryImplementationGeneratorCached
               Parameter(
                 (p) => p
                   ..name = 'params'
-                  ..type = refer('UpdateParams<${config.idFieldType}, $dataType>'),
+                  ..type = refer(
+                    'UpdateParams<${config.idFieldType}, $dataType>',
+                  ),
               ),
             )
             ..body = _buildCacheAwareUpdateBody(baseCacheKey),

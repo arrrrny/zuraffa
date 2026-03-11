@@ -9,6 +9,9 @@ import '../../view/view_plugin.dart';
 import '../../controller/controller_plugin.dart';
 import '../../state/state_plugin.dart';
 import '../../route/route_plugin.dart';
+import '../../di/di_plugin.dart';
+import '../../mock/mock_plugin.dart';
+import '../../test/test_plugin.dart';
 import '../../../core/generator_options.dart';
 
 class ScaffoldFeatureCapability implements ZuraffaCapability {
@@ -69,6 +72,11 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
       'route': {
         'type': 'boolean',
         'description': 'Generate Routing definitions',
+        'default': false,
+      },
+      'test': {
+        'type': 'boolean',
+        'description': 'Generate Tests',
         'default': false,
       },
       'usecases': {
@@ -297,30 +305,109 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
       allFiles.addAll(await viewPlugin.generate(config));
       allFiles.addAll(await controllerPlugin.generate(config));
       allFiles.addAll(await statePlugin.generate(config));
+    }
 
-      // Routes
-      if (generateRoute) {
-        final options = GeneratorOptions(
-          dryRun: dryRun,
-          force: force,
-          verbose: verbose,
-        );
-        final routePlugin = RoutePlugin(outputDir: outputDir, options: options);
+    // Routes - works with or without VPCs
+    if (generateRoute) {
+      final options = GeneratorOptions(
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+      );
+      final routePlugin = RoutePlugin(outputDir: outputDir, options: options);
 
-        // Map usecases to methods for route generation
-        final routeConfig = GeneratorConfig(
-          name: featureName,
-          outputDir: outputDir,
-          generateRoute: true,
-          methods: usecases,
-          dryRun: dryRun,
-          force: force,
-          verbose: verbose,
-          revert: revert,
-        );
+      final routeConfig = GeneratorConfig(
+        name: featureName,
+        outputDir: outputDir,
+        generateRoute: true,
+        methods: usecases,
+        idField: idField,
+        idFieldType: idFieldType,
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+        revert: revert,
+      );
 
-        allFiles.addAll(await routePlugin.generate(routeConfig));
-      }
+      allFiles.addAll(await routePlugin.generate(routeConfig));
+    }
+
+    // DI - works with or without VPCs
+    if (generateDi) {
+      final options = GeneratorOptions(
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+      );
+      final diPlugin = DiPlugin(outputDir: outputDir, options: options);
+
+      final diConfig = GeneratorConfig(
+        name: featureName,
+        outputDir: outputDir,
+        generateDi: true,
+        generateData: generateDataSource,
+        generateRepository: generateRepo,
+        generateMock: generateMock,
+        methods: usecases,
+        idField: idField,
+        idFieldType: idFieldType,
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+        revert: revert,
+      );
+
+      allFiles.addAll(await diPlugin.generate(diConfig));
+    }
+
+    // Mock - works with or without VPCs
+    if (generateMock) {
+      final options = GeneratorOptions(
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+      );
+      final mockPlugin = MockPlugin(outputDir: outputDir, options: options);
+
+      final mockConfig = GeneratorConfig(
+        name: featureName,
+        outputDir: outputDir,
+        generateMock: true,
+        methods: usecases,
+        idField: idField,
+        idFieldType: idFieldType,
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+        revert: revert,
+      );
+
+      allFiles.addAll(await mockPlugin.generate(mockConfig));
+    }
+
+    // Test - works with or without VPCs
+    if (args['test'] ?? false) {
+      final options = GeneratorOptions(
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+      );
+      final testPlugin = TestPlugin(outputDir: outputDir, options: options);
+
+      final testConfig = GeneratorConfig(
+        name: featureName,
+        outputDir: outputDir,
+        generateTest: true,
+        methods: usecases,
+        idField: idField,
+        idFieldType: idFieldType,
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+        revert: revert,
+      );
+
+      allFiles.addAll(await testPlugin.generate(testConfig));
     }
 
     return allFiles;

@@ -1,7 +1,7 @@
 import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import '../plugins/feature/feature_plugin.dart';
-import '../plugins/feature/capabilities/scaffold_feature_capability.dart';
+import '../core/plugin_system/capability.dart';
 
 class FeatureCommand extends PluginCommand {
   @override
@@ -52,6 +52,12 @@ class FeatureCommand extends PluginCommand {
       defaultsTo: false,
       negatable: false,
     );
+    argParser.addFlag(
+      'test',
+      help: 'Generate Tests',
+      defaultsTo: false,
+      negatable: false,
+    );
     argParser.addMultiOption(
       'usecases',
       abbr: 'u',
@@ -84,6 +90,14 @@ class FeatureCommand extends PluginCommand {
   @override
   String get description => 'Scaffold full features';
 
+  ZuraffaCapability? _findCapability(String name) {
+    try {
+      return plugin.capabilities.firstWhere((c) => c.name == name);
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Future<void> run() async {
     if (argResults?.rest.isEmpty ?? true) {
@@ -91,16 +105,86 @@ class FeatureCommand extends PluginCommand {
       return;
     }
 
-    final featureName = argResults!.rest.first;
+    final firstArg = argResults!.rest.first;
+    final allGeneratedFiles = <GeneratedFile>[];
+
+    // Get the capability names
+    final capabilityNames = plugin.capabilities.map((c) => c.name).toSet();
+
+    // Check if first arg is a capability name AND there's a second arg (the feature name)
+    // This handles: zfa feature route Locale, zfa feature di Locale, etc.
+    if (capabilityNames.contains(firstArg) && argResults!.rest.length > 1) {
+      // Handle: zfa feature <capability> <name> [options]
+      final capability = _findCapability(firstArg);
+      final featureName = argResults!.rest[1];
+
+      if (capability != null) {
+        final execArgs = _buildArgs(featureName);
+        final result = await capability.execute(execArgs);
+
+        if (result.success) {
+          final files =
+              result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+          allGeneratedFiles.addAll(files);
+        } else {
+          print('Failed to generate $firstArg');
+          return;
+        }
+      }
+    } else {
+      // Handle: zfa feature Locale [flags] OR zfa feature Locale (defaults to scaffold)
+      final featureName = firstArg;
+
+      // Check which capabilities should run based on flags
+      // Default to scaffold if no specific flags are set
+      final bool runScaffold =
+          (!argResults!.wasParsed('route') &&
+              !argResults!.wasParsed('di') &&
+              !argResults!.wasParsed('mock') &&
+              !argResults!.wasParsed('test')) ||
+          argResults!.wasParsed('vpcs') ||
+          argResults!.wasParsed('repository') ||
+          argResults!.wasParsed('datasource');
+
+      final capabilityFlags = {
+        'scaffold': runScaffold,
+        'route': argResults!.wasParsed('route'),
+        'di': argResults!.wasParsed('di'),
+        'mock': argResults!.wasParsed('mock'),
+        'test': argResults!.wasParsed('test'),
+        'view': false,
+        'presenter': false,
+        'controller': false,
+        'state': false,
+      };
+
+      // Run selected capabilities
+      for (final entry in capabilityFlags.entries) {
+        if (entry.value) {
+          final cap = _findCapability(entry.key);
+          if (cap != null) {
+            final execArgs = _buildArgs(featureName);
+            final result = await cap.execute(execArgs);
+            if (result.success) {
+              final files =
+                  result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+              allGeneratedFiles.addAll(files);
+            }
+          }
+        }
+      }
+    }
+
+    if (allGeneratedFiles.isNotEmpty) {
+      logSummary(allGeneratedFiles);
+    } else {
+      print('No files generated');
+    }
+  }
+
+  Map<String, dynamic> _buildArgs(String featureName) {
     final usecases = argResults!['usecases'] as List<String>;
 
-    final capability =
-        plugin.capabilities.firstWhere((c) => c is ScaffoldFeatureCapability)
-            as ScaffoldFeatureCapability;
-
-    // Build args map
-    // We use wasParsed to allow the Capability to fall back to ZfaConfig or defaults
-    // only when the user hasn't explicitly set a flag.
     final Map<String, dynamic> execArgs = {
       'name': featureName,
       'usecases': usecases,
@@ -111,7 +195,6 @@ class FeatureCommand extends PluginCommand {
       'outputDir': outputDir,
     };
 
-    // Helper to add flag if parsed
     void addIfParsed(String name) {
       if (argResults!.wasParsed(name)) {
         execArgs[name] = argResults![name];
@@ -126,20 +209,13 @@ class FeatureCommand extends PluginCommand {
     addIfParsed('di');
     addIfParsed('cache');
     addIfParsed('route');
+    addIfParsed('test');
     addIfParsed('query-field');
     addIfParsed('query-field-type');
     addIfParsed('id-field');
     addIfParsed('id-field-type');
     addIfParsed('zorphy');
 
-    final result = await capability.execute(execArgs);
-
-    if (result.success) {
-      final files =
-          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
-      logSummary(files);
-    } else {
-      print('Failed to generate feature');
-    }
+    return execArgs;
   }
 }

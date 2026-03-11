@@ -7,6 +7,14 @@ import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'capabilities/scaffold_feature_capability.dart';
+import 'capabilities/route_feature_capability.dart';
+import 'capabilities/di_feature_capability.dart';
+import 'capabilities/mock_feature_capability.dart';
+import 'capabilities/test_feature_capability.dart';
+import 'capabilities/view_feature_capability.dart';
+import 'capabilities/presenter_feature_capability.dart';
+import 'capabilities/controller_feature_capability.dart';
+import 'capabilities/state_feature_capability.dart';
 
 /// Manages high-level feature scaffolding.
 ///
@@ -31,7 +39,17 @@ class FeaturePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   });
 
   @override
-  List<ZuraffaCapability> get capabilities => [ScaffoldFeatureCapability(this)];
+  List<ZuraffaCapability> get capabilities => [
+    ScaffoldFeatureCapability(this),
+    RouteFeatureCapability(this),
+    DiFeatureCapability(this),
+    MockFeatureCapability(this),
+    TestFeatureCapability(this),
+    ViewFeatureCapability(this),
+    PresenterFeatureCapability(this),
+    ControllerFeatureCapability(this),
+    StateFeatureCapability(this),
+  ];
 
   @override
   Command createCommand() => FeatureCommand(this);
