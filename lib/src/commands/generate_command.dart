@@ -398,7 +398,7 @@ class GenerateCommand extends Command<void> {
       paramsType: argResults!['params'] as String?,
       returnsType: argResults!['returns'] as String?,
       idField: idField,
-      idType: idFieldType,
+      idFieldType: idFieldType,
       queryField: queryField,
       queryFieldType: queryFieldType,
       generateVpcs: generateVpcs,

@@ -205,7 +205,7 @@ class GraphqlBuilder {
     switch (method) {
       case 'get':
         return _lines([
-          '  $operationType $wrapperName(\$${config.idField}: ${_getGraphQLType(config.idType)}!) {',
+          '  $operationType $wrapperName(\$${config.idField}: ${_getGraphQLType(config.idFieldType)}!) {',
           '    $camelCaseOpName(${config.idField}: \$${config.idField}) {',
           returnFields,
           '    }',
@@ -242,7 +242,7 @@ class GraphqlBuilder {
 
       case 'update':
         return _lines([
-          '  $operationType $wrapperName(\$${config.idField}: ${_getGraphQLType(config.idType)}!, \$$inputName: ${inputType.startsWith('Update') ? inputType : 'Update$inputType'}!) {',
+          '  $operationType $wrapperName(\$${config.idField}: ${_getGraphQLType(config.idFieldType)}!, \$$inputName: ${inputType.startsWith('Update') ? inputType : 'Update$inputType'}!) {',
           '    $camelCaseOpName(${config.idField}: \$${config.idField}, $inputName: \$$inputName) {',
           returnFields,
           '    }',
@@ -251,7 +251,7 @@ class GraphqlBuilder {
 
       case 'delete':
         return _lines([
-          '  $operationType $wrapperName(\$${config.idField}: ${_getGraphQLType(config.idType)}!) {',
+          '  $operationType $wrapperName(\$${config.idField}: ${_getGraphQLType(config.idFieldType)}!) {',
           '    $camelCaseOpName(${config.idField}: \$${config.idField}) {',
           '      success',
           '    }',

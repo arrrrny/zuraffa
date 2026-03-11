@@ -62,7 +62,7 @@ void main() {
         name: 'Health',
         methods: const ['get'],
         generateRoute: true,
-        idType: 'NoParams',
+        idFieldType: 'NoParams',
         outputDir: outputDir,
       ),
     );

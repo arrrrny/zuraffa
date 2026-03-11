@@ -59,6 +59,23 @@ class FeatureCommand extends PluginCommand {
       defaultsTo: ['get', 'update'],
       splitCommas: true,
     );
+    argParser.addOption(
+      'query-field',
+      help: 'Query field name for get/watch methods',
+    );
+    argParser.addOption(
+      'query-field-type',
+      help: 'Query field type for get/watch methods',
+    );
+    argParser.addOption('id-field', help: 'ID field name');
+    argParser.addOption('id-field-type', help: 'ID field type');
+    argParser.addFlag(
+      'zorphy',
+      help:
+          'Use Zorphy patterns (e.g., LocalePatch instead of Partial<Locale>)',
+      defaultsTo: false,
+      negatable: false,
+    );
   }
 
   @override
@@ -109,6 +126,11 @@ class FeatureCommand extends PluginCommand {
     addIfParsed('di');
     addIfParsed('cache');
     addIfParsed('route');
+    addIfParsed('query-field');
+    addIfParsed('query-field-type');
+    addIfParsed('id-field');
+    addIfParsed('id-field-type');
+    addIfParsed('zorphy');
 
     final result = await capability.execute(execArgs);
 

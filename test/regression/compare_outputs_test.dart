@@ -71,7 +71,7 @@ void main() {
     expect(config.appendToExisting, isTrue);
     expect(config.generateData, isTrue);
     expect(config.idField, equals('orderId'));
-    expect(config.idType, equals('int'));
+    expect(config.idFieldType, equals('int'));
     expect(config.queryFieldType, equals('NoParams'));
     expect(config.enableCache, isTrue);
     expect(config.cachePolicy, equals('ttl'));

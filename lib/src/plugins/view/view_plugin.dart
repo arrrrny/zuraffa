@@ -217,7 +217,7 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         Field(
           (f) => f
             ..modifier = FieldModifier.final$
-            ..type = refer(_nullableType(config.idType))
+            ..type = refer(_nullableType(config.idFieldType))
             ..name = config.idField,
         ),
       );

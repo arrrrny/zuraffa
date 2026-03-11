@@ -223,7 +223,7 @@ class RepositoryInterfaceGenerator {
             _buildMethod(
               name: 'update',
               returnType: 'Future<${config.name}>',
-              paramsType: 'UpdateParams<${config.idType}, $dataType>',
+              paramsType: 'UpdateParams<${config.idFieldType}, $dataType>',
               paramsName: 'params',
             ),
           );
@@ -233,7 +233,7 @@ class RepositoryInterfaceGenerator {
             _buildMethod(
               name: 'delete',
               returnType: 'Future<void>',
-              paramsType: 'DeleteParams<${config.idType}>',
+              paramsType: 'DeleteParams<${config.idFieldType}>',
               paramsName: 'params',
             ),
           );

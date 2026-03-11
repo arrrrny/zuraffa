@@ -16,7 +16,7 @@ class GeneratorConfig {
   final String? paramsType;
   final String? returnsType;
   final String idField;
-  final String idType;
+  final String idFieldType;
   final bool generateVpcs;
   final bool generateView;
   final bool generatePresenter;
@@ -74,7 +74,7 @@ class GeneratorConfig {
     this.paramsType,
     this.returnsType,
     this.idField = 'id',
-    this.idType = 'String',
+    this.idFieldType = 'String',
     this.generateVpcs = false,
     this.generateView = false,
     this.generatePresenter = false,
@@ -113,7 +113,7 @@ class GeneratorConfig {
     this.verbose = false,
     this.revert = false,
     required this.outputDir,
-  }) : queryFieldType = queryFieldType ?? idType;
+  }) : queryFieldType = queryFieldType ?? idFieldType;
 
   factory GeneratorConfig.fromJson(Map<String, dynamic> json, String name) {
     return GeneratorConfig(
@@ -133,7 +133,7 @@ class GeneratorConfig {
       paramsType: json['params'],
       returnsType: json['returns'],
       idField: json['id_field'] ?? 'id',
-      idType: json['id_type'] ?? json['id_field_type'] ?? 'String',
+      idFieldType: json['id_type'] ?? json['id_field_type'] ?? 'String',
       generateVpcs: json['vpcs'] == true || json['vpc'] == true,
       generateView: json['view'] == true,
       generatePresenter: json['presenter'] == true,
@@ -215,7 +215,7 @@ class GeneratorConfig {
     String? paramsType,
     String? returnsType,
     String? idField,
-    String? idType,
+    String? idFieldType,
     bool? generateVpcs,
     bool? generateView,
     bool? generatePresenter,
@@ -271,7 +271,7 @@ class GeneratorConfig {
       paramsType: paramsType ?? this.paramsType,
       returnsType: returnsType ?? this.returnsType,
       idField: idField ?? this.idField,
-      idType: idType ?? this.idType,
+      idFieldType: idFieldType ?? this.idFieldType,
       generateVpcs: generateVpcs ?? this.generateVpcs,
       generateView: generateView ?? this.generateView,
       generatePresenter: generatePresenter ?? this.generatePresenter,
@@ -415,7 +415,7 @@ class GeneratorConfig {
     'params': paramsType,
     'returns': returnsType,
     'id_field': idField,
-    'id_type': idType,
+    'id_type': idFieldType,
     'vpcs': generateVpcs,
     'view': generateView,
     'presenter': generatePresenter,

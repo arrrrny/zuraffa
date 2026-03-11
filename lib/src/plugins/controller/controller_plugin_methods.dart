@@ -225,7 +225,7 @@ extension ControllerPluginMethods on ControllerPlugin {
           Parameter(
             (p) => p
               ..name = config.idField
-              ..type = refer(config.idType),
+              ..type = refer(config.idFieldType),
           ),
           Parameter(
             (p) => p
@@ -265,7 +265,7 @@ extension ControllerPluginMethods on ControllerPlugin {
           Parameter(
             (p) => p
               ..name = config.idField
-              ..type = refer(config.idType),
+              ..type = refer(config.idFieldType),
           ),
         )
         ..optionalParameters.add(_cancelTokenParam())

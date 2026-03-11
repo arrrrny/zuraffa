@@ -168,6 +168,26 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         ? args['route']
         : (zfaConfig?.routeByDefault ?? false);
 
+    final useZorphy = args.containsKey('zorphy')
+        ? args['zorphy']
+        : (zfaConfig?.zorphyByDefault ?? false);
+
+    final idField = args['id-field'] as String? ?? 'id';
+    // If id-field-type was explicitly set to null (or "null"), use NoParams
+    // Otherwise default to String
+    final idFieldTypeRaw = args['id-field-type'];
+    final idFieldType = idFieldTypeRaw == null || idFieldTypeRaw == 'null'
+        ? 'NoParams'
+        : (idFieldTypeRaw as String? ?? 'String');
+    final queryField = args['query-field'] as String? ?? 'id';
+    // If query-field-type was explicitly set to null (or "null"), use NoParams
+    // Otherwise default to String
+    final queryFieldTypeRaw = args['query-field-type'];
+    final queryFieldType =
+        queryFieldTypeRaw == null || queryFieldTypeRaw == 'null'
+        ? 'NoParams'
+        : (queryFieldTypeRaw as String? ?? 'String');
+
     final allFiles = <GeneratedFile>[];
 
     // Repository
@@ -197,6 +217,11 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         revert: revert,
         appendToExisting: appendToExisting,
         methods: usecases,
+        idField: idField,
+        idFieldType: idFieldType,
+        queryField: queryField,
+        queryFieldType: queryFieldType,
+        useZorphy: useZorphy,
       );
       allFiles.addAll(await repoPlugin.generate(config));
     }
@@ -225,6 +250,11 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         generateMock: generateMock,
         generateDi: generateDi,
         methods: usecases,
+        idField: idField,
+        idFieldType: idFieldType,
+        queryField: queryField,
+        queryFieldType: queryFieldType,
+        useZorphy: useZorphy,
       );
       allFiles.addAll(await usecasePlugin.generate(config));
     }
@@ -250,7 +280,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         name: featureName,
         outputDir: outputDir,
         idField: 'id',
-        idType: 'String',
+        idFieldType: 'String',
         generateVpcs: generateVpcs,
         generateView: generateVpcs,
         generateController: generateVpcs,

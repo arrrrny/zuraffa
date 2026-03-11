@@ -42,7 +42,7 @@ extension TestBuilderHelpers on TestBuilder {
     String mockEntityClass,
   ) {
     final entityName = config.name;
-    final idType = config.idType;
+    final idType = config.idFieldType;
     final idValue = idType == 'NoParams'
         ? refer('NoParams').constInstance([])
         : (idType == 'int' ? literalNum(1) : literalString('1'));
@@ -84,7 +84,7 @@ extension TestBuilderHelpers on TestBuilder {
     String returnConstructor,
     bool isCompletable,
   ) {
-    final idType = config.idType;
+    final idType = config.idFieldType;
     final idValue = idType == 'NoParams'
         ? refer('NoParams').constInstance([])
         : (idType == 'int' ? literalNum(1) : literalString('1'));
@@ -274,7 +274,7 @@ extension TestBuilderHelpers on TestBuilder {
     String entityName,
     String returnConstructor,
   ) {
-    final idType = config.idType;
+    final idType = config.idFieldType;
 
     Expression paramsExpr;
     Expression arrangeCall;

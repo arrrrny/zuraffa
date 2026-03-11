@@ -590,7 +590,7 @@ class RouteBuilder {
     final builderExpr = _buildViewBuilderExpr(
       entityName: entityName,
       viewParam: viewParam,
-      withId: config.idType != 'NoParams',
+      withId: config.idFieldType != 'NoParams',
     );
 
     return refer(
@@ -637,7 +637,7 @@ class RouteBuilder {
     final builderExpr = _buildViewBuilderExpr(
       entityName: entityName,
       viewParam: viewParam,
-      withId: config.idType != 'NoParams',
+      withId: config.idFieldType != 'NoParams',
     );
 
     return refer(

@@ -157,7 +157,7 @@ class EntityUseCaseGenerator {
                 (tr) => tr
                   ..symbol = 'UpdateParams'
                   ..types.addAll([
-                    refer(config.idType),
+                    refer(config.idFieldType),
                     _parseType(dataType, entityName),
                   ]),
               ),
@@ -167,7 +167,7 @@ class EntityUseCaseGenerator {
           (tr) => tr
             ..symbol = 'UpdateParams'
             ..types.addAll([
-              refer(config.idType),
+              refer(config.idFieldType),
               _parseType(dataType, entityName),
             ]),
         );
@@ -185,14 +185,14 @@ class EntityUseCaseGenerator {
               TypeReference(
                 (tr) => tr
                   ..symbol = 'DeleteParams'
-                  ..types.add(refer(config.idType)),
+                  ..types.add(refer(config.idFieldType)),
               ),
             ),
         );
         paramsType = TypeReference(
           (tr) => tr
             ..symbol = 'DeleteParams'
-            ..types.add(refer(config.idType)),
+            ..types.add(refer(config.idFieldType)),
         );
         returnType = refer('void');
         executeExpression = refer(

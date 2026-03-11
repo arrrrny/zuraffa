@@ -363,7 +363,7 @@ extension ControllerPluginBodies on ControllerPlugin {
         .property('update$entityName')
         .call(_callArgsExpressions('${config.idField}, data'))
         .awaited;
-    final isNoParams = config.idType == 'NoParams';
+    final isNoParams = config.idFieldType == 'NoParams';
     final updateArgs = <String, Expression>{
       'isUpdating': literalBool(false),
       entityCamel: isNoParams

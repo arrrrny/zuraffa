@@ -148,7 +148,7 @@ class DataSourceInterfaceBuilder {
                     (p) => p
                       ..name = 'params'
                       ..type = refer(
-                        'UpdateParams<${config.idType}, $dataType>',
+                        'UpdateParams<${config.idFieldType}, $dataType>',
                       ),
                   ),
                 ),
@@ -165,7 +165,7 @@ class DataSourceInterfaceBuilder {
                   Parameter(
                     (p) => p
                       ..name = 'params'
-                      ..type = refer('DeleteParams<${config.idType}>'),
+                      ..type = refer('DeleteParams<${config.idFieldType}>'),
                   ),
                 ),
             ),

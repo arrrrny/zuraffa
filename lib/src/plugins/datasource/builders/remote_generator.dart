@@ -206,7 +206,7 @@ class RemoteDataSourceBuilder {
                     (p) => p
                       ..name = 'params'
                       ..type = refer(
-                        'UpdateParams<${config.idType}, $dataType>',
+                        'UpdateParams<${config.idFieldType}, $dataType>',
                       ),
                   ),
                 )
@@ -226,7 +226,7 @@ class RemoteDataSourceBuilder {
                   Parameter(
                     (p) => p
                       ..name = 'params'
-                      ..type = refer('DeleteParams<${config.idType}>'),
+                      ..type = refer('DeleteParams<${config.idFieldType}>'),
                   ),
                 )
                 ..modifier = MethodModifier.async

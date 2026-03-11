@@ -287,7 +287,7 @@ class MockDataSourceBuilder {
     for (final method in config.methods) {
       switch (method) {
         case 'get':
-          final isNoParams = config.idType == 'NoParams';
+          final isNoParams = config.idFieldType == 'NoParams';
           methods.add(
             Method(
               (m) => m
@@ -415,7 +415,7 @@ class MockDataSourceBuilder {
           break;
 
         case 'create':
-          final isNoParamsCreate = config.idType == 'NoParams';
+          final isNoParamsCreate = config.idFieldType == 'NoParams';
           methods.add(
             Method(
               (m) => m
@@ -464,11 +464,11 @@ class MockDataSourceBuilder {
               ? '${entityName}Patch'
               : 'Map<String, dynamic>';
           final updateParamsType = config.useZorphy
-              ? 'UpdateParams<${config.idType}, $dataType>'
+              ? 'UpdateParams<${config.idFieldType}, $dataType>'
               : dataType;
           final hasList = config.methods.contains('getList');
           final hasWatch = config.methods.contains('watch');
-          final isNoParams = config.idType == 'NoParams';
+          final isNoParams = config.idFieldType == 'NoParams';
           final bodyStatements = <Code>[
             refer('logger').property('info').call([
               isNoParams
@@ -568,8 +568,8 @@ class MockDataSourceBuilder {
           break;
 
         case 'delete':
-          final deleteParamsType = 'DeleteParams<${config.idType}>';
-          final isNoParams = config.idType == 'NoParams';
+          final deleteParamsType = 'DeleteParams<${config.idFieldType}>';
+          final isNoParams = config.idFieldType == 'NoParams';
           final bodyStatements = <Code>[
             refer('logger').property('info').call([
               isNoParams
@@ -653,7 +653,7 @@ class MockDataSourceBuilder {
           break;
 
         case 'watch':
-          final isNoParamsWatch = config.idType == 'NoParams';
+          final isNoParamsWatch = config.idFieldType == 'NoParams';
           methods.add(
             Method(
               (m) => m

@@ -498,7 +498,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         ? '${entityName}Patch'
         : 'Partial<$entityName>';
     final updateParams = refer(
-      'UpdateParams<${config.idType}, $dataType>',
+      'UpdateParams<${config.idFieldType}, $dataType>',
     ).call([], {'id': refer(config.idField), 'data': refer('data')});
     final callExpression = refer('_${info.fieldName}')
         .property('call')
@@ -512,7 +512,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           Parameter(
             (p) => p
               ..name = config.idField
-              ..type = refer(config.idType),
+              ..type = refer(config.idFieldType),
           ),
           Parameter(
             (p) => p
@@ -529,7 +529,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   Method _buildDeleteMethod(GeneratorConfig config, _UseCaseInfo info) {
     final deleteParams = refer(
-      'DeleteParams<${config.idType}>',
+      'DeleteParams<${config.idFieldType}>',
     ).call([], {'id': refer(config.idField)});
     final callExpression = refer('_${info.fieldName}')
         .property('call')
@@ -543,7 +543,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           Parameter(
             (p) => p
               ..name = config.idField
-              ..type = refer(config.idType),
+              ..type = refer(config.idFieldType),
           ),
         )
         ..optionalParameters.add(_cancelTokenParam())
