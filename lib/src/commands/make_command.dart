@@ -45,8 +45,8 @@ class MakeCommand extends Command<void> {
     argParser.addOption(
       'methods',
       abbr: 'm',
-      help: 'Comma-separated list of methods (get,create,update,delete,list)',
-      defaultsTo: 'get,list,create,update,delete',
+      help: 'Comma-separated list of methods (get,create,update,delete,list,watch,getList,watchList)',
+      defaultsTo: 'get,update',
     );
     // Add other common flags as needed (domain, etc.)
     argParser.addOption(
@@ -177,18 +177,19 @@ class MakeCommand extends Command<void> {
       pluginNames.add('di');
     }
 
-    final outputDir = argResults!['output'] as String;
-    final dryRun = argResults!['dry-run'] == true;
-    final force = argResults!['force'] == true;
-    final verbose = argResults!['verbose'] == true;
-    final methods = (argResults!['methods'] as String).split(',');
-    final type = argResults!['type'] as String;
-    final domain = argResults!['domain'] as String?;
-    final repo = argResults!['repo'] as String?;
-    final service = argResults!['service'] as String?;
-    final params = argResults!['params'] as String?;
-    final returns = argResults!['returns'] as String?;
-    final usecasesStr = argResults!['usecases'] as String?;
+    final outputDir = (argResults?['output'] as String?) ?? 'lib/src';
+    final dryRun = argResults?['dry-run'] == true;
+    final force = argResults?['force'] == true;
+    final verbose = argResults?['verbose'] == true;
+    final methods = (argResults?['methods'] as String?)?.split(',') ??
+        ['get', 'update'];
+    final type = (argResults?['type'] as String?) ?? 'future';
+    final domain = argResults?['domain'] as String?;
+    final repo = argResults?['repo'] as String?;
+    final service = argResults?['service'] as String?;
+    final params = argResults?['params'] as String?;
+    final returns = argResults?['returns'] as String?;
+    final usecasesStr = argResults?['usecases'] as String?;
     final usecases = usecasesStr?.split(',').map((e) => e.trim()).toList();
     final useMockInDi = argResults!['use-mock'] == true;
 

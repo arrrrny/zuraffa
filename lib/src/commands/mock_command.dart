@@ -27,17 +27,16 @@ class MockCommand extends PluginCommand {
 
   @override
   Future<void> run() async {
-    if (argResults!.rest.isEmpty) {
-      print('❌ Error: Entity name is required.');
-      print('Usage: zfa mock <EntityName> [options]');
+    if (argResults?.rest.isEmpty ?? true) {
+      print('❌ Usage: zfa mock <EntityName> [options]');
       return;
     }
     final entityName = argResults!.rest.first;
-    final dataOnly = argResults!['data-only'] as bool;
-    final service = argResults!['service'] as String?;
-    final domain = argResults!['domain'] as String?;
-    final params = argResults!['params'] as String?;
-    final returns = argResults!['returns'] as String?;
+    final dataOnly = argResults?['data-only'] as bool? ?? false;
+    final service = argResults?['service'] as String?;
+    final domain = argResults?['domain'] as String?;
+    final params = argResults?['params'] as String?;
+    final returns = argResults?['returns'] as String?;
 
     final capability =
         plugin.capabilities.firstWhere((c) => c is CreateMockCapability)

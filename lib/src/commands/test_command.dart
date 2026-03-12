@@ -21,7 +21,7 @@ class TestCommand extends PluginCommand {
     argParser.addOption(
       'methods',
       abbr: 'm',
-      help: 'Comma-separated list of methods (get,create,update,delete,list)',
+      help: 'Comma-separated list of methods (get,create,update,delete,list,watch,getList,watchList)',
       defaultsTo: '',
     );
     argParser.addOption(
@@ -154,12 +154,17 @@ class TestCommand extends PluginCommand {
   @override
   /// Runs the command using parsed CLI args.
   Future<void> run() async {
+    if (argResults?.rest.isEmpty ?? true) {
+      print('❌ Usage: zfa test <EntityName> [options]');
+      return;
+    }
+
     final entityName = argResults!.rest.first;
-    final methodsValue = argResults!['methods'] as String;
+    final methodsValue = (argResults?['methods'] as String?) ?? '';
     final methods = methodsValue.trim().isEmpty
         ? <String>[]
         : methodsValue.split(',').where((m) => m.trim().isNotEmpty).toList();
-    final domain = argResults!['domain'] as String? ?? 'general';
+    final domain = (argResults?['domain'] as String?) ?? 'general';
 
     final capability =
         plugin.capabilities.firstWhere((c) => c is CreateTestCapability)

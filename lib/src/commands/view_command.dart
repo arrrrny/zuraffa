@@ -13,8 +13,8 @@ class ViewCommand extends PluginCommand {
     argParser.addOption(
       'methods',
       abbr: 'm',
-      help: 'Comma-separated list of methods (get,create,update,delete,list)',
-      defaultsTo: 'get,list,create,update,delete',
+      help: 'Comma-separated list of methods (get,create,update,delete,watch,getList,watchList)',
+      defaultsTo: 'get,update',
     );
     argParser.addFlag(
       'di',
@@ -37,23 +37,36 @@ class ViewCommand extends PluginCommand {
   Future<void> run() async {
     if (argResults!.rest.isEmpty) {
       print('❌ Usage: zfa view <EntityName> [options]');
+      print('   Or use a subcommand:');
+      print('   zfa view create <EntityName> [options]');
+      print('   zfa view custom <Name> [options]');
       return;
     }
 
-    final entityName = argResults!.rest.first;
-    final methods = (argResults!['methods'] as String).split(',');
-    final generateDi = argResults!['di'] as bool;
-    final generateState = argResults!['state'] as bool;
-    final generateRoute = argResults!['route'] as bool;
+    var entityName = argResults!.rest.first;
+    var capabilityName = 'create';
 
-    final capability =
-        plugin.capabilities.firstWhere((c) => c is CreateViewCapability)
-            as CreateViewCapability;
+    if (argResults!.rest.length > 1) {
+      final first = argResults!.rest.first;
+      if (first == 'create' || first == 'custom') {
+        capabilityName = first;
+        entityName = argResults!.rest[1];
+      }
+    }
+
+    final methods = (argResults?['methods'] as String?)?.split(',') ??
+        ['get','update'];
+    final generateDi = argResults?['di'] as bool? ?? false;
+    final generateState = argResults?['state'] as bool? ?? false;
+    final generateRoute = argResults?['route'] as bool? ?? false;
+
+    final capability = plugin.capabilities
+        .firstWhere((c) => c.name == capabilityName);
 
     if (generateRoute) {
       // For route generation, execute the route command separately
       // to ensure clean view instantiation without DI
-      final routeResult = await _generateRoutes(entityName);
+      final routeResult = await _generateRoutes(entityName, capabilityName);
 
       // Generate view
       final viewResult = await capability.execute({
@@ -99,12 +112,11 @@ class ViewCommand extends PluginCommand {
     }
   }
 
-  Future<dynamic> _generateRoutes(String entityName) async {
+  Future<dynamic> _generateRoutes(String entityName, String capabilityName) async {
     // Use route plugin internally instead of external command
     final routePlugin = RoutePlugin(outputDir: outputDir);
     final routeCapability =
-        routePlugin.capabilities.firstWhere((c) => c is CreateRouteCapability)
-            as CreateRouteCapability;
+        routePlugin.capabilities.firstWhere((c) => c.name == capabilityName);
 
     final result = await routeCapability.execute({
       'name': entityName,

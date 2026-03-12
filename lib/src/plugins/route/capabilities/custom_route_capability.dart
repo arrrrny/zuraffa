@@ -1,18 +1,18 @@
 import '../../../core/plugin_system/capability.dart';
-import '../view_plugin.dart';
+import '../route_plugin.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
 
-class CreateViewCapability implements ZuraffaCapability {
-  final ViewPlugin plugin;
+class CustomRouteCapability implements ZuraffaCapability {
+  final RoutePlugin plugin;
 
-  CreateViewCapability(this.plugin);
-
-  @override
-  String get name => 'create';
+  CustomRouteCapability(this.plugin);
 
   @override
-  String get description => 'Create a Flutter View class';
+  String get name => 'custom';
+
+  @override
+  String get description => 'Create a custom route (non-entity based)';
 
   @override
   JsonSchema get inputSchema => {
@@ -20,33 +20,17 @@ class CreateViewCapability implements ZuraffaCapability {
     'properties': {
       'name': {
         'type': 'string',
-        'description': 'Name of the view entity (e.g. Product)',
+        'description': 'Name of the route (e.g. Home)',
+      },
+      'domain': {
+        'type': 'string',
+        'description': 'Domain folder for the route (e.g. common, auth)',
+        'default': 'general',
       },
       'outputDir': {
         'type': 'string',
         'description': 'Directory to output the file',
         'default': 'lib/src',
-      },
-      'methods': {
-        'type': 'array',
-        'items': {'type': 'string'},
-        'description': 'List of methods (get,create,update,delete,list,watch,getList,watchList)',
-        'default': ['get', 'update'],
-      },
-      'di': {
-        'type': 'boolean',
-        'description': 'Generate with DI integration',
-        'default': true,
-      },
-      'state': {
-        'type': 'boolean',
-        'description': 'Generate with State integration',
-        'default': false,
-      },
-      'route': {
-        'type': 'boolean',
-        'description': 'Generate route definitions for this view',
-        'default': false,
       },
       'dryRun': {
         'type': 'boolean',
@@ -109,24 +93,18 @@ class CreateViewCapability implements ZuraffaCapability {
     required bool dryRun,
   }) async {
     final name = args['name'];
+    final domain = args['domain'] ?? 'general';
     final outputDir = args['outputDir'] ?? 'lib/src';
-    final methods =
-        (args['methods'] as List?)?.cast<String>() ??
-        ['get', 'update'];
-    final generateDi = args['di'] ?? true;
-    final generateState = args['state'] ?? false;
-    final generateRoute = args['route'] ?? false;
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
 
+    // Create a special config for custom routes
     final config = GeneratorConfig(
       name: name,
+      domain: domain,
       outputDir: outputDir,
-      generateView: true,
-      generateRoute: generateRoute,
-      methods: methods,
-      generateDi: generateDi,
-      generateState: generateState,
+      generateRoute: true,
+      methods: [], // Empty methods means it's a custom (non-entity) route
       dryRun: dryRun,
       force: force,
       verbose: verbose,

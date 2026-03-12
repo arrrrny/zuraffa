@@ -30,8 +30,8 @@ class CreateRouteCapability implements ZuraffaCapability {
       'methods': {
         'type': 'array',
         'items': {'type': 'string'},
-        'description': 'List of methods (get,create,update,delete,list)',
-        'default': ['get', 'list', 'create', 'update', 'delete'],
+        'description': 'List of methods (get,create,update,delete,list,watch,getList,watchList)',
+        'default': ['get', 'update'],
       },
       'dryRun': {
         'type': 'boolean',
@@ -97,7 +97,7 @@ class CreateRouteCapability implements ZuraffaCapability {
     final outputDir = args['outputDir'] ?? 'lib/src';
     final methods =
         (args['methods'] as List?)?.cast<String>() ??
-        ['get', 'list', 'create', 'update', 'delete'];
+        ['get', 'update'];
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
 

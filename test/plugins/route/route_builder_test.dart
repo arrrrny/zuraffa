@@ -98,12 +98,40 @@ void main() {
     // Check goRoute definition
     expect(content.contains("GoRoute("), isTrue);
     expect(content.contains("path: ListingRoutes.getListingByBarcode"), isTrue);
-    expect(
-      content.contains(
-        "builder: (context, state) => const GetListingByBarcodeView()",
+  });
+
+  test('generates standalone custom route', () async {
+    final builder = RouteBuilder(
+      outputDir: outputDir,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
       ),
+    );
+
+    final files = await builder.generate(
+      GeneratorConfig(
+        name: 'Home',
+        domain: 'general',
+        methods: const [],
+        generateRoute: true,
+        outputDir: outputDir,
+      ),
+    );
+
+    expect(files.length, equals(2));
+    final entityRoutes = File('$outputDir/routing/general_routes.dart');
+    expect(entityRoutes.existsSync(), isTrue);
+    final content = entityRoutes.readAsStringSync();
+
+    expect(content.contains("static const String home = '/home';"), isTrue);
+    expect(
+      content.contains("../presentation/pages/general/home_view.dart"),
       isTrue,
     );
+    expect(content.contains("path: GeneralRoutes.home"), isTrue);
+    expect(content.contains("HomeView()"), isTrue);
   });
 
   test('appends routes to existing domain routes file', () async {

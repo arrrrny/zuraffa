@@ -12,10 +12,10 @@ class ValidateCommand extends Command<void> {
 
   @override
   Future<void> run() async {
-    final args = argResults!.rest;
+    final args = argResults?.rest ?? [];
     if (args.isEmpty) {
       print('❌ Usage: zfa validate <json-file>');
-      exit(1);
+      return;
     }
 
     final file = File(args[0]);

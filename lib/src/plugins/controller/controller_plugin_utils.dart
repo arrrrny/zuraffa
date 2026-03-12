@@ -90,21 +90,12 @@ extension ControllerPluginUtils on ControllerPlugin {
         types.add(config.paramsType!);
       }
 
-      for (final rawType in types) {
-        final cleanTypes = rawType
-            .replaceAll('List<', ' ')
-            .replaceAll('Map<', ' ')
-            .replaceAll('>', ' ')
-            .replaceAll('?', ' ')
-            .replaceAll(',', ' ');
-        for (final type
-            in cleanTypes.split(RegExp(r'\s+')).map((t) => t.trim())) {
-          if (type.isNotEmpty && !KnownTypes.isExcluded(type)) {
-            final snake = StringUtils.camelToSnake(type);
-            imports.add('../../../domain/entities/$snake/$snake.dart');
-          }
-        }
-      }
+      final entityImports = CommonPatterns.entityImports(
+        types,
+        config,
+        depth: 3,
+      );
+      imports.addAll(entityImports);
     } else if (config.methods.any(
       (m) =>
           m == 'create' || m == 'update' || m == 'getList' || m == 'watchList',

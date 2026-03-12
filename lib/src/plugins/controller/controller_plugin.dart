@@ -3,6 +3,7 @@ import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../commands/controller_command.dart';
+import '../../core/builder/patterns/common_patterns.dart';
 import '../../core/constants/known_types.dart';
 import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';

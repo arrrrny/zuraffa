@@ -100,25 +100,31 @@ class CapabilityCommand extends Command<void> {
     if (schema['properties'] is Map) {
       final props = schema['properties'] as Map<String, dynamic>;
       for (final key in props.keys) {
-        if (argResults?.wasParsed(key) == true) {
-          args[key] = argResults![key];
-        } else if (!args.containsKey(key) && argResults?[key] != null) {
-          // Use default from ArgParser if not in JSON
-          args[key] = argResults![key];
+        final prop = props[key] as Map<String, dynamic>;
+        final isList = prop['type'] == 'array';
+
+        if (argResults?.wasParsed(key) == true ||
+            (!args.containsKey(key) && argResults?[key] != null)) {
+          final value = argResults![key];
+          if (isList && value is String) {
+            args[key] = value.split(',').map((e) => e.trim()).toList();
+          } else {
+            args[key] = value;
+          }
         }
       }
     }
 
     // Handle rest arguments (map to required properties)
     if (argResults != null && argResults!.rest.isNotEmpty) {
-      final required = schema['required'] as List?;
-      if (required != null) {
+      final requiredFields = schema['required'] as List?;
+      if (requiredFields != null) {
         for (
           var i = 0;
-          i < argResults!.rest.length && i < required.length;
+          i < argResults!.rest.length && i < requiredFields.length;
           i++
         ) {
-          final key = required[i] as String;
+          final key = requiredFields[i].toString();
           if (!args.containsKey(key)) {
             args[key] = argResults!.rest[i];
           }
@@ -129,6 +135,30 @@ class CapabilityCommand extends Command<void> {
     // Handle global flags
     if (argResults?['revert'] == true) {
       args['revert'] = true;
+    }
+
+    // Validate required fields
+    final required = schema['required'] as List?;
+    if (required != null) {
+      final missing = <String>[];
+      for (final key in required) {
+        if (!args.containsKey(key) || args[key] == null) {
+          missing.add(key as String);
+        }
+      }
+      if (missing.isNotEmpty) {
+        print('❌ Error: Missing required arguments: ${missing.join(', ')}');
+        var usage = 'zfa';
+        var cmd = this as Command?;
+        final names = <String>[];
+        while (cmd != null) {
+          names.insert(0, cmd.name);
+          cmd = cmd.parent;
+        }
+        usage = 'zfa ${names.join(' ')}';
+        print('Usage: $usage <${required.join('> <')}> [options]');
+        return;
+      }
     }
 
     final isDryRun = argResults?['dry-run'] == true;

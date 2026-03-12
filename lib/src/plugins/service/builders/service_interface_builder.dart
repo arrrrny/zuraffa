@@ -45,10 +45,11 @@ class ServiceInterfaceBuilder {
 
     final directives = <Directive>[
       Directive.import('package:zuraffa/zuraffa.dart'),
-      ...CommonPatterns.entityImports([
-        paramsType,
-        returnsType,
-      ], config).map((path) => Directive.import(path)),
+      ...CommonPatterns.entityImports(
+        [paramsType, returnsType],
+        config,
+        depth: 1,
+      ).map((path) => Directive.import(path)),
     ];
 
     return specLibrary.emitSpec(clazz, directives: directives);

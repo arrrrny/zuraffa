@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:code_builder/code_builder.dart';
+import 'package:path/path.dart' as path;
 
 import '../../../core/constants/known_types.dart';
 import '../../../models/generator_config.dart';
@@ -28,11 +30,26 @@ class CommonPatterns {
 
     return entities.map((entity) {
       final entitySnake = StringUtils.camelToSnake(entity);
-      if (domainSnake != null && entitySnake.contains(domainSnake)) {
-        return '$prefix/entities/$domainSnake/$entitySnake.dart';
+
+      // Check if it's an entity directory
+      final entityDirPath = path.join(
+        config.outputDir,
+        'domain',
+        'entities',
+        entitySnake,
+      );
+
+      if (Directory(entityDirPath).existsSync()) {
+        if (domainSnake != null && entitySnake.contains(domainSnake)) {
+          return '$prefix/entities/$domainSnake/$entitySnake.dart';
+        }
+        return '$prefix/entities/$entitySnake/$entitySnake.dart';
       }
-      return '$prefix/entities/$entitySnake/$entitySnake.dart';
-    }).toList();
+
+      // Fallback: check if it's an enum (check enums/index.dart or entities/enums/index.dart)
+      // Standard Zuraffa structure puts enums in domain/entities/enums
+      return '$prefix/entities/enums/index.dart';
+    }).toSet().toList();
   }
 
   static List<String> _extractBaseTypes(String type) {

@@ -16,6 +16,8 @@ class ViewClassSpec {
   final Block initialMethodCall;
   final List<String> imports;
   final bool withState;
+  final bool isCustom;
+  final bool isStateful;
 
   const ViewClassSpec({
     required this.viewName,
@@ -28,6 +30,8 @@ class ViewClassSpec {
     required this.initialMethodCall,
     required this.imports,
     required this.withState,
+    this.isCustom = false,
+    this.isStateful = false,
     this.stateClassName,
   });
 }
@@ -46,6 +50,9 @@ class ViewClassBuilder {
   static const _ignoreComment = '// ignore_for_file: no_logic_in_create_state';
 
   String build(ViewClassSpec spec) {
+    if (spec.isCustom) {
+      return _buildCustomView(spec);
+    }
     final viewClass = _buildViewClass(spec);
     final stateClass = _buildStateClass(spec);
     final directives = spec.imports.toSet().map(Directive.import).toList();
@@ -56,6 +63,151 @@ class ViewClassBuilder {
     );
 
     return specLibrary.emitLibrary(library, leadingComment: _ignoreComment);
+  }
+
+  String _buildCustomView(ViewClassSpec spec) {
+    if (spec.isStateful) {
+      return _buildCustomStatefulView(spec);
+    }
+    final viewClass = Class(
+      (c) => c
+        ..name = spec.viewName
+        ..extend = refer('StatelessWidget')
+        ..constructors.add(
+          Constructor(
+            (c) => c
+              ..constant = true
+              ..optionalParameters.add(
+                Parameter(
+                  (p) => p
+                    ..name = 'key'
+                    ..named = true
+                    ..toSuper = true,
+                ),
+              ),
+          ),
+        )
+        ..methods.add(
+          Method(
+            (m) => m
+              ..name = 'build'
+              ..annotations.add(refer('override'))
+              ..returns = refer('Widget')
+              ..requiredParameters.add(
+                Parameter(
+                  (p) => p
+                    ..name = 'context'
+                    ..type = refer('BuildContext'),
+                ),
+              )
+              ..body = Block(
+                (b) => b
+                  ..statements.add(
+                    refer('Scaffold').newInstance([], {
+                      'appBar': refer('AppBar').newInstance([], {
+                        'title': refer('Text').newInstance([
+                          literalString(spec.entityName),
+                        ]),
+                      }),
+                      'body': refer('Center').newInstance([], {
+                        'child': refer('Text').newInstance([
+                          literalString('${spec.viewName} is working!'),
+                        ]),
+                      }),
+                    }).returned.statement,
+                  ),
+              ),
+          ),
+        ),
+    );
+
+    final directives = spec.imports.toSet().map(Directive.import).toList();
+    final library = specLibrary.library(
+      specs: [viewClass],
+      directives: directives,
+    );
+
+    return specLibrary.emitLibrary(library);
+  }
+
+  String _buildCustomStatefulView(ViewClassSpec spec) {
+    final viewClass = Class(
+      (c) => c
+        ..name = spec.viewName
+        ..extend = refer('StatefulWidget')
+        ..constructors.add(
+          Constructor(
+            (c) => c
+              ..constant = true
+              ..optionalParameters.add(
+                Parameter(
+                  (p) => p
+                    ..name = 'key'
+                    ..named = true
+                    ..toSuper = true,
+                ),
+              ),
+          ),
+        )
+        ..methods.add(
+          Method(
+            (m) => m
+              ..name = 'createState'
+              ..annotations.add(refer('override'))
+              ..returns = refer('State<${spec.viewName}>')
+              ..body = refer('_${spec.viewName}State')
+                  .call([])
+                  .returned
+                  .statement,
+          ),
+        ),
+    );
+
+    final stateClass = Class(
+      (c) => c
+        ..name = '_${spec.viewName}State'
+        ..extend = refer('State<${spec.viewName}>')
+        ..methods.add(
+          Method(
+            (m) => m
+              ..name = 'build'
+              ..annotations.add(refer('override'))
+              ..returns = refer('Widget')
+              ..requiredParameters.add(
+                Parameter(
+                  (p) => p
+                    ..name = 'context'
+                    ..type = refer('BuildContext'),
+                ),
+              )
+              ..body = Block(
+                (b) => b
+                  ..statements.add(
+                    refer('Scaffold').newInstance([], {
+                      'appBar': refer('AppBar').newInstance([], {
+                        'title': refer('Text').newInstance([
+                          literalString(spec.entityName),
+                        ]),
+                      }),
+                      'body': refer('Center').newInstance([], {
+                        'child': refer('Text').newInstance([
+                          literalString('${spec.viewName} is working!'),
+                        ]),
+                      }),
+                    }).returned.statement,
+                  ),
+              ),
+          ),
+        ),
+    );
+
+    final directives = spec.imports.toSet().map(Directive.import).toList();
+    final library = specLibrary.library(
+      specs: [viewClass, stateClass],
+      directives: directives,
+    );
+
+    return specLibrary.emitLibrary(library);
   }
 
   Class _buildViewClass(ViewClassSpec spec) {

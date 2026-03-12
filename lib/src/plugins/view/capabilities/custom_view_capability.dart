@@ -3,16 +3,16 @@ import '../view_plugin.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
 
-class CreateViewCapability implements ZuraffaCapability {
+class CustomViewCapability implements ZuraffaCapability {
   final ViewPlugin plugin;
 
-  CreateViewCapability(this.plugin);
+  CustomViewCapability(this.plugin);
 
   @override
-  String get name => 'create';
+  String get name => 'custom';
 
   @override
-  String get description => 'Create a Flutter View class';
+  String get description => 'Create a custom Flutter view (non-entity based)';
 
   @override
   JsonSchema get inputSchema => {
@@ -20,32 +20,21 @@ class CreateViewCapability implements ZuraffaCapability {
     'properties': {
       'name': {
         'type': 'string',
-        'description': 'Name of the view entity (e.g. Product)',
+        'description': 'Name of the view (e.g. Home)',
+      },
+      'domain': {
+        'type': 'string',
+        'description': 'Domain folder for the view (e.g. common, auth)',
+        'default': 'general',
       },
       'outputDir': {
         'type': 'string',
         'description': 'Directory to output the file',
         'default': 'lib/src',
       },
-      'methods': {
-        'type': 'array',
-        'items': {'type': 'string'},
-        'description': 'List of methods (get,create,update,delete,list,watch,getList,watchList)',
-        'default': ['get', 'update'],
-      },
-      'di': {
+      'stateless': {
         'type': 'boolean',
-        'description': 'Generate with DI integration',
-        'default': true,
-      },
-      'state': {
-        'type': 'boolean',
-        'description': 'Generate with State integration',
-        'default': false,
-      },
-      'route': {
-        'type': 'boolean',
-        'description': 'Generate route definitions for this view',
+        'description': 'Generate a StatelessWidget instead of CleanView',
         'default': false,
       },
       'dryRun': {
@@ -109,24 +98,24 @@ class CreateViewCapability implements ZuraffaCapability {
     required bool dryRun,
   }) async {
     final name = args['name'];
+    final domain = args['domain'] ?? 'general';
     final outputDir = args['outputDir'] ?? 'lib/src';
-    final methods =
-        (args['methods'] as List?)?.cast<String>() ??
-        ['get', 'update'];
-    final generateDi = args['di'] ?? true;
-    final generateState = args['state'] ?? false;
-    final generateRoute = args['route'] ?? false;
+    final stateless = args['stateless'] ?? false;
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
 
+    // Create a special config for custom views
+    // For custom views, we might not want VPCs unless explicitly specified
+    // But for now, let's just make it a simple view
     final config = GeneratorConfig(
       name: name,
+      domain: domain,
       outputDir: outputDir,
       generateView: true,
-      generateRoute: generateRoute,
-      methods: methods,
-      generateDi: generateDi,
-      generateState: generateState,
+      generateVpcs: false, // Don't generate VPCs for custom view
+      generatePresenter: false,
+      generateController: false,
+      generateState: !stateless, // Use generateState to indicate statefulness for custom view
       dryRun: dryRun,
       force: force,
       verbose: verbose,

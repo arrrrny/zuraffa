@@ -13,8 +13,8 @@ class RouteCommand extends PluginCommand {
     argParser.addOption(
       'methods',
       abbr: 'm',
-      help: 'Comma-separated list of methods (get,create,update,delete,list)',
-      defaultsTo: 'get,list,create,update,delete',
+      help: 'Comma-separated list of methods (get,create,update,delete,list,watch,getList,watchList)',
+      defaultsTo: 'get,update',
     );
   }
 
@@ -28,19 +28,32 @@ class RouteCommand extends PluginCommand {
   Future<void> run() async {
     if (argResults!.rest.isEmpty) {
       print('❌ Usage: zfa route <EntityName> [options]');
-      exit(1);
+      print('   Or use a subcommand:');
+      print('   zfa route create <EntityName> [options]');
+      print('   zfa route custom <Name> [options]');
+      return;
     }
 
-    final entityName = argResults!.rest.first;
-    final methods = (argResults!['methods'] as String).split(',');
+    var entityName = argResults!.rest.first;
+    var capabilityName = 'create';
 
-    final capability =
-        plugin.capabilities.firstWhere((c) => c is CreateRouteCapability)
-            as CreateRouteCapability;
+    if (argResults!.rest.length > 1) {
+      final first = argResults!.rest.first;
+      if (first == 'create' || first == 'custom') {
+        capabilityName = first;
+        entityName = argResults!.rest[1];
+      }
+    }
+
+    final methods = (argResults?['methods'] as String?)?.split(',') ??
+        ['get', 'update'];
+
+    final capability = plugin.capabilities
+        .firstWhere((c) => c.name == capabilityName);
 
     final result = await capability.execute({
       'name': entityName,
-      'methods': methods,
+      'methods': capabilityName == 'custom' ? [] : methods,
       'dryRun': isDryRun,
       'force': isForce,
       'verbose': isVerbose,
