@@ -120,6 +120,7 @@ class CreateRepositoryCapability implements ZuraffaCapability {
       generateData: generateData,
       generateDataSource: generateDataSource,
       methods: methods,
+      generateInit: args['init'] == true,
       dryRun: dryRun,
       force: force,
       verbose: verbose,

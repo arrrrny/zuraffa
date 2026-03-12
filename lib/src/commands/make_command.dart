@@ -91,6 +91,31 @@ class MakeCommand extends Command<void> {
       negatable: false,
       help: 'Use mock provider/datasource in DI registration',
     );
+    argParser.addFlag(
+      'init',
+      abbr: 'i',
+      negatable: false,
+      help: 'Generate initialization and disposal methods',
+    );
+    argParser.addFlag(
+      'zorphy',
+      help: 'Use Zorphy patterns (e.g., LocalePatch instead of Partial<Locale>)',
+      defaultsTo: false,
+      negatable: false,
+    );
+    argParser.addFlag(
+      'local',
+      help: 'Generate local data source (instead of remote)',
+      defaultsTo: false,
+      negatable: false,
+    );
+    argParser.addFlag(
+      'remote',
+      help: 'Generate remote data source',
+      defaultsTo: true,
+      negatable: true,
+    );
+    argParser.addFlag('cache', help: 'Enable caching', defaultsTo: false);
   }
 
   @override
@@ -192,6 +217,11 @@ class MakeCommand extends Command<void> {
     final usecasesStr = argResults?['usecases'] as String?;
     final usecases = usecasesStr?.split(',').map((e) => e.trim()).toList();
     final useMockInDi = argResults!['use-mock'] == true;
+    final generateInit = argResults!['init'] == true;
+    final useZorphy = argResults!['zorphy'] == true;
+    final generateLocal = argResults!['local'] == true;
+    final generateRemote = argResults!['remote'] != false;
+    final enableCache = argResults!['cache'] == true;
 
     // Create a base config that enables everything requested
     final config = GeneratorConfig(
@@ -212,8 +242,14 @@ class MakeCommand extends Command<void> {
       dryRun: dryRun,
       force: force,
       verbose: verbose,
+      revert: isRevert,
       outputDir: outputDir,
       useMockInDi: useMockInDi,
+      generateInit: generateInit,
+      useZorphy: useZorphy,
+      generateLocal: generateLocal,
+      generateRemote: generateRemote,
+      enableCache: enableCache || pluginNames.contains('cache'),
       // Map known plugins
       generateRoute: pluginNames.contains('route'),
       generateDi: pluginNames.contains('di'),
@@ -228,7 +264,6 @@ class MakeCommand extends Command<void> {
           pluginNames.contains('provider'),
       generateState: pluginNames.contains('state'),
       generateTest: pluginNames.contains('test'),
-      enableCache: pluginNames.contains('cache'),
       generateMock: pluginNames.contains('mock'),
       generateGql: pluginNames.contains('graphql'),
       generateObserver: pluginNames.contains('observer'),

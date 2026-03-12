@@ -27,6 +27,13 @@ class ServiceCommand extends PluginCommand {
       allowed: ['sync', 'stream', 'completable', 'usecase'],
       defaultsTo: 'usecase',
     );
+    argParser.addFlag(
+      'init',
+      abbr: 'i',
+      help: 'Generate initialization and disposal methods',
+      defaultsTo: false,
+      negatable: false,
+    );
   }
 
   @override
@@ -57,6 +64,7 @@ class ServiceCommand extends PluginCommand {
       'params': paramsType,
       'returns': returnsType,
       'type': useCaseType,
+      'init': argResults?['init'] == true,
       'dryRun': isDryRun,
       'force': isForce,
       'verbose': isVerbose,

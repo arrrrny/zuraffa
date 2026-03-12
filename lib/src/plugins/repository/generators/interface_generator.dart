@@ -181,6 +181,13 @@ class RepositoryInterfaceGenerator {
             ),
         ),
       );
+      methods.add(
+        Method(
+          (b) => b
+            ..name = 'dispose'
+            ..returns = refer('Future<void>'),
+        ),
+      );
     }
 
     for (final method in config.methods) {
@@ -216,9 +223,8 @@ class RepositoryInterfaceGenerator {
           );
           break;
         case 'update':
-          final dataType = config.useZorphy
-              ? '${config.name}Patch'
-              : 'Partial<${config.name}>';
+          // Use Patch for entity-based updates by default
+          final dataType = '${config.name}Patch';
           methods.add(
             _buildMethod(
               name: 'update',

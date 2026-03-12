@@ -11,6 +11,7 @@ class CommonPatterns {
     List<String?> types,
     GeneratorConfig config, {
     int depth = 1,
+    bool includeDomain = true,
   }) {
     final entities = <String>{};
     for (final type in types) {
@@ -27,28 +28,61 @@ class CommonPatterns {
         ? StringUtils.camelToSnake(config.domain!)
         : null;
     final prefix = List.generate(depth, (_) => '..').join('/');
+    final domainSegment = includeDomain ? 'domain/' : '';
 
     return entities.map((entity) {
       final entitySnake = StringUtils.camelToSnake(entity);
 
-      // Check if it's an entity directory
+      // 1. Try domain-specific entity directory first if domain is provided
+      if (domainSnake != null) {
+        final domainEntityDirPath = path.join(
+          config.outputDir,
+          'domain',
+          'entities',
+          domainSnake,
+          entitySnake,
+        );
+        if (Directory(domainEntityDirPath).existsSync()) {
+          return '$prefix/${domainSegment}entities/$domainSnake/$entitySnake/$entitySnake.dart';
+        }
+
+        // Check if it's a flat file in domain folder (legacy or special case)
+        final domainEntityFilePath = path.join(
+          config.outputDir,
+          'domain',
+          'entities',
+          domainSnake,
+          '$entitySnake.dart',
+        );
+        if (File(domainEntityFilePath).existsSync()) {
+          return '$prefix/${domainSegment}entities/$domainSnake/$entitySnake.dart';
+        }
+      }
+
+      // 2. Try standard entity directory
       final entityDirPath = path.join(
         config.outputDir,
         'domain',
         'entities',
         entitySnake,
       );
-
       if (Directory(entityDirPath).existsSync()) {
-        if (domainSnake != null && entitySnake.contains(domainSnake)) {
-          return '$prefix/entities/$domainSnake/$entitySnake.dart';
-        }
-        return '$prefix/entities/$entitySnake/$entitySnake.dart';
+        return '$prefix/${domainSegment}entities/$entitySnake/$entitySnake.dart';
       }
 
-      // Fallback: check if it's an enum (check enums/index.dart or entities/enums/index.dart)
-      // Standard Zuraffa structure puts enums in domain/entities/enums
-      return '$prefix/entities/enums/index.dart';
+      // 3. Try legacy flat entity file
+      final entityFilePath = path.join(
+        config.outputDir,
+        'domain',
+        'entities',
+        '$entitySnake.dart',
+      );
+      if (File(entityFilePath).existsSync()) {
+        return '$prefix/${domainSegment}entities/$entitySnake.dart';
+      }
+
+      // 4. Fallback: assume it's an enum
+      return '$prefix/${domainSegment}entities/enums/index.dart';
     }).toSet().toList();
   }
 
@@ -76,7 +110,12 @@ class CommonPatterns {
       }
     } else {
       // 3. Simple type (e.g., Barcode, BarcodeListing)
-      results.add(cleanType);
+      // Strip common suffixes for entity lookup
+      var finalType = cleanType;
+      if (finalType.endsWith('Patch') && finalType.length > 5) {
+        finalType = finalType.substring(0, finalType.length - 5);
+      }
+      results.add(finalType);
     }
 
     return results;

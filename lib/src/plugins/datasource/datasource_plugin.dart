@@ -77,13 +77,15 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     if (config.outputDir != outputDir ||
         config.dryRun != options.dryRun ||
         config.force != options.force ||
-        config.verbose != options.verbose) {
+        config.verbose != options.verbose ||
+        config.revert != options.revert) {
       final delegator = DataSourcePlugin(
         outputDir: config.outputDir,
         options: GeneratorOptions(
           dryRun: config.dryRun,
           force: config.force,
           verbose: config.verbose,
+          revert: config.revert,
         ),
       );
       return delegator.generate(config);
@@ -100,48 +102,51 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final files = <GeneratedFile>[];
 
+    final repoBase = config.repo ?? config.name;
+    final repoName = repoBase.endsWith('Repository')
+        ? repoBase.replaceAll('Repository', '')
+        : repoBase;
+    final repoSnake = StringUtils.camelToSnake(repoName);
+
+    final remotePath = path.join(
+      outputDir,
+      'data',
+      'datasources',
+      repoSnake,
+      '${repoSnake}_remote_datasource.dart',
+    );
+    final localPath = path.join(
+      outputDir,
+      'data',
+      'datasources',
+      repoSnake,
+      '${repoSnake}_local_datasource.dart',
+    );
+
+    final remoteExists = File(remotePath).existsSync();
+    final localExists = File(localPath).existsSync();
+
     if (config.appendToExisting) {
       files.add(await interfaceGenerator.generate(config));
 
-      final repoBase = config.repo ?? config.name;
-      final repoName = repoBase.endsWith('Repository')
-          ? repoBase.replaceAll('Repository', '')
-          : repoBase;
-      final repoSnake = StringUtils.camelToSnake(repoName);
-
-      final remotePath = path.join(
-        outputDir,
-        'data',
-        'datasources',
-        repoSnake,
-        '${repoSnake}_remote_datasource.dart',
-      );
-      if (File(remotePath).existsSync()) {
+      if (remoteExists || config.generateRemote) {
         files.add(await remoteGenerator.generate(config));
       }
 
-      final localPath = path.join(
-        outputDir,
-        'data',
-        'datasources',
-        repoSnake,
-        '${repoSnake}_local_datasource.dart',
-      );
-      if (File(localPath).existsSync()) {
+      if (localExists || config.generateLocal || config.enableCache) {
         files.add(await localGenerator.generate(config));
       }
 
       return files;
     }
 
-    if (config.generateLocal) {
+    if (config.generateLocal || config.enableCache) {
       files.add(await localGenerator.generate(config));
-    } else {
-      files.add(await remoteGenerator.generate(config));
     }
 
-    if (config.enableCache && !config.generateLocal) {
-      files.add(await localGenerator.generate(config));
+    if (config.generateRemote || (config.enableCache && !config.generateLocal)) {
+      // If we already generated local due to enableCache, we still want remote
+      files.add(await remoteGenerator.generate(config));
     }
 
     files.add(await interfaceGenerator.generate(config));

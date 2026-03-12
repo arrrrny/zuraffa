@@ -114,6 +114,7 @@ class CreateServiceCapability implements ZuraffaCapability {
       paramsType: paramsType,
       returnsType: returnsType,
       useCaseType: useCaseType,
+      generateInit: args['init'] == true,
       dryRun: dryRun,
       force: force,
       verbose: verbose,

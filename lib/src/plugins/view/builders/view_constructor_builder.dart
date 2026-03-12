@@ -11,14 +11,14 @@ class ViewConstructorBuilder {
       Parameter(
         (p) => p
           ..name = 'key'
-          ..type = refer('Key?')
-          ..named = true,
+          ..named = true
+          ..toSuper = true,
       ),
       Parameter(
         (p) => p
           ..name = 'routeObserver'
-          ..type = refer('RouteObserver<ModalRoute<void>>?')
-          ..named = true,
+          ..named = true
+          ..toSuper = true,
       ),
     ];
 
@@ -48,13 +48,7 @@ class ViewConstructorBuilder {
     return Constructor(
       (c) => c
         ..constant = true
-        ..optionalParameters.addAll(parameters)
-        ..initializers.add(
-          refer('super').call([], {
-            'key': refer('key'),
-            'routeObserver': refer('routeObserver'),
-          }).code,
-        ),
+        ..optionalParameters.addAll(parameters),
     );
   }
 }

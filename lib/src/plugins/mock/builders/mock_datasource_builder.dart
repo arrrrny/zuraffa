@@ -135,6 +135,24 @@ class MockDataSourceBuilder {
             ).property('value').call([literalBool(true)]).code,
         ),
       );
+
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'dispose'
+            ..annotations.add(refer('override'))
+            ..returns = typeHelper.futureVoidType()
+            ..modifier = MethodModifier.async
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer('logger').property('info').call([
+                    literalString('Disposing ${entityName}MockDataSource'),
+                  ]).statement,
+                ),
+            ),
+        ),
+      );
     }
 
     methods.addAll(_generateMockDataSourceMethods(config));

@@ -201,9 +201,8 @@ extension ControllerPluginMethods on ControllerPlugin {
     String entityCamel,
     bool withState,
   ) {
-    final updateDataType = config.useZorphy
-        ? '${entityName}Patch'
-        : 'Partial<$entityName>';
+    // Use Patch for entity-based updates by default
+    final updateDataType = '${entityName}Patch';
     final hasListMethod = config.methods.contains('getList');
     final hasWatchList = config.methods.contains('watchList');
     final body = withState

@@ -82,6 +82,13 @@ class FeatureCommand extends PluginCommand {
       defaultsTo: false,
       negatable: false,
     );
+    argParser.addFlag(
+      'init',
+      abbr: 'i',
+      help: 'Generate initialization and disposal methods',
+      defaultsTo: false,
+      negatable: false,
+    );
   }
 
   @override
@@ -192,6 +199,7 @@ class FeatureCommand extends PluginCommand {
       'force': isForce,
       'verbose': isVerbose,
       'revert': isRevert,
+      'init': argResults!['init'] == true,
       'outputDir': outputDir,
     };
 

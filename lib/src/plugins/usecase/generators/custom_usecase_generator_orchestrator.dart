@@ -57,6 +57,7 @@ extension CustomUseCaseGeneratorOrchestrator on CustomUseCaseGenerator {
       [paramsType, returnsType],
       config,
       depth: 2,
+      includeDomain: false,
     );
     usecaseImports.addAll(entityImports);
 

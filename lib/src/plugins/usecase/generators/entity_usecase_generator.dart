@@ -5,6 +5,7 @@ import 'package:path/path.dart' as path;
 
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
+import '../../../core/builder/patterns/common_patterns.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
@@ -145,9 +146,8 @@ class EntityUseCaseGenerator {
         break;
       case 'update':
         className = 'Update${entityName}UseCase';
-        final dataType = config.useZorphy
-            ? '${entityName}Patch'
-            : 'Partial<$entityName>';
+        // Use Patch for entity-based updates by default
+        final dataType = '${entityName}Patch';
         baseClass = TypeReference(
           (t) => t
             ..symbol = 'UseCase'
@@ -290,8 +290,13 @@ class EntityUseCaseGenerator {
 
     final imports = <String>['package:zuraffa/zuraffa.dart'];
     if (needsEntityImport) {
-      final entityPath = '../../entities/$entitySnake/$entitySnake.dart';
-      imports.add(entityPath);
+      final entityImports = CommonPatterns.entityImports(
+        [paramsType.accept(DartEmitter()).toString(), returnType.accept(DartEmitter()).toString()],
+        config,
+        depth: 2,
+        includeDomain: false,
+      );
+      imports.addAll(entityImports);
     }
     final repoPath =
         '../../repositories/${StringUtils.camelToSnake(repoName.replaceAll('Repository', ''))}_repository.dart';

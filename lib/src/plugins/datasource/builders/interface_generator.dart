@@ -82,6 +82,13 @@ class DataSourceInterfaceBuilder {
             ),
         ),
       );
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'dispose'
+            ..returns = refer('Future<void>'),
+        ),
+      );
     }
 
     for (final method in config.methods) {
@@ -135,9 +142,8 @@ class DataSourceInterfaceBuilder {
           );
           break;
         case 'update':
-          final dataType = config.useZorphy
-              ? '${config.name}Patch'
-              : 'Partial<${config.name}>';
+          // Use Patch for entity-based updates by default
+          final dataType = '${config.name}Patch';
           methods.add(
             Method(
               (m) => m

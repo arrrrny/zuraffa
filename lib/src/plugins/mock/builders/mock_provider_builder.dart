@@ -148,6 +148,78 @@ class MockProviderBuilder {
     );
 
     final methods = <Method>[];
+
+    if (config.generateInit) {
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'initialize'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Future<void>')
+            ..modifier = MethodModifier.async
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('InitializationParams'),
+              ),
+            )
+            ..body = Block(
+              (b) => b
+                ..statements.addAll([
+                  refer('logger').property('info').call([
+                    literalString('Initializing $mockProviderName'),
+                  ]).statement,
+                  refer('Future')
+                      .property('delayed')
+                      .call([
+                        refer(
+                          'Duration',
+                        ).constInstance(const [], {'seconds': literalNum(1)}),
+                      ])
+                      .awaited
+                      .statement,
+                  refer('logger').property('info').call([
+                    literalString('$mockProviderName initialized'),
+                  ]).statement,
+                ]),
+            ),
+        ),
+      );
+
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'isInitialized'
+            ..type = MethodType.getter
+            ..annotations.add(refer('override'))
+            ..returns = refer('Stream<bool>')
+            ..lambda = true
+            ..body = refer(
+              'Stream',
+            ).property('value').call([literalBool(true)]).code,
+        ),
+      );
+
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'dispose'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Future<void>')
+            ..modifier = MethodModifier.async
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer('logger').property('info').call([
+                    literalString('Disposing $mockProviderName'),
+                  ]).statement,
+                ),
+            ),
+        ),
+      );
+    }
+
     methods.addAll(_generateMockProviderMethods(config));
 
     final clazz = Class(

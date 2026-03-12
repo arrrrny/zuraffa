@@ -35,12 +35,46 @@ class ServiceInterfaceBuilder {
       parameters: params,
     );
 
+    final methods = <Method>[method];
+
+    if (config.generateInit) {
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'isInitialized'
+            ..type = MethodType.getter
+            ..returns = refer('Stream<bool>'),
+        ),
+      );
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'initialize'
+            ..returns = refer('Future<void>')
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('InitializationParams'),
+              ),
+            ),
+        ),
+      );
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'dispose'
+            ..returns = refer('Future<void>'),
+        ),
+      );
+    }
+
     final clazz = Class(
       (b) => b
         ..name = serviceName
         ..abstract = true
         ..docs.add('/// Service interface for $serviceName')
-        ..methods.add(method),
+        ..methods.addAll(methods),
     );
 
     final directives = <Directive>[

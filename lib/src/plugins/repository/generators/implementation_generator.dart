@@ -174,6 +174,98 @@ class RepositoryImplementationGenerator {
       }
     }
 
+    if (config.generateInit) {
+      final targetDataSource =
+          config.enableCache ? '_localDataSource' : '_dataSource';
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'isInitialized'
+            ..returns = refer('Stream<bool>')
+            ..type = MethodType.getter
+            ..annotations.add(refer('override'))
+            ..body = refer(targetDataSource).property('isInitialized').code,
+        ),
+      );
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'initialize'
+            ..returns = refer('Future<void>')
+            ..annotations.add(refer('override'))
+            ..modifier = MethodModifier.async
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('InitializationParams'),
+              ),
+            )
+            ..body = Block((b) {
+              if (config.enableCache) {
+                b.statements.add(
+                  refer('_remoteDataSource')
+                      .property('initialize')
+                      .call([refer('params')])
+                      .awaited
+                      .statement,
+                );
+                b.statements.add(
+                  refer('_localDataSource')
+                      .property('initialize')
+                      .call([refer('params')])
+                      .awaited
+                      .statement,
+                );
+              } else {
+                b.statements.add(
+                  refer('_dataSource')
+                      .property('initialize')
+                      .call([refer('params')])
+                      .awaited
+                      .statement,
+                );
+              }
+            }),
+        ),
+      );
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'dispose'
+            ..returns = refer('Future<void>')
+            ..annotations.add(refer('override'))
+            ..modifier = MethodModifier.async
+            ..body = Block((b) {
+              if (config.enableCache) {
+                b.statements.add(
+                  refer('_remoteDataSource')
+                      .property('dispose')
+                      .call([])
+                      .awaited
+                      .statement,
+                );
+                b.statements.add(
+                  refer('_localDataSource')
+                      .property('dispose')
+                      .call([])
+                      .awaited
+                      .statement,
+                );
+              } else {
+                b.statements.add(
+                  refer('_dataSource')
+                      .property('dispose')
+                      .call([])
+                      .awaited
+                      .statement,
+                );
+              }
+            }),
+        ),
+      );
+    }
+
     final importPaths = _buildImportPaths(config, entitySnake);
 
     // If file exists, handle append/remove/add

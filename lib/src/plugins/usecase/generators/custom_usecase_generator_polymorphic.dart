@@ -94,6 +94,7 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
         [paramsType, returnsType],
         config,
         depth: 2,
+        includeDomain: false,
       );
       imports.addAll(entityImports);
 

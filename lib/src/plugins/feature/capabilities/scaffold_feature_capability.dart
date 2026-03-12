@@ -171,6 +171,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
     final revert = args['revert'] ?? false;
+    final generateInit = args['init'] == true;
     final appendToExisting = zfaConfig?.appendByDefault ?? false;
 
     final generateRoute = args.containsKey('route')
@@ -231,6 +232,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         queryField: queryField,
         queryFieldType: queryFieldType,
         useZorphy: useZorphy,
+        generateInit: generateInit,
       );
       allFiles.addAll(await repoPlugin.generate(config));
     }
@@ -262,6 +264,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         force: force,
         verbose: verbose,
         revert: revert,
+        generateInit: generateInit,
       );
 
       allFiles.addAll(await datasourcePlugin.generate(datasourceConfig));

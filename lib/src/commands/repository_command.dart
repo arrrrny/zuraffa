@@ -24,6 +24,13 @@ class RepositoryCommand extends PluginCommand {
       help: 'Generate data sources along with repository',
       defaultsTo: true,
     );
+    argParser.addFlag(
+      'init',
+      abbr: 'i',
+      help: 'Generate initialization and disposal methods',
+      defaultsTo: false,
+      negatable: false,
+    );
   }
 
   @override
@@ -54,6 +61,7 @@ class RepositoryCommand extends PluginCommand {
       'methods': methods,
       'data': generateData,
       'datasource': generateDataSource,
+      'init': argResults?['init'] == true,
       'dryRun': isDryRun,
       'force': isForce,
       'verbose': isVerbose,

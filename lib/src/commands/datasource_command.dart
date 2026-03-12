@@ -25,6 +25,13 @@ class DataSourceCommand extends PluginCommand {
       defaultsTo: true,
     );
     argParser.addFlag('cache', help: 'Enable caching', defaultsTo: false);
+    argParser.addFlag(
+      'init',
+      abbr: 'i',
+      help: 'Generate initialization and disposal methods',
+      defaultsTo: false,
+      negatable: false,
+    );
   }
 
   @override
@@ -54,6 +61,7 @@ class DataSourceCommand extends PluginCommand {
       'local': generateLocal,
       'remote': generateRemote,
       'cache': enableCache,
+      'init': argResults?['init'] == true,
       'dryRun': isDryRun,
       'force': isForce,
       'verbose': isVerbose,

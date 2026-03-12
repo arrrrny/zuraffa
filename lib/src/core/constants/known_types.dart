@@ -33,6 +33,7 @@ class KnownTypes {
     'DeleteParams',
     'CreateParams',
     'InitializationParams',
+    'Partial',
   ];
 
   /// Zuraffa result and failure types

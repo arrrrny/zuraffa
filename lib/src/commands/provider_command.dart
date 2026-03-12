@@ -37,6 +37,13 @@ class ProviderCommand extends PluginCommand {
       help: 'Generate data layer dependencies',
       defaultsTo: true,
     );
+    argParser.addFlag(
+      'init',
+      abbr: 'i',
+      help: 'Generate initialization and disposal methods',
+      defaultsTo: false,
+      negatable: false,
+    );
   }
 
   @override
@@ -70,6 +77,7 @@ class ProviderCommand extends PluginCommand {
       'params': params,
       'returns': returns,
       'type': type,
+      'init': argResults?['init'] == true,
       'dryRun': isDryRun,
       'force': isForce,
       'verbose': isVerbose,

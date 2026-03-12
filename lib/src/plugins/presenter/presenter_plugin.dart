@@ -50,13 +50,15 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     if (config.outputDir != outputDir ||
         config.dryRun != options.dryRun ||
         config.force != options.force ||
-        config.verbose != options.verbose) {
+        config.verbose != options.verbose ||
+        config.revert != options.revert) {
       final delegator = PresenterPlugin(
         outputDir: config.outputDir,
         options: GeneratorOptions(
           dryRun: config.dryRun,
           force: config.force,
           verbose: config.verbose,
+          revert: config.revert,
         ),
         classBuilder: classBuilder,
       );
@@ -494,9 +496,8 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     _UseCaseInfo info,
     String entityName,
   ) {
-    final dataType = config.useZorphy
-        ? '${entityName}Patch'
-        : 'Partial<$entityName>';
+    // Use Patch for entity-based updates by default
+    final dataType = '${entityName}Patch';
     final updateParams = refer(
       'UpdateParams<${config.idFieldType}, $dataType>',
     ).call([], {'id': refer(config.idField), 'data': refer('data')});

@@ -25,6 +25,7 @@ class GeneratorConfig {
   final bool generateData;
   final bool generateDataSource;
   final bool generateLocal;
+  final bool generateRemote;
   final bool generateState;
   final bool generateInit;
   final String queryField;
@@ -83,6 +84,7 @@ class GeneratorConfig {
     this.generateData = false,
     this.generateDataSource = false,
     this.generateLocal = false,
+    this.generateRemote = true,
     this.generateState = false,
     this.generateInit = false,
     this.queryField = 'id',
@@ -142,6 +144,7 @@ class GeneratorConfig {
       generateData: json['data'] == true,
       generateDataSource: json['datasource'] == true,
       generateLocal: json['local'] == true,
+      generateRemote: json['remote'] != false,
       generateState: json['state'] == true,
       generateInit: json['init'] == true,
       queryField: json['query_field'] ?? 'id',
