@@ -43,6 +43,11 @@ class CreateViewCapability implements ZuraffaCapability {
         'description': 'Generate with State integration',
         'default': false,
       },
+      'route': {
+        'type': 'boolean',
+        'description': 'Generate route definitions for this view',
+        'default': false,
+      },
       'dryRun': {
         'type': 'boolean',
         'description': 'Run without writing files',
@@ -110,6 +115,7 @@ class CreateViewCapability implements ZuraffaCapability {
         ['get', 'list', 'create', 'update', 'delete'];
     final generateDi = args['di'] ?? true;
     final generateState = args['state'] ?? false;
+    final generateRoute = args['route'] ?? false;
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
 
@@ -117,6 +123,7 @@ class CreateViewCapability implements ZuraffaCapability {
       name: name,
       outputDir: outputDir,
       generateView: true,
+      generateRoute: generateRoute,
       methods: methods,
       generateDi: generateDi,
       generateState: generateState,

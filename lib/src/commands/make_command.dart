@@ -37,6 +37,11 @@ class MakeCommand extends Command<void> {
       negatable: false,
       help: 'Enable detailed logging',
     );
+    argParser.addFlag(
+      'revert',
+      negatable: false,
+      help: 'Revert generated files (delete them)',
+    );
     argParser.addOption(
       'methods',
       abbr: 'm',
@@ -96,6 +101,21 @@ class MakeCommand extends Command<void> {
 
   @override
   String get invocation => 'zfa make <Name> <plugin1> <plugin2> ... [options]';
+
+  /// Returns true if dry-run mode is enabled.
+  bool get isDryRun => argResults?['dry-run'] == true;
+
+  /// Returns true if force mode is enabled.
+  bool get isForce => argResults?['force'] == true;
+
+  /// Returns true if verbose logging is enabled.
+  bool get isVerbose => argResults?['verbose'] == true;
+
+  /// Returns true if revert mode is enabled.
+  bool get isRevert => argResults?['revert'] == true;
+
+  /// Returns the resolved output directory.
+  String get outputDir => argResults?['output'] ?? 'lib/src';
 
   @override
   Future<void> run() async {
@@ -243,6 +263,7 @@ class MakeCommand extends Command<void> {
     print('✅ Done.');
   }
 
+  /// Prints a summary of generated files.
   void logSummary(List<GeneratedFile> files) {
     if (files.isEmpty) {
       print('ℹ️  No files generated.');
@@ -251,25 +272,22 @@ class MakeCommand extends Command<void> {
 
     final created = files.where((f) => f.action == 'created').length;
     final overwritten = files.where((f) => f.action == 'overwritten').length;
-    final updated = files.where((f) => f.action == 'updated').length;
     final skipped = files.where((f) => f.action == 'skipped').length;
     final deleted = files.where((f) => f.action == 'deleted').length;
 
+    print('\n✅ Generation complete:');
     if (created > 0) print('  ✨ Created: $created files');
     if (overwritten > 0) print('  📝 Overwritten: $overwritten files');
-    if (updated > 0) print('  🔄 Updated: $updated files');
     if (skipped > 0) print('  ⏭ Skipped: $skipped files');
     if (deleted > 0) print('  🗑 Deleted: $deleted files');
 
     // If not verbose, print generated file paths (verbose mode already prints from FileUtils)
-    if (argResults?['verbose'] != true) {
+    if (!isVerbose) {
       for (final file in files) {
         if (file.action == 'created') {
           print('  ✨ ${file.path}');
         } else if (file.action == 'overwritten') {
           print('  📝 ${file.path}');
-        } else if (file.action == 'updated') {
-          print('  🔄 ${file.path}');
         } else if (file.action == 'deleted') {
           print('  🗑 ${file.path}');
         }

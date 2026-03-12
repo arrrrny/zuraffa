@@ -106,6 +106,7 @@ class CreateRouteCapability implements ZuraffaCapability {
       outputDir: outputDir,
       methods: methods,
       generateRoute: true,
+      generateDi: false, // Prevent repository injections in views
       dryRun: dryRun,
       force: force,
       verbose: verbose,

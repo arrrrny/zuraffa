@@ -355,6 +355,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         name: featureName,
         outputDir: outputDir,
         generateRoute: true,
+        generateDi: generateDi,
         methods: usecases,
         idField: idField,
         idFieldType: idFieldType,
