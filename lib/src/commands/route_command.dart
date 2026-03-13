@@ -1,9 +1,7 @@
-import 'dart:io';
 
 import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import '../plugins/route/route_plugin.dart';
-import '../plugins/route/capabilities/create_route_capability.dart';
 
 class RouteCommand extends PluginCommand {
   @override

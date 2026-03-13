@@ -1,4 +1,3 @@
-import 'dart:io';
 
 import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
