@@ -104,10 +104,7 @@ void main() {
       outputs[datasourcePath],
       contains('UpdateParams<String, WalkthroughPatch> params'),
     );
-    expect(
-      outputs[datasourcePath],
-      isNot(contains('Partial<Walkthrough>')),
-    );
+    expect(outputs[datasourcePath], isNot(contains('Partial<Walkthrough>')));
 
     expect(outputs.keys, contains(localDatasourcePath));
     expect(

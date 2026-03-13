@@ -45,7 +45,8 @@ class MakeCommand extends Command<void> {
     argParser.addOption(
       'methods',
       abbr: 'm',
-      help: 'Comma-separated list of methods (get,create,update,delete,list,watch,getList,watchList)',
+      help:
+          'Comma-separated list of methods (get,create,update,delete,list,watch,getList,watchList)',
       defaultsTo: 'get,update',
     );
     // Add other common flags as needed (domain, etc.)
@@ -99,7 +100,8 @@ class MakeCommand extends Command<void> {
     );
     argParser.addFlag(
       'zorphy',
-      help: 'Use Zorphy patterns (e.g., LocalePatch instead of Partial<Locale>)',
+      help:
+          'Use Zorphy patterns (e.g., LocalePatch instead of Partial<Locale>)',
       defaultsTo: false,
       negatable: false,
     );
@@ -206,8 +208,8 @@ class MakeCommand extends Command<void> {
     final dryRun = argResults?['dry-run'] == true;
     final force = argResults?['force'] == true;
     final verbose = argResults?['verbose'] == true;
-    final methods = (argResults?['methods'] as String?)?.split(',') ??
-        ['get', 'update'];
+    final methods =
+        (argResults?['methods'] as String?)?.split(',') ?? ['get', 'update'];
     final type = (argResults?['type'] as String?) ?? 'future';
     final domain = argResults?['domain'] as String?;
     final repo = argResults?['repo'] as String?;

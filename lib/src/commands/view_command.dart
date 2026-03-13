@@ -13,7 +13,8 @@ class ViewCommand extends PluginCommand {
     argParser.addOption(
       'methods',
       abbr: 'm',
-      help: 'Comma-separated list of methods (get,create,update,delete,watch,getList,watchList)',
+      help:
+          'Comma-separated list of methods (get,create,update,delete,watch,getList,watchList)',
       defaultsTo: 'get,update',
     );
     argParser.addFlag(
@@ -54,14 +55,15 @@ class ViewCommand extends PluginCommand {
       }
     }
 
-    final methods = (argResults?['methods'] as String?)?.split(',') ??
-        ['get','update'];
+    final methods =
+        (argResults?['methods'] as String?)?.split(',') ?? ['get', 'update'];
     final generateDi = argResults?['di'] as bool? ?? false;
     final generateState = argResults?['state'] as bool? ?? false;
     final generateRoute = argResults?['route'] as bool? ?? false;
 
-    final capability = plugin.capabilities
-        .firstWhere((c) => c.name == capabilityName);
+    final capability = plugin.capabilities.firstWhere(
+      (c) => c.name == capabilityName,
+    );
 
     if (generateRoute) {
       // For route generation, execute the route command separately
@@ -112,11 +114,15 @@ class ViewCommand extends PluginCommand {
     }
   }
 
-  Future<dynamic> _generateRoutes(String entityName, String capabilityName) async {
+  Future<dynamic> _generateRoutes(
+    String entityName,
+    String capabilityName,
+  ) async {
     // Use route plugin internally instead of external command
     final routePlugin = RoutePlugin(outputDir: outputDir);
-    final routeCapability =
-        routePlugin.capabilities.firstWhere((c) => c.name == capabilityName);
+    final routeCapability = routePlugin.capabilities.firstWhere(
+      (c) => c.name == capabilityName,
+    );
 
     final result = await routeCapability.execute({
       'name': entityName,

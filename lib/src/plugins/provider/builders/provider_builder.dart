@@ -87,7 +87,9 @@ class ProviderBuilder {
     for (final entityName in entityImports) {
       final entitySnake = StringUtils.camelToSnake(entityName);
       if (EntityAnalyzer.isEnum(entityName, outputDir)) {
-        directives.add(Directive.import('../../../domain/entities/enums/index.dart'));
+        directives.add(
+          Directive.import('../../../domain/entities/enums/index.dart'),
+        );
       } else {
         final entityPath =
             '../../../domain/entities/$entitySnake/$entitySnake.dart';

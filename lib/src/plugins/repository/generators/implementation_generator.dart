@@ -176,8 +176,9 @@ class RepositoryImplementationGenerator {
     }
 
     if (config.generateInit) {
-      final targetDataSource =
-          config.enableCache ? '_localDataSource' : '_dataSource';
+      final targetDataSource = config.enableCache
+          ? '_localDataSource'
+          : '_dataSource';
       methods.add(
         Method(
           (m) => m
@@ -240,26 +241,20 @@ class RepositoryImplementationGenerator {
             ..body = Block((b) {
               if (config.enableCache) {
                 b.statements.add(
-                  refer('_remoteDataSource')
-                      .property('dispose')
-                      .call([])
-                      .awaited
-                      .statement,
+                  refer(
+                    '_remoteDataSource',
+                  ).property('dispose').call([]).awaited.statement,
                 );
                 b.statements.add(
-                  refer('_localDataSource')
-                      .property('dispose')
-                      .call([])
-                      .awaited
-                      .statement,
+                  refer(
+                    '_localDataSource',
+                  ).property('dispose').call([]).awaited.statement,
                 );
               } else {
                 b.statements.add(
-                  refer('_dataSource')
-                      .property('dispose')
-                      .call([])
-                      .awaited
-                      .statement,
+                  refer(
+                    '_dataSource',
+                  ).property('dispose').call([]).awaited.statement,
                 );
               }
             }),

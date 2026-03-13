@@ -180,10 +180,10 @@ extension LocalDataSourceBuilderImpl on LocalDataSourceBuilder {
                   ),
                 ],
                 body: _buildUpdateSingleWithZorphyBody(
-                        config,
-                        entityName,
-                        entitySnake,
-                      ),
+                  config,
+                  entityName,
+                  entitySnake,
+                ),
                 isAsync: true,
               ),
             );

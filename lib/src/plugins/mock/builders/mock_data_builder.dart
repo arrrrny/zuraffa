@@ -38,8 +38,10 @@ class MockDataBuilder {
 
     // Skip generating mock data if the return type is a primitive or completable
     if (config.isCustomUseCase || config.useCaseType == 'completable') {
-      final returnsType = config.useCaseType == 'completable' ? 'void' : config.returnsType;
-      
+      final returnsType = config.useCaseType == 'completable'
+          ? 'void'
+          : config.returnsType;
+
       if (returnsType != null) {
         final primitives = {
           'String',
@@ -55,7 +57,9 @@ class MockDataBuilder {
         if (primitives.contains(baseType) ||
             (baseType.startsWith('List<') &&
                 primitives.contains(
-                  baseType.substring(5, baseType.length - 1).replaceAll('?', ''),
+                  baseType
+                      .substring(5, baseType.length - 1)
+                      .replaceAll('?', ''),
                 ))) {
           return GeneratedFile(
             path: '',
@@ -173,36 +177,36 @@ class MockDataBuilder {
                     ..type = refer('int'),
                 ),
               )
-              ..body = Block(
-                (b) {
-                  if (EntityAnalyzer.isEnum(entityName, outputDir)) {
-                    b.statements.add(
-                      refer(entityName)
-                          .property('values')
-                          .index(
-                            refer('seed').operatorEuclideanModulo(
-                              refer(entityName).property('values').property('length'),
-                            ),
-                          )
-                          .returned
-                          .statement,
-                    );
-                  } else {
-                    b.statements.add(
-                      refer(entityName)
-                          .call(
-                            const [],
-                            valueBuilder.generateConstructorCallArgs(
-                              entityFields,
-                              useSeeds: true,
-                            ),
-                          )
-                          .returned
-                          .statement,
-                    );
-                  }
-                },
-              ),
+              ..body = Block((b) {
+                if (EntityAnalyzer.isEnum(entityName, outputDir)) {
+                  b.statements.add(
+                    refer(entityName)
+                        .property('values')
+                        .index(
+                          refer('seed').operatorEuclideanModulo(
+                            refer(
+                              entityName,
+                            ).property('values').property('length'),
+                          ),
+                        )
+                        .returned
+                        .statement,
+                  );
+                } else {
+                  b.statements.add(
+                    refer(entityName)
+                        .call(
+                          const [],
+                          valueBuilder.generateConstructorCallArgs(
+                            entityFields,
+                            useSeeds: true,
+                          ),
+                        )
+                        .returned
+                        .statement,
+                  );
+                }
+              }),
           ),
         ]),
     );

@@ -103,18 +103,21 @@ class ViewClassBuilder {
               ..body = Block(
                 (b) => b
                   ..statements.add(
-                    refer('Scaffold').newInstance([], {
-                      'appBar': refer('AppBar').newInstance([], {
-                        'title': refer('Text').newInstance([
-                          literalString(spec.entityName),
-                        ]),
-                      }),
-                      'body': refer('Center').newInstance([], {
-                        'child': refer('Text').newInstance([
-                          literalString('${spec.viewName} is working!'),
-                        ]),
-                      }),
-                    }).returned.statement,
+                    refer('Scaffold')
+                        .newInstance([], {
+                          'appBar': refer('AppBar').newInstance([], {
+                            'title': refer(
+                              'Text',
+                            ).newInstance([literalString(spec.entityName)]),
+                          }),
+                          'body': refer('Center').newInstance([], {
+                            'child': refer('Text').newInstance([
+                              literalString('${spec.viewName} is working!'),
+                            ]),
+                          }),
+                        })
+                        .returned
+                        .statement,
                   ),
               ),
           ),
@@ -155,10 +158,9 @@ class ViewClassBuilder {
               ..name = 'createState'
               ..annotations.add(refer('override'))
               ..returns = refer('State<${spec.viewName}>')
-              ..body = refer('_${spec.viewName}State')
-                  .call([])
-                  .returned
-                  .statement,
+              ..body = refer(
+                '_${spec.viewName}State',
+              ).call([]).returned.statement,
           ),
         ),
     );
@@ -183,18 +185,21 @@ class ViewClassBuilder {
               ..body = Block(
                 (b) => b
                   ..statements.add(
-                    refer('Scaffold').newInstance([], {
-                      'appBar': refer('AppBar').newInstance([], {
-                        'title': refer('Text').newInstance([
-                          literalString(spec.entityName),
-                        ]),
-                      }),
-                      'body': refer('Center').newInstance([], {
-                        'child': refer('Text').newInstance([
-                          literalString('${spec.viewName} is working!'),
-                        ]),
-                      }),
-                    }).returned.statement,
+                    refer('Scaffold')
+                        .newInstance([], {
+                          'appBar': refer('AppBar').newInstance([], {
+                            'title': refer(
+                              'Text',
+                            ).newInstance([literalString(spec.entityName)]),
+                          }),
+                          'body': refer('Center').newInstance([], {
+                            'child': refer('Text').newInstance([
+                              literalString('${spec.viewName} is working!'),
+                            ]),
+                          }),
+                        })
+                        .returned
+                        .statement,
                   ),
               ),
           ),

@@ -323,7 +323,10 @@ class EntityUseCaseGenerator {
     final imports = <String>['package:zuraffa/zuraffa.dart'];
     if (needsEntityImport) {
       final entityImports = CommonPatterns.entityImports(
-        [paramsType.accept(DartEmitter()).toString(), returnType.accept(DartEmitter()).toString()],
+        [
+          paramsType.accept(DartEmitter()).toString(),
+          returnType.accept(DartEmitter()).toString(),
+        ],
         config,
         depth: 2,
         includeDomain: false,

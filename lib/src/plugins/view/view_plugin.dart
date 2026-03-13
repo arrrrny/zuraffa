@@ -127,7 +127,8 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       effectiveEntityName,
     );
 
-    final isCustom = !config.generateVpcs &&
+    final isCustom =
+        !config.generateVpcs &&
         !config.generateController &&
         !config.generatePresenter &&
         !config.isEntityBased;
@@ -168,11 +169,10 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     bool useDi,
   ) {
     final relativePath = '../../';
-    final imports = <String>[
-      'package:flutter/material.dart',
-    ];
+    final imports = <String>['package:flutter/material.dart'];
 
-    final isCustom = !config.generateVpcs &&
+    final isCustom =
+        !config.generateVpcs &&
         !config.generateController &&
         !config.generatePresenter &&
         !config.isEntityBased;

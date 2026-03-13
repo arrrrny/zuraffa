@@ -18,10 +18,7 @@ class CustomViewCapability implements ZuraffaCapability {
   JsonSchema get inputSchema => {
     'type': 'object',
     'properties': {
-      'name': {
-        'type': 'string',
-        'description': 'Name of the view (e.g. Home)',
-      },
+      'name': {'type': 'string', 'description': 'Name of the view (e.g. Home)'},
       'domain': {
         'type': 'string',
         'description': 'Domain folder for the view (e.g. common, auth)',
@@ -115,7 +112,8 @@ class CustomViewCapability implements ZuraffaCapability {
       generateVpcs: false, // Don't generate VPCs for custom view
       generatePresenter: false,
       generateController: false,
-      generateState: !stateless, // Use generateState to indicate statefulness for custom view
+      generateState:
+          !stateless, // Use generateState to indicate statefulness for custom view
       dryRun: dryRun,
       force: force,
       verbose: verbose,

@@ -98,10 +98,9 @@ class MethodAppendBuilder {
         }
       }
 
-      return MethodAppendResult(
-        files,
-        ['Note: Revert only deletes files created by append, it does not undo code appends to existing files.'],
-      );
+      return MethodAppendResult(files, [
+        'Note: Revert only deletes files created by append, it does not undo code appends to existing files.',
+      ]);
     }
 
     final updatedFiles = <GeneratedFile>[];

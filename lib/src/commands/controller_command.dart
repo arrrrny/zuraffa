@@ -13,7 +13,8 @@ class ControllerCommand extends PluginCommand {
     argParser.addOption(
       'methods',
       abbr: 'm',
-      help: 'Comma-separated list of methods (get,create,update,delete,list,watch,getList,watchList)',
+      help:
+          'Comma-separated list of methods (get,create,update,delete,list,watch,getList,watchList)',
       defaultsTo: 'get,update',
     );
     argParser.addFlag(
@@ -37,8 +38,8 @@ class ControllerCommand extends PluginCommand {
     }
 
     final entityName = argResults!.rest.first;
-    final methods = (argResults?['methods'] as String?)?.split(',') ??
-        ['get', 'update'];
+    final methods =
+        (argResults?['methods'] as String?)?.split(',') ?? ['get', 'update'];
     final generateState = argResults?['state'] as bool? ?? false;
 
     final capability =

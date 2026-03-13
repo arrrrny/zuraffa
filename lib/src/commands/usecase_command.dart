@@ -11,7 +11,8 @@ class UseCaseCommand extends PluginCommand {
     argParser.addOption(
       'methods',
       abbr: 'm',
-      help: 'Comma-separated list of methods (get,create,update,delete,list,watch,getList,watchList)',
+      help:
+          'Comma-separated list of methods (get,create,update,delete,list,watch,getList,watchList)',
       defaultsTo: 'get,update',
     );
     argParser.addOption(
@@ -63,11 +64,10 @@ class UseCaseCommand extends PluginCommand {
     }
 
     final entityName = argResults!.rest.first;
-    var methods = (argResults?['methods'] as String?)?.split(',') ??
-        ['get', 'update'];
+    var methods =
+        (argResults?['methods'] as String?)?.split(',') ?? ['get', 'update'];
     final type = (argResults?['type'] as String?) ?? 'future';
-    final usecases =
-        (argResults?['usecases'] as List?)?.cast<String>() ?? [];
+    final usecases = (argResults?['usecases'] as List?)?.cast<String>() ?? [];
 
     final domain = argResults?['domain'] as String?;
     final repo = argResults?['repo'] as String?;

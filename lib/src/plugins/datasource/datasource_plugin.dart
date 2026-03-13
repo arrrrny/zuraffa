@@ -144,7 +144,8 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       files.add(await localGenerator.generate(config));
     }
 
-    if (config.generateRemote || (config.enableCache && !config.generateLocal)) {
+    if (config.generateRemote ||
+        (config.enableCache && !config.generateLocal)) {
       // If we already generated local due to enableCache, we still want remote
       files.add(await remoteGenerator.generate(config));
     }

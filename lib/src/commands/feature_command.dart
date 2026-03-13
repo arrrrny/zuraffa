@@ -61,7 +61,8 @@ class FeatureCommand extends PluginCommand {
     argParser.addMultiOption(
       'usecases',
       abbr: 'u',
-      help: 'List of usecases to generate (e.g. get,create,update,delete,list,watch,getList,watchList)',
+      help:
+          'List of usecases to generate (e.g. get,create,update,delete,list,watch,getList,watchList)',
       defaultsTo: ['get', 'update'],
       splitCommas: true,
     );
@@ -120,7 +121,8 @@ class FeatureCommand extends PluginCommand {
 
     // Check if first arg is a capability name AND there's a second arg (the feature name)
     // This handles: zfa feature route Locale, zfa feature di Locale, etc.
-    if (capabilityNames.contains(firstArg) && (argResults?.rest.length ?? 0) > 1) {
+    if (capabilityNames.contains(firstArg) &&
+        (argResults?.rest.length ?? 0) > 1) {
       // Handle: zfa feature <capability> <name> [options]
       final capability = _findCapability(firstArg);
       final featureName = argResults!.rest[1];

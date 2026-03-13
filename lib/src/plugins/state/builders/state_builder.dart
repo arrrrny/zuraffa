@@ -99,7 +99,8 @@ class StateBuilder {
       ),
     ];
 
-    if (config.isCustomUseCase || (config.isOrchestrator && !config.generateUseCase)) {
+    if (config.isCustomUseCase ||
+        (config.isOrchestrator && !config.generateUseCase)) {
       if (config.isOrchestrator && !config.generateUseCase) {
         for (final usecaseName in config.usecases) {
           final info = _parseUseCaseInfo(usecaseName, config);
@@ -382,7 +383,10 @@ class StateBuilder {
     );
   }
 
-  Method _buildCustomEqualityOperator(String stateName, GeneratorConfig config) {
+  Method _buildCustomEqualityOperator(
+    String stateName,
+    GeneratorConfig config,
+  ) {
     final other = refer('other');
     final isIdentical = refer('identical').call([refer('this'), other]);
     final isType = other.isA(refer(stateName));
@@ -402,7 +406,13 @@ class StateBuilder {
       (m) => m
         ..name = 'operator =='
         ..returns = refer('bool')
-        ..requiredParameters.add(Parameter((p) => p..name = 'other'..type = refer('Object')))
+        ..requiredParameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'other'
+              ..type = refer('Object'),
+          ),
+        )
         ..annotations.add(refer('override'))
         ..lambda = true
         ..body = isIdentical.or(isType.and(expression)).code,
@@ -547,9 +557,9 @@ class StateBuilder {
             ..type = _nullableType('List<$entityName>'),
         ),
       );
-      values['${entityCamel}List'] = refer('${entityCamel}List').ifNullThen(
-        _this('${entityCamel}List'),
-      );
+      values['${entityCamel}List'] = refer(
+        '${entityCamel}List',
+      ).ifNullThen(_this('${entityCamel}List'));
     }
 
     if (needsEntityField) {
@@ -624,7 +634,9 @@ class StateBuilder {
 
     if (needsEntityListField) {
       conditions.add(
-        other.property('${entityCamel}List').equalTo(refer('${entityCamel}List')),
+        other
+            .property('${entityCamel}List')
+            .equalTo(refer('${entityCamel}List')),
       );
     }
 
@@ -642,7 +654,13 @@ class StateBuilder {
       (m) => m
         ..name = 'operator =='
         ..returns = refer('bool')
-        ..requiredParameters.add(Parameter((p) => p..name = 'other'..type = refer('Object')))
+        ..requiredParameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'other'
+              ..type = refer('Object'),
+          ),
+        )
         ..annotations.add(refer('override'))
         ..lambda = true
         ..body = isIdentical.or(isType.and(expression)).code,
@@ -709,11 +727,19 @@ class StateBuilder {
   }
 
   Reference _nullableType(String symbol) {
-    return TypeReference((b) => b..symbol = symbol..isNullable = true);
+    return TypeReference(
+      (b) => b
+        ..symbol = symbol
+        ..isNullable = true,
+    );
   }
 
   Reference _listOf(String symbol) {
-    return TypeReference((b) => b..symbol = 'List'..types.add(refer(symbol)));
+    return TypeReference(
+      (b) => b
+        ..symbol = 'List'
+        ..types.add(refer(symbol)),
+    );
   }
 
   Expression _this(String name) => refer('this').property(name);
@@ -742,10 +768,18 @@ class StateBuilder {
       }
     }
     // Try to find if it is an entity-based usecase
-    final possiblePrefixes = ['get_', 'create_', 'update_', 'delete_', 'watch_'];
+    final possiblePrefixes = [
+      'get_',
+      'create_',
+      'update_',
+      'delete_',
+      'watch_',
+    ];
     for (final prefix in possiblePrefixes) {
       if (usecaseSnake.startsWith(prefix)) {
-        final entitySnake = usecaseSnake.replaceFirst(prefix, '').replaceFirst('_list', '');
+        final entitySnake = usecaseSnake
+            .replaceFirst(prefix, '')
+            .replaceFirst('_list', '');
         return entitySnake;
       }
     }
@@ -768,11 +802,22 @@ class StateBuilder {
     String? returnsType;
     String? useCaseType;
 
-    final usecaseDomain = _findUseCaseDomain(usecaseSnake, config.effectiveDomain);
-    final filePath = path.join(outputDir, 'domain', 'usecases', usecaseDomain, '${usecaseSnake}_usecase.dart');
+    final usecaseDomain = _findUseCaseDomain(
+      usecaseSnake,
+      config.effectiveDomain,
+    );
+    final filePath = path.join(
+      outputDir,
+      'domain',
+      'usecases',
+      usecaseDomain,
+      '${usecaseSnake}_usecase.dart',
+    );
     if (File(filePath).existsSync()) {
       final content = File(filePath).readAsStringSync();
-      final extendsMatch = RegExp(r'extends (UseCase|StreamUseCase|CompletableUseCase|SyncUseCase)<([^>]+)>').firstMatch(content);
+      final extendsMatch = RegExp(
+        r'extends (UseCase|StreamUseCase|CompletableUseCase|SyncUseCase)<([^>]+)>',
+      ).firstMatch(content);
       if (extendsMatch != null) {
         useCaseType = extendsMatch.group(1)?.toLowerCase();
         final typesStr = extendsMatch.group(2);

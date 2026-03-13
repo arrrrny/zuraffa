@@ -379,11 +379,13 @@ class MockValueBuilder {
 
     final entityFields = EntityAnalyzer.analyzeEntity(cleanType, outputDir);
     if (EntityAnalyzer.isEnum(cleanType, outputDir)) {
-      return refer(cleanType).property('values').index(
-        literalNum(seed).operatorEuclideanModulo(
-          refer(cleanType).property('values').property('length'),
-        ),
-      );
+      return refer(cleanType)
+          .property('values')
+          .index(
+            literalNum(seed).operatorEuclideanModulo(
+              refer(cleanType).property('values').property('length'),
+            ),
+          );
     }
     if (entityFields.isNotEmpty &&
         !entityHelper.isDefaultFields(entityFields)) {
@@ -451,11 +453,13 @@ class MockValueBuilder {
 
     final entityFields = EntityAnalyzer.analyzeEntity(cleanType, outputDir);
     if (EntityAnalyzer.isEnum(cleanType, outputDir)) {
-      return refer(cleanType).property('values').index(
-        refer('seed').operatorEuclideanModulo(
-          refer(cleanType).property('values').property('length'),
-        ),
-      );
+      return refer(cleanType)
+          .property('values')
+          .index(
+            refer('seed').operatorEuclideanModulo(
+              refer(cleanType).property('values').property('length'),
+            ),
+          );
     }
     if (entityFields.isNotEmpty &&
         !entityHelper.isDefaultFields(entityFields)) {

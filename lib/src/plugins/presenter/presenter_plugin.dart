@@ -143,11 +143,22 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         String? returnsType;
         String? useCaseType;
 
-        final usecaseDomain = _findUseCaseDomain(usecaseSnake, config.effectiveDomain);
-        final filePath = path.join(outputDir, 'domain', 'usecases', usecaseDomain, '${usecaseSnake}_usecase.dart');
+        final usecaseDomain = _findUseCaseDomain(
+          usecaseSnake,
+          config.effectiveDomain,
+        );
+        final filePath = path.join(
+          outputDir,
+          'domain',
+          'usecases',
+          usecaseDomain,
+          '${usecaseSnake}_usecase.dart',
+        );
         if (File(filePath).existsSync()) {
           final content = File(filePath).readAsStringSync();
-          final extendsMatch = RegExp(r'extends (UseCase|StreamUseCase|CompletableUseCase|SyncUseCase)<([^>]+)>').firstMatch(content);
+          final extendsMatch = RegExp(
+            r'extends (UseCase|StreamUseCase|CompletableUseCase|SyncUseCase)<([^>]+)>',
+          ).firstMatch(content);
           if (extendsMatch != null) {
             useCaseType = extendsMatch.group(1)?.toLowerCase();
             final typesStr = extendsMatch.group(2);
@@ -318,7 +329,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   ) {
     if (config.isCustomUseCase) {
       if (config.isOrchestrator && !config.generateUseCase) {
-        return useCases.map((info) => _buildCustomMethod(config, info)).toList();
+        return useCases
+            .map((info) => _buildCustomMethod(config, info))
+            .toList();
       }
       return [_buildCustomMethod(config, useCases.first)];
     }
@@ -768,10 +781,18 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       }
     }
     // Try to find if it is an entity-based usecase
-    final possiblePrefixes = ['get_', 'create_', 'update_', 'delete_', 'watch_'];
+    final possiblePrefixes = [
+      'get_',
+      'create_',
+      'update_',
+      'delete_',
+      'watch_',
+    ];
     for (final prefix in possiblePrefixes) {
       if (usecaseSnake.startsWith(prefix)) {
-        final entitySnake = usecaseSnake.replaceFirst(prefix, '').replaceFirst('_list', '');
+        final entitySnake = usecaseSnake
+            .replaceFirst(prefix, '')
+            .replaceFirst('_list', '');
         return entitySnake;
       }
     }

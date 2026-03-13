@@ -37,25 +37,34 @@ void main() {
 
     final result = await capability.execute(args);
     expect(result.success, isTrue);
-    
+
     final generatedFiles = result.data!['generatedFiles'] as List;
     expect(generatedFiles.length, 1);
-    expect(generatedFiles.first.path, contains('domain/usecases/profile/logout_usecase.dart'));
+    expect(
+      generatedFiles.first.path,
+      contains('domain/usecases/profile/logout_usecase.dart'),
+    );
   });
 
-  test('CreateUseCaseCapability defaults to entity usecases if no custom flags', () async {
-    // Simulating args for: zfa usecase create User
-    final args = {
-      'name': 'User',
-      'outputDir': outputDir,
-    };
+  test(
+    'CreateUseCaseCapability defaults to entity usecases if no custom flags',
+    () async {
+      // Simulating args for: zfa usecase create User
+      final args = {'name': 'User', 'outputDir': outputDir};
 
-    final result = await capability.execute(args);
-    expect(result.success, isTrue);
-    
-    final generatedFiles = result.data!['generatedFiles'] as List;
-    expect(generatedFiles.length, 2); // get, update
-    expect(generatedFiles.any((f) => f.path.contains('get_user_usecase.dart')), isTrue);
-    expect(generatedFiles.any((f) => f.path.contains('update_user_usecase.dart')), isTrue);
-  });
+      final result = await capability.execute(args);
+      expect(result.success, isTrue);
+
+      final generatedFiles = result.data!['generatedFiles'] as List;
+      expect(generatedFiles.length, 2); // get, update
+      expect(
+        generatedFiles.any((f) => f.path.contains('get_user_usecase.dart')),
+        isTrue,
+      );
+      expect(
+        generatedFiles.any((f) => f.path.contains('update_user_usecase.dart')),
+        isTrue,
+      );
+    },
+  );
 }

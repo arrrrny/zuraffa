@@ -30,76 +30,79 @@ class CommonPatterns {
     final prefix = List.generate(depth, (_) => '..').join('/');
     final domainSegment = includeDomain ? 'domain/' : '';
 
-    return entities.map((entity) {
-      final entitySnake = StringUtils.camelToSnake(entity);
+    return entities
+        .map((entity) {
+          final entitySnake = StringUtils.camelToSnake(entity);
 
-      // 1. Try domain-specific entity directory first if domain is provided
-      if (domainSnake != null) {
-        final domainEntityDirPath = path.join(
-          config.outputDir,
-          'domain',
-          'entities',
-          domainSnake,
-          entitySnake,
-        );
-        if (Directory(domainEntityDirPath).existsSync()) {
-          return '$prefix/${domainSegment}entities/$domainSnake/$entitySnake/$entitySnake.dart';
-        }
+          // 1. Try domain-specific entity directory first if domain is provided
+          if (domainSnake != null) {
+            final domainEntityDirPath = path.join(
+              config.outputDir,
+              'domain',
+              'entities',
+              domainSnake,
+              entitySnake,
+            );
+            if (Directory(domainEntityDirPath).existsSync()) {
+              return '$prefix/${domainSegment}entities/$domainSnake/$entitySnake/$entitySnake.dart';
+            }
 
-        // Check if it's a flat file in domain folder (legacy or special case)
-        final domainEntityFilePath = path.join(
-          config.outputDir,
-          'domain',
-          'entities',
-          domainSnake,
-          '$entitySnake.dart',
-        );
-        if (File(domainEntityFilePath).existsSync()) {
-          return '$prefix/${domainSegment}entities/$domainSnake/$entitySnake.dart';
-        }
-      }
+            // Check if it's a flat file in domain folder (legacy or special case)
+            final domainEntityFilePath = path.join(
+              config.outputDir,
+              'domain',
+              'entities',
+              domainSnake,
+              '$entitySnake.dart',
+            );
+            if (File(domainEntityFilePath).existsSync()) {
+              return '$prefix/${domainSegment}entities/$domainSnake/$entitySnake.dart';
+            }
+          }
 
-      // 2. Try standard entity directory
-      final entityDirPath = path.join(
-        config.outputDir,
-        'domain',
-        'entities',
-        entitySnake,
-      );
-      if (Directory(entityDirPath).existsSync()) {
-        return '$prefix/${domainSegment}entities/$entitySnake/$entitySnake.dart';
-      }
+          // 2. Try standard entity directory
+          final entityDirPath = path.join(
+            config.outputDir,
+            'domain',
+            'entities',
+            entitySnake,
+          );
+          if (Directory(entityDirPath).existsSync()) {
+            return '$prefix/${domainSegment}entities/$entitySnake/$entitySnake.dart';
+          }
 
-      // 3. Try legacy flat entity file
-      final entityFilePath = path.join(
-        config.outputDir,
-        'domain',
-        'entities',
-        '$entitySnake.dart',
-      );
-      if (File(entityFilePath).existsSync()) {
-        final content = File(entityFilePath).readAsStringSync();
-        if (content.contains('enum $entity')) {
+          // 3. Try legacy flat entity file
+          final entityFilePath = path.join(
+            config.outputDir,
+            'domain',
+            'entities',
+            '$entitySnake.dart',
+          );
+          if (File(entityFilePath).existsSync()) {
+            final content = File(entityFilePath).readAsStringSync();
+            if (content.contains('enum $entity')) {
+              return '$prefix/${domainSegment}entities/enums/index.dart';
+            }
+            return '$prefix/${domainSegment}entities/$entitySnake.dart';
+          }
+
+          // 4. Try enums/ directory
+          final enumPath = path.join(
+            config.outputDir,
+            'domain',
+            'entities',
+            'enums',
+            '$entitySnake.dart',
+          );
+          if (File(enumPath).existsSync()) {
+            return '$prefix/${domainSegment}entities/enums/index.dart';
+          }
+
+          // 5. Fallback: assume it's an enum if not found
           return '$prefix/${domainSegment}entities/enums/index.dart';
-        }
-        return '$prefix/${domainSegment}entities/$entitySnake.dart';
-      }
-
-      // 4. Try enums/ directory
-      final enumPath = path.join(
-        config.outputDir,
-        'domain',
-        'entities',
-        'enums',
-        '$entitySnake.dart',
-      );
-      if (File(enumPath).existsSync()) {
-        return '$prefix/${domainSegment}entities/enums/index.dart';
-      }
-
-      // 5. Fallback: assume it's an enum if not found
-      return '$prefix/${domainSegment}entities/enums/index.dart';
-    }).toSet().toList();
+        })
+        .toSet()
+        .toList();
   }
 
   static List<String> _extractBaseTypes(String type) {

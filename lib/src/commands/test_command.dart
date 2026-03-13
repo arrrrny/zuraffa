@@ -21,7 +21,8 @@ class TestCommand extends PluginCommand {
     argParser.addOption(
       'methods',
       abbr: 'm',
-      help: 'Comma-separated list of methods (get,create,update,delete,list,watch,getList,watchList)',
+      help:
+          'Comma-separated list of methods (get,create,update,delete,list,watch,getList,watchList)',
       defaultsTo: '',
     );
     argParser.addOption(

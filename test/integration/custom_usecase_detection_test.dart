@@ -42,8 +42,11 @@ void main() {
       final files = await plugin.generate(config);
 
       expect(files.length, 1);
-      expect(files.first.path, contains('domain/usecases/profile/logout_usecase.dart'));
-      
+      expect(
+        files.first.path,
+        contains('domain/usecases/profile/logout_usecase.dart'),
+      );
+
       final content = File(files.first.path).readAsStringSync();
       expect(content, contains('class LogoutUseCase'));
       expect(content, contains('final AuthService _authService;'));
@@ -53,23 +56,23 @@ void main() {
     },
   );
 
-  test(
-    'Simple usecase without flags is detected as entity (default)',
-    () async {
-      // Simulating: zfa usecase create User
-      // Note: Capability logic would set methods to ['get', 'update'] if empty and not custom
-      final config = GeneratorConfig(
-        name: 'User',
-        methods: const ['get', 'update'],
-        outputDir: outputDir,
-      );
+  test('Simple usecase without flags is detected as entity (default)', () async {
+    // Simulating: zfa usecase create User
+    // Note: Capability logic would set methods to ['get', 'update'] if empty and not custom
+    final config = GeneratorConfig(
+      name: 'User',
+      methods: const ['get', 'update'],
+      outputDir: outputDir,
+    );
 
-      final plugin = UseCasePlugin(outputDir: outputDir);
-      final files = await plugin.generate(config);
+    final plugin = UseCasePlugin(outputDir: outputDir);
+    final files = await plugin.generate(config);
 
-      expect(files.length, 2);
-      expect(files.any((f) => f.path.contains('get_user_usecase.dart')), isTrue);
-      expect(files.any((f) => f.path.contains('update_user_usecase.dart')), isTrue);
-    },
-  );
+    expect(files.length, 2);
+    expect(files.any((f) => f.path.contains('get_user_usecase.dart')), isTrue);
+    expect(
+      files.any((f) => f.path.contains('update_user_usecase.dart')),
+      isTrue,
+    );
+  });
 }

@@ -134,8 +134,10 @@ class GeneratorConfig {
       serviceMethod: json['service_method'] ?? json['method'],
       appendToExisting:
           json['append'] == true || json['append_to_existing'] == true,
-      generateUseCase: json['usecase'] == true || json['generate_usecase'] == true,
-      generateService: json['service'] == true || json['generate_service'] == true,
+      generateUseCase:
+          json['usecase'] == true || json['generate_usecase'] == true,
+      generateService:
+          json['service'] == true || json['generate_service'] == true,
       generateRepository: json['repository'] == true,
       useCaseType: json['type'] ?? 'usecase',
       paramsType: json['params'],

@@ -262,47 +262,61 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     } else {
       constructorCall = refer(dataSourceName).call([]);
     }
-    final registrationCall = (config.cacheStorage == 'hive' || config.generateLocal)
-        ? refer('getIt').property('registerSingletonAsync').call(
-            [
-              Method(
-                (m) => m
-                  ..modifier = MethodModifier.async
-                  ..body = Block((b) {
-                    final hasListMethod =
-                        config.methods.contains('getList') ||
-                        config.methods.contains('watchList');
-                    final boxName = hasListMethod ? '${baseSnake}s' : baseSnake;
-                    final boxVar = 'box';
-                    b.statements.add(
-                      declareFinal(boxVar).assign(
-                        refer('Hive').property('openBox').call(
-                          [literalString(boxName)],
-                          {},
-                          [refer(baseName)],
-                        ).awaited,
-                      ).statement,
-                    );
-                    b.statements.add(
-                      refer(dataSourceName).call([refer(boxVar)]).returned.statement,
-                    );
-                  }),
-              ).closure,
-            ],
-            {},
-            [refer(dataSourceName)],
-          )
-        : refer('getIt').property('registerLazySingleton').call(
-            [
-              Method(
-                (m) => m
-                  ..lambda = true
-                  ..body = constructorCall.code,
-              ).closure,
-            ],
-            {},
-            [refer(dataSourceName)],
-          );
+    final registrationCall =
+        (config.cacheStorage == 'hive' || config.generateLocal)
+        ? refer('getIt')
+              .property('registerSingletonAsync')
+              .call(
+                [
+                  Method(
+                    (m) => m
+                      ..modifier = MethodModifier.async
+                      ..body = Block((b) {
+                        final hasListMethod =
+                            config.methods.contains('getList') ||
+                            config.methods.contains('watchList');
+                        final boxName = hasListMethod
+                            ? '${baseSnake}s'
+                            : baseSnake;
+                        final boxVar = 'box';
+                        b.statements.add(
+                          declareFinal(boxVar)
+                              .assign(
+                                refer('Hive')
+                                    .property('openBox')
+                                    .call(
+                                      [literalString(boxName)],
+                                      {},
+                                      [refer(baseName)],
+                                    )
+                                    .awaited,
+                              )
+                              .statement,
+                        );
+                        b.statements.add(
+                          refer(
+                            dataSourceName,
+                          ).call([refer(boxVar)]).returned.statement,
+                        );
+                      }),
+                  ).closure,
+                ],
+                {},
+                [refer(dataSourceName)],
+              )
+        : refer('getIt')
+              .property('registerLazySingleton')
+              .call(
+                [
+                  Method(
+                    (m) => m
+                      ..lambda = true
+                      ..body = constructorCall.code,
+                  ).closure,
+                ],
+                {},
+                [refer(dataSourceName)],
+              );
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$dataSourceName',

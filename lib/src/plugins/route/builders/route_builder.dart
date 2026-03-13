@@ -566,9 +566,7 @@ class RouteBuilder {
     required String viewParam,
     required GeneratorConfig config,
   }) {
-    final pathExpr = refer(
-      '${entityName}Routes',
-    ).property(routeNameBase);
+    final pathExpr = refer('${entityName}Routes').property(routeNameBase);
     final nameExpr = literalString(routeBase);
 
     final builderExpr = _buildViewBuilderExpr(
@@ -823,7 +821,8 @@ class RouteBuilder {
     final routes = <String, String>{};
 
     if (hasList) {
-      routes['${routeNameBase}List'] = '${entityPascal}Routes.${routeNameBase}List';
+      routes['${routeNameBase}List'] =
+          '${entityPascal}Routes.${routeNameBase}List';
     } else {
       // If no list route, we still need a default route for the view
       routes[routeNameBase] = '${entityPascal}Routes.$routeNameBase';
@@ -865,13 +864,13 @@ class RouteBuilder {
     final methodName = isCustom
         ? 'goTo$entityPascal'
         : hasList
-            ? 'goTo${entityPascal}List'
-            : 'goTo$entityPascal';
+        ? 'goTo${entityPascal}List'
+        : 'goTo$entityPascal';
     final propertyName = isCustom
         ? routeNameBase
         : hasList
-            ? '${routeNameBase}List'
-            : routeNameBase;
+        ? '${routeNameBase}List'
+        : routeNameBase;
 
     final methods = <ExtensionMethodSpec>[
       ExtensionMethodSpec(

@@ -13,7 +13,8 @@ class RouteCommand extends PluginCommand {
     argParser.addOption(
       'methods',
       abbr: 'm',
-      help: 'Comma-separated list of methods (get,create,update,delete,list,watch,getList,watchList)',
+      help:
+          'Comma-separated list of methods (get,create,update,delete,list,watch,getList,watchList)',
       defaultsTo: 'get,update',
     );
   }
@@ -45,11 +46,12 @@ class RouteCommand extends PluginCommand {
       }
     }
 
-    final methods = (argResults?['methods'] as String?)?.split(',') ??
-        ['get', 'update'];
+    final methods =
+        (argResults?['methods'] as String?)?.split(',') ?? ['get', 'update'];
 
-    final capability = plugin.capabilities
-        .firstWhere((c) => c.name == capabilityName);
+    final capability = plugin.capabilities.firstWhere(
+      (c) => c.name == capabilityName,
+    );
 
     final result = await capability.execute({
       'name': entityName,
