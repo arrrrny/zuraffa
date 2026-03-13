@@ -63,6 +63,17 @@ class $name {
 
   const $name({required this.id});
 }
+
+class ${name}Patch {
+  final $idType? id;
+
+  const ${name}Patch({this.id});
+}
+
+class ${name}Fields {
+  static const Field<$name, $idType> id = Field(name: 'id');
+  static const Field<$name, String> slug = Field(name: 'slug');
+}
 ''');
 }
 

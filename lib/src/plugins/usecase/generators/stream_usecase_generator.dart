@@ -177,6 +177,7 @@ class StreamUseCaseGenerator {
           [paramsType, returnsType],
           config,
           depth: 2,
+          includeDomain: false,
         ),
       ],
     );

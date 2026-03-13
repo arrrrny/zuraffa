@@ -58,7 +58,9 @@ class ServicePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return delegator.generate(config);
     }
 
-    if (!config.isCustomUseCase || !config.hasService) {
+    if (!config.isCustomUseCase ||
+        !config.hasService ||
+        config.appendToExisting) {
       return [];
     }
     final serviceSnake = config.serviceSnake;

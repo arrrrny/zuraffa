@@ -70,6 +70,6 @@ void main() {
     final entityRoutes = File('$outputDir/routing/health_routes.dart');
     final content = entityRoutes.readAsStringSync();
     expect(content.contains('pathParameters'), isFalse);
-    expect(content.contains('HealthRepository'), isTrue);
+    expect(content.contains('HealthView'), isTrue);
   });
 }

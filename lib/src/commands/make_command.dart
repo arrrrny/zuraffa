@@ -220,19 +220,18 @@ class MakeCommand extends Command<void> {
     final usecases = usecasesStr?.split(',').map((e) => e.trim()).toList();
     final useMockInDi = argResults!['use-mock'] == true;
     final generateInit = argResults!['init'] == true;
-    final useZorphy = argResults!['zorphy'] == true;
+    final useZorphy =
+        argResults!['zorphy'] == true || (configData?.zorphyByDefault ?? true);
     final generateLocal = argResults!['local'] == true;
     final generateRemote = argResults!['remote'] != false;
     final enableCache = argResults!['cache'] == true;
 
+    final isEntity = repo == null && service == null && usecases == null;
+
     // Create a base config that enables everything requested
     final config = GeneratorConfig(
       name: entityName,
-      methods:
-          pluginNames.contains('usecase') &&
-              (repo == null && service == null && usecases == null)
-          ? methods
-          : [], // Only use CRUD methods if not custom usecase
+      methods: isEntity ? methods : [], // Use CRUD methods for entity-based
       domain: domain,
       repo: repo,
       service: service,

@@ -154,6 +154,25 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         : appendExecutor.execute(request);
 
     if (result.changed) {
+      if (config.revert) {
+        final helper = const AstHelper();
+        final unit = helper.parseSource(result.source).unit;
+        if (unit != null) {
+          final classNode = helper.findClass(unit, className);
+          if (classNode != null) {
+            final methods = helper.findMethods(classNode);
+            if (methods.isEmpty) {
+              return FileUtils.deleteFile(
+                filePath,
+                'interface',
+                dryRun: options.dryRun,
+                verbose: options.verbose,
+              );
+            }
+          }
+        }
+      }
+
       await FileUtils.writeFile(
         filePath,
         result.source,
@@ -229,6 +248,25 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         : appendExecutor.execute(request);
 
     if (result.changed) {
+      if (config.revert) {
+        final helper = const AstHelper();
+        final unit = helper.parseSource(result.source).unit;
+        if (unit != null) {
+          final classNode = helper.findClass(unit, className);
+          if (classNode != null) {
+            final methods = helper.findMethods(classNode);
+            if (methods.isEmpty) {
+              return FileUtils.deleteFile(
+                filePath,
+                'provider',
+                dryRun: options.dryRun,
+                verbose: options.verbose,
+              );
+            }
+          }
+        }
+      }
+
       await FileUtils.writeFile(
         filePath,
         result.source,
@@ -355,6 +393,25 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         : appendExecutor.execute(request);
 
     if (result.changed) {
+      if (config.revert) {
+        final helper = const AstHelper();
+        final unit = helper.parseSource(result.source).unit;
+        if (unit != null) {
+          final classNode = helper.findClass(unit, className);
+          if (classNode != null) {
+            final methods = helper.findMethods(classNode);
+            if (methods.isEmpty) {
+              return FileUtils.deleteFile(
+                filePath,
+                'datasource',
+                dryRun: options.dryRun,
+                verbose: options.verbose,
+              );
+            }
+          }
+        }
+      }
+
       await FileUtils.writeFile(
         filePath,
         result.source,

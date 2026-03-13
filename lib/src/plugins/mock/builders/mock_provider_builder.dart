@@ -53,7 +53,8 @@ class MockProviderBuilder {
       'Provider',
       'MockProvider',
     );
-    final fileName = '${providerSnake}_mock_provider.dart';
+    final mockProviderSnake = StringUtils.camelToSnake(mockProviderName);
+    final fileName = '$mockProviderSnake.dart';
     final filePath = path.join(
       outputDir,
       'data',

@@ -76,7 +76,10 @@ class RouteBuilder {
 
     files.add(await _generateRouteConstants(config));
     files.add(await _generateEntityRoutes(config));
-    await _regenerateIndexFile();
+    final indexFile = await _regenerateIndexFile(pendingFiles: files);
+    if (indexFile != null) {
+      files.add(indexFile);
+    }
 
     return files;
   }
@@ -723,27 +726,40 @@ class RouteBuilder {
     return builderMethod.closure;
   }
 
-  Future<void> _regenerateIndexFile() async {
+  Future<GeneratedFile?> _regenerateIndexFile({
+    List<GeneratedFile> pendingFiles = const [],
+  }) async {
     final dirPath = path.join(outputDir, 'routing');
     final indexPath = path.join(dirPath, 'index.dart');
 
     final dir = Directory(dirPath);
-    if (!dir.existsSync()) {
-      return;
-    }
+    final existingFiles = dir.existsSync()
+        ? dir
+              .listSync()
+              .whereType<File>()
+              .where(
+                (f) =>
+                    f.path.endsWith('_routes.dart') &&
+                    !f.path.endsWith('index.dart') &&
+                    !f.path.endsWith('app_routes.dart'),
+              )
+              .map((f) => f.path)
+              .toList()
+        : <String>[];
 
-    final files = dir
-        .listSync()
-        .whereType<File>()
+    final pendingPaths = pendingFiles
         .where(
           (f) =>
               f.path.endsWith('_routes.dart') &&
               !f.path.endsWith('index.dart') &&
               !f.path.endsWith('app_routes.dart'),
         )
+        .map((f) => f.path)
         .toList();
 
-    if (files.isEmpty) {
+    final allPaths = {...existingFiles, ...pendingPaths}.toList();
+
+    if (allPaths.isEmpty) {
       if (File(indexPath).existsSync()) {
         if (options.dryRun) {
           if (options.verbose) print('  Dry run: Deleting $indexPath');
@@ -751,7 +767,7 @@ class RouteBuilder {
           File(indexPath).deleteSync();
         }
       }
-      return;
+      return null;
     }
 
     final exports = <Directive>[Directive.export('app_routes.dart')];
@@ -760,8 +776,8 @@ class RouteBuilder {
     ];
     final routeElements = <Expression>[];
 
-    for (final file in files) {
-      final fileName = path.basename(file.path);
+    for (final filePath in allPaths) {
+      final fileName = path.basename(filePath);
       final entitySnake = fileName.replaceAll('_routes.dart', '');
       final entityPascal = StringUtils.convertToPascalCase(entitySnake);
 
@@ -787,7 +803,7 @@ class RouteBuilder {
     );
     final content = specLibrary.emitLibrary(library);
 
-    await FileUtils.writeFile(
+    return await FileUtils.writeFile(
       indexPath,
       content,
       'routes_index',

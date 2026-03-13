@@ -558,15 +558,19 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     if (providerName == null || providerSnake == null) {
       return null;
     }
-    final mockProviderName = '${providerName}MockProvider';
-    final fileName = '${providerSnake}_mock_provider_di.dart';
+    final mockProviderName = providerName.replaceAll(
+      'Provider',
+      'MockProvider',
+    );
+    final mockProviderSnake = StringUtils.camelToSnake(mockProviderName);
+    final fileName = '${mockProviderSnake}_di.dart';
     final diPath = path.join(outputDir, 'di', 'providers', fileName);
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$mockProviderName',
       imports: [
         'package:get_it/get_it.dart',
-        '../../data/providers/${config.effectiveDomain}/${providerSnake}_mock_provider.dart',
+        '../../data/providers/${config.effectiveDomain}/$mockProviderSnake.dart',
       ],
       body: Block(
         (b) => b

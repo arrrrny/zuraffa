@@ -159,6 +159,8 @@ class MockDataSourceBuilder {
       );
     }
 
+    methods.addAll(_generateMockDataSourceMethods(config));
+
     if (config.appendToExisting && fileExists) {
       final existing = await file.readAsString();
       var updated = existing;
@@ -216,8 +218,6 @@ class MockDataSourceBuilder {
         verbose: options.verbose,
       );
     }
-
-    methods.addAll(_generateMockDataSourceMethods(config));
 
     final clazz = Class(
       (c) => c

@@ -33,9 +33,11 @@ void main() {
     final command = CapabilityCommand(capability);
     final runner = CommandRunner<void>('zfa', 'CLI')..addCommand(command);
 
-    // Run with --use-mock
+    // Run with --use-mock and --repo to ensure repository/datasource DI is generated
     await runner.run([
       'create',
+      'Feedback',
+      '--repo',
       'Feedback',
       '--use-mock',
       '--output-dir',

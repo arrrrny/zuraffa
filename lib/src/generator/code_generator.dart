@@ -242,6 +242,7 @@ class CodeGenerator {
           verbose: options.verbose,
           outputDir: outputDir,
           revert: options.revert,
+          methods: config.methods,
         );
 
         if (executionConfig.isEntityBased) {
