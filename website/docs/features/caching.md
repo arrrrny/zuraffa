@@ -22,14 +22,14 @@ Zuraffa uses a "Cache-Aside" pattern enhanced with configurable policies:
 Enable caching for an entity with a single flag:
 
 ```bash
-zfa generate Product --data --cache
+zfa feature Product --data --cache
 ```
 
 ### 2. Configure Storage
 Choose your preferred local storage engine (default is **Hive**):
 
 ```bash
-zfa generate Product --data --cache --cache-storage=sqlite
+zfa feature Product --data --cache --cache-storage=sqlite
 ```
 
 ---

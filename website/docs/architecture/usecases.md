@@ -12,42 +12,42 @@ Zuraffa provides several base classes to handle different execution flows:
 The default for most operations (e.g., fetching data from an API). Returns a `Future<Result<T, AppFailure>>`.
 
 ```bash
-zfa generate Product --methods=get,getList
+zfa feature Product --methods=get,getList
 ```
 
 ### 2. Stream UseCase
 Ideal for real-time updates, WebSockets, or database watchers. Returns a `Stream<Result<T, AppFailure>>`.
 
 ```bash
-zfa generate Product --methods=watch,watchList
+zfa feature Product --methods=watch,watchList
 ```
 
 ### 3. Sync UseCase
 For operations that complete immediately on the main thread (e.g., data mapping, local validation). Returns a `Result<T, AppFailure>` synchronously.
 
 ```bash
-zfa generate ValidateEmail --type=sync --params=String --returns=bool --domain=auth
+zfa make ValidateEmail usecase --type=sync --params=String --returns=bool --domain=auth
 ```
 
 ### 4. Completable UseCase
 For async operations that don't return a value (e.g., logging out, deleting a record). Returns `Future<Result<void, AppFailure>>`.
 
 ```bash
-zfa generate Product --methods=delete
+zfa feature Product --methods=delete
 ```
 
 ### 5. Background UseCase
 Runs CPU-intensive tasks on a separate **Isolate** to keep the UI smooth (e.g., image processing, large JSON parsing).
 
 ```bash
-zfa generate ProcessImages --type=background --params=List<File> --returns=List<Image> --domain=media
+zfa make ProcessImages usecase --type=background --params=List<File> --returns=List<Image> --domain=media
 ```
 
 ### 6. Orchestrator UseCase
 Composes multiple atomic UseCases into a single workflow (e.g., a checkout process that validates a cart, creates an order, and processes payment).
 
 ```bash
-zfa generate ProcessCheckout --domain=checkout --usecases=ValidateCart,CreateOrder,ProcessPayment --params=CheckoutRequest --returns=Order
+zfa make ProcessCheckout usecase --domain=checkout --usecases=ValidateCart,CreateOrder,ProcessPayment --params=CheckoutRequest --returns=Order
 ```
 
 ---

@@ -27,7 +27,7 @@ lib/src/di/
 When generating a feature, include the `--di` flag:
 
 ```bash
-zfa generate Product --data --di
+zfa feature Product --data --di
 ```
 
 ### 2. Initialize in main.dart
@@ -59,7 +59,7 @@ Zuraffa makes it easy to swap real implementations for mocks during development 
 Use the `--use-mock` flag to register a `MockDataSource` instead of the `RemoteDataSource`:
 
 ```bash
-zfa generate Product --data --mock --di --use-mock
+zfa feature Product --data --mock --di --use-mock
 ```
 
 ### Manual Swapping

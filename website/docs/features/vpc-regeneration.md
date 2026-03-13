@@ -34,7 +34,7 @@ Zuraffa gives you full control over what gets updated:
 Suppose you have a `Product` feature and want to add a `watch` capability without touching your custom UI:
 
 ```bash
-zfa generate Product --methods=watch --pcs --force
+zfa feature Product --methods=watch --pcs --force
 ```
 This will:
 1. Generate the `WatchProductUseCase`.
@@ -47,7 +47,7 @@ This will:
 If you need more granular loading indicators (e.g., `isCreating`, `isUpdating`), Zuraffa can regenerate the State object and the logic to drive it:
 
 ```bash
-zfa generate Product --methods=create,update --pcs --force
+zfa feature Product --methods=create,update --pcs --force
 ```
 
 ---

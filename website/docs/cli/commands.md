@@ -49,12 +49,38 @@ zfa make <Name> <plugin1> <plugin2> ... [options]
 
 ### Available Plugins
 
-*   **`usecase`**: Generate entity-based or custom UseCases.
-*   **`data`**: Generate Repositories and DataSources.
-*   **`vpc`**: Generate View, Presenter, Controller, and State.
-*   **`di`**: Generate GetIt dependency injection registrations.
-*   **`mock`**: Generate mock data and mock data sources.
-*   **`route`**: Generate routing constants and entity routes.
+Zuraffa v3 is built on a modular plugin system. Each plugin can be run independently using `zfa make` or combined for complex generation tasks.
+
+| Plugin ID | Description |
+| :--- | :--- |
+| **`usecase`** | Generates UseCases (Entity-based, Stream, Sync, Orchestrator, etc.). |
+| **`repository`** | Generates Repository interfaces and implementations. |
+| **`datasource`** | Generates Remote and Local DataSources. |
+| **`service`** | Generates Service interfaces for external integrations. |
+| **`provider`** | Generates Data Providers for the presentation layer. |
+| **`cache`** | Generates caching logic, dual-datasources, and cache policies. |
+| **`di`** | Generates GetIt dependency injection registrations. |
+| **`mock`** | Generates static mock data and mock data source implementations. |
+| **`view`** | Generates the Flutter View (UI layer). |
+| **`presenter`** | Generates the Presenter (logic orchestration). |
+| **`controller`** | Generates the Controller (interaction handling). |
+| **`state`** | Generates the immutable State object. |
+| **`route`** | Generates routing constants and entity-specific routes. |
+| **`graphql`** | Generates GraphQL queries, mutations, and subscriptions. |
+| **`observer`** | Generates Observer classes for tracking lifecycle events. |
+| **`test`** | Generates unit tests for UseCases and logic. |
+| **`feature`** | A meta-plugin that coordinates full feature scaffolding. |
+| **`method_append`** | AST-aware plugin for adding methods to existing files. |
+
+### Standalone vs. Combined Usage
+
+One of Zuraffa's most powerful features is that **plugins are context-aware**. 
+
+*   **Standalone**: Run a single plugin to add a specific component. 
+    *   Example: `zfa make Product di` only updates dependency injection.
+*   **Combined**: Run multiple plugins together to build a vertical slice.
+    *   Example: `zfa make Product usecase repository di` builds the domain logic, data interface, and wires them up in one go.
+*   **Feature Presets**: The `zfa feature` command is essentially a shortcut for running a curated list of plugins (usecase, data, vpc, di, test) with sensible defaults.
 
 ### Examples
 

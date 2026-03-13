@@ -46,13 +46,19 @@ Zuraffa uses **Zorphy** for immutable, type-safe entities.
 zfa entity create -n Product --field name:String --field price:double
 ```
 
-### 3. Generate the Feature
+### 3. Generate a Feature
 Generate the full stack (Domain, Data, Presentation, Tests) in one go:
 ```bash
-zfa generate Product --methods=get,getList,create --data --vpcs --state --test
+zfa feature Product --methods=get,getList,create --data --vpcs --state --test
 ```
 
-### 4. Build
+### 4. Modular Generation (Make)
+Need just a specific part? Use `zfa make` to run one or more plugins:
+```bash
+zfa make Search usecase data di --domain=search --params=SearchRequest --returns=Listing
+```
+
+### 5. Build
 ```bash
 zfa build
 ```
@@ -63,17 +69,17 @@ zfa build
 
 ### Entity-Based CRUD
 ```bash
-zfa generate Product --methods=get,getList,create,update,delete --data --vpcs
+zfa feature Product --methods=get,getList,create,update,delete --data --vpcs
 ```
 
 ### Custom UseCase with a Repository
 ```bash
-zfa generate ProcessCheckout --domain=checkout --repo=Checkout --params=CheckoutRequest --returns=OrderConfirmation
+zfa make ProcessCheckout usecase data --domain=checkout --repo=Checkout --params=CheckoutRequest --returns=OrderConfirmation
 ```
 
 ### Orchestrator UseCase
 ```bash
-zfa generate ProcessCheckout --domain=checkout --usecases=ValidateCart,CreateOrder,ProcessPayment --params=CheckoutRequest --returns=Order
+zfa make ProcessCheckout usecase --domain=checkout --usecases=ValidateCart,CreateOrder,ProcessPayment --params=CheckoutRequest --returns=Order
 ```
 
 ---

@@ -19,14 +19,14 @@
 Generate mock data sources for an entity:
 
 ```bash
-zfa generate Product --data --mock
+zfa feature Product --data --mock
 ```
 
 ### 2. Auto-Wired Mocks (The CLI Secret)
 Use the `--use-mock` flag during generation to automatically wire your **Dependency Injection** to use the mock implementation instead of the remote one:
 
 ```bash
-zfa generate Product --data --di --mock --use-mock
+zfa feature Product --data --di --mock --use-mock
 ```
 
 ---
