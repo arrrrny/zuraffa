@@ -134,16 +134,25 @@ extension LocalDataSourceBuilderCrud on LocalDataSourceBuilder {
               .statement,
         )
         ..statements.add(
+          declareFinal('updated')
+              .assign(
+                refer('existing').property('applyPartial').call([
+                  refer('params').property('data'),
+                ]),
+              )
+              .statement,
+        )
+        ..statements.add(
           refer('_box')
               .property('put')
               .call([
-                refer('existing').property(config.idField),
-                refer('existing'),
+                refer('updated').property(config.idField),
+                refer('updated'),
               ])
               .awaited
               .statement,
         )
-        ..statements.add(refer('existing').returned.statement),
+        ..statements.add(refer('updated').returned.statement),
     );
   }
 
@@ -210,13 +219,22 @@ extension LocalDataSourceBuilderCrud on LocalDataSourceBuilder {
           ),
         )
         ..statements.add(
+          declareFinal('updated')
+              .assign(
+                refer('existing').property('applyPartial').call([
+                  refer('params').property('data'),
+                ]),
+              )
+              .statement,
+        )
+        ..statements.add(
           refer('_box')
               .property('put')
-              .call([literalString(entitySnake), refer('existing')])
+              .call([literalString(entitySnake), refer('updated')])
               .awaited
               .statement,
         )
-        ..statements.add(refer('existing').returned.statement),
+        ..statements.add(refer('updated').returned.statement),
     );
   }
 
