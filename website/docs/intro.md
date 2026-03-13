@@ -1,79 +1,86 @@
-# Welcome to Zuraffa
+# 🦒 Welcome to Zuraffa
 
-Zuraffa is a clean architecture toolkit for Flutter that ships with Result-based error handling, a CLI that generates production-ready structure, and a plugin system so you can extend the generator without forking it. Version 3 focuses on clarity: fewer moving parts, more predictable output, and documentation that reads like it was written by a human.
+**The AI-First Clean Architecture Framework for Flutter.**
 
-## Why teams choose Zuraffa
+Zuraffa is a comprehensive toolkit designed to bridge the gap between human intent and production-ready code. It enforces **Clean Architecture** principles, ensures **Type Safety**, and provides an **AI-Native** workflow through its built-in Model Context Protocol (MCP) server.
 
-- Clean architecture that stays consistent across features
-- Result and failure types that make error handling explicit
-- Generators for entities, use cases, repositories, and UI layers
-- Built-in patterns for CRUD, orchestration, streaming, and background tasks
-- Dependency injection, caching, mock data, and GraphQL generation
-- Plugin system introduced in v3 to customize the generator
+---
 
-## What’s new in v3
+## 🦄 Why Zuraffa?
 
-- Plugins are first-class: extend the CLI without editing core code
-- Docs are streamlined and focused on how you actually build features
-- Better defaults and more predictable CLI output
+*   **🤖 AI-Native (MCP)**: The first Flutter framework with a built-in **Model Context Protocol** server. Your AI agent (Trae, Cursor, Windsurf) can now understand, generate, and refactor your code with 100% precision.
+*   **🏗️ Clean Architecture by Default**: Strict separation of Domain, Data, and Presentation layers. No more spaghetti code.
+*   **🛡️ Type-Safe Everything**: Uses `Result<T, AppFailure>` for error handling. Stop catching exceptions; start matching results.
+*   **⚡ Zero Boilerplate**: The `zfa` CLI handles the heavy lifting—UseCases, Repositories, VPCs (View-Presenter-Controller), and Tests are generated in seconds.
+*   **🧪 Mock-Ready**: Instant mock data generation for rapid prototyping without a backend.
 
-## Quick start
+---
 
-### Install
+## 🤖 The AI Advantage
+
+Zuraffa is built for the era of AI-assisted development. By exposing your project's architectural structure to AI agents, Zuraffa enables a higher level of autonomy and accuracy:
+
+1.  **Contextual Generation**: "Add a 'PlaceOrder' usecase to the existing 'Cart' domain."
+2.  **Smart Refactoring**: "Rename this entity field and update all related layers."
+3.  **Automated Alignment**: AI can run `zfa doctor` to identify and fix architectural violations automatically.
+
+---
+
+## ⚡ Quick Start
+
+### 1. Install
 
 ```yaml
-dependencies:
-  zuraffa: ^3.0.0
+dev_dependencies:
+  zuraffa: ^3.19.0
 ```
 
 ```bash
-flutter pub get
 dart pub global activate zuraffa
+zfa init
 ```
 
-### Generate your first feature
-
+### 2. Define an Entity
+Zuraffa uses **Zorphy** for immutable, type-safe entities.
 ```bash
-zfa entity create -n Product \
-  --field name:String \
-  --field description:String? \
-  --field price:double
-
-zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --state --di --test
+zfa entity create -n Product --field name:String --field price:double
 ```
 
-You get a full feature slice: entities, use cases, repositories, data sources, presentation, DI, and tests.
+### 3. Generate the Feature
+Generate the full stack (Domain, Data, Presentation, Tests) in one go:
+```bash
+zfa generate Product --methods=get,getList,create --data --vpcs --state --test
+```
 
-## Core patterns
+### 4. Build
+```bash
+zfa build
+```
 
-### Entity-based CRUD
+---
 
+## 🏗️ Core Patterns
+
+### Entity-Based CRUD
 ```bash
 zfa generate Product --methods=get,getList,create,update,delete --data --vpcs
 ```
 
-### Custom use case with a repository
-
+### Custom UseCase with a Repository
 ```bash
 zfa generate ProcessCheckout --domain=checkout --repo=Checkout --params=CheckoutRequest --returns=OrderConfirmation
 ```
 
-### Orchestrator use case
-
+### Orchestrator UseCase
 ```bash
 zfa generate ProcessCheckout --domain=checkout --usecases=ValidateCart,CreateOrder,ProcessPayment --params=CheckoutRequest --returns=Order
 ```
 
-### Polymorphic variants
+---
 
-```bash
-zfa generate Search --domain=search --variants=Barcode,Url,Text --params=SearchInput --returns=Listing --type=stream
-```
+## 📂 Where to Go Next?
 
-## Where to go next
-
-- [Getting Started](./guides/getting-started)
-- [Architecture Overview](./architecture/overview)
-- [UseCase Types](./architecture/usecases)
-- [CLI Reference](./cli/commands)
-- [Features](./features/dependency-injection)
+*   [**Architecture Overview**](./architecture/overview) - Learn about the VPC pattern and Result type.
+*   [**MCP Server**](./features/mcp-server) - Set up Zuraffa for your AI agent.
+*   [**CLI Reference**](./cli/commands) - Master the `zfa` command line.
+*   [**Entities**](./entities/intro) - Supercharge your data models with Zorphy.

@@ -1,102 +1,51 @@
 # MCP Server
 
-The `zuraffa_mcp_server` exposes Zuraffa v3 CLI features over MCP, so AI-enabled IDEs can call generators and inspect project structure safely.
+**Zuraffa** is the first Flutter framework with a built-in **Model Context Protocol (MCP)** server, enabling a deep, AI-native development experience.
 
-## What is MCP?
+---
 
-The **Model Context Protocol** is a standardized protocol that allows AI assistants to access tools, resources, and configuration within your development environment. MCP enables AI agents to:
+## 🦄 What is MCP?
 
-- Execute CLI commands
-- Access project files
-- Generate code
-- Create entities and data models
-- Retrieve project metadata
-- Integrate with your development workflow
+The **Model Context Protocol** is an open standard that allows AI assistants (like Trae, Cursor, and Windsurf) to securely access local tools and project resources. By enabling Zuraffa's MCP server, your AI agent can now:
 
-## Installation Options
+*   **Contextual Generation**: Generate features based on existing entities and domain logic.
+*   **Architectural Awareness**: Navigate and refactor your Clean Architecture layers with high precision.
+*   **Real-time Diagnostics**: Run `zfa doctor` and fix violations automatically.
+*   **Supercharged Entities**: Create, modify, and extend **Zorphy** entities via natural language.
 
-Zuraffa MCP server offers three installation approaches to suit different needs. Additionally, you can configure Zorphy (entity generation) defaults via startup flags.
+---
 
-### Zorphy Configuration Flags
+## 📦 Installation
 
-Enable Zorphy-style typed entity patches by default for all MCP tool calls:
+Zuraffa version **3.19.0** provides three ways to set up the MCP server.
 
-```json
-{
-  "mcpServers": {
-    "zuraffa": {
-      "command": "/usr/local/bin/zuraffa_mcp_server",
-      "args": ["--zorphy"],
-      "cwd": "/path/to/your/flutter/project"
-    }
-  }
-}
-```
-
-Available flags:
-- `--zorphy` / `--always-zorphy`: Enable Zorphy by default
-
-When enabled, all code generation will use Zorphy-style typed patches instead of `Partial<T>` for update operations. You can still override this per-request using the `zorphy: false` parameter.
-
-### 1. Automatic via pub.dev (Recommended for Most Users)
+### 1. Automatic via pub.dev (Recommended)
 
 ```bash
-# Activate globally
 dart pub global activate zuraffa
-
-# MCP server is immediately available
 zuraffa_mcp_server
 ```
 
-**Benefits:**
-- Single command installation
-- Dart automatically compiles and caches the executable
-- Fast startup after first run
-- Automatic updates with `dart pub global activate zuraffa`
+**Benefits:** Fast setup, automatic updates, and binary caching.
 
-### 2. Pre-compiled Binaries (Fastest - No Compilation Needed)
+### 2. Pre-compiled Binaries (Fastest Startup)
 
-Pre-built binaries are automatically published to [GitHub Releases](https://github.com/arrrrny/zuraffa/releases) for instant startup:
-
-- **macOS ARM64**: `zuraffa_mcp_server-macos-arm64`
-- **macOS x64**: `zuraffa_mcp_server-macos-x64`
-- **Linux x64**: `zuraffa_mcp_server-linux-x64`
-- **Windows x64**: `zuraffa_mcp_server-windows-x64.exe`
+Download optimized binaries from our [GitHub Releases](https://github.com/arrrrny/zuraffa/releases):
+- **macOS ARM64 / x64**
+- **Linux x64**
+- **Windows x64**
 
 ```bash
-# Download and install (macOS example)
+# macOS example
 curl -L https://github.com/arrrrny/zuraffa/releases/latest/download/zuraffa_mcp_server-macos-arm64 -o zuraffa_mcp_server
 chmod +x zuraffa_mcp_server
 sudo mv zuraffa_mcp_server /usr/local/bin/
 ```
 
-**Benefits:**
-- Zero startup time - ready to use immediately
-- No compilation overhead
-- Optimized for performance
-- Instant availability after download
-
-### 3. Compile from Source (For Developers)
-
-Build the server from source for full control:
-
+### 3. Build from Source
 ```bash
-# Clone the repository
-git clone https://github.com/arrrrny/zuraffa.git
-cd zuraffa
-
-# Compile executable
 dart compile exe bin/zuraffa_mcp_server.dart -o zuraffa_mcp_server
-
-# Install to system path (optional)
-sudo mv zuraffa_mcp_server /usr/local/bin/
 ```
-
-**Benefits:**
-- Full control over compilation
-- Ability to modify source code
-- Custom optimizations
-- Development flexibility
 
 ## Configuration
 
