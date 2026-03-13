@@ -122,9 +122,23 @@ class ViewCommand extends PluginCommand {
       (c) => c.name == capabilityName,
     );
 
+    // For non-custom capabilities, reuse the same methods list that was parsed
+    // for entity-based views. For the "custom" capability, keep an empty list.
+    final List<String> routeMethods;
+    if (capabilityName == 'custom') {
+      routeMethods = <String>[];
+    } else {
+      final methodsArg = argResults['methods'] as String? ?? '';
+      routeMethods = methodsArg
+          .split(',')
+          .map((m) => m.trim())
+          .where((m) => m.isNotEmpty)
+          .toList();
+    }
+
     final result = await routeCapability.execute({
       'name': entityName,
-      'methods': [],
+      'methods': routeMethods,
       'dryRun': isDryRun,
       'force': isForce,
       'verbose': isVerbose,
