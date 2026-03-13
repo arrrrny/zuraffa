@@ -14,7 +14,10 @@ extension MethodAppendBuilderImports on MethodAppendBuilder {
       final entitySnake = StringUtils.camelToSnake(entityName);
       if (_hasEntityImport(content, entityName, entitySnake)) continue;
 
-      final relativePath = _getRelativeImportPath(filePath, entitySnake);
+      final isEnum = EntityAnalyzer.isEnum(entityName, outputDir);
+      final relativePath = isEnum
+          ? _getEnumImportPath(filePath)
+          : _getRelativeImportPath(filePath, entitySnake);
       final request = AppendRequest.import(
         source: content,
         importPath: relativePath,
@@ -23,6 +26,36 @@ extension MethodAppendBuilderImports on MethodAppendBuilder {
       content = result.source;
     }
     return content;
+  }
+
+  String _getEnumImportPath(String filePath) {
+    final normalizedPath = path.normalize(filePath);
+    if (normalizedPath.contains('/data/datasources/') ||
+        normalizedPath.contains('\\data\\datasources\\')) {
+      final parts = path.split(normalizedPath);
+      final index = parts.lastIndexOf('datasources');
+      if (index != -1 && index + 2 < parts.length) {
+        return '../../../domain/entities/enums/index.dart';
+      }
+      return '../../domain/entities/enums/index.dart';
+    }
+    if (normalizedPath.contains('/data/repositories/') ||
+        normalizedPath.contains('\\data\\repositories\\')) {
+      return '../../domain/entities/enums/index.dart';
+    }
+    if (normalizedPath.contains('/domain/repositories/') ||
+        normalizedPath.contains('\\domain\\repositories\\')) {
+      return '../entities/enums/index.dart';
+    }
+    if (normalizedPath.contains('/domain/usecases/') ||
+        normalizedPath.contains('\\domain\\usecases\\')) {
+      return '../../entities/enums/index.dart';
+    }
+    if (normalizedPath.contains('/data/providers/') ||
+        normalizedPath.contains('\\data\\providers\\')) {
+      return '../../../domain/entities/enums/index.dart';
+    }
+    return '../../../domain/entities/enums/index.dart';
   }
 
   Set<String> _collectEntityTypes(GeneratorConfig config) {

@@ -239,6 +239,8 @@ class MakeCommand extends Command<void> {
       paramsType: params,
       returnsType: returns,
       appendToExisting: pluginNames.contains('method_append'),
+      generateUseCase: pluginNames.contains('usecase'),
+      generateService: pluginNames.contains('service'),
       dryRun: dryRun,
       force: force,
       verbose: verbose,

@@ -78,10 +78,26 @@ class CommonPatterns {
         '$entitySnake.dart',
       );
       if (File(entityFilePath).existsSync()) {
+        final content = File(entityFilePath).readAsStringSync();
+        if (content.contains('enum $entity')) {
+          return '$prefix/${domainSegment}entities/enums/index.dart';
+        }
         return '$prefix/${domainSegment}entities/$entitySnake.dart';
       }
 
-      // 4. Fallback: assume it's an enum
+      // 4. Try enums/ directory
+      final enumPath = path.join(
+        config.outputDir,
+        'domain',
+        'entities',
+        'enums',
+        '$entitySnake.dart',
+      );
+      if (File(enumPath).existsSync()) {
+        return '$prefix/${domainSegment}entities/enums/index.dart';
+      }
+
+      // 5. Fallback: assume it's an enum if not found
       return '$prefix/${domainSegment}entities/enums/index.dart';
     }).toSet().toList();
   }

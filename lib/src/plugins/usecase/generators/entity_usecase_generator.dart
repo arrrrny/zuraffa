@@ -42,6 +42,38 @@ class EntityUseCaseGenerator {
     for (final method in config.methods) {
       files.add(await _generateForMethod(config, method));
     }
+    if (config.revert && config.methods.isEmpty) {
+      // Revert based on name if no methods specified
+      final entitySnake = config.nameSnake;
+      final usecaseDirPath = path.join(
+        outputDir,
+        'domain',
+        'usecases',
+        config.effectiveDomain,
+      );
+      final possibleFiles = [
+        'get_${entitySnake}_usecase.dart',
+        'create_${entitySnake}_usecase.dart',
+        'update_${entitySnake}_usecase.dart',
+        'delete_${entitySnake}_usecase.dart',
+        'watch_${entitySnake}_usecase.dart',
+        'get_${entitySnake}_list_usecase.dart',
+        'watch_${entitySnake}_list_usecase.dart',
+      ];
+      for (final fileName in possibleFiles) {
+        final filePath = path.join(usecaseDirPath, fileName);
+        if (File(filePath).existsSync()) {
+          files.add(
+            await FileUtils.deleteFile(
+              filePath,
+              'usecase',
+              dryRun: options.dryRun,
+              verbose: options.verbose,
+            ),
+          );
+        }
+      }
+    }
     return files;
   }
 

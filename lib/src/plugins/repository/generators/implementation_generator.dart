@@ -8,6 +8,7 @@ import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
+import '../../../utils/entity_analyzer.dart';
 
 part 'implementation_generator_append.dart';
 part 'implementation_generator_cached.dart';

@@ -4,15 +4,6 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
   Future<MethodAppendResult> _appendServiceMethod(
     GeneratorConfig config,
   ) async {
-    if (config.revert) {
-      // Append operations cannot be safely reverted without risking data loss
-      // or needing complex parsing to remove only the appended method.
-      // We skip append operations during revert.
-      return MethodAppendResult([], [
-        'Skipping revert for append operation: append cannot be safely undone.',
-      ]);
-    }
-
     final updatedFiles = <GeneratedFile>[];
     final warnings = <String>[];
 

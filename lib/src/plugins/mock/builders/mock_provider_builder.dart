@@ -10,6 +10,7 @@ import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
+import '../../../utils/entity_analyzer.dart';
 import '../../../utils/entity_utils.dart';
 import 'mock_type_helper.dart';
 
@@ -103,11 +104,17 @@ class MockProviderBuilder {
       entityTypes.addAll(EntityUtils.extractEntityTypes(config.paramsType!));
     }
 
-    for (final type in entityTypes.toSet()) {
-      final snake = StringUtils.camelToSnake(type);
-      directives.add(
-        Directive.import('../../../domain/entities/$snake/$snake.dart'),
-      );
+    for (final entityName in entityTypes.toSet()) {
+      final entitySnake = StringUtils.camelToSnake(entityName);
+      if (EntityAnalyzer.isEnum(entityName, outputDir)) {
+        directives.add(
+          Directive.import('../../../domain/entities/enums/index.dart'),
+        );
+      } else {
+        final entityPath =
+            '../../../domain/entities/$entitySnake/$entitySnake.dart';
+        directives.add(Directive.import(entityPath));
+      }
     }
 
     if (!isPrimitive) {

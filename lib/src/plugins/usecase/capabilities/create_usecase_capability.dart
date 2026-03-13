@@ -43,8 +43,8 @@ class CreateUseCaseCapability implements ZuraffaCapability {
       'methods': {
         'type': 'array',
         'items': {'type': 'string'},
-        'description': 'List of methods (get,create,update,delete,list,watch,getList,watchList)',
-        'default': ['get', 'update'],
+        'description':
+            'List of methods (get,create,update,delete,list,watch,getList,watchList)',
       },
       'outputDir': {'type': 'string', 'default': 'lib/src'},
       'dryRun': {
@@ -141,7 +141,9 @@ class CreateUseCaseCapability implements ZuraffaCapability {
         service != null ||
         usecases.isNotEmpty ||
         variants.isNotEmpty ||
-        (params != null && returns != null);
+        params != null ||
+        returns != null ||
+        args['domain'] != null;
 
     final config = GeneratorConfig(
       name: name,

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
@@ -127,6 +128,56 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     GeneratorConfig config,
     String entityName,
   ) {
+    if (config.isOrchestrator && !config.generateUseCase) {
+      return config.usecases.map((u) {
+        final className = u.endsWith('UseCase') ? u : '${u}UseCase';
+        final fieldName = StringUtils.pascalToCamel(
+          className.replaceAll('UseCase', ''),
+        );
+        final usecaseSnake = StringUtils.camelToSnake(
+          className.replaceAll('UseCase', ''),
+        );
+
+        // Try to find the file and parse params/returns
+        String? paramsType;
+        String? returnsType;
+        String? useCaseType;
+
+        final usecaseDomain = _findUseCaseDomain(usecaseSnake, config.effectiveDomain);
+        final filePath = path.join(outputDir, 'domain', 'usecases', usecaseDomain, '${usecaseSnake}_usecase.dart');
+        if (File(filePath).existsSync()) {
+          final content = File(filePath).readAsStringSync();
+          final extendsMatch = RegExp(r'extends (UseCase|StreamUseCase|CompletableUseCase|SyncUseCase)<([^>]+)>').firstMatch(content);
+          if (extendsMatch != null) {
+            useCaseType = extendsMatch.group(1)?.toLowerCase();
+            final typesStr = extendsMatch.group(2);
+            if (typesStr != null) {
+              final types = typesStr.split(',').map((e) => e.trim()).toList();
+              if (useCaseType == 'completableusecase') {
+                useCaseType = 'completable';
+                paramsType = types[0];
+                returnsType = 'void';
+              } else if (types.length >= 2) {
+                returnsType = types[0];
+                paramsType = types[1];
+                if (useCaseType == 'streamusecase') useCaseType = 'stream';
+                if (useCaseType == 'syncusecase') useCaseType = 'sync';
+                if (useCaseType == 'usecase') useCaseType = 'future';
+              }
+            }
+          }
+        }
+
+        return _UseCaseInfo(
+          className: className,
+          fieldName: fieldName,
+          paramsType: paramsType,
+          returnsType: returnsType,
+          useCaseType: useCaseType,
+        );
+      }).toList();
+    }
+
     if (config.isCustomUseCase) {
       return [
         _UseCaseInfo(
@@ -266,73 +317,10 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     String entityCamel,
   ) {
     if (config.isCustomUseCase) {
-      final info = useCases.first;
-      final returns = config.returnsType ?? 'void';
-      final params = config.paramsType ?? 'NoParams';
-      final isStream = config.useCaseType == 'stream';
-
-      // Parse nullability
-      final isNullable = returns.endsWith('?');
-      final baseReturns = isNullable
-          ? returns.substring(0, returns.length - 1)
-          : returns;
-
-      final resultType = TypeReference(
-        (b) => b
-          ..symbol = 'Result'
-          ..types.addAll([
-            TypeReference(
-              (b) => b
-                ..symbol = baseReturns
-                ..isNullable = isNullable,
-            ),
-            refer('AppFailure'),
-          ]),
-      );
-
-      final returnType = TypeReference(
-        (b) => b
-          ..symbol = isStream ? 'Stream' : 'Future'
-          ..types.add(resultType),
-      );
-
-      return [
-        Method(
-          (m) => m
-            ..name = info.fieldName
-            ..returns = returnType
-            ..requiredParameters.addAll(
-              params == 'NoParams'
-                  ? const []
-                  : [
-                      Parameter(
-                        (p) => p
-                          ..name = 'params'
-                          ..type = refer(params),
-                      ),
-                    ],
-            )
-            ..optionalParameters.add(_cancelTokenParam())
-            ..body = Block(
-              (b) => b
-                ..statements.add(
-                  refer('_${info.fieldName}')
-                      .property('call')
-                      .call(
-                        [
-                          if (params != 'NoParams')
-                            refer('params')
-                          else
-                            refer('NoParams').constInstance([]),
-                        ],
-                        {'cancelToken': refer('cancelToken')},
-                      )
-                      .returned
-                      .statement,
-                ),
-            ),
-        ),
-      ];
+      if (config.isOrchestrator && !config.generateUseCase) {
+        return useCases.map((info) => _buildCustomMethod(config, info)).toList();
+      }
+      return [_buildCustomMethod(config, useCases.first)];
     }
 
     final map = {for (final info in useCases) info.fieldName: info};
@@ -391,6 +379,73 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       }
     }
     return methods;
+  }
+
+  Method _buildCustomMethod(GeneratorConfig config, _UseCaseInfo info) {
+    final returns = info.returnsType ?? config.returnsType ?? 'void';
+    final params = info.paramsType ?? config.paramsType ?? 'NoParams';
+    final isStream = (info.useCaseType ?? config.useCaseType) == 'stream';
+
+    // Parse nullability
+    final isNullable = returns.endsWith('?');
+    final baseReturns = isNullable
+        ? returns.substring(0, returns.length - 1)
+        : returns;
+
+    final resultType = TypeReference(
+      (b) => b
+        ..symbol = 'Result'
+        ..types.addAll([
+          TypeReference(
+            (b) => b
+              ..symbol = baseReturns
+              ..isNullable = isNullable,
+          ),
+          refer('AppFailure'),
+        ]),
+    );
+
+    final returnType = TypeReference(
+      (b) => b
+        ..symbol = isStream ? 'Stream' : 'Future'
+        ..types.add(resultType),
+    );
+
+    return Method(
+      (m) => m
+        ..name = info.fieldName
+        ..returns = returnType
+        ..requiredParameters.addAll(
+          params == 'NoParams'
+              ? const []
+              : [
+                  Parameter(
+                    (p) => p
+                      ..name = 'params'
+                      ..type = refer(params),
+                  ),
+                ],
+        )
+        ..optionalParameters.add(_cancelTokenParam())
+        ..body = Block(
+          (b) => b
+            ..statements.add(
+              refer('_${info.fieldName}')
+                  .property('call')
+                  .call(
+                    [
+                      if (params != 'NoParams')
+                        refer('params')
+                      else
+                        refer('NoParams').constInstance([]),
+                    ],
+                    {'cancelToken': refer('cancelToken')},
+                  )
+                  .returned
+                  .statement,
+            ),
+        ),
+    );
   }
 
   Method _buildGetMethod(
@@ -677,19 +732,67 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       final usecaseSnake = StringUtils.camelToSnake(
         info.className.replaceAll('UseCase', ''),
       );
-      final usecaseDomain = config.isCustomUseCase ? domainSnake : domainSnake;
+      final usecaseDomain = _findUseCaseDomain(usecaseSnake, domainSnake);
       imports.add(
         '../../../domain/usecases/$usecaseDomain/${usecaseSnake}_usecase.dart',
       );
+
+      if (info.paramsType != null || info.returnsType != null) {
+        final types = <String>[];
+        if (info.paramsType != null) types.add(info.paramsType!);
+        if (info.returnsType != null) types.add(info.returnsType!);
+        final entityImports = CommonPatterns.entityImports(
+          types,
+          config,
+          depth: 3,
+        );
+        imports.addAll(entityImports);
+      }
     }
 
-    return imports;
+    return imports.toSet().toList();
+  }
+
+  String _findUseCaseDomain(String usecaseSnake, String defaultDomain) {
+    final usecasesDir = Directory(path.join(outputDir, 'domain', 'usecases'));
+    if (usecasesDir.existsSync()) {
+      for (final dir in usecasesDir.listSync()) {
+        if (dir is Directory) {
+          final useCaseFile = File(
+            path.join(dir.path, '${usecaseSnake}_usecase.dart'),
+          );
+          if (useCaseFile.existsSync()) {
+            return path.basename(dir.path);
+          }
+        }
+      }
+    }
+    // Try to find if it is an entity-based usecase
+    final possiblePrefixes = ['get_', 'create_', 'update_', 'delete_', 'watch_'];
+    for (final prefix in possiblePrefixes) {
+      if (usecaseSnake.startsWith(prefix)) {
+        final entitySnake = usecaseSnake.replaceFirst(prefix, '').replaceFirst('_list', '');
+        return entitySnake;
+      }
+    }
+
+    // Fallback to the default domain if not found
+    return defaultDomain;
   }
 }
 
 class _UseCaseInfo {
   final String className;
   final String fieldName;
+  final String? paramsType;
+  final String? returnsType;
+  final String? useCaseType;
 
-  _UseCaseInfo({required this.className, required this.fieldName});
+  _UseCaseInfo({
+    required this.className,
+    required this.fieldName,
+    this.paramsType,
+    this.returnsType,
+    this.useCaseType,
+  });
 }

@@ -9,6 +9,7 @@ import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
+import '../../../utils/entity_analyzer.dart';
 
 /// Generates provider implementation classes.
 ///
@@ -62,6 +63,15 @@ class ProviderBuilder {
       fileName,
     );
 
+    if (config.revert) {
+      return FileUtils.deleteFile(
+        filePath,
+        'provider',
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+      );
+    }
+
     final paramsType = config.paramsType ?? 'NoParams';
     final returnsType = config.returnsType ?? 'void';
     final methodName = config.getServiceMethodName();
@@ -74,11 +84,15 @@ class ProviderBuilder {
     ];
 
     final entityImports = _getPotentialEntityImports([paramsType, returnsType]);
-    for (final entityImport in entityImports) {
-      final entitySnake = StringUtils.camelToSnake(entityImport);
-      final entityPath =
-          '../../../domain/entities/$entitySnake/$entitySnake.dart';
-      directives.add(Directive.import(entityPath));
+    for (final entityName in entityImports) {
+      final entitySnake = StringUtils.camelToSnake(entityName);
+      if (EntityAnalyzer.isEnum(entityName, outputDir)) {
+        directives.add(Directive.import('../../../domain/entities/enums/index.dart'));
+      } else {
+        final entityPath =
+            '../../../domain/entities/$entitySnake/$entitySnake.dart';
+        directives.add(Directive.import(entityPath));
+      }
     }
 
     final method = Method(

@@ -10,6 +10,7 @@ import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
+import '../../../utils/entity_analyzer.dart';
 
 /// Generates repository interfaces for the domain layer.
 ///
@@ -152,7 +153,13 @@ class RepositoryInterfaceGenerator {
     if (needsZuraffaImport) {
       imports.add('package:zuraffa/zuraffa.dart');
     }
-    imports.add('../entities/${config.nameSnake}/${config.nameSnake}.dart');
+    final entityName = config.name;
+    final entitySnake = config.nameSnake;
+    if (EntityAnalyzer.isEnum(entityName, outputDir)) {
+      imports.add('../entities/enums/index.dart');
+    } else {
+      imports.add('../entities/$entitySnake/$entitySnake.dart');
+    }
     return imports;
   }
 

@@ -125,11 +125,13 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final files = <GeneratedFile>[];
 
     // Generate UseCase DI files for all UseCase types
-    files.addAll(await _generateUseCaseDIFiles(config));
+    if (config.generateUseCase) {
+      files.addAll(await _generateUseCaseDIFiles(config));
+    }
 
     // Only generate DataSource/Repository DI if NOT using a Service/Provider pattern
     if (!config.hasService && !config.isOrchestrator) {
-      if (config.generateData || config.generateDi) {
+      if (config.generateDataSource || config.generateData) {
         if (config.enableCache) {
           files.add(await _generateRemoteDataSourceDI(config));
           files.add(await _generateLocalDataSourceDI(config));
@@ -142,39 +144,32 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         }
       }
 
-      if (config.generateData ||
-          config.generateRepository ||
-          config.generateDi) {
+      if (config.generateRepository || config.generateData) {
         files.add(await _generateRepositoryDI(config));
       }
 
-      if (config.generateMock && !config.generateMockDataOnly) {
+      if (config.generateMock &&
+          !config.generateMockDataOnly &&
+          (config.generateData || config.generateDataSource)) {
         files.add(await _generateMockDataSourceDI(config));
       }
     }
 
-    if (config.hasService) {
-      if (config.generateData || config.generateDi) {
-        final serviceFile = await _generateServiceDI(config);
-        if (serviceFile != null) {
-          files.add(serviceFile);
-        }
+    if (config.hasService && (config.generateService || config.generateData)) {
+      final serviceFile = await _generateServiceDI(config);
+      if (serviceFile != null) {
+        files.add(serviceFile);
+      }
 
-        if (config.useMockInDi) {
-          final mockProviderFile = await _generateMockProviderDI(config);
-          if (mockProviderFile != null) {
-            files.add(mockProviderFile);
-          }
-        } else {
-          final providerFile = await _generateProviderDI(config);
-          if (providerFile != null) {
-            files.add(providerFile);
-          }
+      if (config.useMockInDi) {
+        final mockProviderFile = await _generateMockProviderDI(config);
+        if (mockProviderFile != null) {
+          files.add(mockProviderFile);
         }
       } else {
-        final serviceFile = await _generateServiceDI(config);
-        if (serviceFile != null) {
-          files.add(serviceFile);
+        final providerFile = await _generateProviderDI(config);
+        if (providerFile != null) {
+          files.add(providerFile);
         }
       }
     }
@@ -267,19 +262,47 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     } else {
       constructorCall = refer(dataSourceName).call([]);
     }
-    final registrationCall = refer('getIt')
-        .property('registerLazySingleton')
-        .call(
-          [
-            Method(
-              (m) => m
-                ..lambda = true
-                ..body = constructorCall.code,
-            ).closure,
-          ],
-          {},
-          [refer(dataSourceName)],
-        );
+    final registrationCall = (config.cacheStorage == 'hive' || config.generateLocal)
+        ? refer('getIt').property('registerSingletonAsync').call(
+            [
+              Method(
+                (m) => m
+                  ..modifier = MethodModifier.async
+                  ..body = Block((b) {
+                    final hasListMethod =
+                        config.methods.contains('getList') ||
+                        config.methods.contains('watchList');
+                    final boxName = hasListMethod ? '${baseSnake}s' : baseSnake;
+                    final boxVar = 'box';
+                    b.statements.add(
+                      declareFinal(boxVar).assign(
+                        refer('Hive').property('openBox').call(
+                          [literalString(boxName)],
+                          {},
+                          [refer(baseName)],
+                        ).awaited,
+                      ).statement,
+                    );
+                    b.statements.add(
+                      refer(dataSourceName).call([refer(boxVar)]).returned.statement,
+                    );
+                  }),
+              ).closure,
+            ],
+            {},
+            [refer(dataSourceName)],
+          )
+        : refer('getIt').property('registerLazySingleton').call(
+            [
+              Method(
+                (m) => m
+                  ..lambda = true
+                  ..body = constructorCall.code,
+              ).closure,
+            ],
+            {},
+            [refer(dataSourceName)],
+          );
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$dataSourceName',

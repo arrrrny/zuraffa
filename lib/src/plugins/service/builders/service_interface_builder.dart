@@ -83,6 +83,7 @@ class ServiceInterfaceBuilder {
         [paramsType, returnsType],
         config,
         depth: 1,
+        includeDomain: false,
       ).map((path) => Directive.import(path)),
     ];
 

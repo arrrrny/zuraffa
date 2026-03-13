@@ -1,4 +1,5 @@
 import 'package:code_builder/code_builder.dart';
+import 'dart:io';
 import 'package:path/path.dart' as path;
 
 import '../../../core/builder/shared/spec_library.dart';
@@ -98,33 +99,56 @@ class StateBuilder {
       ),
     ];
 
-    if (config.isCustomUseCase) {
-      fields.add(
-        _docField(
-          'Whether the operation is in progress',
-          'isLoading',
-          refer('bool'),
-        ),
-      );
-
-      if (config.returnsType != null && config.returnsType != 'void') {
-        final returnsType = config.returnsType!;
-        final isNullable = returnsType.endsWith('?');
-        final symbol = isNullable
-            ? returnsType.substring(0, returnsType.length - 1)
-            : returnsType;
-
+    if (config.isCustomUseCase || (config.isOrchestrator && !config.generateUseCase)) {
+      if (config.isOrchestrator && !config.generateUseCase) {
+        for (final usecaseName in config.usecases) {
+          final info = _parseUseCaseInfo(usecaseName, config);
+          if (info.returnsType != null && info.returnsType != 'void') {
+            final fieldName = '${info.fieldName}Data';
+            fields.add(
+              _docField(
+                'The result data for ${info.className}',
+                fieldName,
+                _nullableType(info.returnsType!),
+              ),
+            );
+          }
+          fields.add(
+            _docField(
+              'Whether ${info.className} is in progress',
+              'is${StringUtils.convertToPascalCase(info.fieldName)}Loading',
+              refer('bool'),
+            ),
+          );
+        }
+      } else {
         fields.add(
           _docField(
-            'The result data',
-            'data',
-            TypeReference(
-              (b) => b
-                ..symbol = symbol
-                ..isNullable = true,
-            ),
+            'Whether the operation is in progress',
+            'isLoading',
+            refer('bool'),
           ),
         );
+
+        if (config.returnsType != null && config.returnsType != 'void') {
+          final returnsType = config.returnsType!;
+          final isNullable = returnsType.endsWith('?');
+          final symbol = isNullable
+              ? returnsType.substring(0, returnsType.length - 1)
+              : returnsType;
+
+          fields.add(
+            _docField(
+              'The result data',
+              'data',
+              TypeReference(
+                (b) => b
+                  ..symbol = symbol
+                  ..isNullable = true,
+              ),
+            ),
+          );
+        }
       }
 
       final constructor = _buildCustomConstructor(config);
@@ -299,23 +323,21 @@ class StateBuilder {
       Parameter(
         (p) => p
           ..name = 'error'
-          ..type = _nullableType('AppFailure')
-          ..named = true,
-      ),
-      Parameter(
-        (p) => p
-          ..name = 'clearError'
-          ..type = refer('bool')
           ..named = true
-          ..defaultTo = literalBool(false).code,
+          ..type = _nullableType('AppFailure'),
       ),
       Parameter(
         (p) => p
           ..name = 'isLoading'
-          ..type = _nullableType('bool')
-          ..named = true,
+          ..named = true
+          ..type = refer('bool?'),
       ),
     ];
+
+    final values = <String, Expression>{
+      'error': refer('error').ifNullThen(_this('error')),
+      'isLoading': refer('isLoading').ifNullThen(_this('isLoading')),
+    };
 
     if (config.returnsType != null && config.returnsType != 'void') {
       final returnsType = config.returnsType!;
@@ -328,30 +350,15 @@ class StateBuilder {
         Parameter(
           (p) => p
             ..name = 'data'
+            ..named = true
             ..type = TypeReference(
               (b) => b
                 ..symbol = symbol
                 ..isNullable = true,
-            )
-            ..named = true,
+            ),
         ),
       );
-    }
-
-    final namedArgs = <String, Expression>{
-      'error': refer('clearError').conditional(
-        literalNull,
-        refer('error').ifNullThen(refer('this').property('error')),
-      ),
-      'isLoading': refer(
-        'isLoading',
-      ).ifNullThen(refer('this').property('isLoading')),
-    };
-
-    if (config.returnsType != null && config.returnsType != 'void') {
-      namedArgs['data'] = refer(
-        'data',
-      ).ifNullThen(refer('this').property('data'));
+      values['data'] = refer('data').ifNullThen(_this('data'));
     }
 
     return Method(
@@ -359,38 +366,46 @@ class StateBuilder {
         ..name = 'copyWith'
         ..returns = refer(stateName)
         ..optionalParameters.addAll(params)
-        ..body = refer(stateName).call([], namedArgs).returned.statement,
+        ..lambda = true
+        ..body = refer(stateName).call([], values).code,
     );
   }
 
-  Method _buildCustomEqualityOperator(
-    String stateName,
-    GeneratorConfig config,
-  ) {
-    final other = refer('other');
-    var expression = other.isA(refer(stateName));
+  Method _buildHasErrorGetter() {
+    return Method(
+      (m) => m
+        ..name = 'hasError'
+        ..returns = refer('bool')
+        ..type = MethodType.getter
+        ..lambda = true
+        ..body = refer('error').notEqualTo(refer('null')).code,
+    );
+  }
 
-    expression = expression.and(
-      other.property('error').equalTo(_this('error')),
-    );
-    expression = expression.and(
-      other.property('isLoading').equalTo(_this('isLoading')),
-    );
+  Method _buildCustomEqualityOperator(String stateName, GeneratorConfig config) {
+    final other = refer('other');
+    final isIdentical = refer('identical').call([refer('this'), other]);
+    final isType = other.isA(refer(stateName));
+
+    final conditions = <Expression>[
+      other.property('error').equalTo(refer('error')),
+      other.property('isLoading').equalTo(refer('isLoading')),
+    ];
 
     if (config.returnsType != null && config.returnsType != 'void') {
-      expression = expression.and(
-        other.property('data').equalTo(_this('data')),
-      );
+      conditions.add(other.property('data').equalTo(refer('data')));
     }
+
+    final expression = conditions.reduce((a, b) => a.and(b));
 
     return Method(
       (m) => m
         ..name = 'operator =='
         ..returns = refer('bool')
-        ..requiredParameters.add(Parameter((p) => p..name = 'other'))
+        ..requiredParameters.add(Parameter((p) => p..name = 'other'..type = refer('Object')))
         ..annotations.add(refer('override'))
         ..lambda = true
-        ..body = expression.code,
+        ..body = isIdentical.or(isType.and(expression)).code,
     );
   }
 
@@ -514,26 +529,26 @@ class StateBuilder {
       Parameter(
         (p) => p
           ..name = 'error'
-          ..type = _nullableType('AppFailure')
-          ..named = true,
-      ),
-      Parameter(
-        (p) => p
-          ..name = 'clearError'
-          ..type = refer('bool')
           ..named = true
-          ..defaultTo = literalBool(false).code,
+          ..type = _nullableType('AppFailure'),
       ),
     ];
+
+    final values = <String, Expression>{
+      'error': refer('error').ifNullThen(_this('error')),
+    };
 
     if (needsEntityListField) {
       params.add(
         Parameter(
           (p) => p
             ..name = '${entityCamel}List'
-            ..type = _nullableListOf(entityName)
-            ..named = true,
+            ..named = true
+            ..type = _nullableType('List<$entityName>'),
         ),
+      );
+      values['${entityCamel}List'] = refer('${entityCamel}List').ifNullThen(
+        _this('${entityCamel}List'),
       );
     }
 
@@ -542,89 +557,53 @@ class StateBuilder {
         Parameter(
           (p) => p
             ..name = entityCamel
-            ..type = _nullableType(entityName)
-            ..named = true,
+            ..named = true
+            ..type = _nullableType(entityName),
         ),
       );
-    }
-
-    params.addAll(
-      boolFields.map(
-        (field) => Parameter(
-          (p) => p
-            ..name = field.name
-            ..type = _nullableType('bool')
-            ..named = true,
-        ),
-      ),
-    );
-
-    final namedArgs = <String, Expression>{
-      'error': refer('clearError').conditional(
-        literalNull,
-        refer('error').ifNullThen(refer('this').property('error')),
-      ),
-    };
-
-    if (needsEntityListField) {
-      namedArgs['${entityCamel}List'] = refer(
-        '${entityCamel}List',
-      ).ifNullThen(refer('this').property('${entityCamel}List'));
-    }
-
-    if (needsEntityField) {
-      namedArgs[entityCamel] = refer(
-        entityCamel,
-      ).ifNullThen(refer('this').property(entityCamel));
+      values[entityCamel] = refer(entityCamel).ifNullThen(_this(entityCamel));
     }
 
     for (final field in boolFields) {
-      namedArgs[field.name] = refer(
-        field.name,
-      ).ifNullThen(refer('this').property(field.name));
+      params.add(
+        Parameter(
+          (p) => p
+            ..name = field.name
+            ..named = true
+            ..type = refer('bool?'),
+        ),
+      );
+      values[field.name] = refer(field.name).ifNullThen(_this(field.name));
     }
-
-    final ctorCall = refer(stateName).call(const [], namedArgs);
 
     return Method(
       (m) => m
         ..name = 'copyWith'
         ..returns = refer(stateName)
         ..optionalParameters.addAll(params)
-        ..body = Block((b) => b..statements.add(ctorCall.returned.statement)),
+        ..lambda = true
+        ..body = refer(stateName).call([], values).code,
     );
   }
 
   Method _buildIsLoadingGetter(List<_BoolField> boolFields) {
-    Expression expression;
-    if (boolFields.isEmpty) {
-      expression = literalBool(false);
-    } else {
-      expression = refer(boolFields.first.name);
-      for (final field in boolFields.skip(1)) {
-        expression = expression.or(refer(field.name));
+    Expression? expression;
+    for (final field in boolFields) {
+      final fieldRef = refer(field.name);
+      if (expression == null) {
+        expression = fieldRef;
+      } else {
+        expression = expression.or(fieldRef);
       }
     }
 
     return Method(
       (m) => m
         ..name = 'isLoading'
-        ..type = MethodType.getter
         ..returns = refer('bool')
-        ..docs.add('/// Whether any operation is currently loading')
-        ..body = Block((b) => b..statements.add(expression.returned.statement)),
-    );
-  }
-
-  Method _buildHasErrorGetter() {
-    final expression = refer('error').notEqualTo(literalNull);
-    return Method(
-      (m) => m
-        ..name = 'hasError'
         ..type = MethodType.getter
-        ..returns = refer('bool')
-        ..docs.add('/// Whether there is an error to display')
-        ..body = Block((b) => b..statements.add(expression.returned.statement)),
+        ..lambda = true
+        ..body = (expression ?? literalBool(false)).code,
     );
   }
 
@@ -635,50 +614,38 @@ class StateBuilder {
     required bool needsEntityListField,
     required List<_BoolField> boolFields,
   }) {
-    Expression rhs = refer('other')
-        .isA(refer(stateName))
-        .and(
-          refer('runtimeType').equalTo(refer('other').property('runtimeType')),
-        );
+    final other = refer('other');
+    final isIdentical = refer('identical').call([refer('this'), other]);
+    final isType = other.isA(refer(stateName));
+
+    final conditions = <Expression>[
+      other.property('error').equalTo(refer('error')),
+    ];
 
     if (needsEntityListField) {
-      rhs = rhs.and(
-        refer(
-          '${entityCamel}List',
-        ).equalTo(refer('other').property('${entityCamel}List')),
-      );
-    }
-    if (needsEntityField) {
-      rhs = rhs.and(
-        refer(entityCamel).equalTo(refer('other').property(entityCamel)),
+      conditions.add(
+        other.property('${entityCamel}List').equalTo(refer('${entityCamel}List')),
       );
     }
 
-    rhs = rhs.and(refer('error').equalTo(refer('other').property('error')));
+    if (needsEntityField) {
+      conditions.add(other.property(entityCamel).equalTo(refer(entityCamel)));
+    }
 
     for (final field in boolFields) {
-      rhs = rhs.and(
-        refer(field.name).equalTo(refer('other').property(field.name)),
-      );
+      conditions.add(other.property(field.name).equalTo(refer(field.name)));
     }
 
-    final expression = refer(
-      'identical',
-    ).call([refer('this'), refer('other')]).or(rhs);
+    final expression = conditions.reduce((a, b) => a.and(b));
 
     return Method(
       (m) => m
         ..name = 'operator =='
-        ..annotations.add(refer('override'))
         ..returns = refer('bool')
-        ..requiredParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'other'
-              ..type = refer('Object'),
-          ),
-        )
-        ..body = Block((b) => b..statements.add(expression.returned.statement)),
+        ..requiredParameters.add(Parameter((p) => p..name = 'other'..type = refer('Object')))
+        ..annotations.add(refer('override'))
+        ..lambda = true
+        ..body = isIdentical.or(isType.and(expression)).code,
     );
   }
 
@@ -688,35 +655,30 @@ class StateBuilder {
     required bool needsEntityListField,
     required List<_BoolField> boolFields,
   }) {
-    final parts = <Expression>[];
-    if (needsEntityListField) {
-      parts.add(refer('${entityCamel}List').property('hashCode'));
-    }
-    if (needsEntityField) {
-      parts.add(refer(entityCamel).property('hashCode'));
-    }
-    parts.add(refer('error').property('hashCode'));
-    parts.addAll(
-      boolFields.map((field) => refer(field.name).property('hashCode')),
-    );
+    final parts = <Expression>[_this('error').property('hashCode')];
 
-    Expression expression;
-    if (parts.isEmpty) {
-      expression = literalNum(0);
-    } else {
-      expression = parts.first;
-      for (final part in parts.skip(1)) {
-        expression = expression.operatorBitwiseXor(part);
-      }
+    if (needsEntityListField) {
+      parts.add(_this('${entityCamel}List').property('hashCode'));
     }
+
+    if (needsEntityField) {
+      parts.add(_this(entityCamel).property('hashCode'));
+    }
+
+    for (final field in boolFields) {
+      parts.add(_this(field.name).property('hashCode'));
+    }
+
+    final expression = parts.reduce((a, b) => a.operatorAdd(b));
 
     return Method(
       (m) => m
         ..name = 'hashCode'
+        ..returns = refer('int')
         ..type = MethodType.getter
         ..annotations.add(refer('override'))
-        ..returns = refer('int')
-        ..body = Block((b) => b..statements.add(expression.returned.statement)),
+        ..lambda = true
+        ..body = expression.code,
     );
   }
 
@@ -726,112 +688,139 @@ class StateBuilder {
     required bool needsEntityField,
     required bool needsEntityListField,
   }) {
-    String value;
-    if (needsEntityListField && needsEntityField) {
-      value =
-          '$stateName(${entityCamel}List: \${${entityCamel}List.length}, $entityCamel: \$$entityCamel, isLoading: \$isLoading, error: \$error)';
-    } else if (needsEntityListField) {
-      value =
-          '$stateName(${entityCamel}List: \${${entityCamel}List.length}, isLoading: \$isLoading, error: \$error)';
-    } else if (needsEntityField) {
-      value =
-          '$stateName($entityCamel: \$$entityCamel, isLoading: \$isLoading, error: \$error)';
-    } else {
-      value = '$stateName(isLoading: \$isLoading, error: \$error)';
+    final parts = <String>['error: \$error'];
+
+    if (needsEntityListField) {
+      parts.add('${entityCamel}List: \$${entityCamel}List');
     }
 
-    final expression = literalString(value);
+    if (needsEntityField) {
+      parts.add('$entityCamel: \$$entityCamel');
+    }
 
     return Method(
       (m) => m
         ..name = 'toString'
         ..returns = refer('String')
         ..annotations.add(refer('override'))
-        ..body = Block((b) => b..statements.add(expression.returned.statement)),
-    );
-  }
-
-  Reference _listOf(String entityName) {
-    return TypeReference(
-      (b) => b
-        ..symbol = 'List'
-        ..types.add(refer(entityName)),
-    );
-  }
-
-  Reference _nullableListOf(String entityName) {
-    return TypeReference(
-      (b) => b
-        ..symbol = 'List'
-        ..isNullable = true
-        ..types.add(refer(entityName)),
+        ..lambda = true
+        ..body = literalString('$stateName(${parts.join(', ')})').code,
     );
   }
 
   Reference _nullableType(String symbol) {
-    return TypeReference(
-      (b) => b
-        ..symbol = symbol
-        ..isNullable = true,
-    );
+    return TypeReference((b) => b..symbol = symbol..isNullable = true);
   }
 
-  Expression _this(String name) => refer(name);
+  Reference _listOf(String symbol) {
+    return TypeReference((b) => b..symbol = 'List'..types.add(refer(symbol)));
+  }
+
+  Expression _this(String name) => refer('this').property(name);
 
   List<_BoolField> _boolFieldsForMethods(List<String> methods) {
     final fields = <_BoolField>[];
     for (final method in methods) {
-      switch (method) {
-        case 'get':
-          fields.add(
-            _BoolField('isGetting', 'Whether get operation is in progress'),
-          );
-          break;
-        case 'getList':
-          fields.add(
-            _BoolField(
-              'isGettingList',
-              'Whether getList operation is in progress',
-            ),
-          );
-          break;
-        case 'create':
-          fields.add(
-            _BoolField('isCreating', 'Whether create operation is in progress'),
-          );
-          break;
-        case 'update':
-          fields.add(
-            _BoolField('isUpdating', 'Whether update operation is in progress'),
-          );
-          break;
-        case 'delete':
-          fields.add(
-            _BoolField('isDeleting', 'Whether delete operation is in progress'),
-          );
-          break;
-        case 'watch':
-          fields.add(
-            _BoolField('isWatching', 'Whether watch operation is in progress'),
-          );
-          break;
-        case 'watchList':
-          fields.add(
-            _BoolField(
-              'isWatchingList',
-              'Whether watchList operation is in progress',
-            ),
-          );
-          break;
-      }
+      final name = StringUtils.convertToPascalCase(method);
+      fields.add(_BoolField('is${name}Loading', 'Whether $method is loading'));
     }
     return fields;
+  }
+
+  String _findUseCaseDomain(String usecaseSnake, String defaultDomain) {
+    final usecasesDir = Directory(path.join(outputDir, 'domain', 'usecases'));
+    if (usecasesDir.existsSync()) {
+      for (final dir in usecasesDir.listSync()) {
+        if (dir is Directory) {
+          final useCaseFile = File(
+            path.join(dir.path, '${usecaseSnake}_usecase.dart'),
+          );
+          if (useCaseFile.existsSync()) {
+            return path.basename(dir.path);
+          }
+        }
+      }
+    }
+    // Try to find if it is an entity-based usecase
+    final possiblePrefixes = ['get_', 'create_', 'update_', 'delete_', 'watch_'];
+    for (final prefix in possiblePrefixes) {
+      if (usecaseSnake.startsWith(prefix)) {
+        final entitySnake = usecaseSnake.replaceFirst(prefix, '').replaceFirst('_list', '');
+        return entitySnake;
+      }
+    }
+
+    // Fallback to the default domain if not found
+    return defaultDomain;
+  }
+
+  _UseCaseInfo _parseUseCaseInfo(String u, GeneratorConfig config) {
+    final className = u.endsWith('UseCase') ? u : '${u}UseCase';
+    final fieldName = StringUtils.pascalToCamel(
+      className.replaceAll('UseCase', ''),
+    );
+    final usecaseSnake = StringUtils.camelToSnake(
+      className.replaceAll('UseCase', ''),
+    );
+
+    // Try to find the file and parse params/returns
+    String? paramsType;
+    String? returnsType;
+    String? useCaseType;
+
+    final usecaseDomain = _findUseCaseDomain(usecaseSnake, config.effectiveDomain);
+    final filePath = path.join(outputDir, 'domain', 'usecases', usecaseDomain, '${usecaseSnake}_usecase.dart');
+    if (File(filePath).existsSync()) {
+      final content = File(filePath).readAsStringSync();
+      final extendsMatch = RegExp(r'extends (UseCase|StreamUseCase|CompletableUseCase|SyncUseCase)<([^>]+)>').firstMatch(content);
+      if (extendsMatch != null) {
+        useCaseType = extendsMatch.group(1)?.toLowerCase();
+        final typesStr = extendsMatch.group(2);
+        if (typesStr != null) {
+          final types = typesStr.split(',').map((e) => e.trim()).toList();
+          if (useCaseType == 'completableusecase') {
+            useCaseType = 'completable';
+            paramsType = types[0];
+            returnsType = 'void';
+          } else if (types.length >= 2) {
+            returnsType = types[0];
+            paramsType = types[1];
+            if (useCaseType == 'streamusecase') useCaseType = 'stream';
+            if (useCaseType == 'syncusecase') useCaseType = 'sync';
+            if (useCaseType == 'usecase') useCaseType = 'future';
+          }
+        }
+      }
+    }
+
+    return _UseCaseInfo(
+      className: className,
+      fieldName: fieldName,
+      paramsType: paramsType,
+      returnsType: returnsType,
+      useCaseType: useCaseType,
+    );
   }
 }
 
 class _BoolField {
   final String name;
   final String doc;
+  _BoolField(this.name, this.doc);
+}
 
-  const _BoolField(this.name, this.doc);
+class _UseCaseInfo {
+  final String className;
+  final String fieldName;
+  final String? paramsType;
+  final String? returnsType;
+  final String? useCaseType;
+
+  _UseCaseInfo({
+    required this.className,
+    required this.fieldName,
+    this.paramsType,
+    this.returnsType,
+    this.useCaseType,
+  });
 }

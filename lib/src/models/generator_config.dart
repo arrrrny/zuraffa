@@ -11,6 +11,8 @@ class GeneratorConfig {
   final String? repoMethod; // New: repository method name
   final String? serviceMethod; // New: service method name
   final bool appendToExisting; // New: append to existing files
+  final bool generateUseCase;
+  final bool generateService;
   final bool generateRepository;
   final String useCaseType;
   final String? paramsType;
@@ -70,6 +72,8 @@ class GeneratorConfig {
     this.repoMethod,
     this.serviceMethod,
     this.appendToExisting = false,
+    this.generateUseCase = false,
+    this.generateService = false,
     this.generateRepository = false,
     this.useCaseType = 'usecase',
     this.paramsType,
@@ -130,6 +134,8 @@ class GeneratorConfig {
       serviceMethod: json['service_method'] ?? json['method'],
       appendToExisting:
           json['append'] == true || json['append_to_existing'] == true,
+      generateUseCase: json['usecase'] == true || json['generate_usecase'] == true,
+      generateService: json['service'] == true || json['generate_service'] == true,
       generateRepository: json['repository'] == true,
       useCaseType: json['type'] ?? 'usecase',
       paramsType: json['params'],
@@ -213,6 +219,8 @@ class GeneratorConfig {
     String? repoMethod,
     String? serviceMethod,
     bool? appendToExisting,
+    bool? generateUseCase,
+    bool? generateService,
     bool? generateRepository,
     String? useCaseType,
     String? paramsType,
@@ -269,6 +277,8 @@ class GeneratorConfig {
       repoMethod: repoMethod ?? this.repoMethod,
       serviceMethod: serviceMethod ?? this.serviceMethod,
       appendToExisting: appendToExisting ?? this.appendToExisting,
+      generateUseCase: generateUseCase ?? this.generateUseCase,
+      generateService: generateService ?? this.generateService,
       generateRepository: generateRepository ?? this.generateRepository,
       useCaseType: useCaseType ?? this.useCaseType,
       paramsType: paramsType ?? this.paramsType,

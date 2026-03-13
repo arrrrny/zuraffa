@@ -71,9 +71,21 @@ class CodeGenerator {
     this.options = const GeneratorOptions(),
     ProgressReporter? progressReporter,
     Set<String>? disabledPluginIds,
-  }) : config = config.copyWith(outputDir: outputDir),
+  }) : config = config.copyWith(
+         outputDir: outputDir,
+         dryRun: options.dryRun,
+         force: options.force,
+         verbose: options.verbose,
+         revert: options.revert,
+       ),
        context = GenerationContext.create(
-         config: config.copyWith(outputDir: outputDir),
+         config: config.copyWith(
+           outputDir: outputDir,
+           dryRun: options.dryRun,
+           force: options.force,
+           verbose: options.verbose,
+           revert: options.revert,
+         ),
          outputDir: outputDir,
          dryRun: options.dryRun,
          force: options.force,
@@ -169,7 +181,7 @@ class CodeGenerator {
 
       try {
         final validation = await pluginRegistry.validateAll(config);
-        if (!validation.isValid) {
+        if (!validation.isValid && !config.revert) {
           errors.addAll(validation.reasons);
           if (validation.message != null) {
             errors.add(validation.message!);
@@ -192,6 +204,7 @@ class CodeGenerator {
 
         if (config.appendToExisting) {
           final appendResult = await _methodAppendPlugin.appendMethod(config);
+          files.addAll(appendResult.updatedFiles);
 
           if (_isPluginEnabled('usecase')) {
             progress.update('usecase');
@@ -200,8 +213,6 @@ class CodeGenerator {
             files.addAll(usecaseFiles);
             currentPluginId = null;
           }
-
-          files.addAll(appendResult.updatedFiles);
 
           if (appendResult.warnings.isNotEmpty) {
             nextSteps.addAll(appendResult.warnings.map((w) => '⚠️  $w'));
@@ -230,6 +241,7 @@ class CodeGenerator {
           force: options.force,
           verbose: options.verbose,
           outputDir: outputDir,
+          revert: options.revert,
         );
 
         if (executionConfig.isEntityBased) {

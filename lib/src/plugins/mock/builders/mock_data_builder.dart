@@ -36,30 +36,34 @@ class MockDataBuilder {
         ? config.repo!.replaceAll('Repository', '')
         : config.name;
 
-    // Skip generating mock data if the return type is a primitive
-    if (config.isCustomUseCase && config.returnsType != null) {
-      final primitives = {
-        'String',
-        'int',
-        'double',
-        'bool',
-        'void',
-        'DateTime',
-        'dynamic',
-        'Object',
-      };
-      final baseType = config.returnsType!.replaceAll('?', '');
-      if (primitives.contains(baseType) ||
-          (baseType.startsWith('List<') &&
-              primitives.contains(
-                baseType.substring(5, baseType.length - 1).replaceAll('?', ''),
-              ))) {
-        return GeneratedFile(
-          path: '',
-          content: '',
-          action: 'skipped',
-          type: 'mock_data',
-        );
+    // Skip generating mock data if the return type is a primitive or completable
+    if (config.isCustomUseCase || config.useCaseType == 'completable') {
+      final returnsType = config.useCaseType == 'completable' ? 'void' : config.returnsType;
+      
+      if (returnsType != null) {
+        final primitives = {
+          'String',
+          'int',
+          'double',
+          'bool',
+          'void',
+          'DateTime',
+          'dynamic',
+          'Object',
+        };
+        final baseType = returnsType.replaceAll('?', '');
+        if (primitives.contains(baseType) ||
+            (baseType.startsWith('List<') &&
+                primitives.contains(
+                  baseType.substring(5, baseType.length - 1).replaceAll('?', ''),
+                ))) {
+          return GeneratedFile(
+            path: '',
+            content: '',
+            action: 'skipped',
+            type: 'mock_data',
+          );
+        }
       }
     }
 
@@ -67,6 +71,7 @@ class MockDataBuilder {
     final entityCamel = StringUtils.pascalToCamel(entityName);
     final collectionName = '${entityCamel}s';
 
+    final isEnum = EntityAnalyzer.isEnum(entityName, outputDir);
     final entityFields = EntityAnalyzer.analyzeEntity(entityName, outputDir);
 
     final mockInstances = valueBuilder.generateMockDataInstances(
@@ -78,8 +83,13 @@ class MockDataBuilder {
       entityFields,
       outputDir,
     );
+
+    final entityImport = isEnum
+        ? '../../domain/entities/enums/index.dart'
+        : '../../domain/entities/$entitySnake/$entitySnake.dart';
+
     final directives = <Directive>[
-      Directive.import('../../domain/entities/$entitySnake/$entitySnake.dart'),
+      Directive.import(entityImport),
       ...imports.map((import) {
         if (import.startsWith('package:')) {
           return Directive.import(import);
@@ -164,19 +174,34 @@ class MockDataBuilder {
                 ),
               )
               ..body = Block(
-                (b) => b
-                  ..statements.add(
-                    refer(entityName)
-                        .call(
-                          [],
-                          valueBuilder.generateConstructorCallArgs(
-                            entityFields,
-                            useSeeds: true,
-                          ),
-                        )
-                        .returned
-                        .statement,
-                  ),
+                (b) {
+                  if (EntityAnalyzer.isEnum(entityName, outputDir)) {
+                    b.statements.add(
+                      refer(entityName)
+                          .property('values')
+                          .index(
+                            refer('seed').operatorEuclideanModulo(
+                              refer(entityName).property('values').property('length'),
+                            ),
+                          )
+                          .returned
+                          .statement,
+                    );
+                  } else {
+                    b.statements.add(
+                      refer(entityName)
+                          .call(
+                            const [],
+                            valueBuilder.generateConstructorCallArgs(
+                              entityFields,
+                              useSeeds: true,
+                            ),
+                          )
+                          .returned
+                          .statement,
+                    );
+                  }
+                },
               ),
           ),
         ]),

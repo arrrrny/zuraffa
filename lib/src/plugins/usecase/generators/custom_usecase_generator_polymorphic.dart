@@ -13,6 +13,53 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
       'usecases',
       config.effectiveDomain,
     );
+
+    if (config.revert) {
+      final abstractFileName = '${classSnake}_usecase.dart';
+      final abstractFilePath = path.join(usecaseDirPath, abstractFileName);
+      if (File(abstractFilePath).existsSync()) {
+        files.add(
+          await FileUtils.deleteFile(
+            abstractFilePath,
+            'usecase_polymorphic_base',
+            dryRun: options.dryRun,
+            verbose: options.verbose,
+          ),
+        );
+      }
+
+      for (final variant in config.variants) {
+        final variantSnake = StringUtils.camelToSnake('$variant${config.name}');
+        final variantFileName = '${variantSnake}_usecase.dart';
+        final variantFilePath = path.join(usecaseDirPath, variantFileName);
+        if (File(variantFilePath).existsSync()) {
+          files.add(
+            await FileUtils.deleteFile(
+              variantFilePath,
+              'usecase_polymorphic_variant',
+              dryRun: options.dryRun,
+              verbose: options.verbose,
+            ),
+          );
+        }
+      }
+
+      final factoryFileName = '${classSnake}_usecase_factory.dart';
+      final factoryFilePath = path.join(usecaseDirPath, factoryFileName);
+      if (File(factoryFilePath).existsSync()) {
+        files.add(
+          await FileUtils.deleteFile(
+            factoryFilePath,
+            'usecase_polymorphic_factory',
+            dryRun: options.dryRun,
+            verbose: options.verbose,
+          ),
+        );
+      }
+
+      return files;
+    }
+
     final paramsType = config.paramsType;
     final returnsType = config.returnsType;
     if (paramsType == null || returnsType == null) {

@@ -13,6 +13,15 @@ extension CustomUseCaseGeneratorOrchestrator on CustomUseCaseGenerator {
     );
     final filePath = path.join(usecaseDirPath, fileName);
 
+    if (config.revert) {
+      return FileUtils.deleteFile(
+        filePath,
+        'usecase_orchestrator',
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+      );
+    }
+
     final paramsType = config.paramsType;
     if (paramsType == null) {
       throw ArgumentError('paramsType is required');
