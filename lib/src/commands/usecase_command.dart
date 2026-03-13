@@ -11,8 +11,9 @@ class UseCaseCommand extends PluginCommand {
     argParser.addOption(
       'methods',
       abbr: 'm',
-      help: 'Comma-separated list of methods (get,create,update,delete,list)',
-      defaultsTo: 'get,list,create,update,delete',
+      help:
+          'Comma-separated list of methods (get,create,update,delete,list,watch,getList,watchList)',
+      defaultsTo: 'get,update',
     );
     argParser.addOption(
       'type',
@@ -57,16 +58,22 @@ class UseCaseCommand extends PluginCommand {
 
   @override
   Future<void> run() async {
-    final entityName = argResults!.rest.first;
-    var methods = (argResults!['methods'] as String).split(',');
-    final type = argResults!['type'] as String;
-    final usecases = (argResults!['usecases'] as List?)?.cast<String>() ?? [];
+    if (argResults?.rest.isEmpty ?? true) {
+      print('❌ Usage: zfa usecase <EntityName> [options]');
+      return;
+    }
 
-    final domain = argResults!['domain'] as String?;
-    final repo = argResults!['repo'] as String?;
-    final service = argResults!['service'] as String?;
-    final params = argResults!['params'] as String?;
-    final returns = argResults!['returns'] as String?;
+    final entityName = argResults!.rest.first;
+    var methods =
+        (argResults?['methods'] as String?)?.split(',') ?? ['get', 'update'];
+    final type = (argResults?['type'] as String?) ?? 'future';
+    final usecases = (argResults?['usecases'] as List?)?.cast<String>() ?? [];
+
+    final domain = argResults?['domain'] as String?;
+    final repo = argResults?['repo'] as String?;
+    final service = argResults?['service'] as String?;
+    final params = argResults?['params'] as String?;
+    final returns = argResults?['returns'] as String?;
 
     final isCustomUseCase =
         repo != null ||
@@ -74,7 +81,7 @@ class UseCaseCommand extends PluginCommand {
         usecases.isNotEmpty ||
         (params != null && returns != null);
 
-    if (isCustomUseCase || !argResults!.wasParsed('methods')) {
+    if (isCustomUseCase || !(argResults?.wasParsed('methods') ?? false)) {
       methods = [];
     }
 

@@ -1,9 +1,7 @@
-import 'dart:io';
-
 import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import '../plugins/view/view_plugin.dart';
-import '../plugins/view/capabilities/create_view_capability.dart';
+import '../plugins/route/route_plugin.dart';
 
 class ViewCommand extends PluginCommand {
   @override
@@ -13,8 +11,9 @@ class ViewCommand extends PluginCommand {
     argParser.addOption(
       'methods',
       abbr: 'm',
-      help: 'Comma-separated list of methods (get,create,update,delete,list)',
-      defaultsTo: 'get,list,create,update,delete',
+      help:
+          'Comma-separated list of methods (get,create,update,delete,watch,getList,watchList)',
+      defaultsTo: 'get,update',
     );
     argParser.addFlag(
       'di',
@@ -26,47 +25,126 @@ class ViewCommand extends PluginCommand {
       help: 'Generate with State integration',
       defaultsTo: false,
     );
+    argParser.addFlag(
+      'route',
+      help: 'Generate route definitions for this view',
+      defaultsTo: false,
+    );
   }
-
-  @override
-  String get name => 'view';
-
-  @override
-  String get description => 'Generate view class for an entity';
 
   @override
   Future<void> run() async {
     if (argResults!.rest.isEmpty) {
       print('❌ Usage: zfa view <EntityName> [options]');
-      exit(1);
+      print('   Or use a subcommand:');
+      print('   zfa view create <EntityName> [options]');
+      print('   zfa view custom <Name> [options]');
+      return;
     }
 
-    final entityName = argResults!.rest.first;
-    final methods = (argResults!['methods'] as String).split(',');
-    final generateDi = argResults!['di'] as bool;
-    final generateState = argResults!['state'] as bool;
+    var entityName = argResults!.rest.first;
+    var capabilityName = 'create';
 
-    final capability =
-        plugin.capabilities.firstWhere((c) => c is CreateViewCapability)
-            as CreateViewCapability;
+    if (argResults!.rest.length > 1) {
+      final first = argResults!.rest.first;
+      if (first == 'create' || first == 'custom') {
+        capabilityName = first;
+        entityName = argResults!.rest[1];
+      }
+    }
 
-    final result = await capability.execute({
+    final methods =
+        (argResults?['methods'] as String?)?.split(',') ?? ['get', 'update'];
+    final generateDi = argResults?['di'] as bool? ?? false;
+    final generateState = argResults?['state'] as bool? ?? false;
+    final generateRoute = argResults?['route'] as bool? ?? false;
+
+    final capability = plugin.capabilities.firstWhere(
+      (c) => c.name == capabilityName,
+    );
+
+    if (generateRoute) {
+      // For route generation, execute the route command separately
+      // to ensure clean view instantiation without DI
+      final routeResult = await _generateRoutes(entityName, capabilityName);
+
+      // Generate view
+      final viewResult = await capability.execute({
+        'name': entityName,
+        'methods': methods,
+        'di': generateDi,
+        'state': generateState,
+        'route': false, // Don't generate route in view capability
+        'dryRun': isDryRun,
+        'force': isForce,
+        'verbose': isVerbose,
+        'outputDir': outputDir,
+      });
+
+      // Combine results
+      final allFiles = <GeneratedFile>[];
+      if (viewResult.data?['generatedFiles'] != null) {
+        allFiles.addAll(viewResult.data!['generatedFiles']);
+      }
+      if (routeResult.data?['generatedFiles'] != null) {
+        allFiles.addAll(routeResult.data!['generatedFiles']);
+      }
+
+      print('\n✅ Generated view and routes successfully!');
+      logSummary(allFiles);
+    } else {
+      // Generate only view
+      final result = await capability.execute({
+        'name': entityName,
+        'methods': methods,
+        'di': generateDi,
+        'state': generateState,
+        'route': false,
+        'dryRun': isDryRun,
+        'force': isForce,
+        'verbose': isVerbose,
+        'outputDir': outputDir,
+      });
+
+      final files =
+          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      logSummary(files);
+    }
+  }
+
+  Future<dynamic> _generateRoutes(
+    String entityName,
+    String capabilityName,
+  ) async {
+    // Use route plugin internally instead of external command
+    final routePlugin = RoutePlugin(outputDir: outputDir);
+    final routeCapability = routePlugin.capabilities.firstWhere(
+      (c) => c.name == capabilityName,
+    );
+
+    // For non-custom capabilities, reuse the same methods list that was parsed
+    // for entity-based views. For the "custom" capability, keep an empty list.
+    final List<String> routeMethods;
+    if (capabilityName == 'custom') {
+      routeMethods = <String>[];
+    } else {
+      final methodsArg = argResults?['methods'] as String? ?? '';
+      routeMethods = methodsArg
+          .split(',')
+          .map((m) => m.trim())
+          .where((m) => m.isNotEmpty)
+          .toList();
+    }
+
+    final result = await routeCapability.execute({
       'name': entityName,
-      'methods': methods,
-      'di': generateDi,
-      'state': generateState,
+      'methods': routeMethods,
       'dryRun': isDryRun,
       'force': isForce,
       'verbose': isVerbose,
       'outputDir': outputDir,
     });
 
-    if (result.success) {
-      final files =
-          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
-      logSummary(files);
-    } else {
-      print('Failed to generate view');
-    }
+    return result;
   }
 }

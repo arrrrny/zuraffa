@@ -119,6 +119,28 @@ class RemoteDataSourceBuilder {
             ),
         ),
       );
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'dispose'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Future<void>')
+            ..modifier = MethodModifier.async
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer('logger').property('info').call([
+                    literalString('Disposing $dataSourceName'),
+                  ]).statement,
+                )
+                ..statements.add(
+                  refer('logger').property('info').call([
+                    literalString('$dataSourceName disposed'),
+                  ]).statement,
+                ),
+            ),
+        ),
+      );
     }
 
     final gqlImports = <String>[];
@@ -206,7 +228,7 @@ class RemoteDataSourceBuilder {
                     (p) => p
                       ..name = 'params'
                       ..type = refer(
-                        'UpdateParams<${config.idType}, $dataType>',
+                        'UpdateParams<${config.idFieldType}, $dataType>',
                       ),
                   ),
                 )
@@ -226,7 +248,7 @@ class RemoteDataSourceBuilder {
                   Parameter(
                     (p) => p
                       ..name = 'params'
-                      ..type = refer('DeleteParams<${config.idType}>'),
+                      ..type = refer('DeleteParams<${config.idFieldType}>'),
                   ),
                 )
                 ..modifier = MethodModifier.async

@@ -92,7 +92,9 @@ extension RepositoryImplementationGeneratorSimple
               Parameter(
                 (p) => p
                   ..name = 'params'
-                  ..type = refer('UpdateParams<${config.idType}, $dataType>'),
+                  ..type = refer(
+                    'UpdateParams<${config.idFieldType}, $dataType>',
+                  ),
               ),
             )
             ..body = Block(
@@ -116,7 +118,7 @@ extension RepositoryImplementationGeneratorSimple
               Parameter(
                 (p) => p
                   ..name = 'params'
-                  ..type = refer('DeleteParams<${config.idType}>'),
+                  ..type = refer('DeleteParams<${config.idFieldType}>'),
               ),
             )
             ..body = Block(

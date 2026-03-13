@@ -3,13 +3,14 @@ import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../commands/controller_command.dart';
-import '../../core/constants/known_types.dart';
+import '../../core/builder/patterns/common_patterns.dart';
 import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import '../../models/parsed_usecase_info.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
 import 'builders/controller_class_builder.dart';
@@ -84,13 +85,15 @@ class ControllerPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     if (config.outputDir != outputDir ||
         config.dryRun != options.dryRun ||
         config.force != options.force ||
-        config.verbose != options.verbose) {
+        config.verbose != options.verbose ||
+        config.revert != options.revert) {
       final delegator = ControllerPlugin(
         outputDir: config.outputDir,
         options: GeneratorOptions(
           dryRun: config.dryRun,
           force: config.force,
           verbose: config.verbose,
+          revert: config.revert,
         ),
         classBuilder: classBuilder,
       );

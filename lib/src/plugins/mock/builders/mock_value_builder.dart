@@ -15,6 +15,14 @@ class MockValueBuilder {
     String entityName,
     Map<String, String> fields,
   ) {
+    if (EntityAnalyzer.isEnum(entityName, outputDir)) {
+      return [
+        refer(entityName).property('values').index(literalNum(0)),
+        refer(entityName).property('values').index(literalNum(1)),
+        refer(entityName).property('values').index(literalNum(0)),
+      ];
+    }
+
     if (fields.isEmpty) {
       return List.generate(3, (_) => refer(entityName).call(const []));
     }
@@ -370,6 +378,15 @@ class MockValueBuilder {
     }
 
     final entityFields = EntityAnalyzer.analyzeEntity(cleanType, outputDir);
+    if (EntityAnalyzer.isEnum(cleanType, outputDir)) {
+      return refer(cleanType)
+          .property('values')
+          .index(
+            literalNum(seed).operatorEuclideanModulo(
+              refer(cleanType).property('values').property('length'),
+            ),
+          );
+    }
     if (entityFields.isNotEmpty &&
         !entityHelper.isDefaultFields(entityFields)) {
       return refer('${cleanType}MockData').property('sample$cleanType');
@@ -435,6 +452,15 @@ class MockValueBuilder {
     }
 
     final entityFields = EntityAnalyzer.analyzeEntity(cleanType, outputDir);
+    if (EntityAnalyzer.isEnum(cleanType, outputDir)) {
+      return refer(cleanType)
+          .property('values')
+          .index(
+            refer('seed').operatorEuclideanModulo(
+              refer(cleanType).property('values').property('length'),
+            ),
+          );
+    }
     if (entityFields.isNotEmpty &&
         !entityHelper.isDefaultFields(entityFields)) {
       return refer('${cleanType}MockData').property('sample$cleanType');

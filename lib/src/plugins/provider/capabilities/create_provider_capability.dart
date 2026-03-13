@@ -128,6 +128,7 @@ class CreateProviderCapability implements ZuraffaCapability {
       returnsType: returnsType,
       useCaseType: useCaseType,
       generateData: generateData,
+      generateInit: args['init'] == true,
       dryRun: dryRun,
       force: force,
       verbose: verbose,

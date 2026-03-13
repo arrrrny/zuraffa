@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import '../plugins/presenter/presenter_plugin.dart';
@@ -13,8 +11,9 @@ class PresenterCommand extends PluginCommand {
     argParser.addOption(
       'methods',
       abbr: 'm',
-      help: 'Comma-separated list of methods (get,create,update,delete,list)',
-      defaultsTo: 'get,list,create,update,delete',
+      help:
+          'Comma-separated list of methods (get,create,update,delete,list,watch,getList,watchList)',
+      defaultsTo: 'get,update',
     );
     argParser.addFlag(
       'di',
@@ -31,14 +30,15 @@ class PresenterCommand extends PluginCommand {
 
   @override
   Future<void> run() async {
-    if (argResults!.rest.isEmpty) {
+    if (argResults?.rest.isEmpty ?? true) {
       print('❌ Usage: zfa presenter <EntityName> [options]');
-      exit(1);
+      return;
     }
 
     final entityName = argResults!.rest.first;
-    final methods = (argResults!['methods'] as String).split(',');
-    final generateDi = argResults!['di'] as bool;
+    final methods =
+        (argResults?['methods'] as String?)?.split(',') ?? ['get', 'update'];
+    final generateDi = argResults?['di'] as bool? ?? true;
 
     final capability =
         plugin.capabilities.firstWhere((c) => c is CreatePresenterCapability)

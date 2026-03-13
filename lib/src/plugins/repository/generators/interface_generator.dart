@@ -10,6 +10,7 @@ import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
+import '../../../utils/entity_analyzer.dart';
 
 /// Generates repository interfaces for the domain layer.
 ///
@@ -152,7 +153,13 @@ class RepositoryInterfaceGenerator {
     if (needsZuraffaImport) {
       imports.add('package:zuraffa/zuraffa.dart');
     }
-    imports.add('../entities/${config.nameSnake}/${config.nameSnake}.dart');
+    final entityName = config.name;
+    final entitySnake = config.nameSnake;
+    if (EntityAnalyzer.isEnum(entityName, outputDir)) {
+      imports.add('../entities/enums/index.dart');
+    } else {
+      imports.add('../entities/$entitySnake/$entitySnake.dart');
+    }
     return imports;
   }
 
@@ -179,6 +186,13 @@ class RepositoryInterfaceGenerator {
                   ..type = refer('InitializationParams'),
               ),
             ),
+        ),
+      );
+      methods.add(
+        Method(
+          (b) => b
+            ..name = 'dispose'
+            ..returns = refer('Future<void>'),
         ),
       );
     }
@@ -216,14 +230,13 @@ class RepositoryInterfaceGenerator {
           );
           break;
         case 'update':
-          final dataType = config.useZorphy
-              ? '${config.name}Patch'
-              : 'Partial<${config.name}>';
+          // Use Patch for entity-based updates by default
+          final dataType = '${config.name}Patch';
           methods.add(
             _buildMethod(
               name: 'update',
               returnType: 'Future<${config.name}>',
-              paramsType: 'UpdateParams<${config.idType}, $dataType>',
+              paramsType: 'UpdateParams<${config.idFieldType}, $dataType>',
               paramsName: 'params',
             ),
           );
@@ -233,7 +246,7 @@ class RepositoryInterfaceGenerator {
             _buildMethod(
               name: 'delete',
               returnType: 'Future<void>',
-              paramsType: 'DeleteParams<${config.idType}>',
+              paramsType: 'DeleteParams<${config.idFieldType}>',
               paramsName: 'params',
             ),
           );

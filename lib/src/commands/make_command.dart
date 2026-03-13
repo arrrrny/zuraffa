@@ -37,11 +37,17 @@ class MakeCommand extends Command<void> {
       negatable: false,
       help: 'Enable detailed logging',
     );
+    argParser.addFlag(
+      'revert',
+      negatable: false,
+      help: 'Revert generated files (delete them)',
+    );
     argParser.addOption(
       'methods',
       abbr: 'm',
-      help: 'Comma-separated list of methods (get,create,update,delete,list)',
-      defaultsTo: 'get,list,create,update,delete',
+      help:
+          'Comma-separated list of methods (get,create,update,delete,list,watch,getList,watchList)',
+      defaultsTo: 'get,update',
     );
     // Add other common flags as needed (domain, etc.)
     argParser.addOption(
@@ -86,6 +92,32 @@ class MakeCommand extends Command<void> {
       negatable: false,
       help: 'Use mock provider/datasource in DI registration',
     );
+    argParser.addFlag(
+      'init',
+      abbr: 'i',
+      negatable: false,
+      help: 'Generate initialization and disposal methods',
+    );
+    argParser.addFlag(
+      'zorphy',
+      help:
+          'Use Zorphy patterns (e.g., LocalePatch instead of Partial<Locale>)',
+      defaultsTo: false,
+      negatable: false,
+    );
+    argParser.addFlag(
+      'local',
+      help: 'Generate local data source (instead of remote)',
+      defaultsTo: false,
+      negatable: false,
+    );
+    argParser.addFlag(
+      'remote',
+      help: 'Generate remote data source',
+      defaultsTo: true,
+      negatable: true,
+    );
+    argParser.addFlag('cache', help: 'Enable caching', defaultsTo: false);
   }
 
   @override
@@ -96,6 +128,21 @@ class MakeCommand extends Command<void> {
 
   @override
   String get invocation => 'zfa make <Name> <plugin1> <plugin2> ... [options]';
+
+  /// Returns true if dry-run mode is enabled.
+  bool get isDryRun => argResults?['dry-run'] == true;
+
+  /// Returns true if force mode is enabled.
+  bool get isForce => argResults?['force'] == true;
+
+  /// Returns true if verbose logging is enabled.
+  bool get isVerbose => argResults?['verbose'] == true;
+
+  /// Returns true if revert mode is enabled.
+  bool get isRevert => argResults?['revert'] == true;
+
+  /// Returns the resolved output directory.
+  String get outputDir => argResults?['output'] ?? 'lib/src';
 
   @override
   Future<void> run() async {
@@ -157,29 +204,34 @@ class MakeCommand extends Command<void> {
       pluginNames.add('di');
     }
 
-    final outputDir = argResults!['output'] as String;
-    final dryRun = argResults!['dry-run'] == true;
-    final force = argResults!['force'] == true;
-    final verbose = argResults!['verbose'] == true;
-    final methods = (argResults!['methods'] as String).split(',');
-    final type = argResults!['type'] as String;
-    final domain = argResults!['domain'] as String?;
-    final repo = argResults!['repo'] as String?;
-    final service = argResults!['service'] as String?;
-    final params = argResults!['params'] as String?;
-    final returns = argResults!['returns'] as String?;
-    final usecasesStr = argResults!['usecases'] as String?;
+    final outputDir = (argResults?['output'] as String?) ?? 'lib/src';
+    final dryRun = argResults?['dry-run'] == true;
+    final force = argResults?['force'] == true;
+    final verbose = argResults?['verbose'] == true;
+    final methods =
+        (argResults?['methods'] as String?)?.split(',') ?? ['get', 'update'];
+    final type = (argResults?['type'] as String?) ?? 'future';
+    final domain = argResults?['domain'] as String?;
+    final repo = argResults?['repo'] as String?;
+    final service = argResults?['service'] as String?;
+    final params = argResults?['params'] as String?;
+    final returns = argResults?['returns'] as String?;
+    final usecasesStr = argResults?['usecases'] as String?;
     final usecases = usecasesStr?.split(',').map((e) => e.trim()).toList();
     final useMockInDi = argResults!['use-mock'] == true;
+    final generateInit = argResults!['init'] == true;
+    final useZorphy =
+        argResults!['zorphy'] == true || (configData?.zorphyByDefault ?? true);
+    final generateLocal = argResults!['local'] == true;
+    final generateRemote = argResults!['remote'] != false;
+    final enableCache = argResults!['cache'] == true;
+
+    final isEntity = repo == null && service == null && usecases == null;
 
     // Create a base config that enables everything requested
     final config = GeneratorConfig(
       name: entityName,
-      methods:
-          pluginNames.contains('usecase') &&
-              (repo == null && service == null && usecases == null)
-          ? methods
-          : [], // Only use CRUD methods if not custom usecase
+      methods: isEntity ? methods : [], // Use CRUD methods for entity-based
       domain: domain,
       repo: repo,
       service: service,
@@ -188,11 +240,22 @@ class MakeCommand extends Command<void> {
       paramsType: params,
       returnsType: returns,
       appendToExisting: pluginNames.contains('method_append'),
+      generateUseCase:
+          pluginNames.contains('usecase') ||
+          (pluginNames.contains('di') &&
+              (repo != null || service != null || usecases != null)),
+      generateService: pluginNames.contains('service'),
       dryRun: dryRun,
       force: force,
       verbose: verbose,
+      revert: isRevert,
       outputDir: outputDir,
       useMockInDi: useMockInDi,
+      generateInit: generateInit,
+      useZorphy: useZorphy,
+      generateLocal: generateLocal,
+      generateRemote: generateRemote,
+      enableCache: enableCache || pluginNames.contains('cache'),
       // Map known plugins
       generateRoute: pluginNames.contains('route'),
       generateDi: pluginNames.contains('di'),
@@ -207,7 +270,6 @@ class MakeCommand extends Command<void> {
           pluginNames.contains('provider'),
       generateState: pluginNames.contains('state'),
       generateTest: pluginNames.contains('test'),
-      enableCache: pluginNames.contains('cache'),
       generateMock: pluginNames.contains('mock'),
       generateGql: pluginNames.contains('graphql'),
       generateObserver: pluginNames.contains('observer'),
@@ -243,6 +305,7 @@ class MakeCommand extends Command<void> {
     print('✅ Done.');
   }
 
+  /// Prints a summary of generated files.
   void logSummary(List<GeneratedFile> files) {
     if (files.isEmpty) {
       print('ℹ️  No files generated.');
@@ -251,25 +314,22 @@ class MakeCommand extends Command<void> {
 
     final created = files.where((f) => f.action == 'created').length;
     final overwritten = files.where((f) => f.action == 'overwritten').length;
-    final updated = files.where((f) => f.action == 'updated').length;
     final skipped = files.where((f) => f.action == 'skipped').length;
     final deleted = files.where((f) => f.action == 'deleted').length;
 
+    print('\n✅ Generation complete:');
     if (created > 0) print('  ✨ Created: $created files');
     if (overwritten > 0) print('  📝 Overwritten: $overwritten files');
-    if (updated > 0) print('  🔄 Updated: $updated files');
     if (skipped > 0) print('  ⏭ Skipped: $skipped files');
     if (deleted > 0) print('  🗑 Deleted: $deleted files');
 
     // If not verbose, print generated file paths (verbose mode already prints from FileUtils)
-    if (argResults?['verbose'] != true) {
+    if (!isVerbose) {
       for (final file in files) {
         if (file.action == 'created') {
           print('  ✨ ${file.path}');
         } else if (file.action == 'overwritten') {
           print('  📝 ${file.path}');
-        } else if (file.action == 'updated') {
-          print('  🔄 ${file.path}');
         } else if (file.action == 'deleted') {
           print('  🗑 ${file.path}');
         }

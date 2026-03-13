@@ -161,7 +161,10 @@ extension LocalDataSourceBuilderImpl on LocalDataSourceBuilder {
                 name: 'update',
                 returnType: 'Future<${config.name}>',
                 parameters: [
-                  _param('params', 'UpdateParams<${config.idType}, $dataType>'),
+                  _param(
+                    'params',
+                    'UpdateParams<${config.idFieldType}, $dataType>',
+                  ),
                 ],
                 body: config.useZorphy
                     ? _buildUpdateWithZorphyBody(config, entityName)
@@ -175,7 +178,10 @@ extension LocalDataSourceBuilderImpl on LocalDataSourceBuilder {
                 name: 'update',
                 returnType: 'Future<${config.name}>',
                 parameters: [
-                  _param('params', 'UpdateParams<${config.idType}, $dataType>'),
+                  _param(
+                    'params',
+                    'UpdateParams<${config.idFieldType}, $dataType>',
+                  ),
                 ],
                 body: config.useZorphy
                     ? _buildUpdateSingleWithZorphyBody(
@@ -198,7 +204,9 @@ extension LocalDataSourceBuilderImpl on LocalDataSourceBuilder {
             _buildMethodWithBody(
               name: 'delete',
               returnType: 'Future<void>',
-              parameters: [_param('params', 'DeleteParams<${config.idType}>')],
+              parameters: [
+                _param('params', 'DeleteParams<${config.idFieldType}>'),
+              ],
               body: hasListMethods
                   ? _buildDeleteWithListBody(config, entityName)
                   : _awaitBody(
@@ -255,7 +263,7 @@ extension LocalDataSourceBuilderImpl on LocalDataSourceBuilder {
         override: false,
       ),
     );
-    if (config.idType != 'NoParams') {
+    if (config.idFieldType != 'NoParams') {
       methods.add(
         _buildMethodWithBody(
           name: 'saveAll',
@@ -279,9 +287,7 @@ extension LocalDataSourceBuilderImpl on LocalDataSourceBuilder {
     );
 
     for (final method in config.methods) {
-      final dataType = config.useZorphy
-          ? '${config.name}Patch'
-          : 'Partial<${config.name}>';
+      final dataType = '${config.name}Patch';
       switch (method) {
         case 'get':
           methods.add(
@@ -322,7 +328,10 @@ extension LocalDataSourceBuilderImpl on LocalDataSourceBuilder {
               name: 'update',
               returnType: 'Future<${config.name}>',
               parameters: [
-                _param('params', 'UpdateParams<${config.idType}, $dataType>'),
+                _param(
+                  'params',
+                  'UpdateParams<${config.idFieldType}, $dataType>',
+                ),
               ],
               body: _throwBody('Implement local update'),
               isAsync: true,
@@ -334,7 +343,9 @@ extension LocalDataSourceBuilderImpl on LocalDataSourceBuilder {
             _buildMethodWithBody(
               name: 'delete',
               returnType: 'Future<void>',
-              parameters: [_param('params', 'DeleteParams<${config.idType}>')],
+              parameters: [
+                _param('params', 'DeleteParams<${config.idFieldType}>'),
+              ],
               body: _throwBody('Implement local delete'),
               isAsync: true,
             ),

@@ -107,6 +107,7 @@ class CreateDataSourceCapability implements ZuraffaCapability {
       generateDataSource: true,
       generateLocal: generateLocal,
       enableCache: enableCache,
+      generateInit: args['init'] == true,
       dryRun: dryRun,
       force: force,
       verbose: verbose,

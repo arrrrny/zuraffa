@@ -15,7 +15,11 @@ extension RepositoryImplementationGeneratorAppend
       imports.add(asyncImport);
     }
     imports.add('package:zuraffa/zuraffa.dart');
-    imports.add('../../domain/entities/$entitySnake/$entitySnake.dart');
+    if (EntityAnalyzer.isEnum(config.name, outputDir)) {
+      imports.add('../../domain/entities/enums/index.dart');
+    } else {
+      imports.add('../../domain/entities/$entitySnake/$entitySnake.dart');
+    }
     imports.add('../../domain/repositories/${entitySnake}_repository.dart');
 
     if (config.generateLocal) {

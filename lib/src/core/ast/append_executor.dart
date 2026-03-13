@@ -33,4 +33,17 @@ class AppendExecutor {
       message: 'No strategy found',
     );
   }
+
+  AppendResult undo(AppendRequest request) {
+    for (final strategy in strategies) {
+      if (strategy.canHandle(request)) {
+        return strategy.undo(request);
+      }
+    }
+    return AppendResult(
+      source: request.source,
+      changed: false,
+      message: 'No strategy found',
+    );
+  }
 }

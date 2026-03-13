@@ -5,6 +5,7 @@ import 'package:path/path.dart' as path;
 
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
+import '../../../core/builder/patterns/common_patterns.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
@@ -41,6 +42,38 @@ class EntityUseCaseGenerator {
     for (final method in config.methods) {
       files.add(await _generateForMethod(config, method));
     }
+    if (config.revert && config.methods.isEmpty) {
+      // Revert based on name if no methods specified
+      final entitySnake = config.nameSnake;
+      final usecaseDirPath = path.join(
+        outputDir,
+        'domain',
+        'usecases',
+        config.effectiveDomain,
+      );
+      final possibleFiles = [
+        'get_${entitySnake}_usecase.dart',
+        'create_${entitySnake}_usecase.dart',
+        'update_${entitySnake}_usecase.dart',
+        'delete_${entitySnake}_usecase.dart',
+        'watch_${entitySnake}_usecase.dart',
+        'get_${entitySnake}_list_usecase.dart',
+        'watch_${entitySnake}_list_usecase.dart',
+      ];
+      for (final fileName in possibleFiles) {
+        final filePath = path.join(usecaseDirPath, fileName);
+        if (File(filePath).existsSync()) {
+          files.add(
+            await FileUtils.deleteFile(
+              filePath,
+              'usecase',
+              dryRun: options.dryRun,
+              verbose: options.verbose,
+            ),
+          );
+        }
+      }
+    }
     return files;
   }
 
@@ -49,7 +82,6 @@ class EntityUseCaseGenerator {
     String method,
   ) async {
     final entityName = config.name;
-    final entitySnake = config.nameSnake;
     final repoName = config.effectiveRepos.first;
     String className;
     TypeReference baseClass;
@@ -145,6 +177,7 @@ class EntityUseCaseGenerator {
         break;
       case 'update':
         className = 'Update${entityName}UseCase';
+        // Use Patch for entity-based updates by default
         final dataType = config.useZorphy
             ? '${entityName}Patch'
             : 'Partial<$entityName>';
@@ -157,7 +190,7 @@ class EntityUseCaseGenerator {
                 (tr) => tr
                   ..symbol = 'UpdateParams'
                   ..types.addAll([
-                    refer(config.idType),
+                    refer(config.idFieldType),
                     _parseType(dataType, entityName),
                   ]),
               ),
@@ -167,7 +200,7 @@ class EntityUseCaseGenerator {
           (tr) => tr
             ..symbol = 'UpdateParams'
             ..types.addAll([
-              refer(config.idType),
+              refer(config.idFieldType),
               _parseType(dataType, entityName),
             ]),
         );
@@ -185,14 +218,14 @@ class EntityUseCaseGenerator {
               TypeReference(
                 (tr) => tr
                   ..symbol = 'DeleteParams'
-                  ..types.add(refer(config.idType)),
+                  ..types.add(refer(config.idFieldType)),
               ),
             ),
         );
         paramsType = TypeReference(
           (tr) => tr
             ..symbol = 'DeleteParams'
-            ..types.add(refer(config.idType)),
+            ..types.add(refer(config.idFieldType)),
         );
         returnType = refer('void');
         executeExpression = refer(
@@ -290,8 +323,16 @@ class EntityUseCaseGenerator {
 
     final imports = <String>['package:zuraffa/zuraffa.dart'];
     if (needsEntityImport) {
-      final entityPath = '../../entities/$entitySnake/$entitySnake.dart';
-      imports.add(entityPath);
+      final entityImports = CommonPatterns.entityImports(
+        [
+          paramsType.accept(DartEmitter()).toString(),
+          returnType.accept(DartEmitter()).toString(),
+        ],
+        config,
+        depth: 2,
+        includeDomain: false,
+      );
+      imports.addAll(entityImports);
     }
     final repoPath =
         '../../repositories/${StringUtils.camelToSnake(repoName.replaceAll('Repository', ''))}_repository.dart';

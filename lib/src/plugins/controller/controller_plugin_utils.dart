@@ -83,27 +83,36 @@ extension ControllerPluginUtils on ControllerPlugin {
 
     if (config.isCustomUseCase) {
       final types = <String>[];
-      if (config.returnsType != null) {
-        types.add(config.returnsType!);
-      }
-      if (config.paramsType != null) {
-        types.add(config.paramsType!);
-      }
-
-      for (final rawType in types) {
-        final cleanTypes = rawType
-            .replaceAll('List<', ' ')
-            .replaceAll('Map<', ' ')
-            .replaceAll('>', ' ')
-            .replaceAll('?', ' ')
-            .replaceAll(',', ' ');
-        for (final type
-            in cleanTypes.split(RegExp(r'\s+')).map((t) => t.trim())) {
-          if (type.isNotEmpty && !KnownTypes.isExcluded(type)) {
-            final snake = StringUtils.camelToSnake(type);
-            imports.add('../../../domain/entities/$snake/$snake.dart');
+      if (config.isOrchestrator) {
+        for (final usecase in config.usecases) {
+          final info = CommonPatterns.parseUseCaseInfo(
+            usecase,
+            config,
+            outputDir,
+          );
+          if (info.returnsType != null) {
+            types.add(info.returnsType!);
+          }
+          if (info.paramsType != null) {
+            types.add(info.paramsType!);
           }
         }
+      } else {
+        if (config.returnsType != null) {
+          types.add(config.returnsType!);
+        }
+        if (config.paramsType != null) {
+          types.add(config.paramsType!);
+        }
+      }
+
+      if (types.isNotEmpty) {
+        final entityImports = CommonPatterns.entityImports(
+          types,
+          config,
+          depth: 3,
+        );
+        imports.addAll(entityImports);
       }
     } else if (config.methods.any(
       (m) =>

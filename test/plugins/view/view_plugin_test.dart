@@ -87,4 +87,58 @@ void main() {
     expect(content.contains('ProductPresenter('), isTrue);
     expect(content.contains('productRepository: productRepository'), isTrue);
   });
+
+  test('generates custom stateless view', () async {
+    final plugin = ViewPlugin(
+      outputDir: outputDir,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
+    );
+    final config = GeneratorConfig(
+      name: 'Home',
+      domain: 'general',
+      generateView: true,
+      generateVpcs: false,
+      generatePresenter: false,
+      generateController: false,
+      outputDir: outputDir,
+    );
+    final files = await plugin.generate(config);
+    final content = files.first.content ?? '';
+    expect(content.contains('class HomeView extends StatelessWidget'), isTrue);
+    expect(content.contains('Widget build(BuildContext context)'), isTrue);
+    expect(content.contains('package:zuraffa/zuraffa.dart'), isFalse);
+  });
+
+  test('generates custom stateful view', () async {
+    final plugin = ViewPlugin(
+      outputDir: outputDir,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
+    );
+    final config = GeneratorConfig(
+      name: 'Dashboard',
+      domain: 'admin',
+      generateView: true,
+      generateVpcs: false,
+      generatePresenter: false,
+      generateController: false,
+      generateState: true,
+      outputDir: outputDir,
+    );
+    final files = await plugin.generate(config);
+    final content = files.first.content ?? '';
+    expect(
+      content.contains('class DashboardView extends StatefulWidget'),
+      isTrue,
+    );
+    expect(content.contains('class _DashboardViewState extends State'), isTrue);
+    expect(content.contains('package:zuraffa/zuraffa.dart'), isFalse);
+  });
 }

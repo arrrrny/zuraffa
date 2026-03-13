@@ -10,6 +10,7 @@ import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import '../../models/parsed_usecase_info.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
 import 'builders/presenter_class_builder.dart';
@@ -50,13 +51,15 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     if (config.outputDir != outputDir ||
         config.dryRun != options.dryRun ||
         config.force != options.force ||
-        config.verbose != options.verbose) {
+        config.verbose != options.verbose ||
+        config.revert != options.revert) {
       final delegator = PresenterPlugin(
         outputDir: config.outputDir,
         options: GeneratorOptions(
           dryRun: config.dryRun,
           force: config.force,
           verbose: config.verbose,
+          revert: config.revert,
         ),
         classBuilder: classBuilder,
       );
@@ -121,13 +124,19 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         .toList();
   }
 
-  List<_UseCaseInfo> _buildUseCaseInfo(
+  List<ParsedUseCaseInfo> _buildUseCaseInfo(
     GeneratorConfig config,
     String entityName,
   ) {
+    if (config.isOrchestrator && !config.generateUseCase) {
+      return config.usecases.map((u) {
+        return CommonPatterns.parseUseCaseInfo(u, config, outputDir);
+      }).toList();
+    }
+
     if (config.isCustomUseCase) {
       return [
-        _UseCaseInfo(
+        ParsedUseCaseInfo(
           className: '${config.name}UseCase',
           fieldName: config.nameCamel,
         ),
@@ -138,7 +147,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         .toList();
   }
 
-  List<Field> _buildUseCaseFields(List<_UseCaseInfo> useCases) {
+  List<Field> _buildUseCaseFields(List<ParsedUseCaseInfo> useCases) {
     return useCases
         .map(
           (info) => Field(
@@ -152,52 +161,55 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         .toList();
   }
 
-  _UseCaseInfo _getUseCaseInfo(String method, String entityName) {
+  ParsedUseCaseInfo _getUseCaseInfo(String method, String entityName) {
     switch (method) {
       case 'get':
-        return _UseCaseInfo(
+        return ParsedUseCaseInfo(
           className: 'Get${entityName}UseCase',
           fieldName: 'get$entityName',
         );
       case 'list':
       case 'getList':
-        return _UseCaseInfo(
+        return ParsedUseCaseInfo(
           className: 'Get${entityName}ListUseCase',
           fieldName: 'get${entityName}List',
         );
       case 'create':
-        return _UseCaseInfo(
+        return ParsedUseCaseInfo(
           className: 'Create${entityName}UseCase',
           fieldName: 'create$entityName',
         );
       case 'update':
-        return _UseCaseInfo(
+        return ParsedUseCaseInfo(
           className: 'Update${entityName}UseCase',
           fieldName: 'update$entityName',
         );
       case 'delete':
-        return _UseCaseInfo(
+        return ParsedUseCaseInfo(
           className: 'Delete${entityName}UseCase',
           fieldName: 'delete$entityName',
         );
       case 'watch':
-        return _UseCaseInfo(
+        return ParsedUseCaseInfo(
           className: 'Watch${entityName}UseCase',
           fieldName: 'watch$entityName',
         );
       case 'watchList':
-        return _UseCaseInfo(
+        return ParsedUseCaseInfo(
           className: 'Watch${entityName}ListUseCase',
           fieldName: 'watch${entityName}List',
         );
       default:
-        throw ArgumentError('Unsupported method: $method');
+        return ParsedUseCaseInfo(
+          className: '${StringUtils.capitalize(method)}${entityName}UseCase',
+          fieldName: '$method$entityName',
+        );
     }
   }
 
   Constructor _buildConstructor(
     GeneratorConfig config,
-    List<_UseCaseInfo> useCases,
+    List<ParsedUseCaseInfo> useCases,
     bool useDi,
   ) {
     final registrations = <Code>[];
@@ -259,78 +271,17 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   List<Method> _buildMethods(
     GeneratorConfig config,
-    List<_UseCaseInfo> useCases,
+    List<ParsedUseCaseInfo> useCases,
     String entityName,
     String entityCamel,
   ) {
     if (config.isCustomUseCase) {
-      final info = useCases.first;
-      final returns = config.returnsType ?? 'void';
-      final params = config.paramsType ?? 'NoParams';
-      final isStream = config.useCaseType == 'stream';
-
-      // Parse nullability
-      final isNullable = returns.endsWith('?');
-      final baseReturns = isNullable
-          ? returns.substring(0, returns.length - 1)
-          : returns;
-
-      final resultType = TypeReference(
-        (b) => b
-          ..symbol = 'Result'
-          ..types.addAll([
-            TypeReference(
-              (b) => b
-                ..symbol = baseReturns
-                ..isNullable = isNullable,
-            ),
-            refer('AppFailure'),
-          ]),
-      );
-
-      final returnType = TypeReference(
-        (b) => b
-          ..symbol = isStream ? 'Stream' : 'Future'
-          ..types.add(resultType),
-      );
-
-      return [
-        Method(
-          (m) => m
-            ..name = info.fieldName
-            ..returns = returnType
-            ..requiredParameters.addAll(
-              params == 'NoParams'
-                  ? const []
-                  : [
-                      Parameter(
-                        (p) => p
-                          ..name = 'params'
-                          ..type = refer(params),
-                      ),
-                    ],
-            )
-            ..optionalParameters.add(_cancelTokenParam())
-            ..body = Block(
-              (b) => b
-                ..statements.add(
-                  refer('_${info.fieldName}')
-                      .property('call')
-                      .call(
-                        [
-                          if (params != 'NoParams')
-                            refer('params')
-                          else
-                            refer('NoParams').constInstance([]),
-                        ],
-                        {'cancelToken': refer('cancelToken')},
-                      )
-                      .returned
-                      .statement,
-                ),
-            ),
-        ),
-      ];
+      if (config.isOrchestrator && !config.generateUseCase) {
+        return useCases
+            .map((info) => _buildCustomMethod(config, info))
+            .toList();
+      }
+      return [_buildCustomMethod(config, useCases.first)];
     }
 
     final map = {for (final info in useCases) info.fieldName: info};
@@ -391,9 +342,76 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     return methods;
   }
 
+  Method _buildCustomMethod(GeneratorConfig config, ParsedUseCaseInfo info) {
+    final returns = info.returnsType ?? config.returnsType ?? 'void';
+    final params = info.paramsType ?? config.paramsType ?? 'NoParams';
+    final isStream = (info.useCaseType ?? config.useCaseType) == 'stream';
+
+    // Parse nullability
+    final isNullable = returns.endsWith('?');
+    final baseReturns = isNullable
+        ? returns.substring(0, returns.length - 1)
+        : returns;
+
+    final resultType = TypeReference(
+      (b) => b
+        ..symbol = 'Result'
+        ..types.addAll([
+          TypeReference(
+            (b) => b
+              ..symbol = baseReturns
+              ..isNullable = isNullable,
+          ),
+          refer('AppFailure'),
+        ]),
+    );
+
+    final returnType = TypeReference(
+      (b) => b
+        ..symbol = isStream ? 'Stream' : 'Future'
+        ..types.add(resultType),
+    );
+
+    return Method(
+      (m) => m
+        ..name = info.fieldName
+        ..returns = returnType
+        ..requiredParameters.addAll(
+          params == 'NoParams'
+              ? const []
+              : [
+                  Parameter(
+                    (p) => p
+                      ..name = 'params'
+                      ..type = refer(params),
+                  ),
+                ],
+        )
+        ..optionalParameters.add(_cancelTokenParam())
+        ..body = Block(
+          (b) => b
+            ..statements.add(
+              refer('_${info.fieldName}')
+                  .property('call')
+                  .call(
+                    [
+                      if (params != 'NoParams')
+                        refer('params')
+                      else
+                        refer('NoParams').constInstance([]),
+                    ],
+                    {'cancelToken': refer('cancelToken')},
+                  )
+                  .returned
+                  .statement,
+            ),
+        ),
+    );
+  }
+
   Method _buildGetMethod(
     GeneratorConfig config,
-    _UseCaseInfo info,
+    ParsedUseCaseInfo info,
     String entityName,
   ) {
     final methodName = info.fieldName;
@@ -436,7 +454,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     );
   }
 
-  Method _buildGetListMethod(_UseCaseInfo info, String entityName) {
+  Method _buildGetListMethod(ParsedUseCaseInfo info, String entityName) {
     final callExpression = refer('_${info.fieldName}')
         .property('call')
         .call([refer('params')], {'cancelToken': refer('cancelToken')});
@@ -463,7 +481,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }
 
   Method _buildCreateMethod(
-    _UseCaseInfo info,
+    ParsedUseCaseInfo info,
     String entityName,
     String entityCamel,
   ) {
@@ -491,14 +509,13 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   Method _buildUpdateMethod(
     GeneratorConfig config,
-    _UseCaseInfo info,
+    ParsedUseCaseInfo info,
     String entityName,
   ) {
-    final dataType = config.useZorphy
-        ? '${entityName}Patch'
-        : 'Partial<$entityName>';
+    // Use Patch for entity-based updates by default
+    final dataType = '${entityName}Patch';
     final updateParams = refer(
-      'UpdateParams<${config.idType}, $dataType>',
+      'UpdateParams<${config.idFieldType}, $dataType>',
     ).call([], {'id': refer(config.idField), 'data': refer('data')});
     final callExpression = refer('_${info.fieldName}')
         .property('call')
@@ -512,7 +529,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           Parameter(
             (p) => p
               ..name = config.idField
-              ..type = refer(config.idType),
+              ..type = refer(config.idFieldType),
           ),
           Parameter(
             (p) => p
@@ -527,9 +544,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     );
   }
 
-  Method _buildDeleteMethod(GeneratorConfig config, _UseCaseInfo info) {
+  Method _buildDeleteMethod(GeneratorConfig config, ParsedUseCaseInfo info) {
     final deleteParams = refer(
-      'DeleteParams<${config.idType}>',
+      'DeleteParams<${config.idFieldType}>',
     ).call([], {'id': refer(config.idField)});
     final callExpression = refer('_${info.fieldName}')
         .property('call')
@@ -543,7 +560,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           Parameter(
             (p) => p
               ..name = config.idField
-              ..type = refer(config.idType),
+              ..type = refer(config.idFieldType),
           ),
         )
         ..optionalParameters.add(_cancelTokenParam())
@@ -555,7 +572,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   Method _buildWatchMethod(
     GeneratorConfig config,
-    _UseCaseInfo info,
+    ParsedUseCaseInfo info,
     String entityName,
   ) {
     final methodName = info.fieldName;
@@ -598,7 +615,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     );
   }
 
-  Method _buildWatchListMethod(_UseCaseInfo info, String entityName) {
+  Method _buildWatchListMethod(ParsedUseCaseInfo info, String entityName) {
     final callExpression = refer('_${info.fieldName}')
         .property('call')
         .call([refer('params')], {'cancelToken': refer('cancelToken')});
@@ -634,7 +651,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   List<String> _buildImports(
     GeneratorConfig config,
-    List<_UseCaseInfo> useCases,
+    List<ParsedUseCaseInfo> useCases,
     String domainSnake,
     bool useDi,
   ) {
@@ -676,19 +693,28 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       final usecaseSnake = StringUtils.camelToSnake(
         info.className.replaceAll('UseCase', ''),
       );
-      final usecaseDomain = config.isCustomUseCase ? domainSnake : domainSnake;
+      final usecaseDomain = CommonPatterns.findUseCaseDomain(
+        usecaseSnake,
+        domainSnake,
+        outputDir,
+      );
       imports.add(
         '../../../domain/usecases/$usecaseDomain/${usecaseSnake}_usecase.dart',
       );
+
+      if (info.paramsType != null || info.returnsType != null) {
+        final types = <String>[];
+        if (info.paramsType != null) types.add(info.paramsType!);
+        if (info.returnsType != null) types.add(info.returnsType!);
+        final entityImports = CommonPatterns.entityImports(
+          types,
+          config,
+          depth: 3,
+        );
+        imports.addAll(entityImports);
+      }
     }
 
-    return imports;
+    return imports.toList();
   }
-}
-
-class _UseCaseInfo {
-  final String className;
-  final String fieldName;
-
-  _UseCaseInfo({required this.className, required this.fieldName});
 }

@@ -30,8 +30,9 @@ class CreateViewCapability implements ZuraffaCapability {
       'methods': {
         'type': 'array',
         'items': {'type': 'string'},
-        'description': 'List of methods (get,create,update,delete,list)',
-        'default': ['get', 'list', 'create', 'update', 'delete'],
+        'description':
+            'List of methods (get,create,update,delete,list,watch,getList,watchList)',
+        'default': ['get', 'update'],
       },
       'di': {
         'type': 'boolean',
@@ -41,6 +42,11 @@ class CreateViewCapability implements ZuraffaCapability {
       'state': {
         'type': 'boolean',
         'description': 'Generate with State integration',
+        'default': false,
+      },
+      'route': {
+        'type': 'boolean',
+        'description': 'Generate route definitions for this view',
         'default': false,
       },
       'dryRun': {
@@ -106,10 +112,10 @@ class CreateViewCapability implements ZuraffaCapability {
     final name = args['name'];
     final outputDir = args['outputDir'] ?? 'lib/src';
     final methods =
-        (args['methods'] as List?)?.cast<String>() ??
-        ['get', 'list', 'create', 'update', 'delete'];
+        (args['methods'] as List?)?.cast<String>() ?? ['get', 'update'];
     final generateDi = args['di'] ?? true;
     final generateState = args['state'] ?? false;
+    final generateRoute = args['route'] ?? false;
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
 
@@ -117,6 +123,7 @@ class CreateViewCapability implements ZuraffaCapability {
       name: name,
       outputDir: outputDir,
       generateView: true,
+      generateRoute: generateRoute,
       methods: methods,
       generateDi: generateDi,
       generateState: generateState,

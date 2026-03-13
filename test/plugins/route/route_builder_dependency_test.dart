@@ -62,7 +62,7 @@ void main() {
         name: 'Health',
         methods: const ['get'],
         generateRoute: true,
-        idType: 'NoParams',
+        idFieldType: 'NoParams',
         outputDir: outputDir,
       ),
     );
@@ -70,6 +70,6 @@ void main() {
     final entityRoutes = File('$outputDir/routing/health_routes.dart');
     final content = entityRoutes.readAsStringSync();
     expect(content.contains('pathParameters'), isFalse);
-    expect(content.contains('HealthRepository'), isTrue);
+    expect(content.contains('HealthView'), isTrue);
   });
 }

@@ -104,13 +104,15 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     if (config.outputDir != outputDir ||
         config.dryRun != options.dryRun ||
         config.force != options.force ||
-        config.verbose != options.verbose) {
+        config.verbose != options.verbose ||
+        config.revert != options.revert) {
       final delegator = DiPlugin(
         outputDir: config.outputDir,
         options: GeneratorOptions(
           dryRun: config.dryRun,
           force: config.force,
           verbose: config.verbose,
+          revert: config.revert,
         ),
         registrationBuilder: registrationBuilder,
         registrationDetector: registrationDetector,
@@ -123,11 +125,13 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final files = <GeneratedFile>[];
 
     // Generate UseCase DI files for all UseCase types
-    files.addAll(await _generateUseCaseDIFiles(config));
+    if (config.generateUseCase) {
+      files.addAll(await _generateUseCaseDIFiles(config));
+    }
 
     // Only generate DataSource/Repository DI if NOT using a Service/Provider pattern
     if (!config.hasService && !config.isOrchestrator) {
-      if (config.generateData || config.generateDi) {
+      if (config.generateDataSource || config.generateData) {
         if (config.enableCache) {
           files.add(await _generateRemoteDataSourceDI(config));
           files.add(await _generateLocalDataSourceDI(config));
@@ -140,39 +144,32 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         }
       }
 
-      if (config.generateData ||
-          config.generateRepository ||
-          config.generateDi) {
+      if (config.generateRepository || config.generateData) {
         files.add(await _generateRepositoryDI(config));
       }
 
-      if (config.generateMock && !config.generateMockDataOnly) {
+      if (config.generateMock &&
+          !config.generateMockDataOnly &&
+          (config.generateData || config.generateDataSource)) {
         files.add(await _generateMockDataSourceDI(config));
       }
     }
 
-    if (config.hasService) {
-      if (config.generateData || config.generateDi) {
-        final serviceFile = await _generateServiceDI(config);
-        if (serviceFile != null) {
-          files.add(serviceFile);
-        }
+    if (config.hasService && (config.generateService || config.generateData)) {
+      final serviceFile = await _generateServiceDI(config);
+      if (serviceFile != null) {
+        files.add(serviceFile);
+      }
 
-        if (config.useMockInDi) {
-          final mockProviderFile = await _generateMockProviderDI(config);
-          if (mockProviderFile != null) {
-            files.add(mockProviderFile);
-          }
-        } else {
-          final providerFile = await _generateProviderDI(config);
-          if (providerFile != null) {
-            files.add(providerFile);
-          }
+      if (config.useMockInDi) {
+        final mockProviderFile = await _generateMockProviderDI(config);
+        if (mockProviderFile != null) {
+          files.add(mockProviderFile);
         }
       } else {
-        final serviceFile = await _generateServiceDI(config);
-        if (serviceFile != null) {
-          files.add(serviceFile);
+        final providerFile = await _generateProviderDI(config);
+        if (providerFile != null) {
+          files.add(providerFile);
         }
       }
     }
@@ -227,7 +224,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       diPath,
       content,
       'di_datasource',
-      force: options.force,
+      force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
@@ -265,19 +262,61 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     } else {
       constructorCall = refer(dataSourceName).call([]);
     }
-    final registrationCall = refer('getIt')
-        .property('registerLazySingleton')
-        .call(
-          [
-            Method(
-              (m) => m
-                ..lambda = true
-                ..body = constructorCall.code,
-            ).closure,
-          ],
-          {},
-          [refer(dataSourceName)],
-        );
+    final registrationCall =
+        (config.cacheStorage == 'hive' || config.generateLocal)
+        ? refer('getIt')
+              .property('registerSingletonAsync')
+              .call(
+                [
+                  Method(
+                    (m) => m
+                      ..modifier = MethodModifier.async
+                      ..body = Block((b) {
+                        final hasListMethod =
+                            config.methods.contains('getList') ||
+                            config.methods.contains('watchList');
+                        final boxName = hasListMethod
+                            ? '${baseSnake}s'
+                            : baseSnake;
+                        final boxVar = 'box';
+                        b.statements.add(
+                          declareFinal(boxVar)
+                              .assign(
+                                refer('Hive')
+                                    .property('openBox')
+                                    .call(
+                                      [literalString(boxName)],
+                                      {},
+                                      [refer(baseName)],
+                                    )
+                                    .awaited,
+                              )
+                              .statement,
+                        );
+                        b.statements.add(
+                          refer(
+                            dataSourceName,
+                          ).call([refer(boxVar)]).returned.statement,
+                        );
+                      }),
+                  ).closure,
+                ],
+                {},
+                [refer(dataSourceName)],
+              )
+        : refer('getIt')
+              .property('registerLazySingleton')
+              .call(
+                [
+                  Method(
+                    (m) => m
+                      ..lambda = true
+                      ..body = constructorCall.code,
+                  ).closure,
+                ],
+                {},
+                [refer(dataSourceName)],
+              );
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$dataSourceName',
@@ -289,7 +328,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       diPath,
       content,
       'di_datasource',
-      force: options.force,
+      force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
@@ -333,7 +372,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       diPath,
       content,
       'di_datasource',
-      force: options.force,
+      force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
@@ -435,7 +474,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       diPath,
       content,
       'di_repository',
-      force: options.force,
+      force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
@@ -506,7 +545,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       diPath,
       content,
       'di_service',
-      force: options.force,
+      force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
@@ -514,32 +553,24 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }
 
   Future<GeneratedFile?> _generateMockProviderDI(GeneratorConfig config) async {
-    final serviceName = config.effectiveService;
     final providerName = config.effectiveProvider;
     final providerSnake = config.providerSnake;
-    final serviceSnake = config.serviceSnake;
-    if (serviceName == null ||
-        providerName == null ||
-        providerSnake == null ||
-        serviceSnake == null) {
+    if (providerName == null || providerSnake == null) {
       return null;
     }
     final mockProviderName = providerName.replaceAll(
       'Provider',
       'MockProvider',
     );
-    final fileName = '${providerSnake}_mock_provider_di.dart';
+    final mockProviderSnake = StringUtils.camelToSnake(mockProviderName);
+    final fileName = '${mockProviderSnake}_di.dart';
     final diPath = path.join(outputDir, 'di', 'providers', fileName);
-
-    if (File(diPath).existsSync() && !options.force) {
-      return null;
-    }
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$mockProviderName',
       imports: [
         'package:get_it/get_it.dart',
-        '../../data/providers/${config.effectiveDomain}/${providerSnake}_mock_provider.dart',
+        '../../data/providers/${config.effectiveDomain}/$mockProviderSnake.dart',
       ],
       body: Block(
         (b) => b
@@ -559,7 +590,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       diPath,
       content,
       'di_mock_provider',
-      force: options.force,
+      force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
@@ -567,22 +598,13 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }
 
   Future<GeneratedFile?> _generateProviderDI(GeneratorConfig config) async {
-    final serviceName = config.effectiveService;
     final providerName = config.effectiveProvider;
     final providerSnake = config.providerSnake;
-    final serviceSnake = config.serviceSnake;
-    if (serviceName == null ||
-        providerName == null ||
-        providerSnake == null ||
-        serviceSnake == null) {
+    if (providerName == null || providerSnake == null) {
       return null;
     }
     final fileName = '${providerSnake}_provider_di.dart';
     final diPath = path.join(outputDir, 'di', 'providers', fileName);
-
-    if (File(diPath).existsSync() && !options.force) {
-      return null;
-    }
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$providerName',
@@ -608,7 +630,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       diPath,
       content,
       'di_provider',
-      force: options.force,
+      force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
@@ -687,7 +709,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       diPath,
       content,
       'di_usecase',
-      force: options.force,
+      force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
@@ -770,7 +792,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           diPath,
           content,
           'di_usecase',
-          force: options.force,
+          force: true,
           dryRun: options.dryRun,
           verbose: options.verbose,
           revert: config.revert,
@@ -842,7 +864,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       diPath,
       content,
       'di_usecase',
-      force: options.force,
+      force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
@@ -1166,7 +1188,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       serviceLocatorPath,
       content,
       'di_service_locator',
-      force: options.force,
+      force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: false, // Never revert shared file

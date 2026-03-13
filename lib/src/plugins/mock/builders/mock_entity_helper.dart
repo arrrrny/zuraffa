@@ -48,6 +48,11 @@ class MockEntityHelper {
         }
 
         final entityFields = EntityAnalyzer.analyzeEntity(baseType, outputDir);
+        if (EntityAnalyzer.isEnum(baseType, outputDir)) {
+          hasEnums = true;
+          continue;
+        }
+
         if (entityFields.isNotEmpty && !isDefaultFields(entityFields)) {
           final entitySnake = StringUtils.camelToSnake(baseType);
           imports.add('${entitySnake}_mock_data.dart');

@@ -8,55 +8,18 @@ extension ControllerPluginMethods on ControllerPlugin {
     bool withState,
   ) {
     if (config.isCustomUseCase) {
-      final returns = config.returnsType ?? 'void';
-      final params = config.paramsType ?? 'NoParams';
-      final methodName = config.nameCamel;
-      final isStream = config.useCaseType == 'stream';
-
-      final body = isStream
-          ? (withState
-                ? _buildCustomStreamWithStateBody(
-                    config,
-                    methodName,
-                    params,
-                    returns,
-                  )
-                : _buildCustomStreamWithoutStateBody(
-                    config,
-                    methodName,
-                    params,
-                    returns,
-                  ))
-          : (withState
-                ? _buildCustomWithStateBody(config, methodName, params, returns)
-                : _buildCustomWithoutStateBody(
-                    config,
-                    methodName,
-                    params,
-                    returns,
-                  ));
-
-      return [
-        Method(
-          (m) => m
-            ..name = methodName
-            ..returns = isStream ? refer('void') : refer('Future<void>')
-            ..modifier = isStream ? null : MethodModifier.async
-            ..requiredParameters.addAll(
-              params == 'NoParams'
-                  ? const []
-                  : [
-                      Parameter(
-                        (p) => p
-                          ..name = 'params'
-                          ..type = refer(params),
-                      ),
-                    ],
-            )
-            ..optionalParameters.add(_cancelTokenParam())
-            ..body = body,
-        ),
-      ];
+      if (config.isOrchestrator && !config.generateUseCase) {
+        return config.usecases.map((u) {
+          final info = CommonPatterns.parseUseCaseInfo(u, config, outputDir);
+          return _buildCustomMethod(
+            config,
+            info.fieldName,
+            withState,
+            info: info,
+          );
+        }).toList();
+      }
+      return [_buildCustomMethod(config, config.nameCamel, withState)];
     }
 
     final methods = <Method>[];
@@ -99,6 +62,61 @@ extension ControllerPluginMethods on ControllerPlugin {
       }
     }
     return methods;
+  }
+
+  Method _buildCustomMethod(
+    GeneratorConfig config,
+    String methodName,
+    bool withState, {
+    ParsedUseCaseInfo? info,
+  }) {
+    final returns = info?.returnsType ?? config.returnsType ?? 'void';
+    final params = info?.paramsType ?? config.paramsType ?? 'NoParams';
+    final useCaseType = info?.useCaseType ?? config.useCaseType;
+    final isStream = useCaseType == 'stream';
+
+    final body = isStream
+        ? (withState
+              ? _buildCustomStreamWithStateBody(
+                  config,
+                  methodName,
+                  params,
+                  returns,
+                )
+              : _buildCustomStreamWithoutStateBody(
+                  config,
+                  methodName,
+                  params,
+                  returns,
+                ))
+        : (withState
+              ? _buildCustomWithStateBody(config, methodName, params, returns)
+              : _buildCustomWithoutStateBody(
+                  config,
+                  methodName,
+                  params,
+                  returns,
+                ));
+
+    return Method(
+      (m) => m
+        ..name = methodName
+        ..returns = isStream ? refer('void') : refer('Future<void>')
+        ..modifier = isStream ? null : MethodModifier.async
+        ..requiredParameters.addAll(
+          params == 'NoParams'
+              ? const []
+              : [
+                  Parameter(
+                    (p) => p
+                      ..name = 'params'
+                      ..type = refer(params),
+                  ),
+                ],
+        )
+        ..optionalParameters.add(_cancelTokenParam())
+        ..body = body,
+    );
   }
 
   Method _buildGetMethod(
@@ -201,9 +219,8 @@ extension ControllerPluginMethods on ControllerPlugin {
     String entityCamel,
     bool withState,
   ) {
-    final updateDataType = config.useZorphy
-        ? '${entityName}Patch'
-        : 'Partial<$entityName>';
+    // Use Patch for entity-based updates by default
+    final updateDataType = '${entityName}Patch';
     final hasListMethod = config.methods.contains('getList');
     final hasWatchList = config.methods.contains('watchList');
     final body = withState
@@ -225,7 +242,7 @@ extension ControllerPluginMethods on ControllerPlugin {
           Parameter(
             (p) => p
               ..name = config.idField
-              ..type = refer(config.idType),
+              ..type = refer(config.idFieldType),
           ),
           Parameter(
             (p) => p
@@ -265,7 +282,7 @@ extension ControllerPluginMethods on ControllerPlugin {
           Parameter(
             (p) => p
               ..name = config.idField
-              ..type = refer(config.idType),
+              ..type = refer(config.idFieldType),
           ),
         )
         ..optionalParameters.add(_cancelTokenParam())

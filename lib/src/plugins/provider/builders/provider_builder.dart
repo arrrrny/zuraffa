@@ -9,6 +9,7 @@ import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
+import '../../../utils/entity_analyzer.dart';
 
 /// Generates provider implementation classes.
 ///
@@ -62,6 +63,18 @@ class ProviderBuilder {
       fileName,
     );
 
+    final file = File(filePath);
+    final fileExists = file.existsSync();
+
+    if (config.revert && !config.appendToExisting) {
+      return FileUtils.deleteFile(
+        filePath,
+        'provider',
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+      );
+    }
+
     final paramsType = config.paramsType ?? 'NoParams';
     final returnsType = config.returnsType ?? 'void';
     final methodName = config.getServiceMethodName();
@@ -74,11 +87,17 @@ class ProviderBuilder {
     ];
 
     final entityImports = _getPotentialEntityImports([paramsType, returnsType]);
-    for (final entityImport in entityImports) {
-      final entitySnake = StringUtils.camelToSnake(entityImport);
-      final entityPath =
-          '../../../domain/entities/$entitySnake/$entitySnake.dart';
-      directives.add(Directive.import(entityPath));
+    for (final entityName in entityImports) {
+      final entitySnake = StringUtils.camelToSnake(entityName);
+      if (EntityAnalyzer.isEnum(entityName, outputDir)) {
+        directives.add(
+          Directive.import('../../../domain/entities/enums/index.dart'),
+        );
+      } else {
+        final entityPath =
+            '../../../domain/entities/$entitySnake/$entitySnake.dart';
+        directives.add(Directive.import(entityPath));
+      }
     }
 
     final method = Method(
@@ -101,16 +120,57 @@ class ProviderBuilder {
         ..body = _buildMethodBody(methodName),
     );
 
+    final methods = <Method>[method];
+
+    if (config.generateInit) {
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'isInitialized'
+            ..returns = refer('Stream<bool>')
+            ..type = MethodType.getter
+            ..annotations.add(refer('override'))
+            ..body = refer('const Stream.empty()').returned.statement,
+        ),
+      );
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'initialize'
+            ..returns = refer('Future<void>')
+            ..annotations.add(refer('override'))
+            ..modifier = MethodModifier.async
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('InitializationParams'),
+              ),
+            )
+            ..body = Block((b) => b),
+        ),
+      );
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'dispose'
+            ..returns = refer('Future<void>')
+            ..annotations.add(refer('override'))
+            ..modifier = MethodModifier.async
+            ..body = Block((b) => b),
+        ),
+      );
+    }
+
     final providerClass = Class(
       (c) => c
         ..name = providerName
         ..mixins.addAll([refer('Loggable'), refer('FailureHandler')])
         ..implements.add(refer(serviceName))
-        ..methods.add(method),
+        ..methods.addAll(methods),
     );
 
-    final file = File(filePath);
-    if (config.appendToExisting && file.existsSync()) {
+    if (config.appendToExisting && fileExists) {
       var content = await file.readAsString();
       final helper = const AstHelper();
 
@@ -129,7 +189,13 @@ class ProviderBuilder {
       }
 
       final methodSource = method.accept(emitter).toString();
-      if (config.force) {
+      if (config.revert) {
+        content = helper.removeMethodFromClass(
+          source: content,
+          className: providerName,
+          methodName: method.name!,
+        );
+      } else if (config.force) {
         // Check if method exists to decide between replace and add
         if (content.contains(' ${method.name}(')) {
           content = helper.replaceMethodInClass(

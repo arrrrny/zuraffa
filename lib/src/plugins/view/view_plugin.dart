@@ -13,6 +13,7 @@ import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
 import 'builders/view_class_builder.dart';
 import 'capabilities/create_view_capability.dart';
+import 'capabilities/custom_view_capability.dart';
 
 /// Generates Flutter view classes for presentation pages.
 ///
@@ -47,7 +48,10 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   });
 
   @override
-  List<ZuraffaCapability> get capabilities => [CreateViewCapability(this)];
+  List<ZuraffaCapability> get capabilities => [
+    CreateViewCapability(this),
+    CustomViewCapability(this),
+  ];
 
   /// @returns Plugin identifier.
   @override
@@ -77,13 +81,15 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     if (config.outputDir != outputDir ||
         config.dryRun != options.dryRun ||
         config.force != options.force ||
-        config.verbose != options.verbose) {
+        config.verbose != options.verbose ||
+        config.revert != options.revert) {
       final delegator = ViewPlugin(
         outputDir: config.outputDir,
         options: GeneratorOptions(
           dryRun: config.dryRun,
           force: config.force,
           verbose: config.verbose,
+          revert: config.revert,
         ),
         classBuilder: classBuilder,
       );
@@ -121,6 +127,12 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       effectiveEntityName,
     );
 
+    final isCustom =
+        !config.generateVpcs &&
+        !config.generateController &&
+        !config.generatePresenter &&
+        !config.isEntityBased;
+
     final content = classBuilder.build(
       ViewClassSpec(
         viewName: viewName,
@@ -133,6 +145,8 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         initialMethodCall: initialMethodCall,
         imports: imports,
         withState: config.generateState || config.customStateName != null,
+        isCustom: isCustom,
+        isStateful: isCustom && config.generateState,
         stateClassName: config.effectiveStateName,
       ),
     );
@@ -155,40 +169,47 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     bool useDi,
   ) {
     final relativePath = '../../';
-    final imports = <String>[
-      'package:flutter/material.dart',
-      'package:zuraffa/zuraffa.dart',
-    ];
+    final imports = <String>['package:flutter/material.dart'];
 
-    if (!useDi) {
-      for (final repo in config.effectiveRepos) {
-        final repoSnake = StringUtils.camelToSnake(
-          repo.replaceAll('Repository', ''),
-        );
-        imports.add(
-          '$relativePath../domain/repositories/${repoSnake}_repository.dart',
-        );
+    final isCustom =
+        !config.generateVpcs &&
+        !config.generateController &&
+        !config.generatePresenter &&
+        !config.isEntityBased;
+
+    if (!isCustom) {
+      imports.add('package:zuraffa/zuraffa.dart');
+
+      if (!useDi) {
+        for (final repo in config.effectiveRepos) {
+          final repoSnake = StringUtils.camelToSnake(
+            repo.replaceAll('Repository', ''),
+          );
+          imports.add(
+            '$relativePath../domain/repositories/${repoSnake}_repository.dart',
+          );
+        }
       }
-    }
 
-    final controllerSnake = StringUtils.camelToSnake(
-      config.effectiveControllerName.replaceAll('Controller', ''),
-    );
-    final presenterSnake = StringUtils.camelToSnake(
-      config.effectivePresenterName.replaceAll('Presenter', ''),
-    );
-
-    imports.add('${controllerSnake}_controller.dart');
-    imports.add('${presenterSnake}_presenter.dart');
-
-    if (config.generateState) {
-      final stateSnake = config.nameSnake;
-      imports.add('${stateSnake}_state.dart');
-    } else if (config.customStateName != null) {
-      final stateSnake = StringUtils.camelToSnake(
-        config.customStateName!.replaceAll('State', ''),
+      final controllerSnake = StringUtils.camelToSnake(
+        config.effectiveControllerName.replaceAll('Controller', ''),
       );
-      imports.add('${stateSnake}_state.dart');
+      final presenterSnake = StringUtils.camelToSnake(
+        config.effectivePresenterName.replaceAll('Presenter', ''),
+      );
+
+      imports.add('${controllerSnake}_controller.dart');
+      imports.add('${presenterSnake}_presenter.dart');
+
+      if (config.generateState) {
+        final stateSnake = config.nameSnake;
+        imports.add('${stateSnake}_state.dart');
+      } else if (config.customStateName != null) {
+        final stateSnake = StringUtils.camelToSnake(
+          config.customStateName!.replaceAll('State', ''),
+        );
+        imports.add('${stateSnake}_state.dart');
+      }
     }
 
     return imports;
@@ -217,7 +238,7 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         Field(
           (f) => f
             ..modifier = FieldModifier.final$
-            ..type = refer(_nullableType(config.idType))
+            ..type = refer(_nullableType(config.idFieldType))
             ..name = config.idField,
         ),
       );

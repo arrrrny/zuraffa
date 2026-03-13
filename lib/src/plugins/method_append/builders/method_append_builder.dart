@@ -4,6 +4,7 @@ import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../../core/ast/append_executor.dart';
+import '../../../core/ast/ast_helper.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
@@ -12,6 +13,7 @@ import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../../utils/entity_utils.dart';
+import '../../../utils/entity_analyzer.dart';
 
 part 'method_append_builder_append.dart';
 part 'method_append_builder_create.dart';
@@ -49,13 +51,6 @@ class MethodAppendBuilder {
   Future<MethodAppendResult> appendMethod(GeneratorConfig config) async {
     final updatedFiles = <GeneratedFile>[];
     final warnings = <String>[];
-
-    if (config.revert) {
-      warnings.add(
-        'Skipping revert for append operation: append cannot be safely undone.',
-      );
-      return MethodAppendResult(updatedFiles, warnings);
-    }
 
     // Orchestrators use composed UseCases, not repo/service
     if (config.isOrchestrator) {

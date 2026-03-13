@@ -86,6 +86,28 @@ class EntityAnalyzer {
     return _getDefaultFields();
   }
 
+  /// Checks if a type is an enum by looking for the enum keyword in its file.
+  static bool isEnum(String typeName, String outputDir) {
+    final typeSnake = StringUtils.camelToSnake(typeName);
+    // Check in enums/ directory first
+    final enumPath = '$outputDir/domain/entities/enums/$typeSnake.dart';
+    final file = File(enumPath);
+    if (file.existsSync()) {
+      final content = file.readAsStringSync();
+      return content.contains('enum $typeName');
+    }
+
+    // Check in entities/ directory (legacy or direct)
+    final entityPath = '$outputDir/domain/entities/$typeSnake/$typeSnake.dart';
+    final entityFile = File(entityPath);
+    if (entityFile.existsSync()) {
+      final content = entityFile.readAsStringSync();
+      return content.contains('enum $typeName');
+    }
+
+    return false;
+  }
+
   static List<String> _parseSuperTypes(
     String content,
     String targetEntityName,

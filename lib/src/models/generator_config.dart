@@ -11,12 +11,14 @@ class GeneratorConfig {
   final String? repoMethod; // New: repository method name
   final String? serviceMethod; // New: service method name
   final bool appendToExisting; // New: append to existing files
+  final bool generateUseCase;
+  final bool generateService;
   final bool generateRepository;
   final String useCaseType;
   final String? paramsType;
   final String? returnsType;
   final String idField;
-  final String idType;
+  final String idFieldType;
   final bool generateVpcs;
   final bool generateView;
   final bool generatePresenter;
@@ -25,6 +27,7 @@ class GeneratorConfig {
   final bool generateData;
   final bool generateDataSource;
   final bool generateLocal;
+  final bool generateRemote;
   final bool generateState;
   final bool generateInit;
   final String queryField;
@@ -69,12 +72,14 @@ class GeneratorConfig {
     this.repoMethod,
     this.serviceMethod,
     this.appendToExisting = false,
+    this.generateUseCase = false,
+    this.generateService = false,
     this.generateRepository = false,
     this.useCaseType = 'usecase',
     this.paramsType,
     this.returnsType,
     this.idField = 'id',
-    this.idType = 'String',
+    this.idFieldType = 'String',
     this.generateVpcs = false,
     this.generateView = false,
     this.generatePresenter = false,
@@ -83,11 +88,12 @@ class GeneratorConfig {
     this.generateData = false,
     this.generateDataSource = false,
     this.generateLocal = false,
+    this.generateRemote = true,
     this.generateState = false,
     this.generateInit = false,
     this.queryField = 'id',
     String? queryFieldType,
-    this.useZorphy = false,
+    this.useZorphy = true,
     this.generateTest = false,
     this.enableCache = false,
     this.cachePolicy = 'daily',
@@ -113,7 +119,7 @@ class GeneratorConfig {
     this.verbose = false,
     this.revert = false,
     required this.outputDir,
-  }) : queryFieldType = queryFieldType ?? idType;
+  }) : queryFieldType = queryFieldType ?? idFieldType;
 
   factory GeneratorConfig.fromJson(Map<String, dynamic> json, String name) {
     return GeneratorConfig(
@@ -128,12 +134,16 @@ class GeneratorConfig {
       serviceMethod: json['service_method'] ?? json['method'],
       appendToExisting:
           json['append'] == true || json['append_to_existing'] == true,
+      generateUseCase:
+          json['usecase'] == true || json['generate_usecase'] == true,
+      generateService:
+          json['service'] == true || json['generate_service'] == true,
       generateRepository: json['repository'] == true,
       useCaseType: json['type'] ?? 'usecase',
       paramsType: json['params'],
       returnsType: json['returns'],
       idField: json['id_field'] ?? 'id',
-      idType: json['id_type'] ?? json['id_field_type'] ?? 'String',
+      idFieldType: json['id_type'] ?? json['id_field_type'] ?? 'String',
       generateVpcs: json['vpcs'] == true || json['vpc'] == true,
       generateView: json['view'] == true,
       generatePresenter: json['presenter'] == true,
@@ -142,11 +152,12 @@ class GeneratorConfig {
       generateData: json['data'] == true,
       generateDataSource: json['datasource'] == true,
       generateLocal: json['local'] == true,
+      generateRemote: json['remote'] != false,
       generateState: json['state'] == true,
       generateInit: json['init'] == true,
       queryField: json['query_field'] ?? 'id',
       queryFieldType: json['query_field_type'],
-      useZorphy: json['zorphy'] == true || json['useZorphy'] == true,
+      useZorphy: json['zorphy'] != false && json['useZorphy'] != false,
       generateTest: json['test'] == true,
       enableCache: json['cache'] == true || json['enable_cache'] == true,
       cachePolicy: json['cache_policy'] ?? 'daily',
@@ -210,12 +221,14 @@ class GeneratorConfig {
     String? repoMethod,
     String? serviceMethod,
     bool? appendToExisting,
+    bool? generateUseCase,
+    bool? generateService,
     bool? generateRepository,
     String? useCaseType,
     String? paramsType,
     String? returnsType,
     String? idField,
-    String? idType,
+    String? idFieldType,
     bool? generateVpcs,
     bool? generateView,
     bool? generatePresenter,
@@ -266,12 +279,14 @@ class GeneratorConfig {
       repoMethod: repoMethod ?? this.repoMethod,
       serviceMethod: serviceMethod ?? this.serviceMethod,
       appendToExisting: appendToExisting ?? this.appendToExisting,
+      generateUseCase: generateUseCase ?? this.generateUseCase,
+      generateService: generateService ?? this.generateService,
       generateRepository: generateRepository ?? this.generateRepository,
       useCaseType: useCaseType ?? this.useCaseType,
       paramsType: paramsType ?? this.paramsType,
       returnsType: returnsType ?? this.returnsType,
       idField: idField ?? this.idField,
-      idType: idType ?? this.idType,
+      idFieldType: idFieldType ?? this.idFieldType,
       generateVpcs: generateVpcs ?? this.generateVpcs,
       generateView: generateView ?? this.generateView,
       generatePresenter: generatePresenter ?? this.generatePresenter,
@@ -415,7 +430,7 @@ class GeneratorConfig {
     'params': paramsType,
     'returns': returnsType,
     'id_field': idField,
-    'id_type': idType,
+    'id_type': idFieldType,
     'vpcs': generateVpcs,
     'view': generateView,
     'presenter': generatePresenter,

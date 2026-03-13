@@ -11,8 +11,9 @@ class DataSourceCommand extends PluginCommand {
     argParser.addOption(
       'methods',
       abbr: 'm',
-      help: 'Comma-separated list of methods (get,create,update,delete,list)',
-      defaultsTo: 'get,list,create,update,delete',
+      help:
+          'Comma-separated list of methods (get,create,update,delete,list,watch,getList,watchList)',
+      defaultsTo: 'get,update',
     );
     argParser.addFlag(
       'local',
@@ -25,6 +26,13 @@ class DataSourceCommand extends PluginCommand {
       defaultsTo: true,
     );
     argParser.addFlag('cache', help: 'Enable caching', defaultsTo: false);
+    argParser.addFlag(
+      'init',
+      abbr: 'i',
+      help: 'Generate initialization and disposal methods',
+      defaultsTo: false,
+      negatable: false,
+    );
   }
 
   @override
@@ -35,10 +43,15 @@ class DataSourceCommand extends PluginCommand {
 
   @override
   Future<void> run() async {
+    if (argResults?.rest.isEmpty ?? true) {
+      print('❌ Usage: zfa datasource <EntityName> [options]');
+      return;
+    }
+
     final entityName = argResults!.rest.first;
-    final generateLocal = argResults!['local'] as bool;
-    final generateRemote = argResults!['remote'] as bool;
-    final enableCache = argResults!['cache'] as bool;
+    final generateLocal = argResults?['local'] as bool? ?? false;
+    final generateRemote = argResults?['remote'] as bool? ?? true;
+    final enableCache = argResults?['cache'] as bool? ?? false;
 
     final capability =
         plugin.capabilities.firstWhere((c) => c is CreateDataSourceCapability)
@@ -49,6 +62,7 @@ class DataSourceCommand extends PluginCommand {
       'local': generateLocal,
       'remote': generateRemote,
       'cache': enableCache,
+      'init': argResults?['init'] == true,
       'dryRun': isDryRun,
       'force': isForce,
       'verbose': isVerbose,

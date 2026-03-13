@@ -57,13 +57,15 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     if (config.outputDir != outputDir ||
         config.dryRun != options.dryRun ||
         config.force != options.force ||
-        config.verbose != options.verbose) {
+        config.verbose != options.verbose ||
+        config.revert != options.revert) {
       final delegator = MockPlugin(
         outputDir: config.outputDir,
         options: GeneratorOptions(
           dryRun: config.dryRun,
           force: config.force,
           verbose: config.verbose,
+          revert: config.revert,
         ),
       );
       return delegator.generate(config);
@@ -71,7 +73,15 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     // If mocks were explicitly requested, always generate/append
     if (config.generateMock || config.generateMockDataOnly) {
-      return mockBuilder.generate(config);
+      // For presentation-only workflows, we only generate mocks if we are also
+      // generating the data layer OR if we are in append mode (which implies existence).
+      if (config.generateData ||
+          config.generateDataSource ||
+          config.generateRepository ||
+          config.appendToExisting) {
+        return mockBuilder.generate(config);
+      }
+      return [];
     }
 
     // If not explicitly requested, only run if we are appending to existing mocks

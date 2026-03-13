@@ -10,6 +10,7 @@ import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
+import '../../../utils/entity_analyzer.dart';
 import '../../../utils/entity_utils.dart';
 import 'mock_type_helper.dart';
 
@@ -52,7 +53,8 @@ class MockProviderBuilder {
       'Provider',
       'MockProvider',
     );
-    final fileName = '${providerSnake}_mock_provider.dart';
+    final mockProviderSnake = StringUtils.camelToSnake(mockProviderName);
+    final fileName = '$mockProviderSnake.dart';
     final filePath = path.join(
       outputDir,
       'data',
@@ -60,6 +62,18 @@ class MockProviderBuilder {
       config.effectiveDomain,
       fileName,
     );
+
+    final file = File(filePath);
+    final fileExists = file.existsSync();
+
+    if (config.revert && !config.appendToExisting) {
+      return FileUtils.deleteFile(
+        filePath,
+        'mock_provider',
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+      );
+    }
 
     final targetEntity = config.isCustomUseCase && config.returnsType != null
         ? EntityUtils.extractEntityTypes(config.returnsType!).firstOrNull ??
@@ -103,11 +117,17 @@ class MockProviderBuilder {
       entityTypes.addAll(EntityUtils.extractEntityTypes(config.paramsType!));
     }
 
-    for (final type in entityTypes.toSet()) {
-      final snake = StringUtils.camelToSnake(type);
-      directives.add(
-        Directive.import('../../../domain/entities/$snake/$snake.dart'),
-      );
+    for (final entityName in entityTypes.toSet()) {
+      final entitySnake = StringUtils.camelToSnake(entityName);
+      if (EntityAnalyzer.isEnum(entityName, outputDir)) {
+        directives.add(
+          Directive.import('../../../domain/entities/enums/index.dart'),
+        );
+      } else {
+        final entityPath =
+            '../../../domain/entities/$entitySnake/$entitySnake.dart';
+        directives.add(Directive.import(entityPath));
+      }
     }
 
     if (!isPrimitive) {
@@ -148,6 +168,78 @@ class MockProviderBuilder {
     );
 
     final methods = <Method>[];
+
+    if (config.generateInit) {
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'initialize'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Future<void>')
+            ..modifier = MethodModifier.async
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('InitializationParams'),
+              ),
+            )
+            ..body = Block(
+              (b) => b
+                ..statements.addAll([
+                  refer('logger').property('info').call([
+                    literalString('Initializing $mockProviderName'),
+                  ]).statement,
+                  refer('Future')
+                      .property('delayed')
+                      .call([
+                        refer(
+                          'Duration',
+                        ).constInstance(const [], {'seconds': literalNum(1)}),
+                      ])
+                      .awaited
+                      .statement,
+                  refer('logger').property('info').call([
+                    literalString('$mockProviderName initialized'),
+                  ]).statement,
+                ]),
+            ),
+        ),
+      );
+
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'isInitialized'
+            ..type = MethodType.getter
+            ..annotations.add(refer('override'))
+            ..returns = refer('Stream<bool>')
+            ..lambda = true
+            ..body = refer(
+              'Stream',
+            ).property('value').call([literalBool(true)]).code,
+        ),
+      );
+
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'dispose'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Future<void>')
+            ..modifier = MethodModifier.async
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer('logger').property('info').call([
+                    literalString('Disposing $mockProviderName'),
+                  ]).statement,
+                ),
+            ),
+        ),
+      );
+    }
+
     methods.addAll(_generateMockProviderMethods(config));
 
     final clazz = Class(
@@ -161,18 +253,52 @@ class MockProviderBuilder {
         ..methods.addAll(methods),
     );
 
-    if (config.appendToExisting && File(filePath).existsSync()) {
-      final existing = await File(filePath).readAsString();
+    if (config.appendToExisting && fileExists) {
+      final existing = await file.readAsString();
       var updated = existing;
+
+      // Add missing imports
+      final entities = <String>{};
+      if (config.paramsType != null && config.paramsType != 'NoParams') {
+        entities.addAll(EntityUtils.extractEntityTypes(config.paramsType!));
+      }
+      if (config.returnsType != null && config.returnsType != 'void') {
+        entities.addAll(EntityUtils.extractEntityTypes(config.returnsType!));
+      }
+      final targetEntity = config.isCustomUseCase && config.returnsType != null
+          ? EntityUtils.extractEntityTypes(config.returnsType!).firstOrNull ??
+                config.name
+          : config.name;
+      entities.add('${targetEntity}MockData');
+
+      for (final entityName in entities) {
+        final entitySnake = StringUtils.camelToSnake(
+          entityName.replaceAll('MockData', ''),
+        );
+        final isMockData = entityName.endsWith('MockData');
+        final importPath = isMockData
+            ? '../../mock/${entitySnake}_mock_data.dart'
+            : '../../../domain/entities/$entitySnake/$entitySnake.dart';
+
+        if (!updated.contains(importPath)) {
+          final importRequest = AppendRequest.import(
+            source: updated,
+            importPath: importPath,
+          );
+          updated = appendExecutor.execute(importRequest).source;
+        }
+      }
+
       for (final method in methods) {
         final methodSource = specLibrary.emitSpec(method);
-        final result = appendExecutor.execute(
-          AppendRequest.method(
-            source: updated,
-            className: mockProviderName,
-            memberSource: methodSource,
-          ),
+        final request = AppendRequest.method(
+          source: updated,
+          className: mockProviderName,
+          memberSource: methodSource,
         );
+        final result = config.revert
+            ? appendExecutor.undo(request)
+            : appendExecutor.execute(request);
         updated = result.source;
       }
       return FileUtils.writeFile(

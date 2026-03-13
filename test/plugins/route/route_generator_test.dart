@@ -53,7 +53,7 @@ void main() {
     await generator.generate(
       GeneratorConfig(
         name: 'Product',
-        methods: const ['get', 'create'],
+        methods: const ['get', 'create', 'getList'],
         generateRoute: true,
         outputDir: outputDir,
       ),
@@ -92,6 +92,7 @@ void main() {
         outputDir: outputDir,
       ),
     );
+    expect(files.length, equals(3)); // app_routes, entity_routes, index.dart
     final entityFile = files.firstWhere(
       (f) => f.path.endsWith('order_routes.dart'),
     );

@@ -1,68 +1,82 @@
 # Getting Started
 
-This guide gets you productive quickly with Zuraffa v3. You will install the package, generate a feature, and understand the main patterns without drowning in boilerplate.
+Welcome to **Zuraffa**, the AI-first framework for Flutter. This guide will walk you through setting up your project and generating your first feature in minutes.
 
-## Install
+---
+
+## 📦 Installation
+
+Add Zuraffa to your `pubspec.yaml`:
 
 ```yaml
-dependencies:
-  zuraffa: ^3.0.0
+dev_dependencies:
+  zuraffa: ^3.19.0
 ```
 
+Activate the CLI globally:
+
 ```bash
-flutter pub get
 dart pub global activate zuraffa
 ```
 
-## Generate a first feature
+---
+
+## ⚡ Quick Start
+
+### 1. Initialize Zuraffa
+Run this in your project root to set up the configuration:
+
+```bash
+zfa init
+```
+
+### 2. Create an Entity
+Zuraffa uses **Zorphy** for immutable, type-safe entities. Let's create a `Product`:
 
 ```bash
 zfa entity create -n Product \
   --field name:String \
   --field price:double \
   --field description:String?
-
-zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --state --di --test
 ```
 
-You now have:
-- Entity models with JSON support
-- Use cases and repository interfaces
-- Data sources and repository implementations
-- Presentation layer (view, presenter, controller, state)
-- DI setup and tests
-
-## Core patterns
-
-### Entity-based CRUD
+### 3. Generate the Feature
+Now, generate the entire Clean Architecture stack for this entity:
 
 ```bash
-zfa generate Product --methods=get,getList,create,update,delete --data --vpcs
+zfa feature Product --methods=get,getList,create,update,delete --data --vpcs --state --test
 ```
 
-### Custom use case with repository
+### 4. Build Code
+Run the build runner to generate JSON serialization and entity boilerplate:
 
 ```bash
-zfa generate ProcessCheckout --domain=checkout --repo=Checkout --params=CheckoutRequest --returns=OrderConfirmation
+zfa build
 ```
 
-### Orchestrator use case
+---
 
-```bash
-zfa generate ProcessCheckout --domain=checkout --usecases=ValidateCart,CreateOrder,ProcessPayment --params=CheckoutRequest --returns=Order
-```
+## 🏗️ What Was Generated?
 
-### Polymorphic variants
+Zuraffa just created a complete, production-ready feature slice:
 
-```bash
-zfa generate Search --domain=search --variants=Barcode,Url,Text --params=SearchInput --returns=Listing --type=stream
-```
+*   **Domain Layer**: Entities, Repository Interfaces, and 5 UseCases (`GetProduct`, `CreateProduct`, etc.).
+*   **Data Layer**: `DataProductRepository` implementation and both Remote and Local DataSources.
+*   **Presentation Layer**: A full VPC stack (`ProductView`, `ProductPresenter`, `ProductController`, and `ProductState`).
+*   **Infrastructure**: Automated Dependency Injection (GetIt) and Unit Tests.
 
-## Next steps
+---
 
-- Run `zfa build` to generate entity code
-- Implement your data sources
-- Wire DI using generated setup files
-- Run `flutter test`
+## 🤖 Using with AI
 
-Next: [Architecture Overview](../architecture/overview)
+If you are using an AI agent like **Trae**, **Cursor**, or **Windsurf**, Zuraffa's built-in **MCP Server** allows the agent to understand your project structure automatically. Just ask:
+
+> "Add a 'stock' field to the Product entity and update the UI to show it."
+
+---
+
+## 📂 Next Steps
+
+*   [**Architecture Overview**](../architecture/overview) - Deep dive into the VPC pattern.
+*   [**MCP Server**](../features/mcp-server) - Enable AI-native development.
+*   [**CLI Reference**](../cli/commands) - Master the `zfa` command.

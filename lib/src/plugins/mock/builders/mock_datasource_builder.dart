@@ -34,6 +34,10 @@ class MockDataSourceBuilder {
         ? config.repo!.replaceAll('Repository', '')
         : config.name;
     final entitySnake = StringUtils.camelToSnake(entityName);
+    final filePath =
+        '$outputDir/data/datasources/$entitySnake/${entitySnake}_mock_datasource.dart';
+    final file = File(filePath);
+    final fileExists = file.existsSync();
 
     final directives = [
       Directive.import('dart:async'),
@@ -135,9 +139,85 @@ class MockDataSourceBuilder {
             ).property('value').call([literalBool(true)]).code,
         ),
       );
+
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'dispose'
+            ..annotations.add(refer('override'))
+            ..returns = typeHelper.futureVoidType()
+            ..modifier = MethodModifier.async
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer('logger').property('info').call([
+                    literalString('Disposing ${entityName}MockDataSource'),
+                  ]).statement,
+                ),
+            ),
+        ),
+      );
     }
 
     methods.addAll(_generateMockDataSourceMethods(config));
+
+    if (config.appendToExisting && fileExists) {
+      final existing = await file.readAsString();
+      var updated = existing;
+
+      // Add missing imports
+      final entities = <String>{};
+      if (config.paramsType != null && config.paramsType != 'NoParams') {
+        entities.addAll(EntityUtils.extractEntityTypes(config.paramsType!));
+      }
+      if (config.returnsType != null && config.returnsType != 'void') {
+        entities.addAll(EntityUtils.extractEntityTypes(config.returnsType!));
+      }
+      final targetEntity = config.isCustomUseCase && config.returnsType != null
+          ? EntityUtils.extractEntityTypes(config.returnsType!).firstOrNull ??
+                config.name
+          : config.name;
+      entities.add('${targetEntity}MockData');
+
+      for (final entityName in entities) {
+        final entitySnake = StringUtils.camelToSnake(
+          entityName.replaceAll('MockData', ''),
+        );
+        final isMockData = entityName.endsWith('MockData');
+        final importPath = isMockData
+            ? '../../mock/${entitySnake}_mock_data.dart'
+            : '../../../domain/entities/$entitySnake/$entitySnake.dart';
+
+        if (!updated.contains(importPath)) {
+          final importRequest = AppendRequest.import(
+            source: updated,
+            importPath: importPath,
+          );
+          updated = appendExecutor.execute(importRequest).source;
+        }
+      }
+
+      for (final method in methods) {
+        final methodSource = specLibrary.emitSpec(method);
+        final request = AppendRequest.method(
+          source: updated,
+          className: '${entityName}MockDataSource',
+          memberSource: methodSource,
+        );
+        final result = config.revert
+            ? appendExecutor.undo(request)
+            : appendExecutor.execute(request);
+        updated = result.source;
+      }
+      return FileUtils.writeFile(
+        filePath,
+        updated,
+        'mock_datasource',
+        force: true,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+      );
+    }
 
     final clazz = Class(
       (c) => c
@@ -150,31 +230,12 @@ class MockDataSourceBuilder {
         ..methods.addAll(methods),
     );
 
-    final filePath =
-        '$outputDir/data/datasources/$entitySnake/${entitySnake}_mock_datasource.dart';
-
-    if (config.appendToExisting && File(filePath).existsSync()) {
-      final existing = await File(filePath).readAsString();
-      var updated = existing;
-      for (final method in methods) {
-        final methodSource = specLibrary.emitSpec(method);
-        final result = appendExecutor.execute(
-          AppendRequest.method(
-            source: updated,
-            className: '${entityName}MockDataSource',
-            memberSource: methodSource,
-          ),
-        );
-        updated = result.source;
-      }
-      return FileUtils.writeFile(
+    if (config.revert && !config.appendToExisting) {
+      return FileUtils.deleteFile(
         filePath,
-        updated,
         'mock_datasource',
-        force: true,
         dryRun: options.dryRun,
         verbose: options.verbose,
-        revert: config.revert,
       );
     }
 
@@ -287,7 +348,7 @@ class MockDataSourceBuilder {
     for (final method in config.methods) {
       switch (method) {
         case 'get':
-          final isNoParams = config.idType == 'NoParams';
+          final isNoParams = config.idFieldType == 'NoParams';
           methods.add(
             Method(
               (m) => m
@@ -415,7 +476,7 @@ class MockDataSourceBuilder {
           break;
 
         case 'create':
-          final isNoParamsCreate = config.idType == 'NoParams';
+          final isNoParamsCreate = config.idFieldType == 'NoParams';
           methods.add(
             Method(
               (m) => m
@@ -464,11 +525,11 @@ class MockDataSourceBuilder {
               ? '${entityName}Patch'
               : 'Map<String, dynamic>';
           final updateParamsType = config.useZorphy
-              ? 'UpdateParams<${config.idType}, $dataType>'
+              ? 'UpdateParams<${config.idFieldType}, $dataType>'
               : dataType;
           final hasList = config.methods.contains('getList');
           final hasWatch = config.methods.contains('watch');
-          final isNoParams = config.idType == 'NoParams';
+          final isNoParams = config.idFieldType == 'NoParams';
           final bodyStatements = <Code>[
             refer('logger').property('info').call([
               isNoParams
@@ -568,8 +629,8 @@ class MockDataSourceBuilder {
           break;
 
         case 'delete':
-          final deleteParamsType = 'DeleteParams<${config.idType}>';
-          final isNoParams = config.idType == 'NoParams';
+          final deleteParamsType = 'DeleteParams<${config.idFieldType}>';
+          final isNoParams = config.idFieldType == 'NoParams';
           final bodyStatements = <Code>[
             refer('logger').property('info').call([
               isNoParams
@@ -653,7 +714,7 @@ class MockDataSourceBuilder {
           break;
 
         case 'watch':
-          final isNoParamsWatch = config.idType == 'NoParams';
+          final isNoParamsWatch = config.idFieldType == 'NoParams';
           methods.add(
             Method(
               (m) => m

@@ -67,16 +67,36 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
+    // If the plugin is being called, we should generate unless explicitly disabled
+    // via a flag. Previously we were too restrictive.
+    // If revert is true, we ALWAYS proceed.
+    // If generateUseCase is true, we ALWAYS proceed.
+    // If BOTH are false, we only proceed if we're in a mode where generation is expected
+    // when the plugin is enabled.
+    if (!config.generateUseCase && !config.revert) {
+      // If we are NOT entity-based and NOT custom usecase, something is weird,
+      // but let's assume if it's orchestrator/polymorphic it should still generate
+      // if those flags are true.
+      if (!config.isEntityBased &&
+          !config.isCustomUseCase &&
+          !config.isOrchestrator &&
+          !config.isPolymorphic) {
+        return [];
+      }
+    }
+
     if (config.outputDir != outputDir ||
         config.dryRun != options.dryRun ||
         config.force != options.force ||
-        config.verbose != options.verbose) {
+        config.verbose != options.verbose ||
+        config.revert != options.revert) {
       final delegator = UseCasePlugin(
         outputDir: config.outputDir,
         options: GeneratorOptions(
           dryRun: config.dryRun,
           force: config.force,
           verbose: config.verbose,
+          revert: config.revert,
         ),
       );
       return delegator.generate(config);
@@ -89,8 +109,7 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return customGenerator.generatePolymorphic(config);
     }
     if (config.isOrchestrator) {
-      final file = await customGenerator.generateOrchestrator(config);
-      return [file];
+      return [await customGenerator.generateOrchestrator(config)];
     }
     if (config.useCaseType == 'stream') {
       return [await streamGenerator.generate(config)];

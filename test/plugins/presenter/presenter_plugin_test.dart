@@ -132,11 +132,15 @@ void main() {
       final content = files.first.content ?? '';
 
       expect(
-        content.contains("import '../../../entities/barcode/barcode.dart';"),
+        content.contains(
+          "import '../../../domain/entities/barcode/barcode.dart';",
+        ),
         isTrue,
       );
       expect(
-        content.contains("import '../../../entities/listing/listing.dart';"),
+        content.contains(
+          "import '../../../domain/entities/listing/listing.dart';",
+        ),
         isTrue,
       );
     },

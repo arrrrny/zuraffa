@@ -8,6 +8,7 @@ import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'builders/route_builder.dart';
 import 'capabilities/create_route_capability.dart';
+import 'capabilities/custom_route_capability.dart';
 
 /// Manages navigation route generation for Flutter applications.
 ///
@@ -35,7 +36,10 @@ class RoutePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }
 
   @override
-  List<ZuraffaCapability> get capabilities => [CreateRouteCapability(this)];
+  List<ZuraffaCapability> get capabilities => [
+    CreateRouteCapability(this),
+    CustomRouteCapability(this),
+  ];
 
   @override
   Command createCommand() => RouteCommand(this);

@@ -1,3 +1,20 @@
+## [3.19.0] - 2026-03-13
+
+### Change
+- Implemented "Smart Revert" for append operations: `--revert` now removes specific methods/imports instead of deleting the entire file if other content remains.
+- Enhanced `LocalDataSourceBuilder` to support non-Zorphy entities using `Partial<T>` and `applyPartial` pattern.
+- Improved `MockPlugin` to skip mock generation in presentation-only workflows when data layers are missing.
+- Updated `RouteBuilder` to automatically generate and maintain `routing/index.dart` for all entity routes.
+- Standardized relative import paths in UseCases and Services to use project-consistent depth (e.g., `../../entities/` for UseCases).
+- Refactored Mock Provider naming convention to `EntityMockProvider` and unified DI registration filenames.
+
+### Fix
+- Fixed `zfa feature` command to correctly generate entity-based CRUD UseCases when the `usecase` plugin is active.
+- Fixed missing imports for return types and mock data when appending to existing Mock Providers or DataSources.
+- Fixed DI generation to prevent accidental deletion of existing mock DI registrations.
+- Fixed `UseCasePlugin` to correctly handle revert operations even when implicit generation flags are off.
+- Resolved multiple regressions in integration and regression test suites, restoring 100% pass rate (386 tests).
+
 ## [3.18.0] - 2026-03-10
 
 ### Change

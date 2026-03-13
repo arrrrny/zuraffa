@@ -1,7 +1,10 @@
+import 'dart:io';
 import 'package:code_builder/code_builder.dart';
+import 'package:path/path.dart' as path;
 
 import '../../../core/constants/known_types.dart';
 import '../../../models/generator_config.dart';
+import '../../../models/parsed_usecase_info.dart';
 import '../../../utils/string_utils.dart';
 
 class CommonPatterns {
@@ -9,6 +12,7 @@ class CommonPatterns {
     List<String?> types,
     GeneratorConfig config, {
     int depth = 1,
+    bool includeDomain = true,
   }) {
     final entities = <String>{};
     for (final type in types) {
@@ -25,14 +29,183 @@ class CommonPatterns {
         ? StringUtils.camelToSnake(config.domain!)
         : null;
     final prefix = List.generate(depth, (_) => '..').join('/');
+    final domainSegment = includeDomain ? 'domain/' : '';
 
-    return entities.map((entity) {
-      final entitySnake = StringUtils.camelToSnake(entity);
-      if (domainSnake != null && entitySnake.contains(domainSnake)) {
-        return '$prefix/entities/$domainSnake/$entitySnake.dart';
+    return entities
+        .map((entity) {
+          final entitySnake = StringUtils.camelToSnake(entity);
+
+          // 1. Try domain-specific entity directory first if domain is provided
+          if (domainSnake != null) {
+            final domainEntityDirPath = path.join(
+              config.outputDir,
+              'domain',
+              'entities',
+              domainSnake,
+              entitySnake,
+            );
+            if (Directory(domainEntityDirPath).existsSync()) {
+              return '$prefix/${domainSegment}entities/$domainSnake/$entitySnake/$entitySnake.dart';
+            }
+
+            // Check if it's a flat file in domain folder (legacy or special case)
+            final domainEntityFilePath = path.join(
+              config.outputDir,
+              'domain',
+              'entities',
+              domainSnake,
+              '$entitySnake.dart',
+            );
+            if (File(domainEntityFilePath).existsSync()) {
+              return '$prefix/${domainSegment}entities/$domainSnake/$entitySnake.dart';
+            }
+          }
+
+          // 2. Try standard entity directory
+          final entityDirPath = path.join(
+            config.outputDir,
+            'domain',
+            'entities',
+            entitySnake,
+          );
+          if (Directory(entityDirPath).existsSync()) {
+            return '$prefix/${domainSegment}entities/$entitySnake/$entitySnake.dart';
+          }
+
+          // 3. Try legacy flat entity file
+          final entityFilePath = path.join(
+            config.outputDir,
+            'domain',
+            'entities',
+            '$entitySnake.dart',
+          );
+          if (File(entityFilePath).existsSync()) {
+            final content = File(entityFilePath).readAsStringSync();
+            if (content.contains('enum $entity')) {
+              return '$prefix/${domainSegment}entities/enums/index.dart';
+            }
+            return '$prefix/${domainSegment}entities/$entitySnake.dart';
+          }
+
+          // 4. Try enums/ directory
+          final enumPath = path.join(
+            config.outputDir,
+            'domain',
+            'entities',
+            'enums',
+            '$entitySnake.dart',
+          );
+          if (File(enumPath).existsSync()) {
+            return '$prefix/${domainSegment}entities/enums/index.dart';
+          }
+
+          return '$prefix/${domainSegment}entities/$entitySnake/$entitySnake.dart';
+        })
+        .toSet()
+        .toList();
+  }
+
+  static ParsedUseCaseInfo parseUseCaseInfo(
+    String u,
+    GeneratorConfig config,
+    String outputDir,
+  ) {
+    final className = u.endsWith('UseCase') ? u : '${u}UseCase';
+    final fieldName = StringUtils.pascalToCamel(
+      className.replaceAll('UseCase', ''),
+    );
+    final usecaseSnake = StringUtils.camelToSnake(
+      className.replaceAll('UseCase', ''),
+    );
+
+    // Try to find the file and parse params/returns
+    String? paramsType;
+    String? returnsType;
+    String? useCaseType;
+
+    final usecaseDomain = findUseCaseDomain(
+      usecaseSnake,
+      config.effectiveDomain,
+      outputDir,
+    );
+    final filePath = path.join(
+      outputDir,
+      'domain',
+      'usecases',
+      usecaseDomain,
+      '${usecaseSnake}_usecase.dart',
+    );
+    if (File(filePath).existsSync()) {
+      final content = File(filePath).readAsStringSync();
+      final extendsMatch = RegExp(
+        r'extends (UseCase|StreamUseCase|CompletableUseCase|SyncUseCase)<([^>]+)>',
+      ).firstMatch(content);
+      if (extendsMatch != null) {
+        useCaseType = extendsMatch.group(1)?.toLowerCase();
+        final typesStr = extendsMatch.group(2);
+        if (typesStr != null) {
+          final types = typesStr.split(',').map((e) => e.trim()).toList();
+          if (useCaseType == 'completableusecase') {
+            useCaseType = 'completable';
+            paramsType = types[0];
+            returnsType = 'void';
+          } else if (types.length >= 2) {
+            returnsType = types[0];
+            paramsType = types[1];
+            if (useCaseType == 'streamusecase') useCaseType = 'stream';
+            if (useCaseType == 'syncusecase') useCaseType = 'sync';
+            if (useCaseType == 'usecase') useCaseType = 'future';
+          }
+        }
       }
-      return '$prefix/entities/$entitySnake/$entitySnake.dart';
-    }).toList();
+    }
+
+    return ParsedUseCaseInfo(
+      className: className,
+      fieldName: fieldName,
+      paramsType: paramsType,
+      returnsType: returnsType,
+      useCaseType: useCaseType,
+    );
+  }
+
+  static String findUseCaseDomain(
+    String usecaseSnake,
+    String defaultDomain,
+    String outputDir,
+  ) {
+    final usecasesDir = Directory(path.join(outputDir, 'domain', 'usecases'));
+    if (usecasesDir.existsSync()) {
+      for (final dir in usecasesDir.listSync()) {
+        if (dir is Directory) {
+          final useCaseFile = File(
+            path.join(dir.path, '${usecaseSnake}_usecase.dart'),
+          );
+          if (useCaseFile.existsSync()) {
+            return path.basename(dir.path);
+          }
+        }
+      }
+    }
+    // Try to find if it is an entity-based usecase
+    final possiblePrefixes = [
+      'get_',
+      'create_',
+      'update_',
+      'delete_',
+      'watch_',
+    ];
+    for (final prefix in possiblePrefixes) {
+      if (usecaseSnake.startsWith(prefix)) {
+        final entitySnake = usecaseSnake
+            .replaceFirst(prefix, '')
+            .replaceFirst('_list', '');
+        return entitySnake;
+      }
+    }
+
+    // Fallback to the default domain if not found
+    return defaultDomain;
   }
 
   static List<String> _extractBaseTypes(String type) {
@@ -59,7 +232,12 @@ class CommonPatterns {
       }
     } else {
       // 3. Simple type (e.g., Barcode, BarcodeListing)
-      results.add(cleanType);
+      // Strip common suffixes for entity lookup
+      var finalType = cleanType;
+      if (finalType.endsWith('Patch') && finalType.length > 5) {
+        finalType = finalType.substring(0, finalType.length - 5);
+      }
+      results.add(finalType);
     }
 
     return results;

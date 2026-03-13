@@ -27,6 +27,13 @@ class ServiceCommand extends PluginCommand {
       allowed: ['sync', 'stream', 'completable', 'usecase'],
       defaultsTo: 'usecase',
     );
+    argParser.addFlag(
+      'init',
+      abbr: 'i',
+      help: 'Generate initialization and disposal methods',
+      defaultsTo: false,
+      negatable: false,
+    );
   }
 
   @override
@@ -37,16 +44,16 @@ class ServiceCommand extends PluginCommand {
 
   @override
   Future<void> run() async {
-    final args = argResults!.rest;
+    final args = argResults?.rest ?? [];
     if (args.isEmpty) {
       print('❌ Usage: zfa service <ServiceName> [options]');
       return;
     }
 
     final serviceName = args.first;
-    final paramsType = argResults!['params'] as String;
-    final returnsType = argResults!['returns'] as String;
-    final useCaseType = argResults!['type'] as String;
+    final paramsType = (argResults?['params'] as String?) ?? 'NoParams';
+    final returnsType = (argResults?['returns'] as String?) ?? 'void';
+    final useCaseType = (argResults?['type'] as String?) ?? 'usecase';
 
     final capability =
         plugin.capabilities.firstWhere((c) => c is CreateServiceCapability)
@@ -57,6 +64,7 @@ class ServiceCommand extends PluginCommand {
       'params': paramsType,
       'returns': returnsType,
       'type': useCaseType,
+      'init': argResults?['init'] == true,
       'dryRun': isDryRun,
       'force': isForce,
       'verbose': isVerbose,

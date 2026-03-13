@@ -4,17 +4,33 @@ extension MethodAppendBuilderImports on MethodAppendBuilder {
   Future<String> _addMissingImports(
     GeneratorConfig config,
     String source,
-    String filePath,
-  ) async {
+    String filePath, {
+    bool isMock = false,
+  }) async {
     final entities = _collectEntityTypes(config);
+    if (isMock) {
+      final targetEntity = config.isCustomUseCase && config.returnsType != null
+          ? EntityUtils.extractEntityTypes(config.returnsType!).firstOrNull ??
+                config.name
+          : config.name;
+      entities.add('${targetEntity}MockData');
+    }
     if (entities.isEmpty) return source;
 
     var content = source;
     for (final entityName in entities) {
-      final entitySnake = StringUtils.camelToSnake(entityName);
+      final entitySnake = StringUtils.camelToSnake(
+        entityName.replaceAll('MockData', ''),
+      );
       if (_hasEntityImport(content, entityName, entitySnake)) continue;
 
-      final relativePath = _getRelativeImportPath(filePath, entitySnake);
+      final isEnum = EntityAnalyzer.isEnum(entityName, outputDir);
+      final isMockData = entityName.endsWith('MockData');
+      final relativePath = isEnum
+          ? _getEnumImportPath(filePath)
+          : isMockData
+          ? _getMockDataImportPath(filePath, entitySnake)
+          : _getRelativeImportPath(filePath, entitySnake);
       final request = AppendRequest.import(
         source: content,
         importPath: relativePath,
@@ -23,6 +39,57 @@ extension MethodAppendBuilderImports on MethodAppendBuilder {
       content = result.source;
     }
     return content;
+  }
+
+  String _getMockDataImportPath(String filePath, String entitySnake) {
+    final normalizedPath = path.normalize(filePath);
+    if (normalizedPath.contains('/domain/services/') ||
+        normalizedPath.contains('\\domain\\services\\')) {
+      return '../../mock/${entitySnake}_mock_data.dart';
+    }
+    if (normalizedPath.contains('/data/providers/') ||
+        normalizedPath.contains('\\data\\providers\\')) {
+      return '../../mock/${entitySnake}_mock_data.dart';
+    }
+    if (normalizedPath.contains('/data/datasources/') ||
+        normalizedPath.contains('\\data\\datasources\\')) {
+      return '../../mock/${entitySnake}_mock_data.dart';
+    }
+    return '../../mock/${entitySnake}_mock_data.dart';
+  }
+
+  String _getEnumImportPath(String filePath) {
+    final normalizedPath = path.normalize(filePath);
+    if (normalizedPath.contains('/data/datasources/') ||
+        normalizedPath.contains('\\data\\datasources\\')) {
+      final parts = path.split(normalizedPath);
+      final index = parts.lastIndexOf('datasources');
+      if (index != -1 && index + 2 < parts.length) {
+        return '../../../domain/entities/enums/index.dart';
+      }
+      return '../../domain/entities/enums/index.dart';
+    }
+    if (normalizedPath.contains('/data/repositories/') ||
+        normalizedPath.contains('\\data\\repositories\\')) {
+      return '../../domain/entities/enums/index.dart';
+    }
+    if (normalizedPath.contains('/domain/repositories/') ||
+        normalizedPath.contains('\\domain\\repositories\\')) {
+      return '../entities/enums/index.dart';
+    }
+    if (normalizedPath.contains('/domain/services/') ||
+        normalizedPath.contains('\\domain\\services\\')) {
+      return '../entities/enums/index.dart';
+    }
+    if (normalizedPath.contains('/domain/usecases/') ||
+        normalizedPath.contains('\\domain\\usecases\\')) {
+      return '../../entities/enums/index.dart';
+    }
+    if (normalizedPath.contains('/data/providers/') ||
+        normalizedPath.contains('\\data\\providers\\')) {
+      return '../../../domain/entities/enums/index.dart';
+    }
+    return '../../../domain/entities/enums/index.dart';
   }
 
   Set<String> _collectEntityTypes(GeneratorConfig config) {
@@ -70,13 +137,17 @@ extension MethodAppendBuilderImports on MethodAppendBuilder {
         normalizedPath.contains('\\domain\\repositories\\')) {
       return '../entities/$entitySnake/$entitySnake.dart';
     }
+    if (normalizedPath.contains('/domain/services/') ||
+        normalizedPath.contains('\\domain\\services\\')) {
+      return '../entities/$entitySnake/$entitySnake.dart';
+    }
     if (normalizedPath.contains('/domain/usecases/') ||
         normalizedPath.contains('\\domain\\usecases\\')) {
       return '../../entities/$entitySnake/$entitySnake.dart';
     }
     if (normalizedPath.contains('/data/providers/') ||
         normalizedPath.contains('\\data\\providers\\')) {
-      return '../../../domain/services/${entitySnake}_service.dart';
+      return '../../../domain/entities/$entitySnake/$entitySnake.dart';
     }
     return '../../../domain/entities/$entitySnake/$entitySnake.dart';
   }

@@ -71,13 +71,52 @@ void main() {
     expect(config.appendToExisting, isTrue);
     expect(config.generateData, isTrue);
     expect(config.idField, equals('orderId'));
-    expect(config.idType, equals('int'));
+    expect(config.idFieldType, equals('int'));
     expect(config.queryFieldType, equals('NoParams'));
     expect(config.enableCache, isTrue);
     expect(config.cachePolicy, equals('ttl'));
     expect(config.ttlMinutes, equals(15));
     expect(config.generateMock, isTrue);
     expect(config.generateRoute, isTrue);
+  });
+
+  test('plugin outputs include expected update signature with Patch', () async {
+    final outputDir = _tempOutputDir();
+    final scenario = GeneratorConfig(
+      name: 'Walkthrough',
+      methods: const ['update'],
+      generateData: true,
+      generateLocal: true,
+      outputDir: outputDir,
+    );
+
+    final outputs = await _generateCurrentOutputs(scenario, outputDir);
+
+    final datasourcePath =
+        'data/datasources/walkthrough/walkthrough_datasource.dart';
+    final localDatasourcePath =
+        'data/datasources/walkthrough/walkthrough_local_datasource.dart';
+    final remoteDatasourcePath =
+        'data/datasources/walkthrough/walkthrough_remote_datasource.dart';
+
+    expect(outputs.keys, contains(datasourcePath));
+    expect(
+      outputs[datasourcePath],
+      contains('UpdateParams<String, WalkthroughPatch> params'),
+    );
+    expect(outputs[datasourcePath], isNot(contains('Partial<Walkthrough>')));
+
+    expect(outputs.keys, contains(localDatasourcePath));
+    expect(
+      outputs[localDatasourcePath],
+      contains('UpdateParams<String, WalkthroughPatch> params'),
+    );
+
+    expect(outputs.keys, contains(remoteDatasourcePath));
+    expect(
+      outputs[remoteDatasourcePath],
+      contains('UpdateParams<String, WalkthroughPatch> params'),
+    );
   });
 }
 

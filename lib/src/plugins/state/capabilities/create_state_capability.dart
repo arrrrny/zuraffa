@@ -30,8 +30,9 @@ class CreateStateCapability implements ZuraffaCapability {
       'methods': {
         'type': 'array',
         'items': {'type': 'string'},
-        'description': 'List of methods (get,create,update,delete,list)',
-        'default': ['get', 'list', 'create', 'update', 'delete'],
+        'description':
+            'List of methods (get,create,update,delete,list,watch,getList,watchList)',
+        'default': ['get', 'update'],
       },
       'dryRun': {
         'type': 'boolean',
@@ -96,8 +97,7 @@ class CreateStateCapability implements ZuraffaCapability {
     final name = args['name'];
     final outputDir = args['outputDir'] ?? 'lib/src';
     final methods =
-        (args['methods'] as List?)?.cast<String>() ??
-        ['get', 'list', 'create', 'update', 'delete'];
+        (args['methods'] as List?)?.cast<String>() ?? ['get', 'update'];
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
 

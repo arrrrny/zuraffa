@@ -95,6 +95,58 @@ class MethodAppendStrategy implements AppendStrategy {
     return AppendResult(source: updated, changed: updated != request.source);
   }
 
+  @override
+  AppendResult undo(AppendRequest request) {
+    if (!canHandle(request)) {
+      return AppendResult(
+        source: request.source,
+        changed: false,
+        message: 'Request not supported',
+      );
+    }
+    final parseResult = helper.parseSource(request.source);
+    final unit = parseResult.unit;
+    if (unit == null) {
+      return AppendResult(
+        source: request.source,
+        changed: false,
+        message: 'Unable to parse source',
+      );
+    }
+    final classNode = helper.findClass(unit, request.className!);
+    if (classNode == null) {
+      return AppendResult(
+        source: request.source,
+        changed: false,
+        message: 'Class not found',
+      );
+    }
+
+    final newMethod = _parseMethod(request.memberSource!);
+    if (newMethod == null) {
+      return AppendResult(
+        source: request.source,
+        changed: false,
+        message: 'Invalid method source',
+      );
+    }
+
+    final methodName = newMethod.name.lexeme;
+    final updated = helper.removeMethodFromClass(
+      source: request.source,
+      className: request.className!,
+      methodName: methodName,
+    );
+
+    return AppendResult(
+      source: updated,
+      changed: updated != request.source,
+      message: updated != request.source
+          ? 'Method removed'
+          : 'Method not found',
+    );
+  }
+
   bool _isSameMethodSource(String existingSource, String newSource) {
     return _normalizeSource(existingSource) == _normalizeSource(newSource);
   }
