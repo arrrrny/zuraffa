@@ -36,7 +36,9 @@ class CapabilityCommand extends Command<void> {
             ? (value['enum'] as List).map((e) => e.toString()).toList()
             : null;
 
-        final flagName = StringUtils.camelToSnake(key).replaceAll('_', '-');
+        final flagName = key.contains('-')
+            ? key
+            : StringUtils.camelToSnake(key).replaceAll('_', '-');
         if (argParser.options.containsKey(flagName)) {
           return;
         }
