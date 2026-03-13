@@ -48,7 +48,7 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
       CommonPatterns.entityImports(
         [paramsType, returnsType],
         config,
-        depth: 2,
+        depth: config.domain != null ? 2 : 1,
         includeDomain: false,
       ),
     );

@@ -1,4 +1,3 @@
-
 import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import '../plugins/presenter/presenter_plugin.dart';

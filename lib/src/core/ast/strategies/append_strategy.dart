@@ -89,4 +89,5 @@ class AppendResult {
 abstract class AppendStrategy {
   bool canHandle(AppendRequest request);
   AppendResult apply(AppendRequest request);
+  AppendResult undo(AppendRequest request);
 }

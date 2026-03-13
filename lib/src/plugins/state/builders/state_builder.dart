@@ -1,12 +1,13 @@
 import 'package:code_builder/code_builder.dart';
-import 'dart:io';
 import 'package:path/path.dart' as path;
 
+import '../../../core/builder/patterns/common_patterns.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/constants/known_types.dart';
 import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
+
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 
@@ -101,11 +102,23 @@ class StateBuilder {
 
     if (config.isCustomUseCase ||
         (config.isOrchestrator && !config.generateUseCase)) {
+      final orchestratorBoolFields = <_BoolField>[];
       if (config.isOrchestrator && !config.generateUseCase) {
         for (final usecaseName in config.usecases) {
-          final info = _parseUseCaseInfo(usecaseName, config);
+          final info = CommonPatterns.parseUseCaseInfo(
+            usecaseName,
+            config,
+            outputDir,
+          );
+          final loadingName =
+              'is${StringUtils.capitalize(info.fieldName)}Loading';
+
+          orchestratorBoolFields.add(
+            _BoolField(loadingName, 'Whether ${info.className} is in progress'),
+          );
+
           if (info.returnsType != null && info.returnsType != 'void') {
-            final fieldName = '${info.fieldName}Data';
+            final fieldName = '${info.fieldName}Response';
             fields.add(
               _docField(
                 'The result data for ${info.className}',
@@ -117,7 +130,7 @@ class StateBuilder {
           fields.add(
             _docField(
               'Whether ${info.className} is in progress',
-              'is${StringUtils.convertToPascalCase(info.fieldName)}Loading',
+              loadingName,
               refer('bool'),
             ),
           );
@@ -159,18 +172,24 @@ class StateBuilder {
       final hashCodeGetter = _buildCustomHashCodeGetter(config);
       final toStringMethod = _buildCustomToString(stateName, config);
 
+      final methods = [
+        copyWith,
+        hasErrorGetter,
+        equality,
+        hashCodeGetter,
+        toStringMethod,
+      ];
+
+      if (config.isOrchestrator && !config.generateUseCase) {
+        methods.insert(1, _buildIsLoadingGetter(orchestratorBoolFields));
+      }
+
       final clazz = Class(
         (c) => c
           ..name = stateName
           ..fields.addAll(fields)
           ..constructors.add(constructor)
-          ..methods.addAll([
-            copyWith,
-            hasErrorGetter,
-            equality,
-            hashCodeGetter,
-            toStringMethod,
-          ]),
+          ..methods.addAll(methods),
       );
 
       final content = specLibrary.emitLibrary(
@@ -292,14 +311,48 @@ class StateBuilder {
           ..named = true
           ..toThis = true,
       ),
-      Parameter(
-        (p) => p
-          ..name = 'isLoading'
-          ..named = true
-          ..toThis = true
-          ..defaultTo = literalBool(false).code,
-      ),
     ];
+
+    if (!(config.isOrchestrator && !config.generateUseCase)) {
+      params.add(
+        Parameter(
+          (p) => p
+            ..name = 'isLoading'
+            ..named = true
+            ..toThis = true
+            ..defaultTo = literalBool(false).code,
+        ),
+      );
+    }
+
+    if (config.isOrchestrator && !config.generateUseCase) {
+      for (final usecaseName in config.usecases) {
+        final info = CommonPatterns.parseUseCaseInfo(
+          usecaseName,
+          config,
+          outputDir,
+        );
+        if (info.returnsType != null && info.returnsType != 'void') {
+          params.add(
+            Parameter(
+              (p) => p
+                ..name = '${info.fieldName}Response'
+                ..named = true
+                ..toThis = true,
+            ),
+          );
+        }
+        params.add(
+          Parameter(
+            (p) => p
+              ..name = 'is${StringUtils.capitalize(info.fieldName)}Loading'
+              ..named = true
+              ..toThis = true
+              ..defaultTo = literalBool(false).code,
+          ),
+        );
+      }
+    }
 
     if (config.returnsType != null && config.returnsType != 'void') {
       params.add(
@@ -327,18 +380,58 @@ class StateBuilder {
           ..named = true
           ..type = _nullableType('AppFailure'),
       ),
-      Parameter(
-        (p) => p
-          ..name = 'isLoading'
-          ..named = true
-          ..type = refer('bool?'),
-      ),
     ];
 
     final values = <String, Expression>{
       'error': refer('error').ifNullThen(_this('error')),
-      'isLoading': refer('isLoading').ifNullThen(_this('isLoading')),
     };
+
+    if (!(config.isOrchestrator && !config.generateUseCase)) {
+      params.add(
+        Parameter(
+          (p) => p
+            ..name = 'isLoading'
+            ..named = true
+            ..type = refer('bool?'),
+        ),
+      );
+      values['isLoading'] = refer('isLoading').ifNullThen(_this('isLoading'));
+    }
+
+    if (config.isOrchestrator && !config.generateUseCase) {
+      for (final usecaseName in config.usecases) {
+        final info = CommonPatterns.parseUseCaseInfo(
+          usecaseName,
+          config,
+          outputDir,
+        );
+        final fieldName = '${info.fieldName}Response';
+        final loadingName =
+            'is${StringUtils.capitalize(info.fieldName)}Loading';
+
+        if (info.returnsType != null && info.returnsType != 'void') {
+          params.add(
+            Parameter(
+              (p) => p
+                ..name = fieldName
+                ..named = true
+                ..type = _nullableType(info.returnsType!),
+            ),
+          );
+          values[fieldName] = refer(fieldName).ifNullThen(_this(fieldName));
+        }
+
+        params.add(
+          Parameter(
+            (p) => p
+              ..name = loadingName
+              ..named = true
+              ..type = refer('bool?'),
+          ),
+        );
+        values[loadingName] = refer(loadingName).ifNullThen(_this(loadingName));
+      }
+    }
 
     if (config.returnsType != null && config.returnsType != 'void') {
       final returnsType = config.returnsType!;
@@ -393,8 +486,29 @@ class StateBuilder {
 
     final conditions = <Expression>[
       other.property('error').equalTo(refer('error')),
-      other.property('isLoading').equalTo(refer('isLoading')),
     ];
+
+    if (!(config.isOrchestrator && !config.generateUseCase)) {
+      conditions.add(other.property('isLoading').equalTo(refer('isLoading')));
+    }
+
+    if (config.isOrchestrator && !config.generateUseCase) {
+      for (final usecaseName in config.usecases) {
+        final info = CommonPatterns.parseUseCaseInfo(
+          usecaseName,
+          config,
+          outputDir,
+        );
+        final fieldName = '${info.fieldName}Response';
+        final loadingName =
+            'is${StringUtils.capitalize(info.fieldName)}Loading';
+
+        if (info.returnsType != null && info.returnsType != 'void') {
+          conditions.add(other.property(fieldName).equalTo(refer(fieldName)));
+        }
+        conditions.add(other.property(loadingName).equalTo(refer(loadingName)));
+      }
+    }
 
     if (config.returnsType != null && config.returnsType != 'void') {
       conditions.add(other.property('data').equalTo(refer('data')));
@@ -420,13 +534,32 @@ class StateBuilder {
   }
 
   Method _buildCustomHashCodeGetter(GeneratorConfig config) {
-    final parts = <Expression>[
-      _this('error').property('hashCode'),
-      _this('isLoading').property('hashCode'),
-    ];
+    final parts = <Expression>[refer('error').property('hashCode')];
+
+    if (!(config.isOrchestrator && !config.generateUseCase)) {
+      parts.add(refer('isLoading').property('hashCode'));
+    }
+
+    if (config.isOrchestrator && !config.generateUseCase) {
+      for (final usecaseName in config.usecases) {
+        final info = CommonPatterns.parseUseCaseInfo(
+          usecaseName,
+          config,
+          outputDir,
+        );
+        final fieldName = '${info.fieldName}Response';
+        final loadingName =
+            'is${StringUtils.capitalize(info.fieldName)}Loading';
+
+        if (info.returnsType != null && info.returnsType != 'void') {
+          parts.add(refer(fieldName).property('hashCode'));
+        }
+        parts.add(refer(loadingName).property('hashCode'));
+      }
+    }
 
     if (config.returnsType != null && config.returnsType != 'void') {
-      parts.add(_this('data').property('hashCode'));
+      parts.add(refer('data').property('hashCode'));
     }
 
     final expression = parts.reduce((a, b) => a.operatorAdd(b));
@@ -443,7 +576,29 @@ class StateBuilder {
   }
 
   Method _buildCustomToString(String stateName, GeneratorConfig config) {
-    final parts = <String>['error: \$error', 'isLoading: \$isLoading'];
+    final parts = <String>['error: \$error'];
+
+    if (!(config.isOrchestrator && !config.generateUseCase)) {
+      parts.add('isLoading: \$isLoading');
+    }
+
+    if (config.isOrchestrator && !config.generateUseCase) {
+      for (final usecaseName in config.usecases) {
+        final info = CommonPatterns.parseUseCaseInfo(
+          usecaseName,
+          config,
+          outputDir,
+        );
+        final fieldName = '${info.fieldName}Response';
+        final loadingName =
+            'is${StringUtils.capitalize(info.fieldName)}Loading';
+
+        if (info.returnsType != null && info.returnsType != 'void') {
+          parts.add('$fieldName: \$$fieldName');
+        }
+        parts.add('$loadingName: \$$loadingName');
+      }
+    }
 
     if (config.returnsType != null && config.returnsType != 'void') {
       parts.add('data: \$data');
@@ -673,18 +828,18 @@ class StateBuilder {
     required bool needsEntityListField,
     required List<_BoolField> boolFields,
   }) {
-    final parts = <Expression>[_this('error').property('hashCode')];
+    final parts = <Expression>[refer('error').property('hashCode')];
 
     if (needsEntityListField) {
-      parts.add(_this('${entityCamel}List').property('hashCode'));
+      parts.add(refer('${entityCamel}List').property('hashCode'));
     }
 
     if (needsEntityField) {
-      parts.add(_this(entityCamel).property('hashCode'));
+      parts.add(refer(entityCamel).property('hashCode'));
     }
 
     for (final field in boolFields) {
-      parts.add(_this(field.name).property('hashCode'));
+      parts.add(refer(field.name).property('hashCode'));
     }
 
     final expression = parts.reduce((a, b) => a.operatorAdd(b));
@@ -747,104 +902,10 @@ class StateBuilder {
   List<_BoolField> _boolFieldsForMethods(List<String> methods) {
     final fields = <_BoolField>[];
     for (final method in methods) {
-      final name = StringUtils.convertToPascalCase(method);
-      fields.add(_BoolField('is${name}Loading', 'Whether $method is loading'));
+      final continuous = StringUtils.toContinuous(method);
+      fields.add(_BoolField('is$continuous', 'Whether $method is in progress'));
     }
     return fields;
-  }
-
-  String _findUseCaseDomain(String usecaseSnake, String defaultDomain) {
-    final usecasesDir = Directory(path.join(outputDir, 'domain', 'usecases'));
-    if (usecasesDir.existsSync()) {
-      for (final dir in usecasesDir.listSync()) {
-        if (dir is Directory) {
-          final useCaseFile = File(
-            path.join(dir.path, '${usecaseSnake}_usecase.dart'),
-          );
-          if (useCaseFile.existsSync()) {
-            return path.basename(dir.path);
-          }
-        }
-      }
-    }
-    // Try to find if it is an entity-based usecase
-    final possiblePrefixes = [
-      'get_',
-      'create_',
-      'update_',
-      'delete_',
-      'watch_',
-    ];
-    for (final prefix in possiblePrefixes) {
-      if (usecaseSnake.startsWith(prefix)) {
-        final entitySnake = usecaseSnake
-            .replaceFirst(prefix, '')
-            .replaceFirst('_list', '');
-        return entitySnake;
-      }
-    }
-
-    // Fallback to the default domain if not found
-    return defaultDomain;
-  }
-
-  _UseCaseInfo _parseUseCaseInfo(String u, GeneratorConfig config) {
-    final className = u.endsWith('UseCase') ? u : '${u}UseCase';
-    final fieldName = StringUtils.pascalToCamel(
-      className.replaceAll('UseCase', ''),
-    );
-    final usecaseSnake = StringUtils.camelToSnake(
-      className.replaceAll('UseCase', ''),
-    );
-
-    // Try to find the file and parse params/returns
-    String? paramsType;
-    String? returnsType;
-    String? useCaseType;
-
-    final usecaseDomain = _findUseCaseDomain(
-      usecaseSnake,
-      config.effectiveDomain,
-    );
-    final filePath = path.join(
-      outputDir,
-      'domain',
-      'usecases',
-      usecaseDomain,
-      '${usecaseSnake}_usecase.dart',
-    );
-    if (File(filePath).existsSync()) {
-      final content = File(filePath).readAsStringSync();
-      final extendsMatch = RegExp(
-        r'extends (UseCase|StreamUseCase|CompletableUseCase|SyncUseCase)<([^>]+)>',
-      ).firstMatch(content);
-      if (extendsMatch != null) {
-        useCaseType = extendsMatch.group(1)?.toLowerCase();
-        final typesStr = extendsMatch.group(2);
-        if (typesStr != null) {
-          final types = typesStr.split(',').map((e) => e.trim()).toList();
-          if (useCaseType == 'completableusecase') {
-            useCaseType = 'completable';
-            paramsType = types[0];
-            returnsType = 'void';
-          } else if (types.length >= 2) {
-            returnsType = types[0];
-            paramsType = types[1];
-            if (useCaseType == 'streamusecase') useCaseType = 'stream';
-            if (useCaseType == 'syncusecase') useCaseType = 'sync';
-            if (useCaseType == 'usecase') useCaseType = 'future';
-          }
-        }
-      }
-    }
-
-    return _UseCaseInfo(
-      className: className,
-      fieldName: fieldName,
-      paramsType: paramsType,
-      returnsType: returnsType,
-      useCaseType: useCaseType,
-    );
   }
 }
 
@@ -852,20 +913,4 @@ class _BoolField {
   final String name;
   final String doc;
   _BoolField(this.name, this.doc);
-}
-
-class _UseCaseInfo {
-  final String className;
-  final String fieldName;
-  final String? paramsType;
-  final String? returnsType;
-  final String? useCaseType;
-
-  _UseCaseInfo({
-    required this.className,
-    required this.fieldName,
-    this.paramsType,
-    this.returnsType,
-    this.useCaseType,
-  });
 }

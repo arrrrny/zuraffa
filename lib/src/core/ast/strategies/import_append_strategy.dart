@@ -68,4 +68,29 @@ class ImportAppendStrategy implements AppendStrategy {
     }
     return '$importDirective\n$source';
   }
+
+  @override
+  AppendResult undo(AppendRequest request) {
+    if (!canHandle(request)) {
+      return AppendResult(
+        source: request.source,
+        changed: false,
+        message: 'Request not supported',
+      );
+    }
+    final importDirective = "import '${request.importPath!}';";
+    if (request.source.contains(importDirective)) {
+      final updated = request.source.replaceFirst(importDirective, '').trim();
+      return AppendResult(
+        source: updated,
+        changed: true,
+        message: 'Import removed',
+      );
+    }
+    return AppendResult(
+      source: request.source,
+      changed: false,
+      message: 'Import not found',
+    );
+  }
 }

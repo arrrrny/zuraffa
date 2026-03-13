@@ -4,6 +4,7 @@ import 'package:path/path.dart' as path;
 
 import '../../../core/constants/known_types.dart';
 import '../../../models/generator_config.dart';
+import '../../../models/parsed_usecase_info.dart';
 import '../../../utils/string_utils.dart';
 
 class CommonPatterns {
@@ -98,11 +99,113 @@ class CommonPatterns {
             return '$prefix/${domainSegment}entities/enums/index.dart';
           }
 
-          // 5. Fallback: assume it's an enum if not found
-          return '$prefix/${domainSegment}entities/enums/index.dart';
+          return '$prefix/${domainSegment}entities/$entitySnake/$entitySnake.dart';
         })
         .toSet()
         .toList();
+  }
+
+  static ParsedUseCaseInfo parseUseCaseInfo(
+    String u,
+    GeneratorConfig config,
+    String outputDir,
+  ) {
+    final className = u.endsWith('UseCase') ? u : '${u}UseCase';
+    final fieldName = StringUtils.pascalToCamel(
+      className.replaceAll('UseCase', ''),
+    );
+    final usecaseSnake = StringUtils.camelToSnake(
+      className.replaceAll('UseCase', ''),
+    );
+
+    // Try to find the file and parse params/returns
+    String? paramsType;
+    String? returnsType;
+    String? useCaseType;
+
+    final usecaseDomain = findUseCaseDomain(
+      usecaseSnake,
+      config.effectiveDomain,
+      outputDir,
+    );
+    final filePath = path.join(
+      outputDir,
+      'domain',
+      'usecases',
+      usecaseDomain,
+      '${usecaseSnake}_usecase.dart',
+    );
+    if (File(filePath).existsSync()) {
+      final content = File(filePath).readAsStringSync();
+      final extendsMatch = RegExp(
+        r'extends (UseCase|StreamUseCase|CompletableUseCase|SyncUseCase)<([^>]+)>',
+      ).firstMatch(content);
+      if (extendsMatch != null) {
+        useCaseType = extendsMatch.group(1)?.toLowerCase();
+        final typesStr = extendsMatch.group(2);
+        if (typesStr != null) {
+          final types = typesStr.split(',').map((e) => e.trim()).toList();
+          if (useCaseType == 'completableusecase') {
+            useCaseType = 'completable';
+            paramsType = types[0];
+            returnsType = 'void';
+          } else if (types.length >= 2) {
+            returnsType = types[0];
+            paramsType = types[1];
+            if (useCaseType == 'streamusecase') useCaseType = 'stream';
+            if (useCaseType == 'syncusecase') useCaseType = 'sync';
+            if (useCaseType == 'usecase') useCaseType = 'future';
+          }
+        }
+      }
+    }
+
+    return ParsedUseCaseInfo(
+      className: className,
+      fieldName: fieldName,
+      paramsType: paramsType,
+      returnsType: returnsType,
+      useCaseType: useCaseType,
+    );
+  }
+
+  static String findUseCaseDomain(
+    String usecaseSnake,
+    String defaultDomain,
+    String outputDir,
+  ) {
+    final usecasesDir = Directory(path.join(outputDir, 'domain', 'usecases'));
+    if (usecasesDir.existsSync()) {
+      for (final dir in usecasesDir.listSync()) {
+        if (dir is Directory) {
+          final useCaseFile = File(
+            path.join(dir.path, '${usecaseSnake}_usecase.dart'),
+          );
+          if (useCaseFile.existsSync()) {
+            return path.basename(dir.path);
+          }
+        }
+      }
+    }
+    // Try to find if it is an entity-based usecase
+    final possiblePrefixes = [
+      'get_',
+      'create_',
+      'update_',
+      'delete_',
+      'watch_',
+    ];
+    for (final prefix in possiblePrefixes) {
+      if (usecaseSnake.startsWith(prefix)) {
+        final entitySnake = usecaseSnake
+            .replaceFirst(prefix, '')
+            .replaceFirst('_list', '');
+        return entitySnake;
+      }
+    }
+
+    // Fallback to the default domain if not found
+    return defaultDomain;
   }
 
   static List<String> _extractBaseTypes(String type) {

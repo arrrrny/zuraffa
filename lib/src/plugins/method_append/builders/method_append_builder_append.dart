@@ -29,17 +29,19 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     final serviceExists = File(servicePath).existsSync();
 
     if (!serviceExists) {
-      await _createService(
-        config,
-        servicePath,
-        serviceName,
-        methodName,
-        returnRef,
-        paramsType,
-      );
-      updatedFiles.add(
-        GeneratedFile(path: servicePath, type: 'service', action: 'created'),
-      );
+      if (!config.revert) {
+        await _createService(
+          config,
+          servicePath,
+          serviceName,
+          methodName,
+          returnRef,
+          paramsType,
+        );
+        updatedFiles.add(
+          GeneratedFile(path: servicePath, type: 'service', action: 'created'),
+        );
+      }
     } else {
       final result = await _appendToInterface(
         config,
@@ -90,7 +92,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         } else {
           warnings.add('Failed to append to ${serviceSnake}_provider.dart');
         }
-      } else {
+      } else if (!config.revert) {
         await _createProvider(
           config,
           providerPath,
@@ -147,20 +149,23 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       force: config.force,
     );
 
-    final result = appendExecutor.execute(request);
+    final result = config.revert
+        ? appendExecutor.undo(request)
+        : appendExecutor.execute(request);
+
     if (result.changed) {
       await FileUtils.writeFile(
         filePath,
         result.source,
         'append',
-        force: options.force,
+        force: true,
         dryRun: options.dryRun,
         verbose: options.verbose,
       );
       return GeneratedFile(
         path: filePath,
         type: 'interface',
-        action: 'updated',
+        action: config.revert ? 'reverted' : 'updated',
       );
     }
     return null;
@@ -219,7 +224,10 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       force: config.force,
     );
 
-    final result = appendExecutor.execute(request);
+    final result = config.revert
+        ? appendExecutor.undo(request)
+        : appendExecutor.execute(request);
+
     if (result.changed) {
       await FileUtils.writeFile(
         filePath,
@@ -229,7 +237,11 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         dryRun: options.dryRun,
         verbose: options.verbose,
       );
-      return GeneratedFile(path: filePath, type: 'provider', action: 'updated');
+      return GeneratedFile(
+        path: filePath,
+        type: 'provider',
+        action: config.revert ? 'reverted' : 'updated',
+      );
     }
     return null;
   }
@@ -284,7 +296,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     if (!file.existsSync()) return null;
 
     var source = await file.readAsString();
-    source = await _addMissingImports(config, source, filePath);
+    source = await _addMissingImports(config, source, filePath, isMock: true);
 
     final returns = config.returnsType ?? 'void';
     final baseReturns = returns.replaceAll('?', '');
@@ -338,7 +350,10 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       force: config.force,
     );
 
-    final result = appendExecutor.execute(request);
+    final result = config.revert
+        ? appendExecutor.undo(request)
+        : appendExecutor.execute(request);
+
     if (result.changed) {
       await FileUtils.writeFile(
         filePath,
@@ -351,7 +366,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       return GeneratedFile(
         path: filePath,
         type: 'datasource',
-        action: 'updated',
+        action: config.revert ? 'reverted' : 'updated',
       );
     }
     return null;
@@ -373,6 +388,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       returnType,
       paramsType,
       'Implement $methodName',
+      isMock: filePath.contains('_mock_provider.dart'),
     );
   }
 
@@ -383,13 +399,14 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     String methodName,
     Reference returnType,
     String paramsType,
-    String errorMessage,
-  ) async {
+    String errorMessage, {
+    bool isMock = false,
+  }) async {
     final file = File(filePath);
     if (!file.existsSync()) return null;
 
     var source = await file.readAsString();
-    source = await _addMissingImports(config, source, filePath);
+    source = await _addMissingImports(config, source, filePath, isMock: isMock);
 
     final isStream = config.useCaseType == 'stream';
     final isSync = config.useCaseType == 'sync';
@@ -425,7 +442,10 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       force: config.force,
     );
 
-    final result = appendExecutor.execute(request);
+    final result = config.revert
+        ? appendExecutor.undo(request)
+        : appendExecutor.execute(request);
+
     if (result.changed) {
       await FileUtils.writeFile(
         filePath,
@@ -438,7 +458,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       return GeneratedFile(
         path: filePath,
         type: 'datasource',
-        action: 'updated',
+        action: config.revert ? 'reverted' : 'updated',
       );
     }
     return null;

@@ -83,19 +83,37 @@ extension ControllerPluginUtils on ControllerPlugin {
 
     if (config.isCustomUseCase) {
       final types = <String>[];
-      if (config.returnsType != null) {
-        types.add(config.returnsType!);
-      }
-      if (config.paramsType != null) {
-        types.add(config.paramsType!);
+      if (config.isOrchestrator) {
+        for (final usecase in config.usecases) {
+          final info = CommonPatterns.parseUseCaseInfo(
+            usecase,
+            config,
+            outputDir,
+          );
+          if (info.returnsType != null) {
+            types.add(info.returnsType!);
+          }
+          if (info.paramsType != null) {
+            types.add(info.paramsType!);
+          }
+        }
+      } else {
+        if (config.returnsType != null) {
+          types.add(config.returnsType!);
+        }
+        if (config.paramsType != null) {
+          types.add(config.paramsType!);
+        }
       }
 
-      final entityImports = CommonPatterns.entityImports(
-        types,
-        config,
-        depth: 3,
-      );
-      imports.addAll(entityImports);
+      if (types.isNotEmpty) {
+        final entityImports = CommonPatterns.entityImports(
+          types,
+          config,
+          depth: 3,
+        );
+        imports.addAll(entityImports);
+      }
     } else if (config.methods.any(
       (m) =>
           m == 'create' || m == 'update' || m == 'getList' || m == 'watchList',

@@ -117,4 +117,36 @@ $methodSource
     final returnType = method.returnType?.toSource() ?? '';
     return '${method.name.lexeme}::$returnType$params';
   }
+
+  @override
+  AppendResult undo(AppendRequest request) {
+    if (!canHandle(request)) {
+      return AppendResult(
+        source: request.source,
+        changed: false,
+        message: 'Request not supported',
+      );
+    }
+    final newMethod = _parseMethod(request.memberSource!);
+    if (newMethod == null) {
+      return AppendResult(
+        source: request.source,
+        changed: false,
+        message: 'Invalid method source',
+      );
+    }
+    final methodName = newMethod.name.lexeme;
+    final updated = helper.removeMethodFromExtension(
+      source: request.source,
+      extensionName: request.className!,
+      methodName: methodName,
+    );
+    return AppendResult(
+      source: updated,
+      changed: updated != request.source,
+      message: updated != request.source
+          ? 'Extension method removed'
+          : 'Method not found',
+    );
+  }
 }

@@ -34,6 +34,10 @@ class MockDataSourceBuilder {
         ? config.repo!.replaceAll('Repository', '')
         : config.name;
     final entitySnake = StringUtils.camelToSnake(entityName);
+    final filePath =
+        '$outputDir/data/datasources/$entitySnake/${entitySnake}_mock_datasource.dart';
+    final file = File(filePath);
+    final fileExists = file.existsSync();
 
     final directives = [
       Directive.import('dart:async'),
@@ -155,6 +159,64 @@ class MockDataSourceBuilder {
       );
     }
 
+    if (config.appendToExisting && fileExists) {
+      final existing = await file.readAsString();
+      var updated = existing;
+
+      // Add missing imports
+      final entities = <String>{};
+      if (config.paramsType != null && config.paramsType != 'NoParams') {
+        entities.addAll(EntityUtils.extractEntityTypes(config.paramsType!));
+      }
+      if (config.returnsType != null && config.returnsType != 'void') {
+        entities.addAll(EntityUtils.extractEntityTypes(config.returnsType!));
+      }
+      final targetEntity = config.isCustomUseCase && config.returnsType != null
+          ? EntityUtils.extractEntityTypes(config.returnsType!).firstOrNull ??
+                config.name
+          : config.name;
+      entities.add('${targetEntity}MockData');
+
+      for (final entityName in entities) {
+        final entitySnake = StringUtils.camelToSnake(
+          entityName.replaceAll('MockData', ''),
+        );
+        final isMockData = entityName.endsWith('MockData');
+        final importPath = isMockData
+            ? '../../mock/${entitySnake}_mock_data.dart'
+            : '../../../domain/entities/$entitySnake/$entitySnake.dart';
+
+        if (!updated.contains(importPath)) {
+          final importRequest = AppendRequest.import(
+            source: updated,
+            importPath: importPath,
+          );
+          updated = appendExecutor.execute(importRequest).source;
+        }
+      }
+
+      for (final method in methods) {
+        final methodSource = specLibrary.emitSpec(method);
+        final request = AppendRequest.method(
+          source: updated,
+          className: '${entityName}MockDataSource',
+          memberSource: methodSource,
+        );
+        final result = config.revert
+            ? appendExecutor.undo(request)
+            : appendExecutor.execute(request);
+        updated = result.source;
+      }
+      return FileUtils.writeFile(
+        filePath,
+        updated,
+        'mock_datasource',
+        force: true,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+      );
+    }
+
     methods.addAll(_generateMockDataSourceMethods(config));
 
     final clazz = Class(
@@ -168,31 +230,12 @@ class MockDataSourceBuilder {
         ..methods.addAll(methods),
     );
 
-    final filePath =
-        '$outputDir/data/datasources/$entitySnake/${entitySnake}_mock_datasource.dart';
-
-    if (config.appendToExisting && File(filePath).existsSync()) {
-      final existing = await File(filePath).readAsString();
-      var updated = existing;
-      for (final method in methods) {
-        final methodSource = specLibrary.emitSpec(method);
-        final result = appendExecutor.execute(
-          AppendRequest.method(
-            source: updated,
-            className: '${entityName}MockDataSource',
-            memberSource: methodSource,
-          ),
-        );
-        updated = result.source;
-      }
-      return FileUtils.writeFile(
+    if (config.revert && !config.appendToExisting) {
+      return FileUtils.deleteFile(
         filePath,
-        updated,
         'mock_datasource',
-        force: true,
         dryRun: options.dryRun,
         verbose: options.verbose,
-        revert: config.revert,
       );
     }
 

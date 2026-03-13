@@ -78,8 +78,4 @@ class MockEntityHelper {
 
     return imports.toSet().toList();
   }
-
-  bool _isEnum(String typeName, String outputDir) {
-    return EntityAnalyzer.isEnum(typeName, outputDir);
-  }
 }

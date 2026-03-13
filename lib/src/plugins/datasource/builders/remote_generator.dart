@@ -119,6 +119,28 @@ class RemoteDataSourceBuilder {
             ),
         ),
       );
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'dispose'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Future<void>')
+            ..modifier = MethodModifier.async
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer('logger').property('info').call([
+                    literalString('Disposing $dataSourceName'),
+                  ]).statement,
+                )
+                ..statements.add(
+                  refer('logger').property('info').call([
+                    literalString('$dataSourceName disposed'),
+                  ]).statement,
+                ),
+            ),
+        ),
+      );
     }
 
     final gqlImports = <String>[];

@@ -224,7 +224,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       diPath,
       content,
       'di_datasource',
-      force: options.force,
+      force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
@@ -328,7 +328,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       diPath,
       content,
       'di_datasource',
-      force: options.force,
+      force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
@@ -372,7 +372,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       diPath,
       content,
       'di_datasource',
-      force: options.force,
+      force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
@@ -474,7 +474,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       diPath,
       content,
       'di_repository',
-      force: options.force,
+      force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
@@ -545,7 +545,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       diPath,
       content,
       'di_service',
-      force: options.force,
+      force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
@@ -553,26 +553,14 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }
 
   Future<GeneratedFile?> _generateMockProviderDI(GeneratorConfig config) async {
-    final serviceName = config.effectiveService;
     final providerName = config.effectiveProvider;
     final providerSnake = config.providerSnake;
-    final serviceSnake = config.serviceSnake;
-    if (serviceName == null ||
-        providerName == null ||
-        providerSnake == null ||
-        serviceSnake == null) {
+    if (providerName == null || providerSnake == null) {
       return null;
     }
-    final mockProviderName = providerName.replaceAll(
-      'Provider',
-      'MockProvider',
-    );
+    final mockProviderName = '${providerName}MockProvider';
     final fileName = '${providerSnake}_mock_provider_di.dart';
     final diPath = path.join(outputDir, 'di', 'providers', fileName);
-
-    if (File(diPath).existsSync() && !options.force) {
-      return null;
-    }
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$mockProviderName',
@@ -598,7 +586,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       diPath,
       content,
       'di_mock_provider',
-      force: options.force,
+      force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
@@ -606,22 +594,13 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }
 
   Future<GeneratedFile?> _generateProviderDI(GeneratorConfig config) async {
-    final serviceName = config.effectiveService;
     final providerName = config.effectiveProvider;
     final providerSnake = config.providerSnake;
-    final serviceSnake = config.serviceSnake;
-    if (serviceName == null ||
-        providerName == null ||
-        providerSnake == null ||
-        serviceSnake == null) {
+    if (providerName == null || providerSnake == null) {
       return null;
     }
     final fileName = '${providerSnake}_provider_di.dart';
     final diPath = path.join(outputDir, 'di', 'providers', fileName);
-
-    if (File(diPath).existsSync() && !options.force) {
-      return null;
-    }
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$providerName',
@@ -647,7 +626,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       diPath,
       content,
       'di_provider',
-      force: options.force,
+      force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
@@ -726,7 +705,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       diPath,
       content,
       'di_usecase',
-      force: options.force,
+      force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
@@ -809,7 +788,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           diPath,
           content,
           'di_usecase',
-          force: options.force,
+          force: true,
           dryRun: options.dryRun,
           verbose: options.verbose,
           revert: config.revert,
@@ -881,7 +860,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       diPath,
       content,
       'di_usecase',
-      force: options.force,
+      force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
@@ -1205,7 +1184,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       serviceLocatorPath,
       content,
       'di_service_locator',
-      force: options.force,
+      force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: false, // Never revert shared file

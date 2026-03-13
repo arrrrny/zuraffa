@@ -48,61 +48,6 @@ class MethodAppendBuilder {
        specLibrary = specLibrary ?? const SpecLibrary();
 
   Future<MethodAppendResult> appendMethod(GeneratorConfig config) async {
-    if (config.revert) {
-      final files = <GeneratedFile>[];
-      final serviceName = config.service;
-      if (serviceName != null) {
-        final baseName = serviceName.endsWith('Service')
-            ? serviceName.substring(0, serviceName.length - 7)
-            : serviceName;
-        final serviceSnake = StringUtils.camelToSnake(baseName);
-        final servicePath = path.join(
-          outputDir,
-          'domain',
-          'services',
-          '${serviceSnake}_service.dart',
-        );
-        if (File(servicePath).existsSync()) {
-          files.add(
-            await FileUtils.deleteFile(
-              servicePath,
-              'service',
-              dryRun: options.dryRun,
-              verbose: options.verbose,
-            ),
-          );
-        }
-      }
-
-      final repoBase = config.repo;
-      if (repoBase != null) {
-        final repoName = repoBase.endsWith('Repository')
-            ? repoBase.replaceAll('Repository', '')
-            : repoBase;
-        final repoSnake = StringUtils.camelToSnake(repoName);
-        final repoPath = path.join(
-          outputDir,
-          'domain',
-          'repositories',
-          '${repoSnake}_repository.dart',
-        );
-        if (File(repoPath).existsSync()) {
-          files.add(
-            await FileUtils.deleteFile(
-              repoPath,
-              'repository',
-              dryRun: options.dryRun,
-              verbose: options.verbose,
-            ),
-          );
-        }
-      }
-
-      return MethodAppendResult(files, [
-        'Note: Revert only deletes files created by append, it does not undo code appends to existing files.',
-      ]);
-    }
-
     final updatedFiles = <GeneratedFile>[];
     final warnings = <String>[];
 

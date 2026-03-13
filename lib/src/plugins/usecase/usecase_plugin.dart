@@ -67,6 +67,10 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
+    if (!config.generateUseCase && !config.revert) {
+      return [];
+    }
+
     if (config.outputDir != outputDir ||
         config.dryRun != options.dryRun ||
         config.force != options.force ||

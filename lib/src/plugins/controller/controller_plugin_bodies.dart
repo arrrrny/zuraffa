@@ -12,11 +12,19 @@ extension ControllerPluginBodies on ControllerPlugin {
       '_presenter',
     ).property(methodName).call(_callArgsExpressions(args)).awaited;
 
+    final loadingField = config.isOrchestrator
+        ? 'is${StringUtils.capitalize(methodName)}Loading'
+        : 'isLoading';
+
+    final responseField = config.isOrchestrator
+        ? '${methodName}Response'
+        : 'data';
+
     return Block(
       (b) => b
         ..statements.add(_tokenStatement())
         ..statements.add(
-          _updateStateStatement({'isLoading': literalBool(true)}),
+          _updateStateStatement({loadingField: literalBool(true)}),
         )
         ..statements.add(declareFinal('result').assign(resultCall).statement)
         ..statements.add(
@@ -27,8 +35,8 @@ extension ControllerPluginBodies on ControllerPlugin {
               (bb) => bb
                 ..statements.add(
                   _updateStateStatement({
-                    'isLoading': literalBool(false),
-                    'data': refer('data'),
+                    loadingField: literalBool(false),
+                    responseField: refer('data'),
                   }),
                 ),
             ),
@@ -37,7 +45,7 @@ extension ControllerPluginBodies on ControllerPlugin {
               (bb) => bb
                 ..statements.add(
                   _updateStateStatement({
-                    'isLoading': literalBool(false),
+                    loadingField: literalBool(false),
                     'error': refer('failure'),
                   }),
                 ),
@@ -85,11 +93,19 @@ extension ControllerPluginBodies on ControllerPlugin {
       '_presenter',
     ).property(methodName).call(_callArgsExpressions(args));
 
+    final loadingField = config.isOrchestrator
+        ? 'is${StringUtils.capitalize(methodName)}Loading'
+        : 'isLoading';
+
+    final responseField = config.isOrchestrator
+        ? '${methodName}Response'
+        : 'data';
+
     return Block(
       (b) => b
         ..statements.add(_tokenStatement())
         ..statements.add(
-          _updateStateStatement({'isLoading': literalBool(true)}),
+          _updateStateStatement({loadingField: literalBool(true)}),
         )
         ..statements.add(
           streamCall.property('listen').call([
@@ -103,8 +119,8 @@ extension ControllerPluginBodies on ControllerPlugin {
                     (bb) => bb
                       ..statements.add(
                         _updateStateStatement({
-                          'isLoading': literalBool(false),
-                          'data': refer('data'),
+                          loadingField: literalBool(false),
+                          responseField: refer('data'),
                         }),
                       ),
                   ),
@@ -113,7 +129,7 @@ extension ControllerPluginBodies on ControllerPlugin {
                     (bb) => bb
                       ..statements.add(
                         _updateStateStatement({
-                          'isLoading': literalBool(false),
+                          loadingField: literalBool(false),
                           'error': refer('failure'),
                         }),
                       ),
@@ -121,6 +137,9 @@ extension ControllerPluginBodies on ControllerPlugin {
                 ),
             ).closure,
           ]).statement,
+        )
+        ..statements.add(
+          _updateStateStatement({loadingField: literalBool(false)}),
         ),
     );
   }

@@ -63,7 +63,10 @@ class ProviderBuilder {
       fileName,
     );
 
-    if (config.revert) {
+    final file = File(filePath);
+    final fileExists = file.existsSync();
+
+    if (config.revert && !config.appendToExisting) {
       return FileUtils.deleteFile(
         filePath,
         'provider',
@@ -167,8 +170,7 @@ class ProviderBuilder {
         ..methods.addAll(methods),
     );
 
-    final file = File(filePath);
-    if (config.appendToExisting && file.existsSync()) {
+    if (config.appendToExisting && fileExists) {
       var content = await file.readAsString();
       final helper = const AstHelper();
 
@@ -187,7 +189,13 @@ class ProviderBuilder {
       }
 
       final methodSource = method.accept(emitter).toString();
-      if (config.force) {
+      if (config.revert) {
+        content = helper.removeMethodFromClass(
+          source: content,
+          className: providerName,
+          methodName: method.name!,
+        );
+      } else if (config.force) {
         // Check if method exists to decide between replace and add
         if (content.contains(' ${method.name}(')) {
           content = helper.replaceMethodInClass(

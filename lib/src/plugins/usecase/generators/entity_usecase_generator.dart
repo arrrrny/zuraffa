@@ -82,7 +82,6 @@ class EntityUseCaseGenerator {
     String method,
   ) async {
     final entityName = config.name;
-    final entitySnake = config.nameSnake;
     final repoName = config.effectiveRepos.first;
     String className;
     TypeReference baseClass;

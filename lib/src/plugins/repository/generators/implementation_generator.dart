@@ -186,6 +186,7 @@ class RepositoryImplementationGenerator {
             ..returns = refer('Stream<bool>')
             ..type = MethodType.getter
             ..annotations.add(refer('override'))
+            ..lambda = true
             ..body = refer(targetDataSource).property('isInitialized').code,
         ),
       );

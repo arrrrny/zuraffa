@@ -106,4 +106,34 @@ $fieldSource
     }
     return fields.first;
   }
+
+  @override
+  AppendResult undo(AppendRequest request) {
+    if (!canHandle(request)) {
+      return AppendResult(
+        source: request.source,
+        changed: false,
+        message: 'Request not supported',
+      );
+    }
+    final newField = _parseField(request.memberSource!);
+    if (newField == null) {
+      return AppendResult(
+        source: request.source,
+        changed: false,
+        message: 'Invalid field source',
+      );
+    }
+    final fieldName = newField.name.lexeme;
+    final updated = helper.removeFieldFromClass(
+      source: request.source,
+      className: request.className!,
+      fieldName: fieldName,
+    );
+    return AppendResult(
+      source: updated,
+      changed: updated != request.source,
+      message: updated != request.source ? 'Field removed' : 'Field not found',
+    );
+  }
 }

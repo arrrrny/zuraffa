@@ -59,6 +59,11 @@ class CreateDiCapability implements ZuraffaCapability {
         'description': 'Enable verbose logging',
         'default': false,
       },
+      'revert': {
+        'type': 'boolean',
+        'description': 'Revert generated files',
+        'default': false,
+      },
     },
     'required': ['name'],
   };
@@ -112,6 +117,7 @@ class CreateDiCapability implements ZuraffaCapability {
     final useMock = args['useMock'] ?? false;
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
+    final revert = args['revert'] ?? false;
 
     final config = GeneratorConfig(
       name: name,
@@ -121,12 +127,15 @@ class CreateDiCapability implements ZuraffaCapability {
       repo: repo,
       generateDi: true,
       useMockInDi: useMock,
-      generateData:
-          useMock, // Needed to trigger mock datasource/provider generation
-      generateRepository: useMock, // Needed to trigger repository DI generation
+      generateUseCase: true,
+      generateData: repo != null || service != null,
+      generateRepository: repo != null,
+      generateDataSource: repo != null,
+      generateService: service != null,
       dryRun: dryRun,
       force: force,
       verbose: verbose,
+      revert: revert,
     );
 
     return await plugin.generate(config);

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
@@ -11,6 +10,7 @@ import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import '../../models/parsed_usecase_info.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
 import 'builders/presenter_class_builder.dart';
@@ -124,74 +124,19 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         .toList();
   }
 
-  List<_UseCaseInfo> _buildUseCaseInfo(
+  List<ParsedUseCaseInfo> _buildUseCaseInfo(
     GeneratorConfig config,
     String entityName,
   ) {
     if (config.isOrchestrator && !config.generateUseCase) {
       return config.usecases.map((u) {
-        final className = u.endsWith('UseCase') ? u : '${u}UseCase';
-        final fieldName = StringUtils.pascalToCamel(
-          className.replaceAll('UseCase', ''),
-        );
-        final usecaseSnake = StringUtils.camelToSnake(
-          className.replaceAll('UseCase', ''),
-        );
-
-        // Try to find the file and parse params/returns
-        String? paramsType;
-        String? returnsType;
-        String? useCaseType;
-
-        final usecaseDomain = _findUseCaseDomain(
-          usecaseSnake,
-          config.effectiveDomain,
-        );
-        final filePath = path.join(
-          outputDir,
-          'domain',
-          'usecases',
-          usecaseDomain,
-          '${usecaseSnake}_usecase.dart',
-        );
-        if (File(filePath).existsSync()) {
-          final content = File(filePath).readAsStringSync();
-          final extendsMatch = RegExp(
-            r'extends (UseCase|StreamUseCase|CompletableUseCase|SyncUseCase)<([^>]+)>',
-          ).firstMatch(content);
-          if (extendsMatch != null) {
-            useCaseType = extendsMatch.group(1)?.toLowerCase();
-            final typesStr = extendsMatch.group(2);
-            if (typesStr != null) {
-              final types = typesStr.split(',').map((e) => e.trim()).toList();
-              if (useCaseType == 'completableusecase') {
-                useCaseType = 'completable';
-                paramsType = types[0];
-                returnsType = 'void';
-              } else if (types.length >= 2) {
-                returnsType = types[0];
-                paramsType = types[1];
-                if (useCaseType == 'streamusecase') useCaseType = 'stream';
-                if (useCaseType == 'syncusecase') useCaseType = 'sync';
-                if (useCaseType == 'usecase') useCaseType = 'future';
-              }
-            }
-          }
-        }
-
-        return _UseCaseInfo(
-          className: className,
-          fieldName: fieldName,
-          paramsType: paramsType,
-          returnsType: returnsType,
-          useCaseType: useCaseType,
-        );
+        return CommonPatterns.parseUseCaseInfo(u, config, outputDir);
       }).toList();
     }
 
     if (config.isCustomUseCase) {
       return [
-        _UseCaseInfo(
+        ParsedUseCaseInfo(
           className: '${config.name}UseCase',
           fieldName: config.nameCamel,
         ),
@@ -202,7 +147,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         .toList();
   }
 
-  List<Field> _buildUseCaseFields(List<_UseCaseInfo> useCases) {
+  List<Field> _buildUseCaseFields(List<ParsedUseCaseInfo> useCases) {
     return useCases
         .map(
           (info) => Field(
@@ -216,52 +161,55 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         .toList();
   }
 
-  _UseCaseInfo _getUseCaseInfo(String method, String entityName) {
+  ParsedUseCaseInfo _getUseCaseInfo(String method, String entityName) {
     switch (method) {
       case 'get':
-        return _UseCaseInfo(
+        return ParsedUseCaseInfo(
           className: 'Get${entityName}UseCase',
           fieldName: 'get$entityName',
         );
       case 'list':
       case 'getList':
-        return _UseCaseInfo(
+        return ParsedUseCaseInfo(
           className: 'Get${entityName}ListUseCase',
           fieldName: 'get${entityName}List',
         );
       case 'create':
-        return _UseCaseInfo(
+        return ParsedUseCaseInfo(
           className: 'Create${entityName}UseCase',
           fieldName: 'create$entityName',
         );
       case 'update':
-        return _UseCaseInfo(
+        return ParsedUseCaseInfo(
           className: 'Update${entityName}UseCase',
           fieldName: 'update$entityName',
         );
       case 'delete':
-        return _UseCaseInfo(
+        return ParsedUseCaseInfo(
           className: 'Delete${entityName}UseCase',
           fieldName: 'delete$entityName',
         );
       case 'watch':
-        return _UseCaseInfo(
+        return ParsedUseCaseInfo(
           className: 'Watch${entityName}UseCase',
           fieldName: 'watch$entityName',
         );
       case 'watchList':
-        return _UseCaseInfo(
+        return ParsedUseCaseInfo(
           className: 'Watch${entityName}ListUseCase',
           fieldName: 'watch${entityName}List',
         );
       default:
-        throw ArgumentError('Unsupported method: $method');
+        return ParsedUseCaseInfo(
+          className: '${StringUtils.capitalize(method)}${entityName}UseCase',
+          fieldName: '$method$entityName',
+        );
     }
   }
 
   Constructor _buildConstructor(
     GeneratorConfig config,
-    List<_UseCaseInfo> useCases,
+    List<ParsedUseCaseInfo> useCases,
     bool useDi,
   ) {
     final registrations = <Code>[];
@@ -323,7 +271,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   List<Method> _buildMethods(
     GeneratorConfig config,
-    List<_UseCaseInfo> useCases,
+    List<ParsedUseCaseInfo> useCases,
     String entityName,
     String entityCamel,
   ) {
@@ -394,7 +342,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     return methods;
   }
 
-  Method _buildCustomMethod(GeneratorConfig config, _UseCaseInfo info) {
+  Method _buildCustomMethod(GeneratorConfig config, ParsedUseCaseInfo info) {
     final returns = info.returnsType ?? config.returnsType ?? 'void';
     final params = info.paramsType ?? config.paramsType ?? 'NoParams';
     final isStream = (info.useCaseType ?? config.useCaseType) == 'stream';
@@ -463,7 +411,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   Method _buildGetMethod(
     GeneratorConfig config,
-    _UseCaseInfo info,
+    ParsedUseCaseInfo info,
     String entityName,
   ) {
     final methodName = info.fieldName;
@@ -506,7 +454,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     );
   }
 
-  Method _buildGetListMethod(_UseCaseInfo info, String entityName) {
+  Method _buildGetListMethod(ParsedUseCaseInfo info, String entityName) {
     final callExpression = refer('_${info.fieldName}')
         .property('call')
         .call([refer('params')], {'cancelToken': refer('cancelToken')});
@@ -533,7 +481,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }
 
   Method _buildCreateMethod(
-    _UseCaseInfo info,
+    ParsedUseCaseInfo info,
     String entityName,
     String entityCamel,
   ) {
@@ -561,7 +509,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   Method _buildUpdateMethod(
     GeneratorConfig config,
-    _UseCaseInfo info,
+    ParsedUseCaseInfo info,
     String entityName,
   ) {
     // Use Patch for entity-based updates by default
@@ -596,7 +544,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     );
   }
 
-  Method _buildDeleteMethod(GeneratorConfig config, _UseCaseInfo info) {
+  Method _buildDeleteMethod(GeneratorConfig config, ParsedUseCaseInfo info) {
     final deleteParams = refer(
       'DeleteParams<${config.idFieldType}>',
     ).call([], {'id': refer(config.idField)});
@@ -624,7 +572,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   Method _buildWatchMethod(
     GeneratorConfig config,
-    _UseCaseInfo info,
+    ParsedUseCaseInfo info,
     String entityName,
   ) {
     final methodName = info.fieldName;
@@ -667,7 +615,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     );
   }
 
-  Method _buildWatchListMethod(_UseCaseInfo info, String entityName) {
+  Method _buildWatchListMethod(ParsedUseCaseInfo info, String entityName) {
     final callExpression = refer('_${info.fieldName}')
         .property('call')
         .call([refer('params')], {'cancelToken': refer('cancelToken')});
@@ -703,7 +651,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   List<String> _buildImports(
     GeneratorConfig config,
-    List<_UseCaseInfo> useCases,
+    List<ParsedUseCaseInfo> useCases,
     String domainSnake,
     bool useDi,
   ) {
@@ -745,7 +693,11 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       final usecaseSnake = StringUtils.camelToSnake(
         info.className.replaceAll('UseCase', ''),
       );
-      final usecaseDomain = _findUseCaseDomain(usecaseSnake, domainSnake);
+      final usecaseDomain = CommonPatterns.findUseCaseDomain(
+        usecaseSnake,
+        domainSnake,
+        outputDir,
+      );
       imports.add(
         '../../../domain/usecases/$usecaseDomain/${usecaseSnake}_usecase.dart',
       );
@@ -763,57 +715,6 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       }
     }
 
-    return imports.toSet().toList();
+    return imports.toList();
   }
-
-  String _findUseCaseDomain(String usecaseSnake, String defaultDomain) {
-    final usecasesDir = Directory(path.join(outputDir, 'domain', 'usecases'));
-    if (usecasesDir.existsSync()) {
-      for (final dir in usecasesDir.listSync()) {
-        if (dir is Directory) {
-          final useCaseFile = File(
-            path.join(dir.path, '${usecaseSnake}_usecase.dart'),
-          );
-          if (useCaseFile.existsSync()) {
-            return path.basename(dir.path);
-          }
-        }
-      }
-    }
-    // Try to find if it is an entity-based usecase
-    final possiblePrefixes = [
-      'get_',
-      'create_',
-      'update_',
-      'delete_',
-      'watch_',
-    ];
-    for (final prefix in possiblePrefixes) {
-      if (usecaseSnake.startsWith(prefix)) {
-        final entitySnake = usecaseSnake
-            .replaceFirst(prefix, '')
-            .replaceFirst('_list', '');
-        return entitySnake;
-      }
-    }
-
-    // Fallback to the default domain if not found
-    return defaultDomain;
-  }
-}
-
-class _UseCaseInfo {
-  final String className;
-  final String fieldName;
-  final String? paramsType;
-  final String? returnsType;
-  final String? useCaseType;
-
-  _UseCaseInfo({
-    required this.className,
-    required this.fieldName,
-    this.paramsType,
-    this.returnsType,
-    this.useCaseType,
-  });
 }

@@ -59,6 +59,7 @@ class ModularDiCommand extends PluginCommand {
       'dryRun': isDryRun,
       'force': isForce,
       'verbose': isVerbose,
+      'revert': isRevert,
       'outputDir': outputDir,
     });
 

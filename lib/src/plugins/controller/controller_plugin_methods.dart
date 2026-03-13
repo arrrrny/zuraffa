@@ -10,11 +10,13 @@ extension ControllerPluginMethods on ControllerPlugin {
     if (config.isCustomUseCase) {
       if (config.isOrchestrator && !config.generateUseCase) {
         return config.usecases.map((u) {
-          final className = u.endsWith('UseCase') ? u : '${u}UseCase';
-          final methodName = StringUtils.pascalToCamel(
-            className.replaceAll('UseCase', ''),
+          final info = CommonPatterns.parseUseCaseInfo(u, config, outputDir);
+          return _buildCustomMethod(
+            config,
+            info.fieldName,
+            withState,
+            info: info,
           );
-          return _buildCustomMethod(config, methodName, withState);
         }).toList();
       }
       return [_buildCustomMethod(config, config.nameCamel, withState)];
@@ -65,11 +67,13 @@ extension ControllerPluginMethods on ControllerPlugin {
   Method _buildCustomMethod(
     GeneratorConfig config,
     String methodName,
-    bool withState,
-  ) {
-    final returns = config.returnsType ?? 'void';
-    final params = config.paramsType ?? 'NoParams';
-    final isStream = config.useCaseType == 'stream';
+    bool withState, {
+    ParsedUseCaseInfo? info,
+  }) {
+    final returns = info?.returnsType ?? config.returnsType ?? 'void';
+    final params = info?.paramsType ?? config.paramsType ?? 'NoParams';
+    final useCaseType = info?.useCaseType ?? config.useCaseType;
+    final isStream = useCaseType == 'stream';
 
     final body = isStream
         ? (withState

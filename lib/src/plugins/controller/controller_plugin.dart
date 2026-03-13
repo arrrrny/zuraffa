@@ -10,6 +10,7 @@ import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import '../../models/parsed_usecase_info.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
 import 'builders/controller_class_builder.dart';

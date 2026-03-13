@@ -62,4 +62,29 @@ class ExportAppendStrategy implements AppendStrategy {
     }
     return '$exportDirective\n$source';
   }
+
+  @override
+  AppendResult undo(AppendRequest request) {
+    if (!canHandle(request)) {
+      return AppendResult(
+        source: request.source,
+        changed: false,
+        message: 'Request not supported',
+      );
+    }
+    final exportDirective = "export '${request.exportPath!}';";
+    if (request.source.contains(exportDirective)) {
+      final updated = request.source.replaceFirst(exportDirective, '').trim();
+      return AppendResult(
+        source: updated,
+        changed: true,
+        message: 'Export removed',
+      );
+    }
+    return AppendResult(
+      source: request.source,
+      changed: false,
+      message: 'Export not found',
+    );
+  }
 }
