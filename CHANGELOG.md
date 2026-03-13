@@ -9,7 +9,7 @@
 - Refactored Mock Provider naming convention to `EntityMockProvider` and unified DI registration filenames.
 
 ### Fix
-- Fixed `zfa make` command to correctly generate entity-based CRUD UseCases when the `usecase` plugin is active.
+- Fixed `zfa feature` command to correctly generate entity-based CRUD UseCases when the `usecase` plugin is active.
 - Fixed missing imports for return types and mock data when appending to existing Mock Providers or DataSources.
 - Fixed DI generation to prevent accidental deletion of existing mock DI registrations.
 - Fixed `UseCasePlugin` to correctly handle revert operations even when implicit generation flags are off.
