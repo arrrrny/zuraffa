@@ -44,7 +44,7 @@ zfa entity create -n Product \
 Now, generate the entire Clean Architecture stack for this entity:
 
 ```bash
-zfa generate Product --methods=get,getList,create,update,delete --data --vpcs --state --test
+zfa feature Product --methods=get,getList,create,update,delete --data --vpcs --state --test
 ```
 
 ### 4. Build Code

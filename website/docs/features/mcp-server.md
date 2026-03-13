@@ -115,54 +115,61 @@ The MCP server exposes Zuraffa CLI functionality as MCP tools:
 
 ### zuraffa_generate
 
-Generate Clean Architecture code for your Flutter project.
+The primary tool for generating Clean Architecture code. In Zuraffa v3, this tool intelligently maps to `zfa feature` for vertical slices or `zfa make` for granular plugin generation.
+
+**USE THIS TOOL WHEN:**
+*   **Creating new features** for existing entities.
+*   **Building CRUD operations** (get, list, create, update, delete).
+*   **Scaffolding UI** using the VPC (View-Presenter-Controller) pattern.
+*   **Adding cross-cutting concerns** like caching, DI, or mock data.
 
 **Parameters:**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `name` | string | Yes | Entity or UseCase name in PascalCase |
-| `methods` | array | No | Methods: get, getList, create, update, delete, watch, watchList |
-| `vpc` | boolean | No | Generate View, Presenter, Controller (presentation layer) |
+| `name` | string | Yes | Entity or feature name in PascalCase (e.g., "Product") |
+| `methods` | array | No | CRUD methods: get, getList, create, update, delete, watch, watchList |
+| `vpcs` | boolean | No | Generate full VPC stack (View, Presenter, Controller, State) |
 | `pc` | boolean | No | Generate Presenter + Controller only (preserve custom View) |
-| `pcs` | boolean | No | Generate Presenter + Controller + State (preserve custom View) |
-| `state` | boolean | No | Generate State object with granular loading states |
-| `data` | boolean | No | Generate data layer (DataRepository + DataSource) |
-| `datasource` | boolean | No | Generate DataSource only |
-| `init` | boolean | No | Generate initialize method for repository and datasource |
-| `id_field` | string | No | ID field name (default: id) |
-| `id_field_type` | string | No | ID field type (default: String) |
-| `query_field` | string | No | Query field name for get/watch (default: id) |
-| `query_field_type` | string | No | Query field type (default: matches id_field_type) |
-| `zorphy` | boolean | No | Use Zorphy-style typed patches |
-| `repo` | string | No | Repository to inject (enforces Single Responsibility Principle) |
-| `usecases` | array | No | UseCases to compose (orchestrator pattern) |
-| `variants` | array | No | Variants for polymorphic pattern |
-| `domain` | string | No | Domain folder for custom UseCases (required for custom) |
-| `params` | string | No | Params type for custom UseCase (default: NoParams) |
-| `returns` | string | No | Return type for custom UseCase (default: void) |
-| `type` | string | No | UseCase type: usecase, stream, background, completable |
-| `output` | string | No | Output directory (default: lib/src) |
-| `dry_run` | boolean | No | Preview without writing files |
-| `force` | boolean | No | Overwrite existing files |
-| `cache` | boolean | No | Enable caching with dual datasources |
-| `cache_policy` | string | No | Cache policy: daily, restart, ttl |
-| `cache_storage` | string | No | Local storage: hive, sqlite, shared_preferences |
-| `mock` | boolean | No | Generate mock data files |
-| `mock_data_only` | boolean | No | Generate only mock data files |
-| `use_mock` | boolean | No | Use mock datasource in DI (default: remote) |
-| `di` | boolean | No | Generate dependency injection files (get_it) |
+| `pcs` | boolean | No | Generate Presenter, Controller, and State (preserve custom View) |
+| `state` | boolean | No | Generate State class with granular loading flags |
+| `data` | boolean | No | Generate data layer (Repository + DataSource) |
+| `datasource` | boolean | No | Generate DataSource implementation only |
+| `cache` | boolean | No | Enable dual-datasource caching (Remote + Local) |
+| `mock` | boolean | No | Generate static mock data and mock data sources |
+| `di` | boolean | No | Generate GetIt dependency injection registrations |
+| `test` | boolean | No | Generate unit tests for UseCases and logic |
+| `repo` | string | No | Specific repository to inject (SRP enforcement) |
+| `domain` | string | No | Domain folder for custom UseCases (e.g., "search") |
+| `type` | string | No | UseCase type: usecase, stream, background, sync, completable |
+| `zorphy` | boolean | No | Use Zorphy-style typed patches (default: true) |
 
-**Example Usage:**
+**Example Usage (Full Feature):**
 ```json
 {
   "name": "zuraffa_generate",
   "arguments": {
     "name": "Product",
     "methods": ["get", "getList", "create"],
-    "vpc": true,
+    "vpcs": true,
     "data": true,
-    "state": true
+    "di": true,
+    "test": true
+  }
+}
+```
+
+**Example Usage (Granular Plugin):**
+```json
+{
+  "name": "zuraffa_generate",
+  "arguments": {
+    "name": "Search",
+    "domain": "search",
+    "params": "SearchRequest",
+    "returns": "Listing",
+    "type": "usecase",
+    "di": true
   }
 }
 ```
@@ -409,11 +416,11 @@ Read the contents of a specific file using its URI from `resources/list`.
 ### Generate Complete Feature with Entities
 
 ```bash
-# AI agent workflow in Claude Desktop:
+# AI agent workflow:
 1. Create enum: entity_enum(name="OrderStatus", values=["pending","shipped"])
 2. Create entity: entity_create(name="Order", fields=["customer:$Customer", "total:double"])
-3. Generate architecture: zuraffa_generate(name="Order", methods=["get","create"], data=true, vpc=true)
-4. Build: Automatic via notifications
+3. Generate architecture: zuraffa_generate(name="Order", methods=["get","create"], data=true, vpcs=true)
+4. Build: zuraffa_build()
 ```
 
 ### Iterate on Entity Design
