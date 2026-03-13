@@ -128,7 +128,7 @@ class ViewCommand extends PluginCommand {
     if (capabilityName == 'custom') {
       routeMethods = <String>[];
     } else {
-      final methodsArg = argResults['methods'] as String? ?? '';
+      final methodsArg = argResults?['methods'] as String? ?? '';
       routeMethods = methodsArg
           .split(',')
           .map((m) => m.trim())
