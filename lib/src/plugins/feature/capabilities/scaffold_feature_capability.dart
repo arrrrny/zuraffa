@@ -57,6 +57,10 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         'type': 'boolean',
         'description': 'Generate Mock data',
       },
+      'use-mock': {
+        'type': 'boolean',
+        'description': 'Use mock datasources in DI registration',
+      },
       'di': {
         'type': 'boolean',
         'description': 'Generate Dependency Injection setup',
@@ -85,6 +89,26 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         'items': {'type': 'string'},
         'description': 'List of entity methods to generate',
         'default': ['get', 'update'],
+      },
+      'id-field': {
+        'type': 'string',
+        'description': 'Name of the ID field',
+        'default': 'id',
+      },
+      'id-field-type': {
+        'type': 'string',
+        'description': 'Type of the ID field',
+        'default': 'String',
+      },
+      'query-field': {
+        'type': 'string',
+        'description': 'Name of the query field',
+        'default': 'id',
+      },
+      'query-field-type': {
+        'type': 'string',
+        'description': 'Type of the query field',
+        'default': 'String',
       },
       'outputDir': {
         'type': 'string',
@@ -177,6 +201,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
     final generateDataSource = args['datasource'] ?? true;
     final generateLocal = args['local'] ?? false;
     final generateMock = args['mock'] == true || (zfaConfig?.mockByDefault == true && args['mock'] != false);
+    final useMock = args['use-mock'] == true;
     // Default to ZfaConfig setting if arg is null, otherwise default to true (if arg not provided but default in schema is true, this logic might need refinement based on how args are passed. Assuming args contains defaults from command runner if not provided)
     // Actually, args coming from execute() might not have defaults populated if not called via CommandRunner.
     // Let's assume args contains what user provided.
@@ -206,20 +231,21 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         : (zfaConfig?.zorphyByDefault ?? false);
 
     final idField = args['id-field'] as String? ?? 'id';
-    // If id-field-type was explicitly set to null (or "null"), use NoParams
+    // If id-field-type was explicitly set to "NoParams" or "null", use NoParams
     // Otherwise default to String
     final idFieldTypeRaw = args['id-field-type'];
-    final idFieldType = idFieldTypeRaw == null || idFieldTypeRaw == 'null'
-        ? 'NoParams'
-        : (idFieldTypeRaw as String? ?? 'String');
+    final idFieldType =
+        idFieldTypeRaw == 'NoParams' || idFieldTypeRaw == 'null'
+            ? 'NoParams'
+            : (idFieldTypeRaw as String? ?? 'String');
     final queryField = args['query-field'] as String? ?? 'id';
-    // If query-field-type was explicitly set to null (or "null"), use NoParams
+    // If query-field-type was explicitly set to "NoParams" or "null", use NoParams
     // Otherwise default to String
     final queryFieldTypeRaw = args['query-field-type'];
     final queryFieldType =
-        queryFieldTypeRaw == null || queryFieldTypeRaw == 'null'
-        ? 'NoParams'
-        : (queryFieldTypeRaw as String? ?? 'String');
+        queryFieldTypeRaw == 'NoParams' || queryFieldTypeRaw == 'null'
+            ? 'NoParams'
+            : (queryFieldTypeRaw as String? ?? 'String');
 
     final allFiles = <GeneratedFile>[];
 
@@ -242,6 +268,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         generateDataSource: generateDataSource,
         generateLocal: generateLocal,
         generateMock: generateMock,
+        useMockInDi: useMock,
         generateDi: generateDi,
         enableCache: enableCache,
         dryRun: dryRun,
@@ -250,6 +277,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         revert: revert,
         appendToExisting: appendToExisting,
         methods: effectiveMethods,
+        usecases: usecases,
         idField: idField,
         idFieldType: idFieldType,
         queryField: queryField,
@@ -278,7 +306,9 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         generateDataSource: generateDataSource,
         generateLocal: generateLocal,
         generateMock: generateMock,
+        useMockInDi: useMock,
         methods: effectiveMethods,
+        usecases: usecases,
         idField: idField,
         idFieldType: idFieldType,
         queryField: queryField,
@@ -324,12 +354,14 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         name: featureName,
         outputDir: outputDir,
         useCaseType: 'entity',
+        generateUseCase: true,
         repo: '${featureName}Repository',
         dryRun: dryRun,
         force: force,
         verbose: verbose,
         revert: revert,
         generateMock: generateMock,
+        useMockInDi: useMock,
         generateDi: generateDi,
         methods: effectiveMethods,
         idField: idField,
@@ -375,6 +407,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         generateController: generateVpcs,
         generateState: generateVpcs,
         generateMock: generateMock,
+        useMockInDi: useMock,
         generateDi: generateDi,
         generateRoute: generateRoute,
         dryRun: dryRun,
@@ -434,11 +467,15 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         name: featureName,
         outputDir: outputDir,
         generateDi: true,
+        generateUseCase: true,
+        useCaseType: usecases.isEmpty ? 'entity' : 'usecase',
         generateData: generateDataSource,
         generateRepository: generateRepo,
         generateLocal: generateLocal,
         generateMock: generateMock,
-        methods: usecases,
+        useMockInDi: useMock,
+        methods: effectiveMethods,
+        usecases: usecases,
         idField: idField,
         idFieldType: idFieldType,
         dryRun: dryRun,
@@ -468,6 +505,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         generateRepository: generateRepo,
         generateLocal: generateLocal,
         methods: effectiveMethods,
+        usecases: usecases,
         idField: idField,
         idFieldType: idFieldType,
         dryRun: dryRun,
@@ -492,11 +530,14 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         name: featureName,
         outputDir: outputDir,
         generateTest: true,
+        generateUseCase: true,
+        useCaseType: usecases.isEmpty ? 'entity' : 'usecase',
         generateData: generateRepo,
         generateDataSource: generateDataSource,
         generateRepository: generateRepo,
         generateLocal: generateLocal,
         methods: effectiveMethods,
+        usecases: usecases,
         idField: idField,
         idFieldType: idFieldType,
         dryRun: dryRun,

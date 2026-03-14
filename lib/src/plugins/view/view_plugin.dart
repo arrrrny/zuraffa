@@ -268,18 +268,23 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }
 
   bool _needsIdParam(GeneratorConfig config) {
+    final hasGet = config.methods.contains('get');
+    final hasWatch = config.methods.contains('watch');
     final hasUpdate = config.methods.contains('update');
     final hasDelete = config.methods.contains('delete');
-    return hasUpdate || hasDelete;
+    return hasGet || hasWatch || hasUpdate || hasDelete;
   }
 
   bool _needsQueryParam(GeneratorConfig config) {
     final hasGet = config.methods.contains('get');
     final hasWatch = config.methods.contains('watch');
     final needsIdParam = _needsIdParam(config);
+    
+    // If we have any method that needs an ID, we use idField
     if (needsIdParam) {
       return false;
     }
+    
     if (config.queryFieldType == 'NoParams') {
       return false;
     }
@@ -339,7 +344,9 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           ),
       );
     }
-    if (_needsIdParam(config) && config.queryField == config.idField) {
+    
+    // Check if we use idField (get/watch/update/delete)
+    if (_needsIdParam(config)) {
       final idValue = refer('widget').property(config.idField);
       return Block(
         (b) => b
@@ -356,6 +363,8 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           ),
       );
     }
+    
+    // Check if we use queryField
     if (_needsQueryParam(config)) {
       final queryValue = refer('widget').property(config.queryField);
       return Block(

@@ -22,6 +22,7 @@ class EntityRoutesBuilder {
     required String routesGetterName,
     required List<Expression> goRoutes,
     required List<String> imports,
+    String? leadingComment,
   }) {
     final routesClass = routeFactory.build(
       RouteSpecConfig(className: className, routes: routes),
@@ -39,7 +40,7 @@ class EntityRoutesBuilder {
       directives: imports.map(Directive.import),
     );
 
-    return specLibrary.emitLibrary(library);
+    return specLibrary.emitLibrary(library, leadingComment: leadingComment);
   }
 
   String buildFieldSource(String name, String value) {

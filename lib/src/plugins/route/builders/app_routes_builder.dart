@@ -20,6 +20,7 @@ class AppRoutesBuilder {
     required Map<String, String> routes,
     required List<ExtensionMethodSpec> extensionMethods,
     String? entityRouteImport,
+    String? leadingComment,
   }) {
     final fields = routes.entries
         .map(
@@ -57,7 +58,7 @@ class AppRoutesBuilder {
       directives: directives,
     );
 
-    return specLibrary.emitLibrary(library);
+    return specLibrary.emitLibrary(library, leadingComment: leadingComment);
   }
 
   String buildFieldSource(String name, String value) {

@@ -110,7 +110,9 @@ class CapabilityCommand extends Command<void> {
       for (final key in props.keys) {
         final prop = props[key] as Map<String, dynamic>;
         final isList = prop['type'] == 'array';
-        final flagName = StringUtils.camelToSnake(key).replaceAll('_', '-');
+        final flagName = key.contains('-')
+            ? key
+            : StringUtils.camelToSnake(key).replaceAll('_', '-');
 
         if (argResults?.wasParsed(flagName) == true ||
             (!args.containsKey(key) && argResults?[flagName] != null)) {

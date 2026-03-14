@@ -441,30 +441,9 @@ class MockDataSourceBuilder {
                             ).property('${entityCamel}s'),
                           )
                           .statement,
-                      refer('params')
-                          .property('limit')
-                          .notEqualTo(literalNull)
-                          .and(
-                            refer('params')
-                                .property('limit')
-                                .nullChecked
-                                .greaterThan(literalNum(0)),
-                          )
-                          .conditional(
-                            literalNull,
-                            refer('items').assign(
-                              refer('items')
-                                  .property('take')
-                                  .call([
-                                    refer(
-                                      'params',
-                                    ).property('limit').nullChecked,
-                                  ])
-                                  .property('toList')
-                                  .call([]),
-                            ),
-                          )
-                          .statement,
+                      Code(
+                        'if (params.limit != null && params.limit! > 0) { items = items.take(params.limit!).toList(); }',
+                      ),
                       refer('logger').property('info').call([
                         literalString(
                           'Successfully retrieved \${items.length} ${entityName}s',
@@ -796,30 +775,9 @@ class MockDataSourceBuilder {
                                       ).property('${entityCamel}s'),
                                     )
                                     .statement,
-                                refer('params')
-                                    .property('limit')
-                                    .notEqualTo(literalNull)
-                                    .and(
-                                      refer('params')
-                                          .property('limit')
-                                          .nullChecked
-                                          .greaterThan(literalNum(0)),
-                                    )
-                                    .conditional(
-                                      literalNull,
-                                      refer('items').assign(
-                                        refer('items')
-                                            .property('take')
-                                            .call([
-                                              refer(
-                                                'params',
-                                              ).property('limit').nullChecked,
-                                            ])
-                                            .property('toList')
-                                            .call([]),
-                                      ),
-                                    )
-                                    .statement,
+                                Code(
+                                  'if (params.limit != null && params.limit! > 0) { items = items.take(params.limit!).toList(); }',
+                                ),
                                 refer('items').returned.statement,
                               ]),
                           ),
