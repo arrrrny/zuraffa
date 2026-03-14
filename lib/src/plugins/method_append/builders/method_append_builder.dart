@@ -62,6 +62,10 @@ class MethodAppendBuilder {
       return MethodAppendResult(updatedFiles, warnings);
     }
 
+    // Handle service method appending
+    // Note: ServicePlugin skips generation when appendToExisting is true,
+    // delegating all service interface updates to MethodAppendPlugin to
+    // avoid conflicts and ensure proper method merging
     if (config.hasService) {
       return _appendServiceMethod(config);
     }

@@ -58,9 +58,21 @@ class ServicePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return delegator.generate(config);
     }
 
-    if (!config.isCustomUseCase ||
-        !config.hasService ||
-        config.appendToExisting) {
+    // Skip service generation if not a custom usecase or no service specified
+    if (!config.isCustomUseCase || !config.hasService) {
+      return [];
+    }
+
+    // Skip service generation in append mode - MethodAppendPlugin handles service updates
+    // When appending methods to existing services, MethodAppendPlugin is responsible for
+    // updating the service interface to avoid conflicts and ensure proper method merging
+    if (config.appendToExisting) {
+      if (config.verbose) {
+        print(
+          'ServicePlugin: Skipping service generation in append mode. '
+          'MethodAppendPlugin will handle service interface updates.',
+        );
+      }
       return [];
     }
     final serviceSnake = config.serviceSnake;
