@@ -128,23 +128,30 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     GeneratorConfig config,
     String entityName,
   ) {
-    if (config.isOrchestrator && !config.generateUseCase) {
-      return config.usecases.map((u) {
-        return CommonPatterns.parseUseCaseInfo(u, config, outputDir);
-      }).toList();
+    final infos = <ParsedUseCaseInfo>[];
+
+    // Entity-based usecases
+    for (final method in config.methods) {
+      infos.add(_getUseCaseInfo(method, entityName));
     }
 
-    if (config.isCustomUseCase) {
-      return [
+    // Custom usecases
+    if (config.isOrchestrator && !config.generateUseCase) {
+      infos.addAll(
+        config.usecases.map((u) {
+          return CommonPatterns.parseUseCaseInfo(u, config, outputDir);
+        }),
+      );
+    } else if (config.isCustomUseCase && config.methods.isEmpty) {
+      infos.add(
         ParsedUseCaseInfo(
           className: '${config.name}UseCase',
           fieldName: config.nameCamel,
         ),
-      ];
+      );
     }
-    return config.methods
-        .map((method) => _getUseCaseInfo(method, entityName))
-        .toList();
+
+    return infos;
   }
 
   List<Field> _buildUseCaseFields(List<ParsedUseCaseInfo> useCases) {
@@ -275,70 +282,61 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     String entityName,
     String entityCamel,
   ) {
-    if (config.isCustomUseCase) {
-      if (config.isOrchestrator && !config.generateUseCase) {
-        return useCases
-            .map((info) => _buildCustomMethod(config, info))
-            .toList();
-      }
-      return [_buildCustomMethod(config, useCases.first)];
-    }
-
-    final map = {for (final info in useCases) info.fieldName: info};
     final methods = <Method>[];
+    final map = {for (final info in useCases) info.fieldName: info};
+
+    // 1. Entity-based methods
     for (final method in config.methods) {
+      final fieldName = switch (method) {
+        'get' => 'get$entityName',
+        'list' || 'getList' => 'get${entityName}List',
+        'create' => 'create$entityName',
+        'update' => 'update$entityName',
+        'delete' => 'delete$entityName',
+        'watch' => 'watch$entityName',
+        'watchList' => 'watch${entityName}List',
+        _ => '$method$entityName',
+      };
+
+      final info = map[fieldName];
+      if (info == null) continue;
+
       switch (method) {
         case 'get':
-          final info = map['get$entityName'];
-          if (info == null) {
-            throw ArgumentError('Missing get$entityName use case info');
-          }
           methods.add(_buildGetMethod(config, info, entityName));
           break;
+        case 'list':
         case 'getList':
-          final info = map['get${entityName}List'];
-          if (info == null) {
-            throw ArgumentError('Missing get${entityName}List use case info');
-          }
           methods.add(_buildGetListMethod(info, entityName));
           break;
         case 'create':
-          final info = map['create$entityName'];
-          if (info == null) {
-            throw ArgumentError('Missing create$entityName use case info');
-          }
           methods.add(_buildCreateMethod(info, entityName, entityCamel));
           break;
         case 'update':
-          final info = map['update$entityName'];
-          if (info == null) {
-            throw ArgumentError('Missing update$entityName use case info');
-          }
           methods.add(_buildUpdateMethod(config, info, entityName));
           break;
         case 'delete':
-          final info = map['delete$entityName'];
-          if (info == null) {
-            throw ArgumentError('Missing delete$entityName use case info');
-          }
           methods.add(_buildDeleteMethod(config, info));
           break;
         case 'watch':
-          final info = map['watch$entityName'];
-          if (info == null) {
-            throw ArgumentError('Missing watch$entityName use case info');
-          }
           methods.add(_buildWatchMethod(config, info, entityName));
           break;
         case 'watchList':
-          final info = map['watch${entityName}List'];
-          if (info == null) {
-            throw ArgumentError('Missing watch${entityName}List use case info');
-          }
           methods.add(_buildWatchListMethod(info, entityName));
           break;
       }
     }
+
+    // 2. Custom methods
+    if (config.isOrchestrator && !config.generateUseCase) {
+      for (final u in config.usecases) {
+        final info = CommonPatterns.parseUseCaseInfo(u, config, outputDir);
+        methods.add(_buildCustomMethod(config, info));
+      }
+    } else if (config.isCustomUseCase && config.methods.isEmpty) {
+      methods.add(_buildCustomMethod(config, useCases.first));
+    }
+
     return methods;
   }
 

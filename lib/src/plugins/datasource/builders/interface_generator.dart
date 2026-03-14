@@ -5,6 +5,7 @@ import 'package:path/path.dart' as path;
 
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
+import '../../../core/ast/ast_helper.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -235,31 +236,74 @@ class DataSourceInterfaceBuilder {
         ..methods.addAll(methods),
     );
 
-    if (config.appendToExisting &&
-        File(filePath).existsSync() &&
-        !config.force) {
-      final existing = await File(filePath).readAsString();
-      var updated = existing;
-      for (final method in methods) {
-        final methodSource = specLibrary.emitSpec(method);
-        final result = appendExecutor.execute(
-          AppendRequest.method(
-            source: updated,
-            className: dataSourceName,
-            memberSource: methodSource,
-          ),
+    if (File(filePath).existsSync() && !config.force) {
+      if (config.revert) {
+        if (!config.appendToExisting) {
+          return FileUtils.deleteFile(
+            filePath,
+            'datasource',
+            dryRun: options.dryRun,
+            verbose: options.verbose,
+          );
+        }
+
+        final existing = await File(filePath).readAsString();
+        var updated = existing;
+        for (final method in methods) {
+          final result = appendExecutor.undo(
+            AppendRequest.method(
+              source: updated,
+              className: dataSourceName,
+              memberSource: specLibrary.emitSpec(method),
+            ),
+          );
+          updated = result.source;
+        }
+
+        if (const AstHelper().isClassEmpty(updated, dataSourceName)) {
+          return FileUtils.deleteFile(
+            filePath,
+            'datasource',
+            dryRun: options.dryRun,
+            verbose: options.verbose,
+          );
+        }
+
+        return FileUtils.writeFile(
+          filePath,
+          updated,
+          'datasource',
+          force: true,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+          revert: false,
         );
-        updated = result.source;
       }
-      return FileUtils.writeFile(
-        filePath,
-        updated,
-        'datasource',
-        force: true,
-        dryRun: options.dryRun,
-        verbose: options.verbose,
-        revert: false,
-      );
+
+      if (config.appendToExisting) {
+        final existing = await File(filePath).readAsString();
+        var updated = existing;
+        for (final method in methods) {
+          final methodSource = specLibrary.emitSpec(method);
+          final result = appendExecutor.execute(
+            AppendRequest.method(
+              source: updated,
+              className: dataSourceName,
+              memberSource: methodSource,
+            ),
+          );
+          updated = result.source;
+        }
+        return FileUtils.writeFile(
+          filePath,
+          updated,
+          'datasource',
+          force: true,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+          revert: false,
+        );
+      }
     }
 
     final content = specLibrary.emitLibrary(

@@ -160,23 +160,24 @@ class AstHelper {
     required String className,
     required String methodName,
   }) {
-    final parseResult = parseSource(source);
-    final unit = parseResult.unit;
-    if (unit == null) {
-      return source;
+    var updated = source;
+    while (true) {
+      final parseResult = parseSource(updated);
+      final unit = parseResult.unit;
+      if (unit == null) break;
+
+      final classNode = findClass(unit, className);
+      if (classNode == null) break;
+
+      final methods = findMethods(classNode, name: methodName);
+      if (methods.isEmpty) break;
+
+      updated = AstModifier.removeMethodFromClass(
+        source: updated,
+        method: methods.first,
+      );
     }
-    final classNode = findClass(unit, className);
-    if (classNode == null) {
-      return source;
-    }
-    final methods = findMethods(classNode, name: methodName);
-    if (methods.isEmpty) {
-      return source;
-    }
-    return AstModifier.removeMethodFromClass(
-      source: source,
-      method: methods.first,
-    );
+    return updated;
   }
 
   String removeMethodFromExtension({
@@ -212,6 +213,27 @@ class AstHelper {
     required String className,
     required String fieldName,
   }) {
+    var updated = source;
+    while (true) {
+      final parseResult = parseSource(updated);
+      final unit = parseResult.unit;
+      if (unit == null) break;
+
+      final classNode = findClass(unit, className);
+      if (classNode == null) break;
+
+      final fields = findFields(classNode, name: fieldName);
+      if (fields.isEmpty) break;
+
+      updated = AstModifier.removeField(source: updated, field: fields.first);
+    }
+    return updated;
+  }
+
+  String removeConstructorFromClass({
+    required String source,
+    required String className,
+  }) {
     final parseResult = parseSource(source);
     final unit = parseResult.unit;
     if (unit == null) {
@@ -221,11 +243,14 @@ class AstHelper {
     if (classNode == null) {
       return source;
     }
-    final fields = findFields(classNode, name: fieldName);
-    if (fields.isEmpty) {
+    final constructors = classNode.members.whereType<ConstructorDeclaration>();
+    if (constructors.isEmpty) {
       return source;
     }
-    return AstModifier.removeField(source: source, field: fields.first);
+    // For now, remove the first constructor found
+    final constructor = constructors.first;
+    return source.substring(0, constructor.offset) +
+        source.substring(constructor.end);
   }
 
   String addFieldToClass({
@@ -310,5 +335,18 @@ class AstHelper {
       functionNode: functionNode,
       elementSource: elementSource,
     );
+  }
+
+  bool isClassEmpty(String source, String className) {
+    final parseResult = parseSource(source);
+    final unit = parseResult.unit;
+    if (unit == null) {
+      return false;
+    }
+    final classNode = findClass(unit, className);
+    if (classNode == null) {
+      return false;
+    }
+    return classNode.members.isEmpty;
   }
 }

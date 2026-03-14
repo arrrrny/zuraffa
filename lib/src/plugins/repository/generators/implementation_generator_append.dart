@@ -15,24 +15,27 @@ extension RepositoryImplementationGeneratorAppend
       imports.add(asyncImport);
     }
     imports.add('package:zuraffa/zuraffa.dart');
+
+    final baseImport = PackageUtils.getBaseImport(outputDir);
+
     if (EntityAnalyzer.isEnum(config.name, outputDir)) {
-      imports.add('../../domain/entities/enums/index.dart');
+      imports.add('$baseImport/domain/entities/enums/index.dart');
     } else {
-      imports.add('../../domain/entities/$entitySnake/$entitySnake.dart');
+      imports.add('$baseImport/domain/entities/$entitySnake/$entitySnake.dart');
     }
-    imports.add('../../domain/repositories/${entitySnake}_repository.dart');
+    imports.add('$baseImport/domain/repositories/${entitySnake}_repository.dart');
 
     if (config.generateLocal) {
       imports.add(
-        '../datasources/$entitySnake/${entitySnake}_local_datasource.dart',
+        '$baseImport/data/datasources/$entitySnake/${entitySnake}_local_datasource.dart',
       );
     } else if (config.enableCache) {
-      imports.add('../datasources/$entitySnake/${entitySnake}_datasource.dart');
+      imports.add('$baseImport/data/datasources/$entitySnake/${entitySnake}_datasource.dart');
       imports.add(
-        '../datasources/$entitySnake/${entitySnake}_local_datasource.dart',
+        '$baseImport/data/datasources/$entitySnake/${entitySnake}_local_datasource.dart',
       );
     } else {
-      imports.add('../datasources/$entitySnake/${entitySnake}_datasource.dart');
+      imports.add('$baseImport/data/datasources/$entitySnake/${entitySnake}_datasource.dart');
     }
     return imports;
   }
@@ -45,14 +48,14 @@ extension RepositoryImplementationGeneratorAppend
     required String source,
     required String className,
     required List<Method> methods,
+    List<String> imports = const [],
   }) {
-    var updated = source;
-    final emitter = DartEmitter(
-      orderDirectives: true,
-      useNullSafetySyntax: true,
-    );
+    final importLines = _buildImportLines(imports);
+    final mergedImports = _mergeImports(source, importLines);
+
+    var updated = mergedImports;
     for (final method in methods) {
-      final methodSource = method.accept(emitter).toString();
+      final methodSource = method.accept(DartEmitter()).toString();
       final result = appendExecutor.execute(
         AppendRequest.method(
           source: updated,
@@ -65,25 +68,81 @@ extension RepositoryImplementationGeneratorAppend
     return updated;
   }
 
-  /*
+  String _appendFields({
+    required String source,
+    required String className,
+    required List<Field> fields,
+  }) {
+    var updated = source;
+    for (final field in fields) {
+      final fieldSource = field.accept(DartEmitter()).toString();
+      final result = appendExecutor.execute(
+        AppendRequest.field(
+          source: updated,
+          className: className,
+          memberSource: fieldSource,
+        ),
+      );
+      updated = result.source;
+    }
+    return updated;
+  }
+
   String _removeMethods({
     required String source,
     required String className,
     required List<Method> methods,
   }) {
     var updated = source;
-    final helper = const AstHelper();
     for (final method in methods) {
-      final methodName = method.name!;
-      updated = helper.removeMethodFromClass(
+      final methodSource = method.accept(DartEmitter()).toString();
+      final result = appendExecutor.undo(
+        AppendRequest.method(
+          source: updated,
+          className: className,
+          memberSource: methodSource,
+        ),
+      );
+      updated = result.source;
+    }
+    return updated;
+  }
+
+  String _removeFields({
+    required String source,
+    required String className,
+    required List<Field> fields,
+  }) {
+    var updated = source;
+    for (final field in fields) {
+      final fieldSource = field.accept(DartEmitter()).toString();
+      final result = appendExecutor.undo(
+        AppendRequest.field(
+          source: updated,
+          className: className,
+          memberSource: fieldSource,
+        ),
+      );
+      updated = result.source;
+    }
+    return updated;
+  }
+
+  String _removeConstructors({
+    required String source,
+    required String className,
+    required List<Constructor> constructors,
+  }) {
+    var updated = source;
+    final helper = const AstHelper();
+    for (final _ in constructors) {
+      updated = helper.removeConstructorFromClass(
         source: updated,
         className: className,
-        methodName: methodName,
       );
     }
     return updated;
   }
-  */
 
   String _mergeImports(String source, List<String> imports) {
     var updated = source;

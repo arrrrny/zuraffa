@@ -5,6 +5,7 @@ import 'package:path/path.dart' as path;
 import '../../../core/constants/known_types.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/parsed_usecase_info.dart';
+import '../../../utils/package_utils.dart';
 import '../../../utils/string_utils.dart';
 
 class CommonPatterns {
@@ -28,8 +29,7 @@ class CommonPatterns {
     final domainSnake = config.domain != null
         ? StringUtils.camelToSnake(config.domain!)
         : null;
-    final prefix = List.generate(depth, (_) => '..').join('/');
-    final domainSegment = includeDomain ? 'domain/' : '';
+    final baseImport = PackageUtils.getBaseImport(config.outputDir);
 
     return entities
         .map((entity) {
@@ -45,7 +45,7 @@ class CommonPatterns {
               entitySnake,
             );
             if (Directory(domainEntityDirPath).existsSync()) {
-              return '$prefix/${domainSegment}entities/$domainSnake/$entitySnake/$entitySnake.dart';
+              return '$baseImport/domain/entities/$domainSnake/$entitySnake/$entitySnake.dart';
             }
 
             // Check if it's a flat file in domain folder (legacy or special case)
@@ -57,7 +57,7 @@ class CommonPatterns {
               '$entitySnake.dart',
             );
             if (File(domainEntityFilePath).existsSync()) {
-              return '$prefix/${domainSegment}entities/$domainSnake/$entitySnake.dart';
+              return '$baseImport/domain/entities/$domainSnake/$entitySnake.dart';
             }
           }
 
@@ -69,7 +69,7 @@ class CommonPatterns {
             entitySnake,
           );
           if (Directory(entityDirPath).existsSync()) {
-            return '$prefix/${domainSegment}entities/$entitySnake/$entitySnake.dart';
+            return '$baseImport/domain/entities/$entitySnake/$entitySnake.dart';
           }
 
           // 3. Try legacy flat entity file
@@ -82,9 +82,9 @@ class CommonPatterns {
           if (File(entityFilePath).existsSync()) {
             final content = File(entityFilePath).readAsStringSync();
             if (content.contains('enum $entity')) {
-              return '$prefix/${domainSegment}entities/enums/index.dart';
+              return '$baseImport/domain/entities/enums/index.dart';
             }
-            return '$prefix/${domainSegment}entities/$entitySnake.dart';
+            return '$baseImport/domain/entities/$entitySnake.dart';
           }
 
           // 4. Try enums/ directory
@@ -96,14 +96,15 @@ class CommonPatterns {
             '$entitySnake.dart',
           );
           if (File(enumPath).existsSync()) {
-            return '$prefix/${domainSegment}entities/enums/index.dart';
+            return '$baseImport/domain/entities/enums/index.dart';
           }
 
-          return '$prefix/${domainSegment}entities/$entitySnake/$entitySnake.dart';
+          return '$baseImport/domain/entities/$entitySnake/$entitySnake.dart';
         })
         .toSet()
         .toList();
   }
+
 
   static ParsedUseCaseInfo parseUseCaseInfo(
     String u,

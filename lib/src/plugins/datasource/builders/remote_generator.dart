@@ -5,6 +5,7 @@ import 'package:path/path.dart' as path;
 
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
+import '../../../core/ast/ast_helper.dart';
 import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
@@ -321,31 +322,72 @@ class RemoteDataSourceBuilder {
         ..methods.addAll(methods),
     );
 
-    if (config.appendToExisting &&
-        File(filePath).existsSync() &&
-        !options.force) {
+    if (File(filePath).existsSync() && !options.force) {
       final existing = await File(filePath).readAsString();
-      var updated = existing;
-      for (final method in methods) {
-        final methodSource = specLibrary.emitSpec(method);
-        final result = appendExecutor.execute(
-          AppendRequest.method(
-            source: updated,
+
+      if (config.revert) {
+        if (!config.appendToExisting) {
+          return FileUtils.deleteFile(
+            filePath,
+            'remote_datasource',
+            dryRun: options.dryRun,
+            verbose: options.verbose,
+          );
+        }
+
+        var reverted = existing;
+        final helper = const AstHelper();
+        for (final method in methods) {
+          reverted = helper.removeMethodFromClass(
+            source: reverted,
             className: dataSourceName,
-            memberSource: methodSource,
-          ),
+            methodName: method.name!,
+          );
+        }
+
+        if (helper.isClassEmpty(reverted, dataSourceName)) {
+          return FileUtils.deleteFile(
+            filePath,
+            'remote_datasource',
+            dryRun: options.dryRun,
+            verbose: options.verbose,
+          );
+        }
+
+        return FileUtils.writeFile(
+          filePath,
+          reverted,
+          'remote_datasource',
+          force: true,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+          revert: false,
         );
-        updated = result.source;
       }
-      return FileUtils.writeFile(
-        filePath,
-        updated,
-        'remote_datasource',
-        force: true,
-        dryRun: options.dryRun,
-        verbose: options.verbose,
-        revert: false,
-      );
+
+      if (config.appendToExisting) {
+        var updated = existing;
+        for (final method in methods) {
+          final methodSource = specLibrary.emitSpec(method);
+          final result = appendExecutor.execute(
+            AppendRequest.method(
+              source: updated,
+              className: dataSourceName,
+              memberSource: methodSource,
+            ),
+          );
+          updated = result.source;
+        }
+        return FileUtils.writeFile(
+          filePath,
+          updated,
+          'remote_datasource',
+          force: true,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+          revert: false,
+        );
+      }
     }
 
     final content = specLibrary.emitLibrary(

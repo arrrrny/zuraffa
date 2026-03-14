@@ -174,7 +174,10 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       }
     }
 
-    final indexFiles = await _regenerateIndexFiles(files);
+    final indexFiles = await _regenerateIndexFiles(
+      files,
+      revert: config.revert,
+    );
     files.addAll(indexFiles);
 
     final serviceLocatorFile = await _generateServiceLocator(
@@ -910,26 +913,48 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }
 
   Future<List<GeneratedFile>> _regenerateIndexFiles(
-    List<GeneratedFile> files,
-  ) async {
+    List<GeneratedFile> files, {
+    bool revert = false,
+  }) async {
     final indexFiles = <GeneratedFile>[];
 
     void addIfNotNull(GeneratedFile? f) {
       if (f != null) indexFiles.add(f);
     }
 
-    addIfNotNull(await _regenerateIndexFile('usecases', 'UseCases', files));
     addIfNotNull(
-      await _regenerateIndexFile('datasources', 'DataSources', files),
+      await _regenerateIndexFile('usecases', 'UseCases', files, revert: revert),
     );
     addIfNotNull(
-      await _regenerateIndexFile('repositories', 'Repositories', files),
+      await _regenerateIndexFile(
+        'datasources',
+        'DataSources',
+        files,
+        revert: revert,
+      ),
     );
-    addIfNotNull(await _regenerateIndexFile('services', 'Services', files));
-    addIfNotNull(await _regenerateIndexFile('providers', 'Providers', files));
+    addIfNotNull(
+      await _regenerateIndexFile(
+        'repositories',
+        'Repositories',
+        files,
+        revert: revert,
+      ),
+    );
+    addIfNotNull(
+      await _regenerateIndexFile('services', 'Services', files, revert: revert),
+    );
+    addIfNotNull(
+      await _regenerateIndexFile(
+        'providers',
+        'Providers',
+        files,
+        revert: revert,
+      ),
+    );
 
     final allFiles = [...files, ...indexFiles];
-    addIfNotNull(await _regenerateMainIndex(allFiles));
+    addIfNotNull(await _regenerateMainIndex(allFiles, revert: revert));
 
     return indexFiles;
   }
@@ -937,8 +962,9 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   Future<GeneratedFile?> _regenerateIndexFile(
     String folder,
     String label,
-    List<GeneratedFile> files,
-  ) async {
+    List<GeneratedFile> files, {
+    bool revert = false,
+  }) async {
     final dirPath = path.join(outputDir, 'di', folder);
     final indexPath = path.join(dirPath, 'index.dart');
 
@@ -976,13 +1002,14 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final functionName = 'registerAll$label';
 
     String content;
-    if (File(indexPath).existsSync() && !options.force) {
+    if (File(indexPath).existsSync() && !options.force && !revert) {
       content = _updateIndexFile(
         existingContent: File(indexPath).readAsStringSync(),
         importPaths: importPaths,
         exportPaths: const [],
         functionName: functionName,
         registrationCalls: registrationCalls,
+        revert: false,
       );
     } else {
       final directives = importPaths.map(Directive.import).toList();
@@ -1006,7 +1033,10 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     );
   }
 
-  Future<GeneratedFile?> _regenerateMainIndex(List<GeneratedFile> files) async {
+  Future<GeneratedFile?> _regenerateMainIndex(
+    List<GeneratedFile> files, {
+    bool revert = false,
+  }) async {
     final mainIndexPath = path.join(outputDir, 'di', 'index.dart');
 
     final usecasesDir = Directory(path.join(outputDir, 'di', 'usecases'));
@@ -1089,13 +1119,14 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     }
 
     String content;
-    if (File(mainIndexPath).existsSync() && !options.force) {
+    if (File(mainIndexPath).existsSync() && !options.force && !revert) {
       content = _updateIndexFile(
         existingContent: File(mainIndexPath).readAsStringSync(),
         importPaths: importPaths,
         exportPaths: exportPaths,
         functionName: 'setupDependencies',
         registrationCalls: registrationCalls,
+        revert: false,
       );
     } else {
       final directives = [
@@ -1131,31 +1162,40 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     required List<String> exportPaths,
     required String functionName,
     required List<String> registrationCalls,
+    bool revert = false,
   }) {
     var content = existingContent;
 
     for (final exportPath in exportPaths) {
-      final result = appendExecutor.execute(
-        AppendRequest.export(source: content, exportPath: exportPath),
-      );
+      final request =
+          AppendRequest.export(source: content, exportPath: exportPath);
+      final result =
+          revert
+              ? appendExecutor.undo(request)
+              : appendExecutor.execute(request);
       content = result.source;
     }
 
     for (final importPath in importPaths) {
-      final result = appendExecutor.execute(
-        AppendRequest.import(source: content, importPath: importPath),
-      );
+      final request =
+          AppendRequest.import(source: content, importPath: importPath);
+      final result =
+          revert
+              ? appendExecutor.undo(request)
+              : appendExecutor.execute(request);
       content = result.source;
     }
 
     for (final registration in registrationCalls) {
-      final result = appendExecutor.execute(
-        AppendRequest.functionStatement(
-          source: content,
-          functionName: functionName,
-          memberSource: registration,
-        ),
+      final request = AppendRequest.functionStatement(
+        source: content,
+        functionName: functionName,
+        memberSource: registration,
       );
+      final result =
+          revert
+              ? appendExecutor.undo(request)
+              : appendExecutor.execute(request);
       content = result.source;
     }
 

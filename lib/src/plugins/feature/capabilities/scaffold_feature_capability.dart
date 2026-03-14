@@ -1,3 +1,4 @@
+import 'dart:io';
 import '../../../core/plugin_system/capability.dart';
 import '../feature_plugin.dart';
 import '../../../models/generator_config.dart';
@@ -6,6 +7,7 @@ import '../../../config/zfa_config.dart';
 import '../../usecase/usecase_plugin.dart';
 import '../../repository/repository_plugin.dart';
 import '../../view/view_plugin.dart';
+import '../../presenter/presenter_plugin.dart';
 import '../../controller/controller_plugin.dart';
 import '../../state/state_plugin.dart';
 import '../../route/route_plugin.dart';
@@ -38,32 +40,26 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
       'vpcs': {
         'type': 'boolean',
         'description': 'Generate View, Presenter, Controller, State',
-        'default': true,
       },
       'repository': {
         'type': 'boolean',
         'description': 'Generate Repository',
-        'default': true,
       },
       'datasource': {
         'type': 'boolean',
         'description': 'Generate DataSource (Remote and/or Local)',
-        'default': true,
       },
       'local': {
         'type': 'boolean',
         'description': 'Generate local data source (instead of remote)',
-        'default': false,
       },
       'mock': {
         'type': 'boolean',
         'description': 'Generate Mock data',
-        'default': false,
       },
       'di': {
         'type': 'boolean',
         'description': 'Generate Dependency Injection setup',
-        'default': true,
       },
       'cache': {
         'type': 'boolean',
@@ -73,20 +69,27 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
       'route': {
         'type': 'boolean',
         'description': 'Generate Routing definitions',
-        'default': false,
       },
       'test': {
         'type': 'boolean',
         'description': 'Generate Tests',
-        'default': false,
       },
       'usecases': {
         'type': 'array',
         'items': {'type': 'string'},
-        'description': 'List of usecases to generate',
+        'description': 'List of custom usecases to generate',
+        'default': [],
+      },
+      'methods': {
+        'type': 'array',
+        'items': {'type': 'string'},
+        'description': 'List of entity methods to generate',
         'default': ['get', 'update'],
       },
-      'outputDir': {'type': 'string', 'default': 'lib/src'},
+      'outputDir': {
+        'type': 'string',
+        'description': 'Target directory for generation',
+      },
       'dryRun': {
         'type': 'boolean',
         'description': 'Run without writing files',
@@ -147,36 +150,56 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
     Map<String, dynamic> args, {
     required bool dryRun,
   }) async {
-    final outputDir = args['outputDir'] ?? 'lib/src';
-    final featureName = args['name'];
-
     // Load global config
     final zfaConfig = ZfaConfig.load();
+
+    final rawOutputDir = args['outputDir'] ?? zfaConfig?.defaultEntityOutput ?? 'lib/src';
+    // Ensure outputDir is relative to project root and doesn't start with /
+    var outputDir = rawOutputDir;
+    final currentPath = Directory.current.path;
+    if (outputDir.startsWith('/')) {
+      // If it's an absolute path that starts with current working directory, make it relative
+      if (outputDir.startsWith(currentPath)) {
+        outputDir = outputDir.substring(currentPath.length);
+      }
+      // If it still starts with /, remove it to make it relative to project root
+      if (outputDir.startsWith('/')) {
+        outputDir = outputDir.substring(1);
+      }
+    }
+    if (outputDir.isEmpty) {
+      outputDir = '.';
+    }
+    final featureName = args['name'];
 
     final generateVpcs = args['vpcs'] ?? true;
     final generateRepo = args['repository'] ?? true;
     final generateDataSource = args['datasource'] ?? true;
     final generateLocal = args['local'] ?? false;
-    final generateMock = args['mock'] ?? false;
+    final generateMock = args['mock'] == true || (zfaConfig?.mockByDefault == true && args['mock'] != false);
     // Default to ZfaConfig setting if arg is null, otherwise default to true (if arg not provided but default in schema is true, this logic might need refinement based on how args are passed. Assuming args contains defaults from command runner if not provided)
     // Actually, args coming from execute() might not have defaults populated if not called via CommandRunner.
     // Let's assume args contains what user provided.
     // If 'di' is in args, use it. If not, use ZfaConfig.diByDefault.
-    final generateDi = args.containsKey('di')
-        ? args['di']
-        : (zfaConfig?.diByDefault ?? true);
+    final generateDi = args['di'] == true || (zfaConfig?.diByDefault == true && args['di'] != false);
 
     final enableCache = args['cache'] ?? false;
     final usecases = (args['usecases'] as List?)?.cast<String>() ?? [];
+    final methods = (args['methods'] as List?)?.cast<String>() ?? [];
+    // If user provided NEITHER, use default methods
+    final effectiveMethods = (methods.isEmpty && usecases.isEmpty)
+        ? ['get', 'update']
+        : methods;
+
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
     final revert = args['revert'] ?? false;
     final generateInit = args['init'] == true;
     final appendToExisting = zfaConfig?.appendByDefault ?? false;
 
-    final generateRoute = args.containsKey('route')
-        ? args['route']
-        : (zfaConfig?.routeByDefault ?? false);
+    final generateRoute = args['route'] == true || (zfaConfig?.routeByDefault == true && args['route'] != false);
+
+    final generateTest = args['test'] == true || (zfaConfig?.testByDefault == true && args['test'] != false);
 
     final useZorphy = args.containsKey('zorphy')
         ? args['zorphy']
@@ -226,7 +249,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         verbose: verbose,
         revert: revert,
         appendToExisting: appendToExisting,
-        methods: usecases,
+        methods: effectiveMethods,
         idField: idField,
         idFieldType: idFieldType,
         queryField: queryField,
@@ -255,7 +278,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         generateDataSource: generateDataSource,
         generateLocal: generateLocal,
         generateMock: generateMock,
-        methods: usecases,
+        methods: effectiveMethods,
         idField: idField,
         idFieldType: idFieldType,
         queryField: queryField,
@@ -271,17 +294,32 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
     }
 
     // UseCases
-    if (usecases.isNotEmpty) {
-      final options = GeneratorOptions(
-        dryRun: dryRun,
-        force: force,
-        verbose: verbose,
-      );
-      final usecasePlugin = UseCasePlugin(
-        outputDir: outputDir,
-        options: options,
-      );
+    final options = GeneratorOptions(
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+    final usecasePlugin = UseCasePlugin(
+      outputDir: outputDir,
+      options: options,
+    );
 
+    if (usecases.isNotEmpty) {
+      // Generate specific custom usecases
+      for (final usecase in usecases) {
+        final config = GeneratorConfig(
+          name: usecase,
+          outputDir: outputDir,
+          revert: revert,
+          generateUseCase: true,
+          dryRun: dryRun,
+          force: force,
+          verbose: verbose,
+        );
+        allFiles.addAll(await usecasePlugin.generate(config));
+      }
+    } else {
+      // Generate entity-based CRUD usecases
       final config = GeneratorConfig(
         name: featureName,
         outputDir: outputDir,
@@ -293,7 +331,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         revert: revert,
         generateMock: generateMock,
         generateDi: generateDi,
-        methods: usecases,
+        methods: effectiveMethods,
         idField: idField,
         idFieldType: idFieldType,
         queryField: queryField,
@@ -314,6 +352,10 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
       // This requires instantiating multiple plugins.
       // For brevity, let's just do View and Controller for now as proof of concept.
       final viewPlugin = ViewPlugin(outputDir: outputDir, options: options);
+      final presenterPlugin = PresenterPlugin(
+        outputDir: outputDir,
+        options: options,
+      );
       final controllerPlugin = ControllerPlugin(
         outputDir: outputDir,
         options: options,
@@ -329,6 +371,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         queryFieldType: queryFieldType,
         generateVpcs: generateVpcs,
         generateView: generateVpcs,
+        generatePresenter: generateVpcs,
         generateController: generateVpcs,
         generateState: generateVpcs,
         generateMock: generateMock,
@@ -338,9 +381,13 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         force: force,
         verbose: verbose,
         revert: revert,
+        methods: effectiveMethods,
+        usecases: usecases,
+        generateUseCase: false, // Don't trigger orchestrator logic in VPC
       );
 
       allFiles.addAll(await viewPlugin.generate(config));
+      allFiles.addAll(await presenterPlugin.generate(config));
       allFiles.addAll(await controllerPlugin.generate(config));
       allFiles.addAll(await statePlugin.generate(config));
     }
@@ -359,7 +406,8 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         outputDir: outputDir,
         generateRoute: true,
         generateDi: generateDi,
-        methods: usecases,
+        methods: effectiveMethods,
+        usecases: usecases,
         idField: idField,
         idFieldType: idFieldType,
         queryField: queryField,
@@ -415,8 +463,11 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         name: featureName,
         outputDir: outputDir,
         generateMock: true,
+        generateData: generateRepo,
+        generateDataSource: generateDataSource,
+        generateRepository: generateRepo,
         generateLocal: generateLocal,
-        methods: usecases,
+        methods: effectiveMethods,
         idField: idField,
         idFieldType: idFieldType,
         dryRun: dryRun,
@@ -429,7 +480,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
     }
 
     // Test - works with or without VPCs
-    if (args['test'] ?? false) {
+    if (generateTest) {
       final options = GeneratorOptions(
         dryRun: dryRun,
         force: force,
@@ -441,8 +492,11 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         name: featureName,
         outputDir: outputDir,
         generateTest: true,
+        generateData: generateRepo,
+        generateDataSource: generateDataSource,
+        generateRepository: generateRepo,
         generateLocal: generateLocal,
-        methods: usecases,
+        methods: effectiveMethods,
         idField: idField,
         idFieldType: idFieldType,
         dryRun: dryRun,

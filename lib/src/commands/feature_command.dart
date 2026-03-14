@@ -61,8 +61,15 @@ class FeatureCommand extends PluginCommand {
     argParser.addMultiOption(
       'usecases',
       abbr: 'u',
+      help: 'List of custom usecases to generate',
+      defaultsTo: [],
+      splitCommas: true,
+    );
+    argParser.addMultiOption(
+      'methods',
+      abbr: 'm',
       help:
-          'List of usecases to generate (e.g. get,create,update,delete,list,watch,getList,watchList)',
+          'List of entity methods to generate (e.g. get,create,update,delete,list,watch,getList,watchList)',
       defaultsTo: ['get', 'update'],
       splitCommas: true,
     );
@@ -193,10 +200,12 @@ class FeatureCommand extends PluginCommand {
 
   Map<String, dynamic> _buildArgs(String featureName) {
     final usecases = argResults!['usecases'] as List<String>;
+    final methods = argResults!['methods'] as List<String>;
 
     final Map<String, dynamic> execArgs = {
       'name': featureName,
       'usecases': usecases,
+      'methods': methods,
       'dryRun': isDryRun,
       'force': isForce,
       'verbose': isVerbose,

@@ -7,22 +7,9 @@ extension ControllerPluginMethods on ControllerPlugin {
     String entityCamel,
     bool withState,
   ) {
-    if (config.isCustomUseCase) {
-      if (config.isOrchestrator && !config.generateUseCase) {
-        return config.usecases.map((u) {
-          final info = CommonPatterns.parseUseCaseInfo(u, config, outputDir);
-          return _buildCustomMethod(
-            config,
-            info.fieldName,
-            withState,
-            info: info,
-          );
-        }).toList();
-      }
-      return [_buildCustomMethod(config, config.nameCamel, withState)];
-    }
-
     final methods = <Method>[];
+
+    // 1. Entity-based methods
     for (final method in config.methods) {
       switch (method) {
         case 'get':
@@ -61,6 +48,24 @@ extension ControllerPluginMethods on ControllerPlugin {
           break;
       }
     }
+
+    // 2. Custom methods
+    if (config.isOrchestrator && !config.generateUseCase) {
+      for (final u in config.usecases) {
+        final info = CommonPatterns.parseUseCaseInfo(u, config, outputDir);
+        methods.add(
+          _buildCustomMethod(
+            config,
+            info.fieldName,
+            withState,
+            info: info,
+          ),
+        );
+      }
+    } else if (config.isCustomUseCase && config.methods.isEmpty) {
+      methods.add(_buildCustomMethod(config, config.nameCamel, withState));
+    }
+
     return methods;
   }
 

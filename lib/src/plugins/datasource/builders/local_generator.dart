@@ -5,6 +5,7 @@ import 'package:path/path.dart' as path;
 
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
+import '../../../core/ast/ast_helper.dart';
 import '../../../core/generator_options.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../models/generated_file.dart';
@@ -202,31 +203,105 @@ class LocalDataSourceBuilder {
         ..methods.addAll(methods),
     );
 
-    if (config.appendToExisting &&
-        File(filePath).existsSync() &&
-        !options.force) {
+    if (File(filePath).existsSync() && !options.force) {
       final existing = await File(filePath).readAsString();
-      var updated = existing;
-      for (final method in methods) {
-        final methodSource = specLibrary.emitSpec(method);
-        final result = appendExecutor.execute(
-          AppendRequest.method(
+
+      if (config.revert) {
+        if (!config.appendToExisting) {
+          return FileUtils.deleteFile(
+            filePath,
+            'local_datasource',
+            dryRun: options.dryRun,
+            verbose: options.verbose,
+          );
+        }
+
+        var updated = existing;
+        for (final method in methods) {
+          final result = appendExecutor.undo(
+            AppendRequest.method(
+              source: updated,
+              className: dataSourceName,
+              memberSource: specLibrary.emitSpec(method),
+            ),
+          );
+          updated = result.source;
+        }
+
+        for (final field in fields) {
+          final result = appendExecutor.undo(
+            AppendRequest.field(
+              source: updated,
+              className: dataSourceName,
+              memberSource: specLibrary.emitSpec(field),
+            ),
+          );
+          updated = result.source;
+        }
+
+        for (final _ in constructors) {
+          updated = const AstHelper().removeConstructorFromClass(
             source: updated,
             className: dataSourceName,
-            memberSource: methodSource,
-          ),
+          );
+        }
+
+        if (const AstHelper().isClassEmpty(updated, dataSourceName)) {
+          return FileUtils.deleteFile(
+            filePath,
+            'local_datasource',
+            dryRun: options.dryRun,
+            verbose: options.verbose,
+          );
+        }
+
+        return FileUtils.writeFile(
+          filePath,
+          updated,
+          'local_datasource',
+          force: true,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+          revert: false,
         );
-        updated = result.source;
       }
-      return FileUtils.writeFile(
-        filePath,
-        updated,
-        'local_datasource',
-        force: true,
-        dryRun: options.dryRun,
-        verbose: options.verbose,
-        revert: false,
-      );
+
+      if (config.appendToExisting) {
+        var updated = existing;
+        for (final method in methods) {
+          final methodSource = specLibrary.emitSpec(method);
+          final result = appendExecutor.execute(
+            AppendRequest.method(
+              source: updated,
+              className: dataSourceName,
+              memberSource: methodSource,
+            ),
+          );
+          updated = result.source;
+        }
+
+        for (final field in fields) {
+          final fieldSource = specLibrary.emitSpec(field);
+          final result = appendExecutor.execute(
+            AppendRequest.field(
+              source: updated,
+              className: dataSourceName,
+              memberSource: fieldSource,
+            ),
+          );
+          updated = result.source;
+        }
+
+        return FileUtils.writeFile(
+          filePath,
+          updated,
+          'local_datasource',
+          force: true,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+          revert: false,
+        );
+      }
     }
 
     final directives = <Directive>[

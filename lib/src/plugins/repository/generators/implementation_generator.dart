@@ -3,12 +3,14 @@ import 'package:code_builder/code_builder.dart';
 
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
+import '../../../core/ast/ast_helper.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/entity_analyzer.dart';
+import '../../../utils/package_utils.dart';
 
 part 'implementation_generator_append.dart';
 part 'implementation_generator_cached.dart';
@@ -65,101 +67,6 @@ class RepositoryImplementationGenerator {
     final filePath = '$outputDir/data/repositories/$fileName';
 
     final methods = <Method>[];
-
-    final dataSourceName = '${entityName}DataSource';
-    final localDataSourceName = '${entityName}LocalDataSource';
-
-    // If action is delete, delete the file
-    if (config.revert) {
-      return FileUtils.deleteFile(
-        filePath,
-        'repository_implementation',
-        dryRun: options.dryRun,
-        verbose: options.verbose,
-      );
-    }
-
-    final fields = <Field>[];
-    final constructors = <Constructor>[];
-    if (config.generateLocal) {
-      fields.add(
-        Field(
-          (f) => f
-            ..modifier = FieldModifier.final$
-            ..type = refer(localDataSourceName)
-            ..name = '_dataSource',
-        ),
-      );
-      constructors.add(
-        Constructor(
-          (c) => c
-            ..requiredParameters.add(
-              Parameter(
-                (p) => p
-                  ..name = '_dataSource'
-                  ..toThis = true,
-              ),
-            ),
-        ),
-      );
-    } else if (config.enableCache) {
-      fields.add(
-        Field(
-          (f) => f
-            ..modifier = FieldModifier.final$
-            ..type = refer(dataSourceName)
-            ..name = '_remoteDataSource',
-        ),
-      );
-      fields.add(
-        Field(
-          (f) => f
-            ..modifier = FieldModifier.final$
-            ..type = refer(localDataSourceName)
-            ..name = '_localDataSource',
-        ),
-      );
-      constructors.add(
-        Constructor(
-          (c) => c
-            ..requiredParameters.add(
-              Parameter(
-                (p) => p
-                  ..name = '_remoteDataSource'
-                  ..toThis = true,
-              ),
-            )
-            ..requiredParameters.add(
-              Parameter(
-                (p) => p
-                  ..name = '_localDataSource'
-                  ..toThis = true,
-              ),
-            ),
-        ),
-      );
-    } else {
-      fields.add(
-        Field(
-          (f) => f
-            ..modifier = FieldModifier.final$
-            ..type = refer(dataSourceName)
-            ..name = '_dataSource',
-        ),
-      );
-      constructors.add(
-        Constructor(
-          (c) => c
-            ..requiredParameters.add(
-              Parameter(
-                (p) => p
-                  ..name = '_dataSource'
-                  ..toThis = true,
-              ),
-            ),
-        ),
-      );
-    }
 
     if (config.enableCache) {
       for (final method in config.methods) {
@@ -263,44 +170,163 @@ class RepositoryImplementationGenerator {
       );
     }
 
+    final dataSourceName = '${entityName}DataSource';
+    final localDataSourceName = '${entityName}LocalDataSource';
+
+    final fields = <Field>[];
+    final constructors = <Constructor>[];
+    if (config.generateLocal) {
+      fields.add(
+        Field(
+          (f) => f
+            ..modifier = FieldModifier.final$
+            ..type = refer(localDataSourceName)
+            ..name = '_dataSource',
+        ),
+      );
+      constructors.add(
+        Constructor(
+          (c) => c
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = '_dataSource'
+                  ..toThis = true,
+              ),
+            ),
+        ),
+      );
+    } else if (config.enableCache) {
+      fields.add(
+        Field(
+          (f) => f
+            ..modifier = FieldModifier.final$
+            ..type = refer(dataSourceName)
+            ..name = '_remoteDataSource',
+        ),
+      );
+      fields.add(
+        Field(
+          (f) => f
+            ..modifier = FieldModifier.final$
+            ..type = refer(localDataSourceName)
+            ..name = '_localDataSource',
+        ),
+      );
+      constructors.add(
+        Constructor(
+          (c) => c
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = '_remoteDataSource'
+                  ..toThis = true,
+              ),
+            )
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = '_localDataSource'
+                  ..toThis = true,
+              ),
+            ),
+        ),
+      );
+    } else {
+      fields.add(
+        Field(
+          (f) => f
+            ..modifier = FieldModifier.final$
+            ..type = refer(dataSourceName)
+            ..name = '_dataSource',
+        ),
+      );
+      constructors.add(
+        Constructor(
+          (c) => c
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = '_dataSource'
+                  ..toThis = true,
+              ),
+            ),
+        ),
+      );
+    }
+
     final importPaths = _buildImportPaths(config, entitySnake);
 
     // If file exists, handle append/remove/add
     if (File(filePath).existsSync() && !config.force) {
       final existing = await File(filePath).readAsString();
 
-      /*
-      if (config.action == PluginAction.remove) {
+      if (config.revert) {
+        if (!config.appendToExisting) {
+          final clazz = Class(
+            (c) => c
+              ..name = dataRepoName
+              ..mixins.addAll([refer('Loggable'), refer('FailureHandler')])
+              ..implements.add(refer(repoName))
+              ..fields.addAll(fields)
+              ..constructors.addAll(constructors)
+              ..methods.addAll(methods),
+          );
+
+          final output = specLibrary.emitLibrary(
+            specLibrary.library(
+              specs: [clazz],
+              directives: importPaths.map(Directive.import),
+            ),
+            leadingComment:
+                '// Generated by zfa for: ${config.name}\n// zfa generate ${config.name} --methods=${config.methods.join(',')} --repository',
+          );
+
+          return FileUtils.writeFile(
+            filePath,
+            output,
+            'repository_implementation',
+            force: true,
+            dryRun: options.dryRun,
+            verbose: options.verbose,
+            revert: true,
+            skipRevertIfExisted: true,
+          );
+        }
+
         // Remove methods
-        final reverted = _removeMethods(
+        var reverted = _removeMethods(
           source: existing,
           className: dataRepoName,
           methods: methods,
         );
+
+        // Remove fields
+        reverted = _removeFields(
+          source: reverted,
+          className: dataRepoName,
+          fields: fields,
+        );
+
+        // Remove constructors
+        reverted = _removeConstructors(
+          source: reverted,
+          className: dataRepoName,
+          constructors: constructors,
+        );
+
+        if (const AstHelper().isClassEmpty(reverted, dataRepoName)) {
+          return FileUtils.deleteFile(
+            filePath,
+            'repository_implementation',
+            dryRun: options.dryRun,
+            verbose: options.verbose,
+          );
+        }
+
         return FileUtils.writeFile(
           filePath,
           reverted,
-          'repository_implementation',
-          force: true,
-          dryRun: dryRun,
-          verbose: verbose,
-          revert: false,
-        );
-      }
-      */
-
-      if (config.appendToExisting) {
-        // Append methods
-        final importLines = _buildImportLines(importPaths);
-        final mergedImports = _mergeImports(existing, importLines);
-        final appended = _appendMethods(
-          source: mergedImports,
-          className: dataRepoName,
-          methods: methods,
-        );
-        return FileUtils.writeFile(
-          filePath,
-          appended,
           'repository_implementation',
           force: true,
           dryRun: options.dryRun,
@@ -308,17 +334,37 @@ class RepositoryImplementationGenerator {
           revert: false,
         );
       }
-    }
 
-    /*
-    if (config.action == PluginAction.remove) {
-      return GeneratedFile(
-        path: filePath,
-        type: 'repository_implementation',
-        action: 'skipped',
-      );
+      if (config.appendToExisting) {
+        var updated = _appendMethods(
+          source: existing,
+          className: dataRepoName,
+          methods: methods,
+          imports: importPaths,
+        );
+        updated = _appendFields(
+          source: updated,
+          className: dataRepoName,
+          fields: fields,
+        );
+        return FileUtils.writeFile(
+          filePath,
+          updated,
+          'repository_implementation',
+          force: true,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+        );
+      }
+
+      if (!config.force) {
+        return GeneratedFile(
+          path: filePath,
+          type: 'repository_implementation',
+          action: 'skipped',
+        );
+      }
     }
-    */
 
     final clazz = Class(
       (c) => c
@@ -336,14 +382,14 @@ class RepositoryImplementationGenerator {
         directives: importPaths.map(Directive.import),
       ),
       leadingComment:
-          '// Generated by zfa\n// zfa generate ${config.name} --methods=${config.methods.join(',')} --repository',
+          '// Generated by zfa for: ${config.name}\n// zfa generate ${config.name} --methods=${config.methods.join(',')} --repository',
     );
 
     return FileUtils.writeFile(
       filePath,
       output,
       'repository_implementation',
-      force: options.force,
+      force: config.force,
       dryRun: options.dryRun,
       verbose: options.verbose,
     );

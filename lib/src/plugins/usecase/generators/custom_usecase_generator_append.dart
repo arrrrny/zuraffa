@@ -71,11 +71,15 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
           action: 'skipped',
         );
       }
-      return FileUtils.deleteFile(
+      return FileUtils.writeFile(
         filePath,
+        content,
         'usecase',
+        force: true,
         dryRun: options.dryRun,
         verbose: options.verbose,
+        revert: true,
+        skipRevertIfExisted: true,
       );
     }
 

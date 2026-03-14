@@ -49,9 +49,9 @@ class ViewClassBuilder {
 
   static const _ignoreComment = '// ignore_for_file: no_logic_in_create_state';
 
-  String build(ViewClassSpec spec) {
+  String build(ViewClassSpec spec, {String? leadingComment}) {
     if (spec.isCustom) {
-      return _buildCustomView(spec);
+      return _buildCustomView(spec, leadingComment: leadingComment);
     }
     final viewClass = _buildViewClass(spec);
     final stateClass = _buildStateClass(spec);
@@ -62,12 +62,16 @@ class ViewClassBuilder {
       directives: directives,
     );
 
-    return specLibrary.emitLibrary(library, leadingComment: _ignoreComment);
+    final comment = leadingComment != null
+        ? '$leadingComment\n$_ignoreComment'
+        : _ignoreComment;
+
+    return specLibrary.emitLibrary(library, leadingComment: comment);
   }
 
-  String _buildCustomView(ViewClassSpec spec) {
+  String _buildCustomView(ViewClassSpec spec, {String? leadingComment}) {
     if (spec.isStateful) {
-      return _buildCustomStatefulView(spec);
+      return _buildCustomStatefulView(spec, leadingComment: leadingComment);
     }
     final viewClass = Class(
       (c) => c
@@ -130,10 +134,10 @@ class ViewClassBuilder {
       directives: directives,
     );
 
-    return specLibrary.emitLibrary(library);
+    return specLibrary.emitLibrary(library, leadingComment: leadingComment);
   }
 
-  String _buildCustomStatefulView(ViewClassSpec spec) {
+  String _buildCustomStatefulView(ViewClassSpec spec, {String? leadingComment}) {
     final viewClass = Class(
       (c) => c
         ..name = spec.viewName
@@ -212,7 +216,7 @@ class ViewClassBuilder {
       directives: directives,
     );
 
-    return specLibrary.emitLibrary(library);
+    return specLibrary.emitLibrary(library, leadingComment: leadingComment);
   }
 
   Class _buildViewClass(ViewClassSpec spec) {
