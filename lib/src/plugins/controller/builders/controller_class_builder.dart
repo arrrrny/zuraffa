@@ -7,6 +7,8 @@ class ControllerClassSpec {
   final String className;
   final String presenterName;
   final String? stateClassName;
+  final String? entityName;
+  final String? entityCamel;
   final List<Method> methods;
   final List<String> imports;
   final bool withState;
@@ -17,6 +19,8 @@ class ControllerClassSpec {
     required this.methods,
     required this.imports,
     this.stateClassName,
+    this.entityName,
+    this.entityCamel,
     this.withState = false,
   });
 }
@@ -43,6 +47,19 @@ class ControllerClassBuilder {
       ),
     );
 
+    final entityName = spec.entityName;
+    final entityCamel = spec.entityCamel;
+    if (spec.withState && entityName != null && entityCamel != null) {
+      fields.add(
+        Field(
+          (f) => f
+            ..modifier = FieldModifier.final$
+            ..type = refer('$entityName?')
+            ..name = 'initial$entityName',
+        ),
+      );
+    }
+
     final ctor = Constructor((c) {
       c.requiredParameters.add(
         Parameter(
@@ -51,14 +68,28 @@ class ControllerClassBuilder {
             ..toThis = true,
         ),
       );
+      if (spec.withState && entityName != null) {
+        c.optionalParameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'initial$entityName'
+              ..toThis = true
+              ..named = true,
+          ),
+        );
+      }
     });
     constructors.add(ctor);
 
     final stateClassName = spec.stateClassName;
-    if (spec.withState && stateClassName != null) {
+    if (spec.withState && stateClassName != null && entityName != null) {
       spec.methods.insert(
         0,
-        statefulBuilder.buildCreateInitialState(stateClassName),
+        statefulBuilder.buildCreateInitialState(
+          stateClassName,
+          initialEntityField: 'initial$entityName',
+          entityCamel: entityCamel,
+        ),
       );
     }
 

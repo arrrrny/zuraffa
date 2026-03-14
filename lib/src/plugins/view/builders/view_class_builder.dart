@@ -9,6 +9,7 @@ class ViewClassSpec {
   final String controllerName;
   final String presenterName;
   final String entityName;
+  final String entityCamel;
   final String? stateClassName;
   final List<Field> repoFields;
   final List<Field> routeFields;
@@ -24,6 +25,7 @@ class ViewClassSpec {
     required this.controllerName,
     required this.presenterName,
     required this.entityName,
+    required this.entityCamel,
     required this.repoFields,
     required this.routeFields,
     required this.repoPresenterArgs,
@@ -229,7 +231,19 @@ class ViewClassBuilder {
     );
 
     final presenterCall = _presenterCall(spec);
-    final controllerCall = refer(spec.controllerName).call([presenterCall]);
+    final controllerArgs = <Expression>[presenterCall];
+    final controllerNamedArgs = <String, Expression>{};
+
+    if (spec.withState) {
+      controllerNamedArgs['initial${spec.entityName}'] = refer(
+        spec.entityCamel,
+      );
+    }
+
+    final controllerCall = refer(spec.controllerName).call(
+      controllerArgs,
+      controllerNamedArgs,
+    );
 
     final createStateMethod = Method(
       (m) => m

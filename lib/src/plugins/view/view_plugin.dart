@@ -206,6 +206,7 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         controllerName: controllerName,
         presenterName: presenterName,
         entityName: entityName,
+        entityCamel: config.nameCamel,
         repoFields: repoFields,
         routeFields: routeFields,
         repoPresenterArgs: repoPresenterArgs,
@@ -233,6 +234,20 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   List<Field> _buildRouteFieldsForView(GeneratorConfig config, bool isDetail) {
     final fields = <Field>[];
+
+    // Add optional initial entity field to support immediate state initialization
+    final withState = config.generateState || config.customStateName != null;
+    if (withState) {
+      fields.add(
+        Field(
+          (f) => f
+            ..modifier = FieldModifier.final$
+            ..type = refer('${config.name}?')
+            ..name = config.nameCamel,
+        ),
+      );
+    }
+
     // If it's a detail view, it ALWAYS needs the ID param
     // If it's the ONLY view and we have update/delete methods, it ALSO needs the ID param
     final hasListMethods =

@@ -126,6 +126,8 @@ class ControllerPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         className: controllerName,
         presenterName: presenterName,
         stateClassName: withState ? stateName : null,
+        entityName: entityName,
+        entityCamel: entityCamel,
         withState: withState,
         methods: methods,
         imports: imports,
