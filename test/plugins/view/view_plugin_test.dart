@@ -31,16 +31,25 @@ void main() {
     );
     final config = GeneratorConfig(
       name: 'Product',
-      methods: const ['get', 'update'],
+      methods: const ['get', 'getList'],
       generateView: true,
       outputDir: outputDir,
     );
     final files = await plugin.generate(config);
-    expect(files.isNotEmpty, isTrue);
-    final content = files.first.content ?? '';
-    expect(content.contains('class ProductView'), isTrue);
-    expect(content.contains('final String? id'), isTrue);
-    expect(content.contains('createState()'), isTrue);
+    expect(files.length, 2);
+    final listContent =
+        files.firstWhere((f) => f.path.contains('product_view.dart')).content ??
+        '';
+    final detailContent =
+        files
+            .firstWhere((f) => f.path.contains('product_detail_view.dart'))
+            .content ??
+        '';
+
+    expect(listContent.contains('class ProductView'), isTrue);
+    expect(detailContent.contains('class ProductDetailView'), isTrue);
+    expect(detailContent.contains('final String? id'), isTrue);
+    expect(detailContent.contains('createState()'), isTrue);
   });
 
   test('generates view with query route param', () async {

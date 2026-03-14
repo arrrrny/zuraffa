@@ -83,6 +83,9 @@ extension RepositoryImplementationGeneratorSimple
         final dataType = config.useZorphy
             ? '${config.name}Patch'
             : 'Partial<${config.name}>';
+        final updateParamsType = config.useZorphy
+            ? 'UpdateParams<${config.idFieldType}, $dataType>'
+            : dataType;
         return Method(
           (m) => m
             ..name = 'update'
@@ -92,9 +95,7 @@ extension RepositoryImplementationGeneratorSimple
               Parameter(
                 (p) => p
                   ..name = 'params'
-                  ..type = refer(
-                    'UpdateParams<${config.idFieldType}, $dataType>',
-                  ),
+                  ..type = refer(updateParamsType),
               ),
             )
             ..body = Block(

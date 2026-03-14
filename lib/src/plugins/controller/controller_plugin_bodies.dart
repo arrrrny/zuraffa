@@ -22,7 +22,6 @@ extension ControllerPluginBodies on ControllerPlugin {
 
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(
           _updateStateStatement({loadingField: literalBool(true)}),
         )
@@ -68,7 +67,6 @@ extension ControllerPluginBodies on ControllerPlugin {
 
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(declareFinal('result').assign(resultCall).statement)
         ..statements.add(
           _resultFold(
@@ -103,7 +101,6 @@ extension ControllerPluginBodies on ControllerPlugin {
 
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(
           _updateStateStatement({loadingField: literalBool(true)}),
         )
@@ -157,7 +154,6 @@ extension ControllerPluginBodies on ControllerPlugin {
 
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(
           streamCall.property('listen').call([
             Method(
@@ -186,7 +182,6 @@ extension ControllerPluginBodies on ControllerPlugin {
     ).property('get$entityName').call(_callArgsExpressions(args)).awaited;
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(
           _updateStateStatement({'isGetting': literalBool(true)}),
         )
@@ -225,7 +220,6 @@ extension ControllerPluginBodies on ControllerPlugin {
     ).property('get$entityName').call(_callArgsExpressions(args)).awaited;
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(declareFinal('result').assign(resultCall).statement)
         ..statements.add(
           _resultFold(
@@ -246,7 +240,6 @@ extension ControllerPluginBodies on ControllerPlugin {
         .awaited;
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(
           _updateStateStatement({'isGettingList': literalBool(true)}),
         )
@@ -286,7 +279,6 @@ extension ControllerPluginBodies on ControllerPlugin {
         .awaited;
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(declareFinal('result').assign(resultCall).statement)
         ..statements.add(
           _resultFold(
@@ -323,7 +315,6 @@ extension ControllerPluginBodies on ControllerPlugin {
     }
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(
           _updateStateStatement({'isCreating': literalBool(true)}),
         )
@@ -357,7 +348,6 @@ extension ControllerPluginBodies on ControllerPlugin {
         .awaited;
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(declareFinal('result').assign(resultCall).statement)
         ..statements.add(
           _resultFold(
@@ -416,7 +406,6 @@ extension ControllerPluginBodies on ControllerPlugin {
     }
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(
           _updateStateStatement({'isUpdating': literalBool(true)}),
         )
@@ -453,7 +442,6 @@ extension ControllerPluginBodies on ControllerPlugin {
         .awaited;
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(declareFinal('result').assign(resultCall).statement)
         ..statements.add(
           _resultFold(
@@ -497,7 +485,6 @@ extension ControllerPluginBodies on ControllerPlugin {
     }
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(_updateStateStatement(deleteArgs))
         ..statements.add(declareFinal('result').assign(resultCall).statement)
         ..statements.add(
@@ -531,7 +518,6 @@ extension ControllerPluginBodies on ControllerPlugin {
     ).property('delete$entityName').call(_callArgsExpressions(idField)).awaited;
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(declareFinal('result').assign(resultCall).statement)
         ..statements.add(
           _resultFold(
@@ -586,7 +572,6 @@ extension ControllerPluginBodies on ControllerPlugin {
         .call([listenClosure]);
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(
           _updateStateStatement({'isWatching': literalBool(true)}),
         )
@@ -620,7 +605,6 @@ extension ControllerPluginBodies on ControllerPlugin {
         .call([listenClosure]);
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(
           declareFinal('subscription').assign(subscriptionCall).statement,
         )
@@ -667,7 +651,6 @@ extension ControllerPluginBodies on ControllerPlugin {
         .call([listenClosure]);
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(
           _updateStateStatement({'isWatchingList': literalBool(true)}),
         )
@@ -701,7 +684,6 @@ extension ControllerPluginBodies on ControllerPlugin {
         .call([listenClosure]);
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(
           declareFinal('subscription').assign(subscriptionCall).statement,
         )

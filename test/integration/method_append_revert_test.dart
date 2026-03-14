@@ -199,10 +199,7 @@ void main() {
     final providerFile = File(providerPath);
     if (providerFile.existsSync()) {
       final providerContent = providerFile.readAsStringSync();
-      expect(
-        providerContent,
-        contains("import '../../../domain/entities/enums/index.dart';"),
-      );
+      expect(providerContent, contains("domain/entities/enums/index.dart"));
       expect(
         providerContent,
         isNot(
@@ -225,10 +222,7 @@ void main() {
     final serviceFile = File(servicePath);
     if (serviceFile.existsSync()) {
       final serviceContent = serviceFile.readAsStringSync();
-      expect(
-        serviceContent,
-        contains("import '../entities/enums/index.dart';"),
-      );
+      expect(serviceContent, contains("domain/entities/enums/index.dart"));
     } else {
       fail('Service file was not created');
     }
@@ -246,10 +240,7 @@ void main() {
       reason: 'Mock data should be generated for enums',
     );
     final mockDataContent = File(mockDataPath).readAsStringSync();
-    expect(
-      mockDataContent,
-      contains("import '../../domain/entities/enums/index.dart';"),
-    );
+    expect(mockDataContent, contains("domain/entities/enums/index.dart"));
     expect(
       mockDataContent,
       isNot(

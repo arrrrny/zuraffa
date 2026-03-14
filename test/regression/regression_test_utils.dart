@@ -28,7 +28,7 @@ Future<void> writePubspec(RegressionWorkspace workspace) async {
   final repoRoot = Directory.current.path;
   final content =
       '''
-name: zuraffa_regression_workspace
+name: zuraffa_test_app
 environment:
   sdk: ">=3.8.0 <4.0.0"
   flutter: ">=3.10.0"

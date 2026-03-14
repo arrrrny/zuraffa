@@ -169,9 +169,17 @@ extension ControllerPluginMethods on ControllerPlugin {
         ..optionalParameters.addAll([
           Parameter(
             (p) => p
+              ..name = 'refresh'
+              ..type = refer('bool')
+              ..defaultTo = literalBool(false).code,
+          ),
+          Parameter(
+            (p) => p
               ..name = 'params'
               ..type = refer('ListQueryParams<$entityName>')
-              ..defaultTo = refer('ListQueryParams').constInstance([]).code,
+              ..defaultTo = refer(
+                'ListQueryParams<$entityName>',
+              ).constInstance([]).code,
           ),
           _cancelTokenParam(),
         ])
@@ -340,7 +348,9 @@ extension ControllerPluginMethods on ControllerPlugin {
             (p) => p
               ..name = 'params'
               ..type = refer('ListQueryParams<$entityName>')
-              ..defaultTo = refer('ListQueryParams').constInstance([]).code,
+              ..defaultTo = refer(
+                'ListQueryParams<$entityName>',
+              ).constInstance([]).code,
           ),
           _cancelTokenParam(),
         ])

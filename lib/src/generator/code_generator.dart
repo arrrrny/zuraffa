@@ -306,6 +306,10 @@ class CodeGenerator {
           }
         }
 
+        // Wait for domain/data layer to be ready before generating presentation layer
+        await Future.wait(tasks);
+        tasks.clear();
+
         if (executionConfig.generateVpcs || executionConfig.generatePresenter) {
           if (_isPluginEnabled('presenter')) {
             tasks.add(() async {
@@ -394,6 +398,10 @@ class CodeGenerator {
           }());
         }
 
+        // Wait for all core and data layers to be ready before DI
+        await Future.wait(tasks);
+        tasks.clear();
+
         if ((executionConfig.generateMock ||
                 executionConfig.generateMockDataOnly) &&
             _isPluginEnabled('mock')) {
@@ -428,6 +436,10 @@ class CodeGenerator {
           }());
         }
 
+        // Wait for mocks and tests before DI
+        await Future.wait(tasks);
+        tasks.clear();
+
         if (executionConfig.generateDi) {
           if (_isPluginEnabled('di')) {
             tasks.add(() async {
@@ -438,27 +450,24 @@ class CodeGenerator {
           }
         }
 
+        await Future.wait(tasks);
+        tasks.clear();
+
         if (executionConfig.generateRoute && _isPluginEnabled('route')) {
-          tasks.add(() async {
-            progress.update('route');
-            final routeFiles = await _routePlugin.generate(executionConfig);
-            files.addAll(routeFiles);
-            nextSteps.add('Add go_router to your pubspec.yaml dependencies');
-            nextSteps.add('Import routes from lib/src/routing/index.dart');
-          }());
+          progress.update('route');
+          final routeFiles = await _routePlugin.generate(executionConfig);
+          files.addAll(routeFiles);
+          nextSteps.add('Add go_router to your pubspec.yaml dependencies');
+          nextSteps.add('Import routes from lib/src/routing/index.dart');
         }
 
         if (executionConfig.enableCache && _isPluginEnabled('cache')) {
-          tasks.add(() async {
-            progress.update('cache');
-            final cacheFiles = await _cachePlugin.generate(executionConfig);
-            files.addAll(cacheFiles);
-            nextSteps.add('Run: zfa build');
-            nextSteps.add('Call initAllCaches() before DI setup');
-          }());
+          progress.update('cache');
+          final cacheFiles = await _cachePlugin.generate(executionConfig);
+          files.addAll(cacheFiles);
+          nextSteps.add('Run: zfa build');
+          nextSteps.add('Call initAllCaches() before DI setup');
         }
-
-        await Future.wait(tasks);
 
         if (config.generateRepository &&
             config.isEntityBased &&

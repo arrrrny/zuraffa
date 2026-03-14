@@ -299,4 +299,39 @@ void main() {
     expect(content.contains("getListingRoutes()"), isFalse);
     expect(content.contains("getProductRoutes()"), isFalse);
   });
+
+  test('generates extension methods with leading slash', () async {
+    final builder = RouteBuilder(
+      outputDir: outputDir,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
+    );
+
+    await builder.generate(
+      GeneratorConfig(
+        name: 'User',
+        methods: const ['get', 'getList', 'update'],
+        generateRoute: true,
+        outputDir: outputDir,
+      ),
+    );
+
+    final appRoutes = File('$outputDir/routing/app_routes.dart');
+    expect(appRoutes.existsSync(), isTrue);
+    final content = appRoutes.readAsStringSync();
+
+    expect(
+      content.contains("void goToUserDetail(String id) => go('/user/\$id');"),
+      isTrue,
+    );
+    expect(
+      content.contains(
+        "void goToUserUpdate(String id) => go('/user/\$id/edit');",
+      ),
+      isTrue,
+    );
+  });
 }

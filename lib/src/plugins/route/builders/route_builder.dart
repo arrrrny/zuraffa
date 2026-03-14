@@ -435,6 +435,14 @@ class RouteBuilder {
         (config.methods.contains('getList') ||
             config.methods.contains('watchList'));
 
+    final hasDetailView =
+        !isCustom &&
+        (config.methods.contains('get') || config.methods.contains('watch'));
+    final hasListView =
+        !isCustom &&
+        (config.methods.contains('getList') ||
+            config.methods.contains('watchList'));
+
     final goRoutes = <Expression>[
       if (isCustom)
         _buildCustomRouteExpr(
@@ -471,6 +479,9 @@ class RouteBuilder {
           routeNameBase: routeNameBase,
           viewParam: dependencyInfo.viewParam,
           config: config,
+          viewName: (hasListView && hasDetailView)
+              ? '${entityName}DetailView'
+              : '${entityName}View',
         ),
       if (hasCreate)
         _buildCreateRouteExpr(
@@ -489,12 +500,17 @@ class RouteBuilder {
           routeNameBase: routeNameBase,
           viewParam: dependencyInfo.viewParam,
           config: config,
+          viewName: (hasListView && hasDetailView)
+              ? '${entityName}DetailView'
+              : '${entityName}View',
         ),
     ];
 
     final imports = [
       'package:go_router/go_router.dart',
       '../presentation/pages/$domainSnake/${entitySnake}_view.dart',
+      if (hasListView && hasDetailView)
+        '../presentation/pages/$domainSnake/${entitySnake}_detail_view.dart',
       if (!config.generateDi) '../di/service_locator.dart',
       if (dependencyInfo.importPath.isNotEmpty) dependencyInfo.importPath,
     ];
@@ -621,6 +637,7 @@ class RouteBuilder {
     required String routeNameBase,
     required String viewParam,
     required GeneratorConfig config,
+    String? viewName,
   }) {
     final pathExpr = refer(
       '${entityName}Routes',
@@ -632,6 +649,7 @@ class RouteBuilder {
       viewParam: viewParam,
       withId: config.idFieldType != 'NoParams',
       config: config,
+      viewName: viewName,
     );
 
     return refer(
@@ -671,6 +689,7 @@ class RouteBuilder {
     required String routeNameBase,
     required String viewParam,
     required GeneratorConfig config,
+    String? viewName,
   }) {
     final pathExpr = refer(
       '${entityName}Routes',
@@ -682,6 +701,7 @@ class RouteBuilder {
       viewParam: viewParam,
       withId: config.idFieldType != 'NoParams',
       config: config,
+      viewName: viewName,
     );
 
     return refer(
@@ -694,8 +714,10 @@ class RouteBuilder {
     required String viewParam,
     required bool withId,
     required GeneratorConfig config,
+    String? viewName,
   }) {
     final viewArgs = <String, Expression>{};
+    final effectiveViewName = viewName ?? '${entityName}View';
 
     if (viewParam.isNotEmpty && !config.generateDi) {
       viewArgs[viewParam] = refer(
@@ -722,11 +744,11 @@ class RouteBuilder {
                 (b) => b
                   ..statements.add(
                     refer(
-                      '${entityName}View',
+                      effectiveViewName,
                     ).call([], viewArgs).returned.statement,
                   ),
               )
-            : refer('${entityName}View').constInstance([]).code,
+            : refer(effectiveViewName).constInstance([]).code,
     );
     return builderMethod.closure;
   }
@@ -916,7 +938,7 @@ class RouteBuilder {
                 ..type = refer('String'),
             ),
           ],
-          body: refer('go').call([literalString('$routeBase/\$id')]),
+          body: refer('go').call([literalString('/$routeBase/\$id')]),
         ),
       );
     }
@@ -941,7 +963,7 @@ class RouteBuilder {
                 ..type = refer('String'),
             ),
           ],
-          body: refer('go').call([literalString('$routeBase/\$id/edit')]),
+          body: refer('go').call([literalString('/$routeBase/\$id/edit')]),
         ),
       );
     }

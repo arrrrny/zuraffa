@@ -442,6 +442,9 @@ class MockDataSourceBuilder {
                           )
                           .statement,
                       Code(
+                        'if (params.offset != null && params.offset! > 0) { items = items.skip(params.offset!).toList(); }',
+                      ),
+                      Code(
                         'if (params.limit != null && params.limit! > 0) { items = items.take(params.limit!).toList(); }',
                       ),
                       refer('logger').property('info').call([
@@ -775,6 +778,9 @@ class MockDataSourceBuilder {
                                       ).property('${entityCamel}s'),
                                     )
                                     .statement,
+                                Code(
+                                  'if (params.offset != null && params.offset! > 0) { items = items.skip(params.offset!).toList(); }',
+                                ),
                                 Code(
                                   'if (params.limit != null && params.limit! > 0) { items = items.take(params.limit!).toList(); }',
                                 ),

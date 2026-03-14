@@ -16,16 +16,8 @@ extension ControllerPluginUtils on ControllerPlugin {
         .where((part) => part.isNotEmpty)
         .toList();
     final expressions = parts.map(refer).toList();
-    expressions.add(refer('token'));
+    expressions.add(refer('cancelToken'));
     return expressions;
-  }
-
-  Code _tokenStatement() {
-    return declareFinal('token')
-        .assign(
-          refer('cancelToken').ifNullThen(refer('createCancelToken').call([])),
-        )
-        .statement;
   }
 
   Code _updateStateStatement(Map<String, Expression> updates) {

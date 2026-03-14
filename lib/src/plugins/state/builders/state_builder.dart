@@ -214,6 +214,27 @@ class StateBuilder {
             _listOf(entityName),
           ),
         );
+        fields.add(
+          _docField(
+            'The current offset for pagination',
+            'offset',
+            refer('int'),
+          ),
+        );
+        fields.add(
+          _docField(
+            'The maximum number of items to fetch',
+            'limit',
+            refer('int'),
+          ),
+        );
+        fields.add(
+          _docField(
+            'Whether more items are available to fetch',
+            'hasMore',
+            refer('bool'),
+          ),
+        );
       }
 
       if (needsEntityField) {
@@ -650,6 +671,33 @@ class StateBuilder {
             ..defaultTo = literalConstList([], refer(entityName)).code,
         ),
       );
+      params.add(
+        Parameter(
+          (p) => p
+            ..name = 'offset'
+            ..named = true
+            ..toThis = true
+            ..defaultTo = literalNum(0).code,
+        ),
+      );
+      params.add(
+        Parameter(
+          (p) => p
+            ..name = 'limit'
+            ..named = true
+            ..toThis = true
+            ..defaultTo = literalNum(10).code,
+        ),
+      );
+      params.add(
+        Parameter(
+          (p) => p
+            ..name = 'hasMore'
+            ..named = true
+            ..toThis = true
+            ..defaultTo = literalBool(true).code,
+        ),
+      );
     }
 
     if (needsEntityField) {
@@ -715,6 +763,33 @@ class StateBuilder {
       values['${entityCamel}List'] = refer(
         '${entityCamel}List',
       ).ifNullThen(_this('${entityCamel}List'));
+      params.add(
+        Parameter(
+          (p) => p
+            ..name = 'offset'
+            ..named = true
+            ..type = refer('int?'),
+        ),
+      );
+      values['offset'] = refer('offset').ifNullThen(_this('offset'));
+      params.add(
+        Parameter(
+          (p) => p
+            ..name = 'limit'
+            ..named = true
+            ..type = refer('int?'),
+        ),
+      );
+      values['limit'] = refer('limit').ifNullThen(_this('limit'));
+      params.add(
+        Parameter(
+          (p) => p
+            ..name = 'hasMore'
+            ..named = true
+            ..type = refer('bool?'),
+        ),
+      );
+      values['hasMore'] = refer('hasMore').ifNullThen(_this('hasMore'));
     }
 
     if (needsEntityField) {
@@ -793,6 +868,9 @@ class StateBuilder {
             .property('${entityCamel}List')
             .equalTo(refer('${entityCamel}List')),
       );
+      conditions.add(other.property('offset').equalTo(refer('offset')));
+      conditions.add(other.property('limit').equalTo(refer('limit')));
+      conditions.add(other.property('hasMore').equalTo(refer('hasMore')));
     }
 
     if (needsEntityField) {
@@ -832,6 +910,9 @@ class StateBuilder {
 
     if (needsEntityListField) {
       parts.add(refer('${entityCamel}List').property('hashCode'));
+      parts.add(refer('offset').property('hashCode'));
+      parts.add(refer('limit').property('hashCode'));
+      parts.add(refer('hasMore').property('hashCode'));
     }
 
     if (needsEntityField) {
@@ -865,6 +946,9 @@ class StateBuilder {
 
     if (needsEntityListField) {
       parts.add('${entityCamel}List: \$${entityCamel}List');
+      parts.add('offset: \$offset');
+      parts.add('limit: \$limit');
+      parts.add('hasMore: \$hasMore');
     }
 
     if (needsEntityField) {
