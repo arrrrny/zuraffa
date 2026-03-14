@@ -365,13 +365,14 @@ class GeneratorConfig {
   }
 
   // Check if using repository or service
-  bool get hasRepo => repo != null;
-  bool get hasService => service != null;
+  bool get hasRepo => repo != null || (!useService && isEntityBased);
+  bool get hasService => service != null || useService;
 
   // Backward compatibility helpers
   List<String> get repos => repo != null ? [repo!] : [];
 
   List<String> get effectiveRepos {
+    if (useService) return [];
     if (repo != null) {
       // Ensure repo has Repository suffix
       final repoName = repo!.endsWith('Repository')
@@ -385,25 +386,29 @@ class GeneratorConfig {
 
   // Get effective service name with Service suffix
   String? get effectiveService {
-    if (service == null) return null;
+    if (service == null) {
+      return useService ? '${name}Service' : null;
+    }
     return service!.endsWith('Service') ? service! : '${service!}Service';
   }
 
   // Get service snake case name (without Service suffix)
   String? get serviceSnake {
-    if (service == null) return null;
-    final baseName = service!.endsWith('Service')
-        ? service!.substring(0, service!.length - 7)
-        : service!;
+    final s = service ?? (useService ? '${name}Service' : null);
+    if (s == null) return null;
+    final baseName = s.endsWith('Service')
+        ? s.substring(0, s.length - 7)
+        : s;
     return _camelToSnake(baseName);
   }
 
   // Get effective provider name with Provider suffix
   String? get effectiveProvider {
-    if (service == null) return null;
-    final baseName = service!.endsWith('Service')
-        ? service!.substring(0, service!.length - 7)
-        : service!;
+    final s = service ?? (useService ? '${name}Service' : null);
+    if (s == null) return null;
+    final baseName = s.endsWith('Service')
+        ? s.substring(0, s.length - 7)
+        : s;
     // Provider name format: {ServiceName}Provider (e.g., EmailProvider, SmtpEmailProvider)
     // For now, use the simple format. Users can extend with custom providers manually.
     return '${baseName}Provider';
@@ -411,10 +416,11 @@ class GeneratorConfig {
 
   // Get provider snake case name (without Provider suffix)
   String? get providerSnake {
-    if (service == null) return null;
-    final baseName = service!.endsWith('Service')
-        ? service!.substring(0, service!.length - 7)
-        : service!;
+    final s = service ?? (useService ? '${name}Service' : null);
+    if (s == null) return null;
+    final baseName = s.endsWith('Service')
+        ? s.substring(0, s.length - 7)
+        : s;
     return _camelToSnake(baseName);
   }
 

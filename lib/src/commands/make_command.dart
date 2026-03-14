@@ -99,6 +99,11 @@ class MakeCommand extends Command<void> {
       help: 'Generate initialization and disposal methods',
     );
     argParser.addFlag(
+      'use-service',
+      negatable: false,
+      help: 'Use service and provider instead of repository and datasource',
+    );
+    argParser.addFlag(
       'zorphy',
       help:
           'Use Zorphy patterns (e.g., LocalePatch instead of Partial<Locale>)',
@@ -220,6 +225,7 @@ class MakeCommand extends Command<void> {
     final usecases = usecasesStr?.split(',').map((e) => e.trim()).toList();
     final useMockInDi = argResults!['use-mock'] == true;
     final generateInit = argResults!['init'] == true;
+    final useService = argResults!['use-service'] == true;
     final useZorphy =
         argResults!['zorphy'] == true || (configData?.zorphyByDefault ?? true);
     final generateLocal = argResults!['local'] == true;
@@ -239,6 +245,7 @@ class MakeCommand extends Command<void> {
       useCaseType: type,
       paramsType: params,
       returnsType: returns,
+      useService: useService,
       appendToExisting: pluginNames.contains('method_append'),
       generateUseCase:
           pluginNames.contains('usecase') ||

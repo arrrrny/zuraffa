@@ -70,7 +70,11 @@ zfa entity create -n Product --field name:String --field price:double --field st
 ### 3. Generate a Feature
 Generate the full stack (Domain, Data, Presentation, Tests) in one go:
 ```bash
-zfa feature Product --methods=get,getList,create --data --vpcs --state --test
+# Using Repository/DataSource (Default)
+zfa feature scaffold Product --methods=get,getList,create --mock --vpcs --state --test
+
+# Using Service/Provider (Alternative)
+zfa feature scaffold Product --methods=get,getList --use-service --mock --vpcs --state --test
 ```
 
 ### 4. Granular Control (Make)

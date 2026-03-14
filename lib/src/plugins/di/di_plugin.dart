@@ -494,6 +494,15 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final fileName = '${serviceSnake}_service_di.dart';
     final diPath = path.join(outputDir, 'di', 'services', fileName);
 
+    if (config.revert) {
+      return FileUtils.deleteFile(
+        diPath,
+        'di_service',
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+      );
+    }
+
     if (File(diPath).existsSync() && !options.force) {
       return null;
     }
@@ -573,6 +582,15 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final fileName = '${mockProviderSnake}_di.dart';
     final diPath = path.join(outputDir, 'di', 'providers', fileName);
 
+    if (config.revert) {
+      return FileUtils.deleteFile(
+        diPath,
+        'di_mock_provider',
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+      );
+    }
+
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$mockProviderName',
       imports: [
@@ -612,6 +630,15 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     }
     final fileName = '${providerSnake}_provider_di.dart';
     final diPath = path.join(outputDir, 'di', 'providers', fileName);
+
+    if (config.revert) {
+      return FileUtils.deleteFile(
+        diPath,
+        'di_provider',
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+      );
+    }
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$providerName',

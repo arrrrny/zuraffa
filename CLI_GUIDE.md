@@ -78,6 +78,7 @@ zfa generate <Name> [options]
 |------|-------|-------------|
 | `--methods=<list>` | `-m` | Comma-separated methods to generate |
 | `--data` | `-d` | Generate data repository + data source |
+| `--use-service` | | Use service and provider instead of repository and datasource |
 | `--datasource` | | Generate data source only |
 | `--id-field=<name>` | | ID field name (default: `id`) |
 | `--id-field-type=<type>` | | ID field type (default: `String`) |

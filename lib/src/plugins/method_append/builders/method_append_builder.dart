@@ -57,7 +57,7 @@ class MethodAppendBuilder {
       return MethodAppendResult(updatedFiles, warnings);
     }
 
-    if (config.repo == null && config.service == null) {
+    if (!config.hasRepo && !config.hasService) {
       warnings.add('⚠️  --append requires --repo or --service flag');
       return MethodAppendResult(updatedFiles, warnings);
     }
@@ -66,7 +66,7 @@ class MethodAppendBuilder {
       return _appendServiceMethod(config);
     }
 
-    final repoBase = config.repo;
+    final repoBase = config.effectiveRepos.firstOrNull;
     if (repoBase == null) {
       warnings.add('Repository name required for method append operations');
       return MethodAppendResult(updatedFiles, warnings);

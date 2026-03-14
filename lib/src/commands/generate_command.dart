@@ -96,6 +96,11 @@ class GenerateCommand extends Command<void> {
       defaultsTo: false,
     );
     argParser.addFlag(
+      'use-service',
+      help: 'Use service and provider instead of repository and datasource',
+      defaultsTo: false,
+    );
+    argParser.addFlag(
       'test',
       abbr: 't',
       help: 'Generate unit tests',
@@ -397,6 +402,7 @@ class GenerateCommand extends Command<void> {
       useCaseType: argResults!['type'] as String? ?? 'usecase',
       paramsType: argResults!['params'] as String?,
       returnsType: argResults!['returns'] as String?,
+      useService: argResults!['use-service'] == true,
       idField: idField,
       idFieldType: idFieldType,
       queryField: queryField,

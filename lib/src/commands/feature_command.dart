@@ -47,6 +47,12 @@ class FeatureCommand extends PluginCommand {
       negatable: false,
     );
     argParser.addFlag(
+      'use-service',
+      help: 'Use service and provider instead of repository and datasource',
+      defaultsTo: false,
+      negatable: false,
+    );
+    argParser.addFlag(
       'route',
       help: 'Generate Routing definitions',
       defaultsTo: false,
