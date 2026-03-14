@@ -105,7 +105,6 @@ class CommonPatterns {
         .toList();
   }
 
-
   static ParsedUseCaseInfo parseUseCaseInfo(
     String u,
     GeneratorConfig config,

@@ -23,19 +23,25 @@ extension RepositoryImplementationGeneratorAppend
     } else {
       imports.add('$baseImport/domain/entities/$entitySnake/$entitySnake.dart');
     }
-    imports.add('$baseImport/domain/repositories/${entitySnake}_repository.dart');
+    imports.add(
+      '$baseImport/domain/repositories/${entitySnake}_repository.dart',
+    );
 
     if (config.generateLocal) {
       imports.add(
         '$baseImport/data/datasources/$entitySnake/${entitySnake}_local_datasource.dart',
       );
     } else if (config.enableCache) {
-      imports.add('$baseImport/data/datasources/$entitySnake/${entitySnake}_datasource.dart');
+      imports.add(
+        '$baseImport/data/datasources/$entitySnake/${entitySnake}_datasource.dart',
+      );
       imports.add(
         '$baseImport/data/datasources/$entitySnake/${entitySnake}_local_datasource.dart',
       );
     } else {
-      imports.add('$baseImport/data/datasources/$entitySnake/${entitySnake}_datasource.dart');
+      imports.add(
+        '$baseImport/data/datasources/$entitySnake/${entitySnake}_datasource.dart',
+      );
     }
     return imports;
   }

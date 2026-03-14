@@ -41,10 +41,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         'type': 'boolean',
         'description': 'Generate View, Presenter, Controller, State',
       },
-      'repository': {
-        'type': 'boolean',
-        'description': 'Generate Repository',
-      },
+      'repository': {'type': 'boolean', 'description': 'Generate Repository'},
       'datasource': {
         'type': 'boolean',
         'description': 'Generate DataSource (Remote and/or Local)',
@@ -53,10 +50,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         'type': 'boolean',
         'description': 'Generate local data source (instead of remote)',
       },
-      'mock': {
-        'type': 'boolean',
-        'description': 'Generate Mock data',
-      },
+      'mock': {'type': 'boolean', 'description': 'Generate Mock data'},
       'use-mock': {
         'type': 'boolean',
         'description': 'Use mock datasources in DI registration',
@@ -74,10 +68,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         'type': 'boolean',
         'description': 'Generate Routing definitions',
       },
-      'test': {
-        'type': 'boolean',
-        'description': 'Generate Tests',
-      },
+      'test': {'type': 'boolean', 'description': 'Generate Tests'},
       'usecases': {
         'type': 'array',
         'items': {'type': 'string'},
@@ -177,7 +168,8 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
     // Load global config
     final zfaConfig = ZfaConfig.load();
 
-    final rawOutputDir = args['outputDir'] ?? zfaConfig?.defaultEntityOutput ?? 'lib/src';
+    final rawOutputDir =
+        args['outputDir'] ?? zfaConfig?.defaultEntityOutput ?? 'lib/src';
     // Ensure outputDir is relative to project root and doesn't start with /
     var outputDir = rawOutputDir;
     final currentPath = Directory.current.path;
@@ -200,13 +192,17 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
     final generateRepo = args['repository'] ?? true;
     final generateDataSource = args['datasource'] ?? true;
     final generateLocal = args['local'] ?? false;
-    final generateMock = args['mock'] == true || (zfaConfig?.mockByDefault == true && args['mock'] != false);
+    final generateMock =
+        args['mock'] == true ||
+        (zfaConfig?.mockByDefault == true && args['mock'] != false);
     final useMock = args['use-mock'] == true;
     // Default to ZfaConfig setting if arg is null, otherwise default to true (if arg not provided but default in schema is true, this logic might need refinement based on how args are passed. Assuming args contains defaults from command runner if not provided)
     // Actually, args coming from execute() might not have defaults populated if not called via CommandRunner.
     // Let's assume args contains what user provided.
     // If 'di' is in args, use it. If not, use ZfaConfig.diByDefault.
-    final generateDi = args['di'] == true || (zfaConfig?.diByDefault == true && args['di'] != false);
+    final generateDi =
+        args['di'] == true ||
+        (zfaConfig?.diByDefault == true && args['di'] != false);
 
     final enableCache = args['cache'] ?? false;
     final usecases = (args['usecases'] as List?)?.cast<String>() ?? [];
@@ -222,9 +218,13 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
     final generateInit = args['init'] == true;
     final appendToExisting = zfaConfig?.appendByDefault ?? false;
 
-    final generateRoute = args['route'] == true || (zfaConfig?.routeByDefault == true && args['route'] != false);
+    final generateRoute =
+        args['route'] == true ||
+        (zfaConfig?.routeByDefault == true && args['route'] != false);
 
-    final generateTest = args['test'] == true || (zfaConfig?.testByDefault == true && args['test'] != false);
+    final generateTest =
+        args['test'] == true ||
+        (zfaConfig?.testByDefault == true && args['test'] != false);
 
     final useZorphy = args.containsKey('zorphy')
         ? args['zorphy']
@@ -234,18 +234,17 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
     // If id-field-type was explicitly set to "NoParams" or "null", use NoParams
     // Otherwise default to String
     final idFieldTypeRaw = args['id-field-type'];
-    final idFieldType =
-        idFieldTypeRaw == 'NoParams' || idFieldTypeRaw == 'null'
-            ? 'NoParams'
-            : (idFieldTypeRaw as String? ?? 'String');
+    final idFieldType = idFieldTypeRaw == 'NoParams' || idFieldTypeRaw == 'null'
+        ? 'NoParams'
+        : (idFieldTypeRaw as String? ?? 'String');
     final queryField = args['query-field'] as String? ?? 'id';
     // If query-field-type was explicitly set to "NoParams" or "null", use NoParams
     // Otherwise default to String
     final queryFieldTypeRaw = args['query-field-type'];
     final queryFieldType =
         queryFieldTypeRaw == 'NoParams' || queryFieldTypeRaw == 'null'
-            ? 'NoParams'
-            : (queryFieldTypeRaw as String? ?? 'String');
+        ? 'NoParams'
+        : (queryFieldTypeRaw as String? ?? 'String');
 
     final allFiles = <GeneratedFile>[];
 
@@ -329,10 +328,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
       force: force,
       verbose: verbose,
     );
-    final usecasePlugin = UseCasePlugin(
-      outputDir: outputDir,
-      options: options,
-    );
+    final usecasePlugin = UseCasePlugin(outputDir: outputDir, options: options);
 
     if (usecases.isNotEmpty) {
       // Generate specific custom usecases

@@ -44,7 +44,11 @@ class UseCaseClassBuilder {
     return specLibrary.library(specs: [clazz], directives: directives);
   }
 
-  String build(UseCaseClassSpec spec, {bool format = true, String? leadingComment}) {
+  String build(
+    UseCaseClassSpec spec, {
+    bool format = true,
+    String? leadingComment,
+  }) {
     return specLibrary.emitLibrary(
       buildLibrary(spec),
       format: format,

@@ -279,12 +279,12 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final hasGet = config.methods.contains('get');
     final hasWatch = config.methods.contains('watch');
     final needsIdParam = _needsIdParam(config);
-    
+
     // If we have any method that needs an ID, we use idField
     if (needsIdParam) {
       return false;
     }
-    
+
     if (config.queryFieldType == 'NoParams') {
       return false;
     }
@@ -344,7 +344,7 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           ),
       );
     }
-    
+
     // Check if we use idField (get/watch/update/delete)
     if (_needsIdParam(config)) {
       final idValue = refer('widget').property(config.idField);
@@ -363,7 +363,7 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           ),
       );
     }
-    
+
     // Check if we use queryField
     if (_needsQueryParam(config)) {
       final queryValue = refer('widget').property(config.queryField);

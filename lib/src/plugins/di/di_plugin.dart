@@ -1167,22 +1167,24 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     var content = existingContent;
 
     for (final exportPath in exportPaths) {
-      final request =
-          AppendRequest.export(source: content, exportPath: exportPath);
-      final result =
-          revert
-              ? appendExecutor.undo(request)
-              : appendExecutor.execute(request);
+      final request = AppendRequest.export(
+        source: content,
+        exportPath: exportPath,
+      );
+      final result = revert
+          ? appendExecutor.undo(request)
+          : appendExecutor.execute(request);
       content = result.source;
     }
 
     for (final importPath in importPaths) {
-      final request =
-          AppendRequest.import(source: content, importPath: importPath);
-      final result =
-          revert
-              ? appendExecutor.undo(request)
-              : appendExecutor.execute(request);
+      final request = AppendRequest.import(
+        source: content,
+        importPath: importPath,
+      );
+      final result = revert
+          ? appendExecutor.undo(request)
+          : appendExecutor.execute(request);
       content = result.source;
     }
 
@@ -1192,10 +1194,9 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         functionName: functionName,
         memberSource: registration,
       );
-      final result =
-          revert
-              ? appendExecutor.undo(request)
-              : appendExecutor.execute(request);
+      final result = revert
+          ? appendExecutor.undo(request)
+          : appendExecutor.execute(request);
       content = result.source;
     }
 

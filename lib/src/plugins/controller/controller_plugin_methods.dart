@@ -54,12 +54,7 @@ extension ControllerPluginMethods on ControllerPlugin {
       for (final u in config.usecases) {
         final info = CommonPatterns.parseUseCaseInfo(u, config, outputDir);
         methods.add(
-          _buildCustomMethod(
-            config,
-            info.fieldName,
-            withState,
-            info: info,
-          ),
+          _buildCustomMethod(config, info.fieldName, withState, info: info),
         );
       }
     } else if (config.isCustomUseCase && config.methods.isEmpty) {

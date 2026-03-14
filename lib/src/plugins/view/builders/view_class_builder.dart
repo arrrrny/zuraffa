@@ -137,7 +137,10 @@ class ViewClassBuilder {
     return specLibrary.emitLibrary(library, leadingComment: leadingComment);
   }
 
-  String _buildCustomStatefulView(ViewClassSpec spec, {String? leadingComment}) {
+  String _buildCustomStatefulView(
+    ViewClassSpec spec, {
+    String? leadingComment,
+  }) {
     final viewClass = Class(
       (c) => c
         ..name = spec.viewName

@@ -5,7 +5,9 @@ class PackageUtils {
     final pubspec = File('pubspec.yaml');
     if (pubspec.existsSync()) {
       final content = pubspec.readAsStringSync();
-      final nameLine = content.split('\n').firstWhere((l) => l.startsWith('name:'));
+      final nameLine = content
+          .split('\n')
+          .firstWhere((l) => l.startsWith('name:'));
       return nameLine.split(':')[1].trim();
     }
     return 'app';
