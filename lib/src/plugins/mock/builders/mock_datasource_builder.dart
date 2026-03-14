@@ -544,9 +544,10 @@ class MockDataSourceBuilder {
               (m) => m
                 ..requiredParameters.add(Parameter((p) => p..name = '_'))
                 ..lambda = true
-                ..body = refer('notFoundFailure').call([
-                  literalString('$entityName not found in mock data'),
-                ]).code,
+                ..body = refer('notFoundFailure')
+                    .call([literalString('$entityName not found in mock data')])
+                    .thrown
+                    .code,
             ).closure;
             bodyStatements.addAll([
               declareFinal('existing')
@@ -637,9 +638,10 @@ class MockDataSourceBuilder {
               (m) => m
                 ..requiredParameters.add(Parameter((p) => p..name = '_'))
                 ..lambda = true
-                ..body = refer('notFoundFailure').call([
-                  literalString('$entityName not found in mock data'),
-                ]).code,
+                ..body = refer('notFoundFailure')
+                    .call([literalString('$entityName not found in mock data')])
+                    .thrown
+                    .code,
             ).closure;
             bodyStatements.addAll([
               declareFinal('existing')
