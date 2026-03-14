@@ -13,6 +13,7 @@ class GeneratorConfig {
   final bool appendToExisting; // New: append to existing files
   final bool generateUseCase;
   final bool generateService;
+  final bool useService;
   final bool generateRepository;
   final String useCaseType;
   final String? paramsType;
@@ -74,6 +75,7 @@ class GeneratorConfig {
     this.appendToExisting = false,
     this.generateUseCase = false,
     this.generateService = false,
+    this.useService = false,
     this.generateRepository = false,
     this.useCaseType = 'usecase',
     this.paramsType,
@@ -223,6 +225,7 @@ class GeneratorConfig {
     bool? appendToExisting,
     bool? generateUseCase,
     bool? generateService,
+    bool? useService,
     bool? generateRepository,
     String? useCaseType,
     String? paramsType,
@@ -281,6 +284,7 @@ class GeneratorConfig {
       appendToExisting: appendToExisting ?? this.appendToExisting,
       generateUseCase: generateUseCase ?? this.generateUseCase,
       generateService: generateService ?? this.generateService,
+      useService: useService ?? this.useService,
       generateRepository: generateRepository ?? this.generateRepository,
       useCaseType: useCaseType ?? this.useCaseType,
       paramsType: paramsType ?? this.paramsType,

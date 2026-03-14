@@ -83,6 +83,7 @@ extension TestBuilderHelpers on TestBuilder {
     String entityName,
     String returnConstructor,
     bool isCompletable,
+    String mockVarName,
   ) {
     final idType = config.idFieldType;
     final idValue = idType == 'NoParams'
@@ -98,10 +99,10 @@ extension TestBuilderHelpers on TestBuilder {
       if (idType == 'NoParams') {
         paramsExpr = refer('NoParams').call([]);
         arrangeCall = refer(
-          'mockRepository',
+          mockVarName,
         ).property('get').call([refer('QueryParams').constInstance([])]);
         verifyCall = refer(
-          'mockRepository',
+          mockVarName,
         ).property('get').call([refer('QueryParams').constInstance([])]);
       } else {
         paramsExpr = config.useZorphy
@@ -117,27 +118,27 @@ extension TestBuilderHelpers on TestBuilder {
                 ]),
               });
         arrangeCall = refer(
-          'mockRepository',
+          mockVarName,
         ).property('get').call([refer('any').call([])]);
         verifyCall = refer(
-          'mockRepository',
+          mockVarName,
         ).property('get').call([refer('any').call([])]);
       }
     } else if (method == 'getList') {
       paramsExpr = refer('ListQueryParams<$entityName>').call([]);
       arrangeCall = refer(
-        'mockRepository',
+        mockVarName,
       ).property('getList').call([refer('any').call([])]);
       verifyCall = refer(
-        'mockRepository',
+        mockVarName,
       ).property('getList').call([refer('any').call([])]);
     } else if (method == 'create') {
       paramsExpr = refer('t$entityName');
       arrangeCall = refer(
-        'mockRepository',
+        mockVarName,
       ).property('create').call([refer('any').call([])]);
       verifyCall = refer(
-        'mockRepository',
+        mockVarName,
       ).property('create').call([refer('any').call([])]);
     } else if (method == 'update') {
       final dataType = config.useZorphy
@@ -150,18 +151,18 @@ extension TestBuilderHelpers on TestBuilder {
         'UpdateParams<$idType, $dataType>',
       ).call([], {'id': idValue, 'data': dataValue});
       arrangeCall = refer(
-        'mockRepository',
+        mockVarName,
       ).property('update').call([refer('any').call([])]);
       verifyCall = refer(
-        'mockRepository',
+        mockVarName,
       ).property('update').call([refer('any').call([])]);
     } else if (method == 'delete') {
       paramsExpr = refer('DeleteParams<$idType>').call([], {'id': idValue});
       arrangeCall = refer(
-        'mockRepository',
+        mockVarName,
       ).property('delete').call([refer('any').call([])]);
       verifyCall = refer(
-        'mockRepository',
+        mockVarName,
       ).property('delete').call([refer('any').call([])]);
     } else {
       return [];
@@ -273,6 +274,7 @@ extension TestBuilderHelpers on TestBuilder {
     String method,
     String entityName,
     String returnConstructor,
+    String mockVarName,
   ) {
     final idType = config.idFieldType;
 
@@ -284,10 +286,10 @@ extension TestBuilderHelpers on TestBuilder {
       if (idType == 'NoParams') {
         paramsExpr = refer('NoParams').call([]);
         arrangeCall = refer(
-          'mockRepository',
+          mockVarName,
         ).property('watch').call([refer('QueryParams').constInstance([])]);
         verifyCall = refer(
-          'mockRepository',
+          mockVarName,
         ).property('watch').call([refer('QueryParams').constInstance([])]);
       } else {
         paramsExpr = config.useZorphy
@@ -303,19 +305,19 @@ extension TestBuilderHelpers on TestBuilder {
                 ]),
               });
         arrangeCall = refer(
-          'mockRepository',
+          mockVarName,
         ).property('watch').call([refer('any').call([])]);
         verifyCall = refer(
-          'mockRepository',
+          mockVarName,
         ).property('watch').call([refer('any').call([])]);
       }
     } else if (method == 'watchList') {
       paramsExpr = refer('ListQueryParams<$entityName>').call([]);
       arrangeCall = refer(
-        'mockRepository',
+        mockVarName,
       ).property('watchList').call([refer('any').call([])]);
       verifyCall = refer(
-        'mockRepository',
+        mockVarName,
       ).property('watchList').call([refer('any').call([])]);
     } else {
       return [];

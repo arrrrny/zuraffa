@@ -15,6 +15,8 @@ import '../../di/di_plugin.dart';
 import '../../mock/mock_plugin.dart';
 import '../../test/test_plugin.dart';
 import '../../datasource/datasource_plugin.dart';
+import '../../service/service_plugin.dart';
+import '../../provider/provider_plugin.dart';
 import '../../../core/generator_options.dart';
 
 class ScaffoldFeatureCapability implements ZuraffaCapability {
@@ -62,6 +64,11 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
       'cache': {
         'type': 'boolean',
         'description': 'Enable Caching (generates local + remote datasources)',
+        'default': false,
+      },
+      'use-service': {
+        'type': 'boolean',
+        'description': 'Use service and provider instead of repository and datasource',
         'default': false,
       },
       'route': {
@@ -189,8 +196,11 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
     final featureName = args['name'];
 
     final generateVpcs = args['vpcs'] ?? true;
-    final generateRepo = args['repository'] ?? true;
-    final generateDataSource = args['datasource'] ?? true;
+    final useService = args['use-service'] ?? false;
+    final generateRepo = (args['repository'] ?? true) && !useService;
+    final generateDataSource = (args['datasource'] ?? true) && !useService;
+    final generateService = useService;
+    final generateProvider = useService;
     final generateLocal = args['local'] ?? false;
     final generateMock =
         args['mock'] == true ||
@@ -322,6 +332,72 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
       allFiles.addAll(await datasourcePlugin.generate(datasourceConfig));
     }
 
+    // Service
+    if (generateService) {
+      final options = GeneratorOptions(
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+      );
+      final servicePlugin = ServicePlugin(
+        outputDir: outputDir,
+        options: options,
+      );
+
+      final serviceConfig = GeneratorConfig(
+        name: featureName,
+        outputDir: outputDir,
+        service: '${featureName}Service',
+        generateService: true,
+        useService: true,
+        methods: effectiveMethods,
+        usecases: usecases,
+        idField: idField,
+        idFieldType: idFieldType,
+        queryField: queryField,
+        queryFieldType: queryFieldType,
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+        revert: revert,
+      );
+
+      allFiles.addAll(await servicePlugin.generate(serviceConfig));
+    }
+
+    // Provider
+    if (generateProvider) {
+      final options = GeneratorOptions(
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+      );
+      final providerPlugin = ProviderPlugin(
+        outputDir: outputDir,
+        options: options,
+      );
+
+      final providerConfig = GeneratorConfig(
+        name: featureName,
+        outputDir: outputDir,
+        service: '${featureName}Service',
+        generateData: true,
+        useService: true,
+        methods: effectiveMethods,
+        usecases: usecases,
+        idField: idField,
+        idFieldType: idFieldType,
+        queryField: queryField,
+        queryFieldType: queryFieldType,
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+        revert: revert,
+      );
+
+      allFiles.addAll(await providerPlugin.generate(providerConfig));
+    }
+
     // UseCases
     final options = GeneratorOptions(
       dryRun: dryRun,
@@ -351,7 +427,9 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         outputDir: outputDir,
         useCaseType: 'entity',
         generateUseCase: true,
-        repo: '${featureName}Repository',
+        useService: useService,
+        repo: useService ? null : '${featureName}Repository',
+        service: useService ? '${featureName}Service' : null,
         dryRun: dryRun,
         force: force,
         verbose: verbose,
@@ -406,6 +484,8 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         useMockInDi: useMock,
         generateDi: generateDi,
         generateRoute: generateRoute,
+        useService: useService,
+        service: useService ? '${featureName}Service' : null,
         dryRun: dryRun,
         force: force,
         verbose: verbose,
@@ -465,7 +545,9 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         generateDi: true,
         generateUseCase: true,
         useCaseType: usecases.isEmpty ? 'entity' : 'usecase',
-        generateData: generateDataSource,
+        useService: useService,
+        service: useService ? '${featureName}Service' : null,
+        generateData: generateDataSource || generateProvider,
         generateRepository: generateRepo,
         generateLocal: generateLocal,
         generateMock: generateMock,
@@ -496,7 +578,9 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         name: featureName,
         outputDir: outputDir,
         generateMock: true,
-        generateData: generateRepo,
+        useService: useService,
+        service: useService ? '${featureName}Service' : null,
+        generateData: generateRepo || generateProvider,
         generateDataSource: generateDataSource,
         generateRepository: generateRepo,
         generateLocal: generateLocal,
@@ -528,7 +612,9 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         generateTest: true,
         generateUseCase: true,
         useCaseType: usecases.isEmpty ? 'entity' : 'usecase',
-        generateData: generateRepo,
+        useService: useService,
+        service: useService ? '${featureName}Service' : null,
+        generateData: generateRepo || generateProvider,
         generateDataSource: generateDataSource,
         generateRepository: generateRepo,
         generateLocal: generateLocal,

@@ -88,11 +88,10 @@ extension TestBuilderCustom on TestBuilder {
             ..implements.add(refer(serviceName)),
         ),
       );
-      directives.add(
-        Directive.import(
-          'package:$packageName/src/domain/services/${serviceSnake}_service.dart',
-        ),
-      );
+      final serviceImport = config.useService
+          ? 'package:$packageName/src/domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
+          : 'package:$packageName/src/domain/services/${serviceSnake}_service.dart';
+      directives.add(Directive.import(serviceImport));
     }
 
     final mainMethod = Method(

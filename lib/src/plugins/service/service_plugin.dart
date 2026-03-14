@@ -58,7 +58,7 @@ class ServicePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return delegator.generate(config);
     }
 
-    if (!config.isCustomUseCase ||
+    if ((!config.isCustomUseCase && !config.generateService) ||
         !config.hasService ||
         config.appendToExisting) {
       return [];
@@ -68,7 +68,9 @@ class ServicePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return [];
     }
     final fileName = '${serviceSnake}_service.dart';
-    final filePath = path.join(outputDir, 'domain', 'services', fileName);
+    final filePath = config.methods.isNotEmpty
+        ? path.join(outputDir, 'domain', 'services', config.effectiveDomain, fileName)
+        : path.join(outputDir, 'domain', 'services', fileName);
     final content = interfaceBuilder.build(config);
 
     final file = await FileUtils.writeFile(

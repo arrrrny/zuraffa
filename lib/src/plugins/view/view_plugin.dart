@@ -371,6 +371,15 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       imports.add('${controllerSnake}_controller.dart');
       imports.add('${presenterSnake}_presenter.dart');
 
+      // Add entity import if we are using state (needed for initial entity field)
+      final withState = config.generateState || config.customStateName != null;
+      if (withState) {
+        final entitySnake = config.nameSnake;
+        imports.add(
+          '$relativePath../domain/entities/$entitySnake/$entitySnake.dart',
+        );
+      }
+
       if (config.generateState) {
         final stateSnake = config.nameSnake;
         imports.add('${stateSnake}_state.dart');

@@ -103,19 +103,29 @@ class MockProviderBuilder {
                   .replaceAll('?', ''),
             ));
 
+    final serviceImport = config.methods.isNotEmpty
+        ? '../../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
+        : '../../../domain/services/${serviceSnake}_service.dart';
+
     final directives = [
       Directive.import('dart:async'),
       Directive.import('package:zuraffa/zuraffa.dart'),
-      Directive.import('../../../domain/services/${serviceSnake}_service.dart'),
+      Directive.import(serviceImport),
     ];
 
     final entityTypes = <String>[];
+    if (config.methods.isNotEmpty) {
+      entityTypes.add(config.name);
+    }
     if (config.returnsType != null) {
       entityTypes.addAll(EntityUtils.extractEntityTypes(config.returnsType!));
     }
     if (config.paramsType != null) {
       entityTypes.addAll(EntityUtils.extractEntityTypes(config.paramsType!));
     }
+
+    final isStandardEntityMock = config.methods.isNotEmpty;
+    final isPrimitiveMock = isPrimitive && !isStandardEntityMock;
 
     for (final entityName in entityTypes.toSet()) {
       final entitySnake = StringUtils.camelToSnake(entityName);
@@ -130,7 +140,7 @@ class MockProviderBuilder {
       }
     }
 
-    if (!isPrimitive) {
+    if (!isPrimitiveMock) {
       directives.add(
         Directive.import(
           '../../mock/${StringUtils.camelToSnake(targetEntity)}_mock_data.dart',
@@ -259,6 +269,9 @@ class MockProviderBuilder {
 
       // Add missing imports
       final entities = <String>{};
+      if (config.methods.isNotEmpty) {
+        entities.add(config.name);
+      }
       if (config.paramsType != null && config.paramsType != 'NoParams') {
         entities.addAll(EntityUtils.extractEntityTypes(config.paramsType!));
       }
@@ -331,6 +344,14 @@ class MockProviderBuilder {
 
   List<Method> _generateMockProviderMethods(GeneratorConfig config) {
     final methods = <Method>[];
+
+    if (config.methods.isNotEmpty) {
+      for (final method in config.methods) {
+        methods.add(_buildEntityMockMethod(config, method));
+      }
+      return methods;
+    }
+
     final methodName = config.getServiceMethodName();
     final returns = config.returnsType ?? 'void';
     final baseReturns = returns.replaceAll('?', '');
@@ -444,6 +465,229 @@ class MockProviderBuilder {
     );
 
     return methods;
+  }
+
+  Method _buildEntityMockMethod(GeneratorConfig config, String method) {
+    final entityName = config.name;
+    final mockDataClass = '${entityName}MockData';
+    final sampleProperty = 'sample$entityName';
+
+    String name = method;
+    Reference returnType;
+    List<Parameter> parameters = [];
+    Block body;
+
+    switch (method) {
+      case 'get':
+        name = 'get';
+        returnType = refer('Future<$entityName>');
+        parameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'params'
+              ..type = refer('QueryParams<$entityName>'),
+          ),
+        );
+        body = Block(
+          (b) => b
+            ..statements.addAll([
+              refer('logger').property('info').call([
+                literalString('get called with params: \$params'),
+              ]).statement,
+              refer('Future')
+                  .property('delayed')
+                  .call([refer('_delay')])
+                  .awaited
+                  .statement,
+              refer(mockDataClass).property(sampleProperty).returned.statement,
+            ]),
+        );
+        break;
+      case 'getList':
+      case 'list':
+        name = 'getList';
+        returnType = refer('Future<List<$entityName>>');
+        parameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'params'
+              ..type = refer('ListQueryParams<$entityName>'),
+          ),
+        );
+        body = Block(
+          (b) => b
+            ..statements.addAll([
+              refer('logger').property('info').call([
+                literalString('getList called with params: \$params'),
+              ]).statement,
+              refer('Future')
+                  .property('delayed')
+                  .call([refer('_delay')])
+                  .awaited
+                  .statement,
+              refer(mockDataClass).property('sampleList').returned.statement,
+            ]),
+        );
+        break;
+      case 'create':
+        name = 'create';
+        returnType = refer('Future<$entityName>');
+        parameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'item'
+              ..type = refer(entityName),
+          ),
+        );
+        body = Block(
+          (b) => b
+            ..statements.addAll([
+              refer('logger').property('info').call([
+                literalString('create called with item: \$item'),
+              ]).statement,
+              refer('Future')
+                  .property('delayed')
+                  .call([refer('_delay')])
+                  .awaited
+                  .statement,
+              refer('item').returned.statement,
+            ]),
+        );
+        break;
+      case 'update':
+        name = 'update';
+        returnType = refer('Future<$entityName>');
+        parameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'params'
+              ..type = refer(
+                'UpdateParams<${config.idFieldType}, ${entityName}Patch>',
+              ),
+          ),
+        );
+        body = Block(
+          (b) => b
+            ..statements.addAll([
+              refer('logger').property('info').call([
+                literalString('update called with params: \$params'),
+              ]).statement,
+              refer('Future')
+                  .property('delayed')
+                  .call([refer('_delay')])
+                  .awaited
+                  .statement,
+              refer(mockDataClass).property(sampleProperty).returned.statement,
+            ]),
+        );
+        break;
+      case 'delete':
+        name = 'delete';
+        returnType = refer('Future<void>');
+        parameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'params'
+              ..type = refer('DeleteParams<${config.idFieldType}>'),
+          ),
+        );
+        body = Block(
+          (b) => b
+            ..statements.addAll([
+              refer('logger').property('info').call([
+                literalString('delete called with params: \$params'),
+              ]).statement,
+              refer('Future')
+                  .property('delayed')
+                  .call([refer('_delay')])
+                  .awaited
+                  .statement,
+            ]),
+        );
+        break;
+      case 'watch':
+        name = 'watch';
+        returnType = refer('Stream<$entityName>');
+        parameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'params'
+              ..type = refer('QueryParams<$entityName>'),
+          ),
+        );
+        body = Block(
+          (b) => b
+            ..statements.addAll([
+              refer('logger').property('info').call([
+                literalString('watch called with params: \$params'),
+              ]).statement,
+              refer('Stream')
+                  .property('fromFuture')
+                  .call([
+                    refer('Future').property('delayed').call([
+                      refer('_delay'),
+                      Method(
+                        (mm) => mm
+                          ..lambda = true
+                          ..body = refer(mockDataClass)
+                              .property(sampleProperty)
+                              .code,
+                      ).closure,
+                    ]),
+                  ])
+                  .returned
+                  .statement,
+            ]),
+        );
+        break;
+      case 'watchList':
+        name = 'watchList';
+        returnType = refer('Stream<List<$entityName>>');
+        parameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'params'
+              ..type = refer('ListQueryParams<$entityName>'),
+          ),
+        );
+        body = Block(
+          (b) => b
+            ..statements.addAll([
+              refer('logger').property('info').call([
+                literalString('watchList called with params: \$params'),
+              ]).statement,
+              refer('Stream')
+                  .property('fromFuture')
+                  .call([
+                    refer('Future').property('delayed').call([
+                      refer('_delay'),
+                      Method(
+                        (mm) => mm
+                          ..lambda = true
+                          ..body = refer(mockDataClass)
+                              .property('sampleList')
+                              .code,
+                      ).closure,
+                    ]),
+                  ])
+                  .returned
+                  .statement,
+            ]),
+        );
+        break;
+      default:
+        throw ArgumentError('Unknown entity method: $method');
+    }
+
+    return Method(
+      (m) => m
+        ..name = name
+        ..returns = returnType
+        ..annotations.add(refer('override'))
+        ..modifier = method.startsWith('watch') ? null : MethodModifier.async
+        ..requiredParameters.addAll(parameters)
+        ..body = body,
+    );
   }
 
   Expression _primitiveValue(String type) {

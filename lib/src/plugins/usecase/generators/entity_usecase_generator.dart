@@ -82,7 +82,11 @@ class EntityUseCaseGenerator {
     String method,
   ) async {
     final entityName = config.name;
-    final repoName = config.effectiveRepos.first;
+    final hasService = config.hasService;
+    final sourceName =
+        hasService ? config.effectiveService! : config.effectiveRepos.first;
+    final sourceField = hasService ? '_service' : '_repository';
+
     String className;
     TypeReference baseClass;
     Reference paramsType;
@@ -103,7 +107,7 @@ class EntityUseCaseGenerator {
           );
           paramsType = refer('NoParams');
           executeExpression = refer(
-            '_repository',
+            sourceField,
           ).property('get').call([refer('QueryParams').constInstance([])]);
         } else {
           baseClass = TypeReference(
@@ -124,7 +128,7 @@ class EntityUseCaseGenerator {
               ..types.add(refer(entityName)),
           );
           executeExpression = refer(
-            '_repository',
+            sourceField,
           ).property('get').call([refer('params')]);
         }
         returnType = refer(entityName);
@@ -159,7 +163,7 @@ class EntityUseCaseGenerator {
             ..types.add(refer(entityName)),
         );
         executeExpression = refer(
-          '_repository',
+          sourceField,
         ).property('getList').call([refer('params')]);
         break;
       case 'create':
@@ -172,7 +176,7 @@ class EntityUseCaseGenerator {
         paramsType = refer(entityName);
         returnType = refer(entityName);
         executeExpression = refer(
-          '_repository',
+          sourceField,
         ).property('create').call([refer('params')]);
         break;
       case 'update':
@@ -206,7 +210,7 @@ class EntityUseCaseGenerator {
         );
         returnType = refer(entityName);
         executeExpression = refer(
-          '_repository',
+          sourceField,
         ).property('update').call([refer('params')]);
         break;
       case 'delete':
@@ -229,7 +233,7 @@ class EntityUseCaseGenerator {
         );
         returnType = refer('void');
         executeExpression = refer(
-          '_repository',
+          sourceField,
         ).property('delete').call([refer('params')]);
         isCompletable = true;
         needsEntityImport = false;
@@ -244,7 +248,7 @@ class EntityUseCaseGenerator {
           );
           paramsType = refer('NoParams');
           executeExpression = refer(
-            '_repository',
+            sourceField,
           ).property('watch').call([refer('QueryParams').constInstance([])]);
         } else {
           baseClass = TypeReference(
@@ -265,7 +269,7 @@ class EntityUseCaseGenerator {
               ..types.add(refer(entityName)),
           );
           executeExpression = refer(
-            '_repository',
+            sourceField,
           ).property('watch').call([refer('params')]);
         }
         returnType = refer(entityName);
@@ -300,7 +304,7 @@ class EntityUseCaseGenerator {
             ..types.add(refer(entityName)),
         );
         executeExpression = refer(
-          '_repository',
+          sourceField,
         ).property('watchList').call([refer('params')]);
         isStream = true;
         break;
@@ -334,9 +338,19 @@ class EntityUseCaseGenerator {
       );
       imports.addAll(entityImports);
     }
-    final repoPath =
-        '../../repositories/${StringUtils.camelToSnake(repoName.replaceAll('Repository', ''))}_repository.dart';
-    imports.add(repoPath);
+
+    if (hasService) {
+      final serviceSnake = StringUtils.camelToSnake(
+        sourceName.replaceAll('Service', ''),
+      );
+      final servicePath =
+          '../../services/${config.effectiveDomain}/${serviceSnake}_service.dart';
+      imports.add(servicePath);
+    } else {
+      final repoPath =
+          '../../repositories/${StringUtils.camelToSnake(sourceName.replaceAll('Repository', ''))}_repository.dart';
+      imports.add(repoPath);
+    }
 
     final executeMethod = Method((m) {
       m
@@ -383,18 +397,18 @@ class EntityUseCaseGenerator {
         );
     });
 
-    final repoField = Field(
+    final sourceFieldRef = Field(
       (f) => f
         ..modifier = FieldModifier.final$
-        ..type = refer(repoName)
-        ..name = '_repository',
+        ..type = refer(sourceName)
+        ..name = sourceField,
     );
     final ctor = Constructor(
       (c) => c
         ..requiredParameters.add(
           Parameter(
             (p) => p
-              ..name = '_repository'
+              ..name = sourceField
               ..toThis = true,
           ),
         ),
@@ -403,7 +417,7 @@ class EntityUseCaseGenerator {
       (c) => c
         ..name = className
         ..extend = baseClass
-        ..fields.add(repoField)
+        ..fields.add(sourceFieldRef)
         ..constructors.add(ctor)
         ..methods.add(executeMethod),
     );

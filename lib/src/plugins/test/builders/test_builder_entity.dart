@@ -12,7 +12,15 @@ extension TestBuilderEntity on TestBuilder {
   ) async {
     final entityName = config.name;
     final entitySnake = config.nameSnake;
+    final useService = config.useService;
     final repoName = config.effectiveRepos.first;
+    final serviceName = config.effectiveService;
+    final serviceSnake = config.serviceSnake;
+
+    final targetName = useService && serviceName != null ? serviceName : repoName;
+    final targetSnake = useService && serviceSnake != null ? serviceSnake : StringUtils.camelToSnake(repoName.replaceAll('Repository', ''));
+    final targetDir = useService ? 'services' : 'repositories';
+    final targetSuffix = useService ? 'service' : 'repository';
 
     String className;
     String returnTypeConstructor = '';
@@ -78,9 +86,6 @@ extension TestBuilderEntity on TestBuilder {
     }
 
     final packageName = _resolvePackageName(projectRoot);
-    final repoSnake = StringUtils.camelToSnake(
-      repoName.replaceAll('Repository', ''),
-    );
 
     final directives = [
       Directive.import('package:flutter_test/flutter_test.dart'),
@@ -90,21 +95,21 @@ extension TestBuilderEntity on TestBuilder {
         'package:$packageName/src/domain/entities/$entitySnake/$entitySnake.dart',
       ),
       Directive.import(
-        'package:$packageName/src/domain/repositories/${repoSnake}_repository.dart',
+        'package:$packageName/src/domain/$targetDir/$entitySnake/${targetSnake}_$targetSuffix.dart',
       ),
       Directive.import(
         'package:$packageName/src/domain/usecases/$entitySnake/$useCaseFileName',
       ),
     ];
 
-    final mockRepoClass = 'Mock$repoName';
+    final mockRepoClass = 'Mock$targetName';
     final mockEntityClass = 'Mock$entityName';
 
     final mockRepo = Class(
       (c) => c
         ..name = mockRepoClass
         ..extend = refer('Mock')
-        ..implements.add(refer(repoName)),
+        ..implements.add(refer(targetName)),
     );
 
     final mockEntity = Class(
@@ -119,12 +124,13 @@ extension TestBuilderEntity on TestBuilder {
         ..name = 'main'
         ..returns = refer('void')
         ..body = Block((b) {
+          final mockVarName = 'mock${StringUtils.capitalize(targetSuffix)}';
           b.statements.add(
             declareVar('useCase', type: refer(className), late: true).statement,
           );
           b.statements.add(
             declareVar(
-              'mockRepository',
+              mockVarName,
               type: refer(mockRepoClass),
               late: true,
             ).statement,
@@ -143,12 +149,12 @@ extension TestBuilderEntity on TestBuilder {
             }
             s.statements.add(
               refer(
-                'mockRepository',
+                mockVarName,
               ).assign(refer(mockRepoClass).call([])).statement,
             );
             s.statements.add(
               refer('useCase')
-                  .assign(refer(className).call([refer('mockRepository')]))
+                  .assign(refer(className).call([refer(mockVarName)]))
                   .statement,
             );
           });
@@ -188,6 +194,7 @@ extension TestBuilderEntity on TestBuilder {
                     method,
                     entityName,
                     returnTypeConstructor,
+                    mockVarName,
                   )
                 : _generateFutureTests(
                     config,
@@ -195,6 +202,7 @@ extension TestBuilderEntity on TestBuilder {
                     entityName,
                     returnTypeConstructor,
                     isCompletable,
+                    mockVarName,
                   );
 
             g.statements.addAll(tests);

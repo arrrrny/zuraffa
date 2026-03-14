@@ -81,10 +81,20 @@ class ProviderBuilder {
 
     final returnType = _returnType(config.useCaseType, returnsType);
 
+    final serviceImport = config.methods.isNotEmpty
+        ? '../../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
+        : '../../../domain/services/${serviceSnake}_service.dart';
+
     final directives = <Directive>[
       Directive.import('package:zuraffa/zuraffa.dart'),
-      Directive.import('../../../domain/services/${serviceSnake}_service.dart'),
+      Directive.import(serviceImport),
     ];
+
+    if (config.methods.isNotEmpty) {
+      final entityName = config.name;
+      final entitySnake = StringUtils.camelToSnake(entityName);
+      directives.add(Directive.import('../../../domain/entities/$entitySnake/$entitySnake.dart'));
+    }
 
     final entityImports = _getPotentialEntityImports([paramsType, returnsType]);
     for (final entityName in entityImports) {
@@ -100,27 +110,36 @@ class ProviderBuilder {
       }
     }
 
-    final method = Method(
-      (m) => m
-        ..name = methodName
-        ..returns = returnType
-        ..annotations.add(refer('override'))
-        ..modifier = config.useCaseType == 'sync' ? null : MethodModifier.async
-        ..requiredParameters.addAll(
-          paramsType == 'NoParams'
-              ? const []
-              : [
-                  Parameter(
-                    (p) => p
-                      ..name = 'params'
-                      ..type = refer(paramsType),
-                  ),
-                ],
-        )
-        ..body = _buildMethodBody(methodName),
-    );
+    final methods = <Method>[];
 
-    final methods = <Method>[method];
+    if (config.methods.isNotEmpty) {
+      for (final method in config.methods) {
+        methods.add(_buildEntityMethod(config, method));
+      }
+    } else {
+      methods.add(
+        Method(
+          (m) => m
+            ..name = methodName
+            ..returns = returnType
+            ..annotations.add(refer('override'))
+            ..modifier =
+                config.useCaseType == 'sync' ? null : MethodModifier.async
+            ..requiredParameters.addAll(
+              paramsType == 'NoParams'
+                  ? const []
+                  : [
+                      Parameter(
+                        (p) => p
+                          ..name = 'params'
+                          ..type = refer(paramsType),
+                      ),
+                    ],
+            )
+            ..body = _buildMethodBody(methodName),
+        ),
+      );
+    }
 
     if (config.generateInit) {
       methods.add(
@@ -188,37 +207,39 @@ class ProviderBuilder {
         }
       }
 
-      final methodSource = method.accept(emitter).toString();
-      if (config.revert) {
-        content = helper.removeMethodFromClass(
-          source: content,
-          className: providerName,
-          methodName: method.name!,
-        );
-      } else if (config.force) {
-        // Check if method exists to decide between replace and add
-        if (content.contains(' ${method.name}(')) {
-          content = helper.replaceMethodInClass(
+      for (final method in methods) {
+        final methodSource = method.accept(emitter).toString();
+        if (config.revert) {
+          content = helper.removeMethodFromClass(
             source: content,
             className: providerName,
             methodName: method.name!,
-            methodSource: methodSource,
           );
+        } else if (config.force) {
+          // Check if method exists to decide between replace and add
+          if (content.contains(' ${method.name}(')) {
+            content = helper.replaceMethodInClass(
+              source: content,
+              className: providerName,
+              methodName: method.name!,
+              methodSource: methodSource,
+            );
+          } else {
+            content = helper.addMethodToClass(
+              source: content,
+              className: providerName,
+              methodSource: methodSource,
+            );
+          }
         } else {
-          content = helper.addMethodToClass(
-            source: content,
-            className: providerName,
-            methodSource: methodSource,
-          );
-        }
-      } else {
-        // Add method to class if missing
-        if (!content.contains(' ${method.name}(')) {
-          content = helper.addMethodToClass(
-            source: content,
-            className: providerName,
-            methodSource: methodSource,
-          );
+          // Add method to class if missing
+          if (!content.contains(' ${method.name}(')) {
+            content = helper.addMethodToClass(
+              source: content,
+              className: providerName,
+              methodSource: methodSource,
+            );
+          }
         }
       }
 
@@ -245,6 +266,102 @@ class ProviderBuilder {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+    );
+  }
+
+  Method _buildEntityMethod(GeneratorConfig config, String method) {
+    final entityName = config.name;
+    String name = method;
+    Reference returnType;
+    List<Parameter> parameters = [];
+
+    switch (method) {
+      case 'get':
+        returnType = refer('Future<$entityName>');
+        parameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'params'
+              ..type = refer('QueryParams<$entityName>'),
+          ),
+        );
+        break;
+      case 'getList':
+      case 'list':
+        name = 'getList';
+        returnType = refer('Future<List<$entityName>>');
+        parameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'params'
+              ..type = refer('ListQueryParams<$entityName>'),
+          ),
+        );
+        break;
+      case 'create':
+        returnType = refer('Future<$entityName>');
+        parameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'item'
+              ..type = refer(entityName),
+          ),
+        );
+        break;
+      case 'update':
+        returnType = refer('Future<$entityName>');
+        parameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'params'
+              ..type = refer(
+                'UpdateParams<${config.idFieldType}, ${entityName}Patch>',
+              ),
+          ),
+        );
+        break;
+      case 'delete':
+        returnType = refer('Future<void>');
+        parameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'params'
+              ..type = refer('DeleteParams<${config.idFieldType}>'),
+          ),
+        );
+        break;
+      case 'watch':
+        returnType = refer('Stream<$entityName>');
+        parameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'params'
+              ..type = refer('QueryParams<$entityName>'),
+          ),
+        );
+        break;
+      case 'watchList':
+        returnType = refer('Stream<List<$entityName>>');
+        parameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'params'
+              ..type = refer('ListQueryParams<$entityName>'),
+          ),
+        );
+        break;
+      default:
+        throw ArgumentError('Unknown entity method: $method');
+    }
+
+    return Method(
+      (m) => m
+        ..name = name
+        ..returns = returnType
+        ..annotations.add(refer('override'))
+        ..modifier = method.startsWith('watch') ? null : MethodModifier.async
+        ..requiredParameters.addAll(parameters)
+        ..body = _buildMethodBody(name),
     );
   }
 

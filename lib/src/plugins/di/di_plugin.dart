@@ -498,9 +498,13 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return null;
     }
 
+    final serviceImport = config.methods.isNotEmpty
+        ? '../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
+        : '../../domain/services/${serviceSnake}_service.dart';
+
     final imports = [
       'package:get_it/get_it.dart',
-      '../../domain/services/${serviceSnake}_service.dart',
+      serviceImport,
     ];
 
     if (config.useMockInDi) {
@@ -748,6 +752,10 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final repoName = '${entityName}Repository';
     final repoSnake = entitySnake;
 
+    final serviceName = config.effectiveService;
+    final serviceSnake = config.serviceSnake;
+    final useService = config.useService;
+
     final methods = config.methods;
     if (methods.isEmpty) return files;
 
@@ -763,11 +771,22 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       final imports = <String>[
         'package:get_it/get_it.dart',
         '../../domain/usecases/$domainSnake/${classSnake}_usecase.dart',
-        '../../domain/repositories/${repoSnake}_repository.dart',
       ];
 
+      if (useService && serviceName != null && serviceSnake != null) {
+        imports.add(
+          '../../domain/services/$domainSnake/${serviceSnake}_service.dart',
+        );
+      } else {
+        imports.add('../../domain/repositories/${repoSnake}_repository.dart');
+      }
+
       final constructorCall = refer(className).call([
-        refer('getIt').call([], {}, [refer(repoName)]),
+        refer('getIt').call(
+          [],
+          {},
+          [refer(useService && serviceName != null ? serviceName : repoName)],
+        ),
       ]);
 
       final registrationCall = refer('getIt')
@@ -835,7 +854,13 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     if (serviceName != null) {
       final serviceSnake = config.serviceSnake;
       if (serviceSnake != null) {
-        imports.add('../../domain/services/${serviceSnake}_service.dart');
+        if (config.useService) {
+          imports.add(
+            '../../domain/services/$domainSnake/${serviceSnake}_service.dart',
+          );
+        } else {
+          imports.add('../../domain/services/${serviceSnake}_service.dart');
+        }
         constructorParams.add(
           refer('getIt').call([], {}, [refer(serviceName)]),
         );
