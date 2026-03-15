@@ -118,6 +118,7 @@ class ControllerPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final filePath = path.join(controllerDirPath, fileName);
 
     final withState = config.generateState || config.customStateName != null;
+    final noEntity = config.noEntity;
     final methods = _buildMethods(config, entityName, entityCamel, withState);
     final imports = _buildImports(config, domainSnake, withState);
 
@@ -126,8 +127,8 @@ class ControllerPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         className: controllerName,
         presenterName: presenterName,
         stateClassName: withState ? stateName : null,
-        entityName: entityName,
-        entityCamel: entityCamel,
+        entityName: noEntity ? null : entityName,
+        entityCamel: noEntity ? null : entityCamel,
         withState: withState,
         methods: methods,
         imports: imports,

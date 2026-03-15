@@ -62,7 +62,25 @@ extension ControllerPluginUtils on ControllerPlugin {
       '${config.nameSnake}_presenter.dart',
     ];
 
-    if (withState) {
+    if (withState && !config.noEntity) {
+      if (config.generateState) {
+        imports.add('${config.nameSnake}_state.dart');
+      } else if (config.customStateName != null) {
+        final stateSnake = StringUtils.camelToSnake(
+          config.customStateName!.replaceAll('State', ''),
+        );
+        imports.add('${stateSnake}_state.dart');
+      }
+
+      // Add entity import for initialEntity field
+      final entityImports = CommonPatterns.entityImports(
+        [config.name],
+        config,
+        depth: 3,
+      );
+      imports.addAll(entityImports);
+    } else if (withState && config.noEntity) {
+      // If no entity but we have state, still import state
       if (config.generateState) {
         imports.add('${config.nameSnake}_state.dart');
       } else if (config.customStateName != null) {
@@ -82,18 +100,14 @@ extension ControllerPluginUtils on ControllerPlugin {
             config,
             outputDir,
           );
-          if (info.returnsType != null) {
-            types.add(info.returnsType!);
-          }
-          if (info.paramsType != null) {
+          // Only add paramsType as it's explicitly used in method signature
+          if (info.paramsType != null && info.paramsType != 'NoParams') {
             types.add(info.paramsType!);
           }
+          // We don't necessarily need returnsType in the controller if it's just passed to state.copyWith
         }
       } else {
-        if (config.returnsType != null) {
-          types.add(config.returnsType!);
-        }
-        if (config.paramsType != null) {
+        if (config.paramsType != null && config.paramsType != 'NoParams') {
           types.add(config.paramsType!);
         }
       }
@@ -106,14 +120,6 @@ extension ControllerPluginUtils on ControllerPlugin {
         );
         imports.addAll(entityImports);
       }
-    } else if (config.isEntityBased) {
-      // Entity-based controllers always need the entity import for initialEntity field
-      final entityImports = CommonPatterns.entityImports(
-        [config.name],
-        config,
-        depth: 3,
-      );
-      imports.addAll(entityImports);
     }
 
     return imports;

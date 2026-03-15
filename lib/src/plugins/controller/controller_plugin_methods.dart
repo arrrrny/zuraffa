@@ -50,7 +50,7 @@ extension ControllerPluginMethods on ControllerPlugin {
     }
 
     // 2. Custom methods
-    if (config.isOrchestrator && !config.generateUseCase) {
+    if (config.isOrchestrator) {
       for (final u in config.usecases) {
         final info = CommonPatterns.parseUseCaseInfo(u, config, outputDir);
         methods.add(

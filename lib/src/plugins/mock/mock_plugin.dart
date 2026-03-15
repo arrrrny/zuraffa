@@ -71,6 +71,10 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return delegator.generate(config);
     }
 
+    if (config.noEntity) {
+      return [];
+    }
+
     // If mocks were explicitly requested, always generate/append
     if (config.generateMock || config.generateMockDataOnly) {
       // For presentation-only workflows, we only generate mocks if we are also

@@ -61,29 +61,53 @@ class StateBuilder {
     final filePath = path.join(stateDirPath, fileName);
 
     final needsEntityListField =
-        !config.isCustomUseCase &&
-        config.methods.any((m) => ['getList', 'watchList'].contains(m));
+        !config.noEntity && config.methods.any((m) => ['getList', 'watchList'].contains(m));
     final needsEntityField =
-        !config.isCustomUseCase &&
-        config.methods.any(
+        (!config.noEntity && (config.generateVpcs || config.generateState)) ||
+        (!config.noEntity && config.methods.any(
           (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
-        );
+        ));
 
     final imports = <String>['package:zuraffa/zuraffa.dart'];
 
-    if (config.isCustomUseCase) {
+    if (config.isCustomUseCase || config.isOrchestrator) {
+      final types = <String>[if (!config.noEntity) config.name];
       if (config.returnsType != null) {
-        final types = config.returnsType!
-            .replaceAll('List<', '')
-            .replaceAll('>', '')
-            .replaceAll('?', '');
-        for (final type in types.split(',').map((t) => t.trim())) {
-          if (!KnownTypes.isDartPrimitive(type)) {
-            final snake = StringUtils.camelToSnake(type);
-            imports.add('../../../domain/entities/$snake/$snake.dart');
+        types.addAll(
+          config.returnsType!
+              .replaceAll('List<', '')
+              .replaceAll('>', '')
+              .replaceAll('?', '')
+              .split(',')
+              .map((t) => t.trim()),
+        );
+      }
+      if (config.isOrchestrator) {
+        for (final usecaseName in config.usecases) {
+          final info = CommonPatterns.parseUseCaseInfo(
+            usecaseName,
+            config,
+            outputDir,
+          );
+          if (info.returnsType != null) {
+            types.addAll(
+              info.returnsType!
+                  .replaceAll('List<', '')
+                  .replaceAll('>', '')
+                  .replaceAll('?', '')
+                  .split(',')
+                  .map((t) => t.trim()),
+            );
           }
         }
       }
+
+      final entityImports = CommonPatterns.entityImports(
+        types,
+        config,
+        depth: 3,
+      );
+      imports.addAll(entityImports);
     } else if (needsEntityListField || needsEntityField) {
       final entityPath =
           '../../../domain/entities/$domainSnake/$domainSnake.dart';
@@ -100,10 +124,50 @@ class StateBuilder {
       ),
     ];
 
-    if (config.isCustomUseCase ||
-        (config.isOrchestrator && !config.generateUseCase)) {
+    if (needsEntityField) {
+      fields.add(
+        _docField(
+          'The single $entityName entity',
+          entityCamel,
+          _nullableType(entityName),
+        ),
+      );
+    }
+
+    if (needsEntityListField) {
+      fields.add(
+        _docField(
+          'The list of $entityName entities',
+          '${entityCamel}List',
+          _listOf(entityName),
+        ),
+      );
+      fields.add(
+        _docField(
+          'The current offset for pagination',
+          'offset',
+          refer('int'),
+        ),
+      );
+      fields.add(
+        _docField(
+          'The maximum number of items to fetch',
+          'limit',
+          refer('int'),
+        ),
+      );
+      fields.add(
+        _docField(
+          'Whether more items are available to fetch',
+          'hasMore',
+          refer('bool'),
+        ),
+      );
+    }
+
+    if (config.isCustomUseCase || config.isOrchestrator) {
       final orchestratorBoolFields = <_BoolField>[];
-      if (config.isOrchestrator && !config.generateUseCase) {
+      if (config.isOrchestrator) {
         for (final usecaseName in config.usecases) {
           final info = CommonPatterns.parseUseCaseInfo(
             usecaseName,
@@ -117,13 +181,14 @@ class StateBuilder {
             _BoolField(loadingName, 'Whether ${info.className} is in progress'),
           );
 
-          if (info.returnsType != null && info.returnsType != 'void') {
+          final returns = info.returnsType ?? (config.usecases.length == 1 ? config.returnsType : null);
+          if (returns != null && returns != 'void') {
             final fieldName = '${info.fieldName}Response';
             fields.add(
               _docField(
                 'The result data for ${info.className}',
                 fieldName,
-                _nullableType(info.returnsType!),
+                _nullableType(returns),
               ),
             );
           }
@@ -180,7 +245,7 @@ class StateBuilder {
         toStringMethod,
       ];
 
-      if (config.isOrchestrator && !config.generateUseCase) {
+      if (config.isOrchestrator) {
         methods.insert(1, _buildIsLoadingGetter(orchestratorBoolFields));
       }
 
@@ -206,47 +271,6 @@ class StateBuilder {
         revert: config.revert,
       );
     } else {
-      if (needsEntityListField) {
-        fields.add(
-          _docField(
-            'The list of $entityName entities',
-            '${entityCamel}List',
-            _listOf(entityName),
-          ),
-        );
-        fields.add(
-          _docField(
-            'The current offset for pagination',
-            'offset',
-            refer('int'),
-          ),
-        );
-        fields.add(
-          _docField(
-            'The maximum number of items to fetch',
-            'limit',
-            refer('int'),
-          ),
-        );
-        fields.add(
-          _docField(
-            'Whether more items are available to fetch',
-            'hasMore',
-            refer('bool'),
-          ),
-        );
-      }
-
-      if (needsEntityField) {
-        fields.add(
-          _docField(
-            'The single $entityName entity',
-            entityCamel,
-            _nullableType(entityName),
-          ),
-        );
-      }
-
       final boolFields = _boolFieldsForMethods(config.methods);
       fields.addAll(
         boolFields.map(
@@ -325,6 +349,16 @@ class StateBuilder {
   }
 
   Constructor _buildCustomConstructor(GeneratorConfig config) {
+    final entityName = config.name;
+    final entityCamel = config.nameCamel;
+    final needsEntityListField =
+        !config.noEntity && config.methods.any((m) => ['getList', 'watchList'].contains(m));
+    final needsEntityField =
+        (!config.noEntity && (config.generateVpcs || config.generateState)) ||
+        (!config.noEntity && config.methods.any(
+          (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
+        ));
+
     final params = <Parameter>[
       Parameter(
         (p) => p
@@ -334,7 +368,51 @@ class StateBuilder {
       ),
     ];
 
-    if (!(config.isOrchestrator && !config.generateUseCase)) {
+    if (needsEntityField) {
+      params.add(
+        Parameter(
+          (p) => p
+            ..name = entityCamel
+            ..named = true
+            ..toThis = true,
+        ),
+      );
+    }
+
+    if (needsEntityListField) {
+      params.addAll([
+        Parameter(
+          (p) => p
+            ..name = '${entityCamel}List'
+            ..named = true
+            ..toThis = true
+            ..defaultTo = literalList([]).code,
+        ),
+        Parameter(
+          (p) => p
+            ..name = 'offset'
+            ..named = true
+            ..toThis = true
+            ..defaultTo = literalNum(0).code,
+        ),
+        Parameter(
+          (p) => p
+            ..name = 'limit'
+            ..named = true
+            ..toThis = true
+            ..defaultTo = literalNum(20).code,
+        ),
+        Parameter(
+          (p) => p
+            ..name = 'hasMore'
+            ..named = true
+            ..toThis = true
+            ..defaultTo = literalBool(true).code,
+        ),
+      ]);
+    }
+
+    if (!config.isOrchestrator) {
       params.add(
         Parameter(
           (p) => p
@@ -346,14 +424,15 @@ class StateBuilder {
       );
     }
 
-    if (config.isOrchestrator && !config.generateUseCase) {
+    if (config.isOrchestrator) {
       for (final usecaseName in config.usecases) {
         final info = CommonPatterns.parseUseCaseInfo(
           usecaseName,
           config,
           outputDir,
         );
-        if (info.returnsType != null && info.returnsType != 'void') {
+        final returns = info.returnsType ?? (config.usecases.length == 1 ? config.returnsType : null);
+        if (returns != null && returns != 'void') {
           params.add(
             Parameter(
               (p) => p
@@ -394,6 +473,16 @@ class StateBuilder {
   }
 
   Method _buildCustomCopyWith(String stateName, GeneratorConfig config) {
+    final entityName = config.name;
+    final entityCamel = config.nameCamel;
+    final needsEntityListField =
+        !config.noEntity && config.methods.any((m) => ['getList', 'watchList'].contains(m));
+    final needsEntityField =
+        (!config.noEntity && (config.generateVpcs || config.generateState)) ||
+        (!config.noEntity && config.methods.any(
+          (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
+        ));
+
     final params = <Parameter>[
       Parameter(
         (p) => p
@@ -407,7 +496,53 @@ class StateBuilder {
       'error': refer('error').ifNullThen(_this('error')),
     };
 
-    if (!(config.isOrchestrator && !config.generateUseCase)) {
+    if (needsEntityField) {
+      params.add(
+        Parameter(
+          (p) => p
+            ..name = entityCamel
+            ..named = true
+            ..type = refer('$entityName?'),
+        ),
+      );
+      values[entityCamel] = refer(entityCamel).ifNullThen(_this(entityCamel));
+    }
+
+    if (needsEntityListField) {
+      params.addAll([
+        Parameter(
+          (p) => p
+            ..name = '${entityCamel}List'
+            ..named = true
+            ..type = refer('List<$entityName>?'),
+        ),
+        Parameter(
+          (p) => p
+            ..name = 'offset'
+            ..named = true
+            ..type = refer('int?'),
+        ),
+        Parameter(
+          (p) => p
+            ..name = 'limit'
+            ..named = true
+            ..type = refer('int?'),
+        ),
+        Parameter(
+          (p) => p
+            ..name = 'hasMore'
+            ..named = true
+            ..type = refer('bool?'),
+        ),
+      ]);
+      values['${entityCamel}List'] =
+          refer('${entityCamel}List').ifNullThen(_this('${entityCamel}List'));
+      values['offset'] = refer('offset').ifNullThen(_this('offset'));
+      values['limit'] = refer('limit').ifNullThen(_this('limit'));
+      values['hasMore'] = refer('hasMore').ifNullThen(_this('hasMore'));
+    }
+
+    if (!config.isOrchestrator) {
       params.add(
         Parameter(
           (p) => p
@@ -419,29 +554,15 @@ class StateBuilder {
       values['isLoading'] = refer('isLoading').ifNullThen(_this('isLoading'));
     }
 
-    if (config.isOrchestrator && !config.generateUseCase) {
+    if (config.isOrchestrator) {
       for (final usecaseName in config.usecases) {
         final info = CommonPatterns.parseUseCaseInfo(
           usecaseName,
           config,
           outputDir,
         );
-        final fieldName = '${info.fieldName}Response';
         final loadingName =
             'is${StringUtils.capitalize(info.fieldName)}Loading';
-
-        if (info.returnsType != null && info.returnsType != 'void') {
-          params.add(
-            Parameter(
-              (p) => p
-                ..name = fieldName
-                ..named = true
-                ..type = _nullableType(info.returnsType!),
-            ),
-          );
-          values[fieldName] = refer(fieldName).ifNullThen(_this(fieldName));
-        }
-
         params.add(
           Parameter(
             (p) => p
@@ -451,6 +572,20 @@ class StateBuilder {
           ),
         );
         values[loadingName] = refer(loadingName).ifNullThen(_this(loadingName));
+
+        final returns = info.returnsType ?? (config.usecases.length == 1 ? config.returnsType : null);
+        if (returns != null && returns != 'void') {
+          final fieldName = '${info.fieldName}Response';
+          params.add(
+            Parameter(
+              (p) => p
+                ..name = fieldName
+                ..named = true
+                ..type = _nullableType(returns),
+            ),
+          );
+          values[fieldName] = refer(fieldName).ifNullThen(_this(fieldName));
+        }
       }
     }
 
@@ -505,15 +640,37 @@ class StateBuilder {
     final isIdentical = refer('identical').call([refer('this'), other]);
     final isType = other.isA(refer(stateName));
 
+    final entityCamel = config.nameCamel;
+    final needsEntityListField =
+        !config.noEntity && config.methods.any((m) => ['getList', 'watchList'].contains(m));
+    final needsEntityField =
+        (!config.noEntity && (config.generateVpcs || config.generateState)) ||
+        (!config.noEntity && config.methods.any(
+          (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
+        ));
+
     final conditions = <Expression>[
       other.property('error').equalTo(refer('error')),
     ];
 
-    if (!(config.isOrchestrator && !config.generateUseCase)) {
+    if (needsEntityField) {
+      conditions.add(other.property(entityCamel).equalTo(refer(entityCamel)));
+    }
+
+    if (needsEntityListField) {
+      conditions.add(
+        other.property('${entityCamel}List').equalTo(refer('${entityCamel}List')),
+      );
+      conditions.add(other.property('offset').equalTo(refer('offset')));
+      conditions.add(other.property('limit').equalTo(refer('limit')));
+      conditions.add(other.property('hasMore').equalTo(refer('hasMore')));
+    }
+
+    if (!config.isOrchestrator) {
       conditions.add(other.property('isLoading').equalTo(refer('isLoading')));
     }
 
-    if (config.isOrchestrator && !config.generateUseCase) {
+    if (config.isOrchestrator) {
       for (final usecaseName in config.usecases) {
         final info = CommonPatterns.parseUseCaseInfo(
           usecaseName,
@@ -524,7 +681,8 @@ class StateBuilder {
         final loadingName =
             'is${StringUtils.capitalize(info.fieldName)}Loading';
 
-        if (info.returnsType != null && info.returnsType != 'void') {
+        final returns = info.returnsType ?? (config.usecases.length == 1 ? config.returnsType : null);
+        if (returns != null && returns != 'void') {
           conditions.add(other.property(fieldName).equalTo(refer(fieldName)));
         }
         conditions.add(other.property(loadingName).equalTo(refer(loadingName)));
@@ -555,24 +713,45 @@ class StateBuilder {
   }
 
   Method _buildCustomHashCodeGetter(GeneratorConfig config) {
+    final entityCamel = config.nameCamel;
+    final needsEntityListField =
+        !config.noEntity && config.methods.any((m) => ['getList', 'watchList'].contains(m));
+    final needsEntityField =
+        (!config.noEntity && (config.generateVpcs || config.generateState)) ||
+        (!config.noEntity && config.methods.any(
+          (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
+        ));
+
     final parts = <Expression>[refer('error').property('hashCode')];
 
-    if (!(config.isOrchestrator && !config.generateUseCase)) {
+    if (needsEntityField) {
+      parts.add(refer(entityCamel).property('hashCode'));
+    }
+
+    if (needsEntityListField) {
+      parts.add(refer('${entityCamel}List').property('hashCode'));
+      parts.add(refer('offset').property('hashCode'));
+      parts.add(refer('limit').property('hashCode'));
+      parts.add(refer('hasMore').property('hashCode'));
+    }
+
+    if (!config.isOrchestrator) {
       parts.add(refer('isLoading').property('hashCode'));
     }
 
-    if (config.isOrchestrator && !config.generateUseCase) {
+    if (config.isOrchestrator) {
       for (final usecaseName in config.usecases) {
         final info = CommonPatterns.parseUseCaseInfo(
           usecaseName,
           config,
           outputDir,
         );
+        final returns = info.returnsType ?? (config.usecases.length == 1 ? config.returnsType : null);
         final fieldName = '${info.fieldName}Response';
         final loadingName =
             'is${StringUtils.capitalize(info.fieldName)}Loading';
 
-        if (info.returnsType != null && info.returnsType != 'void') {
+        if (returns != null && returns != 'void') {
           parts.add(refer(fieldName).property('hashCode'));
         }
         parts.add(refer(loadingName).property('hashCode'));
@@ -597,24 +776,45 @@ class StateBuilder {
   }
 
   Method _buildCustomToString(String stateName, GeneratorConfig config) {
+    final entityCamel = config.nameCamel;
+    final needsEntityListField =
+        !config.noEntity && config.methods.any((m) => ['getList', 'watchList'].contains(m));
+    final needsEntityField =
+        (!config.noEntity && (config.generateVpcs || config.generateState)) ||
+        (!config.noEntity && config.methods.any(
+          (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
+        ));
+
     final parts = <String>['error: \$error'];
 
-    if (!(config.isOrchestrator && !config.generateUseCase)) {
+    if (needsEntityField) {
+      parts.add('$entityCamel: \$$entityCamel');
+    }
+
+    if (needsEntityListField) {
+      parts.add('${entityCamel}List: \$${entityCamel}List');
+      parts.add('offset: \$offset');
+      parts.add('limit: \$limit');
+      parts.add('hasMore: \$hasMore');
+    }
+
+    if (!config.isOrchestrator) {
       parts.add('isLoading: \$isLoading');
     }
 
-    if (config.isOrchestrator && !config.generateUseCase) {
+    if (config.isOrchestrator) {
       for (final usecaseName in config.usecases) {
         final info = CommonPatterns.parseUseCaseInfo(
           usecaseName,
           config,
           outputDir,
         );
+        final returns = info.returnsType ?? (config.usecases.length == 1 ? config.returnsType : null);
         final fieldName = '${info.fieldName}Response';
         final loadingName =
             'is${StringUtils.capitalize(info.fieldName)}Loading';
 
-        if (info.returnsType != null && info.returnsType != 'void') {
+        if (returns != null && returns != 'void') {
           parts.add('$fieldName: \$$fieldName');
         }
         parts.add('$loadingName: \$$loadingName');
@@ -966,9 +1166,10 @@ class StateBuilder {
   }
 
   Reference _nullableType(String symbol) {
+    final cleanSymbol = symbol.endsWith('?') ? symbol.substring(0, symbol.length - 1) : symbol;
     return TypeReference(
       (b) => b
-        ..symbol = symbol
+        ..symbol = cleanSymbol
         ..isNullable = true,
     );
   }

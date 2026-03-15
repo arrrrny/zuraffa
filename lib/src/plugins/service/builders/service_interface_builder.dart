@@ -88,7 +88,7 @@ class ServiceInterfaceBuilder {
     );
 
     final imports = <String>['package:zuraffa/zuraffa.dart'];
-    if (config.methods.isNotEmpty) {
+    if (config.isEntityBased) {
       // For entity methods, we definitely need the entity import
       final entityName = config.name;
       final entitySnake = StringUtils.camelToSnake(entityName);

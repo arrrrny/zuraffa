@@ -20,6 +20,8 @@ extension ControllerPluginBodies on ControllerPlugin {
         ? '${methodName}Response'
         : 'data';
 
+    final hasResponse = returns != 'void';
+
     return Block(
       (b) => b
         ..statements.add(
@@ -35,7 +37,7 @@ extension ControllerPluginBodies on ControllerPlugin {
                 ..statements.add(
                   _updateStateStatement({
                     loadingField: literalBool(false),
-                    responseField: refer('data'),
+                    if (hasResponse) responseField: refer('data'),
                   }),
                 ),
             ),
@@ -99,6 +101,8 @@ extension ControllerPluginBodies on ControllerPlugin {
         ? '${methodName}Response'
         : 'data';
 
+    final hasResponse = returns != 'void';
+
     return Block(
       (b) => b
         ..statements.add(
@@ -117,7 +121,7 @@ extension ControllerPluginBodies on ControllerPlugin {
                       ..statements.add(
                         _updateStateStatement({
                           loadingField: literalBool(false),
-                          responseField: refer('data'),
+                          if (hasResponse) responseField: refer('data'),
                         }),
                       ),
                   ),
@@ -134,9 +138,6 @@ extension ControllerPluginBodies on ControllerPlugin {
                 ),
             ).closure,
           ]).statement,
-        )
-        ..statements.add(
-          _updateStateStatement({loadingField: literalBool(false)}),
         ),
     );
   }

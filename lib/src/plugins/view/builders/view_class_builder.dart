@@ -8,8 +8,8 @@ class ViewClassSpec {
   final String viewName;
   final String controllerName;
   final String presenterName;
-  final String entityName;
-  final String entityCamel;
+  final String? entityName;
+  final String? entityCamel;
   final String? stateClassName;
   final List<Field> repoFields;
   final List<Field> routeFields;
@@ -24,14 +24,14 @@ class ViewClassSpec {
     required this.viewName,
     required this.controllerName,
     required this.presenterName,
-    required this.entityName,
-    required this.entityCamel,
     required this.repoFields,
     required this.routeFields,
     required this.repoPresenterArgs,
     required this.initialMethodCall,
     required this.imports,
     required this.withState,
+    this.entityName,
+    this.entityCamel,
     this.isCustom = false,
     this.isStateful = false,
     this.stateClassName,
@@ -114,7 +114,7 @@ class ViewClassBuilder {
                           'appBar': refer('AppBar').newInstance([], {
                             'title': refer(
                               'Text',
-                            ).newInstance([literalString(spec.entityName)]),
+                            ).newInstance([literalString(spec.entityName ?? spec.viewName)]),
                           }),
                           'body': refer('Center').newInstance([], {
                             'child': refer('Text').newInstance([
@@ -199,7 +199,7 @@ class ViewClassBuilder {
                           'appBar': refer('AppBar').newInstance([], {
                             'title': refer(
                               'Text',
-                            ).newInstance([literalString(spec.entityName)]),
+                            ).newInstance([literalString(spec.entityName ?? spec.viewName)]),
                           }),
                           'body': refer('Center').newInstance([], {
                             'child': refer('Text').newInstance([
@@ -234,9 +234,9 @@ class ViewClassBuilder {
     final controllerArgs = <Expression>[presenterCall];
     final controllerNamedArgs = <String, Expression>{};
 
-    if (spec.withState) {
+    if (spec.withState && spec.entityName != null && spec.entityCamel != null) {
       controllerNamedArgs['initial${spec.entityName}'] = refer(
-        spec.entityCamel,
+        spec.entityCamel!,
       );
     }
 
@@ -311,7 +311,7 @@ class ViewClassBuilder {
                     'appBar': refer('AppBar').call([], {
                       'title': refer(
                         'Text',
-                      ).constInstance([literalString(spec.entityName)]),
+                      ).constInstance([literalString(spec.entityName ?? spec.viewName)]),
                     }),
                     'body': refer(
                       'ControlledWidgetBuilder<${spec.controllerName}>',

@@ -81,7 +81,7 @@ class ProviderBuilder {
 
     final returnType = _returnType(config.useCaseType, returnsType);
 
-    final serviceImport = config.methods.isNotEmpty
+    final serviceImport = config.isEntityBased
         ? '../../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
         : '../../../domain/services/${serviceSnake}_service.dart';
 
@@ -90,7 +90,7 @@ class ProviderBuilder {
       Directive.import(serviceImport),
     ];
 
-    if (config.methods.isNotEmpty) {
+    if (config.isEntityBased) {
       final entityName = config.name;
       final entitySnake = StringUtils.camelToSnake(entityName);
       directives.add(Directive.import('../../../domain/entities/$entitySnake/$entitySnake.dart'));

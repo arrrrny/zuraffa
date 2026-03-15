@@ -205,8 +205,8 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         viewName: viewName,
         controllerName: controllerName,
         presenterName: presenterName,
-        entityName: entityName,
-        entityCamel: config.nameCamel,
+        entityName: config.noEntity ? null : entityName,
+        entityCamel: config.noEntity ? null : config.nameCamel,
         repoFields: repoFields,
         routeFields: routeFields,
         repoPresenterArgs: repoPresenterArgs,
@@ -237,7 +237,7 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     // Add optional initial entity field to support immediate state initialization
     final withState = config.generateState || config.customStateName != null;
-    if (withState) {
+    if (withState && !config.noEntity) {
       fields.add(
         Field(
           (f) => f
@@ -373,7 +373,7 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
       // Add entity import if we are using state (needed for initial entity field)
       final withState = config.generateState || config.customStateName != null;
-      if (withState) {
+      if (withState && !config.noEntity) {
         final entitySnake = config.nameSnake;
         imports.add(
           '$relativePath../domain/entities/$entitySnake/$entitySnake.dart',

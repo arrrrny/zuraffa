@@ -103,7 +103,7 @@ class MockProviderBuilder {
                   .replaceAll('?', ''),
             ));
 
-    final serviceImport = config.methods.isNotEmpty
+    final serviceImport = config.isEntityBased
         ? '../../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
         : '../../../domain/services/${serviceSnake}_service.dart';
 

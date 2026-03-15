@@ -177,14 +177,16 @@ class RepositoryInterfaceGenerator {
     if (needsZuraffaImport) {
       imports.add('package:zuraffa/zuraffa.dart');
     }
-    final entityName = config.name;
-    final entitySnake = config.nameSnake;
-    final baseImport = PackageUtils.getBaseImport(outputDir);
+    if (config.isEntityBased) {
+      final entityName = config.name;
+      final entitySnake = config.nameSnake;
+      final baseImport = PackageUtils.getBaseImport(outputDir);
 
-    if (EntityAnalyzer.isEnum(entityName, outputDir)) {
-      imports.add('$baseImport/domain/entities/enums/index.dart');
-    } else {
-      imports.add('$baseImport/domain/entities/$entitySnake/$entitySnake.dart');
+      if (EntityAnalyzer.isEnum(entityName, outputDir)) {
+        imports.add('$baseImport/domain/entities/enums/index.dart');
+      } else {
+        imports.add('$baseImport/domain/entities/$entitySnake/$entitySnake.dart');
+      }
     }
     return imports;
   }

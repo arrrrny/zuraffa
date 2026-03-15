@@ -42,7 +42,7 @@ class MockDataSourceBuilder {
     final directives = [
       Directive.import('dart:async'),
       Directive.import('package:zuraffa/zuraffa.dart'),
-      if (config.repo == null)
+      if (config.isEntityBased)
         Directive.import(
           '../../../domain/entities/$entitySnake/$entitySnake.dart',
         ),

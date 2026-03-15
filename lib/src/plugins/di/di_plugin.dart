@@ -507,7 +507,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return null;
     }
 
-    final serviceImport = config.methods.isNotEmpty
+    final serviceImport = config.isEntityBased
         ? '../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
         : '../../domain/services/${serviceSnake}_service.dart';
 

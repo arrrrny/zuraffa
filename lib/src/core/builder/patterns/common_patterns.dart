@@ -119,9 +119,9 @@ class CommonPatterns {
     );
 
     // Try to find the file and parse params/returns
-    String? paramsType;
-    String? returnsType;
-    String? useCaseType;
+    String? paramsType = config.paramsType;
+    String? returnsType = config.returnsType;
+    String? useCaseType = config.useCaseType;
 
     final usecaseDomain = findUseCaseDomain(
       usecaseSnake,
@@ -157,6 +157,18 @@ class CommonPatterns {
             if (useCaseType == 'usecase') useCaseType = 'future';
           }
         }
+      }
+    } else {
+      // If file not found, try to infer from name if it's a standard pattern
+      // and we are in a feature context
+      if (usecaseSnake.startsWith('get_') &&
+          usecaseSnake.endsWith(StringUtils.camelToSnake(config.name))) {
+        returnsType ??= config.name;
+        paramsType ??= 'NoParams';
+      } else if (usecaseSnake.startsWith('list_') &&
+          usecaseSnake.endsWith(StringUtils.camelToSnake(config.name))) {
+        returnsType ??= 'List<${config.name}>';
+        paramsType ??= 'NoParams';
       }
     }
 

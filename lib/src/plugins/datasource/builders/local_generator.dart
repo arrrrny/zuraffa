@@ -308,7 +308,7 @@ class LocalDataSourceBuilder {
       if (useHive)
         Directive.import('package:hive_ce_flutter/hive_ce_flutter.dart'),
       Directive.import('package:zuraffa/zuraffa.dart'),
-      if (config.repo == null)
+      if (config.isEntityBased)
         Directive.import(
           '../../../domain/entities/$entitySnake/$entitySnake.dart',
         ),

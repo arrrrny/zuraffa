@@ -131,18 +131,20 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final infos = <ParsedUseCaseInfo>[];
 
     // Entity-based usecases
-    for (final method in config.methods) {
-      infos.add(_getUseCaseInfo(method, entityName));
+    if (!config.noEntity) {
+      for (final method in config.methods) {
+        infos.add(_getUseCaseInfo(method, entityName));
+      }
     }
 
     // Custom usecases
-    if (config.isOrchestrator && !config.generateUseCase) {
+    if (config.isOrchestrator) {
       infos.addAll(
         config.usecases.map((u) {
           return CommonPatterns.parseUseCaseInfo(u, config, outputDir);
         }),
       );
-    } else if (config.isCustomUseCase && config.methods.isEmpty) {
+    } else if (config.isCustomUseCase && config.methods.isEmpty && !config.noEntity) {
       infos.add(
         ParsedUseCaseInfo(
           className: '${config.name}UseCase',
@@ -333,7 +335,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     }
 
     // 2. Custom methods
-    if (config.isOrchestrator && !config.generateUseCase) {
+    if (config.isOrchestrator) {
       for (final u in config.usecases) {
         final info = CommonPatterns.parseUseCaseInfo(u, config, outputDir);
         methods.add(_buildCustomMethod(config, info));
@@ -667,13 +669,22 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   ) {
     final imports = <String>['package:zuraffa/zuraffa.dart'];
 
-    if (config.isCustomUseCase) {
+    if (config.isCustomUseCase || config.isOrchestrator) {
       final types = <String>[];
+      if (!config.noEntity) {
+        types.add(config.name);
+      }
+      // Only add types that are explicitly used in the presenter class (fields/params)
       if (config.returnsType != null) {
         types.add(config.returnsType!);
       }
       if (config.paramsType != null) {
         types.add(config.paramsType!);
+      }
+      for (final info in useCases) {
+        // We DO need types used in field types and method signatures
+        if (info.paramsType != null) types.add(info.paramsType!);
+        if (info.returnsType != null) types.add(info.returnsType!);
       }
 
       final entityImports = CommonPatterns.entityImports(

@@ -34,6 +34,7 @@ class GeneratorConfig {
   final String queryField;
   final String queryFieldType;
   final bool useZorphy;
+  final bool noEntity;
   final bool generateTest;
   final bool enableCache;
   final String cachePolicy;
@@ -96,6 +97,7 @@ class GeneratorConfig {
     this.queryField = 'id',
     String? queryFieldType,
     this.useZorphy = true,
+    this.noEntity = false,
     this.generateTest = false,
     this.enableCache = false,
     this.cachePolicy = 'daily',
@@ -160,6 +162,7 @@ class GeneratorConfig {
       queryField: json['query_field'] ?? 'id',
       queryFieldType: json['query_field_type'],
       useZorphy: json['zorphy'] != false && json['useZorphy'] != false,
+      noEntity: json['no_entity'] == true || json['noEntity'] == true,
       generateTest: json['test'] == true,
       enableCache: json['cache'] == true || json['enable_cache'] == true,
       cachePolicy: json['cache_policy'] ?? 'daily',
@@ -189,9 +192,9 @@ class GeneratorConfig {
     );
   }
 
-  bool get isEntityBased => methods.isNotEmpty;
+  bool get isEntityBased => methods.isNotEmpty && !noEntity;
 
-  bool get isCustomUseCase => methods.isEmpty;
+  bool get isCustomUseCase => methods.isEmpty || noEntity;
 
   bool get isOrchestrator => usecases.isNotEmpty;
 
@@ -245,6 +248,7 @@ class GeneratorConfig {
     String? queryField,
     String? queryFieldType,
     bool? useZorphy,
+    bool? noEntity,
     bool? generateTest,
     bool? enableCache,
     String? cachePolicy,
@@ -304,6 +308,7 @@ class GeneratorConfig {
       queryField: queryField ?? this.queryField,
       queryFieldType: queryFieldType ?? this.queryFieldType,
       useZorphy: useZorphy ?? this.useZorphy,
+      noEntity: noEntity ?? this.noEntity,
       generateTest: generateTest ?? this.generateTest,
       enableCache: enableCache ?? this.enableCache,
       cachePolicy: cachePolicy ?? this.cachePolicy,
