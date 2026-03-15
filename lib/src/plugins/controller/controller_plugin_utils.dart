@@ -106,13 +106,14 @@ extension ControllerPluginUtils on ControllerPlugin {
         );
         imports.addAll(entityImports);
       }
-    } else if (config.methods.any(
-      (m) =>
-          m == 'create' || m == 'update' || m == 'getList' || m == 'watchList',
-    )) {
-      final entityPath =
-          '../../../domain/entities/$domainSnake/$domainSnake.dart';
-      imports.add(entityPath);
+    } else if (config.isEntityBased) {
+      // Entity-based controllers always need the entity import for initialEntity field
+      final entityImports = CommonPatterns.entityImports(
+        [config.name],
+        config,
+        depth: 3,
+      );
+      imports.addAll(entityImports);
     }
 
     return imports;

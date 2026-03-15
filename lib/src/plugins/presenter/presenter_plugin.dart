@@ -253,7 +253,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final mainRepo = config.effectiveRepos.isNotEmpty
         ? StringUtils.pascalToCamel(config.effectiveRepos.first)
-        : 'repository';
+        : (config.hasService
+            ? StringUtils.pascalToCamel(config.effectiveService!)
+            : 'repository');
 
     for (final info in useCases) {
       registrations.add(
@@ -262,7 +264,10 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
               refer('registerUseCase').call([
                 refer(
                   info.className,
-                ).call([if (config.effectiveRepos.isNotEmpty) refer(mainRepo)]),
+                ).call([
+                  if (config.effectiveRepos.isNotEmpty || config.hasService)
+                    refer(mainRepo)
+                ]),
               ]),
             )
             .statement,

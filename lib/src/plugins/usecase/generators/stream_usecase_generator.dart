@@ -91,7 +91,7 @@ class StreamUseCaseGenerator {
             ..toThis = true,
         ),
       );
-    } else if (config.hasRepo) {
+    } else if (config.hasRepo && config.effectiveRepos.isNotEmpty) {
       final repoName = config.effectiveRepos.first;
       final repoSnake = StringUtils.camelToSnake(
         repoName.replaceAll('Repository', ''),

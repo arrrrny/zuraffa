@@ -233,6 +233,7 @@ class FeatureCommand extends PluginCommand {
     addIfParsed('mock');
     addIfParsed('di');
     addIfParsed('cache');
+    addIfParsed('use-service');
     addIfParsed('route');
     addIfParsed('test');
     addIfParsed('query-field');

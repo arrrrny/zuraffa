@@ -193,7 +193,10 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
     if (outputDir.isEmpty) {
       outputDir = '.';
     }
-    final featureName = args['name'];
+    final featureName = args['name'] as String?;
+    if (featureName == null || featureName.isEmpty) {
+      throw ArgumentError('Feature name is required');
+    }
 
     final generateVpcs = args['vpcs'] ?? true;
     final useService = args['use-service'] ?? false;

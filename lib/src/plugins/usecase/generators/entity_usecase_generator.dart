@@ -83,8 +83,11 @@ class EntityUseCaseGenerator {
   ) async {
     final entityName = config.name;
     final hasService = config.hasService;
-    final sourceName =
-        hasService ? config.effectiveService! : config.effectiveRepos.first;
+    final sourceName = hasService
+        ? config.effectiveService!
+        : (config.effectiveRepos.isNotEmpty
+            ? config.effectiveRepos.first
+            : '${entityName}Repository');
     final sourceField = hasService ? '_service' : '_repository';
 
     String className;
