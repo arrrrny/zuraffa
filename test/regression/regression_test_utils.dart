@@ -37,9 +37,10 @@ dependencies:
     sdk: flutter
   zuraffa:
     path: ${path.normalize(repoRoot)}
-  get_it: ^8.0.0
+  get_it: ^9.0.0
 dependency_overrides:
-  meta: 1.17.0
+  meta: ^1.18.0
+  analyzer: ^11.0.0
 ''';
   await File(
     path.join(workspace.directory.path, 'pubspec.yaml'),

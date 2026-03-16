@@ -180,8 +180,7 @@ class InjectBuilder {
     final body = classNode.body;
     if (body is! ast.BlockClassBody) return source;
 
-    final constructors = body.members
-        .whereType<ast.ConstructorDeclaration>();
+    final constructors = body.members.whereType<ast.ConstructorDeclaration>();
 
     if (constructors.isEmpty) {
       // Create new constructor

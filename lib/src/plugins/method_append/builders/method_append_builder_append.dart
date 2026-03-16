@@ -55,6 +55,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
           methodName,
           returnRef,
           paramsType,
+          type: 'service',
         );
         if (result != null) {
           updatedFiles.add(result);
@@ -143,8 +144,9 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     String className,
     String methodName,
     Reference returnType,
-    String paramsType,
-  ) async {
+    String paramsType, {
+    String type = 'interface',
+  }) async {
     final file = File(filePath);
     if (!file.existsSync()) return null;
 
@@ -184,10 +186,11 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
           final classNode = helper.findClass(unit, className);
           if (classNode != null) {
             final methods = helper.findMethods(classNode);
-            if (methods.isEmpty) {
+            final fields = helper.findFields(classNode);
+            if (methods.isEmpty && fields.isEmpty) {
               return FileUtils.deleteFile(
                 filePath,
-                'interface',
+                type,
                 dryRun: options.dryRun,
                 verbose: options.verbose,
               );
@@ -199,14 +202,14 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       await FileUtils.writeFile(
         filePath,
         result.source,
-        'append',
+        type,
         force: true,
         dryRun: options.dryRun,
         verbose: options.verbose,
       );
       return GeneratedFile(
         path: filePath,
-        type: 'interface',
+        type: type,
         action: config.revert ? 'reverted' : 'updated',
       );
     }

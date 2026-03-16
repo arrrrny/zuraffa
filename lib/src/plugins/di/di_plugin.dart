@@ -160,11 +160,9 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     }
 
     if (config.hasService && (config.generateService || config.generateData)) {
-      if (config.generateService) {
-        final serviceFile = await _generateServiceDI(config);
-        if (serviceFile != null) {
-          files.add(serviceFile);
-        }
+      final serviceFile = await _generateServiceDI(config);
+      if (serviceFile != null) {
+        files.add(serviceFile);
       }
 
       if (config.generateData) {
@@ -522,13 +520,15 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final imports = ['package:get_it/get_it.dart', serviceImport];
 
     if (config.useMockInDi) {
-      imports.add(
-        '../../data/providers/${config.effectiveDomain}/${config.providerSnake}_mock_provider.dart',
-      );
+      final mockProviderImport = config.isEntityBased || config.hasService
+          ? '../../data/providers/${config.effectiveDomain}/${config.providerSnake}_mock_provider.dart'
+          : '../../data/providers/${config.providerSnake}_mock_provider.dart';
+      imports.add(mockProviderImport);
     } else {
-      imports.add(
-        '../../data/providers/${config.effectiveDomain}/${config.providerSnake}_provider.dart',
-      );
+      final providerImport = config.isEntityBased || config.hasService
+          ? '../../data/providers/${config.effectiveDomain}/${config.providerSnake}_provider.dart'
+          : '../../data/providers/${config.providerSnake}_provider.dart';
+      imports.add(providerImport);
     }
 
     final content = registrationBuilder.buildRegistrationFile(
@@ -544,16 +544,18 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
                     Method(
                       (m) => m
                         ..lambda = true
-                        ..body = refer('getIt').call([], {}, [
-                          refer(
-                            config.useMockInDi
-                                ? providerName.replaceAll(
-                                    'Provider',
-                                    'MockProvider',
-                                  )
-                                : providerName,
-                          ),
-                        ]).code,
+                        ..body =
+                            (config.useMockInDi
+                                    ? refer(
+                                        providerName.replaceAll(
+                                          'Provider',
+                                          'MockProvider',
+                                        ),
+                                      ).call([])
+                                    : refer(
+                                        'getIt',
+                                      ).call([], {}, [refer(providerName)]))
+                                .code,
                     ).closure,
                   ],
                   {},
@@ -598,12 +600,13 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       );
     }
 
+    final mockProviderImport = config.isEntityBased || config.hasService
+        ? '../../data/providers/${config.effectiveDomain}/$mockProviderSnake.dart'
+        : '../../data/providers/$mockProviderSnake.dart';
+
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$mockProviderName',
-      imports: [
-        'package:get_it/get_it.dart',
-        '../../data/providers/${config.effectiveDomain}/$mockProviderSnake.dart',
-      ],
+      imports: ['package:get_it/get_it.dart', mockProviderImport],
       body: Block(
         (b) => b
           ..statements.add(
@@ -647,12 +650,13 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       );
     }
 
+    final providerImport = config.isEntityBased || config.hasService
+        ? '../../data/providers/${config.effectiveDomain}/${providerSnake}_provider.dart'
+        : '../../data/providers/${providerSnake}_provider.dart';
+
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$providerName',
-      imports: [
-        'package:get_it/get_it.dart',
-        '../../data/providers/${config.effectiveDomain}/${providerSnake}_provider.dart',
-      ],
+      imports: ['package:get_it/get_it.dart', providerImport],
       body: Block(
         (b) => b
           ..statements.add(

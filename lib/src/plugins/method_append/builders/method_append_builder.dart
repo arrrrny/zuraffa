@@ -109,6 +109,7 @@ class MethodAppendBuilder {
         methodName,
         returnRef,
         paramsType,
+        type: 'repository',
       );
       if (result != null) {
         updatedFiles.add(result);
@@ -147,6 +148,7 @@ class MethodAppendBuilder {
         methodName,
         returnRef,
         paramsType,
+        type: 'datasource',
       );
       if (result != null) {
         updatedFiles.add(result);
