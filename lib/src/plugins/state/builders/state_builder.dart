@@ -3,7 +3,6 @@ import 'package:path/path.dart' as path;
 
 import '../../../core/builder/patterns/common_patterns.dart';
 import '../../../core/builder/shared/spec_library.dart';
-import '../../../core/constants/known_types.dart';
 import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
@@ -73,14 +72,7 @@ class StateBuilder {
     if (config.isCustomUseCase || config.isOrchestrator) {
       final types = <String>[if (!config.noEntity) config.name];
       if (config.returnsType != null) {
-        types.addAll(
-          config.returnsType!
-              .replaceAll('List<', '')
-              .replaceAll('>', '')
-              .replaceAll('?', '')
-              .split(',')
-              .map((t) => t.trim()),
-        );
+        types.addAll(CommonPatterns.extractBaseTypes(config.returnsType!));
       }
       if (config.isOrchestrator) {
         for (final usecaseName in config.usecases) {
@@ -90,14 +82,7 @@ class StateBuilder {
             outputDir,
           );
           if (info.returnsType != null) {
-            types.addAll(
-              info.returnsType!
-                  .replaceAll('List<', '')
-                  .replaceAll('>', '')
-                  .replaceAll('?', '')
-                  .split(',')
-                  .map((t) => t.trim()),
-            );
+            types.addAll(CommonPatterns.extractBaseTypes(info.returnsType!));
           }
         }
       }
@@ -349,7 +334,6 @@ class StateBuilder {
   }
 
   Constructor _buildCustomConstructor(GeneratorConfig config) {
-    final entityName = config.name;
     final entityCamel = config.nameCamel;
     final needsEntityListField =
         !config.noEntity && config.methods.any((m) => ['getList', 'watchList'].contains(m));

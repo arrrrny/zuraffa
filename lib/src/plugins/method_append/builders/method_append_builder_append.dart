@@ -20,17 +20,31 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
 
     final returnRef = _returnType(config.useCaseType, returnsType);
 
-    final servicePath = path.join(
-      outputDir,
-      'domain',
-      'services',
-      '${serviceSnake}_service.dart',
-    );
-    final serviceExists = File(servicePath).existsSync();
+    if (!config.isPrivate) {
+      final servicePath = path.join(
+        outputDir,
+        'domain',
+        'services',
+        '${serviceSnake}_service.dart',
+      );
+      final serviceExists = File(servicePath).existsSync();
 
-    if (!serviceExists) {
-      if (!config.revert) {
-        await _createService(
+      if (!serviceExists) {
+        if (!config.revert) {
+          await _createService(
+            config,
+            servicePath,
+            serviceName,
+            methodName,
+            returnRef,
+            paramsType,
+          );
+          updatedFiles.add(
+            GeneratedFile(path: servicePath, type: 'service', action: 'created'),
+          );
+        }
+      } else {
+        final result = await _appendToInterface(
           config,
           servicePath,
           serviceName,
@@ -38,23 +52,11 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
           returnRef,
           paramsType,
         );
-        updatedFiles.add(
-          GeneratedFile(path: servicePath, type: 'service', action: 'created'),
-        );
-      }
-    } else {
-      final result = await _appendToInterface(
-        config,
-        servicePath,
-        serviceName,
-        methodName,
-        returnRef,
-        paramsType,
-      );
-      if (result != null) {
-        updatedFiles.add(result);
-      } else {
-        warnings.add('Failed to append to ${serviceSnake}_service.dart');
+        if (result != null) {
+          updatedFiles.add(result);
+        } else {
+          warnings.add('Failed to append to ${serviceSnake}_service.dart');
+        }
       }
     }
 
@@ -108,6 +110,23 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
             action: 'created',
           ),
         );
+      }
+    }
+
+    final mockProviderPath = await _findMockProvider(config, serviceSnake);
+    if (mockProviderPath != null) {
+      final mockProviderName =
+          '${StringUtils.convertToPascalCase(serviceSnake)}MockProvider';
+      final result = await _appendToMockProvider(
+        config,
+        mockProviderPath,
+        mockProviderName,
+        methodName,
+        returnRef,
+        paramsType,
+      );
+      if (result != null) {
+        updatedFiles.add(result);
       }
     }
 
@@ -216,7 +235,9 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       (m) => m
         ..name = methodName
         ..returns = returnType
-        ..annotations.add(refer('override'))
+        ..annotations.addAll([
+          if (!config.isPrivate) refer('override'),
+        ])
         ..modifier = isStream || isSync ? null : MethodModifier.async
         ..requiredParameters.add(
           Parameter(
@@ -472,7 +493,9 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       (m) => m
         ..name = methodName
         ..returns = returnType
-        ..annotations.add(refer('override'))
+        ..annotations.addAll([
+          if (!config.isPrivate) refer('override'),
+        ])
         ..modifier = isStream || isSync ? null : MethodModifier.async
         ..requiredParameters.add(
           Parameter(
@@ -519,5 +542,178 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       );
     }
     return null;
+  }
+
+  Future<GeneratedFile?> _appendToMockProvider(
+    GeneratorConfig config,
+    String filePath,
+    String className,
+    String methodName,
+    Reference returnType,
+    String paramsType,
+  ) async {
+    final file = File(filePath);
+    if (!file.existsSync()) return null;
+
+    var source = await file.readAsString();
+    source = await _addMissingImports(config, source, filePath, isMock: true);
+
+    final isStream = config.useCaseType == 'stream';
+    final isSync = config.useCaseType == 'sync';
+
+    final returns = config.returnsType ?? 'void';
+    final baseReturns = returns.replaceAll('?', '');
+    final isList = baseReturns.startsWith('List<');
+    final entityName = config.repo != null
+        ? config.repo!.replaceAll('Repository', '')
+        : config.name;
+
+    final primitives = {
+      'String',
+      'int',
+      'double',
+      'bool',
+      'void',
+      'DateTime',
+      'dynamic',
+      'Object',
+    };
+    final isPrimitive =
+        primitives.contains(baseReturns) ||
+        (isList &&
+            primitives.contains(
+              baseReturns
+                  .substring(5, baseReturns.length - 1)
+                  .replaceAll('?', ''),
+            ));
+
+    final mockDataClass = '${entityName}MockData';
+    final sampleProperty = 'sample$entityName';
+
+    final method = Method(
+      (m) => m
+        ..name = methodName
+        ..returns = returnType
+        ..annotations.addAll([
+          if (!config.isPrivate) refer('override'),
+        ])
+        ..modifier = isStream || isSync ? null : MethodModifier.async
+        ..requiredParameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'params'
+              ..type = refer(paramsType),
+          ),
+        )
+        ..body = Block(
+          (b) => b
+            ..statements.addAll([
+              refer('logger').property('info').call([
+                literalString('$methodName called with params: \$params'),
+              ]).statement,
+              if (isStream) ...[
+                refer('Stream')
+                    .property('fromFuture')
+                    .call([
+                      refer('Future').property('delayed').call([
+                        refer('_delay'),
+                        Method(
+                          (mm) => mm
+                            ..lambda = true
+                            ..body = isPrimitive
+                                ? (isList
+                                      ? literalList([]).code
+                                      : (baseReturns == 'void'
+                                            ? literalNull.code
+                                            : _primitiveValue(
+                                                baseReturns,
+                                              ).code))
+                                : (isList
+                                      ? refer(
+                                          mockDataClass,
+                                        ).property('sampleList').code
+                                      : refer(
+                                          mockDataClass,
+                                        ).property(sampleProperty).code),
+                        ).closure,
+                      ]),
+                    ])
+                    .returned
+                    .statement,
+              ] else ...[
+                refer('Future')
+                    .property('delayed')
+                    .call([refer('_delay')])
+                    .awaited
+                    .statement,
+                if (isPrimitive) ...[
+                  if (isList)
+                    literalList([]).returned.statement
+                  else if (baseReturns == 'void')
+                    refer('Future').property('value').call([]).returned.statement
+                  else
+                    _primitiveValue(baseReturns).returned.statement,
+                ] else ...[
+                  if (isList)
+                    refer(mockDataClass)
+                        .property('sampleList')
+                        .returned
+                        .statement
+                  else
+                    refer(mockDataClass)
+                        .property(sampleProperty)
+                        .returned
+                        .statement,
+                ],
+              ],
+            ]),
+        ),
+    );
+
+    final memberSource = specLibrary.emitSpec(method);
+    final request = AppendRequest.method(
+      source: source,
+      className: className,
+      memberSource: memberSource,
+      force: config.force,
+    );
+
+    final result = config.revert
+        ? appendExecutor.undo(request)
+        : appendExecutor.execute(request);
+
+    if (result.changed) {
+      await FileUtils.writeFile(
+        filePath,
+        result.source,
+        'append',
+        force: true,
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+      );
+      return GeneratedFile(
+        path: filePath,
+        type: 'mock_provider',
+        action: config.revert ? 'reverted' : 'updated',
+      );
+    }
+    return null;
+  }
+
+  Expression _primitiveValue(String type) {
+    switch (type) {
+      case 'String':
+        return literalString('mock_value');
+      case 'int':
+        return literalNum(1);
+      case 'double':
+        return literalNum(1.0);
+      case 'bool':
+        return literalBool(true);
+      case 'DateTime':
+        return refer('DateTime').property('now').call([]);
+      default:
+        return literalNull;
+    }
   }
 }

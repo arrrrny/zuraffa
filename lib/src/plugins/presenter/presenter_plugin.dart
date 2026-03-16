@@ -676,15 +676,19 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       }
       // Only add types that are explicitly used in the presenter class (fields/params)
       if (config.returnsType != null) {
-        types.add(config.returnsType!);
+        types.addAll(CommonPatterns.extractBaseTypes(config.returnsType!));
       }
       if (config.paramsType != null) {
-        types.add(config.paramsType!);
+        types.addAll(CommonPatterns.extractBaseTypes(config.paramsType!));
       }
       for (final info in useCases) {
         // We DO need types used in field types and method signatures
-        if (info.paramsType != null) types.add(info.paramsType!);
-        if (info.returnsType != null) types.add(info.returnsType!);
+        if (info.paramsType != null) {
+          types.addAll(CommonPatterns.extractBaseTypes(info.paramsType!));
+        }
+        if (info.returnsType != null) {
+          types.addAll(CommonPatterns.extractBaseTypes(info.returnsType!));
+        }
       }
 
       final entityImports = CommonPatterns.entityImports(

@@ -18,6 +18,7 @@ import '../../utils/string_utils.dart';
 import 'builders/registration_builder.dart';
 import 'builders/service_locator_builder.dart';
 import 'capabilities/create_di_capability.dart';
+import 'capabilities/register_capability.dart';
 import 'detectors/registration_detector.dart';
 
 /// Configures dependency injection registrations for generated code.
@@ -67,7 +68,10 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   });
 
   @override
-  List<ZuraffaCapability> get capabilities => [CreateDiCapability(this)];
+  List<ZuraffaCapability> get capabilities => [
+        CreateDiCapability(this),
+        RegisterCapability(this),
+      ];
 
   @override
   Command createCommand() => ModularDiCommand(this);
@@ -156,20 +160,24 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     }
 
     if (config.hasService && (config.generateService || config.generateData)) {
-      final serviceFile = await _generateServiceDI(config);
-      if (serviceFile != null) {
-        files.add(serviceFile);
+      if (config.generateService) {
+        final serviceFile = await _generateServiceDI(config);
+        if (serviceFile != null) {
+          files.add(serviceFile);
+        }
       }
 
-      if (config.useMockInDi) {
-        final mockProviderFile = await _generateMockProviderDI(config);
-        if (mockProviderFile != null) {
-          files.add(mockProviderFile);
-        }
-      } else {
-        final providerFile = await _generateProviderDI(config);
-        if (providerFile != null) {
-          files.add(providerFile);
+      if (config.generateData) {
+        if (config.useMockInDi) {
+          final mockProviderFile = await _generateMockProviderDI(config);
+          if (mockProviderFile != null) {
+            files.add(mockProviderFile);
+          }
+        } else {
+          final providerFile = await _generateProviderDI(config);
+          if (providerFile != null) {
+            files.add(providerFile);
+          }
         }
       }
     }

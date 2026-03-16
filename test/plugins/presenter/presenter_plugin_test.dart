@@ -155,7 +155,6 @@ void main() {
     );
     final files = await plugin.generate(config);
     final content = files.first.content ?? '';
-    print('--- GENERATED CONTENT ---\n$content\n-------------------------');
 
     expect(content.contains('class GetListingByBarcodePresenter'), isTrue);
     expect(

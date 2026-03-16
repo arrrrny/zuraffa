@@ -54,6 +54,10 @@ class ProviderCommand extends PluginCommand {
 
   @override
   Future<void> run() async {
+    if (argResults?.command != null) {
+      return super.run();
+    }
+
     if (argResults?.rest.isEmpty ?? true) {
       print('❌ Usage: zfa provider <EntityName> [options]');
       return;

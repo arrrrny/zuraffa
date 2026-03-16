@@ -75,9 +75,6 @@ void main() {
     final entityRoutes = File('$outputDir/routing/listing_routes.dart');
     expect(entityRoutes.existsSync(), isTrue);
     final content = entityRoutes.readAsStringSync();
-    print(
-      '--- GENERATED ROUTE CONTENT ---\n$content\n-------------------------------',
-    );
 
     // Check path for custom usecase (should be just /get_listing_by_barcode)
     expect(
@@ -215,9 +212,6 @@ void main() {
     final entityRoutes = File('$outputDir/routing/listing_routes.dart');
     expect(entityRoutes.existsSync(), isTrue);
     final content = entityRoutes.readAsStringSync();
-    print(
-      '--- DUPLICATE TEST CONTENT ---\n$content\n------------------------------',
-    );
 
     // Count occurrences of the constant
     final constantMatches = 'static const String getListingByBarcode'
@@ -237,9 +231,6 @@ void main() {
     final appRoutes = File('$outputDir/routing/app_routes.dart');
     expect(appRoutes.existsSync(), isTrue);
     final appContent = appRoutes.readAsStringSync();
-    print(
-      '--- APP ROUTES CONTENT ---\n$appContent\n--------------------------',
-    );
 
     // It should point to ListingRoutes.getListingByBarcode
     expect(

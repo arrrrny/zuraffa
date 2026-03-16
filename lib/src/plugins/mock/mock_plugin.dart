@@ -9,6 +9,10 @@ import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/string_utils.dart';
+import '../method_append/builders/inject_builder.dart';
+import '../method_append/builders/method_append_builder.dart';
+import '../method_append/capabilities/inject_capability.dart';
+import '../method_append/capabilities/method_capability.dart';
 import 'builders/mock_builder.dart';
 import 'capabilities/create_mock_capability.dart';
 
@@ -29,16 +33,35 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final GeneratorOptions options;
   late final MockBuilder mockBuilder;
+  final MethodAppendBuilder methodAppendBuilder;
+  final InjectBuilder injectBuilder;
 
   MockPlugin({
     required this.outputDir,
     this.options = const GeneratorOptions(),
-  }) {
+    MethodAppendBuilder? methodAppendBuilder,
+    InjectBuilder? injectBuilder,
+  }) : methodAppendBuilder = methodAppendBuilder ??
+            MethodAppendBuilder(outputDir: outputDir, options: options),
+       injectBuilder = injectBuilder ??
+            InjectBuilder(outputDir: outputDir, options: options) {
     mockBuilder = MockBuilder(outputDir: outputDir, options: options);
   }
 
   @override
-  List<ZuraffaCapability> get capabilities => [CreateMockCapability(this)];
+  List<ZuraffaCapability> get capabilities => [
+        CreateMockCapability(this),
+        MethodCapability(
+          this,
+          methodAppendBuilder: methodAppendBuilder,
+          targetType: 'mock',
+        ),
+        InjectCapability(
+          this,
+          injectBuilder: injectBuilder,
+          targetType: 'mock',
+        ),
+      ];
 
   @override
   Command createCommand() => MockCommand(this);

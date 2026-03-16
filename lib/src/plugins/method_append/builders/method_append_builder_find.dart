@@ -100,4 +100,20 @@ extension MethodAppendBuilderFind on MethodAppendBuilder {
     }
     return null;
   }
+
+  Future<String?> _findMockProvider(
+    GeneratorConfig config,
+    String serviceSnake,
+  ) async {
+    final domainSnake = StringUtils.camelToSnake(config.effectiveDomain);
+    final directPath = path.join(
+      outputDir,
+      'data',
+      'providers',
+      domainSnake,
+      '${serviceSnake}_mock_provider.dart',
+    );
+    if (File(directPath).existsSync()) return directPath;
+    return null;
+  }
 }

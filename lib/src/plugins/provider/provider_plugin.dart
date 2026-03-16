@@ -6,6 +6,11 @@ import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import '../method_append/builders/inject_builder.dart';
+import '../method_append/builders/method_append_builder.dart';
+import '../method_append/capabilities/inject_capability.dart';
+import '../method_append/capabilities/method_capability.dart';
+import '../method_append/capabilities/private_method_capability.dart';
 import 'builders/provider_builder.dart';
 import 'capabilities/create_provider_capability.dart';
 
@@ -26,16 +31,40 @@ class ProviderPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final GeneratorOptions options;
   late final ProviderBuilder providerBuilder;
+  final MethodAppendBuilder methodAppendBuilder;
+  final InjectBuilder injectBuilder;
 
   ProviderPlugin({
     required this.outputDir,
     this.options = const GeneratorOptions(),
-  }) {
+    MethodAppendBuilder? methodAppendBuilder,
+    InjectBuilder? injectBuilder,
+  }) : methodAppendBuilder = methodAppendBuilder ??
+            MethodAppendBuilder(outputDir: outputDir, options: options),
+       injectBuilder = injectBuilder ??
+            InjectBuilder(outputDir: outputDir, options: options) {
     providerBuilder = ProviderBuilder(outputDir: outputDir, options: options);
   }
 
   @override
-  List<ZuraffaCapability> get capabilities => [CreateProviderCapability(this)];
+  List<ZuraffaCapability> get capabilities => [
+        CreateProviderCapability(this),
+        MethodCapability(
+          this,
+          methodAppendBuilder: methodAppendBuilder,
+          targetType: 'provider',
+        ),
+        PrivateMethodCapability(
+          this,
+          methodAppendBuilder: methodAppendBuilder,
+          targetType: 'provider',
+        ),
+        InjectCapability(
+          this,
+          injectBuilder: injectBuilder,
+          targetType: 'provider',
+        ),
+      ];
 
   @override
   Command createCommand() => ProviderCommand(this);

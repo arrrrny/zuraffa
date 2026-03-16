@@ -6,6 +6,8 @@ import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import '../method_append/builders/method_append_builder.dart';
+import '../method_append/capabilities/method_capability.dart';
 import 'capabilities/create_repository_capability.dart';
 import 'generators/implementation_generator.dart';
 import 'generators/interface_generator.dart';
@@ -16,11 +18,14 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   late final RepositoryInterfaceGenerator interfaceGenerator;
   late final RepositoryImplementationGenerator implementationGenerator;
+  final MethodAppendBuilder methodAppendBuilder;
 
   RepositoryPlugin({
     required this.outputDir,
     this.options = const GeneratorOptions(),
-  }) {
+    MethodAppendBuilder? methodAppendBuilder,
+  }) : methodAppendBuilder = methodAppendBuilder ??
+            MethodAppendBuilder(outputDir: outputDir, options: options) {
     interfaceGenerator = RepositoryInterfaceGenerator(
       outputDir: outputDir,
       options: options,
@@ -33,8 +38,13 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   @override
   List<ZuraffaCapability> get capabilities => [
-    CreateRepositoryCapability(this),
-  ];
+        CreateRepositoryCapability(this),
+        MethodCapability(
+          this,
+          methodAppendBuilder: methodAppendBuilder,
+          targetType: 'repository',
+        ),
+      ];
 
   @override
   Command createCommand() => RepositoryCommand(this);

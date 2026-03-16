@@ -55,6 +55,7 @@ class GeneratorConfig {
   final String? customPresenterName;
   final String? customControllerName;
   final String? customStateName;
+  final bool isPrivate;
 
   // Execution flags
   final bool dryRun;
@@ -118,6 +119,7 @@ class GeneratorConfig {
     this.customPresenterName,
     this.customControllerName,
     this.customStateName,
+    this.isPrivate = false,
     this.dryRun = false,
     this.force = false,
     this.verbose = false,
@@ -339,34 +341,21 @@ class GeneratorConfig {
 
   // Get repository method name (default: UseCase name in camelCase)
   String getRepoMethodName([String? variantPrefix]) {
-    if (repoMethod != null) return repoMethod!;
-
-    // For polymorphic with variant prefix
-    if (variantPrefix != null) {
-      return _pascalToCamel('$variantPrefix$name');
+    String name;
+    if (repoMethod != null) {
+      name = repoMethod!;
+    } else if (variantPrefix != null) {
+      name = _pascalToCamel('$variantPrefix${this.name}');
+    } else {
+      name = nameCamel;
     }
-
-    // Default: UseCase name in camelCase, strip "UseCase" suffix
-    final methodName = name.endsWith('UseCase')
-        ? name.substring(0, name.length - 7)
-        : name;
-    return _pascalToCamel(methodName);
+    return isPrivate ? '_$name' : name;
   }
 
   // Get service method name (default: UseCase name in camelCase)
-  String getServiceMethodName([String? variantPrefix]) {
-    if (serviceMethod != null) return serviceMethod!;
-
-    // For polymorphic with variant prefix
-    if (variantPrefix != null) {
-      return _pascalToCamel('$variantPrefix$name');
-    }
-
-    // Default: UseCase name in camelCase, strip "UseCase" suffix
-    final methodName = name.endsWith('UseCase')
-        ? name.substring(0, name.length - 7)
-        : name;
-    return _pascalToCamel(methodName);
+  String getServiceMethodName() {
+    String name = serviceMethod ?? nameCamel;
+    return isPrivate ? '_$name' : name;
   }
 
   // Check if using repository or service

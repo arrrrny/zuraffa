@@ -230,6 +230,27 @@ class AstHelper {
     return updated;
   }
 
+  String removeElementFromReturnListInFunction({
+    required String source,
+    required String functionName,
+    required String elementSource,
+  }) {
+    final parseResult = parseSource(source);
+    final unit = parseResult.unit;
+    if (unit == null) {
+      return source;
+    }
+    final functionNode = findFunction(unit, functionName);
+    if (functionNode == null) {
+      return source;
+    }
+    return AstModifier.removeElementFromReturnListInFunction(
+      source: source,
+      functionNode: functionNode,
+      elementSource: elementSource,
+    );
+  }
+
   String removeConstructorFromClass({
     required String source,
     required String className,
@@ -247,7 +268,6 @@ class AstHelper {
     if (constructors.isEmpty) {
       return source;
     }
-    // For now, remove the first constructor found
     final constructor = constructors.first;
     return source.substring(0, constructor.offset) +
         source.substring(constructor.end);

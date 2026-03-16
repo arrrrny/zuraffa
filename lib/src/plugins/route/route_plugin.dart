@@ -65,6 +65,7 @@ class RoutePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         dryRun: config.dryRun,
         force: config.force,
         verbose: config.verbose,
+        revert: config.revert,
       ),
     );
     return builder.generate(config);

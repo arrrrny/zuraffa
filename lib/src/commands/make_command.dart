@@ -252,11 +252,7 @@ class MakeCommand extends Command<void> {
       returnsType: returns,
       useService: useService,
       appendToExisting: pluginNames.contains('method_append'),
-      generateUseCase:
-          pluginNames.contains('usecase') ||
-          (pluginNames.contains('di') &&
-              !noEntity &&
-              (repo != null || service != null || usecasesStr != null)),
+      generateUseCase: pluginNames.contains('usecase'),
       generateService: pluginNames.contains('service'),
       dryRun: dryRun,
       force: force,

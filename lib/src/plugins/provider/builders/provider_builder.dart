@@ -10,6 +10,8 @@ import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../../utils/entity_analyzer.dart';
+import '../../../utils/method_extractor.dart';
+import '../../../models/parsed_usecase_info.dart';
 
 /// Generates provider implementation classes.
 ///
@@ -90,41 +92,84 @@ class ProviderBuilder {
       Directive.import(serviceImport),
     ];
 
+    final entityTypes = <String>{};
     if (config.isEntityBased) {
-      final entityName = config.name;
-      final entitySnake = StringUtils.camelToSnake(entityName);
-      directives.add(Directive.import('../../../domain/entities/$entitySnake/$entitySnake.dart'));
+      entityTypes.add(config.name);
     }
-
-    final entityImports = _getPotentialEntityImports([paramsType, returnsType]);
-    for (final entityName in entityImports) {
-      final entitySnake = StringUtils.camelToSnake(entityName);
-      if (EntityAnalyzer.isEnum(entityName, outputDir)) {
-        directives.add(
-          Directive.import('../../../domain/entities/enums/index.dart'),
-        );
-      } else {
-        final entityPath =
-            '../../../domain/entities/$entitySnake/$entitySnake.dart';
-        directives.add(Directive.import(entityPath));
-      }
-    }
+    entityTypes.addAll(_getPotentialEntityImports([paramsType, returnsType]));
 
     final methods = <Method>[];
+
+    // Check for existing service methods
+    final servicePath = config.isEntityBased
+        ? path.join(
+            outputDir,
+            'domain',
+            'services',
+            config.effectiveDomain,
+            '${serviceSnake}_service.dart',
+          )
+        : path.join(
+            outputDir,
+            'domain',
+            'services',
+            '${serviceSnake}_service.dart',
+          );
+
+    final existingMethods = await MethodExtractor.extractMethodsFromInterface(
+      servicePath,
+      serviceName,
+    );
 
     if (config.methods.isNotEmpty) {
       for (final method in config.methods) {
         methods.add(_buildEntityMethod(config, method));
       }
-    } else {
+    } else if (existingMethods.isNotEmpty) {
+      for (final info in existingMethods) {
+        final methodName = info.fieldName;
+        final returns = info.returnsType ?? 'void';
+        final params = info.paramsType ?? 'NoParams';
+        final type = info.useCaseType ?? 'usecase';
+
+        methods.add(
+          Method(
+            (m) => m
+              ..name = methodName
+              ..returns = _returnType(type, returns)
+              ..annotations.add(refer('override'))
+              ..modifier = (type == 'sync' || type == 'stream')
+                  ? null
+                  : MethodModifier.async
+              ..requiredParameters.addAll(
+                params == 'NoParams'
+                    ? const []
+                    : [
+                        Parameter(
+                          (p) => p
+                            ..name = 'params'
+                            ..type = refer(params),
+                        ),
+                      ],
+              )
+              ..body = _buildMethodBody(methodName),
+          ),
+        );
+
+        // Collect potential entity imports for existing methods
+        entityTypes.addAll(_getPotentialEntityImports([params, returns]));
+      }
+    } else if (config.paramsType != null || config.returnsType != null) {
       methods.add(
         Method(
           (m) => m
             ..name = methodName
             ..returns = returnType
             ..annotations.add(refer('override'))
-            ..modifier =
-                config.useCaseType == 'sync' ? null : MethodModifier.async
+            ..modifier = (config.useCaseType == 'sync' ||
+                    config.useCaseType == 'stream')
+                ? null
+                : MethodModifier.async
             ..requiredParameters.addAll(
               paramsType == 'NoParams'
                   ? const []
@@ -139,6 +184,19 @@ class ProviderBuilder {
             ..body = _buildMethodBody(methodName),
         ),
       );
+    }
+
+    for (final entityName in entityTypes) {
+      final entitySnake = StringUtils.camelToSnake(entityName);
+      if (EntityAnalyzer.isEnum(entityName, outputDir)) {
+        directives.add(
+          Directive.import('../../../domain/entities/enums/index.dart'),
+        );
+      } else {
+        final entityPath =
+            '../../../domain/entities/$entitySnake/$entitySnake.dart';
+        directives.add(Directive.import(entityPath));
+      }
     }
 
     if (config.generateInit) {

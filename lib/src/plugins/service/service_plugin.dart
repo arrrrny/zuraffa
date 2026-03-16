@@ -9,6 +9,8 @@ import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/file_utils.dart';
+import '../method_append/builders/method_append_builder.dart';
+import '../method_append/capabilities/method_capability.dart';
 import 'builders/service_interface_builder.dart';
 import 'capabilities/create_service_capability.dart';
 
@@ -16,15 +18,25 @@ class ServicePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final GeneratorOptions options;
   final ServiceInterfaceBuilder interfaceBuilder;
+  final MethodAppendBuilder methodAppendBuilder;
 
   ServicePlugin({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     this.interfaceBuilder = const ServiceInterfaceBuilder(),
-  });
+    MethodAppendBuilder? methodAppendBuilder,
+  }) : methodAppendBuilder = methodAppendBuilder ??
+           MethodAppendBuilder(outputDir: outputDir, options: options);
 
   @override
-  List<ZuraffaCapability> get capabilities => [CreateServiceCapability(this)];
+  List<ZuraffaCapability> get capabilities => [
+        CreateServiceCapability(this),
+        MethodCapability(
+          this,
+          methodAppendBuilder: methodAppendBuilder,
+          targetType: 'service',
+        ),
+      ];
 
   @override
   Command createCommand() => ServiceCommand(this);

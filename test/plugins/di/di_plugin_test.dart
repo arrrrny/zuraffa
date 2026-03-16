@@ -201,9 +201,6 @@ void main() {
     );
     expect(mockProviderDiFile.existsSync(), isTrue);
     final content = mockProviderDiFile.readAsStringSync();
-    print(
-      '--- MOCK PROVIDER DI CONTENT ---\n$content\n--------------------------------',
-    );
 
     // Should register ListingMockProvider but NOT as ListingService (that's the service DI's job)
     expect(

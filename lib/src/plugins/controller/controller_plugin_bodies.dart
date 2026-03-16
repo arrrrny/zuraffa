@@ -109,35 +109,42 @@ extension ControllerPluginBodies on ControllerPlugin {
           _updateStateStatement({loadingField: literalBool(true)}),
         )
         ..statements.add(
-          streamCall.property('listen').call([
-            Method(
-              (m) => m
-                ..requiredParameters.add(Parameter((p) => p..name = 'result'))
-                ..body = _resultFold(
-                  resultVar: 'result',
-                  successParams: ['data'],
-                  successBody: Block(
-                    (bb) => bb
-                      ..statements.add(
-                        _updateStateStatement({
-                          loadingField: literalBool(false),
-                          if (hasResponse) responseField: refer('data'),
-                        }),
+          declareFinal('subscription')
+              .assign(
+                streamCall.property('listen').call([
+                  Method(
+                    (m) => m
+                      ..requiredParameters.add(Parameter((p) => p..name = 'result'))
+                      ..body = _resultFold(
+                        resultVar: 'result',
+                        successParams: ['data'],
+                        successBody: Block(
+                          (bb) => bb
+                            ..statements.add(
+                              _updateStateStatement({
+                                loadingField: literalBool(false),
+                                if (hasResponse) responseField: refer('data'),
+                              }),
+                            ),
+                        ),
+                        failureParams: ['failure'],
+                        failureBody: Block(
+                          (bb) => bb
+                            ..statements.add(
+                              _updateStateStatement({
+                                loadingField: literalBool(false),
+                                'error': refer('failure'),
+                              }),
+                            ),
+                        ),
                       ),
-                  ),
-                  failureParams: ['failure'],
-                  failureBody: Block(
-                    (bb) => bb
-                      ..statements.add(
-                        _updateStateStatement({
-                          loadingField: literalBool(false),
-                          'error': refer('failure'),
-                        }),
-                      ),
-                  ),
-                ),
-            ).closure,
-          ]).statement,
+                  ).closure,
+                ]),
+              )
+              .statement,
+        )
+        ..statements.add(
+          refer('registerSubscription').call([refer('subscription')]).statement,
         ),
     );
   }
@@ -156,19 +163,26 @@ extension ControllerPluginBodies on ControllerPlugin {
     return Block(
       (b) => b
         ..statements.add(
-          streamCall.property('listen').call([
-            Method(
-              (m) => m
-                ..requiredParameters.add(Parameter((p) => p..name = 'result'))
-                ..body = _resultFold(
-                  resultVar: 'result',
-                  successParams: ['data'],
-                  successBody: Block((bb) => bb),
-                  failureParams: ['failure'],
-                  failureBody: Block((bb) => bb),
-                ),
-            ).closure,
-          ]).statement,
+          declareFinal('subscription')
+              .assign(
+                streamCall.property('listen').call([
+                  Method(
+                    (m) => m
+                      ..requiredParameters.add(Parameter((p) => p..name = 'result'))
+                      ..body = _resultFold(
+                        resultVar: 'result',
+                        successParams: ['data'],
+                        successBody: Block((bb) => bb),
+                        failureParams: ['failure'],
+                        failureBody: Block((bb) => bb),
+                      ),
+                  ).closure,
+                ]),
+              )
+              .statement,
+        )
+        ..statements.add(
+          refer('registerSubscription').call([refer('subscription')]).statement,
         ),
     );
   }

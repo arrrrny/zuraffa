@@ -18,7 +18,7 @@ class CommonPatterns {
     final entities = <String>{};
     for (final type in types) {
       if (type == null) continue;
-      final baseTypes = _extractBaseTypes(type);
+      final baseTypes = extractBaseTypes(type);
       for (final baseType in baseTypes) {
         if (!KnownTypes.isExcluded(baseType)) {
           entities.add(baseType);
@@ -138,20 +138,20 @@ class CommonPatterns {
     if (File(filePath).existsSync()) {
       final content = File(filePath).readAsStringSync();
       final extendsMatch = RegExp(
-        r'extends (UseCase|StreamUseCase|CompletableUseCase|SyncUseCase)<([^>]+)>',
+        r'extends (UseCase|StreamUseCase|CompletableUseCase|SyncUseCase)<(.+)>',
       ).firstMatch(content);
       if (extendsMatch != null) {
         useCaseType = extendsMatch.group(1)?.toLowerCase();
         final typesStr = extendsMatch.group(2);
         if (typesStr != null) {
-          final types = typesStr.split(',').map((e) => e.trim()).toList();
+          final types = _splitByComma(typesStr);
           if (useCaseType == 'completableusecase') {
             useCaseType = 'completable';
             paramsType = types[0];
             returnsType = 'void';
-          } else if (types.length >= 2) {
+          } else if (types.isNotEmpty) {
             returnsType = types[0];
-            paramsType = types[1];
+            paramsType = types.length > 1 ? types[1] : 'NoParams';
             if (useCaseType == 'streamusecase') useCaseType = 'stream';
             if (useCaseType == 'syncusecase') useCaseType = 'sync';
             if (useCaseType == 'usecase') useCaseType = 'future';
@@ -220,7 +220,7 @@ class CommonPatterns {
     return defaultDomain;
   }
 
-  static List<String> _extractBaseTypes(String type) {
+  static List<String> extractBaseTypes(String type) {
     // 1. Remove nullable marker
     final cleanType = type.replaceAll('?', '').trim();
     if (cleanType.isEmpty || cleanType == 'void') return [];
@@ -239,7 +239,7 @@ class CommonPatterns {
         // Split by comma but respect nested generics
         final parts = _splitByComma(innerTypes);
         for (final part in parts) {
-          results.addAll(_extractBaseTypes(part));
+          results.addAll(extractBaseTypes(part));
         }
       }
     } else {

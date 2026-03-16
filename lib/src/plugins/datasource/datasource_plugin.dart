@@ -11,6 +11,11 @@ import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/string_utils.dart';
+import '../method_append/builders/inject_builder.dart';
+import '../method_append/builders/method_append_builder.dart';
+import '../method_append/capabilities/inject_capability.dart';
+import '../method_append/capabilities/method_capability.dart';
+import '../method_append/capabilities/private_method_capability.dart';
 import 'builders/interface_generator.dart';
 import 'builders/local_generator.dart';
 import 'builders/remote_generator.dart';
@@ -36,11 +41,18 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   late final DataSourceInterfaceBuilder interfaceGenerator;
   late final RemoteDataSourceBuilder remoteGenerator;
   late final LocalDataSourceBuilder localGenerator;
+  final MethodAppendBuilder methodAppendBuilder;
+  final InjectBuilder injectBuilder;
 
   DataSourcePlugin({
     required this.outputDir,
     this.options = const GeneratorOptions(),
-  }) {
+    MethodAppendBuilder? methodAppendBuilder,
+    InjectBuilder? injectBuilder,
+  }) : methodAppendBuilder = methodAppendBuilder ??
+            MethodAppendBuilder(outputDir: outputDir, options: options),
+       injectBuilder = injectBuilder ??
+            InjectBuilder(outputDir: outputDir, options: options) {
     interfaceGenerator = DataSourceInterfaceBuilder(
       outputDir: outputDir,
       options: options,
@@ -57,8 +69,23 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   @override
   List<ZuraffaCapability> get capabilities => [
-    CreateDataSourceCapability(this),
-  ];
+        CreateDataSourceCapability(this),
+        MethodCapability(
+          this,
+          methodAppendBuilder: methodAppendBuilder,
+          targetType: 'datasource',
+        ),
+        PrivateMethodCapability(
+          this,
+          methodAppendBuilder: methodAppendBuilder,
+          targetType: 'datasource',
+        ),
+        InjectCapability(
+          this,
+          injectBuilder: injectBuilder,
+          targetType: 'datasource',
+        ),
+      ];
 
   @override
   Command createCommand() => DataSourceCommand(this);

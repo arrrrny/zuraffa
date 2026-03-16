@@ -407,36 +407,6 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         .toList();
   }
 
-  List<Field> _buildRouteFields(GeneratorConfig config) {
-    final needsIdParam = _needsIdParam(config);
-    final needsQueryParam = _needsQueryParam(config);
-    final fields = <Field>[];
-
-    if (needsIdParam) {
-      fields.add(
-        Field(
-          (f) => f
-            ..modifier = FieldModifier.final$
-            ..type = refer(_nullableType(config.idFieldType))
-            ..name = config.idField,
-        ),
-      );
-    }
-
-    if (needsQueryParam) {
-      fields.add(
-        Field(
-          (f) => f
-            ..modifier = FieldModifier.final$
-            ..type = refer(_nullableType(config.queryFieldType))
-            ..name = config.queryField,
-        ),
-      );
-    }
-
-    return fields;
-  }
-
   List<String> _buildRepoPresenterArgs(GeneratorConfig config) {
     return config.effectiveRepos.map((repo) {
       final repoCamel = StringUtils.pascalToCamel(repo);
@@ -466,44 +436,6 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return false;
     }
     return (hasGet || hasWatch) && config.queryField != config.idField;
-  }
-
-  Block _buildInitialMethodCall(GeneratorConfig config, String entityName) {
-    if (config.methods.contains('getList')) {
-      return Block(
-        (b) => b
-          ..statements.add(
-            refer(
-              'controller',
-            ).property('get${entityName}List').call([]).statement,
-          ),
-      );
-    }
-    if (config.methods.contains('watchList')) {
-      return Block(
-        (b) => b
-          ..statements.add(
-            refer(
-              'controller',
-            ).property('watch${entityName}List').call([]).statement,
-          ),
-      );
-    }
-    if (config.methods.contains('get')) {
-      return _buildSingleCall(
-        config: config,
-        entityName: entityName,
-        methodName: 'get',
-      );
-    }
-    if (config.methods.contains('watch')) {
-      return _buildSingleCall(
-        config: config,
-        entityName: entityName,
-        methodName: 'watch',
-      );
-    }
-    return Block((b) => b);
   }
 
   Block _buildSingleCall({

@@ -110,6 +110,10 @@ extension ControllerPluginUtils on ControllerPlugin {
         if (config.paramsType != null && config.paramsType != 'NoParams') {
           types.add(config.paramsType!);
         }
+        // Add returnsType as it's explicitly used in method signature and state
+        if (config.returnsType != null && config.returnsType!.isNotEmpty) {
+          types.add(config.returnsType!);
+        }
       }
 
       if (types.isNotEmpty) {

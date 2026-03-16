@@ -42,7 +42,6 @@ class CreateRepositoryCapability implements ZuraffaCapability {
         'items': {'type': 'string'},
         'description':
             'List of methods (get,create,update,delete,list,watch,getList,watchList)',
-        'default': ['get', 'update'],
       },
       'dryRun': {
         'type': 'boolean',
@@ -109,7 +108,7 @@ class CreateRepositoryCapability implements ZuraffaCapability {
     final generateData = args['data'] ?? true;
     final generateDataSource = args['datasource'] ?? true;
     final methods =
-        (args['methods'] as List?)?.cast<String>() ?? ['get', 'update'];
+        (args['methods'] as List?)?.cast<String>() ?? [];
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
 

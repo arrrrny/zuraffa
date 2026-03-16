@@ -5,6 +5,7 @@ import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'builders/method_append_builder.dart';
 import 'capabilities/append_method_capability.dart';
+import 'capabilities/method_capability.dart';
 
 /// Manages appending methods to existing classes.
 ///
@@ -35,7 +36,14 @@ class MethodAppendPlugin extends FileGeneratorPlugin {
   }
 
   @override
-  List<ZuraffaCapability> get capabilities => [AppendMethodCapability(this)];
+  List<ZuraffaCapability> get capabilities => [
+        AppendMethodCapability(this),
+        MethodCapability(
+          this,
+          methodAppendBuilder: methodAppendBuilder,
+          targetType: 'any',
+        ),
+      ];
 
   @override
   String get id => 'method_append';

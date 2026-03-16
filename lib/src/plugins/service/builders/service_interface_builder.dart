@@ -24,7 +24,7 @@ class ServiceInterfaceBuilder {
       for (final method in config.methods) {
         methods.add(_buildEntityMethod(config, method));
       }
-    } else {
+    } else if (config.paramsType != null || config.returnsType != null) {
       final paramsType = config.paramsType ?? 'NoParams';
       final returnsType = config.returnsType ?? 'void';
       final methodName = config.getServiceMethodName();

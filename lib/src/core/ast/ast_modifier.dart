@@ -239,6 +239,56 @@ class AstModifier {
         source.substring(insertOffset);
   }
 
+  static String removeElementFromReturnListInFunction({
+    required String source,
+    required FunctionDeclaration functionNode,
+    required String elementSource,
+  }) {
+    final body = functionNode.functionExpression.body;
+    if (body is! BlockFunctionBody) {
+      return source;
+    }
+
+    final returnStatement =
+        body.block.statements.whereType<ReturnStatement>().firstOrNull;
+    if (returnStatement == null) {
+      return source;
+    }
+
+    final expression = returnStatement.expression;
+    if (expression is! ListLiteral) {
+      return source;
+    }
+
+    final elements = expression.elements;
+    final normalizedSearch = elementSource.replaceAll(RegExp(r'\s+'), '');
+
+    for (final element in elements) {
+      final elementText = source.substring(element.offset, element.end);
+      final normalizedElement = elementText.replaceAll(RegExp(r'\s+'), '');
+
+      if (normalizedElement == normalizedSearch) {
+        var start = element.offset;
+        var end = element.end;
+
+        // Try to include leading comma or trailing comma
+        final nextCharIndex = source.indexOf(RegExp(r'\S'), end);
+        if (nextCharIndex != -1 && source[nextCharIndex] == ',') {
+          end = nextCharIndex + 1;
+        } else {
+          final prevCharIndex = source.lastIndexOf(RegExp(r'\S'), start - 1);
+          if (prevCharIndex != -1 && source[prevCharIndex] == ',') {
+            start = prevCharIndex;
+          }
+        }
+
+        return source.substring(0, start) + source.substring(end);
+      }
+    }
+
+    return source;
+  }
+
   static String _indentBeforeOffset(String source, int offset) {
     final lineStart = source.lastIndexOf('\n', offset);
     if (lineStart == -1) {
