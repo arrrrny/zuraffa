@@ -185,7 +185,9 @@ class RepositoryInterfaceGenerator {
       if (EntityAnalyzer.isEnum(entityName, outputDir)) {
         imports.add('$baseImport/domain/entities/enums/index.dart');
       } else {
-        imports.add('$baseImport/domain/entities/$entitySnake/$entitySnake.dart');
+        imports.add(
+          '$baseImport/domain/entities/$entitySnake/$entitySnake.dart',
+        );
       }
     }
     return imports;

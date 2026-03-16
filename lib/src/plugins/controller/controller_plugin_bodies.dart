@@ -114,7 +114,9 @@ extension ControllerPluginBodies on ControllerPlugin {
                 streamCall.property('listen').call([
                   Method(
                     (m) => m
-                      ..requiredParameters.add(Parameter((p) => p..name = 'result'))
+                      ..requiredParameters.add(
+                        Parameter((p) => p..name = 'result'),
+                      )
                       ..body = _resultFold(
                         resultVar: 'result',
                         successParams: ['data'],
@@ -168,7 +170,9 @@ extension ControllerPluginBodies on ControllerPlugin {
                 streamCall.property('listen').call([
                   Method(
                     (m) => m
-                      ..requiredParameters.add(Parameter((p) => p..name = 'result'))
+                      ..requiredParameters.add(
+                        Parameter((p) => p..name = 'result'),
+                      )
                       ..body = _resultFold(
                         resultVar: 'result',
                         successParams: ['data'],

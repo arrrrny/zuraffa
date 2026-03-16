@@ -194,8 +194,8 @@ class AstHelper {
     if (extensionNode == null) {
       return source;
     }
-    // Use extensionNode.body.members instead of deprecated extensionNode.members
-    final methods = extensionNode.body.members
+    final body = extensionNode.body;
+    final methods = body.members
         .whereType<MethodDeclaration>()
         .where((m) => m.name.lexeme == methodName)
         .toList();
@@ -264,7 +264,9 @@ class AstHelper {
     if (classNode == null) {
       return source;
     }
-    final constructors = classNode.members.whereType<ConstructorDeclaration>();
+    final body = classNode.body;
+    if (body is! BlockClassBody) return source;
+    final constructors = body.members.whereType<ConstructorDeclaration>();
     if (constructors.isEmpty) {
       return source;
     }
@@ -367,6 +369,7 @@ class AstHelper {
     if (classNode == null) {
       return false;
     }
-    return classNode.members.isEmpty;
+    final body = classNode.body;
+    return body is BlockClassBody && body.members.isEmpty;
   }
 }

@@ -112,9 +112,9 @@ class ViewClassBuilder {
                     refer('Scaffold')
                         .newInstance([], {
                           'appBar': refer('AppBar').newInstance([], {
-                            'title': refer(
-                              'Text',
-                            ).newInstance([literalString(spec.entityName ?? spec.viewName)]),
+                            'title': refer('Text').newInstance([
+                              literalString(spec.entityName ?? spec.viewName),
+                            ]),
                           }),
                           'body': refer('Center').newInstance([], {
                             'child': refer('Text').newInstance([
@@ -197,9 +197,9 @@ class ViewClassBuilder {
                     refer('Scaffold')
                         .newInstance([], {
                           'appBar': refer('AppBar').newInstance([], {
-                            'title': refer(
-                              'Text',
-                            ).newInstance([literalString(spec.entityName ?? spec.viewName)]),
+                            'title': refer('Text').newInstance([
+                              literalString(spec.entityName ?? spec.viewName),
+                            ]),
                           }),
                           'body': refer('Center').newInstance([], {
                             'child': refer('Text').newInstance([
@@ -240,10 +240,9 @@ class ViewClassBuilder {
       );
     }
 
-    final controllerCall = refer(spec.controllerName).call(
-      controllerArgs,
-      controllerNamedArgs,
-    );
+    final controllerCall = refer(
+      spec.controllerName,
+    ).call(controllerArgs, controllerNamedArgs);
 
     final createStateMethod = Method(
       (m) => m
@@ -309,9 +308,9 @@ class ViewClassBuilder {
                   .call([], {
                     'key': refer('globalKey'),
                     'appBar': refer('AppBar').call([], {
-                      'title': refer(
-                        'Text',
-                      ).constInstance([literalString(spec.entityName ?? spec.viewName)]),
+                      'title': refer('Text').constInstance([
+                        literalString(spec.entityName ?? spec.viewName),
+                      ]),
                     }),
                     'body': refer(
                       'ControlledWidgetBuilder<${spec.controllerName}>',

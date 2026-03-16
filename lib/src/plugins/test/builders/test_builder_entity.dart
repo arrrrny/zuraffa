@@ -13,13 +13,15 @@ extension TestBuilderEntity on TestBuilder {
     final entityName = config.name;
     final entitySnake = config.nameSnake;
     final useService = config.useService;
-    final repoName =
-        config.effectiveRepos.isNotEmpty ? config.effectiveRepos.first : null;
+    final repoName = config.effectiveRepos.isNotEmpty
+        ? config.effectiveRepos.first
+        : null;
     final serviceName = config.effectiveService;
     final serviceSnake = config.serviceSnake;
 
-    final targetName =
-        useService && serviceName != null ? serviceName : repoName;
+    final targetName = useService && serviceName != null
+        ? serviceName
+        : repoName;
     if (targetName == null) {
       throw ArgumentError('Either repository or service must be specified');
     }
@@ -160,9 +162,9 @@ extension TestBuilderEntity on TestBuilder {
               ).assign(refer(mockRepoClass).call([])).statement,
             );
             s.statements.add(
-              refer('useCase')
-                  .assign(refer(className).call([refer(mockVarName)]))
-                  .statement,
+              refer(
+                'useCase',
+              ).assign(refer(className).call([refer(mockVarName)])).statement,
             );
           });
 

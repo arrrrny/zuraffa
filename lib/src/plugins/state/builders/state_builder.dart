@@ -60,12 +60,14 @@ class StateBuilder {
     final filePath = path.join(stateDirPath, fileName);
 
     final needsEntityListField =
-        !config.noEntity && config.methods.any((m) => ['getList', 'watchList'].contains(m));
+        !config.noEntity &&
+        config.methods.any((m) => ['getList', 'watchList'].contains(m));
     final needsEntityField =
         (!config.noEntity && (config.generateVpcs || config.generateState)) ||
-        (!config.noEntity && config.methods.any(
-          (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
-        ));
+        (!config.noEntity &&
+            config.methods.any(
+              (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
+            ));
 
     final imports = <String>['package:zuraffa/zuraffa.dart'];
 
@@ -128,11 +130,7 @@ class StateBuilder {
         ),
       );
       fields.add(
-        _docField(
-          'The current offset for pagination',
-          'offset',
-          refer('int'),
-        ),
+        _docField('The current offset for pagination', 'offset', refer('int')),
       );
       fields.add(
         _docField(
@@ -166,7 +164,9 @@ class StateBuilder {
             _BoolField(loadingName, 'Whether ${info.className} is in progress'),
           );
 
-          final returns = info.returnsType ?? (config.usecases.length == 1 ? config.returnsType : null);
+          final returns =
+              info.returnsType ??
+              (config.usecases.length == 1 ? config.returnsType : null);
           if (returns != null && returns != 'void') {
             final fieldName = '${info.fieldName}Response';
             fields.add(
@@ -336,12 +336,14 @@ class StateBuilder {
   Constructor _buildCustomConstructor(GeneratorConfig config) {
     final entityCamel = config.nameCamel;
     final needsEntityListField =
-        !config.noEntity && config.methods.any((m) => ['getList', 'watchList'].contains(m));
+        !config.noEntity &&
+        config.methods.any((m) => ['getList', 'watchList'].contains(m));
     final needsEntityField =
         (!config.noEntity && (config.generateVpcs || config.generateState)) ||
-        (!config.noEntity && config.methods.any(
-          (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
-        ));
+        (!config.noEntity &&
+            config.methods.any(
+              (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
+            ));
 
     final params = <Parameter>[
       Parameter(
@@ -415,7 +417,9 @@ class StateBuilder {
           config,
           outputDir,
         );
-        final returns = info.returnsType ?? (config.usecases.length == 1 ? config.returnsType : null);
+        final returns =
+            info.returnsType ??
+            (config.usecases.length == 1 ? config.returnsType : null);
         if (returns != null && returns != 'void') {
           params.add(
             Parameter(
@@ -460,12 +464,14 @@ class StateBuilder {
     final entityName = config.name;
     final entityCamel = config.nameCamel;
     final needsEntityListField =
-        !config.noEntity && config.methods.any((m) => ['getList', 'watchList'].contains(m));
+        !config.noEntity &&
+        config.methods.any((m) => ['getList', 'watchList'].contains(m));
     final needsEntityField =
         (!config.noEntity && (config.generateVpcs || config.generateState)) ||
-        (!config.noEntity && config.methods.any(
-          (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
-        ));
+        (!config.noEntity &&
+            config.methods.any(
+              (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
+            ));
 
     final params = <Parameter>[
       Parameter(
@@ -519,8 +525,9 @@ class StateBuilder {
             ..type = refer('bool?'),
         ),
       ]);
-      values['${entityCamel}List'] =
-          refer('${entityCamel}List').ifNullThen(_this('${entityCamel}List'));
+      values['${entityCamel}List'] = refer(
+        '${entityCamel}List',
+      ).ifNullThen(_this('${entityCamel}List'));
       values['offset'] = refer('offset').ifNullThen(_this('offset'));
       values['limit'] = refer('limit').ifNullThen(_this('limit'));
       values['hasMore'] = refer('hasMore').ifNullThen(_this('hasMore'));
@@ -557,7 +564,9 @@ class StateBuilder {
         );
         values[loadingName] = refer(loadingName).ifNullThen(_this(loadingName));
 
-        final returns = info.returnsType ?? (config.usecases.length == 1 ? config.returnsType : null);
+        final returns =
+            info.returnsType ??
+            (config.usecases.length == 1 ? config.returnsType : null);
         if (returns != null && returns != 'void') {
           final fieldName = '${info.fieldName}Response';
           params.add(
@@ -626,12 +635,14 @@ class StateBuilder {
 
     final entityCamel = config.nameCamel;
     final needsEntityListField =
-        !config.noEntity && config.methods.any((m) => ['getList', 'watchList'].contains(m));
+        !config.noEntity &&
+        config.methods.any((m) => ['getList', 'watchList'].contains(m));
     final needsEntityField =
         (!config.noEntity && (config.generateVpcs || config.generateState)) ||
-        (!config.noEntity && config.methods.any(
-          (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
-        ));
+        (!config.noEntity &&
+            config.methods.any(
+              (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
+            ));
 
     final conditions = <Expression>[
       other.property('error').equalTo(refer('error')),
@@ -643,7 +654,9 @@ class StateBuilder {
 
     if (needsEntityListField) {
       conditions.add(
-        other.property('${entityCamel}List').equalTo(refer('${entityCamel}List')),
+        other
+            .property('${entityCamel}List')
+            .equalTo(refer('${entityCamel}List')),
       );
       conditions.add(other.property('offset').equalTo(refer('offset')));
       conditions.add(other.property('limit').equalTo(refer('limit')));
@@ -665,7 +678,9 @@ class StateBuilder {
         final loadingName =
             'is${StringUtils.capitalize(info.fieldName)}Loading';
 
-        final returns = info.returnsType ?? (config.usecases.length == 1 ? config.returnsType : null);
+        final returns =
+            info.returnsType ??
+            (config.usecases.length == 1 ? config.returnsType : null);
         if (returns != null && returns != 'void') {
           conditions.add(other.property(fieldName).equalTo(refer(fieldName)));
         }
@@ -699,12 +714,14 @@ class StateBuilder {
   Method _buildCustomHashCodeGetter(GeneratorConfig config) {
     final entityCamel = config.nameCamel;
     final needsEntityListField =
-        !config.noEntity && config.methods.any((m) => ['getList', 'watchList'].contains(m));
+        !config.noEntity &&
+        config.methods.any((m) => ['getList', 'watchList'].contains(m));
     final needsEntityField =
         (!config.noEntity && (config.generateVpcs || config.generateState)) ||
-        (!config.noEntity && config.methods.any(
-          (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
-        ));
+        (!config.noEntity &&
+            config.methods.any(
+              (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
+            ));
 
     final parts = <Expression>[refer('error').property('hashCode')];
 
@@ -730,7 +747,9 @@ class StateBuilder {
           config,
           outputDir,
         );
-        final returns = info.returnsType ?? (config.usecases.length == 1 ? config.returnsType : null);
+        final returns =
+            info.returnsType ??
+            (config.usecases.length == 1 ? config.returnsType : null);
         final fieldName = '${info.fieldName}Response';
         final loadingName =
             'is${StringUtils.capitalize(info.fieldName)}Loading';
@@ -762,12 +781,14 @@ class StateBuilder {
   Method _buildCustomToString(String stateName, GeneratorConfig config) {
     final entityCamel = config.nameCamel;
     final needsEntityListField =
-        !config.noEntity && config.methods.any((m) => ['getList', 'watchList'].contains(m));
+        !config.noEntity &&
+        config.methods.any((m) => ['getList', 'watchList'].contains(m));
     final needsEntityField =
         (!config.noEntity && (config.generateVpcs || config.generateState)) ||
-        (!config.noEntity && config.methods.any(
-          (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
-        ));
+        (!config.noEntity &&
+            config.methods.any(
+              (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
+            ));
 
     final parts = <String>['error: \$error'];
 
@@ -793,7 +814,9 @@ class StateBuilder {
           config,
           outputDir,
         );
-        final returns = info.returnsType ?? (config.usecases.length == 1 ? config.returnsType : null);
+        final returns =
+            info.returnsType ??
+            (config.usecases.length == 1 ? config.returnsType : null);
         final fieldName = '${info.fieldName}Response';
         final loadingName =
             'is${StringUtils.capitalize(info.fieldName)}Loading';
@@ -1150,7 +1173,9 @@ class StateBuilder {
   }
 
   Reference _nullableType(String symbol) {
-    final cleanSymbol = symbol.endsWith('?') ? symbol.substring(0, symbol.length - 1) : symbol;
+    final cleanSymbol = symbol.endsWith('?')
+        ? symbol.substring(0, symbol.length - 1)
+        : symbol;
     return TypeReference(
       (b) => b
         ..symbol = cleanSymbol

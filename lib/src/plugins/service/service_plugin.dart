@@ -25,18 +25,19 @@ class ServicePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     this.options = const GeneratorOptions(),
     this.interfaceBuilder = const ServiceInterfaceBuilder(),
     MethodAppendBuilder? methodAppendBuilder,
-  }) : methodAppendBuilder = methodAppendBuilder ??
+  }) : methodAppendBuilder =
+           methodAppendBuilder ??
            MethodAppendBuilder(outputDir: outputDir, options: options);
 
   @override
   List<ZuraffaCapability> get capabilities => [
-        CreateServiceCapability(this),
-        MethodCapability(
-          this,
-          methodAppendBuilder: methodAppendBuilder,
-          targetType: 'service',
-        ),
-      ];
+    CreateServiceCapability(this),
+    MethodCapability(
+      this,
+      methodAppendBuilder: methodAppendBuilder,
+      targetType: 'service',
+    ),
+  ];
 
   @override
   Command createCommand() => ServiceCommand(this);
@@ -79,7 +80,13 @@ class ServicePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     }
     final fileName = '${serviceSnake}_service.dart';
     final filePath = config.isEntityBased
-        ? path.join(outputDir, 'domain', 'services', config.effectiveDomain, fileName)
+        ? path.join(
+            outputDir,
+            'domain',
+            'services',
+            config.effectiveDomain,
+            fileName,
+          )
         : path.join(outputDir, 'domain', 'services', fileName);
     final content = interfaceBuilder.build(config);
 

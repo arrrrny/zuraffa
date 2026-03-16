@@ -18,7 +18,8 @@ class PrivateMethodCapability implements ZuraffaCapability {
   String get name => 'private-method';
 
   @override
-  String get description => 'Append a private method to the existing $targetType';
+  String get description =>
+      'Append a private method to the existing $targetType';
 
   @override
   JsonSchema get inputSchema => {

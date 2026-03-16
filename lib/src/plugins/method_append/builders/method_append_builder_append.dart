@@ -40,7 +40,11 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
             paramsType,
           );
           updatedFiles.add(
-            GeneratedFile(path: servicePath, type: 'service', action: 'created'),
+            GeneratedFile(
+              path: servicePath,
+              type: 'service',
+              action: 'created',
+            ),
           );
         }
       } else {
@@ -235,9 +239,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       (m) => m
         ..name = methodName
         ..returns = returnType
-        ..annotations.addAll([
-          if (!config.isPrivate) refer('override'),
-        ])
+        ..annotations.addAll([if (!config.isPrivate) refer('override')])
         ..modifier = isStream || isSync ? null : MethodModifier.async
         ..requiredParameters.add(
           Parameter(
@@ -493,9 +495,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       (m) => m
         ..name = methodName
         ..returns = returnType
-        ..annotations.addAll([
-          if (!config.isPrivate) refer('override'),
-        ])
+        ..annotations.addAll([if (!config.isPrivate) refer('override')])
         ..modifier = isStream || isSync ? null : MethodModifier.async
         ..requiredParameters.add(
           Parameter(
@@ -594,9 +594,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       (m) => m
         ..name = methodName
         ..returns = returnType
-        ..annotations.addAll([
-          if (!config.isPrivate) refer('override'),
-        ])
+        ..annotations.addAll([if (!config.isPrivate) refer('override')])
         ..modifier = isStream || isSync ? null : MethodModifier.async
         ..requiredParameters.add(
           Parameter(
@@ -641,29 +639,27 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
                     .returned
                     .statement,
               ] else ...[
-                refer('Future')
-                    .property('delayed')
-                    .call([refer('_delay')])
-                    .awaited
-                    .statement,
+                refer(
+                  'Future',
+                ).property('delayed').call([refer('_delay')]).awaited.statement,
                 if (isPrimitive) ...[
                   if (isList)
                     literalList([]).returned.statement
                   else if (baseReturns == 'void')
-                    refer('Future').property('value').call([]).returned.statement
+                    refer(
+                      'Future',
+                    ).property('value').call([]).returned.statement
                   else
                     _primitiveValue(baseReturns).returned.statement,
                 ] else ...[
                   if (isList)
-                    refer(mockDataClass)
-                        .property('sampleList')
-                        .returned
-                        .statement
+                    refer(
+                      mockDataClass,
+                    ).property('sampleList').returned.statement
                   else
-                    refer(mockDataClass)
-                        .property(sampleProperty)
-                        .returned
-                        .statement,
+                    refer(
+                      mockDataClass,
+                    ).property(sampleProperty).returned.statement,
                 ],
               ],
             ]),

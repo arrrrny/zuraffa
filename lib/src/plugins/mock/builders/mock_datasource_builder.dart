@@ -267,7 +267,8 @@ class MockDataSourceBuilder {
     );
 
     // If it's a custom usecase, generate a method for it
-    if (config.isCustomUseCase && (config.paramsType != null || config.returnsType != null)) {
+    if (config.isCustomUseCase &&
+        (config.paramsType != null || config.returnsType != null)) {
       final methodName = StringUtils.pascalToCamel(config.name);
       final returns = config.returnsType ?? 'void';
       final baseReturns = returns.replaceAll('?', '');

@@ -17,7 +17,7 @@ class ServiceInterfaceBuilder {
         'Service name must be specified via --service or config.service',
       );
     }
-    
+
     final methods = <Method>[];
 
     if (config.methods.isNotEmpty) {
@@ -106,7 +106,10 @@ class ServiceInterfaceBuilder {
       );
     }
 
-    final directives = imports.toSet().map((path) => Directive.import(path)).toList();
+    final directives = imports
+        .toSet()
+        .map((path) => Directive.import(path))
+        .toList();
 
     return specLibrary.emitSpec(clazz, directives: directives);
   }
@@ -156,7 +159,9 @@ class ServiceInterfaceBuilder {
           Parameter(
             (p) => p
               ..name = 'params'
-              ..type = refer('UpdateParams<${config.idFieldType}, ${entityName}Patch>'),
+              ..type = refer(
+                'UpdateParams<${config.idFieldType}, ${entityName}Patch>',
+              ),
           ),
         );
         break;

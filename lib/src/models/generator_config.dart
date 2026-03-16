@@ -383,16 +383,24 @@ class GeneratorConfig {
     if (service == null) {
       return useService ? '${name}Service' : null;
     }
-    return service!.endsWith('Service') ? service! : '${service!}Service';
+    final s = service!;
+    if (s.endsWith('Service')) return s;
+    if (s.endsWith('Provider')) {
+      return '${s.substring(0, s.length - 8)}Service';
+    }
+    return '${s}Service';
   }
 
   // Get service snake case name (without Service suffix)
   String? get serviceSnake {
     final s = service ?? (useService ? '${name}Service' : null);
     if (s == null) return null;
-    final baseName = s.endsWith('Service')
-        ? s.substring(0, s.length - 7)
-        : s;
+    var baseName = s;
+    if (baseName.endsWith('Service')) {
+      baseName = baseName.substring(0, baseName.length - 7);
+    } else if (baseName.endsWith('Provider')) {
+      baseName = baseName.substring(0, baseName.length - 8);
+    }
     return _camelToSnake(baseName);
   }
 
@@ -400,9 +408,12 @@ class GeneratorConfig {
   String? get effectiveProvider {
     final s = service ?? (useService ? '${name}Service' : null);
     if (s == null) return null;
-    final baseName = s.endsWith('Service')
-        ? s.substring(0, s.length - 7)
-        : s;
+    var baseName = s;
+    if (baseName.endsWith('Service')) {
+      baseName = baseName.substring(0, baseName.length - 7);
+    } else if (baseName.endsWith('Provider')) {
+      baseName = baseName.substring(0, baseName.length - 8);
+    }
     // Provider name format: {ServiceName}Provider (e.g., EmailProvider, SmtpEmailProvider)
     // For now, use the simple format. Users can extend with custom providers manually.
     return '${baseName}Provider';
@@ -412,9 +423,12 @@ class GeneratorConfig {
   String? get providerSnake {
     final s = service ?? (useService ? '${name}Service' : null);
     if (s == null) return null;
-    final baseName = s.endsWith('Service')
-        ? s.substring(0, s.length - 7)
-        : s;
+    var baseName = s;
+    if (baseName.endsWith('Service')) {
+      baseName = baseName.substring(0, baseName.length - 7);
+    } else if (baseName.endsWith('Provider')) {
+      baseName = baseName.substring(0, baseName.length - 8);
+    }
     return _camelToSnake(baseName);
   }
 

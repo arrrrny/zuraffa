@@ -511,8 +511,7 @@ class RouteBuilder {
       '../presentation/pages/$domainSnake/${entitySnake}_view.dart',
       if (hasListView && hasDetailView)
         '../presentation/pages/$domainSnake/${entitySnake}_detail_view.dart',
-      if (!config.noEntity)
-        '../domain/entities/$entitySnake/$entitySnake.dart',
+      if (!config.noEntity) '../domain/entities/$entitySnake/$entitySnake.dart',
       if (!config.generateDi) '../di/service_locator.dart',
       if (dependencyInfo.importPath.isNotEmpty) dependencyInfo.importPath,
     ];
@@ -787,9 +786,9 @@ class RouteBuilder {
 
     if (!config.noEntity && !config.isCustomUseCase) {
       final entityCamel = StringUtils.pascalToCamel(entityName);
-      viewArgs[entityCamel] = refer('state').property('extra').asA(
-        refer('$entityName?'),
-      );
+      viewArgs[entityCamel] = refer(
+        'state',
+      ).property('extra').asA(refer('$entityName?'));
     }
 
     final hasArgs = viewArgs.isNotEmpty;
@@ -851,11 +850,10 @@ class RouteBuilder {
         .map((f) => path.canonicalize(f.path))
         .toSet();
 
-    final allPaths =
-        {...existingFiles, ...pendingPaths}
-            .map((p) => path.canonicalize(p))
-            .where((p) => !deletedPaths.contains(p))
-            .toList();
+    final allPaths = {...existingFiles, ...pendingPaths}
+        .map((p) => path.canonicalize(p))
+        .where((p) => !deletedPaths.contains(p))
+        .toList();
 
     if (allPaths.isEmpty) {
       if (File(indexPath).existsSync()) {

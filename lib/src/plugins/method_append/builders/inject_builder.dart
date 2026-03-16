@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 import 'package:analyzer/dart/ast/ast.dart' as ast;
 
@@ -8,7 +7,6 @@ import '../../../core/ast/ast_modifier.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
-import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 
@@ -53,14 +51,12 @@ class InjectBuilder {
     }
 
     // 3. Update DI registration
-    final diResult = await _updateDiRegistration(
+    final diResults = await _updateDiRegistration(
       targetClass,
       finalDependencyName,
       targetType,
     );
-    if (diResult != null) {
-      updatedFiles.add(diResult);
-    }
+    updatedFiles.addAll(diResults);
 
     return updatedFiles;
   }
@@ -83,14 +79,14 @@ class InjectBuilder {
 
   Future<String?> _findTargetFile(String className, String targetType) async {
     final snakeName = StringUtils.camelToSnake(className);
-    
+
     // Search in providers
     if (targetType == 'provider' || targetType == 'mock') {
       final providersDir = Directory(path.join(outputDir, 'data', 'providers'));
       if (providersDir.existsSync()) {
         final files = providersDir.listSync(recursive: true);
         for (final file in files) {
-          if (file is File && file.path.endsWith('${snakeName}.dart')) {
+          if (file is File && file.path.endsWith('$snakeName.dart')) {
             return file.path;
           }
         }
@@ -103,7 +99,7 @@ class InjectBuilder {
       if (dsDir.existsSync()) {
         final files = dsDir.listSync(recursive: true);
         for (final file in files) {
-          if (file is File && file.path.endsWith('${snakeName}.dart')) {
+          if (file is File && file.path.endsWith('$snakeName.dart')) {
             return file.path;
           }
         }
@@ -129,21 +125,31 @@ class InjectBuilder {
 
     final publicName = StringUtils.pascalToCamel(dependencyName);
     final privateName = '_$publicName';
-    
-    // Check if already injected
-    if (source.contains('final $dependencyName $privateName;')) {
-      return null;
-    }
 
-    // 1. Add field at the top of the class
-    final fieldSource = 'final $dependencyName $privateName;';
-    final insertOffset = classNode.leftBracket.offset + 1;
-    final indent = _getIndent(source, classNode.offset) + '  ';
-    source = source.replaceRange(insertOffset, insertOffset, '\n$indent$fieldSource\n');
+    if (!source.contains('final $dependencyName $privateName;')) {
+      // 1. Add field at the top of the class
+      final fieldSource = 'final $dependencyName $privateName;';
+      final body = classNode.body;
+      if (body is ast.BlockClassBody) {
+        final insertOffset = body.leftBracket.offset + 1;
+        final indent = '${_getIndent(source, classNode.offset)}  ';
+        source = source.replaceRange(
+          insertOffset,
+          insertOffset,
+          '\n$indent$fieldSource\n',
+        );
+      }
+    }
 
     // 2. Add constructor parameter
     // This is a bit complex as we need to find or create a constructor.
-    source = await _updateConstructor(source, className, publicName, privateName, dependencyName);
+    source = await _updateConstructor(
+      source,
+      className,
+      publicName,
+      privateName,
+      dependencyName,
+    );
 
     // 3. Add import
     source = await _addDependencyImport(source, dependencyName, filePath);
@@ -157,11 +163,7 @@ class InjectBuilder {
       verbose: options.verbose,
     );
 
-    return GeneratedFile(
-      path: filePath,
-      type: 'inject',
-      action: 'updated',
-    );
+    return GeneratedFile(path: filePath, type: 'inject', action: 'updated');
   }
 
   Future<String> _updateConstructor(
@@ -175,14 +177,19 @@ class InjectBuilder {
     final unit = helper.parseSource(source).unit!;
     final classNode = helper.findClass(unit, className)!;
 
-    final constructors = classNode.members.whereType<ast.ConstructorDeclaration>();
-    
+    final body = classNode.body;
+    if (body is! ast.BlockClassBody) return source;
+
+    final constructors = body.members
+        .whereType<ast.ConstructorDeclaration>();
+
     if (constructors.isEmpty) {
       // Create new constructor
-      final constructorSource = '$className({required $dependencyName $publicName}) : $privateName = $publicName;';
-      
+      final constructorSource =
+          '$className({required $dependencyName $publicName}) : $privateName = $publicName;';
+
       // Try to insert after the last field
-      final fields = classNode.members.whereType<ast.FieldDeclaration>();
+      final fields = body.members.whereType<ast.FieldDeclaration>();
       if (fields.isNotEmpty) {
         final lastField = fields.last;
         final insertOffset = lastField.end;
@@ -192,45 +199,92 @@ class InjectBuilder {
       }
 
       // If no fields, insert at the beginning of the class body
-      final insertOffset = classNode.leftBracket.offset + 1;
-      final indent = _getIndent(source, classNode.offset) + '  ';
+      final insertOffset = body.leftBracket.offset + 1;
+      final indent = '${_getIndent(source, classNode.offset)}  ';
       final insert = '\n$indent$constructorSource';
       return source.replaceRange(insertOffset, insertOffset, insert);
     } else {
       // Update existing constructor
       final constructor = constructors.first;
       final params = constructor.parameters;
-      final insertOffset = params.rightParenthesis.offset;
 
       if (params.parameters.isEmpty) {
         // No parameters, add named parameter and initializer
-        final constructorSource = '{required $dependencyName $publicName}) : $privateName = $publicName';
-        return source.replaceRange(params.leftParenthesis.offset + 1, params.rightParenthesis.offset + 1, constructorSource);
+        final constructorSource =
+            '{required $dependencyName $publicName}) : $privateName = $publicName';
+        return source.replaceRange(
+          params.leftParenthesis.offset + 1,
+          params.rightParenthesis.offset + 1,
+          constructorSource,
+        );
       }
 
-      final lastParam = params.parameters.last;
-      String updatedSource;
-      if (lastParam is ast.DefaultFormalParameter && lastParam.parameter.isNamed) {
-        // Already has named parameters, just append
-        updatedSource = source.replaceRange(lastParam.end, lastParam.end, ', required $dependencyName $publicName');
-      } else {
-        // Has positional parameters, but no named ones yet?
-        updatedSource = source.replaceRange(lastParam.end, lastParam.end, ', {required $dependencyName $publicName}');
+      // Check if parameter already exists
+      final hasParam = params.parameters.any((p) {
+        if (p is ast.DefaultFormalParameter) {
+          return p.parameter.name?.lexeme == publicName;
+        }
+        return p.name?.lexeme == publicName;
+      });
+
+      String updatedSource = source;
+      if (!hasParam) {
+        final lastParam = params.parameters.last;
+        if (lastParam is ast.DefaultFormalParameter &&
+            lastParam.parameter.isNamed) {
+          // Already has named parameters, just append
+          updatedSource = source.replaceRange(
+            lastParam.end,
+            lastParam.end,
+            ', required $dependencyName $publicName',
+          );
+        } else {
+          // Has positional parameters, but no named ones yet?
+          updatedSource = source.replaceRange(
+            lastParam.end,
+            lastParam.end,
+            ', {required $dependencyName $publicName}',
+          );
+        }
       }
 
-      // Re-parse to find the constructor again after parameter update
+      // Re-parse to find the constructor again after parameter update (or use original if no change)
       final newUnit = helper.parseSource(updatedSource).unit!;
       final newClass = helper.findClass(newUnit, className)!;
-      final newConstructor = newClass.members.whereType<ast.ConstructorDeclaration>().first;
+      final newClassBody = newClass.body;
+      if (newClassBody is! ast.BlockClassBody) return updatedSource;
+      final newConstructor = newClassBody.members
+          .whereType<ast.ConstructorDeclaration>()
+          .first;
+
+      // Check if initializer already exists
+      final hasInitializer = newConstructor.initializers.any((i) {
+        if (i is ast.ConstructorFieldInitializer) {
+          return i.fieldName.name == privateName;
+        }
+        return false;
+      });
+
+      if (hasInitializer) {
+        return updatedSource;
+      }
 
       if (newConstructor.initializers.isEmpty) {
         // Add first initializer
         final bodyStart = newConstructor.body.offset;
-        return updatedSource.replaceRange(bodyStart, bodyStart, ' : $privateName = $publicName ');
+        return updatedSource.replaceRange(
+          bodyStart,
+          bodyStart,
+          ' : $privateName = $publicName ',
+        );
       } else {
         // Append to existing initializers
         final lastInitializer = newConstructor.initializers.last;
-        return updatedSource.replaceRange(lastInitializer.end, lastInitializer.end, ', $privateName = $publicName');
+        return updatedSource.replaceRange(
+          lastInitializer.end,
+          lastInitializer.end,
+          ', $privateName = $publicName',
+        );
       }
     }
   }
@@ -240,10 +294,17 @@ class InjectBuilder {
     String dependencyName,
     String targetFilePath,
   ) async {
-    // Try to find the dependency file
-    final dependencySnake = StringUtils.camelToSnake(dependencyName.replaceAll('Service', '').replaceAll('Repository', '').replaceAll('Provider', '').replaceAll('DataSource', ''));
-    
-    // Search for the interface or implementation
+    // 1. Calculate possible snake case names for the dependency
+    final dependencySnake = StringUtils.camelToSnake(
+      dependencyName
+          .replaceAll('Service', '')
+          .replaceAll('Repository', '')
+          .replaceAll('Provider', '')
+          .replaceAll('DataSource', ''),
+    );
+    final fullDependencySnake = StringUtils.camelToSnake(dependencyName);
+
+    // 2. Define standard search directories (prio)
     final searchDirs = [
       path.join(outputDir, 'domain', 'services'),
       path.join(outputDir, 'domain', 'repositories'),
@@ -251,24 +312,47 @@ class InjectBuilder {
       path.join(outputDir, 'data', 'datasources'),
     ];
 
-    for (final dirPath in searchDirs) {
+    // Also add the whole outputDir as backup
+    final allSearchDirs = [...searchDirs, outputDir];
+    final visited = <String>{};
+
+    for (final dirPath in allSearchDirs) {
       final dir = Directory(dirPath);
       if (dir.existsSync()) {
         final files = dir.listSync(recursive: true);
         for (final file in files) {
-          if (file is File && 
-              (file.path.contains(dependencySnake) || file.path.contains(StringUtils.camelToSnake(dependencyName))) && 
-              file.path.endsWith('.dart')) {
-            final relativePath = path.relative(file.path, from: path.dirname(targetFilePath));
-            if (!source.contains(relativePath)) {
-              final helper = const AstHelper();
-              final parseResult = helper.parseSource(source);
-              final unit = parseResult.unit;
-              if (unit != null) {
-                return AstModifier.addImport(source, unit, relativePath);
+          if (file is File && file.path.endsWith('.dart')) {
+            final filePath = file.path;
+            if (visited.contains(filePath)) continue;
+            visited.add(filePath);
+
+            final fileName = path.basename(filePath);
+
+            // Check if file name matches snake case
+            final nameMatch =
+                fileName.contains(dependencySnake) ||
+                fileName.contains(fullDependencySnake);
+
+            if (nameMatch) {
+              // Verify the file actually contains the class definition to avoid false positives
+              final fileContent = await file.readAsString();
+              if (fileContent.contains('class $dependencyName')) {
+                final relativePath = path.relative(
+                  filePath,
+                  from: path.dirname(targetFilePath),
+                );
+
+                if (!source.contains(relativePath)) {
+                  final helper = const AstHelper();
+                  final parseResult = helper.parseSource(source);
+                  final unit = parseResult.unit;
+                  if (unit != null) {
+                    return AstModifier.addImport(source, unit, relativePath);
+                  }
+                }
+                return source;
               }
             }
-            return source;
           }
         }
       }
@@ -277,120 +361,208 @@ class InjectBuilder {
     return source;
   }
 
-  Future<GeneratedFile?> _updateDiRegistration(
+  Future<List<GeneratedFile>> _updateDiRegistration(
     String targetClass,
     String dependencyName,
     String targetType,
   ) async {
+    final updatedFiles = <GeneratedFile>[];
     final snakeName = StringUtils.camelToSnake(targetClass);
     final diFileName = '${snakeName}_di.dart';
-    
-    // Search for DI file
+
+    // Search for all DI files
     final diDir = Directory(path.join(outputDir, 'di'));
     if (!diDir.existsSync()) {
       diDir.createSync(recursive: true);
     }
 
-    final files = diDir.listSync(recursive: true);
-    File? diFile;
+    final files = diDir.listSync(recursive: true).whereType<File>().toList();
+    final diFilesToUpdate = <File>[];
+
+    final startPattern = '() => $targetClass(';
+
     for (final file in files) {
-      if (file is File && file.path.endsWith(diFileName)) {
-        diFile = file;
-        break;
+      if (file.path.endsWith('.dart')) {
+        final content = await file.readAsString();
+        if (content.contains(startPattern)) {
+          diFilesToUpdate.add(file);
+        }
       }
     }
 
     final fieldName = StringUtils.pascalToCamel(dependencyName);
-    final dependencyCall = "getIt<${dependencyName}>()";
+    final dependencyCall = "getIt<$dependencyName>()";
+    final namedDependencyCall = "$fieldName: $dependencyCall";
 
-    if (diFile == null) {
-      // Create new DI file if it doesn't exist
-      final diSubDir = targetType == 'provider' || targetType == 'mock' ? 'providers' : 'datasources';
+    if (diFilesToUpdate.isEmpty) {
+      // Create new DI file ONLY if no existing registrations were found
+      final diSubDir = targetType == 'provider' || targetType == 'mock'
+          ? 'providers'
+          : 'datasources';
       final newDiPath = path.join(outputDir, 'di', diSubDir, diFileName);
-      
-      // Try to find the import for the target class
-      String targetImport = "// TODO: Add missing import for $targetClass";
-      final targetFile = await _findTargetFile(targetClass, targetType);
-      if (targetFile != null) {
-        final relPath = path.relative(targetFile, from: path.join(outputDir, 'di', diSubDir));
-        targetImport = "import '$relPath';";
-      }
 
-      final registrationName = 'register$targetClass';
-      final content = '''
+      if (File(newDiPath).existsSync()) {
+        // If file exists but didn't contain the pattern, we should still try to use it if it's the right name
+        diFilesToUpdate.add(File(newDiPath));
+      } else {
+        // Try to find the import for the target class
+        String targetImport = "// TODO: Add missing import for $targetClass";
+        final targetFile = await _findTargetFile(targetClass, targetType);
+        if (targetFile != null) {
+          final relPath = path.relative(
+            targetFile,
+            from: path.join(outputDir, 'di', diSubDir),
+          );
+          targetImport = "import '$relPath';";
+        }
+
+        final registrationName = 'register$targetClass';
+        final content =
+            '''
 import 'package:get_it/get_it.dart';
 $targetImport
 
 void $registrationName(GetIt getIt) {
   getIt.registerLazySingleton<$targetClass>(
-    () => $targetClass($fieldName: $dependencyCall),
+    () => $targetClass(
+      $namedDependencyCall,
+    ),
   );
 }
 ''';
-      await FileUtils.writeFile(
-        newDiPath,
-        content,
-        'di_inject',
-        force: true,
-        dryRun: options.dryRun,
-        verbose: options.verbose,
-      );
+        await FileUtils.writeFile(
+          newDiPath,
+          content,
+          'di_inject',
+          force: true,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+        );
 
-      return GeneratedFile(
-        path: newDiPath,
-        type: 'di_inject',
-        action: 'created',
-      );
+        return [
+          GeneratedFile(path: newDiPath, type: 'di_inject', action: 'created'),
+        ];
+      }
     }
 
-    var source = await diFile.readAsString();
+    for (final diFile in diFilesToUpdate) {
+      var source = await diFile.readAsString();
 
-    // Look for instantiation: () => TargetClass(...)
-    // Use a more specific regex that ensures we only match the instantiation
-    // and correctly identifies the parameter block.
-    final pattern = RegExp('=>\\s*$targetClass\\((.*?)\\)');
-    final match = pattern.firstMatch(source);
-    if (match != null) {
-      final existingParams = match.group(1) ?? '';
-      String newParams;
+      // Look for all instantiations in this file: () => TargetClass(...)
+      int lastIdx = 0;
+      bool updated = false;
 
-      if (existingParams.trim().isEmpty) {
-        newParams = '$fieldName: $dependencyCall';
-      } else {
-        if (!existingParams.contains(fieldName)) {
-          newParams = '$existingParams, $fieldName: $dependencyCall';
+      while (true) {
+        final startIdx = source.indexOf(startPattern, lastIdx);
+        if (startIdx == -1) break;
+
+        final paramsStartIdx = startIdx + startPattern.length;
+
+        // Find balanced closing parenthesis
+        int balance = 1;
+        int currentIdx = paramsStartIdx;
+        while (balance > 0 && currentIdx < source.length) {
+          if (source[currentIdx] == '(') {
+            balance++;
+          } else if (source[currentIdx] == ')') {
+            balance--;
+          }
+          currentIdx++;
+        }
+
+        if (balance == 0) {
+          final paramsEndIdx = currentIdx - 1;
+          final existingParams = source.substring(paramsStartIdx, paramsEndIdx);
+          String newParams;
+
+          // Clean up existing params by removing both named and positional versions of the dependency if we're forcing
+          var cleanedParams = existingParams;
+          if (options.force) {
+            // Remove named version: fieldName: getIt<DependencyName>()
+            final namedRegex = RegExp(
+              '\\s*$fieldName\\s*:\\s*getIt<\\s*$dependencyName\\s*>\\s*\\(\\s*\\)\\s*,?',
+              dotAll: true,
+            );
+            // Remove positional version: getIt<DependencyName>()
+            final positionalRegex = RegExp(
+              '\\s*getIt<\\s*$dependencyName\\s*>\\s*\\(\\s*\\)\\s*,?',
+              dotAll: true,
+            );
+
+            cleanedParams = cleanedParams
+                .replaceAll(namedRegex, '')
+                .replaceAll(positionalRegex, '');
+          }
+
+          if (cleanedParams.trim().isEmpty) {
+            newParams = '\n      $namedDependencyCall,\n    ';
+          } else {
+            if (!options.force && existingParams.contains(fieldName)) {
+              lastIdx = currentIdx;
+              continue; // Already injected in this instantiation
+            }
+
+            if (!cleanedParams.contains(fieldName)) {
+              // Check if it ends with a comma, if not add one
+              final trimmedCleaned = cleanedParams.trimRight();
+              if (trimmedCleaned.isNotEmpty && !trimmedCleaned.endsWith(',')) {
+                newParams =
+                    '$cleanedParams,\n      $namedDependencyCall,\n    ';
+              } else {
+                newParams = '$cleanedParams\n      $namedDependencyCall,\n    ';
+              }
+            } else {
+              newParams = cleanedParams;
+            }
+          }
+
+          source = source.replaceRange(paramsStartIdx, paramsEndIdx, newParams);
+          lastIdx = paramsStartIdx + newParams.length;
+          updated = true;
         } else {
-          return null; // Already injected in DI
+          break;
         }
       }
 
-      // Find the start of the ( ) block specifically for the matched instantiation
-      final instantiationStart = match.group(0)!.indexOf('(');
-      final actualParamsStart = match.start + instantiationStart + 1;
-      final actualParamsEnd = match.end - 1;
+      if (updated) {
+        // Fix function signature if it was corrupted (only if it matches registerTargetClass)
+        final signaturePattern = RegExp(
+          'void\\s+register$targetClass\\(.*?\\)\\s*{',
+        );
+        if (source.contains(signaturePattern)) {
+          source = source.replaceFirst(
+            signaturePattern,
+            'void register$targetClass(GetIt getIt) {',
+          );
+        }
 
-      source = source.replaceRange(actualParamsStart, actualParamsEnd, newParams);
+        // Ensure dependency import is present in DI file
+        source = await _addDependencyImport(
+          source,
+          dependencyName,
+          diFile.path,
+        );
 
-      // Ensure dependency import is present in DI file
-      source = await _addDependencyImport(source, dependencyName, diFile.path);
+        await FileUtils.writeFile(
+          diFile.path,
+          source,
+          'di_inject',
+          force: true,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+        );
 
-      await FileUtils.writeFile(
-        diFile.path,
-        source,
-        'di_inject',
-        force: true,
-        dryRun: options.dryRun,
-        verbose: options.verbose,
-      );
-
-      return GeneratedFile(
-        path: diFile.path,
-        type: 'di_inject',
-        action: 'updated',
-      );
+        updatedFiles.add(
+          GeneratedFile(
+            path: diFile.path,
+            type: 'di_inject',
+            action: 'updated',
+          ),
+        );
+      }
     }
 
-    return null;
+    return updatedFiles;
   }
 
   String _getIndent(String source, int offset) {

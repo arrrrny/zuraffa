@@ -174,49 +174,52 @@ void main() {
     },
   );
 
-  test('mock provider registration does not duplicate service interface', () async {
-    final plugin = DiPlugin(
-      outputDir: outputDir,
-      options: const GeneratorOptions(
-        dryRun: false,
-        force: true,
-        verbose: false,
-      ),
-    );
-
-    await plugin.generate(
-      GeneratorConfig(
-        name: 'GetListingByBarcode',
-        service: 'Listing',
-        domain: 'listing',
-        generateDi: true,
-        generateData: true,
-        useMockInDi: true,
+  test(
+    'mock provider registration does not duplicate service interface',
+    () async {
+      final plugin = DiPlugin(
         outputDir: outputDir,
-      ),
-    );
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
+      );
 
-    final mockProviderDiFile = File(
-      '$outputDir/di/providers/listing_mock_provider_di.dart',
-    );
-    expect(mockProviderDiFile.existsSync(), isTrue);
-    final content = mockProviderDiFile.readAsStringSync();
+      await plugin.generate(
+        GeneratorConfig(
+          name: 'GetListingByBarcode',
+          service: 'Listing',
+          domain: 'listing',
+          generateDi: true,
+          generateData: true,
+          useMockInDi: true,
+          outputDir: outputDir,
+        ),
+      );
 
-    // Should register ListingMockProvider but NOT as ListingService (that's the service DI's job)
-    expect(
-      content.contains('getIt.registerLazySingleton<ListingMockProvider>'),
-      isFalse,
-    );
-    expect(
-      content.contains(
-        'getIt.registerLazySingleton(() => ListingMockProvider())',
-      ),
-      isTrue,
-    );
+      final mockProviderDiFile = File(
+        '$outputDir/di/providers/listing_mock_provider_di.dart',
+      );
+      expect(mockProviderDiFile.existsSync(), isTrue);
+      final content = mockProviderDiFile.readAsStringSync();
 
-    // Should NOT import the service interface
-    expect(content.contains('listing_service.dart'), isFalse);
-  });
+      // Should register ListingMockProvider but NOT as ListingService (that's the service DI's job)
+      expect(
+        content.contains('getIt.registerLazySingleton<ListingMockProvider>'),
+        isFalse,
+      );
+      expect(
+        content.contains(
+          'getIt.registerLazySingleton(() => ListingMockProvider())',
+        ),
+        isTrue,
+      );
+
+      // Should NOT import the service interface
+      expect(content.contains('listing_service.dart'), isFalse);
+    },
+  );
 
   test('updates index files using AST append', () async {
     final diDir = Directory('$outputDir/di/datasources')

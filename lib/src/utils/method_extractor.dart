@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:analyzer/dart/ast/ast.dart';
 import '../core/ast/ast_helper.dart';
 import '../models/parsed_usecase_info.dart';
-import '../utils/string_utils.dart';
 
 class MethodExtractor {
   static Future<List<ParsedUseCaseInfo>> extractMethodsFromInterface(
@@ -24,7 +23,7 @@ class MethodExtractor {
     for (final method in helper.findMethods(classNode)) {
       final methodName = method.name.toString();
       final returns = method.returnType?.toString() ?? 'void';
-      
+
       // We expect one parameter named 'params' for Zuraffa services
       String? paramsType;
       final parameters = method.parameters?.parameters;
@@ -47,7 +46,8 @@ class MethodExtractor {
 
       methods.add(
         ParsedUseCaseInfo(
-          className: className, // Not used here as the class name of the method itself
+          className:
+              className, // Not used here as the class name of the method itself
           fieldName: methodName,
           paramsType: paramsType ?? 'NoParams',
           returnsType: _cleanReturnType(returns),

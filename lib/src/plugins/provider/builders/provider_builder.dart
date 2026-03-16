@@ -11,7 +11,6 @@ import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../../utils/entity_analyzer.dart';
 import '../../../utils/method_extractor.dart';
-import '../../../models/parsed_usecase_info.dart';
 
 /// Generates provider implementation classes.
 ///
@@ -166,8 +165,8 @@ class ProviderBuilder {
             ..name = methodName
             ..returns = returnType
             ..annotations.add(refer('override'))
-            ..modifier = (config.useCaseType == 'sync' ||
-                    config.useCaseType == 'stream')
+            ..modifier =
+                (config.useCaseType == 'sync' || config.useCaseType == 'stream')
                 ? null
                 : MethodModifier.async
             ..requiredParameters.addAll(

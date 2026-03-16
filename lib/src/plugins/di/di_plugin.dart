@@ -69,9 +69,9 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   @override
   List<ZuraffaCapability> get capabilities => [
-        CreateDiCapability(this),
-        RegisterCapability(this),
-      ];
+    CreateDiCapability(this),
+    RegisterCapability(this),
+  ];
 
   @override
   Command createCommand() => ModularDiCommand(this);
@@ -519,10 +519,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         ? '../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
         : '../../domain/services/${serviceSnake}_service.dart';
 
-    final imports = [
-      'package:get_it/get_it.dart',
-      serviceImport,
-    ];
+    final imports = ['package:get_it/get_it.dart', serviceImport];
 
     if (config.useMockInDi) {
       imports.add(
@@ -547,14 +544,16 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
                     Method(
                       (m) => m
                         ..lambda = true
-                        ..body = refer(
-                          config.useMockInDi
-                              ? providerName.replaceAll(
-                                  'Provider',
-                                  'MockProvider',
-                                )
-                              : providerName,
-                        ).call([]).code,
+                        ..body = refer('getIt').call([], {}, [
+                          refer(
+                            config.useMockInDi
+                                ? providerName.replaceAll(
+                                    'Provider',
+                                    'MockProvider',
+                                  )
+                                : providerName,
+                          ),
+                        ]).code,
                     ).closure,
                   ],
                   {},
@@ -817,11 +816,9 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       }
 
       final constructorCall = refer(className).call([
-        refer('getIt').call(
-          [],
-          {},
-          [refer(useService && serviceName != null ? serviceName : repoName)],
-        ),
+        refer('getIt').call([], {}, [
+          refer(useService && serviceName != null ? serviceName : repoName),
+        ]),
       ]);
 
       final registrationCall = refer('getIt')

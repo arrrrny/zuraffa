@@ -144,7 +144,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           return CommonPatterns.parseUseCaseInfo(u, config, outputDir);
         }),
       );
-    } else if (config.isCustomUseCase && config.methods.isEmpty && !config.noEntity) {
+    } else if (config.isCustomUseCase &&
+        config.methods.isEmpty &&
+        !config.noEntity) {
       infos.add(
         ParsedUseCaseInfo(
           className: '${config.name}UseCase',
@@ -256,19 +258,17 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final mainRepo = config.effectiveRepos.isNotEmpty
         ? StringUtils.pascalToCamel(config.effectiveRepos.first)
         : (config.hasService
-            ? StringUtils.pascalToCamel(config.effectiveService!)
-            : 'repository');
+              ? StringUtils.pascalToCamel(config.effectiveService!)
+              : 'repository');
 
     for (final info in useCases) {
       registrations.add(
         refer('_${info.fieldName}')
             .assign(
               refer('registerUseCase').call([
-                refer(
-                  info.className,
-                ).call([
+                refer(info.className).call([
                   if (config.effectiveRepos.isNotEmpty || config.hasService)
-                    refer(mainRepo)
+                    refer(mainRepo),
                 ]),
               ]),
             )

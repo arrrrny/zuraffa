@@ -107,8 +107,7 @@ class CreateRepositoryCapability implements ZuraffaCapability {
     final outputDir = args['outputDir'] ?? 'lib/src';
     final generateData = args['data'] ?? true;
     final generateDataSource = args['datasource'] ?? true;
-    final methods =
-        (args['methods'] as List?)?.cast<String>() ?? [];
+    final methods = (args['methods'] as List?)?.cast<String>() ?? [];
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
 

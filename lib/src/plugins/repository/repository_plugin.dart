@@ -24,8 +24,9 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     required this.outputDir,
     this.options = const GeneratorOptions(),
     MethodAppendBuilder? methodAppendBuilder,
-  }) : methodAppendBuilder = methodAppendBuilder ??
-            MethodAppendBuilder(outputDir: outputDir, options: options) {
+  }) : methodAppendBuilder =
+           methodAppendBuilder ??
+           MethodAppendBuilder(outputDir: outputDir, options: options) {
     interfaceGenerator = RepositoryInterfaceGenerator(
       outputDir: outputDir,
       options: options,
@@ -38,13 +39,13 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   @override
   List<ZuraffaCapability> get capabilities => [
-        CreateRepositoryCapability(this),
-        MethodCapability(
-          this,
-          methodAppendBuilder: methodAppendBuilder,
-          targetType: 'repository',
-        ),
-      ];
+    CreateRepositoryCapability(this),
+    MethodCapability(
+      this,
+      methodAppendBuilder: methodAppendBuilder,
+      targetType: 'repository',
+    ),
+  ];
 
   @override
   Command createCommand() => RepositoryCommand(this);

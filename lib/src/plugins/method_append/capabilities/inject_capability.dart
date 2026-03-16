@@ -1,7 +1,6 @@
 import '../../../core/plugin_system/capability.dart';
 import '../../../core/plugin_system/plugin_interface.dart';
 import '../builders/inject_builder.dart';
-import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
 
 class InjectCapability implements ZuraffaCapability {
@@ -31,7 +30,8 @@ class InjectCapability implements ZuraffaCapability {
       },
       'dependency': {
         'type': 'string',
-        'description': 'Name of the dependency class (e.g. AuthService, AuthRepository)',
+        'description':
+            'Name of the dependency class (e.g. AuthService, AuthRepository)',
       },
       'outputDir': {
         'type': 'string',
@@ -100,8 +100,26 @@ class InjectCapability implements ZuraffaCapability {
   }) async {
     final target = args['target'];
     final dependency = args['dependency'];
+    final force = args['force'] ?? false;
+    final verbose = args['verbose'] ?? false;
 
-    return await injectBuilder.inject(
+    // Update injectBuilder options with incoming arguments
+    final options = injectBuilder.options.copyWith(
+      dryRun: dryRun,
+      force: force,
+      verbose: verbose,
+    );
+
+    // We can't easily change the field as it is final, but we can re-instantiate or
+    // pass it if inject allowed it. Since InjectBuilder fields are final, we should
+    // probably check how InjectBuilder is constructed.
+    // Actually, InjectBuilder has options field.
+
+    return await InjectBuilder(
+      outputDir: injectBuilder.outputDir,
+      options: options,
+      specLibrary: injectBuilder.specLibrary,
+    ).inject(
       targetClass: target,
       dependencyName: dependency,
       targetType: targetType,

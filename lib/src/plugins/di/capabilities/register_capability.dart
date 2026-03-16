@@ -23,7 +23,8 @@ class RegisterCapability implements ZuraffaCapability {
     'properties': {
       'target': {
         'type': 'string',
-        'description': 'Name of the class to register (e.g. CategoryProvider, ListingUseCase)',
+        'description':
+            'Name of the class to register (e.g. CategoryProvider, ListingUseCase)',
       },
       'outputDir': {
         'type': 'string',
@@ -120,9 +121,7 @@ class RegisterCapability implements ZuraffaCapability {
 
     // Inferred domain if not provided
     String? effectiveDomain = domain;
-    if (effectiveDomain == null) {
-      effectiveDomain = _inferDomain(baseName, outputDir);
-    }
+    effectiveDomain ??= _inferDomain(baseName, outputDir);
 
     final config = GeneratorConfig(
       name: baseName,
@@ -131,7 +130,12 @@ class RegisterCapability implements ZuraffaCapability {
       generateDi: true,
       generateUseCase: isUseCase,
       generateService: isService,
-      generateData: isProvider || isMockProvider || isRepository || isDataSource || isMockDataSource,
+      generateData:
+          isProvider ||
+          isMockProvider ||
+          isRepository ||
+          isDataSource ||
+          isMockDataSource,
       generateDataSource: isDataSource || isMockDataSource,
       generateRepository: isRepository,
       useMockInDi: isMockProvider || isMockDataSource,
@@ -147,12 +151,14 @@ class RegisterCapability implements ZuraffaCapability {
 
   String? _inferDomain(String baseName, String outputDir) {
     final baseSnake = StringUtils.camelToSnake(baseName);
-    
+
     // Check in domain/usecases
     final usecasesDir = Directory(path.join(outputDir, 'domain', 'usecases'));
     if (usecasesDir.existsSync()) {
       for (final dir in usecasesDir.listSync().whereType<Directory>()) {
-        if (File(path.join(dir.path, '${baseSnake}_usecase.dart')).existsSync()) {
+        if (File(
+          path.join(dir.path, '${baseSnake}_usecase.dart'),
+        ).existsSync()) {
           return path.basename(dir.path);
         }
       }
@@ -162,7 +168,9 @@ class RegisterCapability implements ZuraffaCapability {
     final servicesDir = Directory(path.join(outputDir, 'domain', 'services'));
     if (servicesDir.existsSync()) {
       for (final dir in servicesDir.listSync().whereType<Directory>()) {
-        if (File(path.join(dir.path, '${baseSnake}_service.dart')).existsSync()) {
+        if (File(
+          path.join(dir.path, '${baseSnake}_service.dart'),
+        ).existsSync()) {
           return path.basename(dir.path);
         }
       }

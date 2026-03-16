@@ -417,7 +417,8 @@ class MockProviderBuilder {
         final isStream = type == 'stream';
         final returnType = isStream ? 'Stream<$returns>' : 'Future<$returns>';
 
-        final targetEntity = config.isCustomUseCase && config.returnsType != null
+        final targetEntity =
+            config.isCustomUseCase && config.returnsType != null
             ? EntityUtils.extractEntityTypes(config.returnsType!).firstOrNull ??
                   config.name
             : config.name;
@@ -503,24 +504,20 @@ class MockProviderBuilder {
                         if (isList)
                           literalList([]).returned.statement
                         else if (baseReturns == 'void')
-                          refer('Future')
-                              .property('value')
-                              .call([])
-                              .returned
-                              .statement
+                          refer(
+                            'Future',
+                          ).property('value').call([]).returned.statement
                         else
                           _primitiveValue(baseReturns).returned.statement,
                       ] else ...[
                         if (isList)
-                          refer(mockDataClass)
-                              .property('sampleList')
-                              .returned
-                              .statement
+                          refer(
+                            mockDataClass,
+                          ).property('sampleList').returned.statement
                         else
-                          refer(mockDataClass)
-                              .property(sampleProperty)
-                              .returned
-                              .statement,
+                          refer(
+                            mockDataClass,
+                          ).property(sampleProperty).returned.statement,
                       ],
                     ],
                   ]),
@@ -674,11 +671,9 @@ class MockProviderBuilder {
               refer('logger').property('info').call([
                 literalString('get called with params: \$params'),
               ]).statement,
-              refer('Future')
-                  .property('delayed')
-                  .call([refer('_delay')])
-                  .awaited
-                  .statement,
+              refer(
+                'Future',
+              ).property('delayed').call([refer('_delay')]).awaited.statement,
               refer(mockDataClass).property(sampleProperty).returned.statement,
             ]),
         );
@@ -700,11 +695,9 @@ class MockProviderBuilder {
               refer('logger').property('info').call([
                 literalString('getList called with params: \$params'),
               ]).statement,
-              refer('Future')
-                  .property('delayed')
-                  .call([refer('_delay')])
-                  .awaited
-                  .statement,
+              refer(
+                'Future',
+              ).property('delayed').call([refer('_delay')]).awaited.statement,
               refer(mockDataClass).property('sampleList').returned.statement,
             ]),
         );
@@ -725,11 +718,9 @@ class MockProviderBuilder {
               refer('logger').property('info').call([
                 literalString('create called with item: \$item'),
               ]).statement,
-              refer('Future')
-                  .property('delayed')
-                  .call([refer('_delay')])
-                  .awaited
-                  .statement,
+              refer(
+                'Future',
+              ).property('delayed').call([refer('_delay')]).awaited.statement,
               refer('item').returned.statement,
             ]),
         );
@@ -752,11 +743,9 @@ class MockProviderBuilder {
               refer('logger').property('info').call([
                 literalString('update called with params: \$params'),
               ]).statement,
-              refer('Future')
-                  .property('delayed')
-                  .call([refer('_delay')])
-                  .awaited
-                  .statement,
+              refer(
+                'Future',
+              ).property('delayed').call([refer('_delay')]).awaited.statement,
               refer(mockDataClass).property(sampleProperty).returned.statement,
             ]),
         );
@@ -777,11 +766,9 @@ class MockProviderBuilder {
               refer('logger').property('info').call([
                 literalString('delete called with params: \$params'),
               ]).statement,
-              refer('Future')
-                  .property('delayed')
-                  .call([refer('_delay')])
-                  .awaited
-                  .statement,
+              refer(
+                'Future',
+              ).property('delayed').call([refer('_delay')]).awaited.statement,
             ]),
         );
         break;
@@ -809,9 +796,9 @@ class MockProviderBuilder {
                       Method(
                         (mm) => mm
                           ..lambda = true
-                          ..body = refer(mockDataClass)
-                              .property(sampleProperty)
-                              .code,
+                          ..body = refer(
+                            mockDataClass,
+                          ).property(sampleProperty).code,
                       ).closure,
                     ]),
                   ])
@@ -844,9 +831,9 @@ class MockProviderBuilder {
                       Method(
                         (mm) => mm
                           ..lambda = true
-                          ..body = refer(mockDataClass)
-                              .property('sampleList')
-                              .code,
+                          ..body = refer(
+                            mockDataClass,
+                          ).property('sampleList').code,
                       ).closure,
                     ]),
                   ])

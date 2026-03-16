@@ -6,7 +6,8 @@ import '../../../models/generator_config.dart';
 class MethodCapability implements ZuraffaCapability {
   final ZuraffaPlugin plugin;
   final MethodAppendBuilder methodAppendBuilder;
-  final String targetType; // 'service', 'repository', 'datasource', 'provider', 'mock'
+  final String
+  targetType; // 'service', 'repository', 'datasource', 'provider', 'mock'
 
   MethodCapability(
     this.plugin, {
@@ -135,10 +136,16 @@ class MethodCapability implements ZuraffaCapability {
     final config = GeneratorConfig(
       name: target,
       outputDir: outputDir,
-      repo: targetType == 'repository' || targetType == 'datasource' || targetType == 'mock'
+      repo:
+          targetType == 'repository' ||
+              targetType == 'datasource' ||
+              targetType == 'mock'
           ? target
           : null,
-      service: targetType == 'service' || targetType == 'provider' || targetType == 'mock'
+      service:
+          targetType == 'service' ||
+              targetType == 'provider' ||
+              targetType == 'mock'
           ? target
           : null,
       repoMethod: name,

@@ -68,7 +68,8 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
       },
       'use-service': {
         'type': 'boolean',
-        'description': 'Use service and provider instead of repository and datasource',
+        'description':
+            'Use service and provider instead of repository and datasource',
         'default': false,
       },
       'route': {

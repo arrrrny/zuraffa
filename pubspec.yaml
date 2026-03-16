@@ -14,8 +14,8 @@ topics:
   - code-generation
 
 environment:
-  sdk: ">=3.8.0 <4.0.0"
-  flutter: ">=3.10.0"
+  sdk: ^3.11.0
+  flutter: ">=3.41.0"
 
 dependencies:
   flutter:
@@ -34,14 +34,17 @@ dependencies:
   go_router: ^17.1.0
   code_builder: ^4.11.1
   dart_style: ^3.1.5
-  analyzer: "10.0.2"
+  analyzer: ^11.0.0
+
   json_serializable: ^6.12.0
-  get_it: ^8.0.0
+  get_it: ^9.2.1
   meta: ^1.18.0
+  get: ^4.7.3
+  hive_ce_generator: ^1.11.1
 
 dependency_overrides:
   meta: ^1.18.0
-  analyzer: 10.0.2
+  analyzer: ^11.0.0
 
 executables:
   zuraffa:
@@ -55,4 +58,3 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   mocktail: ^1.0.4
   hive_ce_flutter: ^2.3.4
-  hive_ce_generator: ^1.11.1

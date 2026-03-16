@@ -37,13 +37,13 @@ class MethodAppendPlugin extends FileGeneratorPlugin {
 
   @override
   List<ZuraffaCapability> get capabilities => [
-        AppendMethodCapability(this),
-        MethodCapability(
-          this,
-          methodAppendBuilder: methodAppendBuilder,
-          targetType: 'any',
-        ),
-      ];
+    AppendMethodCapability(this),
+    MethodCapability(
+      this,
+      methodAppendBuilder: methodAppendBuilder,
+      targetType: 'any',
+    ),
+  ];
 
   @override
   String get id => 'method_append';

@@ -49,10 +49,12 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     this.options = const GeneratorOptions(),
     MethodAppendBuilder? methodAppendBuilder,
     InjectBuilder? injectBuilder,
-  }) : methodAppendBuilder = methodAppendBuilder ??
-            MethodAppendBuilder(outputDir: outputDir, options: options),
-       injectBuilder = injectBuilder ??
-            InjectBuilder(outputDir: outputDir, options: options) {
+  }) : methodAppendBuilder =
+           methodAppendBuilder ??
+           MethodAppendBuilder(outputDir: outputDir, options: options),
+       injectBuilder =
+           injectBuilder ??
+           InjectBuilder(outputDir: outputDir, options: options) {
     interfaceGenerator = DataSourceInterfaceBuilder(
       outputDir: outputDir,
       options: options,
@@ -69,23 +71,23 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   @override
   List<ZuraffaCapability> get capabilities => [
-        CreateDataSourceCapability(this),
-        MethodCapability(
-          this,
-          methodAppendBuilder: methodAppendBuilder,
-          targetType: 'datasource',
-        ),
-        PrivateMethodCapability(
-          this,
-          methodAppendBuilder: methodAppendBuilder,
-          targetType: 'datasource',
-        ),
-        InjectCapability(
-          this,
-          injectBuilder: injectBuilder,
-          targetType: 'datasource',
-        ),
-      ];
+    CreateDataSourceCapability(this),
+    MethodCapability(
+      this,
+      methodAppendBuilder: methodAppendBuilder,
+      targetType: 'datasource',
+    ),
+    PrivateMethodCapability(
+      this,
+      methodAppendBuilder: methodAppendBuilder,
+      targetType: 'datasource',
+    ),
+    InjectCapability(
+      this,
+      injectBuilder: injectBuilder,
+      targetType: 'datasource',
+    ),
+  ];
 
   @override
   Command createCommand() => DataSourceCommand(this);

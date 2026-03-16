@@ -41,27 +41,25 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     this.options = const GeneratorOptions(),
     MethodAppendBuilder? methodAppendBuilder,
     InjectBuilder? injectBuilder,
-  }) : methodAppendBuilder = methodAppendBuilder ??
-            MethodAppendBuilder(outputDir: outputDir, options: options),
-       injectBuilder = injectBuilder ??
-            InjectBuilder(outputDir: outputDir, options: options) {
+  }) : methodAppendBuilder =
+           methodAppendBuilder ??
+           MethodAppendBuilder(outputDir: outputDir, options: options),
+       injectBuilder =
+           injectBuilder ??
+           InjectBuilder(outputDir: outputDir, options: options) {
     mockBuilder = MockBuilder(outputDir: outputDir, options: options);
   }
 
   @override
   List<ZuraffaCapability> get capabilities => [
-        CreateMockCapability(this),
-        MethodCapability(
-          this,
-          methodAppendBuilder: methodAppendBuilder,
-          targetType: 'mock',
-        ),
-        InjectCapability(
-          this,
-          injectBuilder: injectBuilder,
-          targetType: 'mock',
-        ),
-      ];
+    CreateMockCapability(this),
+    MethodCapability(
+      this,
+      methodAppendBuilder: methodAppendBuilder,
+      targetType: 'mock',
+    ),
+    InjectCapability(this, injectBuilder: injectBuilder, targetType: 'mock'),
+  ];
 
   @override
   Command createCommand() => MockCommand(this);
