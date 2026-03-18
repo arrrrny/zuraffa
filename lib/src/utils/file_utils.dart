@@ -144,4 +144,26 @@ class FileUtils {
       return content;
     }
   }
+
+  static Future<String?> findFileImplementing(
+    String directory,
+    String interfaceName,
+  ) async {
+    final dir = Directory(directory);
+    if (!dir.existsSync()) return null;
+
+    final files = dir
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.dart'));
+
+    for (final file in files) {
+      final content = await file.readAsString();
+      // Simple regex check first to avoid heavy parsing
+      if (content.contains('implements $interfaceName')) {
+        return file.path;
+      }
+    }
+    return null;
+  }
 }

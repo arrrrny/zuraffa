@@ -1,3 +1,4 @@
+import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/entity_analyzer.dart';
@@ -5,10 +6,12 @@ import 'mock_entity_helper.dart';
 
 class MockEntityGraphBuilder {
   final String outputDir;
+  final GeneratorOptions options;
   final MockEntityHelper entityHelper;
 
   MockEntityGraphBuilder({
     required this.outputDir,
+    this.options = const GeneratorOptions(),
     MockEntityHelper? entityHelper,
   }) : entityHelper = entityHelper ?? const MockEntityHelper();
 
@@ -36,6 +39,8 @@ class MockEntityGraphBuilder {
           generateMockDataOnly: true,
           outputDir: outputDir,
           revert: config.revert,
+          force: config.force,
+          verbose: config.verbose,
         );
         files.add(await generateMockDataFile(subtypeConfig));
 
@@ -46,6 +51,8 @@ class MockEntityGraphBuilder {
           processedEntities,
           generateMockDataFile,
           revert: config.revert,
+          force: config.force,
+          verbose: config.verbose,
         );
       }
     }
@@ -56,6 +63,8 @@ class MockEntityGraphBuilder {
       processedEntities,
       generateMockDataFile,
       revert: config.revert,
+      force: config.force,
+      verbose: config.verbose,
     );
 
     return files;
@@ -67,6 +76,8 @@ class MockEntityGraphBuilder {
     Set<String> processedEntities,
     Future<GeneratedFile> Function(GeneratorConfig) generateMockDataFile, {
     required bool revert,
+    required bool force,
+    required bool verbose,
   }) async {
     for (final entry in fields.entries) {
       final fieldType = entry.value;
@@ -101,6 +112,8 @@ class MockEntityGraphBuilder {
                   generateMockDataOnly: true,
                   outputDir: outputDir,
                   revert: revert,
+                  force: force,
+                  verbose: verbose,
                 );
                 files.add(await generateMockDataFile(subtypeConfig));
 
@@ -114,6 +127,8 @@ class MockEntityGraphBuilder {
                   processedEntities,
                   generateMockDataFile,
                   revert: revert,
+                  force: force,
+                  verbose: verbose,
                 );
               }
             }
@@ -124,8 +139,9 @@ class MockEntityGraphBuilder {
             baseType,
             outputDir,
           );
-          if (entityFields.isNotEmpty &&
-              !entityHelper.isDefaultFields(entityFields)) {
+          if ((entityFields.isNotEmpty &&
+                  !entityHelper.isDefaultFields(entityFields)) ||
+              EntityAnalyzer.isEnum(baseType, outputDir)) {
             processedEntities.add(baseType);
 
             final nestedConfig = GeneratorConfig(
@@ -133,16 +149,22 @@ class MockEntityGraphBuilder {
               generateMockDataOnly: true,
               outputDir: outputDir,
               revert: revert,
+              force: force,
+              verbose: verbose,
             );
             files.add(await generateMockDataFile(nestedConfig));
 
-            await _collectAndGenerateNestedEntities(
-              entityFields,
-              files,
-              processedEntities,
-              generateMockDataFile,
-              revert: revert,
-            );
+            if (!EntityAnalyzer.isEnum(baseType, outputDir)) {
+              await _collectAndGenerateNestedEntities(
+                entityFields,
+                files,
+                processedEntities,
+                generateMockDataFile,
+                revert: revert,
+                force: force,
+                verbose: verbose,
+              );
+            }
           }
         }
       }

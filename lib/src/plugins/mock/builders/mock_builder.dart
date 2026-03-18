@@ -75,7 +75,8 @@ class MockBuilder {
              specLibrary: specLibrary ?? const SpecLibrary(),
            ),
        entityGraphBuilder =
-           entityGraphBuilder ?? MockEntityGraphBuilder(outputDir: outputDir);
+           entityGraphBuilder ??
+           MockEntityGraphBuilder(outputDir: outputDir, options: options);
 
   /// Generates mock files for the given [config].
   ///

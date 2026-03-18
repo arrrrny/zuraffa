@@ -227,7 +227,17 @@ class CommonPatterns {
 
     final results = <String>[];
 
-    // 2. Handle generic types like Stream<BarcodeListing?> or List<User>
+    // 2. Handle "Type name" format from multiple params if it leaked here
+    // But better to handle it by splitting it.
+    // If there is a space that is NOT inside generics, it's likely "Type name"
+    final spaceIndex = _findSpaceOutsideGenerics(cleanType);
+    if (spaceIndex != -1) {
+      final actualType = cleanType.substring(0, spaceIndex).trim();
+      results.addAll(extractBaseTypes(actualType));
+      return results;
+    }
+
+    // 3. Handle generic types like Stream<BarcodeListing?> or List<User>
     final genericMatch = RegExp(r'^(\w+)<(.+)>$').firstMatch(cleanType);
     if (genericMatch != null) {
       final outerType = genericMatch.group(1);
@@ -243,7 +253,7 @@ class CommonPatterns {
         }
       }
     } else {
-      // 3. Simple type (e.g., Barcode, BarcodeListing)
+      // 4. Simple type (e.g., Barcode, BarcodeListing)
       // Strip common suffixes for entity lookup
       var finalType = cleanType;
       if (finalType.endsWith('Patch') && finalType.length > 5) {
@@ -253,6 +263,19 @@ class CommonPatterns {
     }
 
     return results;
+  }
+
+  static int _findSpaceOutsideGenerics(String input) {
+    var bracketCount = 0;
+    for (var i = 0; i < input.length; i++) {
+      final char = input[i];
+      if (char == '<') bracketCount++;
+      if (char == '>') bracketCount--;
+      if (char == ' ' && bracketCount == 0) {
+        return i;
+      }
+    }
+    return -1;
   }
 
   static List<String> _splitByComma(String input) {

@@ -77,6 +77,7 @@ class MethodAppendBuilder {
     final repoSnake = StringUtils.camelToSnake(repoName);
     final methodName = config.getRepoMethodName();
     final paramsType = config.paramsType ?? 'NoParams';
+    final multipleParams = config.multipleParams;
     final returnsType = config.returnsType ?? 'void';
 
     final returnRef = _returnType(config.useCaseType, returnsType);
@@ -89,6 +90,10 @@ class MethodAppendBuilder {
     );
     final repoExists = File(repoPath).existsSync();
 
+    final effectiveParams = multipleParams.isNotEmpty
+        ? multipleParams
+        : paramsType;
+
     if (!repoExists) {
       await _createRepository(
         config,
@@ -96,7 +101,7 @@ class MethodAppendBuilder {
         repoName,
         methodName,
         returnRef,
-        paramsType,
+        effectiveParams,
       );
       updatedFiles.add(
         GeneratedFile(path: repoPath, type: 'repository', action: 'created'),
@@ -108,8 +113,7 @@ class MethodAppendBuilder {
         '${repoName}Repository',
         methodName,
         returnRef,
-        paramsType,
-        type: 'repository',
+        effectiveParams,
       );
       if (result != null) {
         updatedFiles.add(result);
@@ -128,7 +132,7 @@ class MethodAppendBuilder {
       dataRepoPath,
       methodName,
       returnRef,
-      paramsType,
+      effectiveParams,
       repoSnake,
     );
     if (dataRepoResult != null) {
@@ -147,7 +151,7 @@ class MethodAppendBuilder {
         '${repoName}DataSource',
         methodName,
         returnRef,
-        paramsType,
+        effectiveParams,
         type: 'datasource',
       );
       if (result != null) {
@@ -163,7 +167,7 @@ class MethodAppendBuilder {
         '${repoName}RemoteDataSource',
         methodName,
         returnRef,
-        paramsType,
+        effectiveParams,
       );
       if (result != null) {
         updatedFiles.add(result);
@@ -178,7 +182,7 @@ class MethodAppendBuilder {
         '${repoName}LocalDataSource',
         methodName,
         returnRef,
-        paramsType,
+        effectiveParams,
       );
       if (result != null) {
         updatedFiles.add(result);
@@ -193,7 +197,7 @@ class MethodAppendBuilder {
         '${repoName}MockDataSource',
         methodName,
         returnRef,
-        paramsType,
+        effectiveParams,
       );
       if (result != null) {
         updatedFiles.add(result);

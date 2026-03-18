@@ -6,6 +6,7 @@ import '../core/plugin_system/plugin_interface.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../models/generator_config.dart';
 import '../models/generated_file.dart';
+import '../utils/string_utils.dart';
 
 /// Command to run multiple plugins explicitly.
 /// Usage: `zfa make <Name> <plugin1> <plugin2> ... [flags]`
@@ -218,11 +219,14 @@ class MakeCommand extends Command<void> {
     final dryRun = argResults?['dry-run'] == true;
     final force = argResults?['force'] == true;
     final verbose = argResults?['verbose'] == true;
+    final noEntity = argResults!['no-entity'] == true;
     final methods = argResults!.wasParsed('methods')
         ? (argResults?['methods'] as String?)?.split(',') ?? []
-        : (isOrchestrator ? <String>[] : <String>['get', 'update']);
+        : (isOrchestrator || noEntity ? <String>[] : <String>['get', 'update']);
     final type = (argResults?['type'] as String?) ?? 'future';
-    final domain = argResults?['domain'] as String?;
+    final domain =
+        (argResults?['domain'] as String?) ??
+        StringUtils.camelToSnake(entityName);
     final repo = argResults?['repo'] as String?;
     final service = argResults?['service'] as String?;
     final params = argResults?['params'] as String?;
@@ -234,7 +238,6 @@ class MakeCommand extends Command<void> {
     final useService = argResults!['use-service'] == true;
     final useZorphy =
         argResults!['zorphy'] == true || (configData?.zorphyByDefault ?? true);
-    final noEntity = argResults!['no-entity'] == true;
     final generateLocal = argResults!['local'] == true;
     final generateRemote = argResults!['remote'] != false;
     final enableCache = argResults!['cache'] == true;

@@ -44,6 +44,16 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
       }
       imports.add('../../services/${serviceSnake}_service.dart');
     }
+    if (config.hasMultipleParams) {
+      imports.addAll(
+        CommonPatterns.entityImports(
+          config.multipleParams.map((p) => p.type).toList(),
+          config,
+          depth: 2,
+          includeDomain: false,
+        ),
+      );
+    }
     imports.addAll(
       CommonPatterns.entityImports(
         [paramsType, returnsType],

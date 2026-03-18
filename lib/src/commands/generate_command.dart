@@ -8,6 +8,7 @@ import '../core/plugin_system/plugin_registry.dart';
 import '../cli/plugin_loader.dart';
 import '../models/generator_config.dart';
 import '../core/debug/artifact_saver.dart';
+import '../utils/string_utils.dart';
 
 class GenerateCommand extends Command<void> {
   @override
@@ -130,6 +131,11 @@ class GenerateCommand extends Command<void> {
     argParser.addFlag(
       'zorphy',
       help: 'Use Zorphy-style typed patches',
+      defaultsTo: false,
+    );
+    argParser.addFlag(
+      'no-entity',
+      help: 'Do not treat the name as an entity',
       defaultsTo: false,
     );
     argParser.addOption(
@@ -356,7 +362,8 @@ class GenerateCommand extends Command<void> {
           argResults!['variants'] != null ||
           argResults!['repo'] != null ||
           argResults!['service'] != null ||
-          argResults!['type'] != null;
+          argResults!['type'] != null ||
+          argResults!['no-entity'] == true;
 
       if (isCustomUseCase) {
         methodsStr = null;
@@ -385,6 +392,15 @@ class GenerateCommand extends Command<void> {
     final generatePc = argResults!['pc'] == true || argResults!['pcs'] == true;
     final generatePcs = argResults!['pcs'] == true;
 
+    final paramsType = argResults!['params'] as String?;
+    final multipleParams = GeneratorConfig.parseParams(paramsType);
+
+    final domain =
+        (argResults!['domain'] as String?) ??
+        (argResults!['no-entity'] == true
+            ? StringUtils.camelToSnake(name)
+            : null);
+
     return GeneratorConfig(
       name: name,
       methods: methodsStr?.split(',').map((s) => s.trim()).toList() ?? [],
@@ -392,7 +408,7 @@ class GenerateCommand extends Command<void> {
       service: argResults!['service'] as String?,
       usecases: usecasesStr?.split(',').map((s) => s.trim()).toList() ?? [],
       variants: variantsStr?.split(',').map((s) => s.trim()).toList() ?? [],
-      domain: argResults!['domain'] as String?,
+      domain: domain,
       repoMethod: argResults!['method'] as String?,
       serviceMethod: argResults!['service-method'] as String?,
       appendToExisting: argResults!.wasParsed('append')
@@ -400,7 +416,8 @@ class GenerateCommand extends Command<void> {
           : zfaConfig.appendByDefault,
       generateRepository: true,
       useCaseType: argResults!['type'] as String? ?? 'usecase',
-      paramsType: argResults!['params'] as String?,
+      paramsType: multipleParams.isNotEmpty ? null : paramsType,
+      multipleParams: multipleParams,
       returnsType: argResults!['returns'] as String?,
       useService: argResults!['use-service'] == true,
       idField: idField,

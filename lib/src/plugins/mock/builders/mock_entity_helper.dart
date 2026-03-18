@@ -42,7 +42,7 @@ class MockEntityHelper {
         if (subtypes.isNotEmpty) {
           for (final subtype in subtypes) {
             final subtypeSnake = StringUtils.camelToSnake(subtype);
-            imports.add('../mock/${subtypeSnake}_mock_data.dart');
+            imports.add('${subtypeSnake}_mock_data.dart');
           }
           continue;
         }
@@ -50,6 +50,8 @@ class MockEntityHelper {
         final entityFields = EntityAnalyzer.analyzeEntity(baseType, outputDir);
         if (EntityAnalyzer.isEnum(baseType, outputDir)) {
           hasEnums = true;
+          final entitySnake = StringUtils.camelToSnake(baseType);
+          imports.add('${entitySnake}_mock_data.dart');
           continue;
         }
 
@@ -67,7 +69,11 @@ class MockEntityHelper {
               'Map',
               'NoParams',
             ].contains(baseType)) {
-          hasEnums = true;
+          if (EntityAnalyzer.isEnum(baseType, outputDir)) {
+            hasEnums = true;
+            final entitySnake = StringUtils.camelToSnake(baseType);
+            imports.add('${entitySnake}_mock_data.dart');
+          }
         }
       }
     }

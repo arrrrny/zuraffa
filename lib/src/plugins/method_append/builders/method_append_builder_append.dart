@@ -16,9 +16,14 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     }
     final methodName = config.getServiceMethodName();
     final paramsType = config.paramsType ?? 'NoParams';
+    final multipleParams = config.multipleParams;
     final returnsType = config.returnsType ?? 'void';
 
     final returnRef = _returnType(config.useCaseType, returnsType);
+
+    final effectiveParams = multipleParams.isNotEmpty
+        ? multipleParams
+        : paramsType;
 
     if (!config.isPrivate) {
       final servicePath = path.join(
@@ -37,7 +42,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
             serviceName,
             methodName,
             returnRef,
-            paramsType,
+            effectiveParams,
           );
           updatedFiles.add(
             GeneratedFile(
@@ -54,7 +59,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
           serviceName,
           methodName,
           returnRef,
-          paramsType,
+          effectiveParams,
           type: 'service',
         );
         if (result != null) {
@@ -66,24 +71,29 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     }
 
     if (config.generateData) {
-      final domainSnake = StringUtils.camelToSnake(config.effectiveDomain);
-      assert(
-        config.effectiveProvider != null,
-        'Provider name must be specified for service append operations',
-      );
       final providerName = config.effectiveProvider;
       if (providerName == null) {
         throw ArgumentError(
           'Provider name must be specified for service append operations',
         );
       }
-      final providerPath = path.join(
-        outputDir,
-        'data',
-        'providers',
-        domainSnake,
-        '${serviceSnake}_provider.dart',
+
+      // First check for a provider that already implements the service anywhere in providers directory
+      final providersDir = path.join(outputDir, 'data', 'providers');
+      var providerPath = await FileUtils.findFileImplementing(
+        providersDir,
+        serviceName,
       );
+
+      // If not found by implementation, use default path
+      if (providerPath == null) {
+        final domainSnake = StringUtils.camelToSnake(config.effectiveDomain);
+        providerPath = path.join(
+          providersDir,
+          domainSnake,
+          '${serviceSnake}_provider.dart',
+        );
+      }
 
       if (File(providerPath).existsSync()) {
         final result = await _appendToProvider(
@@ -92,7 +102,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
           providerName,
           methodName,
           returnRef,
-          paramsType,
+          effectiveParams,
         );
         if (result != null) {
           updatedFiles.add(result);
@@ -106,7 +116,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
           serviceName,
           methodName,
           returnRef,
-          paramsType,
+          effectiveParams,
         );
         updatedFiles.add(
           GeneratedFile(
@@ -128,7 +138,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         mockProviderName,
         methodName,
         returnRef,
-        paramsType,
+        effectiveParams,
       );
       if (result != null) {
         updatedFiles.add(result);
@@ -144,7 +154,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     String className,
     String methodName,
     Reference returnType,
-    String paramsType, {
+    Object params, {
     String type = 'interface',
   }) async {
     final file = File(filePath);
@@ -157,12 +167,22 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       (m) => m
         ..name = methodName
         ..returns = returnType
-        ..requiredParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'params'
-              ..type = refer(paramsType),
-          ),
+        ..requiredParameters.addAll(
+          params is List<Param>
+              ? params.map(
+                  (p) => Parameter(
+                    (pp) => pp
+                      ..name = p.name
+                      ..type = refer(p.type),
+                  ),
+                )
+              : [
+                  Parameter(
+                    (p) => p
+                      ..name = 'params'
+                      ..type = refer(params as String),
+                  ),
+                ],
         ),
     );
 
@@ -221,7 +241,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     String filePath,
     String methodName,
     Reference returnType,
-    String paramsType,
+    Object params,
     String repoSnake,
   ) async {
     final file = File(filePath);
@@ -244,16 +264,36 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         ..returns = returnType
         ..annotations.addAll([if (!config.isPrivate) refer('override')])
         ..modifier = isStream || isSync ? null : MethodModifier.async
-        ..requiredParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'params'
-              ..type = refer(paramsType),
-          ),
+        ..requiredParameters.addAll(
+          params is List<Param>
+              ? params.map(
+                  (p) => Parameter(
+                    (pp) => pp
+                      ..name = p.name
+                      ..type = refer(p.type),
+                  ),
+                )
+              : [
+                  Parameter(
+                    (p) => p
+                      ..name = 'params'
+                      ..type = refer(params as String),
+                  ),
+                ],
         )
         ..body = refer(dataSourceField)
             .property(methodName)
-            .call([refer('params')])
+            .call(
+              params is List<Param>
+                  ? params.map((p) => refer(p.name))
+                  : [
+                      refer(
+                        params == 'NoParams'
+                            ? 'params'
+                            : params.toString().toLowerCase(),
+                      ),
+                    ],
+            )
             .maybeAwaited(!isStream && !isSync)
             .returned
             .statement,
@@ -316,7 +356,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     String className,
     String methodName,
     Reference returnType,
-    String paramsType,
+    Object params,
   ) async {
     return _appendToDataSourceImpl(
       config,
@@ -324,7 +364,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       className,
       methodName,
       returnType,
-      paramsType,
+      params,
       'Implement remote $methodName',
     );
   }
@@ -335,7 +375,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     String className,
     String methodName,
     Reference returnType,
-    String paramsType,
+    Object params,
   ) async {
     return _appendToDataSourceImpl(
       config,
@@ -343,7 +383,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       className,
       methodName,
       returnType,
-      paramsType,
+      params,
       'Implement local storage $methodName',
     );
   }
@@ -354,7 +394,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     String className,
     String methodName,
     Reference returnType,
-    String paramsType,
+    Object params,
   ) async {
     final file = File(filePath);
     if (!file.existsSync()) return null;
@@ -375,18 +415,32 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         ..returns = returnType
         ..annotations.add(refer('override'))
         ..modifier = MethodModifier.async
-        ..requiredParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'params'
-              ..type = refer(paramsType),
-          ),
+        ..requiredParameters.addAll(
+          params is List<Param>
+              ? params.map(
+                  (p) => Parameter(
+                    (pp) => pp
+                      ..name = p.name
+                      ..type = refer(p.type),
+                  ),
+                )
+              : [
+                  Parameter(
+                    (p) => p
+                      ..name = 'params'
+                      ..type = refer(params as String),
+                  ),
+                ],
         )
         ..body = Block(
           (b) => b
             ..statements.addAll([
               refer('logger').property('info').call([
-                literalString('$methodName called with params: \$params'),
+                literalString(
+                  params is List<Param>
+                      ? '$methodName called'
+                      : '$methodName called with params: \$params',
+                ),
               ]).statement,
               refer(
                 'Future',
@@ -461,7 +515,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     String className,
     String methodName,
     Reference returnType,
-    String paramsType,
+    Object params,
   ) async {
     return _appendToDataSourceImpl(
       config,
@@ -469,7 +523,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       className,
       methodName,
       returnType,
-      paramsType,
+      params,
       'Implement $methodName',
       isMock: filePath.contains('_mock_provider.dart'),
     );
@@ -481,7 +535,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     String className,
     String methodName,
     Reference returnType,
-    String paramsType,
+    Object params,
     String errorMessage, {
     bool isMock = false,
   }) async {
@@ -500,12 +554,22 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         ..returns = returnType
         ..annotations.addAll([if (!config.isPrivate) refer('override')])
         ..modifier = isStream || isSync ? null : MethodModifier.async
-        ..requiredParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'params'
-              ..type = refer(paramsType),
-          ),
+        ..requiredParameters.addAll(
+          params is List<Param>
+              ? params.map(
+                  (p) => Parameter(
+                    (pp) => pp
+                      ..name = p.name
+                      ..type = refer(p.type),
+                  ),
+                )
+              : [
+                  Parameter(
+                    (p) => p
+                      ..name = 'params'
+                      ..type = refer(params as String),
+                  ),
+                ],
         )
         ..body = Block(
           (b) => b
@@ -553,7 +617,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     String className,
     String methodName,
     Reference returnType,
-    String paramsType,
+    Object params,
   ) async {
     final file = File(filePath);
     if (!file.existsSync()) return null;
@@ -599,18 +663,32 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         ..returns = returnType
         ..annotations.addAll([if (!config.isPrivate) refer('override')])
         ..modifier = isStream || isSync ? null : MethodModifier.async
-        ..requiredParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'params'
-              ..type = refer(paramsType),
-          ),
+        ..requiredParameters.addAll(
+          params is List<Param>
+              ? params.map(
+                  (p) => Parameter(
+                    (pp) => pp
+                      ..name = p.name
+                      ..type = refer(p.type),
+                  ),
+                )
+              : [
+                  Parameter(
+                    (p) => p
+                      ..name = 'params'
+                      ..type = refer(params as String),
+                  ),
+                ],
         )
         ..body = Block(
           (b) => b
             ..statements.addAll([
               refer('logger').property('info').call([
-                literalString('$methodName called with params: \$params'),
+                literalString(
+                  params is List<Param>
+                      ? '$methodName called'
+                      : '$methodName called with params: \$params',
+                ),
               ]).statement,
               if (isStream) ...[
                 refer('Stream')

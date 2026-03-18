@@ -340,26 +340,17 @@ packages:
     dependency: "direct main"
     description:
       name: json_annotation
-      sha256: "805fa86df56383000f640384b282ce0cb8431f1a7a2396de92fb66186d8c57df"
+      sha256: cb09e7dac6210041fad964ed7fbee004f14258b4eca4040f72d1234062ace4c8
       url: "https://pub.dev"
     source: hosted
-    version: "4.10.0"
-  json_schema:
-    dependency: transitive
-    description:
-      name: json_schema
-      sha256: f37d9c3fdfe8c9aae55fdfd5af815d24ce63c3a0f6a2c1f0982c30f43643fa1a
-      url: "https://pub.dev"
-    source: hosted
-    version: "5.2.2"
+    version: "4.11.0"
   json_serializable:
     dependency: "direct main"
     description:
-      name: json_serializable
-      sha256: "93fba3ad139dab2b1ce59ecc6fdce6da46a42cdb6c4399ecda30f1e7e725760d"
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.12.0"
+      path: "../json_serializable.dart/json_serializable"
+      relative: true
+    source: path
+    version: "6.13.0"
   leak_tracker:
     dependency: transitive
     description:
@@ -592,14 +583,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.1"
-  rfc_6901:
-    dependency: transitive
-    description:
-      name: rfc_6901
-      sha256: "6a43b1858dca2febaf93e15639aa6b0c49ccdfd7647775f15a499f872b018154"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.2.1"
   shelf:
     dependency: transitive
     description:
@@ -709,14 +692,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.0"
-  uri:
-    dependency: transitive
-    description:
-      name: uri
-      sha256: "889eea21e953187c6099802b7b4cf5219ba8f3518f604a1033064d45b1b8268a"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.0"
   uuid:
     dependency: "direct main"
     description:
@@ -800,18 +775,16 @@ packages:
   zorphy:
     dependency: "direct main"
     description:
-      name: zorphy
-      sha256: "22e0c0a485f89fc540f638098fe136f6269f5c69452e6cab30ea03dd60708575"
-      url: "https://pub.dev"
-    source: hosted
+      path: "../zorphy/zorphy"
+      relative: true
+    source: path
     version: "1.6.4"
   zorphy_annotation:
     dependency: "direct main"
     description:
-      name: zorphy_annotation
-      sha256: "2840ae825dc643a2de0332572e08b36094458abbe119782275d4acfa2c28c2e0"
-      url: "https://pub.dev"
-    source: hosted
+      path: "../zorphy/zorphy_annotation"
+      relative: true
+    source: path
     version: "1.6.4"
 sdks:
   dart: ">=3.11.0 <4.0.0"

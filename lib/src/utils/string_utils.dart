@@ -4,12 +4,20 @@ class StringUtils {
     final buffer = StringBuffer();
     for (var i = 0; i < input.length; i++) {
       final char = input[i];
+      if (char == ' ') {
+        final current = buffer.toString();
+        if (current.isNotEmpty && current[current.length - 1] != '_') {
+          buffer.write('_');
+        }
+        continue;
+      }
       // Only add underscore before actual uppercase letters
       if (i > 0 &&
           char.toLowerCase() != char &&
           char.toUpperCase() == char &&
           char != '_' &&
-          input[i - 1] != '_') {
+          input[i - 1] != '_' &&
+          input[i - 1] != ' ') {
         buffer.write('_');
       }
       buffer.write(char.toLowerCase());

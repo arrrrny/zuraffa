@@ -94,12 +94,7 @@ class MockDataBuilder {
 
     final directives = <Directive>[
       Directive.import(entityImport),
-      ...imports.map((import) {
-        if (import.startsWith('package:')) {
-          return Directive.import(import);
-        }
-        return Directive.import('../mock/$import');
-      }),
+      ...imports.map((import) => Directive.import(import)),
     ];
 
     final clazz = Class(

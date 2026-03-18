@@ -56,7 +56,7 @@ class ProviderBuilder {
     }
 
     final fileName = '${providerSnake}_provider.dart';
-    final filePath = path.join(
+    var filePath = path.join(
       outputDir,
       'data',
       'providers',
@@ -64,8 +64,16 @@ class ProviderBuilder {
       fileName,
     );
 
-    final file = File(filePath);
-    final fileExists = file.existsSync();
+    // Check if provider already exists in any folder under providers/
+    final existingFile = await FileUtils.findFileImplementing(
+      path.join(outputDir, 'data', 'providers'),
+      serviceName,
+    );
+
+    final fileExists = existingFile != null || File(filePath).existsSync();
+    if (existingFile != null) {
+      filePath = existingFile;
+    }
 
     if (config.revert && !config.appendToExisting) {
       return FileUtils.deleteFile(
@@ -247,7 +255,7 @@ class ProviderBuilder {
     );
 
     if (config.appendToExisting && fileExists) {
-      var content = await file.readAsString();
+      var content = await File(filePath).readAsString();
       final helper = const AstHelper();
 
       // Add imports if missing

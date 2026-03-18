@@ -27,7 +27,7 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
     if (config.useCaseType == 'stream') {
       final body = depField.isEmpty
           ? '// TODO: Implement logic\n  throw UnimplementedError();'
-          : 'return $depField.$methodName(params);';
+          : 'return $depField.$methodName(${config.hasMultipleParams ? config.multipleParams.map((p) => 'params.${p.name}').join(', ') : 'params'});';
       return [
         '@override\nStream<$returnsType> execute($paramsType params, CancelToken? cancelToken) {\n  $body\n}',
       ];
@@ -36,7 +36,7 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
     if (config.useCaseType == 'sync') {
       final body = depField.isEmpty
           ? '// TODO: Implement logic\n  throw UnimplementedError();'
-          : 'return $depField.$methodName(params);';
+          : 'return $depField.$methodName(${config.hasMultipleParams ? config.multipleParams.map((p) => 'params.${p.name}').join(', ') : 'params'});';
       return [
         '@override\n$returnsType execute($paramsType params) {\n  $body\n}',
       ];
@@ -47,7 +47,7 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
         : 'Future<$returnsType>';
     final body = depField.isEmpty
         ? '// TODO: Implement logic\n  throw UnimplementedError();'
-        : 'return await $depField.$methodName(params);';
+        : 'return await $depField.$methodName(${config.hasMultipleParams ? config.multipleParams.map((p) => 'params.${p.name}').join(', ') : 'params'});';
     return [
       '@override\n$returnTypeRef execute($paramsType params, CancelToken? cancelToken) async {\n  cancelToken?.throwIfCancelled();\n  $body\n}',
     ];

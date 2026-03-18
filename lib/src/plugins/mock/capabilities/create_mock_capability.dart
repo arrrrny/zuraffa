@@ -19,12 +19,7 @@ class CreateMockCapability implements ZuraffaCapability {
     'type': 'object',
     'properties': {
       'name': {'type': 'string', 'description': 'Name of the mock target'},
-      'outputDir': {
-        'type': 'string',
-        'description': 'Directory to output the file',
-        'default': 'lib/src',
-      },
-      'data-only': {
+      'dataOnly': {
         'type': 'boolean',
         'description': 'Generate mock data only',
         'default': false,
@@ -107,7 +102,7 @@ class CreateMockCapability implements ZuraffaCapability {
   }) async {
     final name = args['name'];
     final outputDir = args['outputDir'] ?? 'lib/src';
-    final dataOnly = args['data-only'] ?? false;
+    final dataOnly = args['dataOnly'] ?? false;
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
     final service = args['service'];

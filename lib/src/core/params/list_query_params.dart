@@ -43,3 +43,45 @@ abstract class $ListQueryParams<T> implements $Params {
   /// Number of items to skip.
   int? get offset;
 }
+
+/// Extension methods for converting [Filter] to [ListQueryParams].
+extension FilterToListQueryExtension<T> on Filter<T> {
+  /// Converts this filter to a [ListQueryParams] object.
+  ListQueryParams<T> toListQuery({
+    String? search,
+    Sort<T>? sort,
+    int? limit,
+    int? offset,
+    Map<String, dynamic>? params,
+  }) {
+    return ListQueryParams<T>(
+      filter: this,
+      search: search,
+      sort: sort,
+      limit: limit,
+      offset: offset,
+      params: params,
+    );
+  }
+}
+
+/// Extension methods for converting a list of [Filter]s to a single [Filter] or [ListQueryParams].
+extension FilterListToListQueryExtension<T> on Iterable<Filter<T>> {
+  /// Combines multiple filters into a [ListQueryParams] object using an [And] filter.
+  ListQueryParams<T> toListQuery({
+    String? search,
+    Sort<T>? sort,
+    int? limit,
+    int? offset,
+    Map<String, dynamic>? params,
+  }) {
+    return ListQueryParams<T>(
+      filter: And<T>(toList()),
+      search: search,
+      sort: sort,
+      limit: limit,
+      offset: offset,
+      params: params,
+    );
+  }
+}

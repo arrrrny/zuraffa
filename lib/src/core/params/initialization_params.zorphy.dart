@@ -162,7 +162,7 @@ class InitializationParams extends Params {
 
   dynamic _sanitizeJson(dynamic json) {
     if (json is Map<String, dynamic>) {
-      json.remove('_className_');
+      json.remove('__typename');
       return json..forEach((key, value) {
         json[key] = _sanitizeJson(value);
       });
@@ -198,7 +198,7 @@ extension InitializationParamsSerialization on InitializationParams {
 
   dynamic _sanitizeJson(dynamic json) {
     if (json is Map<String, dynamic>) {
-      json.remove('_className_');
+      json.remove('__typename');
       return json..forEach((key, value) {
         json[key] = _sanitizeJson(value);
       });

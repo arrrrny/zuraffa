@@ -86,7 +86,8 @@ class InjectBuilder {
       if (providersDir.existsSync()) {
         final files = providersDir.listSync(recursive: true);
         for (final file in files) {
-          if (file is File && file.path.endsWith('$snakeName.dart')) {
+          final fileName = path.basename(file.path);
+          if (file is File && fileName == '$snakeName.dart') {
             return file.path;
           }
         }
@@ -99,7 +100,8 @@ class InjectBuilder {
       if (dsDir.existsSync()) {
         final files = dsDir.listSync(recursive: true);
         for (final file in files) {
-          if (file is File && file.path.endsWith('$snakeName.dart')) {
+          final fileName = path.basename(file.path);
+          if (file is File && fileName == '$snakeName.dart') {
             return file.path;
           }
         }
@@ -152,11 +154,15 @@ class InjectBuilder {
     );
 
     // 3. Add import
-    source = await _addDependencyImport(source, dependencyName, filePath);
+    final updatedSource = await _addDependencyImport(
+      source,
+      dependencyName,
+      filePath,
+    );
 
     await FileUtils.writeFile(
       filePath,
-      source,
+      updatedSource,
       'inject',
       force: true,
       dryRun: options.dryRun,
@@ -309,6 +315,7 @@ class InjectBuilder {
       path.join(outputDir, 'domain', 'repositories'),
       path.join(outputDir, 'data', 'providers'),
       path.join(outputDir, 'data', 'datasources'),
+      path.join(outputDir, 'domain', 'entities'),
     ];
 
     // Also add the whole outputDir as backup

@@ -98,6 +98,11 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     // If mocks were explicitly requested, always generate/append
     if (config.generateMock || config.generateMockDataOnly) {
+      // For standalone mock data generation, we can proceed without other layers.
+      if (config.generateMockDataOnly) {
+        return mockBuilder.generate(config);
+      }
+
       // For presentation-only workflows, we only generate mocks if we are also
       // generating the data layer OR if we are in append mode (which implies existence).
       if (config.generateData ||
