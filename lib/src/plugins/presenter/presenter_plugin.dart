@@ -396,10 +396,10 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         ..body = Block(
           (b) => b
             ..statements.add(
-              refer(isStream ? 'executeStream' : 'execute')
+              refer('_${info.fieldName}')
+                  .property('call')
                   .call(
                     [
-                      refer('_${info.fieldName}'),
                       if (params != 'NoParams')
                         refer('params')
                       else
@@ -433,10 +433,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             'params': literalMap({config.queryField: refer(config.queryField)}),
           });
 
-    final callExpression = refer('execute').call(
-      [refer('_$methodName'), paramsExpression],
-      {'cancelToken': refer('cancelToken')},
-    );
+    final callExpression = refer('_${info.fieldName}')
+        .property('call')
+        .call([paramsExpression], {'cancelToken': refer('cancelToken')});
 
     return Method(
       (m) => m
@@ -461,10 +460,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }
 
   Method _buildGetListMethod(ParsedUseCaseInfo info, String entityName) {
-    final callExpression = refer('execute').call(
-      [refer('_${info.fieldName}'), refer('params')],
-      {'cancelToken': refer('cancelToken')},
-    );
+    final callExpression = refer('_${info.fieldName}')
+        .property('call')
+        .call([refer('params')], {'cancelToken': refer('cancelToken')});
 
     return Method(
       (m) => m
@@ -492,10 +490,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     String entityName,
     String entityCamel,
   ) {
-    final callExpression = refer('execute').call(
-      [refer('_${info.fieldName}'), refer(entityCamel)],
-      {'cancelToken': refer('cancelToken')},
-    );
+    final callExpression = refer('_${info.fieldName}')
+        .property('call')
+        .call([refer(entityCamel)], {'cancelToken': refer('cancelToken')});
 
     return Method(
       (m) => m
@@ -525,10 +522,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final updateParams = refer(
       'UpdateParams<${config.idFieldType}, $dataType>',
     ).call([], {'id': refer(config.idField), 'data': refer('data')});
-    final callExpression = refer('execute').call(
-      [refer('_${info.fieldName}'), updateParams],
-      {'cancelToken': refer('cancelToken')},
-    );
+    final callExpression = refer('_${info.fieldName}')
+        .property('call')
+        .call([updateParams], {'cancelToken': refer('cancelToken')});
 
     return Method(
       (m) => m
@@ -557,10 +553,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final deleteParams = refer(
       'DeleteParams<${config.idFieldType}>',
     ).call([], {'id': refer(config.idField)});
-    final callExpression = refer('execute').call(
-      [refer('_${info.fieldName}'), deleteParams],
-      {'cancelToken': refer('cancelToken')},
-    );
+    final callExpression = refer('_${info.fieldName}')
+        .property('call')
+        .call([deleteParams], {'cancelToken': refer('cancelToken')});
 
     return Method(
       (m) => m
@@ -599,10 +594,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             'params': literalMap({config.queryField: refer(config.queryField)}),
           });
 
-    final callExpression = refer('executeStream').call(
-      [refer('_$methodName'), paramsExpression],
-      {'cancelToken': refer('cancelToken')},
-    );
+    final callExpression = refer('_${info.fieldName}')
+        .property('call')
+        .call([paramsExpression], {'cancelToken': refer('cancelToken')});
 
     return Method(
       (m) => m
@@ -627,10 +621,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }
 
   Method _buildWatchListMethod(ParsedUseCaseInfo info, String entityName) {
-    final callExpression = refer('executeStream').call(
-      [refer('_${info.fieldName}'), refer('params')],
-      {'cancelToken': refer('cancelToken')},
-    );
+    final callExpression = refer('_${info.fieldName}')
+        .property('call')
+        .call([refer('params')], {'cancelToken': refer('cancelToken')});
 
     return Method(
       (m) => m

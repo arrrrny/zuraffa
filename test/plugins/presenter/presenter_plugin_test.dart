@@ -171,7 +171,7 @@ void main() {
     );
     expect(
       content.contains(
-        'return execute(_getListingByBarcode, params, cancelToken: cancelToken);',
+        'return _getListingByBarcode.call(params, cancelToken: cancelToken);',
       ),
       isTrue,
     );
