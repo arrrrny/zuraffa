@@ -213,6 +213,14 @@ class RepositoryImplementationGenerator {
             ..name = '_localDataSource',
         ),
       );
+      fields.add(
+        Field(
+          (f) => f
+            ..modifier = FieldModifier.final$
+            ..type = refer('CachePolicy')
+            ..name = '_cachePolicy',
+        ),
+      );
       constructors.add(
         Constructor(
           (c) => c
@@ -227,6 +235,13 @@ class RepositoryImplementationGenerator {
               Parameter(
                 (p) => p
                   ..name = '_localDataSource'
+                  ..toThis = true,
+              ),
+            )
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = '_cachePolicy'
                   ..toThis = true,
               ),
             ),

@@ -244,10 +244,7 @@ extension RepositoryImplementationGeneratorCached
             ..statements.add(
               refer('_cachePolicy')
                   .property('markFresh')
-                  .call([
-                    literalString('${baseCacheKey}_'),
-                    refer('params').property('hashCode'),
-                  ])
+                  .call([refer('listCacheKey')])
                   .awaited
                   .statement,
             )

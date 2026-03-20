@@ -38,6 +38,7 @@ extension RepositoryImplementationGeneratorAppend
       imports.add(
         '$baseImport/data/datasources/$entitySnake/${entitySnake}_local_datasource.dart',
       );
+      imports.add('$baseImport/cache/${entitySnake}_cache.dart');
     } else {
       imports.add(
         '$baseImport/data/datasources/$entitySnake/${entitySnake}_datasource.dart',

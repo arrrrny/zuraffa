@@ -6,7 +6,11 @@ class AstModifier {
     required ClassDeclaration classNode,
     required String methodSource,
   }) {
-    final insertOffset = classNode.body.endToken.offset;
+    final body = classNode.body;
+    if (body is! BlockClassBody) {
+      return source;
+    }
+    final insertOffset = body.rightBracket.offset;
     final closingIndent = _indentBeforeOffset(source, insertOffset);
     final memberIndent = '$closingIndent  ';
     final normalized = methodSource.trimRight();
@@ -147,7 +151,11 @@ class AstModifier {
     required ClassDeclaration classNode,
     required String fieldSource,
   }) {
-    final insertOffset = classNode.body.endToken.offset;
+    final body = classNode.body;
+    if (body is! BlockClassBody) {
+      return source;
+    }
+    final insertOffset = body.rightBracket.offset;
     final closingIndent = _indentBeforeOffset(source, insertOffset);
     final memberIndent = '$closingIndent  ';
     final normalized = fieldSource.trimRight();
@@ -166,7 +174,11 @@ class AstModifier {
     required ExtensionDeclaration extensionNode,
     required String methodSource,
   }) {
-    final insertOffset = extensionNode.body.rightBracket.offset;
+    final body = extensionNode.body;
+    if (body is! BlockClassBody) {
+      return source;
+    }
+    final insertOffset = body.rightBracket.offset;
     final closingIndent = _indentBeforeOffset(source, insertOffset);
     final memberIndent = '$closingIndent  ';
     final normalized = methodSource.trimRight();
