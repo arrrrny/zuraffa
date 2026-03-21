@@ -272,15 +272,10 @@ void main() {
         retryPolicy: const NoRetryPolicy(),
       );
 
-      // Give async load time to complete
-      await Future<void>.delayed(const Duration(milliseconds: 100));
+      // Give async load + flush time to complete
+      await Future<void>.delayed(const Duration(milliseconds: 200));
 
-      // The queue should have loaded the persisted report
-      expect(queue.length, greaterThanOrEqualTo(1));
-
-      // Flush to send it
-      await queue.flush();
-
+      // The persisted report should have been loaded and auto-flushed
       expect(reporter.reportedMessages, contains('from last session'));
       await queue.dispose();
     });

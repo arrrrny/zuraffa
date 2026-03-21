@@ -2,7 +2,6 @@ library;
 
 import 'src/core/failure_reporter.dart';
 import 'src/core/failure_reporter_registry.dart';
-import 'src/core/failure_report_store.dart';
 import 'src/core/otel_failure_reporter.dart';
 import 'src/core/retry_policy.dart';
 
@@ -413,19 +412,19 @@ class Zuraffa {
     int? maxQueueSize,
     int? maxBatchSize,
     Duration? flushInterval,
-    String? storagePath,
+    bool persistFailures = false,
   }) async {
     if (retryPolicy != null ||
         maxQueueSize != null ||
         maxBatchSize != null ||
         flushInterval != null ||
-        storagePath != null) {
+        persistFailures) {
       FailureReporterRegistry.instance.configure(
         retryPolicy: retryPolicy,
         maxQueueSize: maxQueueSize,
         maxBatchSize: maxBatchSize,
         flushInterval: flushInterval,
-        storagePath: storagePath,
+        persistFailures: persistFailures,
       );
     }
     await FailureReporterRegistry.instance.register(reporter);
@@ -454,7 +453,7 @@ class Zuraffa {
     ReportRetryPolicy? retryPolicy,
     int? maxQueueSize,
     Duration? flushInterval,
-    String? storagePath,
+    bool persistFailures = false,
   }) async {
     await addFailureReporter(
       OtelFailureReporter(
@@ -464,7 +463,7 @@ class Zuraffa {
       retryPolicy: retryPolicy,
       maxQueueSize: maxQueueSize,
       flushInterval: flushInterval,
-      storagePath: storagePath,
+      persistFailures: persistFailures,
     );
   }
 

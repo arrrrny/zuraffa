@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:logging/logging.dart';
 
@@ -37,6 +38,7 @@ class FailureReporterRegistry {
   int _maxQueueSize = 256;
   int _maxBatchSize = 32;
   Duration _flushInterval = const Duration(seconds: 5);
+  bool _persistFailures = false;
   String? _storagePath;
 
   final Map<String, FailureReporter> _reporters = {};
@@ -61,6 +63,7 @@ class FailureReporterRegistry {
     int? maxQueueSize,
     int? maxBatchSize,
     Duration? flushInterval,
+    bool? persistFailures,
     String? storagePath,
   }) {
     if (_queue != null) {
@@ -74,6 +77,7 @@ class FailureReporterRegistry {
     if (maxQueueSize != null) _maxQueueSize = maxQueueSize;
     if (maxBatchSize != null) _maxBatchSize = maxBatchSize;
     if (flushInterval != null) _flushInterval = flushInterval;
+    if (persistFailures != null) _persistFailures = persistFailures;
     if (storagePath != null) _storagePath = storagePath;
   }
 
@@ -189,11 +193,18 @@ class FailureReporterRegistry {
     _maxQueueSize = 256;
     _maxBatchSize = 32;
     _flushInterval = const Duration(seconds: 5);
+    _persistFailures = false;
     _storagePath = null;
   }
 
   void _ensureQueue() {
     if (_queue != null) return;
+
+    FailureReportStore? store;
+    if (_persistFailures) {
+      final path = _storagePath ?? _defaultStoragePath();
+      store = FailureReportStore(filePath: path);
+    }
 
     _queue = FailureReportQueue(
       reporters: _reporters.values.toList(),
@@ -201,10 +212,13 @@ class FailureReporterRegistry {
       maxBatchSize: _maxBatchSize,
       flushInterval: _flushInterval,
       retryPolicy: _retryPolicy,
-      store: _storagePath != null
-          ? FailureReportStore(filePath: _storagePath!)
-          : null,
+      store: store,
     );
+  }
+
+  String _defaultStoragePath() {
+    final dir = Directory.systemTemp.path;
+    return '$dir/zuraffa_failure_queue.json';
   }
 
   Future<void> _disposeQueue() async {
