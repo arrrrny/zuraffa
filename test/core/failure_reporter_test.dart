@@ -96,10 +96,7 @@ void main() {
     test('shouldReport defaults to false for CancellationFailure', () {
       final reporter = FakeFailureReporter();
 
-      expect(
-        reporter.shouldReport(CancellationFailure('cancelled')),
-        isFalse,
-      );
+      expect(reporter.shouldReport(CancellationFailure('cancelled')), isFalse);
     });
 
     test('shouldReport can be overridden', () {
@@ -155,10 +152,7 @@ void main() {
 
         expect(policy.nextDelay(0, Duration.zero), isNotNull);
         expect(policy.nextDelay(1, const Duration(seconds: 1)), isNotNull);
-        expect(
-          policy.nextDelay(2, const Duration(seconds: 2)),
-          isNull,
-        );
+        expect(policy.nextDelay(2, const Duration(seconds: 2)), isNull);
       });
 
       test('default OTel values', () {
@@ -220,10 +214,12 @@ void main() {
         flushInterval: const Duration(hours: 1), // disable auto-flush
       );
 
-      queue.enqueue(FailureReport(
-        failure: ServerFailure('test'),
-        timestamp: DateTime.now(),
-      ));
+      queue.enqueue(
+        FailureReport(
+          failure: ServerFailure('test'),
+          timestamp: DateTime.now(),
+        ),
+      );
 
       expect(queue.length, 1);
 
@@ -244,10 +240,12 @@ void main() {
       );
 
       for (var i = 0; i < 5; i++) {
-        queue.enqueue(FailureReport(
-          failure: ServerFailure('error $i'),
-          timestamp: DateTime.now(),
-        ));
+        queue.enqueue(
+          FailureReport(
+            failure: ServerFailure('error $i'),
+            timestamp: DateTime.now(),
+          ),
+        );
       }
 
       // Should keep the last 3 (queue drops oldest when full)
@@ -273,10 +271,12 @@ void main() {
       );
 
       for (var i = 0; i < 5; i++) {
-        queue.enqueue(FailureReport(
-          failure: ServerFailure('error $i'),
-          timestamp: DateTime.now(),
-        ));
+        queue.enqueue(
+          FailureReport(
+            failure: ServerFailure('error $i'),
+            timestamp: DateTime.now(),
+          ),
+        );
       }
 
       await queue.flush();
@@ -298,16 +298,20 @@ void main() {
       );
 
       // This should be enqueued (ServerFailure)
-      queue.enqueue(FailureReport(
-        failure: ServerFailure('server error'),
-        timestamp: DateTime.now(),
-      ));
+      queue.enqueue(
+        FailureReport(
+          failure: ServerFailure('server error'),
+          timestamp: DateTime.now(),
+        ),
+      );
 
       // This should NOT be enqueued (NetworkFailure, reporter doesn't want it)
-      queue.enqueue(FailureReport(
-        failure: NetworkFailure('network error'),
-        timestamp: DateTime.now(),
-      ));
+      queue.enqueue(
+        FailureReport(
+          failure: NetworkFailure('network error'),
+          timestamp: DateTime.now(),
+        ),
+      );
 
       expect(queue.length, 1);
 
@@ -331,29 +335,36 @@ void main() {
 
       await queue.dispose();
 
-      queue.enqueue(FailureReport(
-        failure: ServerFailure('late error'),
-        timestamp: DateTime.now(),
-      ));
-
-      expect(queue.length, 0);
-    });
-
-    test('does not enqueue CancellationFailure with default reporter', () async {
-      final queue = FailureReportQueue(
-        reporters: [reporter],
-        flushInterval: const Duration(hours: 1),
+      queue.enqueue(
+        FailureReport(
+          failure: ServerFailure('late error'),
+          timestamp: DateTime.now(),
+        ),
       );
 
-      queue.enqueue(FailureReport(
-        failure: CancellationFailure('cancelled'),
-        timestamp: DateTime.now(),
-      ));
-
       expect(queue.length, 0);
-
-      await queue.dispose();
     });
+
+    test(
+      'does not enqueue CancellationFailure with default reporter',
+      () async {
+        final queue = FailureReportQueue(
+          reporters: [reporter],
+          flushInterval: const Duration(hours: 1),
+        );
+
+        queue.enqueue(
+          FailureReport(
+            failure: CancellationFailure('cancelled'),
+            timestamp: DateTime.now(),
+          ),
+        );
+
+        expect(queue.length, 0);
+
+        await queue.dispose();
+      },
+    );
   });
 
   group('FailureReporterRegistry', () {
@@ -411,9 +422,7 @@ void main() {
     });
 
     test('flush sends queued reports', () async {
-      registry.configure(
-        flushInterval: const Duration(hours: 1),
-      );
+      registry.configure(flushInterval: const Duration(hours: 1));
       final reporter = FakeFailureReporter();
       await registry.register(reporter);
 
@@ -427,9 +436,7 @@ void main() {
     });
 
     test('dispose flushes and clears', () async {
-      registry.configure(
-        flushInterval: const Duration(hours: 1),
-      );
+      registry.configure(flushInterval: const Duration(hours: 1));
       final reporter = FakeFailureReporter();
       await registry.register(reporter);
 

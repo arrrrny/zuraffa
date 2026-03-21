@@ -120,11 +120,7 @@ class FailureReporterRegistry {
     try {
       await reporter.dispose();
     } catch (e, stackTrace) {
-      _logger.warning(
-        'Error disposing reporter $id',
-        e,
-        stackTrace,
-      );
+      _logger.warning('Error disposing reporter $id', e, stackTrace);
     }
 
     if (_reporters.isEmpty) {

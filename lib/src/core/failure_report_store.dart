@@ -54,11 +54,7 @@ class FailureReportStore {
 
       _logger.fine('Persisted ${reports.length} failure reports to disk');
     } catch (e, stackTrace) {
-      _logger.warning(
-        'Failed to persist failure reports',
-        e,
-        stackTrace,
-      );
+      _logger.warning('Failed to persist failure reports', e, stackTrace);
     }
   }
 
@@ -154,31 +150,29 @@ class FailureReportStore {
   Map<String, dynamic> _failureDataToJson(AppFailure failure) {
     return switch (failure) {
       ServerFailure(:final statusCode) => {
-          if (statusCode != null) 'statusCode': statusCode,
-        },
+        if (statusCode != null) 'statusCode': statusCode,
+      },
       NetworkFailure() => {},
       ValidationFailure(:final fieldErrors) => {
-          if (fieldErrors != null) 'fieldErrors': fieldErrors,
-        },
+        if (fieldErrors != null) 'fieldErrors': fieldErrors,
+      },
       NotFoundFailure(:final resourceType, :final resourceId) => {
-          if (resourceType != null) 'resourceType': resourceType,
-          if (resourceId != null) 'resourceId': resourceId,
-        },
+        if (resourceType != null) 'resourceType': resourceType,
+        if (resourceId != null) 'resourceId': resourceId,
+      },
       UnauthorizedFailure() => {},
       ForbiddenFailure(:final requiredPermission) => {
-          if (requiredPermission != null)
-            'requiredPermission': requiredPermission,
-        },
+        if (requiredPermission != null)
+          'requiredPermission': requiredPermission,
+      },
       TimeoutFailure(:final timeout) => {
-          if (timeout != null) 'timeoutMs': timeout.inMilliseconds,
-        },
+        if (timeout != null) 'timeoutMs': timeout.inMilliseconds,
+      },
       ConflictFailure(:final conflictType) => {
-          if (conflictType != null) 'conflictType': conflictType,
-        },
+        if (conflictType != null) 'conflictType': conflictType,
+      },
       CacheFailure() => {},
-      PlatformFailure(:final code) => {
-          if (code != null) 'code': code,
-        },
+      PlatformFailure(:final code) => {if (code != null) 'code': code},
       CancellationFailure() => {},
       StateFailure() => {},
       TypeFailure() => {},
@@ -222,39 +216,39 @@ class FailureReportStore {
   ) {
     return switch (type) {
       'ServerFailure' => ServerFailure(
-          message,
-          statusCode: data['statusCode'] as int?,
-        ),
+        message,
+        statusCode: data['statusCode'] as int?,
+      ),
       'NetworkFailure' => NetworkFailure(message),
       'ValidationFailure' => ValidationFailure(
-          message,
-          fieldErrors: _reconstructFieldErrors(data['fieldErrors']),
-        ),
+        message,
+        fieldErrors: _reconstructFieldErrors(data['fieldErrors']),
+      ),
       'NotFoundFailure' => NotFoundFailure(
-          message,
-          resourceType: data['resourceType'] as String?,
-          resourceId: data['resourceId'] as String?,
-        ),
+        message,
+        resourceType: data['resourceType'] as String?,
+        resourceId: data['resourceId'] as String?,
+      ),
       'UnauthorizedFailure' => UnauthorizedFailure(message),
       'ForbiddenFailure' => ForbiddenFailure(
-          message,
-          requiredPermission: data['requiredPermission'] as String?,
-        ),
+        message,
+        requiredPermission: data['requiredPermission'] as String?,
+      ),
       'TimeoutFailure' => TimeoutFailure(
-          message,
-          timeout: data['timeoutMs'] != null
-              ? Duration(milliseconds: data['timeoutMs'] as int)
-              : null,
-        ),
+        message,
+        timeout: data['timeoutMs'] != null
+            ? Duration(milliseconds: data['timeoutMs'] as int)
+            : null,
+      ),
       'ConflictFailure' => ConflictFailure(
-          message,
-          conflictType: data['conflictType'] as String?,
-        ),
+        message,
+        conflictType: data['conflictType'] as String?,
+      ),
       'CacheFailure' => CacheFailure(message),
       'PlatformFailure' => PlatformFailure(
-          message,
-          code: data['code'] as String?,
-        ),
+        message,
+        code: data['code'] as String?,
+      ),
       'CancellationFailure' => CancellationFailure(message),
       'StateFailure' => StateFailure(message),
       'TypeFailure' => TypeFailure(message),

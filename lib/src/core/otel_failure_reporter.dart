@@ -58,9 +58,7 @@ class OtelFailureReporter extends FailureReporter {
   @override
   Future<void> initialize() async {
     final tracerProvider = TracerProviderBase(
-      processors: [
-        BatchSpanProcessor(CollectorExporter(collectorEndpoint)),
-      ],
+      processors: [BatchSpanProcessor(CollectorExporter(collectorEndpoint))],
     );
 
     try {
@@ -76,25 +74,36 @@ class OtelFailureReporter extends FailureReporter {
   @override
   Future<void> reportBatch(List<FailureReport> reports) async {
     for (final report in reports) {
-      final span = _tracer.startSpan(
-        'failure.${report.failure.runtimeType}',
-      );
+      final span = _tracer.startSpan('failure.${report.failure.runtimeType}');
 
       try {
         // Set error status
         span.setStatus(StatusCode.error, report.failure.message);
 
         // Core attributes
-        span.setAttribute(Attribute.fromString(
-            'failure.type', report.failure.runtimeType.toString()));
         span.setAttribute(
-            Attribute.fromString('failure.message', report.failure.message));
-        span.setAttribute(Attribute.fromString(
-            'failure.timestamp', report.timestamp.toIso8601String()));
+          Attribute.fromString(
+            'failure.type',
+            report.failure.runtimeType.toString(),
+          ),
+        );
+        span.setAttribute(
+          Attribute.fromString('failure.message', report.failure.message),
+        );
+        span.setAttribute(
+          Attribute.fromString(
+            'failure.timestamp',
+            report.timestamp.toIso8601String(),
+          ),
+        );
 
         if (report.failure.cause != null) {
-          span.setAttribute(Attribute.fromString(
-              'failure.cause', report.failure.cause.toString()));
+          span.setAttribute(
+            Attribute.fromString(
+              'failure.cause',
+              report.failure.cause.toString(),
+            ),
+          );
         }
 
         // Failure-specific attributes
@@ -104,17 +113,15 @@ class OtelFailureReporter extends FailureReporter {
         if (report.attributes != null) {
           for (final entry in report.attributes!.entries) {
             span.setAttribute(
-                Attribute.fromString(entry.key, entry.value.toString()));
+              Attribute.fromString(entry.key, entry.value.toString()),
+            );
           }
         }
 
         // Record exception with stack trace
         final st = report.stackTrace;
         if (st != null) {
-          span.recordException(
-            report.failure,
-            stackTrace: st,
-          );
+          span.recordException(report.failure, stackTrace: st);
         }
       } finally {
         span.end();
@@ -127,86 +134,92 @@ class OtelFailureReporter extends FailureReporter {
     switch (failure) {
       case ServerFailure(:final statusCode):
         if (statusCode != null) {
-          span.setAttribute(
-              Attribute.fromInt('http.status_code', statusCode));
+          span.setAttribute(Attribute.fromInt('http.status_code', statusCode));
         }
       case NetworkFailure():
-        span.setAttribute(
-            Attribute.fromString('failure.category', 'network'));
+        span.setAttribute(Attribute.fromString('failure.category', 'network'));
       case ValidationFailure(:final fieldErrors):
         span.setAttribute(
-            Attribute.fromString('failure.category', 'validation'));
+          Attribute.fromString('failure.category', 'validation'),
+        );
         if (fieldErrors != null) {
-          span.setAttribute(Attribute.fromString(
-              'failure.fields', fieldErrors.keys.join(',')));
+          span.setAttribute(
+            Attribute.fromString('failure.fields', fieldErrors.keys.join(',')),
+          );
         }
       case NotFoundFailure(:final resourceType, :final resourceId):
         span.setAttribute(
-            Attribute.fromString('failure.category', 'not_found'));
+          Attribute.fromString('failure.category', 'not_found'),
+        );
         if (resourceType != null) {
           span.setAttribute(
-              Attribute.fromString('failure.resource_type', resourceType));
+            Attribute.fromString('failure.resource_type', resourceType),
+          );
         }
         if (resourceId != null) {
           span.setAttribute(
-              Attribute.fromString('failure.resource_id', resourceId));
+            Attribute.fromString('failure.resource_id', resourceId),
+          );
         }
       case UnauthorizedFailure():
+        span.setAttribute(Attribute.fromString('failure.category', 'auth'));
         span.setAttribute(
-            Attribute.fromString('failure.category', 'auth'));
-        span.setAttribute(
-            Attribute.fromString('failure.auth_type', 'unauthorized'));
+          Attribute.fromString('failure.auth_type', 'unauthorized'),
+        );
       case ForbiddenFailure(:final requiredPermission):
+        span.setAttribute(Attribute.fromString('failure.category', 'auth'));
         span.setAttribute(
-            Attribute.fromString('failure.category', 'auth'));
-        span.setAttribute(
-            Attribute.fromString('failure.auth_type', 'forbidden'));
+          Attribute.fromString('failure.auth_type', 'forbidden'),
+        );
         if (requiredPermission != null) {
-          span.setAttribute(Attribute.fromString(
-              'failure.required_permission', requiredPermission));
+          span.setAttribute(
+            Attribute.fromString(
+              'failure.required_permission',
+              requiredPermission,
+            ),
+          );
         }
       case TimeoutFailure(:final timeout):
-        span.setAttribute(
-            Attribute.fromString('failure.category', 'timeout'));
+        span.setAttribute(Attribute.fromString('failure.category', 'timeout'));
         if (timeout != null) {
-          span.setAttribute(Attribute.fromInt(
-              'failure.timeout_ms', timeout.inMilliseconds));
+          span.setAttribute(
+            Attribute.fromInt('failure.timeout_ms', timeout.inMilliseconds),
+          );
         }
       case ConflictFailure(:final conflictType):
-        span.setAttribute(
-            Attribute.fromString('failure.category', 'conflict'));
+        span.setAttribute(Attribute.fromString('failure.category', 'conflict'));
         if (conflictType != null) {
           span.setAttribute(
-              Attribute.fromString('failure.conflict_type', conflictType));
+            Attribute.fromString('failure.conflict_type', conflictType),
+          );
         }
       case CacheFailure():
-        span.setAttribute(
-            Attribute.fromString('failure.category', 'cache'));
+        span.setAttribute(Attribute.fromString('failure.category', 'cache'));
       case PlatformFailure(:final code):
-        span.setAttribute(
-            Attribute.fromString('failure.category', 'platform'));
+        span.setAttribute(Attribute.fromString('failure.category', 'platform'));
         if (code != null) {
           span.setAttribute(
-              Attribute.fromString('failure.platform_code', code));
+            Attribute.fromString('failure.platform_code', code),
+          );
         }
       case CancellationFailure():
         span.setAttribute(
-            Attribute.fromString('failure.category', 'cancellation'));
+          Attribute.fromString('failure.category', 'cancellation'),
+        );
       case StateFailure():
-        span.setAttribute(
-            Attribute.fromString('failure.category', 'state'));
+        span.setAttribute(Attribute.fromString('failure.category', 'state'));
       case TypeFailure():
-        span.setAttribute(
-            Attribute.fromString('failure.category', 'type'));
+        span.setAttribute(Attribute.fromString('failure.category', 'type'));
       case UnimplementedFailure():
         span.setAttribute(
-            Attribute.fromString('failure.category', 'unimplemented'));
+          Attribute.fromString('failure.category', 'unimplemented'),
+        );
       case UnsupportedFailure():
         span.setAttribute(
-            Attribute.fromString('failure.category', 'unsupported'));
+          Attribute.fromString('failure.category', 'unsupported'),
+        );
       case UnknownFailure():
-        span.setAttribute(
-            Attribute.fromString('failure.category', 'unknown'));
+        span.setAttribute(Attribute.fromString('failure.category', 'unknown'));
     }
   }
 

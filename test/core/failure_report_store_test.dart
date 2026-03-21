@@ -10,9 +10,7 @@ void main() {
   late String filePath;
 
   setUp(() {
-    tempDir = Directory.systemTemp
-        .createTempSync('failure_store_test')
-        .path;
+    tempDir = Directory.systemTemp.createTempSync('failure_store_test').path;
     filePath = '$tempDir/zuraffa_failure_queue.json';
   });
 
@@ -39,19 +37,24 @@ void main() {
           timestamp: DateTime.utc(2024, 1, 15, 10, 31),
         ),
         FailureReport(
-          failure: ValidationFailure('Bad input', fieldErrors: {
-            'email': ['Invalid format', 'Required'],
-          }),
+          failure: ValidationFailure(
+            'Bad input',
+            fieldErrors: {
+              'email': ['Invalid format', 'Required'],
+            },
+          ),
           timestamp: DateTime.utc(2024, 1, 15, 10, 32),
         ),
         FailureReport(
-          failure: NotFoundFailure('Missing',
-              resourceType: 'User', resourceId: 'u-123'),
+          failure: NotFoundFailure(
+            'Missing',
+            resourceType: 'User',
+            resourceId: 'u-123',
+          ),
           timestamp: DateTime.utc(2024, 1, 15, 10, 33),
         ),
         FailureReport(
-          failure: TimeoutFailure('Slow',
-              timeout: const Duration(seconds: 30)),
+          failure: TimeoutFailure('Slow', timeout: const Duration(seconds: 30)),
           timestamp: DateTime.utc(2024, 1, 15, 10, 34),
         ),
         FailureReport(
@@ -59,8 +62,10 @@ void main() {
           timestamp: DateTime.utc(2024, 1, 15, 10, 35),
         ),
         FailureReport(
-          failure: ForbiddenFailure('Access denied',
-              requiredPermission: 'admin'),
+          failure: ForbiddenFailure(
+            'Access denied',
+            requiredPermission: 'admin',
+          ),
           timestamp: DateTime.utc(2024, 1, 15, 10, 36),
         ),
         FailureReport(
@@ -68,8 +73,7 @@ void main() {
           timestamp: DateTime.utc(2024, 1, 15, 10, 37),
         ),
         FailureReport(
-          failure: ConflictFailure('Duplicate',
-              conflictType: 'unique_key'),
+          failure: ConflictFailure('Duplicate', conflictType: 'unique_key'),
           timestamp: DateTime.utc(2024, 1, 15, 10, 38),
         ),
         FailureReport(
@@ -155,7 +159,8 @@ void main() {
 
     test('load skips individual corrupted entries', () async {
       final store = FailureReportStore(filePath: filePath);
-      final json = '[{"failureType":"ServerFailure","message":"ok","timestamp":"2024-01-15T10:30:00.000Z"},{"broken":true}]';
+      final json =
+          '[{"failureType":"ServerFailure","message":"ok","timestamp":"2024-01-15T10:30:00.000Z"},{"broken":true}]';
       await File(filePath).writeAsString(json);
 
       final loaded = await store.load();
@@ -179,10 +184,7 @@ void main() {
       expect(store.hasPersisted, isFalse);
 
       await store.save([
-        FailureReport(
-          failure: ServerFailure('err'),
-          timestamp: DateTime.now(),
-        ),
+        FailureReport(failure: ServerFailure('err'), timestamp: DateTime.now()),
       ]);
 
       expect(store.hasPersisted, isTrue);
@@ -196,10 +198,7 @@ void main() {
 
       // Save something first
       await store.save([
-        FailureReport(
-          failure: ServerFailure('err'),
-          timestamp: DateTime.now(),
-        ),
+        FailureReport(failure: ServerFailure('err'), timestamp: DateTime.now()),
       ]);
       expect(File(filePath).existsSync(), isTrue);
 
@@ -210,7 +209,8 @@ void main() {
 
     test('unknown failure type deserializes as UnknownFailure', () async {
       final store = FailureReportStore(filePath: filePath);
-      final json = '[{"failureType":"FutureFailureType","message":"from the future","timestamp":"2024-01-15T10:30:00.000Z"}]';
+      final json =
+          '[{"failureType":"FutureFailureType","message":"from the future","timestamp":"2024-01-15T10:30:00.000Z"}]';
       await File(filePath).writeAsString(json);
 
       final loaded = await store.load();
@@ -236,10 +236,12 @@ void main() {
         retryPolicy: const NoRetryPolicy(),
       );
 
-      queue.enqueue(FailureReport(
-        failure: ServerFailure('persisted error', statusCode: 503),
-        timestamp: DateTime.now(),
-      ));
+      queue.enqueue(
+        FailureReport(
+          failure: ServerFailure('persisted error', statusCode: 503),
+          timestamp: DateTime.now(),
+        ),
+      );
 
       // Dispose — flush will fail, reports should be persisted
       await queue.dispose();

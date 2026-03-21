@@ -82,9 +82,7 @@ class FailureReportQueue {
       if (persisted.isNotEmpty) {
         // Prepend persisted reports (they're older, should flush first)
         _queue.insertAll(0, persisted);
-        _logger.info(
-          'Restored ${persisted.length} failure reports from disk',
-        );
+        _logger.info('Restored ${persisted.length} failure reports from disk');
         // Trigger an immediate flush for restored reports
         _flushAsync();
       }
@@ -103,9 +101,7 @@ class FailureReportQueue {
     if (_isDisposed) return;
 
     // Filter: only enqueue if at least one reporter wants it
-    final hasInterested = _reporters.any(
-      (r) => r.shouldReport(report.failure),
-    );
+    final hasInterested = _reporters.any((r) => r.shouldReport(report.failure));
     if (!hasInterested) return;
 
     if (_queue.length >= maxQueueSize) {
@@ -139,16 +135,18 @@ class FailureReportQueue {
     try {
       while (_queue.isNotEmpty) {
         // Take a batch
-        final batchSize =
-            _queue.length < maxBatchSize ? _queue.length : maxBatchSize;
+        final batchSize = _queue.length < maxBatchSize
+            ? _queue.length
+            : maxBatchSize;
         final batch = _queue.sublist(0, batchSize);
 
         // Send to each reporter
         bool allSucceeded = true;
         for (final reporter in _reporters) {
           // Filter batch for this reporter
-          final filteredBatch =
-              batch.where((r) => reporter.shouldReport(r.failure)).toList();
+          final filteredBatch = batch
+              .where((r) => reporter.shouldReport(r.failure))
+              .toList();
           if (filteredBatch.isEmpty) continue;
 
           final success = await _sendWithRetry(reporter, filteredBatch);
@@ -176,11 +174,7 @@ class FailureReportQueue {
         }
       }
     } catch (e, stackTrace) {
-      _logger.severe(
-        'Unexpected error during flush',
-        e,
-        stackTrace,
-      );
+      _logger.severe('Unexpected error during flush', e, stackTrace);
       // Best-effort persist on unexpected error
       if (store != null && _queue.isNotEmpty) {
         await store!.save(_queue);
@@ -261,9 +255,7 @@ class FailureReportQueue {
     // If there are still unflushed reports, persist them
     if (store != null && _queue.isNotEmpty) {
       await store!.save(_queue);
-      _logger.info(
-        'Persisted ${_queue.length} unflushed reports to disk',
-      );
+      _logger.info('Persisted ${_queue.length} unflushed reports to disk');
     }
 
     _isDisposed = true;

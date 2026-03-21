@@ -3,6 +3,7 @@ library;
 import 'src/core/failure_reporter.dart';
 import 'src/core/failure_reporter_registry.dart';
 import 'src/core/otel_failure_reporter.dart';
+import 'src/core/otel_log_exporter.dart';
 import 'src/core/retry_policy.dart';
 
 /// Zuraffa
@@ -163,22 +164,15 @@ export 'src/core/cache_policy.dart';
 export 'src/core/cache_policies.dart';
 
 /// Abstract failure reporter contract
+export 'src/core/failure_report_queue.dart' show FailureReportQueue;
+export 'src/core/failure_report_store.dart' show FailureReportStore;
 export 'src/core/failure_reporter.dart';
-
-/// Failure report queue with batch processing
-export 'src/core/failure_report_queue.dart';
-
-/// Failure reporter registry (singleton)
-export 'src/core/failure_reporter_registry.dart';
-
-/// Abstract retry policy for failure report delivery
-export 'src/core/retry_policy.dart';
-
-/// Concrete retry policy implementations (ExponentialBackoff, FixedInterval, NoRetry)
-export 'src/core/retry_policies.dart';
-
-/// OpenTelemetry failure reporter (opinionated)
-export 'src/core/otel_failure_reporter.dart';
+export 'src/core/failure_reporter_registry.dart' show FailureReporterRegistry;
+export 'src/core/otel_failure_reporter.dart' show OtelFailureReporter;
+export 'src/core/otel_log_exporter.dart' show OtelLogExporter;
+export 'src/core/retry_policies.dart'
+    show ExponentialBackoffRetryPolicy, FixedIntervalRetryPolicy, NoRetryPolicy;
+export 'src/core/retry_policy.dart' show ReportRetryPolicy;
 
 export 'src/core/generation/generation_context.dart';
 export 'src/core/context/file_system.dart';
@@ -298,7 +292,7 @@ enum ZuraffaLogLevel {
 class Zuraffa {
   Zuraffa._();
 
-  static Level _toLevel(ZuraffaLogLevel level) {
+  static Level toLevel(ZuraffaLogLevel level) {
     switch (level) {
       case ZuraffaLogLevel.all:
         return Level.ALL;
@@ -375,19 +369,21 @@ class Zuraffa {
     ZuraffaLogLevel level = ZuraffaLogLevel.all,
     void Function(LogRecord record)? onRecord,
   }) {
-    Logger.root.level = _toLevel(level);
+    Logger.root.level = toLevel(level);
     Logger.root.onRecord.listen(onRecord ?? _defaultLogHandler);
     Logger.root.info('Zuraffa logging enabled');
   }
 
   /// Disable logging.
   static void disableLogging() {
-    Logger.root.level = _toLevel(ZuraffaLogLevel.off);
+    Logger.root.level = toLevel(ZuraffaLogLevel.off);
   }
 
   // ============================================================
-  // Failure Reporting
+  // Failure and Log Reporting
   // ============================================================
+
+  static OtelLogExporter? _otelLogExporter;
 
   /// Register a failure reporter.
   ///
@@ -454,6 +450,8 @@ class Zuraffa {
     int? maxQueueSize,
     Duration? flushInterval,
     bool persistFailures = false,
+    bool exportLogs = false,
+    ZuraffaLogLevel remoteLogLevel = ZuraffaLogLevel.warning,
   }) async {
     await addFailureReporter(
       OtelFailureReporter(
@@ -465,6 +463,15 @@ class Zuraffa {
       flushInterval: flushInterval,
       persistFailures: persistFailures,
     );
+
+    if (exportLogs) {
+      _otelLogExporter?.dispose();
+      _otelLogExporter = OtelLogExporter(
+        collectorBaseEndpoint: collectorEndpoint,
+        serviceName: serviceName,
+        remoteLogLevel: remoteLogLevel,
+      )..start();
+    }
   }
 
   /// Flush all pending failure reports.
@@ -477,6 +484,8 @@ class Zuraffa {
   /// Call this on app shutdown.
   static Future<void> disposeFailureReporters() async {
     await FailureReporterRegistry.instance.dispose();
+    await _otelLogExporter?.dispose();
+    _otelLogExporter = null;
   }
 
   static void _defaultLogHandler(LogRecord record) {

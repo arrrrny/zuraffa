@@ -14,3 +14,4 @@ CUSTOM_DOMAIN_SETUP.md
 DOCUSAURUS_SETUP.md*
 .tmp_integration_*
 .junie
+.flutter-plugins-dependencies

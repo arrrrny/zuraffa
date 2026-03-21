@@ -13,8 +13,7 @@ import 'package:zuraffa/zuraffa.dart';
 
 void main() {
   // Default OTLP HTTP endpoint on local Docker collector
-  final collectorEndpoint =
-      Uri.parse('http://localhost:4318/v1/traces');
+  final collectorEndpoint = Uri.parse('http://localhost:4318/v1/traces');
 
   group('OtelFailureReporter integration', () {
     late FailureReporterRegistry registry;
@@ -35,10 +34,12 @@ void main() {
         retryPolicy: const NoRetryPolicy(),
       );
 
-      await registry.register(OtelFailureReporter(
-        collectorEndpoint: collectorEndpoint,
-        serviceName: 'zuraffa-integration-test',
-      ));
+      await registry.register(
+        OtelFailureReporter(
+          collectorEndpoint: collectorEndpoint,
+          serviceName: 'zuraffa-integration-test',
+        ),
+      );
 
       registry.reportFailure(
         ServerFailure('Integration test: server error', statusCode: 500),
@@ -59,26 +60,33 @@ void main() {
         retryPolicy: const NoRetryPolicy(),
       );
 
-      await registry.register(OtelFailureReporter(
-        collectorEndpoint: collectorEndpoint,
-        serviceName: 'zuraffa-integration-test',
-      ));
+      await registry.register(
+        OtelFailureReporter(
+          collectorEndpoint: collectorEndpoint,
+          serviceName: 'zuraffa-integration-test',
+        ),
+      );
 
       // Report a variety of failure types
       final failures = <AppFailure>[
         ServerFailure('Server down', statusCode: 503),
         NetworkFailure('Connection refused'),
-        ValidationFailure('Invalid email', fieldErrors: {
-          'email': ['Must be a valid email address'],
-        }),
+        ValidationFailure(
+          'Invalid email',
+          fieldErrors: {
+            'email': ['Must be a valid email address'],
+          },
+        ),
         NotFoundFailure(
           'User not found',
           resourceType: 'User',
           resourceId: 'usr-404',
         ),
         UnauthorizedFailure('Token expired'),
-        TimeoutFailure('DB query timed out',
-            timeout: const Duration(seconds: 30)),
+        TimeoutFailure(
+          'DB query timed out',
+          timeout: const Duration(seconds: 30),
+        ),
         CacheFailure('Cache read failed'),
         UnknownFailure('Something unexpected happened'),
       ];
@@ -105,10 +113,12 @@ void main() {
         retryPolicy: const NoRetryPolicy(),
       );
 
-      await registry.register(OtelFailureReporter(
-        collectorEndpoint: collectorEndpoint,
-        serviceName: 'zuraffa-integration-test',
-      ));
+      await registry.register(
+        OtelFailureReporter(
+          collectorEndpoint: collectorEndpoint,
+          serviceName: 'zuraffa-integration-test',
+        ),
+      );
 
       // Create a UseCase that always fails
       final useCase = _AlwaysFailsUseCase();
@@ -130,10 +140,12 @@ void main() {
       );
 
       // Point to a non-existent collector
-      await registry.register(OtelFailureReporter(
-        collectorEndpoint: Uri.parse('http://localhost:19999/v1/traces'),
-        serviceName: 'zuraffa-integration-test',
-      ));
+      await registry.register(
+        OtelFailureReporter(
+          collectorEndpoint: Uri.parse('http://localhost:19999/v1/traces'),
+          serviceName: 'zuraffa-integration-test',
+        ),
+      );
 
       registry.reportFailure(
         ServerFailure('This should fail to export'),
@@ -156,10 +168,12 @@ void main() {
       );
 
       // Point to a non-existent collector
-      await registry.register(OtelFailureReporter(
-        collectorEndpoint: Uri.parse('http://localhost:19999/v1/traces'),
-        serviceName: 'zuraffa-integration-test',
-      ));
+      await registry.register(
+        OtelFailureReporter(
+          collectorEndpoint: Uri.parse('http://localhost:19999/v1/traces'),
+          serviceName: 'zuraffa-integration-test',
+        ),
+      );
 
       registry.reportFailure(
         NetworkFailure('Retry test'),

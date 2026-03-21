@@ -108,7 +108,10 @@ class InjectBuilder {
             }
 
             // Zuraffa convention: MyRemoteDataSource -> my_remote_datasource.dart
-            final zuraffaSnake = snakeName.replaceAll('_data_source', '_datasource');
+            final zuraffaSnake = snakeName.replaceAll(
+              '_data_source',
+              '_datasource',
+            );
             if (fileName == '$zuraffaSnake.dart') {
               return file.path;
             }
