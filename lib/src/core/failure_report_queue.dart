@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:logging/logging.dart';
 
 import 'failure_reporter.dart';
+import 'failure_report_store.dart';
 import 'retry_policy.dart';
 import 'retry_policies.dart';
 
@@ -13,6 +14,12 @@ import 'retry_policies.dart';
 /// - The queue has a maximum size; new reports are dropped when full
 /// - On flush, reports are delivered to all registered reporters
 /// - Failed deliveries are retried according to the [ReportRetryPolicy]
+///
+/// ## Persistence
+/// When a [FailureReportStore] is provided, reports survive app restarts:
+/// - On creation: persisted reports are loaded and prepended to the queue
+/// - On flush failure: remaining reports are saved to disk
+/// - On successful flush: the persistence file is cleared
 ///
 /// ## Key Behaviors
 /// - **Fire-and-forget**: Enqueue never blocks the caller
@@ -35,11 +42,15 @@ class FailureReportQueue {
   /// Retry policy for failed deliveries.
   final ReportRetryPolicy retryPolicy;
 
+  /// Optional disk-backed store for persistence across app restarts.
+  final FailureReportStore? store;
+
   final List<FailureReport> _queue = [];
   final List<FailureReporter> _reporters;
   Timer? _flushTimer;
   bool _isDisposed = false;
   bool _isFlushing = false;
+  bool _isInitialized = false;
 
   /// Number of reports currently queued.
   int get length => _queue.length;
@@ -53,13 +64,40 @@ class FailureReportQueue {
     this.maxBatchSize = 32,
     this.flushInterval = const Duration(seconds: 5),
     this.retryPolicy = const ExponentialBackoffRetryPolicy(),
+    this.store,
   }) : _reporters = reporters {
     _startFlushTimer();
+    // Load persisted reports asynchronously
+    if (store != null) {
+      _loadPersisted();
+    } else {
+      _isInitialized = true;
+    }
+  }
+
+  /// Load persisted reports from disk and prepend to queue.
+  Future<void> _loadPersisted() async {
+    try {
+      final persisted = await store!.load();
+      if (persisted.isNotEmpty) {
+        // Prepend persisted reports (they're older, should flush first)
+        _queue.insertAll(0, persisted);
+        _logger.info(
+          'Restored ${persisted.length} failure reports from disk',
+        );
+        // Trigger an immediate flush for restored reports
+        _flushAsync();
+      }
+    } catch (e, stackTrace) {
+      _logger.warning('Failed to load persisted reports', e, stackTrace);
+    } finally {
+      _isInitialized = true;
+    }
   }
 
   /// Enqueue a failure report for batch delivery.
   ///
-  /// If the queue is full, the report is silently dropped.
+  /// If the queue is full, the oldest report is dropped.
   /// This method never throws.
   void enqueue(FailureReport report) {
     if (_isDisposed) return;
@@ -90,10 +128,13 @@ class FailureReportQueue {
   ///
   /// Reports are sent in batches of [maxBatchSize].
   /// Failed batches are retried according to [retryPolicy].
+  /// If flush fails and a [store] is configured, remaining reports
+  /// are persisted to disk.
   Future<void> flush() async {
     if (_isDisposed || _isFlushing || _queue.isEmpty) return;
 
     _isFlushing = true;
+    bool hadFailures = false;
 
     try {
       while (_queue.isNotEmpty) {
@@ -120,8 +161,18 @@ class FailureReportQueue {
           // Remove successfully sent reports
           _queue.removeRange(0, batchSize);
         } else {
+          hadFailures = true;
           // Stop flushing — will retry on next cycle
           break;
+        }
+      }
+
+      // Persist remaining reports on failure, clear on success
+      if (store != null) {
+        if (hadFailures && _queue.isNotEmpty) {
+          await store!.save(_queue);
+        } else if (_queue.isEmpty) {
+          await store!.clear();
         }
       }
     } catch (e, stackTrace) {
@@ -130,6 +181,10 @@ class FailureReportQueue {
         e,
         stackTrace,
       );
+      // Best-effort persist on unexpected error
+      if (store != null && _queue.isNotEmpty) {
+        await store!.save(_queue);
+      }
     } finally {
       _isFlushing = false;
     }
@@ -191,6 +246,8 @@ class FailureReportQueue {
   /// Flush remaining reports and stop the timer.
   ///
   /// After dispose, no more reports will be accepted.
+  /// If flush fails and a [store] is configured, remaining reports
+  /// are persisted to disk for recovery on next app launch.
   Future<void> dispose() async {
     if (_isDisposed) return;
 
@@ -200,6 +257,14 @@ class FailureReportQueue {
     // Final flush attempt (before marking as disposed)
     _isFlushing = false; // Reset so flush() can run
     await flush();
+
+    // If there are still unflushed reports, persist them
+    if (store != null && _queue.isNotEmpty) {
+      await store!.save(_queue);
+      _logger.info(
+        'Persisted ${_queue.length} unflushed reports to disk',
+      );
+    }
 
     _isDisposed = true;
     _queue.clear();

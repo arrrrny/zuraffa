@@ -4,6 +4,7 @@ import 'package:logging/logging.dart';
 
 import 'failure.dart';
 import 'failure_report_queue.dart';
+import 'failure_report_store.dart';
 import 'failure_reporter.dart';
 import 'retry_policies.dart';
 import 'retry_policy.dart';
@@ -36,6 +37,7 @@ class FailureReporterRegistry {
   int _maxQueueSize = 256;
   int _maxBatchSize = 32;
   Duration _flushInterval = const Duration(seconds: 5);
+  String? _storagePath;
 
   final Map<String, FailureReporter> _reporters = {};
 
@@ -59,6 +61,7 @@ class FailureReporterRegistry {
     int? maxQueueSize,
     int? maxBatchSize,
     Duration? flushInterval,
+    String? storagePath,
   }) {
     if (_queue != null) {
       _logger.warning(
@@ -71,6 +74,7 @@ class FailureReporterRegistry {
     if (maxQueueSize != null) _maxQueueSize = maxQueueSize;
     if (maxBatchSize != null) _maxBatchSize = maxBatchSize;
     if (flushInterval != null) _flushInterval = flushInterval;
+    if (storagePath != null) _storagePath = storagePath;
   }
 
   /// Register a failure reporter.
@@ -185,6 +189,7 @@ class FailureReporterRegistry {
     _maxQueueSize = 256;
     _maxBatchSize = 32;
     _flushInterval = const Duration(seconds: 5);
+    _storagePath = null;
   }
 
   void _ensureQueue() {
@@ -196,6 +201,9 @@ class FailureReporterRegistry {
       maxBatchSize: _maxBatchSize,
       flushInterval: _flushInterval,
       retryPolicy: _retryPolicy,
+      store: _storagePath != null
+          ? FailureReportStore(filePath: _storagePath!)
+          : null,
     );
   }
 
