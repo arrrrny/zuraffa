@@ -101,8 +101,42 @@ class InjectBuilder {
         final files = dsDir.listSync(recursive: true);
         for (final file in files) {
           final fileName = path.basename(file.path);
-          if (file is File && fileName == '$snakeName.dart') {
-            return file.path;
+          if (file is File) {
+            // Standard snake case: MyRemoteDataSource -> my_remote_data_source.dart
+            if (fileName == '$snakeName.dart') {
+              return file.path;
+            }
+
+            // Zuraffa convention: MyRemoteDataSource -> my_remote_datasource.dart
+            final zuraffaSnake = snakeName.replaceAll('_data_source', '_datasource');
+            if (fileName == '$zuraffaSnake.dart') {
+              return file.path;
+            }
+
+            // Also check for repo-based datasources: ListingRemoteDataSource -> listing_remote_datasource.dart
+            // The folder might be 'listing' and the file 'listing_remote_datasource.dart'
+            // If the class ends with RemoteDataSource or LocalDataSource, try to extract the base name
+            if (className.endsWith('RemoteDataSource')) {
+              final base = className.replaceAll('RemoteDataSource', '');
+              final baseSnake = StringUtils.camelToSnake(base);
+              if (fileName == '${baseSnake}_remote_datasource.dart') {
+                return file.path;
+              }
+            }
+            if (className.endsWith('LocalDataSource')) {
+              final base = className.replaceAll('LocalDataSource', '');
+              final baseSnake = StringUtils.camelToSnake(base);
+              if (fileName == '${baseSnake}_local_datasource.dart') {
+                return file.path;
+              }
+            }
+            if (className.endsWith('DataSource')) {
+              final base = className.replaceAll('DataSource', '');
+              final baseSnake = StringUtils.camelToSnake(base);
+              if (fileName == '${baseSnake}_datasource.dart') {
+                return file.path;
+              }
+            }
           }
         }
       }
