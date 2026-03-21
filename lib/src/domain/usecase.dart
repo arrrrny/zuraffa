@@ -4,6 +4,7 @@ import 'package:meta/meta.dart';
 
 import '../core/cancel_token.dart';
 import '../core/failure.dart';
+import '../core/failure_reporter_registry.dart';
 import '../core/loggable.dart';
 import '../core/result.dart';
 
@@ -74,10 +75,21 @@ abstract class UseCase<T, Params> with Loggable {
       return Result.failure(CancellationFailure(e.message));
     } on AppFailure catch (e) {
       logger.warning('$runtimeType failed with AppFailure: $e');
+      FailureReporterRegistry.instance.reportFailure(
+        e,
+        stackTrace: e.stackTrace,
+        attributes: {'usecase': '$runtimeType'},
+      );
       return Result.failure(e);
     } catch (e, stackTrace) {
       logger.severe('$runtimeType failed unexpectedly', e, stackTrace);
-      return Result.failure(AppFailure.from(e, stackTrace));
+      final failure = AppFailure.from(e, stackTrace);
+      FailureReporterRegistry.instance.reportFailure(
+        failure,
+        stackTrace: stackTrace,
+        attributes: {'usecase': '$runtimeType'},
+      );
+      return Result.failure(failure);
     }
   }
 

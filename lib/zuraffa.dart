@@ -1,5 +1,10 @@
 library;
 
+import 'src/core/failure_reporter.dart';
+import 'src/core/failure_reporter_registry.dart';
+import 'src/core/otel_failure_reporter.dart';
+import 'src/core/retry_policy.dart';
+
 /// Zuraffa
 ///
 /// A comprehensive Clean Architecture framework for Flutter applications
@@ -156,6 +161,24 @@ export 'src/core/cache_policy.dart';
 
 /// Concrete cache policy implementations (Daily, AppRestart, TTL)
 export 'src/core/cache_policies.dart';
+
+/// Abstract failure reporter contract
+export 'src/core/failure_reporter.dart';
+
+/// Failure report queue with batch processing
+export 'src/core/failure_report_queue.dart';
+
+/// Failure reporter registry (singleton)
+export 'src/core/failure_reporter_registry.dart';
+
+/// Abstract retry policy for failure report delivery
+export 'src/core/retry_policy.dart';
+
+/// Concrete retry policy implementations (ExponentialBackoff, FixedInterval, NoRetry)
+export 'src/core/retry_policies.dart';
+
+/// OpenTelemetry failure reporter (opinionated)
+export 'src/core/otel_failure_reporter.dart';
 
 export 'src/core/generation/generation_context.dart';
 export 'src/core/context/file_system.dart';
@@ -360,6 +383,95 @@ class Zuraffa {
   /// Disable logging.
   static void disableLogging() {
     Logger.root.level = _toLevel(ZuraffaLogLevel.off);
+  }
+
+  // ============================================================
+  // Failure Reporting
+  // ============================================================
+
+  /// Register a failure reporter.
+  ///
+  /// Failures from all UseCases and FailureHandlers will be
+  /// automatically reported to registered reporters.
+  ///
+  /// ## Example
+  /// ```dart
+  /// void main() {
+  ///   Zuraffa.addFailureReporter(
+  ///     OtelFailureReporter(
+  ///       collectorEndpoint: Uri.parse('https://otel.example.com/v1/traces'),
+  ///       serviceName: 'my_app',
+  ///     ),
+  ///   );
+  ///   runApp(MyApp());
+  /// }
+  /// ```
+  static Future<void> addFailureReporter(
+    FailureReporter reporter, {
+    ReportRetryPolicy? retryPolicy,
+    int? maxQueueSize,
+    int? maxBatchSize,
+    Duration? flushInterval,
+  }) async {
+    if (retryPolicy != null ||
+        maxQueueSize != null ||
+        maxBatchSize != null ||
+        flushInterval != null) {
+      FailureReporterRegistry.instance.configure(
+        retryPolicy: retryPolicy,
+        maxQueueSize: maxQueueSize,
+        maxBatchSize: maxBatchSize,
+        flushInterval: flushInterval,
+      );
+    }
+    await FailureReporterRegistry.instance.register(reporter);
+  }
+
+  /// Remove a failure reporter by ID.
+  static Future<void> removeFailureReporter(String id) async {
+    await FailureReporterRegistry.instance.unregister(id);
+  }
+
+  /// Convenience: set up OpenTelemetry failure reporting in one call.
+  ///
+  /// ## Example
+  /// ```dart
+  /// void main() {
+  ///   Zuraffa.enableOtelReporting(
+  ///     collectorEndpoint: Uri.parse('https://otel.example.com/v1/traces'),
+  ///     serviceName: 'my_app',
+  ///   );
+  ///   runApp(MyApp());
+  /// }
+  /// ```
+  static Future<void> enableOtelReporting({
+    required Uri collectorEndpoint,
+    required String serviceName,
+    ReportRetryPolicy? retryPolicy,
+    int? maxQueueSize,
+    Duration? flushInterval,
+  }) async {
+    await addFailureReporter(
+      OtelFailureReporter(
+        collectorEndpoint: collectorEndpoint,
+        serviceName: serviceName,
+      ),
+      retryPolicy: retryPolicy,
+      maxQueueSize: maxQueueSize,
+      flushInterval: flushInterval,
+    );
+  }
+
+  /// Flush all pending failure reports.
+  static Future<void> flushFailureReports() async {
+    await FailureReporterRegistry.instance.flush();
+  }
+
+  /// Dispose all failure reporters and flush pending reports.
+  ///
+  /// Call this on app shutdown.
+  static Future<void> disposeFailureReporters() async {
+    await FailureReporterRegistry.instance.dispose();
   }
 
   static void _defaultLogHandler(LogRecord record) {
