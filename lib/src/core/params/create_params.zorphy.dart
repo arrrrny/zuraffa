@@ -34,11 +34,15 @@ class CreateParams<T> extends Params {
       params: _patchMap.containsKey(CreateParams$.params)
           ? (_patchMap[CreateParams$.params] is Function)
                 ? _patchMap[CreateParams$.params](this.params)
+                : (_patchMap[CreateParams$.params] is Patch)
+                ? _patchMap[CreateParams$.params].applyTo(this.params)
                 : _patchMap[CreateParams$.params]
           : this.params,
       data: _patchMap.containsKey(CreateParams$.data)
           ? (_patchMap[CreateParams$.data] is Function)
                 ? _patchMap[CreateParams$.data](this.data)
+                : (_patchMap[CreateParams$.data] is Patch)
+                ? _patchMap[CreateParams$.data].applyTo(this.data)
                 : _patchMap[CreateParams$.data]
           : this.data,
     );
@@ -51,6 +55,8 @@ class CreateParams<T> extends Params {
       params: _patchMap.containsKey(Params$.params)
           ? (_patchMap[Params$.params] is Function)
                 ? _patchMap[Params$.params](this.params)
+                : (_patchMap[Params$.params] is Patch)
+                ? _patchMap[Params$.params].applyTo(this.params)
                 : _patchMap[Params$.params]
           : this.params,
       data: this.data,

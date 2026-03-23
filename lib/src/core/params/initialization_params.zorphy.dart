@@ -10,7 +10,10 @@ part of 'initialization_params.dart';
 
 @JsonSerializable(explicitToJson: true)
 class InitializationParams extends Params {
-  @JsonKey(toJson: _durationToJson, fromJson: _durationFromJson)
+  @JsonKey(
+    toJson: DurationConverter.durationToJson,
+    fromJson: DurationConverter.durationFromJson,
+  )
   final Duration timeout;
   @JsonKey(defaultValue: false)
   final bool? forceRefresh;
@@ -321,6 +324,21 @@ class InitializationParamsPatch implements Patch<InitializationParams> {
 
   InitializationParamsPatch withCredentials(Credentials? value) {
     _patch[InitializationParams$.credentials] = value;
+    return this;
+  }
+
+  InitializationParamsPatch withCredentialsPatch(CredentialsPatch patch) {
+    _patch[InitializationParams$.credentials] = patch;
+    return this;
+  }
+
+  InitializationParamsPatch withCredentialsPatchFunc(
+    CredentialsPatch Function(CredentialsPatch) patch,
+  ) {
+    _patch[InitializationParams$.credentials] = (dynamic current) {
+      var currentPatch = CredentialsPatch();
+      return patch(currentPatch).applyTo(current as Credentials);
+    };
     return this;
   }
 

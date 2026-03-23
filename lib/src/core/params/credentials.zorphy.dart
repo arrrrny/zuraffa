@@ -31,6 +31,8 @@ class Credentials extends Params {
       params: _patchMap.containsKey(Credentials$.params)
           ? (_patchMap[Credentials$.params] is Function)
                 ? _patchMap[Credentials$.params](this.params)
+                : (_patchMap[Credentials$.params] is Patch)
+                ? _patchMap[Credentials$.params].applyTo(this.params)
                 : _patchMap[Credentials$.params]
           : this.params,
     );
@@ -43,6 +45,8 @@ class Credentials extends Params {
       params: _patchMap.containsKey(Params$.params)
           ? (_patchMap[Params$.params] is Function)
                 ? _patchMap[Params$.params](this.params)
+                : (_patchMap[Params$.params] is Patch)
+                ? _patchMap[Params$.params].applyTo(this.params)
                 : _patchMap[Params$.params]
           : this.params,
     );

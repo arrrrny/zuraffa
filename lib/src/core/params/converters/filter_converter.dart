@@ -1,5 +1,7 @@
 import 'package:zorphy_annotation/zorphy_annotation.dart';
 
+import 'sort_converter.dart';
+
 /// Converter for [Filter] type.
 ///
 /// Provides static methods for serializing and deserializing Zorphy Filter objects.
@@ -33,6 +35,7 @@ import 'package:zorphy_annotation/zorphy_annotation.dart';
 /// final decoded = FilterConverter.fromJson({'name': 'John'}, userField);
 /// // decoded: Filter.eq(userField, 'John')
 /// ```
+
 class FilterConverter {
   FilterConverter._();
 
@@ -43,12 +46,21 @@ class FilterConverter {
   ///
   /// Throws [ArgumentError] if the filter does not support JSON serialization.
   static Map<String, dynamic>? toJson(Filter<dynamic>? filter) {
+    return toJsonTyped<dynamic>(filter);
+  }
+
+  /// Serializes a typed [Filter] to JSON while preserving generic
+  /// context for clearer error messages.
+  ///
+  /// Prefer this overload when you have a concrete `Filter<T>` in hand
+  /// to avoid erasing type information in logs and exceptions.
+  static Map<String, dynamic>? toJsonTyped<T>(Filter<T>? filter) {
     if (filter == null) return null;
     try {
       return filter.toJson();
     } catch (e) {
       throw ArgumentError(
-        'Failed to serialize Filter to JSON: $e\n'
+        'Failed to serialize Filter<$T> to JSON: $e\n'
         'Ensure the Filter is a valid Zorphy-generated filter.',
       );
     }
@@ -57,7 +69,7 @@ class FilterConverter {
   /// Deserializes a [Filter] from JSON.
   ///
   /// This method has **limited support** and requires providing the entity's
-  /// [Field] objects for proper deserialization.
+  /// [Field] objects or a [FieldResolver] for proper deserialization.
   ///
   /// For simple filters with known fields, you can provide a map of field names
   /// to [Field] objects:
@@ -72,24 +84,39 @@ class FilterConverter {
   /// );
   /// ```
   ///
-  /// If no fields are provided, the deserialization will attempt to create
-  /// generic [Field] objects, but these won't have `getValue` functions for
-  /// matching operations.
+  /// If no fields or resolver are provided, the deserializer will create
+  /// fallback [Field] objects that can read from `Map<String, dynamic>`
+  /// entities by key; for other entity types the getter throws to keep
+  /// type-safety explicit.
   ///
   /// Throws [ArgumentError] if deserialization fails or the filter structure
   /// is unsupported.
   static Filter<dynamic>? fromJson(
     Map<String, dynamic>? json, [
     Map<String, Field<dynamic, dynamic>>? fields,
+    FieldResolver<dynamic>? resolveField,
+  ]) {
+    return fromJsonTyped<dynamic>(json, fields, resolveField);
+  }
+
+  /// Deserializes a typed [Filter] from JSON.
+  ///
+  /// Supplying a typed `fields` registry enables full round-trip support
+  /// and preserves matching behavior; without it, a fallback `Field` with
+  /// a throwing getter is created to keep type safety explicit.
+  static Filter<T>? fromJsonTyped<T>(
+    Map<String, dynamic>? json, [
+    Map<String, Field<T, dynamic>>? fields,
+    FieldResolver<T>? resolveField,
   ]) {
     if (json == null) return null;
     try {
-      return _deserializeFilter(json, fields);
+      return _deserializeFilter<T>(json, fields, resolveField);
     } catch (e) {
       throw ArgumentError(
-        'Failed to deserialize Filter from JSON: $json\n'
+        'Failed to deserialize Filter<$T> from JSON: $json\n'
         'Error: $e\n'
-        'Provide a map of Field objects for full deserialization support.',
+        'Provide Field objects (map or resolver) for full deserialization support.',
       );
     }
   }
@@ -111,13 +138,14 @@ class FilterConverter {
   /// - `{'and': [...]}` → And filter
   /// - `{'or': [...]}` → Or filter
   /// - `{}` → AlwaysMatch filter
-  static Filter<dynamic> _deserializeFilter(
+  static Filter<T> _deserializeFilter<T>(
     Map<String, dynamic> json, [
-    Map<String, Field<dynamic, dynamic>>? fields,
+    Map<String, Field<T, dynamic>>? fields,
+    FieldResolver<T>? resolveField,
   ]) {
     // Handle empty filter
     if (json.isEmpty) {
-      return Filter.always();
+      return AlwaysMatch<T>();
     }
 
     // Handle logical operators - use And/Or constructors
@@ -126,11 +154,11 @@ class FilterConverter {
       if (filters == null || filters.isEmpty) {
         throw ArgumentError('And filter requires "and" array');
       }
-      final deserializedFilters = <Filter<dynamic>>[];
+      final deserializedFilters = <Filter<T>>[];
       for (final f in filters.cast<Map<String, dynamic>>()) {
-        deserializedFilters.add(_deserializeFilter(f, fields));
+        deserializedFilters.add(_deserializeFilter<T>(f, fields, resolveField));
       }
-      return And(deserializedFilters);
+      return And<T>(deserializedFilters);
     }
 
     if (json.containsKey('or')) {
@@ -138,11 +166,11 @@ class FilterConverter {
       if (filters == null || filters.isEmpty) {
         throw ArgumentError('Or filter requires "or" array');
       }
-      final deserializedFilters = <Filter<dynamic>>[];
+      final deserializedFilters = <Filter<T>>[];
       for (final f in filters.cast<Map<String, dynamic>>()) {
-        deserializedFilters.add(_deserializeFilter(f, fields));
+        deserializedFilters.add(_deserializeFilter<T>(f, fields, resolveField));
       }
-      return Or(deserializedFilters);
+      return Or<T>(deserializedFilters);
     }
 
     // Handle field-based filters - use individual filter class constructors
@@ -152,7 +180,7 @@ class FilterConverter {
       final value = entry.value;
 
       // Get or create the field
-      final field = fields?[fieldName] ?? _createField(fieldName);
+      final field = _resolveField<T>(fieldName, fields, resolveField);
 
       // Check if value is a map with operator
       if (value is Map<String, dynamic>) {
@@ -187,11 +215,36 @@ class FilterConverter {
     );
   }
 
+  static Field<T, dynamic> _resolveField<T>(
+    String fieldName,
+    Map<String, Field<T, dynamic>>? fields,
+    FieldResolver<T>? resolver,
+  ) {
+    final fromMap = fields?[fieldName];
+    if (fromMap != null) return fromMap;
+    final fromResolver = resolver?.call(fieldName);
+    if (fromResolver != null) return fromResolver;
+    return _createField<T>(fieldName);
+  }
+
   /// Creates a generic [Field] object for a given field name.
   ///
-  /// This is a fallback when no field registry is provided. The created
-  /// Field won't have a `getValue` function, so matching operations won't work.
-  static Field<dynamic, dynamic> _createField(String fieldName) {
-    return Field<dynamic, dynamic>(fieldName, null);
+  /// Fallback when no field registry is provided. Matching succeeds for
+  /// `Map<String, dynamic>` entities via index lookup; otherwise the getter
+  /// throws to keep type-safety explicit.
+  static Field<T, dynamic> _createField<T>(String fieldName) {
+    return Field<T, dynamic>(fieldName, (T entity) {
+      if (entity is Map<String, dynamic>) {
+        return entity[fieldName];
+      }
+      return _missingFieldGetter(fieldName);
+    });
+  }
+
+  static Never _missingFieldGetter(String fieldName) {
+    throw StateError(
+      'Field getter not provided for "$fieldName". '
+      'Provide a Field registry to enable matching.',
+    );
   }
 }

@@ -14,7 +14,10 @@ abstract class $InitializationParams implements $Params {
 
   /// How long to wait for the app to initialize before timing out.
 
-  @JsonKey(toJson: _durationToJson, fromJson: _durationFromJson)
+  @JsonKey(
+    toJson: DurationConverter.durationToJson,
+    fromJson: DurationConverter.durationFromJson,
+  )
   Duration get timeout => const Duration(seconds: 5);
 
   /// Whether to bypass cached state and force a fresh initialization.
@@ -28,6 +31,7 @@ abstract class $InitializationParams implements $Params {
   $Settings? get settings;
 }
 
-Duration _durationFromJson(int seconds) => Duration(seconds: seconds);
-
-int _durationToJson(Duration duration) => duration.inSeconds;
+class DurationConverter {
+  static Duration durationFromJson(int seconds) => Duration(seconds: seconds);
+  static int durationToJson(Duration duration) => duration.inSeconds;
+}

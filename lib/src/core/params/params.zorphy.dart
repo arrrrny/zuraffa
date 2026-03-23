@@ -29,6 +29,8 @@ class Params {
       params: _patchMap.containsKey(Params$.params)
           ? (_patchMap[Params$.params] is Function)
                 ? _patchMap[Params$.params](this.params)
+                : (_patchMap[Params$.params] is Patch)
+                ? _patchMap[Params$.params].applyTo(this.params)
                 : _patchMap[Params$.params]
           : this.params,
     );

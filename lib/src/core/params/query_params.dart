@@ -20,8 +20,8 @@ abstract class $QueryParams<T> implements $Params {
   @JsonKey(
     includeFromJson: false,
     includeToJson: false,
-    toJson: FilterConverter.toJson,
-    fromJson: FilterConverter.fromJson,
+    toJson: FilterConverter.toJsonTyped,
+    fromJson: FilterConverter.fromJsonTyped,
   )
   Filter<T>? get filter;
 }
@@ -29,12 +29,27 @@ abstract class $QueryParams<T> implements $Params {
 /// Extension to query a single entity from an iterable using QueryParams.
 extension QueryParamsExtension<T> on Iterable<T> {
   /// Query a single entity matching the filter.
-  /// Throws if no entity matches.
-  T query(QueryParams<T>? params) {
-    if (params?.filter == null) {
-      return first;
+  /// Throws a [StateError] if no entity matches unless [orElse] is provided.
+  T query(QueryParams<T>? params, {T Function()? orElse}) {
+    final result = queryOrNull(params);
+    if (result != null) return result;
+    if (orElse != null) return orElse();
+    throw StateError(
+      'No element matched the provided QueryParams${params?.filter == null ? '' : ' filter'}.',
+    );
+  }
+
+  /// Query a single entity matching the filter, or return `null` when none match.
+  /// Use this when absence is expected to avoid throwing a [StateError].
+  T? queryOrNull(QueryParams<T>? params) {
+    final filter = params?.filter;
+    if (filter == null) {
+      return isEmpty ? null : first;
     }
-    return where((item) => params!.filter!.matches(item)).first;
+    for (final item in this) {
+      if (filter.matches(item)) return item;
+    }
+    return null;
   }
 }
 

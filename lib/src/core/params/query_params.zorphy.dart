@@ -13,8 +13,8 @@ class QueryParams<T> extends Params {
   @JsonKey(
     includeFromJson: false,
     includeToJson: false,
-    toJson: FilterConverter.toJson,
-    fromJson: FilterConverter.fromJson,
+    toJson: FilterConverter.toJsonTyped,
+    fromJson: FilterConverter.fromJsonTyped,
   )
   final Filter<T>? filter;
 
@@ -102,7 +102,9 @@ class QueryParams<T> extends Params {
     return QueryParams(
       params: instance.params,
       filter: json['filter'] != null
-          ? FilterConverter.fromJson(json['filter'] as Map<String, dynamic>)
+          ? FilterConverter.fromJsonTyped(
+                  json['filter'] as Map<String, dynamic>,
+                )
                 as Filter<T>?
           : null,
     );
@@ -119,13 +121,13 @@ extension QueryParamsPropertyHelpers<T> on QueryParams<T> {
 extension QueryParamsSerialization<T> on QueryParams<T> {
   Map<String, dynamic> toJson(Object? Function(T value) toJsonT) {
     final data = _$QueryParamsToJson(this, toJsonT);
-    if (filter != null) data['filter'] = FilterConverter.toJson(filter!);
+    if (filter != null) data['filter'] = FilterConverter.toJsonTyped(filter!);
     return data;
   }
 
   Map<String, dynamic> toJsonLean(Object? Function(T value) toJsonT) {
     final Map<String, dynamic> data = _$QueryParamsToJson(this, toJsonT);
-    if (filter != null) data['filter'] = FilterConverter.toJson(filter!);
+    if (filter != null) data['filter'] = FilterConverter.toJsonTyped(filter!);
     return _sanitizeJson(data);
   }
 
