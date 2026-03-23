@@ -46,11 +46,15 @@ class QueryParams<T> extends Params {
       params: _patchMap.containsKey(QueryParams$.params)
           ? (_patchMap[QueryParams$.params] is Function)
                 ? _patchMap[QueryParams$.params](this.params)
+                : (_patchMap[QueryParams$.params] is Patch)
+                ? _patchMap[QueryParams$.params].applyTo(this.params)
                 : _patchMap[QueryParams$.params]
           : this.params,
       filter: _patchMap.containsKey(QueryParams$.filter)
           ? (_patchMap[QueryParams$.filter] is Function)
                 ? _patchMap[QueryParams$.filter](this.filter)
+                : (_patchMap[QueryParams$.filter] is Patch)
+                ? _patchMap[QueryParams$.filter].applyTo(this.filter)
                 : _patchMap[QueryParams$.filter]
           : this.filter,
     );
@@ -63,6 +67,8 @@ class QueryParams<T> extends Params {
       params: _patchMap.containsKey(Params$.params)
           ? (_patchMap[Params$.params] is Function)
                 ? _patchMap[Params$.params](this.params)
+                : (_patchMap[Params$.params] is Patch)
+                ? _patchMap[Params$.params].applyTo(this.params)
                 : _patchMap[Params$.params]
           : this.params,
       filter: this.filter,

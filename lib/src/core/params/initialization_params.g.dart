@@ -10,10 +10,8 @@ InitializationParams _$InitializationParamsFromJson(
   Map<String, dynamic> json,
 ) => InitializationParams(
   params: json['params'] as Map<String, dynamic>?,
-  timeout: json['timeout'] == null
-      ? null
-      : Duration(microseconds: (json['timeout'] as num).toInt()),
-  forceRefresh: json['forceRefresh'] as bool?,
+  timeout: _durationFromJson((json['timeout'] as num).toInt()),
+  forceRefresh: json['forceRefresh'] as bool? ?? false,
   credentials: json['credentials'] == null
       ? null
       : Credentials.fromJson(json['credentials'] as Map<String, dynamic>),
@@ -26,7 +24,7 @@ Map<String, dynamic> _$InitializationParamsToJson(
   InitializationParams instance,
 ) => <String, dynamic>{
   'params': ?instance.params,
-  'timeout': instance.timeout.inMicroseconds,
+  'timeout': _durationToJson(instance.timeout),
   'forceRefresh': ?instance.forceRefresh,
   'credentials': ?instance.credentials?.toJson(),
   'settings': ?instance.settings?.toJson(),
