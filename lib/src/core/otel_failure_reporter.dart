@@ -61,15 +61,16 @@ class OtelFailureReporter extends FailureReporter {
 
   @override
   Future<void> initialize() async {
-    final Map<String, String> headers =
-        apiKey != null ? {'Authorization': 'Bearer $apiKey'} : {};
+    final Map<String, String> headers = apiKey != null
+        ? {'Authorization': 'Bearer $apiKey'}
+        : {};
 
     final tracerProvider = TracerProviderBase(
       resource: Resource([Attribute.fromString('service.name', serviceName)]),
       processors: [
         BatchSpanProcessor(
           CollectorExporter(collectorEndpoint, headers: headers),
-        )
+        ),
       ],
     );
 

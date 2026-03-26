@@ -1,4 +1,5 @@
 import 'package:code_builder/code_builder.dart';
+import 'package:dart_style/dart_style.dart';
 
 import '../../../core/builder/shared/spec_library.dart';
 import 'lifecycle_builder.dart';
@@ -13,6 +14,7 @@ class ViewClassSpec {
   final String? stateClassName;
   final List<Field> repoFields;
   final List<Field> routeFields;
+  final List<Parameter> customParameters;
   final List<String> repoPresenterArgs;
   final Block initialMethodCall;
   final List<String> imports;
@@ -30,6 +32,7 @@ class ViewClassSpec {
     required this.initialMethodCall,
     required this.imports,
     required this.withState,
+    this.customParameters = const [],
     this.entityName,
     this.entityCamel,
     this.isCustom = false,
@@ -68,7 +71,18 @@ class ViewClassBuilder {
         ? '$leadingComment\n$_ignoreComment'
         : _ignoreComment;
 
-    return specLibrary.emitLibrary(library, leadingComment: comment);
+    final emitter = DartEmitter(
+      useNullSafetySyntax: true,
+      orderDirectives: true,
+    );
+    var raw = library.accept(emitter).toString();
+    if (comment.isNotEmpty) {
+      raw = '$comment\n$raw';
+    }
+
+    return DartFormatter(
+      languageVersion: DartFormatter.latestLanguageVersion,
+    ).format(raw);
   }
 
   String _buildCustomView(ViewClassSpec spec, {String? leadingComment}) {
@@ -79,6 +93,16 @@ class ViewClassBuilder {
       (c) => c
         ..name = spec.viewName
         ..extend = refer('StatelessWidget')
+        ..fields.addAll(
+          spec.customParameters.map(
+            (p) => Field(
+              (f) => f
+                ..name = p.name
+                ..type = p.type
+                ..modifier = FieldModifier.final$,
+            ),
+          ),
+        )
         ..constructors.add(
           Constructor(
             (c) => c
@@ -89,6 +113,19 @@ class ViewClassBuilder {
                     ..name = 'key'
                     ..named = true
                     ..toSuper = true,
+                ),
+              )
+              ..optionalParameters.add(
+                Parameter(
+                  (p) => p
+                    ..name = 'routeObserver'
+                    ..named = true
+                    ..toSuper = true,
+                ),
+              )
+              ..optionalParameters.addAll(
+                spec.customParameters.map(
+                  (p) => p.rebuild((b) => b..toThis = true),
                 ),
               ),
           ),
@@ -136,7 +173,18 @@ class ViewClassBuilder {
       directives: directives,
     );
 
-    return specLibrary.emitLibrary(library, leadingComment: leadingComment);
+    final emitter = DartEmitter(
+      useNullSafetySyntax: true,
+      orderDirectives: true,
+    );
+    var raw = library.accept(emitter).toString();
+    if (leadingComment != null) {
+      raw = '$leadingComment\n$raw';
+    }
+
+    return DartFormatter(
+      languageVersion: DartFormatter.latestLanguageVersion,
+    ).format(raw);
   }
 
   String _buildCustomStatefulView(
@@ -147,6 +195,16 @@ class ViewClassBuilder {
       (c) => c
         ..name = spec.viewName
         ..extend = refer('StatefulWidget')
+        ..fields.addAll(
+          spec.customParameters.map(
+            (p) => Field(
+              (f) => f
+                ..name = p.name
+                ..type = p.type
+                ..modifier = FieldModifier.final$,
+            ),
+          ),
+        )
         ..constructors.add(
           Constructor(
             (c) => c
@@ -157,6 +215,19 @@ class ViewClassBuilder {
                     ..name = 'key'
                     ..named = true
                     ..toSuper = true,
+                ),
+              )
+              ..optionalParameters.add(
+                Parameter(
+                  (p) => p
+                    ..name = 'routeObserver'
+                    ..named = true
+                    ..toSuper = true,
+                ),
+              )
+              ..optionalParameters.addAll(
+                spec.customParameters.map(
+                  (p) => p.rebuild((b) => b..toThis = true),
                 ),
               ),
           ),
@@ -221,13 +292,25 @@ class ViewClassBuilder {
       directives: directives,
     );
 
-    return specLibrary.emitLibrary(library, leadingComment: leadingComment);
+    final emitter = DartEmitter(
+      useNullSafetySyntax: true,
+      orderDirectives: true,
+    );
+    var raw = library.accept(emitter).toString();
+    if (leadingComment != null) {
+      raw = '$leadingComment\n$raw';
+    }
+
+    return DartFormatter(
+      languageVersion: DartFormatter.latestLanguageVersion,
+    ).format(raw);
   }
 
   Class _buildViewClass(ViewClassSpec spec) {
     final constructor = constructorBuilder.build(
       repoFields: spec.repoFields,
       routeFields: spec.routeFields,
+      customParameters: spec.customParameters,
     );
 
     final presenterCall = _presenterCall(spec);
@@ -264,6 +347,16 @@ class ViewClassBuilder {
         ..name = spec.viewName
         ..extend = refer('CleanView')
         ..fields.addAll([...spec.repoFields, ...spec.routeFields])
+        ..fields.addAll(
+          spec.customParameters.map(
+            (p) => Field(
+              (f) => f
+                ..name = p.name
+                ..type = p.type
+                ..modifier = FieldModifier.final$,
+            ),
+          ),
+        )
         ..constructors.add(constructor)
         ..methods.add(createStateMethod),
     );

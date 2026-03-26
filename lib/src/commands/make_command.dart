@@ -129,6 +129,25 @@ class MakeCommand extends Command<void> {
       negatable: true,
     );
     argParser.addFlag('cache', help: 'Enable caching', defaultsTo: false);
+    argParser.addOption(
+      'id-field',
+      help: 'ID field name (default: id)',
+      defaultsTo: 'id',
+    );
+    argParser.addOption(
+      'id-field-type',
+      help: 'ID field type (default: String)',
+      defaultsTo: 'String',
+    );
+    argParser.addOption(
+      'query-field',
+      help: 'Query field name (default: id)',
+      defaultsTo: 'id',
+    );
+    argParser.addOption(
+      'query-field-type',
+      help: 'Query field type (default: matches id-type)',
+    );
   }
 
   @override
@@ -241,6 +260,10 @@ class MakeCommand extends Command<void> {
     final generateLocal = argResults!['local'] == true;
     final generateRemote = argResults!['remote'] != false;
     final enableCache = argResults!['cache'] == true;
+    final idField = (argResults?['id-field'] as String?) ?? 'id';
+    final idFieldType = (argResults?['id-field-type'] as String?) ?? 'String';
+    final queryField = (argResults?['query-field'] as String?) ?? 'id';
+    final queryFieldType = (argResults?['query-field-type'] as String?);
 
     // Create a base config that enables everything requested
     final config = GeneratorConfig(
@@ -269,6 +292,10 @@ class MakeCommand extends Command<void> {
       generateLocal: generateLocal,
       generateRemote: generateRemote,
       enableCache: enableCache || pluginNames.contains('cache'),
+      idField: idField,
+      idFieldType: idFieldType,
+      queryField: queryField,
+      queryFieldType: queryFieldType,
       // Map known plugins
       generateRoute: pluginNames.contains('route'),
       generateDi: pluginNames.contains('di'),

@@ -32,9 +32,7 @@ extension QueryParamsExtension<T> on Iterable<T> {
   /// Throws if no entity matches.
   T query(QueryParams<T>? params) {
     if (params?.filter == null) {
-      throw ArgumentError(
-        'QueryParams must have a non-null filter to query an entity.',
-      );
+      return first;
     }
     return where((item) => params!.filter!.matches(item)).first;
   }

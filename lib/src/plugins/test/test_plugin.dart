@@ -217,20 +217,15 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         .toList();
 
     final usecaseMatches = RegExp(
-      r'final\s+\w+UseCase\s+_(\w+)',
+      r'final\s+(\w+UseCase)\s+_(\w+)',
     ).allMatches(content);
     final composedUsecases = usecaseMatches
         .map((m) {
-          final fieldName = m.group(1);
-          if (fieldName == null) return null;
-          final baseName = fieldName.startsWith('_')
-              ? fieldName.substring(1)
-              : fieldName;
-          final classBase =
-              baseName.substring(0, 1).toUpperCase() + baseName.substring(1);
-          return classBase.endsWith('UseCase')
-              ? classBase
-              : '${classBase}UseCase';
+          final className = m.group(1);
+          if (className == null) return null;
+          return className.endsWith('UseCase')
+              ? className.substring(0, className.length - 7)
+              : className;
         })
         .whereType<String>()
         .toList();

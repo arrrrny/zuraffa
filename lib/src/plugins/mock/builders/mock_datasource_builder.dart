@@ -543,7 +543,6 @@ class MockDataSourceBuilder {
           } else if (hasList || hasWatch) {
             final orElse = Method(
               (m) => m
-                ..requiredParameters.add(Parameter((p) => p..name = '_'))
                 ..lambda = true
                 ..body = refer('notFoundFailure')
                     .call([literalString('$entityName not found in mock data')])
@@ -637,7 +636,6 @@ class MockDataSourceBuilder {
           } else if (hasListMethods) {
             final orElse = Method(
               (m) => m
-                ..requiredParameters.add(Parameter((p) => p..name = '_'))
                 ..lambda = true
                 ..body = refer('notFoundFailure')
                     .call([literalString('$entityName not found in mock data')])

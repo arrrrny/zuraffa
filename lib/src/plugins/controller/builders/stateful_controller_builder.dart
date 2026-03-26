@@ -13,6 +13,7 @@ class StatefulControllerBuilder {
       args[entityCamel] = refer(initialEntityField);
     }
 
+    final useConst = args.isEmpty;
     return Method(
       (m) => m
         ..name = 'createInitialState'
@@ -21,7 +22,11 @@ class StatefulControllerBuilder {
         ..body = Block(
           (b) => b
             ..statements.add(
-              refer(stateClassName).call([], args).returned.statement,
+              useConst
+                  ? refer(
+                      stateClassName,
+                    ).constInstance([], args).returned.statement
+                  : refer(stateClassName).call([], args).returned.statement,
             ),
         ),
     );

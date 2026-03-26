@@ -209,7 +209,7 @@ class StreamUseCaseGenerator {
   }) async {
     if (config.revert) {
       if (config.appendToExisting) {
-        if (options.verbose) {
+        if (config.verbose) {
           print('  ⚠️ Cannot revert append operation for $filePath');
         }
         return GeneratedFile(
@@ -221,20 +221,20 @@ class StreamUseCaseGenerator {
       return FileUtils.deleteFile(
         filePath,
         'usecase',
-        dryRun: options.dryRun,
-        verbose: options.verbose,
+        dryRun: config.dryRun,
+        verbose: config.verbose,
       );
     }
 
     if (config.appendToExisting && File(filePath).existsSync()) {
-      if (options.force) {
+      if (config.force) {
         return FileUtils.writeFile(
           filePath,
           content,
           'usecase',
           force: true,
-          dryRun: options.dryRun,
-          verbose: options.verbose,
+          dryRun: config.dryRun,
+          verbose: config.verbose,
         );
       }
 
@@ -259,8 +259,8 @@ class StreamUseCaseGenerator {
         result.source,
         'usecase',
         force: true,
-        dryRun: options.dryRun,
-        verbose: options.verbose,
+        dryRun: config.dryRun,
+        verbose: config.verbose,
       );
     }
 
@@ -268,9 +268,9 @@ class StreamUseCaseGenerator {
       filePath,
       content,
       'usecase',
-      force: options.force,
-      dryRun: options.dryRun,
-      verbose: options.verbose,
+      force: config.force,
+      dryRun: config.dryRun,
+      verbose: config.verbose,
     );
   }
 }

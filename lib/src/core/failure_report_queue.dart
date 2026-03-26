@@ -58,6 +58,8 @@ class FailureReportQueue {
   /// Whether the queue has been disposed.
   bool get isDisposed => _isDisposed;
 
+  bool get isInitialized => _isInitialized;
+
   FailureReportQueue({
     required List<FailureReporter> reporters,
     this.maxQueueSize = 256,

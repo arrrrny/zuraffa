@@ -92,9 +92,9 @@ extension CustomUseCaseGeneratorOrchestrator on CustomUseCaseGenerator {
       filePath,
       content,
       'usecase_orchestrator',
-      force: options.force,
-      dryRun: options.dryRun,
-      verbose: options.verbose,
+      force: config.force,
+      dryRun: config.dryRun,
+      verbose: config.verbose,
       revert: config.revert,
     );
   }

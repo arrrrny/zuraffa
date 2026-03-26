@@ -49,7 +49,14 @@ class StringUtils {
 
   static String toContinuous(String name) {
     if (name.isEmpty) return '';
-    final lower = name.toLowerCase();
+
+    // Sanitize input: remove common non-identifier characters that might come
+    // from typos in flags (e.g., '-methods=get' -> 'ethods=get').
+    // We only keep alphanumeric characters for the continuous name.
+    final sanitizedName = name.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
+    if (sanitizedName.isEmpty) return 'Operation';
+
+    final lower = sanitizedName.toLowerCase();
 
     // Handle PascalCase/camelCase by checking for common verbs at the start
     final verbs = [
@@ -68,9 +75,10 @@ class StringUtils {
     ];
 
     for (final verb in verbs) {
-      if ((name.startsWith(verb) || name.startsWith(pascalToCamel(verb))) &&
-          name.length > verb.length) {
-        final rest = name.substring(verb.length);
+      if ((sanitizedName.startsWith(verb) ||
+              sanitizedName.startsWith(pascalToCamel(verb))) &&
+          sanitizedName.length > verb.length) {
+        final rest = sanitizedName.substring(verb.length);
         return '${toContinuous(verb)}$rest';
       }
     }
@@ -85,14 +93,14 @@ class StringUtils {
     if (lower == 'watchlist') return 'WatchingList';
 
     // If it already ends with 'ing', capitalize and return
-    if (lower.endsWith('ing')) return capitalize(name);
+    if (lower.endsWith('ing')) return capitalize(sanitizedName);
 
     // Heuristics for others
     if (lower.endsWith('e')) {
-      return '${capitalize(name.substring(0, name.length - 1))}ing';
+      return '${capitalize(sanitizedName.substring(0, sanitizedName.length - 1))}ing';
     }
 
-    return '${capitalize(name)}ing';
+    return '${capitalize(sanitizedName)}ing';
   }
 
   static String snakeToPath(String input) {

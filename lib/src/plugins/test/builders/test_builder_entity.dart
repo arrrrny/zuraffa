@@ -104,7 +104,7 @@ extension TestBuilderEntity on TestBuilder {
         'package:$packageName/src/domain/entities/$entitySnake/$entitySnake.dart',
       ),
       Directive.import(
-        'package:$packageName/src/domain/$targetDir/$entitySnake/${targetSnake}_$targetSuffix.dart',
+        'package:$packageName/src/domain/$targetDir/${targetSnake}_$targetSuffix.dart',
       ),
       Directive.import(
         'package:$packageName/src/domain/usecases/$entitySnake/$useCaseFileName',

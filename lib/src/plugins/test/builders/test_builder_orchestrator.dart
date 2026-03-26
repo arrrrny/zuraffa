@@ -37,7 +37,9 @@ extension TestBuilderOrchestrator on TestBuilder {
         ),
       );
 
-      final usecaseSnake = StringUtils.camelToSnake(usecase);
+      final usecaseSnake = StringUtils.camelToSnake(
+        usecase.replaceAll('UseCase', ''),
+      );
       // Find the actual domain for this usecase
       final usecaseDomain = _findUseCaseDomain(
         usecaseSnake,

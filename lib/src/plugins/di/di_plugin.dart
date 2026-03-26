@@ -707,16 +707,21 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final fileName = '${classSnake}_usecase_di.dart';
     final diPath = path.join(outputDir, 'di', 'usecases', fileName);
 
-    final imports = <String>[
+    final imports = {
       'package:get_it/get_it.dart',
       '../../domain/usecases/$domainSnake/${classSnake}_usecase.dart',
-    ];
+    };
 
     final usecaseParams = <Expression>[];
     for (final usecaseName in config.usecases) {
       final usecaseClassName = usecaseName.endsWith('UseCase')
           ? usecaseName
           : '${usecaseName}UseCase';
+
+      if (usecaseClassName == className) {
+        continue;
+      }
+
       final usecaseSnake = StringUtils.camelToSnake(
         usecaseClassName.replaceAll('UseCase', ''),
       );
@@ -746,7 +751,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$className',
-      imports: imports,
+      imports: imports.toList(),
       body: Block((b) => b..statements.add(registrationCall.statement)),
     );
 
@@ -868,10 +873,10 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final fileName = '${classSnake}_usecase_di.dart';
     final diPath = path.join(outputDir, 'di', 'usecases', fileName);
 
-    final imports = <String>[
+    final imports = {
       'package:get_it/get_it.dart',
       '../../domain/usecases/$domainSnake/${classSnake}_usecase.dart',
-    ];
+    };
 
     final constructorParams = <Expression>[];
 
@@ -920,7 +925,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$className',
-      imports: imports,
+      imports: imports.toList(),
       body: Block((b) => b..statements.add(registrationCall.statement)),
     );
 

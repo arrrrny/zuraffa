@@ -419,7 +419,6 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     ParsedUseCaseInfo info,
     String entityName,
   ) {
-    final methodName = info.fieldName;
     final paramsExpression = config.queryFieldType == 'NoParams'
         ? refer('NoParams').constInstance([])
         : config.useZorphy
@@ -580,7 +579,6 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     ParsedUseCaseInfo info,
     String entityName,
   ) {
-    final methodName = info.fieldName;
     final paramsExpression = config.queryFieldType == 'NoParams'
         ? refer('NoParams').constInstance([])
         : config.useZorphy

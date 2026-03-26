@@ -82,12 +82,12 @@ class ControllerClassBuilder {
     constructors.add(ctor);
 
     final stateClassName = spec.stateClassName;
-    if (spec.withState && stateClassName != null && entityName != null) {
+    if (spec.withState && stateClassName != null) {
       spec.methods.insert(
         0,
         statefulBuilder.buildCreateInitialState(
           stateClassName,
-          initialEntityField: 'initial$entityName',
+          initialEntityField: entityName != null ? 'initial$entityName' : null,
           entityCamel: entityCamel,
         ),
       );

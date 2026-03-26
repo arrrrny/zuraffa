@@ -23,11 +23,27 @@ extension TestBuilderHelpers on TestBuilder {
     if (usecasesDir.existsSync()) {
       for (final dir in usecasesDir.listSync()) {
         if (dir is Directory) {
+          final foundDomain = path.basename(dir.path);
+          // Look for either login_usecase.dart or login_use_case_usecase.dart
           final useCaseFile = File(
             path.join(dir.path, '${usecaseSnake}_usecase.dart'),
           );
           if (useCaseFile.existsSync()) {
-            return path.basename(dir.path);
+            return foundDomain;
+          }
+
+          // Also try without double usecase suffix if usecaseSnake already contains it
+          if (usecaseSnake.endsWith('_use_case')) {
+            final shortSnake = usecaseSnake.substring(
+              0,
+              usecaseSnake.length - 9,
+            );
+            final shortUseCaseFile = File(
+              path.join(dir.path, '${shortSnake}_usecase.dart'),
+            );
+            if (shortUseCaseFile.existsSync()) {
+              return foundDomain;
+            }
           }
         }
       }
@@ -47,12 +63,20 @@ extension TestBuilderHelpers on TestBuilder {
         ? refer('NoParams').constInstance([])
         : (idType == 'int' ? literalNum(1) : literalString('1'));
 
+    final queryType = config.queryFieldType;
+
     switch (method) {
       case 'get':
       case 'watch':
+        if (queryType == 'NoParams') {
+          return [refer('NoParams').constInstance([])];
+        }
         return [refer('QueryParams<$entityName>').constInstance([])];
       case 'getList':
       case 'watchList':
+        if (queryType == 'NoParams') {
+          return [refer('NoParams').constInstance([])];
+        }
         return [refer('ListQueryParams<$entityName>').constInstance([])];
       case 'create':
         return [refer(mockEntityClass).call([])];
@@ -90,13 +114,18 @@ extension TestBuilderHelpers on TestBuilder {
         ? refer('NoParams').constInstance([])
         : (idType == 'int' ? literalNum(1) : literalString('1'));
 
+    final queryType = config.queryFieldType;
+    final queryValue = queryType == 'NoParams'
+        ? refer('NoParams').constInstance([])
+        : (queryType == 'int' ? literalNum(1) : literalString('1'));
+
     Expression paramsExpr;
     Expression arrangeCall;
     Expression verifyCall;
     Expression failureArrangeCall;
 
     if (method == 'get') {
-      if (idType == 'NoParams') {
+      if (queryType == 'NoParams') {
         paramsExpr = refer('NoParams').call([]);
         arrangeCall = refer(
           mockVarName,
@@ -109,12 +138,12 @@ extension TestBuilderHelpers on TestBuilder {
             ? refer('QueryParams<$entityName>').call([], {
                 'filter': refer('Eq').call([
                   refer('${entityName}Fields').property(config.queryField),
-                  literalString('1'),
+                  queryValue,
                 ]),
               })
             : refer('QueryParams<$entityName>').call([], {
                 'params': refer('Params').call([
-                  literalMap({config.queryField: literalString('1')}),
+                  literalMap({config.queryField: queryValue}),
                 ]),
               });
         arrangeCall = refer(
@@ -125,13 +154,23 @@ extension TestBuilderHelpers on TestBuilder {
         ).property('get').call([refer('any').call([])]);
       }
     } else if (method == 'getList') {
-      paramsExpr = refer('ListQueryParams<$entityName>').call([]);
-      arrangeCall = refer(
-        mockVarName,
-      ).property('getList').call([refer('any').call([])]);
-      verifyCall = refer(
-        mockVarName,
-      ).property('getList').call([refer('any').call([])]);
+      if (queryType == 'NoParams') {
+        paramsExpr = refer('NoParams').call([]);
+        arrangeCall = refer(mockVarName).property('getList').call([
+          refer('ListQueryParams').constInstance([]),
+        ]);
+        verifyCall = refer(mockVarName).property('getList').call([
+          refer('ListQueryParams').constInstance([]),
+        ]);
+      } else {
+        paramsExpr = refer('ListQueryParams<$entityName>').call([]);
+        arrangeCall = refer(
+          mockVarName,
+        ).property('getList').call([refer('any').call([])]);
+        verifyCall = refer(
+          mockVarName,
+        ).property('getList').call([refer('any').call([])]);
+      }
     } else if (method == 'create') {
       paramsExpr = refer('t$entityName');
       arrangeCall = refer(
@@ -276,14 +315,17 @@ extension TestBuilderHelpers on TestBuilder {
     String returnConstructor,
     String mockVarName,
   ) {
-    final idType = config.idFieldType;
+    final queryType = config.queryFieldType;
+    final queryValue = queryType == 'NoParams'
+        ? refer('NoParams').constInstance([])
+        : (queryType == 'int' ? literalNum(1) : literalString('1'));
 
     Expression paramsExpr;
     Expression arrangeCall;
     Expression verifyCall;
 
     if (method == 'watch') {
-      if (idType == 'NoParams') {
+      if (queryType == 'NoParams') {
         paramsExpr = refer('NoParams').call([]);
         arrangeCall = refer(
           mockVarName,
@@ -296,12 +338,12 @@ extension TestBuilderHelpers on TestBuilder {
             ? refer('QueryParams<$entityName>').call([], {
                 'filter': refer('Eq').call([
                   refer('${entityName}Fields').property(config.queryField),
-                  literalString('1'),
+                  queryValue,
                 ]),
               })
             : refer('QueryParams<$entityName>').call([], {
                 'params': refer('Params').call([
-                  literalMap({config.queryField: literalString('1')}),
+                  literalMap({config.queryField: queryValue}),
                 ]),
               });
         arrangeCall = refer(
@@ -312,13 +354,23 @@ extension TestBuilderHelpers on TestBuilder {
         ).property('watch').call([refer('any').call([])]);
       }
     } else if (method == 'watchList') {
-      paramsExpr = refer('ListQueryParams<$entityName>').call([]);
-      arrangeCall = refer(
-        mockVarName,
-      ).property('watchList').call([refer('any').call([])]);
-      verifyCall = refer(
-        mockVarName,
-      ).property('watchList').call([refer('any').call([])]);
+      if (queryType == 'NoParams') {
+        paramsExpr = refer('NoParams').call([]);
+        arrangeCall = refer(mockVarName).property('watchList').call([
+          refer('ListQueryParams').constInstance([]),
+        ]);
+        verifyCall = refer(mockVarName).property('watchList').call([
+          refer('ListQueryParams').constInstance([]),
+        ]);
+      } else {
+        paramsExpr = refer('ListQueryParams<$entityName>').call([]);
+        arrangeCall = refer(
+          mockVarName,
+        ).property('watchList').call([refer('any').call([])]);
+        verifyCall = refer(
+          mockVarName,
+        ).property('watchList').call([refer('any').call([])]);
+      }
     } else {
       return [];
     }
