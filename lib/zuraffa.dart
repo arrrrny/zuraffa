@@ -439,6 +439,7 @@ class Zuraffa {
   ///   Zuraffa.enableOtelReporting(
   ///     collectorEndpoint: Uri.parse('https://otel.example.com/v1/traces'),
   ///     serviceName: 'my_app',
+  ///     apiKey: 'my_api_key',
   ///   );
   ///   runApp(MyApp());
   /// }
@@ -446,6 +447,7 @@ class Zuraffa {
   static Future<void> enableOtelReporting({
     required Uri collectorEndpoint,
     required String serviceName,
+    String? apiKey,
     ReportRetryPolicy? retryPolicy,
     int? maxQueueSize,
     Duration? flushInterval,
@@ -457,6 +459,7 @@ class Zuraffa {
       OtelFailureReporter(
         collectorEndpoint: collectorEndpoint,
         serviceName: serviceName,
+        apiKey: apiKey,
       ),
       retryPolicy: retryPolicy,
       maxQueueSize: maxQueueSize,
@@ -469,6 +472,7 @@ class Zuraffa {
       _otelLogExporter = OtelLogExporter(
         collectorBaseEndpoint: collectorEndpoint,
         serviceName: serviceName,
+        apiKey: apiKey,
         remoteLogLevel: remoteLogLevel,
       )..start();
     }

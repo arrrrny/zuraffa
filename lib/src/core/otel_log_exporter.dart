@@ -11,6 +11,7 @@ import '../../zuraffa.dart';
 class OtelLogExporter {
   final Uri collectorBaseEndpoint;
   final String serviceName;
+  final String? apiKey;
   final String instrumentationName;
   final ZuraffaLogLevel remoteLogLevel;
   final int maxBatchSize;
@@ -27,6 +28,7 @@ class OtelLogExporter {
   OtelLogExporter({
     required this.collectorBaseEndpoint,
     required this.serviceName,
+    this.apiKey,
     this.remoteLogLevel = ZuraffaLogLevel.warning,
     this.instrumentationName = 'zuraffa-log-exporter',
     this.maxBatchSize = 100,
@@ -97,9 +99,14 @@ class OtelLogExporter {
     try {
       final payload = _buildOtlpPayload(batch);
 
+      final headers = {
+        'Content-Type': 'application/json',
+        if (apiKey != null) 'Authorization': 'Bearer $apiKey',
+      };
+
       final response = await _httpClient.post(
         _logsEndpoint,
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: jsonEncode(payload),
       );
 

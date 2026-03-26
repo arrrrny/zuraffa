@@ -23,8 +23,8 @@ abstract class $ListQueryParams<T> implements $Params {
   @JsonKey(
     includeFromJson: false,
     includeToJson: false,
-    toJson: FilterConverter.toJsonTyped,
-    fromJson: FilterConverter.fromJsonTyped,
+    toJson: FilterConverter.toJson,
+    fromJson: FilterConverter.fromJson,
   )
   Filter<T>? get filter;
 
@@ -32,8 +32,8 @@ abstract class $ListQueryParams<T> implements $Params {
   @JsonKey(
     includeFromJson: false,
     includeToJson: false,
-    toJson: SortConverter.toJsonTyped,
-    fromJson: SortConverter.fromJsonTyped,
+    toJson: SortConverter.toJson,
+    fromJson: SortConverter.fromJson,
   )
   Sort<T>? get sort;
 

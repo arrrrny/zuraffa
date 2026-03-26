@@ -14,15 +14,15 @@ class ListQueryParams<T> extends Params {
   @JsonKey(
     includeFromJson: false,
     includeToJson: false,
-    toJson: FilterConverter.toJsonTyped,
-    fromJson: FilterConverter.fromJsonTyped,
+    toJson: FilterConverter.toJson,
+    fromJson: FilterConverter.fromJson,
   )
   final Filter<T>? filter;
   @JsonKey(
     includeFromJson: false,
     includeToJson: false,
-    toJson: SortConverter.toJsonTyped,
-    fromJson: SortConverter.fromJsonTyped,
+    toJson: SortConverter.toJson,
+    fromJson: SortConverter.fromJson,
   )
   final Sort<T>? sort;
   final int? limit;
@@ -195,13 +195,11 @@ class ListQueryParams<T> extends Params {
       params: instance.params,
       search: instance.search,
       filter: json['filter'] != null
-          ? FilterConverter.fromJsonTyped(
-                  json['filter'] as Map<String, dynamic>,
-                )
+          ? FilterConverter.fromJson(json['filter'] as Map<String, dynamic>)
                 as Filter<T>?
           : null,
       sort: json['sort'] != null
-          ? SortConverter.fromJsonTyped(json['sort'] as Map<String, dynamic>)
+          ? SortConverter.fromJson(json['sort'] as Map<String, dynamic>)
                 as Sort<T>?
           : null,
       limit: instance.limit,
@@ -236,15 +234,15 @@ extension ListQueryParamsPropertyHelpers<T> on ListQueryParams<T> {
 extension ListQueryParamsSerialization<T> on ListQueryParams<T> {
   Map<String, dynamic> toJson(Object? Function(T value) toJsonT) {
     final data = _$ListQueryParamsToJson(this, toJsonT);
-    if (filter != null) data['filter'] = FilterConverter.toJsonTyped(filter!);
-    if (sort != null) data['sort'] = SortConverter.toJsonTyped(sort!);
+    if (filter != null) data['filter'] = FilterConverter.toJson(filter!);
+    if (sort != null) data['sort'] = SortConverter.toJson(sort!);
     return data;
   }
 
   Map<String, dynamic> toJsonLean(Object? Function(T value) toJsonT) {
     final Map<String, dynamic> data = _$ListQueryParamsToJson(this, toJsonT);
-    if (filter != null) data['filter'] = FilterConverter.toJsonTyped(filter!);
-    if (sort != null) data['sort'] = SortConverter.toJsonTyped(sort!);
+    if (filter != null) data['filter'] = FilterConverter.toJson(filter!);
+    if (sort != null) data['sort'] = SortConverter.toJson(sort!);
     return _sanitizeJson(data);
   }
 

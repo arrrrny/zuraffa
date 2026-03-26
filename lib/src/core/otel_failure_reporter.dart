@@ -6,7 +6,7 @@ import 'package:opentelemetry/api.dart'
         registerGlobalTracerProvider,
         Tracer;
 import 'package:opentelemetry/sdk.dart'
-    show BatchSpanProcessor, CollectorExporter, TracerProviderBase;
+    show BatchSpanProcessor, CollectorExporter, Resource, TracerProviderBase;
 
 import 'failure.dart';
 import 'failure_reporter.dart';
@@ -41,6 +41,9 @@ class OtelFailureReporter extends FailureReporter {
   /// The service name to identify this application in traces.
   final String serviceName;
 
+  /// Optional API key for authentication (sent as Bearer token).
+  final String? apiKey;
+
   /// Optional instrumentation name (defaults to `zuraffa-failure-reporter`).
   final String instrumentationName;
 
@@ -52,13 +55,22 @@ class OtelFailureReporter extends FailureReporter {
   OtelFailureReporter({
     required this.collectorEndpoint,
     required this.serviceName,
+    this.apiKey,
     this.instrumentationName = 'zuraffa-failure-reporter',
   });
 
   @override
   Future<void> initialize() async {
+    final Map<String, String> headers =
+        apiKey != null ? {'Authorization': 'Bearer $apiKey'} : {};
+
     final tracerProvider = TracerProviderBase(
-      processors: [BatchSpanProcessor(CollectorExporter(collectorEndpoint))],
+      resource: Resource([Attribute.fromString('service.name', serviceName)]),
+      processors: [
+        BatchSpanProcessor(
+          CollectorExporter(collectorEndpoint, headers: headers),
+        )
+      ],
     );
 
     try {
