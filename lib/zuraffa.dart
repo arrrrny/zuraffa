@@ -288,9 +288,52 @@ enum ZuraffaLogLevel {
   off,
 }
 
+/// Application environment types.
+enum Environment {
+  /// Development environment, usually with detailed logging and debug tools.
+  development,
+
+  /// Staging environment, matches production configuration but with test data.
+  staging,
+
+  /// Production environment, optimized for performance and security.
+  production,
+}
+
 /// Global configuration and utilities for Zuraffa.
 class Zuraffa {
   Zuraffa._();
+
+  static Environment _environment = Environment.development;
+  static bool _isDebug = true;
+
+  /// Get the current application environment.
+  static Environment get environment => _environment;
+
+  /// Returns true if the application is running in debug mode.
+  static bool get isDebug => _isDebug;
+
+  /// Set the application environment and debug mode.
+  ///
+  /// typically called at the beginning of `main()`.
+  /// If [isDebug] is not provided, it defaults to true for development
+  /// and false for staging and production.
+  /// If [logLevel] is provided, it sets the logging level when [isDebug] is true.
+  static void setEnvironment(
+    Environment env, {
+    bool? isDebug,
+    ZuraffaLogLevel logLevel = ZuraffaLogLevel.all,
+  }) {
+    _environment = env;
+    _isDebug = isDebug ?? (env == Environment.development);
+    if (_isDebug) {
+      enableLogging(level: logLevel);
+    } else {
+      disableLogging();
+    }
+    Logger.root.info(
+        'Zuraffa environment set to: ${env.name} (isDebug: $_isDebug, logLevel: ${logLevel.name})');
+  }
 
   static Level toLevel(ZuraffaLogLevel level) {
     switch (level) {
