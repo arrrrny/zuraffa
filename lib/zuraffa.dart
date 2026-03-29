@@ -305,13 +305,13 @@ class Zuraffa {
   Zuraffa._();
 
   static Environment _environment = Environment.development;
-  static bool _isDebug = true;
+  static bool _isDebugMode = false;
 
   /// Get the current application environment.
   static Environment get environment => _environment;
 
   /// Returns true if the application is running in debug mode.
-  static bool get isDebug => _isDebug;
+  static bool get isDebugMode => _isDebugMode;
 
   /// Set the application environment and debug mode.
   ///
@@ -321,18 +321,19 @@ class Zuraffa {
   /// If [logLevel] is provided, it sets the logging level when [isDebug] is true.
   static void setEnvironment(
     Environment env, {
-    bool? isDebug,
+    bool? isDebugMode,
     ZuraffaLogLevel logLevel = ZuraffaLogLevel.all,
   }) {
     _environment = env;
-    _isDebug = isDebug ?? (env == Environment.development);
-    if (_isDebug) {
+    _isDebugMode = isDebugMode ?? false;
+    if (_isDebugMode || env == Environment.development) {
       enableLogging(level: logLevel);
     } else {
       disableLogging();
     }
     Logger.root.info(
-        'Zuraffa environment set to: ${env.name} (isDebug: $_isDebug, logLevel: ${logLevel.name})');
+      'Zuraffa environment set to: ${env.name} (isDebugMode: $_isDebugMode, logLevel: ${logLevel.name})',
+    );
   }
 
   static Level toLevel(ZuraffaLogLevel level) {

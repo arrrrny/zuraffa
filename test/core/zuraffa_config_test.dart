@@ -6,20 +6,20 @@ void main() {
   group('Zuraffa Config', () {
     test('default environment should be development', () {
       expect(Zuraffa.environment, Environment.development);
-      expect(Zuraffa.isDebug, isTrue);
+      expect(Zuraffa.isDebugMode, isTrue);
     });
 
     test('setEnvironment should update environment, isDebug, and logging', () {
       Zuraffa.setEnvironment(Environment.production);
       expect(Zuraffa.environment, Environment.production);
-      expect(Zuraffa.isDebug, isFalse);
+      expect(Zuraffa.isDebugMode, isFalse);
       expect(Logger.root.level, Level.OFF);
 
-      Zuraffa.setEnvironment(Environment.staging, isDebug: true);
+      Zuraffa.setEnvironment(Environment.staging, isDebugMode: true);
       expect(Zuraffa.environment, Environment.staging);
-      expect(Zuraffa.isDebug, isTrue);
+      expect(Zuraffa.isDebugMode, isTrue);
       expect(Logger.root.level, isNot(Level.OFF));
-      
+
       // Reset for other tests
       Zuraffa.setEnvironment(Environment.development);
     });
@@ -33,7 +33,7 @@ void main() {
 
       Zuraffa.setEnvironment(
         Environment.staging,
-        isDebug: true,
+        isDebugMode: true,
         logLevel: ZuraffaLogLevel.severe,
       );
       expect(Logger.root.level, Level.SEVERE);
@@ -52,10 +52,10 @@ void main() {
       );
 
       expect(Logger.root.level, Level.INFO);
-      
+
       Logger('test').info('test message');
       expect(logCalled, isTrue);
-      
+
       Zuraffa.disableLogging();
       expect(Logger.root.level, Level.OFF);
     });
