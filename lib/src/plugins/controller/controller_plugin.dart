@@ -8,6 +8,7 @@ import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/plugin_context.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../models/parsed_usecase_info.dart';
@@ -72,13 +73,56 @@ class ControllerPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   @override
   Command createCommand() => ControllerCommand(this);
 
+  @override
+  JsonSchema get configSchema => {
+    'type': 'object',
+    'properties': {
+      'vpc': {
+        'type': 'boolean',
+        'default': false,
+        'description': 'Generate full View/Presenter/Controller set',
+      },
+      'state': {
+        'type': 'boolean',
+        'default': true,
+        'description': 'Generate state class for controller',
+      },
+    },
+  };
+
+  @override
+  Future<List<GeneratedFile>> generateWithContext(PluginContext context) async {
+    final config = GeneratorConfig(
+      name: context.core.name,
+      outputDir: context.core.outputDir,
+      dryRun: context.core.dryRun,
+      force: context.core.force,
+      verbose: context.core.verbose,
+      revert: context.core.revert,
+      generateController: true,
+      generateVpcs: context.get<bool>('vpc') ?? context.data['vpcs'] == true,
+      generateState:
+          context.get<bool>('state') ?? context.data['state'] == true,
+      methods: context.data['methods']?.cast<String>().toList() ?? [],
+      domain: context.data['domain'],
+      noEntity: context.data['no-entity'] == true,
+      idField: context.data['id-field'] ?? 'id',
+      idFieldType: context.data['id-field-type'] ?? 'String',
+      queryField: context.data['query-field'] ?? 'id',
+      queryFieldType: context.data['query-field-type'],
+      usecases: context.data['usecases']?.cast<String>().toList() ?? [],
+    );
+
+    return generate(config);
+  }
+
   /// Generates controller files for the given [config].
   ///
   /// @param config Generator configuration describing the entity and options.
   /// @returns List of generated controller files.
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
-    if (!(config.generateController || config.generateVpcs)) {
+    if (!config.generateController && !config.generateVpcs && !config.revert) {
       return [];
     }
 

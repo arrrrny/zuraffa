@@ -8,6 +8,7 @@ import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/plugin_context.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/string_utils.dart';
@@ -102,6 +103,56 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   String get version => '1.0.0';
 
   @override
+  JsonSchema get configSchema => {
+    'type': 'object',
+    'properties': {
+      'local': {
+        'type': 'boolean',
+        'default': false,
+        'description': 'Generate local data source',
+      },
+      'remote': {
+        'type': 'boolean',
+        'default': true,
+        'description': 'Generate remote data source',
+      },
+      'cache': {
+        'type': 'boolean',
+        'default': false,
+        'description': 'Enable caching dependencies',
+      },
+    },
+  };
+
+  @override
+  Future<List<GeneratedFile>> generateWithContext(PluginContext context) async {
+    final config = GeneratorConfig(
+      name: context.core.name,
+      outputDir: context.core.outputDir,
+      dryRun: context.core.dryRun,
+      force: context.core.force,
+      verbose: context.core.verbose,
+      revert: context.core.revert,
+      methods: context.data['methods']?.cast<String>().toList() ?? [],
+      domain: context.data['domain'],
+      repo: context.data['repo'],
+      generateDataSource: true,
+      generateLocal: context.get<bool>('local') ?? false,
+      generateRemote: context.get<bool>('remote') ?? true,
+      enableCache: context.get<bool>('cache') ?? context.data['cache'] == true,
+      useService:
+          context.data['use-service'] == true ||
+          context.data['useService'] == true,
+      noEntity: context.data['no-entity'] == true,
+      appendToExisting:
+          context.data['append'] == true ||
+          context.data['method_append'] == true,
+    );
+
+    return generate(config);
+  }
+
+  @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     if (config.outputDir != outputDir ||
         config.dryRun != options.dryRun ||
@@ -123,7 +174,7 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     if (!(config.generateData ||
         config.generateDataSource ||
         config.appendToExisting)) {
-      return [];
+      if (!config.revert) return [];
     }
     if (config.hasService) {
       return [];

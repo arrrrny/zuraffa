@@ -4,6 +4,7 @@ import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/plugin_context.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../method_append/builders/method_append_builder.dart';
@@ -58,6 +59,58 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   @override
   String get version => '1.0.0';
+
+  @override
+  JsonSchema get configSchema => {
+    'type': 'object',
+    'properties': {
+      'data': {
+        'type': 'boolean',
+        'default': true,
+        'description': 'Generate repository implementation',
+      },
+      'datasource': {
+        'type': 'boolean',
+        'default': true,
+        'description': 'Generate data source dependencies',
+      },
+      'use-service': {
+        'type': 'boolean',
+        'default': false,
+        'description': 'Use service instead of repository',
+      },
+      'no-entity': {
+        'type': 'boolean',
+        'default': false,
+        'description': 'Disable entity-based generation',
+      },
+    },
+  };
+
+  @override
+  Future<List<GeneratedFile>> generateWithContext(PluginContext context) async {
+    final useService = context.get<bool>('use-service') ?? false;
+    if (useService) return [];
+
+    final config = GeneratorConfig(
+      name: context.core.name,
+      outputDir: context.core.outputDir,
+      dryRun: context.core.dryRun,
+      force: context.core.force,
+      verbose: context.core.verbose,
+      revert: context.core.revert,
+      methods: context.data['methods']?.cast<String>().toList() ?? [],
+      domain: context.data['domain'],
+      repo: context.data['repo'],
+      generateData: context.get<bool>('data') ?? true,
+      generateDataSource: context.get<bool>('datasource') ?? true,
+      noEntity: context.get<bool>('no-entity') ?? false,
+      useService: useService,
+      generateRepository: true,
+    );
+
+    return generate(config);
+  }
 
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {

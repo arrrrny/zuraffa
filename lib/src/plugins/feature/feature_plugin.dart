@@ -4,6 +4,7 @@ import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/plugin_context.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'capabilities/scaffold_feature_capability.dart';
@@ -62,6 +63,14 @@ class FeaturePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   @override
   String get version => '1.0.0';
+
+  @override
+  JsonSchema get configSchema => {'type': 'object', 'properties': {}};
+
+  @override
+  Future<List<GeneratedFile>> generateWithContext(PluginContext context) async {
+    return [];
+  }
 
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {

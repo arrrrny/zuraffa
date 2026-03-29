@@ -42,8 +42,12 @@ class PlanStore {
       args: json['args'],
       changes: (json['changes'] as List)
           .map(
-            (e) =>
-                Effect(file: e['file'], action: e['action'], diff: e['diff']),
+            (e) => Effect(
+              file: e['file'],
+              action: e['action'],
+              diff: e['diff'],
+              previousContent: e['previous_content'],
+            ),
           )
           .toList(),
       isValid: json['valid'] ?? true,

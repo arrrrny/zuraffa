@@ -2,6 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/zuraffa.dart';
 import 'package:zuraffa/src/models/generated_file.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
+import 'package:zuraffa/src/core/plugin_system/plugin_context.dart';
+import 'package:zuraffa/src/core/plugin_system/discovery_engine.dart';
 
 class _TestPlugin extends ZuraffaPlugin {
   @override
@@ -42,7 +44,10 @@ void main() {
     test('validate defaults to success', () async {
       final plugin = _TestPlugin();
       final result = await plugin.validate(
-        GeneratorConfig(name: 'Product', outputDir: 'lib/src'),
+        PluginContext(
+          core: const CoreConfig(name: 'Product', projectRoot: '.'),
+          discovery: const DiscoveryEngine(projectRoot: '.'),
+        ),
       );
       expect(result.isValid, isTrue);
     });

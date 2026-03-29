@@ -11,6 +11,7 @@ import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/plugin_context.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/file_utils.dart';
@@ -88,13 +89,88 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   @override
   String get version => '1.0.0';
 
+  @override
+  String? get configKey => 'diByDefault';
+
+  @override
+  List<String> get runAfter => [
+    'usecase',
+    'repository',
+    'service',
+    'datasource',
+    'provider',
+    'view',
+    'presenter',
+    'controller',
+  ];
+
+  @override
+  JsonSchema get configSchema => {
+    'type': 'object',
+    'properties': {
+      'use-mock': {
+        'type': 'boolean',
+        'default': false,
+        'description': 'Use mock providers in DI',
+      },
+      'framework': {
+        'type': 'string',
+        'enum': ['get_it'],
+        'default': 'get_it',
+      },
+    },
+  };
+
+  @override
+  Future<List<GeneratedFile>> generateWithContext(PluginContext context) async {
+    final config = GeneratorConfig(
+      name: context.core.name,
+      outputDir: context.core.outputDir,
+      dryRun: context.core.dryRun,
+      force: context.core.force,
+      verbose: context.core.verbose,
+      revert: context.core.revert,
+      methods: context.data['methods']?.cast<String>().toList() ?? [],
+      domain: context.data['domain'],
+      repo: context.data['repo'],
+      service: context.data['service'],
+      usecases: context.data['usecases']?.cast<String>().toList() ?? [],
+      generateDi: true,
+      useMockInDi: context.get<bool>('use-mock') ?? false,
+      diFramework: context.get<String>('framework') ?? 'get_it',
+      // Pass through flags that other plugins might have set in context.data
+      generateUseCase:
+          context.data['usecase'] == true ||
+          context.data['generateUseCase'] == true,
+      generateRepository:
+          context.data['repository'] == true ||
+          context.data['generateRepository'] == true,
+      generateDataSource:
+          context.data['datasource'] == true ||
+          context.data['generateDataSource'] == true,
+      generateData:
+          context.data['data'] == true || context.data['generateData'] == true,
+      generateService:
+          context.data['service'] == true ||
+          context.data['generateService'] == true,
+      useService:
+          context.data['use-service'] == true ||
+          context.data['useService'] == true,
+      enableCache:
+          context.data['cache'] == true || context.data['enableCache'] == true,
+      noEntity: context.data['no-entity'] == true,
+    );
+
+    return generate(config);
+  }
+
   /// Generates DI registration files for the given [config].
   ///
   /// @param config Generator configuration describing the entity and options.
   /// @returns List of generated DI files.
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
-    if (!config.generateDi) {
+    if (!config.generateDi && !config.revert) {
       return [];
     }
     // Use flags from config if they differ from instance (though this plugin uses instance fields directly in methods)

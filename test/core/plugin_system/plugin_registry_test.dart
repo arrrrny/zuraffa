@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/zuraffa.dart';
-import 'package:zuraffa/src/models/generator_config.dart';
+import 'package:zuraffa/src/core/plugin_system/plugin_context.dart';
+import 'package:zuraffa/src/core/plugin_system/discovery_engine.dart';
 
 class _ValidPlugin extends ZuraffaPlugin {
   @override
@@ -24,7 +25,7 @@ class _InvalidPlugin extends ZuraffaPlugin {
   String get version => '1.0.0';
 
   @override
-  Future<ValidationResult> validate(GeneratorConfig config) async {
+  Future<ValidationResult> validate(PluginContext context) async {
     return ValidationResult.failure(['invalid config']);
   }
 }
@@ -53,7 +54,10 @@ void main() {
       registry.registerAll([_ValidPlugin(), _InvalidPlugin()]);
 
       final result = await registry.validateAll(
-        GeneratorConfig(name: 'Product', outputDir: 'lib/src'),
+        PluginContext(
+          core: const CoreConfig(name: 'Product', projectRoot: '.'),
+          discovery: const DiscoveryEngine(projectRoot: '.'),
+        ),
       );
 
       expect(result.isValid, isFalse);

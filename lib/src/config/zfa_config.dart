@@ -101,26 +101,26 @@ class ZfaConfig {
     final root = projectRoot ?? Directory.current.path;
     final configFile = File(p.join(root, '.zfa.json'));
 
-    final configJson = {
-      'zorphyByDefault': config.zorphyByDefault,
-      'jsonByDefault': config.jsonByDefault,
-      'compareByDefault': config.compareByDefault,
-      'filterByDefault': config.filterByDefault,
-      'buildByDefault': config.buildByDefault,
-      'appendByDefault': config.appendByDefault,
-      'formatByDefault': config.formatByDefault,
-      'routeByDefault': config.routeByDefault,
-      'diByDefault': config.diByDefault,
-      'mockByDefault': config.mockByDefault,
-      'testByDefault': config.testByDefault,
-      if (config.defaultEntityOutput != null)
-        'defaultEntityOutput': config.defaultEntityOutput,
-    };
-
     const encoder = JsonEncoder.withIndent('  ');
-    final content = encoder.convert(configJson);
+    final content = encoder.convert(config.toJson());
     await FileUtils.writeFile(configFile.path, content, 'config', force: true);
   }
+
+  /// Convert configuration to a JSON map
+  Map<String, dynamic> toJson() => {
+    'zorphyByDefault': zorphyByDefault,
+    'jsonByDefault': jsonByDefault,
+    'compareByDefault': compareByDefault,
+    'filterByDefault': filterByDefault,
+    'buildByDefault': buildByDefault,
+    'appendByDefault': appendByDefault,
+    'formatByDefault': formatByDefault,
+    'routeByDefault': routeByDefault,
+    'diByDefault': diByDefault,
+    'mockByDefault': mockByDefault,
+    'testByDefault': testByDefault,
+    if (defaultEntityOutput != null) 'defaultEntityOutput': defaultEntityOutput,
+  };
 
   /// Create a config file template in project root
   static Future<void> init({String? projectRoot}) async {

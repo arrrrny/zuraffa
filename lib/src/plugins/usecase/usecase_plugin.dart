@@ -4,6 +4,7 @@ import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/plugin_context.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'capabilities/create_usecase_capability.dart';
@@ -64,6 +65,73 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   @override
   String get version => '1.0.0';
+
+  @override
+  JsonSchema get configSchema => {
+    'type': 'object',
+    'properties': {
+      'methods': {
+        'type': 'array',
+        'items': {'type': 'string'},
+        'description': 'Methods to generate (get, create, etc.)',
+      },
+      'type': {
+        'type': 'string',
+        'enum': ['usecase', 'stream', 'background', 'completable'],
+        'default': 'usecase',
+      },
+      'domain': {'type': 'string', 'description': 'Domain folder name'},
+      'repo': {'type': 'string', 'description': 'Repository name'},
+      'service': {'type': 'string', 'description': 'Service name'},
+      'params': {'type': 'string', 'description': 'Parameter type'},
+      'returns': {'type': 'string', 'description': 'Return type'},
+      'usecases': {
+        'type': 'array',
+        'items': {'type': 'string'},
+        'description': 'UseCases for orchestrator pattern',
+      },
+      'variants': {
+        'type': 'array',
+        'items': {'type': 'string'},
+        'description': 'Variants for polymorphic pattern',
+      },
+      'no-entity': {
+        'type': 'boolean',
+        'default': false,
+        'description': 'Disable entity-based generation',
+      },
+    },
+  };
+
+  @override
+  Future<List<GeneratedFile>> generateWithContext(PluginContext context) async {
+    // Bridge back to GeneratorConfig for now while generators are being migrated
+    final config = GeneratorConfig(
+      name: context.core.name,
+      outputDir: context.core.outputDir,
+      dryRun: context.core.dryRun,
+      force: context.core.force,
+      verbose: context.core.verbose,
+      revert: context.core.revert,
+      methods:
+          context.data['methods']?.cast<String>().toList() ??
+          (context.get<bool>('no-entity') == true ? [] : ['get', 'update']),
+      useCaseType: context.get<String>('type') ?? 'usecase',
+      domain: context.get<String>('domain'),
+      repo: context.get<String>('repo'),
+      service: context.get<String>('service'),
+      paramsType: context.get<String>('params'),
+      returnsType: context.get<String>('returns'),
+      usecases: context.data['usecases']?.cast<String>().toList() ?? [],
+      variants: context.data['variants']?.cast<String>().toList() ?? [],
+      noEntity: context.get<bool>('no-entity') ?? false,
+      generateUseCase: true, // We are in the UseCase plugin
+      generateData: context.data['data'] == true,
+      generateRepository: context.data['repository'] == true,
+    );
+
+    return generate(config);
+  }
 
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {

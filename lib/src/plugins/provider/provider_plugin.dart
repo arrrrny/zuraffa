@@ -4,6 +4,7 @@ import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/plugin_context.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../method_append/builders/inject_builder.dart';
@@ -81,26 +82,43 @@ class ProviderPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   String get version => '1.0.0';
 
   @override
-  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
-    if (config.outputDir != outputDir ||
-        config.dryRun != options.dryRun ||
-        config.force != options.force ||
-        config.verbose != options.verbose ||
-        config.revert != options.revert) {
-      final delegator = ProviderPlugin(
-        outputDir: config.outputDir,
-        options: GeneratorOptions(
-          dryRun: config.dryRun,
-          force: config.force,
-          verbose: config.verbose,
-          revert: config.revert,
-        ),
-      );
-      return delegator.generate(config);
-    }
+  JsonSchema get configSchema => {
+    'type': 'object',
+    'properties': {
+      'data': {
+        'type': 'boolean',
+        'default': true,
+        'description': 'Generate provider implementation',
+      },
+    },
+  };
 
+  @override
+  Future<List<GeneratedFile>> generateWithContext(PluginContext context) async {
+    final config = GeneratorConfig(
+      name: context.core.name,
+      outputDir: context.core.outputDir,
+      dryRun: context.core.dryRun,
+      force: context.core.force,
+      verbose: context.core.verbose,
+      revert: context.core.revert,
+      generateData: context.get<bool>('data') ?? true,
+      service: context.data['service'],
+      useService:
+          context.data['use-service'] == true ||
+          context.data['useService'] == true,
+      methods: context.data['methods']?.cast<String>().toList() ?? [],
+      domain: context.data['domain'],
+      noEntity: context.data['no-entity'] == true,
+    );
+
+    return generate(config);
+  }
+
+  @override
+  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     if (!config.hasService || !config.generateData) {
-      return [];
+      if (!config.revert) return [];
     }
 
     final file = await providerBuilder.generate(config);

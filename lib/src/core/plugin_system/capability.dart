@@ -14,12 +14,21 @@ class Effect {
   /// Optional diff or description of modification.
   final String? diff;
 
-  Effect({required this.file, required this.action, this.diff});
+  /// The content of the file before the change (for updates/deletes).
+  final String? previousContent;
+
+  Effect({
+    required this.file,
+    required this.action,
+    this.diff,
+    this.previousContent,
+  });
 
   Map<String, dynamic> toJson() => {
     'file': file,
     'action': action,
     if (diff != null) 'diff': diff,
+    if (previousContent != null) 'previous_content': previousContent,
   };
 }
 

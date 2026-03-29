@@ -24,6 +24,8 @@ import '../core/transaction/generation_transaction.dart';
 import '../core/context/progress_reporter.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/plugin_system/plugin_interface.dart';
+import '../core/plugin_system/plugin_context.dart';
+import '../core/plugin_system/discovery_engine.dart';
 
 /// Orchestrates the entire code generation process.
 ///
@@ -46,6 +48,7 @@ class CodeGenerator {
   final Set<String> disabledPlugins;
   final GenerationContext context;
   late final PluginRegistry pluginRegistry;
+  late final PluginContext pluginContext;
 
   late final RepositoryPlugin _repositoryPlugin;
   late final ProviderPlugin _providerPlugin;
@@ -95,6 +98,21 @@ class CodeGenerator {
        ),
        disabledPlugins = disabledPluginIds ?? {} {
     pluginRegistry = PluginRegistry();
+    final discovery = DiscoveryEngine(projectRoot: outputDir);
+    pluginContext = PluginContext(
+      core: CoreConfig(
+        name: config.name,
+        projectRoot: outputDir,
+        outputDir: outputDir,
+        dryRun: options.dryRun,
+        force: options.force,
+        verbose: options.verbose,
+        revert: options.revert,
+      ),
+      discovery: discovery,
+      data: config.toJson(),
+    );
+
     _repositoryPlugin = RepositoryPlugin(
       outputDir: outputDir,
       options: options,
@@ -180,7 +198,7 @@ class CodeGenerator {
       }
 
       try {
-        final validation = await pluginRegistry.validateAll(config);
+        final validation = await pluginRegistry.validateAll(pluginContext);
         if (!validation.isValid && !config.revert) {
           errors.addAll(validation.reasons);
           if (validation.message != null) {
@@ -200,7 +218,7 @@ class CodeGenerator {
         if (totalSteps > 0) {
           progress.started('Generating ${config.name}', totalSteps);
         }
-        await pluginRegistry.beforeGenerateAll(config);
+        await pluginRegistry.beforeGenerateAll(pluginContext);
 
         if (config.appendToExisting) {
           final appendResult = await _methodAppendPlugin.appendMethod(config);
@@ -228,7 +246,7 @@ class CodeGenerator {
             }
           }
 
-          await pluginRegistry.afterGenerateAll(config);
+          await pluginRegistry.afterGenerateAll(pluginContext);
           progress.completed();
           return finalizeSuccess();
         }
@@ -501,7 +519,7 @@ class CodeGenerator {
           currentPluginId = null;
         }
 
-        await pluginRegistry.afterGenerateAll(config);
+        await pluginRegistry.afterGenerateAll(pluginContext);
         progress.completed();
         return finalizeSuccess();
       } catch (e, stack) {
@@ -510,7 +528,7 @@ class CodeGenerator {
         } else {
           errors.add('Generation failed: $e');
         }
-        await pluginRegistry.onErrorAll(config, e, stack);
+        await pluginRegistry.onErrorAll(pluginContext, e, stack);
         if (options.verbose) {
           errors.add('Stack trace:\n$stack');
         }

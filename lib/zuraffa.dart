@@ -305,7 +305,7 @@ class Zuraffa {
   Zuraffa._();
 
   static Environment _environment = Environment.development;
-  static bool _isDebugMode = false;
+  static bool _isDebugMode = true;
 
   /// Get the current application environment.
   static Environment get environment => _environment;
@@ -316,16 +316,16 @@ class Zuraffa {
   /// Set the application environment and debug mode.
   ///
   /// typically called at the beginning of `main()`.
-  /// If [isDebug] is not provided, it defaults to true for development
+  /// If [isDebugMode] is not provided, it defaults to true for development
   /// and false for staging and production.
-  /// If [logLevel] is provided, it sets the logging level when [isDebug] is true.
+  /// If [logLevel] is provided, it sets the logging level when [isDebugMode] is true.
   static void setEnvironment(
     Environment env, {
     bool? isDebugMode,
     ZuraffaLogLevel logLevel = ZuraffaLogLevel.all,
   }) {
     _environment = env;
-    _isDebugMode = isDebugMode ?? false;
+    _isDebugMode = isDebugMode ?? (env == Environment.development);
     if (_isDebugMode || env == Environment.development) {
       enableLogging(level: logLevel);
     } else {

@@ -140,7 +140,10 @@ ${missing.map((d) => '   • $d').join('\n')}
     }
 
     final outputDir = parsed['output'] as String? ?? 'lib/src/domain/entities';
-    final fields = _parseFields(parsed['field']);
+    final fields = _parseFields([
+      ..._asStringList(parsed['field']),
+      ..._asStringList(parsed['fields']),
+    ]);
     final useFilter =
         parsed['filter'] == true || (config?.filterByDefault ?? false);
 
@@ -226,9 +229,14 @@ ${missing.map((d) => '   • $d').join('\n')}
       exit(1);
     }
 
-    final fieldStrings = _asStringList(parsed['field']);
+    final fieldStrings = [
+      ..._asStringList(parsed['field']),
+      ..._asStringList(parsed['fields']),
+    ];
     if (fieldStrings.isEmpty) {
-      print('Error: At least one field is required. Use --field to specify.');
+      print(
+        'Error: At least one field is required. Use --field or --fields to specify.',
+      );
       exit(1);
     }
 
@@ -428,7 +436,13 @@ ${missing.map((d) => '   • $d').join('\n')}
   }
 
   String _shortFlagToKey(String flag) {
-    const mapping = {'n': 'name', 'o': 'output', 'p': 'package', 'f': 'field'};
+    const mapping = {
+      'n': 'name',
+      'o': 'output',
+      'p': 'package',
+      'f': 'field',
+      'F': 'fields',
+    };
     return mapping[flag] ?? flag;
   }
 
@@ -596,7 +610,8 @@ CREATE COMMAND:
     --compare               Enable compareTo (default: true)
     --sealed                Create sealed class
     --non-sealed            Create non-sealed class
-    --field                 Add field(s) "name:type"
+    --field                 Add field "name:type"
+    -F, --fields            Add multiple fields "name:type,name:type"
     --extends               Interface to extend
     --subtypes              Explicit subtypes
     --generate-subs         Generate subtype files

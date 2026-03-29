@@ -3,6 +3,7 @@ import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../../core/constants/known_types.dart';
+import '../../../core/plugin_system/discovery_engine.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/parsed_usecase_info.dart';
 import '../../../utils/package_utils.dart';
@@ -14,6 +15,7 @@ class CommonPatterns {
     GeneratorConfig config, {
     int depth = 1,
     bool includeDomain = true,
+    DiscoveryEngine? discovery,
   }) {
     final entities = <String>{};
     for (final type in types) {
@@ -108,8 +110,9 @@ class CommonPatterns {
   static ParsedUseCaseInfo parseUseCaseInfo(
     String u,
     GeneratorConfig config,
-    String outputDir,
-  ) {
+    String outputDir, {
+    DiscoveryEngine? discovery,
+  }) {
     final className = u.endsWith('UseCase') ? u : '${u}UseCase';
     final fieldName = StringUtils.pascalToCamel(
       className.replaceAll('UseCase', ''),
@@ -127,7 +130,9 @@ class CommonPatterns {
       usecaseSnake,
       config.effectiveDomain,
       outputDir,
+      discovery: discovery,
     );
+
     final filePath = path.join(
       outputDir,
       'domain',
@@ -135,6 +140,8 @@ class CommonPatterns {
       usecaseDomain,
       '${usecaseSnake}_usecase.dart',
     );
+
+    // Final check for existence
     if (File(filePath).existsSync()) {
       final content = File(filePath).readAsStringSync();
       final extendsMatch = RegExp(
@@ -184,8 +191,22 @@ class CommonPatterns {
   static String findUseCaseDomain(
     String usecaseSnake,
     String defaultDomain,
-    String outputDir,
-  ) {
+    String outputDir, {
+    DiscoveryEngine? discovery,
+  }) {
+    // 1. If discovery engine is available, use it for ACTIVE discovery
+    // This solves the requirement: "if I specify a usecase in --usecases= list it should find it in domain/usecases regardless of the actualy sub path"
+    if (discovery != null) {
+      final found = discovery.findFileSync(
+        '${usecaseSnake}_usecase.dart',
+        subDir: 'domain/usecases',
+      );
+      if (found != null) {
+        // Return the parent folder name (the domain)
+        return path.basename(found.parent.path);
+      }
+    }
+
     final usecasesDir = Directory(path.join(outputDir, 'domain', 'usecases'));
     if (usecasesDir.existsSync()) {
       for (final dir in usecasesDir.listSync()) {

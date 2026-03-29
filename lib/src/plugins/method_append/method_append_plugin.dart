@@ -1,6 +1,7 @@
 import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/plugin_context.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'builders/method_append_builder.dart';
@@ -55,6 +56,49 @@ class MethodAppendPlugin extends FileGeneratorPlugin {
   String get version => '1.0.0';
 
   @override
+  String? get configKey => 'appendByDefault';
+
+  @override
+  List<String> get runAfter => [
+    'usecase',
+    'repository',
+    'service',
+    'datasource',
+    'provider',
+  ];
+
+  @override
+  JsonSchema get configSchema => {
+    'type': 'object',
+    'properties': {
+      'append': {
+        'type': 'boolean',
+        'default': false,
+        'description': 'Append methods to existing files',
+      },
+    },
+  };
+
+  @override
+  Future<List<GeneratedFile>> generateWithContext(PluginContext context) async {
+    final config = GeneratorConfig(
+      name: context.core.name,
+      outputDir: context.core.outputDir,
+      dryRun: context.core.dryRun,
+      force: context.core.force,
+      verbose: context.core.verbose,
+      revert: context.core.revert,
+      appendToExisting:
+          context.get<bool>('append') ?? context.data['append'] == true,
+      methods: context.data['methods']?.cast<String>().toList() ?? [],
+      domain: context.data['domain'],
+      noEntity: context.data['no-entity'] == true,
+    );
+
+    return generate(config);
+  }
+
+  @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     if (config.outputDir != outputDir ||
         config.dryRun != options.dryRun ||
@@ -73,7 +117,7 @@ class MethodAppendPlugin extends FileGeneratorPlugin {
       return delegator.generate(config);
     }
 
-    if (config.appendToExisting) {
+    if (config.appendToExisting || config.revert) {
       final result = await appendMethod(config);
       return result.updatedFiles;
     }

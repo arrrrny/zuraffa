@@ -8,6 +8,7 @@ import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/plugin_context.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../models/parsed_usecase_info.dart';
@@ -43,8 +44,49 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   Command createCommand() => PresenterCommand(this);
 
   @override
+  JsonSchema get configSchema => {
+    'type': 'object',
+    'properties': {
+      'vpc': {
+        'type': 'boolean',
+        'default': false,
+        'description': 'Generate full View/Presenter/Controller set',
+      },
+    },
+  };
+
+  @override
+  Future<List<GeneratedFile>> generateWithContext(PluginContext context) async {
+    final config = GeneratorConfig(
+      name: context.core.name,
+      outputDir: context.core.outputDir,
+      dryRun: context.core.dryRun,
+      force: context.core.force,
+      verbose: context.core.verbose,
+      revert: context.core.revert,
+      generatePresenter: true,
+      generateVpcs: context.get<bool>('vpc') ?? context.data['vpcs'] == true,
+      methods: context.data['methods']?.cast<String>().toList() ?? [],
+      domain: context.data['domain'],
+      idField: context.data['id-field'] ?? 'id',
+      idFieldType: context.data['id-field-type'] ?? 'String',
+      queryField: context.data['query-field'] ?? 'id',
+      queryFieldType: context.data['query-field-type'],
+      usecases: context.data['usecases']?.cast<String>().toList() ?? [],
+      paramsType: context.data['params'],
+      returnsType: context.data['returns'],
+      useCaseType: context.data['type'] ?? 'usecase',
+      noEntity: context.data['no-entity'] == true,
+      generateState: context.data['state'] == true,
+      generateDi: context.data['di'] == true,
+    );
+
+    return generate(config);
+  }
+
+  @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
-    if (!(config.generatePresenter || config.generateVpcs)) {
+    if (!config.generatePresenter && !config.generateVpcs && !config.revert) {
       return [];
     }
 

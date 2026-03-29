@@ -6,6 +6,7 @@ import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/plugin_context.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/string_utils.dart';
@@ -74,7 +75,53 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   String get version => '1.0.0';
 
   @override
+  String? get configKey => 'mockByDefault';
+
+  @override
+  JsonSchema get configSchema => {
+    'type': 'object',
+    'properties': {
+      'mock-data-only': {
+        'type': 'boolean',
+        'default': false,
+        'description': 'Only generate mock data, not providers',
+      },
+    },
+  };
+
+  @override
+  Future<List<GeneratedFile>> generateWithContext(PluginContext context) async {
+    final config = GeneratorConfig(
+      name: context.core.name,
+      outputDir: context.core.outputDir,
+      dryRun: context.core.dryRun,
+      force: context.core.force,
+      verbose: context.core.verbose,
+      revert: context.core.revert,
+      methods: context.data['methods']?.cast<String>().toList() ?? [],
+      domain: context.data['domain'],
+      repo: context.data['repo'],
+      generateMock: true,
+      generateMockDataOnly: context.get<bool>('mock-data-only') ?? false,
+      noEntity: context.data['no-entity'] == true,
+      generateData: context.data['data'] == true,
+      generateDataSource: context.data['datasource'] == true,
+      generateRepository: context.data['repository'] == true,
+      appendToExisting:
+          context.data['append'] == true ||
+          context.data['method_append'] == true,
+    );
+
+    return generate(config);
+  }
+
+  @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
+    if (!config.generateMock &&
+        !config.generateMockDataOnly &&
+        !config.revert) {
+      return [];
+    }
     if (config.outputDir != outputDir ||
         config.dryRun != options.dryRun ||
         config.force != options.force ||

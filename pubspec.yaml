@@ -46,6 +46,7 @@ dependencies:
   meta: ^1.18.0
   get: ^4.7.3
   hive_ce_generator: ^1.11.1
+  glob: ^2.1.2
 
 dependency_overrides:
   meta: ^1.18.0
