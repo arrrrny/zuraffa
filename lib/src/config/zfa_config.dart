@@ -22,8 +22,11 @@ class ZfaConfig {
   /// Default output directory for entities
   final String? defaultEntityOutput;
 
-  /// Default GraphQL generation for entity-based operations
+  /// Default internal GQL string generation
   final bool gqlByDefault;
+
+  /// Default GraphQL schema generation
+  final bool graphqlByDefault;
 
   /// Auto-run build_runner after entity operations and cache generation
   final bool buildByDefault;
@@ -53,6 +56,7 @@ class ZfaConfig {
     this.filterByDefault = false,
     this.defaultEntityOutput = 'lib/src',
     this.gqlByDefault = false,
+    this.graphqlByDefault = false,
     this.buildByDefault = false,
     this.appendByDefault = false,
     this.formatByDefault = false,
@@ -82,6 +86,7 @@ class ZfaConfig {
         filterByDefault: json['filterByDefault'] ?? false,
         defaultEntityOutput: json['defaultEntityOutput'] ?? 'lib/src',
         gqlByDefault: json['gqlByDefault'] ?? false,
+        graphqlByDefault: json['graphqlByDefault'] ?? false,
         buildByDefault: json['buildByDefault'] ?? false,
         appendByDefault: json['appendByDefault'] ?? false,
         formatByDefault: json['formatByDefault'] ?? false,
@@ -119,6 +124,8 @@ class ZfaConfig {
     'diByDefault': diByDefault,
     'mockByDefault': mockByDefault,
     'testByDefault': testByDefault,
+    'gqlByDefault': gqlByDefault,
+    'graphqlByDefault': graphqlByDefault,
     if (defaultEntityOutput != null) 'defaultEntityOutput': defaultEntityOutput,
   };
 

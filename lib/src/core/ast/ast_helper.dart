@@ -71,6 +71,15 @@ class AstHelper {
     return AstModifier.addImport(source, unit, importPath);
   }
 
+  String addAugment({required String source, required String augmentPath}) {
+    final parseResult = parseSource(source);
+    final unit = parseResult.unit;
+    if (unit == null) {
+      return source;
+    }
+    return AstModifier.addAugment(source, unit, augmentPath);
+  }
+
   String addExport({required String source, required String exportPath}) {
     final parseResult = parseSource(source);
     final unit = parseResult.unit;

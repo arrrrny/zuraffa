@@ -106,6 +106,9 @@ class AstModifier {
     CompilationUnit unit,
     String importPath,
   ) {
+    if (source.contains("import '$importPath';") || source.contains('import "$importPath";')) {
+      return source;
+    }
     final importDirective = "import '$importPath';";
     final imports = unit.directives.whereType<ImportDirective>().toList();
     if (imports.isNotEmpty) {
@@ -114,14 +117,33 @@ class AstModifier {
       return '${source.substring(0, insertOffset)}\n$importDirective'
           '${source.substring(insertOffset)}';
     }
-    final firstDirective = unit.directives.isEmpty
-        ? null
-        : unit.directives.first;
+    final firstDirective = unit.directives.isEmpty ? null : unit.directives.first;
     if (firstDirective != null) {
       final insertOffset = firstDirective.offset;
       return '$importDirective\n${source.substring(insertOffset)}';
     }
     return '$importDirective\n\n$source';
+  }
+
+  /// Adds an augmentation library directive to the unit.
+  static String addAugment(
+    String source,
+    CompilationUnit unit,
+    String augmentPath,
+  ) {
+    if (source.contains("import augment '$augmentPath';") || source.contains('import augment "$augmentPath";')) {
+      return source;
+    }
+    final augmentDirective = "import augment '$augmentPath';";
+
+    // Augmentations usually go after imports but before other directives
+    final imports = unit.directives.whereType<ImportDirective>().toList();
+    if (imports.isNotEmpty) {
+      final lastImport = imports.last;
+      return '${source.substring(0, lastImport.end)}\n$augmentDirective${source.substring(lastImport.end)}';
+    }
+
+    return '$augmentDirective\n\n$source';
   }
 
   static String addExport(
