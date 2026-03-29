@@ -6,6 +6,7 @@ import 'package:path/path.dart' as path;
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/ast_helper.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
+import '../../../core/ast/augmentation_builder.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
@@ -21,32 +22,27 @@ part 'method_append_builder_find.dart';
 part 'method_append_builder_imports.dart';
 part 'method_append_builder_types.dart';
 
-/// Generates and appends method implementations to existing files.
+/// Generates and appends method implementations using Augmentation Libraries.
 ///
-/// Builds the method AST and uses [AppendExecutor] to insert it into
-/// the target class while maintaining imports and formatting.
-///
-/// Example:
-/// ```dart
-/// final builder = MethodAppendBuilder(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final result = await builder.appendMethod(GeneratorConfig(name: 'Product'));
-/// ```
+/// Builds the method AST and uses [AugmentationBuilder] to create or update
+/// an augmentation file for the target host class.
 class MethodAppendBuilder {
   final String outputDir;
   final GeneratorOptions options;
   final AppendExecutor appendExecutor;
   final SpecLibrary specLibrary;
+  final AugmentationBuilder augmentationBuilder;
 
   MethodAppendBuilder({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     AppendExecutor? appendExecutor,
     SpecLibrary? specLibrary,
+    AugmentationBuilder? augmentationBuilder,
   }) : appendExecutor = appendExecutor ?? AppendExecutor(),
-       specLibrary = specLibrary ?? const SpecLibrary();
+       specLibrary = specLibrary ?? const SpecLibrary(),
+       augmentationBuilder =
+           augmentationBuilder ?? AugmentationBuilder(outputDir: outputDir);
 
   Future<MethodAppendResult> appendMethod(GeneratorConfig config) async {
     final updatedFiles = <GeneratedFile>[];

@@ -369,6 +369,8 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           break;
         case 'watch':
           methods.add(_buildWatchMethod(config, info, entityName));
+          // Add Record-based bundle for watch (Analyzer 12 support)
+          methods.add(_buildWatchRecordMethod(config, info, entityName));
           break;
         case 'watchList':
           methods.add(_buildWatchListMethod(info, entityName));
@@ -683,6 +685,63 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         ..body = Block(
           (b) => b..statements.add(callExpression.returned.statement),
         ),
+    );
+  }
+
+  Method _buildWatchRecordMethod(
+    GeneratorConfig config,
+    ParsedUseCaseInfo info,
+    String entityName,
+  ) {
+    final paramsExpression = config.queryFieldType == 'NoParams'
+        ? refer('NoParams').constInstance([])
+        : config.useZorphy
+        ? refer('QueryParams<$entityName>').call([], {
+            'filter': refer('Eq').call([
+              refer('${entityName}Fields').property(config.queryField),
+              refer(config.queryField),
+            ]),
+          })
+        : refer('QueryParams<$entityName>').call([], {
+            'params': literalMap({config.queryField: refer(config.queryField)}),
+          });
+
+    final getCall = refer('_${info.fieldName}')
+        .property('call')
+        .call([paramsExpression])
+        .property('first'); // Use .first to get Future from Stream
+
+    final watchCall = refer(
+      '_${info.fieldName}',
+    ).property('call').call([paramsExpression]);
+
+    // Note: In a real implementation, the presenter might handle the logic
+    // to combine these or use a specific UseCase.
+    // For this boilerplate, we return the Record (Analyzer 12/Dart 3.0)
+    final recordType =
+        '(Future<Result<$entityName, AppFailure>> initial, Stream<Result<$entityName, AppFailure>> updates)';
+
+    return Method(
+      (m) => m
+        ..name = 'watch${entityName}Record'
+        ..returns = refer(recordType)
+        ..requiredParameters.addAll(
+          config.queryFieldType == 'NoParams'
+              ? const []
+              : [
+                  Parameter(
+                    (p) => p
+                      ..name = config.queryField
+                      ..type = refer(config.queryFieldType),
+                  ),
+                ],
+        )
+        ..body = Block((b) {
+          final emitter = DartEmitter(useNullSafetySyntax: true);
+          final getSource = getCall.accept(emitter);
+          final watchSource = watchCall.accept(emitter);
+          b.statements.add(Code('return ($getSource, $watchSource);'));
+        }),
     );
   }
 

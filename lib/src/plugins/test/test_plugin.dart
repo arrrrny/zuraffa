@@ -95,7 +95,18 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final files = <GeneratedFile>[];
 
     if (config.isEntityBased) {
+      final validMethods = [
+        'get',
+        'getList',
+        'list',
+        'create',
+        'update',
+        'delete',
+        'watch',
+        'watchList',
+      ];
       for (final method in config.methods) {
+        if (!validMethods.contains(method)) continue;
         files.add(await testBuilder.generateForMethod(config, method));
       }
     }

@@ -878,7 +878,20 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final methods = config.methods;
     if (methods.isEmpty) return files;
 
+    final validMethods = [
+      'get',
+      'list',
+      'getList',
+      'create',
+      'update',
+      'delete',
+      'watch',
+      'watchList',
+    ];
+
     for (final method in methods) {
+      if (!validMethods.contains(method)) continue;
+
       final usecaseInfo = _getUseCaseInfo(method, entityName);
       final className = usecaseInfo.className;
       final classSnake = StringUtils.camelToSnake(

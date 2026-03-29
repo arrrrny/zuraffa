@@ -19,7 +19,7 @@ class GenerateCommand extends Command<void> {
       'Generate Clean Architecture code using presets or specific plugins';
 
   @override
-  String get invocation => 'zfa generate <Name> [options]';
+  String get invocation => 'zfa generate <Name> [OPTIONS]';
 
   late final PluginManager manager;
 
@@ -359,6 +359,35 @@ class GenerateCommand extends Command<void> {
       return;
     }
 
+    final context = manager.buildContext(
+      name: name,
+      argResults: argResults!,
+      activePlugins: activePlugins,
+    );
+
+    // Merge JSON config into context data if provided
+    if (jsonConfig != null) {
+      jsonConfig.forEach((key, value) {
+        final normalizedKey = key.replaceAll('_', '-');
+        context.data[normalizedKey] = value;
+        context.data[key] = value;
+      });
+    }
+
+    // Validation for custom usecase requirements
+    final methods =
+        (context.data['methods'] as List?)?.cast<String>().toList() ?? [];
+    final noEntity = context.data['no-entity'] == true;
+    final isCustomUseCase = methods.isEmpty || noEntity;
+    if (isCustomUseCase &&
+        context.data['domain'] == null &&
+        context.data['vpc'] != true &&
+        context.data['vpcs'] != true) {
+      print('❌ Error: --domain is required for custom UseCases');
+      print('   Usage: zfa generate <Name> --domain <domain_name> [options]');
+      exit(1);
+    }
+
     // Strict validation for ID field type
     final idFieldType =
         (jsonConfig?['id_field_type'] ??
@@ -390,21 +419,6 @@ class GenerateCommand extends Command<void> {
         );
       }
       exit(1);
-    }
-
-    final context = manager.buildContext(
-      name: name,
-      argResults: argResults!,
-      activePlugins: activePlugins,
-    );
-
-    // Merge JSON config into context data if provided
-    if (jsonConfig != null) {
-      jsonConfig.forEach((key, value) {
-        final normalizedKey = key.replaceAll('_', '-');
-        context.data[normalizedKey] = value;
-        context.data[key] = value;
-      });
     }
 
     try {
@@ -459,6 +473,19 @@ class GenerateCommand extends Command<void> {
     // Helper to check if a flag is true either in argResults or jsonConfig
     bool isTrue(String key, {String? jsonKey}) {
       final jKey = jsonKey ?? key;
+
+      // If it matches a plugin ID, we only consider it "true" for SELECTION if
+      // it was explicitly parsed as true, or provided in JSON.
+      // Plugins are enabled by default, but shouldn't count as explicit selection
+      // unless the user actually typed it.
+      final isPluginId = manager.registry.plugins.any((p) => p.id == key);
+      if (isPluginId) {
+        final wasParsed = argResults!.wasParsed(key);
+        final isExplicitlyOn = wasParsed && argResults![key] == true;
+        final inJson = jsonConfig != null && jsonConfig[jKey] == true;
+        return isExplicitlyOn || inJson;
+      }
+
       return argResults![key] == true ||
           (jsonConfig != null && jsonConfig[jKey] == true);
     }
@@ -490,7 +517,8 @@ class GenerateCommand extends Command<void> {
     }
     if (isTrue('route')) selection.add('route');
     if (isTrue('mock')) selection.add('mock');
-    if (isTrue('gql')) selection.add('graphql');
+    if (isTrue('gql')) selection.add('gql');
+    if (isTrue('graphql')) selection.add('graphql');
     if (isTrue('cache')) selection.add('cache');
     if (isTrue('append')) selection.add('method_append');
 
@@ -498,8 +526,19 @@ class GenerateCommand extends Command<void> {
     final methodsWasParsed =
         argResults!.wasParsed('methods') ||
         (jsonConfig != null && jsonConfig.containsKey('methods'));
+
+    final methodsList = (argResults!['methods'] as List<String>? ?? [])
+        .where((m) => m.isNotEmpty)
+        .toList();
+    final noEntity =
+        argResults!['no-entity'] == true ||
+        (jsonConfig != null && jsonConfig['no_entity'] == true);
+
     if (methodsWasParsed && selection.isEmpty) {
-      selection.addAll(['usecase', 'repository']);
+      selection.add('usecase');
+      if (methodsList.isNotEmpty && !noEntity) {
+        selection.add('repository');
+      }
     }
 
     // Default if nothing specified: assume entity-crud (usecase + repository)
@@ -530,6 +569,10 @@ class GenerateCommand extends Command<void> {
         print('\n🗑️  Reverted ${files.length} files:');
       } else {
         print('\n✅ Generated ${files.length} files:');
+      }
+
+      if (files.isEmpty && context.core.verbose) {
+        print('    (No files were changed)');
       }
 
       for (final file in files) {

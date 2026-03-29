@@ -41,7 +41,7 @@ class OtelLogExporter {
     final path = collectorBaseEndpoint.path;
     if (path.endsWith('/v1/traces')) {
       _logsEndpoint = collectorBaseEndpoint.replace(
-        path: path.substring(0, path.length - '/v1/traces'.length) + '/v1/logs',
+        path: '${path.substring(0, path.length - '/v1/traces'.length)}/v1/logs',
       );
     } else {
       _logsEndpoint = collectorBaseEndpoint.replace(

@@ -40,6 +40,10 @@ extension ControllerPluginMethods on ControllerPlugin {
           methods.add(
             _buildWatchMethod(config, entityName, entityCamel, withState),
           );
+          // Add Record-based bundle for watch (Analyzer 12 support)
+          methods.add(
+            _buildWatchRecordMethod(config, entityName, entityCamel, withState),
+          );
           break;
         case 'watchList':
           methods.add(
@@ -354,6 +358,39 @@ extension ControllerPluginMethods on ControllerPlugin {
           ),
           _cancelTokenParam(),
         ])
+        ..body = body,
+    );
+  }
+
+  Method _buildWatchRecordMethod(
+    GeneratorConfig config,
+    String entityName,
+    String entityCamel,
+    bool withState,
+  ) {
+    final hasParams = config.queryFieldType != 'NoParams';
+    final args = hasParams ? config.queryField : '';
+    final body = withState
+        ? _buildWatchRecordWithStateBody(entityName, entityCamel, args)
+        : _buildWatchRecordWithoutStateBody(entityName, args);
+
+    return Method(
+      (m) => m
+        ..name = 'watch${entityName}Record'
+        ..returns = refer('Future<void>')
+        ..modifier = MethodModifier.async
+        ..requiredParameters.addAll(
+          hasParams
+              ? [
+                  Parameter(
+                    (p) => p
+                      ..name = config.queryField
+                      ..type = refer(config.queryFieldType),
+                  ),
+                ]
+              : const [],
+        )
+        ..optionalParameters.add(_cancelTokenParam())
         ..body = body,
     );
   }

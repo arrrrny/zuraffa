@@ -16,33 +16,56 @@ extension RepositoryImplementationGeneratorAppend
     }
     imports.add('package:zuraffa/zuraffa.dart');
 
-    final baseImport = PackageUtils.getBaseImport(outputDir);
-
-    if (EntityAnalyzer.isEnum(config.name, outputDir)) {
-      imports.add('$baseImport/domain/entities/enums/index.dart');
-    } else {
-      imports.add('$baseImport/domain/entities/$entitySnake/$entitySnake.dart');
-    }
-    imports.add(
-      '$baseImport/domain/repositories/${entitySnake}_repository.dart',
+    // Use DiscoveryEngine to find the entity file
+    final entityFile = discovery.findFileSync('${entitySnake}.dart');
+    final repoInterfaceFile = discovery.findFileSync(
+      '${entitySnake}_repository.dart',
     );
+
+    final repoImplDir = p.dirname(
+      p.join(
+        outputDir,
+        'data',
+        'repositories',
+        'data_${entitySnake}_repository.dart',
+      ),
+    );
+
+    if (entityFile != null) {
+      imports.add(p.relative(entityFile.path, from: repoImplDir));
+    } else {
+      // Fallback
+      final baseImport = PackageUtils.getBaseImport(outputDir);
+      if (EntityAnalyzer.isEnum(config.name, outputDir)) {
+        imports.add('$baseImport/domain/entities/enums/index.dart');
+      } else {
+        imports.add(
+          '$baseImport/domain/entities/$entitySnake/$entitySnake.dart',
+        );
+      }
+    }
+
+    if (repoInterfaceFile != null) {
+      imports.add(p.relative(repoInterfaceFile.path, from: repoImplDir));
+    } else {
+      final baseImport = PackageUtils.getBaseImport(outputDir);
+      imports.add(
+        '$baseImport/domain/repositories/${entitySnake}_repository.dart',
+      );
+    }
 
     if (config.generateLocal) {
       imports.add(
-        '$baseImport/data/datasources/$entitySnake/${entitySnake}_local_datasource.dart',
+        '../datasources/$entitySnake/${entitySnake}_local_datasource.dart',
       );
     } else if (config.enableCache) {
+      imports.add('../datasources/$entitySnake/${entitySnake}_datasource.dart');
       imports.add(
-        '$baseImport/data/datasources/$entitySnake/${entitySnake}_datasource.dart',
+        '../datasources/$entitySnake/${entitySnake}_local_datasource.dart',
       );
-      imports.add(
-        '$baseImport/data/datasources/$entitySnake/${entitySnake}_local_datasource.dart',
-      );
-      imports.add('$baseImport/cache/${entitySnake}_cache.dart');
+      imports.add('../../cache/${entitySnake}_cache.dart');
     } else {
-      imports.add(
-        '$baseImport/data/datasources/$entitySnake/${entitySnake}_datasource.dart',
-      );
+      imports.add('../datasources/$entitySnake/${entitySnake}_datasource.dart');
     }
     return imports;
   }

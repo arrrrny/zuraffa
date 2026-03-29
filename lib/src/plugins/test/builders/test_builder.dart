@@ -6,6 +6,7 @@ import 'package:path/path.dart' as path;
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../../../core/constants/known_types.dart';
+import '../../../core/plugin_system/discovery_engine.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/entity_utils.dart';
@@ -34,6 +35,7 @@ class TestBuilder {
   final String outputDir;
   final GeneratorOptions options;
   final SpecLibrary specLibrary;
+  final DiscoveryEngine discovery;
 
   /// Creates a [TestBuilder].
   ///
@@ -47,5 +49,6 @@ class TestBuilder {
     required this.outputDir,
     this.options = const GeneratorOptions(),
     SpecLibrary? specLibrary,
-  }) : specLibrary = specLibrary ?? const SpecLibrary();
+  }) : specLibrary = specLibrary ?? const SpecLibrary(),
+       discovery = DiscoveryEngine(projectRoot: outputDir);
 }

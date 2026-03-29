@@ -13,12 +13,25 @@ class DiscoveryEngine {
   ///
   /// Searches under [lib/src] by default.
   Future<File?> findFile(String name, {String subDir = ''}) async {
-    final searchBase = p.join(projectRoot, 'lib', 'src', subDir);
+    // If the projectRoot itself contains 'lib/src', don't append it again
+    var searchBase = projectRoot;
+    if (!projectRoot.endsWith('lib/src') &&
+        !projectRoot.contains('/lib/src/')) {
+      final libSrc = p.join(projectRoot, 'lib', 'src');
+      if (Directory(libSrc).existsSync()) {
+        searchBase = libSrc;
+      }
+    }
+
+    if (subDir.isNotEmpty) {
+      searchBase = p.join(searchBase, subDir);
+    }
+
     if (!Directory(searchBase).existsSync()) return null;
 
     // Support both PascalCase and snake_case naming conventions
     final fileName = name.endsWith('.dart') ? name : '$name.dart';
-    final snakeName = _camelToSnake(name.replaceAll('.dart', '')) + '.dart';
+    final snakeName = '${_camelToSnake(name.replaceAll('.dart', ''))}.dart';
 
     final patterns = [
       '**/$fileName',
@@ -51,11 +64,24 @@ class DiscoveryEngine {
 
   /// Synchronous version of [findFile].
   File? findFileSync(String name, {String subDir = ''}) {
-    final searchBase = p.join(projectRoot, 'lib', 'src', subDir);
+    // If the projectRoot itself contains 'lib/src', don't append it again
+    var searchBase = projectRoot;
+    if (!projectRoot.endsWith('lib/src') &&
+        !projectRoot.contains('/lib/src/')) {
+      final libSrc = p.join(projectRoot, 'lib', 'src');
+      if (Directory(libSrc).existsSync()) {
+        searchBase = libSrc;
+      }
+    }
+
+    if (subDir.isNotEmpty) {
+      searchBase = p.join(searchBase, subDir);
+    }
+
     if (!Directory(searchBase).existsSync()) return null;
 
     final fileName = name.endsWith('.dart') ? name : '$name.dart';
-    final snakeName = _camelToSnake(name.replaceAll('.dart', '')) + '.dart';
+    final snakeName = '${_camelToSnake(name.replaceAll('.dart', ''))}.dart';
 
     final patterns = [
       '**/$fileName',

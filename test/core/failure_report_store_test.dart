@@ -2,8 +2,6 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/zuraffa.dart';
-import 'package:zuraffa/src/core/failure_report_store.dart';
-import 'package:zuraffa/src/core/failure_report_queue.dart';
 
 void main() {
   late String tempDir;

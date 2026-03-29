@@ -25,25 +25,13 @@ class ShadcnCommand extends Command<void> {
       help: 'Output directory',
       defaultsTo: 'lib/src',
     );
-    argParser.addFlag(
-      'filter',
-      help: 'Enable filtering',
-      defaultsTo: false,
-    );
-    argParser.addFlag(
-      'sort',
-      help: 'Enable sorting',
-      defaultsTo: false,
-    );
+    argParser.addFlag('filter', help: 'Enable filtering', defaultsTo: false);
+    argParser.addFlag('sort', help: 'Enable sorting', defaultsTo: false);
     argParser.addMultiOption(
       'ignore-fields',
       help: 'Fields to exclude from UI',
     );
-    argParser.addOption(
-      'domain',
-      abbr: 'd',
-      help: 'Domain folder name',
-    );
+    argParser.addOption('domain', abbr: 'd', help: 'Domain folder name');
   }
 
   @override

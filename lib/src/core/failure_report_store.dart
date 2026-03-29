@@ -149,30 +149,21 @@ class FailureReportStore {
 
   Map<String, dynamic> _failureDataToJson(AppFailure failure) {
     return switch (failure) {
-      ServerFailure(:final statusCode) => {
-        if (statusCode != null) 'statusCode': statusCode,
-      },
+      ServerFailure(:final statusCode) => {'statusCode': statusCode},
       NetworkFailure() => {},
-      ValidationFailure(:final fieldErrors) => {
-        if (fieldErrors != null) 'fieldErrors': fieldErrors,
-      },
+      ValidationFailure(:final fieldErrors) => {'fieldErrors': fieldErrors},
       NotFoundFailure(:final resourceType, :final resourceId) => {
-        if (resourceType != null) 'resourceType': resourceType,
-        if (resourceId != null) 'resourceId': resourceId,
+        'resourceType': resourceType,
+        'resourceId': resourceId,
       },
       UnauthorizedFailure() => {},
       ForbiddenFailure(:final requiredPermission) => {
-        if (requiredPermission != null)
-          'requiredPermission': requiredPermission,
+        'requiredPermission': requiredPermission,
       },
-      TimeoutFailure(:final timeout) => {
-        if (timeout != null) 'timeoutMs': timeout.inMilliseconds,
-      },
-      ConflictFailure(:final conflictType) => {
-        if (conflictType != null) 'conflictType': conflictType,
-      },
+      TimeoutFailure(:final timeout) => {'timeoutMs': timeout?.inMilliseconds},
+      ConflictFailure(:final conflictType) => {'conflictType': conflictType},
       CacheFailure() => {},
-      PlatformFailure(:final code) => {if (code != null) 'code': code},
+      PlatformFailure(:final code) => {'code': code},
       CancellationFailure() => {},
       StateFailure() => {},
       TypeFailure() => {},

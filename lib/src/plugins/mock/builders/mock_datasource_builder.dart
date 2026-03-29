@@ -643,33 +643,29 @@ class MockDataSourceBuilder {
                     .code,
             ).closure;
             bodyStatements.addAll([
-              declareFinal('existing')
-                  .assign(
-                    refer('${entityName}MockData')
-                        .property('${entityCamel}s')
-                        .property('firstWhere')
-                        .call(
-                          [
-                            Method(
-                              (m) => m
-                                ..requiredParameters.add(
-                                  Parameter((p) => p..name = 'item'),
-                                )
-                                ..lambda = true
-                                ..body = refer('item')
-                                    .property(config.idField)
-                                    .equalTo(refer('params').property('id'))
-                                    .code,
-                            ).closure,
-                          ],
-                          {'orElse': orElse},
-                        ),
+              refer('${entityName}MockData')
+                  .property('${entityCamel}s')
+                  .property('firstWhere')
+                  .call(
+                    [
+                      Method(
+                        (m) => m
+                          ..requiredParameters.add(
+                            Parameter((p) => p..name = 'item'),
+                          )
+                          ..lambda = true
+                          ..body = refer('item')
+                              .property(config.idField)
+                              .equalTo(refer('params').property('id'))
+                              .code,
+                      ).closure,
+                    ],
+                    {'orElse': orElse},
                   )
                   .statement,
               refer('logger').property('info').call([
                 literalString('Successfully deleted $entityName'),
               ]).statement,
-              refer('existing').returned.statement,
             ]);
           } else {
             bodyStatements.addAll([

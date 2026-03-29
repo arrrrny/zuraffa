@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:path/path.dart' as p;
 import 'package:code_builder/code_builder.dart';
 
 import '../../../core/ast/append_executor.dart';
@@ -6,6 +7,7 @@ import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/ast/ast_helper.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
+import '../../../core/plugin_system/discovery_engine.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -33,6 +35,7 @@ class RepositoryImplementationGenerator {
   final String outputDir;
   final GeneratorOptions options;
   final AppendExecutor appendExecutor;
+  final DiscoveryEngine discovery;
 
   final SpecLibrary specLibrary;
 
@@ -50,7 +53,7 @@ class RepositoryImplementationGenerator {
     this.options = const GeneratorOptions(),
     this.appendExecutor = const AppendExecutor(),
     this.specLibrary = const SpecLibrary(),
-  });
+  }) : discovery = DiscoveryEngine(projectRoot: outputDir);
 
   /// Generates a repository implementation for the given [config].
   ///

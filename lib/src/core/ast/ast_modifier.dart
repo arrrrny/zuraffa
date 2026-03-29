@@ -106,7 +106,8 @@ class AstModifier {
     CompilationUnit unit,
     String importPath,
   ) {
-    if (source.contains("import '$importPath';") || source.contains('import "$importPath";')) {
+    if (source.contains("import '$importPath';") ||
+        source.contains('import "$importPath";')) {
       return source;
     }
     final importDirective = "import '$importPath';";
@@ -117,7 +118,9 @@ class AstModifier {
       return '${source.substring(0, insertOffset)}\n$importDirective'
           '${source.substring(insertOffset)}';
     }
-    final firstDirective = unit.directives.isEmpty ? null : unit.directives.first;
+    final firstDirective = unit.directives.isEmpty
+        ? null
+        : unit.directives.first;
     if (firstDirective != null) {
       final insertOffset = firstDirective.offset;
       return '$importDirective\n${source.substring(insertOffset)}';
@@ -131,7 +134,8 @@ class AstModifier {
     CompilationUnit unit,
     String augmentPath,
   ) {
-    if (source.contains("import augment '$augmentPath';") || source.contains('import augment "$augmentPath";')) {
+    if (source.contains("import augment '$augmentPath';") ||
+        source.contains('import augment "$augmentPath";')) {
       return source;
     }
     final augmentDirective = "import augment '$augmentPath';";
@@ -144,6 +148,21 @@ class AstModifier {
     }
 
     return '$augmentDirective\n\n$source';
+  }
+
+  /// Removes an augmentation library directive from the unit.
+  static String removeAugment(
+    String source,
+    CompilationUnit unit,
+    String augmentPath,
+  ) {
+    final pattern = RegExp(
+      '^import\\s+augment\\s+[\'\"]' +
+          RegExp.escape(augmentPath) +
+          '[\'\"]\\s*;\\s*\$',
+      multiLine: true,
+    );
+    return source.replaceFirst(pattern, '');
   }
 
   static String addExport(

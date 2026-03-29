@@ -38,6 +38,10 @@ dependencies:
   zuraffa:
     path: ${path.normalize(repoRoot)}
   get_it: ^9.0.0
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  mocktail: ^1.0.4
 dependency_overrides:
   meta: ^1.18.0
   analyzer: ^11.0.0
@@ -159,7 +163,7 @@ Future<GeneratorResult> generateFullFeature(
       outputDir: workspace.outputDir,
       dryRun: false,
       force: true,
-      verbose: false,
+      verbose: true,
     ),
     outputDir: workspace.outputDir,
   );

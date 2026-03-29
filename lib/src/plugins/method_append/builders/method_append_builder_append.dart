@@ -160,9 +160,12 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     final file = File(filePath);
     if (!file.existsSync()) return null;
 
-    var source = await file.readAsString();
-    source = await _addMissingImports(config, source, filePath);
+    final helper = const AstHelper();
+    final augmentFileName = path
+        .basename(filePath)
+        .replaceFirst('.dart', '.augment.dart');
 
+    // 1. Build the method spec
     final method = Method(
       (m) => m
         ..name = methodName
@@ -186,54 +189,74 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         ),
     );
 
-    final memberSource = specLibrary.emitSpec(method);
-    final request = AppendRequest.method(
-      source: source,
-      className: className,
-      memberSource: memberSource,
-      force: config.force,
-    );
+    if (config.revert) {
+      // Handle Revert
+      // a. Remove from augmentation
+      await augmentationBuilder.remove(
+        hostPath: filePath,
+        className: className,
+        members: [method],
+        dryRun: options.dryRun,
+      );
 
-    final result = config.revert
-        ? appendExecutor.undo(request)
-        : appendExecutor.execute(request);
+      // b. Clean up host
+      var source = await file.readAsString();
+      source = helper.removeAugment(
+        source: source,
+        augmentPath: augmentFileName,
+      );
 
-    if (result.changed) {
-      if (config.revert) {
-        final helper = const AstHelper();
-        final unit = helper.parseSource(result.source).unit;
-        if (unit != null) {
-          final classNode = helper.findClass(unit, className);
-          if (classNode != null) {
-            final methods = helper.findMethods(classNode);
-            final fields = helper.findFields(classNode);
-            if (methods.isEmpty && fields.isEmpty) {
-              return FileUtils.deleteFile(
-                filePath,
-                type,
-                dryRun: options.dryRun,
-                verbose: options.verbose,
-              );
-            }
-          }
-        }
+      // c. Check if host should be deleted
+      if (helper.isClassEmpty(source, className)) {
+        return FileUtils.deleteFile(
+          filePath,
+          type,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+        );
       }
 
       await FileUtils.writeFile(
         filePath,
-        result.source,
+        source,
         type,
         force: true,
         dryRun: options.dryRun,
         verbose: options.verbose,
       );
-      return GeneratedFile(
-        path: filePath,
-        type: type,
-        action: config.revert ? 'reverted' : 'updated',
-      );
+
+      return GeneratedFile(path: filePath, type: type, action: 'reverted');
     }
-    return null;
+
+    // Handle Normal Append
+    var source = await file.readAsString();
+
+    // 1. Add 'import augment' to host file
+    source = helper.addAugment(source: source, augmentPath: augmentFileName);
+    source = await _addMissingImports(config, source, filePath);
+
+    await FileUtils.writeFile(
+      filePath,
+      source,
+      type,
+      force: true,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
+    );
+
+    // 2. Generate/Update the augmentation file
+    final augmentationFile = await augmentationBuilder.generate(
+      hostPath: filePath,
+      className: className,
+      members: [method],
+      dryRun: options.dryRun,
+    );
+
+    return GeneratedFile(
+      path: augmentationFile.path,
+      type: type,
+      action: 'updated',
+    );
   }
 
   Future<GeneratedFile?> _appendToDataRepository(
@@ -247,16 +270,24 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     final file = File(filePath);
     if (!file.existsSync()) return null;
 
-    var source = await file.readAsString();
-    source = await _addMissingImports(config, source, filePath);
+    final helper = const AstHelper();
+    final augmentFileName = path
+        .basename(filePath)
+        .replaceFirst('.dart', '.augment.dart');
 
+    final className =
+        'Data${StringUtils.convertToPascalCase(repoSnake)}Repository';
+
+    // Build the method spec
+    final isStream = config.useCaseType == 'stream';
+    final isSync = config.useCaseType == 'sync';
+
+    // Use current source to find data source field
+    var source = await file.readAsString();
     final dataSourceFieldMatch = RegExp(
       r'final \w+ (_\w+);',
     ).firstMatch(source);
     final dataSourceField = dataSourceFieldMatch?.group(1) ?? '_dataSource';
-
-    final isStream = config.useCaseType == 'stream';
-    final isSync = config.useCaseType == 'sync';
 
     final method = Method(
       (m) => m
@@ -299,44 +330,32 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
             .statement,
     );
 
-    final className =
-        'Data${StringUtils.convertToPascalCase(repoSnake)}Repository';
-    final memberSource = specLibrary.emitSpec(method);
-    final request = AppendRequest.method(
-      source: source,
-      className: className,
-      memberSource: memberSource,
-      force: config.force,
-    );
+    if (config.revert) {
+      await augmentationBuilder.remove(
+        hostPath: filePath,
+        className: className,
+        members: [method],
+        dryRun: options.dryRun,
+      );
 
-    final result = config.revert
-        ? appendExecutor.undo(request)
-        : appendExecutor.execute(request);
+      source = helper.removeAugment(
+        source: source,
+        augmentPath: augmentFileName,
+      );
 
-    if (result.changed) {
-      if (config.revert) {
-        final helper = const AstHelper();
-        final unit = helper.parseSource(result.source).unit;
-        if (unit != null) {
-          final classNode = helper.findClass(unit, className);
-          if (classNode != null) {
-            final methods = helper.findMethods(classNode);
-            if (methods.isEmpty) {
-              return FileUtils.deleteFile(
-                filePath,
-                'provider',
-                dryRun: options.dryRun,
-                verbose: options.verbose,
-              );
-            }
-          }
-        }
+      if (helper.isClassEmpty(source, className)) {
+        return FileUtils.deleteFile(
+          filePath,
+          'provider',
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+        );
       }
 
       await FileUtils.writeFile(
         filePath,
-        result.source,
-        'append',
+        source,
+        'repository',
         force: true,
         dryRun: options.dryRun,
         verbose: options.verbose,
@@ -344,10 +363,36 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       return GeneratedFile(
         path: filePath,
         type: 'provider',
-        action: config.revert ? 'reverted' : 'updated',
+        action: 'reverted',
       );
     }
-    return null;
+
+    // 1. Add 'import augment' to host file
+    source = helper.addAugment(source: source, augmentPath: augmentFileName);
+    source = await _addMissingImports(config, source, filePath);
+
+    await FileUtils.writeFile(
+      filePath,
+      source,
+      'repository',
+      force: true,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
+    );
+
+    // 2. Generate/Update the augmentation file
+    final augmentationFile = await augmentationBuilder.generate(
+      hostPath: filePath,
+      className: className,
+      members: [method],
+      dryRun: options.dryRun,
+    );
+
+    return GeneratedFile(
+      path: augmentationFile.path,
+      type: 'provider',
+      action: 'updated',
+    );
   }
 
   Future<GeneratedFile?> _appendToRemoteDataSource(
@@ -399,8 +444,10 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     final file = File(filePath);
     if (!file.existsSync()) return null;
 
-    var source = await file.readAsString();
-    source = await _addMissingImports(config, source, filePath, isMock: true);
+    final helper = const AstHelper();
+    final augmentFileName = path
+        .basename(filePath)
+        .replaceFirst('.dart', '.augment.dart');
 
     final returns = config.returnsType ?? 'void';
     final baseReturns = returns.replaceAll('?', '');
@@ -409,6 +456,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         ? config.repo!.replaceAll('Repository', '')
         : config.name;
 
+    // Build the implementation method spec
     final method = Method(
       (m) => m
         ..name = methodName
@@ -460,42 +508,33 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         ),
     );
 
-    final memberSource = specLibrary.emitSpec(method);
-    final request = AppendRequest.method(
-      source: source,
-      className: className,
-      memberSource: memberSource,
-      force: config.force,
-    );
+    if (config.revert) {
+      await augmentationBuilder.remove(
+        hostPath: filePath,
+        className: className,
+        members: [method],
+        dryRun: options.dryRun,
+      );
 
-    final result = config.revert
-        ? appendExecutor.undo(request)
-        : appendExecutor.execute(request);
+      var source = await file.readAsString();
+      source = helper.removeAugment(
+        source: source,
+        augmentPath: augmentFileName,
+      );
 
-    if (result.changed) {
-      if (config.revert) {
-        final helper = const AstHelper();
-        final unit = helper.parseSource(result.source).unit;
-        if (unit != null) {
-          final classNode = helper.findClass(unit, className);
-          if (classNode != null) {
-            final methods = helper.findMethods(classNode);
-            if (methods.isEmpty) {
-              return FileUtils.deleteFile(
-                filePath,
-                'datasource',
-                dryRun: options.dryRun,
-                verbose: options.verbose,
-              );
-            }
-          }
-        }
+      if (helper.isClassEmpty(source, className)) {
+        return FileUtils.deleteFile(
+          filePath,
+          'datasource',
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+        );
       }
 
       await FileUtils.writeFile(
         filePath,
-        result.source,
-        'append',
+        source,
+        'datasource',
         force: true,
         dryRun: options.dryRun,
         verbose: options.verbose,
@@ -503,10 +542,39 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       return GeneratedFile(
         path: filePath,
         type: 'datasource',
-        action: config.revert ? 'reverted' : 'updated',
+        action: 'reverted',
       );
     }
-    return null;
+
+    // Handle Normal Append
+    var source = await file.readAsString();
+
+    // 1. Add 'import augment' to host file
+    source = helper.addAugment(source: source, augmentPath: augmentFileName);
+    source = await _addMissingImports(config, source, filePath, isMock: true);
+
+    await FileUtils.writeFile(
+      filePath,
+      source,
+      'datasource',
+      force: true,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
+    );
+
+    // 2. Generate/Update the augmentation file
+    final augmentationFile = await augmentationBuilder.generate(
+      hostPath: filePath,
+      className: className,
+      members: [method],
+      dryRun: options.dryRun,
+    );
+
+    return GeneratedFile(
+      path: augmentationFile.path,
+      type: 'datasource',
+      action: 'updated',
+    );
   }
 
   Future<GeneratedFile?> _appendToProvider(
@@ -542,12 +610,15 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     final file = File(filePath);
     if (!file.existsSync()) return null;
 
-    var source = await file.readAsString();
-    source = await _addMissingImports(config, source, filePath, isMock: isMock);
+    final helper = const AstHelper();
+    final augmentFileName = path
+        .basename(filePath)
+        .replaceFirst('.dart', '.augment.dart');
 
     final isStream = config.useCaseType == 'stream';
     final isSync = config.useCaseType == 'sync';
 
+    // Build the implementation method spec
     final method = Method(
       (m) => m
         ..name = methodName
@@ -581,23 +652,33 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         ),
     );
 
-    final memberSource = specLibrary.emitSpec(method);
-    final request = AppendRequest.method(
-      source: source,
-      className: className,
-      memberSource: memberSource,
-      force: config.force,
-    );
+    if (config.revert) {
+      await augmentationBuilder.remove(
+        hostPath: filePath,
+        className: className,
+        members: [method],
+        dryRun: options.dryRun,
+      );
 
-    final result = config.revert
-        ? appendExecutor.undo(request)
-        : appendExecutor.execute(request);
+      var source = await file.readAsString();
+      source = helper.removeAugment(
+        source: source,
+        augmentPath: augmentFileName,
+      );
 
-    if (result.changed) {
+      if (helper.isClassEmpty(source, className)) {
+        return FileUtils.deleteFile(
+          filePath,
+          'datasource',
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+        );
+      }
+
       await FileUtils.writeFile(
         filePath,
-        result.source,
-        'append',
+        source,
+        'datasource',
         force: true,
         dryRun: options.dryRun,
         verbose: options.verbose,
@@ -605,10 +686,39 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       return GeneratedFile(
         path: filePath,
         type: 'datasource',
-        action: config.revert ? 'reverted' : 'updated',
+        action: 'reverted',
       );
     }
-    return null;
+
+    // Handle Normal Append
+    var source = await file.readAsString();
+
+    // 1. Add 'import augment' to host file
+    source = helper.addAugment(source: source, augmentPath: augmentFileName);
+    source = await _addMissingImports(config, source, filePath, isMock: isMock);
+
+    await FileUtils.writeFile(
+      filePath,
+      source,
+      'datasource',
+      force: true,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
+    );
+
+    // 2. Generate/Update the augmentation file
+    final augmentationFile = await augmentationBuilder.generate(
+      hostPath: filePath,
+      className: className,
+      members: [method],
+      dryRun: options.dryRun,
+    );
+
+    return GeneratedFile(
+      path: augmentationFile.path,
+      type: 'datasource',
+      action: 'updated',
+    );
   }
 
   Future<GeneratedFile?> _appendToMockProvider(
@@ -622,8 +732,10 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     final file = File(filePath);
     if (!file.existsSync()) return null;
 
-    var source = await file.readAsString();
-    source = await _addMissingImports(config, source, filePath, isMock: true);
+    final helper = const AstHelper();
+    final augmentFileName = path
+        .basename(filePath)
+        .replaceFirst('.dart', '.augment.dart');
 
     final isStream = config.useCaseType == 'stream';
     final isSync = config.useCaseType == 'sync';
@@ -657,6 +769,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     final mockDataClass = '${entityName}MockData';
     final sampleProperty = 'sample$entityName';
 
+    // Build the implementation method spec
     final method = Method(
       (m) => m
         ..name = methodName
@@ -747,34 +860,73 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         ),
     );
 
-    final memberSource = specLibrary.emitSpec(method);
-    final request = AppendRequest.method(
-      source: source,
-      className: className,
-      memberSource: memberSource,
-      force: config.force,
-    );
+    if (config.revert) {
+      await augmentationBuilder.remove(
+        hostPath: filePath,
+        className: className,
+        members: [method],
+        dryRun: options.dryRun,
+      );
 
-    final result = config.revert
-        ? appendExecutor.undo(request)
-        : appendExecutor.execute(request);
+      var source = await file.readAsString();
+      source = helper.removeAugment(
+        source: source,
+        augmentPath: augmentFileName,
+      );
 
-    if (result.changed) {
+      if (helper.isClassEmpty(source, className)) {
+        return FileUtils.deleteFile(
+          filePath,
+          'provider',
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+        );
+      }
+
       await FileUtils.writeFile(
         filePath,
-        result.source,
-        'append',
+        source,
+        'provider',
         force: true,
         dryRun: options.dryRun,
         verbose: options.verbose,
       );
       return GeneratedFile(
         path: filePath,
-        type: 'mock_provider',
-        action: config.revert ? 'reverted' : 'updated',
+        type: 'provider',
+        action: 'reverted',
       );
     }
-    return null;
+
+    // Handle Normal Append
+    var source = await file.readAsString();
+
+    // 1. Add 'import augment' to host file
+    source = helper.addAugment(source: source, augmentPath: augmentFileName);
+    source = await _addMissingImports(config, source, filePath, isMock: true);
+
+    await FileUtils.writeFile(
+      filePath,
+      source,
+      'provider',
+      force: true,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
+    );
+
+    // 2. Generate/Update the augmentation file
+    final augmentationFile = await augmentationBuilder.generate(
+      hostPath: filePath,
+      className: className,
+      members: [method],
+      dryRun: options.dryRun,
+    );
+
+    return GeneratedFile(
+      path: augmentationFile.path,
+      type: 'provider',
+      action: 'updated',
+    );
   }
 
   Expression _primitiveValue(String type) {

@@ -2,11 +2,13 @@ import 'dart:io';
 
 import 'package:code_builder/code_builder.dart';
 
+import 'package:path/path.dart' as p;
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/ast/ast_helper.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
+import '../../../core/plugin_system/discovery_engine.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -31,6 +33,7 @@ class RepositoryInterfaceGenerator {
   final GeneratorOptions options;
   final AppendExecutor appendExecutor;
   final SpecLibrary specLibrary;
+  final DiscoveryEngine discovery;
 
   RepositoryInterfaceGenerator({
     required this.outputDir,
@@ -38,7 +41,8 @@ class RepositoryInterfaceGenerator {
     AppendExecutor? appendExecutor,
     SpecLibrary? specLibrary,
   }) : appendExecutor = appendExecutor ?? AppendExecutor(),
-       specLibrary = specLibrary ?? const SpecLibrary();
+       specLibrary = specLibrary ?? const SpecLibrary(),
+       discovery = DiscoveryEngine(projectRoot: outputDir);
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final repoName = '${config.name}Repository';
@@ -180,14 +184,29 @@ class RepositoryInterfaceGenerator {
     if (config.isEntityBased) {
       final entityName = config.name;
       final entitySnake = config.nameSnake;
-      final baseImport = PackageUtils.getBaseImport(outputDir);
 
-      if (EntityAnalyzer.isEnum(entityName, outputDir)) {
-        imports.add('$baseImport/domain/entities/enums/index.dart');
-      } else {
-        imports.add(
-          '$baseImport/domain/entities/$entitySnake/$entitySnake.dart',
+      final entityFile = discovery.findFileSync('${entitySnake}.dart');
+      if (entityFile != null) {
+        final repoDir = p.dirname(
+          p.join(
+            outputDir,
+            'domain',
+            'repositories',
+            '${config.nameSnake}_repository.dart',
+          ),
         );
+        final relativePath = p.relative(entityFile.path, from: repoDir);
+        imports.add(relativePath);
+      } else {
+        // Fallback to package import
+        final baseImport = PackageUtils.getBaseImport(outputDir);
+        if (EntityAnalyzer.isEnum(entityName, outputDir)) {
+          imports.add('$baseImport/domain/entities/enums/index.dart');
+        } else {
+          imports.add(
+            '$baseImport/domain/entities/$entitySnake/$entitySnake.dart',
+          );
+        }
       }
     }
     return imports;

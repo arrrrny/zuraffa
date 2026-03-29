@@ -74,19 +74,19 @@ class ObserverBuilder {
             (f) => f
               ..modifier = FieldModifier.final$
               ..type = onNextType
-              ..name = 'onNext',
+              ..name = 'onDataCallback',
           ),
           Field(
             (f) => f
               ..modifier = FieldModifier.final$
               ..type = onErrorType
-              ..name = 'onError',
+              ..name = 'onErrorCallback',
           ),
           Field(
             (f) => f
               ..modifier = FieldModifier.final$
               ..type = onCompleteType
-              ..name = 'onComplete',
+              ..name = 'onDoneCallback',
           ),
         ])
         ..constructors.add(
@@ -95,21 +95,21 @@ class ObserverBuilder {
               ..optionalParameters.addAll([
                 Parameter(
                   (p) => p
-                    ..name = 'onNext'
+                    ..name = 'onDataCallback'
                     ..named = true
                     ..required = true
                     ..toThis = true,
                 ),
                 Parameter(
                   (p) => p
-                    ..name = 'onError'
+                    ..name = 'onErrorCallback'
                     ..named = true
                     ..required = true
                     ..toThis = true,
                 ),
                 Parameter(
                   (p) => p
-                    ..name = 'onComplete'
+                    ..name = 'onDoneCallback'
                     ..named = true
                     ..required = true
                     ..toThis = true,
@@ -120,26 +120,26 @@ class ObserverBuilder {
         ..methods.addAll([
           Method(
             (m) => m
-              ..name = 'onNextValue'
+              ..name = 'onData'
               ..annotations.add(refer('override'))
               ..returns = refer('void')
               ..requiredParameters.add(
                 Parameter(
                   (p) => p
-                    ..name = 'value'
+                    ..name = 'data'
                     ..type = refer(entityName),
                 ),
               )
               ..body = Block(
                 (b) => b
                   ..statements.add(
-                    refer('onNext').call([refer('value')]).statement,
+                    refer('onDataCallback').call([refer('data')]).statement,
                   ),
               ),
           ),
           Method(
             (m) => m
-              ..name = 'onFailure'
+              ..name = 'onError'
               ..annotations.add(refer('override'))
               ..returns = refer('void')
               ..requiredParameters.add(
@@ -152,7 +152,7 @@ class ObserverBuilder {
               ..body = Block(
                 (b) => b
                   ..statements.add(
-                    refer('onError').call([refer('failure')]).statement,
+                    refer('onErrorCallback').call([refer('failure')]).statement,
                   ),
               ),
           ),
@@ -163,7 +163,7 @@ class ObserverBuilder {
               ..returns = refer('void')
               ..body = Block(
                 (b) =>
-                    b..statements.add(refer('onComplete').call([]).statement),
+                    b..statements.add(refer('onDoneCallback').call([]).statement),
               ),
           ),
         ]),

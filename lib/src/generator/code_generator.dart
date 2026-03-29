@@ -26,6 +26,9 @@ import '../core/plugin_system/plugin_registry.dart';
 import '../core/plugin_system/plugin_interface.dart';
 import '../core/plugin_system/plugin_context.dart';
 import '../core/plugin_system/discovery_engine.dart';
+import '../core/plugin_system/plugin_manager.dart';
+import '../core/plugin_system/plan_store.dart';
+import '../core/plugin_system/capability.dart';
 
 /// Orchestrates the entire code generation process.
 ///
@@ -49,24 +52,6 @@ class CodeGenerator {
   final GenerationContext context;
   late final PluginRegistry pluginRegistry;
   late final PluginContext pluginContext;
-
-  late final RepositoryPlugin _repositoryPlugin;
-  late final ProviderPlugin _providerPlugin;
-  late final UseCasePlugin _useCasePlugin;
-  late final ViewPlugin _viewPlugin;
-  late final PresenterPlugin _presenterPlugin;
-  late final ControllerPlugin _controllerPlugin;
-  late final DiPlugin _diPlugin;
-  late final DataSourcePlugin _dataSourcePlugin;
-  late final ServicePlugin _servicePlugin;
-  late final StatePlugin _statePlugin;
-  late final ObserverPlugin _observerPlugin;
-  late final TestPlugin _testPlugin;
-  late final MockPlugin _mockPlugin;
-  late final GraphqlPlugin _graphqlPlugin;
-  late final CachePlugin _cachePlugin;
-  late final RoutePlugin _routePlugin;
-  late final MethodAppendPlugin _methodAppendPlugin;
 
   CodeGenerator({
     required GeneratorConfig config,
@@ -113,438 +98,84 @@ class CodeGenerator {
       data: config.toJson(),
     );
 
-    _repositoryPlugin = RepositoryPlugin(
-      outputDir: outputDir,
-      options: options,
+    // Legacy registration of all plugins to keep existing behavior
+    // while moving to the new system.
+    _registerPlugin(RepositoryPlugin(outputDir: outputDir, options: options));
+    _registerPlugin(ProviderPlugin(outputDir: outputDir, options: options));
+    _registerPlugin(UseCasePlugin(outputDir: outputDir, options: options));
+    _registerPlugin(ViewPlugin(outputDir: outputDir, options: options));
+    _registerPlugin(PresenterPlugin(outputDir: outputDir, options: options));
+    _registerPlugin(ControllerPlugin(outputDir: outputDir, options: options));
+    _registerPlugin(DiPlugin(outputDir: outputDir, options: options));
+    _registerPlugin(DataSourcePlugin(outputDir: outputDir, options: options));
+    _registerPlugin(ServicePlugin(outputDir: outputDir, options: options));
+    _registerPlugin(StatePlugin(outputDir: outputDir, options: options));
+    _registerPlugin(ObserverPlugin(outputDir: outputDir, options: options));
+    _registerPlugin(TestPlugin(outputDir: outputDir, options: options));
+    _registerPlugin(MockPlugin(outputDir: outputDir, options: options));
+    _registerPlugin(GraphqlPlugin(outputDir: outputDir, options: options));
+    _registerPlugin(CachePlugin(outputDir: outputDir, options: options));
+    _registerPlugin(RoutePlugin(outputDir: outputDir, options: options));
+    _registerPlugin(
+      MethodAppendPlugin(outputDir: outputDir, options: options),
     );
-    _providerPlugin = ProviderPlugin(outputDir: outputDir, options: options);
-    _useCasePlugin = UseCasePlugin(outputDir: outputDir, options: options);
-    _viewPlugin = ViewPlugin(outputDir: outputDir, options: options);
-    _presenterPlugin = PresenterPlugin(outputDir: outputDir, options: options);
-    _controllerPlugin = ControllerPlugin(
-      outputDir: outputDir,
-      options: options,
-    );
-    _diPlugin = DiPlugin(outputDir: outputDir, options: options);
-    _dataSourcePlugin = DataSourcePlugin(
-      outputDir: outputDir,
-      options: options,
-    );
-    _servicePlugin = ServicePlugin(outputDir: outputDir, options: options);
-    _statePlugin = StatePlugin(outputDir: outputDir, options: options);
-    _observerPlugin = ObserverPlugin(outputDir: outputDir, options: options);
-    _testPlugin = TestPlugin(outputDir: outputDir, options: options);
-    _mockPlugin = MockPlugin(outputDir: outputDir, options: options);
-    _graphqlPlugin = GraphqlPlugin(outputDir: outputDir, options: options);
-    _cachePlugin = CachePlugin(outputDir: outputDir, options: options);
-    _routePlugin = RoutePlugin(outputDir: outputDir, options: options);
-    _methodAppendPlugin = MethodAppendPlugin(
-      outputDir: outputDir,
-      options: options,
-    );
-
-    _registerPlugin(_repositoryPlugin);
-    _registerPlugin(_providerPlugin);
-    _registerPlugin(_useCasePlugin);
-    _registerPlugin(_viewPlugin);
-    _registerPlugin(_presenterPlugin);
-    _registerPlugin(_controllerPlugin);
-    _registerPlugin(_diPlugin);
-    _registerPlugin(_dataSourcePlugin);
-    _registerPlugin(_servicePlugin);
-    _registerPlugin(_statePlugin);
-    _registerPlugin(_observerPlugin);
-    _registerPlugin(_testPlugin);
-    _registerPlugin(_mockPlugin);
-    _registerPlugin(_graphqlPlugin);
-    _registerPlugin(_cachePlugin);
-    _registerPlugin(_routePlugin);
-    _registerPlugin(_methodAppendPlugin);
   }
 
   Future<GeneratorResult> generate() async {
-    final transaction = GenerationTransaction(
-      dryRun: options.dryRun,
-      force: options.force,
-    );
+    final manager = PluginManager(registry: pluginRegistry);
 
-    return GenerationTransaction.run(transaction, () async {
-      final progress = context.progress;
-      final files = <GeneratedFile>[];
-      final errors = <String>[];
-      final nextSteps = <String>[];
-      String? currentPluginId;
+    try {
+      final activePlugins = pluginRegistry.plugins;
+      final files = await manager.run(
+        pluginContext,
+        activePlugins,
+        progress: context.progress,
+      );
 
-      Future<GeneratorResult> finalizeSuccess() async {
-        final transactionResult = await transaction.commit();
-        if (!transactionResult.success) {
-          errors.addAll(transactionResult.conflicts.map((c) => 'Conflict: $c'));
-          errors.addAll(transactionResult.errors);
-          return GeneratorResult(
-            name: config.name,
-            success: false,
-            files: files,
-            errors: errors,
-            nextSteps: nextSteps,
-          );
-        }
-        return GeneratorResult(
-          name: config.name,
-          success: true,
-          files: files,
-          errors: errors,
-          nextSteps: nextSteps,
-        );
+      return GeneratorResult(
+        name: config.name,
+        success: true,
+        files: files,
+        errors: [],
+        nextSteps: _buildNextSteps(config, files),
+      );
+    } catch (e, stack) {
+      if (options.verbose) {
+        print('Generation error: $e');
+        print('Stack trace:\n$stack');
       }
+      context.progress.failed(e.toString());
+      return GeneratorResult(
+        name: config.name,
+        success: false,
+        files: [],
+        errors: [e.toString()],
+        nextSteps: [],
+      );
+    }
+  }
 
-      try {
-        final validation = await pluginRegistry.validateAll(pluginContext);
-        if (!validation.isValid && !config.revert) {
-          errors.addAll(validation.reasons);
-          if (validation.message != null) {
-            errors.add(validation.message!);
-          }
-          progress.failed('Validation failed');
-          return GeneratorResult(
-            name: config.name,
-            success: false,
-            files: files,
-            errors: errors,
-            nextSteps: nextSteps,
-          );
-        }
-
-        final totalSteps = _countSteps(config);
-        if (totalSteps > 0) {
-          progress.started('Generating ${config.name}', totalSteps);
-        }
-        await pluginRegistry.beforeGenerateAll(pluginContext);
-
-        if (config.appendToExisting) {
-          final appendResult = await _methodAppendPlugin.appendMethod(config);
-          files.addAll(appendResult.updatedFiles);
-
-          if (_isPluginEnabled('usecase')) {
-            progress.update('usecase');
-            currentPluginId = 'usecase';
-            final usecaseFiles = await _useCasePlugin.generate(config);
-            files.addAll(usecaseFiles);
-            currentPluginId = null;
-          }
-
-          if (appendResult.warnings.isNotEmpty) {
-            nextSteps.addAll(appendResult.warnings.map((w) => '⚠️  $w'));
-          }
-
-          if (config.generateGql) {
-            if (_isPluginEnabled('graphql')) {
-              progress.update('graphql');
-              currentPluginId = 'graphql';
-              final graphqlFiles = await _graphqlPlugin.generate(config);
-              files.addAll(graphqlFiles);
-              currentPluginId = null;
-            }
-          }
-
-          await pluginRegistry.afterGenerateAll(pluginContext);
-          progress.completed();
-          return finalizeSuccess();
-        }
-
-        final tasks = <Future<void>>[];
-
-        // Update config with execution flags to prevent plugin re-instantiation
-        final executionConfig = config.copyWith(
-          dryRun: options.dryRun,
-          force: options.force,
-          verbose: options.verbose,
-          outputDir: outputDir,
-          revert: options.revert,
-          methods: config.methods,
-        );
-
-        if (executionConfig.isEntityBased) {
-          if (_isPluginEnabled('repository')) {
-            tasks.add(() async {
-              progress.update('repository');
-              final repoFiles = await _repositoryPlugin.generate(
-                executionConfig,
-              );
-              files.addAll(repoFiles);
-            }());
-          }
-
-          if (_isPluginEnabled('usecase')) {
-            tasks.add(() async {
-              progress.update('usecase');
-              final usecaseFiles = await _useCasePlugin.generate(
-                executionConfig,
-              );
-              files.addAll(usecaseFiles);
-            }());
-          }
-        } else if (executionConfig.isPolymorphic) {
-          if (_isPluginEnabled('usecase')) {
-            tasks.add(() async {
-              progress.update('usecase');
-              final usecaseFiles = await _useCasePlugin.generate(
-                executionConfig,
-              );
-              files.addAll(usecaseFiles);
-            }());
-          }
-        } else if (executionConfig.isOrchestrator) {
-          if (_isPluginEnabled('usecase')) {
-            tasks.add(() async {
-              progress.update('usecase');
-              final usecaseFiles = await _useCasePlugin.generate(
-                executionConfig,
-              );
-              files.addAll(usecaseFiles);
-            }());
-          }
-        } else if (executionConfig.isCustomUseCase) {
-          if (executionConfig.hasService && _isPluginEnabled('service')) {
-            tasks.add(() async {
-              progress.update('service');
-              final serviceFiles = await _servicePlugin.generate(
-                executionConfig,
-              );
-              files.addAll(serviceFiles);
-            }());
-          }
-          if (_isPluginEnabled('usecase')) {
-            tasks.add(() async {
-              progress.update('usecase');
-              final usecaseFiles = await _useCasePlugin.generate(
-                executionConfig,
-              );
-              files.addAll(usecaseFiles);
-            }());
-          }
-        }
-
-        // Wait for domain/data layer to be ready before generating presentation layer
-        await Future.wait(tasks);
-        tasks.clear();
-
-        if (executionConfig.generateVpcs || executionConfig.generatePresenter) {
-          if (_isPluginEnabled('presenter')) {
-            tasks.add(() async {
-              progress.update('presenter');
-              final presenterFiles = await _presenterPlugin.generate(
-                executionConfig,
-              );
-              files.addAll(presenterFiles);
-            }());
-          }
-        }
-
-        if (executionConfig.generateVpcs ||
-            executionConfig.generateController) {
-          if (_isPluginEnabled('controller')) {
-            tasks.add(() async {
-              progress.update('controller');
-              final controllerFiles = await _controllerPlugin.generate(
-                executionConfig,
-              );
-              files.addAll(controllerFiles);
-            }());
-          }
-        }
-
-        if (executionConfig.generateVpcs || executionConfig.generateView) {
-          if (_isPluginEnabled('view')) {
-            tasks.add(() async {
-              progress.update('view');
-              final viewFiles = await _viewPlugin.generate(executionConfig);
-              files.addAll(viewFiles);
-            }());
-          }
-        }
-
-        if (executionConfig.generateState && _isPluginEnabled('state')) {
-          tasks.add(() async {
-            progress.update('state');
-            final stateFiles = await _statePlugin.generate(executionConfig);
-            files.addAll(stateFiles);
-          }());
-        }
-
-        if (executionConfig.generateObserver && _isPluginEnabled('observer')) {
-          tasks.add(() async {
-            progress.update('observer');
-            final observerFiles = await _observerPlugin.generate(
-              executionConfig,
-            );
-            files.addAll(observerFiles);
-          }());
-        }
-
-        if (executionConfig.generateData ||
-            executionConfig.generateDataSource) {
-          tasks.add(() async {
-            if (executionConfig.hasService && executionConfig.generateData) {
-              if (_isPluginEnabled('provider')) {
-                progress.update('provider');
-                final providerFiles = await _providerPlugin.generate(
-                  executionConfig,
-                );
-                files.addAll(providerFiles);
-              }
-              nextSteps.add(
-                'Implement ${executionConfig.effectiveProvider} with external service client',
-              );
-            } else {
-              if (_isPluginEnabled('datasource')) {
-                progress.update('datasource');
-                final dataSourceFiles = await _dataSourcePlugin.generate(
-                  executionConfig,
-                );
-                files.addAll(dataSourceFiles);
-              }
-
-              if (!executionConfig.isEntityBased) {
-                if (_isPluginEnabled('repository')) {
-                  progress.update('repository');
-                  final dataRepoFile = await _repositoryPlugin
-                      .generateImplementation(executionConfig);
-                  files.add(dataRepoFile);
-                }
-              }
-            }
-          }());
-        }
-
-        // Wait for all core and data layers to be ready before DI
-        await Future.wait(tasks);
-        tasks.clear();
-
-        if ((executionConfig.generateMock ||
-                executionConfig.generateMockDataOnly) &&
-            _isPluginEnabled('mock')) {
-          tasks.add(() async {
-            progress.update('mock');
-            final mockFiles = await _mockPlugin.generate(executionConfig);
-            files.addAll(mockFiles);
-
-            if (executionConfig.generateMockDataOnly) {
-              nextSteps.add(
-                'Use ${executionConfig.name}MockData in your tests and UI previews',
-              );
-            } else {
-              nextSteps.add(
-                'Use ${executionConfig.name}MockDataSource for rapid prototyping',
-              );
-              nextSteps.add(
-                'Switch to real DataSource implementation when ready',
-              );
-            }
-          }());
-        }
-
-        if (executionConfig.generateTest && _isPluginEnabled('test')) {
-          tasks.add(() async {
-            progress.update('test');
-            final testFiles = await _testPlugin.generate(executionConfig);
-            files.addAll(testFiles);
-            if (testFiles.isNotEmpty) {
-              nextSteps.add('Run tests: flutter test ');
-            }
-          }());
-        }
-
-        // Wait for mocks and tests before DI
-        await Future.wait(tasks);
-        tasks.clear();
-
-        if (executionConfig.generateDi) {
-          if (_isPluginEnabled('di')) {
-            tasks.add(() async {
-              progress.update('di');
-              final diFiles = await _diPlugin.generate(executionConfig);
-              files.addAll(diFiles);
-            }());
-          }
-        }
-
-        await Future.wait(tasks);
-        tasks.clear();
-
-        if (executionConfig.generateRoute && _isPluginEnabled('route')) {
-          progress.update('route');
-          final routeFiles = await _routePlugin.generate(executionConfig);
-          files.addAll(routeFiles);
-          nextSteps.add('Add go_router to your pubspec.yaml dependencies');
-          nextSteps.add('Import routes from lib/src/routing/index.dart');
-        }
-
-        if (executionConfig.enableCache && _isPluginEnabled('cache')) {
-          progress.update('cache');
-          final cacheFiles = await _cachePlugin.generate(executionConfig);
-          files.addAll(cacheFiles);
-          nextSteps.add('Run: zfa build');
-          nextSteps.add('Call initAllCaches() before DI setup');
-        }
-
-        if (config.generateRepository &&
-            config.isEntityBased &&
-            !(config.generateData || config.generateDataSource)) {
-          nextSteps.add('Implement Data${config.name}Repository in data layer');
-        }
-        if (config.effectiveRepos.isNotEmpty) {
-          nextSteps.add('Register repositories with DI container');
-        }
-        if (config.hasService) {
-          if (config.generateData) {
-            nextSteps.add(
-              'Implement ${config.effectiveProvider} with external service client',
-            );
-          } else {
-            nextSteps.add(
-              'Implement ${config.effectiveService} in data/providers layer',
-            );
-          }
-          nextSteps.add('Register service provider with DI container');
-        }
-        if (files.any((f) => f.type == 'usecase' && (!config.isEntityBased))) {
-          nextSteps.add('Implement TODO sections in generated usecases');
-        }
-
-        if (config.generateGql && _isPluginEnabled('graphql')) {
-          progress.update('graphql');
-          currentPluginId = 'graphql';
-          final graphqlFiles = await _graphqlPlugin.generate(config);
-          files.addAll(graphqlFiles);
-          currentPluginId = null;
-        }
-
-        await pluginRegistry.afterGenerateAll(pluginContext);
-        progress.completed();
-        return finalizeSuccess();
-      } catch (e, stack) {
-        if (currentPluginId != null) {
-          errors.add('Plugin $currentPluginId failed: $e');
-        } else {
-          errors.add('Generation failed: $e');
-        }
-        await pluginRegistry.onErrorAll(pluginContext, e, stack);
-        if (options.verbose) {
-          errors.add('Stack trace:\n$stack');
-        }
-        if (options.verbose) {
-          print('Generation error: $e');
-        }
-        progress.failed(e.toString());
-        return GeneratorResult(
-          name: config.name,
-          success: false,
-          files: files,
-          errors: errors,
-          nextSteps: nextSteps,
-        );
-      }
-    });
+  List<String> _buildNextSteps(GeneratorConfig config, List<GeneratedFile> files) {
+    final nextSteps = <String>[];
+    if (config.generateData) {
+      nextSteps.add(
+        'Implement ${config.effectiveProvider} with external service client',
+      );
+    }
+    if (config.generateRepository && config.isEntityBased) {
+      nextSteps.add('Implement Data${config.name}Repository in data layer');
+    }
+    if (config.effectiveRepos.isNotEmpty) {
+      nextSteps.add('Register repositories with DI container');
+    }
+    if (files.any((f) => f.type == 'usecase' && (!config.isEntityBased))) {
+      nextSteps.add('Implement TODO sections in generated usecases');
+    }
+    if (config.enableCache) {
+      nextSteps.add('Run: zfa build');
+      nextSteps.add('Call initAllCaches() before DI setup');
+    }
+    return nextSteps;
   }
 
   void _registerPlugin(ZuraffaPlugin plugin) {
@@ -555,55 +186,5 @@ class CodeGenerator {
 
   bool _isPluginEnabled(String id) {
     return pluginRegistry.getById(id) != null;
-  }
-
-  int _countSteps(GeneratorConfig config) {
-    var steps = 0;
-    if (config.appendToExisting) {
-      steps += 1;
-      if (_isPluginEnabled('usecase')) steps += 1;
-      if (config.generateGql) steps += 1;
-      return steps;
-    }
-    if (config.isEntityBased) {
-      if (_isPluginEnabled('repository')) steps += 1;
-      if (_isPluginEnabled('usecase')) steps += 1;
-    } else if (config.isPolymorphic || config.isOrchestrator) {
-      if (_isPluginEnabled('usecase')) steps += 1;
-    } else if (config.isCustomUseCase) {
-      if (config.hasService && _isPluginEnabled('service')) steps += 1;
-      if (_isPluginEnabled('usecase')) steps += 1;
-    }
-    if (config.generateVpcs || config.generatePresenter) {
-      if (_isPluginEnabled('presenter')) steps += 1;
-    }
-    if (config.generateVpcs || config.generateController) {
-      if (_isPluginEnabled('controller')) steps += 1;
-    }
-    if (config.generateVpcs || config.generateView) {
-      if (_isPluginEnabled('view')) steps += 1;
-    }
-    if (config.generateState && _isPluginEnabled('state')) steps += 1;
-    if (config.generateObserver && _isPluginEnabled('observer')) steps += 1;
-    if (config.generateData || config.generateDataSource) {
-      if (config.hasService && config.generateData) {
-        if (_isPluginEnabled('provider')) steps += 1;
-      } else {
-        if (_isPluginEnabled('datasource')) steps += 1;
-        if (!config.isEntityBased && _isPluginEnabled('repository')) steps += 1;
-      }
-    }
-    if ((config.generateMock || config.generateMockDataOnly) &&
-        _isPluginEnabled('mock')) {
-      steps += 1;
-    }
-    if (config.generateTest && _isPluginEnabled('test')) {
-      steps += 1;
-    }
-    if (config.generateDi && _isPluginEnabled('di')) steps += 1;
-    if (config.generateRoute && _isPluginEnabled('route')) steps += 1;
-    if (config.enableCache && _isPluginEnabled('cache')) steps += 1;
-    if (config.generateGql && _isPluginEnabled('graphql')) steps += 1;
-    return steps;
   }
 }

@@ -39,7 +39,24 @@ class EntityUseCaseGenerator {
 
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     final files = <GeneratedFile>[];
+    final validMethods = [
+      'get',
+      'getList',
+      'list',
+      'create',
+      'update',
+      'delete',
+      'watch',
+      'watchList',
+    ];
+
     for (final method in config.methods) {
+      if (!validMethods.contains(method)) {
+        if (config.verbose) {
+          print('  ⏭ Skipping unknown method: $method');
+        }
+        continue;
+      }
       files.add(await _generateForMethod(config, method));
     }
     if (config.revert && config.methods.isEmpty) {

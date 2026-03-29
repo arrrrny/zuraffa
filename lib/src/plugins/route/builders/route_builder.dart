@@ -512,7 +512,6 @@ class RouteBuilder {
       if (hasListView && hasDetailView)
         '../presentation/pages/$domainSnake/${entitySnake}_detail_view.dart',
       if (!config.noEntity) '../domain/entities/$entitySnake/$entitySnake.dart',
-      if (!config.generateDi) '../di/service_locator.dart',
       if (dependencyInfo.importPath.isNotEmpty) dependencyInfo.importPath,
     ];
 

@@ -96,20 +96,49 @@ extension TestBuilderEntity on TestBuilder {
 
     final packageName = _resolvePackageName(projectRoot);
 
+    // Use DiscoveryEngine to find the actual files for correct imports
+    final entityFile = discovery.findFileSync('${entitySnake}.dart');
+    final targetFile = discovery.findFileSync('${targetSnake}_$targetSuffix.dart');
+    final useCaseFile = discovery.findFileSync(useCaseFileName);
+
     final directives = [
       Directive.import('package:flutter_test/flutter_test.dart'),
       Directive.import('package:mocktail/mocktail.dart'),
-      Directive.import('package:zuraffa/zuraffa.dart'),
-      Directive.import(
-        'package:$packageName/src/domain/entities/$entitySnake/$entitySnake.dart',
-      ),
-      Directive.import(
-        'package:$packageName/src/domain/$targetDir/${targetSnake}_$targetSuffix.dart',
-      ),
-      Directive.import(
-        'package:$packageName/src/domain/usecases/$entitySnake/$useCaseFileName',
-      ),
+      if (method != 'create') Directive.import('package:zuraffa/zuraffa.dart'),
     ];
+
+    if (entityFile != null) {
+      final relPath = path.relative(entityFile.path, from: testDirPath);
+      directives.add(Directive.import(relPath));
+    } else {
+      directives.add(
+        Directive.import(
+          'package:$packageName/src/domain/entities/$entitySnake/$entitySnake.dart',
+        ),
+      );
+    }
+
+    if (targetFile != null) {
+      final relPath = path.relative(targetFile.path, from: testDirPath);
+      directives.add(Directive.import(relPath));
+    } else {
+      directives.add(
+        Directive.import(
+          'package:$packageName/src/domain/$targetDir/${targetSnake}_$targetSuffix.dart',
+        ),
+      );
+    }
+
+    if (useCaseFile != null) {
+      final relPath = path.relative(useCaseFile.path, from: testDirPath);
+      directives.add(Directive.import(relPath));
+    } else {
+      directives.add(
+        Directive.import(
+          'package:$packageName/src/domain/usecases/$entitySnake/$useCaseFileName',
+        ),
+      );
+    }
 
     final mockRepoClass = 'Mock$targetName';
     final mockEntityClass = 'Mock$entityName';

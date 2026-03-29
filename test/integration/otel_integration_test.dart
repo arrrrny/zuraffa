@@ -1,13 +1,7 @@
 // ignore_for_file: avoid_print
-/// Integration test for OtelFailureReporter against a local OTel Collector.
-///
-/// Prerequisites:
-///   docker run -p 4318:4318 otel/opentelemetry-collector-contrib:latest
-///
-/// Run with:
-///   flutter test test/integration/otel_integration_test.dart --tags=integration
-
 @Tags(['integration'])
+library;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/zuraffa.dart';
 

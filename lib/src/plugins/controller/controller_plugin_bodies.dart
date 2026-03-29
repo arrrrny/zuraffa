@@ -711,4 +711,134 @@ extension ControllerPluginBodies on ControllerPlugin {
         ),
     );
   }
+
+  Block _buildWatchRecordWithStateBody(
+    String entityName,
+    String entityCamel,
+    String args,
+  ) {
+    return Block(
+      (b) => b
+        ..statements.add(
+          _updateStateStatement({'isWatching': literalBool(true)}),
+        )
+        ..statements.add(
+          Code(
+            'final (initialFuture, updatesStream) = _presenter.watch${entityName}Record(${args});',
+          ),
+        )
+        ..statements.add(
+          Method(
+            (m) => m
+              ..modifier = MethodModifier.async
+              ..body = Block(
+                (bb) => bb
+                  ..statements.add(
+                    declareFinal(
+                      'result',
+                    ).assign(refer('initialFuture').awaited).statement,
+                  )
+                  ..statements.add(
+                    _resultFold(
+                      resultVar: 'result',
+                      successParams: ['entity'],
+                      successBody: Block(
+                        (bbb) => bbb
+                          ..statements.add(
+                            _updateStateStatement({
+                              'isWatching': literalBool(false),
+                              entityCamel: refer('entity'),
+                            }),
+                          ),
+                      ),
+                      failureParams: ['failure'],
+                      failureBody: Block(
+                        (bbb) => bbb
+                          ..statements.add(
+                            _updateStateStatement({
+                              'isWatching': literalBool(false),
+                              'error': refer('failure'),
+                            }),
+                          ),
+                      ),
+                    ),
+                  ),
+              ),
+          ).closure.call([]).statement,
+        )
+        ..statements.add(
+          declareFinal('subscription')
+              .assign(
+                refer('updatesStream').property('listen').call([
+                  Method(
+                    (m) => m
+                      ..requiredParameters.add(
+                        Parameter((p) => p..name = 'result'),
+                      )
+                      ..body = _resultFold(
+                        resultVar: 'result',
+                        successParams: ['entity'],
+                        successBody: Block(
+                          (bb) => bb
+                            ..statements.add(
+                              _updateStateStatement({
+                                entityCamel: refer('entity'),
+                              }),
+                            ),
+                        ),
+                        failureParams: ['failure'],
+                        failureBody: Block(
+                          (bb) => bb
+                            ..statements.add(
+                              _updateStateStatement({
+                                'error': refer('failure'),
+                              }),
+                            ),
+                        ),
+                      ),
+                  ).closure,
+                ]),
+              )
+              .statement,
+        )
+        ..statements.add(
+          refer('registerSubscription').call([refer('subscription')]).statement,
+        ),
+    );
+  }
+
+  Block _buildWatchRecordWithoutStateBody(String entityName, String args) {
+    return Block(
+      (b) => b
+        ..statements.add(
+          Code(
+            'final (_, updatesStream) = _presenter.watch${entityName}Record(${args});',
+          ),
+        )
+        ..statements.add(
+          declareFinal('subscription')
+              .assign(
+                refer('updatesStream').property('listen').call([
+                  Method(
+                    (m) => m
+                      ..requiredParameters.add(
+                        Parameter((p) => p..name = 'result'),
+                      )
+                      ..body = _resultFold(
+                        resultVar: 'result',
+                        successParams: ['_'],
+                        successBody: Block((bb) => bb),
+                        failureParams: ['_'],
+                        failureBody: Block((bb) => bb),
+                      ),
+                  ).closure,
+                ]),
+              )
+              .statement,
+        )
+        ..statements.add(
+          refer('registerSubscription').call([refer('subscription')]).statement,
+        ),
+    );
+  }
 }

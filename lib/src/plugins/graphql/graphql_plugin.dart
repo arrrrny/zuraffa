@@ -30,7 +30,10 @@ class GraphqlPlugin extends FileGeneratorPlugin {
   JsonSchema get configSchema => {
     'type': 'object',
     'properties': {
-      'schema-path': {'type': 'string', 'description': 'Path to .graphql schema file'},
+      'schema-path': {
+        'type': 'string',
+        'description': 'Path to .graphql schema file',
+      },
     },
   };
 

@@ -104,6 +104,7 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       queryFieldType: context.data['query-field-type'],
       noEntity: context.data['no-entity'] == true,
       generateState: context.data['state'] == true,
+      generateDi: context.data['di'] == true,
     );
 
     return generate(config);

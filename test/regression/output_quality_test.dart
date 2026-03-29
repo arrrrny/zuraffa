@@ -11,8 +11,8 @@ void main() {
     await writePubspec(workspace);
     final pubGet = await runFlutterPubGet(workspace);
     expect(pubGet.exitCode, equals(0), reason: pubGet.stderr.toString());
-    final result = await generateFullFeature(workspace);
     await writeEntityStub(workspace, name: 'Product');
+    final result = await generateFullFeature(workspace);
     await writeMainStub(workspace);
     generatedPaths = result.files
         .map((f) => f.path)

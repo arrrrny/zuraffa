@@ -1,5 +1,6 @@
 import 'package:path/path.dart' as path;
 import '../../../core/generator_options.dart';
+import '../../../core/plugin_system/discovery_engine.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/entity_analyzer.dart';
@@ -9,11 +10,12 @@ import '../../../utils/string_utils.dart';
 class ShadcnBuilder {
   final String outputDir;
   final GeneratorOptions options;
+  final DiscoveryEngine discovery;
 
   ShadcnBuilder({
     required this.outputDir,
     this.options = const GeneratorOptions(),
-  });
+  }) : discovery = DiscoveryEngine(projectRoot: outputDir);
 
   Future<List<GeneratedFile>> generate(
     GeneratorConfig config,
@@ -26,28 +28,46 @@ class ShadcnBuilder {
 
     // Analyze entity to get fields
     final fields = EntityAnalyzer.analyzeEntity(entityName, outputDir);
-    final ignoreFields = (shadcnData['ignore-fields'] as List?)?.cast<String>() ?? [];
+    final ignoreFields =
+        (shadcnData['ignore-fields'] as List?)?.cast<String>() ?? [];
 
     final filteredFields = Map<String, String>.from(fields)
       ..removeWhere((key, _) => ignoreFields.contains(key));
 
     final fileName = '${entitySnake}_${layout}_widget.dart';
-    final filePath = path.join(
+    final widgetDirPath = path.join(
       outputDir,
       'presentation',
       'widgets',
       domain,
-      fileName,
     );
+    final filePath = path.join(widgetDirPath, fileName);
+
+    // Find entity file for import
+    final entityFile = discovery.findFileSync('${entitySnake}.dart');
+    String entityImport;
+    if (entityFile != null) {
+      final relativePath = path.relative(entityFile.path, from: widgetDirPath);
+      entityImport = "import '$relativePath';";
+    } else {
+      // Fallback
+      entityImport =
+          "import '../../../../domain/entities/$entitySnake/$entitySnake.dart';";
+    }
 
     String content;
     switch (layout) {
       case 'form':
-        content = _generateForm(entityName, filteredFields);
+        content = _generateForm(entityName, filteredFields, entityImport);
         break;
       case 'list':
       default:
-        content = _generateList(entityName, filteredFields, shadcnData);
+        content = _generateList(
+          entityName,
+          filteredFields,
+          shadcnData,
+          entityImport,
+        );
         break;
     }
 
@@ -68,6 +88,7 @@ class ShadcnBuilder {
     String entityName,
     Map<String, String> fields,
     Map<String, dynamic> data,
+    String entityImport,
   ) {
     final hasFilter = data['filter'] == true;
     final hasSort = data['sort'] == true;
@@ -75,7 +96,7 @@ class ShadcnBuilder {
     final buffer = StringBuffer();
     buffer.writeln("import 'package:flutter/material.dart';");
     buffer.writeln("import 'package:shadcn_ui/shadcn_ui.dart';");
-    buffer.writeln("import '../../../../domain/entities/${StringUtils.camelToSnake(entityName)}/${StringUtils.camelToSnake(entityName)}.dart';");
+    buffer.writeln(entityImport);
     buffer.writeln();
     buffer.writeln("class ${entityName}ListWidget extends StatelessWidget {");
     buffer.writeln("  final List<$entityName> items;");
@@ -102,7 +123,9 @@ class ShadcnBuilder {
       if (hasFilter) {
         buffer.writeln("              Expanded(");
         buffer.writeln("                child: ShadInput(");
-        buffer.writeln("                  placeholder: const Text('Filter $entityName...'),");
+        buffer.writeln(
+          "                  placeholder: const Text('Filter $entityName...'),",
+        );
         buffer.writeln("                  onChanged: onFilterChanged,");
         buffer.writeln("                ),");
         buffer.writeln("              ),");
@@ -111,7 +134,9 @@ class ShadcnBuilder {
         buffer.writeln("              const SizedBox(width: 8),");
         buffer.writeln("              ShadButton.outline(");
         buffer.writeln("                child: const Text('Sort'),");
-        buffer.writeln("                onPressed: () => onSortChanged?.call('name'),");
+        buffer.writeln(
+          "                onPressed: () => onSortChanged?.call('name'),",
+        );
         buffer.writeln("              ),");
       }
       buffer.writeln("            ],");
@@ -127,7 +152,9 @@ class ShadcnBuilder {
     buffer.writeln("              return ShadCard(");
     buffer.writeln("                title: Text(item.${fields.keys.first}),");
     if (fields.length > 1) {
-      buffer.writeln("                description: Text(item.${fields.keys.elementAt(1)}.toString()),");
+      buffer.writeln(
+        "                description: Text(item.${fields.keys.elementAt(1)}.toString()),",
+      );
     }
     buffer.writeln("              );");
     buffer.writeln("            },");
@@ -141,21 +168,32 @@ class ShadcnBuilder {
     return buffer.toString();
   }
 
-  String _generateForm(String entityName, Map<String, String> fields) {
+  String _generateForm(
+    String entityName,
+    Map<String, String> fields,
+    String entityImport,
+  ) {
     final buffer = StringBuffer();
     buffer.writeln("import 'package:flutter/material.dart';");
     buffer.writeln("import 'package:shadcn_ui/shadcn_ui.dart';");
+    buffer.writeln(entityImport);
     buffer.writeln();
     buffer.writeln("class ${entityName}FormWidget extends StatefulWidget {");
     buffer.writeln("  final Function(Map<String, dynamic>) onSubmit;");
     buffer.writeln();
-    buffer.writeln("  const ${entityName}FormWidget({super.key, required this.onSubmit});");
+    buffer.writeln(
+      "  const ${entityName}FormWidget({super.key, required this.onSubmit});",
+    );
     buffer.writeln();
     buffer.writeln("  @override");
-    buffer.writeln("  State<${entityName}FormWidget> createState() => _${entityName}FormWidgetState();");
+    buffer.writeln(
+      "  State<${entityName}FormWidget> createState() => _${entityName}FormWidgetState();",
+    );
     buffer.writeln("}");
     buffer.writeln();
-    buffer.writeln("class _${entityName}FormWidgetState extends State<${entityName}FormWidget> {");
+    buffer.writeln(
+      "class _${entityName}FormWidgetState extends State<${entityName}FormWidget> {",
+    );
     buffer.writeln("  final formKey = GlobalKey<ShadFormState>();");
     buffer.writeln();
     buffer.writeln("  @override");
@@ -170,7 +208,9 @@ class ShadcnBuilder {
       final type = entry.value;
       buffer.writeln("          ShadInputFormField(");
       buffer.writeln("            id: '$name',");
-      buffer.writeln("            label: const Text('${StringUtils.capitalize(name)}'),");
+      buffer.writeln(
+        "            label: const Text('${StringUtils.capitalize(name)}'),",
+      );
       if (type.contains('int') || type.contains('double')) {
         buffer.writeln("            keyboardType: TextInputType.number,");
       }
@@ -181,8 +221,12 @@ class ShadcnBuilder {
     buffer.writeln("          ShadButton(");
     buffer.writeln("            child: const Text('Submit'),");
     buffer.writeln("            onPressed: () {");
-    buffer.writeln("              if (formKey.currentState!.saveAndValidate()) {");
-    buffer.writeln("                widget.onSubmit(formKey.currentState!.value);");
+    buffer.writeln(
+      "              if (formKey.currentState!.saveAndValidate()) {",
+    );
+    buffer.writeln(
+      "                widget.onSubmit(formKey.currentState!.value);",
+    );
     buffer.writeln("              }");
     buffer.writeln("            },");
     buffer.writeln("          ),");

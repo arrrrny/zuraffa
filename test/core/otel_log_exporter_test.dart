@@ -1,11 +1,9 @@
-import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:zuraffa/zuraffa.dart';
-import 'package:zuraffa/src/core/otel_log_exporter.dart';
 
 class MockHttpClient extends Mock implements http.Client {}
 
