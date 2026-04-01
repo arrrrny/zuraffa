@@ -323,6 +323,10 @@ mixin FailureHandler on Loggable {
   AppFailure logAndHandleError(Object error, [StackTrace? stackTrace]) {
     final failure = handleError(error, stackTrace);
     logger.severe('Error occurred: $failure', error, stackTrace);
+    FailureReporterRegistry.instance.reportFailure(
+      failure,
+      stackTrace: stackTrace,
+    );
     return failure;
   }
 }

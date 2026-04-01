@@ -83,6 +83,9 @@ extension RepositoryImplementationGeneratorSimple
         final dataType = config.useZorphy
             ? '${config.name}Patch'
             : 'Partial<${config.name}>';
+        final updateParamsType = config.useZorphy
+            ? 'UpdateParams<${config.idFieldType}, $dataType>'
+            : dataType;
         return Method(
           (m) => m
             ..name = 'update'
@@ -92,9 +95,7 @@ extension RepositoryImplementationGeneratorSimple
               Parameter(
                 (p) => p
                   ..name = 'params'
-                  ..type = refer(
-                    'UpdateParams<${config.idFieldType}, $dataType>',
-                  ),
+                  ..type = refer(updateParamsType),
               ),
             )
             ..body = Block(
@@ -181,7 +182,44 @@ extension RepositoryImplementationGeneratorSimple
             ),
         );
       default:
-        return Method((m) => m..name = '_noop');
+        // Handle custom method names by delegating to data source
+        var returnType = config.returnsType ?? 'void';
+        final paramsType = config.paramsType ?? 'NoParams';
+
+        // Wrap in Future/Stream if not already
+        if (config.useCaseType == 'stream' ||
+            config.useCaseType == 'streamusecase') {
+          if (!returnType.startsWith('Stream<')) {
+            returnType = 'Stream<$returnType>';
+          }
+        } else if (config.useCaseType != 'sync' &&
+            config.useCaseType != 'syncusecase') {
+          if (!returnType.startsWith('Future<')) {
+            returnType = 'Future<$returnType>';
+          }
+        }
+
+        return Method(
+          (m) => m
+            ..name = method
+            ..annotations.add(refer('override'))
+            ..returns = refer(returnType)
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer(paramsType),
+              ),
+            )
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer(
+                    config.enableCache ? '_remoteDataSource' : '_dataSource',
+                  ).property(method).call([refer('params')]).returned.statement,
+                ),
+            ),
+        );
     }
   }
 }

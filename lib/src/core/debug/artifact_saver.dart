@@ -4,7 +4,7 @@ import 'package:path/path.dart' as path;
 
 import '../../models/generator_config.dart';
 import '../../models/generator_result.dart';
-import '../orchestration/plugin_orchestrator.dart';
+import '../../models/generated_file.dart';
 
 class DebugArtifactSaver {
   final String projectRoot;
@@ -47,8 +47,8 @@ class DebugArtifactSaver {
   }
 
   Future<String> saveOrchestration({
-    GeneratorConfig? config,
-    required OrchestrationResult result,
+    Map<String, dynamic>? config,
+    required List<GeneratedFile> result,
     List<String>? args,
     Object? error,
     StackTrace? stackTrace,
@@ -61,9 +61,8 @@ class DebugArtifactSaver {
     await dir.create(recursive: true);
 
     final artifacts = {
-      'success': result.success,
-      'files': result.files.map((f) => f.toJson()).toList(),
-      'errors': result.errors,
+      'success': error == null,
+      'files': result.map((f) => f.toJson()).toList(),
       'args': args ?? const [],
       'error': error?.toString(),
       'stack': stackTrace?.toString(),
@@ -76,7 +75,7 @@ class DebugArtifactSaver {
     if (config != null) {
       final configFile = File(path.join(dir.path, 'config.json'));
       await configFile.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(config.toJson()),
+        const JsonEncoder.withIndent('  ').convert(config),
       );
     }
 

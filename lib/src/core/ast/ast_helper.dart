@@ -1,5 +1,6 @@
 import 'package:analyzer/dart/ast/ast.dart';
 
+import '../context/file_system.dart';
 import 'ast_modifier.dart';
 import 'file_parser.dart';
 import 'node_finder.dart';
@@ -9,8 +10,8 @@ class AstHelper {
 
   const AstHelper({this.parser = const FileParser()});
 
-  Future<AstParseResult> parseFile(String path) {
-    return parser.parseFile(path);
+  Future<AstParseResult> parseFile(String path, {FileSystem? fileSystem}) {
+    return parser.parseFile(path, fileSystem: fileSystem);
   }
 
   AstParseResult parseSource(String source, {String path = 'input.dart'}) {
@@ -69,6 +70,24 @@ class AstHelper {
       return source;
     }
     return AstModifier.addImport(source, unit, importPath);
+  }
+
+  String addAugment({required String source, required String augmentPath}) {
+    final parseResult = parseSource(source);
+    final unit = parseResult.unit;
+    if (unit == null) {
+      print('DEBUG: addAugment failed to parse source');
+      return source;
+    }
+    final result = AstModifier.addAugment(source, unit, augmentPath);
+    if (result == source) {
+      print('DEBUG: addAugment made no changes to source');
+    }
+    return result;
+  }
+
+  String removeAugment({required String source, required String augmentPath}) {
+    return AstModifier.removeAugment(source, augmentPath);
   }
 
   String addExport({required String source, required String exportPath}) {
@@ -160,23 +179,24 @@ class AstHelper {
     required String className,
     required String methodName,
   }) {
-    final parseResult = parseSource(source);
-    final unit = parseResult.unit;
-    if (unit == null) {
-      return source;
+    var updated = source;
+    while (true) {
+      final parseResult = parseSource(updated);
+      final unit = parseResult.unit;
+      if (unit == null) break;
+
+      final classNode = findClass(unit, className);
+      if (classNode == null) break;
+
+      final methods = findMethods(classNode, name: methodName);
+      if (methods.isEmpty) break;
+
+      updated = AstModifier.removeMethodFromClass(
+        source: updated,
+        method: methods.first,
+      );
     }
-    final classNode = findClass(unit, className);
-    if (classNode == null) {
-      return source;
-    }
-    final methods = findMethods(classNode, name: methodName);
-    if (methods.isEmpty) {
-      return source;
-    }
-    return AstModifier.removeMethodFromClass(
-      source: source,
-      method: methods.first,
-    );
+    return updated;
   }
 
   String removeMethodFromExtension({
@@ -193,8 +213,8 @@ class AstHelper {
     if (extensionNode == null) {
       return source;
     }
-    // Use extensionNode.body.members instead of deprecated extensionNode.members
-    final methods = extensionNode.body.members
+    final body = extensionNode.body;
+    final methods = body.members
         .whereType<MethodDeclaration>()
         .where((m) => m.name.lexeme == methodName)
         .toList();
@@ -212,6 +232,48 @@ class AstHelper {
     required String className,
     required String fieldName,
   }) {
+    var updated = source;
+    while (true) {
+      final parseResult = parseSource(updated);
+      final unit = parseResult.unit;
+      if (unit == null) break;
+
+      final classNode = findClass(unit, className);
+      if (classNode == null) break;
+
+      final fields = findFields(classNode, name: fieldName);
+      if (fields.isEmpty) break;
+
+      updated = AstModifier.removeField(source: updated, field: fields.first);
+    }
+    return updated;
+  }
+
+  String removeElementFromReturnListInFunction({
+    required String source,
+    required String functionName,
+    required String elementSource,
+  }) {
+    final parseResult = parseSource(source);
+    final unit = parseResult.unit;
+    if (unit == null) {
+      return source;
+    }
+    final functionNode = findFunction(unit, functionName);
+    if (functionNode == null) {
+      return source;
+    }
+    return AstModifier.removeElementFromReturnListInFunction(
+      source: source,
+      functionNode: functionNode,
+      elementSource: elementSource,
+    );
+  }
+
+  String removeConstructorFromClass({
+    required String source,
+    required String className,
+  }) {
     final parseResult = parseSource(source);
     final unit = parseResult.unit;
     if (unit == null) {
@@ -221,11 +283,15 @@ class AstHelper {
     if (classNode == null) {
       return source;
     }
-    final fields = findFields(classNode, name: fieldName);
-    if (fields.isEmpty) {
+    final body = classNode.body;
+    if (body is! BlockClassBody) return source;
+    final constructors = body.members.whereType<ConstructorDeclaration>();
+    if (constructors.isEmpty) {
       return source;
     }
-    return AstModifier.removeField(source: source, field: fields.first);
+    final constructor = constructors.first;
+    return source.substring(0, constructor.offset) +
+        source.substring(constructor.end);
   }
 
   String addFieldToClass({
@@ -310,5 +376,19 @@ class AstHelper {
       functionNode: functionNode,
       elementSource: elementSource,
     );
+  }
+
+  bool isClassEmpty(String source, String className) {
+    final parseResult = parseSource(source);
+    final unit = parseResult.unit;
+    if (unit == null) {
+      return false;
+    }
+    final classNode = findClass(unit, className);
+    if (classNode == null) {
+      return false;
+    }
+    final body = classNode.body;
+    return body is BlockClassBody && body.members.isEmpty;
   }
 }

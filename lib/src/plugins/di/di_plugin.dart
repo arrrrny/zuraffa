@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:args/command_runner.dart';
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
@@ -11,6 +9,8 @@ import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/plugin_context.dart';
+import '../../core/context/file_system.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/file_utils.dart';
@@ -18,26 +18,10 @@ import '../../utils/string_utils.dart';
 import 'builders/registration_builder.dart';
 import 'builders/service_locator_builder.dart';
 import 'capabilities/create_di_capability.dart';
+import 'capabilities/register_capability.dart';
 import 'detectors/registration_detector.dart';
 
 /// Configures dependency injection registrations for generated code.
-///
-/// Generates get_it registrations for:
-/// - UseCases with proper lifecycle management
-/// - Repositories with datasource injection
-/// - Services with provider bindings
-/// - Controllers with presenter injection
-///
-/// Supports mock/remote datasource switching via useMock flag.
-///
-/// Example:
-/// ```dart
-/// final plugin = DiPlugin(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final files = await plugin.generate(GeneratorConfig(name: 'Product'));
-/// ```
 class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final GeneratorOptions options;
@@ -45,18 +29,9 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final RegistrationDetector registrationDetector;
   final AppendExecutor appendExecutor;
   final ServiceLocatorBuilder serviceLocatorBuilder;
+  final FileSystem fileSystem;
 
   /// Creates a [DiPlugin].
-  ///
-  /// @param outputDir Target directory for generated files.
-  /// @param options Generation flags for writing behavior and logging.
-  /// @param dryRun Deprecated: use [options].
-  /// @param force Deprecated: use [options].
-  /// @param verbose Deprecated: use [options].
-  /// @param registrationBuilder Optional registration builder override.
-  /// @param registrationDetector Optional registration detector override.
-  /// @param appendExecutor Optional append executor override.
-  /// @param serviceLocatorBuilder Optional service locator builder override.
   DiPlugin({
     required this.outputDir,
     this.options = const GeneratorOptions(),
@@ -64,43 +39,110 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     this.registrationDetector = const RegistrationDetector(),
     this.appendExecutor = const AppendExecutor(),
     this.serviceLocatorBuilder = const ServiceLocatorBuilder(),
-  });
+    FileSystem? fileSystem,
+  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 
   @override
-  List<ZuraffaCapability> get capabilities => [CreateDiCapability(this)];
+  List<ZuraffaCapability> get capabilities => [
+    CreateDiCapability(this),
+    RegisterCapability(this),
+  ];
 
   @override
   Command createCommand() => ModularDiCommand(this);
 
-  /// @returns Plugin identifier.
   @override
   String get id => 'di';
 
-  /// @returns Plugin display name.
   @override
   String get name => 'DI Plugin';
 
-  /// @returns Plugin version string.
   @override
   String get version => '1.0.0';
 
-  /// Generates DI registration files for the given [config].
-  ///
-  /// @param config Generator configuration describing the entity and options.
-  /// @returns List of generated DI files.
   @override
-  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
-    if (!config.generateDi) {
+  String? get configKey => 'diByDefault';
+
+  @override
+  List<String> get runAfter => [
+    'usecase',
+    'repository',
+    'service',
+    'datasource',
+    'provider',
+    'view',
+    'presenter',
+    'controller',
+  ];
+
+  @override
+  JsonSchema get configSchema => {
+    'type': 'object',
+    'properties': {
+      'use-mock': {
+        'type': 'boolean',
+        'default': false,
+        'description': 'Use mock providers in DI',
+      },
+      'framework': {
+        'type': 'string',
+        'enum': ['get_it'],
+        'default': 'get_it',
+      },
+    },
+  };
+
+  @override
+  Future<List<GeneratedFile>> generateWithContext(PluginContext context) async {
+    final config = GeneratorConfig(
+      name: context.core.name,
+      outputDir: context.core.outputDir,
+      dryRun: context.core.dryRun,
+      force: context.core.force,
+      verbose: context.core.verbose,
+      revert: context.core.revert,
+      methods: context.data['methods']?.cast<String>().toList() ?? [],
+      domain: context.data['domain'],
+      repo: context.data['repo'],
+      service: context.data['service'],
+      usecases: context.data['usecases']?.cast<String>().toList() ?? [],
+      generateDi: true,
+      useMockInDi: context.get<bool>('use-mock') ?? false,
+      diFramework: context.get<String>('framework') ?? 'get_it',
+      generateUseCase:
+          context.data['usecase'] == true ||
+          context.data['generateUseCase'] == true,
+      generateRepository:
+          context.data['repository'] == true ||
+          context.data['generateRepository'] == true,
+      generateDataSource:
+          context.data['datasource'] == true ||
+          context.data['generateDataSource'] == true,
+      generateData:
+          context.data['data'] == true || context.data['generateData'] == true,
+      generateService:
+          context.data['service'] == true ||
+          context.data['generateService'] == true,
+      useService:
+          context.data['use-service'] == true ||
+          context.data['useService'] == true,
+      enableCache:
+          context.data['cache'] == true || context.data['enableCache'] == true,
+      noEntity: context.data['no-entity'] == true,
+    );
+
+    return generate(config, context: context);
+  }
+
+  @override
+  Future<List<GeneratedFile>> generate(
+    GeneratorConfig config, {
+    PluginContext? context,
+  }) async {
+    if (!config.generateDi && !config.revert) {
       return [];
     }
-    // Use flags from config if they differ from instance (though this plugin uses instance fields directly in methods)
-    // To support dynamic flags without refactoring all internal methods, we need to ensure this instance
-    // or a new instance is used with correct flags.
-    // However, DiPlugin methods access `this.dryRun`, `this.outputDir` etc.
-    // If we want to respect config flags, we should create a new instance or refactor methods to take flags.
-    // Given the complexity, let's create a new instance with correct flags and delegate.
 
-    // Avoid recursion if flags match (primitive check, or just check if this is a "delegator")
     if (config.outputDir != outputDir ||
         config.dryRun != options.dryRun ||
         config.force != options.force ||
@@ -118,67 +160,74 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         registrationDetector: registrationDetector,
         appendExecutor: appendExecutor,
         serviceLocatorBuilder: serviceLocatorBuilder,
+        fileSystem: context?.fileSystem,
       );
-      return delegator.generate(config);
+      return delegator.generate(config, context: context);
     }
 
+    final fs = context?.fileSystem ?? fileSystem;
     final files = <GeneratedFile>[];
 
-    // Generate UseCase DI files for all UseCase types
     if (config.generateUseCase) {
-      files.addAll(await _generateUseCaseDIFiles(config));
+      files.addAll(await _generateUseCaseDIFiles(config, fs));
     }
 
-    // Only generate DataSource/Repository DI if NOT using a Service/Provider pattern
     if (!config.hasService && !config.isOrchestrator) {
       if (config.generateDataSource || config.generateData) {
         if (config.enableCache) {
-          files.add(await _generateRemoteDataSourceDI(config));
-          files.add(await _generateLocalDataSourceDI(config));
+          files.add(await _generateRemoteDataSourceDI(config, fs));
+          files.add(await _generateLocalDataSourceDI(config, fs));
         } else if (config.useMockInDi) {
-          files.add(await _generateMockDataSourceDI(config));
+          files.add(await _generateMockDataSourceDI(config, fs));
         } else if (config.generateLocal) {
-          files.add(await _generateLocalDataSourceDI(config));
+          files.add(await _generateLocalDataSourceDI(config, fs));
         } else {
-          files.add(await _generateRemoteDataSourceDI(config));
+          files.add(await _generateRemoteDataSourceDI(config, fs));
         }
       }
 
       if (config.generateRepository || config.generateData) {
-        files.add(await _generateRepositoryDI(config));
+        files.add(await _generateRepositoryDI(config, fs));
       }
 
       if (config.generateMock &&
           !config.generateMockDataOnly &&
           (config.generateData || config.generateDataSource)) {
-        files.add(await _generateMockDataSourceDI(config));
+        files.add(await _generateMockDataSourceDI(config, fs));
       }
     }
 
     if (config.hasService && (config.generateService || config.generateData)) {
-      final serviceFile = await _generateServiceDI(config);
+      final serviceFile = await _generateServiceDI(config, fs);
       if (serviceFile != null) {
         files.add(serviceFile);
       }
 
-      if (config.useMockInDi) {
-        final mockProviderFile = await _generateMockProviderDI(config);
-        if (mockProviderFile != null) {
-          files.add(mockProviderFile);
-        }
-      } else {
-        final providerFile = await _generateProviderDI(config);
-        if (providerFile != null) {
-          files.add(providerFile);
+      if (config.generateData) {
+        if (config.useMockInDi) {
+          final mockProviderFile = await _generateMockProviderDI(config, fs);
+          if (mockProviderFile != null) {
+            files.add(mockProviderFile);
+          }
+        } else {
+          final providerFile = await _generateProviderDI(config, fs);
+          if (providerFile != null) {
+            files.add(providerFile);
+          }
         }
       }
     }
 
-    final indexFiles = await _regenerateIndexFiles(files);
+    final indexFiles = await _regenerateIndexFiles(
+      files,
+      revert: config.revert,
+      fileSystem: fs,
+    );
     files.addAll(indexFiles);
 
     final serviceLocatorFile = await _generateServiceLocator(
       revert: config.revert,
+      fileSystem: fs,
     );
     if (serviceLocatorFile != null) {
       files.add(serviceLocatorFile);
@@ -189,6 +238,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   Future<GeneratedFile> _generateRemoteDataSourceDI(
     GeneratorConfig config,
+    FileSystem fs,
   ) async {
     final baseName = config.repo != null
         ? config.repo!.replaceAll('Repository', '')
@@ -228,11 +278,13 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fs,
     );
   }
 
   Future<GeneratedFile> _generateLocalDataSourceDI(
     GeneratorConfig config,
+    FileSystem fs,
   ) async {
     final baseName = config.repo != null
         ? config.repo!.replaceAll('Repository', '')
@@ -332,11 +384,13 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fs,
     );
   }
 
   Future<GeneratedFile> _generateMockDataSourceDI(
     GeneratorConfig config,
+    FileSystem fs,
   ) async {
     final baseName = config.repo != null
         ? config.repo!.replaceAll('Repository', '')
@@ -376,10 +430,14 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fs,
     );
   }
 
-  Future<GeneratedFile> _generateRepositoryDI(GeneratorConfig config) async {
+  Future<GeneratedFile> _generateRepositoryDI(
+    GeneratorConfig config,
+    FileSystem fs,
+  ) async {
     final baseName = config.repo != null
         ? config.repo!.replaceAll('Repository', '')
         : config.name;
@@ -413,6 +471,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       final remoteImport = config.useMockInDi
           ? '../../data/datasources/$baseSnake/${baseSnake}_mock_datasource.dart'
           : '../../data/datasources/$baseSnake/${baseSnake}_remote_datasource.dart';
+
       imports.add(remoteImport);
       imports.add(
         '../../data/datasources/$baseSnake/${baseSnake}_local_datasource.dart',
@@ -478,10 +537,14 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fs,
     );
   }
 
-  Future<GeneratedFile?> _generateServiceDI(GeneratorConfig config) async {
+  Future<GeneratedFile?> _generateServiceDI(
+    GeneratorConfig config,
+    FileSystem fs,
+  ) async {
     final serviceName = config.effectiveService;
     final serviceSnake = config.serviceSnake;
     final providerName = config.effectiveProvider;
@@ -491,23 +554,36 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final fileName = '${serviceSnake}_service_di.dart';
     final diPath = path.join(outputDir, 'di', 'services', fileName);
 
-    if (File(diPath).existsSync() && !options.force) {
+    if (config.revert) {
+      return FileUtils.deleteFile(
+        diPath,
+        'di_service',
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+        fileSystem: fs,
+      );
+    }
+
+    if (await fs.exists(diPath) && !options.force) {
       return null;
     }
 
-    final imports = [
-      'package:get_it/get_it.dart',
-      '../../domain/services/${serviceSnake}_service.dart',
-    ];
+    final serviceImport = config.isEntityBased
+        ? '../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
+        : '../../domain/services/${serviceSnake}_service.dart';
+
+    final imports = ['package:get_it/get_it.dart', serviceImport];
 
     if (config.useMockInDi) {
-      imports.add(
-        '../../data/providers/${config.effectiveDomain}/${config.providerSnake}_mock_provider.dart',
-      );
+      final mockProviderImport = config.isEntityBased || config.hasService
+          ? '../../data/providers/${config.effectiveDomain}/${config.providerSnake}_mock_provider.dart'
+          : '../../data/providers/${config.providerSnake}_mock_provider.dart';
+      imports.add(mockProviderImport);
     } else {
-      imports.add(
-        '../../data/providers/${config.effectiveDomain}/${config.providerSnake}_provider.dart',
-      );
+      final providerImport = config.isEntityBased || config.hasService
+          ? '../../data/providers/${config.effectiveDomain}/${config.providerSnake}_provider.dart'
+          : '../../data/providers/${config.providerSnake}_provider.dart';
+      imports.add(providerImport);
     }
 
     final content = registrationBuilder.buildRegistrationFile(
@@ -523,14 +599,18 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
                     Method(
                       (m) => m
                         ..lambda = true
-                        ..body = refer(
-                          config.useMockInDi
-                              ? providerName.replaceAll(
-                                  'Provider',
-                                  'MockProvider',
-                                )
-                              : providerName,
-                        ).call([]).code,
+                        ..body =
+                            (config.useMockInDi
+                                    ? refer(
+                                        providerName.replaceAll(
+                                          'Provider',
+                                          'MockProvider',
+                                        ),
+                                      ).call([])
+                                    : refer(
+                                        'getIt',
+                                      ).call([], {}, [refer(providerName)]))
+                                .code,
                     ).closure,
                   ],
                   {},
@@ -549,10 +629,14 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fs,
     );
   }
 
-  Future<GeneratedFile?> _generateMockProviderDI(GeneratorConfig config) async {
+  Future<GeneratedFile?> _generateMockProviderDI(
+    GeneratorConfig config,
+    FileSystem fs,
+  ) async {
     final providerName = config.effectiveProvider;
     final providerSnake = config.providerSnake;
     if (providerName == null || providerSnake == null) {
@@ -566,12 +650,23 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final fileName = '${mockProviderSnake}_di.dart';
     final diPath = path.join(outputDir, 'di', 'providers', fileName);
 
+    if (config.revert) {
+      return FileUtils.deleteFile(
+        diPath,
+        'di_mock_provider',
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+        fileSystem: fs,
+      );
+    }
+
+    final mockProviderImport = config.isEntityBased || config.hasService
+        ? '../../data/providers/${config.effectiveDomain}/$mockProviderSnake.dart'
+        : '../../data/providers/$mockProviderSnake.dart';
+
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$mockProviderName',
-      imports: [
-        'package:get_it/get_it.dart',
-        '../../data/providers/${config.effectiveDomain}/$mockProviderSnake.dart',
-      ],
+      imports: ['package:get_it/get_it.dart', mockProviderImport],
       body: Block(
         (b) => b
           ..statements.add(
@@ -594,10 +689,14 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fs,
     );
   }
 
-  Future<GeneratedFile?> _generateProviderDI(GeneratorConfig config) async {
+  Future<GeneratedFile?> _generateProviderDI(
+    GeneratorConfig config,
+    FileSystem fs,
+  ) async {
     final providerName = config.effectiveProvider;
     final providerSnake = config.providerSnake;
     if (providerName == null || providerSnake == null) {
@@ -606,12 +705,23 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final fileName = '${providerSnake}_provider_di.dart';
     final diPath = path.join(outputDir, 'di', 'providers', fileName);
 
+    if (config.revert) {
+      return FileUtils.deleteFile(
+        diPath,
+        'di_provider',
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+        fileSystem: fs,
+      );
+    }
+
+    final providerImport = config.isEntityBased || config.hasService
+        ? '../../data/providers/${config.effectiveDomain}/${providerSnake}_provider.dart'
+        : '../../data/providers/${providerSnake}_provider.dart';
+
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$providerName',
-      imports: [
-        'package:get_it/get_it.dart',
-        '../../data/providers/${config.effectiveDomain}/${providerSnake}_provider.dart',
-      ],
+      imports: ['package:get_it/get_it.dart', providerImport],
       body: Block(
         (b) => b
           ..statements.add(
@@ -634,20 +744,22 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fs,
     );
   }
 
   Future<List<GeneratedFile>> _generateUseCaseDIFiles(
     GeneratorConfig config,
+    FileSystem fs,
   ) async {
     final files = <GeneratedFile>[];
 
     if (config.isOrchestrator) {
-      files.add(await _generateOrchestratorUseCaseDI(config));
+      files.add(await _generateOrchestratorUseCaseDI(config, fs));
     } else if (config.isEntityBased) {
-      files.addAll(await _generateEntityUseCaseDIFiles(config));
+      files.addAll(await _generateEntityUseCaseDIFiles(config, fs));
     } else if (config.isCustomUseCase) {
-      files.add(await _generateCustomUseCaseDI(config));
+      files.add(await _generateCustomUseCaseDI(config, fs));
     }
 
     return files;
@@ -655,6 +767,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   Future<GeneratedFile> _generateOrchestratorUseCaseDI(
     GeneratorConfig config,
+    FileSystem fs,
   ) async {
     final className = '${config.name}UseCase';
     final classSnake = config.nameSnake;
@@ -662,22 +775,30 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final fileName = '${classSnake}_usecase_di.dart';
     final diPath = path.join(outputDir, 'di', 'usecases', fileName);
 
-    final imports = <String>[
+    final imports = {
       'package:get_it/get_it.dart',
       '../../domain/usecases/$domainSnake/${classSnake}_usecase.dart',
-    ];
+    };
 
     final usecaseParams = <Expression>[];
     for (final usecaseName in config.usecases) {
       final usecaseClassName = usecaseName.endsWith('UseCase')
           ? usecaseName
           : '${usecaseName}UseCase';
+
+      if (usecaseClassName == className) {
+        continue;
+      }
+
       final usecaseSnake = StringUtils.camelToSnake(
         usecaseClassName.replaceAll('UseCase', ''),
       );
 
-      // Find the actual domain for this usecase
-      final usecaseDomain = _findUseCaseDomain(usecaseSnake, domainSnake);
+      final usecaseDomain = await _findUseCaseDomain(
+        usecaseSnake,
+        domainSnake,
+        fs,
+      );
       imports.add(
         '../../domain/usecases/$usecaseDomain/${usecaseSnake}_usecase.dart',
       );
@@ -701,7 +822,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$className',
-      imports: imports,
+      imports: imports.toList(),
       body: Block((b) => b..statements.add(registrationCall.statement)),
     );
 
@@ -713,29 +834,33 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fs,
     );
   }
 
-  String _findUseCaseDomain(String usecaseSnake, String defaultDomain) {
-    final usecasesDir = Directory(path.join(outputDir, 'domain', 'usecases'));
-    if (usecasesDir.existsSync()) {
-      for (final dir in usecasesDir.listSync()) {
-        if (dir is Directory) {
-          final useCaseFile = File(
-            path.join(dir.path, '${usecaseSnake}_usecase.dart'),
-          );
-          if (useCaseFile.existsSync()) {
-            return path.basename(dir.path);
+  Future<String> _findUseCaseDomain(
+    String usecaseSnake,
+    String defaultDomain,
+    FileSystem fs,
+  ) async {
+    final usecasesDir = path.join(outputDir, 'domain', 'usecases');
+    if (await fs.exists(usecasesDir)) {
+      final items = await fs.list(usecasesDir);
+      for (final item in items) {
+        if (await fs.isDirectory(item)) {
+          final useCaseFile = path.join(item, '${usecaseSnake}_usecase.dart');
+          if (await fs.exists(useCaseFile)) {
+            return path.basename(item);
           }
         }
       }
     }
-    // Fallback to the default domain if not found
     return defaultDomain;
   }
 
   Future<List<GeneratedFile>> _generateEntityUseCaseDIFiles(
     GeneratorConfig config,
+    FileSystem fs,
   ) async {
     final files = <GeneratedFile>[];
     final entityName = config.name;
@@ -745,10 +870,27 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final repoName = '${entityName}Repository';
     final repoSnake = entitySnake;
 
+    final serviceName = config.effectiveService;
+    final serviceSnake = config.serviceSnake;
+    final useService = config.useService;
+
     final methods = config.methods;
     if (methods.isEmpty) return files;
 
+    final validMethods = [
+      'get',
+      'list',
+      'getList',
+      'create',
+      'update',
+      'delete',
+      'watch',
+      'watchList',
+    ];
+
     for (final method in methods) {
+      if (!validMethods.contains(method)) continue;
+
       final usecaseInfo = _getUseCaseInfo(method, entityName);
       final className = usecaseInfo.className;
       final classSnake = StringUtils.camelToSnake(
@@ -760,11 +902,20 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       final imports = <String>[
         'package:get_it/get_it.dart',
         '../../domain/usecases/$domainSnake/${classSnake}_usecase.dart',
-        '../../domain/repositories/${repoSnake}_repository.dart',
       ];
 
+      if (useService && serviceName != null && serviceSnake != null) {
+        imports.add(
+          '../../domain/services/$domainSnake/${serviceSnake}_service.dart',
+        );
+      } else {
+        imports.add('../../domain/repositories/${repoSnake}_repository.dart');
+      }
+
       final constructorCall = refer(className).call([
-        refer('getIt').call([], {}, [refer(repoName)]),
+        refer('getIt').call([], {}, [
+          refer(useService && serviceName != null ? serviceName : repoName),
+        ]),
       ]);
 
       final registrationCall = refer('getIt')
@@ -796,6 +947,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           dryRun: options.dryRun,
           verbose: options.verbose,
           revert: config.revert,
+          fileSystem: fs,
         ),
       );
     }
@@ -803,17 +955,20 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     return files;
   }
 
-  Future<GeneratedFile> _generateCustomUseCaseDI(GeneratorConfig config) async {
+  Future<GeneratedFile> _generateCustomUseCaseDI(
+    GeneratorConfig config,
+    FileSystem fs,
+  ) async {
     final className = '${config.name}UseCase';
     final classSnake = config.nameSnake;
     final domainSnake = config.effectiveDomain;
     final fileName = '${classSnake}_usecase_di.dart';
     final diPath = path.join(outputDir, 'di', 'usecases', fileName);
 
-    final imports = <String>[
+    final imports = {
       'package:get_it/get_it.dart',
       '../../domain/usecases/$domainSnake/${classSnake}_usecase.dart',
-    ];
+    };
 
     final constructorParams = <Expression>[];
 
@@ -832,7 +987,13 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     if (serviceName != null) {
       final serviceSnake = config.serviceSnake;
       if (serviceSnake != null) {
-        imports.add('../../domain/services/${serviceSnake}_service.dart');
+        if (config.useService) {
+          imports.add(
+            '../../domain/services/$domainSnake/${serviceSnake}_service.dart',
+          );
+        } else {
+          imports.add('../../domain/services/${serviceSnake}_service.dart');
+        }
         constructorParams.add(
           refer('getIt').call([], {}, [refer(serviceName)]),
         );
@@ -856,7 +1017,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$className',
-      imports: imports,
+      imports: imports.toList(),
       body: Block((b) => b..statements.add(registrationCall.statement)),
     );
 
@@ -868,6 +1029,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fs,
     );
   }
 
@@ -910,26 +1072,70 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }
 
   Future<List<GeneratedFile>> _regenerateIndexFiles(
-    List<GeneratedFile> files,
-  ) async {
+    List<GeneratedFile> files, {
+    bool revert = false,
+    required FileSystem fileSystem,
+  }) async {
     final indexFiles = <GeneratedFile>[];
 
     void addIfNotNull(GeneratedFile? f) {
       if (f != null) indexFiles.add(f);
     }
 
-    addIfNotNull(await _regenerateIndexFile('usecases', 'UseCases', files));
     addIfNotNull(
-      await _regenerateIndexFile('datasources', 'DataSources', files),
+      await _regenerateIndexFile(
+        'usecases',
+        'UseCases',
+        files,
+        revert: revert,
+        fileSystem: fileSystem,
+      ),
     );
     addIfNotNull(
-      await _regenerateIndexFile('repositories', 'Repositories', files),
+      await _regenerateIndexFile(
+        'datasources',
+        'DataSources',
+        files,
+        revert: revert,
+        fileSystem: fileSystem,
+      ),
     );
-    addIfNotNull(await _regenerateIndexFile('services', 'Services', files));
-    addIfNotNull(await _regenerateIndexFile('providers', 'Providers', files));
+    addIfNotNull(
+      await _regenerateIndexFile(
+        'repositories',
+        'Repositories',
+        files,
+        revert: revert,
+        fileSystem: fileSystem,
+      ),
+    );
+    addIfNotNull(
+      await _regenerateIndexFile(
+        'services',
+        'Services',
+        files,
+        revert: revert,
+        fileSystem: fileSystem,
+      ),
+    );
+    addIfNotNull(
+      await _regenerateIndexFile(
+        'providers',
+        'Providers',
+        files,
+        revert: revert,
+        fileSystem: fileSystem,
+      ),
+    );
 
     final allFiles = [...files, ...indexFiles];
-    addIfNotNull(await _regenerateMainIndex(allFiles));
+    addIfNotNull(
+      await _regenerateMainIndex(
+        allFiles,
+        revert: revert,
+        fileSystem: fileSystem,
+      ),
+    );
 
     return indexFiles;
   }
@@ -937,17 +1143,19 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   Future<GeneratedFile?> _regenerateIndexFile(
     String folder,
     String label,
-    List<GeneratedFile> files,
-  ) async {
+    List<GeneratedFile> files, {
+    bool revert = false,
+    required FileSystem fileSystem,
+  }) async {
     final dirPath = path.join(outputDir, 'di', folder);
     final indexPath = path.join(dirPath, 'index.dart');
 
-    var registrations = registrationDetector.detectRegistrations(
+    var registrations = await registrationDetector.detectRegistrations(
       dirPath,
       pendingFiles: files,
+      fileSystem: fileSystem,
     );
 
-    // Filter out deleted files logic is now handled inside RegistrationDetector
     final deletedPaths = files
         .where((f) => f.action == 'deleted')
         .map((f) => f.path)
@@ -955,12 +1163,12 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     if (registrations.isEmpty) {
       if (deletedPaths.isNotEmpty) {
-        // If we deleted files and no registrations left, delete index file
         return FileUtils.deleteFile(
           indexPath,
           'di_index',
           dryRun: options.dryRun,
           verbose: options.verbose,
+          fileSystem: fileSystem,
         );
       }
       return null;
@@ -976,13 +1184,14 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final functionName = 'registerAll$label';
 
     String content;
-    if (File(indexPath).existsSync() && !options.force) {
+    if (await fileSystem.exists(indexPath) && !options.force && !revert) {
       content = _updateIndexFile(
-        existingContent: File(indexPath).readAsStringSync(),
+        existingContent: await fileSystem.read(indexPath),
         importPaths: importPaths,
         exportPaths: const [],
         functionName: functionName,
         registrationCalls: registrationCalls,
+        revert: false,
       );
     } else {
       final directives = importPaths.map(Directive.import).toList();
@@ -1003,27 +1212,30 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
+      fileSystem: fileSystem,
     );
   }
 
-  Future<GeneratedFile?> _regenerateMainIndex(List<GeneratedFile> files) async {
+  Future<GeneratedFile?> _regenerateMainIndex(
+    List<GeneratedFile> files, {
+    bool revert = false,
+    required FileSystem fileSystem,
+  }) async {
     final mainIndexPath = path.join(outputDir, 'di', 'index.dart');
 
-    final usecasesDir = Directory(path.join(outputDir, 'di', 'usecases'));
-    final datasourcesDir = Directory(path.join(outputDir, 'di', 'datasources'));
-    final repositoriesDir = Directory(
-      path.join(outputDir, 'di', 'repositories'),
-    );
-    final servicesDir = Directory(path.join(outputDir, 'di', 'services'));
-    final providersDir = Directory(path.join(outputDir, 'di', 'providers'));
+    final usecasesDir = path.join(outputDir, 'di', 'usecases');
+    final datasourcesDir = path.join(outputDir, 'di', 'datasources');
+    final repositoriesDir = path.join(outputDir, 'di', 'repositories');
+    final servicesDir = path.join(outputDir, 'di', 'services');
+    final providersDir = path.join(outputDir, 'di', 'providers');
 
     final deletedPaths = files
         .where((f) => f.action == 'deleted')
         .map((f) => f.path)
         .toSet();
 
-    bool hasIndex(Directory dir) {
-      final indexPath = path.join(dir.path, 'index.dart');
+    Future<bool> hasIndex(String dir) async {
+      final indexPath = path.join(dir, 'index.dart');
       if (deletedPaths.contains(indexPath)) return false;
 
       final isJustGenerated = files.any(
@@ -1033,38 +1245,38 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       );
       if (isJustGenerated) return true;
 
-      return File(indexPath).existsSync();
+      return fileSystem.exists(indexPath);
     }
 
     final exportPaths = <String>[];
     final importPaths = <String>['package:get_it/get_it.dart'];
     final registrationCalls = <String>[];
 
-    if (hasIndex(usecasesDir)) {
+    if (await hasIndex(usecasesDir)) {
       exportPaths.add('usecases/index.dart');
       importPaths.add('usecases/index.dart');
       registrationCalls.add('registerAllUseCases(getIt);');
     }
 
-    if (hasIndex(datasourcesDir)) {
+    if (await hasIndex(datasourcesDir)) {
       exportPaths.add('datasources/index.dart');
       importPaths.add('datasources/index.dart');
       registrationCalls.add('registerAllDataSources(getIt);');
     }
 
-    if (hasIndex(repositoriesDir)) {
+    if (await hasIndex(repositoriesDir)) {
       exportPaths.add('repositories/index.dart');
       importPaths.add('repositories/index.dart');
       registrationCalls.add('registerAllRepositories(getIt);');
     }
 
-    if (hasIndex(servicesDir)) {
+    if (await hasIndex(servicesDir)) {
       exportPaths.add('services/index.dart');
       importPaths.add('services/index.dart');
       registrationCalls.add('registerAllServices(getIt);');
     }
 
-    if (hasIndex(providersDir)) {
+    if (await hasIndex(providersDir)) {
       exportPaths.add('providers/index.dart');
       importPaths.add('providers/index.dart');
       registrationCalls.add('registerAllProviders(getIt);');
@@ -1072,30 +1284,28 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     if (registrationCalls.isEmpty) {
       if (deletedPaths.isNotEmpty &&
-          (File(mainIndexPath).existsSync() ||
+          (await fileSystem.exists(mainIndexPath) ||
               files.any((f) => f.path == mainIndexPath))) {
-        // If we have deleted files, check if main index becomes empty (no registrations).
-        // However, main index might contain other things? Usually just exports and registerAll calls.
-        // If registrationCalls is empty, it means no sub-modules.
-        // We should probably delete main index if it exists.
         return FileUtils.deleteFile(
           mainIndexPath,
           'di_main_index',
           dryRun: options.dryRun,
           verbose: options.verbose,
+          fileSystem: fileSystem,
         );
       }
       return null;
     }
 
     String content;
-    if (File(mainIndexPath).existsSync() && !options.force) {
+    if (await fileSystem.exists(mainIndexPath) && !options.force && !revert) {
       content = _updateIndexFile(
-        existingContent: File(mainIndexPath).readAsStringSync(),
+        existingContent: await fileSystem.read(mainIndexPath),
         importPaths: importPaths,
         exportPaths: exportPaths,
         functionName: 'setupDependencies',
         registrationCalls: registrationCalls,
+        revert: false,
       );
     } else {
       final directives = [
@@ -1122,6 +1332,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
+      fileSystem: fileSystem,
     );
   }
 
@@ -1131,45 +1342,57 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     required List<String> exportPaths,
     required String functionName,
     required List<String> registrationCalls,
+    bool revert = false,
   }) {
     var content = existingContent;
 
     for (final exportPath in exportPaths) {
-      final result = appendExecutor.execute(
-        AppendRequest.export(source: content, exportPath: exportPath),
+      final request = AppendRequest.export(
+        source: content,
+        exportPath: exportPath,
       );
+      final result = revert
+          ? appendExecutor.undo(request)
+          : appendExecutor.execute(request);
       content = result.source;
     }
 
     for (final importPath in importPaths) {
-      final result = appendExecutor.execute(
-        AppendRequest.import(source: content, importPath: importPath),
+      final request = AppendRequest.import(
+        source: content,
+        importPath: importPath,
       );
+      final result = revert
+          ? appendExecutor.undo(request)
+          : appendExecutor.execute(request);
       content = result.source;
     }
 
     for (final registration in registrationCalls) {
-      final result = appendExecutor.execute(
-        AppendRequest.functionStatement(
-          source: content,
-          functionName: functionName,
-          memberSource: registration,
-        ),
+      final request = AppendRequest.functionStatement(
+        source: content,
+        functionName: functionName,
+        memberSource: registration,
       );
+      final result = revert
+          ? appendExecutor.undo(request)
+          : appendExecutor.execute(request);
       content = result.source;
     }
 
     return content;
   }
 
-  Future<GeneratedFile?> _generateServiceLocator({bool revert = false}) async {
+  Future<GeneratedFile?> _generateServiceLocator({
+    bool revert = false,
+    required FileSystem fileSystem,
+  }) async {
     final serviceLocatorPath = path.join(
       outputDir,
       'di',
       'service_locator.dart',
     );
 
-    // Skip deletion of shared service locator file during revert
     if (revert) {
       if (options.verbose) {
         print('  ⏭ Skipping deletion of shared file: $serviceLocatorPath');
@@ -1177,8 +1400,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return null;
     }
 
-    final file = File(serviceLocatorPath);
-    if (file.existsSync() && !options.force) {
+    if (await fileSystem.exists(serviceLocatorPath) && !options.force) {
       return null;
     }
 
@@ -1191,7 +1413,8 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
-      revert: false, // Never revert shared file
+      revert: false,
+      fileSystem: fileSystem,
     );
   }
 }

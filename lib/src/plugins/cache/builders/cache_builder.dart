@@ -1,11 +1,10 @@
-import 'dart:io';
-
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/constants/known_types.dart';
 import '../../../core/generator_options.dart';
+import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/entity_analyzer.dart';
@@ -16,41 +15,22 @@ part 'cache_policy_builder.dart';
 part 'cache_builder_registrar.dart';
 
 /// Generates cache support files for Hive-backed storage.
-///
-/// Produces cache initialization, policy, and registrar helpers to wire
-/// local data sources with cache policies.
-///
-/// Example:
-/// ```dart
-/// final builder = CacheBuilder(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final files = await builder.generate(GeneratorConfig(name: 'Product'));
-/// ```
 class CacheBuilder {
   final String outputDir;
   final GeneratorOptions options;
   final SpecLibrary specLibrary;
+  final FileSystem fileSystem;
 
   /// Creates a [CacheBuilder].
-  ///
-  /// @param outputDir Target directory for generated files.
-  /// @param options Generation flags for writing behavior and logging.
-  /// @param dryRun Deprecated: use [options].
-  /// @param force Deprecated: use [options].
-  /// @param verbose Deprecated: use [options].
-  /// @param specLibrary Optional spec library override.
   CacheBuilder({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     SpecLibrary? specLibrary,
-  }) : specLibrary = specLibrary ?? const SpecLibrary();
+    FileSystem? fileSystem,
+  }) : specLibrary = specLibrary ?? const SpecLibrary(),
+       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 
   /// Generates cache support files for the given [config].
-  ///
-  /// @param config Generator configuration describing the entity and options.
-  /// @returns List of generated cache files.
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     if (!config.enableCache || config.cacheStorage != 'hive') {
       return [];
@@ -108,6 +88,7 @@ class CacheBuilder {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fileSystem,
     );
   }
 
@@ -155,6 +136,7 @@ class CacheBuilder {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fileSystem,
     );
   }
 
@@ -162,28 +144,28 @@ class CacheBuilder {
     final dirPath = path.join(outputDir, 'cache');
     final indexPath = path.join(dirPath, 'index.dart');
 
-    final dir = Directory(dirPath);
-    if (!dir.existsSync()) {
+    if (!await fileSystem.exists(dirPath)) {
       return;
     }
 
-    final files = dir
-        .listSync()
-        .whereType<File>()
-        .where(
-          (f) =>
-              f.path.endsWith('_cache.dart') &&
-              !f.path.endsWith('index.dart') &&
-              !f.path.endsWith('timestamp_cache.dart'),
-        )
-        .toList();
+    final items = await fileSystem.list(dirPath);
+    final files = <String>[];
+    for (final item in items) {
+      if (!await fileSystem.isDirectory(item)) {
+        if (item.endsWith('_cache.dart') &&
+            !item.endsWith('index.dart') &&
+            !item.endsWith('timestamp_cache.dart')) {
+          files.add(item);
+        }
+      }
+    }
 
     if (files.isEmpty) {
-      if (File(indexPath).existsSync()) {
+      if (await fileSystem.exists(indexPath)) {
         if (options.dryRun) {
           if (options.verbose) print('  Dry run: Deleting $indexPath');
         } else {
-          File(indexPath).deleteSync();
+          await fileSystem.delete(indexPath);
         }
       }
       return;
@@ -193,15 +175,15 @@ class CacheBuilder {
     final imports = <String>[];
     final statements = <Code>[];
 
-    final timestampFile = File(path.join(dirPath, 'timestamp_cache.dart'));
-    if (timestampFile.existsSync()) {
+    final timestampPath = path.join(dirPath, 'timestamp_cache.dart');
+    if (await fileSystem.exists(timestampPath)) {
       exports.add('timestamp_cache.dart');
       imports.add('timestamp_cache.dart');
       statements.add(refer('initTimestampCache').call([]).awaited.statement);
     }
 
-    final registrarFile = File(path.join(dirPath, 'hive_registrar.dart'));
-    if (registrarFile.existsSync()) {
+    final registrarPath = path.join(dirPath, 'hive_registrar.dart');
+    if (await fileSystem.exists(registrarPath)) {
       exports.add('hive_registrar.dart');
       imports.add('package:hive_ce_flutter/hive_ce_flutter.dart');
       imports.add('hive_registrar.dart');
@@ -211,8 +193,8 @@ class CacheBuilder {
       );
     }
 
-    for (final file in files) {
-      final fileName = path.basename(file.path);
+    for (final filePath in files) {
+      final fileName = path.basename(filePath);
       final entitySnake = fileName.replaceAll('_cache.dart', '');
       final entityName = StringUtils.convertToPascalCase(entitySnake);
       exports.add(fileName);
@@ -222,13 +204,15 @@ class CacheBuilder {
       );
     }
 
-    final policyFiles = dir
-        .listSync()
-        .whereType<File>()
-        .where((f) => f.path.endsWith('_cache_policy.dart'))
-        .toList();
+    final policyFiles = <String>[];
+    for (final item in items) {
+      if (!await fileSystem.isDirectory(item) &&
+          item.endsWith('_cache_policy.dart')) {
+        policyFiles.add(item);
+      }
+    }
     for (final policyFile in policyFiles) {
-      exports.add(path.basename(policyFile.path));
+      exports.add(path.basename(policyFile));
     }
 
     final directives = [
@@ -256,6 +240,7 @@ class CacheBuilder {
       force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
+      fileSystem: fileSystem,
     );
   }
 }

@@ -1,10 +1,9 @@
 import 'dart:io';
-
 import 'package:args/command_runner.dart';
 import '../config/zfa_config.dart';
-import '../core/plugin_system/plugin_interface.dart';
+import '../cli/plugin_loader.dart';
 import '../core/plugin_system/plugin_registry.dart';
-import '../models/generator_config.dart';
+import '../core/plugin_system/plugin_manager.dart';
 import '../models/generated_file.dart';
 
 /// Command to run multiple plugins explicitly.
@@ -12,8 +11,32 @@ import '../models/generated_file.dart';
 /// Example: `zfa make User route di --force`
 class MakeCommand extends Command<void> {
   final PluginRegistry registry;
+  late final PluginManager manager;
 
   MakeCommand(this.registry) {
+    final projectRoot = _findProjectRoot('lib/src');
+    manager = PluginManager(
+      registry: registry,
+      config: ZfaConfig.load(projectRoot: projectRoot),
+      pluginConfig: PluginConfig.load(projectRoot: projectRoot),
+      projectRoot: projectRoot,
+    );
+    _addCoreOptions();
+    _addPluginOptions();
+  }
+
+  String _findProjectRoot(String outputDir) {
+    var dir = Directory.current.path;
+    while (dir != Directory(dir).parent.path) {
+      if (File('$dir/pubspec.yaml').existsSync()) {
+        return dir;
+      }
+      dir = Directory(dir).parent.path;
+    }
+    return Directory.current.path;
+  }
+
+  void _addCoreOptions() {
     argParser.addOption(
       'output',
       abbr: 'o',
@@ -41,56 +64,6 @@ class MakeCommand extends Command<void> {
       'revert',
       negatable: false,
       help: 'Revert generated files (delete them)',
-    );
-    argParser.addOption(
-      'methods',
-      abbr: 'm',
-      help:
-          'Comma-separated list of methods (get,create,update,delete,list,watch,getList,watchList)',
-      defaultsTo: 'get,update',
-    );
-    // Add other common flags as needed (domain, etc.)
-    argParser.addOption(
-      'type',
-      abbr: 't',
-      allowed: ['future', 'stream', 'completable', 'sync', 'background'],
-      defaultsTo: 'future',
-      help: 'Execution strategy (default: future/fetch)',
-    );
-    argParser.addOption(
-      'domain',
-      abbr: 'd',
-      help: 'Domain name (for usecases/DI)',
-    );
-    argParser.addOption(
-      'repo',
-      abbr: 'r',
-      help: 'Repository name for custom usecases',
-    );
-    argParser.addOption(
-      'service',
-      abbr: 's',
-      help: 'Service name for custom usecases',
-    );
-    argParser.addOption(
-      'params',
-      abbr: 'p',
-      help: 'Parameter type for custom usecases (e.g., String, UserParams)',
-    );
-    argParser.addOption(
-      'returns',
-      abbr: 'R',
-      help: 'Return type for custom usecases (e.g., void, User, List<User>)',
-    );
-    argParser.addOption(
-      'usecases',
-      abbr: 'u',
-      help: 'Comma-separated list of usecases for orchestration',
-    );
-    argParser.addFlag(
-      'use-mock',
-      negatable: false,
-      help: 'Use mock provider/datasource in DI registration',
     );
     argParser.addFlag(
       'init',
@@ -120,6 +93,59 @@ class MakeCommand extends Command<void> {
     argParser.addFlag('cache', help: 'Enable caching', defaultsTo: false);
   }
 
+  void _addPluginOptions() {
+    final addedOptions = <String>{
+      'output',
+      'dry-run',
+      'force',
+      'verbose',
+      'revert',
+    };
+
+    for (final plugin in registry.plugins) {
+      // Add a flag for the plugin itself to allow --no-<plugin> muting
+      if (!addedOptions.contains(plugin.id)) {
+        argParser.addFlag(
+          plugin.id,
+          help: 'Enable or disable ${plugin.name}',
+          defaultsTo: true,
+          negatable: true,
+        );
+        addedOptions.add(plugin.id);
+      }
+
+      // Add flags/options from plugin schema
+      final schema = plugin.configSchema;
+      if (schema.containsKey('properties')) {
+        final properties = Map<String, dynamic>.from(
+          schema['properties'] as Map,
+        );
+        for (final entry in properties.entries) {
+          final key = entry.key;
+          if (addedOptions.contains(key)) continue;
+
+          final config = Map<String, dynamic>.from(entry.value as Map);
+          final type = config['type'];
+          final help = config['description'] ?? '';
+          final def = config['default'];
+
+          if (type == 'boolean') {
+            argParser.addFlag(key, help: help, defaultsTo: def ?? false);
+          } else if (type == 'string') {
+            argParser.addOption(key, help: help, defaultsTo: def?.toString());
+          } else if (type == 'array') {
+            argParser.addMultiOption(
+              key,
+              help: help,
+              defaultsTo: (def as List?)?.cast<String>(),
+            );
+          }
+          addedOptions.add(key);
+        }
+      }
+    }
+  }
+
   @override
   String get name => 'make';
 
@@ -146,167 +172,56 @@ class MakeCommand extends Command<void> {
 
   @override
   Future<void> run() async {
-    final args = argResults!.rest;
-    if (args.isEmpty) {
+    final rest = argResults!.rest;
+    if (rest.isEmpty) {
       print('❌ Usage: zfa make <Name> <plugin1> <plugin2> ... [options]');
       print('Example: zfa make User route di');
       exit(1);
     }
 
-    final entityName = args[0];
-    final pluginNames = args.skip(1).toList();
-    final userExplicitPlugins = pluginNames.toList();
-    final isOrchestrator = argResults!['usecases'] != null;
+    final entityName = rest[0];
+    final explicitPluginIds = rest.skip(1).toList();
 
-    // Load project configuration
-    final configData = ZfaConfig.load();
-    if (configData != null) {
-      if (configData.appendByDefault &&
-          !pluginNames.contains('method_append')) {
-        pluginNames.add('method_append');
-      }
-      // Only add data-layer defaults if not an orchestrator
-      if (!isOrchestrator) {
-        if (configData.mockByDefault && !pluginNames.contains('mock')) {
-          pluginNames.add('mock');
-        }
-      }
-      if (configData.diByDefault && !pluginNames.contains('di')) {
-        pluginNames.add('di');
-      }
-    }
-
-    // If it's an orchestrator, filter out data layer plugins unless explicitly requested
-    if (isOrchestrator) {
-      final dataLayerPlugins = {'datasource', 'repository', 'provider', 'mock'};
-      pluginNames.removeWhere(
-        (p) => dataLayerPlugins.contains(p) && !userExplicitPlugins.contains(p),
-      );
-    }
-
-    if (pluginNames.isEmpty) {
-      print('❌ No plugins specified.');
-      print('Usage: zfa make <Name> <plugin1> <plugin2> ... [options]');
-      print(
-        'Available plugins: ${registry.plugins.map((p) => p.id).join(", ")}',
-      );
-      exit(1);
-    }
-
-    // Ensure method_append runs after datasource/repository/etc if they are in the list
-    if (pluginNames.contains('method_append')) {
-      pluginNames.remove('method_append');
-      pluginNames.add('method_append');
-    }
-    // Ensure di runs after everything else
-    if (pluginNames.contains('di')) {
-      pluginNames.remove('di');
-      pluginNames.add('di');
-    }
-
-    final outputDir = (argResults?['output'] as String?) ?? 'lib/src';
-    final dryRun = argResults?['dry-run'] == true;
-    final force = argResults?['force'] == true;
-    final verbose = argResults?['verbose'] == true;
-    final methods =
-        (argResults?['methods'] as String?)?.split(',') ?? ['get', 'update'];
-    final type = (argResults?['type'] as String?) ?? 'future';
-    final domain = argResults?['domain'] as String?;
-    final repo = argResults?['repo'] as String?;
-    final service = argResults?['service'] as String?;
-    final params = argResults?['params'] as String?;
-    final returns = argResults?['returns'] as String?;
-    final usecasesStr = argResults?['usecases'] as String?;
-    final usecases = usecasesStr?.split(',').map((e) => e.trim()).toList();
-    final useMockInDi = argResults!['use-mock'] == true;
-    final generateInit = argResults!['init'] == true;
-    final useZorphy =
-        argResults!['zorphy'] == true || (configData?.zorphyByDefault ?? true);
-    final generateLocal = argResults!['local'] == true;
-    final generateRemote = argResults!['remote'] != false;
-    final enableCache = argResults!['cache'] == true;
-
-    final isEntity = repo == null && service == null && usecases == null;
-
-    // Create a base config that enables everything requested
-    final config = GeneratorConfig(
-      name: entityName,
-      methods: isEntity ? methods : [], // Use CRUD methods for entity-based
-      domain: domain,
-      repo: repo,
-      service: service,
-      usecases: usecases ?? [],
-      useCaseType: type,
-      paramsType: params,
-      returnsType: returns,
-      appendToExisting: pluginNames.contains('method_append'),
-      generateUseCase:
-          pluginNames.contains('usecase') ||
-          (pluginNames.contains('di') &&
-              (repo != null || service != null || usecases != null)),
-      generateService: pluginNames.contains('service'),
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-      revert: isRevert,
-      outputDir: outputDir,
-      useMockInDi: useMockInDi,
-      generateInit: generateInit,
-      useZorphy: useZorphy,
-      generateLocal: generateLocal,
-      generateRemote: generateRemote,
-      enableCache: enableCache || pluginNames.contains('cache'),
-      // Map known plugins
-      generateRoute: pluginNames.contains('route'),
-      generateDi: pluginNames.contains('di'),
-      generateView: pluginNames.contains('view'),
-      generatePresenter: pluginNames.contains('presenter'),
-      generateController: pluginNames.contains('controller'),
-      generateRepository: pluginNames.contains('repository'),
-      generateDataSource: pluginNames.contains('datasource'),
-      generateData:
-          pluginNames.contains('datasource') ||
-          pluginNames.contains('repository') ||
-          pluginNames.contains('provider'),
-      generateState: pluginNames.contains('state'),
-      generateTest: pluginNames.contains('test'),
-      generateMock: pluginNames.contains('mock'),
-      generateGql: pluginNames.contains('graphql'),
-      generateObserver: pluginNames.contains('observer'),
+    // 1. Resolve active plugins (Config defaults + Explicit + Muting)
+    final activePlugins = manager.resolveActivePlugins(
+      explicitPluginIds: explicitPluginIds,
+      argResults: argResults!,
     );
 
-    print('🚀 Running plugins: ${pluginNames.join(", ")} for $entityName...');
+    if (activePlugins.isEmpty) {
+      print('❌ No active plugins to run.');
+      return;
+    }
 
-    for (final pluginName in pluginNames) {
-      final plugin = registry.getById(pluginName);
-      if (plugin == null) {
-        print('⚠️  Warning: Plugin "$pluginName" not found or not registered.');
-        continue;
-      }
-      if (plugin is! FileGeneratorPlugin) {
-        print(
-          '⚠️  Warning: Plugin "$pluginName" does not support file generation.',
-        );
-        continue;
-      }
+    // 2. Build context
+    final context = manager.buildContext(
+      name: entityName,
+      argResults: argResults!,
+      activePlugins: activePlugins,
+    );
 
-      try {
-        print('  Running ${plugin.name}...');
-        final files = await plugin.generate(config);
-        logSummary(files);
-      } catch (e) {
-        print('  ❌ Error running $pluginName: $e');
-        if (verbose) {
-          print(e);
-        }
+    if (context.core.verbose) {
+      print(
+        '🚀 Running plugins: ${activePlugins.map((p) => p.id).join(", ")} for $entityName...',
+      );
+    }
+
+    // 3. Run lifecycle
+    try {
+      final files = await manager.run(context, activePlugins);
+      _logSummary(files, context.core.verbose);
+    } catch (e) {
+      print('❌ Generation failed: $e');
+      if (context.core.verbose) {
+        rethrow;
       }
+      exit(1);
     }
 
     print('✅ Done.');
   }
 
-  /// Prints a summary of generated files.
-  void logSummary(List<GeneratedFile> files) {
+  void _logSummary(List<GeneratedFile> files, bool verbose) {
     if (files.isEmpty) {
       print('ℹ️  No files generated.');
       return;
@@ -323,15 +238,16 @@ class MakeCommand extends Command<void> {
     if (skipped > 0) print('  ⏭ Skipped: $skipped files');
     if (deleted > 0) print('  🗑 Deleted: $deleted files');
 
-    // If not verbose, print generated file paths (verbose mode already prints from FileUtils)
-    if (!isVerbose) {
+    if (!verbose) {
       for (final file in files) {
-        if (file.action == 'created') {
-          print('  ✨ ${file.path}');
-        } else if (file.action == 'overwritten') {
-          print('  📝 ${file.path}');
-        } else if (file.action == 'deleted') {
-          print('  🗑 ${file.path}');
+        final prefix = switch (file.action) {
+          'created' => '  ✨',
+          'overwritten' => '  📝',
+          'deleted' => '  🗑',
+          _ => '  ⏭',
+        };
+        if (file.action != 'skipped') {
+          print('$prefix ${file.path}');
         }
       }
     }

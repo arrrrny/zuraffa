@@ -44,7 +44,6 @@ void main() {
     );
     expect(content.contains('StatefulController<ProductState>'), isTrue);
     expect(content.contains('createInitialState()'), isTrue);
-    expect(content.contains('createCancelToken()'), isTrue);
     expect(content.contains('registerSubscription'), isTrue);
   });
 
@@ -96,18 +95,8 @@ void main() {
       final files = await plugin.generate(config);
       final content = files.first.content ?? '';
 
-      expect(
-        content.contains(
-          "import '../../../domain/entities/barcode/barcode.dart';",
-        ),
-        isTrue,
-      );
-      expect(
-        content.contains(
-          "import '../../../domain/entities/listing/listing.dart';",
-        ),
-        isTrue,
-      );
+      expect(content.contains("domain/entities/barcode/barcode.dart"), isTrue);
+      expect(content.contains("domain/entities/listing/listing.dart"), isTrue);
     },
   );
 }

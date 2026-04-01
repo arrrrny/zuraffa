@@ -16,16 +16,8 @@ extension ControllerPluginUtils on ControllerPlugin {
         .where((part) => part.isNotEmpty)
         .toList();
     final expressions = parts.map(refer).toList();
-    expressions.add(refer('token'));
+    expressions.add(refer('cancelToken'));
     return expressions;
-  }
-
-  Code _tokenStatement() {
-    return declareFinal('token')
-        .assign(
-          refer('cancelToken').ifNullThen(refer('createCancelToken').call([])),
-        )
-        .statement;
   }
 
   Code _updateStateStatement(Map<String, Expression> updates) {
@@ -60,17 +52,36 @@ extension ControllerPluginUtils on ControllerPlugin {
     ).property('fold').call([success.closure, failure.closure]).statement;
   }
 
-  List<String> _buildImports(
+  Future<List<String>> _buildImports(
     GeneratorConfig config,
     String domainSnake,
     bool withState,
-  ) {
+  ) async {
     final imports = <String>[
       'package:zuraffa/zuraffa.dart',
       '${config.nameSnake}_presenter.dart',
     ];
 
-    if (withState) {
+    if (withState && !config.noEntity) {
+      if (config.generateState) {
+        imports.add('${config.nameSnake}_state.dart');
+      } else if (config.customStateName != null) {
+        final stateSnake = StringUtils.camelToSnake(
+          config.customStateName!.replaceAll('State', ''),
+        );
+        imports.add('${stateSnake}_state.dart');
+      }
+
+      // Add entity import for initialEntity field
+      final entityImports = CommonPatterns.entityImports(
+        [config.name],
+        config,
+        depth: 3,
+        fileSystem: fileSystem,
+      );
+      imports.addAll(entityImports);
+    } else if (withState && config.noEntity) {
+      // If no entity but we have state, still import state
       if (config.generateState) {
         imports.add('${config.nameSnake}_state.dart');
       } else if (config.customStateName != null) {
@@ -85,24 +96,22 @@ extension ControllerPluginUtils on ControllerPlugin {
       final types = <String>[];
       if (config.isOrchestrator) {
         for (final usecase in config.usecases) {
-          final info = CommonPatterns.parseUseCaseInfo(
+          final info = await CommonPatterns.parseUseCaseInfo(
             usecase,
             config,
             outputDir,
+            fileSystem: fileSystem,
           );
-          if (info.returnsType != null) {
-            types.add(info.returnsType!);
-          }
-          if (info.paramsType != null) {
+          if (info.paramsType != null && info.paramsType != 'NoParams') {
             types.add(info.paramsType!);
           }
         }
       } else {
-        if (config.returnsType != null) {
-          types.add(config.returnsType!);
-        }
-        if (config.paramsType != null) {
+        if (config.paramsType != null && config.paramsType != 'NoParams') {
           types.add(config.paramsType!);
+        }
+        if (config.returnsType != null && config.returnsType!.isNotEmpty) {
+          types.add(config.returnsType!);
         }
       }
 
@@ -111,16 +120,10 @@ extension ControllerPluginUtils on ControllerPlugin {
           types,
           config,
           depth: 3,
+          fileSystem: fileSystem,
         );
         imports.addAll(entityImports);
       }
-    } else if (config.methods.any(
-      (m) =>
-          m == 'create' || m == 'update' || m == 'getList' || m == 'watchList',
-    )) {
-      final entityPath =
-          '../../../domain/entities/$domainSnake/$domainSnake.dart';
-      imports.add(entityPath);
     }
 
     return imports;

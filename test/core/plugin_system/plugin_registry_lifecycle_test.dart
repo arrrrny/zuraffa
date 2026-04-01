@@ -1,7 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/src/core/plugin_system/plugin_interface.dart';
 import 'package:zuraffa/src/core/plugin_system/plugin_registry.dart';
-import 'package:zuraffa/src/models/generator_config.dart';
+import 'package:zuraffa/src/core/plugin_system/plugin_context.dart';
+import 'package:zuraffa/src/core/plugin_system/discovery_engine.dart';
 
 class _LifecyclePlugin extends ZuraffaPlugin {
   final List<String> calls;
@@ -18,22 +19,22 @@ class _LifecyclePlugin extends ZuraffaPlugin {
   String get version => '1.0.0';
 
   @override
-  Future<void> beforeGenerate(GeneratorConfig config) async {
-    calls.add('before:${config.name}');
+  Future<void> beforeGenerate(PluginContext context) async {
+    calls.add('before:${context.core.name}');
   }
 
   @override
-  Future<void> afterGenerate(GeneratorConfig config) async {
-    calls.add('after:${config.name}');
+  Future<void> afterGenerate(PluginContext context) async {
+    calls.add('after:${context.core.name}');
   }
 
   @override
   Future<void> onError(
-    GeneratorConfig config,
+    PluginContext context,
     Object error,
     StackTrace stackTrace,
   ) async {
-    calls.add('error:${config.name}:${error.toString()}');
+    calls.add('error:${context.core.name}:${error.toString()}');
   }
 }
 
@@ -43,11 +44,14 @@ void main() {
     final plugin = _LifecyclePlugin(calls);
     final registry = PluginRegistry();
     registry.register(plugin);
-    final config = GeneratorConfig(name: 'User', outputDir: 'lib/src');
+    final context = PluginContext(
+      core: const CoreConfig(name: 'User', projectRoot: '.'),
+      discovery: const DiscoveryEngine(projectRoot: '.'),
+    );
 
-    await registry.beforeGenerateAll(config);
-    await registry.afterGenerateAll(config);
-    await registry.onErrorAll(config, StateError('fail'), StackTrace.current);
+    await registry.beforeGenerateAll(context);
+    await registry.afterGenerateAll(context);
+    await registry.onErrorAll(context, StateError('fail'), StackTrace.current);
 
     expect(calls[0], equals('before:User'));
     expect(calls[1], equals('after:User'));

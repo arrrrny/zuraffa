@@ -27,17 +27,14 @@ class CreateServiceCapability implements ZuraffaCapability {
       'params': {
         'type': 'string',
         'description': 'Parameter type for the service method',
-        'default': 'NoParams',
       },
       'returns': {
         'type': 'string',
         'description': 'Return type for the service method',
-        'default': 'void',
       },
       'type': {
         'type': 'string',
         'description': 'Service method type (sync, stream, completable)',
-        'default': 'usecase',
       },
       'dryRun': {
         'type': 'boolean',
@@ -102,7 +99,7 @@ class CreateServiceCapability implements ZuraffaCapability {
     final outputDir = args['outputDir'] ?? 'lib/src';
     final paramsType = args['params'];
     final returnsType = args['returns'];
-    final useCaseType = args['type'];
+    final useCaseType = args['type'] ?? 'usecase';
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
 

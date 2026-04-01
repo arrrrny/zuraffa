@@ -216,4 +216,57 @@ void main() {
     final content = files.first.content ?? '';
     expect(content.contains('execute(NoParams params'), isTrue);
   });
+  test('generates custom usecase with multiple parameters', () async {
+    final plugin = UseCasePlugin(
+      outputDir: outputDir,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
+    );
+    final paramsStr =
+        '[ParserConfig parserConfig, "Map<String, String>" placeholders]';
+    final multipleParams = GeneratorConfig.parseParams(paramsStr);
+
+    final config = GeneratorConfig(
+      name: 'ReplaceRefererPlaceholders',
+      service: 'Zik',
+      domain: 'parser',
+      multipleParams: multipleParams,
+      returnsType: 'ParserConfig',
+      outputDir: outputDir,
+    );
+
+    final files = await plugin.generate(config);
+    final content = files.first.content ?? '';
+
+    expect(content.contains('class ReplaceRefererPlaceholdersUseCase'), isTrue);
+    expect(
+      content.contains(
+        'UseCase<ParserConfig, ReplaceRefererPlaceholdersParams>',
+      ),
+      isTrue,
+    );
+    expect(content.contains('Future<ParserConfig> execute'), isTrue);
+    expect(content.contains('ReplaceRefererPlaceholdersParams params'), isTrue);
+
+    // Check params class generation
+    expect(content.contains('class ReplaceRefererPlaceholdersParams'), isTrue);
+    expect(content.contains('final ParserConfig parserConfig;'), isTrue);
+    expect(content.contains('final Map<String, String> placeholders;'), isTrue);
+    expect(
+      content.contains('const ReplaceRefererPlaceholdersParams({'),
+      isTrue,
+    );
+
+    // Check service call with unpacked params
+    final normalizedContent = content.replaceAll(RegExp(r'\s+'), ' ');
+    expect(
+      normalizedContent.contains(
+        'return await _zikService.replaceRefererPlaceholders( params.parserConfig, params.placeholders, );',
+      ),
+      isTrue,
+    );
+  });
 }

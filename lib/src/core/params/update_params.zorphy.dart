@@ -46,16 +46,22 @@ class UpdateParams<I, P> extends Params {
       params: _patchMap.containsKey(UpdateParams$.params)
           ? (_patchMap[UpdateParams$.params] is Function)
                 ? _patchMap[UpdateParams$.params](this.params)
+                : (_patchMap[UpdateParams$.params] is Patch)
+                ? _patchMap[UpdateParams$.params].applyTo(this.params)
                 : _patchMap[UpdateParams$.params]
           : this.params,
       id: _patchMap.containsKey(UpdateParams$.id)
           ? (_patchMap[UpdateParams$.id] is Function)
                 ? _patchMap[UpdateParams$.id](this.id)
+                : (_patchMap[UpdateParams$.id] is Patch)
+                ? _patchMap[UpdateParams$.id].applyTo(this.id)
                 : _patchMap[UpdateParams$.id]
           : this.id,
       data: _patchMap.containsKey(UpdateParams$.data)
           ? (_patchMap[UpdateParams$.data] is Function)
                 ? _patchMap[UpdateParams$.data](this.data)
+                : (_patchMap[UpdateParams$.data] is Patch)
+                ? _patchMap[UpdateParams$.data].applyTo(this.data)
                 : _patchMap[UpdateParams$.data]
           : this.data,
     );
@@ -68,6 +74,8 @@ class UpdateParams<I, P> extends Params {
       params: _patchMap.containsKey(Params$.params)
           ? (_patchMap[Params$.params] is Function)
                 ? _patchMap[Params$.params](this.params)
+                : (_patchMap[Params$.params] is Patch)
+                ? _patchMap[Params$.params].applyTo(this.params)
                 : _patchMap[Params$.params]
           : this.params,
       id: this.id,
@@ -128,7 +136,7 @@ extension UpdateParamsSerialization<I, P> on UpdateParams<I, P> {
 
   dynamic _sanitizeJson(dynamic json) {
     if (json is Map<String, dynamic>) {
-      json.remove('_className_');
+      json.remove('__typename');
       return json..forEach((key, value) {
         json[key] = _sanitizeJson(value);
       });

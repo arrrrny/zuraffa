@@ -4,7 +4,7 @@ class NodeFinder {
   static ClassDeclaration? findClass(CompilationUnit unit, String className) {
     for (final declaration in unit.declarations) {
       if (declaration is ClassDeclaration &&
-          declaration.name.toString() == className) {
+          declaration.namePart.beginToken.lexeme == className) {
         return declaration;
       }
     }
@@ -15,7 +15,9 @@ class NodeFinder {
     ClassDeclaration classNode, {
     String? name,
   }) {
-    final methods = classNode.members.whereType<MethodDeclaration>();
+    final body = classNode.body;
+    if (body is! BlockClassBody) return [];
+    final methods = body.members.whereType<MethodDeclaration>();
     if (name == null) {
       return methods.toList();
     }
@@ -27,10 +29,13 @@ class NodeFinder {
     String? name,
   }) {
     final fields = <VariableDeclaration>[];
-    // ignore: deprecated_member_use
-    for (final member in classNode.members.whereType<FieldDeclaration>()) {
-      for (final variable in member.fields.variables) {
-        fields.add(variable);
+    final body = classNode.body;
+    if (body is BlockClassBody) {
+      // ignore: deprecated_member_use
+      for (final member in body.members.whereType<FieldDeclaration>()) {
+        for (final variable in member.fields.variables) {
+          fields.add(variable);
+        }
       }
     }
     if (name == null) {
@@ -58,8 +63,8 @@ class NodeFinder {
     ExtensionDeclaration extensionNode, {
     String? name,
   }) {
-    // ignore: deprecated_member_use
-    final methods = extensionNode.members.whereType<MethodDeclaration>();
+    final body = extensionNode.body;
+    final methods = body.members.whereType<MethodDeclaration>();
     if (name == null) {
       return methods.toList();
     }

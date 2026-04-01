@@ -1,6 +1,6 @@
-import 'dart:io';
 import 'package:path/path.dart' as path;
 import '../../../models/generated_file.dart';
+import '../../../core/context/file_system.dart';
 
 class RegistrationInfo {
   final String fileName;
@@ -12,36 +12,32 @@ class RegistrationInfo {
 class RegistrationDetector {
   const RegistrationDetector();
 
-  List<RegistrationInfo> detectRegistrations(
+  Future<List<RegistrationInfo>> detectRegistrations(
     String directoryPath, {
     List<GeneratedFile> pendingFiles = const [],
-  }) {
+    FileSystem? fileSystem,
+  }) async {
+    final fs = fileSystem ?? const DefaultFileSystem();
     final filesMap = <String, String>{};
 
-    // 1. Read existing files from disk
-    final dir = Directory(directoryPath);
-    if (dir.existsSync()) {
-      final files = dir.listSync().whereType<File>().where(
-        (file) => file.path.endsWith('_di.dart'),
-      );
-
-      for (final file in files) {
-        final fileName = path.basename(file.path);
-        if (fileName == 'index.dart') continue;
-        filesMap[fileName] = file.readAsStringSync();
+    // 1. Read existing files from disk via FileSystem
+    if (await fs.exists(directoryPath)) {
+      final items = await fs.list(directoryPath);
+      for (final item in items) {
+        if (item.endsWith('_di.dart')) {
+          final fileName = path.basename(item);
+          if (fileName == 'index.dart') continue;
+          filesMap[fileName] = await fs.read(item);
+        }
       }
     }
 
     // 2. Merge pending files (create/update/delete)
     for (final file in pendingFiles) {
-      // Check if file is in the target directory
       if (path.dirname(file.path) == directoryPath) {
         final fileName = path.basename(file.path);
 
-        // Skip index.dart
         if (fileName == 'index.dart') continue;
-
-        // Only consider DI files
         if (!fileName.endsWith('_di.dart')) continue;
 
         if (file.action == 'deleted') {

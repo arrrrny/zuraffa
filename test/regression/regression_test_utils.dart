@@ -28,7 +28,7 @@ Future<void> writePubspec(RegressionWorkspace workspace) async {
   final repoRoot = Directory.current.path;
   final content =
       '''
-name: zuraffa_regression_workspace
+name: zuraffa_test_app
 environment:
   sdk: ">=3.8.0 <4.0.0"
   flutter: ">=3.10.0"
@@ -37,9 +37,15 @@ dependencies:
     sdk: flutter
   zuraffa:
     path: ${path.normalize(repoRoot)}
-  get_it: ^8.0.0
+  get_it: ^9.0.0
+  shadcn_ui: ^0.1.0
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  mocktail: ^1.0.4
 dependency_overrides:
-  meta: 1.17.0
+  meta: ^1.18.0
+  analyzer: ^11.0.0
 ''';
   await File(
     path.join(workspace.directory.path, 'pubspec.yaml'),
@@ -158,7 +164,7 @@ Future<GeneratorResult> generateFullFeature(
       outputDir: workspace.outputDir,
       dryRun: false,
       force: true,
-      verbose: false,
+      verbose: true,
     ),
     outputDir: workspace.outputDir,
   );

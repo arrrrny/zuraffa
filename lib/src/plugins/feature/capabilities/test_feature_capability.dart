@@ -1,9 +1,9 @@
 import '../../../core/plugin_system/capability.dart';
 import '../feature_plugin.dart';
-import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
-import '../../test/test_plugin.dart';
-import '../../../core/generator_options.dart';
+import '../../../config/zfa_config.dart';
+import '../../../core/plugin_system/plugin_manager.dart';
+import '../../../core/plugin_system/plugin_registry.dart';
 
 class TestFeatureCapability implements ZuraffaCapability {
   final FeaturePlugin plugin;
@@ -82,42 +82,36 @@ class TestFeatureCapability implements ZuraffaCapability {
     Map<String, dynamic> args, {
     required bool dryRun,
   }) async {
-    final outputDir = args['outputDir'] ?? 'lib/src';
-    final featureName = args['name'];
-    final methods = (args['methods'] as List?)?.cast<String>() ?? ['get'];
-    final idField = args['id-field'] as String? ?? 'id';
-    final idFieldType = args['id-field-type'] as String? ?? 'String';
-    final queryField = args['query-field'] as String? ?? 'id';
-    final queryFieldType = args['query-field-type'] as String? ?? 'String';
-    final generateLocal = args['local'] ?? false;
-    final force = args['force'] ?? false;
-    final verbose = args['verbose'] ?? false;
-    final revert = args['revert'] ?? false;
+    final featureName = args['name'] as String;
+    final zfaConfig = ZfaConfig.load();
+    final projectRoot = plugin.outputDir.replaceAll('lib/src', '');
 
-    final options = GeneratorOptions(
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
+    final manager = PluginManager(
+      registry: PluginRegistry.instance,
+      config: zfaConfig,
+      projectRoot: projectRoot,
     );
 
-    final testPlugin = TestPlugin(outputDir: outputDir, options: options);
+    final activePlugins = manager.resolveActivePlugins(
+      explicitPluginIds: ['test'],
+      argResults: null,
+    );
 
-    final config = GeneratorConfig(
+    final context = manager.buildContext(
       name: featureName,
-      outputDir: outputDir,
-      generateTest: true,
-      generateLocal: generateLocal,
-      methods: methods,
-      idField: idField,
-      idFieldType: idFieldType,
-      queryField: queryField,
-      queryFieldType: queryFieldType,
-      dryRun: dryRun,
-      force: force,
-      verbose: verbose,
-      revert: revert,
+      argResults: null,
+      activePlugins: activePlugins,
     );
 
-    return testPlugin.generate(config);
+    args.forEach((key, value) {
+      context.data[key] = value;
+    });
+
+    context.data['dry-run'] = dryRun;
+    context.data['force'] = args['force'] ?? false;
+    context.data['verbose'] = args['verbose'] ?? false;
+    context.data['revert'] = args['revert'] ?? false;
+
+    return await manager.run(context, activePlugins);
   }
 }

@@ -49,8 +49,6 @@ void main() {
       );
 
       final result = await generator.generate();
-      print('Provider files: ${result.files.map((f) => f.path).toList()}');
-      print('Provider errors: ${result.errors}');
       expect(result.success, isTrue);
 
       final servicePath = path.join(
@@ -67,7 +65,6 @@ void main() {
 
       // 2. Now, run revert
       final revertConfig = config.copyWith(revert: true);
-      print('Config to revert: ${revertConfig.toJson()}');
       final revertGenerator = CodeGenerator(
         config: revertConfig,
         outputDir: outputDir,
@@ -79,14 +76,7 @@ void main() {
         ),
       );
 
-      print('CodeGenerator.config.revert: ${revertGenerator.config.revert}');
-      print('CodeGenerator.options.revert: ${revertGenerator.options.revert}');
-
       final revertResult = await revertGenerator.generate();
-      print('Revert files: ${revertResult.files.map((f) => f.path).toList()}');
-      print('Revert errors: ${revertResult.errors}');
-      print('Config revert: ${revertGenerator.config.revert}');
-      print('Service snake: ${revertGenerator.config.serviceSnake}');
       expect(revertResult.success, isTrue);
 
       // 3. Verify the service file is gone
@@ -115,8 +105,6 @@ void main() {
     );
 
     final result = await generator.generate();
-    print('Generator result: ${result.success}');
-    print('Generator errors: ${result.errors}');
     expect(result.success, isTrue);
 
     final usecasePath = path.join(
@@ -172,13 +160,6 @@ void main() {
       outputDir: outputDir,
     );
 
-    print('OutputDir: $outputDir');
-    final enumsIdxFile = File(
-      path.join(outputDir, 'domain', 'entities', 'enums', 'index.dart'),
-    );
-    print('Enums index exists: ${enumsIdxFile.existsSync()}');
-    print('Enums index content: ${enumsIdxFile.readAsStringSync()}');
-
     final generator = CodeGenerator(
       config: config,
       outputDir: outputDir,
@@ -199,10 +180,7 @@ void main() {
     final providerFile = File(providerPath);
     if (providerFile.existsSync()) {
       final providerContent = providerFile.readAsStringSync();
-      expect(
-        providerContent,
-        contains("import '../../../domain/entities/enums/index.dart';"),
-      );
+      expect(providerContent, contains("domain/entities/enums/index.dart"));
       expect(
         providerContent,
         isNot(
@@ -225,10 +203,7 @@ void main() {
     final serviceFile = File(servicePath);
     if (serviceFile.existsSync()) {
       final serviceContent = serviceFile.readAsStringSync();
-      expect(
-        serviceContent,
-        contains("import '../entities/enums/index.dart';"),
-      );
+      expect(serviceContent, contains("domain/entities/enums/index.dart"));
     } else {
       fail('Service file was not created');
     }
@@ -246,10 +221,7 @@ void main() {
       reason: 'Mock data should be generated for enums',
     );
     final mockDataContent = File(mockDataPath).readAsStringSync();
-    expect(
-      mockDataContent,
-      contains("import '../../domain/entities/enums/index.dart';"),
-    );
+    expect(mockDataContent, contains("domain/entities/enums/index.dart"));
     expect(
       mockDataContent,
       isNot(

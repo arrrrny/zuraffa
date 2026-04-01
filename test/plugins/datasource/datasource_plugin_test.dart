@@ -141,11 +141,31 @@ void main() {
       isTrue,
     );
     expect(
-      interfaceFile.readAsStringSync().contains('Future<Product> create'),
+      interfaceFile.readAsStringSync().contains(
+        "import augment 'product_datasource.augment.dart';",
+      ),
+      isTrue,
+    );
+    final augmentFile = File(
+      '$outputDir/data/datasources/product/product_datasource.augment.dart',
+    );
+    expect(augmentFile.existsSync(), isTrue);
+    expect(
+      augmentFile.readAsStringSync().contains('Future<Product> create'),
       isTrue,
     );
     expect(
-      remoteFile.readAsStringSync().contains('Future<Product> create'),
+      remoteFile.readAsStringSync().contains(
+        "import augment 'product_remote_datasource.augment.dart';",
+      ),
+      isTrue,
+    );
+    final remoteAugmentFile = File(
+      '$outputDir/data/datasources/product/product_remote_datasource.augment.dart',
+    );
+    expect(remoteAugmentFile.existsSync(), isTrue);
+    expect(
+      remoteAugmentFile.readAsStringSync().contains('Future<Product> create'),
       isTrue,
     );
   });

@@ -35,7 +35,16 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
                   refer('UnimplementedError').call([]).thrown.statement,
                 ),
             )
-          : refer(depField).property(methodName).call([refer('params')]).code;
+          : refer(depField)
+                .property(methodName)
+                .call(
+                  config.hasMultipleParams
+                      ? config.multipleParams
+                            .map((p) => refer('params').property(p.name))
+                            .toList()
+                      : [refer('params')],
+                )
+                .code;
       return [
         Method(
           (b) => b
@@ -71,7 +80,16 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
                   refer('UnimplementedError').call([]).thrown.statement,
                 ),
             )
-          : refer(depField).property(methodName).call([refer('params')]).code;
+          : refer(depField)
+                .property(methodName)
+                .call(
+                  config.hasMultipleParams
+                      ? config.multipleParams
+                            .map((p) => refer('params').property(p.name))
+                            .toList()
+                      : [refer('params')],
+                )
+                .code;
       return [
         Method(
           (b) => b
@@ -103,7 +121,13 @@ extension CustomUseCaseGeneratorMethods on CustomUseCaseGenerator {
             b.statements.add(
               refer(depField)
                   .property(methodName)
-                  .call([refer('params')])
+                  .call(
+                    config.hasMultipleParams
+                        ? config.multipleParams
+                              .map((p) => refer('params').property(p.name))
+                              .toList()
+                        : [refer('params')],
+                  )
                   .awaited
                   .returned
                   .statement,

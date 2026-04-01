@@ -38,6 +38,9 @@ void main() {
       ),
     );
     final initialResult = await initial.generate();
+    if (!initialResult.success) {
+      print('Initial generation failed: ${initialResult.errors}');
+    }
     expect(initialResult.success, isTrue);
 
     final append = CodeGenerator(
@@ -63,18 +66,61 @@ void main() {
 
     expect(appendResult.success, isTrue);
 
-    final repoContent = File(
+    final repoFile = File(
       '$outputDir/domain/repositories/product_repository.dart',
-    ).readAsStringSync();
-    final dataRepoContent = File(
+    );
+    final repoAugmentFile = File(
+      '$outputDir/domain/repositories/product_repository.augment.dart',
+    );
+    final dataRepoFile = File(
       '$outputDir/data/repositories/data_product_repository.dart',
-    ).readAsStringSync();
-    final dataSourceContent = File(
+    );
+    final dataRepoAugmentFile = File(
+      '$outputDir/data/repositories/data_product_repository.augment.dart',
+    );
+    final dataSourceFile = File(
       '$outputDir/data/datasources/product/product_datasource.dart',
-    ).readAsStringSync();
+    );
+    final dataSourceAugmentFile = File(
+      '$outputDir/data/datasources/product/product_datasource.augment.dart',
+    );
 
-    expect(repoContent.contains('fetchProductStats'), isTrue);
-    expect(dataRepoContent.contains('fetchProductStats'), isTrue);
-    expect(dataSourceContent.contains('fetchProductStats'), isTrue);
+    if (!repoFile.readAsStringSync().contains(
+      "import augment 'product_repository.augment.dart';",
+    )) {
+      print('Actual Repository Content:\n${repoFile.readAsStringSync()}');
+    }
+    expect(
+      repoFile.readAsStringSync().contains(
+        "import augment 'product_repository.augment.dart';",
+      ),
+      isTrue,
+    );
+    expect(
+      repoAugmentFile.readAsStringSync().contains('fetchProductStats'),
+      isTrue,
+    );
+
+    expect(
+      dataRepoFile.readAsStringSync().contains(
+        "import augment 'data_product_repository.augment.dart';",
+      ),
+      isTrue,
+    );
+    expect(
+      dataRepoAugmentFile.readAsStringSync().contains('fetchProductStats'),
+      isTrue,
+    );
+
+    expect(
+      dataSourceFile.readAsStringSync().contains(
+        "import augment 'product_datasource.augment.dart';",
+      ),
+      isTrue,
+    );
+    expect(
+      dataSourceAugmentFile.readAsStringSync().contains('fetchProductStats'),
+      isTrue,
+    );
   });
 }

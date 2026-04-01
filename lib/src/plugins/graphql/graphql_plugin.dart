@@ -1,76 +1,56 @@
-import 'package:args/command_runner.dart';
-import '../../commands/graphql_command.dart';
 import '../../core/generator_options.dart';
-import '../../core/plugin_system/capability.dart';
-import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/plugin_context.dart';
+import '../../core/plugin_system/capability.dart';
+import '../../core/context/file_system.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
-import 'builders/graphql_builder.dart';
-import 'capabilities/create_graphql_capability.dart';
 
-/// Manages GraphQL-related code generation.
+/// Manages schema-first GraphQL generation (Dart from GraphQL schema).
 ///
-/// Produces GraphQL query and mutation strings, and wires them into
-/// remote data sources.
-///
-/// Example:
-/// ```dart
-/// final plugin = GraphqlPlugin(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final files = await plugin.generate(GeneratorConfig(name: 'Product'));
-/// ```
-class GraphqlPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
+/// Note: This is currently a placeholder for the schema-to-dart feature.
+class GraphqlPlugin extends FileGeneratorPlugin {
   final String outputDir;
   final GeneratorOptions options;
-  late final GraphqlBuilder graphqlBuilder;
+  final FileSystem fileSystem;
 
   GraphqlPlugin({
     required this.outputDir,
     this.options = const GeneratorOptions(),
-  }) {
-    graphqlBuilder = GraphqlBuilder(outputDir: outputDir, options: options);
-  }
-
-  @override
-  List<ZuraffaCapability> get capabilities => [CreateGraphqlCapability(this)];
-
-  @override
-  Command createCommand() => GraphqlCommand(this);
+    FileSystem? fileSystem,
+  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 
   @override
   String get id => 'graphql';
 
   @override
-  String get name => 'GraphQL Plugin';
+  String get name => 'GraphQL Schema Generator';
 
   @override
   String get version => '1.0.0';
 
   @override
-  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
-    if (config.outputDir != outputDir ||
-        config.dryRun != options.dryRun ||
-        config.force != options.force ||
-        config.verbose != options.verbose ||
-        config.revert != options.revert) {
-      final delegator = GraphqlPlugin(
-        outputDir: config.outputDir,
-        options: GeneratorOptions(
-          dryRun: config.dryRun,
-          force: config.force,
-          verbose: config.verbose,
-          revert: config.revert,
-        ),
-      );
-      return delegator.generate(config);
-    }
+  JsonSchema get configSchema => {
+    'type': 'object',
+    'properties': {
+      'schema-path': {
+        'type': 'string',
+        'description': 'Path to .graphql schema file',
+      },
+    },
+  };
 
-    if (!config.generateGql) {
-      return [];
-    }
-    return graphqlBuilder.generate(config);
+  @override
+  Future<List<GeneratedFile>> generateWithContext(PluginContext context) async {
+    // Placeholder implementation
+    return [];
+  }
+
+  @override
+  Future<List<GeneratedFile>> generate(
+    GeneratorConfig config, {
+    PluginContext? context,
+  }) async {
+    return [];
   }
 }

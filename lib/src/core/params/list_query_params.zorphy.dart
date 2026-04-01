@@ -84,31 +84,43 @@ class ListQueryParams<T> extends Params {
       params: _patchMap.containsKey(ListQueryParams$.params)
           ? (_patchMap[ListQueryParams$.params] is Function)
                 ? _patchMap[ListQueryParams$.params](this.params)
+                : (_patchMap[ListQueryParams$.params] is Patch)
+                ? _patchMap[ListQueryParams$.params].applyTo(this.params)
                 : _patchMap[ListQueryParams$.params]
           : this.params,
       search: _patchMap.containsKey(ListQueryParams$.search)
           ? (_patchMap[ListQueryParams$.search] is Function)
                 ? _patchMap[ListQueryParams$.search](this.search)
+                : (_patchMap[ListQueryParams$.search] is Patch)
+                ? _patchMap[ListQueryParams$.search].applyTo(this.search)
                 : _patchMap[ListQueryParams$.search]
           : this.search,
       filter: _patchMap.containsKey(ListQueryParams$.filter)
           ? (_patchMap[ListQueryParams$.filter] is Function)
                 ? _patchMap[ListQueryParams$.filter](this.filter)
+                : (_patchMap[ListQueryParams$.filter] is Patch)
+                ? _patchMap[ListQueryParams$.filter].applyTo(this.filter)
                 : _patchMap[ListQueryParams$.filter]
           : this.filter,
       sort: _patchMap.containsKey(ListQueryParams$.sort)
           ? (_patchMap[ListQueryParams$.sort] is Function)
                 ? _patchMap[ListQueryParams$.sort](this.sort)
+                : (_patchMap[ListQueryParams$.sort] is Patch)
+                ? _patchMap[ListQueryParams$.sort].applyTo(this.sort)
                 : _patchMap[ListQueryParams$.sort]
           : this.sort,
       limit: _patchMap.containsKey(ListQueryParams$.limit)
           ? (_patchMap[ListQueryParams$.limit] is Function)
                 ? _patchMap[ListQueryParams$.limit](this.limit)
+                : (_patchMap[ListQueryParams$.limit] is Patch)
+                ? _patchMap[ListQueryParams$.limit].applyTo(this.limit)
                 : _patchMap[ListQueryParams$.limit]
           : this.limit,
       offset: _patchMap.containsKey(ListQueryParams$.offset)
           ? (_patchMap[ListQueryParams$.offset] is Function)
                 ? _patchMap[ListQueryParams$.offset](this.offset)
+                : (_patchMap[ListQueryParams$.offset] is Patch)
+                ? _patchMap[ListQueryParams$.offset].applyTo(this.offset)
                 : _patchMap[ListQueryParams$.offset]
           : this.offset,
     );
@@ -121,6 +133,8 @@ class ListQueryParams<T> extends Params {
       params: _patchMap.containsKey(Params$.params)
           ? (_patchMap[Params$.params] is Function)
                 ? _patchMap[Params$.params](this.params)
+                : (_patchMap[Params$.params] is Patch)
+                ? _patchMap[Params$.params].applyTo(this.params)
                 : _patchMap[Params$.params]
           : this.params,
       search: this.search,
@@ -234,7 +248,7 @@ extension ListQueryParamsSerialization<T> on ListQueryParams<T> {
 
   dynamic _sanitizeJson(dynamic json) {
     if (json is Map<String, dynamic>) {
-      json.remove('_className_');
+      json.remove('__typename');
       return json..forEach((key, value) {
         json[key] = _sanitizeJson(value);
       });

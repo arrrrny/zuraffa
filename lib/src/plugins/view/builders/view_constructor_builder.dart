@@ -6,6 +6,7 @@ class ViewConstructorBuilder {
   Constructor build({
     required List<Field> repoFields,
     required List<Field> routeFields,
+    List<Parameter> customParameters = const [],
   }) {
     final parameters = <Parameter>[
       Parameter(
@@ -43,6 +44,10 @@ class ViewConstructorBuilder {
             ..named = true,
         ),
       ),
+    );
+
+    parameters.addAll(
+      customParameters.map((param) => param.rebuild((p) => p..toThis = true)),
     );
 
     return Constructor(

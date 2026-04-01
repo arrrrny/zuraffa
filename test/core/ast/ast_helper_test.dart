@@ -96,6 +96,24 @@ void setup() {
     expect(updated.contains("print('next');"), isTrue);
   });
 
+  test('AstHelper handles empty bodies', () {
+    const source = 'class User;';
+    final result = helper.addMethodToClass(
+      source: source,
+      className: 'User',
+      methodSource: 'void test() {}',
+    );
+    expect(result, equals(source));
+
+    const extSource = 'extension UserExt on String;';
+    final resultExt = helper.addMethodToExtension(
+      source: extSource,
+      extensionName: 'UserExt',
+      methodSource: 'void test() {}',
+    );
+    expect(resultExt, equals(extSource));
+  });
+
   test('AstHelper handles malformed source', () {
     const source = 'class Broken {';
     final result = helper.parseSource(source);

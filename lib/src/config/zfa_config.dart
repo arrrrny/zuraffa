@@ -22,8 +22,11 @@ class ZfaConfig {
   /// Default output directory for entities
   final String? defaultEntityOutput;
 
-  /// Default GraphQL generation for entity-based operations
+  /// Default internal GQL string generation
   final bool gqlByDefault;
+
+  /// Default GraphQL schema generation
+  final bool graphqlByDefault;
 
   /// Auto-run build_runner after entity operations and cache generation
   final bool buildByDefault;
@@ -51,8 +54,9 @@ class ZfaConfig {
     this.jsonByDefault = true,
     this.compareByDefault = true,
     this.filterByDefault = false,
-    this.defaultEntityOutput,
+    this.defaultEntityOutput = 'lib/src',
     this.gqlByDefault = false,
+    this.graphqlByDefault = false,
     this.buildByDefault = false,
     this.appendByDefault = false,
     this.formatByDefault = false,
@@ -80,8 +84,9 @@ class ZfaConfig {
         jsonByDefault: json['jsonByDefault'] ?? true,
         compareByDefault: json['compareByDefault'] ?? true,
         filterByDefault: json['filterByDefault'] ?? false,
-        defaultEntityOutput: json['defaultEntityOutput'],
+        defaultEntityOutput: json['defaultEntityOutput'] ?? 'lib/src',
         gqlByDefault: json['gqlByDefault'] ?? false,
+        graphqlByDefault: json['graphqlByDefault'] ?? false,
         buildByDefault: json['buildByDefault'] ?? false,
         appendByDefault: json['appendByDefault'] ?? false,
         formatByDefault: json['formatByDefault'] ?? false,
@@ -101,26 +106,28 @@ class ZfaConfig {
     final root = projectRoot ?? Directory.current.path;
     final configFile = File(p.join(root, '.zfa.json'));
 
-    final configJson = {
-      'zorphyByDefault': config.zorphyByDefault,
-      'jsonByDefault': config.jsonByDefault,
-      'compareByDefault': config.compareByDefault,
-      'filterByDefault': config.filterByDefault,
-      'buildByDefault': config.buildByDefault,
-      'appendByDefault': config.appendByDefault,
-      'formatByDefault': config.formatByDefault,
-      'routeByDefault': config.routeByDefault,
-      'diByDefault': config.diByDefault,
-      'mockByDefault': config.mockByDefault,
-      'testByDefault': config.testByDefault,
-      if (config.defaultEntityOutput != null)
-        'defaultEntityOutput': config.defaultEntityOutput,
-    };
-
     const encoder = JsonEncoder.withIndent('  ');
-    final content = encoder.convert(configJson);
+    final content = encoder.convert(config.toJson());
     await FileUtils.writeFile(configFile.path, content, 'config', force: true);
   }
+
+  /// Convert configuration to a JSON map
+  Map<String, dynamic> toJson() => {
+    'zorphyByDefault': zorphyByDefault,
+    'jsonByDefault': jsonByDefault,
+    'compareByDefault': compareByDefault,
+    'filterByDefault': filterByDefault,
+    'buildByDefault': buildByDefault,
+    'appendByDefault': appendByDefault,
+    'formatByDefault': formatByDefault,
+    'routeByDefault': routeByDefault,
+    'diByDefault': diByDefault,
+    'mockByDefault': mockByDefault,
+    'testByDefault': testByDefault,
+    'gqlByDefault': gqlByDefault,
+    'graphqlByDefault': graphqlByDefault,
+    if (defaultEntityOutput != null) 'defaultEntityOutput': defaultEntityOutput,
+  };
 
   /// Create a config file template in project root
   static Future<void> init({String? projectRoot}) async {

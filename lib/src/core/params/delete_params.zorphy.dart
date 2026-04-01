@@ -34,11 +34,15 @@ class DeleteParams<I> extends Params {
       params: _patchMap.containsKey(DeleteParams$.params)
           ? (_patchMap[DeleteParams$.params] is Function)
                 ? _patchMap[DeleteParams$.params](this.params)
+                : (_patchMap[DeleteParams$.params] is Patch)
+                ? _patchMap[DeleteParams$.params].applyTo(this.params)
                 : _patchMap[DeleteParams$.params]
           : this.params,
       id: _patchMap.containsKey(DeleteParams$.id)
           ? (_patchMap[DeleteParams$.id] is Function)
                 ? _patchMap[DeleteParams$.id](this.id)
+                : (_patchMap[DeleteParams$.id] is Patch)
+                ? _patchMap[DeleteParams$.id].applyTo(this.id)
                 : _patchMap[DeleteParams$.id]
           : this.id,
     );
@@ -51,6 +55,8 @@ class DeleteParams<I> extends Params {
       params: _patchMap.containsKey(Params$.params)
           ? (_patchMap[Params$.params] is Function)
                 ? _patchMap[Params$.params](this.params)
+                : (_patchMap[Params$.params] is Patch)
+                ? _patchMap[Params$.params].applyTo(this.params)
                 : _patchMap[Params$.params]
           : this.params,
       id: this.id,
@@ -92,7 +98,7 @@ extension DeleteParamsSerialization<I> on DeleteParams<I> {
 
   dynamic _sanitizeJson(dynamic json) {
     if (json is Map<String, dynamic>) {
-      json.remove('_className_');
+      json.remove('__typename');
       return json..forEach((key, value) {
         json[key] = _sanitizeJson(value);
       });

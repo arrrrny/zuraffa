@@ -9,6 +9,7 @@ import '../plugins/controller/controller_plugin.dart';
 import '../plugins/datasource/datasource_plugin.dart';
 import '../plugins/di/di_plugin.dart';
 import '../plugins/graphql/graphql_plugin.dart';
+import '../plugins/gql/gql_plugin.dart';
 import '../plugins/cache/cache_plugin.dart';
 import '../plugins/route/route_plugin.dart';
 import '../plugins/provider/provider_plugin.dart';
@@ -23,6 +24,7 @@ import '../plugins/service/service_plugin.dart';
 import '../plugins/usecase/usecase_plugin.dart';
 import '../plugins/view/view_plugin.dart';
 import '../plugins/feature/feature_plugin.dart';
+import '../plugins/shadcn/shadcn_plugin.dart';
 
 class PluginConfig {
   final Set<String> disabled;
@@ -154,7 +156,9 @@ class PluginLoader {
       ServicePlugin(outputDir: outputDir, options: options),
       RoutePlugin(outputDir: outputDir, options: options),
       CachePlugin(outputDir: outputDir, options: options),
+      GqlPlugin(outputDir: outputDir, options: options),
       GraphqlPlugin(outputDir: outputDir, options: options),
+      ShadcnPlugin(outputDir: outputDir, options: options),
       MethodAppendPlugin(outputDir: outputDir, options: options),
     ];
   }

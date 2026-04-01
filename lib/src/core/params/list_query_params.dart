@@ -43,3 +43,79 @@ abstract class $ListQueryParams<T> implements $Params {
   /// Number of items to skip.
   int? get offset;
 }
+
+/// Extension methods for converting [Filter] to [ListQueryParams].
+extension FilterToListQueryExtension<T> on Filter<T> {
+  /// Converts this filter to a [ListQueryParams] object.
+  ListQueryParams<T> toListQuery({
+    String? search,
+    Sort<T>? sort,
+    int? limit,
+    int? offset,
+    Map<String, dynamic>? params,
+  }) {
+    return ListQueryParams<T>(
+      filter: this,
+      search: search,
+      sort: sort,
+      limit: limit,
+      offset: offset,
+      params: params,
+    );
+  }
+}
+
+/// Extension methods for converting a list of [Filter]s to a single [Filter] or [ListQueryParams].
+extension FilterListToListQueryExtension<T> on Iterable<Filter<T>> {
+  /// Combines multiple filters into a [ListQueryParams] object using an [And] filter.
+  ListQueryParams<T> toListQuery({
+    String? search,
+    Sort<T>? sort,
+    int? limit,
+    int? offset,
+    Map<String, dynamic>? params,
+  }) {
+    return ListQueryParams<T>(
+      filter: And<T>(toList()),
+      search: search,
+      sort: sort,
+      limit: limit,
+      offset: offset,
+      params: params,
+    );
+  }
+}
+
+extension ListQueryParamsExtension on ListQueryParams {
+  /// Generates a stable cache key based on query parameters.
+  /// This replaces the unstable .hashCode which changes across app restarts.
+  String toCacheKey() {
+    final buffer = StringBuffer();
+
+    // Add basic fields if they exist (based on typical ListQueryParams structure)
+    // We use a safe approach by converting to string if we're not sure about the exact fields
+    // but typically ListQueryParams has limit, offset, filter, sort, search.
+
+    try {
+      buffer.write('l:${limit ?? 'n'}_');
+      buffer.write('o:${offset ?? 'n'}_');
+
+      if (search != null && search!.isNotEmpty) {
+        buffer.write('s:${search}_');
+      }
+
+      if (filter != null) {
+        buffer.write('f:${filter.hashCode}_');
+      }
+
+      if (sort != null) {
+        buffer.write('st:${sort.hashCode}_');
+      }
+    } catch (e) {
+      // Fallback to a simple string if fields are missing or different
+      buffer.write(toString());
+    }
+
+    return buffer.toString();
+  }
+}

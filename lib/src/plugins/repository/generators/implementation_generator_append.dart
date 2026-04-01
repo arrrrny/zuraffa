@@ -15,12 +15,55 @@ extension RepositoryImplementationGeneratorAppend
       imports.add(asyncImport);
     }
     imports.add('package:zuraffa/zuraffa.dart');
-    if (EntityAnalyzer.isEnum(config.name, outputDir)) {
-      imports.add('../../domain/entities/enums/index.dart');
+
+    // Use DiscoveryEngine to find the entity file
+    final entityFile = discovery.findFileSync('$entitySnake.dart');
+    final repoInterfaceFile = discovery.findFileSync(
+      '${entitySnake}_repository.dart',
+    );
+
+    final repoImplDir = p.dirname(
+      p.join(
+        outputDir,
+        'data',
+        'repositories',
+        'data_${entitySnake}_repository.dart',
+      ),
+    );
+
+    final isEnum = EntityAnalyzer.isEnum(
+      config.name,
+      outputDir,
+      fileSystem: fileSystem,
+    );
+    if (isEnum) {
+      final baseImport = PackageUtils.getBaseImport(
+        outputDir,
+        fileSystem: fileSystem,
+      );
+      imports.add('$baseImport/domain/entities/enums/index.dart');
+    } else if (entityFile != null) {
+      imports.add(p.relative(entityFile.path, from: repoImplDir));
     } else {
-      imports.add('../../domain/entities/$entitySnake/$entitySnake.dart');
+      // Fallback
+      final baseImport = PackageUtils.getBaseImport(
+        outputDir,
+        fileSystem: fileSystem,
+      );
+      imports.add('$baseImport/domain/entities/$entitySnake/$entitySnake.dart');
     }
-    imports.add('../../domain/repositories/${entitySnake}_repository.dart');
+
+    if (repoInterfaceFile != null) {
+      imports.add(p.relative(repoInterfaceFile.path, from: repoImplDir));
+    } else {
+      final baseImport = PackageUtils.getBaseImport(
+        outputDir,
+        fileSystem: fileSystem,
+      );
+      imports.add(
+        '$baseImport/domain/repositories/${entitySnake}_repository.dart',
+      );
+    }
 
     if (config.generateLocal) {
       imports.add(
@@ -31,67 +74,10 @@ extension RepositoryImplementationGeneratorAppend
       imports.add(
         '../datasources/$entitySnake/${entitySnake}_local_datasource.dart',
       );
+      imports.add('../../cache/${entitySnake}_cache.dart');
     } else {
       imports.add('../datasources/$entitySnake/${entitySnake}_datasource.dart');
     }
     return imports;
-  }
-
-  List<String> _buildImportLines(List<String> importPaths) {
-    return importPaths.map((path) => "import '$path';").toList();
-  }
-
-  String _appendMethods({
-    required String source,
-    required String className,
-    required List<Method> methods,
-  }) {
-    var updated = source;
-    final emitter = DartEmitter(
-      orderDirectives: true,
-      useNullSafetySyntax: true,
-    );
-    for (final method in methods) {
-      final methodSource = method.accept(emitter).toString();
-      final result = appendExecutor.execute(
-        AppendRequest.method(
-          source: updated,
-          className: className,
-          memberSource: methodSource,
-        ),
-      );
-      updated = result.source;
-    }
-    return updated;
-  }
-
-  /*
-  String _removeMethods({
-    required String source,
-    required String className,
-    required List<Method> methods,
-  }) {
-    var updated = source;
-    final helper = const AstHelper();
-    for (final method in methods) {
-      final methodName = method.name!;
-      updated = helper.removeMethodFromClass(
-        source: updated,
-        className: className,
-        methodName: methodName,
-      );
-    }
-    return updated;
-  }
-  */
-
-  String _mergeImports(String source, List<String> imports) {
-    var updated = source;
-    for (final importLine in imports) {
-      if (!updated.contains(importLine)) {
-        updated = '$importLine\n$updated';
-      }
-    }
-    return updated;
   }
 }

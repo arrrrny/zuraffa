@@ -38,6 +38,7 @@ class ViewCommand extends PluginCommand {
       print('❌ Usage: zfa view <EntityName> [options]');
       print('   Or use a subcommand:');
       print('   zfa view create <EntityName> [options]');
+      print('   zfa view register <ViewName> <Entity1> <Entity2?> [options]');
       print('   zfa view custom <Name> [options]');
       return;
     }
@@ -47,7 +48,7 @@ class ViewCommand extends PluginCommand {
 
     if (argResults!.rest.length > 1) {
       final first = argResults!.rest.first;
-      if (first == 'create' || first == 'custom') {
+      if (first == 'create' || first == 'custom' || first == 'register') {
         capabilityName = first;
         entityName = argResults!.rest[1];
       }
@@ -62,6 +63,23 @@ class ViewCommand extends PluginCommand {
     final capability = plugin.capabilities.firstWhere(
       (c) => c.name == capabilityName,
     );
+
+    if (capabilityName == 'register') {
+      final entities = argResults!.rest.skip(2).toList();
+      final result = await capability.execute({
+        'target': entityName,
+        'entities': entities,
+        'dryRun': isDryRun,
+        'force': isForce,
+        'verbose': isVerbose,
+        'outputDir': outputDir,
+      });
+
+      final files =
+          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      logSummary(files);
+      return;
+    }
 
     if (generateRoute) {
       // For route generation, execute the route command separately

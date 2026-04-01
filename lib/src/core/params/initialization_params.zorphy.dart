@@ -10,21 +10,23 @@ part of 'initialization_params.dart';
 
 @JsonSerializable(explicitToJson: true)
 class InitializationParams extends Params {
-  @JsonKey()
+  @JsonKey(
+    toJson: DurationConverter.durationToJson,
+    fromJson: DurationConverter.durationFromJson,
+  )
   final Duration timeout;
-  @JsonKey()
+  @JsonKey(defaultValue: false)
   final bool? forceRefresh;
   final Credentials? credentials;
   final Settings? settings;
 
   const InitializationParams({
     Map<String, dynamic>? params,
-    Duration? timeout,
+    required this.timeout,
     bool? forceRefresh,
     this.credentials,
     this.settings,
-  }) : this.timeout = timeout ?? const Duration(seconds: 5),
-       this.forceRefresh = forceRefresh ?? false,
+  }) : this.forceRefresh = forceRefresh ?? false,
        super(params: params);
 
   InitializationParams copyWith({
@@ -72,11 +74,15 @@ class InitializationParams extends Params {
       params: _patchMap.containsKey(InitializationParams$.params)
           ? (_patchMap[InitializationParams$.params] is Function)
                 ? _patchMap[InitializationParams$.params](this.params)
+                : (_patchMap[InitializationParams$.params] is Patch)
+                ? _patchMap[InitializationParams$.params].applyTo(this.params)
                 : _patchMap[InitializationParams$.params]
           : this.params,
       timeout: _patchMap.containsKey(InitializationParams$.timeout)
           ? (_patchMap[InitializationParams$.timeout] is Function)
                 ? _patchMap[InitializationParams$.timeout](this.timeout)
+                : (_patchMap[InitializationParams$.timeout] is Patch)
+                ? _patchMap[InitializationParams$.timeout].applyTo(this.timeout)
                 : _patchMap[InitializationParams$.timeout]
           : this.timeout,
       forceRefresh: _patchMap.containsKey(InitializationParams$.forceRefresh)
@@ -84,16 +90,28 @@ class InitializationParams extends Params {
                 ? _patchMap[InitializationParams$.forceRefresh](
                     this.forceRefresh,
                   )
+                : (_patchMap[InitializationParams$.forceRefresh] is Patch)
+                ? _patchMap[InitializationParams$.forceRefresh].applyTo(
+                    this.forceRefresh,
+                  )
                 : _patchMap[InitializationParams$.forceRefresh]
           : this.forceRefresh,
       credentials: _patchMap.containsKey(InitializationParams$.credentials)
           ? (_patchMap[InitializationParams$.credentials] is Function)
                 ? _patchMap[InitializationParams$.credentials](this.credentials)
+                : (_patchMap[InitializationParams$.credentials] is Patch)
+                ? _patchMap[InitializationParams$.credentials].applyTo(
+                    this.credentials,
+                  )
                 : _patchMap[InitializationParams$.credentials]
           : this.credentials,
       settings: _patchMap.containsKey(InitializationParams$.settings)
           ? (_patchMap[InitializationParams$.settings] is Function)
                 ? _patchMap[InitializationParams$.settings](this.settings)
+                : (_patchMap[InitializationParams$.settings] is Patch)
+                ? _patchMap[InitializationParams$.settings].applyTo(
+                    this.settings,
+                  )
                 : _patchMap[InitializationParams$.settings]
           : this.settings,
     );
@@ -106,6 +124,8 @@ class InitializationParams extends Params {
       params: _patchMap.containsKey(Params$.params)
           ? (_patchMap[Params$.params] is Function)
                 ? _patchMap[Params$.params](this.params)
+                : (_patchMap[Params$.params] is Patch)
+                ? _patchMap[Params$.params].applyTo(this.params)
                 : _patchMap[Params$.params]
           : this.params,
       timeout: this.timeout,
@@ -162,7 +182,7 @@ class InitializationParams extends Params {
 
   dynamic _sanitizeJson(dynamic json) {
     if (json is Map<String, dynamic>) {
-      json.remove('_className_');
+      json.remove('__typename');
       return json..forEach((key, value) {
         json[key] = _sanitizeJson(value);
       });
@@ -198,7 +218,7 @@ extension InitializationParamsSerialization on InitializationParams {
 
   dynamic _sanitizeJson(dynamic json) {
     if (json is Map<String, dynamic>) {
-      json.remove('_className_');
+      json.remove('__typename');
       return json..forEach((key, value) {
         json[key] = _sanitizeJson(value);
       });
@@ -317,10 +337,7 @@ class InitializationParamsPatch implements Patch<InitializationParams> {
   ) {
     _patch[InitializationParams$.credentials] = (dynamic current) {
       var currentPatch = CredentialsPatch();
-      if (current != null) {
-        currentPatch = current as CredentialsPatch;
-      }
-      return patch(currentPatch);
+      return patch(currentPatch).applyTo(current as Credentials);
     };
     return this;
   }

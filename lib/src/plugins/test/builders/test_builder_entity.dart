@@ -12,7 +12,24 @@ extension TestBuilderEntity on TestBuilder {
   ) async {
     final entityName = config.name;
     final entitySnake = config.nameSnake;
-    final repoName = config.effectiveRepos.first;
+    final useService = config.useService;
+    final repoName = config.effectiveRepos.isNotEmpty
+        ? config.effectiveRepos.first
+        : null;
+    final serviceName = config.effectiveService;
+    final serviceSnake = config.serviceSnake;
+
+    final targetName = useService && serviceName != null
+        ? serviceName
+        : repoName;
+    if (targetName == null) {
+      throw ArgumentError('Either repository or service must be specified');
+    }
+    final targetSnake = useService && serviceSnake != null
+        ? serviceSnake
+        : StringUtils.camelToSnake(targetName.replaceAll('Repository', ''));
+    final targetDir = useService ? 'services' : 'repositories';
+    final targetSuffix = useService ? 'service' : 'repository';
 
     String className;
     String returnTypeConstructor = '';
@@ -77,34 +94,62 @@ extension TestBuilderEntity on TestBuilder {
           '${StringUtils.camelToSnake(method)}_${entitySnake}_usecase.dart';
     }
 
-    final packageName = _resolvePackageName(projectRoot);
-    final repoSnake = StringUtils.camelToSnake(
-      repoName.replaceAll('Repository', ''),
+    final packageName = await _resolvePackageName(projectRoot);
+
+    // Use DiscoveryEngine to find the actual files for correct imports
+    final entityFile = discovery.findFileSync('${entitySnake}.dart');
+    final targetFile = discovery.findFileSync(
+      '${targetSnake}_$targetSuffix.dart',
     );
+    final useCaseFile = discovery.findFileSync(useCaseFileName);
 
     final directives = [
       Directive.import('package:flutter_test/flutter_test.dart'),
       Directive.import('package:mocktail/mocktail.dart'),
-      Directive.import('package:zuraffa/zuraffa.dart'),
-      Directive.import(
-        'package:$packageName/src/domain/entities/$entitySnake/$entitySnake.dart',
-      ),
-      Directive.import(
-        'package:$packageName/src/domain/repositories/${repoSnake}_repository.dart',
-      ),
-      Directive.import(
-        'package:$packageName/src/domain/usecases/$entitySnake/$useCaseFileName',
-      ),
+      if (method != 'create') Directive.import('package:zuraffa/zuraffa.dart'),
     ];
 
-    final mockRepoClass = 'Mock$repoName';
+    if (entityFile != null) {
+      final relPath = path.relative(entityFile.path, from: testDirPath);
+      directives.add(Directive.import(relPath));
+    } else {
+      directives.add(
+        Directive.import(
+          'package:$packageName/src/domain/entities/$entitySnake/$entitySnake.dart',
+        ),
+      );
+    }
+
+    if (targetFile != null) {
+      final relPath = path.relative(targetFile.path, from: testDirPath);
+      directives.add(Directive.import(relPath));
+    } else {
+      directives.add(
+        Directive.import(
+          'package:$packageName/src/domain/$targetDir/${targetSnake}_$targetSuffix.dart',
+        ),
+      );
+    }
+
+    if (useCaseFile != null) {
+      final relPath = path.relative(useCaseFile.path, from: testDirPath);
+      directives.add(Directive.import(relPath));
+    } else {
+      directives.add(
+        Directive.import(
+          'package:$packageName/src/domain/usecases/$entitySnake/$useCaseFileName',
+        ),
+      );
+    }
+
+    final mockRepoClass = 'Mock$targetName';
     final mockEntityClass = 'Mock$entityName';
 
     final mockRepo = Class(
       (c) => c
         ..name = mockRepoClass
         ..extend = refer('Mock')
-        ..implements.add(refer(repoName)),
+        ..implements.add(refer(targetName)),
     );
 
     final mockEntity = Class(
@@ -119,12 +164,13 @@ extension TestBuilderEntity on TestBuilder {
         ..name = 'main'
         ..returns = refer('void')
         ..body = Block((b) {
+          final mockVarName = 'mock${StringUtils.capitalize(targetSuffix)}';
           b.statements.add(
             declareVar('useCase', type: refer(className), late: true).statement,
           );
           b.statements.add(
             declareVar(
-              'mockRepository',
+              mockVarName,
               type: refer(mockRepoClass),
               late: true,
             ).statement,
@@ -143,13 +189,13 @@ extension TestBuilderEntity on TestBuilder {
             }
             s.statements.add(
               refer(
-                'mockRepository',
+                mockVarName,
               ).assign(refer(mockRepoClass).call([])).statement,
             );
             s.statements.add(
-              refer('useCase')
-                  .assign(refer(className).call([refer('mockRepository')]))
-                  .statement,
+              refer(
+                'useCase',
+              ).assign(refer(className).call([refer(mockVarName)])).statement,
             );
           });
 
@@ -188,6 +234,7 @@ extension TestBuilderEntity on TestBuilder {
                     method,
                     entityName,
                     returnTypeConstructor,
+                    mockVarName,
                   )
                 : _generateFutureTests(
                     config,
@@ -195,6 +242,7 @@ extension TestBuilderEntity on TestBuilder {
                     entityName,
                     returnTypeConstructor,
                     isCompletable,
+                    mockVarName,
                   );
 
             g.statements.addAll(tests);
@@ -223,6 +271,7 @@ extension TestBuilderEntity on TestBuilder {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fileSystem,
     );
   }
 }

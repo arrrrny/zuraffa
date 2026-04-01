@@ -5,28 +5,28 @@ extension CacheBuilderRegistrar on CacheBuilder {
     final dirPath = path.join(outputDir, 'cache');
     final registrarPath = path.join(dirPath, 'hive_registrar.dart');
 
-    final dir = Directory(dirPath);
-    if (!dir.existsSync()) {
+    if (!await fileSystem.exists(dirPath)) {
       return;
     }
 
-    final files = dir
-        .listSync()
-        .whereType<File>()
-        .where(
-          (f) =>
-              f.path.endsWith('_cache.dart') &&
-              !f.path.endsWith('index.dart') &&
-              !f.path.endsWith('timestamp_cache.dart'),
-        )
-        .toList();
+    final items = await fileSystem.list(dirPath);
+    final files = <String>[];
+    for (final item in items) {
+      if (!await fileSystem.isDirectory(item)) {
+        if (item.endsWith('_cache.dart') &&
+            !item.endsWith('index.dart') &&
+            !item.endsWith('timestamp_cache.dart')) {
+          files.add(item);
+        }
+      }
+    }
 
     if (files.isEmpty) {
-      if (File(registrarPath).existsSync()) {
+      if (await fileSystem.exists(registrarPath)) {
         if (options.dryRun) {
           if (options.verbose) print('  Dry run: Deleting $registrarPath');
         } else {
-          File(registrarPath).deleteSync();
+          await fileSystem.delete(registrarPath);
         }
       }
       return;
@@ -41,10 +41,10 @@ extension CacheBuilderRegistrar on CacheBuilder {
       'cache',
       'hive_manual_additions.txt',
     );
-    final manualAdditionsFile = File(manualAdditionsPath);
 
-    if (manualAdditionsFile.existsSync()) {
-      final lines = manualAdditionsFile.readAsLinesSync();
+    if (await fileSystem.exists(manualAdditionsPath)) {
+      final content = await fileSystem.read(manualAdditionsPath);
+      final lines = content.split('\n');
       for (final line in lines) {
         final trimmed = line.trim();
         if (trimmed.isEmpty || trimmed.startsWith('#')) continue;
@@ -65,8 +65,8 @@ extension CacheBuilderRegistrar on CacheBuilder {
       }
     }
 
-    for (final file in files) {
-      final fileName = path.basename(file.path);
+    for (final filePath in files) {
+      final fileName = path.basename(filePath);
       final entitySnake = fileName.replaceAll('_cache.dart', '');
       final entityName = StringUtils.convertToPascalCase(entitySnake);
       final importPath = '../domain/entities/$entitySnake/$entitySnake.dart';
@@ -147,9 +147,10 @@ extension CacheBuilderRegistrar on CacheBuilder {
       force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
+      fileSystem: fileSystem,
     );
 
-    if (!manualAdditionsFile.existsSync() && !config.revert) {
+    if (!await fileSystem.exists(manualAdditionsPath) && !config.revert) {
       final template = '''# Hive Manual Additions
 # Add nested entities and enums that need Hive adapters
 # Format: import_path|EntityName
@@ -161,12 +162,13 @@ extension CacheBuilderRegistrar on CacheBuilder {
 # ../domain/entities/range/range.dart|Range
 ''';
       await FileUtils.writeFile(
-        manualAdditionsFile.path,
+        manualAdditionsPath,
         template,
         'hive_manual_additions',
         force: true,
         dryRun: options.dryRun,
         verbose: options.verbose,
+        fileSystem: fileSystem,
       );
     }
   }
@@ -200,10 +202,13 @@ extension CacheBuilderRegistrar on CacheBuilder {
       '$entitySnake.dart',
     );
 
-    final file = File(entityPath);
-    if (!file.existsSync()) return;
+    if (!await fileSystem.exists(entityPath)) return;
 
-    final fields = EntityAnalyzer.analyzeEntity(entityName, outputDir);
+    final fields = EntityAnalyzer.analyzeEntity(
+      entityName,
+      outputDir,
+      fileSystem: fileSystem,
+    );
 
     for (final fieldType in fields.values) {
       final baseType = _extractBaseType(fieldType);
@@ -220,7 +225,7 @@ extension CacheBuilderRegistrar on CacheBuilder {
         '$subEntitySnake.dart',
       );
 
-      if (File(subEntityPath).existsSync()) {
+      if (await fileSystem.exists(subEntityPath)) {
         processedEntities.add(baseType);
         adapterEntities.add(baseType);
         final importPath =

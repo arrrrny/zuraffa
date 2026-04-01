@@ -47,6 +47,8 @@ class ImportAppendStrategy implements AppendStrategy {
 
   String _insertImport(String source, CompilationUnit unit, String importPath) {
     final importDirective = "import '$importPath';";
+
+    // Check for standard imports
     final imports = unit.directives.whereType<ImportDirective>().toList();
     if (imports.isNotEmpty) {
       final lastImport = imports.last;
@@ -54,18 +56,15 @@ class ImportAppendStrategy implements AppendStrategy {
       return '${source.substring(0, insertOffset)}\n$importDirective'
           '${source.substring(insertOffset)}';
     }
-    final exports = unit.directives.whereType<ExportDirective>().toList();
-    if (exports.isNotEmpty) {
-      final insertOffset = exports.last.end;
-      return '${source.substring(0, insertOffset)}\n\n$importDirective'
+
+    // If no standard imports, check for any directive as a fallback for placement
+    if (unit.directives.isNotEmpty) {
+      final lastDirective = unit.directives.last;
+      final insertOffset = lastDirective.end;
+      return '${source.substring(0, insertOffset)}\n$importDirective'
           '${source.substring(insertOffset)}';
     }
-    final library = unit.directives.whereType<LibraryDirective>().toList();
-    if (library.isNotEmpty) {
-      final insertOffset = library.first.end;
-      return '${source.substring(0, insertOffset)}\n\n$importDirective'
-          '${source.substring(insertOffset)}';
-    }
+
     return '$importDirective\n$source';
   }
 

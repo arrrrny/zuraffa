@@ -4,6 +4,7 @@ import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/plugin_context.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'builders/route_builder.dart';
@@ -54,8 +55,35 @@ class RoutePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   String get version => '1.0.0';
 
   @override
-  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
-    if (!config.generateRoute) {
+  String? get configKey => 'routeByDefault';
+
+  @override
+  JsonSchema get configSchema => {'type': 'object', 'properties': {}};
+
+  @override
+  Future<List<GeneratedFile>> generateWithContext(PluginContext context) async {
+    final config = GeneratorConfig(
+      name: context.core.name,
+      outputDir: context.core.outputDir,
+      dryRun: context.core.dryRun,
+      force: context.core.force,
+      verbose: context.core.verbose,
+      revert: context.core.revert,
+      generateRoute: true,
+      generateVpcs: context.get<bool>('vpc') ?? context.data['vpcs'] == true,
+      methods: context.data['methods']?.cast<String>().toList() ?? [],
+      domain: context.data['domain'],
+    );
+
+    return generate(config, context: context);
+  }
+
+  @override
+  Future<List<GeneratedFile>> generate(
+    GeneratorConfig config, {
+    PluginContext? context,
+  }) async {
+    if (!config.generateRoute && !config.revert) {
       return [];
     }
     // Re-create builder with config flags if needed, or update builder to use config
@@ -65,7 +93,10 @@ class RoutePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         dryRun: config.dryRun,
         force: config.force,
         verbose: config.verbose,
+        revert: config.revert,
       ),
+      fileSystem: context?.fileSystem,
+      discovery: context?.discovery,
     );
     return builder.generate(config);
   }

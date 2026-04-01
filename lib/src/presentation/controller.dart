@@ -63,6 +63,14 @@ mixin StatefulController<S> on Controller {
     refreshUI();
   }
 
+  /// Reset the state to the initial value.
+  ///
+  /// This method calls [createInitialState()] and updates the internal state,
+  /// triggering a UI refresh.
+  void resetState() {
+    updateState(createInitialState());
+  }
+
   @override
   @mustCallSuper
   void initListeners() {

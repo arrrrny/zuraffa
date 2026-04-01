@@ -17,13 +17,14 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
     if (config.revert) {
       final abstractFileName = '${classSnake}_usecase.dart';
       final abstractFilePath = path.join(usecaseDirPath, abstractFileName);
-      if (File(abstractFilePath).existsSync()) {
+      if (await fileSystem.exists(abstractFilePath)) {
         files.add(
           await FileUtils.deleteFile(
             abstractFilePath,
             'usecase_polymorphic_base',
             dryRun: options.dryRun,
             verbose: options.verbose,
+            fileSystem: fileSystem,
           ),
         );
       }
@@ -32,13 +33,14 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
         final variantSnake = StringUtils.camelToSnake('$variant${config.name}');
         final variantFileName = '${variantSnake}_usecase.dart';
         final variantFilePath = path.join(usecaseDirPath, variantFileName);
-        if (File(variantFilePath).existsSync()) {
+        if (await fileSystem.exists(variantFilePath)) {
           files.add(
             await FileUtils.deleteFile(
               variantFilePath,
               'usecase_polymorphic_variant',
               dryRun: options.dryRun,
               verbose: options.verbose,
+              fileSystem: fileSystem,
             ),
           );
         }
@@ -46,13 +48,14 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
 
       final factoryFileName = '${classSnake}_usecase_factory.dart';
       final factoryFilePath = path.join(usecaseDirPath, factoryFileName);
-      if (File(factoryFilePath).existsSync()) {
+      if (await fileSystem.exists(factoryFilePath)) {
         files.add(
           await FileUtils.deleteFile(
             factoryFilePath,
             'usecase_polymorphic_factory',
             dryRun: options.dryRun,
             verbose: options.verbose,
+            fileSystem: fileSystem,
           ),
         );
       }
@@ -85,6 +88,7 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
         dryRun: options.dryRun,
         verbose: options.verbose,
         revert: config.revert,
+        fileSystem: fileSystem,
       ),
     );
 
@@ -142,6 +146,7 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
         config,
         depth: 2,
         includeDomain: false,
+        fileSystem: fileSystem,
       );
       imports.addAll(entityImports);
 
@@ -170,6 +175,7 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
           dryRun: options.dryRun,
           verbose: options.verbose,
           revert: config.revert,
+          fileSystem: fileSystem,
         ),
       );
     }
@@ -206,6 +212,7 @@ extension CustomUseCaseGeneratorPolymorphic on CustomUseCaseGenerator {
         dryRun: options.dryRun,
         verbose: options.verbose,
         revert: config.revert,
+        fileSystem: fileSystem,
       ),
     );
 

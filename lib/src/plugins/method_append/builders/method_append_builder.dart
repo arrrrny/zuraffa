@@ -6,8 +6,11 @@ import 'package:path/path.dart' as path;
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/ast_helper.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
+import '../../../core/ast/augmentation_builder.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
+import '../../../core/context/file_system.dart';
+import '../../../core/plugin_system/discovery_engine.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -21,32 +24,38 @@ part 'method_append_builder_find.dart';
 part 'method_append_builder_imports.dart';
 part 'method_append_builder_types.dart';
 
-/// Generates and appends method implementations to existing files.
+/// Generates and appends method implementations using Augmentation Libraries.
 ///
-/// Builds the method AST and uses [AppendExecutor] to insert it into
-/// the target class while maintaining imports and formatting.
-///
-/// Example:
-/// ```dart
-/// final builder = MethodAppendBuilder(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final result = await builder.appendMethod(GeneratorConfig(name: 'Product'));
-/// ```
+/// Builds the method AST and uses [AugmentationBuilder] to create or update
+/// an augmentation file for the target host class.
 class MethodAppendBuilder {
   final String outputDir;
   final GeneratorOptions options;
   final AppendExecutor appendExecutor;
   final SpecLibrary specLibrary;
+  final AugmentationBuilder augmentationBuilder;
+  final DiscoveryEngine discovery;
+  final FileSystem fileSystem;
 
   MethodAppendBuilder({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     AppendExecutor? appendExecutor,
     SpecLibrary? specLibrary,
+    AugmentationBuilder? augmentationBuilder,
+    DiscoveryEngine? discovery,
+    FileSystem? fileSystem,
   }) : appendExecutor = appendExecutor ?? AppendExecutor(),
-       specLibrary = specLibrary ?? const SpecLibrary();
+       specLibrary = specLibrary ?? const SpecLibrary(),
+       augmentationBuilder =
+           augmentationBuilder ?? AugmentationBuilder(outputDir: outputDir),
+       fileSystem = fileSystem ?? FileSystem.create(root: outputDir),
+       discovery =
+           discovery ??
+           DiscoveryEngine(
+             projectRoot: outputDir,
+             fileSystem: fileSystem ?? FileSystem.create(root: outputDir),
+           );
 
   Future<MethodAppendResult> appendMethod(GeneratorConfig config) async {
     final updatedFiles = <GeneratedFile>[];
@@ -57,7 +66,7 @@ class MethodAppendBuilder {
       return MethodAppendResult(updatedFiles, warnings);
     }
 
-    if (config.repo == null && config.service == null) {
+    if (!config.hasRepo && !config.hasService) {
       warnings.add('⚠️  --append requires --repo or --service flag');
       return MethodAppendResult(updatedFiles, warnings);
     }
@@ -66,7 +75,7 @@ class MethodAppendBuilder {
       return _appendServiceMethod(config);
     }
 
-    final repoBase = config.repo;
+    final repoBase = config.effectiveRepos.firstOrNull;
     if (repoBase == null) {
       warnings.add('Repository name required for method append operations');
       return MethodAppendResult(updatedFiles, warnings);
@@ -77,17 +86,26 @@ class MethodAppendBuilder {
     final repoSnake = StringUtils.camelToSnake(repoName);
     final methodName = config.getRepoMethodName();
     final paramsType = config.paramsType ?? 'NoParams';
+    final multipleParams = config.multipleParams;
     final returnsType = config.returnsType ?? 'void';
 
     final returnRef = _returnType(config.useCaseType, returnsType);
 
-    final repoPath = path.join(
-      outputDir,
-      'domain',
-      'repositories',
-      '${repoSnake}_repository.dart',
-    );
-    final repoExists = File(repoPath).existsSync();
+    // Use DiscoveryEngine to find the repository interface
+    final repoFile = discovery.findFileSync('${repoSnake}_repository.dart');
+    final repoPath =
+        repoFile?.path ??
+        path.join(
+          outputDir,
+          'domain',
+          'repositories',
+          '${repoSnake}_repository.dart',
+        );
+    final repoExists = repoFile != null && (await fileSystem.exists(repoPath));
+
+    final effectiveParams = multipleParams.isNotEmpty
+        ? multipleParams
+        : paramsType;
 
     if (!repoExists) {
       await _createRepository(
@@ -96,7 +114,7 @@ class MethodAppendBuilder {
         repoName,
         methodName,
         returnRef,
-        paramsType,
+        effectiveParams,
       );
       updatedFiles.add(
         GeneratedFile(path: repoPath, type: 'repository', action: 'created'),
@@ -108,26 +126,32 @@ class MethodAppendBuilder {
         '${repoName}Repository',
         methodName,
         returnRef,
-        paramsType,
+        effectiveParams,
       );
       if (result != null) {
         updatedFiles.add(result);
       }
-      // Don't warn if method already exists - that's expected behavior
     }
 
-    final dataRepoPath = path.join(
-      outputDir,
-      'data',
-      'repositories',
+    // Use DiscoveryEngine to find the data repository implementation
+    final dataRepoFile = discovery.findFileSync(
       'data_${repoSnake}_repository.dart',
     );
+    final dataRepoPath =
+        dataRepoFile?.path ??
+        path.join(
+          outputDir,
+          'data',
+          'repositories',
+          'data_${repoSnake}_repository.dart',
+        );
+
     final dataRepoResult = await _appendToDataRepository(
       config,
       dataRepoPath,
       methodName,
       returnRef,
-      paramsType,
+      effectiveParams,
       repoSnake,
     );
     if (dataRepoResult != null) {
@@ -146,7 +170,8 @@ class MethodAppendBuilder {
         '${repoName}DataSource',
         methodName,
         returnRef,
-        paramsType,
+        effectiveParams,
+        type: 'datasource',
       );
       if (result != null) {
         updatedFiles.add(result);
@@ -161,7 +186,7 @@ class MethodAppendBuilder {
         '${repoName}RemoteDataSource',
         methodName,
         returnRef,
-        paramsType,
+        effectiveParams,
       );
       if (result != null) {
         updatedFiles.add(result);
@@ -176,7 +201,7 @@ class MethodAppendBuilder {
         '${repoName}LocalDataSource',
         methodName,
         returnRef,
-        paramsType,
+        effectiveParams,
       );
       if (result != null) {
         updatedFiles.add(result);
@@ -191,7 +216,7 @@ class MethodAppendBuilder {
         '${repoName}MockDataSource',
         methodName,
         returnRef,
-        paramsType,
+        effectiveParams,
       );
       if (result != null) {
         updatedFiles.add(result);

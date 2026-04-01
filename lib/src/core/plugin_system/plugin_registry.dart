@@ -1,6 +1,6 @@
-import '../../models/generator_config.dart';
 import 'plugin_interface.dart';
 import 'plugin_lifecycle.dart';
+import 'plugin_context.dart';
 
 typedef ZuraffaPluginFactory = ZuraffaPlugin Function();
 
@@ -12,12 +12,45 @@ class PluginRegistry {
   static final PluginRegistry instance = PluginRegistry();
   final Map<String, ZuraffaPlugin> _plugins = {};
 
-  List<ZuraffaPlugin> get plugins {
-    final list = _plugins.values.toList();
-    list.sort((a, b) => a.order.compareTo(b.order));
-    return List.unmodifiable(list);
+  /// Returns all registered plugins.
+  List<ZuraffaPlugin> get plugins => List.unmodifiable(_plugins.values);
+
+  /// Sorts a list of plugins according to their dependencies and [runAfter] rules.
+  List<ZuraffaPlugin> sortPlugins(Iterable<ZuraffaPlugin> targets) {
+    final sorted = <ZuraffaPlugin>[];
+    final visited = <String>{};
+    final visiting = <String>{};
+
+    void visit(ZuraffaPlugin plugin) {
+      if (visited.contains(plugin.id)) return;
+      if (visiting.contains(plugin.id)) {
+        throw StateError('Circular dependency detected: ${plugin.id}');
+      }
+
+      visiting.add(plugin.id);
+
+      // Visit dependencies
+      for (final depId in [...plugin.dependsOn, ...plugin.runAfter]) {
+        final dep = _plugins[depId];
+        // Only visit if the dependency is also in our target set
+        if (dep != null && targets.any((t) => t.id == depId)) {
+          visit(dep);
+        }
+      }
+
+      visiting.remove(plugin.id);
+      visited.add(plugin.id);
+      sorted.add(plugin);
+    }
+
+    for (final plugin in targets) {
+      visit(plugin);
+    }
+
+    return sorted;
   }
 
+  /// Registers a new plugin.
   void register(ZuraffaPlugin plugin) {
     if (_plugins.containsKey(plugin.id)) {
       throw StateError('Plugin already registered: ${plugin.id}');
@@ -25,50 +58,58 @@ class PluginRegistry {
     _plugins[plugin.id] = plugin;
   }
 
+  /// Registers multiple plugins.
   void registerAll(Iterable<ZuraffaPlugin> plugins) {
     for (final plugin in plugins) {
       register(plugin);
     }
   }
 
+  /// Discovers plugins via factory functions.
   void discover(Iterable<ZuraffaPluginFactory> factories) {
     registerAll(factories.map((factory) => factory()));
   }
 
+  /// Gets a plugin by its unique ID.
   ZuraffaPlugin? getById(String id) => _plugins[id];
 
+  /// Filters plugins by type.
   List<T> ofType<T extends ZuraffaPlugin>() {
     return plugins.whereType<T>().toList();
   }
 
-  Future<ValidationResult> validateAll(GeneratorConfig config) async {
+  /// Validates all registered plugins against the [context].
+  Future<ValidationResult> validateAll(PluginContext context) async {
     var result = ValidationResult.success();
     for (final plugin in plugins) {
-      final current = await plugin.validate(config);
+      final current = await plugin.validate(context);
       result = result.merge(current);
     }
     return result;
   }
 
-  Future<void> beforeGenerateAll(GeneratorConfig config) async {
+  /// Executes [beforeGenerate] for all registered plugins.
+  Future<void> beforeGenerateAll(PluginContext context) async {
     for (final plugin in plugins) {
-      await plugin.beforeGenerate(config);
+      await plugin.beforeGenerate(context);
     }
   }
 
-  Future<void> afterGenerateAll(GeneratorConfig config) async {
+  /// Executes [afterGenerate] for all registered plugins.
+  Future<void> afterGenerateAll(PluginContext context) async {
     for (final plugin in plugins) {
-      await plugin.afterGenerate(config);
+      await plugin.afterGenerate(context);
     }
   }
 
+  /// Executes [onError] for all registered plugins.
   Future<void> onErrorAll(
-    GeneratorConfig config,
+    PluginContext context,
     Object error,
     StackTrace stackTrace,
   ) async {
     for (final plugin in plugins) {
-      await plugin.onError(config, error, stackTrace);
+      await plugin.onError(context, error, stackTrace);
     }
   }
 }

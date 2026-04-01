@@ -78,6 +78,7 @@ zfa generate <Name> [options]
 |------|-------|-------------|
 | `--methods=<list>` | `-m` | Comma-separated methods to generate |
 | `--data` | `-d` | Generate data repository + data source |
+| `--use-service` | | Use service and provider instead of repository and datasource |
 | `--datasource` | | Generate data source only |
 | `--id-field=<name>` | | ID field name (default: `id`) |
 | `--id-field-type=<type>` | | ID field type (default: `String`) |
@@ -119,7 +120,7 @@ zfa generate <Name> [options]
 | `--usecases=<list>` | Orchestrator: compose UseCases (comma-separated) |
 | `--variants=<list>` | Polymorphic: generate variants (comma-separated) |
 | `--type=<type>` | UseCase type: `usecase`, `stream`, `background`, `completable` |
-| `--params=<type>` | Params type (default: `NoParams`) |
+| `--params=<type>` | Params type (default: `NoParams`) or multiple parameters `[Type1 name1, Type2 name2]` |
 | `--returns=<type>` | Return type (default: `void`) |
 
 #### VPC Layer Options
@@ -896,6 +897,24 @@ zfa generate WatchProduct \
   --returns=Stream<Product> \
   --type=stream
 ```
+
+### Custom UseCase with Multiple Parameters
+
+Generate a UseCase that takes multiple parameters and unpacks them for a service method.
+
+```bash
+zfa generate ReplaceRefererPlaceholders \
+  --service=Zik \
+  --domain=parser \
+  --params='[ParserConfig parserConfig, "Map<String, String>" placeholders]' \
+  --returns=ParserConfig
+```
+
+This will:
+1. Create a `ReplaceRefererPlaceholdersUseCase` class.
+2. Create a `ReplaceRefererPlaceholdersParams` class with `parserConfig` and `placeholders` fields.
+3. Implement `execute` by calling `_zikService.replaceRefererPlaceholders(params.parserConfig, params.placeholders)`.
+4. Automatically handle imports for `ParserConfig`.
 
 ### Orchestrator Pattern
 

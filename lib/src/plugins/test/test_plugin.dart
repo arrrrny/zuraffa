@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as path;
 
@@ -8,6 +6,8 @@ import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/plugin_context.dart';
+import '../../core/context/file_system.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/string_utils.dart';
@@ -15,28 +15,22 @@ import 'builders/test_builder.dart';
 import 'capabilities/create_test_capability.dart';
 
 /// Manages unit test generation for domain and data layers.
-///
-/// Builds test classes for use cases, repositories, and providers using
-/// mocktail and other testing utilities.
-///
-/// Example:
-/// ```dart
-/// final plugin = TestPlugin(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final files = await plugin.generate(GeneratorConfig(name: 'Auth'));
-/// ```
 class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final GeneratorOptions options;
   late final TestBuilder testBuilder;
+  final FileSystem fileSystem;
 
   TestPlugin({
     required this.outputDir,
     this.options = const GeneratorOptions(),
-  }) {
-    testBuilder = TestBuilder(outputDir: outputDir, options: options);
+    FileSystem? fileSystem,
+  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir) {
+    testBuilder = TestBuilder(
+      outputDir: outputDir,
+      options: options,
+      fileSystem: this.fileSystem,
+    );
   }
 
   @override
@@ -55,7 +49,45 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   String get version => '1.0.0';
 
   @override
-  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
+  String? get configKey => 'testByDefault';
+
+  @override
+  JsonSchema get configSchema => {'type': 'object', 'properties': {}};
+
+  @override
+  Future<List<GeneratedFile>> generateWithContext(PluginContext context) async {
+    final config = GeneratorConfig(
+      name: context.core.name,
+      outputDir: context.core.outputDir,
+      dryRun: context.core.dryRun,
+      force: context.core.force,
+      verbose: context.core.verbose,
+      revert: context.core.revert,
+      generateTest: true,
+      methods: context.data['methods']?.cast<String>().toList() ?? [],
+      usecases: context.data['usecases']?.cast<String>().toList() ?? [],
+      variants: context.data['variants']?.cast<String>().toList() ?? [],
+      noEntity: context.data['no-entity'] == true,
+      domain: context.data['domain'],
+      repo: context.data['repo'],
+      service: context.data['service'],
+      generateData: context.data['data'] == true,
+      generateDataSource: context.data['datasource'] == true,
+      generateRepository: context.data['repository'] == true,
+    );
+
+    return generate(config, context: context);
+  }
+
+  @override
+  Future<List<GeneratedFile>> generate(
+    GeneratorConfig config, {
+    PluginContext? context,
+  }) async {
+    if (!config.generateTest && !config.revert) {
+      return [];
+    }
+
     if (config.outputDir != outputDir ||
         config.dryRun != options.dryRun ||
         config.force != options.force ||
@@ -69,34 +101,52 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           verbose: config.verbose,
           revert: config.revert,
         ),
+        fileSystem: context?.fileSystem,
       );
-      return delegator.generate(config);
+      return delegator.generate(config, context: context);
     }
 
-    if (!config.generateTest) {
-      return [];
-    }
+    final fs = context?.fileSystem ?? fileSystem;
+    final builder = context != null
+        ? TestBuilder(
+            outputDir: outputDir,
+            options: options,
+            fileSystem: fs,
+            discovery: context.discovery,
+          )
+        : testBuilder;
 
     final files = <GeneratedFile>[];
 
     if (config.isEntityBased) {
+      final validMethods = [
+        'get',
+        'getList',
+        'list',
+        'create',
+        'update',
+        'delete',
+        'watch',
+        'watchList',
+      ];
       for (final method in config.methods) {
-        files.add(await testBuilder.generateForMethod(config, method));
+        if (!validMethods.contains(method)) continue;
+        files.add(await builder.generateForMethod(config, method));
       }
     }
 
     if (config.isOrchestrator) {
-      files.add(await testBuilder.generateOrchestrator(config));
+      files.add(await builder.generateOrchestrator(config));
     }
 
     if (config.isPolymorphic) {
-      files.addAll(await testBuilder.generatePolymorphic(config));
+      files.addAll(await builder.generatePolymorphic(config));
     }
 
     if (config.isCustomUseCase &&
         !config.isPolymorphic &&
         !config.isOrchestrator) {
-      files.add(await testBuilder.generateCustom(config));
+      files.add(await builder.generateCustom(config));
     }
 
     return files;
@@ -110,8 +160,15 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     required bool dryRun,
     required bool force,
     required bool verbose,
+    FileSystem? fs,
   }) async {
-    final analysis = await _analyzeUseCase(name, outputDir, domain);
+    final effectiveFs = fs ?? fileSystem;
+    final analysis = await _analyzeUseCase(
+      name,
+      outputDir,
+      domain,
+      effectiveFs,
+    );
     if (analysis == null) {
       return null;
     }
@@ -155,36 +212,35 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     String name,
     String outputDir,
     String domain,
+    FileSystem fs,
   ) async {
     final nameWithoutSuffix = name.replaceAll('UseCase', '');
     final useCaseSnake = StringUtils.camelToSnake(nameWithoutSuffix);
     final className = '${nameWithoutSuffix}UseCase';
 
-    final domainDir = Directory(
-      path.join(outputDir, 'domain', 'usecases', domain),
-    );
-    if (domainDir.existsSync()) {
-      final useCaseFile = File(
-        path.join(domainDir.path, '${useCaseSnake}_usecase.dart'),
+    final domainDirPath = path.join(outputDir, 'domain', 'usecases', domain);
+    if (await fs.exists(domainDirPath)) {
+      final useCaseFile = path.join(
+        domainDirPath,
+        '${useCaseSnake}_usecase.dart',
       );
 
-      if (useCaseFile.existsSync()) {
-        final content = await useCaseFile.readAsString();
+      if (await fs.exists(useCaseFile)) {
+        final content = await fs.read(useCaseFile);
         return _parseUseCaseFile(content, className, domain);
       }
     }
 
-    final usecasesDir = Directory(path.join(outputDir, 'domain', 'usecases'));
-    if (usecasesDir.existsSync()) {
-      for (final dir in usecasesDir.listSync()) {
-        if (dir is Directory) {
-          final foundDomain = path.basename(dir.path);
-          final useCaseFile = File(
-            path.join(dir.path, '${useCaseSnake}_usecase.dart'),
-          );
+    final usecasesDirPath = path.join(outputDir, 'domain', 'usecases');
+    if (await fs.exists(usecasesDirPath)) {
+      final items = await fs.list(usecasesDirPath);
+      for (final item in items) {
+        if (await fs.isDirectory(item)) {
+          final foundDomain = path.basename(item);
+          final useCaseFile = path.join(item, '${useCaseSnake}_usecase.dart');
 
-          if (useCaseFile.existsSync()) {
-            final content = await useCaseFile.readAsString();
+          if (await fs.exists(useCaseFile)) {
+            final content = await fs.read(useCaseFile);
             return _parseUseCaseFile(content, className, foundDomain);
           }
         }
@@ -217,20 +273,15 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         .toList();
 
     final usecaseMatches = RegExp(
-      r'final\s+\w+UseCase\s+_(\w+)',
+      r'final\s+(\w+UseCase)\s+_(\w+)',
     ).allMatches(content);
     final composedUsecases = usecaseMatches
         .map((m) {
-          final fieldName = m.group(1);
-          if (fieldName == null) return null;
-          final baseName = fieldName.startsWith('_')
-              ? fieldName.substring(1)
-              : fieldName;
-          final classBase =
-              baseName.substring(0, 1).toUpperCase() + baseName.substring(1);
-          return classBase.endsWith('UseCase')
-              ? classBase
-              : '${classBase}UseCase';
+          final className = m.group(1);
+          if (className == null) return null;
+          return className.endsWith('UseCase')
+              ? className.substring(0, className.length - 7)
+              : className;
         })
         .whereType<String>()
         .toList();

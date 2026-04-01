@@ -109,6 +109,18 @@ zfa generate Product --methods=get,getList,create,update,delete --cache --cache-
 zfa generate Product --methods=get,getList,create,update,delete --cache --cache-storage=shared_preferences
 ```
 
+## Entity Generation with Service/Provider
+
+```
+zfa generate Product --use-service
+zfa generate Product --methods=get --use-service
+zfa generate Product --methods=get,getList --use-service
+zfa generate Product --methods=get,getList,create --use-service
+zfa generate Product --methods=get,getList,create,update --use-service
+zfa generate Product --methods=get,getList,create,update,delete --use-service
+zfa generate Product --methods=get,getList,create,update,delete --use-service --vpcs --state --test
+```
+
 ## Entity Generation with Mock Data
 
 ```

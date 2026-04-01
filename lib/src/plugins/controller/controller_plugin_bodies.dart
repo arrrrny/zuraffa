@@ -20,9 +20,10 @@ extension ControllerPluginBodies on ControllerPlugin {
         ? '${methodName}Response'
         : 'data';
 
+    final hasResponse = returns != 'void';
+
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(
           _updateStateStatement({loadingField: literalBool(true)}),
         )
@@ -36,7 +37,7 @@ extension ControllerPluginBodies on ControllerPlugin {
                 ..statements.add(
                   _updateStateStatement({
                     loadingField: literalBool(false),
-                    responseField: refer('data'),
+                    if (hasResponse) responseField: refer('data'),
                   }),
                 ),
             ),
@@ -68,7 +69,6 @@ extension ControllerPluginBodies on ControllerPlugin {
 
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(declareFinal('result').assign(resultCall).statement)
         ..statements.add(
           _resultFold(
@@ -101,45 +101,52 @@ extension ControllerPluginBodies on ControllerPlugin {
         ? '${methodName}Response'
         : 'data';
 
+    final hasResponse = returns != 'void';
+
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(
           _updateStateStatement({loadingField: literalBool(true)}),
         )
         ..statements.add(
-          streamCall.property('listen').call([
-            Method(
-              (m) => m
-                ..requiredParameters.add(Parameter((p) => p..name = 'result'))
-                ..body = _resultFold(
-                  resultVar: 'result',
-                  successParams: ['data'],
-                  successBody: Block(
-                    (bb) => bb
-                      ..statements.add(
-                        _updateStateStatement({
-                          loadingField: literalBool(false),
-                          responseField: refer('data'),
-                        }),
+          declareFinal('subscription')
+              .assign(
+                streamCall.property('listen').call([
+                  Method(
+                    (m) => m
+                      ..requiredParameters.add(
+                        Parameter((p) => p..name = 'result'),
+                      )
+                      ..body = _resultFold(
+                        resultVar: 'result',
+                        successParams: ['data'],
+                        successBody: Block(
+                          (bb) => bb
+                            ..statements.add(
+                              _updateStateStatement({
+                                loadingField: literalBool(false),
+                                if (hasResponse) responseField: refer('data'),
+                              }),
+                            ),
+                        ),
+                        failureParams: ['failure'],
+                        failureBody: Block(
+                          (bb) => bb
+                            ..statements.add(
+                              _updateStateStatement({
+                                loadingField: literalBool(false),
+                                'error': refer('failure'),
+                              }),
+                            ),
+                        ),
                       ),
-                  ),
-                  failureParams: ['failure'],
-                  failureBody: Block(
-                    (bb) => bb
-                      ..statements.add(
-                        _updateStateStatement({
-                          loadingField: literalBool(false),
-                          'error': refer('failure'),
-                        }),
-                      ),
-                  ),
-                ),
-            ).closure,
-          ]).statement,
+                  ).closure,
+                ]),
+              )
+              .statement,
         )
         ..statements.add(
-          _updateStateStatement({loadingField: literalBool(false)}),
+          refer('registerSubscription').call([refer('subscription')]).statement,
         ),
     );
   }
@@ -157,21 +164,29 @@ extension ControllerPluginBodies on ControllerPlugin {
 
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(
-          streamCall.property('listen').call([
-            Method(
-              (m) => m
-                ..requiredParameters.add(Parameter((p) => p..name = 'result'))
-                ..body = _resultFold(
-                  resultVar: 'result',
-                  successParams: ['data'],
-                  successBody: Block((bb) => bb),
-                  failureParams: ['failure'],
-                  failureBody: Block((bb) => bb),
-                ),
-            ).closure,
-          ]).statement,
+          declareFinal('subscription')
+              .assign(
+                streamCall.property('listen').call([
+                  Method(
+                    (m) => m
+                      ..requiredParameters.add(
+                        Parameter((p) => p..name = 'result'),
+                      )
+                      ..body = _resultFold(
+                        resultVar: 'result',
+                        successParams: ['data'],
+                        successBody: Block((bb) => bb),
+                        failureParams: ['failure'],
+                        failureBody: Block((bb) => bb),
+                      ),
+                  ).closure,
+                ]),
+              )
+              .statement,
+        )
+        ..statements.add(
+          refer('registerSubscription').call([refer('subscription')]).statement,
         ),
     );
   }
@@ -186,7 +201,6 @@ extension ControllerPluginBodies on ControllerPlugin {
     ).property('get$entityName').call(_callArgsExpressions(args)).awaited;
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(
           _updateStateStatement({'isGetting': literalBool(true)}),
         )
@@ -225,7 +239,6 @@ extension ControllerPluginBodies on ControllerPlugin {
     ).property('get$entityName').call(_callArgsExpressions(args)).awaited;
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(declareFinal('result').assign(resultCall).statement)
         ..statements.add(
           _resultFold(
@@ -246,7 +259,6 @@ extension ControllerPluginBodies on ControllerPlugin {
         .awaited;
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(
           _updateStateStatement({'isGettingList': literalBool(true)}),
         )
@@ -286,7 +298,6 @@ extension ControllerPluginBodies on ControllerPlugin {
         .awaited;
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(declareFinal('result').assign(resultCall).statement)
         ..statements.add(
           _resultFold(
@@ -323,7 +334,6 @@ extension ControllerPluginBodies on ControllerPlugin {
     }
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(
           _updateStateStatement({'isCreating': literalBool(true)}),
         )
@@ -357,7 +367,6 @@ extension ControllerPluginBodies on ControllerPlugin {
         .awaited;
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(declareFinal('result').assign(resultCall).statement)
         ..statements.add(
           _resultFold(
@@ -416,7 +425,6 @@ extension ControllerPluginBodies on ControllerPlugin {
     }
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(
           _updateStateStatement({'isUpdating': literalBool(true)}),
         )
@@ -453,7 +461,6 @@ extension ControllerPluginBodies on ControllerPlugin {
         .awaited;
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(declareFinal('result').assign(resultCall).statement)
         ..statements.add(
           _resultFold(
@@ -497,7 +504,6 @@ extension ControllerPluginBodies on ControllerPlugin {
     }
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(_updateStateStatement(deleteArgs))
         ..statements.add(declareFinal('result').assign(resultCall).statement)
         ..statements.add(
@@ -531,7 +537,6 @@ extension ControllerPluginBodies on ControllerPlugin {
     ).property('delete$entityName').call(_callArgsExpressions(idField)).awaited;
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(declareFinal('result').assign(resultCall).statement)
         ..statements.add(
           _resultFold(
@@ -586,7 +591,6 @@ extension ControllerPluginBodies on ControllerPlugin {
         .call([listenClosure]);
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(
           _updateStateStatement({'isWatching': literalBool(true)}),
         )
@@ -620,7 +624,6 @@ extension ControllerPluginBodies on ControllerPlugin {
         .call([listenClosure]);
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(
           declareFinal('subscription').assign(subscriptionCall).statement,
         )
@@ -667,7 +670,6 @@ extension ControllerPluginBodies on ControllerPlugin {
         .call([listenClosure]);
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(
           _updateStateStatement({'isWatchingList': literalBool(true)}),
         )
@@ -701,9 +703,138 @@ extension ControllerPluginBodies on ControllerPlugin {
         .call([listenClosure]);
     return Block(
       (b) => b
-        ..statements.add(_tokenStatement())
         ..statements.add(
           declareFinal('subscription').assign(subscriptionCall).statement,
+        )
+        ..statements.add(
+          refer('registerSubscription').call([refer('subscription')]).statement,
+        ),
+    );
+  }
+
+  Block _buildWatchRecordWithStateBody(
+    String entityName,
+    String entityCamel,
+    String args,
+  ) {
+    return Block(
+      (b) => b
+        ..statements.add(
+          _updateStateStatement({'isWatching': literalBool(true)}),
+        )
+        ..statements.add(
+          Code(
+            'final (initialFuture, updatesStream) = _presenter.watch${entityName}Record(${args});',
+          ),
+        )
+        ..statements.add(
+          Method(
+            (m) => m
+              ..modifier = MethodModifier.async
+              ..body = Block(
+                (bb) => bb
+                  ..statements.add(
+                    declareFinal(
+                      'result',
+                    ).assign(refer('initialFuture').awaited).statement,
+                  )
+                  ..statements.add(
+                    _resultFold(
+                      resultVar: 'result',
+                      successParams: ['entity'],
+                      successBody: Block(
+                        (bbb) => bbb
+                          ..statements.add(
+                            _updateStateStatement({
+                              'isWatching': literalBool(false),
+                              entityCamel: refer('entity'),
+                            }),
+                          ),
+                      ),
+                      failureParams: ['failure'],
+                      failureBody: Block(
+                        (bbb) => bbb
+                          ..statements.add(
+                            _updateStateStatement({
+                              'isWatching': literalBool(false),
+                              'error': refer('failure'),
+                            }),
+                          ),
+                      ),
+                    ),
+                  ),
+              ),
+          ).closure.call([]).statement,
+        )
+        ..statements.add(
+          declareFinal('subscription')
+              .assign(
+                refer('updatesStream').property('listen').call([
+                  Method(
+                    (m) => m
+                      ..requiredParameters.add(
+                        Parameter((p) => p..name = 'result'),
+                      )
+                      ..body = _resultFold(
+                        resultVar: 'result',
+                        successParams: ['entity'],
+                        successBody: Block(
+                          (bb) => bb
+                            ..statements.add(
+                              _updateStateStatement({
+                                entityCamel: refer('entity'),
+                              }),
+                            ),
+                        ),
+                        failureParams: ['failure'],
+                        failureBody: Block(
+                          (bb) => bb
+                            ..statements.add(
+                              _updateStateStatement({
+                                'error': refer('failure'),
+                              }),
+                            ),
+                        ),
+                      ),
+                  ).closure,
+                ]),
+              )
+              .statement,
+        )
+        ..statements.add(
+          refer('registerSubscription').call([refer('subscription')]).statement,
+        ),
+    );
+  }
+
+  Block _buildWatchRecordWithoutStateBody(String entityName, String args) {
+    return Block(
+      (b) => b
+        ..statements.add(
+          Code(
+            'final (_, updatesStream) = _presenter.watch${entityName}Record(${args});',
+          ),
+        )
+        ..statements.add(
+          declareFinal('subscription')
+              .assign(
+                refer('updatesStream').property('listen').call([
+                  Method(
+                    (m) => m
+                      ..requiredParameters.add(
+                        Parameter((p) => p..name = 'result'),
+                      )
+                      ..body = _resultFold(
+                        resultVar: 'result',
+                        successParams: ['_'],
+                        successBody: Block((bb) => bb),
+                        failureParams: ['_'],
+                        failureBody: Block((bb) => bb),
+                      ),
+                  ).closure,
+                ]),
+              )
+              .statement,
         )
         ..statements.add(
           refer('registerSubscription').call([refer('subscription')]).statement,

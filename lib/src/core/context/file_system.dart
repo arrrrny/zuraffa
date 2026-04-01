@@ -6,37 +6,48 @@ abstract class FileSystem {
   static FileSystem create({String? root}) => DefaultFileSystem(root: root);
 
   Future<String> read(String path);
+  String readSync(String path);
   Future<void> write(String path, String content);
   Future<void> delete(String path);
   Future<bool> exists(String path);
+  bool existsSync(String path);
   Future<void> createDir(String path, {bool recursive = false});
+  Future<bool> isDirectory(String path);
+  bool isDirectorySync(String path);
+  Future<List<String>> list(String path, {bool recursive = false});
+  List<String> listSync(String path, {bool recursive = false});
   Stream<String> watch(String path);
 }
 
 class DefaultFileSystem implements FileSystem {
   final String? root;
 
-  DefaultFileSystem({this.root});
+  const DefaultFileSystem({this.root});
 
-  String _resolve(String path) {
-    if (root == null) {
-      return path;
+  String resolve(String path) {
+    final rootPath = root != null ? p.canonicalize(root!) : null;
+    if (rootPath == null) {
+      return p.canonicalize(path);
     }
     if (p.isAbsolute(path)) {
-      return path;
+      return p.canonicalize(path);
     }
-    return p.join(root!, path);
+    return p.canonicalize(p.join(rootPath, path));
   }
 
   @override
   Future<String> read(String path) async {
-    return File(_resolve(path)).readAsString();
+    return File(resolve(path)).readAsString();
+  }
+
+  @override
+  String readSync(String path) {
+    return File(resolve(path)).readAsStringSync();
   }
 
   @override
   Future<void> write(String path, String content) async {
-    final resolved = _resolve(path);
-    print('DEBUG: Writing to $resolved (original: $path, root: $root)');
+    final resolved = resolve(path);
     final file = File(resolved);
     await file.parent.create(recursive: true);
     await file.writeAsString(content);
@@ -44,24 +55,60 @@ class DefaultFileSystem implements FileSystem {
 
   @override
   Future<void> delete(String path) async {
-    final file = File(_resolve(path));
-    if (await file.exists()) {
-      await file.delete();
+    final resolved = resolve(path);
+    if (await File(resolved).exists()) {
+      await File(resolved).delete();
+    } else if (await Directory(resolved).exists()) {
+      await Directory(resolved).delete(recursive: true);
     }
   }
 
   @override
   Future<bool> exists(String path) async {
-    return File(_resolve(path)).exists();
+    final resolved = resolve(path);
+    return await File(resolved).exists() || await Directory(resolved).exists();
+  }
+
+  @override
+  bool existsSync(String path) {
+    final resolved = resolve(path);
+    return File(resolved).existsSync() || Directory(resolved).existsSync();
   }
 
   @override
   Future<void> createDir(String path, {bool recursive = false}) async {
-    await Directory(_resolve(path)).create(recursive: recursive);
+    await Directory(resolve(path)).create(recursive: recursive);
+  }
+
+  @override
+  Future<bool> isDirectory(String path) async {
+    return Directory(resolve(path)).exists();
+  }
+
+  @override
+  bool isDirectorySync(String path) {
+    return Directory(resolve(path)).existsSync();
+  }
+
+  @override
+  Future<List<String>> list(String path, {bool recursive = false}) async {
+    final dir = Directory(resolve(path));
+    if (!await dir.exists()) return [];
+    return dir.list(recursive: recursive).map((entity) => entity.path).toList();
+  }
+
+  @override
+  List<String> listSync(String path, {bool recursive = false}) {
+    final dir = Directory(resolve(path));
+    if (!dir.existsSync()) return [];
+    return dir
+        .listSync(recursive: recursive)
+        .map((entity) => entity.path)
+        .toList();
   }
 
   @override
   Stream<String> watch(String path) {
-    return File(_resolve(path)).watch().map((_) => path);
+    return File(resolve(path)).watch().map((_) => path);
   }
 }

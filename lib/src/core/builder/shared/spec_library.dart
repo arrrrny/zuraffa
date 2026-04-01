@@ -21,6 +21,7 @@ class SpecLibrary {
     String? leadingComment,
   }) {
     final emitter = DartEmitter(
+      allocator: Allocator.simplePrefixing(),
       orderDirectives: true,
       useNullSafetySyntax: true,
     );

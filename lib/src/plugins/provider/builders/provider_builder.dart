@@ -1,44 +1,40 @@
 import 'package:code_builder/code_builder.dart';
-import 'dart:io';
 import 'package:path/path.dart' as path;
 
+import '../../../core/builder/patterns/common_patterns.dart';
 import '../../../core/ast/ast_helper.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
+import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import '../../../utils/entity_analyzer.dart';
+import '../../../utils/method_extractor.dart';
 
 /// Generates provider implementation classes.
 ///
 /// Builds Dart classes that implement domain service interfaces, handling
 /// data mapping and error handling.
-///
-/// Example:
-/// ```dart
-/// final builder = ProviderBuilder(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final file = await builder.generate(GeneratorConfig(name: 'Auth'));
-/// ```
 class ProviderBuilder {
   final String outputDir;
   final GeneratorOptions options;
   final SpecLibrary specLibrary;
   final DartEmitter emitter;
+  final FileSystem fileSystem;
 
   ProviderBuilder({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     SpecLibrary? specLibrary,
     DartEmitter? emitter,
+    FileSystem? fileSystem,
   }) : specLibrary = specLibrary ?? const SpecLibrary(),
        emitter =
            emitter ??
-           DartEmitter(orderDirectives: true, useNullSafetySyntax: true);
+           DartEmitter(orderDirectives: true, useNullSafetySyntax: true),
+       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final serviceName = config.effectiveService;
@@ -55,7 +51,7 @@ class ProviderBuilder {
     }
 
     final fileName = '${providerSnake}_provider.dart';
-    final filePath = path.join(
+    var filePath = path.join(
       outputDir,
       'data',
       'providers',
@@ -63,8 +59,18 @@ class ProviderBuilder {
       fileName,
     );
 
-    final file = File(filePath);
-    final fileExists = file.existsSync();
+    // Check if provider already exists in any folder under providers/
+    final existingFile = await FileUtils.findFileImplementing(
+      path.join(outputDir, 'data', 'providers'),
+      serviceName,
+      fileSystem: fileSystem,
+    );
+
+    final fileExists =
+        existingFile != null || await fileSystem.exists(filePath);
+    if (existingFile != null) {
+      filePath = existingFile;
+    }
 
     if (config.revert && !config.appendToExisting) {
       return FileUtils.deleteFile(
@@ -72,6 +78,7 @@ class ProviderBuilder {
         'provider',
         dryRun: options.dryRun,
         verbose: options.verbose,
+        fileSystem: fileSystem,
       );
     }
 
@@ -81,44 +88,158 @@ class ProviderBuilder {
 
     final returnType = _returnType(config.useCaseType, returnsType);
 
+    final serviceImport = config.isEntityBased
+        ? '../../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
+        : '../../../domain/services/${serviceSnake}_service.dart';
+
     final directives = <Directive>[
       Directive.import('package:zuraffa/zuraffa.dart'),
-      Directive.import('../../../domain/services/${serviceSnake}_service.dart'),
+      Directive.import(serviceImport),
     ];
 
-    final entityImports = _getPotentialEntityImports([paramsType, returnsType]);
-    for (final entityName in entityImports) {
-      final entitySnake = StringUtils.camelToSnake(entityName);
-      if (EntityAnalyzer.isEnum(entityName, outputDir)) {
-        directives.add(
-          Directive.import('../../../domain/entities/enums/index.dart'),
-        );
-      } else {
-        final entityPath =
-            '../../../domain/entities/$entitySnake/$entitySnake.dart';
-        directives.add(Directive.import(entityPath));
+    final entityTypes = <String>{};
+    if (config.isEntityBased) {
+      entityTypes.add(config.name);
+    }
+    entityTypes.addAll(_getPotentialEntityImports([paramsType, returnsType]));
+
+    final methods = <Method>[];
+
+    // Check for existing service methods
+    final servicePath = config.isEntityBased
+        ? path.join(
+            outputDir,
+            'domain',
+            'services',
+            config.effectiveDomain,
+            '${serviceSnake}_service.dart',
+          )
+        : path.join(
+            outputDir,
+            'domain',
+            'services',
+            '${serviceSnake}_service.dart',
+          );
+
+    final existingMethods = await MethodExtractor.extractMethodsFromInterface(
+      servicePath,
+      serviceName,
+      fileSystem: fileSystem,
+    );
+
+    if (config.methods.isNotEmpty) {
+      for (final method in config.methods) {
+        methods.add(_buildEntityMethod(config, method));
       }
+    } else if (existingMethods.isNotEmpty) {
+      for (final info in existingMethods) {
+        final methodName = info.fieldName;
+        final returns = info.returnsType ?? 'void';
+        final params = info.paramsType ?? 'NoParams';
+        final type = info.useCaseType ?? 'usecase';
+
+        methods.add(
+          Method(
+            (m) => m
+              ..name = methodName
+              ..returns = _returnType(type, returns)
+              ..annotations.add(refer('override'))
+              ..modifier = (type == 'sync' || type == 'stream')
+                  ? null
+                  : MethodModifier.async
+              ..requiredParameters.addAll(
+                params == 'NoParams'
+                    ? const []
+                    : [
+                        Parameter(
+                          (p) => p
+                            ..name = 'params'
+                            ..type = refer(params),
+                        ),
+                      ],
+              )
+              ..body = _buildMethodBody(methodName),
+          ),
+        );
+
+        // Collect potential entity imports for existing methods
+        entityTypes.addAll(_getPotentialEntityImports([params, returns]));
+      }
+    } else if (config.paramsType != null || config.returnsType != null) {
+      methods.add(
+        Method(
+          (m) => m
+            ..name = methodName
+            ..returns = returnType
+            ..annotations.add(refer('override'))
+            ..modifier =
+                (config.useCaseType == 'sync' || config.useCaseType == 'stream')
+                ? null
+                : MethodModifier.async
+            ..requiredParameters.addAll(
+              paramsType == 'NoParams'
+                  ? const []
+                  : [
+                      Parameter(
+                        (p) => p
+                          ..name = 'params'
+                          ..type = refer(paramsType),
+                      ),
+                    ],
+            )
+            ..body = _buildMethodBody(methodName),
+        ),
+      );
     }
 
-    final method = Method(
-      (m) => m
-        ..name = methodName
-        ..returns = returnType
-        ..annotations.add(refer('override'))
-        ..modifier = config.useCaseType == 'sync' ? null : MethodModifier.async
-        ..requiredParameters.addAll(
-          paramsType == 'NoParams'
-              ? const []
-              : [
-                  Parameter(
-                    (p) => p
-                      ..name = 'params'
-                      ..type = refer(paramsType),
-                  ),
-                ],
-        )
-        ..body = _buildMethodBody(methodName),
+    final entityImports = CommonPatterns.entityImports(
+      entityTypes.toList(),
+      config,
+      depth: 3,
+      includeDomain: false,
+      fileSystem: fileSystem,
     );
+    directives.addAll(entityImports.map(Directive.import));
+
+    if (config.generateInit) {
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'isInitialized'
+            ..returns = refer('Stream<bool>')
+            ..type = MethodType.getter
+            ..annotations.add(refer('override'))
+            ..body = refer('const Stream.empty()').returned.statement,
+        ),
+      );
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'initialize'
+            ..returns = refer('Future<void>')
+            ..annotations.add(refer('override'))
+            ..modifier = MethodModifier.async
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('InitializationParams'),
+              ),
+            )
+            ..body = Block((b) => b),
+        ),
+      );
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'dispose'
+            ..returns = refer('Future<void>')
+            ..annotations.add(refer('override'))
+            ..modifier = MethodModifier.async
+            ..body = Block((b) => b),
+        ),
+      );
+    }
 
     final methods = <Method>[method];
 
@@ -171,7 +292,7 @@ class ProviderBuilder {
     );
 
     if (config.appendToExisting && fileExists) {
-      var content = await file.readAsString();
+      var content = await fileSystem.read(filePath);
       final helper = const AstHelper();
 
       // Add imports if missing
@@ -180,45 +301,45 @@ class ProviderBuilder {
           specLibrary.library(specs: [], directives: [directive]),
         );
         if (!content.contains(importLine.trim()) || config.force) {
-          // If force is true, we might want to replace the import, but adding it again is safe if we don't duplicate.
-          // Actually, adding if missing is usually enough.
           if (!content.contains(importLine.trim())) {
             content = '${importLine.trim()}\n$content';
           }
         }
       }
 
-      final methodSource = method.accept(emitter).toString();
-      if (config.revert) {
-        content = helper.removeMethodFromClass(
-          source: content,
-          className: providerName,
-          methodName: method.name!,
-        );
-      } else if (config.force) {
-        // Check if method exists to decide between replace and add
-        if (content.contains(' ${method.name}(')) {
-          content = helper.replaceMethodInClass(
+      for (final method in methods) {
+        final methodSource = method.accept(emitter).toString();
+        if (config.revert) {
+          content = helper.removeMethodFromClass(
             source: content,
             className: providerName,
             methodName: method.name!,
-            methodSource: methodSource,
           );
+        } else if (config.force) {
+          // Check if method exists to decide between replace and add
+          if (content.contains(' ${method.name}(')) {
+            content = helper.replaceMethodInClass(
+              source: content,
+              className: providerName,
+              methodName: method.name!,
+              methodSource: methodSource,
+            );
+          } else {
+            content = helper.addMethodToClass(
+              source: content,
+              className: providerName,
+              methodSource: methodSource,
+            );
+          }
         } else {
-          content = helper.addMethodToClass(
-            source: content,
-            className: providerName,
-            methodSource: methodSource,
-          );
-        }
-      } else {
-        // Add method to class if missing
-        if (!content.contains(' ${method.name}(')) {
-          content = helper.addMethodToClass(
-            source: content,
-            className: providerName,
-            methodSource: methodSource,
-          );
+          // Add method to class if missing
+          if (!content.contains(' ${method.name}(')) {
+            content = helper.addMethodToClass(
+              source: content,
+              className: providerName,
+              methodSource: methodSource,
+            );
+          }
         }
       }
 
@@ -230,6 +351,7 @@ class ProviderBuilder {
         dryRun: options.dryRun,
         verbose: options.verbose,
         revert: config.revert,
+        fileSystem: fileSystem,
       );
     }
 
@@ -245,6 +367,103 @@ class ProviderBuilder {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fileSystem,
+    );
+  }
+
+  Method _buildEntityMethod(GeneratorConfig config, String method) {
+    final entityName = config.name;
+    String name = method;
+    Reference returnType;
+    List<Parameter> parameters = [];
+
+    switch (method) {
+      case 'get':
+        returnType = refer('Future<$entityName>');
+        parameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'params'
+              ..type = refer('QueryParams<$entityName>'),
+          ),
+        );
+        break;
+      case 'getList':
+      case 'list':
+        name = 'getList';
+        returnType = refer('Future<List<$entityName>>');
+        parameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'params'
+              ..type = refer('ListQueryParams<$entityName>'),
+          ),
+        );
+        break;
+      case 'create':
+        returnType = refer('Future<$entityName>');
+        parameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'item'
+              ..type = refer(entityName),
+          ),
+        );
+        break;
+      case 'update':
+        returnType = refer('Future<$entityName>');
+        parameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'params'
+              ..type = refer(
+                'UpdateParams<${config.idFieldType}, ${entityName}Patch>',
+              ),
+          ),
+        );
+        break;
+      case 'delete':
+        returnType = refer('Future<void>');
+        parameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'params'
+              ..type = refer('DeleteParams<${config.idFieldType}>'),
+          ),
+        );
+        break;
+      case 'watch':
+        returnType = refer('Stream<$entityName>');
+        parameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'params'
+              ..type = refer('QueryParams<$entityName>'),
+          ),
+        );
+        break;
+      case 'watchList':
+        returnType = refer('Stream<List<$entityName>>');
+        parameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'params'
+              ..type = refer('ListQueryParams<$entityName>'),
+          ),
+        );
+        break;
+      default:
+        throw ArgumentError('Unknown entity method: $method');
+    }
+
+    return Method(
+      (m) => m
+        ..name = name
+        ..returns = returnType
+        ..annotations.add(refer('override'))
+        ..modifier = method.startsWith('watch') ? null : MethodModifier.async
+        ..requiredParameters.addAll(parameters)
+        ..body = _buildMethodBody(name),
     );
   }
 

@@ -1,6 +1,7 @@
 import 'package:meta/meta.dart';
 import '../core/result.dart';
 import '../core/failure.dart';
+import '../core/failure_reporter_registry.dart';
 
 /// Base class for synchronous UseCases that return immediately without async.
 ///
@@ -41,6 +42,11 @@ abstract class SyncUseCase<T, Params> {
       return Result.success(result);
     } catch (e, stackTrace) {
       final failure = _handleException(e, stackTrace);
+      FailureReporterRegistry.instance.reportFailure(
+        failure,
+        stackTrace: stackTrace,
+        attributes: {'usecase': '$runtimeType'},
+      );
       return Result.failure(failure);
     }
   }

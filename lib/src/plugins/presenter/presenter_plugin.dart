@@ -8,6 +8,8 @@ import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/plugin_context.dart';
+import '../../core/context/file_system.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../models/parsed_usecase_info.dart';
@@ -20,12 +22,14 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final GeneratorOptions options;
   final PresenterClassBuilder classBuilder;
+  final FileSystem fileSystem;
 
   PresenterPlugin({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     this.classBuilder = const PresenterClassBuilder(),
-  });
+    FileSystem? fileSystem,
+  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 
   @override
   List<ZuraffaCapability> get capabilities => [CreatePresenterCapability(this)];
@@ -43,8 +47,52 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   Command createCommand() => PresenterCommand(this);
 
   @override
-  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
-    if (!(config.generatePresenter || config.generateVpcs)) {
+  JsonSchema get configSchema => {
+    'type': 'object',
+    'properties': {
+      'vpc': {
+        'type': 'boolean',
+        'default': false,
+        'description': 'Generate full View/Presenter/Controller set',
+      },
+    },
+  };
+
+  @override
+  Future<List<GeneratedFile>> generateWithContext(PluginContext context) async {
+    final config = GeneratorConfig(
+      name: context.core.name,
+      outputDir: context.core.outputDir,
+      dryRun: context.core.dryRun,
+      force: context.core.force,
+      verbose: context.core.verbose,
+      revert: context.core.revert,
+      generatePresenter: true,
+      generateVpcs: context.get<bool>('vpc') ?? context.data['vpcs'] == true,
+      methods: context.data['methods']?.cast<String>().toList() ?? [],
+      domain: context.data['domain'],
+      idField: context.data['id-field'] ?? 'id',
+      idFieldType: context.data['id-field-type'] ?? 'String',
+      queryField: context.data['query-field'] ?? 'id',
+      queryFieldType: context.data['query-field-type'],
+      usecases: context.data['usecases']?.cast<String>().toList() ?? [],
+      paramsType: context.data['params'],
+      returnsType: context.data['returns'],
+      useCaseType: context.data['type'] ?? 'usecase',
+      noEntity: context.data['no-entity'] == true,
+      generateState: context.data['state'] == true,
+      generateDi: context.data['di'] == true,
+    );
+
+    return generate(config, context: context);
+  }
+
+  @override
+  Future<List<GeneratedFile>> generate(
+    GeneratorConfig config, {
+    PluginContext? context,
+  }) async {
+    if (!config.generatePresenter && !config.generateVpcs && !config.revert) {
       return [];
     }
 
@@ -62,9 +110,12 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           revert: config.revert,
         ),
         classBuilder: classBuilder,
+        fileSystem: context?.fileSystem,
       );
-      return delegator.generate(config);
+      return delegator.generate(config, context: context);
     }
+
+    final fs = context?.fileSystem ?? fileSystem;
 
     final entityName = config.name;
     final entitySnake = config.nameSnake;
@@ -83,11 +134,23 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final useDi = config.generateDi;
     final repoFields = useDi ? [] : _buildRepoFields(config);
-    final usecaseInfo = _buildUseCaseInfo(config, entityName);
+    final usecaseInfo = await _buildUseCaseInfo(config, entityName, fs);
     final usecaseFields = _buildUseCaseFields(usecaseInfo);
     final constructor = _buildConstructor(config, usecaseInfo, useDi);
-    final methods = _buildMethods(config, usecaseInfo, entityName, entityCamel);
-    final imports = _buildImports(config, usecaseInfo, domainSnake, useDi);
+    final methods = await _buildMethods(
+      config,
+      usecaseInfo,
+      entityName,
+      entityCamel,
+      fs,
+    );
+    final imports = await _buildImports(
+      config,
+      usecaseInfo,
+      domainSnake,
+      useDi,
+      fs,
+    );
 
     final content = classBuilder.build(
       PresenterClassSpec(
@@ -107,6 +170,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fs,
     );
     return [file];
   }
@@ -124,27 +188,44 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         .toList();
   }
 
-  List<ParsedUseCaseInfo> _buildUseCaseInfo(
+  Future<List<ParsedUseCaseInfo>> _buildUseCaseInfo(
     GeneratorConfig config,
     String entityName,
-  ) {
-    if (config.isOrchestrator && !config.generateUseCase) {
-      return config.usecases.map((u) {
-        return CommonPatterns.parseUseCaseInfo(u, config, outputDir);
-      }).toList();
+    FileSystem fs,
+  ) async {
+    final infos = <ParsedUseCaseInfo>[];
+
+    // Entity-based usecases
+    if (!config.noEntity) {
+      for (final method in config.methods) {
+        infos.add(_getUseCaseInfo(method, entityName));
+      }
     }
 
-    if (config.isCustomUseCase) {
-      return [
+    // Custom usecases
+    if (config.isOrchestrator) {
+      for (final u in config.usecases) {
+        infos.add(
+          await CommonPatterns.parseUseCaseInfo(
+            u,
+            config,
+            outputDir,
+            fileSystem: fs,
+          ),
+        );
+      }
+    } else if (config.isCustomUseCase &&
+        config.methods.isEmpty &&
+        !config.noEntity) {
+      infos.add(
         ParsedUseCaseInfo(
           className: '${config.name}UseCase',
           fieldName: config.nameCamel,
         ),
-      ];
+      );
     }
-    return config.methods
-        .map((method) => _getUseCaseInfo(method, entityName))
-        .toList();
+
+    return infos;
   }
 
   List<Field> _buildUseCaseFields(List<ParsedUseCaseInfo> useCases) {
@@ -246,16 +327,19 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final mainRepo = config.effectiveRepos.isNotEmpty
         ? StringUtils.pascalToCamel(config.effectiveRepos.first)
-        : 'repository';
+        : (config.hasService
+              ? StringUtils.pascalToCamel(config.effectiveService!)
+              : 'repository');
 
     for (final info in useCases) {
       registrations.add(
         refer('_${info.fieldName}')
             .assign(
               refer('registerUseCase').call([
-                refer(
-                  info.className,
-                ).call([if (config.effectiveRepos.isNotEmpty) refer(mainRepo)]),
+                refer(info.className).call([
+                  if (config.effectiveRepos.isNotEmpty || config.hasService)
+                    refer(mainRepo),
+                ]),
               ]),
             )
             .statement,
@@ -269,76 +353,75 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     );
   }
 
-  List<Method> _buildMethods(
+  Future<List<Method>> _buildMethods(
     GeneratorConfig config,
     List<ParsedUseCaseInfo> useCases,
     String entityName,
     String entityCamel,
-  ) {
-    if (config.isCustomUseCase) {
-      if (config.isOrchestrator && !config.generateUseCase) {
-        return useCases
-            .map((info) => _buildCustomMethod(config, info))
-            .toList();
-      }
-      return [_buildCustomMethod(config, useCases.first)];
-    }
-
-    final map = {for (final info in useCases) info.fieldName: info};
+    FileSystem fs,
+  ) async {
     final methods = <Method>[];
+    final map = {for (final info in useCases) info.fieldName: info};
+
+    // 1. Entity-based methods
     for (final method in config.methods) {
+      final fieldName = switch (method) {
+        'get' => 'get$entityName',
+        'list' || 'getList' => 'get${entityName}List',
+        'create' => 'create$entityName',
+        'update' => 'update$entityName',
+        'delete' => 'delete$entityName',
+        'watch' => 'watch$entityName',
+        'watchList' => 'watch${entityName}List',
+        _ => '$method$entityName',
+      };
+
+      final info = map[fieldName];
+      if (info == null) continue;
+
       switch (method) {
         case 'get':
-          final info = map['get$entityName'];
-          if (info == null) {
-            throw ArgumentError('Missing get$entityName use case info');
-          }
           methods.add(_buildGetMethod(config, info, entityName));
           break;
+        case 'list':
         case 'getList':
-          final info = map['get${entityName}List'];
-          if (info == null) {
-            throw ArgumentError('Missing get${entityName}List use case info');
-          }
           methods.add(_buildGetListMethod(info, entityName));
           break;
         case 'create':
-          final info = map['create$entityName'];
-          if (info == null) {
-            throw ArgumentError('Missing create$entityName use case info');
-          }
           methods.add(_buildCreateMethod(info, entityName, entityCamel));
           break;
         case 'update':
-          final info = map['update$entityName'];
-          if (info == null) {
-            throw ArgumentError('Missing update$entityName use case info');
-          }
           methods.add(_buildUpdateMethod(config, info, entityName));
           break;
         case 'delete':
-          final info = map['delete$entityName'];
-          if (info == null) {
-            throw ArgumentError('Missing delete$entityName use case info');
-          }
           methods.add(_buildDeleteMethod(config, info));
           break;
         case 'watch':
-          final info = map['watch$entityName'];
-          if (info == null) {
-            throw ArgumentError('Missing watch$entityName use case info');
-          }
           methods.add(_buildWatchMethod(config, info, entityName));
+          // Add Record-based bundle for watch (Analyzer 12 support)
+          methods.add(_buildWatchRecordMethod(config, info, entityName));
           break;
         case 'watchList':
-          final info = map['watch${entityName}List'];
-          if (info == null) {
-            throw ArgumentError('Missing watch${entityName}List use case info');
-          }
           methods.add(_buildWatchListMethod(info, entityName));
           break;
       }
     }
+
+    // 2. Custom methods
+    if (config.isOrchestrator) {
+      for (final u in config.usecases) {
+        final info = await CommonPatterns.parseUseCaseInfo(
+          u,
+          config,
+          outputDir,
+          fileSystem: fs,
+        );
+        methods.add(_buildCustomMethod(config, info));
+      }
+    } else if (config.isCustomUseCase && config.methods.isEmpty) {
+      methods.add(_buildCustomMethod(config, useCases.first));
+    }
+
     return methods;
   }
 
@@ -414,7 +497,6 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     ParsedUseCaseInfo info,
     String entityName,
   ) {
-    final methodName = info.fieldName;
     final paramsExpression = config.queryFieldType == 'NoParams'
         ? refer('NoParams').constInstance([])
         : config.useZorphy
@@ -428,7 +510,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             'params': literalMap({config.queryField: refer(config.queryField)}),
           });
 
-    final callExpression = refer('_$methodName')
+    final callExpression = refer('_${info.fieldName}')
         .property('call')
         .call([paramsExpression], {'cancelToken': refer('cancelToken')});
 
@@ -575,7 +657,6 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     ParsedUseCaseInfo info,
     String entityName,
   ) {
-    final methodName = info.fieldName;
     final paramsExpression = config.queryFieldType == 'NoParams'
         ? refer('NoParams').constInstance([])
         : config.useZorphy
@@ -589,7 +670,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             'params': literalMap({config.queryField: refer(config.queryField)}),
           });
 
-    final callExpression = refer('_$methodName')
+    final callExpression = refer('_${info.fieldName}')
         .property('call')
         .call([paramsExpression], {'cancelToken': refer('cancelToken')});
 
@@ -641,6 +722,63 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     );
   }
 
+  Method _buildWatchRecordMethod(
+    GeneratorConfig config,
+    ParsedUseCaseInfo info,
+    String entityName,
+  ) {
+    final paramsExpression = config.queryFieldType == 'NoParams'
+        ? refer('NoParams').constInstance([])
+        : config.useZorphy
+        ? refer('QueryParams<$entityName>').call([], {
+            'filter': refer('Eq').call([
+              refer('${entityName}Fields').property(config.queryField),
+              refer(config.queryField),
+            ]),
+          })
+        : refer('QueryParams<$entityName>').call([], {
+            'params': literalMap({config.queryField: refer(config.queryField)}),
+          });
+
+    final getCall = refer('_${info.fieldName}')
+        .property('call')
+        .call([paramsExpression])
+        .property('first'); // Use .first to get Future from Stream
+
+    final watchCall = refer(
+      '_${info.fieldName}',
+    ).property('call').call([paramsExpression]);
+
+    // Note: In a real implementation, the presenter might handle the logic
+    // to combine these or use a specific UseCase.
+    // For this boilerplate, we return the Record (Analyzer 12/Dart 3.0)
+    final recordType =
+        '(Future<Result<$entityName, AppFailure>> initial, Stream<Result<$entityName, AppFailure>> updates)';
+
+    return Method(
+      (m) => m
+        ..name = 'watch${entityName}Record'
+        ..returns = refer(recordType)
+        ..requiredParameters.addAll(
+          config.queryFieldType == 'NoParams'
+              ? const []
+              : [
+                  Parameter(
+                    (p) => p
+                      ..name = config.queryField
+                      ..type = refer(config.queryFieldType),
+                  ),
+                ],
+        )
+        ..body = Block((b) {
+          final emitter = DartEmitter(useNullSafetySyntax: true);
+          final getSource = getCall.accept(emitter);
+          final watchSource = watchCall.accept(emitter);
+          b.statements.add(Code('return ($getSource, $watchSource);'));
+        }),
+    );
+  }
+
   Parameter _cancelTokenParam() {
     return Parameter(
       (p) => p
@@ -649,27 +787,42 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     );
   }
 
-  List<String> _buildImports(
+  Future<List<String>> _buildImports(
     GeneratorConfig config,
     List<ParsedUseCaseInfo> useCases,
     String domainSnake,
     bool useDi,
-  ) {
+    FileSystem fs,
+  ) async {
     final imports = <String>['package:zuraffa/zuraffa.dart'];
 
-    if (config.isCustomUseCase) {
+    if (config.isCustomUseCase || config.isOrchestrator) {
       final types = <String>[];
+      if (!config.noEntity) {
+        types.add(config.name);
+      }
+      // Only add types that are explicitly used in the presenter class (fields/params)
       if (config.returnsType != null) {
-        types.add(config.returnsType!);
+        types.addAll(CommonPatterns.extractBaseTypes(config.returnsType!));
       }
       if (config.paramsType != null) {
-        types.add(config.paramsType!);
+        types.addAll(CommonPatterns.extractBaseTypes(config.paramsType!));
+      }
+      for (final info in useCases) {
+        // We DO need types used in field types and method signatures
+        if (info.paramsType != null) {
+          types.addAll(CommonPatterns.extractBaseTypes(info.paramsType!));
+        }
+        if (info.returnsType != null) {
+          types.addAll(CommonPatterns.extractBaseTypes(info.returnsType!));
+        }
       }
 
       final entityImports = CommonPatterns.entityImports(
         types,
         config,
         depth: 3,
+        fileSystem: fs,
       );
       imports.addAll(entityImports);
     } else {
@@ -693,10 +846,11 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       final usecaseSnake = StringUtils.camelToSnake(
         info.className.replaceAll('UseCase', ''),
       );
-      final usecaseDomain = CommonPatterns.findUseCaseDomain(
+      final usecaseDomain = await CommonPatterns.findUseCaseDomain(
         usecaseSnake,
         domainSnake,
         outputDir,
+        fileSystem: fs,
       );
       imports.add(
         '../../../domain/usecases/$usecaseDomain/${usecaseSnake}_usecase.dart',
@@ -710,11 +864,12 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           types,
           config,
           depth: 3,
+          fileSystem: fs,
         );
         imports.addAll(entityImports);
       }
     }
 
-    return imports.toList();
+    return imports.toSet().toList();
   }
 }

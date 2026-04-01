@@ -1,12 +1,12 @@
-import 'dart:io';
-
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../../core/ast/append_executor.dart';
-import '../../../core/ast/strategies/append_strategy.dart';
+import '../../../core/ast/ast_helper.dart';
+import '../../../core/ast/augmentation_builder.dart';
 import '../../../core/generator_options.dart';
 import '../../../core/builder/shared/spec_library.dart';
+import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -22,44 +22,29 @@ part 'local_stream_methods.dart';
 ///
 /// Builds local data source classes with CRUD and stream methods, optionally
 /// backed by Hive when local caching is enabled.
-///
-/// Example:
-/// ```dart
-/// final builder = LocalDataSourceBuilder(
-///   outputDir: 'lib/src',
-///   dryRun: false,
-///   force: true,
-///   verbose: false,
-/// );
-/// final file = await builder.generate(GeneratorConfig(name: 'Product'));
-/// ```
 class LocalDataSourceBuilder {
   final String outputDir;
   final GeneratorOptions options;
   final SpecLibrary specLibrary;
   final AppendExecutor appendExecutor;
+  final AugmentationBuilder augmentationBuilder;
+  final FileSystem fileSystem;
 
   /// Creates a [LocalDataSourceBuilder].
-  ///
-  /// @param outputDir Target directory for generated files.
-  /// @param options Generation flags for writing behavior and logging.
-  /// @param dryRun Deprecated: use [options].
-  /// @param force Deprecated: use [options].
-  /// @param verbose Deprecated: use [options].
-  /// @param specLibrary Optional spec library override.
-  /// @param appendExecutor Optional append executor override.
   LocalDataSourceBuilder({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     SpecLibrary? specLibrary,
     AppendExecutor? appendExecutor,
+    AugmentationBuilder? augmentationBuilder,
+    FileSystem? fileSystem,
   }) : specLibrary = specLibrary ?? const SpecLibrary(),
-       appendExecutor = appendExecutor ?? AppendExecutor();
+       appendExecutor = appendExecutor ?? AppendExecutor(),
+       augmentationBuilder =
+           augmentationBuilder ?? AugmentationBuilder(outputDir: outputDir),
+       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 
   /// Generates a local data source file for the given [config].
-  ///
-  /// @param config Generator configuration describing the entity and options.
-  /// @returns Generated data source file metadata.
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final entityName = config.repo != null
         ? config.repo!.replaceAll('Repository', '')
@@ -202,38 +187,11 @@ class LocalDataSourceBuilder {
         ..methods.addAll(methods),
     );
 
-    if (config.appendToExisting &&
-        File(filePath).existsSync() &&
-        !options.force) {
-      final existing = await File(filePath).readAsString();
-      var updated = existing;
-      for (final method in methods) {
-        final methodSource = specLibrary.emitSpec(method);
-        final result = appendExecutor.execute(
-          AppendRequest.method(
-            source: updated,
-            className: dataSourceName,
-            memberSource: methodSource,
-          ),
-        );
-        updated = result.source;
-      }
-      return FileUtils.writeFile(
-        filePath,
-        updated,
-        'local_datasource',
-        force: true,
-        dryRun: options.dryRun,
-        verbose: options.verbose,
-        revert: false,
-      );
-    }
-
     final directives = <Directive>[
       if (useHive)
         Directive.import('package:hive_ce_flutter/hive_ce_flutter.dart'),
       Directive.import('package:zuraffa/zuraffa.dart'),
-      if (config.repo == null)
+      if (config.isEntityBased)
         Directive.import(
           '../../../domain/entities/$entitySnake/$entitySnake.dart',
         ),
@@ -247,6 +205,110 @@ class LocalDataSourceBuilder {
       Directive.import('${entitySnake}_datasource.dart'),
     ];
 
+    if (await fileSystem.exists(filePath) &&
+        (config.appendToExisting || !options.force)) {
+      final existing = await fileSystem.read(filePath);
+
+      if (config.revert) {
+        if (!config.appendToExisting) {
+          return FileUtils.deleteFile(
+            filePath,
+            'local_datasource',
+            dryRun: options.dryRun,
+            verbose: options.verbose,
+            fileSystem: fileSystem,
+          );
+        }
+
+        // Handle Revert for Append
+        await augmentationBuilder.remove(
+          hostPath: filePath,
+          className: dataSourceName,
+          members: [...methods, ...fields, ...constructors],
+          dryRun: options.dryRun,
+        );
+
+        var source = existing;
+        final augmentFileName = path
+            .basename(filePath)
+            .replaceFirst('.dart', '.augment.dart');
+        source = const AstHelper().removeAugment(
+          source: source,
+          augmentPath: augmentFileName,
+        );
+
+        if (const AstHelper().isClassEmpty(source, dataSourceName)) {
+          return FileUtils.deleteFile(
+            filePath,
+            'local_datasource',
+            dryRun: options.dryRun,
+            verbose: options.verbose,
+            fileSystem: fileSystem,
+          );
+        }
+
+        return FileUtils.writeFile(
+          filePath,
+          source,
+          'local_datasource',
+          force: true,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+          revert: false,
+          fileSystem: fileSystem,
+        );
+      }
+
+      if (config.appendToExisting) {
+        var source = existing;
+        final augmentFileName = path
+            .basename(filePath)
+            .replaceFirst('.dart', '.augment.dart');
+
+        // 1. Add 'import augment' to host file
+        source = const AstHelper().addAugment(
+          source: source,
+          augmentPath: augmentFileName,
+        );
+
+        // 2. Add missing imports
+        final importPaths = directives
+            .map((d) => (d as dynamic).url as String)
+            .toList();
+        for (final importPath in importPaths) {
+          source = const AstHelper().addImport(
+            source: source,
+            importPath: importPath,
+          );
+        }
+
+        await FileUtils.writeFile(
+          filePath,
+          source,
+          'local_datasource',
+          force: true,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+          fileSystem: fileSystem,
+        );
+
+        // 3. Generate/Update the augmentation file
+        final augmentationFile = await augmentationBuilder.generate(
+          hostPath: filePath,
+          className: dataSourceName,
+          members: [...methods, ...fields, ...constructors],
+          imports: importPaths,
+          dryRun: options.dryRun,
+        );
+
+        return GeneratedFile(
+          path: augmentationFile.path,
+          type: 'local_datasource',
+          action: 'updated',
+        );
+      }
+    }
+
     final content = specLibrary.emitLibrary(
       specLibrary.library(specs: [clazz], directives: directives),
     );
@@ -259,6 +321,7 @@ class LocalDataSourceBuilder {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fileSystem,
     );
   }
 }

@@ -140,7 +140,10 @@ ${missing.map((d) => '   • $d').join('\n')}
     }
 
     final outputDir = parsed['output'] as String? ?? 'lib/src/domain/entities';
-    final fields = _parseFields(parsed['field']);
+    final fields = _parseFields([
+      ..._asStringList(parsed['field']),
+      ..._asStringList(parsed['fields']),
+    ]);
     final useFilter =
         parsed['filter'] == true || (config?.filterByDefault ?? false);
 
@@ -149,15 +152,15 @@ ${missing.map((d) => '   • $d').join('\n')}
       outputDir: outputDir,
       fields: fields,
       generateJson: parsed['json'] as bool? ?? true,
-      generateCopyWithFn: parsed['copywith-fn'] as bool? ?? false,
+      generateCopyWithFn: parsed['copywith_fn'] as bool? ?? false,
       generateCompareTo: parsed['compare'] as bool? ?? true,
       isSealed: parsed['sealed'] as bool? ?? false,
-      isNonSealed: parsed['non-sealed'] as bool? ?? false,
+      isNonSealed: parsed['non_sealed'] as bool? ?? false,
       generateFilter: useFilter,
       extendsInterface: parsed['extends'] as String?,
       explicitSubtypes: _asStringList(parsed['subtypes']),
-      generateSubtypes: parsed['generate-subs'] as bool? ?? false,
-      dryRun: parsed['dry-run'] as bool? ?? false,
+      generateSubtypes: parsed['generate_subs'] as bool? ?? false,
+      dryRun: parsed['dry_run'] as bool? ?? false,
     );
 
     final creator = EntityCreator(baseOutputDir: outputDir);
@@ -203,7 +206,7 @@ ${missing.map((d) => '   • $d').join('\n')}
       name: name,
       outputDir: parsed['output'] as String?,
       values: values,
-      dryRun: parsed['dry-run'] as bool? ?? false,
+      dryRun: parsed['dry_run'] as bool? ?? false,
     );
 
     final creator = EntityCreator(baseOutputDir: parsed['output'] as String?);
@@ -226,9 +229,14 @@ ${missing.map((d) => '   • $d').join('\n')}
       exit(1);
     }
 
-    final fieldStrings = _asStringList(parsed['field']);
+    final fieldStrings = [
+      ..._asStringList(parsed['field']),
+      ..._asStringList(parsed['fields']),
+    ];
     if (fieldStrings.isEmpty) {
-      print('Error: At least one field is required. Use --field to specify.');
+      print(
+        'Error: At least one field is required. Use --field or --fields to specify.',
+      );
       exit(1);
     }
 
@@ -238,7 +246,7 @@ ${missing.map((d) => '   • $d').join('\n')}
       name,
       fields,
       outputDir: parsed['output'] as String?,
-      dryRun: parsed['dry-run'] as bool? ?? false,
+      dryRun: parsed['dry_run'] as bool? ?? false,
     );
 
     if (result.isSuccess) {
@@ -373,7 +381,7 @@ ${missing.map((d) => '   • $d').join('\n')}
       generateJson: parsed['json'] as bool? ?? true,
       generateFilter:
           parsed['filter'] == true || (config?.filterByDefault ?? false),
-      dryRun: parsed['dry-run'] as bool? ?? false,
+      dryRun: parsed['dry_run'] as bool? ?? false,
     );
 
     final creator = EntityCreator(baseOutputDir: parsed['output'] as String?);
@@ -428,7 +436,13 @@ ${missing.map((d) => '   • $d').join('\n')}
   }
 
   String _shortFlagToKey(String flag) {
-    const mapping = {'n': 'name', 'o': 'output', 'p': 'package', 'f': 'field'};
+    const mapping = {
+      'n': 'name',
+      'o': 'output',
+      'p': 'package',
+      'f': 'field',
+      'F': 'fields',
+    };
     return mapping[flag] ?? flag;
   }
 
@@ -460,10 +474,16 @@ ${missing.map((d) => '   • $d').join('\n')}
 
   List<String> _asStringList(dynamic value) {
     if (value == null) return [];
-    if (value is List<String>) return value;
-    if (value is String) return [value];
-    if (value is List) return value.map((e) => e.toString()).toList();
-    return [];
+    final List<String> result = [];
+    if (value is List) {
+      for (final item in value) {
+        result.addAll(_smartSplit(item.toString()));
+      }
+    } else if (value is String) {
+      result.addAll(_smartSplit(value));
+    }
+
+    return result.map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
   }
 
   List<String> _smartSplit(String input) {
@@ -590,7 +610,8 @@ CREATE COMMAND:
     --compare               Enable compareTo (default: true)
     --sealed                Create sealed class
     --non-sealed            Create non-sealed class
-    --field                 Add field(s) "name:type"
+    --field                 Add field "name:type"
+    -F, --fields            Add multiple fields "name:type,name:type"
     --extends               Interface to extend
     --subtypes              Explicit subtypes
     --generate-subs         Generate subtype files

@@ -1,28 +1,15 @@
 part of 'controller_plugin.dart';
 
 extension ControllerPluginMethods on ControllerPlugin {
-  List<Method> _buildMethods(
+  Future<List<Method>> _buildMethods(
     GeneratorConfig config,
     String entityName,
     String entityCamel,
     bool withState,
-  ) {
-    if (config.isCustomUseCase) {
-      if (config.isOrchestrator && !config.generateUseCase) {
-        return config.usecases.map((u) {
-          final info = CommonPatterns.parseUseCaseInfo(u, config, outputDir);
-          return _buildCustomMethod(
-            config,
-            info.fieldName,
-            withState,
-            info: info,
-          );
-        }).toList();
-      }
-      return [_buildCustomMethod(config, config.nameCamel, withState)];
-    }
-
+  ) async {
     final methods = <Method>[];
+
+    // 1. Entity-based methods
     for (final method in config.methods) {
       switch (method) {
         case 'get':
@@ -53,6 +40,10 @@ extension ControllerPluginMethods on ControllerPlugin {
           methods.add(
             _buildWatchMethod(config, entityName, entityCamel, withState),
           );
+          // Add Record-based bundle for watch (Analyzer 12 support)
+          methods.add(
+            _buildWatchRecordMethod(config, entityName, entityCamel, withState),
+          );
           break;
         case 'watchList':
           methods.add(
@@ -61,6 +52,24 @@ extension ControllerPluginMethods on ControllerPlugin {
           break;
       }
     }
+
+    // 2. Custom methods
+    if (config.isOrchestrator) {
+      for (final u in config.usecases) {
+        final info = await CommonPatterns.parseUseCaseInfo(
+          u,
+          config,
+          outputDir,
+          fileSystem: fileSystem,
+        );
+        methods.add(
+          _buildCustomMethod(config, info.fieldName, withState, info: info),
+        );
+      }
+    } else if (config.isCustomUseCase && config.methods.isEmpty) {
+      methods.add(_buildCustomMethod(config, config.nameCamel, withState));
+    }
+
     return methods;
   }
 
@@ -169,9 +178,17 @@ extension ControllerPluginMethods on ControllerPlugin {
         ..optionalParameters.addAll([
           Parameter(
             (p) => p
+              ..name = 'refresh'
+              ..type = refer('bool')
+              ..defaultTo = literalBool(false).code,
+          ),
+          Parameter(
+            (p) => p
               ..name = 'params'
               ..type = refer('ListQueryParams<$entityName>')
-              ..defaultTo = refer('ListQueryParams').constInstance([]).code,
+              ..defaultTo = refer(
+                'ListQueryParams<$entityName>',
+              ).constInstance([]).code,
           ),
           _cancelTokenParam(),
         ])
@@ -340,10 +357,45 @@ extension ControllerPluginMethods on ControllerPlugin {
             (p) => p
               ..name = 'params'
               ..type = refer('ListQueryParams<$entityName>')
-              ..defaultTo = refer('ListQueryParams').constInstance([]).code,
+              ..defaultTo = refer(
+                'ListQueryParams<$entityName>',
+              ).constInstance([]).code,
           ),
           _cancelTokenParam(),
         ])
+        ..body = body,
+    );
+  }
+
+  Method _buildWatchRecordMethod(
+    GeneratorConfig config,
+    String entityName,
+    String entityCamel,
+    bool withState,
+  ) {
+    final hasParams = config.queryFieldType != 'NoParams';
+    final args = hasParams ? config.queryField : '';
+    final body = withState
+        ? _buildWatchRecordWithStateBody(entityName, entityCamel, args)
+        : _buildWatchRecordWithoutStateBody(entityName, args);
+
+    return Method(
+      (m) => m
+        ..name = 'watch${entityName}Record'
+        ..returns = refer('Future<void>')
+        ..modifier = MethodModifier.async
+        ..requiredParameters.addAll(
+          hasParams
+              ? [
+                  Parameter(
+                    (p) => p
+                      ..name = config.queryField
+                      ..type = refer(config.queryFieldType),
+                  ),
+                ]
+              : const [],
+        )
+        ..optionalParameters.add(_cancelTokenParam())
         ..body = body,
     );
   }

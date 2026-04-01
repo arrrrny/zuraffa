@@ -1,3 +1,35 @@
+## [3.20.0] - 2026-04-01
+
+### Feat
+- Implemented Open Telemetry integration with persistent failure report queue for better observability
+- Added Dart 3.0 Records support for VPC pattern with watchRecord methods
+- Added register capability to DI plugin for dynamic dependency registration
+- Added `--use-service` flag to zfa feature and zfa make commands for service-based generation
+- Enabled adding view/presenter to existing usecases with correct state management via zfa make
+
+### Change
+- Refactored CLI to unify orchestration and implement active discovery pattern in all generator plugins
+- Upgraded analyzer dependency from version 11 to 12 for better code analysis
+- Standardized presenter pattern to directly inject data and set from view/controller
+- Renamed debugmode for consistency
+- Extended mock command with additional bug fixes
+- Updated website documentation
+
+### Fix
+- Fixed usecase registration via zfa feature command
+- Fixed routes generation and implemented detail view
+- Fixed entity command issues
+- Fixed datasource plugin stability
+- Fixed default timeout configuration
+- Stabilized revert method and config defaults
+- Fixed pull request finding logic (multiple iterations)
+- Fixed 173+ analysis errors in generated code
+- Resolved stability issues across multiple components
+
+### Chore
+- Added gitignore entries for Junie IDE
+- Formatted codebase
+
 ## [3.19.0] - 2026-03-13
 
 ### Change

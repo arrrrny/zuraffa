@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
@@ -7,6 +5,7 @@ import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/builder/patterns/common_patterns.dart';
 import '../../../core/generator_options.dart';
+import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -14,30 +13,20 @@ import '../../../utils/string_utils.dart';
 import '../builders/usecase_class_builder.dart';
 
 /// Generates stream-based use cases for the domain layer.
-///
-/// Builds use case classes that return data streams, typically used for
-/// real-time updates and reactive features.
-///
-/// Example:
-/// ```dart
-/// final generator = StreamUseCaseGenerator(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final file = await generator.generate(GeneratorConfig(name: 'Chat'));
-/// ```
 class StreamUseCaseGenerator {
   final String outputDir;
   final GeneratorOptions options;
   final UseCaseClassBuilder classBuilder;
   final AppendExecutor appendExecutor;
+  final FileSystem fileSystem;
 
   StreamUseCaseGenerator({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     this.classBuilder = const UseCaseClassBuilder(),
     this.appendExecutor = const AppendExecutor(),
-  });
+    FileSystem? fileSystem,
+  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final baseName = config.name.endsWith('UseCase')
@@ -91,7 +80,7 @@ class StreamUseCaseGenerator {
             ..toThis = true,
         ),
       );
-    } else if (config.hasRepo) {
+    } else if (config.hasRepo && config.effectiveRepos.isNotEmpty) {
       final repoName = config.effectiveRepos.first;
       final repoSnake = StringUtils.camelToSnake(
         repoName.replaceAll('Repository', ''),
@@ -178,6 +167,7 @@ class StreamUseCaseGenerator {
           config,
           depth: 2,
           includeDomain: false,
+          fileSystem: fileSystem,
         ),
       ],
     );
@@ -209,7 +199,7 @@ class StreamUseCaseGenerator {
   }) async {
     if (config.revert) {
       if (config.appendToExisting) {
-        if (options.verbose) {
+        if (config.verbose) {
           print('  ⚠️ Cannot revert append operation for $filePath');
         }
         return GeneratedFile(
@@ -221,24 +211,26 @@ class StreamUseCaseGenerator {
       return FileUtils.deleteFile(
         filePath,
         'usecase',
-        dryRun: options.dryRun,
-        verbose: options.verbose,
+        dryRun: config.dryRun,
+        verbose: config.verbose,
+        fileSystem: fileSystem,
       );
     }
 
-    if (config.appendToExisting && File(filePath).existsSync()) {
-      if (options.force) {
+    if (config.appendToExisting && await fileSystem.exists(filePath)) {
+      if (config.force) {
         return FileUtils.writeFile(
           filePath,
           content,
           'usecase',
           force: true,
-          dryRun: options.dryRun,
-          verbose: options.verbose,
+          dryRun: config.dryRun,
+          verbose: config.verbose,
+          fileSystem: fileSystem,
         );
       }
 
-      final existing = await File(filePath).readAsString();
+      final existing = await fileSystem.read(filePath);
       final result = appendExecutor.execute(
         AppendRequest.method(
           source: existing,
@@ -259,8 +251,9 @@ class StreamUseCaseGenerator {
         result.source,
         'usecase',
         force: true,
-        dryRun: options.dryRun,
-        verbose: options.verbose,
+        dryRun: config.dryRun,
+        verbose: config.verbose,
+        fileSystem: fileSystem,
       );
     }
 
@@ -268,9 +261,11 @@ class StreamUseCaseGenerator {
       filePath,
       content,
       'usecase',
-      force: options.force,
-      dryRun: options.dryRun,
-      verbose: options.verbose,
+      force: config.force,
+      dryRun: config.dryRun,
+      verbose: config.verbose,
+      revert: config.revert,
+      fileSystem: fileSystem,
     );
   }
 }

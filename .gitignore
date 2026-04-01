@@ -13,3 +13,7 @@ example/coverage/
 CUSTOM_DOMAIN_SETUP.md
 DOCUSAURUS_SETUP.md*
 .tmp_integration_*
+.junie
+.flutter-plugins-dependencies
+.zuraffa/plans
+.flutter-plugins-dependencies

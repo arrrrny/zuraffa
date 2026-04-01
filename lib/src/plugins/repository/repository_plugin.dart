@@ -4,8 +4,11 @@ import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
+import '../../core/plugin_system/plugin_context.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import '../method_append/builders/method_append_builder.dart';
+import '../method_append/capabilities/method_capability.dart';
 import 'capabilities/create_repository_capability.dart';
 import 'generators/implementation_generator.dart';
 import 'generators/interface_generator.dart';
@@ -16,11 +19,15 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   late final RepositoryInterfaceGenerator interfaceGenerator;
   late final RepositoryImplementationGenerator implementationGenerator;
+  final MethodAppendBuilder methodAppendBuilder;
 
   RepositoryPlugin({
     required this.outputDir,
     this.options = const GeneratorOptions(),
-  }) {
+    MethodAppendBuilder? methodAppendBuilder,
+  }) : methodAppendBuilder =
+           methodAppendBuilder ??
+           MethodAppendBuilder(outputDir: outputDir, options: options) {
     interfaceGenerator = RepositoryInterfaceGenerator(
       outputDir: outputDir,
       options: options,
@@ -34,6 +41,11 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   @override
   List<ZuraffaCapability> get capabilities => [
     CreateRepositoryCapability(this),
+    MethodCapability(
+      this,
+      methodAppendBuilder: methodAppendBuilder,
+      targetType: 'repository',
+    ),
   ];
 
   @override
@@ -49,7 +61,68 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   String get version => '1.0.0';
 
   @override
-  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
+  JsonSchema get configSchema => {
+    'type': 'object',
+    'properties': {
+      'data': {
+        'type': 'boolean',
+        'default': true,
+        'description': 'Generate repository implementation',
+      },
+      'datasource': {
+        'type': 'boolean',
+        'default': true,
+        'description': 'Generate data source dependencies',
+      },
+      'use-service': {
+        'type': 'boolean',
+        'default': false,
+        'description': 'Use service instead of repository',
+      },
+      'no-entity': {
+        'type': 'boolean',
+        'default': false,
+        'description': 'Disable entity-based generation',
+      },
+    },
+  };
+
+  @override
+  Future<List<GeneratedFile>> generateWithContext(PluginContext context) async {
+    final useService = context.get<bool>('use-service') ?? false;
+    if (useService) return [];
+
+    final config = GeneratorConfig(
+      name: context.core.name,
+      outputDir: context.core.outputDir,
+      dryRun: context.core.dryRun,
+      force: context.core.force,
+      verbose: context.core.verbose,
+      revert: context.core.revert,
+      methods: context.data['methods']?.cast<String>().toList() ?? [],
+      domain: context.data['domain'],
+      repo: context.data['repo'],
+      generateData: context.get<bool>('data') ?? true,
+      generateDataSource: context.get<bool>('datasource') ?? true,
+      enableCache: context.get<bool>('cache') ?? false,
+      generateLocal: context.get<bool>('local') ?? false,
+      noEntity: context.get<bool>('no-entity') ?? false,
+      useService: useService,
+      generateRepository: true,
+      appendToExisting:
+          context.data['append'] == true ||
+          context.data['method_append'] == true,
+    );
+
+    return generate(config, context: context);
+  }
+
+  @override
+  Future<List<GeneratedFile>> generate(
+    GeneratorConfig config, {
+    PluginContext? context,
+  }) async {
+    if (config.useService) return [];
     if (config.outputDir != outputDir ||
         config.dryRun != options.dryRun ||
         config.force != options.force ||
@@ -64,16 +137,50 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           revert: config.revert,
         ),
       );
-      return delegator.generate(config);
+      return delegator.generate(config, context: context);
     }
 
+    final interfaceGen = context != null
+        ? RepositoryInterfaceGenerator(
+            outputDir: outputDir,
+            options: options,
+            fileSystem: context.fileSystem,
+            discovery: context.discovery,
+          )
+        : interfaceGenerator;
+
+    final implementationGen = context != null
+        ? RepositoryImplementationGenerator(
+            outputDir: outputDir,
+            options: options,
+            fileSystem: context.fileSystem,
+            discovery: context.discovery,
+          )
+        : implementationGenerator;
+
     final files = <GeneratedFile>[];
-    if (config.isEntityBased) {
-      files.add(await interfaceGenerator.generate(config));
+
+    // If a repo is specified, we should target that repository instead of the config name
+    var targetConfig = config;
+    if (config.repo != null) {
+      var repoBase = config.repo!;
+      if (repoBase.endsWith('Repository')) {
+        repoBase = repoBase.substring(0, repoBase.length - 10);
+      }
+      // Preserve the original name as the method name if it's a custom usecase
+      final repoMethod = config.repoMethod ?? config.nameCamel;
+      targetConfig = config.copyWith(name: repoBase, repoMethod: repoMethod);
     }
-    if ((config.generateData || config.generateDataSource) &&
+
+    if (config.isEntityBased ||
+        (config.appendToExisting && config.repo != null)) {
+      files.add(await interfaceGen.generate(targetConfig));
+    }
+    if ((config.generateData ||
+            config.generateDataSource ||
+            config.appendToExisting) &&
         !config.hasService) {
-      files.add(await implementationGenerator.generate(config));
+      files.add(await implementationGen.generate(targetConfig));
     }
     return files;
   }

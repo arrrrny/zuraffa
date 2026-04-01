@@ -7,7 +7,7 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
     String repoName,
     String methodName,
     Reference returnType,
-    String paramsType,
+    Object params,
   ) async {
     final file = File(filePath);
     await file.parent.create(recursive: true);
@@ -16,12 +16,24 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
       (m) => m
         ..name = methodName
         ..returns = returnType
-        ..requiredParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'params'
-              ..type = refer(paramsType),
-          ),
+        ..requiredParameters.addAll(
+          params is List<Param>
+              ? params.map(
+                  (p) => Parameter(
+                    (pp) => pp
+                      ..name = p.name
+                      ..type = refer(p.type),
+                  ),
+                )
+              : [
+                  Parameter(
+                    (p) => p
+                      ..name = params == 'NoParams'
+                          ? 'params'
+                          : params.toString().toLowerCase()
+                      ..type = refer(params as String),
+                  ),
+                ],
         ),
     );
 
@@ -50,7 +62,7 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
     String serviceName,
     String methodName,
     Reference returnType,
-    String paramsType,
+    Object params,
   ) async {
     final file = File(filePath);
     await file.parent.create(recursive: true);
@@ -59,12 +71,24 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
       (m) => m
         ..name = methodName
         ..returns = returnType
-        ..requiredParameters.add(
-          Parameter(
-            (p) => p
-              ..name = 'params'
-              ..type = refer(paramsType),
-          ),
+        ..requiredParameters.addAll(
+          params is List<Param>
+              ? params.map(
+                  (p) => Parameter(
+                    (pp) => pp
+                      ..name = p.name
+                      ..type = refer(p.type),
+                  ),
+                )
+              : [
+                  Parameter(
+                    (p) => p
+                      ..name = params == 'NoParams'
+                          ? 'params'
+                          : params.toString().toLowerCase()
+                      ..type = refer(params as String),
+                  ),
+                ],
         ),
     );
 
@@ -98,7 +122,7 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
     String serviceName,
     String methodName,
     Reference returnType,
-    String paramsType,
+    Object params,
   ) async {
     final file = File(filePath);
     await file.parent.create(recursive: true);
@@ -114,12 +138,22 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
               ..name = methodName
               ..annotations.add(refer('override'))
               ..returns = returnType
-              ..requiredParameters.add(
-                Parameter(
-                  (p) => p
-                    ..name = 'params'
-                    ..type = refer(paramsType),
-                ),
+              ..requiredParameters.addAll(
+                params is List<Param>
+                    ? params.map(
+                        (p) => Parameter(
+                          (pp) => pp
+                            ..name = p.name
+                            ..type = refer(p.type),
+                        ),
+                      )
+                    : [
+                        Parameter(
+                          (p) => p
+                            ..name = 'params'
+                            ..type = refer(params as String),
+                        ),
+                      ],
               )
               ..modifier = MethodModifier.async
               ..body = Block(

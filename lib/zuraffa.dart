@@ -1,5 +1,11 @@
 library;
 
+import 'src/core/failure_reporter.dart';
+import 'src/core/failure_reporter_registry.dart';
+import 'src/core/otel_failure_reporter.dart';
+import 'src/core/otel_log_exporter.dart';
+import 'src/core/retry_policy.dart';
+
 /// Zuraffa
 ///
 /// A comprehensive Clean Architecture framework for Flutter applications
@@ -157,6 +163,17 @@ export 'src/core/cache_policy.dart';
 /// Concrete cache policy implementations (Daily, AppRestart, TTL)
 export 'src/core/cache_policies.dart';
 
+/// Abstract failure reporter contract
+export 'src/core/failure_report_queue.dart' show FailureReportQueue;
+export 'src/core/failure_report_store.dart' show FailureReportStore;
+export 'src/core/failure_reporter.dart';
+export 'src/core/failure_reporter_registry.dart' show FailureReporterRegistry;
+export 'src/core/otel_failure_reporter.dart' show OtelFailureReporter;
+export 'src/core/otel_log_exporter.dart' show OtelLogExporter;
+export 'src/core/retry_policies.dart'
+    show ExponentialBackoffRetryPolicy, FixedIntervalRetryPolicy, NoRetryPolicy;
+export 'src/core/retry_policy.dart' show ReportRetryPolicy;
+
 export 'src/core/generation/generation_context.dart';
 export 'src/core/context/file_system.dart';
 export 'src/core/context/context_store.dart';
@@ -271,11 +288,55 @@ enum ZuraffaLogLevel {
   off,
 }
 
+/// Application environment types.
+enum Environment {
+  /// Development environment, usually with detailed logging and debug tools.
+  development,
+
+  /// Staging environment, matches production configuration but with test data.
+  staging,
+
+  /// Production environment, optimized for performance and security.
+  production,
+}
+
 /// Global configuration and utilities for Zuraffa.
 class Zuraffa {
   Zuraffa._();
 
-  static Level _toLevel(ZuraffaLogLevel level) {
+  static Environment _environment = Environment.development;
+  static bool _isDebugMode = true;
+
+  /// Get the current application environment.
+  static Environment get environment => _environment;
+
+  /// Returns true if the application is running in debug mode.
+  static bool get isDebugMode => _isDebugMode;
+
+  /// Set the application environment and debug mode.
+  ///
+  /// typically called at the beginning of `main()`.
+  /// If [isDebugMode] is not provided, it defaults to true for development
+  /// and false for staging and production.
+  /// If [logLevel] is provided, it sets the logging level when [isDebugMode] is true.
+  static void setEnvironment(
+    Environment env, {
+    bool? isDebugMode,
+    ZuraffaLogLevel logLevel = ZuraffaLogLevel.all,
+  }) {
+    _environment = env;
+    _isDebugMode = isDebugMode ?? (env == Environment.development);
+    if (_isDebugMode || env == Environment.development) {
+      enableLogging(level: logLevel);
+    } else {
+      disableLogging();
+    }
+    Logger.root.info(
+      'Zuraffa environment set to: ${env.name} (isDebugMode: $_isDebugMode, logLevel: ${logLevel.name})',
+    );
+  }
+
+  static Level toLevel(ZuraffaLogLevel level) {
     switch (level) {
       case ZuraffaLogLevel.all:
         return Level.ALL;
@@ -352,14 +413,127 @@ class Zuraffa {
     ZuraffaLogLevel level = ZuraffaLogLevel.all,
     void Function(LogRecord record)? onRecord,
   }) {
-    Logger.root.level = _toLevel(level);
+    Logger.root.level = toLevel(level);
     Logger.root.onRecord.listen(onRecord ?? _defaultLogHandler);
     Logger.root.info('Zuraffa logging enabled');
   }
 
   /// Disable logging.
   static void disableLogging() {
-    Logger.root.level = _toLevel(ZuraffaLogLevel.off);
+    Logger.root.level = toLevel(ZuraffaLogLevel.off);
+  }
+
+  // ============================================================
+  // Failure and Log Reporting
+  // ============================================================
+
+  static OtelLogExporter? _otelLogExporter;
+
+  /// Register a failure reporter.
+  ///
+  /// Failures from all UseCases and FailureHandlers will be
+  /// automatically reported to registered reporters.
+  ///
+  /// ## Example
+  /// ```dart
+  /// void main() {
+  ///   Zuraffa.addFailureReporter(
+  ///     OtelFailureReporter(
+  ///       collectorEndpoint: Uri.parse('https://otel.example.com/v1/traces'),
+  ///       serviceName: 'my_app',
+  ///     ),
+  ///   );
+  ///   runApp(MyApp());
+  /// }
+  /// ```
+  static Future<void> addFailureReporter(
+    FailureReporter reporter, {
+    ReportRetryPolicy? retryPolicy,
+    int? maxQueueSize,
+    int? maxBatchSize,
+    Duration? flushInterval,
+    bool persistFailures = false,
+  }) async {
+    if (retryPolicy != null ||
+        maxQueueSize != null ||
+        maxBatchSize != null ||
+        flushInterval != null ||
+        persistFailures) {
+      FailureReporterRegistry.instance.configure(
+        retryPolicy: retryPolicy,
+        maxQueueSize: maxQueueSize,
+        maxBatchSize: maxBatchSize,
+        flushInterval: flushInterval,
+        persistFailures: persistFailures,
+      );
+    }
+    await FailureReporterRegistry.instance.register(reporter);
+  }
+
+  /// Remove a failure reporter by ID.
+  static Future<void> removeFailureReporter(String id) async {
+    await FailureReporterRegistry.instance.unregister(id);
+  }
+
+  /// Convenience: set up OpenTelemetry failure reporting in one call.
+  ///
+  /// ## Example
+  /// ```dart
+  /// void main() {
+  ///   Zuraffa.enableOtelReporting(
+  ///     collectorEndpoint: Uri.parse('https://otel.example.com/v1/traces'),
+  ///     serviceName: 'my_app',
+  ///     apiKey: 'my_api_key',
+  ///   );
+  ///   runApp(MyApp());
+  /// }
+  /// ```
+  static Future<void> enableOtelReporting({
+    required Uri collectorEndpoint,
+    required String serviceName,
+    String? apiKey,
+    ReportRetryPolicy? retryPolicy,
+    int? maxQueueSize,
+    Duration? flushInterval,
+    bool persistFailures = false,
+    bool exportLogs = false,
+    ZuraffaLogLevel remoteLogLevel = ZuraffaLogLevel.warning,
+  }) async {
+    await addFailureReporter(
+      OtelFailureReporter(
+        collectorEndpoint: collectorEndpoint,
+        serviceName: serviceName,
+        apiKey: apiKey,
+      ),
+      retryPolicy: retryPolicy,
+      maxQueueSize: maxQueueSize,
+      flushInterval: flushInterval,
+      persistFailures: persistFailures,
+    );
+
+    if (exportLogs) {
+      _otelLogExporter?.dispose();
+      _otelLogExporter = OtelLogExporter(
+        collectorBaseEndpoint: collectorEndpoint,
+        serviceName: serviceName,
+        apiKey: apiKey,
+        remoteLogLevel: remoteLogLevel,
+      )..start();
+    }
+  }
+
+  /// Flush all pending failure reports.
+  static Future<void> flushFailureReports() async {
+    await FailureReporterRegistry.instance.flush();
+  }
+
+  /// Dispose all failure reporters and flush pending reports.
+  ///
+  /// Call this on app shutdown.
+  static Future<void> disposeFailureReporters() async {
+    await FailureReporterRegistry.instance.dispose();
+    await _otelLogExporter?.dispose();
+    _otelLogExporter = null;
   }
 
   static void _defaultLogHandler(LogRecord record) {

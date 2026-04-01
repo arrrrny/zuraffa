@@ -1,11 +1,11 @@
-import 'dart:io';
-
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../../core/ast/append_executor.dart';
-import '../../../core/ast/strategies/append_strategy.dart';
+import '../../../core/ast/ast_helper.dart';
+import '../../../core/ast/augmentation_builder.dart';
 import '../../../core/generator_options.dart';
+import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -14,44 +14,29 @@ import '../../../utils/entity_utils.dart';
 import '../../../core/builder/shared/spec_library.dart';
 
 /// Generates remote data source implementations.
-///
-/// Builds remote data source classes with stubbed CRUD and stream methods,
-/// including GraphQL hooks when enabled.
-///
-/// Example:
-/// ```dart
-/// final builder = RemoteDataSourceBuilder(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final file = await builder.generate(GeneratorConfig(name: 'Product'));
-/// ```
 class RemoteDataSourceBuilder {
   final String outputDir;
   final GeneratorOptions options;
   final SpecLibrary specLibrary;
   final AppendExecutor appendExecutor;
+  final AugmentationBuilder augmentationBuilder;
+  final FileSystem fileSystem;
 
   /// Creates a [RemoteDataSourceBuilder].
-  ///
-  /// @param outputDir Target directory for generated files.
-  /// @param options Generation flags for writing behavior and logging.
-  /// @param dryRun Deprecated: use [options].
-  /// @param force Deprecated: use [options].
-  /// @param verbose Deprecated: use [options].
-  /// @param specLibrary Optional spec library override.
   RemoteDataSourceBuilder({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     SpecLibrary? specLibrary,
     AppendExecutor? appendExecutor,
+    AugmentationBuilder? augmentationBuilder,
+    FileSystem? fileSystem,
   }) : specLibrary = specLibrary ?? const SpecLibrary(),
-       appendExecutor = appendExecutor ?? AppendExecutor();
+       appendExecutor = appendExecutor ?? AppendExecutor(),
+       augmentationBuilder =
+           augmentationBuilder ?? AugmentationBuilder(outputDir: outputDir),
+       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 
   /// Generates a remote data source file for the given [config].
-  ///
-  /// @param config Generator configuration describing the entity and options.
-  /// @returns Generated data source file metadata.
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final entityName = config.repo != null
         ? config.repo!.replaceAll('Repository', '')
@@ -70,6 +55,44 @@ class RemoteDataSourceBuilder {
     final filePath = path.join(dataSourceDirPath, fileName);
 
     final methods = <Method>[];
+
+    if (config.isCustomUseCase && config.appendToExisting) {
+      final methodName = config.getRepoMethodName();
+      var returnType = config.returnsType ?? 'void';
+      final paramsType = config.paramsType ?? 'NoParams';
+
+      // Wrap in Future/Stream if not already
+      if (config.useCaseType == 'stream' ||
+          config.useCaseType == 'streamusecase') {
+        if (!returnType.startsWith('Stream<')) {
+          returnType = 'Stream<$returnType>';
+        }
+      } else if (config.useCaseType != 'sync' &&
+          config.useCaseType != 'syncusecase') {
+        if (!returnType.startsWith('Future<')) {
+          returnType = 'Future<$returnType>';
+        }
+      }
+
+      methods.add(
+        Method(
+          (m) => m
+            ..name = methodName
+            ..annotations.add(refer('override'))
+            ..returns = refer(returnType)
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer(paramsType),
+              ),
+            )
+            ..modifier = MethodModifier.async
+            ..body = _remoteBody('Implement remote $methodName', null),
+        ),
+      );
+    }
+
     if (config.generateInit) {
       methods.add(
         Method(
@@ -321,31 +344,108 @@ class RemoteDataSourceBuilder {
         ..methods.addAll(methods),
     );
 
-    if (config.appendToExisting &&
-        File(filePath).existsSync() &&
-        !options.force) {
-      final existing = await File(filePath).readAsString();
-      var updated = existing;
-      for (final method in methods) {
-        final methodSource = specLibrary.emitSpec(method);
-        final result = appendExecutor.execute(
-          AppendRequest.method(
-            source: updated,
-            className: dataSourceName,
-            memberSource: methodSource,
-          ),
+    if (await fileSystem.exists(filePath) &&
+        (config.appendToExisting || !options.force)) {
+      final existing = await fileSystem.read(filePath);
+
+      if (config.revert) {
+        if (!config.appendToExisting) {
+          return FileUtils.deleteFile(
+            filePath,
+            'remote_datasource',
+            dryRun: options.dryRun,
+            verbose: options.verbose,
+            fileSystem: fileSystem,
+          );
+        }
+
+        // Handle Revert for Append
+        await augmentationBuilder.remove(
+          hostPath: filePath,
+          className: dataSourceName,
+          members: methods,
+          dryRun: options.dryRun,
         );
-        updated = result.source;
+
+        var source = existing;
+        final augmentFileName = path
+            .basename(filePath)
+            .replaceFirst('.dart', '.augment.dart');
+        source = const AstHelper().removeAugment(
+          source: source,
+          augmentPath: augmentFileName,
+        );
+
+        if (const AstHelper().isClassEmpty(source, dataSourceName)) {
+          return FileUtils.deleteFile(
+            filePath,
+            'remote_datasource',
+            dryRun: options.dryRun,
+            verbose: options.verbose,
+            fileSystem: fileSystem,
+          );
+        }
+
+        return FileUtils.writeFile(
+          filePath,
+          source,
+          'remote_datasource',
+          force: true,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+          revert: false,
+          fileSystem: fileSystem,
+        );
       }
-      return FileUtils.writeFile(
-        filePath,
-        updated,
-        'remote_datasource',
-        force: true,
-        dryRun: options.dryRun,
-        verbose: options.verbose,
-        revert: false,
-      );
+
+      if (config.appendToExisting) {
+        var source = existing;
+        final augmentFileName = path
+            .basename(filePath)
+            .replaceFirst('.dart', '.augment.dart');
+
+        // 1. Add 'import augment' to host file
+        source = const AstHelper().addAugment(
+          source: source,
+          augmentPath: augmentFileName,
+        );
+
+        // 2. Add missing imports
+        final importPaths = directives
+            .map((d) => (d as dynamic).url as String)
+            .toList();
+        for (final importPath in importPaths) {
+          source = const AstHelper().addImport(
+            source: source,
+            importPath: importPath,
+          );
+        }
+
+        await FileUtils.writeFile(
+          filePath,
+          source,
+          'remote_datasource',
+          force: true,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+          fileSystem: fileSystem,
+        );
+
+        // 3. Generate/Update the augmentation file
+        final augmentationFile = await augmentationBuilder.generate(
+          hostPath: filePath,
+          className: dataSourceName,
+          members: methods,
+          imports: importPaths,
+          dryRun: options.dryRun,
+        );
+
+        return GeneratedFile(
+          path: augmentationFile.path,
+          type: 'remote_datasource',
+          action: 'updated',
+        );
+      }
     }
 
     final content = specLibrary.emitLibrary(
@@ -360,6 +460,7 @@ class RemoteDataSourceBuilder {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fileSystem,
     );
   }
 

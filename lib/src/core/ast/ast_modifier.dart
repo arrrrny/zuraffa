@@ -6,7 +6,11 @@ class AstModifier {
     required ClassDeclaration classNode,
     required String methodSource,
   }) {
-    final insertOffset = classNode.body.endToken.offset;
+    final body = classNode.body;
+    if (body is! BlockClassBody) {
+      return source;
+    }
+    final insertOffset = body.rightBracket.offset;
     final closingIndent = _indentBeforeOffset(source, insertOffset);
     final memberIndent = '$closingIndent  ';
     final normalized = methodSource.trimRight();
@@ -102,6 +106,10 @@ class AstModifier {
     CompilationUnit unit,
     String importPath,
   ) {
+    if (source.contains("import '$importPath';") ||
+        source.contains('import "$importPath";')) {
+      return source;
+    }
     final importDirective = "import '$importPath';";
     final imports = unit.directives.whereType<ImportDirective>().toList();
     if (imports.isNotEmpty) {
@@ -118,6 +126,47 @@ class AstModifier {
       return '$importDirective\n${source.substring(insertOffset)}';
     }
     return '$importDirective\n\n$source';
+  }
+
+  static String addAugment(
+    String source,
+    CompilationUnit unit,
+    String augmentPath,
+  ) {
+    if (source.contains("import augment '$augmentPath';") ||
+        source.contains('import augment "$augmentPath";')) {
+      return source;
+    }
+    final augmentDirective = "import augment '$augmentPath';";
+
+    final imports = unit.directives.whereType<ImportDirective>().toList();
+    if (imports.isNotEmpty) {
+      final lastImport = imports.last;
+      return '${source.substring(0, lastImport.end)}\n$augmentDirective${source.substring(lastImport.end)}';
+    }
+
+    if (unit.directives.isNotEmpty) {
+      final lastDirective = unit.directives.last;
+      return '${source.substring(0, lastDirective.end)}\n$augmentDirective${source.substring(lastDirective.end)}';
+    }
+
+    final firstNonCommentOffset = unit.beginToken.offset;
+    if (firstNonCommentOffset > 0) {
+      return '${source.substring(0, firstNonCommentOffset)}$augmentDirective\n\n${source.substring(firstNonCommentOffset)}';
+    }
+
+    return '$augmentDirective\n\n$source';
+  }
+
+  /// Removes an augmentation library directive from the unit.
+  static String removeAugment(String source, String augmentPath) {
+    final pattern = RegExp(
+      '^import\\s+augment\\s+[\'\"]' +
+          RegExp.escape(augmentPath) +
+          '[\'\"]\\s*;\\s*\$',
+      multiLine: true,
+    );
+    return source.replaceFirst(pattern, '').trim();
   }
 
   static String addExport(
@@ -147,7 +196,11 @@ class AstModifier {
     required ClassDeclaration classNode,
     required String fieldSource,
   }) {
-    final insertOffset = classNode.body.endToken.offset;
+    final body = classNode.body;
+    if (body is! BlockClassBody) {
+      return source;
+    }
+    final insertOffset = body.rightBracket.offset;
     final closingIndent = _indentBeforeOffset(source, insertOffset);
     final memberIndent = '$closingIndent  ';
     final normalized = fieldSource.trimRight();
@@ -166,7 +219,11 @@ class AstModifier {
     required ExtensionDeclaration extensionNode,
     required String methodSource,
   }) {
-    final insertOffset = extensionNode.body.rightBracket.offset;
+    final body = extensionNode.body;
+    if (body is! BlockClassBody) {
+      return source;
+    }
+    final insertOffset = body.rightBracket.offset;
     final closingIndent = _indentBeforeOffset(source, insertOffset);
     final memberIndent = '$closingIndent  ';
     final normalized = methodSource.trimRight();
@@ -237,6 +294,57 @@ class AstModifier {
     return source.substring(0, insertOffset) +
         insert +
         source.substring(insertOffset);
+  }
+
+  static String removeElementFromReturnListInFunction({
+    required String source,
+    required FunctionDeclaration functionNode,
+    required String elementSource,
+  }) {
+    final body = functionNode.functionExpression.body;
+    if (body is! BlockFunctionBody) {
+      return source;
+    }
+
+    final returnStatement = body.block.statements
+        .whereType<ReturnStatement>()
+        .firstOrNull;
+    if (returnStatement == null) {
+      return source;
+    }
+
+    final expression = returnStatement.expression;
+    if (expression is! ListLiteral) {
+      return source;
+    }
+
+    final elements = expression.elements;
+    final normalizedSearch = elementSource.replaceAll(RegExp(r'\s+'), '');
+
+    for (final element in elements) {
+      final elementText = source.substring(element.offset, element.end);
+      final normalizedElement = elementText.replaceAll(RegExp(r'\s+'), '');
+
+      if (normalizedElement == normalizedSearch) {
+        var start = element.offset;
+        var end = element.end;
+
+        // Try to include leading comma or trailing comma
+        final nextCharIndex = source.indexOf(RegExp(r'\S'), end);
+        if (nextCharIndex != -1 && source[nextCharIndex] == ',') {
+          end = nextCharIndex + 1;
+        } else {
+          final prevCharIndex = source.lastIndexOf(RegExp(r'\S'), start - 1);
+          if (prevCharIndex != -1 && source[prevCharIndex] == ',') {
+            start = prevCharIndex;
+          }
+        }
+
+        return source.substring(0, start) + source.substring(end);
+      }
+    }
+
+    return source;
   }
 
   static String _indentBeforeOffset(String source, int offset) {

@@ -31,17 +31,14 @@ class CreateProviderCapability implements ZuraffaCapability {
       'params': {
         'type': 'string',
         'description': 'Parameter type for the provider method',
-        'default': 'NoParams',
       },
       'returns': {
         'type': 'string',
         'description': 'Return type for the provider method',
-        'default': 'void',
       },
       'type': {
         'type': 'string',
         'description': 'Provider method type (sync, stream, completable)',
-        'default': 'usecase',
       },
       'data': {
         'type': 'boolean',
@@ -113,7 +110,7 @@ class CreateProviderCapability implements ZuraffaCapability {
     final domain = args['domain'];
     final paramsType = args['params'];
     final returnsType = args['returns'];
-    final useCaseType = args['type'];
+    final useCaseType = args['type'] ?? 'usecase';
     final generateData = args['data'] ?? true;
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;

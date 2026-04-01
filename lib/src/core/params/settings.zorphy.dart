@@ -31,6 +31,8 @@ class Settings extends Params {
       params: _patchMap.containsKey(Settings$.params)
           ? (_patchMap[Settings$.params] is Function)
                 ? _patchMap[Settings$.params](this.params)
+                : (_patchMap[Settings$.params] is Patch)
+                ? _patchMap[Settings$.params].applyTo(this.params)
                 : _patchMap[Settings$.params]
           : this.params,
     );
@@ -43,6 +45,8 @@ class Settings extends Params {
       params: _patchMap.containsKey(Params$.params)
           ? (_patchMap[Params$.params] is Function)
                 ? _patchMap[Params$.params](this.params)
+                : (_patchMap[Params$.params] is Patch)
+                ? _patchMap[Params$.params].applyTo(this.params)
                 : _patchMap[Params$.params]
           : this.params,
     );
@@ -75,7 +79,7 @@ class Settings extends Params {
 
   dynamic _sanitizeJson(dynamic json) {
     if (json is Map<String, dynamic>) {
-      json.remove('_className_');
+      json.remove('__typename');
       return json..forEach((key, value) {
         json[key] = _sanitizeJson(value);
       });
@@ -95,7 +99,7 @@ extension SettingsSerialization on Settings {
 
   dynamic _sanitizeJson(dynamic json) {
     if (json is Map<String, dynamic>) {
-      json.remove('_className_');
+      json.remove('__typename');
       return json..forEach((key, value) {
         json[key] = _sanitizeJson(value);
       });

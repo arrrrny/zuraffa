@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:args/command_runner.dart';
+import '../models/generated_file.dart';
 import '../core/plugin_system/capability.dart';
 import '../core/plugin_system/plan_store.dart';
 import '../utils/string_utils.dart';
@@ -110,7 +111,9 @@ class CapabilityCommand extends Command<void> {
       for (final key in props.keys) {
         final prop = props[key] as Map<String, dynamic>;
         final isList = prop['type'] == 'array';
-        final flagName = StringUtils.camelToSnake(key).replaceAll('_', '-');
+        final flagName = key.contains('-')
+            ? key
+            : StringUtils.camelToSnake(key).replaceAll('_', '-');
 
         if (argResults?.wasParsed(flagName) == true ||
             (!args.containsKey(key) && argResults?[flagName] != null)) {
@@ -128,14 +131,29 @@ class CapabilityCommand extends Command<void> {
     if (argResults != null && argResults!.rest.isNotEmpty) {
       final requiredFields = schema['required'] as List?;
       if (requiredFields != null) {
-        for (
-          var i = 0;
-          i < argResults!.rest.length && i < requiredFields.length;
-          i++
-        ) {
-          final key = requiredFields[i].toString();
-          if (!args.containsKey(key)) {
-            args[key] = argResults!.rest[i];
+        for (var i = 0; i < argResults!.rest.length; i++) {
+          if (i < requiredFields.length) {
+            final key = requiredFields[i].toString();
+            final prop = (schema['properties'] as Map)[key] as Map?;
+            final isList = prop?['type'] == 'array';
+
+            if (isList) {
+              final list = args[key] as List? ?? [];
+              list.add(argResults!.rest[i]);
+              args[key] = list;
+            } else if (!args.containsKey(key)) {
+              args[key] = argResults!.rest[i];
+            }
+          } else {
+            // Add extra arguments to the last required field if it's a list
+            final lastKey = requiredFields.last.toString();
+            final prop = (schema['properties'] as Map)[lastKey] as Map?;
+            final isList = prop?['type'] == 'array';
+            if (isList) {
+              final list = args[lastKey] as List? ?? [];
+              list.add(argResults!.rest[i]);
+              args[lastKey] = list;
+            }
           }
         }
       }
@@ -180,9 +198,40 @@ class CapabilityCommand extends Command<void> {
     } else {
       final result = await capability.execute(args);
       if (result.success) {
-        print('✅ Success! Created/Modified:');
-        for (final file in result.files) {
-          print('  $file');
+        final files =
+            result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+        if (files.isEmpty) {
+          print('✅ Success! (No changes required)');
+          return;
+        }
+
+        final created = files.where((f) => f.action == 'created').toList();
+        final overwritten = files
+            .where((f) => f.action == 'overwritten')
+            .toList();
+        final skipped = files.where((f) => f.action == 'skipped').toList();
+        final deleted = files.where((f) => f.action == 'deleted').toList();
+
+        if (created.isNotEmpty ||
+            overwritten.isNotEmpty ||
+            deleted.isNotEmpty) {
+          print('✅ Success! Created/Modified:');
+          for (final file in created) {
+            print('  ✨ ${file.path}');
+          }
+          for (final file in overwritten) {
+            print('  📝 ${file.path}');
+          }
+          for (final file in deleted) {
+            print('  🗑 ${file.path}');
+          }
+        }
+
+        if (skipped.isNotEmpty) {
+          print('\n⏭ Skipped (use --force to overwrite):');
+          for (final file in skipped) {
+            print('  ${file.path}');
+          }
         }
       } else {
         print('❌ Failed: ${result.message}');

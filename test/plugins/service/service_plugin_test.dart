@@ -147,14 +147,8 @@ void main() {
       );
       final content = serviceFile.readAsStringSync();
 
-      expect(
-        content.contains("import '../entities/barcode/barcode.dart';"),
-        isTrue,
-      );
-      expect(
-        content.contains("import '../entities/listing/listing.dart';"),
-        isTrue,
-      );
+      expect(content.contains("domain/entities/barcode/barcode.dart"), isTrue);
+      expect(content.contains("domain/entities/listing/listing.dart"), isTrue);
     },
   );
 
@@ -187,13 +181,10 @@ void main() {
       );
       final content = serviceFile.readAsStringSync();
 
-      expect(
-        content.contains("import '../entities/barcode/barcode.dart';"),
-        isTrue,
-      );
+      expect(content.contains("domain/entities/barcode/barcode.dart"), isTrue);
       expect(
         content.contains(
-          "import '../entities/barcode_listing/barcode_listing.dart';",
+          "domain/entities/barcode_listing/barcode_listing.dart",
         ),
         isTrue,
       );
@@ -228,14 +219,9 @@ void main() {
     final content = usecaseFile.readAsStringSync();
     print('--- USECASE CONTENT ---\n$content\n----------------------');
 
+    expect(content.contains("domain/entities/barcode/barcode.dart"), isTrue);
     expect(
-      content.contains("import '../../entities/barcode/barcode.dart';"),
-      isTrue,
-    );
-    expect(
-      content.contains(
-        "import '../../entities/barcode_listing/barcode_listing.dart';",
-      ),
+      content.contains("domain/entities/barcode_listing/barcode_listing.dart"),
       isTrue,
     );
   });

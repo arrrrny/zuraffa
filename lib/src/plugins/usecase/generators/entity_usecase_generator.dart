@@ -1,6 +1,4 @@
-import 'dart:io';
 import 'package:code_builder/code_builder.dart';
-
 import 'package:path/path.dart' as path;
 
 import '../../../core/ast/append_executor.dart';
@@ -8,42 +6,49 @@ import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/builder/patterns/common_patterns.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
+import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 
 /// Generates entity-based use cases for the domain layer.
-///
-/// Builds standard CRUD and stream use case classes that delegate to
-/// domain repositories.
-///
-/// Example:
-/// ```dart
-/// final generator = EntityUseCaseGenerator(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final files = await generator.generate(GeneratorConfig(name: 'Product'));
-/// ```
 class EntityUseCaseGenerator {
   final String outputDir;
   final GeneratorOptions options;
   final AppendExecutor appendExecutor;
+  final FileSystem fileSystem;
 
   EntityUseCaseGenerator({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     this.appendExecutor = const AppendExecutor(),
-  });
+    FileSystem? fileSystem,
+  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     final files = <GeneratedFile>[];
+    final validMethods = [
+      'get',
+      'getList',
+      'list',
+      'create',
+      'update',
+      'delete',
+      'watch',
+      'watchList',
+    ];
+
     for (final method in config.methods) {
+      if (!validMethods.contains(method)) {
+        if (config.verbose) {
+          print('  Skip unknown method: $method');
+        }
+        continue;
+      }
       files.add(await _generateForMethod(config, method));
     }
     if (config.revert && config.methods.isEmpty) {
-      // Revert based on name if no methods specified
       final entitySnake = config.nameSnake;
       final usecaseDirPath = path.join(
         outputDir,
@@ -62,13 +67,14 @@ class EntityUseCaseGenerator {
       ];
       for (final fileName in possibleFiles) {
         final filePath = path.join(usecaseDirPath, fileName);
-        if (File(filePath).existsSync()) {
+        if (await fileSystem.exists(filePath)) {
           files.add(
             await FileUtils.deleteFile(
               filePath,
               'usecase',
               dryRun: options.dryRun,
               verbose: options.verbose,
+              fileSystem: fileSystem,
             ),
           );
         }
@@ -82,7 +88,14 @@ class EntityUseCaseGenerator {
     String method,
   ) async {
     final entityName = config.name;
-    final repoName = config.effectiveRepos.first;
+    final hasService = config.hasService;
+    final sourceName = hasService
+        ? config.effectiveService!
+        : (config.effectiveRepos.isNotEmpty
+              ? config.effectiveRepos.first
+              : '${entityName}Repository');
+    final sourceField = hasService ? '_service' : '_repository';
+
     String className;
     TypeReference baseClass;
     Reference paramsType;
@@ -103,7 +116,7 @@ class EntityUseCaseGenerator {
           );
           paramsType = refer('NoParams');
           executeExpression = refer(
-            '_repository',
+            sourceField,
           ).property('get').call([refer('QueryParams').constInstance([])]);
         } else {
           baseClass = TypeReference(
@@ -124,7 +137,7 @@ class EntityUseCaseGenerator {
               ..types.add(refer(entityName)),
           );
           executeExpression = refer(
-            '_repository',
+            sourceField,
           ).property('get').call([refer('params')]);
         }
         returnType = refer(entityName);
@@ -159,7 +172,7 @@ class EntityUseCaseGenerator {
             ..types.add(refer(entityName)),
         );
         executeExpression = refer(
-          '_repository',
+          sourceField,
         ).property('getList').call([refer('params')]);
         break;
       case 'create':
@@ -172,7 +185,7 @@ class EntityUseCaseGenerator {
         paramsType = refer(entityName);
         returnType = refer(entityName);
         executeExpression = refer(
-          '_repository',
+          sourceField,
         ).property('create').call([refer('params')]);
         break;
       case 'update':
@@ -206,7 +219,7 @@ class EntityUseCaseGenerator {
         );
         returnType = refer(entityName);
         executeExpression = refer(
-          '_repository',
+          sourceField,
         ).property('update').call([refer('params')]);
         break;
       case 'delete':
@@ -229,7 +242,7 @@ class EntityUseCaseGenerator {
         );
         returnType = refer('void');
         executeExpression = refer(
-          '_repository',
+          sourceField,
         ).property('delete').call([refer('params')]);
         isCompletable = true;
         needsEntityImport = false;
@@ -244,7 +257,7 @@ class EntityUseCaseGenerator {
           );
           paramsType = refer('NoParams');
           executeExpression = refer(
-            '_repository',
+            sourceField,
           ).property('watch').call([refer('QueryParams').constInstance([])]);
         } else {
           baseClass = TypeReference(
@@ -265,7 +278,7 @@ class EntityUseCaseGenerator {
               ..types.add(refer(entityName)),
           );
           executeExpression = refer(
-            '_repository',
+            sourceField,
           ).property('watch').call([refer('params')]);
         }
         returnType = refer(entityName);
@@ -300,7 +313,7 @@ class EntityUseCaseGenerator {
             ..types.add(refer(entityName)),
         );
         executeExpression = refer(
-          '_repository',
+          sourceField,
         ).property('watchList').call([refer('params')]);
         isStream = true;
         break;
@@ -331,12 +344,23 @@ class EntityUseCaseGenerator {
         config,
         depth: 2,
         includeDomain: false,
+        fileSystem: fileSystem,
       );
       imports.addAll(entityImports);
     }
-    final repoPath =
-        '../../repositories/${StringUtils.camelToSnake(repoName.replaceAll('Repository', ''))}_repository.dart';
-    imports.add(repoPath);
+
+    if (hasService) {
+      final serviceSnake = StringUtils.camelToSnake(
+        sourceName.replaceAll('Service', ''),
+      );
+      final servicePath =
+          '../../services/${config.effectiveDomain}/${serviceSnake}_service.dart';
+      imports.add(servicePath);
+    } else {
+      final repoPath =
+          '../../repositories/${StringUtils.camelToSnake(sourceName.replaceAll('Repository', ''))}_repository.dart';
+      imports.add(repoPath);
+    }
 
     final executeMethod = Method((m) {
       m
@@ -383,18 +407,18 @@ class EntityUseCaseGenerator {
         );
     });
 
-    final repoField = Field(
+    final sourceFieldRef = Field(
       (f) => f
         ..modifier = FieldModifier.final$
-        ..type = refer(repoName)
-        ..name = '_repository',
+        ..type = refer(sourceName)
+        ..name = sourceField,
     );
     final ctor = Constructor(
       (c) => c
         ..requiredParameters.add(
           Parameter(
             (p) => p
-              ..name = '_repository'
+              ..name = sourceField
               ..toThis = true,
           ),
         ),
@@ -403,7 +427,7 @@ class EntityUseCaseGenerator {
       (c) => c
         ..name = className
         ..extend = baseClass
-        ..fields.add(repoField)
+        ..fields.add(sourceFieldRef)
         ..constructors.add(ctor)
         ..methods.add(executeMethod),
     );
@@ -411,7 +435,10 @@ class EntityUseCaseGenerator {
       specs: [useCaseClass],
       directives: imports.map(Directive.import),
     );
-    final content = const SpecLibrary().emitLibrary(library);
+    final content = const SpecLibrary().emitLibrary(
+      library,
+      leadingComment: '// Generated by zfa for: ${config.name}',
+    );
 
     return _writeOrAppend(
       config: config,
@@ -432,15 +459,20 @@ class EntityUseCaseGenerator {
     required String content,
   }) async {
     if (config.revert) {
-      return FileUtils.deleteFile(
+      return FileUtils.writeFile(
         filePath,
+        content,
         'usecase',
+        force: true,
         dryRun: options.dryRun,
         verbose: options.verbose,
+        revert: true,
+        skipRevertIfExisted: true,
+        fileSystem: fileSystem,
       );
     }
 
-    if (File(filePath).existsSync()) {
+    if (await fileSystem.exists(filePath)) {
       if (options.force) {
         return FileUtils.writeFile(
           filePath,
@@ -449,10 +481,11 @@ class EntityUseCaseGenerator {
           force: true,
           dryRun: options.dryRun,
           verbose: options.verbose,
+          fileSystem: fileSystem,
         );
       }
 
-      var updatedSource = await File(filePath).readAsString();
+      var updatedSource = await fileSystem.read(filePath);
       final result = appendExecutor.execute(
         AppendRequest.method(
           source: updatedSource,
@@ -475,6 +508,7 @@ class EntityUseCaseGenerator {
         force: true,
         dryRun: options.dryRun,
         verbose: options.verbose,
+        fileSystem: fileSystem,
       );
     }
 
@@ -485,6 +519,7 @@ class EntityUseCaseGenerator {
       force: options.force,
       dryRun: options.dryRun,
       verbose: options.verbose,
+      fileSystem: fileSystem,
     );
   }
 

@@ -15,7 +15,7 @@ extension TestBuilderOrchestrator on TestBuilder {
     final testDirPath = path.joinAll(testPathParts);
     final filePath = path.join(testDirPath, fileName);
 
-    final packageName = _resolvePackageName(projectRoot);
+    final packageName = await _resolvePackageName(projectRoot);
 
     final directives = [
       Directive.import('package:flutter_test/flutter_test.dart'),
@@ -37,9 +37,11 @@ extension TestBuilderOrchestrator on TestBuilder {
         ),
       );
 
-      final usecaseSnake = StringUtils.camelToSnake(usecase);
+      final usecaseSnake = StringUtils.camelToSnake(
+        usecase.replaceAll('UseCase', ''),
+      );
       // Find the actual domain for this usecase
-      final usecaseDomain = _findUseCaseDomain(
+      final usecaseDomain = await _findUseCaseDomain(
         usecaseSnake,
         config.effectiveDomain,
       );
@@ -166,6 +168,7 @@ extension TestBuilderOrchestrator on TestBuilder {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fileSystem,
     );
   }
 }

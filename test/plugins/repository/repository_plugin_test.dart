@@ -89,9 +89,21 @@ void main() {
       generateRepository: true,
       outputDir: outputDir,
     );
-    final files = await plugin.generate(config);
-    final content = files.first.content ?? '';
-    expect(content.contains('custom()'), isTrue);
-    expect(content.contains('Future<User> get'), isTrue);
+
+    await plugin.generate(config);
+
+    final repoFile = File(filePath);
+    final repoContent = repoFile.readAsStringSync();
+    expect(repoContent.contains('custom()'), isTrue);
+    expect(
+      repoContent.contains("import augment 'user_repository.augment.dart';"),
+      isTrue,
+    );
+
+    final augmentFile = File(
+      '$outputDir/domain/repositories/user_repository.augment.dart',
+    );
+    expect(augmentFile.existsSync(), isTrue);
+    expect(augmentFile.readAsStringSync().contains('Future<User> get'), isTrue);
   });
 }

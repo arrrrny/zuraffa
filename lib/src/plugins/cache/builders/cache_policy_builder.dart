@@ -74,7 +74,7 @@ extension CacheBuilderPolicy on CacheBuilder {
       'setTimestamp': setTimestamp,
       'removeTimestamp': removeTimestamp,
       'clearAll': clearAll,
-      'ttl': ?ttlExpression,
+      if (ttlExpression != null) 'ttl': ttlExpression,
     };
 
     final policyCall = refer(policyClass).call([], policyArguments);
@@ -103,6 +103,7 @@ extension CacheBuilderPolicy on CacheBuilder {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fileSystem,
     );
   }
 

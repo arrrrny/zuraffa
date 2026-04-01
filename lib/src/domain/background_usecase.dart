@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/cancel_token.dart';
 import '../core/failure.dart';
+import '../core/failure_reporter_registry.dart';
 import '../core/loggable.dart';
 import '../core/result.dart';
 
@@ -251,7 +252,13 @@ abstract class BackgroundUseCase<T, Params> with Loggable {
       logger.fine('$runtimeType isolate spawned successfully');
     } catch (e, stackTrace) {
       logger.severe('$runtimeType failed to spawn isolate', e, stackTrace);
-      _controller?.add(Result.failure(AppFailure.from(e, stackTrace)));
+      final failure = AppFailure.from(e, stackTrace);
+      FailureReporterRegistry.instance.reportFailure(
+        failure,
+        stackTrace: stackTrace,
+        attributes: {'usecase': '$runtimeType'},
+      );
+      _controller?.add(Result.failure(failure));
       _stop();
     }
   }
@@ -267,7 +274,13 @@ abstract class BackgroundUseCase<T, Params> with Loggable {
           : null;
 
       logger.warning('$runtimeType isolate error', error, stackTrace);
-      _controller?.add(Result.failure(AppFailure.from(error, stackTrace)));
+      final failure = AppFailure.from(error, stackTrace);
+      FailureReporterRegistry.instance.reportFailure(
+        failure,
+        stackTrace: stackTrace,
+        attributes: {'usecase': '$runtimeType'},
+      );
+      _controller?.add(Result.failure(failure));
       _stop();
       return;
     }
@@ -293,9 +306,13 @@ abstract class BackgroundUseCase<T, Params> with Loggable {
           message.error,
           message.stackTrace,
         );
-        _controller?.add(
-          Result.failure(AppFailure.from(message.error!, message.stackTrace)),
+        final taskFailure = AppFailure.from(message.error!, message.stackTrace);
+        FailureReporterRegistry.instance.reportFailure(
+          taskFailure,
+          stackTrace: message.stackTrace,
+          attributes: {'usecase': '$runtimeType'},
         );
+        _controller?.add(Result.failure(taskFailure));
         _stop();
         return;
       }

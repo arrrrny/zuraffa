@@ -27,7 +27,7 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
     if (config.useCaseType == 'stream') {
       final body = depField.isEmpty
           ? '// TODO: Implement logic\n  throw UnimplementedError();'
-          : 'return $depField.$methodName(params);';
+          : 'return $depField.$methodName(${config.hasMultipleParams ? config.multipleParams.map((p) => 'params.${p.name}').join(', ') : 'params'});';
       return [
         '@override\nStream<$returnsType> execute($paramsType params, CancelToken? cancelToken) {\n  $body\n}',
       ];
@@ -36,7 +36,7 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
     if (config.useCaseType == 'sync') {
       final body = depField.isEmpty
           ? '// TODO: Implement logic\n  throw UnimplementedError();'
-          : 'return $depField.$methodName(params);';
+          : 'return $depField.$methodName(${config.hasMultipleParams ? config.multipleParams.map((p) => 'params.${p.name}').join(', ') : 'params'});';
       return [
         '@override\n$returnsType execute($paramsType params) {\n  $body\n}',
       ];
@@ -47,7 +47,7 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
         : 'Future<$returnsType>';
     final body = depField.isEmpty
         ? '// TODO: Implement logic\n  throw UnimplementedError();'
-        : 'return await $depField.$methodName(params);';
+        : 'return await $depField.$methodName(${config.hasMultipleParams ? config.multipleParams.map((p) => 'params.${p.name}').join(', ') : 'params'});';
     return [
       '@override\n$returnTypeRef execute($paramsType params, CancelToken? cancelToken) async {\n  cancelToken?.throwIfCancelled();\n  $body\n}',
     ];
@@ -63,7 +63,7 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
     if (config.revert) {
       if (config.appendToExisting) {
         if (options.verbose) {
-          print('  ⚠️ Cannot revert append operation for $filePath');
+          print('  Cannot revert append operation for $filePath');
         }
         return GeneratedFile(
           path: filePath,
@@ -71,18 +71,23 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
           action: 'skipped',
         );
       }
-      return FileUtils.deleteFile(
+      return FileUtils.writeFile(
         filePath,
+        content,
         'usecase',
+        force: true,
         dryRun: options.dryRun,
         verbose: options.verbose,
+        revert: true,
+        skipRevertIfExisted: true,
+        fileSystem: fileSystem,
       );
     }
 
     if (config.appendToExisting &&
-        File(filePath).existsSync() &&
+        await fileSystem.exists(filePath) &&
         !config.force) {
-      var updatedSource = await File(filePath).readAsString();
+      var updatedSource = await fileSystem.read(filePath);
       var changed = false;
       for (final methodSource in methodSources) {
         final result = appendExecutor.execute(
@@ -113,6 +118,7 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
         dryRun: options.dryRun,
         verbose: options.verbose,
         revert: false,
+        fileSystem: fileSystem,
       );
     }
 
@@ -124,6 +130,7 @@ extension CustomUseCaseGeneratorAppend on CustomUseCaseGenerator {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fileSystem,
     );
   }
 }
