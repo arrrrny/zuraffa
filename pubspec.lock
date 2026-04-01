@@ -347,10 +347,11 @@ packages:
   json_serializable:
     dependency: "direct main"
     description:
-      path: "../json_serializable.dart/json_serializable"
-      relative: true
-    source: path
-    version: "6.13.0"
+      name: json_serializable
+      sha256: fbcf404b03520e6e795f6b9b39badb2b788407dfc0a50cf39158a6ae1ca78925
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.13.1"
   leak_tracker:
     dependency: transitive
     description:
@@ -791,17 +792,19 @@ packages:
   zorphy:
     dependency: "direct main"
     description:
-      path: "../zorphy/zorphy"
-      relative: true
-    source: path
-    version: "1.6.4"
+      name: zorphy
+      sha256: "02f2f2422a346070bc5429fb5efbbb86c58ec7d69b7c1e577ed52a2a13293bab"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.6.5"
   zorphy_annotation:
     dependency: "direct main"
     description:
-      path: "../zorphy/zorphy_annotation"
-      relative: true
-    source: path
-    version: "1.6.4"
+      name: zorphy_annotation
+      sha256: cf7b469b2c8724bd47f3640be8d9852f8490d26afdb76d463fe457c174e39cb9
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.6.5"
 sdks:
   dart: ">=3.11.0 <4.0.0"
   flutter: ">=3.41.0"
