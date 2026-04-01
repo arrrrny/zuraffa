@@ -2,6 +2,7 @@ import 'package:code_builder/code_builder.dart';
 
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
+import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/entity_analyzer.dart';
@@ -18,6 +19,7 @@ class MockDataBuilder {
   final MockValueBuilder valueBuilder;
   final MockEntityHelper entityHelper;
   final MockTypeHelper typeHelper;
+  final FileSystem fileSystem;
 
   MockDataBuilder({
     required this.outputDir,
@@ -26,10 +28,12 @@ class MockDataBuilder {
     MockValueBuilder? valueBuilder,
     MockEntityHelper? entityHelper,
     MockTypeHelper? typeHelper,
+    FileSystem? fileSystem,
   }) : specLibrary = specLibrary ?? const SpecLibrary(),
        valueBuilder = valueBuilder ?? MockValueBuilder(outputDir: outputDir),
        entityHelper = entityHelper ?? const MockEntityHelper(),
-       typeHelper = typeHelper ?? const MockTypeHelper();
+       typeHelper = typeHelper ?? const MockTypeHelper(),
+       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 
   Future<GeneratedFile> generateMockDataFile(GeneratorConfig config) async {
     final entityName = config.repo != null
@@ -75,8 +79,16 @@ class MockDataBuilder {
     final entityCamel = StringUtils.pascalToCamel(entityName);
     final collectionName = '${entityCamel}s';
 
-    final isEnum = EntityAnalyzer.isEnum(entityName, outputDir);
-    final entityFields = EntityAnalyzer.analyzeEntity(entityName, outputDir);
+    final isEnum = EntityAnalyzer.isEnum(
+      entityName,
+      outputDir,
+      fileSystem: fileSystem,
+    );
+    final entityFields = EntityAnalyzer.analyzeEntity(
+      entityName,
+      outputDir,
+      fileSystem: fileSystem,
+    );
 
     final mockInstances = valueBuilder.generateMockDataInstances(
       entityName,
@@ -173,7 +185,11 @@ class MockDataBuilder {
                 ),
               )
               ..body = Block((b) {
-                if (EntityAnalyzer.isEnum(entityName, outputDir)) {
+                if (EntityAnalyzer.isEnum(
+                  entityName,
+                  outputDir,
+                  fileSystem: fileSystem,
+                )) {
                   b.statements.add(
                     refer(entityName)
                         .property('values')
@@ -221,6 +237,7 @@ class MockDataBuilder {
       verbose: options.verbose,
       revert: config.revert,
       skipRevertIfExisted: true,
+      fileSystem: fileSystem,
     );
   }
 }

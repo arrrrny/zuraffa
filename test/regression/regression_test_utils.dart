@@ -38,6 +38,7 @@ dependencies:
   zuraffa:
     path: ${path.normalize(repoRoot)}
   get_it: ^9.0.0
+  shadcn_ui: ^0.1.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -1,13 +1,14 @@
-import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:code_builder/code_builder.dart';
 
 import '../../../core/ast/append_executor.dart';
-import '../../../core/ast/strategies/append_strategy.dart';
+
 import '../../../core/ast/ast_helper.dart';
+import '../../../core/ast/augmentation_builder.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../../../core/plugin_system/discovery_engine.dart';
+import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -22,43 +23,35 @@ part 'implementation_generator_simple.dart';
 ///
 /// Builds data repository implementations that delegate to data sources,
 /// with optional cache integration and append behavior.
-///
-/// Example:
-/// ```dart
-/// final generator = RepositoryImplementationGenerator(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final file = await generator.generate(GeneratorConfig(name: 'Product'));
-/// ```
 class RepositoryImplementationGenerator {
   final String outputDir;
   final GeneratorOptions options;
   final AppendExecutor appendExecutor;
   final DiscoveryEngine discovery;
-
+  final FileSystem fileSystem;
   final SpecLibrary specLibrary;
+  final AugmentationBuilder augmentationBuilder;
 
   /// Creates a [RepositoryImplementationGenerator].
-  ///
-  /// @param outputDir Target directory for generated files.
-  /// @param options Generation flags for writing behavior and logging.
-  /// @param dryRun Deprecated: use [options].
-  /// @param force Deprecated: use [options].
-  /// @param verbose Deprecated: use [options].
-  /// @param appendExecutor Optional append executor override.
-  /// @param specLibrary Optional spec library override.
   RepositoryImplementationGenerator({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     this.appendExecutor = const AppendExecutor(),
     this.specLibrary = const SpecLibrary(),
-  }) : discovery = DiscoveryEngine(projectRoot: outputDir);
+    AugmentationBuilder? augmentationBuilder,
+    DiscoveryEngine? discovery,
+    FileSystem? fileSystem,
+  }) : augmentationBuilder =
+           augmentationBuilder ?? AugmentationBuilder(outputDir: outputDir),
+       fileSystem = fileSystem ?? FileSystem.create(root: outputDir),
+       discovery =
+           discovery ??
+           DiscoveryEngine(
+             projectRoot: outputDir,
+             fileSystem: fileSystem ?? FileSystem.create(root: outputDir),
+           );
 
   /// Generates a repository implementation for the given [config].
-  ///
-  /// @param config Generator configuration describing the entity and options.
-  /// @returns Generated repository file metadata.
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final entityName = config.name;
     final entitySnake = config.nameSnake;
@@ -67,9 +60,20 @@ class RepositoryImplementationGenerator {
     final dataRepoName = 'Data${entityName}Repository';
 
     final fileName = 'data_${entitySnake}_repository.dart';
-    final filePath = '$outputDir/data/repositories/$fileName';
+    final filePath = p.join(outputDir, 'data', 'repositories', fileName);
 
     final methods = <Method>[];
+
+    if (config.isCustomUseCase && config.appendToExisting) {
+      methods.add(
+        _generateSimpleMethod(
+          config,
+          config.getRepoMethodName(),
+          entityName,
+          entityCamel,
+        ),
+      );
+    }
 
     if (config.enableCache) {
       for (final method in config.methods) {
@@ -276,8 +280,9 @@ class RepositoryImplementationGenerator {
     final importPaths = _buildImportPaths(config, entitySnake);
 
     // If file exists, handle append/remove/add
-    if (File(filePath).existsSync() && !config.force) {
-      final existing = await File(filePath).readAsString();
+    if (await fileSystem.exists(filePath) &&
+        (config.appendToExisting || !config.force)) {
+      final existing = await fileSystem.read(filePath);
 
       if (config.revert) {
         if (!config.appendToExisting) {
@@ -309,69 +314,117 @@ class RepositoryImplementationGenerator {
             verbose: options.verbose,
             revert: true,
             skipRevertIfExisted: true,
+            fileSystem: fileSystem,
           );
         }
 
-        // Remove methods
-        var reverted = _removeMethods(
-          source: existing,
+        // Handle Revert for Append (remove methods from augmentation)
+        await augmentationBuilder.remove(
+          hostPath: filePath,
           className: dataRepoName,
-          methods: methods,
+          members: methods,
+          dryRun: options.dryRun,
         );
 
-        // Remove fields
-        reverted = _removeFields(
-          source: reverted,
-          className: dataRepoName,
-          fields: fields,
+        var source = existing;
+        final augmentFileName = p
+            .basename(filePath)
+            .replaceFirst('.dart', '.augment.dart');
+        source = const AstHelper().removeAugment(
+          source: source,
+          augmentPath: augmentFileName,
         );
 
-        // Remove constructors
-        reverted = _removeConstructors(
-          source: reverted,
-          className: dataRepoName,
-          constructors: constructors,
-        );
+        // Also clean up any extra fields that were added
+        for (final field in fields) {
+          source = const AstHelper().removeFieldFromClass(
+            source: source,
+            className: dataRepoName,
+            fieldName: field.name,
+          );
+        }
 
-        if (const AstHelper().isClassEmpty(reverted, dataRepoName)) {
+        if (const AstHelper().isClassEmpty(source, dataRepoName)) {
           return FileUtils.deleteFile(
             filePath,
             'repository_implementation',
             dryRun: options.dryRun,
             verbose: options.verbose,
+            fileSystem: fileSystem,
           );
         }
 
         return FileUtils.writeFile(
           filePath,
-          reverted,
+          source,
           'repository_implementation',
           force: true,
           dryRun: options.dryRun,
           verbose: options.verbose,
           revert: false,
+          fileSystem: fileSystem,
         );
       }
 
       if (config.appendToExisting) {
-        var updated = _appendMethods(
-          source: existing,
-          className: dataRepoName,
-          methods: methods,
-          imports: importPaths,
+        var source = existing;
+        final augmentFileName = p
+            .basename(filePath)
+            .replaceFirst('.dart', '.augment.dart');
+
+        // 1. Add 'import augment' to host file
+        source = const AstHelper().addAugment(
+          source: source,
+          augmentPath: augmentFileName,
         );
-        updated = _appendFields(
-          source: updated,
-          className: dataRepoName,
-          fields: fields,
-        );
-        return FileUtils.writeFile(
+
+        // 2. Add missing imports to host file
+        for (final importPath in importPaths) {
+          source = const AstHelper().addImport(
+            source: source,
+            importPath: importPath,
+          );
+        }
+
+        // 3. Add missing fields to host file
+        for (final field in fields) {
+          final fieldSource = field
+              .accept(DartEmitter(useNullSafetySyntax: true))
+              .toString();
+          if (!source.contains(
+            'final ${field.type?.accept(DartEmitter())} ${field.name};',
+          )) {
+            source = const AstHelper().addFieldToClass(
+              source: source,
+              className: dataRepoName,
+              fieldSource: fieldSource,
+            );
+          }
+        }
+
+        await FileUtils.writeFile(
           filePath,
-          updated,
+          source,
           'repository_implementation',
           force: true,
           dryRun: options.dryRun,
           verbose: options.verbose,
+          fileSystem: fileSystem,
+        );
+
+        // 4. Generate/Update the augmentation file
+        final augmentationFile = await augmentationBuilder.generate(
+          hostPath: filePath,
+          className: dataRepoName,
+          members: methods,
+          imports: importPaths,
+          dryRun: options.dryRun,
+        );
+
+        return GeneratedFile(
+          path: augmentationFile.path,
+          type: 'repository_implementation',
+          action: 'updated',
         );
       }
 
@@ -410,6 +463,7 @@ class RepositoryImplementationGenerator {
       force: config.force,
       dryRun: options.dryRun,
       verbose: options.verbose,
+      fileSystem: fileSystem,
     );
   }
 }

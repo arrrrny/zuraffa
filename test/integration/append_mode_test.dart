@@ -38,6 +38,9 @@ void main() {
       ),
     );
     final initialResult = await initial.generate();
+    if (!initialResult.success) {
+      print('Initial generation failed: ${initialResult.errors}');
+    }
     expect(initialResult.success, isTrue);
 
     final append = CodeGenerator(
@@ -82,6 +85,11 @@ void main() {
       '$outputDir/data/datasources/product/product_datasource.augment.dart',
     );
 
+    if (!repoFile.readAsStringSync().contains(
+      "import augment 'product_repository.augment.dart';",
+    )) {
+      print('Actual Repository Content:\n${repoFile.readAsStringSync()}');
+    }
     expect(
       repoFile.readAsStringSync().contains(
         "import augment 'product_repository.augment.dart';",

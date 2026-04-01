@@ -14,23 +14,22 @@ class PlanStore {
 
   PlanStore._();
 
-  File _getPlanFile(String planId) {
-    // final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
-    final baseDir = _rootDirectory ?? Directory.current.path;
-    final planDir = path.join(baseDir, '.zuraffa', 'plans');
+  File _getPlanFile(String planId, {String? baseDir}) {
+    final root = baseDir ?? _rootDirectory ?? Directory.current.path;
+    final planDir = path.join(root, '.zuraffa', 'plans');
     return File(path.join(planDir, '$planId.json'));
   }
 
-  Future<void> savePlan(EffectReport report) async {
-    final file = _getPlanFile(report.planId);
+  Future<void> savePlan(EffectReport report, {String? baseDir}) async {
+    final file = _getPlanFile(report.planId, baseDir: baseDir);
     if (!file.parent.existsSync()) {
       file.parent.createSync(recursive: true);
     }
     await file.writeAsString(jsonEncode(report.toJson()));
   }
 
-  Future<EffectReport?> loadPlan(String planId) async {
-    final file = _getPlanFile(planId);
+  Future<EffectReport?> loadPlan(String planId, {String? baseDir}) async {
+    final file = _getPlanFile(planId, baseDir: baseDir);
     if (!file.existsSync()) {
       return null;
     }
@@ -55,8 +54,8 @@ class PlanStore {
     );
   }
 
-  Future<void> deletePlan(String planId) async {
-    final file = _getPlanFile(planId);
+  Future<void> deletePlan(String planId, {String? baseDir}) async {
+    final file = _getPlanFile(planId, baseDir: baseDir);
     if (file.existsSync()) {
       await file.delete();
     }

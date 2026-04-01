@@ -318,8 +318,8 @@ class GenerateCommand extends Command<void> {
         argResults!['from-json'] != null || argResults!['from-stdin'] == true;
 
     if (args.isEmpty && !isJsonInput) {
-      print('❌ Usage: zfa generate <Name> [options]');
-      print('\nRun: zfa generate --help for more options');
+      stderr.writeln('❌ Usage: zfa generate <Name> [options]');
+      stderr.writeln('\nRun: zfa generate --help for more options');
       exit(1);
     }
 
@@ -332,18 +332,24 @@ class GenerateCommand extends Command<void> {
     Map<String, dynamic>? jsonConfig;
     String name = args.isNotEmpty ? args.first : '';
 
-    if (argResults!['from-stdin'] == true) {
-      final input = stdin.readLineSync() ?? '';
-      jsonConfig = jsonDecode(input) as Map<String, dynamic>;
-      if (name.isEmpty) name = jsonConfig['name'] ?? '';
-    } else if (argResults!['from-json'] != null) {
-      final file = File(argResults!['from-json']);
-      if (!file.existsSync()) {
-        print('❌ JSON file not found: ${argResults!['from-json']}');
-        exit(1);
+    try {
+      if (argResults!['from-stdin'] == true) {
+        final input = stdin.readLineSync() ?? '';
+        jsonConfig = jsonDecode(input) as Map<String, dynamic>;
+        if (name.isEmpty) name = jsonConfig['name'] ?? '';
+      } else if (argResults!['from-json'] != null) {
+        final file = File(argResults!['from-json']);
+        if (!file.existsSync()) {
+          stderr.writeln('❌ JSON file not found: ${argResults!['from-json']}');
+          exit(1);
+        }
+        jsonConfig =
+            jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+        if (name.isEmpty) name = jsonConfig['name'] ?? '';
       }
-      jsonConfig = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
-      if (name.isEmpty) name = jsonConfig['name'] ?? '';
+    } catch (e) {
+      stderr.writeln('❌ Error parsing JSON input: $e');
+      exit(1);
     }
 
     // Resolve active plugins based on flags, presets and JSON config
@@ -355,8 +361,8 @@ class GenerateCommand extends Command<void> {
     );
 
     if (activePlugins.isEmpty) {
-      print('❌ No plugins selected for generation.');
-      return;
+      stderr.writeln('❌ No plugins selected for generation.');
+      exit(1);
     }
 
     final context = manager.buildContext(
@@ -383,8 +389,10 @@ class GenerateCommand extends Command<void> {
         context.data['domain'] == null &&
         context.data['vpc'] != true &&
         context.data['vpcs'] != true) {
-      print('❌ Error: --domain is required for custom UseCases');
-      print('   Usage: zfa generate <Name> --domain <domain_name> [options]');
+      stderr.writeln('❌ Error: --domain is required for custom UseCases');
+      stderr.writeln(
+        '   Usage: zfa generate <Name> --domain <domain_name> [options]',
+      );
       exit(1);
     }
 
@@ -409,7 +417,7 @@ class GenerateCommand extends Command<void> {
           }),
         );
       } else {
-        print('❌ $error');
+        stderr.writeln('❌ $error');
       }
       if (debug) {
         await artifactSaver.saveSimple(
@@ -433,6 +441,30 @@ class GenerateCommand extends Command<void> {
       }
 
       _printResult(files, context);
+    } on ArgumentError catch (e) {
+      if (argResults!['format'] == 'json') {
+        print(
+          jsonEncode({
+            'success': false,
+            'errors': [e.message],
+          }),
+        );
+      } else {
+        stderr.writeln('❌ Invalid argument: ${e.message}');
+      }
+      exit(1);
+    } on StateError catch (e) {
+      if (argResults!['format'] == 'json') {
+        print(
+          jsonEncode({
+            'success': false,
+            'errors': [e.message],
+          }),
+        );
+      } else {
+        stderr.writeln('❌ Error: ${e.message}');
+      }
+      exit(1);
     } catch (e, stack) {
       if (argResults!['format'] == 'json') {
         print(
@@ -442,7 +474,7 @@ class GenerateCommand extends Command<void> {
           }),
         );
       } else {
-        print('❌ Generation failed: $e');
+        stderr.writeln('❌ Generation failed: $e');
       }
 
       if (debug) {
@@ -458,11 +490,16 @@ class GenerateCommand extends Command<void> {
 
   String _findProjectRoot(String outputDir) {
     var dir = Directory.current.path;
-    while (dir != path.dirname(dir)) {
-      if (File(path.join(dir, 'pubspec.yaml')).existsSync()) {
-        return dir;
+    try {
+      while (dir != path.dirname(dir)) {
+        if (File(path.join(dir, 'pubspec.yaml')).existsSync()) {
+          return dir;
+        }
+        dir = path.dirname(dir);
       }
-      dir = path.dirname(dir);
+    } catch (e) {
+      // If we cannot get current working directory or access paths, return current directory
+      return Directory.current.path;
     }
     return Directory.current.path;
   }

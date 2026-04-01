@@ -367,7 +367,8 @@ void main() {
           ], workingDirectory: tempDir.path);
 
           expect(result.exitCode, isNot(equals(0)));
-          expect(result.stdout.toString().toLowerCase(), contains('not found'));
+          final output = result.stdout.toString() + result.stderr.toString();
+          expect(output.toLowerCase(), contains('not found'));
         },
         timeout: const Timeout(Duration(seconds: 60)),
       );
@@ -586,7 +587,8 @@ void main() {
           ], workingDirectory: tempDir.path);
 
           expect(result.exitCode, isNot(equals(0)));
-          expect(result.stdout.toString(), contains('Suggestions'));
+          final output = result.stdout.toString() + result.stderr.toString();
+          expect(output, contains('Suggestions'));
         },
         timeout: const Timeout(Duration(seconds: 60)),
       );
@@ -827,7 +829,8 @@ void main() {
 
           // Domain required for custom usecases
           expect(result.exitCode, isNot(equals(0)));
-          expect(result.stdout.toString().toLowerCase(), contains('--domain'));
+          final output = result.stdout.toString() + result.stderr.toString();
+          expect(output.toLowerCase(), contains('--domain'));
         },
         timeout: const Timeout(Duration(seconds: 60)),
       );

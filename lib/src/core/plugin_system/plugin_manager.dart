@@ -2,7 +2,9 @@ import 'dart:io';
 import 'package:args/args.dart';
 import '../../config/zfa_config.dart';
 import '../../cli/plugin_loader.dart';
+import '../context/file_system.dart';
 import '../context/progress_reporter.dart';
+import '../transaction/transactional_file_system.dart';
 import 'plugin_interface.dart';
 import 'plugin_registry.dart';
 import 'plugin_context.dart';
@@ -42,7 +44,8 @@ class PluginManager {
         final isDefault = _getConfigValue(configKey) ?? false;
 
         // Check if explicitly muted via --no-plugin_id
-        final isMuted = argResults != null &&
+        final isMuted =
+            argResults != null &&
             argResults.wasParsed(plugin.id) &&
             argResults[plugin.id] == false;
 
@@ -78,11 +81,12 @@ class PluginManager {
     required String name,
     required ArgResults? argResults,
     required List<ZuraffaPlugin> activePlugins,
+    String? overrideOutputDir,
   }) {
     final core = CoreConfig(
       name: name,
       projectRoot: projectRoot,
-      outputDir: argResults?['output'] ?? 'lib/src',
+      outputDir: overrideOutputDir ?? argResults?['output'] ?? 'lib/src',
       dryRun: argResults?['dry-run'] == true,
       force: argResults?['force'] == true,
       verbose: argResults?['verbose'] == true,
@@ -200,21 +204,31 @@ class PluginManager {
     data['name'] = name;
     data['output_dir'] = core.outputDir;
 
+    final baseFileSystem = FileSystem.create(root: projectRoot);
+    final transactionalFileSystem = TransactionalFileSystem(baseFileSystem);
+
     return PluginContext(
       core: core,
       data: data,
-      discovery: DiscoveryEngine(projectRoot: projectRoot),
+      discovery: DiscoveryEngine(
+        projectRoot: projectRoot,
+        fileSystem: transactionalFileSystem,
+      ),
+      fileSystem: transactionalFileSystem,
     );
   }
 
   Future<List<GeneratedFile>> _handleRevert(PluginContext context) async {
     final planId = 'last_run_${context.core.name}';
-    final report = await PlanStore.instance.loadPlan(planId);
+    final report = await PlanStore.instance.loadPlan(
+      planId,
+      baseDir: projectRoot,
+    );
 
     if (report == null) {
       if (context.core.verbose) {
         print(
-          '  ⚠️ No saved plan found for ${context.core.name}. Falling back to heuristic revert.',
+          '  ⚠️ No saved plan found for ${context.core.name} in $projectRoot. Falling back to heuristic revert.',
         );
       }
       return []; // Return empty to let legacy revert handle it or just fail gracefully
@@ -222,15 +236,16 @@ class PluginManager {
 
     final files = <GeneratedFile>[];
     if (context.core.verbose) {
-      print('  🔄 Reverting ${report.changes.length} changes...');
+      print(
+        '  🔄 Reverting ${report.changes.length} changes from plan in $projectRoot...',
+      );
     }
 
     for (final change in report.changes.reversed) {
-      final file = File(change.file);
       if (context.core.verbose) {
         print('    - Reverting ${change.action} for ${change.file}');
       }
-      if (!file.existsSync()) {
+      if (!await context.fileSystem.exists(change.file)) {
         if (context.core.verbose)
           print('      ⏭ File does not exist, skipping.');
         continue;
@@ -238,7 +253,7 @@ class PluginManager {
 
       if (change.action == 'create' || change.action == 'created') {
         if (!context.core.dryRun) {
-          await file.delete();
+          await context.fileSystem.delete(change.file);
           if (context.core.verbose) print('      🗑 Deleted file.');
         }
         files.add(
@@ -247,7 +262,10 @@ class PluginManager {
       } else if (change.action == 'update' || change.action == 'overwritten') {
         if (change.previousContent != null) {
           if (!context.core.dryRun) {
-            await file.writeAsString(change.previousContent!);
+            await context.fileSystem.write(
+              change.file,
+              change.previousContent!,
+            );
             if (context.core.verbose)
               print('      📝 Restored previous content.');
           }
@@ -263,7 +281,7 @@ class PluginManager {
       }
     }
 
-    await PlanStore.instance.deletePlan(planId);
+    await PlanStore.instance.deletePlan(planId, baseDir: projectRoot);
     return files;
   }
 
@@ -280,6 +298,9 @@ class PluginManager {
 
     final allFiles = <GeneratedFile>[];
 
+    // Sort plugins by dependencies before running
+    final sortedPlugins = registry.sortPlugins(activePlugins);
+
     // Initialize transaction for this run
     final transaction = GenerationTransaction(
       dryRun: context.core.dryRun,
@@ -287,12 +308,12 @@ class PluginManager {
     );
 
     if (progress != null) {
-      progress.started('Generating ${context.core.name}', activePlugins.length);
+      progress.started('Generating ${context.core.name}', sortedPlugins.length);
     }
 
     await GenerationTransaction.run(transaction, () async {
       // 1. Validate
-      for (final plugin in activePlugins) {
+      for (final plugin in sortedPlugins) {
         final result = await plugin.validate(context);
         if (!result.isValid) {
           throw StateError(
@@ -302,13 +323,13 @@ class PluginManager {
       }
 
       // 2. Before Generate
-      for (final plugin in activePlugins) {
+      for (final plugin in sortedPlugins) {
         await plugin.beforeGenerate(context);
       }
 
       // 3. Generate
       try {
-        for (final plugin in activePlugins) {
+        for (final plugin in sortedPlugins) {
           if (plugin is FileGeneratorPlugin) {
             if (progress != null) {
               progress.update(plugin.id);
@@ -321,20 +342,24 @@ class PluginManager {
         }
       } catch (e, stack) {
         // 4. On Error
-        for (final plugin in activePlugins) {
+        for (final plugin in sortedPlugins) {
           await plugin.onError(context, e, stack);
         }
         rethrow;
       }
 
-      // Commit the transaction
-      final result = await transaction.commit();
+      // Commit the transaction - MUST pass baseFileSystem (not transactional one to avoid recursion/confusion during final write)
+      final baseFs = context.fileSystem is TransactionalFileSystem
+          ? (context.fileSystem as TransactionalFileSystem).base
+          : context.fileSystem;
+
+      final result = await transaction.commit(baseFs);
       if (!result.success) {
         throw StateError('Transaction failed: ${result.errors.join(", ")}');
       }
 
       // 5. After Generate
-      for (final plugin in activePlugins) {
+      for (final plugin in sortedPlugins) {
         await plugin.afterGenerate(context);
       }
 
@@ -355,7 +380,7 @@ class PluginManager {
               )
               .toList(),
         );
-        await PlanStore.instance.savePlan(report);
+        await PlanStore.instance.savePlan(report, baseDir: projectRoot);
       }
     });
 

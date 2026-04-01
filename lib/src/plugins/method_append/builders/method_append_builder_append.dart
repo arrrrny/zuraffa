@@ -32,7 +32,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         'services',
         '${serviceSnake}_service.dart',
       );
-      final serviceExists = File(servicePath).existsSync();
+      final serviceExists = await fileSystem.exists(servicePath);
 
       if (!serviceExists) {
         if (!config.revert) {
@@ -64,6 +64,14 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         );
         if (result != null) {
           updatedFiles.add(result);
+          // Also add the host file itself as updated
+          updatedFiles.add(
+            GeneratedFile(
+              path: servicePath,
+              type: 'service',
+              action: 'updated',
+            ),
+          );
         } else {
           warnings.add('Failed to append to ${serviceSnake}_service.dart');
         }
@@ -78,14 +86,13 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         );
       }
 
-      // First check for a provider that already implements the service anywhere in providers directory
       final providersDir = path.join(outputDir, 'data', 'providers');
       var providerPath = await FileUtils.findFileImplementing(
         providersDir,
         serviceName,
+        fileSystem: fileSystem,
       );
 
-      // If not found by implementation, use default path
       if (providerPath == null) {
         final domainSnake = StringUtils.camelToSnake(config.effectiveDomain);
         providerPath = path.join(
@@ -95,7 +102,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         );
       }
 
-      if (File(providerPath).existsSync()) {
+      if (await fileSystem.exists(providerPath)) {
         final result = await _appendToProvider(
           config,
           providerPath,
@@ -106,6 +113,13 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         );
         if (result != null) {
           updatedFiles.add(result);
+          updatedFiles.add(
+            GeneratedFile(
+              path: providerPath,
+              type: 'provider',
+              action: 'updated',
+            ),
+          );
         } else {
           warnings.add('Failed to append to ${serviceSnake}_provider.dart');
         }
@@ -142,6 +156,13 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       );
       if (result != null) {
         updatedFiles.add(result);
+        updatedFiles.add(
+          GeneratedFile(
+            path: mockProviderPath,
+            type: 'mock_provider',
+            action: 'updated',
+          ),
+        );
       }
     }
 
@@ -157,15 +178,13 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     Object params, {
     String type = 'interface',
   }) async {
-    final file = File(filePath);
-    if (!file.existsSync()) return null;
+    if (!await fileSystem.exists(filePath)) return null;
 
     final helper = const AstHelper();
     final augmentFileName = path
         .basename(filePath)
         .replaceFirst('.dart', '.augment.dart');
 
-    // 1. Build the method spec
     final method = Method(
       (m) => m
         ..name = methodName
@@ -190,8 +209,6 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     );
 
     if (config.revert) {
-      // Handle Revert
-      // a. Remove from augmentation
       await augmentationBuilder.remove(
         hostPath: filePath,
         className: className,
@@ -199,20 +216,19 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         dryRun: options.dryRun,
       );
 
-      // b. Clean up host
-      var source = await file.readAsString();
+      var source = await fileSystem.read(filePath);
       source = helper.removeAugment(
         source: source,
         augmentPath: augmentFileName,
       );
 
-      // c. Check if host should be deleted
       if (helper.isClassEmpty(source, className)) {
         return FileUtils.deleteFile(
           filePath,
           type,
           dryRun: options.dryRun,
           verbose: options.verbose,
+          fileSystem: fileSystem,
         );
       }
 
@@ -223,15 +239,14 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         force: true,
         dryRun: options.dryRun,
         verbose: options.verbose,
+        fileSystem: fileSystem,
       );
 
       return GeneratedFile(path: filePath, type: type, action: 'reverted');
     }
 
-    // Handle Normal Append
-    var source = await file.readAsString();
+    var source = await fileSystem.read(filePath);
 
-    // 1. Add 'import augment' to host file
     source = helper.addAugment(source: source, augmentPath: augmentFileName);
     source = await _addMissingImports(config, source, filePath);
 
@@ -242,9 +257,9 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
+      fileSystem: fileSystem,
     );
 
-    // 2. Generate/Update the augmentation file
     final augmentationFile = await augmentationBuilder.generate(
       hostPath: filePath,
       className: className,
@@ -267,8 +282,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     Object params,
     String repoSnake,
   ) async {
-    final file = File(filePath);
-    if (!file.existsSync()) return null;
+    if (!await fileSystem.exists(filePath)) return null;
 
     final helper = const AstHelper();
     final augmentFileName = path
@@ -278,12 +292,10 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     final className =
         'Data${StringUtils.convertToPascalCase(repoSnake)}Repository';
 
-    // Build the method spec
     final isStream = config.useCaseType == 'stream';
     final isSync = config.useCaseType == 'sync';
 
-    // Use current source to find data source field
-    var source = await file.readAsString();
+    var source = await fileSystem.read(filePath);
     final dataSourceFieldMatch = RegExp(
       r'final \w+ (_\w+);',
     ).firstMatch(source);
@@ -346,41 +358,42 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       if (helper.isClassEmpty(source, className)) {
         return FileUtils.deleteFile(
           filePath,
-          'provider',
+          'repository_implementation',
           dryRun: options.dryRun,
           verbose: options.verbose,
+          fileSystem: fileSystem,
         );
       }
 
       await FileUtils.writeFile(
         filePath,
         source,
-        'repository',
+        'repository_implementation',
         force: true,
         dryRun: options.dryRun,
         verbose: options.verbose,
+        fileSystem: fileSystem,
       );
       return GeneratedFile(
         path: filePath,
-        type: 'provider',
+        type: 'repository_implementation',
         action: 'reverted',
       );
     }
 
-    // 1. Add 'import augment' to host file
     source = helper.addAugment(source: source, augmentPath: augmentFileName);
     source = await _addMissingImports(config, source, filePath);
 
     await FileUtils.writeFile(
       filePath,
       source,
-      'repository',
+      'repository_implementation',
       force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
+      fileSystem: fileSystem,
     );
 
-    // 2. Generate/Update the augmentation file
     final augmentationFile = await augmentationBuilder.generate(
       hostPath: filePath,
       className: className,
@@ -390,7 +403,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
 
     return GeneratedFile(
       path: augmentationFile.path,
-      type: 'provider',
+      type: 'repository_implementation',
       action: 'updated',
     );
   }
@@ -411,6 +424,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       returnType,
       params,
       'Implement remote $methodName',
+      type: 'remote_datasource',
     );
   }
 
@@ -430,6 +444,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       returnType,
       params,
       'Implement local storage $methodName',
+      type: 'local_datasource',
     );
   }
 
@@ -441,8 +456,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     Reference returnType,
     Object params,
   ) async {
-    final file = File(filePath);
-    if (!file.existsSync()) return null;
+    if (!await fileSystem.exists(filePath)) return null;
 
     final helper = const AstHelper();
     final augmentFileName = path
@@ -456,7 +470,6 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         ? config.repo!.replaceAll('Repository', '')
         : config.name;
 
-    // Build the implementation method spec
     final method = Method(
       (m) => m
         ..name = methodName
@@ -516,7 +529,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         dryRun: options.dryRun,
       );
 
-      var source = await file.readAsString();
+      var source = await fileSystem.read(filePath);
       source = helper.removeAugment(
         source: source,
         augmentPath: augmentFileName,
@@ -525,44 +538,44 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       if (helper.isClassEmpty(source, className)) {
         return FileUtils.deleteFile(
           filePath,
-          'datasource',
+          'mock_datasource',
           dryRun: options.dryRun,
           verbose: options.verbose,
+          fileSystem: fileSystem,
         );
       }
 
       await FileUtils.writeFile(
         filePath,
         source,
-        'datasource',
+        'mock_datasource',
         force: true,
         dryRun: options.dryRun,
         verbose: options.verbose,
+        fileSystem: fileSystem,
       );
       return GeneratedFile(
         path: filePath,
-        type: 'datasource',
+        type: 'mock_datasource',
         action: 'reverted',
       );
     }
 
-    // Handle Normal Append
-    var source = await file.readAsString();
+    var source = await fileSystem.read(filePath);
 
-    // 1. Add 'import augment' to host file
     source = helper.addAugment(source: source, augmentPath: augmentFileName);
     source = await _addMissingImports(config, source, filePath, isMock: true);
 
     await FileUtils.writeFile(
       filePath,
       source,
-      'datasource',
+      'mock_datasource',
       force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
+      fileSystem: fileSystem,
     );
 
-    // 2. Generate/Update the augmentation file
     final augmentationFile = await augmentationBuilder.generate(
       hostPath: filePath,
       className: className,
@@ -572,7 +585,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
 
     return GeneratedFile(
       path: augmentationFile.path,
-      type: 'datasource',
+      type: 'mock_datasource',
       action: 'updated',
     );
   }
@@ -594,6 +607,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       params,
       'Implement $methodName',
       isMock: filePath.contains('_mock_provider.dart'),
+      type: 'provider',
     );
   }
 
@@ -606,9 +620,9 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     Object params,
     String errorMessage, {
     bool isMock = false,
+    String type = 'datasource',
   }) async {
-    final file = File(filePath);
-    if (!file.existsSync()) return null;
+    if (!await fileSystem.exists(filePath)) return null;
 
     final helper = const AstHelper();
     final augmentFileName = path
@@ -618,7 +632,6 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     final isStream = config.useCaseType == 'stream';
     final isSync = config.useCaseType == 'sync';
 
-    // Build the implementation method spec
     final method = Method(
       (m) => m
         ..name = methodName
@@ -660,7 +673,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         dryRun: options.dryRun,
       );
 
-      var source = await file.readAsString();
+      var source = await fileSystem.read(filePath);
       source = helper.removeAugment(
         source: source,
         augmentPath: augmentFileName,
@@ -669,44 +682,40 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       if (helper.isClassEmpty(source, className)) {
         return FileUtils.deleteFile(
           filePath,
-          'datasource',
+          type,
           dryRun: options.dryRun,
           verbose: options.verbose,
+          fileSystem: fileSystem,
         );
       }
 
       await FileUtils.writeFile(
         filePath,
         source,
-        'datasource',
+        type,
         force: true,
         dryRun: options.dryRun,
         verbose: options.verbose,
+        fileSystem: fileSystem,
       );
-      return GeneratedFile(
-        path: filePath,
-        type: 'datasource',
-        action: 'reverted',
-      );
+      return GeneratedFile(path: filePath, type: type, action: 'reverted');
     }
 
-    // Handle Normal Append
-    var source = await file.readAsString();
+    var source = await fileSystem.read(filePath);
 
-    // 1. Add 'import augment' to host file
     source = helper.addAugment(source: source, augmentPath: augmentFileName);
     source = await _addMissingImports(config, source, filePath, isMock: isMock);
 
     await FileUtils.writeFile(
       filePath,
       source,
-      'datasource',
+      type,
       force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
+      fileSystem: fileSystem,
     );
 
-    // 2. Generate/Update the augmentation file
     final augmentationFile = await augmentationBuilder.generate(
       hostPath: filePath,
       className: className,
@@ -716,7 +725,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
 
     return GeneratedFile(
       path: augmentationFile.path,
-      type: 'datasource',
+      type: type,
       action: 'updated',
     );
   }
@@ -729,8 +738,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     Reference returnType,
     Object params,
   ) async {
-    final file = File(filePath);
-    if (!file.existsSync()) return null;
+    if (!await fileSystem.exists(filePath)) return null;
 
     final helper = const AstHelper();
     final augmentFileName = path
@@ -769,7 +777,6 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     final mockDataClass = '${entityName}MockData';
     final sampleProperty = 'sample$entityName';
 
-    // Build the implementation method spec
     final method = Method(
       (m) => m
         ..name = methodName
@@ -868,7 +875,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         dryRun: options.dryRun,
       );
 
-      var source = await file.readAsString();
+      var source = await fileSystem.read(filePath);
       source = helper.removeAugment(
         source: source,
         augmentPath: augmentFileName,
@@ -880,6 +887,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
           'provider',
           dryRun: options.dryRun,
           verbose: options.verbose,
+          fileSystem: fileSystem,
         );
       }
 
@@ -890,6 +898,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         force: true,
         dryRun: options.dryRun,
         verbose: options.verbose,
+        fileSystem: fileSystem,
       );
       return GeneratedFile(
         path: filePath,
@@ -898,10 +907,8 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       );
     }
 
-    // Handle Normal Append
-    var source = await file.readAsString();
+    var source = await fileSystem.read(filePath);
 
-    // 1. Add 'import augment' to host file
     source = helper.addAugment(source: source, augmentPath: augmentFileName);
     source = await _addMissingImports(config, source, filePath, isMock: true);
 
@@ -912,9 +919,9 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
+      fileSystem: fileSystem,
     );
 
-    // 2. Generate/Update the augmentation file
     final augmentationFile = await augmentationBuilder.generate(
       hostPath: filePath,
       className: className,
@@ -927,22 +934,5 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       type: 'provider',
       action: 'updated',
     );
-  }
-
-  Expression _primitiveValue(String type) {
-    switch (type) {
-      case 'String':
-        return literalString('mock_value');
-      case 'int':
-        return literalNum(1);
-      case 'double':
-        return literalNum(1.0);
-      case 'bool':
-        return literalBool(true);
-      case 'DateTime':
-        return refer('DateTime').property('now').call([]);
-      default:
-        return literalNull;
-    }
   }
 }

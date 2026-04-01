@@ -3,33 +3,25 @@ import 'package:path/path.dart' as path;
 
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
+import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 
 /// Generates state observer classes.
-///
-/// Builds Dart classes that implement the observer pattern for monitoring
-/// stream results or state transitions in the domain layer.
-///
-/// Example:
-/// ```dart
-/// final builder = ObserverBuilder(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final file = await builder.generate(GeneratorConfig(name: 'Auth'));
-/// ```
 class ObserverBuilder {
   final String outputDir;
   final GeneratorOptions options;
   final SpecLibrary specLibrary;
+  final FileSystem fileSystem;
 
   ObserverBuilder({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     SpecLibrary? specLibrary,
-  }) : specLibrary = specLibrary ?? const SpecLibrary();
+    FileSystem? fileSystem,
+  }) : specLibrary = specLibrary ?? const SpecLibrary(),
+       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final entityName = config.name;
@@ -162,8 +154,8 @@ class ObserverBuilder {
               ..annotations.add(refer('override'))
               ..returns = refer('void')
               ..body = Block(
-                (b) =>
-                    b..statements.add(refer('onDoneCallback').call([]).statement),
+                (b) => b
+                  ..statements.add(refer('onDoneCallback').call([]).statement),
               ),
           ),
         ]),
@@ -181,6 +173,7 @@ class ObserverBuilder {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fileSystem,
     );
   }
 }

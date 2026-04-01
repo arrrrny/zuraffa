@@ -1,5 +1,6 @@
 import 'package:analyzer/dart/ast/ast.dart';
 
+import '../context/file_system.dart';
 import 'ast_modifier.dart';
 import 'file_parser.dart';
 import 'node_finder.dart';
@@ -9,8 +10,8 @@ class AstHelper {
 
   const AstHelper({this.parser = const FileParser()});
 
-  Future<AstParseResult> parseFile(String path) {
-    return parser.parseFile(path);
+  Future<AstParseResult> parseFile(String path, {FileSystem? fileSystem}) {
+    return parser.parseFile(path, fileSystem: fileSystem);
   }
 
   AstParseResult parseSource(String source, {String path = 'input.dart'}) {
@@ -75,18 +76,18 @@ class AstHelper {
     final parseResult = parseSource(source);
     final unit = parseResult.unit;
     if (unit == null) {
+      print('DEBUG: addAugment failed to parse source');
       return source;
     }
-    return AstModifier.addAugment(source, unit, augmentPath);
+    final result = AstModifier.addAugment(source, unit, augmentPath);
+    if (result == source) {
+      print('DEBUG: addAugment made no changes to source');
+    }
+    return result;
   }
 
   String removeAugment({required String source, required String augmentPath}) {
-    final parseResult = parseSource(source);
-    final unit = parseResult.unit;
-    if (unit == null) {
-      return source;
-    }
-    return AstModifier.removeAugment(source, unit, augmentPath);
+    return AstModifier.removeAugment(source, augmentPath);
   }
 
   String addExport({required String source, required String exportPath}) {

@@ -1,15 +1,13 @@
 import 'package:args/command_runner.dart';
-import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../commands/view_command.dart';
 import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
-import 'dart:io';
-
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/plugin_context.dart';
+import '../../core/context/file_system.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/file_utils.dart';
@@ -19,37 +17,21 @@ import 'capabilities/create_view_capability.dart';
 import 'capabilities/custom_view_capability.dart';
 import 'capabilities/register_view_capability.dart';
 
+import 'package:code_builder/code_builder.dart';
+
 /// Generates Flutter view classes for presentation pages.
-///
-/// Produces view widgets wired to controllers and presenters, with optional
-/// state integration and route argument handling.
-///
-/// Example:
-/// ```dart
-/// final plugin = ViewPlugin(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final files = await plugin.generate(GeneratorConfig(name: 'Product'));
-/// ```
 class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final GeneratorOptions options;
   final ViewClassBuilder classBuilder;
+  final FileSystem fileSystem;
 
-  /// Creates a [ViewPlugin].
-  ///
-  /// @param outputDir Target directory for generated files.
-  /// @param options Generation flags for writing behavior and logging.
-  /// @param dryRun Deprecated: use [options].
-  /// @param force Deprecated: use [options].
-  /// @param verbose Deprecated: use [options].
-  /// @param classBuilder Optional view class builder override.
   ViewPlugin({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     this.classBuilder = const ViewClassBuilder(),
-  });
+    FileSystem? fileSystem,
+  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 
   @override
   List<ZuraffaCapability> get capabilities => [
@@ -58,15 +40,12 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     RegisterViewCapability(this),
   ];
 
-  /// @returns Plugin identifier.
   @override
   String get id => 'view';
 
-  /// @returns Plugin display name.
   @override
   String get name => 'View Plugin';
 
-  /// @returns Plugin version string.
   @override
   String get version => '1.0.0';
 
@@ -107,15 +86,14 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       generateDi: context.data['di'] == true,
     );
 
-    return generate(config);
+    return generate(config, context: context);
   }
 
-  /// Generates view files for the given [config].
-  ///
-  /// @param config Generator configuration describing the entity and options.
-  /// @returns List of generated view files.
   @override
-  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
+  Future<List<GeneratedFile>> generate(
+    GeneratorConfig config, {
+    PluginContext? context,
+  }) async {
     if (!config.generateView && !config.generateVpcs && !config.revert) {
       return [];
     }
@@ -134,9 +112,12 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           revert: config.revert,
         ),
         classBuilder: classBuilder,
+        fileSystem: context?.fileSystem,
       );
-      return delegator.generate(config);
+      return delegator.generate(config, context: context);
     }
+
+    final fs = context?.fileSystem ?? fileSystem;
 
     final generatedFiles = <GeneratedFile>[];
     final entityName = config.name;
@@ -155,11 +136,6 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         config.methods.contains('get') || config.methods.contains('watch');
     final isMasterDetail = hasList && hasDetail;
 
-    // 1. Generate Primary View (ProductView)
-    // This is generated if:
-    // - List methods are present
-    // - OR if NO detail methods are present (it's the fallback view)
-    // - OR if ONLY detail methods are present (it's the only view, so we call it ProductView)
     if (hasList || !hasDetail || !isMasterDetail) {
       final viewName = '${entityName}View';
       final fileName = '${config.nameSnake}_view.dart';
@@ -175,12 +151,11 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             : (hasDetail
                   ? (config.methods.contains('watch') ? 'watch' : 'get')
                   : null),
+        fileSystem: fs,
       );
       generatedFiles.add(file);
     }
 
-    // 2. Generate Secondary View (ProductDetailView)
-    // This is ONLY generated in master-detail mode
     if (isMasterDetail) {
       final viewName = '${entityName}DetailView';
       final fileName = '${config.nameSnake}_detail_view.dart';
@@ -192,6 +167,7 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         filePath: filePath,
         domainSnake: domainSnake,
         initialMethod: config.methods.contains('watch') ? 'watch' : 'get',
+        fileSystem: fs,
       );
       generatedFiles.add(file);
     }
@@ -205,6 +181,7 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     required String filePath,
     required String domainSnake,
     String? initialMethod,
+    required FileSystem fileSystem,
   }) async {
     final entityName = config.name;
     final controllerName = config.effectiveControllerName;
@@ -213,8 +190,6 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final useDi = config.generateDi && !config.usesCustomVpc;
     final repoFields = useDi ? <Field>[] : _buildRepoFields(config);
 
-    // For detail view, we definitely need route fields (ID)
-    // For list view, we might not.
     final routeFields = _buildRouteFieldsForView(
       config,
       viewName.endsWith('DetailView'),
@@ -271,6 +246,7 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       verbose: options.verbose,
       revert: config.revert,
       skipRevertIfExisted: true,
+      fileSystem: fileSystem,
     );
   }
 
@@ -281,7 +257,9 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     required List<Parameter> customParameters,
     required List<String> additionalImports,
     Map<String, dynamic> args = const {},
+    FileSystem? contextFs,
   }) async {
+    final fs = contextFs ?? fileSystem;
     final domainSnake = config.effectiveDomain;
     final entityName = config.name;
     final controllerName = config.effectiveControllerName;
@@ -331,8 +309,8 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final isStateful =
         isCustom &&
         (config.generateState ||
-            (File(filePath).existsSync() &&
-                File(filePath).readAsStringSync().contains('StatefulWidget')));
+            (await fs.exists(filePath) &&
+                (await fs.read(filePath)).contains('StatefulWidget')));
 
     final content = classBuilder.build(
       ViewClassSpec(
@@ -364,6 +342,7 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       verbose: options.verbose,
       revert: config.revert,
       skipRevertIfExisted: true,
+      fileSystem: fs,
     );
 
     return [file];
@@ -372,7 +351,6 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   List<Field> _buildRouteFieldsForView(GeneratorConfig config, bool isDetail) {
     final fields = <Field>[];
 
-    // Add optional initial entity field to support immediate state initialization
     final withState = config.generateState || config.customStateName != null;
     if (withState && !config.noEntity) {
       fields.add(
@@ -385,16 +363,12 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       );
     }
 
-    // If it's a detail view, it ALWAYS needs the ID param
-    // If it's the ONLY view and we have update/delete methods, it ALSO needs the ID param
     final hasListMethods =
         config.methods.contains('getList') ||
         config.methods.contains('watchList');
     final isOnlyView = !hasListMethods && !isDetail;
 
     if (isDetail || (isOnlyView && _needsIdParam(config))) {
-      // If we have a custom query field that is different from the ID field,
-      // and we are in a detail view or only view, we use the query field.
       if (config.queryField != config.idField &&
           config.queryFieldType != 'NoParams') {
         fields.add(
@@ -508,7 +482,6 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       imports.add('${controllerSnake}_controller.dart');
       imports.add('${presenterSnake}_presenter.dart');
 
-      // Add entity import if we are using state (needed for initial entity field)
       final withState = config.generateState || config.customStateName != null;
       if (withState && !config.noEntity) {
         final entitySnake = config.nameSnake;
@@ -564,7 +537,6 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final hasWatch = config.methods.contains('watch');
     final needsIdParam = _needsIdParam(config);
 
-    // If we have any method that needs an ID, we use idField
     if (needsIdParam) {
       return false;
     }
@@ -591,7 +563,6 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       );
     }
 
-    // Check if we use idField (get/watch/update/delete)
     if (_needsIdParam(config)) {
       final fieldName =
           (config.queryField != config.idField &&
@@ -615,7 +586,6 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       );
     }
 
-    // Check if we use queryField
     if (_needsQueryParam(config)) {
       final queryValue = refer('widget').property(config.queryField);
       return Block(

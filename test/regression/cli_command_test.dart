@@ -271,11 +271,9 @@ void main() {
       ], workingDirectory: tempDir.path);
 
       expect(result.exitCode, isNot(equals(0)));
-      expect(result.stdout.toString(), contains('Suggestions'));
-      expect(
-        result.stdout.toString(),
-        contains('Use --id-field-type=String,int,NoParams'),
-      );
+      final output = result.stdout.toString() + result.stderr.toString();
+      expect(output, contains('Suggestions'));
+      expect(output, contains('Use --id-field-type=String,int,NoParams'));
     },
     timeout: const Timeout(Duration(minutes: 5)),
   );

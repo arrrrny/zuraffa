@@ -11,18 +11,6 @@ import 'builders/state_builder.dart';
 import 'capabilities/create_state_capability.dart';
 
 /// Manages UI state class generation for the presentation layer.
-///
-/// Builds immutable state classes with copyWith, equality, and serialization
-/// support to be used with controllers and presenters.
-///
-/// Example:
-/// ```dart
-/// final plugin = StatePlugin(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final files = await plugin.generate(GeneratorConfig(name: 'Product'));
-/// ```
 class StatePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final GeneratorOptions options;
@@ -68,15 +56,27 @@ class StatePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       domain: context.data['domain'],
     );
 
-    return generate(config);
+    return generate(config, context: context);
   }
 
   @override
-  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
+  Future<List<GeneratedFile>> generate(
+    GeneratorConfig config, {
+    PluginContext? context,
+  }) async {
     if (!config.generateState && !config.revert) {
       return [];
     }
-    final file = await stateBuilder.generate(config);
+
+    final builder = context != null
+        ? StateBuilder(
+            outputDir: outputDir,
+            options: options,
+            fileSystem: context.fileSystem,
+          )
+        : stateBuilder;
+
+    final file = await builder.generate(config);
     return [file];
   }
 }

@@ -2,6 +2,7 @@ import '../../core/generator_options.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/plugin_context.dart';
 import '../../core/plugin_system/capability.dart';
+import '../../core/context/file_system.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 
@@ -11,11 +12,13 @@ import '../../models/generator_config.dart';
 class GraphqlPlugin extends FileGeneratorPlugin {
   final String outputDir;
   final GeneratorOptions options;
+  final FileSystem fileSystem;
 
   GraphqlPlugin({
     required this.outputDir,
     this.options = const GeneratorOptions(),
-  });
+    FileSystem? fileSystem,
+  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 
   @override
   String get id => 'graphql';
@@ -44,7 +47,10 @@ class GraphqlPlugin extends FileGeneratorPlugin {
   }
 
   @override
-  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
+  Future<List<GeneratedFile>> generate(
+    GeneratorConfig config, {
+    PluginContext? context,
+  }) async {
     return [];
   }
 }

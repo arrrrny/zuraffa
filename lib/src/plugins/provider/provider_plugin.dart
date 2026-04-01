@@ -16,18 +16,6 @@ import 'builders/provider_builder.dart';
 import 'capabilities/create_provider_capability.dart';
 
 /// Manages data provider generation for the data layer.
-///
-/// Builds provider implementation classes that connect domain services
-/// to external data sources or APIs.
-///
-/// Example:
-/// ```dart
-/// final plugin = ProviderPlugin(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final files = await plugin.generate(GeneratorConfig(name: 'Auth'));
-/// ```
 class ProviderPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final GeneratorOptions options;
@@ -68,6 +56,9 @@ class ProviderPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       targetType: 'provider',
     ),
   ];
+
+  @override
+  List<String> get dependsOn => ['service'];
 
   @override
   Command createCommand() => ProviderCommand(this);
@@ -112,16 +103,27 @@ class ProviderPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       noEntity: context.data['no-entity'] == true,
     );
 
-    return generate(config);
+    return generate(config, context: context);
   }
 
   @override
-  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
+  Future<List<GeneratedFile>> generate(
+    GeneratorConfig config, {
+    PluginContext? context,
+  }) async {
     if (!config.hasService || !config.generateData) {
       if (!config.revert) return [];
     }
 
-    final file = await providerBuilder.generate(config);
+    final builder = context != null
+        ? ProviderBuilder(
+            outputDir: outputDir,
+            options: options,
+            fileSystem: context.fileSystem,
+          )
+        : providerBuilder;
+
+    final file = await builder.generate(config);
     return [file];
   }
 }

@@ -4,6 +4,7 @@ import 'package:path/path.dart' as path;
 import '../../../core/builder/patterns/common_patterns.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
+import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 
@@ -11,38 +12,21 @@ import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 
 /// Generates state classes for presentation controllers.
-///
-/// Builds immutable state classes with flags, copyWith, and helpers based on
-/// the configured entity methods.
-///
-/// Example:
-/// ```dart
-/// final builder = StateBuilder(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final file = await builder.generate(GeneratorConfig(name: 'Product'));
-/// ```
 class StateBuilder {
   final String outputDir;
   final GeneratorOptions options;
   final SpecLibrary specLibrary;
+  final FileSystem fileSystem;
 
-  /// Creates a [StateBuilder].
-  ///
-  /// @param outputDir Target directory for generated files.
-  /// @param options Generation flags for writing behavior and logging.
-  /// @param specLibrary Optional spec library override.
   StateBuilder({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     SpecLibrary? specLibrary,
-  }) : specLibrary = specLibrary ?? const SpecLibrary();
+    FileSystem? fileSystem,
+  }) : specLibrary = specLibrary ?? const SpecLibrary(),
+       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 
   /// Generates a state file for the given [config].
-  ///
-  /// @param config Generator configuration describing the entity and options.
-  /// @returns Generated state file metadata.
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final entityName = config.name;
     final entitySnake = config.nameSnake;
@@ -78,10 +62,11 @@ class StateBuilder {
       }
       if (config.isOrchestrator) {
         for (final usecaseName in config.usecases) {
-          final info = CommonPatterns.parseUseCaseInfo(
+          final info = await CommonPatterns.parseUseCaseInfo(
             usecaseName,
             config,
             outputDir,
+            fileSystem: fileSystem,
           );
           if (info.returnsType != null) {
             types.addAll(CommonPatterns.extractBaseTypes(info.returnsType!));
@@ -93,6 +78,7 @@ class StateBuilder {
         types,
         config,
         depth: 3,
+        fileSystem: fileSystem,
       );
       imports.addAll(entityImports);
     } else if (needsEntityListField || needsEntityField) {
@@ -152,10 +138,11 @@ class StateBuilder {
       final orchestratorBoolFields = <_BoolField>[];
       if (config.isOrchestrator) {
         for (final usecaseName in config.usecases) {
-          final info = CommonPatterns.parseUseCaseInfo(
+          final info = await CommonPatterns.parseUseCaseInfo(
             usecaseName,
             config,
             outputDir,
+            fileSystem: fileSystem,
           );
           final loadingName =
               'is${StringUtils.capitalize(info.fieldName)}Loading';
@@ -215,12 +202,12 @@ class StateBuilder {
         }
       }
 
-      final constructor = _buildCustomConstructor(config);
-      final copyWith = _buildCustomCopyWith(stateName, config);
+      final constructor = await _buildCustomConstructor(config);
+      final copyWith = await _buildCustomCopyWith(stateName, config);
       final hasErrorGetter = _buildHasErrorGetter();
-      final equality = _buildCustomEqualityOperator(stateName, config);
-      final hashCodeGetter = _buildCustomHashCodeGetter(config);
-      final toStringMethod = _buildCustomToString(stateName, config);
+      final equality = await _buildCustomEqualityOperator(stateName, config);
+      final hashCodeGetter = await _buildCustomHashCodeGetter(config);
+      final toStringMethod = await _buildCustomToString(stateName, config);
 
       final methods = [
         copyWith,
@@ -254,6 +241,7 @@ class StateBuilder {
         dryRun: options.dryRun,
         verbose: options.verbose,
         revert: config.revert,
+        fileSystem: fileSystem,
       );
     } else {
       final boolFields = _boolFieldsForMethods(config.methods);
@@ -329,11 +317,12 @@ class StateBuilder {
         dryRun: options.dryRun,
         verbose: options.verbose,
         revert: config.revert,
+        fileSystem: fileSystem,
       );
     }
   }
 
-  Constructor _buildCustomConstructor(GeneratorConfig config) {
+  Future<Constructor> _buildCustomConstructor(GeneratorConfig config) async {
     final entityCamel = config.nameCamel;
     final needsEntityListField =
         !config.noEntity &&
@@ -412,10 +401,11 @@ class StateBuilder {
 
     if (config.isOrchestrator) {
       for (final usecaseName in config.usecases) {
-        final info = CommonPatterns.parseUseCaseInfo(
+        final info = await CommonPatterns.parseUseCaseInfo(
           usecaseName,
           config,
           outputDir,
+          fileSystem: fileSystem,
         );
         final returns =
             info.returnsType ??
@@ -460,7 +450,10 @@ class StateBuilder {
     );
   }
 
-  Method _buildCustomCopyWith(String stateName, GeneratorConfig config) {
+  Future<Method> _buildCustomCopyWith(
+    String stateName,
+    GeneratorConfig config,
+  ) async {
     final entityName = config.name;
     final entityCamel = config.nameCamel;
     final needsEntityListField =
@@ -547,10 +540,11 @@ class StateBuilder {
 
     if (config.isOrchestrator) {
       for (final usecaseName in config.usecases) {
-        final info = CommonPatterns.parseUseCaseInfo(
+        final info = await CommonPatterns.parseUseCaseInfo(
           usecaseName,
           config,
           outputDir,
+          fileSystem: fileSystem,
         );
         final loadingName =
             'is${StringUtils.capitalize(info.fieldName)}Loading';
@@ -625,10 +619,10 @@ class StateBuilder {
     );
   }
 
-  Method _buildCustomEqualityOperator(
+  Future<Method> _buildCustomEqualityOperator(
     String stateName,
     GeneratorConfig config,
-  ) {
+  ) async {
     final other = refer('other');
     final isIdentical = refer('identical').call([refer('this'), other]);
     final isType = other.isA(refer(stateName));
@@ -669,10 +663,11 @@ class StateBuilder {
 
     if (config.isOrchestrator) {
       for (final usecaseName in config.usecases) {
-        final info = CommonPatterns.parseUseCaseInfo(
+        final info = await CommonPatterns.parseUseCaseInfo(
           usecaseName,
           config,
           outputDir,
+          fileSystem: fileSystem,
         );
         final fieldName = '${info.fieldName}Response';
         final loadingName =
@@ -711,7 +706,7 @@ class StateBuilder {
     );
   }
 
-  Method _buildCustomHashCodeGetter(GeneratorConfig config) {
+  Future<Method> _buildCustomHashCodeGetter(GeneratorConfig config) async {
     final entityCamel = config.nameCamel;
     final needsEntityListField =
         !config.noEntity &&
@@ -742,10 +737,11 @@ class StateBuilder {
 
     if (config.isOrchestrator) {
       for (final usecaseName in config.usecases) {
-        final info = CommonPatterns.parseUseCaseInfo(
+        final info = await CommonPatterns.parseUseCaseInfo(
           usecaseName,
           config,
           outputDir,
+          fileSystem: fileSystem,
         );
         final returns =
             info.returnsType ??
@@ -778,7 +774,10 @@ class StateBuilder {
     );
   }
 
-  Method _buildCustomToString(String stateName, GeneratorConfig config) {
+  Future<Method> _buildCustomToString(
+    String stateName,
+    GeneratorConfig config,
+  ) async {
     final entityCamel = config.nameCamel;
     final needsEntityListField =
         !config.noEntity &&
@@ -809,10 +808,11 @@ class StateBuilder {
 
     if (config.isOrchestrator) {
       for (final usecaseName in config.usecases) {
-        final info = CommonPatterns.parseUseCaseInfo(
+        final info = await CommonPatterns.parseUseCaseInfo(
           usecaseName,
           config,
           outputDir,
+          fileSystem: fileSystem,
         );
         final returns =
             info.returnsType ??

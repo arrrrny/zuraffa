@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as path;
 
@@ -9,6 +7,7 @@ import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/plugin_context.dart';
+import '../../core/context/file_system.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/string_utils.dart';
@@ -23,18 +22,6 @@ import 'builders/remote_generator.dart';
 import 'capabilities/create_datasource_capability.dart';
 
 /// Manages data source generation for the data layer.
-///
-/// Coordinates interface, remote, and local data source generators to build
-/// implementation classes for data access.
-///
-/// Example:
-/// ```dart
-/// final plugin = DataSourcePlugin(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final files = await plugin.generate(GeneratorConfig(name: 'Product'));
-/// ```
 class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final GeneratorOptions options;
@@ -149,11 +136,14 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           context.data['method_append'] == true,
     );
 
-    return generate(config);
+    return generate(config, context: context);
   }
 
   @override
-  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
+  Future<List<GeneratedFile>> generate(
+    GeneratorConfig config, {
+    PluginContext? context,
+  }) async {
     if (config.outputDir != outputDir ||
         config.dryRun != options.dryRun ||
         config.force != options.force ||
@@ -168,7 +158,7 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           revert: config.revert,
         ),
       );
-      return delegator.generate(config);
+      return delegator.generate(config, context: context);
     }
 
     if (!(config.generateData ||
@@ -179,6 +169,32 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     if (config.hasService) {
       return [];
     }
+
+    final fs = context?.fileSystem ?? FileSystem.create(root: outputDir);
+
+    final interfaceGen = context != null
+        ? DataSourceInterfaceBuilder(
+            outputDir: outputDir,
+            options: options,
+            fileSystem: context.fileSystem,
+          )
+        : interfaceGenerator;
+
+    final remoteGen = context != null
+        ? RemoteDataSourceBuilder(
+            outputDir: outputDir,
+            options: options,
+            fileSystem: context.fileSystem,
+          )
+        : remoteGenerator;
+
+    final localGen = context != null
+        ? LocalDataSourceBuilder(
+            outputDir: outputDir,
+            options: options,
+            fileSystem: context.fileSystem,
+          )
+        : localGenerator;
 
     final files = <GeneratedFile>[];
 
@@ -203,34 +219,33 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       '${repoSnake}_local_datasource.dart',
     );
 
-    final remoteExists = File(remotePath).existsSync();
-    final localExists = File(localPath).existsSync();
+    final remoteExists = await fs.exists(remotePath);
+    final localExists = await fs.exists(localPath);
 
     if (config.appendToExisting) {
-      files.add(await interfaceGenerator.generate(config));
+      files.add(await interfaceGen.generate(config));
 
       if (remoteExists || config.generateRemote) {
-        files.add(await remoteGenerator.generate(config));
+        files.add(await remoteGen.generate(config));
       }
 
       if (localExists || config.generateLocal || config.enableCache) {
-        files.add(await localGenerator.generate(config));
+        files.add(await localGen.generate(config));
       }
 
       return files;
     }
 
     if (config.generateLocal || config.enableCache) {
-      files.add(await localGenerator.generate(config));
+      files.add(await localGen.generate(config));
     }
 
     if (config.generateRemote ||
         (config.enableCache && !config.generateLocal)) {
-      // If we already generated local due to enableCache, we still want remote
-      files.add(await remoteGenerator.generate(config));
+      files.add(await remoteGen.generate(config));
     }
 
-    files.add(await interfaceGenerator.generate(config));
+    files.add(await interfaceGen.generate(config));
 
     return files;
   }

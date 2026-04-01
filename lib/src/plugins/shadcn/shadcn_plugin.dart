@@ -4,6 +4,7 @@ import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/plugin_context.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
+import '../../core/context/file_system.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'builders/shadcn_builder.dart';
@@ -14,12 +15,18 @@ class ShadcnPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final GeneratorOptions options;
   late final ShadcnBuilder shadcnBuilder;
+  final FileSystem fileSystem;
 
   ShadcnPlugin({
     required this.outputDir,
     this.options = const GeneratorOptions(),
-  }) {
-    shadcnBuilder = ShadcnBuilder(outputDir: outputDir, options: options);
+    FileSystem? fileSystem,
+  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir) {
+    shadcnBuilder = ShadcnBuilder(
+      outputDir: outputDir,
+      options: options,
+      fileSystem: this.fileSystem,
+    );
   }
 
   @override
@@ -74,14 +81,26 @@ class ShadcnPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       methods: context.data['methods']?.cast<String>().toList() ?? [],
       domain: context.data['domain'],
       noEntity: context.data['no-entity'] == true,
-      // Pass shadcn specific data via data map for builder
     );
 
-    return shadcnBuilder.generate(config, context.data);
+    return generate(config, context: context);
   }
 
   @override
-  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
-    return shadcnBuilder.generate(config, {});
+  Future<List<GeneratedFile>> generate(
+    GeneratorConfig config, {
+    PluginContext? context,
+  }) async {
+    final fs = context?.fileSystem ?? fileSystem;
+    final builder = context != null
+        ? ShadcnBuilder(
+            outputDir: outputDir,
+            options: options,
+            fileSystem: fs,
+            discovery: context.discovery,
+          )
+        : shadcnBuilder;
+
+    return builder.generate(config, context?.data ?? {});
   }
 }

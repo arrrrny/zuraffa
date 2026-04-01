@@ -17,7 +17,7 @@ extension TestBuilderCustom on TestBuilder {
     final testDirPath = path.joinAll(testPathParts);
     final filePath = path.join(testDirPath, fileName);
 
-    final packageName = _resolvePackageName(projectRoot);
+    final packageName = await _resolvePackageName(projectRoot);
 
     final directives = [
       Directive.import('package:flutter_test/flutter_test.dart'),
@@ -215,6 +215,7 @@ extension TestBuilderCustom on TestBuilder {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fileSystem,
     );
   }
 }

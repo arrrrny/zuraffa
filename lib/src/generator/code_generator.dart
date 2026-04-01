@@ -18,32 +18,19 @@ import '../plugins/controller/controller_plugin.dart';
 import '../plugins/di/di_plugin.dart';
 import '../plugins/datasource/datasource_plugin.dart';
 import '../plugins/service/service_plugin.dart';
+import '../plugins/shadcn/shadcn_plugin.dart';
 import '../core/generator_options.dart';
 import '../core/generation/generation_context.dart';
-import '../core/transaction/generation_transaction.dart';
 import '../core/context/progress_reporter.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/plugin_system/plugin_interface.dart';
 import '../core/plugin_system/plugin_context.dart';
-import '../core/plugin_system/discovery_engine.dart';
 import '../core/plugin_system/plugin_manager.dart';
-import '../core/plugin_system/plan_store.dart';
-import '../core/plugin_system/capability.dart';
 
 /// Orchestrates the entire code generation process.
 ///
 /// Coordinates multiple plugins, manages transactions, and provides progress
 /// reporting during the generation lifecycle.
-///
-/// Example:
-/// ```dart
-/// final generator = CodeGenerator(
-///   config: config,
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final result = await generator.generate();
-/// ```
 class CodeGenerator {
   final GeneratorConfig config;
   final String outputDir;
@@ -51,7 +38,6 @@ class CodeGenerator {
   final Set<String> disabledPlugins;
   final GenerationContext context;
   late final PluginRegistry pluginRegistry;
-  late final PluginContext pluginContext;
 
   CodeGenerator({
     required GeneratorConfig config,
@@ -83,23 +69,8 @@ class CodeGenerator {
        ),
        disabledPlugins = disabledPluginIds ?? {} {
     pluginRegistry = PluginRegistry();
-    final discovery = DiscoveryEngine(projectRoot: outputDir);
-    pluginContext = PluginContext(
-      core: CoreConfig(
-        name: config.name,
-        projectRoot: outputDir,
-        outputDir: outputDir,
-        dryRun: options.dryRun,
-        force: options.force,
-        verbose: options.verbose,
-        revert: options.revert,
-      ),
-      discovery: discovery,
-      data: config.toJson(),
-    );
 
-    // Legacy registration of all plugins to keep existing behavior
-    // while moving to the new system.
+    // Register all core plugins
     _registerPlugin(RepositoryPlugin(outputDir: outputDir, options: options));
     _registerPlugin(ProviderPlugin(outputDir: outputDir, options: options));
     _registerPlugin(UseCasePlugin(outputDir: outputDir, options: options));
@@ -116,19 +87,47 @@ class CodeGenerator {
     _registerPlugin(GraphqlPlugin(outputDir: outputDir, options: options));
     _registerPlugin(CachePlugin(outputDir: outputDir, options: options));
     _registerPlugin(RoutePlugin(outputDir: outputDir, options: options));
-    _registerPlugin(
-      MethodAppendPlugin(outputDir: outputDir, options: options),
-    );
+    _registerPlugin(ShadcnPlugin(outputDir: outputDir, options: options));
+    _registerPlugin(MethodAppendPlugin(outputDir: outputDir, options: options));
   }
 
   Future<GeneratorResult> generate() async {
-    final manager = PluginManager(registry: pluginRegistry);
+    final manager = PluginManager(
+      registry: pluginRegistry,
+      projectRoot: outputDir,
+    );
 
     try {
-      final activePlugins = pluginRegistry.plugins;
+      // Build context using manager to ensure TransactionalFileSystem is set up
+      final baseContext = manager.buildContext(
+        name: config.name,
+        argResults: null, // We are not in CLI mode, use config data
+        activePlugins: pluginRegistry.plugins,
+        overrideOutputDir: outputDir,
+      );
+
+      // Create a new context with the correct core flags from our options
+      final pluginContext = PluginContext(
+        core: CoreConfig(
+          name: config.name,
+          projectRoot: outputDir,
+          outputDir: outputDir,
+          dryRun: options.dryRun,
+          force: options.force,
+          verbose: options.verbose,
+          revert: options.revert,
+        ),
+        discovery: baseContext.discovery,
+        fileSystem: baseContext.fileSystem,
+        data: Map<String, dynamic>.from(config.toJson()),
+      );
+
+      // Ensure specific flags are respected in data map as well
+      pluginContext.data['append'] = config.appendToExisting;
+
       final files = await manager.run(
         pluginContext,
-        activePlugins,
+        pluginRegistry.plugins,
         progress: context.progress,
       );
 
@@ -155,7 +154,10 @@ class CodeGenerator {
     }
   }
 
-  List<String> _buildNextSteps(GeneratorConfig config, List<GeneratedFile> files) {
+  List<String> _buildNextSteps(
+    GeneratorConfig config,
+    List<GeneratedFile> files,
+  ) {
     final nextSteps = <String>[];
     if (config.generateData) {
       nextSteps.add(
@@ -182,9 +184,5 @@ class CodeGenerator {
     if (!disabledPlugins.contains(plugin.id)) {
       pluginRegistry.register(plugin);
     }
-  }
-
-  bool _isPluginEnabled(String id) {
-    return pluginRegistry.getById(id) != null;
   }
 }

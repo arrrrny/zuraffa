@@ -128,7 +128,6 @@ class AstModifier {
     return '$importDirective\n\n$source';
   }
 
-  /// Adds an augmentation library directive to the unit.
   static String addAugment(
     String source,
     CompilationUnit unit,
@@ -140,29 +139,34 @@ class AstModifier {
     }
     final augmentDirective = "import augment '$augmentPath';";
 
-    // Augmentations usually go after imports but before other directives
     final imports = unit.directives.whereType<ImportDirective>().toList();
     if (imports.isNotEmpty) {
       final lastImport = imports.last;
       return '${source.substring(0, lastImport.end)}\n$augmentDirective${source.substring(lastImport.end)}';
     }
 
+    if (unit.directives.isNotEmpty) {
+      final lastDirective = unit.directives.last;
+      return '${source.substring(0, lastDirective.end)}\n$augmentDirective${source.substring(lastDirective.end)}';
+    }
+
+    final firstNonCommentOffset = unit.beginToken.offset;
+    if (firstNonCommentOffset > 0) {
+      return '${source.substring(0, firstNonCommentOffset)}$augmentDirective\n\n${source.substring(firstNonCommentOffset)}';
+    }
+
     return '$augmentDirective\n\n$source';
   }
 
   /// Removes an augmentation library directive from the unit.
-  static String removeAugment(
-    String source,
-    CompilationUnit unit,
-    String augmentPath,
-  ) {
+  static String removeAugment(String source, String augmentPath) {
     final pattern = RegExp(
       '^import\\s+augment\\s+[\'\"]' +
           RegExp.escape(augmentPath) +
           '[\'\"]\\s*;\\s*\$',
       multiLine: true,
     );
-    return source.replaceFirst(pattern, '');
+    return source.replaceFirst(pattern, '').trim();
   }
 
   static String addExport(

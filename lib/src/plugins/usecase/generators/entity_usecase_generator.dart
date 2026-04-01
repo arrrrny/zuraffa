@@ -1,6 +1,4 @@
-import 'dart:io';
 import 'package:code_builder/code_builder.dart';
-
 import 'package:path/path.dart' as path;
 
 import '../../../core/ast/append_executor.dart';
@@ -8,34 +6,25 @@ import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/builder/patterns/common_patterns.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
+import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 
 /// Generates entity-based use cases for the domain layer.
-///
-/// Builds standard CRUD and stream use case classes that delegate to
-/// domain repositories.
-///
-/// Example:
-/// ```dart
-/// final generator = EntityUseCaseGenerator(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final files = await generator.generate(GeneratorConfig(name: 'Product'));
-/// ```
 class EntityUseCaseGenerator {
   final String outputDir;
   final GeneratorOptions options;
   final AppendExecutor appendExecutor;
+  final FileSystem fileSystem;
 
   EntityUseCaseGenerator({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     this.appendExecutor = const AppendExecutor(),
-  });
+    FileSystem? fileSystem,
+  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     final files = <GeneratedFile>[];
@@ -53,14 +42,13 @@ class EntityUseCaseGenerator {
     for (final method in config.methods) {
       if (!validMethods.contains(method)) {
         if (config.verbose) {
-          print('  ⏭ Skipping unknown method: $method');
+          print('  Skip unknown method: $method');
         }
         continue;
       }
       files.add(await _generateForMethod(config, method));
     }
     if (config.revert && config.methods.isEmpty) {
-      // Revert based on name if no methods specified
       final entitySnake = config.nameSnake;
       final usecaseDirPath = path.join(
         outputDir,
@@ -79,13 +67,14 @@ class EntityUseCaseGenerator {
       ];
       for (final fileName in possibleFiles) {
         final filePath = path.join(usecaseDirPath, fileName);
-        if (File(filePath).existsSync()) {
+        if (await fileSystem.exists(filePath)) {
           files.add(
             await FileUtils.deleteFile(
               filePath,
               'usecase',
               dryRun: options.dryRun,
               verbose: options.verbose,
+              fileSystem: fileSystem,
             ),
           );
         }
@@ -201,7 +190,6 @@ class EntityUseCaseGenerator {
         break;
       case 'update':
         className = 'Update${entityName}UseCase';
-        // Use Patch for entity-based updates by default
         final dataType = config.useZorphy
             ? '${entityName}Patch'
             : 'Partial<$entityName>';
@@ -355,6 +343,7 @@ class EntityUseCaseGenerator {
         config,
         depth: 2,
         includeDomain: false,
+        fileSystem: fileSystem,
       );
       imports.addAll(entityImports);
     }
@@ -478,10 +467,11 @@ class EntityUseCaseGenerator {
         verbose: options.verbose,
         revert: true,
         skipRevertIfExisted: true,
+        fileSystem: fileSystem,
       );
     }
 
-    if (File(filePath).existsSync()) {
+    if (await fileSystem.exists(filePath)) {
       if (options.force) {
         return FileUtils.writeFile(
           filePath,
@@ -490,10 +480,11 @@ class EntityUseCaseGenerator {
           force: true,
           dryRun: options.dryRun,
           verbose: options.verbose,
+          fileSystem: fileSystem,
         );
       }
 
-      var updatedSource = await File(filePath).readAsString();
+      var updatedSource = await fileSystem.read(filePath);
       final result = appendExecutor.execute(
         AppendRequest.method(
           source: updatedSource,
@@ -516,6 +507,7 @@ class EntityUseCaseGenerator {
         force: true,
         dryRun: options.dryRun,
         verbose: options.verbose,
+        fileSystem: fileSystem,
       );
     }
 
@@ -526,6 +518,7 @@ class EntityUseCaseGenerator {
       force: options.force,
       dryRun: options.dryRun,
       verbose: options.verbose,
+      fileSystem: fileSystem,
     );
   }
 

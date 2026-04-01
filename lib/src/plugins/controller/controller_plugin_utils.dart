@@ -52,11 +52,11 @@ extension ControllerPluginUtils on ControllerPlugin {
     ).property('fold').call([success.closure, failure.closure]).statement;
   }
 
-  List<String> _buildImports(
+  Future<List<String>> _buildImports(
     GeneratorConfig config,
     String domainSnake,
     bool withState,
-  ) {
+  ) async {
     final imports = <String>[
       'package:zuraffa/zuraffa.dart',
       '${config.nameSnake}_presenter.dart',
@@ -77,6 +77,7 @@ extension ControllerPluginUtils on ControllerPlugin {
         [config.name],
         config,
         depth: 3,
+        fileSystem: fileSystem,
       );
       imports.addAll(entityImports);
     } else if (withState && config.noEntity) {
@@ -95,22 +96,20 @@ extension ControllerPluginUtils on ControllerPlugin {
       final types = <String>[];
       if (config.isOrchestrator) {
         for (final usecase in config.usecases) {
-          final info = CommonPatterns.parseUseCaseInfo(
+          final info = await CommonPatterns.parseUseCaseInfo(
             usecase,
             config,
             outputDir,
+            fileSystem: fileSystem,
           );
-          // Only add paramsType as it's explicitly used in method signature
           if (info.paramsType != null && info.paramsType != 'NoParams') {
             types.add(info.paramsType!);
           }
-          // We don't necessarily need returnsType in the controller if it's just passed to state.copyWith
         }
       } else {
         if (config.paramsType != null && config.paramsType != 'NoParams') {
           types.add(config.paramsType!);
         }
-        // Add returnsType as it's explicitly used in method signature and state
         if (config.returnsType != null && config.returnsType!.isNotEmpty) {
           types.add(config.returnsType!);
         }
@@ -121,6 +120,7 @@ extension ControllerPluginUtils on ControllerPlugin {
           types,
           config,
           depth: 3,
+          fileSystem: fileSystem,
         );
         imports.addAll(entityImports);
       }

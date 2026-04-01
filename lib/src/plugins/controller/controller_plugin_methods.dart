@@ -1,12 +1,12 @@
 part of 'controller_plugin.dart';
 
 extension ControllerPluginMethods on ControllerPlugin {
-  List<Method> _buildMethods(
+  Future<List<Method>> _buildMethods(
     GeneratorConfig config,
     String entityName,
     String entityCamel,
     bool withState,
-  ) {
+  ) async {
     final methods = <Method>[];
 
     // 1. Entity-based methods
@@ -56,7 +56,12 @@ extension ControllerPluginMethods on ControllerPlugin {
     // 2. Custom methods
     if (config.isOrchestrator) {
       for (final u in config.usecases) {
-        final info = CommonPatterns.parseUseCaseInfo(u, config, outputDir);
+        final info = await CommonPatterns.parseUseCaseInfo(
+          u,
+          config,
+          outputDir,
+          fileSystem: fileSystem,
+        );
         methods.add(
           _buildCustomMethod(config, info.fieldName, withState, info: info),
         );

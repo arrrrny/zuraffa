@@ -25,6 +25,23 @@ extension MethodAppendBuilderTypes on MethodAppendBuilder {
         );
     }
   }
+
+  Expression _primitiveValue(String type) {
+    switch (type) {
+      case 'String':
+        return literalString('mock_value');
+      case 'int':
+        return literalNum(1);
+      case 'double':
+        return literalNum(1.0);
+      case 'bool':
+        return literalBool(true);
+      case 'DateTime':
+        return refer('DateTime').property('now').call([]);
+      default:
+        return literalNull;
+    }
+  }
 }
 
 class MethodAppendResult {

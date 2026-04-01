@@ -13,18 +13,6 @@ import 'generators/entity_usecase_generator.dart';
 import 'generators/stream_usecase_generator.dart';
 
 /// Manages use case generation for the domain layer.
-///
-/// Coordinates entity-based, custom, and stream use case generators based
-/// on the provided configuration.
-///
-/// Example:
-/// ```dart
-/// final plugin = UseCasePlugin(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final files = await plugin.generate(GeneratorConfig(name: 'Auth'));
-/// ```
 class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final GeneratorOptions options;
@@ -105,7 +93,6 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
   @override
   Future<List<GeneratedFile>> generateWithContext(PluginContext context) async {
-    // Bridge back to GeneratorConfig for now while generators are being migrated
     final config = GeneratorConfig(
       name: context.core.name,
       outputDir: context.core.outputDir,
@@ -125,26 +112,20 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       usecases: context.data['usecases']?.cast<String>().toList() ?? [],
       variants: context.data['variants']?.cast<String>().toList() ?? [],
       noEntity: context.get<bool>('no-entity') ?? false,
-      generateUseCase: true, // We are in the UseCase plugin
+      generateUseCase: true,
       generateData: context.data['data'] == true,
       generateRepository: context.data['repository'] == true,
     );
 
-    return generate(config);
+    return generate(config, context: context);
   }
 
   @override
-  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
-    // If the plugin is being called, we should generate unless explicitly disabled
-    // via a flag. Previously we were too restrictive.
-    // If revert is true, we ALWAYS proceed.
-    // If generateUseCase is true, we ALWAYS proceed.
-    // If BOTH are false, we only proceed if we're in a mode where generation is expected
-    // when the plugin is enabled.
+  Future<List<GeneratedFile>> generate(
+    GeneratorConfig config, {
+    PluginContext? context,
+  }) async {
     if (!config.generateUseCase && !config.revert) {
-      // If we are NOT entity-based and NOT custom usecase, something is weird,
-      // but let's assume if it's orchestrator/polymorphic it should still generate
-      // if those flags are true.
       if (!config.isEntityBased &&
           !config.isCustomUseCase &&
           !config.isOrchestrator &&
@@ -167,23 +148,47 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           revert: config.revert,
         ),
       );
-      return delegator.generate(config);
+      return delegator.generate(config, context: context);
     }
 
+    final entityGen = context != null
+        ? EntityUseCaseGenerator(
+            outputDir: outputDir,
+            options: options,
+            fileSystem: context.fileSystem,
+          )
+        : entityGenerator;
+
+    final customGen = context != null
+        ? CustomUseCaseGenerator(
+            outputDir: outputDir,
+            options: options,
+            fileSystem: context.fileSystem,
+          )
+        : customGenerator;
+
+    final streamGen = context != null
+        ? StreamUseCaseGenerator(
+            outputDir: outputDir,
+            options: options,
+            fileSystem: context.fileSystem,
+          )
+        : streamGenerator;
+
     if (config.isEntityBased) {
-      return entityGenerator.generate(config);
+      return entityGen.generate(config);
     }
     if (config.isPolymorphic) {
-      return customGenerator.generatePolymorphic(config);
+      return customGen.generatePolymorphic(config);
     }
     if (config.isOrchestrator) {
-      return [await customGenerator.generateOrchestrator(config)];
+      return [await customGen.generateOrchestrator(config)];
     }
     if (config.useCaseType == 'stream') {
-      return [await streamGenerator.generate(config)];
+      return [await streamGen.generate(config)];
     }
     if (config.isCustomUseCase) {
-      return [await customGenerator.generate(config)];
+      return [await customGen.generate(config)];
     }
     return [];
   }

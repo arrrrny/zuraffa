@@ -77,13 +77,19 @@ class ServicePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       methods: context.data['methods']?.cast<String>() ?? [],
       domain: domain,
       noEntity: context.data['no-entity'] == true,
+      paramsType: context.data['params'],
+      returnsType: context.data['returns'],
+      useCaseType: context.data['type'] ?? 'usecase',
     );
 
-    return generate(config);
+    return generate(config, context: context);
   }
 
   @override
-  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
+  Future<List<GeneratedFile>> generate(
+    GeneratorConfig config, {
+    PluginContext? context,
+  }) async {
     if (!config.generateService && !config.revert) {
       // For backward compatibility with direct plugin calls in tests and legacy orchestrator
       if (!config.isEntityBased &&
@@ -106,7 +112,10 @@ class ServicePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             fileName,
           )
         : path.join(outputDir, 'domain', 'services', fileName);
-    final content = interfaceBuilder.build(config);
+    final content = interfaceBuilder.build(
+      config,
+      fileSystem: context?.fileSystem,
+    );
 
     final file = await FileUtils.writeFile(
       filePath,
@@ -116,6 +125,7 @@ class ServicePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: context?.fileSystem,
     );
 
     return [file];

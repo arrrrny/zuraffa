@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
@@ -6,6 +5,7 @@ import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
+import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -22,6 +22,7 @@ class MockProviderBuilder {
   final SpecLibrary specLibrary;
   final MockTypeHelper typeHelper;
   final AppendExecutor appendExecutor;
+  final FileSystem fileSystem;
 
   MockProviderBuilder({
     required this.outputDir,
@@ -29,9 +30,11 @@ class MockProviderBuilder {
     SpecLibrary? specLibrary,
     MockTypeHelper? typeHelper,
     AppendExecutor? appendExecutor,
+    FileSystem? fileSystem,
   }) : specLibrary = specLibrary ?? const SpecLibrary(),
        typeHelper = typeHelper ?? const MockTypeHelper(),
-       appendExecutor = appendExecutor ?? AppendExecutor();
+       appendExecutor = appendExecutor ?? AppendExecutor(),
+       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 
   Future<GeneratedFile> generateMockProvider(GeneratorConfig config) async {
     final serviceName = config.effectiveService;
@@ -65,8 +68,7 @@ class MockProviderBuilder {
       fileName,
     );
 
-    final file = File(filePath);
-    final fileExists = file.existsSync();
+    final fileExists = await fileSystem.exists(filePath);
 
     if (config.revert && !config.appendToExisting) {
       return FileUtils.deleteFile(
@@ -74,6 +76,7 @@ class MockProviderBuilder {
         'mock_provider',
         dryRun: options.dryRun,
         verbose: options.verbose,
+        fileSystem: fileSystem,
       );
     }
 
@@ -157,7 +160,6 @@ class MockProviderBuilder {
 
     final methods = <Method>[];
 
-    // Check for existing service methods
     final servicePath = config.isEntityBased
         ? path.join(
             outputDir,
@@ -176,6 +178,7 @@ class MockProviderBuilder {
     final existingMethods = await MethodExtractor.extractMethodsFromInterface(
       servicePath,
       serviceName,
+      fileSystem: fileSystem,
     );
 
     final entityTypes = <String>{};
@@ -187,7 +190,6 @@ class MockProviderBuilder {
       entityTypes.addAll(EntityUtils.extractEntityTypes(config.paramsType!));
     }
 
-    // Collect entities from existing methods
     for (final info in existingMethods) {
       if (info.paramsType != null && info.paramsType != 'NoParams') {
         entityTypes.addAll(EntityUtils.extractEntityTypes(info.paramsType!));
@@ -199,7 +201,11 @@ class MockProviderBuilder {
 
     for (final entityName in entityTypes) {
       final entitySnake = StringUtils.camelToSnake(entityName);
-      if (EntityAnalyzer.isEnum(entityName, outputDir)) {
+      if (EntityAnalyzer.isEnum(
+        entityName,
+        outputDir,
+        fileSystem: fileSystem,
+      )) {
         directives.add(
           Directive.import('../../../domain/entities/enums/index.dart'),
         );
@@ -207,8 +213,6 @@ class MockProviderBuilder {
         final entityPath =
             '../../../domain/entities/$entitySnake/$entitySnake.dart';
         directives.add(Directive.import(entityPath));
-
-        // Also add mock data import if it's an entity (not enum)
         final mockDataImport = '../../mock/${entitySnake}_mock_data.dart';
         directives.add(Directive.import(mockDataImport));
       }
@@ -299,10 +303,9 @@ class MockProviderBuilder {
     );
 
     if (config.appendToExisting && fileExists) {
-      final existing = await file.readAsString();
+      final existing = await fileSystem.read(filePath);
       var updated = existing;
 
-      // Add missing imports
       final entities = <String>{};
       if (config.methods.isNotEmpty) {
         entities.add(config.name);
@@ -364,7 +367,7 @@ class MockProviderBuilder {
         force: true,
         dryRun: options.dryRun,
         verbose: options.verbose,
-        revert: config.revert,
+        fileSystem: fileSystem,
       );
     }
 
@@ -382,6 +385,7 @@ class MockProviderBuilder {
       verbose: options.verbose,
       revert: config.revert,
       skipRevertIfExisted: true,
+      fileSystem: fileSystem,
     );
   }
 

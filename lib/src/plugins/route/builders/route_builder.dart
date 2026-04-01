@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
@@ -8,6 +6,8 @@ import '../../../core/ast/ast_helper.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
+import '../../../core/context/file_system.dart';
+import '../../../core/plugin_system/discovery_engine.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -17,18 +17,6 @@ import 'entity_routes_builder.dart';
 import 'extension_builder.dart';
 
 /// Generates application routes and entity route definitions.
-///
-/// Produces app-level route constants and entity-specific route builders,
-/// updating index files when needed.
-///
-/// Example:
-/// ```dart
-/// final builder = RouteBuilder(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final files = await builder.generate(GeneratorConfig(name: 'Product'));
-/// ```
 class RouteBuilder {
   final String outputDir;
   final GeneratorOptions options;
@@ -37,16 +25,10 @@ class RouteBuilder {
   final AppendExecutor appendExecutor;
   final SpecLibrary specLibrary;
   final DartEmitter emitter;
+  final FileSystem fileSystem;
+  final DiscoveryEngine? discovery;
 
   /// Creates a [RouteBuilder].
-  ///
-  /// @param outputDir Target directory for generated files.
-  /// @param options Generation flags for writing behavior and logging.
-  /// @param appRoutesBuilder Optional app routes builder override.
-  /// @param entityRoutesBuilder Optional entity routes builder override.
-  /// @param appendExecutor Optional append executor override.
-  /// @param specLibrary Optional spec library override.
-  /// @param emitter Optional code emitter override.
   RouteBuilder({
     required this.outputDir,
     this.options = const GeneratorOptions(),
@@ -55,18 +37,18 @@ class RouteBuilder {
     AppendExecutor? appendExecutor,
     SpecLibrary? specLibrary,
     DartEmitter? emitter,
+    FileSystem? fileSystem,
+    this.discovery,
   }) : appRoutesBuilder = appRoutesBuilder ?? AppRoutesBuilder(),
        entityRoutesBuilder = entityRoutesBuilder ?? EntityRoutesBuilder(),
        appendExecutor = appendExecutor ?? AppendExecutor(),
        specLibrary = specLibrary ?? const SpecLibrary(),
        emitter =
            emitter ??
-           DartEmitter(orderDirectives: true, useNullSafetySyntax: true);
+           DartEmitter(orderDirectives: true, useNullSafetySyntax: true),
+       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 
   /// Generates route files for the given [config].
-  ///
-  /// @param config Generator configuration describing the entity and options.
-  /// @returns List of generated route files.
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     final files = <GeneratedFile>[];
 
@@ -86,7 +68,6 @@ class RouteBuilder {
 
   Future<GeneratedFile> _generateRouteConstants(GeneratorConfig config) async {
     final routesPath = path.join(outputDir, 'routing', 'app_routes.dart');
-    final file = File(routesPath);
 
     final routeBase = config.nameSnake;
     final routeNameBase = config.nameCamel;
@@ -142,7 +123,7 @@ class RouteBuilder {
     );
 
     if (config.revert) {
-      if (!file.existsSync()) {
+      if (!await fileSystem.exists(routesPath)) {
         if (options.verbose) {
           print('  ⏭ File does not exist, skipping revert: $routesPath');
         }
@@ -153,7 +134,7 @@ class RouteBuilder {
         );
       }
 
-      var content = await file.readAsString();
+      var content = await fileSystem.read(routesPath);
       final helper = const AstHelper();
 
       for (final fieldName in routeConstants.keys) {
@@ -180,13 +161,15 @@ class RouteBuilder {
         dryRun: options.dryRun,
         verbose: options.verbose,
         revert: false,
+        fileSystem: fileSystem,
       );
     }
 
     String content;
-    if (file.existsSync()) {
+    final exists = await fileSystem.exists(routesPath);
+    if (exists) {
       content = _updateAppRoutesFile(
-        existingContent: await file.readAsString(),
+        existingContent: await fileSystem.read(routesPath),
         newRouteConstants: routeConstants,
         newExtensionMethods: extensionMethods,
         entitySnake: config.nameSnake,
@@ -207,10 +190,11 @@ class RouteBuilder {
       routesPath,
       content,
       'route_constants',
-      force: config.force || file.existsSync(),
+      force: config.force || exists,
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: false,
+      fileSystem: fileSystem,
     );
   }
 
@@ -272,7 +256,6 @@ class RouteBuilder {
     for (final routeExpr in newGoRoutes) {
       final routeSource = entityRoutesBuilder.buildRouteSource(routeExpr);
 
-      // Basic normalization for duplicate check: remove spaces, newlines, and trailing commas
       String normalize(String s) => s
           .replaceAll(RegExp(r'\s+'), '')
           .replaceAll(RegExp(r',\s*\)'), ')')
@@ -308,11 +291,8 @@ class RouteBuilder {
 
     final entityRouteImport = './index.dart';
 
-    // Remove individual route imports if index import is present
     if (content.contains(entityRouteImport)) {
-      // Remove individual route imports that were added previously
       content = content.replaceAll(RegExp(r"import '\w+_routes\.dart';\n"), '');
-      // Clean up any extra empty lines
       content = content.replaceAll(RegExp(r'\n\s*\n'), '\n');
     }
 
@@ -393,7 +373,6 @@ class RouteBuilder {
     );
 
     final routesPath = path.join(outputDir, 'routing', fileName);
-    final file = File(routesPath);
 
     final routeBase = config.nameSnake;
     final routeNameBase = config.nameCamel;
@@ -516,7 +495,7 @@ class RouteBuilder {
     ];
 
     if (config.revert) {
-      if (!file.existsSync()) {
+      if (!await fileSystem.exists(routesPath)) {
         if (options.verbose) {
           print('  ⏭ File does not exist, skipping revert: $routesPath');
         }
@@ -527,7 +506,7 @@ class RouteBuilder {
         );
       }
 
-      var content = await file.readAsString();
+      var content = await fileSystem.read(routesPath);
       final helper = const AstHelper();
 
       for (final fieldName in routeConstants.keys) {
@@ -553,6 +532,7 @@ class RouteBuilder {
           'entity_routes',
           dryRun: options.dryRun,
           verbose: options.verbose,
+          fileSystem: fileSystem,
         );
       }
 
@@ -564,15 +544,17 @@ class RouteBuilder {
         dryRun: options.dryRun,
         verbose: options.verbose,
         revert: false,
+        fileSystem: fileSystem,
       );
     }
 
-    final isUpdate = file.existsSync() || config.appendToExisting;
+    final exists = await fileSystem.exists(routesPath);
+    final isUpdate = exists || config.appendToExisting;
     final leadingComment = '// Generated by zfa for: ${config.name}';
 
     final content = isUpdate
         ? _updateEntityRoutesFile(
-            file.existsSync() ? await file.readAsString() : '',
+            exists ? await fileSystem.read(routesPath) : '',
             className: className,
             routesGetterName: routesGetterName,
             newRouteConstants: routeConstants,
@@ -598,6 +580,7 @@ class RouteBuilder {
       verbose: options.verbose,
       revert: config.revert,
       skipRevertIfExisted: true,
+      fileSystem: fileSystem,
     );
   }
 
@@ -606,8 +589,6 @@ class RouteBuilder {
     String entitySnake,
     String entityCamel,
   ) {
-    // Always return empty dependency info to ensure clean view instantiation
-    // Views should never receive repository injections in routes
     return const _DependencyInfo.empty();
   }
 
@@ -818,20 +799,21 @@ class RouteBuilder {
     final dirPath = path.join(outputDir, 'routing');
     final indexPath = path.join(dirPath, 'index.dart');
 
-    final dir = Directory(dirPath);
-    final existingFiles = dir.existsSync()
-        ? dir
-              .listSync()
-              .whereType<File>()
-              .where(
-                (f) =>
-                    f.path.endsWith('_routes.dart') &&
-                    !f.path.endsWith('index.dart') &&
-                    !f.path.endsWith('app_routes.dart'),
-              )
-              .map((f) => f.path)
-              .toList()
-        : <String>[];
+    if (!await fileSystem.exists(dirPath)) {
+      return null;
+    }
+
+    final dirs = await fileSystem.list(dirPath);
+    final existingFiles = <String>[];
+    for (final f in dirs) {
+      if (!await fileSystem.isDirectory(f)) {
+        if (f.endsWith('_routes.dart') &&
+            !f.endsWith('index.dart') &&
+            !f.endsWith('app_routes.dart')) {
+          existingFiles.add(f);
+        }
+      }
+    }
 
     final pendingPaths = pendingFiles
         .where(
@@ -855,11 +837,11 @@ class RouteBuilder {
         .toList();
 
     if (allPaths.isEmpty) {
-      if (File(indexPath).existsSync()) {
+      if (await fileSystem.exists(indexPath)) {
         if (options.dryRun) {
           if (options.verbose) print('  Dry run: Deleting $indexPath');
         } else {
-          File(indexPath).deleteSync();
+          await fileSystem.delete(indexPath);
         }
       }
       return null;
@@ -908,6 +890,7 @@ class RouteBuilder {
       force: true,
       dryRun: options.dryRun,
       verbose: options.verbose,
+      fileSystem: fileSystem,
     );
   }
 
@@ -938,7 +921,6 @@ class RouteBuilder {
       routes['${routeNameBase}List'] =
           '${entityPascal}Routes.${routeNameBase}List';
     } else {
-      // If no list route, we still need a default route for the view
       routes[routeNameBase] = '${entityPascal}Routes.$routeNameBase';
     }
 

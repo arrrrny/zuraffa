@@ -1,10 +1,11 @@
 import 'package:code_builder/code_builder.dart';
-import 'dart:io';
 import 'package:path/path.dart' as path;
 
+import '../../../core/builder/patterns/common_patterns.dart';
 import '../../../core/ast/ast_helper.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
+import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -16,30 +17,24 @@ import '../../../utils/method_extractor.dart';
 ///
 /// Builds Dart classes that implement domain service interfaces, handling
 /// data mapping and error handling.
-///
-/// Example:
-/// ```dart
-/// final builder = ProviderBuilder(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final file = await builder.generate(GeneratorConfig(name: 'Auth'));
-/// ```
 class ProviderBuilder {
   final String outputDir;
   final GeneratorOptions options;
   final SpecLibrary specLibrary;
   final DartEmitter emitter;
+  final FileSystem fileSystem;
 
   ProviderBuilder({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     SpecLibrary? specLibrary,
     DartEmitter? emitter,
+    FileSystem? fileSystem,
   }) : specLibrary = specLibrary ?? const SpecLibrary(),
        emitter =
            emitter ??
-           DartEmitter(orderDirectives: true, useNullSafetySyntax: true);
+           DartEmitter(orderDirectives: true, useNullSafetySyntax: true),
+       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final serviceName = config.effectiveService;
@@ -68,9 +63,11 @@ class ProviderBuilder {
     final existingFile = await FileUtils.findFileImplementing(
       path.join(outputDir, 'data', 'providers'),
       serviceName,
+      fileSystem: fileSystem,
     );
 
-    final fileExists = existingFile != null || File(filePath).existsSync();
+    final fileExists =
+        existingFile != null || await fileSystem.exists(filePath);
     if (existingFile != null) {
       filePath = existingFile;
     }
@@ -81,6 +78,7 @@ class ProviderBuilder {
         'provider',
         dryRun: options.dryRun,
         verbose: options.verbose,
+        fileSystem: fileSystem,
       );
     }
 
@@ -126,6 +124,7 @@ class ProviderBuilder {
     final existingMethods = await MethodExtractor.extractMethodsFromInterface(
       servicePath,
       serviceName,
+      fileSystem: fileSystem,
     );
 
     if (config.methods.isNotEmpty) {
@@ -193,18 +192,14 @@ class ProviderBuilder {
       );
     }
 
-    for (final entityName in entityTypes) {
-      final entitySnake = StringUtils.camelToSnake(entityName);
-      if (EntityAnalyzer.isEnum(entityName, outputDir)) {
-        directives.add(
-          Directive.import('../../../domain/entities/enums/index.dart'),
-        );
-      } else {
-        final entityPath =
-            '../../../domain/entities/$entitySnake/$entitySnake.dart';
-        directives.add(Directive.import(entityPath));
-      }
-    }
+    final entityImports = CommonPatterns.entityImports(
+      entityTypes.toList(),
+      config,
+      depth: 3,
+      includeDomain: false,
+      fileSystem: fileSystem,
+    );
+    directives.addAll(entityImports.map(Directive.import));
 
     if (config.generateInit) {
       methods.add(
@@ -255,7 +250,7 @@ class ProviderBuilder {
     );
 
     if (config.appendToExisting && fileExists) {
-      var content = await File(filePath).readAsString();
+      var content = await fileSystem.read(filePath);
       final helper = const AstHelper();
 
       // Add imports if missing
@@ -264,8 +259,6 @@ class ProviderBuilder {
           specLibrary.library(specs: [], directives: [directive]),
         );
         if (!content.contains(importLine.trim()) || config.force) {
-          // If force is true, we might want to replace the import, but adding it again is safe if we don't duplicate.
-          // Actually, adding if missing is usually enough.
           if (!content.contains(importLine.trim())) {
             content = '${importLine.trim()}\n$content';
           }
@@ -316,6 +309,7 @@ class ProviderBuilder {
         dryRun: options.dryRun,
         verbose: options.verbose,
         revert: config.revert,
+        fileSystem: fileSystem,
       );
     }
 
@@ -331,6 +325,7 @@ class ProviderBuilder {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fileSystem,
     );
   }
 

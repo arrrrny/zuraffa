@@ -2,6 +2,7 @@ import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/plugin_context.dart';
+import '../../core/context/file_system.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'builders/method_append_builder.dart';
@@ -9,30 +10,21 @@ import 'capabilities/append_method_capability.dart';
 import 'capabilities/method_capability.dart';
 
 /// Manages appending methods to existing classes.
-///
-/// Provides capabilities to add new methods to repositories, services,
-/// and data sources without overwriting existing files.
-///
-/// Example:
-/// ```dart
-/// final plugin = MethodAppendPlugin(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final result = await plugin.appendMethod(GeneratorConfig(name: 'Product'));
-/// ```
 class MethodAppendPlugin extends FileGeneratorPlugin {
   final String outputDir;
   final GeneratorOptions options;
   late final MethodAppendBuilder methodAppendBuilder;
+  final FileSystem fileSystem;
 
   MethodAppendPlugin({
     required this.outputDir,
     this.options = const GeneratorOptions(),
-  }) {
+    FileSystem? fileSystem,
+  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir) {
     methodAppendBuilder = MethodAppendBuilder(
       outputDir: outputDir,
       options: options,
+      fileSystem: this.fileSystem,
     );
   }
 
@@ -95,11 +87,14 @@ class MethodAppendPlugin extends FileGeneratorPlugin {
       noEntity: context.data['no-entity'] == true,
     );
 
-    return generate(config);
+    return generate(config, context: context);
   }
 
   @override
-  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
+  Future<List<GeneratedFile>> generate(
+    GeneratorConfig config, {
+    PluginContext? context,
+  }) async {
     if (config.outputDir != outputDir ||
         config.dryRun != options.dryRun ||
         config.force != options.force ||
@@ -113,12 +108,23 @@ class MethodAppendPlugin extends FileGeneratorPlugin {
           verbose: config.verbose,
           revert: config.revert,
         ),
+        fileSystem: context?.fileSystem,
       );
-      return delegator.generate(config);
+      return delegator.generate(config, context: context);
     }
 
     if (config.appendToExisting || config.revert) {
-      final result = await appendMethod(config);
+      final fs = context?.fileSystem ?? fileSystem;
+      final builder = context != null
+          ? MethodAppendBuilder(
+              outputDir: outputDir,
+              options: options,
+              fileSystem: fs,
+              discovery: context.discovery,
+            )
+          : methodAppendBuilder;
+
+      final result = await builder.appendMethod(config);
       return result.updatedFiles;
     }
     return [];

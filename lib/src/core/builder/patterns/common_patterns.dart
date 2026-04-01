@@ -1,9 +1,9 @@
-import 'dart:io';
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../../core/constants/known_types.dart';
 import '../../../core/plugin_system/discovery_engine.dart';
+import '../../../core/context/file_system.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/parsed_usecase_info.dart';
 import '../../../utils/package_utils.dart';
@@ -16,7 +16,10 @@ class CommonPatterns {
     int depth = 1,
     bool includeDomain = true,
     DiscoveryEngine? discovery,
+    FileSystem? fileSystem,
   }) {
+    final fs = fileSystem ?? FileSystem.create(root: config.outputDir);
+
     final entities = <String>{};
     for (final type in types) {
       if (type == null) continue;
@@ -31,88 +34,145 @@ class CommonPatterns {
     final domainSnake = config.domain != null
         ? StringUtils.camelToSnake(config.domain!)
         : null;
-    final baseImport = PackageUtils.getBaseImport(config.outputDir);
+    final baseImport = PackageUtils.getBaseImport(
+      config.outputDir,
+      fileSystem: fs,
+    );
 
-    return entities
-        .map((entity) {
-          final entitySnake = StringUtils.camelToSnake(entity);
+    final results = <String>[];
+    for (final entity in entities) {
+      final entitySnake = StringUtils.camelToSnake(entity);
+      var found = false;
 
-          // 1. Try domain-specific entity directory first if domain is provided
-          if (domainSnake != null) {
-            final domainEntityDirPath = path.join(
-              config.outputDir,
-              'domain',
-              'entities',
-              domainSnake,
-              entitySnake,
-            );
-            if (Directory(domainEntityDirPath).existsSync()) {
-              return '$baseImport/domain/entities/$domainSnake/$entitySnake/$entitySnake.dart';
-            }
+      // 1. Try domain-specific entity directory first if domain is provided
+      if (domainSnake != null) {
+        final domainEntityDirPath = path.join(
+          config.outputDir,
+          'domain',
+          'entities',
+          domainSnake,
+          entitySnake,
+        );
 
-            // Check if it's a flat file in domain folder (legacy or special case)
-            final domainEntityFilePath = path.join(
-              config.outputDir,
-              'domain',
-              'entities',
-              domainSnake,
-              '$entitySnake.dart',
-            );
-            if (File(domainEntityFilePath).existsSync()) {
-              return '$baseImport/domain/entities/$domainSnake/$entitySnake.dart';
-            }
-          }
+        final domainEntityFilePath = path.join(
+          domainEntityDirPath,
+          '$entitySnake.dart',
+        );
 
-          // 2. Try standard entity directory
-          final entityDirPath = path.join(
-            config.outputDir,
-            'domain',
-            'entities',
-            entitySnake,
+        if (fs.existsSync(domainEntityFilePath)) {
+          results.add(
+            '$baseImport/domain/entities/$domainSnake/$entitySnake/$entitySnake.dart',
           );
-          if (Directory(entityDirPath).existsSync()) {
-            return '$baseImport/domain/entities/$entitySnake/$entitySnake.dart';
-          }
+          found = true;
+        }
 
-          // 3. Try legacy flat entity file
-          final entityFilePath = path.join(
+        if (!found) {
+          final flatFilePath = path.join(
             config.outputDir,
             'domain',
             'entities',
+            domainSnake,
             '$entitySnake.dart',
           );
-          if (File(entityFilePath).existsSync()) {
-            final content = File(entityFilePath).readAsStringSync();
-            if (content.contains('enum $entity')) {
-              return '$baseImport/domain/entities/enums/index.dart';
-            }
-            return '$baseImport/domain/entities/$entitySnake.dart';
+          if (fs.existsSync(flatFilePath)) {
+            results.add(
+              '$baseImport/domain/entities/$domainSnake/$entitySnake.dart',
+            );
+            found = true;
           }
+        }
+      }
 
-          // 4. Try enums/ directory
-          final enumPath = path.join(
+      if (!found) {
+        // 2. Try standard entity directory
+        final entityDirPath = path.join(
+          config.outputDir,
+          'domain',
+          'entities',
+          entitySnake,
+        );
+        final entityFilePath = path.join(entityDirPath, '$entitySnake.dart');
+
+        if (fs.existsSync(entityFilePath)) {
+          results.add(
+            '$baseImport/domain/entities/$entitySnake/$entitySnake.dart',
+          );
+          found = true;
+        }
+      }
+
+      if (!found) {
+        // 3. Try legacy flat entity file
+        final entityFilePath = path.join(
+          config.outputDir,
+          'domain',
+          'entities',
+          '$entitySnake.dart',
+        );
+        if (fs.existsSync(entityFilePath)) {
+          // Check for enum
+          final content = fs.readSync(entityFilePath);
+          if (content.contains('enum $entity')) {
+            results.add('$baseImport/domain/entities/enums/index.dart');
+          } else {
+            results.add('$baseImport/domain/entities/$entitySnake.dart');
+          }
+          found = true;
+        }
+      }
+
+      if (!found) {
+        // 4. Try enums/ directory
+        final enumPath = path.join(
+          config.outputDir,
+          'domain',
+          'entities',
+          'enums',
+          '$entitySnake.dart',
+        );
+        if (fs.existsSync(enumPath)) {
+          results.add('$baseImport/domain/entities/enums/index.dart');
+          found = true;
+        }
+      }
+
+      if (!found) {
+        // 5. Check if it's in the same domain but specified without entities/ subdirectory
+        if (domainSnake != null) {
+          final altPath = path.join(
             config.outputDir,
             'domain',
             'entities',
-            'enums',
+            domainSnake,
             '$entitySnake.dart',
           );
-          if (File(enumPath).existsSync()) {
-            return '$baseImport/domain/entities/enums/index.dart';
+          if (fs.existsSync(altPath)) {
+            results.add(
+              '$baseImport/domain/entities/$domainSnake/$entitySnake.dart',
+            );
+            found = true;
           }
+        }
+      }
 
-          return '$baseImport/domain/entities/$entitySnake/$entitySnake.dart';
-        })
-        .toSet()
-        .toList();
+      if (!found) {
+        results.add(
+          '$baseImport/domain/entities/$entitySnake/$entitySnake.dart',
+        );
+      }
+    }
+
+    return results.toSet().toList();
   }
 
-  static ParsedUseCaseInfo parseUseCaseInfo(
+  static Future<ParsedUseCaseInfo> parseUseCaseInfo(
     String u,
     GeneratorConfig config,
     String outputDir, {
     DiscoveryEngine? discovery,
-  }) {
+    FileSystem? fileSystem,
+  }) async {
+    final fs = fileSystem ?? FileSystem.create(root: outputDir);
     final className = u.endsWith('UseCase') ? u : '${u}UseCase';
     final fieldName = StringUtils.pascalToCamel(
       className.replaceAll('UseCase', ''),
@@ -126,11 +186,12 @@ class CommonPatterns {
     String? returnsType = config.returnsType;
     String? useCaseType = config.useCaseType;
 
-    final usecaseDomain = findUseCaseDomain(
+    final usecaseDomain = await findUseCaseDomain(
       usecaseSnake,
       config.effectiveDomain,
       outputDir,
       discovery: discovery,
+      fileSystem: fs,
     );
 
     final filePath = path.join(
@@ -142,8 +203,8 @@ class CommonPatterns {
     );
 
     // Final check for existence
-    if (File(filePath).existsSync()) {
-      final content = File(filePath).readAsStringSync();
+    if (await fs.exists(filePath)) {
+      final content = await fs.read(filePath);
       final extendsMatch = RegExp(
         r'extends (UseCase|StreamUseCase|CompletableUseCase|SyncUseCase)<(.+)>',
       ).firstMatch(content);
@@ -188,14 +249,15 @@ class CommonPatterns {
     );
   }
 
-  static String findUseCaseDomain(
+  static Future<String> findUseCaseDomain(
     String usecaseSnake,
     String defaultDomain,
     String outputDir, {
     DiscoveryEngine? discovery,
-  }) {
+    FileSystem? fileSystem,
+  }) async {
+    final fs = fileSystem ?? FileSystem.create(root: outputDir);
     // 1. If discovery engine is available, use it for ACTIVE discovery
-    // This solves the requirement: "if I specify a usecase in --usecases= list it should find it in domain/usecases regardless of the actualy sub path"
     if (discovery != null) {
       final found = discovery.findFileSync(
         '${usecaseSnake}_usecase.dart',
@@ -203,19 +265,18 @@ class CommonPatterns {
       );
       if (found != null) {
         // Return the parent folder name (the domain)
-        return path.basename(found.parent.path);
+        return path.basename(path.dirname(found.path));
       }
     }
 
-    final usecasesDir = Directory(path.join(outputDir, 'domain', 'usecases'));
-    if (usecasesDir.existsSync()) {
-      for (final dir in usecasesDir.listSync()) {
-        if (dir is Directory) {
-          final useCaseFile = File(
-            path.join(dir.path, '${usecaseSnake}_usecase.dart'),
-          );
-          if (useCaseFile.existsSync()) {
-            return path.basename(dir.path);
+    final usecasesDir = path.join(outputDir, 'domain', 'usecases');
+    if (await fs.exists(usecasesDir)) {
+      final dirs = await fs.list(usecasesDir);
+      for (final dir in dirs) {
+        if (await fs.isDirectory(dir)) {
+          final useCaseFile = path.join(dir, '${usecaseSnake}_usecase.dart');
+          if (await fs.exists(useCaseFile)) {
+            return path.basename(dir);
           }
         }
       }
@@ -249,8 +310,6 @@ class CommonPatterns {
     final results = <String>[];
 
     // 2. Handle "Type name" format from multiple params if it leaked here
-    // But better to handle it by splitting it.
-    // If there is a space that is NOT inside generics, it's likely "Type name"
     final spaceIndex = _findSpaceOutsideGenerics(cleanType);
     if (spaceIndex != -1) {
       final actualType = cleanType.substring(0, spaceIndex).trim();

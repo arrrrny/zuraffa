@@ -17,7 +17,7 @@ extension RepositoryImplementationGeneratorAppend
     imports.add('package:zuraffa/zuraffa.dart');
 
     // Use DiscoveryEngine to find the entity file
-    final entityFile = discovery.findFileSync('${entitySnake}.dart');
+    final entityFile = discovery.findFileSync('$entitySnake.dart');
     final repoInterfaceFile = discovery.findFileSync(
       '${entitySnake}_repository.dart',
     );
@@ -31,24 +31,35 @@ extension RepositoryImplementationGeneratorAppend
       ),
     );
 
-    if (entityFile != null) {
+    final isEnum = EntityAnalyzer.isEnum(
+      config.name,
+      outputDir,
+      fileSystem: fileSystem,
+    );
+    if (isEnum) {
+      final baseImport = PackageUtils.getBaseImport(
+        outputDir,
+        fileSystem: fileSystem,
+      );
+      imports.add('$baseImport/domain/entities/enums/index.dart');
+    } else if (entityFile != null) {
       imports.add(p.relative(entityFile.path, from: repoImplDir));
     } else {
       // Fallback
-      final baseImport = PackageUtils.getBaseImport(outputDir);
-      if (EntityAnalyzer.isEnum(config.name, outputDir)) {
-        imports.add('$baseImport/domain/entities/enums/index.dart');
-      } else {
-        imports.add(
-          '$baseImport/domain/entities/$entitySnake/$entitySnake.dart',
-        );
-      }
+      final baseImport = PackageUtils.getBaseImport(
+        outputDir,
+        fileSystem: fileSystem,
+      );
+      imports.add('$baseImport/domain/entities/$entitySnake/$entitySnake.dart');
     }
 
     if (repoInterfaceFile != null) {
       imports.add(p.relative(repoInterfaceFile.path, from: repoImplDir));
     } else {
-      final baseImport = PackageUtils.getBaseImport(outputDir);
+      final baseImport = PackageUtils.getBaseImport(
+        outputDir,
+        fileSystem: fileSystem,
+      );
       imports.add(
         '$baseImport/domain/repositories/${entitySnake}_repository.dart',
       );
@@ -68,119 +79,5 @@ extension RepositoryImplementationGeneratorAppend
       imports.add('../datasources/$entitySnake/${entitySnake}_datasource.dart');
     }
     return imports;
-  }
-
-  List<String> _buildImportLines(List<String> importPaths) {
-    return importPaths.map((path) => "import '$path';").toList();
-  }
-
-  String _appendMethods({
-    required String source,
-    required String className,
-    required List<Method> methods,
-    List<String> imports = const [],
-  }) {
-    final importLines = _buildImportLines(imports);
-    final mergedImports = _mergeImports(source, importLines);
-
-    var updated = mergedImports;
-    for (final method in methods) {
-      final methodSource = method.accept(DartEmitter()).toString();
-      final result = appendExecutor.execute(
-        AppendRequest.method(
-          source: updated,
-          className: className,
-          memberSource: methodSource,
-        ),
-      );
-      updated = result.source;
-    }
-    return updated;
-  }
-
-  String _appendFields({
-    required String source,
-    required String className,
-    required List<Field> fields,
-  }) {
-    var updated = source;
-    for (final field in fields) {
-      final fieldSource = field.accept(DartEmitter()).toString();
-      final result = appendExecutor.execute(
-        AppendRequest.field(
-          source: updated,
-          className: className,
-          memberSource: fieldSource,
-        ),
-      );
-      updated = result.source;
-    }
-    return updated;
-  }
-
-  String _removeMethods({
-    required String source,
-    required String className,
-    required List<Method> methods,
-  }) {
-    var updated = source;
-    for (final method in methods) {
-      final methodSource = method.accept(DartEmitter()).toString();
-      final result = appendExecutor.undo(
-        AppendRequest.method(
-          source: updated,
-          className: className,
-          memberSource: methodSource,
-        ),
-      );
-      updated = result.source;
-    }
-    return updated;
-  }
-
-  String _removeFields({
-    required String source,
-    required String className,
-    required List<Field> fields,
-  }) {
-    var updated = source;
-    for (final field in fields) {
-      final fieldSource = field.accept(DartEmitter()).toString();
-      final result = appendExecutor.undo(
-        AppendRequest.field(
-          source: updated,
-          className: className,
-          memberSource: fieldSource,
-        ),
-      );
-      updated = result.source;
-    }
-    return updated;
-  }
-
-  String _removeConstructors({
-    required String source,
-    required String className,
-    required List<Constructor> constructors,
-  }) {
-    var updated = source;
-    final helper = const AstHelper();
-    for (final _ in constructors) {
-      updated = helper.removeConstructorFromClass(
-        source: updated,
-        className: className,
-      );
-    }
-    return updated;
-  }
-
-  String _mergeImports(String source, List<String> imports) {
-    var updated = source;
-    for (final importLine in imports) {
-      if (!updated.contains(importLine)) {
-        updated = '$importLine\n$updated';
-      }
-    }
-    return updated;
   }
 }

@@ -1,6 +1,7 @@
 import 'package:path/path.dart' as path;
 import '../../../core/generator_options.dart';
 import '../../../core/plugin_system/discovery_engine.dart';
+import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/entity_analyzer.dart';
@@ -11,11 +12,20 @@ class ShadcnBuilder {
   final String outputDir;
   final GeneratorOptions options;
   final DiscoveryEngine discovery;
+  final FileSystem fileSystem;
 
   ShadcnBuilder({
     required this.outputDir,
     this.options = const GeneratorOptions(),
-  }) : discovery = DiscoveryEngine(projectRoot: outputDir);
+    DiscoveryEngine? discovery,
+    FileSystem? fileSystem,
+  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir),
+       discovery =
+           discovery ??
+           DiscoveryEngine(
+             projectRoot: outputDir,
+             fileSystem: fileSystem ?? FileSystem.create(root: outputDir),
+           );
 
   Future<List<GeneratedFile>> generate(
     GeneratorConfig config,
@@ -27,7 +37,11 @@ class ShadcnBuilder {
     final domain = config.effectiveDomain;
 
     // Analyze entity to get fields
-    final fields = EntityAnalyzer.analyzeEntity(entityName, outputDir);
+    final fields = EntityAnalyzer.analyzeEntity(
+      entityName,
+      outputDir,
+      fileSystem: fileSystem,
+    );
     final ignoreFields =
         (shadcnData['ignore-fields'] as List?)?.cast<String>() ?? [];
 
@@ -79,6 +93,7 @@ class ShadcnBuilder {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fileSystem,
     );
 
     return [file];
@@ -150,11 +165,15 @@ class ShadcnBuilder {
     buffer.writeln("            itemBuilder: (context, index) {");
     buffer.writeln("              final item = items[index];");
     buffer.writeln("              return ShadCard(");
-    buffer.writeln("                title: Text(item.${fields.keys.first}),");
-    if (fields.length > 1) {
-      buffer.writeln(
-        "                description: Text(item.${fields.keys.elementAt(1)}.toString()),",
-      );
+    if (fields.isNotEmpty) {
+      buffer.writeln("                title: Text(item.${fields.keys.first}),");
+      if (fields.length > 1) {
+        buffer.writeln(
+          "                description: Text(item.${fields.keys.elementAt(1)}.toString()),",
+        );
+      }
+    } else {
+      buffer.writeln("                title: Text(item.toString()),");
     }
     buffer.writeln("              );");
     buffer.writeln("            },");
@@ -203,18 +222,24 @@ class ShadcnBuilder {
     buffer.writeln("      child: Column(");
     buffer.writeln("        children: [");
 
-    for (final entry in fields.entries) {
-      final name = entry.key;
-      final type = entry.value;
-      buffer.writeln("          ShadInputFormField(");
-      buffer.writeln("            id: '$name',");
+    if (fields.isEmpty) {
       buffer.writeln(
-        "            label: const Text('${StringUtils.capitalize(name)}'),",
+        "          const Text('No fields found for $entityName'),",
       );
-      if (type.contains('int') || type.contains('double')) {
-        buffer.writeln("            keyboardType: TextInputType.number,");
+    } else {
+      for (final entry in fields.entries) {
+        final name = entry.key;
+        final type = entry.value;
+        buffer.writeln("          ShadInputFormField(");
+        buffer.writeln("            id: '$name',");
+        buffer.writeln(
+          "            label: const Text('${StringUtils.capitalize(name)}'),",
+        );
+        if (type.contains('int') || type.contains('double')) {
+          buffer.writeln("            keyboardType: TextInputType.number,");
+        }
+        buffer.writeln("          ),");
       }
-      buffer.writeln("          ),");
     }
 
     buffer.writeln("          const SizedBox(height: 16),");

@@ -1,5 +1,4 @@
-import 'dart:io';
-
+import '../context/file_system.dart';
 import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/diagnostic/diagnostic.dart';
@@ -16,8 +15,12 @@ class AstParseResult {
 class FileParser {
   const FileParser();
 
-  Future<AstParseResult> parseFile(String path) async {
-    final source = await File(path).readAsString();
+  Future<AstParseResult> parseFile(
+    String path, {
+    FileSystem? fileSystem,
+  }) async {
+    final fs = fileSystem ?? const DefaultFileSystem();
+    final source = await fs.read(path);
     return parseSource(source, path: path);
   }
 

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as path;
 import '../../commands/mock_command.dart';
@@ -7,6 +6,7 @@ import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/plugin_context.dart';
+import '../../core/context/file_system.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/string_utils.dart';
@@ -18,37 +18,32 @@ import 'builders/mock_builder.dart';
 import 'capabilities/create_mock_capability.dart';
 
 /// Manages mock data and provider generation for testing.
-///
-/// Builds mock implementations of data sources and providers, along with
-/// sample data generators to facilitate offline development and unit testing.
-///
-/// Example:
-/// ```dart
-/// final plugin = MockPlugin(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final files = await plugin.generate(GeneratorConfig(name: 'Auth'));
-/// ```
 class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final GeneratorOptions options;
   late final MockBuilder mockBuilder;
   final MethodAppendBuilder methodAppendBuilder;
   final InjectBuilder injectBuilder;
+  final FileSystem fileSystem;
 
   MockPlugin({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     MethodAppendBuilder? methodAppendBuilder,
     InjectBuilder? injectBuilder,
-  }) : methodAppendBuilder =
+    FileSystem? fileSystem,
+  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir),
+       methodAppendBuilder =
            methodAppendBuilder ??
            MethodAppendBuilder(outputDir: outputDir, options: options),
        injectBuilder =
            injectBuilder ??
            InjectBuilder(outputDir: outputDir, options: options) {
-    mockBuilder = MockBuilder(outputDir: outputDir, options: options);
+    mockBuilder = MockBuilder(
+      outputDir: outputDir,
+      options: options,
+      fileSystem: this.fileSystem,
+    );
   }
 
   @override
@@ -110,13 +105,19 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       appendToExisting:
           context.data['append'] == true ||
           context.data['method_append'] == true,
+      paramsType: context.data['params'],
+      returnsType: context.data['returns'],
+      useCaseType: context.data['type'] ?? 'usecase',
     );
 
-    return generate(config);
+    return generate(config, context: context);
   }
 
   @override
-  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
+  Future<List<GeneratedFile>> generate(
+    GeneratorConfig config, {
+    PluginContext? context,
+  }) async {
     if (!config.generateMock &&
         !config.generateMockDataOnly &&
         !config.revert) {
@@ -135,19 +136,25 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           verbose: config.verbose,
           revert: config.revert,
         ),
+        fileSystem: context?.fileSystem,
       );
-      return delegator.generate(config);
+      return delegator.generate(config, context: context);
     }
 
     if (config.noEntity) {
       return [];
     }
 
+    final fs = context?.fileSystem ?? fileSystem;
+    final builder = context != null
+        ? MockBuilder(outputDir: outputDir, options: options, fileSystem: fs)
+        : mockBuilder;
+
     // If mocks were explicitly requested, always generate/append
     if (config.generateMock || config.generateMockDataOnly) {
       // For standalone mock data generation, we can proceed without other layers.
       if (config.generateMockDataOnly) {
-        return mockBuilder.generate(config);
+        return builder.generate(config);
       }
 
       // For presentation-only workflows, we only generate mocks if we are also
@@ -156,7 +163,7 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           config.generateDataSource ||
           config.generateRepository ||
           config.appendToExisting) {
-        return mockBuilder.generate(config);
+        return builder.generate(config);
       }
       return [];
     }
@@ -184,13 +191,13 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           config.effectiveDomain,
           '${providerSnake}_mock_provider.dart',
         );
-        if (File(providerMockPath).existsSync()) {
-          return mockBuilder.generate(config);
+        if (await fs.exists(providerMockPath)) {
+          return builder.generate(config);
         }
       }
 
-      if (File(mockPath).existsSync()) {
-        return mockBuilder.generate(config);
+      if (await fs.exists(mockPath)) {
+        return builder.generate(config);
       }
     }
 

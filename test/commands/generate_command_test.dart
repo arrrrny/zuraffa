@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zuraffa/src/commands/generate_command.dart';
+
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:path/path.dart' as path;
 
@@ -46,9 +46,6 @@ void main() {
         '--dry-run',
       ]);
 
-      final hasRoutes =
-          Directory(path.join(outputDir, 'routing')).existsSync() ||
-          File(path.join(outputDir, 'routing', 'app_routes.dart')).existsSync();
       // Since it's a dry run, we can't check file existence easily if it's not actually written,
       // but we can check if the logic would have run.
       // For simplicity in this refactor, let's just ensure it doesn't crash.

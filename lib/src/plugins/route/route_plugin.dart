@@ -75,11 +75,14 @@ class RoutePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       domain: context.data['domain'],
     );
 
-    return generate(config);
+    return generate(config, context: context);
   }
 
   @override
-  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
+  Future<List<GeneratedFile>> generate(
+    GeneratorConfig config, {
+    PluginContext? context,
+  }) async {
     if (!config.generateRoute && !config.revert) {
       return [];
     }
@@ -92,6 +95,8 @@ class RoutePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         verbose: config.verbose,
         revert: config.revert,
       ),
+      fileSystem: context?.fileSystem,
+      discovery: context?.discovery,
     );
     return builder.generate(config);
   }

@@ -3,6 +3,7 @@ import 'package:path/path.dart' as path;
 
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
+import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -13,12 +14,15 @@ class GqlBuilder {
   final String outputDir;
   final GeneratorOptions options;
   final SpecLibrary specLibrary;
+  final FileSystem fileSystem;
 
   GqlBuilder({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     SpecLibrary? specLibrary,
-  }) : specLibrary = specLibrary ?? const SpecLibrary();
+    FileSystem? fileSystem,
+  }) : specLibrary = specLibrary ?? const SpecLibrary(),
+       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     final files = <GeneratedFile>[];
@@ -77,6 +81,7 @@ class GqlBuilder {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fileSystem,
     );
   }
 
@@ -120,6 +125,7 @@ class GqlBuilder {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fileSystem,
     );
   }
 
@@ -161,6 +167,7 @@ class GqlBuilder {
       case 'get':
         return 'Get$entityName';
       case 'getList':
+        return 'Get${entityName}List';
       case 'create':
         return 'Create$entityName';
       case 'update':

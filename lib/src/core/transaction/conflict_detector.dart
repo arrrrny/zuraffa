@@ -1,5 +1,4 @@
-import 'dart:io';
-
+import '../context/file_system.dart';
 import 'file_operation.dart';
 
 class ConflictDetector {
@@ -11,21 +10,26 @@ class ConflictDetector {
     return hash;
   }
 
-  static String? detectConflict(FileOperation operation) {
-    final file = File(operation.path);
+  static Future<String?> detectConflict(
+    FileOperation operation,
+    FileSystem fileSystem,
+  ) async {
+    final path = operation.path;
+    final exists = await fileSystem.exists(path);
+
     switch (operation.type) {
       case FileOperationType.create:
-        if (file.existsSync() && !operation.force) {
+        if (exists && !operation.force) {
           return 'File already exists';
         }
         return null;
       case FileOperationType.update:
       case FileOperationType.delete:
-        if (!file.existsSync()) {
+        if (!exists) {
           return 'File missing';
         }
         if (operation.expectedHash != null && !operation.force) {
-          final current = file.readAsStringSync();
+          final current = await fileSystem.read(path);
           final currentHash = hashContent(current);
           if (currentHash != operation.expectedHash) {
             return 'File modified since planning';

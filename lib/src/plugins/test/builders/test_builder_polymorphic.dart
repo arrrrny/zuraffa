@@ -14,7 +14,7 @@ extension TestBuilderPolymorphic on TestBuilder {
     testPathParts.add(config.effectiveDomain);
     final testDirPath = path.joinAll(testPathParts);
 
-    final packageName = _resolvePackageName(projectRoot);
+    final packageName = await _resolvePackageName(projectRoot);
 
     for (final variant in config.variants) {
       final className = '${config.name}${variant}UseCase';
@@ -173,6 +173,7 @@ extension TestBuilderPolymorphic on TestBuilder {
         dryRun: options.dryRun,
         verbose: options.verbose,
         revert: config.revert,
+        fileSystem: fileSystem,
       );
       files.add(file);
     }

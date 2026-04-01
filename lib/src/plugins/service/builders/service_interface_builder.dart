@@ -1,5 +1,6 @@
 import 'package:code_builder/code_builder.dart';
 
+import '../../../core/context/file_system.dart';
 import '../../../core/builder/patterns/common_patterns.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../models/generator_config.dart';
@@ -10,7 +11,7 @@ class ServiceInterfaceBuilder {
 
   const ServiceInterfaceBuilder({this.specLibrary = const SpecLibrary()});
 
-  String build(GeneratorConfig config) {
+  String build(GeneratorConfig config, {FileSystem? fileSystem}) {
     final serviceName = config.effectiveService;
     if (serviceName == null) {
       throw ArgumentError(
@@ -102,6 +103,7 @@ class ServiceInterfaceBuilder {
           config,
           depth: 1,
           includeDomain: false,
+          fileSystem: fileSystem,
         ),
       );
     }

@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as path;
 
@@ -9,6 +7,7 @@ import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/plugin_context.dart';
+import '../../core/context/file_system.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/string_utils.dart';
@@ -16,28 +15,22 @@ import 'builders/test_builder.dart';
 import 'capabilities/create_test_capability.dart';
 
 /// Manages unit test generation for domain and data layers.
-///
-/// Builds test classes for use cases, repositories, and providers using
-/// mocktail and other testing utilities.
-///
-/// Example:
-/// ```dart
-/// final plugin = TestPlugin(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final files = await plugin.generate(GeneratorConfig(name: 'Auth'));
-/// ```
 class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final GeneratorOptions options;
   late final TestBuilder testBuilder;
+  final FileSystem fileSystem;
 
   TestPlugin({
     required this.outputDir,
     this.options = const GeneratorOptions(),
-  }) {
-    testBuilder = TestBuilder(outputDir: outputDir, options: options);
+    FileSystem? fileSystem,
+  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir) {
+    testBuilder = TestBuilder(
+      outputDir: outputDir,
+      options: options,
+      fileSystem: this.fileSystem,
+    );
   }
 
   @override
@@ -83,14 +76,45 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       generateRepository: context.data['repository'] == true,
     );
 
-    return generate(config);
+    return generate(config, context: context);
   }
 
   @override
-  Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
+  Future<List<GeneratedFile>> generate(
+    GeneratorConfig config, {
+    PluginContext? context,
+  }) async {
     if (!config.generateTest && !config.revert) {
       return [];
     }
+
+    if (config.outputDir != outputDir ||
+        config.dryRun != options.dryRun ||
+        config.force != options.force ||
+        config.verbose != options.verbose ||
+        config.revert != options.revert) {
+      final delegator = TestPlugin(
+        outputDir: config.outputDir,
+        options: GeneratorOptions(
+          dryRun: config.dryRun,
+          force: config.force,
+          verbose: config.verbose,
+          revert: config.revert,
+        ),
+        fileSystem: context?.fileSystem,
+      );
+      return delegator.generate(config, context: context);
+    }
+
+    final fs = context?.fileSystem ?? fileSystem;
+    final builder = context != null
+        ? TestBuilder(
+            outputDir: outputDir,
+            options: options,
+            fileSystem: fs,
+            discovery: context.discovery,
+          )
+        : testBuilder;
 
     final files = <GeneratedFile>[];
 
@@ -107,22 +131,22 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       ];
       for (final method in config.methods) {
         if (!validMethods.contains(method)) continue;
-        files.add(await testBuilder.generateForMethod(config, method));
+        files.add(await builder.generateForMethod(config, method));
       }
     }
 
     if (config.isOrchestrator) {
-      files.add(await testBuilder.generateOrchestrator(config));
+      files.add(await builder.generateOrchestrator(config));
     }
 
     if (config.isPolymorphic) {
-      files.addAll(await testBuilder.generatePolymorphic(config));
+      files.addAll(await builder.generatePolymorphic(config));
     }
 
     if (config.isCustomUseCase &&
         !config.isPolymorphic &&
         !config.isOrchestrator) {
-      files.add(await testBuilder.generateCustom(config));
+      files.add(await builder.generateCustom(config));
     }
 
     return files;
@@ -136,8 +160,15 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     required bool dryRun,
     required bool force,
     required bool verbose,
+    FileSystem? fs,
   }) async {
-    final analysis = await _analyzeUseCase(name, outputDir, domain);
+    final effectiveFs = fs ?? fileSystem;
+    final analysis = await _analyzeUseCase(
+      name,
+      outputDir,
+      domain,
+      effectiveFs,
+    );
     if (analysis == null) {
       return null;
     }
@@ -181,36 +212,35 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     String name,
     String outputDir,
     String domain,
+    FileSystem fs,
   ) async {
     final nameWithoutSuffix = name.replaceAll('UseCase', '');
     final useCaseSnake = StringUtils.camelToSnake(nameWithoutSuffix);
     final className = '${nameWithoutSuffix}UseCase';
 
-    final domainDir = Directory(
-      path.join(outputDir, 'domain', 'usecases', domain),
-    );
-    if (domainDir.existsSync()) {
-      final useCaseFile = File(
-        path.join(domainDir.path, '${useCaseSnake}_usecase.dart'),
+    final domainDirPath = path.join(outputDir, 'domain', 'usecases', domain);
+    if (await fs.exists(domainDirPath)) {
+      final useCaseFile = path.join(
+        domainDirPath,
+        '${useCaseSnake}_usecase.dart',
       );
 
-      if (useCaseFile.existsSync()) {
-        final content = await useCaseFile.readAsString();
+      if (await fs.exists(useCaseFile)) {
+        final content = await fs.read(useCaseFile);
         return _parseUseCaseFile(content, className, domain);
       }
     }
 
-    final usecasesDir = Directory(path.join(outputDir, 'domain', 'usecases'));
-    if (usecasesDir.existsSync()) {
-      for (final dir in usecasesDir.listSync()) {
-        if (dir is Directory) {
-          final foundDomain = path.basename(dir.path);
-          final useCaseFile = File(
-            path.join(dir.path, '${useCaseSnake}_usecase.dart'),
-          );
+    final usecasesDirPath = path.join(outputDir, 'domain', 'usecases');
+    if (await fs.exists(usecasesDirPath)) {
+      final items = await fs.list(usecasesDirPath);
+      for (final item in items) {
+        if (await fs.isDirectory(item)) {
+          final foundDomain = path.basename(item);
+          final useCaseFile = path.join(item, '${useCaseSnake}_usecase.dart');
 
-          if (useCaseFile.existsSync()) {
-            final content = await useCaseFile.readAsString();
+          if (await fs.exists(useCaseFile)) {
+            final content = await fs.read(useCaseFile);
             return _parseUseCaseFile(content, className, foundDomain);
           }
         }

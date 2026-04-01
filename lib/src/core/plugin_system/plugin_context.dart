@@ -1,4 +1,5 @@
 import '../../models/generator_config.dart';
+import '../context/file_system.dart';
 import 'discovery_engine.dart';
 
 /// Core configuration shared by all plugins.
@@ -62,12 +63,17 @@ class PluginContext {
   /// The engine for discovering existing files.
   final DiscoveryEngine discovery;
 
+  /// The file system abstraction.
+  final FileSystem fileSystem;
+
   PluginContext({
     required this.core,
     required this.discovery,
+    FileSystem? fileSystem,
     this.data = const {},
     Map<String, dynamic>? sharedData,
-  }) : sharedData = sharedData ?? {};
+  }) : sharedData = sharedData ?? {},
+       fileSystem = fileSystem ?? FileSystem.create(root: core.projectRoot);
 
   /// Gets a value from the plugin-specific data.
   T? get<T>(String key) => data[key] as T?;

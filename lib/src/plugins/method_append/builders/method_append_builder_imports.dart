@@ -18,7 +18,6 @@ extension MethodAppendBuilderImports on MethodAppendBuilder {
     if (entities.isEmpty) return source;
 
     // Check if the source uses any of these types but doesn't have an import
-    // Note: this is a simple check, could be improved with AST
     var content = source;
     for (final entityName in entities) {
       if (!content.contains(entityName)) continue;
@@ -28,10 +27,14 @@ extension MethodAppendBuilderImports on MethodAppendBuilder {
       );
       if (_hasEntityImport(content, entityName, entitySnake)) continue;
 
-      final isEnum = EntityAnalyzer.isEnum(entityName, outputDir);
+      final isEnum = EntityAnalyzer.isEnum(
+        entityName,
+        outputDir,
+        fileSystem: fileSystem,
+      );
       final isMockData = entityName.endsWith('MockData');
       final relativePath = isEnum
-          ? _getEnumImportPath(filePath, entitySnake)
+          ? await _getEnumImportPath(filePath, entitySnake)
           : isMockData
           ? _getMockDataImportPath(filePath, entitySnake)
           : _getRelativeImportPath(filePath, entitySnake);
@@ -62,14 +65,14 @@ extension MethodAppendBuilderImports on MethodAppendBuilder {
     return '../../mock/${entitySnake}_mock_data.dart';
   }
 
-  String _getEnumImportPath(String filePath, String entitySnake) {
+  Future<String> _getEnumImportPath(String filePath, String entitySnake) async {
     final normalizedPath = path.normalize(filePath);
     String relativeEnumPath = '../entities/enums/index.dart';
 
     final typeSnake = entitySnake;
-    final enumDir = '$outputDir/domain/entities/enums';
-    final specificEnumPath = '$enumDir/$typeSnake.dart';
-    if (File(specificEnumPath).existsSync()) {
+    final enumDir = path.join(outputDir, 'domain', 'entities', 'enums');
+    final specificEnumPath = path.join(enumDir, '$typeSnake.dart');
+    if (await fileSystem.exists(specificEnumPath)) {
       relativeEnumPath = '../entities/enums/$typeSnake.dart';
     }
 
@@ -139,12 +142,9 @@ extension MethodAppendBuilderImports on MethodAppendBuilder {
     final normalizedPath = path.normalize(filePath);
     if (normalizedPath.contains('/data/datasources/') ||
         normalizedPath.contains('\\data\\datasources\\')) {
-      // Check if it's a domain-specific datasource
       final parts = path.split(normalizedPath);
       final index = parts.lastIndexOf('datasources');
       if (index != -1 && index + 2 < parts.length) {
-        // e.g. lib/src/data/datasources/listing/listing_datasource.dart
-        // path from listing/ to src: ../../../
         return '../../../domain/entities/$entitySnake/$entitySnake.dart';
       }
       return '../../domain/entities/$entitySnake/$entitySnake.dart';

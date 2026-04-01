@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../context/file_system.dart';
 import 'file_operation.dart';
 import 'transaction_result.dart';
 
@@ -22,7 +23,7 @@ class GenerationTransaction {
     _operations.add(operation);
   }
 
-  TransactionResult validate() {
+  Future<TransactionResult> validate(FileSystem fileSystem) async {
     final conflicts = <String>[];
     final seenPaths = <String>{};
 
@@ -30,7 +31,7 @@ class GenerationTransaction {
       if (!seenPaths.add(operation.path)) {
         conflicts.add('Multiple operations for ${operation.path}');
       }
-      final conflict = operation.detectConflict();
+      final conflict = await operation.detectConflict(fileSystem);
       if (conflict != null) {
         conflicts.add('${operation.path}: $conflict');
       }
@@ -45,7 +46,7 @@ class GenerationTransaction {
     );
   }
 
-  Future<TransactionResult> commit() async {
+  Future<TransactionResult> commit(FileSystem fileSystem) async {
     if (dryRun) {
       return TransactionResult(
         success: true,
@@ -56,7 +57,7 @@ class GenerationTransaction {
       );
     }
 
-    final validation = validate();
+    final validation = await validate(fileSystem);
     if (!validation.success) {
       if (validation.conflicts.isNotEmpty) {
         for (final c in validation.conflicts) {
@@ -69,7 +70,7 @@ class GenerationTransaction {
     final applied = <FileOperation>[];
     try {
       for (final operation in _operations) {
-        await operation.apply();
+        await operation.apply(fileSystem: fileSystem);
         applied.add(operation);
       }
       return TransactionResult(
@@ -82,7 +83,7 @@ class GenerationTransaction {
     } catch (e) {
       for (final operation in applied.reversed) {
         try {
-          await operation.rollback();
+          await operation.rollback(fileSystem: fileSystem);
         } catch (_) {}
       }
       return TransactionResult(

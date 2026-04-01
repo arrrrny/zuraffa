@@ -1,7 +1,7 @@
-import 'dart:io';
 import 'package:dart_style/dart_style.dart';
 import '../core/transaction/file_operation.dart';
 import '../core/transaction/generation_transaction.dart';
+import '../core/context/file_system.dart';
 import '../models/generated_file.dart';
 
 class FileUtils {
@@ -18,27 +18,20 @@ class FileUtils {
     bool verbose = false,
     bool revert = false,
     bool skipRevertIfExisted = false,
+    FileSystem? fileSystem,
   }) async {
+    final fs = fileSystem ?? const DefaultFileSystem();
+
     if (revert) {
-      final file = File(filePath);
-      if (!file.existsSync()) {
+      if (!await fs.exists(filePath)) {
         return GeneratedFile(path: filePath, type: type, action: 'skipped');
       }
 
-      // Check if we have a transaction history to be surgical
-      final transaction = GenerationTransaction.current;
-      if (transaction != null) {
-        // If we are in a transaction-aware revert, we should only delete
-        // if the transaction record says we created it.
-      }
-
       if (skipRevertIfExisted) {
-        final existingContent = file.readAsStringSync();
+        final existingContent = await fs.read(filePath);
         final existingFirstLine = existingContent.split('\n').first.trim();
         final newFirstLine = content.split('\n').first.trim();
 
-        // Only delete if the signature matches exactly.
-        // This is the "Poor Man's Transaction" - it works well for simple cases.
         if (existingFirstLine != newFirstLine) {
           if (verbose) {
             print(
@@ -48,11 +41,16 @@ class FileUtils {
           return GeneratedFile(path: filePath, type: type, action: 'skipped');
         }
       }
-      return deleteFile(filePath, type, dryRun: dryRun, verbose: verbose);
+      return deleteFile(
+        filePath,
+        type,
+        dryRun: dryRun,
+        verbose: verbose,
+        fileSystem: fs,
+      );
     }
 
-    final file = File(filePath);
-    final exists = file.existsSync();
+    final exists = await fs.exists(filePath);
     final formattedContent = _formatDart(content, filePath);
 
     if (exists && !force) {
@@ -74,6 +72,7 @@ class FileUtils {
               path: filePath,
               content: formattedContent,
               force: force,
+              fileSystem: fs,
             )
           : FileOperation.create(
               path: filePath,
@@ -82,8 +81,7 @@ class FileUtils {
             );
       transaction.addOperation(operation);
     } else if (!dryRun) {
-      await file.parent.create(recursive: true);
-      await file.writeAsString(formattedContent);
+      await fs.write(filePath, formattedContent);
     }
 
     if (verbose) {
@@ -104,9 +102,10 @@ class FileUtils {
     String type, {
     bool dryRun = false,
     bool verbose = false,
+    FileSystem? fileSystem,
   }) async {
-    final file = File(filePath);
-    final exists = file.existsSync();
+    final fs = fileSystem ?? const DefaultFileSystem();
+    final exists = await fs.exists(filePath);
 
     if (!exists) {
       if (verbose) {
@@ -117,10 +116,13 @@ class FileUtils {
 
     final transaction = GenerationTransaction.current;
     if (transaction != null) {
-      final operation = await FileOperation.delete(path: filePath);
+      final operation = await FileOperation.delete(
+        path: filePath,
+        fileSystem: fs,
+      );
       transaction.addOperation(operation);
     } else if (!dryRun) {
-      await file.delete();
+      await fs.delete(filePath);
     }
 
     if (verbose) {
@@ -138,7 +140,7 @@ class FileUtils {
       case 'watchList':
         return 'params';
       case 'delete':
-        return 'id'; // Will update this to use config if I had config here, but FileUtils doesn't have config.
+        return 'id';
       case 'create':
       case 'update':
         return entityCamel;
@@ -160,21 +162,30 @@ class FileUtils {
 
   static Future<String?> findFileImplementing(
     String directory,
-    String interfaceName,
-  ) async {
-    final dir = Directory(directory);
-    if (!dir.existsSync()) return null;
+    String interfaceName, {
+    FileSystem? fileSystem,
+  }) async {
+    final fs = fileSystem ?? const DefaultFileSystem();
+    if (!await fs.exists(directory)) return null;
 
-    final files = dir
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.dart'));
+    final files = await fs.list(directory);
 
-    for (final file in files) {
-      final content = await file.readAsString();
-      // Simple regex check first to avoid heavy parsing
+    for (final filePath in files) {
+      if (await fs.isDirectory(filePath)) {
+        final result = await findFileImplementing(
+          filePath,
+          interfaceName,
+          fileSystem: fs,
+        );
+        if (result != null) return result;
+        continue;
+      }
+
+      if (!filePath.endsWith('.dart')) continue;
+
+      final content = await fs.read(filePath);
       if (content.contains('implements $interfaceName')) {
-        return file.path;
+        return filePath;
       }
     }
     return null;

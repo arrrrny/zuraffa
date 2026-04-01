@@ -9,6 +9,8 @@ import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/ast/augmentation_builder.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
+import '../../../core/context/file_system.dart';
+import '../../../core/plugin_system/discovery_engine.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -32,6 +34,8 @@ class MethodAppendBuilder {
   final AppendExecutor appendExecutor;
   final SpecLibrary specLibrary;
   final AugmentationBuilder augmentationBuilder;
+  final DiscoveryEngine discovery;
+  final FileSystem fileSystem;
 
   MethodAppendBuilder({
     required this.outputDir,
@@ -39,10 +43,19 @@ class MethodAppendBuilder {
     AppendExecutor? appendExecutor,
     SpecLibrary? specLibrary,
     AugmentationBuilder? augmentationBuilder,
+    DiscoveryEngine? discovery,
+    FileSystem? fileSystem,
   }) : appendExecutor = appendExecutor ?? AppendExecutor(),
        specLibrary = specLibrary ?? const SpecLibrary(),
        augmentationBuilder =
-           augmentationBuilder ?? AugmentationBuilder(outputDir: outputDir);
+           augmentationBuilder ?? AugmentationBuilder(outputDir: outputDir),
+       fileSystem = fileSystem ?? FileSystem.create(root: outputDir),
+       discovery =
+           discovery ??
+           DiscoveryEngine(
+             projectRoot: outputDir,
+             fileSystem: fileSystem ?? FileSystem.create(root: outputDir),
+           );
 
   Future<MethodAppendResult> appendMethod(GeneratorConfig config) async {
     final updatedFiles = <GeneratedFile>[];
@@ -78,13 +91,17 @@ class MethodAppendBuilder {
 
     final returnRef = _returnType(config.useCaseType, returnsType);
 
-    final repoPath = path.join(
-      outputDir,
-      'domain',
-      'repositories',
-      '${repoSnake}_repository.dart',
-    );
-    final repoExists = File(repoPath).existsSync();
+    // Use DiscoveryEngine to find the repository interface
+    final repoFile = discovery.findFileSync('${repoSnake}_repository.dart');
+    final repoPath =
+        repoFile?.path ??
+        path.join(
+          outputDir,
+          'domain',
+          'repositories',
+          '${repoSnake}_repository.dart',
+        );
+    final repoExists = repoFile != null && (await fileSystem.exists(repoPath));
 
     final effectiveParams = multipleParams.isNotEmpty
         ? multipleParams
@@ -114,15 +131,21 @@ class MethodAppendBuilder {
       if (result != null) {
         updatedFiles.add(result);
       }
-      // Don't warn if method already exists - that's expected behavior
     }
 
-    final dataRepoPath = path.join(
-      outputDir,
-      'data',
-      'repositories',
+    // Use DiscoveryEngine to find the data repository implementation
+    final dataRepoFile = discovery.findFileSync(
       'data_${repoSnake}_repository.dart',
     );
+    final dataRepoPath =
+        dataRepoFile?.path ??
+        path.join(
+          outputDir,
+          'data',
+          'repositories',
+          'data_${repoSnake}_repository.dart',
+        );
+
     final dataRepoResult = await _appendToDataRepository(
       config,
       dataRepoPath,

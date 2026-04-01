@@ -1,12 +1,13 @@
 part of 'test_builder.dart';
 
 extension TestBuilderHelpers on TestBuilder {
-  String _resolvePackageName(String projectRoot) {
+  Future<String> _resolvePackageName(String projectRoot) async {
     String packageName = 'your_app';
     try {
-      final pubspecFile = File(path.join(projectRoot, 'pubspec.yaml'));
-      if (pubspecFile.existsSync()) {
-        final lines = pubspecFile.readAsLinesSync();
+      final pubspecPath = path.join(projectRoot, 'pubspec.yaml');
+      if (await fileSystem.exists(pubspecPath)) {
+        final content = await fileSystem.read(pubspecPath);
+        final lines = content.split('\n');
         for (final line in lines) {
           if (line.trim().startsWith('name:')) {
             packageName = line.split(':')[1].trim();
@@ -18,37 +19,37 @@ extension TestBuilderHelpers on TestBuilder {
     return packageName;
   }
 
-  String _findUseCaseDomain(String usecaseSnake, String defaultDomain) {
-    final usecasesDir = Directory(path.join(outputDir, 'domain', 'usecases'));
-    if (usecasesDir.existsSync()) {
-      for (final dir in usecasesDir.listSync()) {
-        if (dir is Directory) {
-          final foundDomain = path.basename(dir.path);
-          // Look for either login_usecase.dart or login_use_case_usecase.dart
-          final useCaseFile = File(
-            path.join(dir.path, '${usecaseSnake}_usecase.dart'),
-          );
-          if (useCaseFile.existsSync()) {
+  Future<String> _findUseCaseDomain(
+    String usecaseSnake,
+    String defaultDomain,
+  ) async {
+    final usecasesDir = path.join(outputDir, 'domain', 'usecases');
+    if (await fileSystem.exists(usecasesDir)) {
+      final items = await fileSystem.list(usecasesDir);
+      for (final item in items) {
+        if (await fileSystem.isDirectory(item)) {
+          final foundDomain = path.basename(item);
+          final useCaseFile = path.join(item, '${usecaseSnake}_usecase.dart');
+          if (await fileSystem.exists(useCaseFile)) {
             return foundDomain;
           }
 
-          // Also try without double usecase suffix if usecaseSnake already contains it
           if (usecaseSnake.endsWith('_use_case')) {
             final shortSnake = usecaseSnake.substring(
               0,
               usecaseSnake.length - 9,
             );
-            final shortUseCaseFile = File(
-              path.join(dir.path, '${shortSnake}_usecase.dart'),
+            final shortUseCaseFile = path.join(
+              item,
+              '${shortSnake}_usecase.dart',
             );
-            if (shortUseCaseFile.existsSync()) {
+            if (await fileSystem.exists(shortUseCaseFile)) {
               return foundDomain;
             }
           }
         }
       }
     }
-    // Fallback to the default domain if not found
     return defaultDomain;
   }
 

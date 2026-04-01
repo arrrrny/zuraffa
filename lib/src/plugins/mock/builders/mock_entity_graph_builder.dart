@@ -1,4 +1,5 @@
 import '../../../core/generator_options.dart';
+import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/entity_analyzer.dart';
@@ -8,12 +9,15 @@ class MockEntityGraphBuilder {
   final String outputDir;
   final GeneratorOptions options;
   final MockEntityHelper entityHelper;
+  final FileSystem fileSystem;
 
   MockEntityGraphBuilder({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     MockEntityHelper? entityHelper,
-  }) : entityHelper = entityHelper ?? const MockEntityHelper();
+    FileSystem? fileSystem,
+  }) : entityHelper = entityHelper ?? const MockEntityHelper(),
+       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 
   Future<List<GeneratedFile>> generateNestedEntityMockFiles({
     required GeneratorConfig config,
@@ -22,12 +26,17 @@ class MockEntityGraphBuilder {
   }) async {
     final files = <GeneratedFile>[];
     final entityName = config.name;
-    final entityFields = EntityAnalyzer.analyzeEntity(entityName, outputDir);
+    final entityFields = EntityAnalyzer.analyzeEntity(
+      entityName,
+      outputDir,
+      fileSystem: fileSystem,
+    );
     final processedEntities = <String>{entityName};
 
     final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
       entityName,
       outputDir,
+      fileSystem: fileSystem,
     );
 
     for (final subtype in subtypes) {
@@ -44,7 +53,11 @@ class MockEntityGraphBuilder {
         );
         files.add(await generateMockDataFile(subtypeConfig));
 
-        final subtypeFields = EntityAnalyzer.analyzeEntity(subtype, outputDir);
+        final subtypeFields = EntityAnalyzer.analyzeEntity(
+          subtype,
+          outputDir,
+          fileSystem: fileSystem,
+        );
         await _collectAndGenerateNestedEntities(
           subtypeFields,
           files,
@@ -99,6 +112,7 @@ class MockEntityGraphBuilder {
           final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
             baseType,
             outputDir,
+            fileSystem: fileSystem,
           );
           if (subtypes.isNotEmpty) {
             processedEntities.add(baseType);
@@ -120,6 +134,7 @@ class MockEntityGraphBuilder {
                 final subtypeFields = EntityAnalyzer.analyzeEntity(
                   subtype,
                   outputDir,
+                  fileSystem: fileSystem,
                 );
                 await _collectAndGenerateNestedEntities(
                   subtypeFields,
@@ -138,10 +153,15 @@ class MockEntityGraphBuilder {
           final entityFields = EntityAnalyzer.analyzeEntity(
             baseType,
             outputDir,
+            fileSystem: fileSystem,
           );
           if ((entityFields.isNotEmpty &&
                   !entityHelper.isDefaultFields(entityFields)) ||
-              EntityAnalyzer.isEnum(baseType, outputDir)) {
+              EntityAnalyzer.isEnum(
+                baseType,
+                outputDir,
+                fileSystem: fileSystem,
+              )) {
             processedEntities.add(baseType);
 
             final nestedConfig = GeneratorConfig(
@@ -154,7 +174,11 @@ class MockEntityGraphBuilder {
             );
             files.add(await generateMockDataFile(nestedConfig));
 
-            if (!EntityAnalyzer.isEnum(baseType, outputDir)) {
+            if (!EntityAnalyzer.isEnum(
+              baseType,
+              outputDir,
+              fileSystem: fileSystem,
+            )) {
               await _collectAndGenerateNestedEntities(
                 entityFields,
                 files,

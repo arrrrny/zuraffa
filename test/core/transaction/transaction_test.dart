@@ -2,9 +2,16 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/zuraffa.dart';
+import 'package:zuraffa/src/core/context/file_system.dart';
 
 void main() {
   group('GenerationTransaction', () {
+    late FileSystem fileSystem;
+
+    setUp(() {
+      fileSystem = const DefaultFileSystem();
+    });
+
     test('commits create operations', () async {
       final dir = await Directory.systemTemp.createTemp('zuraffa_tx_');
       addTearDown(() => dir.delete(recursive: true));
@@ -15,7 +22,7 @@ void main() {
         FileOperation.create(path: filePath, content: 'created'),
       );
 
-      final result = await transaction.commit();
+      final result = await transaction.commit(fileSystem);
 
       expect(result.success, isTrue);
       expect(File(filePath).readAsStringSync(), equals('created'));
@@ -30,10 +37,14 @@ void main() {
 
       final transaction = GenerationTransaction(dryRun: false);
       transaction.addOperation(
-        await FileOperation.update(path: filePath, content: 'after'),
+        await FileOperation.update(
+          path: filePath,
+          content: 'after',
+          fileSystem: fileSystem,
+        ),
       );
 
-      final result = await transaction.commit();
+      final result = await transaction.commit(fileSystem);
 
       expect(result.success, isTrue);
       expect(File(filePath).readAsStringSync(), equals('after'));
@@ -47,9 +58,11 @@ void main() {
       await File(filePath).writeAsString('remove');
 
       final transaction = GenerationTransaction(dryRun: false);
-      transaction.addOperation(await FileOperation.delete(path: filePath));
+      transaction.addOperation(
+        await FileOperation.delete(path: filePath, fileSystem: fileSystem),
+      );
 
-      final result = await transaction.commit();
+      final result = await transaction.commit(fileSystem);
 
       expect(result.success, isTrue);
       expect(File(filePath).existsSync(), isFalse);
@@ -64,12 +77,16 @@ void main() {
 
       final transaction = GenerationTransaction(dryRun: false);
       transaction.addOperation(
-        await FileOperation.update(path: filePath, content: 'new'),
+        await FileOperation.update(
+          path: filePath,
+          content: 'new',
+          fileSystem: fileSystem,
+        ),
       );
 
       await File(filePath).writeAsString('changed');
 
-      final result = await transaction.commit();
+      final result = await transaction.commit(fileSystem);
 
       expect(result.success, isFalse);
       expect(result.conflicts, isNotEmpty);
@@ -94,7 +111,7 @@ void main() {
         FileOperation.create(path: nestedPath, content: 'fail'),
       );
 
-      final result = await transaction.commit();
+      final result = await transaction.commit(fileSystem);
 
       expect(result.success, isFalse);
       expect(File(okPath).existsSync(), isFalse);

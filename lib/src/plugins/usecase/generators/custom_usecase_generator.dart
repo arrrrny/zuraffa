@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
@@ -7,6 +5,7 @@ import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/builder/patterns/common_patterns.dart';
 import '../../../core/generator_options.dart';
+import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -21,28 +20,18 @@ part 'custom_usecase_generator_orchestrator.dart';
 part 'custom_usecase_generator_polymorphic.dart';
 
 /// Generates custom use cases for the domain layer.
-///
-/// Builds specialized use case classes such as orchestrators, background tasks,
-/// and polymorphic variants.
-///
-/// Example:
-/// ```dart
-/// final generator = CustomUseCaseGenerator(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final file = await generator.generate(GeneratorConfig(name: 'Auth'));
-/// ```
 class CustomUseCaseGenerator {
   final String outputDir;
   final GeneratorOptions options;
   final UseCaseClassBuilder classBuilder;
   final AppendExecutor appendExecutor;
+  final FileSystem fileSystem;
 
   CustomUseCaseGenerator({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     this.classBuilder = const UseCaseClassBuilder(),
     this.appendExecutor = const AppendExecutor(),
-  });
+    FileSystem? fileSystem,
+  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 }

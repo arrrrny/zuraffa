@@ -1,18 +1,24 @@
-import 'dart:io';
 import 'package:analyzer/dart/ast/ast.dart';
 import '../core/ast/ast_helper.dart';
+import '../core/context/file_system.dart';
+import '../core/transaction/generation_transaction.dart';
 import '../models/parsed_usecase_info.dart';
 
 class MethodExtractor {
   static Future<List<ParsedUseCaseInfo>> extractMethodsFromInterface(
     String filePath,
-    String className,
-  ) async {
-    final file = File(filePath);
-    if (!file.existsSync()) return [];
+    String className, {
+    FileSystem? fileSystem,
+  }) async {
+    final fs = fileSystem ?? const DefaultFileSystem();
+    if (!await fs.exists(filePath)) {
+      return [];
+    }
+
+    final source = await fs.read(filePath);
 
     final helper = const AstHelper();
-    final parseResult = await helper.parseFile(filePath);
+    final parseResult = await helper.parseFile(filePath, fileSystem: fs);
     final unit = parseResult.unit;
     if (unit == null) return [];
 
@@ -20,7 +26,8 @@ class MethodExtractor {
     if (classNode == null) return [];
 
     final methods = <ParsedUseCaseInfo>[];
-    for (final method in helper.findMethods(classNode)) {
+    final helperMethods = helper.findMethods(classNode);
+    for (final method in helperMethods) {
       final methodName = method.name.toString();
       final returns = method.returnType?.toString() ?? 'void';
 

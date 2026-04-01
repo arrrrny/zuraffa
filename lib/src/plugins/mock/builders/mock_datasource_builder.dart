@@ -1,10 +1,10 @@
-import 'dart:io';
 import 'package:code_builder/code_builder.dart';
 
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
+import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -18,6 +18,7 @@ class MockDataSourceBuilder {
   final SpecLibrary specLibrary;
   final MockTypeHelper typeHelper;
   final AppendExecutor appendExecutor;
+  final FileSystem fileSystem;
 
   MockDataSourceBuilder({
     required this.outputDir,
@@ -25,9 +26,11 @@ class MockDataSourceBuilder {
     SpecLibrary? specLibrary,
     MockTypeHelper? typeHelper,
     AppendExecutor? appendExecutor,
+    FileSystem? fileSystem,
   }) : specLibrary = specLibrary ?? const SpecLibrary(),
        typeHelper = typeHelper ?? const MockTypeHelper(),
-       appendExecutor = appendExecutor ?? AppendExecutor();
+       appendExecutor = appendExecutor ?? AppendExecutor(),
+       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 
   Future<GeneratedFile> generateMockDataSource(GeneratorConfig config) async {
     final entityName = config.repo != null
@@ -36,8 +39,7 @@ class MockDataSourceBuilder {
     final entitySnake = StringUtils.camelToSnake(entityName);
     final filePath =
         '$outputDir/data/datasources/$entitySnake/${entitySnake}_mock_datasource.dart';
-    final file = File(filePath);
-    final fileExists = file.existsSync();
+    final fileExists = await fileSystem.exists(filePath);
 
     final directives = [
       Directive.import('dart:async'),
@@ -162,7 +164,7 @@ class MockDataSourceBuilder {
     methods.addAll(_generateMockDataSourceMethods(config));
 
     if (config.appendToExisting && fileExists) {
-      final existing = await file.readAsString();
+      final existing = await fileSystem.read(filePath);
       var updated = existing;
 
       // Add missing imports
@@ -216,6 +218,7 @@ class MockDataSourceBuilder {
         force: true,
         dryRun: options.dryRun,
         verbose: options.verbose,
+        fileSystem: fileSystem,
       );
     }
 
@@ -236,6 +239,7 @@ class MockDataSourceBuilder {
         'mock_datasource',
         dryRun: options.dryRun,
         verbose: options.verbose,
+        fileSystem: fileSystem,
       );
     }
 
@@ -253,6 +257,7 @@ class MockDataSourceBuilder {
       verbose: options.verbose,
       revert: config.revert,
       skipRevertIfExisted: true,
+      fileSystem: fileSystem,
     );
   }
 
@@ -266,7 +271,6 @@ class MockDataSourceBuilder {
       (m) => m == 'getList' || m == 'watchList',
     );
 
-    // If it's a custom usecase, generate a method for it
     if (config.isCustomUseCase &&
         (config.paramsType != null || config.returnsType != null)) {
       final methodName = StringUtils.pascalToCamel(config.name);

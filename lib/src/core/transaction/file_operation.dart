@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import '../context/file_system.dart';
 import 'conflict_detector.dart';
 
 enum FileOperationType { create, update, delete }
@@ -44,9 +45,10 @@ class FileOperation {
     required String path,
     required String content,
     bool force = false,
+    FileSystem? fileSystem,
   }) async {
-    final file = File(path);
-    final previous = await file.readAsString();
+    final fs = fileSystem ?? const DefaultFileSystem();
+    final previous = await fs.read(path);
     return FileOperation._(
       type: FileOperationType.update,
       path: path,
@@ -58,9 +60,12 @@ class FileOperation {
     );
   }
 
-  static Future<FileOperation> delete({required String path}) async {
-    final file = File(path);
-    final previous = await file.readAsString();
+  static Future<FileOperation> delete({
+    required String path,
+    FileSystem? fileSystem,
+  }) async {
+    final fs = fileSystem ?? const DefaultFileSystem();
+    final previous = await fs.read(path);
     return FileOperation._(
       type: FileOperationType.delete,
       path: path,
@@ -71,35 +76,34 @@ class FileOperation {
     );
   }
 
-  String? detectConflict() => ConflictDetector.detectConflict(this);
+  Future<String?> detectConflict(FileSystem fileSystem) =>
+      ConflictDetector.detectConflict(this, fileSystem);
 
-  Future<void> apply() async {
+  Future<void> apply({FileSystem? fileSystem}) async {
+    final fs = fileSystem ?? const DefaultFileSystem();
     switch (type) {
       case FileOperationType.create:
       case FileOperationType.update:
         if (content == null) {
           throw StateError('Missing content for $path');
         }
-        final file = File(path);
-        await file.parent.create(recursive: true);
-        await file.writeAsString(content!);
+        await fs.write(path, content!);
         return;
       case FileOperationType.delete:
-        final file = File(path);
-        if (!await file.exists()) {
+        if (!await fs.exists(path)) {
           throw FileSystemException('File not found', path);
         }
-        await file.delete();
+        await fs.delete(path);
         return;
     }
   }
 
-  Future<void> rollback() async {
+  Future<void> rollback({FileSystem? fileSystem}) async {
+    final fs = fileSystem ?? const DefaultFileSystem();
     switch (type) {
       case FileOperationType.create:
-        final file = File(path);
-        if (await file.exists()) {
-          await file.delete();
+        if (await fs.exists(path)) {
+          await fs.delete(path);
         }
         return;
       case FileOperationType.update:
@@ -107,9 +111,7 @@ class FileOperation {
         if (previousContent == null) {
           return;
         }
-        final file = File(path);
-        await file.parent.create(recursive: true);
-        await file.writeAsString(previousContent!);
+        await fs.write(path, previousContent!);
         return;
     }
   }

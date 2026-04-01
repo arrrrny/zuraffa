@@ -94,11 +94,13 @@ extension TestBuilderEntity on TestBuilder {
           '${StringUtils.camelToSnake(method)}_${entitySnake}_usecase.dart';
     }
 
-    final packageName = _resolvePackageName(projectRoot);
+    final packageName = await _resolvePackageName(projectRoot);
 
     // Use DiscoveryEngine to find the actual files for correct imports
     final entityFile = discovery.findFileSync('${entitySnake}.dart');
-    final targetFile = discovery.findFileSync('${targetSnake}_$targetSuffix.dart');
+    final targetFile = discovery.findFileSync(
+      '${targetSnake}_$targetSuffix.dart',
+    );
     final useCaseFile = discovery.findFileSync(useCaseFileName);
 
     final directives = [
@@ -269,6 +271,7 @@ extension TestBuilderEntity on TestBuilder {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fileSystem,
     );
   }
 }

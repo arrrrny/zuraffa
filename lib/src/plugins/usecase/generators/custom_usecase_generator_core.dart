@@ -51,6 +51,7 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
           config,
           depth: 2,
           includeDomain: false,
+          fileSystem: fileSystem,
         ),
       );
     }
@@ -60,6 +61,7 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
         config,
         depth: 2,
         includeDomain: false,
+        fileSystem: fileSystem,
       ),
     );
     return imports;
@@ -124,7 +126,10 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
         .toList();
   }
 
-  String _resolveUseCasePath(GeneratorConfig config, String usecaseName) {
+  Future<String> _resolveUseCasePath(
+    GeneratorConfig config,
+    String usecaseName,
+  ) async {
     final name = usecaseName.endsWith('UseCase')
         ? usecaseName.substring(0, usecaseName.length - 7)
         : usecaseName;
@@ -132,21 +137,20 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
     final fileName = '${snakeName}_usecase.dart';
 
     final usecasesDir = path.join(outputDir, 'domain', 'usecases');
-    final usecasesDirectory = Directory(usecasesDir);
 
-    if (usecasesDirectory.existsSync()) {
-      for (final domainDir in usecasesDirectory.listSync()) {
-        if (domainDir is Directory) {
-          final usecaseFile = File(path.join(domainDir.path, fileName));
-          if (usecaseFile.existsSync()) {
-            final domainName = path.basename(domainDir.path);
+    if (await fileSystem.exists(usecasesDir)) {
+      final domainDirs = await fileSystem.list(usecasesDir);
+      for (final domainDir in domainDirs) {
+        final isDir = await fileSystem.isDirectory(domainDir);
+        if (isDir) {
+          final usecaseFile = path.join(domainDir, fileName);
+          if (await fileSystem.exists(usecaseFile)) {
+            final domainName = path.basename(domainDir);
             return '../$domainName/$fileName';
           }
-          final subfolderFile = File(
-            path.join(domainDir.path, snakeName, fileName),
-          );
-          if (subfolderFile.existsSync()) {
-            final domainName = path.basename(domainDir.path);
+          final subfolderFile = path.join(domainDir, snakeName, fileName);
+          if (await fileSystem.exists(subfolderFile)) {
+            final domainName = path.basename(domainDir);
             return '../$domainName/$snakeName/$fileName';
           }
         }

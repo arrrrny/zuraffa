@@ -1,11 +1,10 @@
-import 'dart:io';
-
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../../core/ast/append_executor.dart';
-import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/ast/ast_helper.dart';
+import '../../../core/ast/augmentation_builder.dart';
+import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
@@ -15,31 +14,26 @@ import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 
 /// Generates data source interfaces for domain and data layers.
-///
-/// Builds abstract data source classes with CRUD and stream method definitions
-/// that must be implemented by remote and local data source providers.
-///
-/// Example:
-/// ```dart
-/// final builder = DataSourceInterfaceBuilder(
-///   outputDir: 'lib/src',
-///   options: const GeneratorOptions(force: true),
-/// );
-/// final file = await builder.generate(GeneratorConfig(name: 'Product'));
-/// ```
 class DataSourceInterfaceBuilder {
   final String outputDir;
   final GeneratorOptions options;
   final SpecLibrary specLibrary;
   final AppendExecutor appendExecutor;
+  final AugmentationBuilder augmentationBuilder;
+  final FileSystem fileSystem;
 
   DataSourceInterfaceBuilder({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     SpecLibrary? specLibrary,
     AppendExecutor? appendExecutor,
+    AugmentationBuilder? augmentationBuilder,
+    FileSystem? fileSystem,
   }) : specLibrary = specLibrary ?? const SpecLibrary(),
-       appendExecutor = appendExecutor ?? AppendExecutor();
+       appendExecutor = appendExecutor ?? AppendExecutor(),
+       augmentationBuilder =
+           augmentationBuilder ?? AugmentationBuilder(outputDir: outputDir),
+       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final entityName = config.repo != null
@@ -59,6 +53,40 @@ class DataSourceInterfaceBuilder {
     final filePath = path.join(dataSourceDirPath, fileName);
 
     final methods = <Method>[];
+
+    if (config.isCustomUseCase && config.appendToExisting) {
+      final methodName = config.getRepoMethodName();
+      var returnType = config.returnsType ?? 'void';
+      final paramsType = config.paramsType ?? 'NoParams';
+
+      // Wrap in Future/Stream if not already
+      if (config.useCaseType == 'stream' ||
+          config.useCaseType == 'streamusecase') {
+        if (!returnType.startsWith('Stream<')) {
+          returnType = 'Stream<$returnType>';
+        }
+      } else if (config.useCaseType != 'sync' &&
+          config.useCaseType != 'syncusecase') {
+        if (!returnType.startsWith('Future<')) {
+          returnType = 'Future<$returnType>';
+        }
+      }
+
+      methods.add(
+        Method(
+          (m) => m
+            ..name = methodName
+            ..returns = refer(returnType)
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer(paramsType),
+              ),
+            ),
+        ),
+      );
+    }
 
     if (config.generateInit) {
       methods.add(
@@ -236,7 +264,8 @@ class DataSourceInterfaceBuilder {
         ..methods.addAll(methods),
     );
 
-    if (File(filePath).existsSync() && !config.force) {
+    if (await fileSystem.exists(filePath) &&
+        (config.appendToExisting || !config.force)) {
       if (config.revert) {
         if (!config.appendToExisting) {
           return FileUtils.deleteFile(
@@ -244,64 +273,95 @@ class DataSourceInterfaceBuilder {
             'datasource',
             dryRun: options.dryRun,
             verbose: options.verbose,
+            fileSystem: fileSystem,
           );
         }
 
-        final existing = await File(filePath).readAsString();
-        var updated = existing;
-        for (final method in methods) {
-          final result = appendExecutor.undo(
-            AppendRequest.method(
-              source: updated,
-              className: dataSourceName,
-              memberSource: specLibrary.emitSpec(method),
-            ),
-          );
-          updated = result.source;
-        }
+        // Handle Revert for Append
+        await augmentationBuilder.remove(
+          hostPath: filePath,
+          className: dataSourceName,
+          members: methods,
+          dryRun: options.dryRun,
+        );
 
-        if (const AstHelper().isClassEmpty(updated, dataSourceName)) {
+        var source = await fileSystem.read(filePath);
+        final augmentFileName = path
+            .basename(filePath)
+            .replaceFirst('.dart', '.augment.dart');
+        source = const AstHelper().removeAugment(
+          source: source,
+          augmentPath: augmentFileName,
+        );
+
+        if (const AstHelper().isClassEmpty(source, dataSourceName)) {
           return FileUtils.deleteFile(
             filePath,
             'datasource',
             dryRun: options.dryRun,
             verbose: options.verbose,
+            fileSystem: fileSystem,
           );
         }
 
         return FileUtils.writeFile(
           filePath,
-          updated,
+          source,
           'datasource',
           force: true,
           dryRun: options.dryRun,
           verbose: options.verbose,
           revert: false,
+          fileSystem: fileSystem,
         );
       }
 
       if (config.appendToExisting) {
-        final existing = await File(filePath).readAsString();
-        var updated = existing;
-        for (final method in methods) {
-          final methodSource = specLibrary.emitSpec(method);
-          final result = appendExecutor.execute(
-            AppendRequest.method(
-              source: updated,
-              className: dataSourceName,
-              memberSource: methodSource,
-            ),
+        var source = await fileSystem.read(filePath);
+        final augmentFileName = path
+            .basename(filePath)
+            .replaceFirst('.dart', '.augment.dart');
+
+        // 1. Add 'import augment' to host file
+        source = const AstHelper().addAugment(
+          source: source,
+          augmentPath: augmentFileName,
+        );
+
+        // 2. Add missing imports
+        final importPaths = directives
+            .map((d) => (d as dynamic).url as String)
+            .toList();
+        for (final importPath in importPaths) {
+          source = const AstHelper().addImport(
+            source: source,
+            importPath: importPath,
           );
-          updated = result.source;
         }
-        return FileUtils.writeFile(
+
+        await FileUtils.writeFile(
           filePath,
-          updated,
+          source,
           'datasource',
           force: true,
           dryRun: options.dryRun,
           verbose: options.verbose,
-          revert: false,
+          fileSystem: fileSystem,
+        );
+
+        // 3. Generate/Update the augmentation file
+        final augmentationFile = await augmentationBuilder.generate(
+          hostPath: filePath,
+          className: dataSourceName,
+          members: methods,
+          imports: importPaths,
+          dryRun: options.dryRun,
+        );
+
+        return GeneratedFile(
+          path: augmentationFile.path,
+          type: 'datasource',
+          action: 'updated',
         );
       }
     }
@@ -318,6 +378,7 @@ class DataSourceInterfaceBuilder {
       dryRun: options.dryRun,
       verbose: options.verbose,
       revert: config.revert,
+      fileSystem: fileSystem,
     );
   }
 }

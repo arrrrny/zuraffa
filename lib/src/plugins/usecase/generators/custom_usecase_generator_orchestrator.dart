@@ -19,6 +19,7 @@ extension CustomUseCaseGeneratorOrchestrator on CustomUseCaseGenerator {
         'usecase_orchestrator',
         dryRun: options.dryRun,
         verbose: options.verbose,
+        fileSystem: fileSystem,
       );
     }
 
@@ -37,7 +38,7 @@ extension CustomUseCaseGeneratorOrchestrator on CustomUseCaseGenerator {
     final usecaseParams = <Parameter>[];
 
     for (final usecaseName in config.usecases) {
-      final usecasePath = _resolveUseCasePath(config, usecaseName);
+      final usecasePath = await _resolveUseCasePath(config, usecaseName);
       final usecaseClassName = usecaseName.endsWith('UseCase')
           ? usecaseName
           : '${usecaseName}UseCase';
@@ -67,6 +68,7 @@ extension CustomUseCaseGeneratorOrchestrator on CustomUseCaseGenerator {
       config,
       depth: 2,
       includeDomain: false,
+      fileSystem: fileSystem,
     );
     usecaseImports.addAll(entityImports);
 
@@ -96,6 +98,7 @@ extension CustomUseCaseGeneratorOrchestrator on CustomUseCaseGenerator {
       dryRun: config.dryRun,
       verbose: config.verbose,
       revert: config.revert,
+      fileSystem: fileSystem,
     );
   }
 }

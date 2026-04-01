@@ -54,7 +54,7 @@ void main() {
     );
     expect(
       content1.contains(
-        "import '../../../domain/entities/listing/listing.dart';",
+        "import 'package:app/src/domain/entities/listing/listing.dart';",
       ),
       isTrue,
     );

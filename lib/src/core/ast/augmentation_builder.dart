@@ -1,8 +1,8 @@
-import 'dart:io';
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 import '../../models/generated_file.dart';
 import '../../utils/file_utils.dart';
+import '../context/file_system.dart';
 import 'ast_helper.dart';
 import 'append_executor.dart';
 import 'strategies/append_strategy.dart';
@@ -10,14 +10,16 @@ import 'strategies/append_strategy.dart';
 /// Builder for generating Dart Augmentation Libraries.
 class AugmentationBuilder {
   final String outputDir;
+  final FileSystem fileSystem;
 
-  const AugmentationBuilder({required this.outputDir});
+  AugmentationBuilder({required this.outputDir, FileSystem? fileSystem})
+    : fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
 
   /// Generates or updates an augmentation file for the given [hostPath].
   Future<GeneratedFile> generate({
     required String hostPath,
     required String className,
-    required List<Spec> members,
+    required List<dynamic> members,
     List<String> imports = const [],
     bool dryRun = false,
   }) async {
@@ -31,8 +33,8 @@ class AugmentationBuilder {
     );
     final helper = const AstHelper();
 
-    if (File(augmentPath).existsSync()) {
-      var source = await File(augmentPath).readAsString();
+    if (await fileSystem.exists(augmentPath)) {
+      var source = await fileSystem.read(augmentPath);
 
       // Add missing imports to the augmentation file
       for (final import in imports) {
@@ -57,6 +59,7 @@ class AugmentationBuilder {
         'augmentation',
         force: true,
         dryRun: dryRun,
+        fileSystem: fileSystem,
       );
     }
 
@@ -90,6 +93,7 @@ class AugmentationBuilder {
       force:
           true, // Augmentations are always overwritten/regenerated in our model
       dryRun: dryRun,
+      fileSystem: fileSystem,
     );
   }
 
@@ -97,16 +101,16 @@ class AugmentationBuilder {
   Future<GeneratedFile?> remove({
     required String hostPath,
     required String className,
-    required List<Spec> members,
+    required List<dynamic> members,
     bool dryRun = false,
   }) async {
     final hostFileName = path.basename(hostPath);
     final augmentFileName = hostFileName.replaceFirst('.dart', '.augment.dart');
     final augmentPath = path.join(path.dirname(hostPath), augmentFileName);
 
-    if (!File(augmentPath).existsSync()) return null;
+    if (!await fileSystem.exists(augmentPath)) return null;
 
-    var source = await File(augmentPath).readAsString();
+    var source = await fileSystem.read(augmentPath);
     final emitter = DartEmitter(
       useNullSafetySyntax: true,
       orderDirectives: true,
@@ -126,7 +130,12 @@ class AugmentationBuilder {
 
     // If the class is now empty, delete the augmentation file
     if (helper.isClassEmpty(source, className)) {
-      return FileUtils.deleteFile(augmentPath, 'augmentation', dryRun: dryRun);
+      return FileUtils.deleteFile(
+        augmentPath,
+        'augmentation',
+        dryRun: dryRun,
+        fileSystem: fileSystem,
+      );
     }
 
     return FileUtils.writeFile(
@@ -135,6 +144,7 @@ class AugmentationBuilder {
       'augmentation',
       force: true,
       dryRun: dryRun,
+      fileSystem: fileSystem,
     );
   }
 }
