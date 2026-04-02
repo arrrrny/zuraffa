@@ -1,7 +1,6 @@
 import 'package:analyzer/dart/ast/ast.dart';
 import '../core/ast/ast_helper.dart';
 import '../core/context/file_system.dart';
-import '../core/transaction/generation_transaction.dart';
 import '../models/parsed_usecase_info.dart';
 
 class MethodExtractor {
@@ -14,8 +13,6 @@ class MethodExtractor {
     if (!await fs.exists(filePath)) {
       return [];
     }
-
-    final source = await fs.read(filePath);
 
     final helper = const AstHelper();
     final parseResult = await helper.parseFile(filePath, fileSystem: fs);

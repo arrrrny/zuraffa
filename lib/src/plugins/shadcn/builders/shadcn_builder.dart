@@ -58,7 +58,7 @@ class ShadcnBuilder {
     final filePath = path.join(widgetDirPath, fileName);
 
     // Find entity file for import
-    final entityFile = discovery.findFileSync('${entitySnake}.dart');
+    final entityFile = discovery.findFileSync('$entitySnake.dart');
     String entityImport;
     if (entityFile != null) {
       final relativePath = path.relative(entityFile.path, from: widgetDirPath);

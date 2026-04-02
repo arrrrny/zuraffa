@@ -161,9 +161,7 @@ class AstModifier {
   /// Removes an augmentation library directive from the unit.
   static String removeAugment(String source, String augmentPath) {
     final pattern = RegExp(
-      '^import\\s+augment\\s+[\'\"]' +
-          RegExp.escape(augmentPath) +
-          '[\'\"]\\s*;\\s*\$',
+      "^import\\s+augment\\s+['\"]${RegExp.escape(augmentPath)}['\"]\\s*;\\s*\$",
       multiLine: true,
     );
     return source.replaceFirst(pattern, '').trim();
