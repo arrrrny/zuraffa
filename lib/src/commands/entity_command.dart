@@ -294,8 +294,10 @@ ${missing.map((d) => '   • $d').join('\n')}
     }
 
     // Check for extends/implements clause and add transitive imports
-    final parentMatches = RegExp(r'(?:extends|implements)\s+([\$\w\s,]+)').allMatches(content);
-    
+    final parentMatches = RegExp(
+      r'(?:extends|implements)\s+([\$\w\s,]+)',
+    ).allMatches(content);
+
     for (final match in parentMatches) {
       final parentsList = match.group(1)!;
       final parents = parentsList
@@ -305,7 +307,11 @@ ${missing.map((d) => '   • $d').join('\n')}
 
       for (final parentType in parents) {
         final parentSnake = StringUtils.camelToSnake(parentType);
-        final parentEntityPath = p.join(outputDir, parentSnake, '$parentSnake.dart');
+        final parentEntityPath = p.join(
+          outputDir,
+          parentSnake,
+          '$parentSnake.dart',
+        );
         final parentFile = File(parentEntityPath);
 
         // Add import for parent entity
@@ -327,10 +333,14 @@ ${missing.map((d) => '   • $d').join('\n')}
 
             for (final interface in interfaces) {
               final interfaceSnake = StringUtils.camelToSnake(interface);
-              final interfacePath = Directory(p.join(outputDir, interfaceSnake));
+              final interfacePath = Directory(
+                p.join(outputDir, interfaceSnake),
+              );
 
               if (await interfacePath.exists()) {
-                imports.add("import '../$interfaceSnake/$interfaceSnake.dart';");
+                imports.add(
+                  "import '../$interfaceSnake/$interfaceSnake.dart';",
+                );
               }
             }
           }

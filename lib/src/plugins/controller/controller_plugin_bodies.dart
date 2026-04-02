@@ -731,7 +731,7 @@ extension ControllerPluginBodies on ControllerPlugin {
         )
         ..statements.add(
           Code(
-            'final (initialFuture, updatesStream) = _presenter.watch${entityName}Record(${args});',
+            'final (initialFuture, updatesStream) = _presenter.watch${entityName}Record($args);',
           ),
         )
         ..statements.add(
@@ -819,7 +819,7 @@ extension ControllerPluginBodies on ControllerPlugin {
       (b) => b
         ..statements.add(
           Code(
-            'final (_, updatesStream) = _presenter.watch${entityName}Record(${args});',
+            'final (_, updatesStream) = _presenter.watch${entityName}Record($args);',
           ),
         )
         ..statements.add(

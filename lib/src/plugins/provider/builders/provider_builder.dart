@@ -9,8 +9,6 @@ import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
-import '../../../utils/string_utils.dart';
-import '../../../utils/entity_analyzer.dart';
 import '../../../utils/method_extractor.dart';
 
 /// Generates provider implementation classes.

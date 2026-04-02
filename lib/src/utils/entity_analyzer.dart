@@ -23,7 +23,7 @@ class EntityAnalyzer {
 
     // Use DiscoveryEngine to find the entity file anywhere in the project
     final discovery = DiscoveryEngine(projectRoot: outputDir, fileSystem: fs);
-    final entityFile = discovery.findFileSync('${entitySnake}.dart');
+    final entityFile = discovery.findFileSync('$entitySnake.dart');
 
     try {
       if (entityFile == null) {

@@ -246,8 +246,9 @@ class PluginManager {
         print('    - Reverting ${change.action} for ${change.file}');
       }
       if (!await context.fileSystem.exists(change.file)) {
-        if (context.core.verbose)
+        if (context.core.verbose) {
           print('      ⏭ File does not exist, skipping.');
+        }
         continue;
       }
 
@@ -266,8 +267,9 @@ class PluginManager {
               change.file,
               change.previousContent!,
             );
-            if (context.core.verbose)
+            if (context.core.verbose) {
               print('      📝 Restored previous content.');
+            }
           }
           files.add(
             GeneratedFile(

@@ -229,7 +229,7 @@ class RepositoryInterfaceGenerator {
         );
         imports.add('$baseImport/domain/entities/enums/index.dart');
       } else {
-        final entityFile = discovery.findFileSync('${entitySnake}.dart');
+        final entityFile = discovery.findFileSync('$entitySnake.dart');
         if (entityFile != null) {
           final repoDir = path.dirname(
             path.join(

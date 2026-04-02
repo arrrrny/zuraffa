@@ -97,7 +97,7 @@ extension TestBuilderEntity on TestBuilder {
     final packageName = await _resolvePackageName(projectRoot);
 
     // Use DiscoveryEngine to find the actual files for correct imports
-    final entityFile = discovery.findFileSync('${entitySnake}.dart');
+    final entityFile = discovery.findFileSync('$entitySnake.dart');
     final targetFile = discovery.findFileSync(
       '${targetSnake}_$targetSuffix.dart',
     );
