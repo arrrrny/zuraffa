@@ -21,11 +21,15 @@ extension ControllerPluginBodies on ControllerPlugin {
         : 'data';
 
     final hasResponse = returns != 'void';
+    final isListResponse = returns.startsWith('List<');
 
     return Block(
       (b) => b
         ..statements.add(
-          _updateStateStatement({loadingField: literalBool(true)}),
+          _updateStateStatement({
+            loadingField: literalBool(true),
+            if (hasResponse && isListResponse) responseField: literalList([]),
+          }),
         )
         ..statements.add(declareFinal('result').assign(resultCall).statement)
         ..statements.add(
@@ -260,7 +264,10 @@ extension ControllerPluginBodies on ControllerPlugin {
     return Block(
       (b) => b
         ..statements.add(
-          _updateStateStatement({'isGettingList': literalBool(true)}),
+          _updateStateStatement({
+            'isGettingList': literalBool(true),
+            '${entityCamel}List': literalList([]),
+          }),
         )
         ..statements.add(declareFinal('result').assign(resultCall).statement)
         ..statements.add(

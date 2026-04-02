@@ -277,6 +277,7 @@ ${missing.map((d) => '   • $d').join('\n')}
     final imports = <String>{};
     bool hasEnums = false;
 
+    // Process field types
     for (final field in fields) {
       final types = EntityUtils.extractEntityTypes(field.fullType);
       for (final type in types) {
@@ -288,6 +289,51 @@ ${missing.map((d) => '   • $d').join('\n')}
         } else {
           // If not a primitive and not an entity directory, assume it's an enum
           hasEnums = true;
+        }
+      }
+    }
+
+    // Check for extends/implements clause and add transitive imports
+    final parentMatches = RegExp(r'(?:extends|implements)\s+([\$\w\s,]+)').allMatches(content);
+    
+    for (final match in parentMatches) {
+      final parentsList = match.group(1)!;
+      final parents = parentsList
+          .split(',')
+          .map((s) => s.trim().replaceAll('\$', ''))
+          .where((s) => s.isNotEmpty);
+
+      for (final parentType in parents) {
+        final parentSnake = StringUtils.camelToSnake(parentType);
+        final parentEntityPath = p.join(outputDir, parentSnake, '$parentSnake.dart');
+        final parentFile = File(parentEntityPath);
+
+        // Add import for parent entity
+        imports.add("import '../$parentSnake/$parentSnake.dart';");
+
+        // Parse parent entity to find its implements clauses
+        if (await parentFile.exists()) {
+          final parentContent = await parentFile.readAsString();
+          final parentImplementsMatches = RegExp(
+            r'implements\s+([\$\w\s,]+)',
+          ).allMatches(parentContent);
+
+          for (final implMatch in parentImplementsMatches) {
+            final implementsList = implMatch.group(1)!;
+            final interfaces = implementsList
+                .split(',')
+                .map((s) => s.trim().replaceAll('\$', ''))
+                .where((s) => s.isNotEmpty);
+
+            for (final interface in interfaces) {
+              final interfaceSnake = StringUtils.camelToSnake(interface);
+              final interfacePath = Directory(p.join(outputDir, interfaceSnake));
+
+              if (await interfacePath.exists()) {
+                imports.add("import '../$interfaceSnake/$interfaceSnake.dart';");
+              }
+            }
+          }
         }
       }
     }

@@ -1,3 +1,9 @@
+## [3.20.1] - 2026-04-02
+
+### Fix
+- Added transitive import resolution for extends/implements clauses in entity generation
+- Clear list state to empty before loading in generated controllers
+
 ## [3.20.0] - 2026-04-01
 
 ### Feat
