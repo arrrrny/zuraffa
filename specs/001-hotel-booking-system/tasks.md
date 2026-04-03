@@ -23,10 +23,10 @@
 **Purpose**: Project initialization and Zuraffa framework setup
 
 - [x] T001 Create Flutter project structure with Zuraffa configuration
-- [ ] T002 Initialize Zuraffa configuration file (.zfa.json) and set project defaults
-- [ ] T003 [P] Configure pubspec.yaml with Zuraffa, GetIt, GoRouter, and Hive dependencies
-- [ ] T004 [P] Setup Hive local storage initialization for mock data persistence
-- [ ] T005 [P] Configure linting and formatting tools per Flutter best practices
+- [x] T002 Initialize Zuraffa configuration file (.zfa.json) and set project defaults
+- [x] T003 [P] Configure pubspec.yaml with Zuraffa, GetIt, GoRouter, and Hive dependencies
+- [x] T004 [P] Setup Hive local storage initialization for mock data persistence
+- [x] T005 [P] Configure linting and formatting tools per Flutter best practices
 
 ---
 
