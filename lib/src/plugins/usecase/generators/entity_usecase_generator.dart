@@ -24,7 +24,7 @@ class EntityUseCaseGenerator {
     this.options = const GeneratorOptions(),
     this.appendExecutor = const AppendExecutor(),
     FileSystem? fileSystem,
-  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
+  }) : fileSystem = fileSystem ?? FileSystem.create();
 
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     final files = <GeneratedFile>[];

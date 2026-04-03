@@ -18,7 +18,7 @@ class GraphqlPlugin extends FileGeneratorPlugin {
     required this.outputDir,
     this.options = const GeneratorOptions(),
     FileSystem? fileSystem,
-  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
+  }) : fileSystem = fileSystem ?? FileSystem.create();
 
   @override
   String get id => 'graphql';

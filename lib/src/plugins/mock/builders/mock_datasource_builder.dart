@@ -30,7 +30,7 @@ class MockDataSourceBuilder {
   }) : specLibrary = specLibrary ?? const SpecLibrary(),
        typeHelper = typeHelper ?? const MockTypeHelper(),
        appendExecutor = appendExecutor ?? AppendExecutor(),
-       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
+       fileSystem = fileSystem ?? FileSystem.create();
 
   Future<GeneratedFile> generateMockDataSource(GeneratorConfig config) async {
     final entityName = config.repo != null

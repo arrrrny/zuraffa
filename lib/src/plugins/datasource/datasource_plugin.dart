@@ -170,7 +170,7 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return [];
     }
 
-    final fs = context?.fileSystem ?? FileSystem.create(root: outputDir);
+    final fs = context?.fileSystem ?? FileSystem.create();
 
     final interfaceGen = context != null
         ? DataSourceInterfaceBuilder(

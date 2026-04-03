@@ -29,7 +29,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     this.options = const GeneratorOptions(),
     this.classBuilder = const PresenterClassBuilder(),
     FileSystem? fileSystem,
-  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
+  }) : fileSystem = fileSystem ?? FileSystem.create();
 
   @override
   List<ZuraffaCapability> get capabilities => [CreatePresenterCapability(this)];

@@ -49,12 +49,12 @@ class MethodAppendBuilder {
        specLibrary = specLibrary ?? const SpecLibrary(),
        augmentationBuilder =
            augmentationBuilder ?? AugmentationBuilder(outputDir: outputDir),
-       fileSystem = fileSystem ?? FileSystem.create(root: outputDir),
+       fileSystem = fileSystem ?? FileSystem.create(),
        discovery =
            discovery ??
            DiscoveryEngine(
              projectRoot: outputDir,
-             fileSystem: fileSystem ?? FileSystem.create(root: outputDir),
+             fileSystem: fileSystem ?? FileSystem.create(),
            );
 
   Future<MethodAppendResult> appendMethod(GeneratorConfig config) async {

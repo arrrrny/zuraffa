@@ -13,7 +13,7 @@ class AugmentationBuilder {
   final FileSystem fileSystem;
 
   AugmentationBuilder({required this.outputDir, FileSystem? fileSystem})
-    : fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
+    : fileSystem = fileSystem ?? FileSystem.create();
 
   /// Generates or updates an augmentation file for the given [hostPath].
   Future<GeneratedFile> generate({

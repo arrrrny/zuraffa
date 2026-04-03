@@ -34,11 +34,11 @@ class TestBuilder {
     DiscoveryEngine? discovery,
     FileSystem? fileSystem,
   }) : specLibrary = specLibrary ?? const SpecLibrary(),
-       fileSystem = fileSystem ?? FileSystem.create(root: outputDir),
+       fileSystem = fileSystem ?? FileSystem.create(),
        discovery =
            discovery ??
            DiscoveryEngine(
              projectRoot: outputDir,
-             fileSystem: fileSystem ?? FileSystem.create(root: outputDir),
+             fileSystem: fileSystem ?? FileSystem.create(),
            );
 }

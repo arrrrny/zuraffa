@@ -19,12 +19,12 @@ class ShadcnBuilder {
     this.options = const GeneratorOptions(),
     DiscoveryEngine? discovery,
     FileSystem? fileSystem,
-  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir),
+  }) : fileSystem = fileSystem ?? FileSystem.create(),
        discovery =
            discovery ??
            DiscoveryEngine(
              projectRoot: outputDir,
-             fileSystem: fileSystem ?? FileSystem.create(root: outputDir),
+             fileSystem: fileSystem ?? FileSystem.create(),
            );
 
   Future<List<GeneratedFile>> generate(

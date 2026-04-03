@@ -65,32 +65,50 @@ class MakeCommand extends Command<void> {
       negatable: false,
       help: 'Revert generated files (delete them)',
     );
+
+    argParser.addMultiOption('methods', help: 'Entity methods to generate');
+    argParser.addMultiOption(
+      'usecases',
+      help: 'UseCases to inject into presenter/controller',
+    );
+    argParser.addMultiOption(
+      'variants',
+      help: 'Polymorphic variants to generate',
+    );
+    argParser.addOption('domain', help: 'Domain subfolder');
+    argParser.addOption('repo', help: 'Repository to inject');
+    argParser.addOption('service', help: 'Service to inject');
+    argParser.addOption('id-field', help: 'ID field name', defaultsTo: 'id');
+    argParser.addOption(
+      'id-field-type',
+      help: 'ID field type',
+      defaultsTo: 'String',
+    );
+    argParser.addOption(
+      'query-field',
+      help: 'Query field name',
+      defaultsTo: 'id',
+    );
+    argParser.addOption('query-field-type', help: 'Query field type');
+    argParser.addFlag('no-entity', negatable: false, help: 'Skip entity');
+    argParser.addFlag('vpc', negatable: false, help: 'Generate full VPC set');
+    argParser.addFlag('vpcs', negatable: false, help: 'Generate full VPC set');
+    argParser.addFlag('state', negatable: false, help: 'Generate state class');
+    argParser.addFlag('data', negatable: false, help: 'Generate data layer');
     argParser.addFlag(
-      'init',
-      abbr: 'i',
+      'datasource',
       negatable: false,
-      help: 'Generate initialization and disposal methods',
+      help: 'Generate data source',
     );
+    argParser.addFlag('cache', negatable: false, help: 'Enable caching');
+    argParser.addFlag('route', negatable: false, help: 'Generate route');
+    argParser.addFlag('mock', negatable: false, help: 'Generate mock data');
+    argParser.addFlag('test', negatable: false, help: 'Generate tests');
     argParser.addFlag(
-      'zorphy',
-      help:
-          'Use Zorphy patterns (e.g., LocalePatch instead of Partial<Locale>)',
-      defaultsTo: false,
+      'append',
       negatable: false,
+      help: 'Append to existing repo/service',
     );
-    argParser.addFlag(
-      'local',
-      help: 'Generate local data source (instead of remote)',
-      defaultsTo: false,
-      negatable: false,
-    );
-    argParser.addFlag(
-      'remote',
-      help: 'Generate remote data source',
-      defaultsTo: true,
-      negatable: true,
-    );
-    argParser.addFlag('cache', help: 'Enable caching', defaultsTo: false);
   }
 
   void _addPluginOptions() {
@@ -100,6 +118,27 @@ class MakeCommand extends Command<void> {
       'force',
       'verbose',
       'revert',
+      'methods',
+      'usecases',
+      'variants',
+      'domain',
+      'repo',
+      'service',
+      'id-field',
+      'id-field-type',
+      'query-field',
+      'query-field-type',
+      'no-entity',
+      'vpc',
+      'vpcs',
+      'state',
+      'data',
+      'datasource',
+      'cache',
+      'route',
+      'mock',
+      'test',
+      'append',
     };
 
     for (final plugin in registry.plugins) {

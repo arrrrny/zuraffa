@@ -21,7 +21,7 @@ class ObserverBuilder {
     SpecLibrary? specLibrary,
     FileSystem? fileSystem,
   }) : specLibrary = specLibrary ?? const SpecLibrary(),
-       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
+       fileSystem = fileSystem ?? FileSystem.create();
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final entityName = config.name;

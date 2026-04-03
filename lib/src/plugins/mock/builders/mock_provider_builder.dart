@@ -34,7 +34,7 @@ class MockProviderBuilder {
   }) : specLibrary = specLibrary ?? const SpecLibrary(),
        typeHelper = typeHelper ?? const MockTypeHelper(),
        appendExecutor = appendExecutor ?? AppendExecutor(),
-       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
+       fileSystem = fileSystem ?? FileSystem.create();
 
   Future<GeneratedFile> generateMockProvider(GeneratorConfig config) async {
     final serviceName = config.effectiveService;
