@@ -217,6 +217,7 @@ void main() {
       '$outputDir/domain/usecases/listing/get_listing_by_barcode_usecase.dart',
     );
     final content = usecaseFile.readAsStringSync();
+    print('--- USECASE CONTENT ---\n$content\n----------------------');
 
     expect(content.contains("domain/entities/barcode/barcode.dart"), isTrue);
     expect(

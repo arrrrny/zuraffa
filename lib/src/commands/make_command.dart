@@ -194,6 +194,21 @@ class MakeCommand extends Command<void> {
   @override
   String get invocation => 'zfa make <Name> <plugin1> <plugin2> ... [options]';
 
+  /// Returns true if dry-run mode is enabled.
+  bool get isDryRun => argResults?['dry-run'] == true;
+
+  /// Returns true if force mode is enabled.
+  bool get isForce => argResults?['force'] == true;
+
+  /// Returns true if verbose logging is enabled.
+  bool get isVerbose => argResults?['verbose'] == true;
+
+  /// Returns true if revert mode is enabled.
+  bool get isRevert => argResults?['revert'] == true;
+
+  /// Returns the resolved output directory.
+  String get outputDir => argResults?['output'] ?? 'lib/src';
+
   @override
   Future<void> run() async {
     final rest = argResults!.rest;

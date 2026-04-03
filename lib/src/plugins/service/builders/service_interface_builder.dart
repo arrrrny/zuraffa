@@ -80,6 +80,40 @@ class ServiceInterfaceBuilder {
       );
     }
 
+    final methods = <Method>[method];
+
+    if (config.generateInit) {
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'isInitialized'
+            ..type = MethodType.getter
+            ..returns = refer('Stream<bool>'),
+        ),
+      );
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'initialize'
+            ..returns = refer('Future<void>')
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('InitializationParams'),
+              ),
+            ),
+        ),
+      );
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'dispose'
+            ..returns = refer('Future<void>'),
+        ),
+      );
+    }
+
     final clazz = Class(
       (b) => b
         ..name = serviceName
