@@ -42,7 +42,7 @@ class LocalDataSourceBuilder {
        appendExecutor = appendExecutor ?? AppendExecutor(),
        augmentationBuilder =
            augmentationBuilder ?? AugmentationBuilder(outputDir: outputDir),
-       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
+       fileSystem = fileSystem ?? FileSystem.create();
 
   /// Generates a local data source file for the given [config].
   Future<GeneratedFile> generate(GeneratorConfig config) async {

@@ -34,7 +34,7 @@ class RemoteDataSourceBuilder {
        appendExecutor = appendExecutor ?? AppendExecutor(),
        augmentationBuilder =
            augmentationBuilder ?? AugmentationBuilder(outputDir: outputDir),
-       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
+       fileSystem = fileSystem ?? FileSystem.create();
 
   /// Generates a remote data source file for the given [config].
   Future<GeneratedFile> generate(GeneratorConfig config) async {

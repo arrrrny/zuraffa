@@ -31,7 +31,7 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     this.options = const GeneratorOptions(),
     this.classBuilder = const ViewClassBuilder(),
     FileSystem? fileSystem,
-  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
+  }) : fileSystem = fileSystem ?? FileSystem.create();
 
   @override
   List<ZuraffaCapability> get capabilities => [

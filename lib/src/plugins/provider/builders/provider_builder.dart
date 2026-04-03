@@ -32,7 +32,7 @@ class ProviderBuilder {
        emitter =
            emitter ??
            DartEmitter(orderDirectives: true, useNullSafetySyntax: true),
-       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
+       fileSystem = fileSystem ?? FileSystem.create();
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final serviceName = config.effectiveService;

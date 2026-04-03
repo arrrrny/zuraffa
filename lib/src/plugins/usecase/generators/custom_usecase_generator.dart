@@ -33,5 +33,5 @@ class CustomUseCaseGenerator {
     this.classBuilder = const UseCaseClassBuilder(),
     this.appendExecutor = const AppendExecutor(),
     FileSystem? fileSystem,
-  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
+  }) : fileSystem = fileSystem ?? FileSystem.create();
 }

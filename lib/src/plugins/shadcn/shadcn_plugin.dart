@@ -21,7 +21,7 @@ class ShadcnPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     required this.outputDir,
     this.options = const GeneratorOptions(),
     FileSystem? fileSystem,
-  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir) {
+  }) : fileSystem = fileSystem ?? FileSystem.create() {
     shadcnBuilder = ShadcnBuilder(
       outputDir: outputDir,
       options: options,

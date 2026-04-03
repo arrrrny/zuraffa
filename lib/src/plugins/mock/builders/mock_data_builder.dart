@@ -33,7 +33,7 @@ class MockDataBuilder {
        valueBuilder = valueBuilder ?? MockValueBuilder(outputDir: outputDir),
        entityHelper = entityHelper ?? const MockEntityHelper(),
        typeHelper = typeHelper ?? const MockTypeHelper(),
-       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
+       fileSystem = fileSystem ?? FileSystem.create();
 
   Future<GeneratedFile> generateMockDataFile(GeneratorConfig config) async {
     final entityName = config.repo != null

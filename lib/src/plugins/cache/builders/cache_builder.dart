@@ -28,7 +28,7 @@ class CacheBuilder {
     SpecLibrary? specLibrary,
     FileSystem? fileSystem,
   }) : specLibrary = specLibrary ?? const SpecLibrary(),
-       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
+       fileSystem = fileSystem ?? FileSystem.create();
 
   /// Generates cache support files for the given [config].
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {

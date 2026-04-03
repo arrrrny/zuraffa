@@ -33,7 +33,7 @@ class DataSourceInterfaceBuilder {
        appendExecutor = appendExecutor ?? AppendExecutor(),
        augmentationBuilder =
            augmentationBuilder ?? AugmentationBuilder(outputDir: outputDir),
-       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
+       fileSystem = fileSystem ?? FileSystem.create();
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final entityName = config.repo != null

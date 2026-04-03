@@ -17,7 +17,7 @@ class MockEntityGraphBuilder {
     MockEntityHelper? entityHelper,
     FileSystem? fileSystem,
   }) : entityHelper = entityHelper ?? const MockEntityHelper(),
-       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
+       fileSystem = fileSystem ?? FileSystem.create();
 
   Future<List<GeneratedFile>> generateNestedEntityMockFiles({
     required GeneratorConfig config,

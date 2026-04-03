@@ -20,7 +20,7 @@ class MethodAppendPlugin extends FileGeneratorPlugin {
     required this.outputDir,
     this.options = const GeneratorOptions(),
     FileSystem? fileSystem,
-  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir) {
+  }) : fileSystem = fileSystem ?? FileSystem.create() {
     methodAppendBuilder = MethodAppendBuilder(
       outputDir: outputDir,
       options: options,

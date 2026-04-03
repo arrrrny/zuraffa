@@ -24,7 +24,7 @@ class StateBuilder {
     SpecLibrary? specLibrary,
     FileSystem? fileSystem,
   }) : specLibrary = specLibrary ?? const SpecLibrary(),
-       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
+       fileSystem = fileSystem ?? FileSystem.create();
 
   /// Generates a state file for the given [config].
   Future<GeneratedFile> generate(GeneratorConfig config) async {

@@ -40,7 +40,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     this.appendExecutor = const AppendExecutor(),
     this.serviceLocatorBuilder = const ServiceLocatorBuilder(),
     FileSystem? fileSystem,
-  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
+  }) : fileSystem = fileSystem ?? FileSystem.create();
 
   @override
   List<ZuraffaCapability> get capabilities => [

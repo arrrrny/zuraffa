@@ -46,7 +46,7 @@ class RouteBuilder {
        emitter =
            emitter ??
            DartEmitter(orderDirectives: true, useNullSafetySyntax: true),
-       fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
+       fileSystem = fileSystem ?? FileSystem.create();
 
   /// Generates route files for the given [config].
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {

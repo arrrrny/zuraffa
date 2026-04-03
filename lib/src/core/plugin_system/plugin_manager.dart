@@ -159,6 +159,7 @@ class PluginManager {
       'vpc',
       'vpcs',
       'state',
+      'di',
       'data',
       'datasource',
       'cache',
@@ -203,6 +204,14 @@ class PluginManager {
     // Add positional arguments and other common fields to data for backward compat
     data['name'] = name;
     data['output_dir'] = core.outputDir;
+
+    // Sync plugin activation flags into data so plugins can inspect each other
+    final activePluginIds = activePlugins.map((p) => p.id).toSet();
+    for (final id in activePluginIds) {
+      if (!data.containsKey(id)) {
+        data[id] = true;
+      }
+    }
 
     final baseFileSystem = FileSystem.create(root: projectRoot);
     final transactionalFileSystem = TransactionalFileSystem(baseFileSystem);

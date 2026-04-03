@@ -32,14 +32,14 @@ class MockBuilder {
     MockEntityGraphBuilder? entityGraphBuilder,
     FileSystem? fileSystem,
   }) : specLibrary = specLibrary ?? const SpecLibrary(),
-       fileSystem = fileSystem ?? FileSystem.create(root: outputDir),
+       fileSystem = fileSystem ?? FileSystem.create(),
        dataBuilder =
            dataBuilder ??
            MockDataBuilder(
              outputDir: outputDir,
              options: options,
              specLibrary: specLibrary ?? const SpecLibrary(),
-             fileSystem: fileSystem ?? FileSystem.create(root: outputDir),
+             fileSystem: fileSystem ?? FileSystem.create(),
            ),
        dataSourceBuilder =
            dataSourceBuilder ??
@@ -47,7 +47,7 @@ class MockBuilder {
              outputDir: outputDir,
              options: options,
              specLibrary: specLibrary ?? const SpecLibrary(),
-             fileSystem: fileSystem ?? FileSystem.create(root: outputDir),
+             fileSystem: fileSystem ?? FileSystem.create(),
            ),
        providerBuilder =
            providerBuilder ??
@@ -55,14 +55,14 @@ class MockBuilder {
              outputDir: outputDir,
              options: options,
              specLibrary: specLibrary ?? const SpecLibrary(),
-             fileSystem: fileSystem ?? FileSystem.create(root: outputDir),
+             fileSystem: fileSystem ?? FileSystem.create(),
            ),
        entityGraphBuilder =
            entityGraphBuilder ??
            MockEntityGraphBuilder(
              outputDir: outputDir,
              options: options,
-             fileSystem: fileSystem ?? FileSystem.create(root: outputDir),
+             fileSystem: fileSystem ?? FileSystem.create(),
            );
 
   /// Generates mock files for the given [config].

@@ -32,7 +32,7 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     MethodAppendBuilder? methodAppendBuilder,
     InjectBuilder? injectBuilder,
     FileSystem? fileSystem,
-  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir),
+  }) : fileSystem = fileSystem ?? FileSystem.create(),
        methodAppendBuilder =
            methodAppendBuilder ??
            MethodAppendBuilder(outputDir: outputDir, options: options),

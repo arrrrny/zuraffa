@@ -26,7 +26,7 @@ class StreamUseCaseGenerator {
     this.classBuilder = const UseCaseClassBuilder(),
     this.appendExecutor = const AppendExecutor(),
     FileSystem? fileSystem,
-  }) : fileSystem = fileSystem ?? FileSystem.create(root: outputDir);
+  }) : fileSystem = fileSystem ?? FileSystem.create();
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
     final baseName = config.name.endsWith('UseCase')

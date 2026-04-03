@@ -54,6 +54,9 @@ class StatePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       methods: context.data['methods']?.cast<String>().toList() ?? [],
       noEntity: context.data['no-entity'] == true,
       domain: context.data['domain'],
+      usecases: context.data['usecases']?.cast<String>().toList() ?? [],
+      paramsType: context.get<String>('params'),
+      returnsType: context.get<String>('returns'),
     );
 
     return generate(config, context: context);
