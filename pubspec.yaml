@@ -42,6 +42,7 @@ dependencies:
   get: ^4.7.3
   hive_ce_generator: ^1.11.1
   glob: ^2.1.2
+  hive_ce: ^2.3.4
   hive_ce_flutter: ^2.3.4
 
 dependency_overrides:
