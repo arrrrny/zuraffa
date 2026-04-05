@@ -190,6 +190,7 @@ class EntityUseCaseGenerator {
         break;
       case 'update':
         className = 'Update${entityName}UseCase';
+        // Use Patch for entity-based updates by default
         final dataType = config.useZorphy
             ? '${entityName}Patch'
             : 'Partial<$entityName>';

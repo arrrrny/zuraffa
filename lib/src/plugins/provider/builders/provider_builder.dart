@@ -239,6 +239,48 @@ class ProviderBuilder {
       );
     }
 
+    final methods = <Method>[method];
+
+    if (config.generateInit) {
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'isInitialized'
+            ..returns = refer('Stream<bool>')
+            ..type = MethodType.getter
+            ..annotations.add(refer('override'))
+            ..body = refer('const Stream.empty()').returned.statement,
+        ),
+      );
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'initialize'
+            ..returns = refer('Future<void>')
+            ..annotations.add(refer('override'))
+            ..modifier = MethodModifier.async
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('InitializationParams'),
+              ),
+            )
+            ..body = Block((b) => b),
+        ),
+      );
+      methods.add(
+        Method(
+          (m) => m
+            ..name = 'dispose'
+            ..returns = refer('Future<void>')
+            ..annotations.add(refer('override'))
+            ..modifier = MethodModifier.async
+            ..body = Block((b) => b),
+        ),
+      );
+    }
+
     final providerClass = Class(
       (c) => c
         ..name = providerName

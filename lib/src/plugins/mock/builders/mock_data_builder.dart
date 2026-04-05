@@ -228,6 +228,15 @@ class MockDataBuilder {
     );
 
     final filePath = '$outputDir/data/mock/${entitySnake}_mock_data.dart';
+    if (config.revert) {
+      // Don't delete mock data files on revert as they might be shared.
+      // In the future, we might want to check if they are truly "empty" or unused.
+      return GeneratedFile(
+        path: filePath,
+        type: 'mock_data',
+        action: 'skipped',
+      );
+    }
     return FileUtils.writeFile(
       filePath,
       content,
