@@ -121,6 +121,7 @@ class FeatureCommand extends PluginCommand {
 
   @override
   Future<void> run() async {
+    print('DEBUG: Running FeatureCommand.run()');
     if (argResults?.rest.isEmpty ?? true) {
       printUsage();
       return;

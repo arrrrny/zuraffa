@@ -175,17 +175,12 @@ class CapabilityCommand extends Command<void> {
       }
       if (missing.isNotEmpty) {
         print('❌ Error: Missing required arguments: ${missing.join(', ')}');
-        var usage = 'zfa';
-        var cmd = this as Command?;
-        final names = <String>[];
-        while (cmd != null) {
-          names.insert(0, cmd.name);
-          cmd = cmd.parent;
-        }
-        usage = 'zfa ${names.join(' ')}';
-        print('Usage: $usage <${required.join('> <')}> [options]');
         return;
       }
+    }
+
+    if (args['verbose'] == true) {
+      print('DEBUG: Executing capability with args: $args');
     }
 
     final isDryRun = argResults?['dry-run'] == true;

@@ -115,6 +115,11 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         'description': 'Enable verbose logging',
         'default': false,
       },
+      'revert': {
+        'type': 'boolean',
+        'description': 'Revert generated files',
+        'default': false,
+      },
     },
     'required': ['name'],
   };
@@ -172,6 +177,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
 
     // Resolve explicit plugins based on flags
     final explicitIds = <String>[];
+    explicitIds.add('usecase'); // Scaffold always generates usecases by default unless overridden
     if (args['repository'] != false) explicitIds.add('repository');
     if (args['datasource'] != false) explicitIds.add('datasource');
     if (args['use-service'] == true) explicitIds.add('service');
@@ -193,6 +199,10 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
       name: featureName,
       argResults: null,
       activePlugins: activePlugins,
+      overrideDryRun: dryRun,
+      overrideForce: args['force'] == true,
+      overrideVerbose: args['verbose'] == true,
+      overrideRevert: args['revert'] == true,
     );
 
     // Merge manual args into context data

@@ -82,15 +82,19 @@ class PluginManager {
     required ArgResults? argResults,
     required List<ZuraffaPlugin> activePlugins,
     String? overrideOutputDir,
+    bool? overrideDryRun,
+    bool? overrideForce,
+    bool? overrideVerbose,
+    bool? overrideRevert,
   }) {
     final core = CoreConfig(
       name: name,
       projectRoot: projectRoot,
       outputDir: overrideOutputDir ?? argResults?['output'] ?? 'lib/src',
-      dryRun: argResults?['dry-run'] == true,
-      force: argResults?['force'] == true,
-      verbose: argResults?['verbose'] == true,
-      revert: argResults?['revert'] == true,
+      dryRun: overrideDryRun ?? argResults?['dry-run'] == true,
+      force: overrideForce ?? argResults?['force'] == true,
+      verbose: overrideVerbose ?? argResults?['verbose'] == true,
+      revert: overrideRevert ?? argResults?['revert'] == true,
     );
 
     final data = <String, dynamic>{};
