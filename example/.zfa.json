@@ -2,16 +2,25 @@
   "zorphyByDefault": true,
   "jsonByDefault": true,
   "compareByDefault": true,
-  "filterByDefault": false,
+  "filterByDefault": true,
   "defaultEntityOutput": "lib/src/domain/entities",
   "gqlByDefault": false,
   "buildByDefault": false,
   "appendByDefault": false,
+  "formatByDefault": false,
+  "routeByDefault": true,
+  "diByDefault": true,
+  "mockByDefault": true,
+  "testByDefault": true,
   "notes": [
     "Set \"zorphyByDefault\": false to use manual entity generation",
     "Set \"gqlByDefault\": true to auto-generate GraphQL for entity operations",
     "Set \"buildByDefault\": true to auto-run build_runner after entity/cache operations",
     "Set \"appendByDefault\": true to auto-append to existing repositories/datasources",
+    "Set \"formatByDefault\": true to auto-run dart format after generation",
+    "Set \"routeByDefault\": true to auto-generate routing files with --vpcs/--vpcs",
+    "Set \"diByDefault\": true to auto-generate DI files",
+    "Set \"mockByDefault\": true to auto-generate mock datasources",
     "Adjust \"defaultEntityOutput\" to change where entities are created"
   ]
 }
