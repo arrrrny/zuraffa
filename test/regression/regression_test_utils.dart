@@ -45,7 +45,7 @@ dev_dependencies:
   mocktail: ^1.0.4
 dependency_overrides:
   meta: ^1.18.0
-  analyzer: ^11.0.0
+  analyzer: ^12.0.0
 ''';
   await File(
     path.join(workspace.directory.path, 'pubspec.yaml'),

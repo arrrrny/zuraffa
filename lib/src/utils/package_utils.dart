@@ -19,10 +19,12 @@ class PackageUtils {
       }
     }
 
-    // 2. Fallback to current directory
-    pubspecPath ??= 'pubspec.yaml';
+    // 2. Fallback to current directory if no outputDir was provided
+    if (pubspecPath == null && outputDir == null) {
+      pubspecPath = 'pubspec.yaml';
+    }
 
-    if (fs.existsSync(pubspecPath)) {
+    if (pubspecPath != null && fs.existsSync(pubspecPath)) {
       final content = fs.readSync(pubspecPath);
       final nameLine = content
           .split('\n')

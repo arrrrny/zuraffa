@@ -128,9 +128,21 @@ class PluginManager {
                     .where((e) => e.isNotEmpty)
                     .toList();
               } else if (val is String && propertyConfig['type'] == 'integer') {
-                data[key] = int.tryParse(val) ?? propertyConfig['default'];
+                final parsed = int.tryParse(val);
+                if (parsed == null) {
+                  throw FormatException(
+                    'Invalid value for integer flag "$key": "$val"',
+                  );
+                }
+                data[key] = parsed;
               } else if (val is String && propertyConfig['type'] == 'number') {
-                data[key] = double.tryParse(val) ?? propertyConfig['default'];
+                final parsed = double.tryParse(val);
+                if (parsed == null) {
+                  throw FormatException(
+                    'Invalid value for number flag "$key": "$val"',
+                  );
+                }
+                data[key] = parsed;
               } else {
                 data[key] = val;
               }
