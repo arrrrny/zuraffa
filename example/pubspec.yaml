@@ -22,6 +22,8 @@ dependencies:
   json_serializable: ^6.13.1
   get_it: ^9.2.1
   json_annotation: ^4.10.0
+  path: ^1.9.1
+  code_builder: ^4.11.1
 
 dev_dependencies:
   flutter_test:
