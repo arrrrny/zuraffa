@@ -221,18 +221,6 @@ class StateBuilder {
         methods.insert(1, _buildIsLoadingGetter(orchestratorBoolFields));
       }
 
-      final methods = [
-        copyWith,
-        hasErrorGetter,
-        equality,
-        hashCodeGetter,
-        toStringMethod,
-      ];
-
-      if (config.isOrchestrator && !config.generateUseCase) {
-        methods.insert(1, _buildIsLoadingGetter(orchestratorBoolFields));
-      }
-
       final clazz = Class(
         (c) => c
           ..name = stateName

@@ -217,12 +217,6 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         !config.generatePresenter &&
         !config.isEntityBased;
 
-    final isCustom =
-        !config.generateVpcs &&
-        !config.generateController &&
-        !config.generatePresenter &&
-        !config.isEntityBased;
-
     final content = classBuilder.build(
       ViewClassSpec(
         viewName: viewName,
