@@ -29,7 +29,7 @@ class CreateParams<T> extends Params {
 
   CreateParams patchWithCreateParams({CreateParamsPatch? patchInput}) {
     final _patcher = patchInput ?? CreateParamsPatch();
-    final _patchMap = _patcher.toPatch();
+    final _patchMap = _patcher.patchMap;
     return CreateParams(
       params: _patchMap.containsKey(CreateParams$.params)
           ? (_patchMap[CreateParams$.params] is Function)
@@ -50,7 +50,7 @@ class CreateParams<T> extends Params {
 
   CreateParams patchWithParams({ParamsPatch? patchInput}) {
     final _patcher = patchInput ?? ParamsPatch();
-    final _patchMap = _patcher.toPatch();
+    final _patchMap = _patcher.patchMap;
     return CreateParams(
       params: _patchMap.containsKey(Params$.params)
           ? (_patchMap[Params$.params] is Function)
@@ -113,81 +113,18 @@ extension CreateParamsSerialization<T> on CreateParams<T> {
 
 enum CreateParams$ { params, data }
 
-class CreateParamsPatch implements Patch<CreateParams> {
-  final Map<CreateParams$, dynamic> _patch = {};
-
-  static CreateParamsPatch create([Map<String, dynamic>? diff]) {
-    final patch = CreateParamsPatch();
-    if (diff != null) {
-      diff.forEach((key, value) {
-        try {
-          final enumValue = CreateParams$.values.firstWhere(
-            (e) => e.name == key,
-          );
-          if (value is Function) {
-            patch._patch[enumValue] = value();
-          } else {
-            patch._patch[enumValue] = value;
-          }
-        } catch (_) {}
-      });
-    }
-    return patch;
-  }
-
-  static CreateParamsPatch fromPatch(Map<CreateParams$, dynamic> patch) {
-    final _patch = CreateParamsPatch();
-    _patch._patch.addAll(patch);
-    return _patch;
-  }
-
-  Map<CreateParams$, dynamic> toPatch() => Map.from(_patch);
-
+class CreateParamsPatch extends PatchBase<CreateParams, CreateParams$> {
   CreateParams applyTo(CreateParams entity) {
     return entity.patchWithCreateParams(patchInput: this);
   }
 
-  Map<String, dynamic> toJson() {
-    final json = <String, dynamic>{};
-    _patch.forEach((key, value) {
-      if (value != null) {
-        if (value is Function) {
-          final result = value();
-          json[key.name] = _convertToJson(result);
-        } else {
-          json[key.name] = _convertToJson(value);
-        }
-      }
-    });
-    return json;
-  }
-
-  dynamic _convertToJson(dynamic value) {
-    if (value == null) return null;
-    if (value is DateTime) return value.toIso8601String();
-    if (value is Enum) return value.toString().split('.').last;
-    if (value is List) return value.map((e) => _convertToJson(e)).toList();
-    if (value is Map)
-      return value.map((k, v) => MapEntry(k.toString(), _convertToJson(v)));
-    if (value is num || value is bool || value is String) return value;
-    try {
-      if (value?.toJsonLean != null) return value.toJsonLean();
-    } catch (_) {}
-    if (value?.toJson != null) return value.toJson();
-    return value.toString();
-  }
-
-  static CreateParamsPatch fromJson(Map<String, dynamic> json) {
-    return create(json);
-  }
-
   CreateParamsPatch withParams(Map<String, dynamic>? value) {
-    _patch[CreateParams$.params] = value;
+    patchMap[CreateParams$.params] = value;
     return this;
   }
 
   CreateParamsPatch withData(dynamic value) {
-    _patch[CreateParams$.data] = value;
+    patchMap[CreateParams$.data] = value;
     return this;
   }
 }

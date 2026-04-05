@@ -177,7 +177,9 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
 
     // Resolve explicit plugins based on flags
     final explicitIds = <String>[];
-    explicitIds.add('usecase'); // Scaffold always generates usecases by default unless overridden
+    explicitIds.add(
+      'usecase',
+    ); // Scaffold always generates usecases by default unless overridden
     if (args['repository'] != false) explicitIds.add('repository');
     if (args['datasource'] != false) explicitIds.add('datasource');
     if (args['use-service'] == true) explicitIds.add('service');

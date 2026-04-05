@@ -486,7 +486,7 @@ class RouteBuilder {
     ];
 
     final imports = [
-      'package:go_router/go_router.dart',
+      'package:zuraffa/zuraffa.dart',
       '../presentation/pages/$domainSnake/${entitySnake}_view.dart',
       if (hasListView && hasDetailView)
         '../presentation/pages/$domainSnake/${entitySnake}_detail_view.dart',
@@ -833,6 +833,7 @@ class RouteBuilder {
 
     final allPaths = {...existingFiles, ...pendingPaths}
         .map((p) => path.canonicalize(p))
+        .toSet()
         .where((p) => !deletedPaths.contains(p))
         .toList();
 
@@ -849,7 +850,7 @@ class RouteBuilder {
 
     final exports = <Directive>[Directive.export('app_routes.dart')];
     final imports = <Directive>[
-      Directive.import('package:go_router/go_router.dart'),
+      Directive.import('package:zuraffa/zuraffa.dart'),
     ];
     final routeElements = <Expression>[];
 
@@ -1065,8 +1066,8 @@ class RouteBuilder {
     if (!content.contains("import 'package:flutter/material.dart';")) {
       content = "import 'package:flutter/material.dart';\n$content";
     }
-    if (!content.contains("import 'package:go_router/go_router.dart';")) {
-      content = "import 'package:go_router/go_router.dart';\n$content";
+    if (!content.contains("import 'package:zuraffa/zuraffa.dart';")) {
+      content = "import 'package:zuraffa/zuraffa.dart';\n$content";
     }
     return content;
   }

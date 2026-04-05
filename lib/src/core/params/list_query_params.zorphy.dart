@@ -79,7 +79,7 @@ class ListQueryParams<T> extends Params {
 
   ListQueryParams patchWithListQueryParams({ListQueryParamsPatch? patchInput}) {
     final _patcher = patchInput ?? ListQueryParamsPatch();
-    final _patchMap = _patcher.toPatch();
+    final _patchMap = _patcher.patchMap;
     return ListQueryParams(
       params: _patchMap.containsKey(ListQueryParams$.params)
           ? (_patchMap[ListQueryParams$.params] is Function)
@@ -128,7 +128,7 @@ class ListQueryParams<T> extends Params {
 
   ListQueryParams patchWithParams({ParamsPatch? patchInput}) {
     final _patcher = patchInput ?? ParamsPatch();
-    final _patchMap = _patcher.toPatch();
+    final _patchMap = _patcher.patchMap;
     return ListQueryParams(
       params: _patchMap.containsKey(Params$.params)
           ? (_patchMap[Params$.params] is Function)
@@ -261,101 +261,39 @@ extension ListQueryParamsSerialization<T> on ListQueryParams<T> {
 
 enum ListQueryParams$ { params, search, filter, sort, limit, offset }
 
-class ListQueryParamsPatch implements Patch<ListQueryParams> {
-  final Map<ListQueryParams$, dynamic> _patch = {};
-
-  static ListQueryParamsPatch create([Map<String, dynamic>? diff]) {
-    final patch = ListQueryParamsPatch();
-    if (diff != null) {
-      diff.forEach((key, value) {
-        try {
-          final enumValue = ListQueryParams$.values.firstWhere(
-            (e) => e.name == key,
-          );
-          if (value is Function) {
-            patch._patch[enumValue] = value();
-          } else {
-            patch._patch[enumValue] = value;
-          }
-        } catch (_) {}
-      });
-    }
-    return patch;
-  }
-
-  static ListQueryParamsPatch fromPatch(Map<ListQueryParams$, dynamic> patch) {
-    final _patch = ListQueryParamsPatch();
-    _patch._patch.addAll(patch);
-    return _patch;
-  }
-
-  Map<ListQueryParams$, dynamic> toPatch() => Map.from(_patch);
-
+class ListQueryParamsPatch
+    extends PatchBase<ListQueryParams, ListQueryParams$> {
   ListQueryParams applyTo(ListQueryParams entity) {
     return entity.patchWithListQueryParams(patchInput: this);
   }
 
-  Map<String, dynamic> toJson() {
-    final json = <String, dynamic>{};
-    _patch.forEach((key, value) {
-      if (value != null) {
-        if (value is Function) {
-          final result = value();
-          json[key.name] = _convertToJson(result);
-        } else {
-          json[key.name] = _convertToJson(value);
-        }
-      }
-    });
-    return json;
-  }
-
-  dynamic _convertToJson(dynamic value) {
-    if (value == null) return null;
-    if (value is DateTime) return value.toIso8601String();
-    if (value is Enum) return value.toString().split('.').last;
-    if (value is List) return value.map((e) => _convertToJson(e)).toList();
-    if (value is Map)
-      return value.map((k, v) => MapEntry(k.toString(), _convertToJson(v)));
-    if (value is num || value is bool || value is String) return value;
-    try {
-      if (value?.toJsonLean != null) return value.toJsonLean();
-    } catch (_) {}
-    if (value?.toJson != null) return value.toJson();
-    return value.toString();
-  }
-
-  static ListQueryParamsPatch fromJson(Map<String, dynamic> json) {
-    return create(json);
-  }
-
   ListQueryParamsPatch withParams(Map<String, dynamic>? value) {
-    _patch[ListQueryParams$.params] = value;
+    patchMap[ListQueryParams$.params] = value;
     return this;
   }
 
   ListQueryParamsPatch withSearch(String? value) {
-    _patch[ListQueryParams$.search] = value;
+    patchMap[ListQueryParams$.search] = value;
     return this;
   }
 
   ListQueryParamsPatch withFilter(dynamic value) {
-    _patch[ListQueryParams$.filter] = value;
+    patchMap[ListQueryParams$.filter] = value;
     return this;
   }
 
   ListQueryParamsPatch withSort(dynamic value) {
-    _patch[ListQueryParams$.sort] = value;
+    patchMap[ListQueryParams$.sort] = value;
     return this;
   }
 
   ListQueryParamsPatch withLimit(int? value) {
-    _patch[ListQueryParams$.limit] = value;
+    patchMap[ListQueryParams$.limit] = value;
     return this;
   }
 
   ListQueryParamsPatch withOffset(int? value) {
-    _patch[ListQueryParams$.offset] = value;
+    patchMap[ListQueryParams$.offset] = value;
     return this;
   }
 }

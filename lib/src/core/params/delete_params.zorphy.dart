@@ -29,7 +29,7 @@ class DeleteParams<I> extends Params {
 
   DeleteParams patchWithDeleteParams({DeleteParamsPatch? patchInput}) {
     final _patcher = patchInput ?? DeleteParamsPatch();
-    final _patchMap = _patcher.toPatch();
+    final _patchMap = _patcher.patchMap;
     return DeleteParams(
       params: _patchMap.containsKey(DeleteParams$.params)
           ? (_patchMap[DeleteParams$.params] is Function)
@@ -50,7 +50,7 @@ class DeleteParams<I> extends Params {
 
   DeleteParams patchWithParams({ParamsPatch? patchInput}) {
     final _patcher = patchInput ?? ParamsPatch();
-    final _patchMap = _patcher.toPatch();
+    final _patchMap = _patcher.patchMap;
     return DeleteParams(
       params: _patchMap.containsKey(Params$.params)
           ? (_patchMap[Params$.params] is Function)
@@ -111,81 +111,18 @@ extension DeleteParamsSerialization<I> on DeleteParams<I> {
 
 enum DeleteParams$ { params, id }
 
-class DeleteParamsPatch implements Patch<DeleteParams> {
-  final Map<DeleteParams$, dynamic> _patch = {};
-
-  static DeleteParamsPatch create([Map<String, dynamic>? diff]) {
-    final patch = DeleteParamsPatch();
-    if (diff != null) {
-      diff.forEach((key, value) {
-        try {
-          final enumValue = DeleteParams$.values.firstWhere(
-            (e) => e.name == key,
-          );
-          if (value is Function) {
-            patch._patch[enumValue] = value();
-          } else {
-            patch._patch[enumValue] = value;
-          }
-        } catch (_) {}
-      });
-    }
-    return patch;
-  }
-
-  static DeleteParamsPatch fromPatch(Map<DeleteParams$, dynamic> patch) {
-    final _patch = DeleteParamsPatch();
-    _patch._patch.addAll(patch);
-    return _patch;
-  }
-
-  Map<DeleteParams$, dynamic> toPatch() => Map.from(_patch);
-
+class DeleteParamsPatch extends PatchBase<DeleteParams, DeleteParams$> {
   DeleteParams applyTo(DeleteParams entity) {
     return entity.patchWithDeleteParams(patchInput: this);
   }
 
-  Map<String, dynamic> toJson() {
-    final json = <String, dynamic>{};
-    _patch.forEach((key, value) {
-      if (value != null) {
-        if (value is Function) {
-          final result = value();
-          json[key.name] = _convertToJson(result);
-        } else {
-          json[key.name] = _convertToJson(value);
-        }
-      }
-    });
-    return json;
-  }
-
-  dynamic _convertToJson(dynamic value) {
-    if (value == null) return null;
-    if (value is DateTime) return value.toIso8601String();
-    if (value is Enum) return value.toString().split('.').last;
-    if (value is List) return value.map((e) => _convertToJson(e)).toList();
-    if (value is Map)
-      return value.map((k, v) => MapEntry(k.toString(), _convertToJson(v)));
-    if (value is num || value is bool || value is String) return value;
-    try {
-      if (value?.toJsonLean != null) return value.toJsonLean();
-    } catch (_) {}
-    if (value?.toJson != null) return value.toJson();
-    return value.toString();
-  }
-
-  static DeleteParamsPatch fromJson(Map<String, dynamic> json) {
-    return create(json);
-  }
-
   DeleteParamsPatch withParams(Map<String, dynamic>? value) {
-    _patch[DeleteParams$.params] = value;
+    patchMap[DeleteParams$.params] = value;
     return this;
   }
 
   DeleteParamsPatch withId(dynamic value) {
-    _patch[DeleteParams$.id] = value;
+    patchMap[DeleteParams$.id] = value;
     return this;
   }
 }

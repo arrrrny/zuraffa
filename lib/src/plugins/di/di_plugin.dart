@@ -264,7 +264,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$dataSourceName',
       imports: [
-        'package:get_it/get_it.dart',
+        'package:zuraffa/zuraffa.dart',
         '../../data/datasources/$baseSnake/${baseSnake}_remote_datasource.dart',
       ],
       body: Block((b) => b..statements.add(registrationCall.statement)),
@@ -295,7 +295,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final diPath = path.join(outputDir, 'di', 'datasources', fileName);
 
     final imports = <String>[
-      'package:get_it/get_it.dart',
+      'package:zuraffa/zuraffa.dart',
       '../../data/datasources/$baseSnake/${baseSnake}_local_datasource.dart',
     ];
 
@@ -416,7 +416,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$dataSourceName',
       imports: [
-        'package:get_it/get_it.dart',
+        'package:zuraffa/zuraffa.dart',
         '../../data/datasources/$baseSnake/${baseSnake}_mock_datasource.dart',
       ],
       body: Block((b) => b..statements.add(registrationCall.statement)),
@@ -448,7 +448,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final diPath = path.join(outputDir, 'di', 'repositories', fileName);
 
     final imports = <String>[
-      'package:get_it/get_it.dart',
+      'package:zuraffa/zuraffa.dart',
       '../../domain/repositories/${baseSnake}_repository.dart',
       '../../data/repositories/data_${baseSnake}_repository.dart',
     ];
@@ -572,7 +572,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         ? '../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
         : '../../domain/services/${serviceSnake}_service.dart';
 
-    final imports = ['package:get_it/get_it.dart', serviceImport];
+    final imports = ['package:zuraffa/zuraffa.dart', serviceImport];
 
     if (config.useMockInDi) {
       final mockProviderImport = config.isEntityBased || config.hasService
@@ -666,7 +666,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$mockProviderName',
-      imports: ['package:get_it/get_it.dart', mockProviderImport],
+      imports: ['package:zuraffa/zuraffa.dart', mockProviderImport],
       body: Block(
         (b) => b
           ..statements.add(
@@ -721,7 +721,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final content = registrationBuilder.buildRegistrationFile(
       functionName: 'register$providerName',
-      imports: ['package:get_it/get_it.dart', providerImport],
+      imports: ['package:zuraffa/zuraffa.dart', providerImport],
       body: Block(
         (b) => b
           ..statements.add(
@@ -776,7 +776,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final diPath = path.join(outputDir, 'di', 'usecases', fileName);
 
     final imports = {
-      'package:get_it/get_it.dart',
+      'package:zuraffa/zuraffa.dart',
       '../../domain/usecases/$domainSnake/${classSnake}_usecase.dart',
     };
 
@@ -900,7 +900,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       final diPath = path.join(outputDir, 'di', 'usecases', fileName);
 
       final imports = <String>[
-        'package:get_it/get_it.dart',
+        'package:zuraffa/zuraffa.dart',
         '../../domain/usecases/$domainSnake/${classSnake}_usecase.dart',
       ];
 
@@ -966,7 +966,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final diPath = path.join(outputDir, 'di', 'usecases', fileName);
 
     final imports = {
-      'package:get_it/get_it.dart',
+      'package:zuraffa/zuraffa.dart',
       '../../domain/usecases/$domainSnake/${classSnake}_usecase.dart',
     };
 
@@ -1175,7 +1175,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     }
 
     final importPaths = [
-      'package:get_it/get_it.dart',
+      'package:zuraffa/zuraffa.dart',
       ...registrations.map((r) => r.fileName),
     ];
     final registrationCalls = registrations
@@ -1249,7 +1249,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     }
 
     final exportPaths = <String>[];
-    final importPaths = <String>['package:get_it/get_it.dart'];
+    final importPaths = <String>['package:zuraffa/zuraffa.dart'];
     final registrationCalls = <String>[];
 
     if (await hasIndex(usecasesDir)) {

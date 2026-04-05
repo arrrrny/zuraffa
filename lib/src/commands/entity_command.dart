@@ -453,11 +453,14 @@ ${missing.map((d) => '   • $d').join('\n')}
 
   Map<String, dynamic> _parseArgs(List<String> args) {
     final result = <String, dynamic>{};
+    String? currentKey;
+
     for (var i = 0; i < args.length; i++) {
       final arg = args[i];
       if (arg.startsWith('--')) {
         final parts = arg.substring(2).split('=');
         final key = parts[0].replaceAll('-', '_');
+        currentKey = key;
         if (parts.length > 1) {
           final value = parts.sublist(1).join('=');
           _addValue(result, key, value);
@@ -468,10 +471,17 @@ ${missing.map((d) => '   • $d').join('\n')}
         }
       } else if (arg.startsWith('-') && arg.length == 2) {
         final key = _shortFlagToKey(arg[1]);
+        currentKey = key;
         if (i + 1 < args.length && !args[i + 1].startsWith('-')) {
           _addValue(result, key, args[++i]);
         } else {
           result[key] = true;
+        }
+      } else {
+        if (currentKey != null) {
+          _addValue(result, currentKey, arg);
+        } else {
+          _addValue(result, 'rest', arg);
         }
       }
     }
@@ -483,8 +493,10 @@ ${missing.map((d) => '   • $d').join('\n')}
       final existing = result[key];
       if (existing is List<String>) {
         existing.add(value);
+      } else if (existing is List) {
+        result[key] = [...existing.map((e) => e.toString()), value];
       } else {
-        result[key] = [existing as String, value];
+        result[key] = [existing.toString(), value];
       }
     } else {
       result[key] = value;

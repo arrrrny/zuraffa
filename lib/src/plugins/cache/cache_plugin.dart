@@ -59,6 +59,7 @@ class CachePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         'enum': ['daily', 'restart', 'ttl'],
         'default': 'daily',
       },
+      'cache-storage': {'type': 'string', 'default': 'hive'},
       'ttl': {'type': 'integer', 'default': 1440},
     },
   };
@@ -74,6 +75,7 @@ class CachePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       revert: context.core.revert,
       enableCache: true,
       cachePolicy: context.get<String>('cache-policy') ?? 'daily',
+      cacheStorage: context.get<String>('cache-storage') ?? 'hive',
       ttlMinutes: context.get<int>('ttl') ?? 1440,
       methods: context.data['methods']?.cast<String>().toList() ?? [],
       domain: context.data['domain'],

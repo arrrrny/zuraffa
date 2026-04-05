@@ -102,7 +102,7 @@ extension CacheBuilderRegistrar on CacheBuilder {
         .toList();
 
     final directives = [
-      Directive.import('package:hive_ce_flutter/hive_ce_flutter.dart'),
+      Directive.import('package:zuraffa/zuraffa.dart'),
       ...imports.map(Directive.import),
       Directive.part('hive_registrar.g.dart'),
     ];

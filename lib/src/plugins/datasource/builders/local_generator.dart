@@ -188,8 +188,6 @@ class LocalDataSourceBuilder {
     );
 
     final directives = <Directive>[
-      if (useHive)
-        Directive.import('package:hive_ce_flutter/hive_ce_flutter.dart'),
       Directive.import('package:zuraffa/zuraffa.dart'),
       if (config.isEntityBased)
         Directive.import(

@@ -41,7 +41,7 @@ class UpdateParams<I, P> extends Params {
 
   UpdateParams patchWithUpdateParams({UpdateParamsPatch? patchInput}) {
     final _patcher = patchInput ?? UpdateParamsPatch();
-    final _patchMap = _patcher.toPatch();
+    final _patchMap = _patcher.patchMap;
     return UpdateParams(
       params: _patchMap.containsKey(UpdateParams$.params)
           ? (_patchMap[UpdateParams$.params] is Function)
@@ -69,7 +69,7 @@ class UpdateParams<I, P> extends Params {
 
   UpdateParams patchWithParams({ParamsPatch? patchInput}) {
     final _patcher = patchInput ?? ParamsPatch();
-    final _patchMap = _patcher.toPatch();
+    final _patchMap = _patcher.patchMap;
     return UpdateParams(
       params: _patchMap.containsKey(Params$.params)
           ? (_patchMap[Params$.params] is Function)
@@ -149,86 +149,23 @@ extension UpdateParamsSerialization<I, P> on UpdateParams<I, P> {
 
 enum UpdateParams$ { params, id, data }
 
-class UpdateParamsPatch implements Patch<UpdateParams> {
-  final Map<UpdateParams$, dynamic> _patch = {};
-
-  static UpdateParamsPatch create([Map<String, dynamic>? diff]) {
-    final patch = UpdateParamsPatch();
-    if (diff != null) {
-      diff.forEach((key, value) {
-        try {
-          final enumValue = UpdateParams$.values.firstWhere(
-            (e) => e.name == key,
-          );
-          if (value is Function) {
-            patch._patch[enumValue] = value();
-          } else {
-            patch._patch[enumValue] = value;
-          }
-        } catch (_) {}
-      });
-    }
-    return patch;
-  }
-
-  static UpdateParamsPatch fromPatch(Map<UpdateParams$, dynamic> patch) {
-    final _patch = UpdateParamsPatch();
-    _patch._patch.addAll(patch);
-    return _patch;
-  }
-
-  Map<UpdateParams$, dynamic> toPatch() => Map.from(_patch);
-
+class UpdateParamsPatch extends PatchBase<UpdateParams, UpdateParams$> {
   UpdateParams applyTo(UpdateParams entity) {
     return entity.patchWithUpdateParams(patchInput: this);
   }
 
-  Map<String, dynamic> toJson() {
-    final json = <String, dynamic>{};
-    _patch.forEach((key, value) {
-      if (value != null) {
-        if (value is Function) {
-          final result = value();
-          json[key.name] = _convertToJson(result);
-        } else {
-          json[key.name] = _convertToJson(value);
-        }
-      }
-    });
-    return json;
-  }
-
-  dynamic _convertToJson(dynamic value) {
-    if (value == null) return null;
-    if (value is DateTime) return value.toIso8601String();
-    if (value is Enum) return value.toString().split('.').last;
-    if (value is List) return value.map((e) => _convertToJson(e)).toList();
-    if (value is Map)
-      return value.map((k, v) => MapEntry(k.toString(), _convertToJson(v)));
-    if (value is num || value is bool || value is String) return value;
-    try {
-      if (value?.toJsonLean != null) return value.toJsonLean();
-    } catch (_) {}
-    if (value?.toJson != null) return value.toJson();
-    return value.toString();
-  }
-
-  static UpdateParamsPatch fromJson(Map<String, dynamic> json) {
-    return create(json);
-  }
-
   UpdateParamsPatch withParams(Map<String, dynamic>? value) {
-    _patch[UpdateParams$.params] = value;
+    patchMap[UpdateParams$.params] = value;
     return this;
   }
 
   UpdateParamsPatch withId(dynamic value) {
-    _patch[UpdateParams$.id] = value;
+    patchMap[UpdateParams$.id] = value;
     return this;
   }
 
   UpdateParamsPatch withData(dynamic value) {
-    _patch[UpdateParams$.data] = value;
+    patchMap[UpdateParams$.data] = value;
     return this;
   }
 }

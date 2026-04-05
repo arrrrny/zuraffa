@@ -124,6 +124,11 @@ import 'src/presentation/controller.dart';
 // Core - Error Handling & Utilities
 // ============================================================
 
+/// Re-exported essential packages so users don't need separate dependencies
+export 'package:go_router/go_router.dart';
+export 'package:get_it/get_it.dart';
+export 'package:hive_ce_flutter/hive_ce_flutter.dart';
+
 /// Result type for type-safe success/failure handling
 export 'src/core/result.dart';
 

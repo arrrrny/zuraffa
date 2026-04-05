@@ -1,3 +1,15 @@
+## [3.20.2] - 2026-04-05
+
+### Fix
+- Fixed invalid Dart syntax in generated cache files by explicitly using `///` for documentation comments
+- Fixed `zfa make` command crashing when parsing `integer` or `number` CLI flags (e.g., `--ttl`)
+- Fixed test plugin generating ghost tests when the target UseCase file does not exist
+- Prevented duplicate route entries in `index.dart` by safely deduplicating canonical paths before writing imports/exports
+
+### Change
+- Re-exported `go_router`, `get_it`, and `hive_ce_flutter` from `zuraffa.dart` to minimize required direct dependencies in projects
+- Upgraded `zorphy` and `zorphy_annotation` dependencies to `^1.6.6`
+
 ## [3.20.1] - 2026-04-02
 
 ### Fix

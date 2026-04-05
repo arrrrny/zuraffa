@@ -69,7 +69,7 @@ class InitializationParams extends Params {
     InitializationParamsPatch? patchInput,
   }) {
     final _patcher = patchInput ?? InitializationParamsPatch();
-    final _patchMap = _patcher.toPatch();
+    final _patchMap = _patcher.patchMap;
     return InitializationParams(
       params: _patchMap.containsKey(InitializationParams$.params)
           ? (_patchMap[InitializationParams$.params] is Function)
@@ -119,7 +119,7 @@ class InitializationParams extends Params {
 
   InitializationParams patchWithParams({ParamsPatch? patchInput}) {
     final _patcher = patchInput ?? ParamsPatch();
-    final _patchMap = _patcher.toPatch();
+    final _patchMap = _patcher.patchMap;
     return InitializationParams(
       params: _patchMap.containsKey(Params$.params)
           ? (_patchMap[Params$.params] is Function)
@@ -237,105 +237,41 @@ enum InitializationParams$ {
   settings,
 }
 
-class InitializationParamsPatch implements Patch<InitializationParams> {
-  final Map<InitializationParams$, dynamic> _patch = {};
-
-  static InitializationParamsPatch create([Map<String, dynamic>? diff]) {
-    final patch = InitializationParamsPatch();
-    if (diff != null) {
-      diff.forEach((key, value) {
-        try {
-          final enumValue = InitializationParams$.values.firstWhere(
-            (e) => e.name == key,
-          );
-          if (value is Function) {
-            patch._patch[enumValue] = value();
-          } else {
-            patch._patch[enumValue] = value;
-          }
-        } catch (_) {}
-      });
-    }
-    return patch;
-  }
-
-  static InitializationParamsPatch fromPatch(
-    Map<InitializationParams$, dynamic> patch,
-  ) {
-    final _patch = InitializationParamsPatch();
-    _patch._patch.addAll(patch);
-    return _patch;
-  }
-
-  Map<InitializationParams$, dynamic> toPatch() => Map.from(_patch);
-
+class InitializationParamsPatch
+    extends PatchBase<InitializationParams, InitializationParams$> {
   InitializationParams applyTo(InitializationParams entity) {
     return entity.patchWithInitializationParams(patchInput: this);
   }
 
-  Map<String, dynamic> toJson() {
-    final json = <String, dynamic>{};
-    _patch.forEach((key, value) {
-      if (value != null) {
-        if (value is Function) {
-          final result = value();
-          json[key.name] = _convertToJson(result);
-        } else {
-          json[key.name] = _convertToJson(value);
-        }
-      }
-    });
-    return json;
-  }
-
-  dynamic _convertToJson(dynamic value) {
-    if (value == null) return null;
-    if (value is DateTime) return value.toIso8601String();
-    if (value is Enum) return value.toString().split('.').last;
-    if (value is List) return value.map((e) => _convertToJson(e)).toList();
-    if (value is Map)
-      return value.map((k, v) => MapEntry(k.toString(), _convertToJson(v)));
-    if (value is num || value is bool || value is String) return value;
-    try {
-      if (value?.toJsonLean != null) return value.toJsonLean();
-    } catch (_) {}
-    if (value?.toJson != null) return value.toJson();
-    return value.toString();
-  }
-
-  static InitializationParamsPatch fromJson(Map<String, dynamic> json) {
-    return create(json);
-  }
-
   InitializationParamsPatch withParams(Map<String, dynamic>? value) {
-    _patch[InitializationParams$.params] = value;
+    patchMap[InitializationParams$.params] = value;
     return this;
   }
 
   InitializationParamsPatch withTimeout(Duration? value) {
-    _patch[InitializationParams$.timeout] = value;
+    patchMap[InitializationParams$.timeout] = value;
     return this;
   }
 
   InitializationParamsPatch withForceRefresh(bool? value) {
-    _patch[InitializationParams$.forceRefresh] = value;
+    patchMap[InitializationParams$.forceRefresh] = value;
     return this;
   }
 
   InitializationParamsPatch withCredentials(Credentials? value) {
-    _patch[InitializationParams$.credentials] = value;
+    patchMap[InitializationParams$.credentials] = value;
     return this;
   }
 
   InitializationParamsPatch withCredentialsPatch(CredentialsPatch patch) {
-    _patch[InitializationParams$.credentials] = patch;
+    patchMap[InitializationParams$.credentials] = patch;
     return this;
   }
 
   InitializationParamsPatch withCredentialsPatchFunc(
     CredentialsPatch Function(CredentialsPatch) patch,
   ) {
-    _patch[InitializationParams$.credentials] = (dynamic current) {
+    patchMap[InitializationParams$.credentials] = (dynamic current) {
       var currentPatch = CredentialsPatch();
       return patch(currentPatch).applyTo(current as Credentials);
     };
@@ -343,7 +279,7 @@ class InitializationParamsPatch implements Patch<InitializationParams> {
   }
 
   InitializationParamsPatch withSettings(Settings? value) {
-    _patch[InitializationParams$.settings] = value;
+    patchMap[InitializationParams$.settings] = value;
     return this;
   }
 }

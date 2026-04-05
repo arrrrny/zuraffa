@@ -41,7 +41,7 @@ class QueryParams<T> extends Params {
 
   QueryParams patchWithQueryParams({QueryParamsPatch? patchInput}) {
     final _patcher = patchInput ?? QueryParamsPatch();
-    final _patchMap = _patcher.toPatch();
+    final _patchMap = _patcher.patchMap;
     return QueryParams(
       params: _patchMap.containsKey(QueryParams$.params)
           ? (_patchMap[QueryParams$.params] is Function)
@@ -62,7 +62,7 @@ class QueryParams<T> extends Params {
 
   QueryParams patchWithParams({ParamsPatch? patchInput}) {
     final _patcher = patchInput ?? ParamsPatch();
-    final _patchMap = _patcher.toPatch();
+    final _patchMap = _patcher.patchMap;
     return QueryParams(
       params: _patchMap.containsKey(Params$.params)
           ? (_patchMap[Params$.params] is Function)
@@ -144,81 +144,18 @@ extension QueryParamsSerialization<T> on QueryParams<T> {
 
 enum QueryParams$ { params, filter }
 
-class QueryParamsPatch implements Patch<QueryParams> {
-  final Map<QueryParams$, dynamic> _patch = {};
-
-  static QueryParamsPatch create([Map<String, dynamic>? diff]) {
-    final patch = QueryParamsPatch();
-    if (diff != null) {
-      diff.forEach((key, value) {
-        try {
-          final enumValue = QueryParams$.values.firstWhere(
-            (e) => e.name == key,
-          );
-          if (value is Function) {
-            patch._patch[enumValue] = value();
-          } else {
-            patch._patch[enumValue] = value;
-          }
-        } catch (_) {}
-      });
-    }
-    return patch;
-  }
-
-  static QueryParamsPatch fromPatch(Map<QueryParams$, dynamic> patch) {
-    final _patch = QueryParamsPatch();
-    _patch._patch.addAll(patch);
-    return _patch;
-  }
-
-  Map<QueryParams$, dynamic> toPatch() => Map.from(_patch);
-
+class QueryParamsPatch extends PatchBase<QueryParams, QueryParams$> {
   QueryParams applyTo(QueryParams entity) {
     return entity.patchWithQueryParams(patchInput: this);
   }
 
-  Map<String, dynamic> toJson() {
-    final json = <String, dynamic>{};
-    _patch.forEach((key, value) {
-      if (value != null) {
-        if (value is Function) {
-          final result = value();
-          json[key.name] = _convertToJson(result);
-        } else {
-          json[key.name] = _convertToJson(value);
-        }
-      }
-    });
-    return json;
-  }
-
-  dynamic _convertToJson(dynamic value) {
-    if (value == null) return null;
-    if (value is DateTime) return value.toIso8601String();
-    if (value is Enum) return value.toString().split('.').last;
-    if (value is List) return value.map((e) => _convertToJson(e)).toList();
-    if (value is Map)
-      return value.map((k, v) => MapEntry(k.toString(), _convertToJson(v)));
-    if (value is num || value is bool || value is String) return value;
-    try {
-      if (value?.toJsonLean != null) return value.toJsonLean();
-    } catch (_) {}
-    if (value?.toJson != null) return value.toJson();
-    return value.toString();
-  }
-
-  static QueryParamsPatch fromJson(Map<String, dynamic> json) {
-    return create(json);
-  }
-
   QueryParamsPatch withParams(Map<String, dynamic>? value) {
-    _patch[QueryParams$.params] = value;
+    patchMap[QueryParams$.params] = value;
     return this;
   }
 
   QueryParamsPatch withFilter(dynamic value) {
-    _patch[QueryParams$.filter] = value;
+    patchMap[QueryParams$.filter] = value;
     return this;
   }
 }

@@ -127,6 +127,10 @@ class PluginManager {
                     .map((e) => e.trim())
                     .where((e) => e.isNotEmpty)
                     .toList();
+              } else if (val is String && propertyConfig['type'] == 'integer') {
+                data[key] = int.tryParse(val) ?? propertyConfig['default'];
+              } else if (val is String && propertyConfig['type'] == 'number') {
+                data[key] = double.tryParse(val) ?? propertyConfig['default'];
               } else {
                 data[key] = val;
               }

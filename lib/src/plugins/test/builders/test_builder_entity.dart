@@ -103,6 +103,13 @@ extension TestBuilderEntity on TestBuilder {
     );
     final useCaseFile = discovery.findFileSync(useCaseFileName);
 
+    if (useCaseFile == null) {
+      print(
+        '  ⚠️  Skipping test generation for $className: UseCase file ($useCaseFileName) not found.',
+      );
+      return GeneratedFile(path: filePath, type: 'test', action: 'skipped');
+    }
+
     final directives = [
       Directive.import('package:flutter_test/flutter_test.dart'),
       Directive.import('package:mocktail/mocktail.dart'),
@@ -131,16 +138,8 @@ extension TestBuilderEntity on TestBuilder {
       );
     }
 
-    if (useCaseFile != null) {
-      final relPath = path.relative(useCaseFile.path, from: testDirPath);
-      directives.add(Directive.import(relPath));
-    } else {
-      directives.add(
-        Directive.import(
-          'package:$packageName/src/domain/usecases/$entitySnake/$useCaseFileName',
-        ),
-      );
-    }
+    final relPath = path.relative(useCaseFile.path, from: testDirPath);
+    directives.add(Directive.import(relPath));
 
     final mockRepoClass = 'Mock$targetName';
     final mockEntityClass = 'Mock$entityName';

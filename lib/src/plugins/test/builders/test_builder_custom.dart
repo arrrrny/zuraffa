@@ -17,6 +17,16 @@ extension TestBuilderCustom on TestBuilder {
     final testDirPath = path.joinAll(testPathParts);
     final filePath = path.join(testDirPath, fileName);
 
+    final useCaseFileName = '${config.nameSnake}_usecase.dart';
+    final useCaseFile = discovery.findFileSync(useCaseFileName);
+
+    if (useCaseFile == null) {
+      print(
+        '  ⚠️  Skipping test generation for $useCaseName: UseCase file ($useCaseFileName) not found.',
+      );
+      return GeneratedFile(path: filePath, type: 'test', action: 'skipped');
+    }
+
     final packageName = await _resolvePackageName(projectRoot);
 
     final directives = [

@@ -30,7 +30,6 @@ extension CacheBuilderPolicy on CacheBuilder {
     final cachePath = path.join(outputDir, 'cache', fileName);
 
     final directives = [
-      Directive.import('package:hive_ce_flutter/hive_ce_flutter.dart'),
       Directive.import('package:zuraffa/zuraffa.dart'),
     ];
 
@@ -42,12 +41,13 @@ extension CacheBuilderPolicy on CacheBuilder {
 
     final getTimestamps = _asyncLambda(
       [],
-      refer('Map').newInstanceNamed(
-        'from',
-        [refer('timestampBox').property('toMap').call([])],
-        const {},
-        [refer('String'), refer('int')],
-      ),
+      TypeReference(
+        (b) => b
+          ..symbol = 'Map'
+          ..types.addAll([refer('String'), refer('int')]),
+      ).newInstanceNamed('from', [
+        refer('timestampBox').property('toMap').call([]),
+      ]),
     );
 
     final setTimestamp = _asyncLambda(
@@ -83,7 +83,7 @@ extension CacheBuilderPolicy on CacheBuilder {
       (m) => m
         ..name = policyName
         ..returns = refer('CachePolicy')
-        ..docs.add('Auto-generated cache policy')
+        ..docs.add('/// Auto-generated cache policy')
         ..body = Block(
           (b) => b
             ..statements.add(timestampBoxDecl.statement)
@@ -99,9 +99,9 @@ extension CacheBuilderPolicy on CacheBuilder {
       cachePath,
       content,
       'cache_policy',
-      force: options.force,
-      dryRun: options.dryRun,
-      verbose: options.verbose,
+      force: config.force,
+      dryRun: config.dryRun,
+      verbose: config.verbose,
       revert: config.revert,
       fileSystem: fileSystem,
     );

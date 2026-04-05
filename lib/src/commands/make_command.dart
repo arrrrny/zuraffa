@@ -170,7 +170,9 @@ class MakeCommand extends Command<void> {
 
           if (type == 'boolean') {
             argParser.addFlag(key, help: help, defaultsTo: def ?? false);
-          } else if (type == 'string') {
+          } else if (type == 'string' ||
+              type == 'integer' ||
+              type == 'number') {
             argParser.addOption(key, help: help, defaultsTo: def?.toString());
           } else if (type == 'array') {
             argParser.addMultiOption(

@@ -9,8 +9,8 @@ class ServiceLocatorBuilder {
 
   String build() {
     final directives = [
-      Directive.import('package:get_it/get_it.dart'),
-      Directive.export('package:get_it/get_it.dart', show: ['GetIt']),
+      Directive.import('package:zuraffa/zuraffa.dart'),
+      Directive.export('package:zuraffa/zuraffa.dart', show: ['GetIt']),
       Directive.export('index.dart', show: ['setupDependencies']),
     ];
 

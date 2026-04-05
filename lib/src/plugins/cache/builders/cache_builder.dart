@@ -54,7 +54,7 @@ class CacheBuilder {
     final cachePath = path.join(outputDir, 'cache', fileName);
 
     final directives = [
-      Directive.import('package:hive_ce_flutter/hive_ce_flutter.dart'),
+      Directive.import('package:zuraffa/zuraffa.dart'),
       Directive.import('../domain/entities/$entitySnake/$entitySnake.dart'),
     ];
 
@@ -63,7 +63,7 @@ class CacheBuilder {
         ..name = 'init${entityName}Cache'
         ..returns = _futureVoidType()
         ..modifier = MethodModifier.async
-        ..docs.add('Auto-generated cache for $entityName')
+        ..docs.add('/// Auto-generated cache for $entityName')
         ..body = Block(
           (b) => b
             ..statements.add(
@@ -84,9 +84,9 @@ class CacheBuilder {
       cachePath,
       content,
       'cache_init',
-      force: options.force,
-      dryRun: options.dryRun,
-      verbose: options.verbose,
+      force: config.force,
+      dryRun: config.dryRun,
+      verbose: config.verbose,
       revert: config.revert,
       fileSystem: fileSystem,
     );
@@ -99,7 +99,7 @@ class CacheBuilder {
     final cachePath = path.join(outputDir, 'cache', fileName);
 
     final directives = [
-      Directive.import('package:hive_ce_flutter/hive_ce_flutter.dart'),
+      Directive.import('package:zuraffa/zuraffa.dart'),
     ];
 
     final method = Method(
@@ -107,7 +107,7 @@ class CacheBuilder {
         ..name = 'initTimestampCache'
         ..returns = _futureVoidType()
         ..modifier = MethodModifier.async
-        ..docs.add('Auto-generated timestamp cache')
+        ..docs.add('/// Auto-generated timestamp cache')
         ..body = Block(
           (b) => b
             ..statements.add(
@@ -132,9 +132,9 @@ class CacheBuilder {
       cachePath,
       content,
       'cache_init',
-      force: options.force,
-      dryRun: options.dryRun,
-      verbose: options.verbose,
+      force: config.force,
+      dryRun: config.dryRun,
+      verbose: config.verbose,
       revert: config.revert,
       fileSystem: fileSystem,
     );
@@ -185,7 +185,7 @@ class CacheBuilder {
     final registrarPath = path.join(dirPath, 'hive_registrar.dart');
     if (await fileSystem.exists(registrarPath)) {
       exports.add('hive_registrar.dart');
-      imports.add('package:hive_ce_flutter/hive_ce_flutter.dart');
+      imports.add('package:zuraffa/zuraffa.dart');
       imports.add('hive_registrar.dart');
       statements.insert(
         0,
@@ -225,7 +225,7 @@ class CacheBuilder {
         ..name = 'initAllCaches'
         ..returns = _futureVoidType()
         ..modifier = MethodModifier.async
-        ..docs.add('Auto-generated - DO NOT EDIT')
+        ..docs.add('/// Auto-generated - DO NOT EDIT')
         ..body = Block((b) => b..statements.addAll(statements)),
     );
 
@@ -238,8 +238,8 @@ class CacheBuilder {
       content,
       'cache_index',
       force: true,
-      dryRun: options.dryRun,
-      verbose: options.verbose,
+      dryRun: config.dryRun,
+      verbose: config.verbose,
       fileSystem: fileSystem,
     );
   }

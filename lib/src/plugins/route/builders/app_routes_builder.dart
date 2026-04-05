@@ -49,7 +49,7 @@ class AppRoutesBuilder {
 
     final directives = <Directive>[
       Directive.import('package:flutter/material.dart'),
-      Directive.import('package:go_router/go_router.dart'),
+      Directive.import('package:zuraffa/zuraffa.dart'),
       if (entityRouteImport != null) Directive.import('./index.dart'),
     ];
 
