@@ -5,6 +5,8 @@
 - Fixed `zfa make` command crashing when parsing `integer` or `number` CLI flags (e.g., `--ttl`)
 - Fixed test plugin generating ghost tests when the target UseCase file does not exist
 - Prevented duplicate route entries in `index.dart` by safely deduplicating canonical paths before writing imports/exports
+- Migrated all build and release scripts to `dart build cli` to support Native Assets (fixing the "dart compile does not support build hooks" error)
+- Resolved multiple "already declared" compilation errors in the CLI builders caused by code duplication
 
 ### Change
 - Re-exported `go_router`, `get_it`, and `hive_ce_flutter` from `zuraffa.dart` to minimize required direct dependencies in projects
