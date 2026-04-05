@@ -40,30 +40,32 @@ jobs:
         run: dart pub get
 
       - name: Build MCP server binary
-        run: dart compile exe bin/zuraffa_mcp_server.dart -o ${{ matrix.output }}
+        run: dart build cli --target=bin/zuraffa_mcp_server.dart -o build_mcp
 
       - name: Build CLI binary
-        run: dart compile exe bin/zfa.dart -o ${{ matrix.cli_output }}
+        run: dart build cli --target=bin/zfa.dart -o build_cli
 
       - name: Create archive (Unix)
         if: runner.os != 'Windows'
-        run: tar -czf ${{ matrix.output }}.tar.gz ${{ matrix.output }}
+        run: |
+          tar -czf ${{ matrix.output }}.tar.gz -C build_mcp bundle
+          tar -czf ${{ matrix.cli_output }}.tar.gz -C build_cli bundle
 
       - name: Create archive (Windows)
         if: runner.os == 'Windows'
-        run: Compress-Archive -Path ${{ matrix.output }} -DestinationPath ${{ matrix.output }}.zip
+        run: |
+          powershell Compress-Archive -Path build_mcp/bundle -DestinationPath ${{ matrix.output }}.zip
+          powershell Compress-Archive -Path build_cli/bundle -DestinationPath ${{ matrix.cli_output }}.zip
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.platform }}
           path: |
-            ${{ matrix.output }}
-            ${{ matrix.output }}.tar.gz
-            ${{ matrix.output }}.zip
-            ${{ matrix.cli_output }}
+            *.tar.gz
+            *.zip
 
-      - name: Upload to release (Unix)
+      - name: Upload MCP to release (Unix)
         if: github.event_name == 'release' && runner.os != 'Windows'
         uses: actions/upload-release-asset@v1
         env:
@@ -74,7 +76,18 @@ jobs:
           asset_name: ${{ matrix.output }}.tar.gz
           asset_content_type: application/gzip
 
-      - name: Upload to release (Windows)
+      - name: Upload CLI to release (Unix)
+        if: github.event_name == 'release' && runner.os != 'Windows'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./${{ matrix.cli_output }}.tar.gz
+          asset_name: ${{ matrix.cli_output }}.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload MCP to release (Windows)
         if: github.event_name == 'release' && runner.os == 'Windows'
         uses: actions/upload-release-asset@v1
         env:
@@ -85,13 +98,13 @@ jobs:
           asset_name: ${{ matrix.output }}.zip
           asset_content_type: application/zip
 
-      - name: Upload CLI binary to release
-        if: github.event_name == 'release'
+      - name: Upload CLI to release (Windows)
+        if: github.event_name == 'release' && runner.os == 'Windows'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./${{ matrix.cli_output }}
-          asset_name: ${{ matrix.cli_output }}
-          asset_content_type: application/octet-stream
+          asset_path: ./${{ matrix.cli_output }}.zip
+          asset_name: ${{ matrix.cli_output }}.zip
+          asset_content_type: application/zip

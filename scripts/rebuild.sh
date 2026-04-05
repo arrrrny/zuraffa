@@ -65,17 +65,17 @@ dart pub global activate --source=path .
 # Compile binaries to AOT executables (after activation to avoid binary scan issues)
 echo "🔨 Compiling zfa CLI to executable..."
 mkdir -p "$PACKAGE_DIR/build"
-dart compile exe bin/zfa.dart -o "$PACKAGE_DIR/build/zfa"
+dart build cli --target=bin/zfa.dart -o "$PACKAGE_DIR/build/zfa_bundle"
 
 echo "🔨 Compiling zuraffa_mcp_server to executable..."
-dart compile exe bin/zuraffa_mcp_server.dart -o "$PACKAGE_DIR/build/zuraffa_mcp_server"
+dart build cli --target=bin/zuraffa_mcp_server.dart -o "$PACKAGE_DIR/build/mcp_server_bundle"
 
 # Install compiled binaries (overrides pub's JIT wrappers)
 echo "📝 Installing compiled binaries..."
-cp "$PACKAGE_DIR/build/zfa" "$PUB_BIN/zfa"
+cp "$PACKAGE_DIR/build/zfa_bundle/bundle/bin/zfa" "$PUB_BIN/zfa"
 chmod +x "$PUB_BIN/zfa"
 
-cp "$PACKAGE_DIR/build/zuraffa_mcp_server" "$PUB_BIN/zuraffa_mcp_server"
+cp "$PACKAGE_DIR/build/mcp_server_bundle/bundle/bin/zuraffa_mcp_server" "$PUB_BIN/zuraffa_mcp_server"
 chmod +x "$PUB_BIN/zuraffa_mcp_server"
 
 echo ""

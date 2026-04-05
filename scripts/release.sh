@@ -32,29 +32,20 @@ echo "🔧 Building MCP server and CLI binaries..."
 OUTPUT_DIR="build/release_$VERSION"
 mkdir -p "$OUTPUT_DIR"
 
-echo "  Building MCP server for macOS ARM64..."
-dart compile exe bin/zuraffa_mcp_server.dart -o "$OUTPUT_DIR/zuraffa_mcp_server-macos-arm64"
+# Detect current platform
+OS_NAME=$(uname -s | tr '[:upper:]' '[:lower:]')
+ARCH_NAME=$(uname -m)
+if [ "$ARCH_NAME" = "x86_64" ]; then ARCH_NAME="x64"; fi
 
-echo "  Building MCP server for macOS x64..."
-dart compile exe bin/zuraffa_mcp_server.dart -o "$OUTPUT_DIR/zuraffa_mcp_server-macos-x64"
+PLATFORM_TAG="${OS_NAME}-${ARCH_NAME}"
 
-echo "  Building MCP server for Linux x64..."
-dart compile exe bin/zuraffa_mcp_server.dart -o "$OUTPUT_DIR/zuraffa_mcp_server-linux-x64"
+echo "  Building for current platform: $PLATFORM_TAG..."
 
-echo "  Building MCP server for Windows x64..."
-dart compile exe bin/zuraffa_mcp_server.dart -o "$OUTPUT_DIR/zuraffa_mcp_server-windows-x64.exe"
+echo "  Building MCP server..."
+dart build cli --target=bin/zuraffa_mcp_server.dart -o "$OUTPUT_DIR/mcp_server_bundle"
 
-echo "  Building CLI for macOS ARM64..."
-dart compile exe bin/zfa.dart -o "$OUTPUT_DIR/zfa-macos-arm64"
-
-echo "  Building CLI for macOS x64..."
-dart compile exe bin/zfa.dart -o "$OUTPUT_DIR/zfa-macos-x64"
-
-echo "  Building CLI for Linux x64..."
-dart compile exe bin/zfa.dart -o "$OUTPUT_DIR/zfa-linux-x64"
-
-echo "  Building CLI for Windows x64..."
-dart compile exe bin/zfa.dart -o "$OUTPUT_DIR/zfa-windows-x64.exe"
+echo "  Building CLI..."
+dart build cli --target=bin/zfa.dart -o "$OUTPUT_DIR/zfa_bundle"
 
 echo "  ✓ MCP and CLI binaries built"
 
@@ -64,6 +55,14 @@ SOURCE_ARCHIVE="$OUTPUT_DIR/zuraffa-$VERSION-source.tar.gz"
 tar -czf "$SOURCE_ARCHIVE" --exclude="build" --exclude=".git" --exclude="node_modules" .
 
 echo "  ✓ Source archive created: $SOURCE_ARCHIVE"
+
+# Create platform-specific archives for the bundles
+echo "📦 Creating platform-specific archives..."
+MCP_ARCHIVE="$OUTPUT_DIR/zuraffa_mcp_server-$PLATFORM_TAG-v$VERSION.tar.gz"
+ZFA_ARCHIVE="$OUTPUT_DIR/zfa-$PLATFORM_TAG-v$VERSION.tar.gz"
+
+tar -czf "$MCP_ARCHIVE" -C "$OUTPUT_DIR/mcp_server_bundle" bundle
+tar -czf "$ZFA_ARCHIVE" -C "$OUTPUT_DIR/zfa_bundle" bundle
 
 # Step 3: Create GitHub release
 if command -v gh &> /dev/null; then
@@ -75,27 +74,15 @@ if command -v gh &> /dev/null; then
         echo "  Creating release v$VERSION..."
         gh release create "v$VERSION" \
             --title "v$VERSION" \
-            --notes "Release $VERSION" \
-            "$OUTPUT_DIR/zuraffa_mcp_server-macos-arm64" \
-            "$OUTPUT_DIR/zuraffa_mcp_server-macos-x64" \
-            "$OUTPUT_DIR/zuraffa_mcp_server-linux-x64" \
-            "$OUTPUT_DIR/zuraffa_mcp_server-windows-x64.exe" \
-            "$OUTPUT_DIR/zfa-macos-arm64" \
-            "$OUTPUT_DIR/zfa-macos-x64" \
-            "$OUTPUT_DIR/zfa-linux-x64" \
-            "$OUTPUT_DIR/zfa-windows-x64.exe" \
+            --notes "Release $VERSION (built for $PLATFORM_TAG)" \
+            "$MCP_ARCHIVE" \
+            "$ZFA_ARCHIVE" \
             "$SOURCE_ARCHIVE"
     else
         echo "  Uploading to existing release v$VERSION..."
         gh release upload "v$VERSION" \
-            "$OUTPUT_DIR/zuraffa_mcp_server-macos-arm64" \
-            "$OUTPUT_DIR/zuraffa_mcp_server-macos-x64" \
-            "$OUTPUT_DIR/zuraffa_mcp_server-linux-x64" \
-            "$OUTPUT_DIR/zuraffa_mcp_server-windows-x64.exe" \
-            "$OUTPUT_DIR/zfa-macos-arm64" \
-            "$OUTPUT_DIR/zfa-macos-x64" \
-            "$OUTPUT_DIR/zfa-linux-x64" \
-            "$OUTPUT_DIR/zfa-windows-x64.exe" \
+            "$MCP_ARCHIVE" \
+            "$ZFA_ARCHIVE" \
             "$SOURCE_ARCHIVE" \
             --clobber
     fi
