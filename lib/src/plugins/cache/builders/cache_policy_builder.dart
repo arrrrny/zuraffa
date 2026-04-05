@@ -29,9 +29,7 @@ extension CacheBuilderPolicy on CacheBuilder {
 
     final cachePath = path.join(outputDir, 'cache', fileName);
 
-    final directives = [
-      Directive.import('package:zuraffa/zuraffa.dart'),
-    ];
+    final directives = [Directive.import('package:zuraffa/zuraffa.dart')];
 
     final timestampBoxDecl = declareFinal('timestampBox').assign(
       refer('Hive')

@@ -98,9 +98,7 @@ class CacheBuilder {
     final fileName = 'timestamp_cache.dart';
     final cachePath = path.join(outputDir, 'cache', fileName);
 
-    final directives = [
-      Directive.import('package:zuraffa/zuraffa.dart'),
-    ];
+    final directives = [Directive.import('package:zuraffa/zuraffa.dart')];
 
     final method = Method(
       (m) => m
