@@ -27,7 +27,7 @@ All plugins implement the `ZuraffaPlugin` lifecycle:
 
 ## Minimal Plugin Walkthrough
 
-The minimal plugin example is in [minimal_plugin_example.dart](file:///Users/arrrrny/Developer/zuraffa/examples/custom_plugin/minimal_plugin_example.dart). It:
+The minimal plugin example is in [minimal_plugin_example.dart](file:///Users/arrrrny/Developer/zuraffa/example/custom_plugin/minimal_plugin_example.dart). It:
 
 - Implements `FileGeneratorPlugin`
 - Writes a single file using `FileUtils.writeFile`
@@ -35,7 +35,7 @@ The minimal plugin example is in [minimal_plugin_example.dart](file:///Users/arr
 
 ## Advanced Plugin Walkthrough
 
-The advanced plugin example is in [advanced_plugin_example.dart](file:///Users/arrrrny/Developer/zuraffa/examples/custom_plugin/advanced_plugin_example.dart). It shows:
+The advanced plugin example is in [advanced_plugin_example.dart](file:///Users/arrrrny/Developer/zuraffa/example/custom_plugin/advanced_plugin_example.dart). It shows:
 
 - Building Dart code with `code_builder`
 - Emitting formatted code using `SpecLibrary`

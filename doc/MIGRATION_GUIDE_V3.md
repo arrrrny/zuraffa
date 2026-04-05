@@ -63,7 +63,7 @@ Zuraffa v3 is designed to be built by AI agents. By enabling the built-in MCP se
 - Generate features and entities with 100% precision.
 - Run diagnostics and fix architectural violations.
 
-To set up, see the [MCP Server Guide](https://arrrrny.github.io/zuraffa/docs/features/mcp-server).
+To set up, see the [MCP Server Guide](https://arrrrny.github.io/zuraffa/doc/features/mcp-server).
 
 ---
 

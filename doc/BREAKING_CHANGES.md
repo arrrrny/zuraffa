@@ -42,4 +42,4 @@ This document summarizes breaking changes introduced in the v2 series. Use it al
 
 ## Related
 
-- [MIGRATION_GUIDE.md](file:///Users/arrrrny/Developer/zuraffa/docs/MIGRATION_GUIDE.md)
+- [MIGRATION_GUIDE.md](file:///Users/arrrrny/Developer/zuraffa/doc/MIGRATION_GUIDE.md)

@@ -107,7 +107,7 @@ lib/src/domain/entities/product/product.dart
 
 Read the full list of breaking changes:
 
-- [BREAKING_CHANGES.md](file:///Users/arrrrny/Developer/zuraffa/docs/BREAKING_CHANGES.md)
+- [BREAKING_CHANGES.md](file:///Users/arrrrny/Developer/zuraffa/doc/BREAKING_CHANGES.md)
 
 ## Troubleshooting
 
