@@ -1,7 +1,6 @@
-// Auto-generated cache policy
-import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:zuraffa/zuraffa.dart';
 
+/// Auto-generated cache policy
 CachePolicy createDailyCachePolicy() {
   final timestampBox = Hive.box<int>('cache_timestamps');
   return DailyCachePolicy(

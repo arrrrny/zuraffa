@@ -1,13 +1,19 @@
-// Auto-generated Hive registrar
-import 'package:hive_ce_flutter/hive_ce_flutter.dart';
-import '../domain/entities/todo/todo.dart';
+import 'package:zuraffa/zuraffa.dart';
+
+import '../domain/entities/concert/concert.dart';
 import '../domain/entities/product/product.dart';
+import '../domain/entities/todo/todo.dart';
 
 part 'hive_registrar.g.dart';
 
-@GenerateAdapters([AdapterSpec<Todo>(), AdapterSpec<Product>()])
+@GenerateAdapters([
+  AdapterSpec<Concert>(),
+  AdapterSpec<Todo>(),
+  AdapterSpec<Product>(),
+])
 extension HiveRegistrar on HiveInterface {
   void registerAdapters() {
+    registerAdapter(ConcertAdapter());
     registerAdapter(TodoAdapter());
     registerAdapter(ProductAdapter());
   }
@@ -15,6 +21,7 @@ extension HiveRegistrar on HiveInterface {
 
 extension IsolatedHiveRegistrar on IsolatedHiveInterface {
   void registerAdapters() {
+    registerAdapter(ConcertAdapter());
     registerAdapter(TodoAdapter());
     registerAdapter(ProductAdapter());
   }

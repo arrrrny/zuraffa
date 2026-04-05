@@ -94,3 +94,37 @@ class ProductAdapter extends TypeAdapter<Product> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
+
+class ConcertAdapter extends TypeAdapter<Concert> {
+  @override
+  final typeId = 2;
+
+  @override
+  Concert read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return Concert(id: fields[0] as String, artist: fields[1] as String);
+  }
+
+  @override
+  void write(BinaryWriter writer, Concert obj) {
+    writer
+      ..writeByte(2)
+      ..writeByte(0)
+      ..write(obj.id)
+      ..writeByte(1)
+      ..write(obj.artist);
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ConcertAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
