@@ -1,3 +1,9 @@
+## [3.21.1] - 2026-04-06
+
+### Fix
+- Hardened AST deduplication logic in `ExtensionMethodAppendStrategy` and `FieldAppendStrategy` to match primarily on identifiers, preventing duplicate member errors when signatures differ
+- Improved AST modification robustness by ensuring replacement logic is prioritized over appending for matching names
+
 ## [3.21.0] - 2026-04-06
 
 ### Feat

@@ -65,7 +65,8 @@ class ConstructorAppendStrategy implements AppendStrategy {
       );
     }
 
-    final existingConstructors = body.members.whereType<ConstructorDeclaration>();
+    final existingConstructors = body.members
+        .whereType<ConstructorDeclaration>();
     for (final constructor in existingConstructors) {
       if (constructor.name?.lexeme == newConstructor.name?.lexeme) {
         if (!request.force) {
@@ -91,7 +92,8 @@ class ConstructorAppendStrategy implements AppendStrategy {
         }
 
         // Replace existing constructor
-        final updated = request.source.substring(0, constructor.offset) +
+        final updated =
+            request.source.substring(0, constructor.offset) +
             request.memberSource! +
             request.source.substring(constructor.end);
         return AppendResult(
@@ -142,7 +144,8 @@ class ConstructorAppendStrategy implements AppendStrategy {
     String constructorSource,
     String className,
   ) {
-    final wrapper = '''
+    final wrapper =
+        '''
 class $className {
 $constructorSource
 }
@@ -152,8 +155,8 @@ $constructorSource
     if (unit == null) return null;
     final classNode = NodeFinder.findClass(unit, className);
     if (classNode == null) return null;
-    final constructors =
-        classNode.body.members.whereType<ConstructorDeclaration>();
+    final constructors = classNode.body.members
+        .whereType<ConstructorDeclaration>();
     if (constructors.isEmpty) return null;
     return constructors.first;
   }
