@@ -53,9 +53,8 @@ class ExtensionMethodAppendStrategy implements AppendStrategy {
     }
 
     final existingMethods = NodeFinder.findExtensionMethods(extensionNode);
-    final newSignature = _methodSignature(newMethod);
     for (final method in existingMethods) {
-      if (_methodSignature(method) == newSignature) {
+      if (AstHelper.areMethodsEqual(method, newMethod)) {
         if (request.force) {
           final sourceWithoutMethod = helper.removeMethodFromExtension(
             source: request.source,
@@ -110,12 +109,6 @@ $methodSource
       return null;
     }
     return methods.first;
-  }
-
-  String _methodSignature(MethodDeclaration method) {
-    final params = method.parameters?.toSource() ?? '';
-    final returnType = method.returnType?.toSource() ?? '';
-    return '${method.name.lexeme}::$returnType$params';
   }
 
   @override

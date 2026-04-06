@@ -1,6 +1,5 @@
-import 'package:analyzer/dart/ast/ast.dart';
-
 import '../ast_helper.dart';
+import '../ast_modifier.dart';
 import 'append_strategy.dart';
 
 class ExportAppendStrategy implements AppendStrategy {
@@ -33,34 +32,14 @@ class ExportAppendStrategy implements AppendStrategy {
       );
     }
     final exportPath = request.exportPath!;
-    final exports = helper.extractExports(unit);
-    if (exports.contains(exportPath)) {
-      return AppendResult(
-        source: request.source,
-        changed: false,
-        message: 'Export already exists',
-      );
-    }
-    final updated = _insertExport(request.source, unit, exportPath);
-    return AppendResult(source: updated, changed: updated != request.source);
-  }
-
-  String _insertExport(String source, CompilationUnit unit, String exportPath) {
-    final exportDirective = "export '$exportPath';";
-    final exports = unit.directives.whereType<ExportDirective>().toList();
-    if (exports.isNotEmpty) {
-      final lastExport = exports.last;
-      final insertOffset = lastExport.end;
-      return '${source.substring(0, insertOffset)}\n$exportDirective'
-          '${source.substring(insertOffset)}';
-    }
-    final library = unit.directives.whereType<LibraryDirective>().toList();
-    if (library.isNotEmpty) {
-      final insertOffset = library.first.end;
-      return '${source.substring(0, insertOffset)}\n\n$exportDirective'
-          '${source.substring(insertOffset)}';
-    }
-    return '$exportDirective\n$source';
+    final updated = AstModifier.addExport(request.source, unit, exportPath);
+    return AppendResult(
+      source: updated,
+      changed: updated != request.source,
+      message: updated != request.source
+          ? 'Export added'
+          : 'Export already exists',
+    );
   }
 
   @override
@@ -72,19 +51,26 @@ class ExportAppendStrategy implements AppendStrategy {
         message: 'Request not supported',
       );
     }
-    final exportDirective = "export '${request.exportPath!}';";
-    if (request.source.contains(exportDirective)) {
-      final updated = request.source.replaceFirst(exportDirective, '').trim();
+    final parseResult = helper.parseSource(request.source);
+    final unit = parseResult.unit;
+    if (unit == null) {
       return AppendResult(
-        source: updated,
-        changed: true,
-        message: 'Export removed',
+        source: request.source,
+        changed: false,
+        message: 'Unable to parse source',
       );
     }
+    final updated = AstModifier.removeExport(
+      request.source,
+      unit,
+      request.exportPath!,
+    );
     return AppendResult(
-      source: request.source,
-      changed: false,
-      message: 'Export not found',
+      source: updated,
+      changed: updated != request.source,
+      message: updated != request.source
+          ? 'Export removed'
+          : 'Export not found',
     );
   }
 }

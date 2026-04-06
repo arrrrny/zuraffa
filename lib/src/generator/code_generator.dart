@@ -107,6 +107,11 @@ class CodeGenerator {
       );
 
       // Create a new context with the correct core flags from our options
+      final data = Map<String, dynamic>.from(config.toJson());
+      if (data['methods'] is List) {
+        data['methods'] = List<String>.from(data['methods'] as List);
+      }
+
       final pluginContext = PluginContext(
         core: CoreConfig(
           name: config.name,
@@ -119,7 +124,7 @@ class CodeGenerator {
         ),
         discovery: baseContext.discovery,
         fileSystem: baseContext.fileSystem,
-        data: Map<String, dynamic>.from(config.toJson()),
+        data: data,
       );
 
       // Ensure specific flags are respected in data map as well

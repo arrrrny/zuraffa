@@ -69,7 +69,11 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       revert: context.core.revert,
       generatePresenter: true,
       generateVpcs: context.get<bool>('vpc') ?? context.data['vpcs'] == true,
-      methods: context.data['methods']?.cast<String>().toList() ?? [],
+      methods:
+          context.data['methods']?.cast<String>().toList() ??
+          (context.data['no-entity'] == true
+              ? []
+              : ['get', 'update', 'toggle']),
       domain: context.data['domain'],
       idField: context.data['id-field'] ?? 'id',
       idFieldType: context.data['id-field-type'] ?? 'String',
@@ -265,6 +269,11 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           className: 'Update${entityName}UseCase',
           fieldName: 'update$entityName',
         );
+      case 'toggle':
+        return ParsedUseCaseInfo(
+          className: 'Toggle${entityName}UseCase',
+          fieldName: 'toggle$entityName',
+        );
       case 'delete':
         return ParsedUseCaseInfo(
           className: 'Delete${entityName}UseCase',
@@ -392,6 +401,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           break;
         case 'update':
           methods.add(_buildUpdateMethod(config, info, entityName));
+          break;
+        case 'toggle':
+          methods.add(_buildToggleMethod(config, info, entityName));
           break;
         case 'delete':
           methods.add(_buildDeleteMethod(config, info));
@@ -617,6 +629,51 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             (p) => p
               ..name = 'data'
               ..type = refer(dataType),
+          ),
+        ])
+        ..optionalParameters.add(_cancelTokenParam())
+        ..body = Block(
+          (b) => b..statements.add(callExpression.returned.statement),
+        ),
+    );
+  }
+
+  Method _buildToggleMethod(
+    GeneratorConfig config,
+    ParsedUseCaseInfo info,
+    String entityName,
+  ) {
+    final fieldEnum = '${entityName}Field';
+    final toggleParams =
+        refer('ToggleParams<${config.idFieldType}, $fieldEnum>').call([], {
+          'id': refer(config.idField),
+          'field': refer('field'),
+          'value': refer('value'),
+        });
+
+    final callExpression = refer('_${info.fieldName}')
+        .property('call')
+        .call([toggleParams], {'cancelToken': refer('cancelToken')});
+
+    return Method(
+      (m) => m
+        ..name = 'toggle$entityName'
+        ..returns = refer('Future<Result<$entityName, AppFailure>>')
+        ..requiredParameters.addAll([
+          Parameter(
+            (p) => p
+              ..name = config.idField
+              ..type = refer(config.idFieldType),
+          ),
+          Parameter(
+            (p) => p
+              ..name = 'field'
+              ..type = refer(fieldEnum),
+          ),
+          Parameter(
+            (p) => p
+              ..name = 'value'
+              ..type = refer('bool'),
           ),
         ])
         ..optionalParameters.add(_cancelTokenParam())

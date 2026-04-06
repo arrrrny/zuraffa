@@ -6,7 +6,6 @@ import 'package:path/path.dart' as path;
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/ast_helper.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
-import '../../../core/ast/augmentation_builder.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../../../core/context/file_system.dart';
@@ -33,7 +32,6 @@ class MethodAppendBuilder {
   final GeneratorOptions options;
   final AppendExecutor appendExecutor;
   final SpecLibrary specLibrary;
-  final AugmentationBuilder augmentationBuilder;
   final DiscoveryEngine discovery;
   final FileSystem fileSystem;
 
@@ -42,13 +40,10 @@ class MethodAppendBuilder {
     this.options = const GeneratorOptions(),
     AppendExecutor? appendExecutor,
     SpecLibrary? specLibrary,
-    AugmentationBuilder? augmentationBuilder,
     DiscoveryEngine? discovery,
     FileSystem? fileSystem,
   }) : appendExecutor = appendExecutor ?? AppendExecutor(),
        specLibrary = specLibrary ?? const SpecLibrary(),
-       augmentationBuilder =
-           augmentationBuilder ?? AugmentationBuilder(outputDir: outputDir),
        fileSystem = fileSystem ?? FileSystem.create(),
        discovery =
            discovery ??

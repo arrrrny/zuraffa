@@ -199,6 +199,28 @@ extension LocalDataSourceBuilderImpl on LocalDataSourceBuilder {
             );
           }
           break;
+        case 'toggle':
+          final fieldEnum = '${config.name}Field';
+          methods.add(
+            _buildMethodWithBody(
+              name: 'toggle',
+              returnType: 'Future<${config.name}>',
+              parameters: [
+                _param(
+                  'params',
+                  'ToggleParams<${config.idFieldType}, $fieldEnum>',
+                ),
+              ],
+              body: _buildToggleBody(
+                config,
+                entityName,
+                entitySnake,
+                hasListMethods,
+              ),
+              isAsync: true,
+            ),
+          );
+          break;
         case 'delete':
           methods.add(
             _buildMethodWithBody(
@@ -334,6 +356,23 @@ extension LocalDataSourceBuilderImpl on LocalDataSourceBuilder {
                 ),
               ],
               body: _throwBody('Implement local update'),
+              isAsync: true,
+            ),
+          );
+          break;
+        case 'toggle':
+          final fieldEnum = '${config.name}Field';
+          methods.add(
+            _buildMethodWithBody(
+              name: 'toggle',
+              returnType: 'Future<${config.name}>',
+              parameters: [
+                _param(
+                  'params',
+                  'ToggleParams<${config.idFieldType}, $fieldEnum>',
+                ),
+              ],
+              body: _throwBody('Implement local toggle'),
               isAsync: true,
             ),
           );

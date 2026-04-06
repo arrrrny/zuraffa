@@ -50,7 +50,14 @@ class StateBuilder {
         (!config.noEntity && (config.generateVpcs || config.generateState)) ||
         (!config.noEntity &&
             config.methods.any(
-              (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
+              (m) => [
+                'get',
+                'watch',
+                'create',
+                'update',
+                'toggle',
+                'delete',
+              ].contains(m),
             ));
 
     final imports = <String>['package:zuraffa/zuraffa.dart'];
@@ -331,7 +338,14 @@ class StateBuilder {
         (!config.noEntity && (config.generateVpcs || config.generateState)) ||
         (!config.noEntity &&
             config.methods.any(
-              (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
+              (m) => [
+                'get',
+                'watch',
+                'create',
+                'update',
+                'toggle',
+                'delete',
+              ].contains(m),
             ));
 
     final params = <Parameter>[
@@ -463,7 +477,14 @@ class StateBuilder {
         (!config.noEntity && (config.generateVpcs || config.generateState)) ||
         (!config.noEntity &&
             config.methods.any(
-              (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
+              (m) => [
+                'get',
+                'watch',
+                'create',
+                'update',
+                'toggle',
+                'delete',
+              ].contains(m),
             ));
 
     final params = <Parameter>[
@@ -635,7 +656,14 @@ class StateBuilder {
         (!config.noEntity && (config.generateVpcs || config.generateState)) ||
         (!config.noEntity &&
             config.methods.any(
-              (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
+              (m) => [
+                'get',
+                'watch',
+                'create',
+                'update',
+                'toggle',
+                'delete',
+              ].contains(m),
             ));
 
     final conditions = <Expression>[
@@ -715,7 +743,14 @@ class StateBuilder {
         (!config.noEntity && (config.generateVpcs || config.generateState)) ||
         (!config.noEntity &&
             config.methods.any(
-              (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
+              (m) => [
+                'get',
+                'watch',
+                'create',
+                'update',
+                'toggle',
+                'delete',
+              ].contains(m),
             ));
 
     final parts = <Expression>[refer('error').property('hashCode')];
@@ -786,7 +821,14 @@ class StateBuilder {
         (!config.noEntity && (config.generateVpcs || config.generateState)) ||
         (!config.noEntity &&
             config.methods.any(
-              (m) => ['get', 'watch', 'create', 'update', 'delete'].contains(m),
+              (m) => [
+                'get',
+                'watch',
+                'create',
+                'update',
+                'toggle',
+                'delete',
+              ].contains(m),
             ));
 
     final parts = <String>['error: \$error'];

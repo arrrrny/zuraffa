@@ -481,6 +481,93 @@ extension ControllerPluginBodies on ControllerPlugin {
     );
   }
 
+  Block _buildToggleWithStateBody(
+    GeneratorConfig config,
+    String entityName,
+    String entityCamel,
+    bool hasListMethod,
+  ) {
+    final resultCall = refer('_presenter')
+        .property('toggle$entityName')
+        .call(_callArgsExpressions('${config.idField}, field, value'))
+        .awaited;
+    final updateArgs = <String, Expression>{
+      'isToggling': literalBool(false),
+      entityCamel: CodeExpression(
+        Code(
+          'viewState.$entityCamel?.${config.queryField} == toggled.${config.queryField}',
+        ),
+      ).conditional(refer('toggled'), refer('viewState').property(entityCamel)),
+    };
+    if (hasListMethod) {
+      final listUpdateClosure = Method(
+        (m) => m
+          ..requiredParameters.add(Parameter((p) => p..name = 'e'))
+          ..lambda = true
+          ..body = refer('e')
+              .property(config.queryField)
+              .equalTo(refer('toggled').property(config.queryField))
+              .conditional(refer('toggled'), refer('e'))
+              .code,
+      ).closure;
+      updateArgs['${entityCamel}List'] = refer('viewState')
+          .property('${entityCamel}List')
+          .property('map')
+          .call([listUpdateClosure])
+          .property('toList')
+          .call([]);
+    }
+    return Block(
+      (b) => b
+        ..statements.add(
+          _updateStateStatement({'isToggling': literalBool(true)}),
+        )
+        ..statements.add(declareFinal('result').assign(resultCall).statement)
+        ..statements.add(
+          _resultFold(
+            resultVar: 'result',
+            successParams: ['toggled'],
+            successBody: Block(
+              (bb) => bb..statements.add(_updateStateStatement(updateArgs)),
+            ),
+            failureParams: ['failure'],
+            failureBody: Block(
+              (bb) => bb
+                ..statements.add(
+                  _updateStateStatement({
+                    'isToggling': literalBool(false),
+                    'error': refer('failure'),
+                  }),
+                ),
+            ),
+          ),
+        ),
+    );
+  }
+
+  Block _buildToggleWithoutStateBody(
+    GeneratorConfig config,
+    String entityName,
+  ) {
+    final resultCall = refer('_presenter')
+        .property('toggle$entityName')
+        .call(_callArgsExpressions('${config.idField}, field, value'))
+        .awaited;
+    return Block(
+      (b) => b
+        ..statements.add(declareFinal('result').assign(resultCall).statement)
+        ..statements.add(
+          _resultFold(
+            resultVar: 'result',
+            successParams: ['toggled'],
+            successBody: Block((bb) => bb),
+            failureParams: ['failure'],
+            failureBody: Block((bb) => bb),
+          ),
+        ),
+    );
+  }
+
   Block _buildDeleteWithStateBody(
     GeneratorConfig config,
     String entityName,

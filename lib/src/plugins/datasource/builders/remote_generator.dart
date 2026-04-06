@@ -2,8 +2,8 @@ import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../../core/ast/append_executor.dart';
+import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/ast/ast_helper.dart';
-import '../../../core/ast/augmentation_builder.dart';
 import '../../../core/generator_options.dart';
 import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
@@ -19,7 +19,6 @@ class RemoteDataSourceBuilder {
   final GeneratorOptions options;
   final SpecLibrary specLibrary;
   final AppendExecutor appendExecutor;
-  final AugmentationBuilder augmentationBuilder;
   final FileSystem fileSystem;
 
   /// Creates a [RemoteDataSourceBuilder].
@@ -28,12 +27,9 @@ class RemoteDataSourceBuilder {
     this.options = const GeneratorOptions(),
     SpecLibrary? specLibrary,
     AppendExecutor? appendExecutor,
-    AugmentationBuilder? augmentationBuilder,
     FileSystem? fileSystem,
   }) : specLibrary = specLibrary ?? const SpecLibrary(),
        appendExecutor = appendExecutor ?? AppendExecutor(),
-       augmentationBuilder =
-           augmentationBuilder ?? AugmentationBuilder(outputDir: outputDir),
        fileSystem = fileSystem ?? FileSystem.create();
 
   /// Generates a remote data source file for the given [config].
@@ -260,6 +256,28 @@ class RemoteDataSourceBuilder {
             ),
           );
           break;
+        case 'toggle':
+          final fieldEnum = '${config.name}Field';
+          methods.add(
+            Method(
+              (m) => m
+                ..name = 'toggle'
+                ..annotations.add(refer('override'))
+                ..returns = refer('Future<${config.name}>')
+                ..requiredParameters.add(
+                  Parameter(
+                    (p) => p
+                      ..name = 'params'
+                      ..type = refer(
+                        'ToggleParams<${config.idFieldType}, $fieldEnum>',
+                      ),
+                  ),
+                )
+                ..modifier = MethodModifier.async
+                ..body = _remoteBody('Implement remote toggle', gqlConstant),
+            ),
+          );
+          break;
         case 'delete':
           methods.add(
             Method(
@@ -359,22 +377,22 @@ class RemoteDataSourceBuilder {
           );
         }
 
-        // Handle Revert for Append
-        await augmentationBuilder.remove(
-          hostPath: filePath,
-          className: dataSourceName,
-          members: methods,
-          dryRun: options.dryRun,
-        );
-
         var source = existing;
-        final augmentFileName = path
-            .basename(filePath)
-            .replaceFirst('.dart', '.augment.dart');
-        source = const AstHelper().removeAugment(
-          source: source,
-          augmentPath: augmentFileName,
-        );
+        final emitter = DartEmitter(useNullSafetySyntax: true);
+
+        // 1. Remove methods
+        for (final method in methods) {
+          final methodSource = method.accept(emitter).toString();
+          source = appendExecutor
+              .undo(
+                AppendRequest.method(
+                  source: source,
+                  className: dataSourceName,
+                  memberSource: methodSource,
+                ),
+              )
+              .source;
+        }
 
         if (const AstHelper().isClassEmpty(source, dataSourceName)) {
           return FileUtils.deleteFile(
@@ -400,17 +418,9 @@ class RemoteDataSourceBuilder {
 
       if (config.appendToExisting) {
         var source = existing;
-        final augmentFileName = path
-            .basename(filePath)
-            .replaceFirst('.dart', '.augment.dart');
+        final emitter = DartEmitter(useNullSafetySyntax: true);
 
-        // 1. Add 'import augment' to host file
-        source = const AstHelper().addAugment(
-          source: source,
-          augmentPath: augmentFileName,
-        );
-
-        // 2. Add missing imports
+        // 1. Add missing imports
         final importPaths = directives
             .map((d) => (d as dynamic).url as String)
             .toList();
@@ -419,6 +429,20 @@ class RemoteDataSourceBuilder {
             source: source,
             importPath: importPath,
           );
+        }
+
+        // 2. Add missing methods directly to host file
+        for (final method in methods) {
+          final methodSource = method.accept(emitter).toString();
+          source = appendExecutor
+              .execute(
+                AppendRequest.method(
+                  source: source,
+                  className: dataSourceName,
+                  memberSource: methodSource,
+                ),
+              )
+              .source;
         }
 
         await FileUtils.writeFile(
@@ -431,17 +455,8 @@ class RemoteDataSourceBuilder {
           fileSystem: fileSystem,
         );
 
-        // 3. Generate/Update the augmentation file
-        final augmentationFile = await augmentationBuilder.generate(
-          hostPath: filePath,
-          className: dataSourceName,
-          members: methods,
-          imports: importPaths,
-          dryRun: options.dryRun,
-        );
-
         return GeneratedFile(
-          path: augmentationFile.path,
+          path: filePath,
           type: 'remote_datasource',
           action: 'updated',
         );

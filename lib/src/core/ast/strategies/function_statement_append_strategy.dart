@@ -110,19 +110,17 @@ $statementSource
         message: 'Request not supported',
       );
     }
-    final statementSource = request.memberSource!;
-    if (request.source.contains(statementSource)) {
-      final updated = request.source.replaceFirst(statementSource, '').trim();
-      return AppendResult(
-        source: updated,
-        changed: true,
-        message: 'Statement removed',
-      );
-    }
-    return AppendResult(
+    final updated = helper.removeStatementFromFunction(
       source: request.source,
-      changed: false,
-      message: 'Statement not found',
+      functionName: request.functionName!,
+      statementSource: request.memberSource!,
+    );
+    return AppendResult(
+      source: updated,
+      changed: updated != request.source,
+      message: updated != request.source
+          ? 'Statement removed'
+          : 'Statement not found',
     );
   }
 }

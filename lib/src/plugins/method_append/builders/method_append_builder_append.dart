@@ -181,9 +181,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     if (!await fileSystem.exists(filePath)) return null;
 
     final helper = const AstHelper();
-    final augmentFileName = path
-        .basename(filePath)
-        .replaceFirst('.dart', '.augment.dart');
+    final emitter = DartEmitter(useNullSafetySyntax: true);
 
     final method = Method(
       (m) => m
@@ -208,19 +206,17 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         ),
     );
 
-    if (config.revert) {
-      await augmentationBuilder.remove(
-        hostPath: filePath,
-        className: className,
-        members: [method],
-        dryRun: options.dryRun,
-      );
+    final methodSource = method.accept(emitter).toString();
 
+    if (config.revert) {
       var source = await fileSystem.read(filePath);
-      source = helper.removeAugment(
+      final request = AppendRequest.method(
         source: source,
-        augmentPath: augmentFileName,
+        className: className,
+        memberSource: methodSource,
       );
+      final result = appendExecutor.undo(request);
+      source = result.source;
 
       if (helper.isClassEmpty(source, className)) {
         return FileUtils.deleteFile(
@@ -246,9 +242,15 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     }
 
     var source = await fileSystem.read(filePath);
-
-    source = helper.addAugment(source: source, augmentPath: augmentFileName);
     source = await _addMissingImports(config, source, filePath);
+
+    final request = AppendRequest.method(
+      source: source,
+      className: className,
+      memberSource: methodSource,
+    );
+    final result = appendExecutor.execute(request);
+    source = result.source;
 
     await FileUtils.writeFile(
       filePath,
@@ -260,18 +262,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       fileSystem: fileSystem,
     );
 
-    final augmentationFile = await augmentationBuilder.generate(
-      hostPath: filePath,
-      className: className,
-      members: [method],
-      dryRun: options.dryRun,
-    );
-
-    return GeneratedFile(
-      path: augmentationFile.path,
-      type: type,
-      action: 'updated',
-    );
+    return GeneratedFile(path: filePath, type: type, action: 'updated');
   }
 
   Future<GeneratedFile?> _appendToDataRepository(
@@ -285,9 +276,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     if (!await fileSystem.exists(filePath)) return null;
 
     final helper = const AstHelper();
-    final augmentFileName = path
-        .basename(filePath)
-        .replaceFirst('.dart', '.augment.dart');
+    final emitter = DartEmitter(useNullSafetySyntax: true);
 
     final className =
         'Data${StringUtils.convertToPascalCase(repoSnake)}Repository';
@@ -342,18 +331,15 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
             .statement,
     );
 
-    if (config.revert) {
-      await augmentationBuilder.remove(
-        hostPath: filePath,
-        className: className,
-        members: [method],
-        dryRun: options.dryRun,
-      );
+    final methodSource = method.accept(emitter).toString();
 
-      source = helper.removeAugment(
+    if (config.revert) {
+      final request = AppendRequest.method(
         source: source,
-        augmentPath: augmentFileName,
+        className: className,
+        memberSource: methodSource,
       );
+      source = appendExecutor.undo(request).source;
 
       if (helper.isClassEmpty(source, className)) {
         return FileUtils.deleteFile(
@@ -381,8 +367,14 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       );
     }
 
-    source = helper.addAugment(source: source, augmentPath: augmentFileName);
     source = await _addMissingImports(config, source, filePath);
+
+    final request = AppendRequest.method(
+      source: source,
+      className: className,
+      memberSource: methodSource,
+    );
+    source = appendExecutor.execute(request).source;
 
     await FileUtils.writeFile(
       filePath,
@@ -394,15 +386,8 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       fileSystem: fileSystem,
     );
 
-    final augmentationFile = await augmentationBuilder.generate(
-      hostPath: filePath,
-      className: className,
-      members: [method],
-      dryRun: options.dryRun,
-    );
-
     return GeneratedFile(
-      path: augmentationFile.path,
+      path: filePath,
       type: 'repository_implementation',
       action: 'updated',
     );
@@ -459,9 +444,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     if (!await fileSystem.exists(filePath)) return null;
 
     final helper = const AstHelper();
-    final augmentFileName = path
-        .basename(filePath)
-        .replaceFirst('.dart', '.augment.dart');
+    final emitter = DartEmitter(useNullSafetySyntax: true);
 
     final returns = config.returnsType ?? 'void';
     final baseReturns = returns.replaceAll('?', '');
@@ -521,19 +504,16 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         ),
     );
 
-    if (config.revert) {
-      await augmentationBuilder.remove(
-        hostPath: filePath,
-        className: className,
-        members: [method],
-        dryRun: options.dryRun,
-      );
+    final methodSource = method.accept(emitter).toString();
 
+    if (config.revert) {
       var source = await fileSystem.read(filePath);
-      source = helper.removeAugment(
+      final request = AppendRequest.method(
         source: source,
-        augmentPath: augmentFileName,
+        className: className,
+        memberSource: methodSource,
       );
+      source = appendExecutor.undo(request).source;
 
       if (helper.isClassEmpty(source, className)) {
         return FileUtils.deleteFile(
@@ -563,8 +543,14 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
 
     var source = await fileSystem.read(filePath);
 
-    source = helper.addAugment(source: source, augmentPath: augmentFileName);
     source = await _addMissingImports(config, source, filePath, isMock: true);
+
+    final request = AppendRequest.method(
+      source: source,
+      className: className,
+      memberSource: methodSource,
+    );
+    source = appendExecutor.execute(request).source;
 
     await FileUtils.writeFile(
       filePath,
@@ -576,15 +562,8 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       fileSystem: fileSystem,
     );
 
-    final augmentationFile = await augmentationBuilder.generate(
-      hostPath: filePath,
-      className: className,
-      members: [method],
-      dryRun: options.dryRun,
-    );
-
     return GeneratedFile(
-      path: augmentationFile.path,
+      path: filePath,
       type: 'mock_datasource',
       action: 'updated',
     );
@@ -625,9 +604,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     if (!await fileSystem.exists(filePath)) return null;
 
     final helper = const AstHelper();
-    final augmentFileName = path
-        .basename(filePath)
-        .replaceFirst('.dart', '.augment.dart');
+    final emitter = DartEmitter(useNullSafetySyntax: true);
 
     final isStream = config.useCaseType == 'stream';
     final isSync = config.useCaseType == 'sync';
@@ -665,19 +642,16 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         ),
     );
 
-    if (config.revert) {
-      await augmentationBuilder.remove(
-        hostPath: filePath,
-        className: className,
-        members: [method],
-        dryRun: options.dryRun,
-      );
+    final methodSource = method.accept(emitter).toString();
 
+    if (config.revert) {
       var source = await fileSystem.read(filePath);
-      source = helper.removeAugment(
+      final request = AppendRequest.method(
         source: source,
-        augmentPath: augmentFileName,
+        className: className,
+        memberSource: methodSource,
       );
+      source = appendExecutor.undo(request).source;
 
       if (helper.isClassEmpty(source, className)) {
         return FileUtils.deleteFile(
@@ -703,8 +677,14 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
 
     var source = await fileSystem.read(filePath);
 
-    source = helper.addAugment(source: source, augmentPath: augmentFileName);
     source = await _addMissingImports(config, source, filePath, isMock: isMock);
+
+    final request = AppendRequest.method(
+      source: source,
+      className: className,
+      memberSource: methodSource,
+    );
+    source = appendExecutor.execute(request).source;
 
     await FileUtils.writeFile(
       filePath,
@@ -716,18 +696,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       fileSystem: fileSystem,
     );
 
-    final augmentationFile = await augmentationBuilder.generate(
-      hostPath: filePath,
-      className: className,
-      members: [method],
-      dryRun: options.dryRun,
-    );
-
-    return GeneratedFile(
-      path: augmentationFile.path,
-      type: type,
-      action: 'updated',
-    );
+    return GeneratedFile(path: filePath, type: type, action: 'updated');
   }
 
   Future<GeneratedFile?> _appendToMockProvider(
@@ -741,9 +710,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     if (!await fileSystem.exists(filePath)) return null;
 
     final helper = const AstHelper();
-    final augmentFileName = path
-        .basename(filePath)
-        .replaceFirst('.dart', '.augment.dart');
+    final emitter = DartEmitter(useNullSafetySyntax: true);
 
     final isStream = config.useCaseType == 'stream';
     final isSync = config.useCaseType == 'sync';
@@ -867,19 +834,16 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
         ),
     );
 
-    if (config.revert) {
-      await augmentationBuilder.remove(
-        hostPath: filePath,
-        className: className,
-        members: [method],
-        dryRun: options.dryRun,
-      );
+    final methodSource = method.accept(emitter).toString();
 
+    if (config.revert) {
       var source = await fileSystem.read(filePath);
-      source = helper.removeAugment(
+      final request = AppendRequest.method(
         source: source,
-        augmentPath: augmentFileName,
+        className: className,
+        memberSource: methodSource,
       );
+      source = appendExecutor.undo(request).source;
 
       if (helper.isClassEmpty(source, className)) {
         return FileUtils.deleteFile(
@@ -909,8 +873,14 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
 
     var source = await fileSystem.read(filePath);
 
-    source = helper.addAugment(source: source, augmentPath: augmentFileName);
     source = await _addMissingImports(config, source, filePath, isMock: true);
+
+    final request = AppendRequest.method(
+      source: source,
+      className: className,
+      memberSource: methodSource,
+    );
+    source = appendExecutor.execute(request).source;
 
     await FileUtils.writeFile(
       filePath,
@@ -922,17 +892,6 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       fileSystem: fileSystem,
     );
 
-    final augmentationFile = await augmentationBuilder.generate(
-      hostPath: filePath,
-      className: className,
-      members: [method],
-      dryRun: options.dryRun,
-    );
-
-    return GeneratedFile(
-      path: augmentationFile.path,
-      type: 'provider',
-      action: 'updated',
-    );
+    return GeneratedFile(path: filePath, type: 'provider', action: 'updated');
   }
 }
