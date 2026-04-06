@@ -53,29 +53,45 @@ class ExtensionMethodAppendStrategy implements AppendStrategy {
     }
 
     final existingMethods = NodeFinder.findExtensionMethods(extensionNode);
+    final newMethodName = newMethod.name.lexeme;
+
     for (final method in existingMethods) {
-      if (AstHelper.areMethodsEqual(method, newMethod)) {
-        if (request.force) {
-          final sourceWithoutMethod = helper.removeMethodFromExtension(
-            source: request.source,
-            extensionName: request.className!,
-            methodName: newMethod.name.lexeme,
-          );
-          final updated = helper.addMethodToExtension(
-            source: sourceWithoutMethod,
-            extensionName: request.className!,
-            methodSource: request.memberSource!,
-          );
-          return AppendResult(
-            source: updated,
-            changed: updated != request.source,
-            message: 'Method replaced in extension',
-          );
+      if (method.name.lexeme == newMethodName) {
+        if (!request.force) {
+          if (AstHelper.areMethodsEqual(method, newMethod)) {
+            return AppendResult(
+              source: request.source,
+              changed: false,
+              message: 'Method already exists in extension',
+            );
+          }
+
+          if (!AstHelper.areSignaturesEqual(method, newMethod)) {
+            return AppendResult(
+              source: request.source,
+              changed: false,
+              message:
+                  'Method with same name but different signature already exists in extension',
+            );
+          }
         }
-        return AppendResult(
+
+        final sourceWithoutMethod = helper.removeMethodFromExtension(
           source: request.source,
-          changed: false,
-          message: 'Duplicate method',
+          extensionName: request.className!,
+          methodName: newMethodName,
+        );
+        final updated = helper.addMethodToExtension(
+          source: sourceWithoutMethod,
+          extensionName: request.className!,
+          methodSource: request.memberSource!,
+        );
+        return AppendResult(
+          source: updated,
+          changed: updated != request.source,
+          message: request.force
+              ? 'Method forced replaced in extension'
+              : 'Method replaced in extension',
         );
       }
     }
