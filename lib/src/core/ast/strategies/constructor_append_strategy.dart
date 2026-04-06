@@ -65,10 +65,10 @@ class ConstructorAppendStrategy implements AppendStrategy {
       );
     }
 
-    final constructors = body.members.whereType<ConstructorDeclaration>();
-    if (constructors.isNotEmpty) {
-      if (!request.force) {
-        for (final constructor in constructors) {
+    final existingConstructors = body.members.whereType<ConstructorDeclaration>();
+    for (final constructor in existingConstructors) {
+      if (constructor.name?.lexeme == newConstructor.name?.lexeme) {
+        if (!request.force) {
           if (AstHelper.areConstructorsEqual(constructor, newConstructor)) {
             return AppendResult(
               source: request.source,
@@ -76,15 +76,30 @@ class ConstructorAppendStrategy implements AppendStrategy {
               message: 'Constructor already exists',
             );
           }
+
+          if (!AstHelper.areConstructorSignaturesEqual(
+            constructor,
+            newConstructor,
+          )) {
+            return AppendResult(
+              source: request.source,
+              changed: false,
+              message:
+                  'Constructor with same name but different signature already exists',
+            );
+          }
         }
+
+        // Replace existing constructor
+        final updated = request.source.substring(0, constructor.offset) +
+            request.memberSource! +
+            request.source.substring(constructor.end);
+        return AppendResult(
+          source: updated,
+          changed: true,
+          message: 'Constructor replaced',
+        );
       }
-      // Replace existing constructor (assuming one constructor for now as per previous logic)
-      final oldConstructor = constructors.first;
-      final updated =
-          request.source.substring(0, oldConstructor.offset) +
-          request.memberSource! +
-          request.source.substring(oldConstructor.end);
-      return AppendResult(source: updated, changed: true);
     }
 
     // Add new constructor - using the generic member addition logic
@@ -93,7 +108,11 @@ class ConstructorAppendStrategy implements AppendStrategy {
       className: request.className!,
       methodSource: request.memberSource!,
     );
-    return AppendResult(source: updated, changed: updated != request.source);
+    return AppendResult(
+      source: updated,
+      changed: updated != request.source,
+      message: 'Constructor added',
+    );
   }
 
   @override
@@ -123,8 +142,7 @@ class ConstructorAppendStrategy implements AppendStrategy {
     String constructorSource,
     String className,
   ) {
-    final wrapper =
-        '''
+    final wrapper = '''
 class $className {
 $constructorSource
 }
@@ -134,8 +152,8 @@ $constructorSource
     if (unit == null) return null;
     final classNode = NodeFinder.findClass(unit, className);
     if (classNode == null) return null;
-    final constructors = classNode.body.members
-        .whereType<ConstructorDeclaration>();
+    final constructors =
+        classNode.body.members.whereType<ConstructorDeclaration>();
     if (constructors.isEmpty) return null;
     return constructors.first;
   }

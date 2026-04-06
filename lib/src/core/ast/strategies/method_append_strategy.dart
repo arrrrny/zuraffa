@@ -68,7 +68,17 @@ class MethodAppendStrategy implements AppendStrategy {
               message: 'Method already exists',
             );
           }
+
+          if (!AstHelper.areSignaturesEqual(method, newMethod)) {
+            return AppendResult(
+              source: request.source,
+              changed: false,
+              message:
+                  'Method with same name but different signature already exists',
+            );
+          }
         }
+
         final updated = helper.replaceMethodInClass(
           source: request.source,
           className: request.className!,

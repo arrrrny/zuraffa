@@ -54,8 +54,8 @@ class FieldAppendStrategy implements AppendStrategy {
 
     final existingFields = NodeFinder.findFields(classNode);
     for (final field in existingFields) {
-      if (AstHelper.areFieldsEqual(field, newField)) {
-        if (request.force) {
+      if (field.name.lexeme == newField.name.lexeme) {
+        if (request.force || AstHelper.areFieldsEqual(field, newField)) {
           final updated = helper.replaceFieldInClass(
             source: request.source,
             className: request.className!,
@@ -71,7 +71,7 @@ class FieldAppendStrategy implements AppendStrategy {
         return AppendResult(
           source: request.source,
           changed: false,
-          message: 'Duplicate field',
+          message: 'Duplicate field with different signature',
         );
       }
     }

@@ -512,6 +512,45 @@ class AstHelper {
     return true;
   }
 
+  /// Returns true if two method declarations have equal signatures
+  /// (return type, name, and parameters).
+  static bool areSignaturesEqual(MethodDeclaration a, MethodDeclaration b) {
+    if (a.name.lexeme != b.name.lexeme) return false;
+    if (a.returnType?.toSource() != b.returnType?.toSource()) return false;
+    if (a.parameters?.parameters.length != b.parameters?.parameters.length) {
+      return false;
+    }
+
+    final paramsA = a.parameters?.parameters ?? [];
+    final paramsB = b.parameters?.parameters ?? [];
+
+    for (var i = 0; i < paramsA.length; i++) {
+      if (paramsA[i].toSource() != paramsB[i].toSource()) return false;
+    }
+
+    return true;
+  }
+
+  /// Returns true if two constructor declarations have equal signatures.
+  static bool areConstructorSignaturesEqual(
+    ConstructorDeclaration a,
+    ConstructorDeclaration b,
+  ) {
+    if (a.name?.lexeme != b.name?.lexeme) return false;
+    if (a.parameters.parameters.length != b.parameters.parameters.length) {
+      return false;
+    }
+
+    final paramsA = a.parameters.parameters;
+    final paramsB = b.parameters.parameters;
+
+    for (var i = 0; i < paramsA.length; i++) {
+      if (paramsA[i].toSource() != paramsB[i].toSource()) return false;
+    }
+
+    return true;
+  }
+
   /// Returns true if two variable declarations (fields) are equal
   /// (including type and name).
   static bool areFieldsEqual(VariableDeclaration a, VariableDeclaration b) {
