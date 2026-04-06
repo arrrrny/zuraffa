@@ -2,8 +2,8 @@ import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../../core/ast/append_executor.dart';
+import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/ast/ast_helper.dart';
-import '../../../core/ast/augmentation_builder.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../../../core/plugin_system/discovery_engine.dart';
@@ -23,7 +23,6 @@ class RepositoryInterfaceGenerator {
   final GeneratorOptions options;
   final AppendExecutor appendExecutor;
   final SpecLibrary specLibrary;
-  final AugmentationBuilder augmentationBuilder;
   final DiscoveryEngine discovery;
   final FileSystem fileSystem;
 
@@ -32,12 +31,9 @@ class RepositoryInterfaceGenerator {
     this.options = const GeneratorOptions(),
     this.appendExecutor = const AppendExecutor(),
     this.specLibrary = const SpecLibrary(),
-    AugmentationBuilder? augmentationBuilder,
     DiscoveryEngine? discovery,
     FileSystem? fileSystem,
-  }) : augmentationBuilder =
-           augmentationBuilder ?? AugmentationBuilder(outputDir: outputDir),
-       fileSystem = fileSystem ?? FileSystem.create(),
+  }) : fileSystem = fileSystem ?? FileSystem.create(),
        discovery =
            discovery ??
            DiscoveryEngine(
@@ -81,22 +77,18 @@ class RepositoryInterfaceGenerator {
           );
         }
 
-        // Handle Revert for Append (remove methods from augmentation)
-        await augmentationBuilder.remove(
-          hostPath: filePath,
-          className: repoName,
-          members: methods,
-          dryRun: options.dryRun,
-        );
-
         var source = await fileSystem.read(filePath);
-        final augmentFileName = path
-            .basename(filePath)
-            .replaceFirst('.dart', '.augment.dart');
-        source = const AstHelper().removeAugment(
-          source: source,
-          augmentPath: augmentFileName,
-        );
+        final emitter = DartEmitter(useNullSafetySyntax: true);
+
+        for (final method in methods) {
+          final methodSource = method.accept(emitter).toString();
+          final request = AppendRequest.method(
+            source: source,
+            className: repoName,
+            memberSource: methodSource,
+          );
+          source = appendExecutor.undo(request).source;
+        }
 
         if (const AstHelper().isClassEmpty(source, repoName)) {
           return FileUtils.deleteFile(
@@ -122,22 +114,25 @@ class RepositoryInterfaceGenerator {
 
       if (config.appendToExisting) {
         var source = await fileSystem.read(filePath);
-        final augmentFileName = path
-            .basename(filePath)
-            .replaceFirst('.dart', '.augment.dart');
+        final emitter = DartEmitter(useNullSafetySyntax: true);
 
-        // 1. Add 'import augment' to host file
-        source = const AstHelper().addAugment(
-          source: source,
-          augmentPath: augmentFileName,
-        );
-
-        // 2. Add missing imports to host file
+        // 1. Add missing imports to host file
         for (final importPath in importPaths) {
           source = const AstHelper().addImport(
             source: source,
             importPath: importPath,
           );
+        }
+
+        // 2. Add methods directly to host file
+        for (final method in methods) {
+          final methodSource = method.accept(emitter).toString();
+          final request = AppendRequest.method(
+            source: source,
+            className: repoName,
+            memberSource: methodSource,
+          );
+          source = appendExecutor.execute(request).source;
         }
 
         await FileUtils.writeFile(
@@ -150,17 +145,8 @@ class RepositoryInterfaceGenerator {
           fileSystem: fileSystem,
         );
 
-        // 3. Generate/Update the augmentation file
-        final augmentationFile = await augmentationBuilder.generate(
-          hostPath: filePath,
-          className: repoName,
-          members: methods,
-          imports: importPaths,
-          dryRun: options.dryRun,
-        );
-
         return GeneratedFile(
-          path: augmentationFile.path,
+          path: filePath,
           type: 'repository',
           action: 'updated',
         );
@@ -359,6 +345,17 @@ class RepositoryInterfaceGenerator {
               name: 'update',
               returnType: 'Future<${config.name}>',
               paramsType: 'UpdateParams<${config.idFieldType}, $dataType>',
+              paramsName: 'params',
+            ),
+          );
+          break;
+        case 'toggle':
+          final fieldEnum = '${config.name}Field';
+          methods.add(
+            _buildMethod(
+              name: 'toggle',
+              returnType: 'Future<${config.name}>',
+              paramsType: 'ToggleParams<${config.idFieldType}, $fieldEnum>',
               paramsName: 'params',
             ),
           );

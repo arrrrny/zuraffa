@@ -9,7 +9,14 @@ class GenerationPreset {
     required this.name,
     required this.description,
     required this.plugins,
-    this.methods = const ['get', 'getList', 'create', 'update', 'delete'],
+    this.methods = const [
+      'get',
+      'getList',
+      'create',
+      'update',
+      'toggle',
+      'delete',
+    ],
   });
 
   static const entityCrud = GenerationPreset(
@@ -22,7 +29,7 @@ class GenerationPreset {
     name: 'vpc',
     description: 'View + Presenter + Controller for presentation layer',
     plugins: ['view', 'presenter', 'controller'],
-    methods: ['get', 'getList', 'create', 'update', 'delete'],
+    methods: ['get', 'getList', 'create', 'update', 'toggle', 'delete'],
   );
 
   static const vpcWithState = GenerationPreset(

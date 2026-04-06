@@ -1,4 +1,5 @@
 import 'strategies/append_strategy.dart';
+import 'strategies/constructor_append_strategy.dart';
 import 'strategies/export_append_strategy.dart';
 import 'strategies/extension_method_append_strategy.dart';
 import 'strategies/field_append_strategy.dart';
@@ -15,6 +16,7 @@ class AppendExecutor {
           const [
             MethodAppendStrategy(),
             FieldAppendStrategy(),
+            ConstructorAppendStrategy(),
             ExtensionMethodAppendStrategy(),
             FunctionStatementAppendStrategy(),
             ExportAppendStrategy(),

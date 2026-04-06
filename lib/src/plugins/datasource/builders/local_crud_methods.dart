@@ -288,4 +288,103 @@ extension LocalDataSourceBuilderCrud on LocalDataSourceBuilder {
         ),
     );
   }
+
+  Block _buildToggleBody(
+    GeneratorConfig config,
+    String entityName,
+    String entitySnake,
+    bool hasListMethods,
+  ) {
+    return Block((b) {
+      if (hasListMethods) {
+        b.statements.add(
+          declareFinal('existing')
+              .assign(
+                refer('_box')
+                    .property('values')
+                    .property('firstWhere')
+                    .call(
+                      [
+                        Method(
+                          (m) => m
+                            ..requiredParameters.add(
+                              Parameter((p) => p..name = 'item'),
+                            )
+                            ..lambda = true
+                            ..body = refer('item')
+                                .property(config.idField)
+                                .equalTo(refer('params').property('id'))
+                                .code,
+                        ).closure,
+                      ],
+                      {
+                        'orElse': Method(
+                          (m) => m
+                            ..lambda = true
+                            ..body = refer('notFoundFailure')
+                                .call([
+                                  literalString(
+                                    '$entityName not found in cache',
+                                  ),
+                                ])
+                                .thrown
+                                .code,
+                        ).closure,
+                      },
+                    ),
+              )
+              .statement,
+        );
+      } else {
+        b.statements.add(
+          declareFinal('existing')
+              .assign(
+                refer(
+                  '_box',
+                ).property('get').call([literalString(entitySnake)]),
+              )
+              .statement,
+        );
+        b.statements.add(
+          Code(
+            'if (existing == null) { throw notFoundFailure(\'$entityName not found in cache\'); }',
+          ),
+        );
+      }
+
+      b.statements.add(
+        declareFinal('updated')
+            .assign(
+              refer('existing').property('copyWithField').call([
+                refer('params').property('field'),
+                refer('params').property('value'),
+              ]),
+            )
+            .statement,
+      );
+
+      if (hasListMethods) {
+        b.statements.add(
+          refer('_box')
+              .property('put')
+              .call([
+                refer('updated').property(config.idField),
+                refer('updated'),
+              ])
+              .awaited
+              .statement,
+        );
+      } else {
+        b.statements.add(
+          refer('_box')
+              .property('put')
+              .call([literalString(entitySnake), refer('updated')])
+              .awaited
+              .statement,
+        );
+      }
+
+      b.statements.add(refer('updated').returned.statement);
+    });
+  }
 }

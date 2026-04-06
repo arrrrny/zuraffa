@@ -17,6 +17,7 @@ export 'query_params.dart';
 export 'list_query_params.dart';
 export 'create_params.dart';
 export 'update_params.dart';
+export 'toggle_params.dart';
 export 'delete_params.dart';
 export 'initialization_params.dart';
 export 'settings.dart';

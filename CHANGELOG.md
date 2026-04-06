@@ -1,3 +1,19 @@
+## [3.21.0] - 2026-04-06
+
+### Feat
+- Implemented `toggle` method generation across all layers (Domain, Data, Presentation) to streamline boolean field updates in Clean Architecture
+- Added `ToggleParams` to core parameters for type-safe field toggling
+
+### Change
+- Major refactoring: Replaced Dart augmentations (`.augment.dart` files) with direct AST-based source modification for all append operations
+- Implemented "Bulletproof AST" system using structural equality checks (name, signature, return type) instead of fragile string matching
+- Upgraded `AstModifier` to automatically format all generated code via `DartFormatter`
+- Enhanced `InjectBuilder` to use recursive AST visitors for robust DI registration and constructor merging
+
+### Fix
+- Resolved "already declared" compilation errors when appending duplicate methods or constructors
+- Fixed `StatePlugin` to correctly include stateful flags like `isToggling` when generating VPC sets
+
 ## [3.20.2] - 2026-04-05
 
 ### Fix

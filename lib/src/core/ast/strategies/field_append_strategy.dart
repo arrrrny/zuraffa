@@ -54,7 +54,7 @@ class FieldAppendStrategy implements AppendStrategy {
 
     final existingFields = NodeFinder.findFields(classNode);
     for (final field in existingFields) {
-      if (field.name.lexeme == newField.name.lexeme) {
+      if (AstHelper.areFieldsEqual(field, newField)) {
         if (request.force) {
           final updated = helper.replaceFieldInClass(
             source: request.source,

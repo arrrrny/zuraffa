@@ -120,7 +120,11 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       force: context.core.force,
       verbose: context.core.verbose,
       revert: context.core.revert,
-      methods: context.data['methods']?.cast<String>().toList() ?? [],
+      methods:
+          context.data['methods']?.cast<String>().toList() ??
+          (context.data['no-entity'] == true
+              ? []
+              : ['get', 'update', 'toggle']),
       domain: context.data['domain'],
       repo: context.data['repo'],
       generateDataSource: true,

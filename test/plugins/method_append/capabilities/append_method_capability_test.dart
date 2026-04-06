@@ -52,7 +52,7 @@ abstract class UserRepository {
     expect(result.changes, isNotEmpty);
 
     final effect = result.changes.first;
-    expect(effect.file, contains('user_repository.augment.dart'));
+    expect(effect.file, contains('user_repository.dart'));
     expect(effect.action, contains('updated'));
   });
 
@@ -90,19 +90,15 @@ abstract class OrderRepository {
     expect(result.files, isNotEmpty);
 
     final filePath = result.files.first;
-    expect(filePath, contains('order_repository.augment.dart'));
+    expect(filePath, contains('order_repository.dart'));
 
     final file = File(filePath);
     expect(file.existsSync(), isTrue);
     final content = file.readAsStringSync();
-    expect(content, contains('augment class OrderRepository {'));
+    expect(content, contains('class OrderRepository {'));
     expect(content, contains('Future<Order> createOrder(OrderParams params);'));
 
-    // Check host file for 'import augment'
-    final hostFile = File('${repoDir.path}/order_repository.dart');
-    expect(
-      hostFile.readAsStringSync(),
-      contains("import augment 'order_repository.augment.dart';"),
-    );
+    // Check host file for no 'import augment'
+    expect(content, isNot(contains("import augment")));
   });
 }

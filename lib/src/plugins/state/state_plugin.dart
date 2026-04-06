@@ -51,7 +51,11 @@ class StatePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       verbose: context.core.verbose,
       revert: context.core.revert,
       generateState: true,
-      methods: context.data['methods']?.cast<String>().toList() ?? [],
+      methods:
+          context.data['methods']?.cast<String>().toList() ??
+          (context.data['no-entity'] == true
+              ? []
+              : ['get', 'update', 'toggle']),
       noEntity: context.data['no-entity'] == true,
       domain: context.data['domain'],
       usecases: context.data['usecases']?.cast<String>().toList() ?? [],
@@ -67,7 +71,7 @@ class StatePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     GeneratorConfig config, {
     PluginContext? context,
   }) async {
-    if (!config.generateState && !config.revert) {
+    if (!config.generateState && !config.generateVpcs && !config.revert) {
       return [];
     }
 

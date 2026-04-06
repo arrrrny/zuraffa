@@ -141,33 +141,26 @@ void main() {
       isTrue,
     );
     expect(
-      interfaceFile.readAsStringSync().contains(
-        "import augment 'product_datasource.augment.dart';",
-      ),
+      interfaceFile.readAsStringSync().contains('Future<Product> create'),
       isTrue,
+    );
+    expect(
+      interfaceFile.readAsStringSync().contains('import augment'),
+      isFalse,
     );
     final augmentFile = File(
       '$outputDir/data/datasources/product/product_datasource.augment.dart',
     );
-    expect(augmentFile.existsSync(), isTrue);
+    expect(augmentFile.existsSync(), isFalse);
     expect(
-      augmentFile.readAsStringSync().contains('Future<Product> create'),
+      remoteFile.readAsStringSync().contains('Future<Product> create'),
       isTrue,
     );
-    expect(
-      remoteFile.readAsStringSync().contains(
-        "import augment 'product_remote_datasource.augment.dart';",
-      ),
-      isTrue,
-    );
+    expect(remoteFile.readAsStringSync().contains('import augment'), isFalse);
     final remoteAugmentFile = File(
       '$outputDir/data/datasources/product/product_remote_datasource.augment.dart',
     );
-    expect(remoteAugmentFile.existsSync(), isTrue);
-    expect(
-      remoteAugmentFile.readAsStringSync().contains('Future<Product> create'),
-      isTrue,
-    );
+    expect(remoteAugmentFile.existsSync(), isFalse);
   });
 
   test('uses graphql constants when gql is enabled', () async {

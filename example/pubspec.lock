@@ -801,18 +801,18 @@ packages:
     dependency: transitive
     description:
       name: zorphy
-      sha256: b550207e306a8247bbf249df994e2042f1314e08f8b328cebb4ef1e7aff0712b
+      sha256: "3bef4bd9703946ccc10bd1bccc40f608dc999a6c09a9be2d17df18245261259c"
       url: "https://pub.dev"
     source: hosted
-    version: "1.6.6"
+    version: "1.6.7"
   zorphy_annotation:
     dependency: "direct main"
     description:
       name: zorphy_annotation
-      sha256: "28a73bda70281c6c7c2181bae168f96ca209b6f696c071ce009819d49b117a95"
+      sha256: a4c61af7f2a057c480bee35d6a91bb10ac4a6a1e4324c8fbf48d04c4565d05a9
       url: "https://pub.dev"
     source: hosted
-    version: "1.6.6"
+    version: "1.6.7"
   zuraffa:
     dependency: "direct main"
     description:

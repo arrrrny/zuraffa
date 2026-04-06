@@ -51,8 +51,8 @@ class GenerateCommand extends Command<void> {
       'methods',
       abbr: 'm',
       help:
-          'Comma-separated methods: get,getList,create,update,delete,watch,watchList',
-      defaultsTo: ['get', 'getList', 'create', 'update', 'delete'],
+          'Comma-separated methods: get,getList,create,update,toggle,delete,watch,watchList',
+      defaultsTo: ['get', 'getList', 'create', 'update', 'toggle', 'delete'],
     );
     argParser.addOption(
       'output',
