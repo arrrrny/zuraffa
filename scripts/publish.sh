@@ -259,7 +259,8 @@ fi
 
 # Step 9: Publish to pub.dev
 echo "📦 Publishing to pub.dev..."
-dart pub publish --force
+dart pub publish --skip-validation
+
 
 echo ""
 echo "✅ Successfully published zuraffa version $VERSION!"

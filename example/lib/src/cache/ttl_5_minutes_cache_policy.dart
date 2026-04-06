@@ -1,5 +1,4 @@
 // Auto-generated cache policy
-import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:zuraffa/zuraffa.dart';
 
 CachePolicy createTtl5MinutesCachePolicy() {

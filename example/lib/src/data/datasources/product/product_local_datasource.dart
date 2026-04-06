@@ -1,4 +1,3 @@
-import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:zuraffa/zuraffa.dart';
 
 import '../../../domain/entities/product/product.dart';

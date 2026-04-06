@@ -2,9 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:zuraffa/zuraffa.dart';
 
-import '../../../../lib/src/domain/entities/concert/concert.dart';
-import '../../../../lib/src/domain/repositories/concert_repository.dart';
-import '../../../../lib/src/domain/usecases/concert/watch_concert_usecase.dart';
+import 'package:example/src/domain/entities/concert/concert.dart';
+import 'package:example/src/domain/repositories/concert_repository.dart';
+import 'package:example/src/domain/usecases/concert/watch_concert_usecase.dart';
 
 class MockConcertRepository extends Mock implements ConcertRepository {}
 
@@ -25,7 +25,7 @@ void main() {
         () => mockRepository.watch(any()),
       ).thenAnswer((_) => Stream.value(tConcert));
       final result = useCase.call(
-        QueryParams<Concert>(filter: Eq(ConcertFields.id, '1')),
+        const QueryParams<Concert>(filter: Eq(ConcertFields.id, '1')),
       );
       await expectLater(
         result,
@@ -39,7 +39,7 @@ void main() {
         () => mockRepository.watch(any()),
       ).thenAnswer((_) => Stream.error(exception));
       final result = useCase.call(
-        QueryParams<Concert>(filter: Eq(ConcertFields.id, '1')),
+        const QueryParams<Concert>(filter: Eq(ConcertFields.id, '1')),
       );
       await expectLater(result, emits(isA<Failure>()));
       verify(() => mockRepository.watch(any())).called(1);

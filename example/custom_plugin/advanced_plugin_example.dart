@@ -60,7 +60,7 @@ class AdvancedPlugin extends FileGeneratorPlugin {
             (m) => m
               ..name = 'greet'
               ..returns = refer('String')
-              ..body = Code('return message;'),
+              ..body = const Code('return message;'),
           ),
         ),
     );

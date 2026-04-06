@@ -2,9 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:zuraffa/zuraffa.dart';
 
-import '../../../../lib/src/domain/entities/concert/concert.dart';
-import '../../../../lib/src/domain/repositories/concert_repository.dart';
-import '../../../../lib/src/domain/usecases/concert/update_concert_usecase.dart';
+import 'package:example/src/domain/entities/concert/concert.dart';
+import 'package:example/src/domain/repositories/concert_repository.dart';
+import 'package:example/src/domain/usecases/concert/update_concert_usecase.dart';
 
 class MockConcertRepository extends Mock implements ConcertRepository {}
 
