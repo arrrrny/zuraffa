@@ -69,58 +69,44 @@ void main() {
     final repoFile = File(
       '$outputDir/domain/repositories/product_repository.dart',
     );
-    final repoAugmentFile = File(
-      '$outputDir/domain/repositories/product_repository.augment.dart',
-    );
     final dataRepoFile = File(
       '$outputDir/data/repositories/data_product_repository.dart',
-    );
-    final dataRepoAugmentFile = File(
-      '$outputDir/data/repositories/data_product_repository.augment.dart',
     );
     final dataSourceFile = File(
       '$outputDir/data/datasources/product/product_datasource.dart',
     );
-    final dataSourceAugmentFile = File(
-      '$outputDir/data/datasources/product/product_datasource.augment.dart',
+
+    // Verify augmentation files do not exist
+    expect(
+      File(
+        '$outputDir/domain/repositories/product_repository.augment.dart',
+      ).existsSync(),
+      isFalse,
+    );
+    expect(
+      File(
+        '$outputDir/data/repositories/data_product_repository.augment.dart',
+      ).existsSync(),
+      isFalse,
+    );
+    expect(
+      File(
+        '$outputDir/data/datasources/product/product_datasource.augment.dart',
+      ).existsSync(),
+      isFalse,
     );
 
-    if (!repoFile.readAsStringSync().contains(
-      "import augment 'product_repository.augment.dart';",
-    )) {
-      print('Actual Repository Content:\n${repoFile.readAsStringSync()}');
-    }
-    expect(
-      repoFile.readAsStringSync().contains(
-        "import augment 'product_repository.augment.dart';",
-      ),
-      isTrue,
-    );
-    expect(
-      repoAugmentFile.readAsStringSync().contains('fetchProductStats'),
-      isTrue,
-    );
+    // Verify direct modification in host files
+    final repoSource = repoFile.readAsStringSync();
+    expect(repoSource.contains('fetchProductStats'), isTrue);
+    expect(repoSource.contains('import augment'), isFalse);
 
-    expect(
-      dataRepoFile.readAsStringSync().contains(
-        "import augment 'data_product_repository.augment.dart';",
-      ),
-      isTrue,
-    );
-    expect(
-      dataRepoAugmentFile.readAsStringSync().contains('fetchProductStats'),
-      isTrue,
-    );
+    final dataRepoSource = dataRepoFile.readAsStringSync();
+    expect(dataRepoSource.contains('fetchProductStats'), isTrue);
+    expect(dataRepoSource.contains('import augment'), isFalse);
 
-    expect(
-      dataSourceFile.readAsStringSync().contains(
-        "import augment 'product_datasource.augment.dart';",
-      ),
-      isTrue,
-    );
-    expect(
-      dataSourceAugmentFile.readAsStringSync().contains('fetchProductStats'),
-      isTrue,
-    );
+    final dataSourceSource = dataSourceFile.readAsStringSync();
+    expect(dataSourceSource.contains('fetchProductStats'), isTrue);
+    expect(dataSourceSource.contains('import augment'), isFalse);
   });
 }

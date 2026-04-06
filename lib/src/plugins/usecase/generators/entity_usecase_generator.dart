@@ -34,6 +34,7 @@ class EntityUseCaseGenerator {
       'list',
       'create',
       'update',
+      'toggle',
       'delete',
       'watch',
       'watchList',
@@ -221,6 +222,31 @@ class EntityUseCaseGenerator {
         executeExpression = refer(
           sourceField,
         ).property('update').call([refer('params')]);
+        break;
+      case 'toggle':
+        className = 'Toggle${entityName}UseCase';
+        final fieldEnum = '${entityName}Field';
+        baseClass = TypeReference(
+          (t) => t
+            ..symbol = 'UseCase'
+            ..types.addAll([
+              refer(entityName),
+              TypeReference(
+                (tr) => tr
+                  ..symbol = 'ToggleParams'
+                  ..types.addAll([refer(config.idFieldType), refer(fieldEnum)]),
+              ),
+            ]),
+        );
+        paramsType = TypeReference(
+          (tr) => tr
+            ..symbol = 'ToggleParams'
+            ..types.addAll([refer(config.idFieldType), refer(fieldEnum)]),
+        );
+        returnType = refer(entityName);
+        executeExpression = refer(
+          sourceField,
+        ).property('toggle').call([refer('params')]);
         break;
       case 'delete':
         className = 'Delete${entityName}UseCase';

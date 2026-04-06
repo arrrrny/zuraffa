@@ -2,8 +2,8 @@ import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../../core/ast/append_executor.dart';
+import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/ast/ast_helper.dart';
-import '../../../core/ast/augmentation_builder.dart';
 import '../../../core/context/file_system.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
@@ -19,7 +19,6 @@ class DataSourceInterfaceBuilder {
   final GeneratorOptions options;
   final SpecLibrary specLibrary;
   final AppendExecutor appendExecutor;
-  final AugmentationBuilder augmentationBuilder;
   final FileSystem fileSystem;
 
   DataSourceInterfaceBuilder({
@@ -27,12 +26,9 @@ class DataSourceInterfaceBuilder {
     this.options = const GeneratorOptions(),
     SpecLibrary? specLibrary,
     AppendExecutor? appendExecutor,
-    AugmentationBuilder? augmentationBuilder,
     FileSystem? fileSystem,
   }) : specLibrary = specLibrary ?? const SpecLibrary(),
        appendExecutor = appendExecutor ?? AppendExecutor(),
-       augmentationBuilder =
-           augmentationBuilder ?? AugmentationBuilder(outputDir: outputDir),
        fileSystem = fileSystem ?? FileSystem.create();
 
   Future<GeneratedFile> generate(GeneratorConfig config) async {
@@ -190,6 +186,25 @@ class DataSourceInterfaceBuilder {
             ),
           );
           break;
+        case 'toggle':
+          final fieldEnum = '${config.name}Field';
+          methods.add(
+            Method(
+              (m) => m
+                ..name = 'toggle'
+                ..returns = refer('Future<${config.name}>')
+                ..requiredParameters.add(
+                  Parameter(
+                    (p) => p
+                      ..name = 'params'
+                      ..type = refer(
+                        'ToggleParams<${config.idFieldType}, $fieldEnum>',
+                      ),
+                  ),
+                ),
+            ),
+          );
+          break;
         case 'delete':
           methods.add(
             Method(
@@ -277,22 +292,19 @@ class DataSourceInterfaceBuilder {
           );
         }
 
-        // Handle Revert for Append
-        await augmentationBuilder.remove(
-          hostPath: filePath,
-          className: dataSourceName,
-          members: methods,
-          dryRun: options.dryRun,
-        );
-
         var source = await fileSystem.read(filePath);
-        final augmentFileName = path
-            .basename(filePath)
-            .replaceFirst('.dart', '.augment.dart');
-        source = const AstHelper().removeAugment(
-          source: source,
-          augmentPath: augmentFileName,
-        );
+        final emitter = DartEmitter(useNullSafetySyntax: true);
+
+        // 1. Remove methods directly from host file
+        for (final method in methods) {
+          final methodSource = method.accept(emitter).toString();
+          final request = AppendRequest.method(
+            source: source,
+            className: dataSourceName,
+            memberSource: methodSource,
+          );
+          source = appendExecutor.undo(request).source;
+        }
 
         if (const AstHelper().isClassEmpty(source, dataSourceName)) {
           return FileUtils.deleteFile(
@@ -318,17 +330,9 @@ class DataSourceInterfaceBuilder {
 
       if (config.appendToExisting) {
         var source = await fileSystem.read(filePath);
-        final augmentFileName = path
-            .basename(filePath)
-            .replaceFirst('.dart', '.augment.dart');
+        final emitter = DartEmitter(useNullSafetySyntax: true);
 
-        // 1. Add 'import augment' to host file
-        source = const AstHelper().addAugment(
-          source: source,
-          augmentPath: augmentFileName,
-        );
-
-        // 2. Add missing imports
+        // 1. Add missing imports
         final importPaths = directives
             .map((d) => (d as dynamic).url as String)
             .toList();
@@ -337,6 +341,17 @@ class DataSourceInterfaceBuilder {
             source: source,
             importPath: importPath,
           );
+        }
+
+        // 2. Add methods directly to host file
+        for (final method in methods) {
+          final methodSource = method.accept(emitter).toString();
+          final request = AppendRequest.method(
+            source: source,
+            className: dataSourceName,
+            memberSource: methodSource,
+          );
+          source = appendExecutor.execute(request).source;
         }
 
         await FileUtils.writeFile(
@@ -349,17 +364,8 @@ class DataSourceInterfaceBuilder {
           fileSystem: fileSystem,
         );
 
-        // 3. Generate/Update the augmentation file
-        final augmentationFile = await augmentationBuilder.generate(
-          hostPath: filePath,
-          className: dataSourceName,
-          members: methods,
-          imports: importPaths,
-          dryRun: options.dryRun,
-        );
-
         return GeneratedFile(
-          path: augmentationFile.path,
+          path: filePath,
           type: 'datasource',
           action: 'updated',
         );

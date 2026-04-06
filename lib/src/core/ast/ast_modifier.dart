@@ -1,27 +1,21 @@
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:dart_style/dart_style.dart';
 
 class AstModifier {
   static String addMethodToClass({
     required String source,
     required ClassDeclaration classNode,
     required String methodSource,
+    bool format = true,
   }) {
     final body = classNode.body;
-    if (body is! BlockClassBody) {
-      return source;
-    }
-    final insertOffset = body.rightBracket.offset;
-    final closingIndent = _indentBeforeOffset(source, insertOffset);
-    final memberIndent = '$closingIndent  ';
-    final normalized = methodSource.trimRight();
-    final indented = normalized
-        .split('\n')
-        .map((line) => line.isEmpty ? '' : '$memberIndent$line')
-        .join('\n');
-    final insert = '\n$indented\n$closingIndent';
-    return source.substring(0, insertOffset) +
-        insert +
-        source.substring(insertOffset);
+    if (body is! BlockClassBody) return source;
+    return _addMemberToBlock(
+      source: source,
+      blockBody: body,
+      memberSource: methodSource,
+      format: format,
+    );
   }
 
   static String replaceMethodInClass({
@@ -29,18 +23,31 @@ class AstModifier {
     required ClassDeclaration classNode,
     required MethodDeclaration oldMethod,
     required String methodSource,
+    bool format = true,
   }) {
-    final startOffset = oldMethod.offset;
-    final endOffset = oldMethod.end;
-    final methodIndent = _indentBeforeOffset(source, startOffset);
-    final normalized = methodSource.trimRight();
-    final indented = normalized
-        .split('\n')
-        .map((line) => line.isEmpty ? '' : '$methodIndent$line')
-        .join('\n');
-    return source.substring(0, startOffset) +
-        indented +
-        source.substring(endOffset);
+    return _replaceRange(
+      source: source,
+      offset: oldMethod.offset,
+      end: oldMethod.end,
+      newSource: methodSource,
+      format: format,
+    );
+  }
+
+  static String replaceConstructorInClass({
+    required String source,
+    required ClassDeclaration classNode,
+    required ConstructorDeclaration oldConstructor,
+    required String constructorSource,
+    bool format = true,
+  }) {
+    return _replaceRange(
+      source: source,
+      offset: oldConstructor.offset,
+      end: oldConstructor.end,
+      newSource: constructorSource,
+      format: format,
+    );
   }
 
   static String replaceFieldInClass({
@@ -48,220 +55,230 @@ class AstModifier {
     required ClassDeclaration classNode,
     required VariableDeclaration oldField,
     required String fieldSource,
+    bool format = true,
   }) {
     final parent = oldField.parent;
     if (parent is VariableDeclarationList) {
       final grandParent = parent.parent;
       if (grandParent is FieldDeclaration) {
-        final startOffset = grandParent.offset;
-        final endOffset = grandParent.end;
-        final fieldIndent = _indentBeforeOffset(source, startOffset);
-        final normalized = fieldSource.trimRight();
-        final indented = normalized
-            .split('\n')
-            .map((line) => line.isEmpty ? '' : '$fieldIndent$line')
-            .join('\n');
-        return source.substring(0, startOffset) +
-            indented +
-            source.substring(endOffset);
+        return _replaceRange(
+          source: source,
+          offset: grandParent.offset,
+          end: grandParent.end,
+          newSource: fieldSource,
+          format: format,
+        );
       }
     }
-    final startOffset = oldField.offset;
-    final endOffset = oldField.end;
-    final fieldIndent = _indentBeforeOffset(source, startOffset);
-    final normalized = fieldSource.trimRight();
-    final indented = normalized
-        .split('\n')
-        .map((line) => line.isEmpty ? '' : '$fieldIndent$line')
-        .join('\n');
-    return source.substring(0, startOffset) +
-        indented +
-        source.substring(endOffset);
+    return _replaceRange(
+      source: source,
+      offset: oldField.offset,
+      end: oldField.end,
+      newSource: fieldSource,
+      format: format,
+    );
   }
 
   static String removeMethodFromClass({
     required String source,
     required MethodDeclaration method,
+    bool format = true,
   }) {
-    return source.substring(0, method.offset) + source.substring(method.end);
+    return _replaceRange(
+      source: source,
+      offset: method.offset,
+      end: method.end,
+      newSource: '',
+      format: format,
+    );
   }
 
   static String removeField({
     required String source,
     required VariableDeclaration field,
+    bool format = true,
   }) {
     final parent = field.parent;
     if (parent is VariableDeclarationList) {
       final grandParent = parent.parent;
       if (grandParent is FieldDeclaration) {
-        return source.substring(0, grandParent.offset) +
-            source.substring(grandParent.end);
+        return _replaceRange(
+          source: source,
+          offset: grandParent.offset,
+          end: grandParent.end,
+          newSource: '',
+          format: format,
+        );
       }
     }
-    return source.substring(0, field.offset) + source.substring(field.end);
+    return _replaceRange(
+      source: source,
+      offset: field.offset,
+      end: field.end,
+      newSource: '',
+      format: format,
+    );
   }
 
   static String addImport(
     String source,
     CompilationUnit unit,
-    String importPath,
-  ) {
-    if (source.contains("import '$importPath';") ||
-        source.contains('import "$importPath";')) {
-      return source;
+    String importPath, {
+    bool format = true,
+  }) {
+    final existingImports = unit.directives.whereType<ImportDirective>();
+    for (final imp in existingImports) {
+      if (imp.uri.stringValue == importPath) {
+        return source;
+      }
     }
+
     final importDirective = "import '$importPath';";
     final imports = unit.directives.whereType<ImportDirective>().toList();
     if (imports.isNotEmpty) {
       final lastImport = imports.last;
       final insertOffset = lastImport.end;
-      return '${source.substring(0, insertOffset)}\n$importDirective'
+      final result =
+          '${source.substring(0, insertOffset)}\n$importDirective'
           '${source.substring(insertOffset)}';
+      return format ? _formatSafe(result) : result;
     }
     final firstDirective = unit.directives.isEmpty
         ? null
         : unit.directives.first;
     if (firstDirective != null) {
       final insertOffset = firstDirective.offset;
-      return '$importDirective\n${source.substring(insertOffset)}';
+      final result = '$importDirective\n${source.substring(insertOffset)}';
+      return format ? _formatSafe(result) : result;
     }
-    return '$importDirective\n\n$source';
+    final result = '$importDirective\n\n$source';
+    return format ? _formatSafe(result) : result;
   }
 
-  static String addAugment(
+  static String removeImport(
     String source,
     CompilationUnit unit,
-    String augmentPath,
-  ) {
-    if (source.contains("import augment '$augmentPath';") ||
-        source.contains('import augment "$augmentPath";')) {
-      return source;
-    }
-    final augmentDirective = "import augment '$augmentPath';";
-
+    String importPath, {
+    bool format = true,
+  }) {
     final imports = unit.directives.whereType<ImportDirective>().toList();
-    if (imports.isNotEmpty) {
-      final lastImport = imports.last;
-      return '${source.substring(0, lastImport.end)}\n$augmentDirective${source.substring(lastImport.end)}';
+    for (final imp in imports) {
+      if (imp.uri.stringValue == importPath) {
+        final result =
+            source.substring(0, imp.offset) + source.substring(imp.end);
+        return format ? _formatSafe(result) : result;
+      }
     }
-
-    if (unit.directives.isNotEmpty) {
-      final lastDirective = unit.directives.last;
-      return '${source.substring(0, lastDirective.end)}\n$augmentDirective${source.substring(lastDirective.end)}';
-    }
-
-    final firstNonCommentOffset = unit.beginToken.offset;
-    if (firstNonCommentOffset > 0) {
-      return '${source.substring(0, firstNonCommentOffset)}$augmentDirective\n\n${source.substring(firstNonCommentOffset)}';
-    }
-
-    return '$augmentDirective\n\n$source';
-  }
-
-  /// Removes an augmentation library directive from the unit.
-  static String removeAugment(String source, String augmentPath) {
-    final pattern = RegExp(
-      "^import\\s+augment\\s+['\"]${RegExp.escape(augmentPath)}['\"]\\s*;\\s*\$",
-      multiLine: true,
-    );
-    return source.replaceFirst(pattern, '').trim();
+    return source;
   }
 
   static String addExport(
     String source,
     CompilationUnit unit,
-    String exportPath,
-  ) {
+    String exportPath, {
+    bool format = true,
+  }) {
+    final existingExports = unit.directives.whereType<ExportDirective>();
+    for (final exp in existingExports) {
+      if (exp.uri.stringValue == exportPath) {
+        return source;
+      }
+    }
+
     final exportDirective = "export '$exportPath';";
     final exports = unit.directives.whereType<ExportDirective>().toList();
     if (exports.isNotEmpty) {
       final lastExport = exports.last;
       final insertOffset = lastExport.end;
-      return '${source.substring(0, insertOffset)}\n$exportDirective'
+      final result =
+          '${source.substring(0, insertOffset)}\n$exportDirective'
           '${source.substring(insertOffset)}';
+      return format ? _formatSafe(result) : result;
     }
     final lastImport = unit.directives.whereType<ImportDirective>().lastOrNull;
     if (lastImport != null) {
       final insertOffset = lastImport.end;
-      return '${source.substring(0, insertOffset)}\n\n$exportDirective'
+      final result =
+          '${source.substring(0, insertOffset)}\n\n$exportDirective'
           '${source.substring(insertOffset)}';
+      return format ? _formatSafe(result) : result;
     }
-    return '$exportDirective\n\n$source';
+    final result = '$exportDirective\n\n$source';
+    return format ? _formatSafe(result) : result;
+  }
+
+  static String removeExport(
+    String source,
+    CompilationUnit unit,
+    String exportPath, {
+    bool format = true,
+  }) {
+    final exports = unit.directives.whereType<ExportDirective>().toList();
+    for (final export in exports) {
+      if (export.uri.stringValue == exportPath) {
+        final result =
+            source.substring(0, export.offset) + source.substring(export.end);
+        return format ? _formatSafe(result) : result;
+      }
+    }
+    return source;
   }
 
   static String addFieldToClass({
     required String source,
     required ClassDeclaration classNode,
     required String fieldSource,
+    bool format = true,
   }) {
     final body = classNode.body;
-    if (body is! BlockClassBody) {
-      return source;
-    }
-    final insertOffset = body.rightBracket.offset;
-    final closingIndent = _indentBeforeOffset(source, insertOffset);
-    final memberIndent = '$closingIndent  ';
-    final normalized = fieldSource.trimRight();
-    final indented = normalized
-        .split('\n')
-        .map((line) => line.isEmpty ? '' : '$memberIndent$line')
-        .join('\n');
-    final insert = '\n$indented\n$closingIndent';
-    return source.substring(0, insertOffset) +
-        insert +
-        source.substring(insertOffset);
+    if (body is! BlockClassBody) return source;
+    return _addMemberToBlock(
+      source: source,
+      blockBody: body,
+      memberSource: fieldSource,
+      format: format,
+    );
   }
 
   static String addMethodToExtension({
     required String source,
     required ExtensionDeclaration extensionNode,
     required String methodSource,
+    bool format = true,
   }) {
     final body = extensionNode.body;
-    if (body is! BlockClassBody) {
-      return source;
-    }
-    final insertOffset = body.rightBracket.offset;
-    final closingIndent = _indentBeforeOffset(source, insertOffset);
-    final memberIndent = '$closingIndent  ';
-    final normalized = methodSource.trimRight();
-    final indented = normalized
-        .split('\n')
-        .map((line) => line.isEmpty ? '' : '$memberIndent$line')
-        .join('\n');
-    final insert = '\n$indented\n$closingIndent';
-    return source.substring(0, insertOffset) +
-        insert +
-        source.substring(insertOffset);
+    if (body is! BlockClassBody) return source;
+    return _addMemberToBlock(
+      source: source,
+      blockBody: body,
+      memberSource: methodSource,
+      format: format,
+    );
   }
 
   static String addStatementToFunction({
     required String source,
     required FunctionDeclaration functionNode,
     required String statementSource,
+    bool format = true,
   }) {
     final body = functionNode.functionExpression.body;
     if (body is! BlockFunctionBody) {
       return source;
     }
-    final insertOffset = body.block.rightBracket.offset;
-    final closingIndent = _indentBeforeOffset(source, insertOffset);
-    final memberIndent = '$closingIndent  ';
-    final normalized = statementSource.trimRight();
-    final indented = normalized
-        .split('\n')
-        .map((line) => line.isEmpty ? '' : '$memberIndent$line')
-        .join('\n');
-    final insert = '\n$indented\n$closingIndent';
-    return source.substring(0, insertOffset) +
-        insert +
-        source.substring(insertOffset);
+    return _insertInBlock(
+      source: source,
+      rightBracketOffset: body.block.rightBracket.offset,
+      content: statementSource,
+      format: format,
+    );
   }
 
   static String addElementToReturnListInFunction({
     required String source,
     required FunctionDeclaration functionNode,
     required String elementSource,
+    bool format = true,
   }) {
     final body = functionNode.functionExpression.body;
     if (body is! BlockFunctionBody) {
@@ -280,24 +297,20 @@ class AstModifier {
       return source;
     }
 
-    final insertOffset = expression.rightBracket.offset;
-    final closingIndent = _indentBeforeOffset(source, insertOffset);
-    final elementIndent = '$closingIndent  ';
-    final normalized = elementSource.trimRight();
-    final indented = normalized
-        .split('\n')
-        .map((line) => line.isEmpty ? '' : '$elementIndent$line')
-        .join('\n');
-    final insert = '\n$indented,\n$closingIndent';
-    return source.substring(0, insertOffset) +
-        insert +
-        source.substring(insertOffset);
+    return _insertInBlock(
+      source: source,
+      rightBracketOffset: expression.rightBracket.offset,
+      content: elementSource,
+      suffix: ',',
+      format: format,
+    );
   }
 
   static String removeElementFromReturnListInFunction({
     required String source,
     required FunctionDeclaration functionNode,
     required String elementSource,
+    bool format = true,
   }) {
     final body = functionNode.functionExpression.body;
     if (body is! BlockFunctionBody) {
@@ -317,41 +330,88 @@ class AstModifier {
     }
 
     final elements = expression.elements;
-    final normalizedSearch = elementSource.replaceAll(RegExp(r'\s+'), '');
-
     for (final element in elements) {
-      final elementText = source.substring(element.offset, element.end);
-      final normalizedElement = elementText.replaceAll(RegExp(r'\s+'), '');
-
-      if (normalizedElement == normalizedSearch) {
-        var start = element.offset;
-        var end = element.end;
-
-        // Try to include leading comma or trailing comma
-        final nextCharIndex = source.indexOf(RegExp(r'\S'), end);
-        if (nextCharIndex != -1 && source[nextCharIndex] == ',') {
-          end = nextCharIndex + 1;
-        } else {
-          final prevCharIndex = source.lastIndexOf(RegExp(r'\S'), start - 1);
-          if (prevCharIndex != -1 && source[prevCharIndex] == ',') {
-            start = prevCharIndex;
-          }
-        }
-
-        return source.substring(0, start) + source.substring(end);
+      if (element.toSource() == elementSource) {
+        final result =
+            source.substring(0, element.offset) + source.substring(element.end);
+        return format ? _formatSafe(result) : result;
       }
     }
 
     return source;
   }
 
-  static String _indentBeforeOffset(String source, int offset) {
-    final lineStart = source.lastIndexOf('\n', offset);
-    if (lineStart == -1) {
-      return '';
+  static String removeStatement({
+    required String source,
+    required List<Statement> statements,
+    required String statementSource,
+    bool format = true,
+  }) {
+    for (final statement in statements) {
+      if (statement.toSource() == statementSource) {
+        return _replaceRange(
+          source: source,
+          offset: statement.offset,
+          end: statement.end,
+          newSource: '',
+          format: format,
+        );
+      }
     }
-    final slice = source.substring(lineStart + 1, offset);
-    final match = RegExp(r'^\s*').firstMatch(slice);
-    return match?.group(0) ?? '';
+    return source;
+  }
+
+  static String _addMemberToBlock({
+    required String source,
+    required BlockClassBody blockBody,
+    required String memberSource,
+    bool format = true,
+  }) {
+    return _insertInBlock(
+      source: source,
+      rightBracketOffset: blockBody.rightBracket.offset,
+      content: memberSource,
+      format: format,
+    );
+  }
+
+  static String _insertInBlock({
+    required String source,
+    required int rightBracketOffset,
+    required String content,
+    String suffix = '',
+    bool format = true,
+  }) {
+    final result =
+        source.substring(0, rightBracketOffset) +
+        '\n$content$suffix\n' +
+        source.substring(rightBracketOffset);
+    return format ? _formatSafe(result) : result;
+  }
+
+  static String _replaceRange({
+    required String source,
+    required int offset,
+    required int end,
+    required String newSource,
+    bool format = true,
+  }) {
+    final result =
+        source.substring(0, offset) + newSource + source.substring(end);
+    return format ? _formatSafe(result) : result;
+  }
+
+  static String format(String source) {
+    return _formatSafe(source);
+  }
+
+  static String _formatSafe(String source) {
+    try {
+      return DartFormatter(
+        languageVersion: DartFormatter.latestLanguageVersion,
+      ).format(source);
+    } catch (_) {
+      return source;
+    }
   }
 }

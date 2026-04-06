@@ -81,6 +81,25 @@ extension RepositoryImplementationGeneratorCached
             )
             ..body = _buildCacheAwareUpdateBody(baseCacheKey),
         );
+      case 'toggle':
+        final fieldEnum = '${config.name}Field';
+        return Method(
+          (m) => m
+            ..name = 'toggle'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Future<${config.name}>')
+            ..modifier = MethodModifier.async
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer(
+                    'ToggleParams<${config.idFieldType}, $fieldEnum>',
+                  ),
+              ),
+            )
+            ..body = _buildCacheAwareToggleBody(baseCacheKey),
+        );
       case 'delete':
         return Method(
           (m) => m
@@ -355,6 +374,34 @@ extension RepositoryImplementationGeneratorCached
                 refer(
                   '_remoteDataSource',
                 ).property('update').call([refer('params')]).awaited,
+              )
+              .statement,
+        )
+        ..statements.add(
+          refer(
+            '_localDataSource',
+          ).property('save').call([refer('data')]).awaited.statement,
+        )
+        ..statements.add(
+          refer('_cachePolicy')
+              .property('markFresh')
+              .call([literalString(baseCacheKey)])
+              .awaited
+              .statement,
+        )
+        ..statements.add(refer('data').returned.statement),
+    );
+  }
+
+  Block _buildCacheAwareToggleBody(String baseCacheKey) {
+    return Block(
+      (b) => b
+        ..statements.add(
+          declareFinal('data')
+              .assign(
+                refer(
+                  '_remoteDataSource',
+                ).property('toggle').call([refer('params')]).awaited,
               )
               .statement,
         )

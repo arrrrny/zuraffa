@@ -74,7 +74,7 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         'type': 'array',
         'items': {'type': 'string'},
         'description': 'List of entity methods to generate',
-        'default': ['get', 'update'],
+        'default': ['get', 'update', 'toggle'],
       },
       'id-field': {
         'type': 'string',

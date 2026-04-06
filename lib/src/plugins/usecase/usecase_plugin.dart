@@ -102,7 +102,9 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       revert: context.core.revert,
       methods:
           context.data['methods']?.cast<String>().toList() ??
-          (context.get<bool>('no-entity') == true ? [] : ['get', 'update']),
+          (context.get<bool>('no-entity') == true
+              ? []
+              : ['get', 'update', 'toggle']),
       useCaseType: context.get<String>('type') ?? 'usecase',
       domain: context.get<String>('domain'),
       repo: context.get<String>('repo'),

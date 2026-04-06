@@ -2,9 +2,9 @@ import 'package:path/path.dart' as p;
 import 'package:code_builder/code_builder.dart';
 
 import '../../../core/ast/append_executor.dart';
+import '../../../core/ast/strategies/append_strategy.dart';
 
 import '../../../core/ast/ast_helper.dart';
-import '../../../core/ast/augmentation_builder.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../../../core/plugin_system/discovery_engine.dart';
@@ -30,7 +30,6 @@ class RepositoryImplementationGenerator {
   final DiscoveryEngine discovery;
   final FileSystem fileSystem;
   final SpecLibrary specLibrary;
-  final AugmentationBuilder augmentationBuilder;
 
   /// Creates a [RepositoryImplementationGenerator].
   RepositoryImplementationGenerator({
@@ -38,12 +37,9 @@ class RepositoryImplementationGenerator {
     this.options = const GeneratorOptions(),
     this.appendExecutor = const AppendExecutor(),
     this.specLibrary = const SpecLibrary(),
-    AugmentationBuilder? augmentationBuilder,
     DiscoveryEngine? discovery,
     FileSystem? fileSystem,
-  }) : augmentationBuilder =
-           augmentationBuilder ?? AugmentationBuilder(outputDir: outputDir),
-       fileSystem = fileSystem ?? FileSystem.create(),
+  }) : fileSystem = fileSystem ?? FileSystem.create(),
        discovery =
            discovery ??
            DiscoveryEngine(
@@ -318,30 +314,61 @@ class RepositoryImplementationGenerator {
           );
         }
 
-        // Handle Revert for Append (remove methods from augmentation)
-        await augmentationBuilder.remove(
-          hostPath: filePath,
-          className: dataRepoName,
-          members: methods,
-          dryRun: options.dryRun,
-        );
-
         var source = existing;
-        final augmentFileName = p
-            .basename(filePath)
-            .replaceFirst('.dart', '.augment.dart');
-        source = const AstHelper().removeAugment(
-          source: source,
-          augmentPath: augmentFileName,
-        );
+        final emitter = DartEmitter(useNullSafetySyntax: true);
 
-        // Also clean up any extra fields that were added
-        for (final field in fields) {
-          source = const AstHelper().removeFieldFromClass(
-            source: source,
-            className: dataRepoName,
-            fieldName: field.name,
+        // 1. Remove methods
+        for (final method in methods) {
+          final methodSource = method.accept(emitter).toString();
+          source = appendExecutor
+              .undo(
+                AppendRequest.method(
+                  source: source,
+                  className: dataRepoName,
+                  memberSource: methodSource,
+                ),
+              )
+              .source;
+        }
+
+        // 2. Remove constructors
+        for (final constructor in constructors) {
+          final tempClass = Class(
+            (b) => b
+              ..name = dataRepoName
+              ..constructors.add(constructor),
           );
+          final classSource = tempClass.accept(emitter).toString();
+          // Extract constructor source - look for className(
+          final start = classSource.indexOf('$dataRepoName(');
+          final end = classSource.lastIndexOf(';') != -1
+              ? classSource.lastIndexOf(';') + 1
+              : classSource.lastIndexOf('}') + 1;
+          final constructorSource = classSource.substring(start, end);
+
+          source = appendExecutor
+              .undo(
+                AppendRequest.constructor(
+                  source: source,
+                  className: dataRepoName,
+                  memberSource: constructorSource,
+                ),
+              )
+              .source;
+        }
+
+        // 3. Remove fields
+        for (final field in fields) {
+          final fieldSource = field.accept(emitter).toString();
+          source = appendExecutor
+              .undo(
+                AppendRequest.field(
+                  source: source,
+                  className: dataRepoName,
+                  memberSource: fieldSource,
+                ),
+              )
+              .source;
         }
 
         if (const AstHelper().isClassEmpty(source, dataRepoName)) {
@@ -368,17 +395,9 @@ class RepositoryImplementationGenerator {
 
       if (config.appendToExisting) {
         var source = existing;
-        final augmentFileName = p
-            .basename(filePath)
-            .replaceFirst('.dart', '.augment.dart');
+        final emitter = DartEmitter(useNullSafetySyntax: true);
 
-        // 1. Add 'import augment' to host file
-        source = const AstHelper().addAugment(
-          source: source,
-          augmentPath: augmentFileName,
-        );
-
-        // 2. Add missing imports to host file
+        // 1. Add missing imports to host file
         for (final importPath in importPaths) {
           source = const AstHelper().addImport(
             source: source,
@@ -386,20 +405,57 @@ class RepositoryImplementationGenerator {
           );
         }
 
-        // 3. Add missing fields to host file
+        // 2. Add missing fields to host file
         for (final field in fields) {
-          final fieldSource = field
-              .accept(DartEmitter(useNullSafetySyntax: true))
-              .toString();
-          if (!source.contains(
-            'final ${field.type?.accept(DartEmitter())} ${field.name};',
-          )) {
-            source = const AstHelper().addFieldToClass(
-              source: source,
-              className: dataRepoName,
-              fieldSource: fieldSource,
-            );
-          }
+          final fieldSource = field.accept(emitter).toString();
+          source = appendExecutor
+              .execute(
+                AppendRequest.field(
+                  source: source,
+                  className: dataRepoName,
+                  memberSource: fieldSource,
+                ),
+              )
+              .source;
+        }
+
+        // 3. Add missing constructors to host file
+        for (final constructor in constructors) {
+          final tempClass = Class(
+            (b) => b
+              ..name = dataRepoName
+              ..constructors.add(constructor),
+          );
+          final classSource = tempClass.accept(emitter).toString();
+          final start = classSource.indexOf('$dataRepoName(');
+          final end = classSource.lastIndexOf(';') != -1
+              ? classSource.lastIndexOf(';') + 1
+              : classSource.lastIndexOf('}') + 1;
+          final constructorSource = classSource.substring(start, end);
+
+          source = appendExecutor
+              .execute(
+                AppendRequest.constructor(
+                  source: source,
+                  className: dataRepoName,
+                  memberSource: constructorSource,
+                ),
+              )
+              .source;
+        }
+
+        // 4. Add missing methods to host file
+        for (final method in methods) {
+          final methodSource = method.accept(emitter).toString();
+          source = appendExecutor
+              .execute(
+                AppendRequest.method(
+                  source: source,
+                  className: dataRepoName,
+                  memberSource: methodSource,
+                ),
+              )
+              .source;
         }
 
         await FileUtils.writeFile(
@@ -412,17 +468,8 @@ class RepositoryImplementationGenerator {
           fileSystem: fileSystem,
         );
 
-        // 4. Generate/Update the augmentation file
-        final augmentationFile = await augmentationBuilder.generate(
-          hostPath: filePath,
-          className: dataRepoName,
-          members: methods,
-          imports: importPaths,
-          dryRun: options.dryRun,
-        );
-
         return GeneratedFile(
-          path: augmentationFile.path,
+          path: filePath,
           type: 'repository_implementation',
           action: 'updated',
         );

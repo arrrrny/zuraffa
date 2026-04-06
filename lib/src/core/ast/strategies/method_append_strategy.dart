@@ -61,18 +61,24 @@ class MethodAppendStrategy implements AppendStrategy {
     for (final method in existingMethods) {
       if (method.name.lexeme == newMethodName) {
         if (!request.force) {
-          final existingSource = request.source.substring(
-            method.offset,
-            method.end,
-          );
-          if (_isSameMethodSource(existingSource, request.memberSource!)) {
+          if (AstHelper.areMethodsEqual(method, newMethod)) {
             return AppendResult(
               source: request.source,
               changed: false,
               message: 'Method already exists',
             );
           }
+
+          if (!AstHelper.areSignaturesEqual(method, newMethod)) {
+            return AppendResult(
+              source: request.source,
+              changed: false,
+              message:
+                  'Method with same name but different signature already exists',
+            );
+          }
         }
+
         final updated = helper.replaceMethodInClass(
           source: request.source,
           className: request.className!,
@@ -145,14 +151,6 @@ class MethodAppendStrategy implements AppendStrategy {
           ? 'Method removed'
           : 'Method not found',
     );
-  }
-
-  bool _isSameMethodSource(String existingSource, String newSource) {
-    return _normalizeSource(existingSource) == _normalizeSource(newSource);
-  }
-
-  String _normalizeSource(String source) {
-    return source.replaceAll(RegExp(r'\s+'), '');
   }
 
   MethodDeclaration? _parseMethod(String methodSource) {

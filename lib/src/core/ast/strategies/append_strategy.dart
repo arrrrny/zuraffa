@@ -1,6 +1,7 @@
 enum AppendTarget {
   method,
   field,
+  constructor,
   extensionMethod,
   functionStatement,
   exportDirective,
@@ -33,6 +34,16 @@ class AppendRequest {
     required this.memberSource,
     this.force = false,
   }) : target = AppendTarget.field,
+       exportPath = null,
+       importPath = null,
+       functionName = null;
+
+  const AppendRequest.constructor({
+    required this.source,
+    required this.className,
+    required this.memberSource,
+    this.force = false,
+  }) : target = AppendTarget.constructor,
        exportPath = null,
        importPath = null,
        functionName = null;

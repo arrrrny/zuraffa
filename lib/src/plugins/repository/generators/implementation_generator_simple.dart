@@ -109,6 +109,33 @@ extension RepositoryImplementationGeneratorSimple
                 ),
             ),
         );
+      case 'toggle':
+        final fieldEnum = '${config.name}Field';
+        return Method(
+          (m) => m
+            ..name = 'toggle'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Future<${config.name}>')
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer(
+                    'ToggleParams<${config.idFieldType}, $fieldEnum>',
+                  ),
+              ),
+            )
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer('_dataSource')
+                      .property('toggle')
+                      .call([refer('params')])
+                      .returned
+                      .statement,
+                ),
+            ),
+        );
       case 'delete':
         return Method(
           (m) => m

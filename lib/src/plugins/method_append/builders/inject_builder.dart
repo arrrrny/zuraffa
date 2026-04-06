@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 import 'package:analyzer/dart/ast/ast.dart' as ast;
+import 'package:analyzer/dart/ast/visitor.dart' as ast_visitor;
 
 import '../../../core/ast/ast_helper.dart';
 import '../../../core/ast/ast_modifier.dart';
@@ -102,12 +104,10 @@ class InjectBuilder {
         for (final file in files) {
           final fileName = path.basename(file.path);
           if (file is File) {
-            // Standard snake case: MyRemoteDataSource -> my_remote_data_source.dart
             if (fileName == '$snakeName.dart') {
               return file.path;
             }
 
-            // Zuraffa convention: MyRemoteDataSource -> my_remote_datasource.dart
             final zuraffaSnake = snakeName.replaceAll(
               '_data_source',
               '_datasource',
@@ -116,9 +116,6 @@ class InjectBuilder {
               return file.path;
             }
 
-            // Also check for repo-based datasources: ListingRemoteDataSource -> listing_remote_datasource.dart
-            // The folder might be 'listing' and the file 'listing_remote_datasource.dart'
-            // If the class ends with RemoteDataSource or LocalDataSource, try to extract the base name
             if (className.endsWith('RemoteDataSource')) {
               final base = className.replaceAll('RemoteDataSource', '');
               final baseSnake = StringUtils.camelToSnake(base);
@@ -165,23 +162,15 @@ class InjectBuilder {
     final publicName = StringUtils.pascalToCamel(dependencyName);
     final privateName = '_$publicName';
 
-    if (!source.contains('final $dependencyName $privateName;')) {
-      // 1. Add field at the top of the class
-      final fieldSource = 'final $dependencyName $privateName;';
-      final body = classNode.body;
-      if (body is ast.BlockClassBody) {
-        final insertOffset = body.leftBracket.offset + 1;
-        final indent = '${_getIndent(source, classNode.offset)}  ';
-        source = source.replaceRange(
-          insertOffset,
-          insertOffset,
-          '\n$indent$fieldSource\n',
-        );
-      }
-    }
+    // 1. Add field to the class
+    final fieldSource = 'final $dependencyName $privateName;';
+    source = AstModifier.addFieldToClass(
+      source: source,
+      classNode: classNode,
+      fieldSource: fieldSource,
+    );
 
     // 2. Add constructor parameter
-    // This is a bit complex as we need to find or create a constructor.
     source = await _updateConstructor(
       source,
       className,
@@ -217,6 +206,7 @@ class InjectBuilder {
     String dependencyName,
   ) async {
     final helper = const AstHelper();
+    final emitter = DartEmitter(useNullSafetySyntax: true);
     final unit = helper.parseSource(source).unit!;
     final classNode = helper.findClass(unit, className)!;
 
@@ -226,108 +216,125 @@ class InjectBuilder {
     final constructors = body.members.whereType<ast.ConstructorDeclaration>();
 
     if (constructors.isEmpty) {
-      // Create new constructor
-      final constructorSource =
-          '$className({required $dependencyName $publicName}) : $privateName = $publicName;';
+      final constructor = Constructor(
+        (c) => c
+          ..optionalParameters.add(
+            Parameter(
+              (p) => p
+                ..name = publicName
+                ..type = refer(dependencyName)
+                ..named = true
+                ..required = true,
+            ),
+          )
+          ..initializers.add(Code('$privateName = $publicName')),
+      );
 
-      // Try to insert after the last field
-      final fields = body.members.whereType<ast.FieldDeclaration>();
-      if (fields.isNotEmpty) {
-        final lastField = fields.last;
-        final insertOffset = lastField.end;
-        final indent = _getIndent(source, lastField.offset);
-        final insert = '\n\n$indent$constructorSource';
-        return source.replaceRange(insertOffset, insertOffset, insert);
-      }
+      final tempClass = Class(
+        (b) => b
+          ..name = className
+          ..constructors.add(constructor),
+      );
+      final classSource = tempClass.accept(emitter).toString();
+      final start = classSource.indexOf('$className(');
+      final end = classSource.lastIndexOf(';') != -1
+          ? classSource.lastIndexOf(';') + 1
+          : classSource.lastIndexOf('}') + 1;
+      final constructorSource = classSource.substring(start, end);
 
-      // If no fields, insert at the beginning of the class body
-      final insertOffset = body.leftBracket.offset + 1;
-      final indent = '${_getIndent(source, classNode.offset)}  ';
-      final insert = '\n$indent$constructorSource';
-      return source.replaceRange(insertOffset, insertOffset, insert);
+      return helper.addMethodToClass(
+        source: source,
+        className: className,
+        methodSource: constructorSource,
+      );
     } else {
-      // Update existing constructor
-      final constructor = constructors.first;
-      final params = constructor.parameters;
+      final oldConstructor = constructors.first;
 
-      if (params.parameters.isEmpty) {
-        // No parameters, add named parameter and initializer
-        final constructorSource =
-            '{required $dependencyName $publicName}) : $privateName = $publicName';
-        return source.replaceRange(
-          params.leftParenthesis.offset + 1,
-          params.rightParenthesis.offset + 1,
-          constructorSource,
-        );
+      // Extract existing parameters and initializers from AST
+      final params = <Parameter>[];
+      for (final p in oldConstructor.parameters.parameters) {
+        if (p is ast.DefaultFormalParameter) {
+          final fp = p.parameter;
+          params.add(
+            Parameter(
+              (b) => b
+                ..name = fp.name?.lexeme ?? ''
+                ..type = refer(
+                  fp is ast.SimpleFormalParameter
+                      ? fp.type?.toString() ?? ''
+                      : '',
+                )
+                ..named = fp.isNamed
+                ..required = p.isRequired,
+            ),
+          );
+        } else {
+          params.add(
+            Parameter(
+              (b) => b
+                ..name = p.name?.lexeme ?? ''
+                ..type = refer(
+                  p is ast.SimpleFormalParameter
+                      ? p.type?.toString() ?? ''
+                      : '',
+                )
+                ..named = p.isNamed
+                ..required = true,
+            ),
+          );
+        }
       }
 
       // Check if parameter already exists
-      final hasParam = params.parameters.any((p) {
-        if (p is ast.DefaultFormalParameter) {
-          return p.parameter.name?.lexeme == publicName;
-        }
-        return p.name?.lexeme == publicName;
-      });
-
-      String updatedSource = source;
-      if (!hasParam) {
-        final lastParam = params.parameters.last;
-        if (lastParam is ast.DefaultFormalParameter &&
-            lastParam.parameter.isNamed) {
-          // Already has named parameters, just append
-          updatedSource = source.replaceRange(
-            lastParam.end,
-            lastParam.end,
-            ', required $dependencyName $publicName',
-          );
-        } else {
-          // Has positional parameters, but no named ones yet?
-          updatedSource = source.replaceRange(
-            lastParam.end,
-            lastParam.end,
-            ', {required $dependencyName $publicName}',
-          );
-        }
+      if (params.any((p) => p.name == publicName)) {
+        return source;
       }
 
-      // Re-parse to find the constructor again after parameter update (or use original if no change)
-      final newUnit = helper.parseSource(updatedSource).unit!;
-      final newClass = helper.findClass(newUnit, className)!;
-      final newClassBody = newClass.body;
-      if (newClassBody is! ast.BlockClassBody) return updatedSource;
-      final newConstructor = newClassBody.members
-          .whereType<ast.ConstructorDeclaration>()
-          .first;
+      // Add new parameter
+      params.add(
+        Parameter(
+          (b) => b
+            ..name = publicName
+            ..type = refer(dependencyName)
+            ..named = true
+            ..required = true,
+        ),
+      );
 
-      // Check if initializer already exists
-      final hasInitializer = newConstructor.initializers.any((i) {
-        if (i is ast.ConstructorFieldInitializer) {
-          return i.fieldName.name == privateName;
-        }
-        return false;
-      });
-
-      if (hasInitializer) {
-        return updatedSource;
+      final initializers = <Code>[];
+      for (final init in oldConstructor.initializers) {
+        initializers.add(Code(init.toString()));
       }
 
-      if (newConstructor.initializers.isEmpty) {
-        // Add first initializer
-        final bodyStart = newConstructor.body.offset;
-        return updatedSource.replaceRange(
-          bodyStart,
-          bodyStart,
-          ' : $privateName = $publicName ',
-        );
-      } else {
-        // Append to existing initializers
-        final lastInitializer = newConstructor.initializers.last;
-        return updatedSource.replaceRange(
-          lastInitializer.end,
-          lastInitializer.end,
-          ', $privateName = $publicName',
-        );
+      // Add new initializer if not present
+      if (!initializers.any((i) => i.toString().contains(privateName))) {
+        initializers.add(Code('$privateName = $publicName'));
       }
+
+      final newConstructor = Constructor(
+        (c) => c
+          ..optionalParameters.addAll(params.where((p) => p.named))
+          ..requiredParameters.addAll(params.where((p) => !p.named))
+          ..initializers.addAll(initializers),
+      );
+
+      final tempClass = Class(
+        (b) => b
+          ..name = className
+          ..constructors.add(newConstructor),
+      );
+      final classSource = tempClass.accept(emitter).toString();
+      final start = classSource.indexOf('$className(');
+      final end = classSource.lastIndexOf(';') != -1
+          ? classSource.lastIndexOf(';') + 1
+          : classSource.lastIndexOf('}') + 1;
+      final constructorSource = classSource.substring(start, end);
+
+      return helper.replaceConstructorInClass(
+        source: source,
+        className: className,
+        constructorSource: constructorSource,
+      );
     }
   }
 
@@ -336,7 +343,6 @@ class InjectBuilder {
     String dependencyName,
     String targetFilePath,
   ) async {
-    // 1. Calculate possible snake case names for the dependency
     final dependencySnake = StringUtils.camelToSnake(
       dependencyName
           .replaceAll('Service', '')
@@ -346,7 +352,6 @@ class InjectBuilder {
     );
     final fullDependencySnake = StringUtils.camelToSnake(dependencyName);
 
-    // 2. Define standard search directories (prio)
     final searchDirs = [
       path.join(outputDir, 'domain', 'services'),
       path.join(outputDir, 'domain', 'repositories'),
@@ -355,7 +360,6 @@ class InjectBuilder {
       path.join(outputDir, 'domain', 'entities'),
     ];
 
-    // Also add the whole outputDir as backup
     final allSearchDirs = [...searchDirs, outputDir];
     final visited = <String>{};
 
@@ -370,14 +374,11 @@ class InjectBuilder {
             visited.add(filePath);
 
             final fileName = path.basename(filePath);
-
-            // Check if file name matches snake case
             final nameMatch =
                 fileName.contains(dependencySnake) ||
                 fileName.contains(fullDependencySnake);
 
             if (nameMatch) {
-              // Verify the file actually contains the class definition to avoid false positives
               final fileContent = await file.readAsString();
               if (fileContent.contains('class $dependencyName')) {
                 final relativePath = path.relative(
@@ -412,8 +413,8 @@ class InjectBuilder {
     final updatedFiles = <GeneratedFile>[];
     final snakeName = StringUtils.camelToSnake(targetClass);
     final diFileName = '${snakeName}_di.dart';
+    final helper = const AstHelper();
 
-    // Search for all DI files
     final diDir = Directory(path.join(outputDir, 'di'));
     if (!diDir.existsSync()) {
       diDir.createSync(recursive: true);
@@ -422,12 +423,10 @@ class InjectBuilder {
     final files = diDir.listSync(recursive: true).whereType<File>().toList();
     final diFilesToUpdate = <File>[];
 
-    final startPattern = '() => $targetClass(';
-
     for (final file in files) {
       if (file.path.endsWith('.dart')) {
         final content = await file.readAsString();
-        if (content.contains(startPattern)) {
+        if (content.contains(targetClass)) {
           diFilesToUpdate.add(file);
         }
       }
@@ -438,17 +437,14 @@ class InjectBuilder {
     final namedDependencyCall = "$fieldName: $dependencyCall";
 
     if (diFilesToUpdate.isEmpty) {
-      // Create new DI file ONLY if no existing registrations were found
       final diSubDir = targetType == 'provider' || targetType == 'mock'
           ? 'providers'
           : 'datasources';
       final newDiPath = path.join(outputDir, 'di', diSubDir, diFileName);
 
       if (File(newDiPath).existsSync()) {
-        // If file exists but didn't contain the pattern, we should still try to use it if it's the right name
         diFilesToUpdate.add(File(newDiPath));
       } else {
-        // Try to find the import for the target class
         String targetImport = "// TODO: Add missing import for $targetClass";
         final targetFile = await _findTargetFile(targetClass, targetType);
         if (targetFile != null) {
@@ -490,96 +486,35 @@ void $registrationName(GetIt getIt) {
 
     for (final diFile in diFilesToUpdate) {
       var source = await diFile.readAsString();
+      final parseResult = helper.parseSource(source);
+      final unit = parseResult.unit;
+      if (unit == null) continue;
 
-      // Look for all instantiations in this file: () => TargetClass(...)
-      int lastIdx = 0;
-      bool updated = false;
+      bool fileUpdated = false;
+      final visitor = _DIUpdateVisitor(
+        targetClass,
+        fieldName,
+        namedDependencyCall,
+      );
+      unit.accept(visitor);
 
-      while (true) {
-        final startIdx = source.indexOf(startPattern, lastIdx);
-        if (startIdx == -1) break;
+      if (visitor.matches.isNotEmpty) {
+        final sortedMatches = visitor.matches.toList()
+          ..sort((a, b) => b.offset.compareTo(a.offset));
 
-        final paramsStartIdx = startIdx + startPattern.length;
-
-        // Find balanced closing parenthesis
-        int balance = 1;
-        int currentIdx = paramsStartIdx;
-        while (balance > 0 && currentIdx < source.length) {
-          if (source[currentIdx] == '(') {
-            balance++;
-          } else if (source[currentIdx] == ')') {
-            balance--;
-          }
-          currentIdx++;
-        }
-
-        if (balance == 0) {
-          final paramsEndIdx = currentIdx - 1;
-          final existingParams = source.substring(paramsStartIdx, paramsEndIdx);
-          String newParams;
-
-          // Clean up existing params by removing both named and positional versions of the dependency if we're forcing
-          var cleanedParams = existingParams;
-          if (options.force) {
-            // Remove named version: fieldName: getIt<DependencyName>()
-            final namedRegex = RegExp(
-              '\\s*$fieldName\\s*:\\s*getIt<\\s*$dependencyName\\s*>\\s*\\(\\s*\\)\\s*,?',
-              dotAll: true,
+        for (final match in sortedMatches) {
+          if (options.force || !match.alreadyExists) {
+            source = source.replaceRange(
+              match.offset,
+              match.end,
+              match.replacement,
             );
-            // Remove positional version: getIt<DependencyName>()
-            final positionalRegex = RegExp(
-              '\\s*getIt<\\s*$dependencyName\\s*>\\s*\\(\\s*\\)\\s*,?',
-              dotAll: true,
-            );
-
-            cleanedParams = cleanedParams
-                .replaceAll(namedRegex, '')
-                .replaceAll(positionalRegex, '');
+            fileUpdated = true;
           }
-
-          if (cleanedParams.trim().isEmpty) {
-            newParams = '\n      $namedDependencyCall,\n    ';
-          } else {
-            if (!options.force && existingParams.contains(fieldName)) {
-              lastIdx = currentIdx;
-              continue; // Already injected in this instantiation
-            }
-
-            if (!cleanedParams.contains(fieldName)) {
-              // Check if it ends with a comma, if not add one
-              final trimmedCleaned = cleanedParams.trimRight();
-              if (trimmedCleaned.isNotEmpty && !trimmedCleaned.endsWith(',')) {
-                newParams =
-                    '$cleanedParams,\n      $namedDependencyCall,\n    ';
-              } else {
-                newParams = '$cleanedParams\n      $namedDependencyCall,\n    ';
-              }
-            } else {
-              newParams = cleanedParams;
-            }
-          }
-
-          source = source.replaceRange(paramsStartIdx, paramsEndIdx, newParams);
-          lastIdx = paramsStartIdx + newParams.length;
-          updated = true;
-        } else {
-          break;
         }
       }
 
-      if (updated) {
-        // Fix function signature if it was corrupted (only if it matches registerTargetClass)
-        final signaturePattern = RegExp(
-          'void\\s+register$targetClass\\(.*?\\)\\s*{',
-        );
-        if (source.contains(signaturePattern)) {
-          source = source.replaceFirst(
-            signaturePattern,
-            'void register$targetClass(GetIt getIt) {',
-          );
-        }
-
-        // Ensure dependency import is present in DI file
+      if (fileUpdated) {
         source = await _addDependencyImport(
           source,
           dependencyName,
@@ -607,12 +542,61 @@ void $registrationName(GetIt getIt) {
 
     return updatedFiles;
   }
+}
 
-  String _getIndent(String source, int offset) {
-    var lineStart = offset;
-    while (lineStart > 0 && source[lineStart - 1] != '\n') {
-      lineStart--;
+class _DIMatch {
+  final int offset;
+  final int end;
+  final String replacement;
+  final bool alreadyExists;
+
+  _DIMatch(this.offset, this.end, this.replacement, this.alreadyExists);
+}
+
+class _DIUpdateVisitor extends ast_visitor.RecursiveAstVisitor<void> {
+  final String targetClass;
+  final String fieldName;
+  final String namedDependencyCall;
+  final List<_DIMatch> matches = [];
+
+  _DIUpdateVisitor(this.targetClass, this.fieldName, this.namedDependencyCall);
+
+  @override
+  void visitInstanceCreationExpression(ast.InstanceCreationExpression node) {
+    if (node.constructorName.type.name.toString() == targetClass) {
+      _handleArgumentList(node.argumentList);
     }
-    return source.substring(lineStart, offset).replaceAll(RegExp(r'\S'), '');
+    super.visitInstanceCreationExpression(node);
+  }
+
+  void _handleArgumentList(ast.ArgumentList node) {
+    bool alreadyExists = false;
+    for (final arg in node.arguments) {
+      if (arg is ast.NamedExpression && arg.name.label.name == fieldName) {
+        alreadyExists = true;
+        break;
+      }
+    }
+
+    if (node.arguments.isEmpty) {
+      matches.add(
+        _DIMatch(
+          node.leftParenthesis.offset + 1,
+          node.rightParenthesis.offset,
+          namedDependencyCall,
+          alreadyExists,
+        ),
+      );
+    } else {
+      final lastArg = node.arguments.last;
+      matches.add(
+        _DIMatch(
+          lastArg.end,
+          lastArg.end,
+          ', $namedDependencyCall',
+          alreadyExists,
+        ),
+      );
+    }
   }
 }

@@ -2,8 +2,8 @@ import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
 import '../../../core/ast/append_executor.dart';
+import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/ast/ast_helper.dart';
-import '../../../core/ast/augmentation_builder.dart';
 import '../../../core/generator_options.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/context/file_system.dart';
@@ -27,7 +27,6 @@ class LocalDataSourceBuilder {
   final GeneratorOptions options;
   final SpecLibrary specLibrary;
   final AppendExecutor appendExecutor;
-  final AugmentationBuilder augmentationBuilder;
   final FileSystem fileSystem;
 
   /// Creates a [LocalDataSourceBuilder].
@@ -36,12 +35,9 @@ class LocalDataSourceBuilder {
     this.options = const GeneratorOptions(),
     SpecLibrary? specLibrary,
     AppendExecutor? appendExecutor,
-    AugmentationBuilder? augmentationBuilder,
     FileSystem? fileSystem,
   }) : specLibrary = specLibrary ?? const SpecLibrary(),
        appendExecutor = appendExecutor ?? AppendExecutor(),
-       augmentationBuilder =
-           augmentationBuilder ?? AugmentationBuilder(outputDir: outputDir),
        fileSystem = fileSystem ?? FileSystem.create();
 
   /// Generates a local data source file for the given [config].
@@ -218,22 +214,61 @@ class LocalDataSourceBuilder {
           );
         }
 
-        // Handle Revert for Append
-        await augmentationBuilder.remove(
-          hostPath: filePath,
-          className: dataSourceName,
-          members: [...methods, ...fields, ...constructors],
-          dryRun: options.dryRun,
-        );
-
         var source = existing;
-        final augmentFileName = path
-            .basename(filePath)
-            .replaceFirst('.dart', '.augment.dart');
-        source = const AstHelper().removeAugment(
-          source: source,
-          augmentPath: augmentFileName,
-        );
+        final emitter = DartEmitter(useNullSafetySyntax: true);
+
+        // 1. Remove methods
+        for (final method in methods) {
+          final methodSource = method.accept(emitter).toString();
+          source = appendExecutor
+              .undo(
+                AppendRequest.method(
+                  source: source,
+                  className: dataSourceName,
+                  memberSource: methodSource,
+                ),
+              )
+              .source;
+        }
+
+        // 2. Remove constructors
+        for (final constructor in constructors) {
+          final tempClass = Class(
+            (b) => b
+              ..name = dataSourceName
+              ..constructors.add(constructor),
+          );
+          final classSource = tempClass.accept(emitter).toString();
+          final start = classSource.indexOf('$dataSourceName(');
+          final end = classSource.lastIndexOf(';') != -1
+              ? classSource.lastIndexOf(';') + 1
+              : classSource.lastIndexOf('}') + 1;
+          final constructorSource = classSource.substring(start, end);
+
+          source = appendExecutor
+              .undo(
+                AppendRequest.constructor(
+                  source: source,
+                  className: dataSourceName,
+                  memberSource: constructorSource,
+                ),
+              )
+              .source;
+        }
+
+        // 3. Remove fields
+        for (final field in fields) {
+          final fieldSource = field.accept(emitter).toString();
+          source = appendExecutor
+              .undo(
+                AppendRequest.field(
+                  source: source,
+                  className: dataSourceName,
+                  memberSource: fieldSource,
+                ),
+              )
+              .source;
+        }
 
         if (const AstHelper().isClassEmpty(source, dataSourceName)) {
           return FileUtils.deleteFile(
@@ -259,17 +294,9 @@ class LocalDataSourceBuilder {
 
       if (config.appendToExisting) {
         var source = existing;
-        final augmentFileName = path
-            .basename(filePath)
-            .replaceFirst('.dart', '.augment.dart');
+        final emitter = DartEmitter(useNullSafetySyntax: true);
 
-        // 1. Add 'import augment' to host file
-        source = const AstHelper().addAugment(
-          source: source,
-          augmentPath: augmentFileName,
-        );
-
-        // 2. Add missing imports
+        // 1. Add missing imports
         final importPaths = directives
             .map((d) => (d as dynamic).url as String)
             .toList();
@@ -278,6 +305,59 @@ class LocalDataSourceBuilder {
             source: source,
             importPath: importPath,
           );
+        }
+
+        // 2. Add missing fields
+        for (final field in fields) {
+          final fieldSource = field.accept(emitter).toString();
+          source = appendExecutor
+              .execute(
+                AppendRequest.field(
+                  source: source,
+                  className: dataSourceName,
+                  memberSource: fieldSource,
+                ),
+              )
+              .source;
+        }
+
+        // 3. Add missing constructors
+        for (final constructor in constructors) {
+          final tempClass = Class(
+            (b) => b
+              ..name = dataSourceName
+              ..constructors.add(constructor),
+          );
+          final classSource = tempClass.accept(emitter).toString();
+          final start = classSource.indexOf('$dataSourceName(');
+          final end = classSource.lastIndexOf(';') != -1
+              ? classSource.lastIndexOf(';') + 1
+              : classSource.lastIndexOf('}') + 1;
+          final constructorSource = classSource.substring(start, end);
+
+          source = appendExecutor
+              .execute(
+                AppendRequest.constructor(
+                  source: source,
+                  className: dataSourceName,
+                  memberSource: constructorSource,
+                ),
+              )
+              .source;
+        }
+
+        // 4. Add missing methods
+        for (final method in methods) {
+          final methodSource = method.accept(emitter).toString();
+          source = appendExecutor
+              .execute(
+                AppendRequest.method(
+                  source: source,
+                  className: dataSourceName,
+                  memberSource: methodSource,
+                ),
+              )
+              .source;
         }
 
         await FileUtils.writeFile(
@@ -290,17 +370,8 @@ class LocalDataSourceBuilder {
           fileSystem: fileSystem,
         );
 
-        // 3. Generate/Update the augmentation file
-        final augmentationFile = await augmentationBuilder.generate(
-          hostPath: filePath,
-          className: dataSourceName,
-          members: [...methods, ...fields, ...constructors],
-          imports: importPaths,
-          dryRun: options.dryRun,
-        );
-
         return GeneratedFile(
-          path: augmentationFile.path,
+          path: filePath,
           type: 'local_datasource',
           action: 'updated',
         );

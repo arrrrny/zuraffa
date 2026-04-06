@@ -95,15 +95,12 @@ void main() {
     final repoFile = File(filePath);
     final repoContent = repoFile.readAsStringSync();
     expect(repoContent.contains('custom()'), isTrue);
-    expect(
-      repoContent.contains("import augment 'user_repository.augment.dart';"),
-      isTrue,
-    );
+    expect(repoContent.contains('Future<User> get'), isTrue);
+    expect(repoContent.contains('import augment'), isFalse);
 
     final augmentFile = File(
       '$outputDir/domain/repositories/user_repository.augment.dart',
     );
-    expect(augmentFile.existsSync(), isTrue);
-    expect(augmentFile.readAsStringSync().contains('Future<User> get'), isTrue);
+    expect(augmentFile.existsSync(), isFalse);
   });
 }

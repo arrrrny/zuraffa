@@ -31,6 +31,11 @@ extension ControllerPluginMethods on ControllerPlugin {
             _buildUpdateMethod(config, entityName, entityCamel, withState),
           );
           break;
+        case 'toggle':
+          methods.add(
+            _buildToggleMethod(config, entityName, entityCamel, withState),
+          );
+          break;
         case 'delete':
           methods.add(
             _buildDeleteMethod(config, entityName, entityCamel, withState),
@@ -265,6 +270,52 @@ extension ControllerPluginMethods on ControllerPlugin {
             (p) => p
               ..name = 'data'
               ..type = refer(updateDataType),
+          ),
+        ])
+        ..optionalParameters.add(_cancelTokenParam())
+        ..body = body,
+    );
+  }
+
+  Method _buildToggleMethod(
+    GeneratorConfig config,
+    String entityName,
+    String entityCamel,
+    bool withState,
+  ) {
+    final fieldEnum = '${entityName}Field';
+    final hasListMethod =
+        config.methods.contains('getList') ||
+        config.methods.contains('watchList');
+    final body = withState
+        ? _buildToggleWithStateBody(
+            config,
+            entityName,
+            entityCamel,
+            hasListMethod,
+          )
+        : _buildToggleWithoutStateBody(config, entityName);
+
+    return Method(
+      (m) => m
+        ..name = 'toggle$entityName'
+        ..returns = refer('Future<void>')
+        ..modifier = MethodModifier.async
+        ..requiredParameters.addAll([
+          Parameter(
+            (p) => p
+              ..name = config.idField
+              ..type = refer(config.idFieldType),
+          ),
+          Parameter(
+            (p) => p
+              ..name = 'field'
+              ..type = refer(fieldEnum),
+          ),
+          Parameter(
+            (p) => p
+              ..name = 'value'
+              ..type = refer('bool'),
           ),
         ])
         ..optionalParameters.add(_cancelTokenParam())

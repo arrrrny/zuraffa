@@ -83,7 +83,11 @@ class ControllerPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       generateVpcs: context.get<bool>('vpc') ?? context.data['vpcs'] == true,
       generateState:
           context.get<bool>('state') ?? context.data['state'] == true,
-      methods: context.data['methods']?.cast<String>().toList() ?? [],
+      methods:
+          context.data['methods']?.cast<String>().toList() ??
+          (context.data['no-entity'] == true
+              ? []
+              : ['get', 'update', 'toggle']),
       domain: context.data['domain'],
       noEntity: context.data['no-entity'] == true,
       idField: context.data['id-field'] ?? 'id',
