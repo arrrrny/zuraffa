@@ -1,3 +1,19 @@
+## [3.22.0] - 2026-04-08
+
+### Feat
+- Replaced custom AWS Signature V4 implementation in `MinioClient` with the official `minio: ^3.5.8` package, improving compatibility and reliability
+- Expanded `MinioClient` with full API: `fPutObject`, `fGetObject`, `copyObject`, `statObject`, `listObjects`, `deleteObjects`, `removeBucket`, `getBucketRegion`, `presignedPutObject`
+- Added `ObjectStat` and `ObjectInfo` data classes for structured object metadata
+- Integrated `minio/io.dart` extensions for file-based uploads and downloads
+
+### Fix
+- Replaced `print()` calls in `OtelLogExporter` with `Logger` to allow silencing in tests and avoid recursive OTel logging
+- Fixed `artifact_publisher_integration_test.dart` to skip cleanly when MinIO env vars are not set
+- Created `dart_test.yaml` to exclude integration tests by default
+
+### Chore
+- Removed temp test files with hardcoded credentials from the repository
+
 ## [3.21.1] - 2026-04-06
 
 ### Fix
