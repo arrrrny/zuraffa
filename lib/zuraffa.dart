@@ -1,5 +1,7 @@
 library;
 
+import 'src/core/failure.dart';
+import 'src/core/failure_hooks.dart';
 import 'src/core/failure_reporter.dart';
 import 'src/core/failure_reporter_registry.dart';
 import 'src/core/otel_failure_reporter.dart';
@@ -179,6 +181,28 @@ export 'src/core/otel_log_exporter.dart' show OtelLogExporter;
 export 'src/core/retry_policies.dart'
     show ExponentialBackoffRetryPolicy, FixedIntervalRetryPolicy, NoRetryPolicy;
 export 'src/core/retry_policy.dart' show ReportRetryPolicy;
+
+/// Artifact publisher — general-purpose hook system for publishing
+/// artifacts (HTML, images, files) for any reason (failure, scan, debug).
+export 'src/core/artifact_publisher.dart'
+    show
+        ArtifactPublisher,
+        ArtifactHook,
+        ArtifactContext,
+        ArtifactReason,
+        MinIOArtifactHook;
+
+/// Failure hooks — backward-compatible layer delegating to ArtifactPublisher.
+export 'src/core/failure_hooks.dart'
+    show
+        FailureHook,
+        FailureHookManager,
+        FailureContext,
+        MinIOUploadHook,
+        ResultFailureHooks;
+
+/// Lightweight S3-compatible MinIO client with AWS Signature V4.
+export 'src/core/minio_client.dart' show MinioClient;
 
 export 'src/core/generation/generation_context.dart';
 export 'src/core/context/file_system.dart';
@@ -540,6 +564,263 @@ class Zuraffa {
     await FailureReporterRegistry.instance.dispose();
     await _otelLogExporter?.dispose();
     _otelLogExporter = null;
+  }
+
+  // ============================================================
+  // Artifact Publisher
+  // ============================================================
+
+  /// Register an artifact hook that reacts to published artifacts.
+  ///
+  /// Hooks can handle any [ArtifactReason] — not just failures.
+  /// Common hooks include [MinIOArtifactHook] for uploading to storage.
+  ///
+  /// ## Example
+  /// ```dart
+  /// Zuraffa.registerArtifactHook(MinIOArtifactHook(
+  ///   client: MinioClient(
+  ///     endpoint: 'http://localhost:9000',
+  ///     accessKey: 'minioadmin',
+  ///     secretKey: 'minioadmin',
+  ///   ),
+  ///   bucket: 'artifacts',
+  /// ));
+  /// ```
+  static void registerArtifactHook(ArtifactHook hook) {
+    ArtifactPublisher.instance.register(hook);
+  }
+
+  /// Unregister an artifact hook by its [id].
+  static void unregisterArtifactHook(String id) {
+    ArtifactPublisher.instance.unregister(id);
+  }
+
+  /// Convenience: set up MinIO artifact storage in one call.
+  ///
+  /// Registers a [MinIOArtifactHook] that handles all artifact types —
+  /// HTML on failure, scanned images, debug snapshots, etc.
+  ///
+  /// - [endpoint]: MinIO server URL, e.g. `http://localhost:9000`
+  /// - [accessKey]: S3 access key (MinIO username)
+  /// - [secretKey]: S3 secret key (MinIO password)
+  /// - [bucket]: target bucket name (auto-created on first upload)
+  /// - [region]: AWS region (default: `us-east-1`)
+  /// - [pathPrefix]: optional prefix like `prod/` or `staging/`
+  ///
+  /// ## Example
+  /// ```dart
+  /// void main() async {
+  ///   Zuraffa.setEnvironment(Environment.production);
+  ///   await Zuraffa.enableOtelReporting(
+  ///     collectorEndpoint: Uri.parse('https://otel.example.com/v1/traces'),
+  ///     serviceName: 'my_app',
+  ///   );
+  ///   Zuraffa.enableMinIOArtifacts(
+  ///     endpoint: 'https://minio.myapp.com',
+  ///     accessKey: env.minioAccessKey,
+  ///     secretKey: env.minioSecretKey,
+  ///     bucket: 'artifacts',
+  ///     pathPrefix: 'prod/',
+  ///   );
+  ///   runApp(MyApp());
+  /// }
+  /// ```
+  static void enableMinIOArtifacts({
+    required String endpoint,
+    required String accessKey,
+    required String secretKey,
+    required String bucket,
+    String region = 'us-east-1',
+    bool ensureBucketExists = true,
+    String? pathPrefix,
+    bool includeReasonInKey = true,
+    bool includeSourceInKey = true,
+    Map<String, String> extensionOverrides = const {},
+  }) {
+    registerArtifactHook(
+      MinIOArtifactHook.fromParams(
+        endpoint: endpoint,
+        accessKey: accessKey,
+        secretKey: secretKey,
+        bucket: bucket,
+        region: region,
+        ensureBucketExists: ensureBucketExists,
+        pathPrefix: pathPrefix,
+        includeReasonInKey: includeReasonInKey,
+        includeSourceInKey: includeSourceInKey,
+        extensionOverrides: extensionOverrides,
+      ),
+    );
+    Logger.root.info(
+      'Zuraffa MinIO artifact storage enabled: $endpoint/$bucket',
+    );
+  }
+
+  /// Publish an artifact to all registered hooks (fire-and-forget).
+  ///
+  /// Use this anywhere in your app to publish artifacts — HTML from
+  /// failed scrapes, scanned product images, debug screenshots, etc.
+  ///
+  /// - [data]: The artifact payload (`String`, `Uint8List`, etc.)
+  /// - [contentType]: MIME type (e.g. `text/html`, `image/jpeg`)
+  /// - [reason]: Why this artifact is being published
+  /// - [source]: Which component published it (e.g. `'ParsingProvider'`)
+  /// - [label]: Human-readable label (e.g. `'NetworkFailure'`, `'barcode_scan'`)
+  /// - [metadata]: Additional context (task ID, URL, etc.)
+  ///
+  /// ## Examples
+  /// ```dart
+  /// // HTML from a failed parse
+  /// Zuraffa.publishArtifact(
+  ///   rawHtml,
+  ///   contentType: 'text/html; charset=utf-8',
+  ///   reason: ArtifactReason.failure,
+  ///   source: 'ParsingProvider',
+  ///   label: 'NetworkFailure',
+  ///   metadata: {'taskId': task.id, 'url': task.url},
+  /// );
+  ///
+  /// // Scanned product image
+  /// Zuraffa.publishArtifact(
+  ///   imageBytes,
+  ///   contentType: 'image/jpeg',
+  ///   reason: ArtifactReason.scan,
+  ///   source: 'BarcodeScanner',
+  ///   label: 'product_scan',
+  ///   metadata: {'barcode': '1234567890'},
+  /// );
+  ///
+  /// // Debug screenshot
+  /// Zuraffa.publishArtifact(
+  ///   screenshotBytes,
+  ///   contentType: 'image/png',
+  ///   reason: ArtifactReason.debug,
+  ///   source: 'ScreenshotTool',
+  ///   label: 'checkout_step_3',
+  /// );
+  /// ```
+  /// - [id]: Business entity ID for later lookup (e.g. `Zik.id`, `ScrapeTask.id`)
+  static void publishArtifact(
+    dynamic data, {
+    required String id,
+    required String contentType,
+    required ArtifactReason reason,
+    String? source,
+    String? label,
+    Map<String, dynamic> metadata = const {},
+    StackTrace? stackTrace,
+  }) {
+    ArtifactPublisher.instance.publishFireAndForget(
+      data,
+      id: id,
+      contentType: contentType,
+      reason: reason,
+      source: source,
+      label: label,
+      metadata: metadata,
+      stackTrace: stackTrace,
+    );
+  }
+
+  /// Publish an artifact to all registered hooks (awaited).
+  ///
+  /// Same as [publishArtifact] but waits for all hooks to complete.
+  static Future<void> publishArtifactAwaited(
+    dynamic data, {
+    required String id,
+    required String contentType,
+    required ArtifactReason reason,
+    String? source,
+    String? label,
+    Map<String, dynamic> metadata = const {},
+    StackTrace? stackTrace,
+  }) async {
+    await ArtifactPublisher.instance.publish(
+      data,
+      id: id,
+      contentType: contentType,
+      reason: reason,
+      source: source,
+      label: label,
+      metadata: metadata,
+      stackTrace: stackTrace,
+    );
+  }
+
+  // ============================================================
+  // Backward-compatible Failure Hooks
+  // ============================================================
+
+  /// Register a failure hook that reacts to errors.
+  ///
+  /// @deprecated Use [registerArtifactHook] with [ArtifactHook] instead.
+  static void registerFailureHook(FailureHook hook) {
+    FailureHookManager().register(hook);
+  }
+
+  /// Unregister a failure hook by its [id].
+  ///
+  /// @deprecated Use [unregisterArtifactHook] instead.
+  static void unregisterFailureHook(String id) {
+    FailureHookManager().unregister(id);
+  }
+
+  /// Convenience: set up MinIO artifact uploads for scrape failures.
+  ///
+  /// @deprecated Use [enableMinIOArtifacts] instead.
+  static void enableMinIOFailureArtifacts({
+    required String endpoint,
+    required String accessKey,
+    required String secretKey,
+    required String bucket,
+    String region = 'us-east-1',
+    bool ensureBucketExists = true,
+    String? pathPrefix,
+    String htmlContentType = 'text/html; charset=utf-8',
+  }) {
+    enableMinIOArtifacts(
+      endpoint: endpoint,
+      accessKey: accessKey,
+      secretKey: secretKey,
+      bucket: bucket,
+      region: region,
+      ensureBucketExists: ensureBucketExists,
+      pathPrefix: pathPrefix,
+    );
+  }
+
+  /// Trigger failure hooks for the given [failure] (fire-and-forget).
+  ///
+  /// Extracts `id` from `metadata['taskId']` — if not present, falls back
+  /// to a timestamp-based ID.
+  ///
+  /// @deprecated Use [publishArtifact] with [ArtifactReason.failure] instead.
+  static void triggerFailureHook(
+    AppFailure failure,
+    StackTrace stackTrace, {
+    String? useCaseName,
+    Map<String, dynamic> metadata = const {},
+  }) {
+    final artifactId =
+        metadata['taskId']?.toString() ??
+        'failure_${DateTime.now().millisecondsSinceEpoch}';
+    ArtifactPublisher.instance.publishFireAndForget(
+      metadata['html'] ?? metadata['data'] ?? failure.message,
+      id: artifactId,
+      contentType: 'text/html; charset=utf-8',
+      reason: ArtifactReason.failure,
+      source: useCaseName,
+      label: failure.runtimeType.toString(),
+      metadata: metadata,
+      stackTrace: stackTrace,
+    );
+  }
+
+  /// Dispose all artifact and failure hooks.
+  ///
+  /// Call this on app shutdown alongside [disposeFailureReporters].
+  static void disposeFailureHooks() {
+    ArtifactPublisher.instance.dispose();
   }
 
   static void _defaultLogHandler(LogRecord record) {
