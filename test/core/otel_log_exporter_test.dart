@@ -199,6 +199,9 @@ void main() {
     });
 
     test('does not crash or retry on http failure', () async {
+      // Clear logger listeners so the warning from the exporter doesn't print
+      Logger.root.clearListeners();
+
       when(
         () => mockHttpClient.post(
           any(),

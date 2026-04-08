@@ -41,7 +41,31 @@ String _env(String name) {
   return value;
 }
 
+/// Checks if required env vars are present.
+bool get _hasMinioConfig {
+  return Platform.environment.containsKey('MINIO_ENDPOINT') &&
+      Platform.environment.containsKey('MINIO_ACCESS_KEY') &&
+      Platform.environment.containsKey('MINIO_SECRET_KEY') &&
+      Platform.environment.containsKey('MINIO_BUCKET');
+}
+
 void main() {
+  // Skip entire suite if env vars not configured
+  if (!_hasMinioConfig) {
+    setUpAll(() {
+      markTestSkipped(
+        'MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, or MINIO_BUCKET '
+        'not set. To run integration tests:\n\n'
+        '  MINIO_ENDPOINT=https://artifacts.zuzu.dev \\\n'
+        '  MINIO_ACCESS_KEY=your-key \\\n'
+        '  MINIO_SECRET_KEY=your-secret \\\n'
+        '  MINIO_BUCKET=test-artifacts \\\n'
+        '  flutter test test/core/artifact_publisher_integration_test.dart',
+      );
+    });
+    return;
+  }
+
   late MinioClient client;
   late String bucket;
   late ArtifactPublisher publisher;
