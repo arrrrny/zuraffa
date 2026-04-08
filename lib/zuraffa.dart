@@ -178,6 +178,8 @@ export 'src/core/failure_reporter.dart';
 export 'src/core/failure_reporter_registry.dart' show FailureReporterRegistry;
 export 'src/core/otel_failure_reporter.dart' show OtelFailureReporter;
 export 'src/core/otel_log_exporter.dart' show OtelLogExporter;
+export 'src/core/otel_tracer.dart' show OtelTracer;
+export 'package:opentelemetry/api.dart' show Attribute, SpanKind;
 export 'src/core/retry_policies.dart'
     show ExponentialBackoffRetryPolicy, FixedIntervalRetryPolicy, NoRetryPolicy;
 export 'src/core/retry_policy.dart' show ReportRetryPolicy;
@@ -185,12 +187,7 @@ export 'src/core/retry_policy.dart' show ReportRetryPolicy;
 /// Artifact publisher — general-purpose hook system for publishing
 /// artifacts (HTML, images, files) for any reason (failure, scan, debug).
 export 'src/core/artifact_publisher.dart'
-    show
-        ArtifactPublisher,
-        ArtifactHook,
-        ArtifactContext,
-        ArtifactReason,
-        MinIOArtifactHook;
+    show ArtifactPublisher, ArtifactHook, ArtifactContext, MinIOArtifactHook;
 
 /// Failure hooks — backward-compatible layer delegating to ArtifactPublisher.
 export 'src/core/failure_hooks.dart'
@@ -572,7 +569,6 @@ class Zuraffa {
 
   /// Register an artifact hook that reacts to published artifacts.
   ///
-  /// Hooks can handle any [ArtifactReason] — not just failures.
   /// Common hooks include [MinIOArtifactHook] for uploading to storage.
   ///
   /// ## Example
@@ -670,45 +666,51 @@ class Zuraffa {
   ///
   /// ## Examples
   /// ```dart
-  /// // HTML from a failed parse
+  /// // HTML from a failed operation
   /// Zuraffa.publishArtifact(
   ///   rawHtml,
+  ///   id: entityId,
   ///   contentType: 'text/html; charset=utf-8',
-  ///   reason: ArtifactReason.failure,
-  ///   source: 'ParsingProvider',
-  ///   label: 'NetworkFailure',
-  ///   metadata: {'taskId': task.id, 'url': task.url},
+  ///   reason: 'failure',
+  ///   source: 'NetworkClient',
+  ///   label: 'RequestFailed',
+  ///   metadata: {'entityId': entity.id, 'url': request.url},
   /// );
   ///
   /// // Scanned product image
   /// Zuraffa.publishArtifact(
   ///   imageBytes,
+  ///   id: scanId,
   ///   contentType: 'image/jpeg',
-  ///   reason: ArtifactReason.scan,
-  ///   source: 'BarcodeScanner',
+  ///   reason: 'scan',
+  ///   source: 'ImageCapture',
   ///   label: 'product_scan',
   ///   metadata: {'barcode': '1234567890'},
   /// );
   ///
-  /// // Debug screenshot
+  /// // Debug snapshot
   /// Zuraffa.publishArtifact(
   ///   screenshotBytes,
+  ///   id: snapshotId,
   ///   contentType: 'image/png',
-  ///   reason: ArtifactReason.debug,
-  ///   source: 'ScreenshotTool',
-  ///   label: 'checkout_step_3',
+  ///   reason: 'debug',
+  ///   source: 'CheckpointTool',
+  ///   label: 'workflow_step_3',
   /// );
   /// ```
-  /// - [id]: Business entity ID for later lookup (e.g. `Zik.id`, `ScrapeTask.id`)
+  /// - [id]: Business entity ID for later lookup.
   static void publishArtifact(
     dynamic data, {
     required String id,
     required String contentType,
-    required ArtifactReason reason,
+    required String reason,
     String? source,
     String? label,
     Map<String, dynamic> metadata = const {},
     StackTrace? stackTrace,
+    List<String> pathSegments = const [],
+    String? traceId,
+    String? spanId,
   }) {
     ArtifactPublisher.instance.publishFireAndForget(
       data,
@@ -719,6 +721,9 @@ class Zuraffa {
       label: label,
       metadata: metadata,
       stackTrace: stackTrace,
+      pathSegments: pathSegments,
+      traceId: traceId,
+      spanId: spanId,
     );
   }
 
@@ -729,11 +734,14 @@ class Zuraffa {
     dynamic data, {
     required String id,
     required String contentType,
-    required ArtifactReason reason,
+    required String reason,
     String? source,
     String? label,
     Map<String, dynamic> metadata = const {},
     StackTrace? stackTrace,
+    List<String> pathSegments = const [],
+    String? traceId,
+    String? spanId,
   }) async {
     await ArtifactPublisher.instance.publish(
       data,
@@ -744,6 +752,9 @@ class Zuraffa {
       label: label,
       metadata: metadata,
       stackTrace: stackTrace,
+      pathSegments: pathSegments,
+      traceId: traceId,
+      spanId: spanId,
     );
   }
 
@@ -786,33 +797,6 @@ class Zuraffa {
       region: region,
       ensureBucketExists: ensureBucketExists,
       pathPrefix: pathPrefix,
-    );
-  }
-
-  /// Trigger failure hooks for the given [failure] (fire-and-forget).
-  ///
-  /// Extracts `id` from `metadata['taskId']` — if not present, falls back
-  /// to a timestamp-based ID.
-  ///
-  /// @deprecated Use [publishArtifact] with [ArtifactReason.failure] instead.
-  static void triggerFailureHook(
-    AppFailure failure,
-    StackTrace stackTrace, {
-    String? useCaseName,
-    Map<String, dynamic> metadata = const {},
-  }) {
-    final artifactId =
-        metadata['taskId']?.toString() ??
-        'failure_${DateTime.now().millisecondsSinceEpoch}';
-    ArtifactPublisher.instance.publishFireAndForget(
-      metadata['html'] ?? metadata['data'] ?? failure.message,
-      id: artifactId,
-      contentType: 'text/html; charset=utf-8',
-      reason: ArtifactReason.failure,
-      source: useCaseName,
-      label: failure.runtimeType.toString(),
-      metadata: metadata,
-      stackTrace: stackTrace,
     );
   }
 

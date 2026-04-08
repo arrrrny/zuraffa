@@ -6,69 +6,31 @@ import 'package:logging/logging.dart';
 import 'minio_client.dart';
 
 // ---------------------------------------------------------------------------
-// Artifact Reason
-// ---------------------------------------------------------------------------
-
-/// Why an artifact is being published.
-///
-/// Hooks can filter on [ArtifactReason] to decide whether to act.
-/// For example, a MinIO upload hook might handle all reasons,
-/// while a notification hook only cares about [failure].
-enum ArtifactReason {
-  /// Published because a task failed (scrape, parse, network, etc.).
-  ///
-  /// The [ArtifactContext.data] is typically the HTML/text that was being
-  /// processed when the failure occurred.
-  failure,
-
-  /// Published as the result of a scan (barcode, product image, etc.).
-  ///
-  /// The [ArtifactContext.data] is typically an image ([Uint8List]) or
-  /// structured scan result.
-  scan,
-
-  /// Published for debugging or inspection purposes.
-  ///
-  /// For example, a snapshot of the current page state, or a screenshot
-  /// captured during a critical workflow step.
-  debug,
-
-  /// Custom / user-defined reason.
-  ///
-  /// Use this for any scenario not covered by the built-in reasons.
-  /// Provide a descriptive [ArtifactContext.label] to identify the purpose.
-  custom,
-}
-
-// ---------------------------------------------------------------------------
 // Artifact Context
 // ---------------------------------------------------------------------------
 
 /// Rich context passed to every [ArtifactHook] when an artifact is published.
 ///
 /// Contains everything a hook needs to decide whether to act and how:
-/// - [data] — the artifact payload (String for HTML/JSON, [Uint8List] for images)
+/// - [data] — the artifact payload (`String` for HTML/JSON, [Uint8List] for images)
 /// - [contentType] — MIME type describing the payload
-/// - [reason] — why this artifact is being published
-/// - [source] — which component published it (e.g. `'ParsingProvider'`)
-/// - [metadata] — arbitrary key-value pairs (task ID, URL, status code, etc.)
+/// - [reason] — why this artifact is being published (any string your app defines)
+/// - [source] — which component published it (e.g. `'NetworkClient'`)
+/// - [metadata] — arbitrary key-value pairs (entity ID, URL, status code, etc.)
 /// - [timestamp] — when the artifact was captured
-/// - [stackTrace] — optional, set when [reason] is [ArtifactReason.failure]
+/// - [stackTrace] — optional, typically set on failure artifacts
 /// - [label] — optional human-readable label (used as folder/key segment)
+/// - [traceId] — W3C trace ID of the active OTel span when the artifact was published
+/// - [spanId] — W3C span ID of the active OTel span when the artifact was published
 class ArtifactContext {
   /// Business entity ID that this artifact belongs to.
   ///
-  /// This becomes the **filename** in MinIO — the ID you use to
-  /// look up artifacts later. Typically the task/entity ID from your domain:
-  /// - `Zik.id` (UUID v7) for scrape tasks
-  /// - `ScrapeTask.id` for scrape results
-  /// - A barcode string for product scans
+  /// This becomes the **filename** in storage — the ID you use to look up
+  /// artifacts later. Typically a UUID or domain identifier from your app:
   ///
-  /// With fire-and-forget publishing, the app owns this ID upfront.
-  /// MinIO keys are reason-first so browsing is intuitive:
   /// ```
-  /// prod/failure/parsing_provider/failed/{id}.html
-  /// prod/scan/barcode_scanner/product_photo/{id}.jpg
+  /// prod/failure/network_client/request_failed/{id}.html
+  /// prod/scan/image_recognizer/product_photo/{id}.jpg
   /// ```
   final String id;
 
@@ -87,17 +49,20 @@ class ArtifactContext {
   final String contentType;
 
   /// Why this artifact is being published.
-  final ArtifactReason reason;
+  ///
+  /// Any string defined by the consuming application, e.g. `'failure'`,
+  /// `'scan'`, `'export_complete'`, `'payment_declined'`.
+  final String reason;
 
   /// The component that published this artifact.
   ///
-  /// For example: `'ParsingProvider'`, `'BarcodeScanner'`, `'ScrapeTask'`.
+  /// For example: `'NetworkClient'`, `'ImageRecognizer'`, `'DataSync'`.
   final String? source;
 
   /// Arbitrary key-value pairs for enrichment.
   ///
   /// Common keys:
-  /// - `'taskId'` — the task or job identifier
+  /// - `'entityId'` — the domain entity identifier
   /// - `'url'` — the URL being processed
   /// - `'statusCode'` — HTTP status code
   /// - `'error'` — error message (for failures)
@@ -108,19 +73,48 @@ class ArtifactContext {
 
   /// Stack trace from where the artifact originated.
   ///
-  /// Only set when [reason] is [ArtifactReason.failure].
+  /// Typically only set on failure artifacts.
   final StackTrace? stackTrace;
+
+  /// Optional path segments appended to the storage key.
+  ///
+  /// Each entry becomes a subfolder between the label and the entity ID.
+  /// This lets consuming applications control the folder hierarchy without
+  /// the framework needing to know about domain-specific concepts.
+  ///
+  /// Example: `['eu', 'premium']` produces
+  /// `prod/failure/network_client/request_failed/eu/premium/{id}.html`
+  final List<String> pathSegments;
 
   /// Optional human-readable label for this artifact.
   ///
   /// Used by hooks to build storage keys, filenames, or log messages.
-  /// For example: `'NetworkFailure'`, `'barcode_scan'`, `'screenshot'`.
+  /// For example: `'NetworkFailure'`, `'product_scan'`, `'checkpoint'`.
   final String? label;
+
+  /// W3C trace ID of the active OTel span at the moment this artifact was
+  /// published, or `null` if no span was active or OTel is not configured.
+  ///
+  /// Format: 32 lowercase hex characters, e.g.
+  /// `'4bf92f3577b34da6a3ce929d0e0e4736'`
+  ///
+  /// Stored as `x-amz-meta-trace-id` by [MinIOArtifactHook], allowing
+  /// navigation from any artifact in storage directly to the trace in
+  /// Jaeger, Grafana Tempo, or any OTLP-compatible backend.
+  final String? traceId;
+
+  /// W3C span ID of the active OTel span at the moment this artifact was
+  /// published, or `null` if no span was active or OTel is not configured.
+  ///
+  /// Format: 16 lowercase hex characters, e.g. `'00f067aa0ba902b7'`
+  ///
+  /// Stored as `x-amz-meta-span-id` by [MinIOArtifactHook].
+  final String? spanId;
 
   /// Creates a new artifact context.
   ///
   /// [id] is required — it's the business entity ID you'll use to look up
-  /// this artifact later. Pass your task/entity ID (e.g. `Zik.id`).
+  /// this artifact later.
   ArtifactContext({
     required this.id,
     required this.data,
@@ -131,15 +125,12 @@ class ArtifactContext {
     DateTime? timestamp,
     this.stackTrace,
     this.label,
+    this.pathSegments = const [],
+    this.traceId,
+    this.spanId,
   }) : timestamp = timestamp ?? DateTime.now();
 
   // --- Convenience getters ---
-
-  /// Whether this artifact was published due to a failure.
-  bool get isFailure => reason == ArtifactReason.failure;
-
-  /// Whether this artifact was published from a scan.
-  bool get isScan => reason == ArtifactReason.scan;
 
   /// Whether [data] is a String (HTML, JSON, text).
   bool get isText => data is String;
@@ -164,8 +155,9 @@ class ArtifactContext {
 
   @override
   String toString() =>
-      'ArtifactContext(id: $id, reason: ${reason.name}, contentType: $contentType, '
-      'source: $source, label: $label, dataSize: ${_dataSize()})';
+      'ArtifactContext(id: $id, reason: $reason, contentType: $contentType, '
+      'source: $source, label: $label, dataSize: ${_dataSize()}'
+      '${traceId != null ? ', traceId: $traceId' : ''})';
 
   String _dataSize() {
     if (data is String) return '${(data as String).length} chars';
@@ -190,17 +182,18 @@ class ArtifactContext {
 /// ## Custom Hook Example
 ///
 /// ```dart
-/// class SlackNotificationHook extends ArtifactHook {
+/// class AlertNotificationHook extends ArtifactHook {
 ///   @override
-///   String get id => 'slack-notification';
+///   String get id => 'alert-notification';
 ///
 ///   @override
-///   bool shouldPublish(ArtifactContext context) => context.isFailure;
+///   bool shouldPublish(ArtifactContext context) =>
+///       context.reason == 'failure';
 ///
 ///   @override
 ///   Future<void> onPublish(ArtifactContext context) async {
-///     await slackClient.send(
-///       channel: '#scrape-errors',
+///     await alertClient.send(
+///       channel: '#app-errors',
 ///       text: 'Artifact from ${context.source}: ${context.label}',
 ///     );
 ///   }
@@ -263,19 +256,21 @@ abstract class ArtifactHook {
 /// // Publish an artifact (fire-and-forget)
 /// ArtifactPublisher.instance.publishFireAndForget(
 ///   data: rawHtml,
+///   id: entityId,
 ///   contentType: 'text/html; charset=utf-8',
-///   reason: ArtifactReason.failure,
-///   source: 'ParsingProvider',
-///   label: 'NetworkFailure',
-///   metadata: {'taskId': 'abc-123', 'url': 'https://example.com'},
+///   reason: 'failure',
+///   source: 'NetworkClient',
+///   label: 'RequestFailed',
+///   metadata: {'entityId': 'abc-123', 'url': 'https://example.com'},
 /// );
 ///
 /// // Publish an image (awaited)
 /// await ArtifactPublisher.instance.publish(
 ///   data: imageBytes,
+///   id: scanId,
 ///   contentType: 'image/jpeg',
-///   reason: ArtifactReason.scan,
-///   source: 'BarcodeScanner',
+///   reason: 'scan',
+///   source: 'ImageCapture',
 ///   label: 'product_scan',
 ///   metadata: {'barcode': '1234567890'},
 /// );
@@ -292,6 +287,16 @@ class ArtifactPublisher {
   static final Logger _logger = Logger('ArtifactPublisher');
   final List<ArtifactHook> _hooks = [];
   bool _isDisposed = false;
+
+  /// Optional provider for the active OTel span context.
+  ///
+  /// When set, [publish] automatically stamps [ArtifactContext.traceId] and
+  /// [ArtifactContext.spanId] with the IDs of the currently active span.
+  /// Callers may still override by passing explicit [traceId]/[spanId] values.
+  ///
+  /// Populated by [Zuraffa.enableOtelReporting] when OTel is configured.
+  /// Accepts a record `({String? traceId, String? spanId})`.
+  ({String? traceId, String? spanId}) Function()? spanContextProvider;
 
   /// The registered hooks (read-only, sorted by priority).
   List<ArtifactHook> get hooks => List.unmodifiable(_hooks);
@@ -335,16 +340,23 @@ class ArtifactPublisher {
     dynamic data, {
     required String id,
     required String contentType,
-    required ArtifactReason reason,
+    required String reason,
     String? source,
     String? label,
     Map<String, dynamic> metadata = const {},
     StackTrace? stackTrace,
+    List<String> pathSegments = const [],
+    String? traceId,
+    String? spanId,
   }) async {
     if (_isDisposed) {
       _logger.warning('Ignoring publish after dispose');
       return;
     }
+
+    // Auto-capture active span context when not explicitly provided
+    final resolvedTraceId = traceId ?? spanContextProvider?.call().traceId;
+    final resolvedSpanId = spanId ?? spanContextProvider?.call().spanId;
 
     final context = ArtifactContext(
       id: id,
@@ -355,6 +367,9 @@ class ArtifactPublisher {
       label: label,
       metadata: metadata,
       stackTrace: stackTrace,
+      pathSegments: pathSegments,
+      traceId: resolvedTraceId,
+      spanId: resolvedSpanId,
     );
 
     final applicable = _hooks.where((h) => h.shouldPublish(context));
@@ -363,7 +378,7 @@ class ArtifactPublisher {
 
     _logger.info(
       'Publishing artifact id=$id (${context._dataSize()}, '
-      'reason: ${reason.name}, contentType: $contentType) '
+      'reason: $reason, contentType: $contentType) '
       'to ${applicable.length} hook(s) [source: $source, label: $label]',
     );
 
@@ -385,11 +400,14 @@ class ArtifactPublisher {
     dynamic data, {
     required String id,
     required String contentType,
-    required ArtifactReason reason,
+    required String reason,
     String? source,
     String? label,
     Map<String, dynamic> metadata = const {},
     StackTrace? stackTrace,
+    List<String> pathSegments = const [],
+    String? traceId,
+    String? spanId,
   }) {
     unawaited(
       publish(
@@ -401,6 +419,9 @@ class ArtifactPublisher {
         label: label,
         metadata: metadata,
         stackTrace: stackTrace,
+        pathSegments: pathSegments,
+        traceId: traceId,
+        spanId: spanId,
       ),
     );
   }
@@ -426,7 +447,7 @@ class ArtifactPublisher {
 /// - **Strings** (HTML, JSON, text) via [MinioClient.putObject]
 /// - **Binary** ([Uint8List]) data (images, PDFs) via [MinioClient.putObjectBytes]
 ///
-/// Object Key Structure
+/// ## Object Key Structure
 ///
 /// Keys are **reason-first** so browsing MinIO is intuitive — group by
 /// *what happened* (failure, scan, debug), then *where* (source), then
@@ -438,9 +459,9 @@ class ArtifactPublisher {
 ///
 /// Examples:
 /// ```
-/// prod/failure/parsing_provider/failed/01923456-7890-abcd.html
-/// prod/scan/barcode_scanner/product_photo/01923456-7890-abcd.jpg
-/// staging/debug/screenshot_tool/checkout_step/01923456-7890-abcd.png
+/// prod/failure/network_client/request_failed/01923456-7890-abcd.html
+/// prod/scan/image_capture/product_photo/01923456-7890-abcd.jpg
+/// staging/debug/checkpoint_tool/workflow_step/01923456-7890-abcd.png
 /// ```
 ///
 /// ## Looking up artifacts later
@@ -450,17 +471,17 @@ class ArtifactPublisher {
 /// client.listObjects(bucket: 'artifacts', prefix: 'prod/failure/');
 ///
 /// // List failures from a specific source
-/// client.listObjects(bucket: 'artifacts', prefix: 'prod/failure/parsing_provider/');
+/// client.listObjects(bucket: 'artifacts', prefix: 'prod/failure/network_client/');
 ///
 /// // Direct GET — you know the exact key (reason + source + label + id)
 /// client.getObject('artifacts',
-///   'prod/failure/parsing_provider/failed/01923456-7890-abcd.html');
+///   'prod/failure/network_client/request_failed/01923456-7890-abcd.html');
 /// ```
 ///
 /// ## S3 Metadata Enrichment
 ///
 /// Each upload includes custom `x-amz-meta-*` headers:
-/// - `artifact-reason`: The [ArtifactReason] name
+/// - `artifact-reason`: The [ArtifactContext.reason] string
 /// - `artifact-source`: The [ArtifactContext.source]
 /// - `artifact-label`: The [ArtifactContext.label] (if set)
 /// - Plus all values from [ArtifactContext.metadata]
@@ -504,7 +525,7 @@ class MinIOArtifactHook extends ArtifactHook {
   /// Useful for organising by environment, e.g. `'prod/'` or `'staging/'`.
   final String? pathPrefix;
 
-  /// Whether to include [ArtifactReason] as a key segment.
+  /// Whether to include [ArtifactContext.reason] as a key segment.
   ///
   /// Defaults to `true`. Set to `false` for a flatter key structure.
   final bool includeReasonInKey;
@@ -601,9 +622,13 @@ class MinIOArtifactHook extends ArtifactHook {
     final fullKey = ext != null ? '$key.$ext' : key;
 
     // Build S3 metadata headers from context
-    final s3Metadata = <String, String>{'artifact-reason': context.reason.name};
+    final s3Metadata = <String, String>{'artifact-reason': context.reason};
     if (context.source != null) s3Metadata['artifact-source'] = context.source!;
     if (context.label != null) s3Metadata['artifact-label'] = context.label!;
+
+    // Trace context — enables navigation from artifact storage → OTel backend
+    if (context.traceId != null) s3Metadata['trace-id'] = context.traceId!;
+    if (context.spanId != null) s3Metadata['span-id'] = context.spanId!;
 
     // Attach all stringifiable metadata values
     for (final entry in context.metadata.entries) {
@@ -612,7 +637,7 @@ class MinIOArtifactHook extends ArtifactHook {
 
     _logger.info(
       'Uploading artifact to MinIO: bucket=$bucket, key=$fullKey, '
-      '${context._dataSize()}, reason=${context.reason.name}',
+      '${context._dataSize()}, reason=${context.reason}',
     );
 
     final bool success;
@@ -649,7 +674,7 @@ class MinIOArtifactHook extends ArtifactHook {
   /// together, then drill down by source, then by label, with the entity
   /// ID as the final filename:
   /// ```
-  /// prod/failure/parsing_provider/failed/01923456-7890-abcd.html
+  /// prod/failure/network_client/request_failed/01923456-7890-abcd.html
   /// ```
   String _buildKey(ArtifactContext context) {
     final parts = <String>[];
@@ -661,7 +686,7 @@ class MinIOArtifactHook extends ArtifactHook {
 
     // Reason folder first — group by what happened (failure, scan, debug)
     if (includeReasonInKey) {
-      parts.add('${context.reason.name}/');
+      parts.add('${context.reason}/');
     }
 
     // Source subfolder — who produced this artifact
@@ -672,6 +697,14 @@ class MinIOArtifactHook extends ArtifactHook {
     // Label subfolder — what kind of artifact
     parts.add('${_toFolderName(context.label ?? 'artifact')}/');
 
+    // Client-supplied path segments — allows consuming apps to inject
+    // arbitrary folder hierarchy (e.g. region code, tier slug)
+    for (final segment in context.pathSegments) {
+      if (segment.isNotEmpty) {
+        parts.add('${segment.toLowerCase()}/');
+      }
+    }
+
     // Entity ID as filename — the lookup key
     parts.add(context.id);
 
@@ -680,9 +713,9 @@ class MinIOArtifactHook extends ArtifactHook {
 
   /// Convert a PascalCase or camelCase string to a snake_case folder name.
   ///
-  /// `'ParsingProvider'` → `'parsing_provider'`
-  /// `'ParsingFailed'` → `'parsing_failed'`
-  /// `'barcode_scan'` → `'barcode_scan'`
+  /// `'NetworkClient'` → `'network_client'`
+  /// `'RequestFailed'` → `'request_failed'`
+  /// `'product_scan'` → `'product_scan'`
   static String _toFolderName(String input) {
     final buffer = StringBuffer();
     for (var i = 0; i < input.length; i++) {

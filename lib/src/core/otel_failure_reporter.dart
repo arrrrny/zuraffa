@@ -8,6 +8,9 @@ import 'package:opentelemetry/api.dart'
 import 'package:opentelemetry/sdk.dart'
     show BatchSpanProcessor, CollectorExporter, Resource, TracerProviderBase;
 
+import 'otel_tracer.dart';
+
+import 'artifact_publisher.dart';
 import 'failure.dart';
 import 'failure_reporter.dart';
 
@@ -52,6 +55,13 @@ class OtelFailureReporter extends FailureReporter {
   @override
   String get id => 'zuraffa-otel';
 
+  /// The [OtelTracer] instance used to expose active span context to
+  /// [ArtifactPublisher] for cross-referencing artifacts with traces.
+  ///
+  /// Populated during [initialize] so that [ArtifactPublisher.spanContextProvider]
+  /// can capture the active trace/span IDs when an artifact is published.
+  OtelTracer get tracer => OtelTracer.instance;
+
   OtelFailureReporter({
     required this.collectorEndpoint,
     required this.serviceName,
@@ -82,6 +92,14 @@ class OtelFailureReporter extends FailureReporter {
       // (e.g., in tests) or when the app re-initializes.
     }
     _tracer = globalTracerProvider.getTracer(instrumentationName);
+
+    // Wire OtelTracer's active span context into ArtifactPublisher so that
+    // every published artifact is automatically stamped with trace_id/span_id.
+    OtelTracer.instance.instrumentationName = instrumentationName;
+    ArtifactPublisher.instance.spanContextProvider = () => (
+      traceId: OtelTracer.instance.currentTraceId,
+      spanId: OtelTracer.instance.currentSpanId,
+    );
   }
 
   @override
@@ -129,6 +147,18 @@ class OtelFailureReporter extends FailureReporter {
               Attribute.fromString(entry.key, entry.value.toString()),
             );
           }
+        }
+
+        // If a companion artifact was published for this failure, record it
+        // as a span event so the trace links forward to artifact storage.
+        // The artifact carries trace_id/span_id metadata so you can also
+        // navigate backward from storage to this span.
+        final artifactId = report.attributes?['artifactId'];
+        if (artifactId != null && artifactId.isNotEmpty) {
+          span.addEvent(
+            'artifact.published',
+            attributes: [Attribute.fromString('artifact.id', artifactId)],
+          );
         }
 
         // Record exception with stack trace

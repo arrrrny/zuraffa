@@ -11,17 +11,12 @@ import 'failure.dart';
 import 'result.dart';
 
 export 'artifact_publisher.dart'
-    show
-        ArtifactPublisher,
-        ArtifactHook,
-        ArtifactContext,
-        ArtifactReason,
-        MinIOArtifactHook;
+    show ArtifactPublisher, ArtifactHook, ArtifactContext, MinIOArtifactHook;
 
 /// @deprecated Use [ArtifactContext] directly.
 ///
 /// Backward-compatible context that wraps a [FailureContext] into an
-/// [ArtifactContext] with [ArtifactReason.failure].
+/// [ArtifactContext] with reason `'failure'`.
 class FailureContext {
   /// The failure that occurred.
   final AppFailure failure;
@@ -35,6 +30,9 @@ class FailureContext {
   /// Arbitrary metadata associated with this failure.
   final Map<String, dynamic> metadata;
 
+  /// Optional path segments for artifact storage.
+  final List<String> pathSegments;
+
   /// When this failure was captured.
   final DateTime timestamp;
 
@@ -43,6 +41,7 @@ class FailureContext {
     required this.stackTrace,
     this.useCaseName,
     this.metadata = const {},
+    this.pathSegments = const [],
     DateTime? timestamp,
   }) : timestamp = timestamp ?? DateTime.now();
 
@@ -68,12 +67,13 @@ class FailureContext {
         'failure_${timestamp.millisecondsSinceEpoch}',
     data: metadata['html'] ?? metadata['data'] ?? failure.message,
     contentType: 'text/html; charset=utf-8',
-    reason: ArtifactReason.failure,
+    reason: 'failure',
     source: useCaseName,
     label: failure.runtimeType.toString(),
     metadata: metadata,
     timestamp: timestamp,
     stackTrace: stackTrace,
+    pathSegments: pathSegments,
   );
 
   @override
@@ -147,12 +147,13 @@ class FailureHookManager {
   /// Trigger hooks for a failure (awaited).
   ///
   /// Converts the failure info into an [ArtifactContext] with
-  /// [ArtifactReason.failure] and publishes via [ArtifactPublisher].
+  /// reason `'failure'` and publishes via [ArtifactPublisher].
   Future<void> trigger(
     AppFailure failure,
     StackTrace stackTrace, {
     String? useCaseName,
     Map<String, dynamic> metadata = const {},
+    List<String> pathSegments = const [],
   }) async {
     final id =
         metadata['taskId']?.toString() ??
@@ -161,11 +162,12 @@ class FailureHookManager {
       metadata['html'] ?? metadata['data'] ?? failure.message,
       id: id,
       contentType: 'text/html; charset=utf-8',
-      reason: ArtifactReason.failure,
+      reason: 'failure',
       source: useCaseName,
       label: failure.runtimeType.toString(),
       metadata: metadata,
       stackTrace: stackTrace,
+      pathSegments: pathSegments,
     );
   }
 
@@ -175,6 +177,7 @@ class FailureHookManager {
     StackTrace stackTrace, {
     String? useCaseName,
     Map<String, dynamic> metadata = const {},
+    List<String> pathSegments = const [],
   }) {
     final id =
         metadata['taskId']?.toString() ??
@@ -183,11 +186,12 @@ class FailureHookManager {
       metadata['html'] ?? metadata['data'] ?? failure.message,
       id: id,
       contentType: 'text/html; charset=utf-8',
-      reason: ArtifactReason.failure,
+      reason: 'failure',
       source: useCaseName,
       label: failure.runtimeType.toString(),
       metadata: metadata,
       stackTrace: stackTrace,
+      pathSegments: pathSegments,
     );
   }
 
@@ -211,7 +215,7 @@ class _FailureHookAdapter extends ArtifactHook {
 
   @override
   bool shouldPublish(ArtifactContext context) {
-    if (!context.isFailure) return false;
+    if (context.reason != 'failure') return false;
     // Reconstruct a FailureContext for the wrapped hook
     final failure =
         context.metadata['failure'] as AppFailure? ??
@@ -320,6 +324,7 @@ extension ResultFailureHooks<S, F extends AppFailure> on Result<S, F> {
     String? useCaseName,
     StackTrace? stackTrace,
     Map<String, dynamic> metadata = const {},
+    List<String> pathSegments = const [],
   }) async {
     return fold((value) => onSuccess(value), (error) async {
       final st = stackTrace ?? StackTrace.current;
@@ -331,11 +336,12 @@ extension ResultFailureHooks<S, F extends AppFailure> on Result<S, F> {
         metadata['html'] ?? metadata['data'] ?? error.message,
         id: artifactId,
         contentType: 'text/html; charset=utf-8',
-        reason: ArtifactReason.failure,
+        reason: 'failure',
         source: useCaseName,
         label: error.runtimeType.toString(),
         metadata: metadata,
         stackTrace: st,
+        pathSegments: pathSegments,
       );
 
       return onFailure(error, st);

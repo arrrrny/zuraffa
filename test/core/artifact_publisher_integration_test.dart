@@ -221,7 +221,7 @@ void main() {
         html,
         id: taskId,
         contentType: 'text/html; charset=utf-8',
-        reason: ArtifactReason.failure,
+        reason: 'failure',
         source: 'ParsingProvider',
         label: 'ParsingFailed',
         metadata: {
@@ -233,6 +233,35 @@ void main() {
 
       // Key should be: test/failure/parsing_provider/parsing_failed/{taskId}.html
       final key = 'test/failure/parsing_provider/parsing_failed/$taskId.html';
+      final fetched = await client.getObject(bucket, key);
+
+      expect(fetched, isNotNull);
+      expect(fetched, equals(html));
+    });
+
+    test('publishes artifact with pathSegments in key hierarchy', () async {
+      final taskId = 'test-segments-${DateTime.now().millisecondsSinceEpoch}';
+      final html = '<html><body>Segmented artifact</body></html>';
+
+      await publisher.publish(
+        html,
+        id: taskId,
+        contentType: 'text/html; charset=utf-8',
+        reason: 'failure',
+        source: 'ParsingProvider',
+        label: 'ParsingFailed',
+        pathSegments: ['tr', 'gratis'],
+        metadata: {
+          'url': 'https://gratis.com.tr/product/123',
+          'countryCode': 'tr',
+          'channelSlug': 'gratis',
+        },
+      );
+
+      // Key should include pathSegments between label and id:
+      // test/failure/parsing_provider/parsing_failed/tr/gratis/{taskId}.html
+      final key =
+          'test/failure/parsing_provider/parsing_failed/tr/gratis/$taskId.html';
       final fetched = await client.getObject(bucket, key);
 
       expect(fetched, isNotNull);
@@ -252,7 +281,7 @@ void main() {
           json,
           id: taskId,
           contentType: 'application/json; charset=utf-8',
-          reason: ArtifactReason.failure,
+          reason: 'failure',
           source: 'ParsingProvider',
           label: 'EmptyResults',
           metadata: {'url': 'https://example.com/search?q=xyz'},
@@ -274,7 +303,7 @@ void main() {
         text,
         id: taskId,
         contentType: 'text/plain; charset=utf-8',
-        reason: ArtifactReason.failure,
+        reason: 'failure',
         source: 'ParsingProvider',
         label: 'UnexpectedFormat',
         metadata: {'url': 'https://example.com/api/raw'},
@@ -306,7 +335,7 @@ void main() {
         pngBytes,
         id: barcode,
         contentType: 'image/png',
-        reason: ArtifactReason.scan,
+        reason: 'scan',
         source: 'BarcodeScanner',
         label: 'product_photo',
         metadata: {'format': 'EAN-13', 'product': 'Test Product'},
@@ -332,7 +361,7 @@ void main() {
         debugSnapshot,
         id: taskId,
         contentType: 'application/json; charset=utf-8',
-        reason: ArtifactReason.debug,
+        reason: 'debug',
         source: 'ScreenshotTool',
         label: 'checkout_step',
         metadata: {'step': '3'},
@@ -353,7 +382,7 @@ void main() {
         'fire and forget content',
         id: taskId,
         contentType: 'text/plain; charset=utf-8',
-        reason: ArtifactReason.custom,
+        reason: 'custom',
         source: 'SpeedTest',
         label: 'async_test',
       );
@@ -382,7 +411,7 @@ void main() {
         'version 1',
         id: taskId,
         contentType: 'text/plain; charset=utf-8',
-        reason: ArtifactReason.failure,
+        reason: 'failure',
         source: 'ParsingProvider',
         label: 'ParsingFailed',
       );
@@ -392,7 +421,7 @@ void main() {
         'version 2 — updated',
         id: taskId,
         contentType: 'text/plain; charset=utf-8',
-        reason: ArtifactReason.failure,
+        reason: 'failure',
         source: 'ParsingProvider',
         label: 'ParsingFailed',
       );
@@ -431,7 +460,7 @@ void main() {
         '<html><body>From Zuraffa API!</body></html>',
         id: taskId,
         contentType: 'text/html; charset=utf-8',
-        reason: ArtifactReason.failure,
+        reason: 'failure',
         source: 'ParsingProvider',
         label: 'ParsingFailed',
         metadata: {'url': 'https://example.com/test'},
@@ -457,7 +486,7 @@ void main() {
         jsonEncode({'status': 'awaited', 'taskId': taskId}),
         id: taskId,
         contentType: 'application/json; charset=utf-8',
-        reason: ArtifactReason.debug,
+        reason: 'debug',
         source: 'TestRunner',
         label: 'awaited_test',
       );
