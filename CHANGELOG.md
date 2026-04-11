@@ -1,3 +1,10 @@
+## [4.0.0] - 2026-04-11
+
+### Breaking Change
+- `CleanViewState` now requires three type parameters: `CleanViewState<Page, Controller, State>`. 
+- Existing views must be updated to include the state type (or `void` if no state is used).
+- Updated `zfa` CLI to generate views with the mandatory third type parameter.
+
 ## [3.22.0] - 2026-04-08
 
 ### Feat
