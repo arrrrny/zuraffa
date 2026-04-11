@@ -96,7 +96,11 @@ import 'view.dart';
 ///   // Mobile-specific behavior
 /// }
 /// ```
-abstract class ResponsiveViewState<P extends CleanView, Con extends Controller, S>
+abstract class ResponsiveViewState<
+  P extends CleanView,
+  Con extends Controller,
+  S
+>
     extends CleanViewState<P, Con, S> {
   ResponsiveViewState(super.controller);
 
