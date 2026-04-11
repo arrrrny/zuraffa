@@ -9,6 +9,7 @@ import '../../zuraffa.dart';
 /// Converts Dart [LogRecord]s to OTLP JSON format and batches them
 /// for efficient delivery to the collector's `/v1/logs` endpoint.
 class OtelLogExporter {
+  static final Logger _logger = Logger('OtelLogExporter');
   final Uri collectorBaseEndpoint;
   final String serviceName;
   final String? apiKey;
@@ -59,6 +60,9 @@ class OtelLogExporter {
     final minLevel = Zuraffa.toLevel(remoteLogLevel);
 
     _logSubscription = Logger.root.onRecord.listen((record) {
+      // Filter out our own logs to prevent self-recursion
+      if (record.loggerName == 'OtelLogExporter') return;
+
       if (record.level >= minLevel) {
         _enqueue(record);
       }
@@ -111,15 +115,12 @@ class OtelLogExporter {
       );
 
       if (response.statusCode != 200 && response.statusCode != 202) {
-        // We log locally via print so we don't trigger recursive OTel logging
-        // ignore: avoid_print
-        print(
+        _logger.warning(
           'OTel log export failed: ${response.statusCode} - ${response.body}',
         );
       }
     } catch (e) {
-      // ignore: avoid_print
-      print('OTel log export failed: $e');
+      _logger.warning('OTel log export failed: $e');
       // On failure, we don't requeue right now as logs are typically point-in-time
       // and we don't want to exhaust memory with failing connectivity.
     }

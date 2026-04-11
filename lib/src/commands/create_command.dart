@@ -156,7 +156,7 @@ class ${pascalCaseName}View extends CleanView {
   }
 }
 
-class _${pascalCaseName}ViewState extends CleanViewState<${pascalCaseName}View, ${pascalCaseName}Controller> {
+class _${pascalCaseName}ViewState extends CleanViewState<${pascalCaseName}View, ${pascalCaseName}Controller, void> {
   _${pascalCaseName}ViewState(${pascalCaseName}Controller controller) : super(controller);
 
   @override

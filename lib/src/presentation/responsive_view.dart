@@ -96,8 +96,12 @@ import 'view.dart';
 ///   // Mobile-specific behavior
 /// }
 /// ```
-abstract class ResponsiveViewState<P extends CleanView, Con extends Controller>
-    extends CleanViewState<P, Con> {
+abstract class ResponsiveViewState<
+  P extends CleanView,
+  Con extends Controller,
+  S
+>
+    extends CleanViewState<P, Con, S> {
   ResponsiveViewState(super.controller);
 
   /// The current screen size type.

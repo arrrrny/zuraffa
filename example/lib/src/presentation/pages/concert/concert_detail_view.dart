@@ -29,7 +29,7 @@ class ConcertDetailView extends CleanView {
 }
 
 class _ConcertDetailViewState
-    extends CleanViewState<ConcertDetailView, ConcertController> {
+    extends CleanViewState<ConcertDetailView, ConcertController, ConcertState> {
   _ConcertDetailViewState(super.controller);
 
   @override

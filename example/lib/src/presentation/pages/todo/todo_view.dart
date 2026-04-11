@@ -25,7 +25,8 @@ class TodoView extends CleanView {
   );
 }
 
-class _TodoViewState extends CleanViewState<TodoView, TodoController> {
+class _TodoViewState
+    extends CleanViewState<TodoView, TodoController, TodoState> {
   _TodoViewState(super.controller);
 
   final _textController = TextEditingController();

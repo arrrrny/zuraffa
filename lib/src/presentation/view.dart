@@ -32,7 +32,8 @@ import 'controller.dart';
 ///   State<ProductPage> createState() => _ProductPageState();
 /// }
 ///
-/// class _ProductPageState extends CleanViewState<ProductPage, ProductController> {
+/// class _ProductPageState
+///     extends CleanViewState<ProductPage, ProductController, ProductState> {
 ///   _ProductPageState() : super(ProductController());
 ///
 ///   @override
@@ -42,13 +43,20 @@ import 'controller.dart';
 ///       appBar: AppBar(title: Text('Product')),
 ///       body: ControlledWidgetBuilder<ProductController>(
 ///         builder: (context, controller) {
-///           if (controller.state.isLoading) {
+///           if (controller.viewState.isLoading) {
 ///             return const CircularProgressIndicator();
 ///           }
-///           return ProductDetails(product: controller.state.product);
+///           return ProductDetails(product: controller.viewState.product);
 ///         },
 ///       ),
 ///     );
+///   }
+///
+///   @override
+///   void onViewStateChanged(ProductState state) {
+///     if (state.shouldNavigateToSuccess) {
+///       context.go('/success');
+///     }
 ///   }
 ///
 ///   @override
@@ -87,25 +95,47 @@ abstract class CleanView extends StatefulWidget {
 /// 4. Use `globalKey` on your root widget (usually Scaffold)
 /// 5. Use [ControlledWidgetBuilder] for widgets that need Controller access
 ///
+/// ## Type Parameters
+/// - `P` — The [CleanView] subclass (your page widget)
+/// - `Con` — The [Controller] subclass
+/// - `S` — The state type managed by your controller's [StatefulController]
+///   mixin. Use `void` if your controller doesn't use [StatefulController].
+///
 /// ## Example
 /// ```dart
-/// class _HomePageState extends CleanViewState<HomePage, HomeController> {
-///   _HomePageState() : super(HomeController());
+/// // With StatefulController — typed state changes
+/// class _ProductPageState
+///     extends CleanViewState<ProductPage, ProductController, ProductState> {
+///   _ProductPageState() : super(ProductController());
 ///
 ///   @override
 ///   Widget get view {
 ///     return Scaffold(
 ///       key: globalKey,
-///       body: ControlledWidgetBuilder<HomeController>(
+///       body: ControlledWidgetBuilder<ProductController>(
 ///         builder: (context, controller) {
-///           return Text(controller.state.message);
+///           return Text(controller.viewState.message);
 ///         },
 ///       ),
 ///     );
 ///   }
+///
+///   @override
+///   void onViewStateChanged(ProductState state) {
+///     if (state.isSuccess) context.go('/success');
+///   }
+/// }
+///
+/// // Without StatefulController — use void
+/// class _SimplePageState
+///     extends CleanViewState<SimplePage, SimpleController, void> {
+///   _SimplePageState() : super(SimpleController());
+///
+///   @override
+///   Widget get view => Scaffold(key: globalKey, body: Text('Hello'));
 /// }
 /// ```
-abstract class CleanViewState<P extends CleanView, Con extends Controller>
+abstract class CleanViewState<P extends CleanView, Con extends Controller, S>
     extends State<P>
     with Loggable {
   /// The Controller for this view.
@@ -175,6 +205,36 @@ abstract class CleanViewState<P extends CleanView, Con extends Controller>
   @protected
   void onInitState() {}
 
+  /// Called when the controller state changes.
+  ///
+  /// This method is called whenever the controller calls [Controller.refreshUI]
+  /// and the controller uses [StatefulController]<[S]>. The new state is
+  /// passed with full type safety.
+  ///
+  /// Override this to handle side effects (navigation, showing dialogs, etc.)
+  /// based on state changes.
+  ///
+  /// **Note**: This callback only fires when the controller uses
+  /// [StatefulController]<[S]>. If your controller doesn't use
+  /// [StatefulController], this method is never called.
+  ///
+  /// Example:
+  /// ```dart
+  /// @override
+  /// void onViewStateChanged(ProductState state) {
+  ///   if (state.isSuccess) {
+  ///     context.go('/success');
+  ///   }
+  ///   if (state.error != null) {
+  ///     ScaffoldMessenger.of(context).showSnackBar(
+  ///       SnackBar(content: Text(state.error!.message)),
+  ///     );
+  ///   }
+  /// }
+  /// ```
+  @protected
+  void onViewStateChanged(S state) {}
+
   // ============================================================
   // Flutter Lifecycle
   // ============================================================
@@ -191,8 +251,19 @@ abstract class CleanViewState<P extends CleanView, Con extends Controller>
     // Notify controller
     controller.onInitState();
 
+    // Setup listener for state changes to trigger onViewStateChanged
+    controller.addListener(_handleStateChange);
+
     // Call the overridable onInitState method
     onInitState();
+  }
+
+  void _handleStateChange() {
+    if (!mounted) return;
+
+    if (controller is StatefulController<S>) {
+      onViewStateChanged((controller as StatefulController<S>).viewState);
+    }
   }
 
   @override
@@ -241,6 +312,8 @@ abstract class CleanViewState<P extends CleanView, Con extends Controller>
   @mustCallSuper
   void dispose() {
     logger.fine('dispose');
+
+    controller.removeListener(_handleStateChange);
 
     // Unregister from app lifecycle events
     WidgetsBinding.instance.removeObserver(controller);

@@ -18,7 +18,7 @@ typedef ControlledBuilder<Con extends Controller> =
 ///
 /// ## Example
 /// ```dart
-/// class _ProductPageState extends CleanViewState<ProductPage, ProductController> {
+/// class _ProductPageState extends CleanViewState<ProductPage, ProductController, ProductState> {
 ///   _ProductPageState() : super(ProductController());
 ///
 ///   @override

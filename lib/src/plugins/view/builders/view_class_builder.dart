@@ -415,11 +415,15 @@ class ViewClassBuilder {
         ),
     );
 
+    final stateType = spec.withState && spec.stateClassName != null
+        ? spec.stateClassName!
+        : 'void';
+
     return Class(
       (c) => c
         ..name = '_${spec.viewName}State'
         ..extend = refer(
-          'CleanViewState<${spec.viewName}, ${spec.controllerName}>',
+          'CleanViewState<${spec.viewName}, ${spec.controllerName}, $stateType>',
         )
         ..constructors.add(stateConstructor)
         ..methods.addAll([onInitState, viewGetter]),
