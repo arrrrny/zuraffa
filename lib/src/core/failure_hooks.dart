@@ -165,7 +165,7 @@ class FailureHookManager {
       reason: 'failure',
       source: useCaseName,
       label: failure.runtimeType.toString(),
-      metadata: metadata,
+      metadata: {...metadata, 'failure': failure},
       stackTrace: stackTrace,
       pathSegments: pathSegments,
     );
@@ -189,7 +189,7 @@ class FailureHookManager {
       reason: 'failure',
       source: useCaseName,
       label: failure.runtimeType.toString(),
-      metadata: metadata,
+      metadata: {...metadata, 'failure': failure},
       stackTrace: stackTrace,
       pathSegments: pathSegments,
     );
@@ -264,7 +264,7 @@ class MinIOUploadHook extends ArtifactHook {
   MinIOUploadHook({
     required this.client,
     required this.bucket,
-    bool ensureBucketExists = true,
+    bool ensureBucketExists = false,
     String? pathPrefix,
     String htmlContentType = 'text/html; charset=utf-8',
   }) : _delegate = MinIOArtifactHook(
@@ -281,7 +281,7 @@ class MinIOUploadHook extends ArtifactHook {
     required String secretKey,
     required String bucket,
     String region = 'us-east-1',
-    bool ensureBucketExists = true,
+    bool ensureBucketExists = false,
     String? pathPrefix,
     String htmlContentType = 'text/html; charset=utf-8',
   }) {
@@ -339,7 +339,7 @@ extension ResultFailureHooks<S, F extends AppFailure> on Result<S, F> {
         reason: 'failure',
         source: useCaseName,
         label: error.runtimeType.toString(),
-        metadata: metadata,
+        metadata: {...metadata, 'failure': error},
         stackTrace: st,
         pathSegments: pathSegments,
       );

@@ -60,6 +60,9 @@ class OtelLogExporter {
     final minLevel = Zuraffa.toLevel(remoteLogLevel);
 
     _logSubscription = Logger.root.onRecord.listen((record) {
+      // Filter out our own logs to prevent self-recursion
+      if (record.loggerName == 'OtelLogExporter') return;
+
       if (record.level >= minLevel) {
         _enqueue(record);
       }

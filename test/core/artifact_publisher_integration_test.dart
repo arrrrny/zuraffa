@@ -86,7 +86,7 @@ void main() {
   });
 
   tearDownAll(() {
-    publisher.dispose();
+    publisher.clear();
     client.close();
   });
 

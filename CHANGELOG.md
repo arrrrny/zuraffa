@@ -9,7 +9,8 @@
 ### Fix
 - Replaced `print()` calls in `OtelLogExporter` with `Logger` to allow silencing in tests and avoid recursive OTel logging
 - Fixed `artifact_publisher_integration_test.dart` to skip cleanly when MinIO env vars are not set
-- Created `dart_test.yaml` to exclude integration tests by default
+- Created `dart_test.yaml` for Dart test configuration with integration test exclusion
+- Disabled automatic bucket creation in `MinIOArtifactHook` and `MinIOUploadHook` (changed `ensureBucketExists` default from `true` to `false`)
 
 ### Chore
 - Removed temp test files with hardcoded credentials from the repository

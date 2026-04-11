@@ -1,2 +1,1 @@
-exclude:
-  # - 'integration'
+exclude_tags: integration

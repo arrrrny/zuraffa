@@ -1,6 +1,5 @@
 library;
 
-import 'src/core/failure.dart';
 import 'src/core/failure_hooks.dart';
 import 'src/core/failure_reporter.dart';
 import 'src/core/failure_reporter_registry.dart';
@@ -70,7 +69,7 @@ import 'src/core/retry_policy.dart';
 ///   State<UserPage> createState() => _UserPageState();
 /// }
 ///
-/// class _UserPageState extends CleanViewState<UserPage, UserController> {
+/// class _UserPageState extends CleanViewState<UserPage, UserController, void> {
 ///   _UserPageState() : super(UserController(getIt<UserRepository>()));
 ///
 ///   @override
@@ -179,7 +178,7 @@ export 'src/core/failure_reporter_registry.dart' show FailureReporterRegistry;
 export 'src/core/otel_failure_reporter.dart' show OtelFailureReporter;
 export 'src/core/otel_log_exporter.dart' show OtelLogExporter;
 export 'src/core/otel_tracer.dart' show OtelTracer;
-export 'package:opentelemetry/api.dart' show Attribute, SpanKind;
+export 'package:opentelemetry/api.dart';
 export 'src/core/retry_policies.dart'
     show ExponentialBackoffRetryPolicy, FixedIntervalRetryPolicy, NoRetryPolicy;
 export 'src/core/retry_policy.dart' show ReportRetryPolicy;
@@ -627,7 +626,7 @@ class Zuraffa {
     required String secretKey,
     required String bucket,
     String region = 'us-east-1',
-    bool ensureBucketExists = true,
+    bool ensureBucketExists = false,
     String? pathPrefix,
     bool includeReasonInKey = true,
     bool includeSourceInKey = true,
@@ -785,7 +784,7 @@ class Zuraffa {
     required String secretKey,
     required String bucket,
     String region = 'us-east-1',
-    bool ensureBucketExists = true,
+    bool ensureBucketExists = false,
     String? pathPrefix,
     String htmlContentType = 'text/html; charset=utf-8',
   }) {

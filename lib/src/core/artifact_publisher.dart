@@ -517,7 +517,7 @@ class MinIOArtifactHook extends ArtifactHook {
 
   /// Whether to create the bucket if it doesn't exist on first upload.
   ///
-  /// Defaults to `true`.
+  /// Defaults to `false`.
   final bool ensureBucketExists;
 
   /// Optional path prefix prepended to every object key.
@@ -566,7 +566,7 @@ class MinIOArtifactHook extends ArtifactHook {
   MinIOArtifactHook({
     required this.client,
     required this.bucket,
-    this.ensureBucketExists = true,
+    this.ensureBucketExists = false,
     this.pathPrefix,
     this.includeReasonInKey = true,
     this.includeSourceInKey = true,
@@ -580,7 +580,7 @@ class MinIOArtifactHook extends ArtifactHook {
     required String secretKey,
     required String bucket,
     String region = 'us-east-1',
-    bool ensureBucketExists = true,
+    bool ensureBucketExists = false,
     String? pathPrefix,
     bool includeReasonInKey = true,
     bool includeSourceInKey = true,

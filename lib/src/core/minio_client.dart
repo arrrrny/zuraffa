@@ -102,10 +102,21 @@ class MinioClient {
       await _delegate.makeBucket(bucket, region);
       _logger.info('Bucket created: $bucket');
       return true;
-    } catch (e) {
-      // Bucket may already exist — treat as success
-      _logger.fine('ensureBucket for $bucket: $e');
-      return true;
+    } catch (e, stackTrace) {
+      _logger.warning(
+        'makeBucket failed for $bucket; checking whether bucket already exists',
+        e,
+        stackTrace,
+      );
+
+      final exists = await bucketExists(bucket);
+      if (exists) {
+        _logger.fine('Bucket already exists or is accessible: $bucket');
+        return true;
+      }
+
+      _logger.severe('ensureBucket failed for $bucket', e, stackTrace);
+      return false;
     }
   }
 
@@ -202,11 +213,11 @@ class MinioClient {
   Future<String?> getObject(String bucket, String key) async {
     try {
       final stream = await _delegate.getObject(bucket, key);
-      final bytes = await stream.fold<Uint8List>(
-        Uint8List(0),
-        (prev, chunk) => Uint8List.fromList([...prev, ...chunk]),
-      );
-      return utf8.decode(bytes);
+      final bytesBuilder = BytesBuilder(copy: false);
+      await for (final chunk in stream) {
+        bytesBuilder.add(chunk);
+      }
+      return utf8.decode(bytesBuilder.takeBytes());
     } catch (e, stackTrace) {
       _logger.severe('GET failed for $bucket/$key', e, stackTrace);
       return null;

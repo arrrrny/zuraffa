@@ -90,7 +90,7 @@ class ExtensionMethodAppendStrategy implements AppendStrategy {
           source: updated,
           changed: updated != request.source,
           message: request.force
-              ? 'Method forced replaced in extension'
+              ? 'Method forcibly replaced in extension'
               : 'Method replaced in extension',
         );
       }
