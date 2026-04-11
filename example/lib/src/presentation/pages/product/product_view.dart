@@ -27,7 +27,8 @@ class ProductView extends CleanView {
   }
 }
 
-class _ProductViewState extends CleanViewState<ProductView, ProductController> {
+class _ProductViewState
+    extends CleanViewState<ProductView, ProductController, void> {
   _ProductViewState(super.controller);
 
   @override
