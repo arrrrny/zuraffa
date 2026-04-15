@@ -34,27 +34,24 @@ void main() {
       if (useCompiledBinary) {
         return Process.run(zfaBin, args, workingDirectory: workingDirectory);
       } else {
-        return Process.run(
-          'dart',
-          ['run', zfaBin, ...args],
-          workingDirectory: workingDirectory,
-        );
+        return Process.run('dart', [
+          'run',
+          zfaBin,
+          ...args,
+        ], workingDirectory: workingDirectory);
       }
     }
 
     /// Starts the zfa CLI as a live process (for stdin tests).
-    Future<Process> startZfa(
-      List<String> args, {
-      String? workingDirectory,
-    }) {
+    Future<Process> startZfa(List<String> args, {String? workingDirectory}) {
       if (useCompiledBinary) {
         return Process.start(zfaBin, args, workingDirectory: workingDirectory);
       } else {
-        return Process.start(
-          'dart',
-          ['run', zfaBin, ...args],
-          workingDirectory: workingDirectory,
-        );
+        return Process.start('dart', [
+          'run',
+          zfaBin,
+          ...args,
+        ], workingDirectory: workingDirectory);
       }
     }
 
@@ -836,10 +833,9 @@ void main() {
         final tempDir = await Directory.systemTemp.createTemp('zfa_edge_');
         addTearDown(() => tempDir.delete(recursive: true));
 
-        final result = await runZfa(
-          ['--version'],
-          workingDirectory: tempDir.path,
-        );
+        final result = await runZfa([
+          '--version',
+        ], workingDirectory: tempDir.path);
 
         expect(result.exitCode, equals(0));
         expect(result.stdout.toString(), contains('zfa'));
@@ -849,10 +845,10 @@ void main() {
         final tempDir = await Directory.systemTemp.createTemp('zfa_edge_');
         addTearDown(() => tempDir.delete(recursive: true));
 
-        final result = await runZfa(
-          ['generate', '--help'],
-          workingDirectory: tempDir.path,
-        );
+        final result = await runZfa([
+          'generate',
+          '--help',
+        ], workingDirectory: tempDir.path);
 
         expect(result.exitCode, equals(0));
         expect(result.stdout.toString(), contains('OPTIONS'));

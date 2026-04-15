@@ -29,7 +29,11 @@ void main() {
     if (useCompiledBinary) {
       return Process.run(zfaBin, args, workingDirectory: workingDirectory);
     } else {
-      return Process.run('dart', ['run', zfaBin, ...args], workingDirectory: workingDirectory);
+      return Process.run('dart', [
+        'run',
+        zfaBin,
+        ...args,
+      ], workingDirectory: workingDirectory);
     }
   }
 
@@ -48,8 +52,17 @@ void main() {
       '--force',
     ], workingDirectory: tempDir.path);
 
-    expect(result.exitCode, equals(0), reason: '${result.stderr}\n${result.stdout}');
-    expect(File('$outputDir/domain/repositories/product_repository.dart').existsSync(), isTrue);
+    expect(
+      result.exitCode,
+      equals(0),
+      reason: '${result.stderr}\n${result.stdout}',
+    );
+    expect(
+      File(
+        '$outputDir/domain/repositories/product_repository.dart',
+      ).existsSync(),
+      isTrue,
+    );
   });
 
   test('cli generate from json keeps config format', () async {
@@ -78,17 +91,31 @@ void main() {
       '--force',
     ], workingDirectory: tempDir.path);
 
-    expect(result.exitCode, equals(0), reason: '${result.stderr}\n${result.stdout}');
-    expect(File('$outputDir/domain/repositories/order_repository.dart').existsSync(), isTrue);
+    expect(
+      result.exitCode,
+      equals(0),
+      reason: '${result.stderr}\n${result.stdout}',
+    );
+    expect(
+      File('$outputDir/domain/repositories/order_repository.dart').existsSync(),
+      isTrue,
+    );
   });
 
   test('cli plugin list prints available plugins', () async {
     final tempDir = await Directory.systemTemp.createTemp('zfa_cli_plugins_');
     addTearDown(() => tempDir.delete(recursive: true));
 
-    final result = await runZfa(['plugin', 'list'], workingDirectory: tempDir.path);
+    final result = await runZfa([
+      'plugin',
+      'list',
+    ], workingDirectory: tempDir.path);
 
-    expect(result.exitCode, equals(0), reason: '${result.stderr}\n${result.stdout}');
+    expect(
+      result.exitCode,
+      equals(0),
+      reason: '${result.stderr}\n${result.stdout}',
+    );
     expect(result.stdout.toString(), contains('repository'));
     expect(result.stdout.toString(), contains('usecase'));
   });
@@ -99,18 +126,42 @@ void main() {
     final configFile = File('${tempDir.path}/.zfa.json');
     await configFile.writeAsString('{}');
 
-    final disableResult = await runZfa(['plugin', 'disable', 'view'], workingDirectory: tempDir.path);
-    expect(disableResult.exitCode, equals(0), reason: '${disableResult.stderr}\n${disableResult.stdout}');
+    final disableResult = await runZfa([
+      'plugin',
+      'disable',
+      'view',
+    ], workingDirectory: tempDir.path);
+    expect(
+      disableResult.exitCode,
+      equals(0),
+      reason: '${disableResult.stderr}\n${disableResult.stdout}',
+    );
 
-    final disabledConfig = jsonDecode(await configFile.readAsString()) as Map<String, dynamic>;
-    final disabledPlugins = (disabledConfig['plugins']?['disabled'] as List<dynamic>? ?? []).map((e) => e.toString()).toList();
+    final disabledConfig =
+        jsonDecode(await configFile.readAsString()) as Map<String, dynamic>;
+    final disabledPlugins =
+        (disabledConfig['plugins']?['disabled'] as List<dynamic>? ?? [])
+            .map((e) => e.toString())
+            .toList();
     expect(disabledPlugins.contains('view'), isTrue);
 
-    final enableResult = await runZfa(['plugin', 'enable', 'view'], workingDirectory: tempDir.path);
-    expect(enableResult.exitCode, equals(0), reason: '${enableResult.stderr}\n${enableResult.stdout}');
+    final enableResult = await runZfa([
+      'plugin',
+      'enable',
+      'view',
+    ], workingDirectory: tempDir.path);
+    expect(
+      enableResult.exitCode,
+      equals(0),
+      reason: '${enableResult.stderr}\n${enableResult.stdout}',
+    );
 
-    final enabledConfig = jsonDecode(await configFile.readAsString()) as Map<String, dynamic>;
-    final enabledPlugins = (enabledConfig['plugins']?['disabled'] as List<dynamic>? ?? []).map((e) => e.toString()).toList();
+    final enabledConfig =
+        jsonDecode(await configFile.readAsString()) as Map<String, dynamic>;
+    final enabledPlugins =
+        (enabledConfig['plugins']?['disabled'] as List<dynamic>? ?? [])
+            .map((e) => e.toString())
+            .toList();
     expect(enabledPlugins.contains('view'), isFalse);
   });
 
@@ -132,10 +183,29 @@ void main() {
       '--force',
     ], workingDirectory: tempDir.path);
 
-    expect(result.exitCode, equals(0), reason: '${result.stderr}\n${result.stdout}');
-    expect(File('$outputDir/presentation/pages/product/product_controller.dart').existsSync(), isTrue);
-    expect(File('$outputDir/presentation/pages/product/product_presenter.dart').existsSync(), isTrue);
-    expect(File('$outputDir/presentation/pages/product/product_view.dart').existsSync(), isFalse);
+    expect(
+      result.exitCode,
+      equals(0),
+      reason: '${result.stderr}\n${result.stdout}',
+    );
+    expect(
+      File(
+        '$outputDir/presentation/pages/product/product_controller.dart',
+      ).existsSync(),
+      isTrue,
+    );
+    expect(
+      File(
+        '$outputDir/presentation/pages/product/product_presenter.dart',
+      ).existsSync(),
+      isTrue,
+    );
+    expect(
+      File(
+        '$outputDir/presentation/pages/product/product_view.dart',
+      ).existsSync(),
+      isFalse,
+    );
   });
 
   test('cli debug saves artifacts', () async {
@@ -153,7 +223,11 @@ void main() {
       '--force',
     ], workingDirectory: tempDir.path);
 
-    expect(result.exitCode, equals(0), reason: '${result.stderr}\n${result.stdout}');
+    expect(
+      result.exitCode,
+      equals(0),
+      reason: '${result.stderr}\n${result.stdout}',
+    );
     final debugDir = Directory('${tempDir.path}/.zfa_debug');
     expect(debugDir.existsSync(), isTrue);
     final entries = debugDir.listSync().whereType<Directory>().toList();
