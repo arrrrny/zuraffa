@@ -49,7 +49,13 @@ class DiscoveryEngine {
       for (final path in pendingFiles) {
         final base = p.basename(path);
         if (base == fileName || base == snakeName) {
-          if (path.startsWith(searchBase)) {
+          final absolutePath = p.isAbsolute(path)
+              ? p.canonicalize(path)
+              : p.canonicalize(p.join(projectRoot, path));
+          final absoluteSearchBase = p.isAbsolute(searchBase)
+              ? p.canonicalize(searchBase)
+              : p.canonicalize(p.join(projectRoot, searchBase));
+          if (absolutePath.startsWith(absoluteSearchBase)) {
             return File(path);
           }
         }
@@ -155,7 +161,13 @@ class DiscoveryEngine {
       for (final path in pendingFiles) {
         final base = p.basename(path);
         if (base == fileName || base == snakeName) {
-          if (path.startsWith(searchBase)) {
+          final absolutePath = p.isAbsolute(path)
+              ? p.canonicalize(path)
+              : p.canonicalize(p.join(projectRoot, path));
+          final absoluteSearchBase = p.isAbsolute(searchBase)
+              ? p.canonicalize(searchBase)
+              : p.canonicalize(p.join(projectRoot, searchBase));
+          if (absolutePath.startsWith(absoluteSearchBase)) {
             return File(path);
           }
         }

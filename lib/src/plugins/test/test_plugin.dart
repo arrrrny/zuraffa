@@ -52,6 +52,24 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   String? get configKey => 'testByDefault';
 
   @override
+  List<String> get runAfter => [
+    'usecase',
+    'repository',
+    'service',
+    'datasource',
+    'provider',
+    'view',
+    'presenter',
+    'controller',
+    'di',
+    'feature',
+    'gql',
+    'cache',
+    'route',
+    'shadcn',
+  ];
+
+  @override
   JsonSchema get configSchema => {'type': 'object', 'properties': {}};
 
   @override
@@ -67,13 +85,21 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       methods: context.data['methods']?.cast<String>().toList() ?? [],
       usecases: context.data['usecases']?.cast<String>().toList() ?? [],
       variants: context.data['variants']?.cast<String>().toList() ?? [],
-      noEntity: context.data['no-entity'] == true,
-      domain: context.data['domain'],
-      repo: context.data['repo'],
-      service: context.data['service'],
-      generateData: context.data['data'] == true,
-      generateDataSource: context.data['datasource'] == true,
-      generateRepository: context.data['repository'] == true,
+      noEntity: context.get<bool>('no-entity') ?? false,
+      domain: context.get<String>('domain'),
+      repo: context.get<String>('repo'),
+      service: context.get<String>('service'),
+      useService:
+          context.data['use-service'] == true ||
+          context.data['useService'] == true,
+      generateData:
+          context.data['data'] == true || context.data['generateData'] == true,
+      generateDataSource:
+          context.data['datasource'] == true ||
+          context.data['generateDataSource'] == true,
+      generateRepository:
+          context.data['repository'] == true ||
+          context.data['generateRepository'] == true,
     );
 
     return generate(config, context: context);

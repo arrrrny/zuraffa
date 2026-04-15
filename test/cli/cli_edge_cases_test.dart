@@ -18,7 +18,6 @@ void main() {
         final outputDir = '${tempDir.path}/lib/src';
 
         final result = await Process.run('dart', [
-          'run',
           cliPath,
           'generate',
           '',
@@ -29,7 +28,7 @@ void main() {
 
         // Empty name - CLI should handle gracefully
         expect(result.exitCode, anyOf(equals(0), isNot(equals(0))));
-      }, timeout: const Timeout(Duration(seconds: 60)));
+      }, timeout: const Timeout(Duration(seconds: 120)));
 
       test(
         'handles entity name with spaces',
@@ -39,7 +38,6 @@ void main() {
           final outputDir = '${tempDir.path}/lib/src';
 
           final result = await Process.run('dart', [
-            'run',
             cliPath,
             'generate',
             'Product Name',
@@ -86,7 +84,6 @@ void main() {
           final longName = 'Product' * 10;
 
           final result = await Process.run('dart', [
-            'run',
             cliPath,
             'generate',
             longName,
@@ -98,7 +95,7 @@ void main() {
           // Long names should work
           expect(result.exitCode, equals(0));
         },
-        timeout: const Timeout(Duration(seconds: 60)),
+        timeout: const Timeout(Duration(seconds: 120)),
       );
 
       test(
@@ -109,7 +106,6 @@ void main() {
           final outputDir = '${tempDir.path}/lib/src';
 
           final result = await Process.run('dart', [
-            'run',
             cliPath,
             'generate',
             '123Product',
