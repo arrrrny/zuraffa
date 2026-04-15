@@ -28,7 +28,7 @@ void main() {
 
         // Empty name - CLI should handle gracefully
         expect(result.exitCode, anyOf(equals(0), isNot(equals(0))));
-      }, timeout: const Timeout(Duration(seconds: 120)));
+      }, timeout: const Timeout(Duration(seconds: 60)));
 
       test(
         'handles entity name with spaces',
