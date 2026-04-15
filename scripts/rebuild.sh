@@ -37,11 +37,16 @@ if [ -d "$DART_TOOL_BIN" ]; then
     rm -rf "$DART_TOOL_BIN"
 fi
 
-# Clear build cache
+# Clear build cache and hooks runner
 BUILD_CACHE="$PACKAGE_DIR/.dart_tool/build_cache"
+HOOKS_RUNNER="$PACKAGE_DIR/.dart_tool/hooks_runner"
 if [ -d "$BUILD_CACHE" ]; then
     echo "🗑️  Clearing build cache..."
     rm -rf "$BUILD_CACHE"
+fi
+if [ -d "$HOOKS_RUNNER" ]; then
+    echo "🗑️  Clearing hooks runner..."
+    rm -rf "$HOOKS_RUNNER"
 fi
 
 # Clear any .dill and .snap files in .dart_tool
@@ -58,25 +63,35 @@ mkdir -p "$PUB_BIN"
 # Remove existing binaries to prevent UTF-8 decode errors during activation
 rm -f "$PUB_BIN/zfa" "$PUB_BIN/zuraffa_mcp_server" 2>/dev/null || true
 
-# Activate the package globally FIRST (before build/ exists)
+# Activate the package globally
 echo "🌍 Activating package globally..."
 dart pub global activate --source=path .
 
-# Compile binaries to AOT executables (after activation to avoid binary scan issues)
+# Compile binaries to AOT executables
+# We attempt dart build cli first as it's the official way to handle projects with build hooks.
+# If it fails, we fall back to dart compile exe which is more direct.
 echo "🔨 Compiling zfa CLI to executable..."
 mkdir -p "$PACKAGE_DIR/build"
-dart build cli --target=bin/zfa.dart -o "$PACKAGE_DIR/build/zfa_bundle"
+
+if dart build cli --target=bin/zfa.dart -o "$PACKAGE_DIR/build/zfa_bundle"; then
+    cp "$PACKAGE_DIR/build/zfa_bundle/bundle/bin/zfa" "$PUB_BIN/zfa"
+else
+    echo "  ⚠️  dart build cli failed, attempting dart compile exe..."
+    dart compile exe bin/zfa.dart -o "$PUB_BIN/zfa"
+fi
 
 echo "🔨 Compiling zuraffa_mcp_server to executable..."
-dart build cli --target=bin/zuraffa_mcp_server.dart -o "$PACKAGE_DIR/build/mcp_server_bundle"
+if dart build cli --target=bin/zuraffa_mcp_server.dart -o "$PACKAGE_DIR/build/mcp_server_bundle"; then
+    cp "$PACKAGE_DIR/build/mcp_server_bundle/bundle/bin/zuraffa_mcp_server" "$PUB_BIN/zuraffa_mcp_server"
+else
+    echo "  ⚠️  dart build cli failed, attempting dart compile exe..."
+    dart compile exe bin/zuraffa_mcp_server.dart -o "$PUB_BIN/zuraffa_mcp_server"
+fi
 
-# Install compiled binaries (overrides pub's JIT wrappers)
-echo "📝 Installing compiled binaries..."
-cp "$PACKAGE_DIR/build/zfa_bundle/bundle/bin/zfa" "$PUB_BIN/zfa"
-chmod +x "$PUB_BIN/zfa"
-
-cp "$PACKAGE_DIR/build/mcp_server_bundle/bundle/bin/zuraffa_mcp_server" "$PUB_BIN/zuraffa_mcp_server"
-chmod +x "$PUB_BIN/zuraffa_mcp_server"
+echo "📝 Ensuring permissions for binaries..."
+chmod +x "$PUB_BIN/zfa" 2>/dev/null || true
+chmod +x "$PUB_BIN/zuraffa" 2>/dev/null || true
+chmod +x "$PUB_BIN/zuraffa_mcp_server" 2>/dev/null || true
 
 echo ""
 echo "✅ Rebuild complete!"

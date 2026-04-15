@@ -8,7 +8,6 @@ import 'package:opentelemetry/api.dart'
         StatusCode,
         contextWithSpan,
         globalTracerProvider,
-        spanFromContext,
         Tracer;
 
 // ---------------------------------------------------------------------------
@@ -94,8 +93,7 @@ class OtelTracer {
   /// so you can cross-reference from storage back to the trace.
   String? get currentTraceId {
     try {
-      final ctx = Context.current;
-      final spanCtx = spanFromContext(ctx).spanContext;
+      final spanCtx = Context.current.spanContext;
       if (!spanCtx.isValid) return null;
       final id = spanCtx.traceId.toString();
       // Guard against the all-zeros invalid trace id
@@ -112,8 +110,7 @@ class OtelTracer {
   /// `'00f067aa0ba902b7'`
   String? get currentSpanId {
     try {
-      final ctx = Context.current;
-      final spanCtx = spanFromContext(ctx).spanContext;
+      final spanCtx = Context.current.spanContext;
       if (!spanCtx.isValid) return null;
       final id = spanCtx.spanId.toString();
       return (id.isEmpty || RegExp(r'^0+$').hasMatch(id)) ? null : id;
@@ -208,13 +205,14 @@ class OtelTracer {
     try {
       final result = await fn();
       endSpan(span);
+      // ignore: experimental_member_use
+      Context.detach(token);
       return result;
     } catch (e, st) {
       endSpanWithError(span, e, st);
-      rethrow;
-    } finally {
       // ignore: experimental_member_use
       Context.detach(token);
+      rethrow;
     }
   }
 
@@ -234,13 +232,14 @@ class OtelTracer {
     try {
       final result = fn();
       endSpan(span);
+      // ignore: experimental_member_use
+      Context.detach(token);
       return result;
     } catch (e, st) {
       endSpanWithError(span, e, st);
-      rethrow;
-    } finally {
       // ignore: experimental_member_use
       Context.detach(token);
+      rethrow;
     }
   }
 
