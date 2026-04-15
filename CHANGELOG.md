@@ -1,3 +1,11 @@
+## [4.0.2] - 2026-04-15
+
+### Fix
+
+- Standardized MCP server and CLI release assets to use raw .gz format for direct Zed decompression.
+- Unified OS naming to macos and architecture detection for better Zed extension compatibility.
+- Fixed internal binary structure in release archives by removing redundant bundle/ subdirectory.
+- Updated Zed extension logic to support flexible platform mapping and fallback mechanisms.
 ## [4.0.1] - 2026-04-15
 
 ### Change
