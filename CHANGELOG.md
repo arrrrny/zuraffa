@@ -1,3 +1,8 @@
+## [4.0.3] - 2026-04-15
+
+### Change
+- Add multi-platform GitHub Actions
+
 ## [4.0.2] - 2026-04-15
 
 ### Change
