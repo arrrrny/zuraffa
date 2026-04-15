@@ -1,5 +1,10 @@
 ## [4.0.2] - 2026-04-15
 
+### Change
+- Release 4.0.2
+
+## [4.0.2] - 2026-04-15
+
 ### Fix
 
 - Standardized MCP server and CLI release assets to use raw .gz format for direct Zed decompression.
