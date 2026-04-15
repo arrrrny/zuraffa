@@ -45,6 +45,19 @@ jobs:
       - name: Build CLI binary
         run: dart build cli --target=bin/zfa.dart -o build_cli
 
+      - name: Extract raw binaries for Zed extension (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cp build_mcp/bundle/bin/zuraffa_mcp_server ${{ matrix.output }}
+          cp build_cli/bundle/bin/zfa ${{ matrix.cli_output }}
+          chmod +x ${{ matrix.output }} ${{ matrix.cli_output }}
+
+      - name: Extract raw binaries for Zed extension (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          copy build_mcp\bundle\bin\zuraffa_mcp_server.exe ${{ matrix.output }}
+          copy build_cli\bundle\bin\zfa.exe ${{ matrix.cli_output }}
+
       - name: Create archive (Unix)
         if: runner.os != 'Windows'
         run: |
@@ -64,8 +77,32 @@ jobs:
           path: |
             *.tar.gz
             *.zip
+            ${{ matrix.output }}
+            ${{ matrix.cli_output }}
 
-      - name: Upload MCP to release (Unix)
+      - name: Upload MCP raw binary to release (Unix)
+        if: github.event_name == 'release' && runner.os != 'Windows'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./${{ matrix.output }}
+          asset_name: ${{ matrix.output }}
+          asset_content_type: application/octet-stream
+
+      - name: Upload CLI raw binary to release (Unix)
+        if: github.event_name == 'release' && runner.os != 'Windows'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./${{ matrix.cli_output }}
+          asset_name: ${{ matrix.cli_output }}
+          asset_content_type: application/octet-stream
+
+      - name: Upload MCP tar.gz to release (Unix)
         if: github.event_name == 'release' && runner.os != 'Windows'
         uses: actions/upload-release-asset@v1
         env:
@@ -76,7 +113,7 @@ jobs:
           asset_name: ${{ matrix.output }}.tar.gz
           asset_content_type: application/gzip
 
-      - name: Upload CLI to release (Unix)
+      - name: Upload CLI tar.gz to release (Unix)
         if: github.event_name == 'release' && runner.os != 'Windows'
         uses: actions/upload-release-asset@v1
         env:
@@ -87,7 +124,29 @@ jobs:
           asset_name: ${{ matrix.cli_output }}.tar.gz
           asset_content_type: application/gzip
 
-      - name: Upload MCP to release (Windows)
+      - name: Upload MCP raw binary to release (Windows)
+        if: github.event_name == 'release' && runner.os == 'Windows'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./${{ matrix.output }}
+          asset_name: ${{ matrix.output }}
+          asset_content_type: application/octet-stream
+
+      - name: Upload CLI raw binary to release (Windows)
+        if: github.event_name == 'release' && runner.os == 'Windows'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./${{ matrix.cli_output }}
+          asset_name: ${{ matrix.cli_output }}
+          asset_content_type: application/octet-stream
+
+      - name: Upload MCP zip to release (Windows)
         if: github.event_name == 'release' && runner.os == 'Windows'
         uses: actions/upload-release-asset@v1
         env:
@@ -98,7 +157,7 @@ jobs:
           asset_name: ${{ matrix.output }}.zip
           asset_content_type: application/zip
 
-      - name: Upload CLI to release (Windows)
+      - name: Upload CLI zip to release (Windows)
         if: github.event_name == 'release' && runner.os == 'Windows'
         uses: actions/upload-release-asset@v1
         env:
