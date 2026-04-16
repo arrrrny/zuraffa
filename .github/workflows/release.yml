@@ -26,10 +26,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@v1
         with:
-          flutter-version: stable
-          channel: stable
+          flutter-version: "3.24.0"
 
       - name: Install deps
         run: flutter pub get
