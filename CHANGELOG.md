@@ -1,3 +1,8 @@
+## [4.0.5] - 2026-04-16
+
+### Change
+- Release 4.0.5
+
 ## [Unreleased]
 
 ### Fixed
