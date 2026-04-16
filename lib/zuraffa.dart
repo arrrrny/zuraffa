@@ -333,11 +333,26 @@ class Zuraffa {
   static Environment _environment = Environment.development;
   static bool _isDebugMode = true;
 
+  static bool _disableCache = false;
   /// Get the current application environment.
   static Environment get environment => _environment;
 
   /// Returns true if the application is running in debug mode.
   static bool get isDebugMode => _isDebugMode;
+  /// Returns true if caching is globally disabled.
+  ///
+  /// When true, all [CachePolicy.isValid] calls should return false,
+  /// forcing fresh data to be fetched from remote sources.
+  static bool get disableCache => _disableCache;
+
+  /// Globally disable or enable caching.
+  ///
+  /// Set this to `true` to bypass all caches (e.g., in debug mode
+  /// or when a remote config flag requests it).
+  static set disableCache(bool value) {
+    _disableCache = value;
+    Logger.root.info('Zuraffa cache disabled: $value');
+  }
 
   /// Set the application environment and debug mode.
   ///
