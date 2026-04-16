@@ -16,15 +16,12 @@ jobs:
           - os: macos-latest
             platform: macos
             arch: arm64
-            ext: ""
           - os: macos-14
             platform: macos
             arch: x64
-            ext: ""
           - os: windows-latest
             platform: windows
             arch: x64
-            ext: .exe
 
     steps:
       - uses: actions/checkout@v4
@@ -38,39 +35,39 @@ jobs:
         run: flutter pub get
 
       - name: Build MCP Server
-        run: flutter pub run build_runner build --delete-conflicting-outputs || dart build cli --target=bin/zuraffa_mcp_server.dart -o build/mcp
+        run: dart build cli --target=bin/zuraffa_mcp_server.dart -o build/mcp
 
       - name: Build CLI
         run: dart build cli --target=bin/zfa.dart -o build/cli
 
-      - name: Prepare raw binaries for Zed
+      - name: Prepare binaries
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
-          PLATFORM_TAG="${{ matrix.platform }}-${{ matrix.arch }}"
+          PLATFORM="${{ matrix.platform }}-${{ matrix.arch }}"
+          EXT="${{ matrix.platform == 'windows' && '.exe' || '' }}"
 
-          # Raw binary for Zed (uncompressed)
-          cp build/mcp/bundle/bin/zuraffa_mcp_server${{ matrix.ext }} "zuraffa_mcp_server-$PLATFORM_TAG${{ matrix.ext }}"
-          cp build/cli/bundle/bin/zfa${{ matrix.ext }} "zfa-$PLATFORM_TAG${{ matrix.ext }}"
+          # Raw binaries for Zed
+          cp build/mcp/bundle/bin/zuraffa_mcp_server$EXT "zuraffa_mcp_server-$PLATFORM$EXT"
+          cp build/cli/bundle/bin/zfa$EXT "zfa-$PLATFORM$EXT"
+          chmod +x "zuraffa_mcp_server-$PLATFORM$EXT" "zfa-$PLATFORM$EXT"
 
-          chmod +x "zuraffa_mcp_server-$PLATFORM_TAG${{ matrix.ext }}" "zfa-$PLATFORM_TAG${{ matrix.ext }}"
+          # Archives for users
+          cp -r build/mcp/bundle zuraffa_mcp_server
+          cp -r build/cli/bundle zfa
+          tar -czf "zuraffa_mcp_server-$PLATFORM-v$VERSION.tar.gz" zuraffa_mcp_server
+          tar -czf "zfa-$PLATFORM-v$VERSION.tar.gz" zfa
 
-      - name: Prepare archives for users
+      - name: Set output path
+        id: paths
         run: |
+          PLATFORM="${{ matrix.platform }}-${{ matrix.arch }}"
           VERSION=${GITHUB_REF#refs/tags/v}
-          PLATFORM_TAG="${{ matrix.platform }}-${{ matrix.arch }}"
-
-          cp -r build/mcp/bundle "zuraffa_mcp_server"
-          cp -r build/cli/bundle "zfa"
-
-          tar -czf "zuraffa_mcp_server-$PLATFORM_TAG-v$VERSION.tar.gz" zuraffa_mcp_server
-          tar -czf "zfa-$PLATFORM_TAG-v$VERSION.tar.gz" zfa
+          echo "files_to_upload=zuraffa_mcp_server-$PLATFORM*,zfa-$PLATFORM*" >> $GITHUB_OUTPUT
 
       - name: Upload Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            zuraffa_mcp_server-${{ matrix.platform }}-${{ matrix.arch }}*
-            zfa-${{ matrix.platform }}-${{ matrix.arch }}*
+          files: ${{ steps.paths.outputs.files_to_upload }}
           tag_name: ${{ github.ref }}
           generate_release_notes: true
         env:

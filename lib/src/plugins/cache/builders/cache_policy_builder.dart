@@ -77,6 +77,10 @@ extension CacheBuilderPolicy on CacheBuilder {
 
     final policyCall = refer(policyClass).call([], policyArguments);
 
+    final disableCacheCheck = Code(
+      "if (Zuraffa.disableCache) {\n    return DisabledCachePolicy();\n  }",
+    );
+
     final method = Method(
       (m) => m
         ..name = policyName
@@ -84,6 +88,7 @@ extension CacheBuilderPolicy on CacheBuilder {
         ..docs.add('/// Auto-generated cache policy')
         ..body = Block(
           (b) => b
+            ..statements.add(disableCacheCheck)
             ..statements.add(timestampBoxDecl.statement)
             ..statements.add(policyCall.returned.statement),
         ),
