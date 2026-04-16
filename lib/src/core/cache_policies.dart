@@ -154,3 +154,46 @@ class TtlCachePolicy implements CachePolicy {
     await _clearAll();
   }
 }
+
+/// A cache policy decorator that completely disables caching.
+///
+/// When active, [isValid] always returns false, forcing all repositories
+/// to fetch fresh data. [markFresh] and [invalidate] are no-ops.
+///
+/// This is useful for debug mode or when a remote config flag disables cache.
+///
+/// ## Example
+/// ```dart
+/// // Wrap any policy to disable it
+/// final policy = DisabledCachePolicy(DailyCachePolicy(...));
+///
+/// // Or use standalone
+/// final policy = DisabledCachePolicy();
+/// ```
+class DisabledCachePolicy implements CachePolicy {
+  final CachePolicy? _inner;
+
+  /// Creates a disabled cache policy.
+  ///
+  /// If [inner] is provided, [clear] and [invalidate] will delegate to it
+  /// so that any existing cached data can be cleaned up.
+  DisabledCachePolicy([CachePolicy? inner]) : _inner = inner;
+
+  @override
+  Future<bool> isValid(String key) async => false;
+
+  @override
+  Future<void> markFresh(String key) async {
+    // No-op: don't record timestamps when cache is disabled
+  }
+
+  @override
+  Future<void> invalidate(String key) async {
+    await _inner?.invalidate(key);
+  }
+
+  @override
+  Future<void> clear() async {
+    await _inner?.clear();
+  }
+}
