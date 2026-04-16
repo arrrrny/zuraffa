@@ -334,11 +334,13 @@ class Zuraffa {
   static bool _isDebugMode = true;
 
   static bool _disableCache = false;
+
   /// Get the current application environment.
   static Environment get environment => _environment;
 
   /// Returns true if the application is running in debug mode.
   static bool get isDebugMode => _isDebugMode;
+
   /// Returns true if caching is globally disabled.
   ///
   /// When true, all [CachePolicy.isValid] calls should return false,
