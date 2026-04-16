@@ -1,6 +1,10 @@
-## [4.0.4] - 2026-04-15
+## [4.0.4] - 2026-04-16
 
-### Change
+### Fixed
+- Added `contents: write` permission to release workflow to fix 403 error when creating GitHub releases
+- Added Linux x64 to release build matrix
+
+### Changed
 - Auto build
 
 ## [4.0.3] - 2026-04-15
