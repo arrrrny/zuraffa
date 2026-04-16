@@ -68,6 +68,5 @@ jobs:
         with:
           files: ${{ steps.paths.outputs.files_to_upload }}
           tag_name: ${{ github.ref }}
-          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
