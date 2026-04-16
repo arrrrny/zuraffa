@@ -1,3 +1,8 @@
+## [Unreleased]
+
+### Fixed
+- Replaced raw string `Code()` with typed `code_builder` expressions for cache policy disable-cache check in `cache_policy_builder.dart`
+
 ## [4.0.4] - 2026-04-16
 
 ### Change
