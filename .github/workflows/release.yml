@@ -1,29 +1,42 @@
-name: Release Binaries
+name: Release
 
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
   build:
-    name: Build and Release
+    name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: macos-latest
             platform: macos
             arch: arm64
+            ext: ""
+            exe: ""
+            tar_ext: .tar.gz
           - os: macos-13
             platform: macos
             arch: x64
+            ext: ""
+            exe: ""
+            tar_ext: .tar.gz
           - os: ubuntu-latest
             platform: linux
             arch: x64
+            ext: ""
+            exe: ""
+            tar_ext: .tar.gz
           - os: windows-latest
             platform: windows
             arch: x64
+            ext: .exe
+            exe: .exe
+            tar_ext: .zip
 
     steps:
       - uses: actions/checkout@v4
@@ -32,62 +45,45 @@ jobs:
         with:
           sdk: stable
 
-      - name: Install dependencies
+      - name: Install deps
         run: dart pub get
 
       - name: Build MCP Server
-        run: |
-          mkdir -p build/raw
-          dart build cli --target=bin/zuraffa_mcp_server.dart -o build/mcp_server_raw
+        run: dart build cli --target=bin/zuraffa_mcp_server.dart -o build/mcp
 
       - name: Build CLI
-        run: |
-          dart build cli --target=bin/zfa.dart -o build/zfa_raw
+        run: dart build cli --target=bin/zfa.dart -o build/cli
 
-      - name: Prepare Binaries (Unix)
-        if: matrix.os != 'windows-latest'
+      - name: Prepare raw binaries for Zed
         run: |
-          # Use the tag name for the version
           VERSION=${GITHUB_REF#refs/tags/v}
           PLATFORM_TAG="${{ matrix.platform }}-${{ matrix.arch }}"
-          
-          # Gzip directly for Zed
-          gzip -c build/mcp_server_raw/bundle > "zuraffa_mcp_server-$PLATFORM_TAG-v$VERSION.gz"
-          gzip -c build/zfa_raw/bundle > "zfa-$PLATFORM_TAG-v$VERSION.gz"
-          
-          # Create traditional tarballs too
-          cp build/mcp_server_raw/bundle "zuraffa_mcp_server"
-          cp build/zfa_raw/bundle "zfa"
-          tar -czf "zuraffa_mcp_server-$PLATFORM_TAG-v$VERSION.tar.gz" "zuraffa_mcp_server"
-          tar -czf "zfa-$PLATFORM_TAG-v$VERSION.tar.gz" "zfa"
 
-      - name: Prepare Binaries (Windows)
-        if: matrix.os == 'windows-latest'
-        shell: bash
+          # Raw binary for Zed (uncompressed) - exact name Zed expects
+          cp build/mcp/bundle/bin/zuraffa_mcp_server${{ matrix.ext }} "zuraffa_mcp_server-$PLATFORM_TAG${{ matrix.ext }}"
+          cp build/cli/bundle/bin/zfa${{ matrix.ext }} "zfa-$PLATFORM_TAG${{ matrix.ext }}"
+
+          chmod +x "zuraffa_mcp_server-$PLATFORM_TAG${{ matrix.ext }}" "zfa-$PLATFORM_TAG${{ matrix.ext }}"
+
+      - name: Prepare archives for users
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
-          PLATFORM_TAG="windows-x64"
-          
-          # Rename for clarity
-          cp build/mcp_server_raw/bundle.exe "zuraffa_mcp_server.exe"
-          cp build/zfa_raw/bundle.exe "zfa.exe"
-          
-          # Zip for Windows users
-          7z a "zuraffa_mcp_server-$PLATFORM_TAG-v$VERSION.zip" "zuraffa_mcp_server.exe"
-          7z a "zfa-$PLATFORM_TAG-v$VERSION.zip" "zfa.exe"
-          
-          # Also keep raw exe for Zed (Windows Zed might support .exe directly or .zip)
-          # We provide both for flexibility
-          cp "zuraffa_mcp_server.exe" "zuraffa_mcp_server-$PLATFORM_TAG-v$VERSION.exe"
-          cp "zfa.exe" "zfa-$PLATFORM_TAG-v$VERSION.exe"
+          PLATFORM_TAG="${{ matrix.platform }}-${{ matrix.arch }}"
 
-      - name: Upload Release Assets
+          # tar.gz / zip archives
+          cp -r build/mcp/bundle "zuraffa_mcp_server"
+          cp -r build/cli/bundle "zfa"
+
+          tar -czf "zuraffa_mcp_server-$PLATFORM_TAG-v$VERSION${{ matrix.tar_ext }}" zuraffa_mcp_server
+          tar -czf "zfa-$PLATFORM_TAG-v$VERSION${{ matrix.tar_ext }}" zfa
+
+      - name: Upload Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            *.gz
-            *.tar.gz
-            *.zip
-            *.exe
+            zuraffa_mcp_server-${{ matrix.platform }}-${{ matrix.arch }}*
+            zfa-${{ matrix.platform }}-${{ matrix.arch }}*
+          tag_name: ${{ github.ref }}
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
