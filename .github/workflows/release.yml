@@ -17,39 +17,28 @@ jobs:
             platform: macos
             arch: arm64
             ext: ""
-            exe: ""
-            tar_ext: .tar.gz
-          - os: macos-13
+          - os: macos-14
             platform: macos
             arch: x64
             ext: ""
-            exe: ""
-            tar_ext: .tar.gz
-          - os: ubuntu-latest
-            platform: linux
-            arch: x64
-            ext: ""
-            exe: ""
-            tar_ext: .tar.gz
           - os: windows-latest
             platform: windows
             arch: x64
             ext: .exe
-            exe: .exe
-            tar_ext: .zip
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dart-lang/setup-dart@v1
+      - uses: subosito/flutter-action@v2
         with:
-          sdk: stable
+          flutter-version: stable
+          channel: stable
 
       - name: Install deps
-        run: dart pub get
+        run: flutter pub get
 
       - name: Build MCP Server
-        run: dart build cli --target=bin/zuraffa_mcp_server.dart -o build/mcp
+        run: flutter pub run build_runner build --delete-conflicting-outputs || dart build cli --target=bin/zuraffa_mcp_server.dart -o build/mcp
 
       - name: Build CLI
         run: dart build cli --target=bin/zfa.dart -o build/cli
@@ -59,7 +48,7 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           PLATFORM_TAG="${{ matrix.platform }}-${{ matrix.arch }}"
 
-          # Raw binary for Zed (uncompressed) - exact name Zed expects
+          # Raw binary for Zed (uncompressed)
           cp build/mcp/bundle/bin/zuraffa_mcp_server${{ matrix.ext }} "zuraffa_mcp_server-$PLATFORM_TAG${{ matrix.ext }}"
           cp build/cli/bundle/bin/zfa${{ matrix.ext }} "zfa-$PLATFORM_TAG${{ matrix.ext }}"
 
@@ -70,12 +59,11 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           PLATFORM_TAG="${{ matrix.platform }}-${{ matrix.arch }}"
 
-          # tar.gz / zip archives
           cp -r build/mcp/bundle "zuraffa_mcp_server"
           cp -r build/cli/bundle "zfa"
 
-          tar -czf "zuraffa_mcp_server-$PLATFORM_TAG-v$VERSION${{ matrix.tar_ext }}" zuraffa_mcp_server
-          tar -czf "zfa-$PLATFORM_TAG-v$VERSION${{ matrix.tar_ext }}" zfa
+          tar -czf "zuraffa_mcp_server-$PLATFORM_TAG-v$VERSION.tar.gz" zuraffa_mcp_server
+          tar -czf "zfa-$PLATFORM_TAG-v$VERSION.tar.gz" zfa
 
       - name: Upload Release
         uses: softprops/action-gh-release@v2
