@@ -23,6 +23,10 @@ jobs:
             platform: windows
             arch: x64
 
+    defaults:
+      run:
+        shell: bash
+
     steps:
       - uses: actions/checkout@v4
 
