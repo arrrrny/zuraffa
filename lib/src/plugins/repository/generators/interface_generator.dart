@@ -12,7 +12,6 @@ import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/entity_analyzer.dart';
-import '../../../utils/package_utils.dart';
 
 /// Generates repository interfaces for the domain layer.
 ///
@@ -209,11 +208,7 @@ class RepositoryInterfaceGenerator {
       );
 
       if (isEnum) {
-        final baseImport = PackageUtils.getBaseImport(
-          outputDir,
-          fileSystem: fileSystem,
-        );
-        imports.add('$baseImport/domain/entities/enums/index.dart');
+        imports.add('../../domain/entities/enums/index.dart');
       } else {
         final entityFile = discovery.findFileSync('$entitySnake.dart');
         if (entityFile != null) {
@@ -228,14 +223,7 @@ class RepositoryInterfaceGenerator {
           final relativePath = path.relative(entityFile.path, from: repoDir);
           imports.add(relativePath);
         } else {
-          // Fallback to package import
-          final baseImport = PackageUtils.getBaseImport(
-            outputDir,
-            fileSystem: fileSystem,
-          );
-          imports.add(
-            '$baseImport/domain/entities/$entitySnake/$entitySnake.dart',
-          );
+          imports.add('../../domain/entities/$entitySnake/$entitySnake.dart');
         }
       }
     }
@@ -338,8 +326,9 @@ class RepositoryInterfaceGenerator {
           );
           break;
         case 'update':
-          // Use Patch for entity-based updates by default
-          final dataType = '${config.name}Patch';
+          final dataType = config.useZorphy
+              ? '${config.name}Patch'
+              : 'Partial<${config.name}>';
           methods.add(
             _buildMethod(
               name: 'update',

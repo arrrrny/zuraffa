@@ -1,6 +1,6 @@
 # zuraffa Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-04-03
+Auto-generated from all feature plans. Last updated: 2026-04-17
 
 ## Active Technologies
 
@@ -22,6 +22,7 @@ tests/
 Dart 3.11+ / Flutter 3.41+: Follow standard conventions
 
 ## Recent Changes
+- 004-fix-zuraffa-gen: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
 
 - 001-hotel-booking-system: Added Dart 3.11+ / Flutter 3.41+ + Zuraffa framework, Zorphy entity generation, GetIt DI, GoRouter navigation, Hive local storage for mock data persistence
 

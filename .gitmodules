@@ -1,0 +1,6 @@
+[submodule ".specify/extensions/zuraffa"]
+	path = .specify/extensions/zuraffa
+	url = git@github.com:arrrrny/zuraffa-speckit.git
+[submodule "extensions/zed"]
+	path = extensions/zed
+	url = git@github.com:arrrrny/zuraffa-zed.git

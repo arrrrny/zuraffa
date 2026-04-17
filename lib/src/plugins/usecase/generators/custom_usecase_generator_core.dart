@@ -49,7 +49,7 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
         CommonPatterns.entityImports(
           config.multipleParams.map((p) => p.type).toList(),
           config,
-          depth: 2,
+          depth: 3,
           includeDomain: false,
           fileSystem: fileSystem,
         ),
@@ -59,7 +59,7 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
       CommonPatterns.entityImports(
         [paramsType, returnsType],
         config,
-        depth: 2,
+        depth: 3,
         includeDomain: false,
         fileSystem: fileSystem,
       ),

@@ -193,7 +193,7 @@ class ProviderBuilder {
     final entityImports = CommonPatterns.entityImports(
       entityTypes.toList(),
       config,
-      depth: 3,
+      depth: 2,
       includeDomain: false,
       fileSystem: fileSystem,
     );
@@ -368,12 +368,15 @@ class ProviderBuilder {
         break;
       case 'update':
         returnType = refer('Future<$entityName>');
+        final providerDataType = config.useZorphy
+            ? '${entityName}Patch'
+            : 'Partial<$entityName>';
         parameters.add(
           Parameter(
             (p) => p
               ..name = 'params'
               ..type = refer(
-                'UpdateParams<${config.idFieldType}, ${entityName}Patch>',
+                'UpdateParams<${config.idFieldType}, $providerDataType>',
               ),
           ),
         );
