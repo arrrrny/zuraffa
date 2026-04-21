@@ -1,12 +1,17 @@
+## [4.0.6] - 2026-04-21
+
+### Fixed
+- Fixed incorrect entity import path depth in entity usecase generator (was `../../domain/entities/...`, now `../../../domain/entities/...`)
+- Replaced raw string `Code()` with typed `code_builder` expressions for cache policy disable-cache check in `cache_policy_builder.dart`
+
+### Changed
+- Added Spec Kit extension skills (git, learn, worktrees) and slash commands
+- Added `.specify` extension configuration and registry
+
 ## [4.0.5] - 2026-04-16
 
 ### Change
 - Release 4.0.5
-
-## [Unreleased]
-
-### Fixed
-- Replaced raw string `Code()` with typed `code_builder` expressions for cache policy disable-cache check in `cache_policy_builder.dart`
 
 ## [4.0.4] - 2026-04-16
 

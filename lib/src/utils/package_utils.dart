@@ -33,7 +33,7 @@ class PackageUtils {
         return nameLine.split(':')[1].trim();
       }
     }
-    return 'app';
+    return 'zuraffa';
   }
 
   @Deprecated(

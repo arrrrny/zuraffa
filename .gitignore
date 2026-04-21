@@ -17,3 +17,5 @@ DOCUSAURUS_SETUP.md*
 .flutter-plugins-dependencies
 .zuraffa/plans
 .flutter-plugins-dependencies
+.opencode
+.claude
