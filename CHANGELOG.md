@@ -1,10 +1,5 @@
 ## [4.0.6] - 2026-04-21
 
-### Change
-- Release 4.0.6
-
-## [4.0.6] - 2026-04-21
-
 ### Fixed
 - Fixed incorrect entity import path depth in entity usecase generator (was `../../domain/entities/...`, now `../../../domain/entities/...`)
 - Replaced raw string `Code()` with typed `code_builder` expressions for cache policy disable-cache check in `cache_policy_builder.dart`
