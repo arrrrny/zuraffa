@@ -88,7 +88,12 @@ extension CacheBuilderPolicy on CacheBuilder {
         ..docs.add('/// Auto-generated cache policy')
         ..body = Block(
           (b) => b
-            ..statements.add(disableCacheCheck)
+            ..statements.add(
+              _earlyReturnIf(
+                refer('Zuraffa').property('disableCache'),
+                refer('DisabledCachePolicy').call([]),
+              ),
+            )
             ..statements.add(timestampBoxDecl.statement)
             ..statements.add(policyCall.returned.statement),
         ),
@@ -119,6 +124,16 @@ extension CacheBuilderPolicy on CacheBuilder {
         ..body = body.code,
     );
     return method.closure;
+  }
+
+  Code _earlyReturnIf(Expression condition, Expression returnValue) {
+    return Block.of([
+      const Code('if ('),
+      condition.code,
+      const Code(') {\n    return '),
+      returnValue.code,
+      const Code(';\n  }\n'),
+    ]);
   }
 
   Reference _futureVoidType() {

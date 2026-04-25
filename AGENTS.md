@@ -913,3 +913,10 @@ zfa generate Product --methods=get,getList --force
 - [MCP Server](./MCP_SERVER.md) - MCP server setup and usage
 - [README](./README.md) - Package overview and API reference
 - [Example](./example) - Working example application
+
+## Active Technologies
+- YAML (extension definition), Dart/ZFA CLI + ZFA CLI (v4.0.0+), Speckit extension framework (003-speckit-cli-commands)
+- N/A (no persistent data) (003-speckit-cli-commands)
+
+## Recent Changes
+- 003-speckit-cli-commands: Added YAML (extension definition), Dart/ZFA CLI + ZFA CLI (v4.0.0+), Speckit extension framework

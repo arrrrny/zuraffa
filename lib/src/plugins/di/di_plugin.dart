@@ -1085,6 +1085,10 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         className: 'Delete${entityName}UseCase',
         methodPrefix: 'delete',
       ),
+      'toggle' => (
+        className: 'Toggle${entityName}UseCase',
+        methodPrefix: 'toggle',
+      ),
       'watch' => (
         className: 'Watch${entityName}UseCase',
         methodPrefix: 'watch',

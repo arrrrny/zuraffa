@@ -66,7 +66,7 @@ extension CustomUseCaseGeneratorOrchestrator on CustomUseCaseGenerator {
     final entityImports = CommonPatterns.entityImports(
       [paramsType, returnsType],
       config,
-      depth: 2,
+      depth: 3,
       includeDomain: false,
       fileSystem: fileSystem,
     );
