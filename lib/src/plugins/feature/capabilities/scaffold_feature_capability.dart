@@ -260,7 +260,8 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
         }
         // Also delete the directory itself if empty
         final remainingFiles = await fileSystem.list(entityDirPath);
-        if (remainingFiles.isEmpty || remainingFiles.every((f) => f == '.gitkeep')) {
+        if (remainingFiles.isEmpty ||
+            remainingFiles.every((f) => f == '.gitkeep')) {
           await fileSystem.delete(entityDirPath);
         }
       }
