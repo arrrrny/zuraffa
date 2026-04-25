@@ -1,5 +1,10 @@
 ## [4.0.7] - 2026-04-25
 
+### Change
+- Release 4.0.7
+
+## [4.0.7] - 2026-04-25
+
 ### Added
 
 - Added `onDone` callback to generated stream `watch` and `watchList` controller methods that resets loading state and sets `isWatching` to false when the stream completes
