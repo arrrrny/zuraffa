@@ -37,32 +37,17 @@ extension RepositoryImplementationGeneratorAppend
       fileSystem: fileSystem,
     );
     if (isEnum) {
-      final baseImport = PackageUtils.getBaseImport(
-        outputDir,
-        fileSystem: fileSystem,
-      );
-      imports.add('$baseImport/domain/entities/enums/index.dart');
+      imports.add('../../domain/entities/enums/index.dart');
     } else if (entityFile != null) {
       imports.add(p.relative(entityFile.path, from: repoImplDir));
     } else {
-      // Fallback
-      final baseImport = PackageUtils.getBaseImport(
-        outputDir,
-        fileSystem: fileSystem,
-      );
-      imports.add('$baseImport/domain/entities/$entitySnake/$entitySnake.dart');
+      imports.add('../../domain/entities/$entitySnake/$entitySnake.dart');
     }
 
     if (repoInterfaceFile != null) {
       imports.add(p.relative(repoInterfaceFile.path, from: repoImplDir));
     } else {
-      final baseImport = PackageUtils.getBaseImport(
-        outputDir,
-        fileSystem: fileSystem,
-      );
-      imports.add(
-        '$baseImport/domain/repositories/${entitySnake}_repository.dart',
-      );
+      imports.add('../../domain/repositories/${entitySnake}_repository.dart');
     }
 
     if (config.generateLocal) {

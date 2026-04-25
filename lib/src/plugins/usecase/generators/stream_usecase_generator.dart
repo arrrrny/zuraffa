@@ -165,7 +165,7 @@ class StreamUseCaseGenerator {
         ...CommonPatterns.entityImports(
           [paramsType, returnsType],
           config,
-          depth: 2,
+          depth: 3,
           includeDomain: false,
           fileSystem: fileSystem,
         ),

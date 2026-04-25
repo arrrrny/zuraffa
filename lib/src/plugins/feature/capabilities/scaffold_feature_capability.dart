@@ -1,10 +1,13 @@
 import 'dart:io';
+import 'package:path/path.dart' as path;
 import '../../../core/plugin_system/capability.dart';
 import '../feature_plugin.dart';
 import '../../../models/generated_file.dart';
 import '../../../config/zfa_config.dart';
 import '../../../core/plugin_system/plugin_manager.dart';
 import '../../../core/plugin_system/plugin_registry.dart';
+import '../../../core/context/file_system.dart';
+import '../../../utils/file_utils.dart';
 
 class ScaffoldFeatureCapability implements ZuraffaCapability {
   final FeaturePlugin plugin;
@@ -217,6 +220,78 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
     context.data['force'] = args['force'] ?? false;
     context.data['verbose'] = args['verbose'] ?? false;
     context.data['revert'] = args['revert'] ?? false;
+
+    // When reverting a full scaffold, we need to clean up ALL layers including:
+    // - entities (and their generated files)
+    // - usecases
+    // - repositories
+    // - datasources
+    // - presentation layers
+    // - DI, routes, mocks, tests
+    if (args['revert'] == true) {
+      final fileSystem = FileSystem.create(root: projectRoot);
+      final files = <GeneratedFile>[];
+
+      // For revert, we need to clean up the entity directory entirely
+      // Pass empty methods to trigger full revert in usecase generator
+      final entityDirPath = path.join(
+        projectRoot,
+        'lib',
+        'src',
+        'domain',
+        'entities',
+        featureName.toLowerCase(),
+      );
+      if (fileSystem.existsSync(entityDirPath)) {
+        // Delete the entire entity folder (entity + any .g.dart, .zorphy.dart files)
+        final entityFiles = await fileSystem.list(entityDirPath);
+        for (final entityFile in entityFiles) {
+          if (entityFile.endsWith('.dart')) {
+            files.add(
+              await FileUtils.deleteFile(
+                entityFile,
+                'entity',
+                dryRun: dryRun,
+                verbose: args['verbose'] == true,
+                fileSystem: fileSystem,
+              ),
+            );
+          }
+        }
+        // Also delete the directory itself if empty
+        final remainingFiles = await fileSystem.list(entityDirPath);
+        if (remainingFiles.isEmpty || remainingFiles.every((f) => f == '.gitkeep')) {
+          await fileSystem.delete(entityDirPath);
+        }
+      }
+
+      // Also clean up any leftover usecases from entity-based generation
+      // These may have been created without going through the normal capability flow
+      final usecaseDirPath = path.join(
+        projectRoot,
+        'lib',
+        'src',
+        'domain',
+        'usecases',
+        featureName.toLowerCase(),
+      );
+      if (fileSystem.existsSync(usecaseDirPath)) {
+        final usecaseFiles = await fileSystem.list(usecaseDirPath);
+        for (final usecaseFile in usecaseFiles) {
+          if (usecaseFile.endsWith('.dart')) {
+            files.add(
+              await FileUtils.deleteFile(
+                usecaseFile,
+                'usecase',
+                dryRun: dryRun,
+                verbose: args['verbose'] == true,
+                fileSystem: fileSystem,
+              ),
+            );
+          }
+        }
+      }
+    }
 
     return await manager.run(context, activePlugins);
   }

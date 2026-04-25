@@ -368,7 +368,7 @@ class EntityUseCaseGenerator {
           returnType.accept(DartEmitter()).toString(),
         ],
         config,
-        depth: 2,
+        depth: 3,
         includeDomain: false,
         fileSystem: fileSystem,
       );

@@ -6,7 +6,6 @@ import '../../../core/plugin_system/discovery_engine.dart';
 import '../../../core/context/file_system.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/parsed_usecase_info.dart';
-import '../../../utils/package_utils.dart';
 import '../../../utils/string_utils.dart';
 
 class CommonPatterns {
@@ -34,10 +33,7 @@ class CommonPatterns {
     final domainSnake = config.domain != null
         ? StringUtils.camelToSnake(config.domain!)
         : null;
-    final baseImport = PackageUtils.getBaseImport(
-      config.outputDir,
-      fileSystem: fs,
-    );
+    final prefix = '../' * depth;
 
     final results = <String>[];
     for (final entity in entities) {
@@ -61,7 +57,7 @@ class CommonPatterns {
 
         if (fs.existsSync(domainEntityFilePath)) {
           results.add(
-            '$baseImport/domain/entities/$domainSnake/$entitySnake/$entitySnake.dart',
+            '${prefix}domain/entities/$domainSnake/$entitySnake/$entitySnake.dart',
           );
           found = true;
         }
@@ -76,7 +72,7 @@ class CommonPatterns {
           );
           if (fs.existsSync(flatFilePath)) {
             results.add(
-              '$baseImport/domain/entities/$domainSnake/$entitySnake.dart',
+              '${prefix}domain/entities/$domainSnake/$entitySnake.dart',
             );
             found = true;
           }
@@ -95,7 +91,7 @@ class CommonPatterns {
 
         if (fs.existsSync(entityFilePath)) {
           results.add(
-            '$baseImport/domain/entities/$entitySnake/$entitySnake.dart',
+            '${prefix}domain/entities/$entitySnake/$entitySnake.dart',
           );
           found = true;
         }
@@ -113,9 +109,9 @@ class CommonPatterns {
           // Check for enum
           final content = fs.readSync(entityFilePath);
           if (content.contains('enum $entity')) {
-            results.add('$baseImport/domain/entities/enums/index.dart');
+            results.add('${prefix}domain/entities/enums/index.dart');
           } else {
-            results.add('$baseImport/domain/entities/$entitySnake.dart');
+            results.add('${prefix}domain/entities/$entitySnake.dart');
           }
           found = true;
         }
@@ -131,7 +127,7 @@ class CommonPatterns {
           '$entitySnake.dart',
         );
         if (fs.existsSync(enumPath)) {
-          results.add('$baseImport/domain/entities/enums/index.dart');
+          results.add('${prefix}domain/entities/enums/index.dart');
           found = true;
         }
       }
@@ -148,7 +144,7 @@ class CommonPatterns {
           );
           if (fs.existsSync(altPath)) {
             results.add(
-              '$baseImport/domain/entities/$domainSnake/$entitySnake.dart',
+              '${prefix}domain/entities/$domainSnake/$entitySnake.dart',
             );
             found = true;
           }
@@ -156,9 +152,7 @@ class CommonPatterns {
       }
 
       if (!found) {
-        results.add(
-          '$baseImport/domain/entities/$entitySnake/$entitySnake.dart',
-        );
+        results.add('${prefix}domain/entities/$entitySnake/$entitySnake.dart');
       }
     }
 

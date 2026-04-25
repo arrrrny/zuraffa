@@ -33,9 +33,13 @@ class PackageUtils {
         return nameLine.split(':')[1].trim();
       }
     }
-    return 'app';
+    return 'zuraffa';
   }
 
+  @Deprecated(
+    'Use relative imports instead. '
+    'See CommonPatterns.entityImports() for the new approach.',
+  )
   static String getBaseImport(String outputDir, {FileSystem? fileSystem}) {
     final fs = fileSystem ?? const DefaultFileSystem();
     final packageName = getPackageName(outputDir: outputDir, fileSystem: fs);
