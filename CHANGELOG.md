@@ -1,40 +1,71 @@
+## [4.0.7] - 2026-04-25
+
+### Change
+- Release 4.0.7
+
+## [4.0.7] - 2026-04-25
+
+### Added
+
+- Added `onDone` callback to generated stream `watch` and `watchList` controller methods that resets loading state and sets `isWatching` to false when the stream completes
+- Added comprehensive test suite for stream `onDone` behavior (`stream_ondone_test.dart`)
+
+### Fixed
+
+- Fixed duplicate `disableCache` getter and setter in `Zuraffa` class that caused compilation error
+- Removed stale `product_state.dart` example file and unused `.specify` integration configs
+
+### Changed
+
+- Refactored `cache_policy_builder.dart` to use proper `code_builder` expressions instead of raw `Code()` strings for the disable-cache early return pattern
+- Removed unused `disableCacheCheck` variable in favor of expression-based `_earlyReturnIf` helper
+- Rebuilt Zed extension WASM binary with Rust 1.95.0 toolchain
+
 ## [4.0.6] - 2026-04-21
 
 ### Fixed
+
 - Fixed incorrect entity import path depth in entity usecase generator (was `../../domain/entities/...`, now `../../../domain/entities/...`)
 - Replaced raw string `Code()` with typed `code_builder` expressions for cache policy disable-cache check in `cache_policy_builder.dart`
 
 ### Changed
+
 - Added Spec Kit extension skills (git, learn, worktrees) and slash commands
 - Added `.specify` extension configuration and registry
 
 ## [4.0.5] - 2026-04-16
 
 ### Change
+
 - Release 4.0.5
 
 ## [4.0.4] - 2026-04-16
 
 ### Change
+
 - Release 4.0.4
 
 ## [4.0.4] - 2026-04-16
 
 ### Fixed
+
 - Added `contents: write` permission to release workflow to fix 403 error when creating GitHub releases
 - Added Linux x64 to release build matrix
 
 ### Changed
+
 - Auto build
 
 ## [4.0.3] - 2026-04-15
 
 ### Change
+
 - Add multi-platform GitHub Actions
 
 ## [4.0.2] - 2026-04-15
 
 ### Change
+
 - Release 4.0.2
 
 ## [4.0.2] - 2026-04-15
@@ -45,9 +76,11 @@
 - Unified OS naming to macos and architecture detection for better Zed extension compatibility.
 - Fixed internal binary structure in release archives by removing redundant bundle/ subdirectory.
 - Updated Zed extension logic to support flexible platform mapping and fallback mechanisms.
+
 ## [4.0.1] - 2026-04-15
 
 ### Change
+
 - Release 4.0.1
 
 ## [4.0.1] - 2026-04-12

@@ -77,10 +77,6 @@ extension CacheBuilderPolicy on CacheBuilder {
 
     final policyCall = refer(policyClass).call([], policyArguments);
 
-    final disableCacheCheck = Code(
-      "if (Zuraffa.disableCache) {\n    return DisabledCachePolicy();\n  }",
-    );
-
     final method = Method(
       (m) => m
         ..name = policyName
@@ -126,14 +122,18 @@ extension CacheBuilderPolicy on CacheBuilder {
     return method.closure;
   }
 
+  /// Builds an early-return if-statement using code_builder expressions.
+  ///
+  /// Generates: `if (condition) { return returnValue; }`
   Code _earlyReturnIf(Expression condition, Expression returnValue) {
-    return Block.of([
-      const Code('if ('),
-      condition.code,
-      const Code(') {\n    return '),
-      returnValue.code,
-      const Code(';\n  }\n'),
-    ]);
+    return Block(
+      (b) => b
+        ..statements.add(Code('if ('))
+        ..statements.add(condition.code)
+        ..statements.add(Code(') {\n    return '))
+        ..statements.add(returnValue.code)
+        ..statements.add(Code(';\n  }\n')),
+    );
   }
 
   Reference _futureVoidType() {

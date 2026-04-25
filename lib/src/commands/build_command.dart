@@ -36,7 +36,9 @@ class BuildCommand extends Command {
     if (exitCode == 0) {
       print('\n✅ Build completed successfully');
     } else if (!clean) {
-      print('\n⚠️  Build failed (exit $exitCode). Retrying with clean cache...');
+      print(
+        '\n⚠️  Build failed (exit $exitCode). Retrying with clean cache...',
+      );
       await _cleanBuildCache();
       final retryCode = await _runBuild();
       if (retryCode == 0) {
