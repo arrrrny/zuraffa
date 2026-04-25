@@ -115,37 +115,55 @@ extension ControllerPluginBodies on ControllerPlugin {
         ..statements.add(
           declareFinal('subscription')
               .assign(
-                streamCall.property('listen').call([
-                  Method(
-                    (m) => m
-                      ..requiredParameters.add(
-                        Parameter((p) => p..name = 'result'),
-                      )
-                      ..body = _resultFold(
-                        resultVar: 'result',
-                        successParams: ['data'],
-                        successBody: Block(
-                          (bb) => bb
-                            ..statements.add(
-                              _updateStateStatement({
-                                loadingField: literalBool(false),
-                                if (hasResponse) responseField: refer('data'),
-                              }),
+                streamCall
+                    .property('listen')
+                    .call(
+                      [
+                        Method(
+                          (m) => m
+                            ..requiredParameters.add(
+                              Parameter((p) => p..name = 'result'),
+                            )
+                            ..body = _resultFold(
+                              resultVar: 'result',
+                              successParams: ['data'],
+                              successBody: Block(
+                                (bb) => bb
+                                  ..statements.add(
+                                    _updateStateStatement({
+                                      loadingField: literalBool(false),
+                                      if (hasResponse)
+                                        responseField: refer('data'),
+                                    }),
+                                  ),
+                              ),
+                              failureParams: ['failure'],
+                              failureBody: Block(
+                                (bb) => bb
+                                  ..statements.add(
+                                    _updateStateStatement({
+                                      loadingField: literalBool(false),
+                                      'error': refer('failure'),
+                                    }),
+                                  ),
+                              ),
                             ),
-                        ),
-                        failureParams: ['failure'],
-                        failureBody: Block(
-                          (bb) => bb
-                            ..statements.add(
-                              _updateStateStatement({
-                                loadingField: literalBool(false),
-                                'error': refer('failure'),
-                              }),
+                        ).closure,
+                      ],
+                      {
+                        'onDone': Method(
+                          (m) => m
+                            ..body = Block(
+                              (bb) => bb
+                                ..statements.add(
+                                  _updateStateStatement({
+                                    loadingField: literalBool(false),
+                                  }),
+                                ),
                             ),
-                        ),
-                      ),
-                  ).closure,
-                ]),
+                        ).closure,
+                      },
+                    ),
               )
               .statement,
         )
@@ -678,11 +696,20 @@ extension ControllerPluginBodies on ControllerPlugin {
         ..requiredParameters.add(Parameter((p) => p..name = 'result'))
         ..body = listenBody,
     ).closure;
+    final onDoneClosure = Method(
+      (m) => m
+        ..body = Block(
+          (bb) => bb
+            ..statements.add(
+              _updateStateStatement({'isWatching': literalBool(false)}),
+            ),
+        ),
+    ).closure;
     final subscriptionCall = refer('_presenter')
         .property('watch$entityName')
         .call(_callArgsExpressions(args))
         .property('listen')
-        .call([listenClosure]);
+        .call([listenClosure], {'onDone': onDoneClosure});
     return Block(
       (b) => b
         ..statements.add(
@@ -757,11 +784,20 @@ extension ControllerPluginBodies on ControllerPlugin {
         ..requiredParameters.add(Parameter((p) => p..name = 'result'))
         ..body = listenBody,
     ).closure;
+    final onDoneClosure = Method(
+      (m) => m
+        ..body = Block(
+          (bb) => bb
+            ..statements.add(
+              _updateStateStatement({'isWatchingList': literalBool(false)}),
+            ),
+        ),
+    ).closure;
     final subscriptionCall = refer('_presenter')
         .property('watch${entityName}List')
         .call(_callArgsExpressions('params'))
         .property('listen')
-        .call([listenClosure]);
+        .call([listenClosure], {'onDone': onDoneClosure});
     return Block(
       (b) => b
         ..statements.add(
@@ -863,35 +899,52 @@ extension ControllerPluginBodies on ControllerPlugin {
         ..statements.add(
           declareFinal('subscription')
               .assign(
-                refer('updatesStream').property('listen').call([
-                  Method(
-                    (m) => m
-                      ..requiredParameters.add(
-                        Parameter((p) => p..name = 'result'),
-                      )
-                      ..body = _resultFold(
-                        resultVar: 'result',
-                        successParams: ['entity'],
-                        successBody: Block(
-                          (bb) => bb
-                            ..statements.add(
-                              _updateStateStatement({
-                                entityCamel: refer('entity'),
-                              }),
+                refer('updatesStream')
+                    .property('listen')
+                    .call(
+                      [
+                        Method(
+                          (m) => m
+                            ..requiredParameters.add(
+                              Parameter((p) => p..name = 'result'),
+                            )
+                            ..body = _resultFold(
+                              resultVar: 'result',
+                              successParams: ['entity'],
+                              successBody: Block(
+                                (bb) => bb
+                                  ..statements.add(
+                                    _updateStateStatement({
+                                      entityCamel: refer('entity'),
+                                    }),
+                                  ),
+                              ),
+                              failureParams: ['failure'],
+                              failureBody: Block(
+                                (bb) => bb
+                                  ..statements.add(
+                                    _updateStateStatement({
+                                      'error': refer('failure'),
+                                    }),
+                                  ),
+                              ),
                             ),
-                        ),
-                        failureParams: ['failure'],
-                        failureBody: Block(
-                          (bb) => bb
-                            ..statements.add(
-                              _updateStateStatement({
-                                'error': refer('failure'),
-                              }),
+                        ).closure,
+                      ],
+                      {
+                        'onDone': Method(
+                          (m) => m
+                            ..body = Block(
+                              (bb) => bb
+                                ..statements.add(
+                                  _updateStateStatement({
+                                    'isWatching': literalBool(false),
+                                  }),
+                                ),
                             ),
-                        ),
-                      ),
-                  ).closure,
-                ]),
+                        ).closure,
+                      },
+                    ),
               )
               .statement,
         )

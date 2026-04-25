@@ -1,0 +1,3 @@
+[submodule "extensions/zed"]
+	path = extensions/zed
+	url = git@github.com:arrrrny/zuraffa-zed.git
