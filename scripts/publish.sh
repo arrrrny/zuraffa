@@ -53,7 +53,7 @@ echo "⚙️  GitHub Actions will now build and upload binaries for all platform
 
 # Update zuraffa-zed extension version via submodule
 ZED_SUBMODULE_DIR="$PACKAGE_DIR/extensions/zed"
-if [ -d "$ZED_SUBMODULE_DIR/.git" ]; then
+if [ -e "$ZED_SUBMODULE_DIR/.git" ]; then
     echo "📝 Updating zuraffa-zed extension submodule..."
     cd "$ZED_SUBMODULE_DIR"
 
