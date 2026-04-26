@@ -339,7 +339,7 @@ class RepositoryInterfaceGenerator {
           );
           break;
         case 'toggle':
-          final fieldEnum = '${config.name}Field';
+          final fieldEnum = '${config.name}Fields';
           methods.add(
             _buildMethod(
               name: 'toggle',

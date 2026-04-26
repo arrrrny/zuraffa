@@ -333,6 +333,9 @@ class CommonPatterns {
       if (finalType.endsWith('Patch') && finalType.length > 5) {
         finalType = finalType.substring(0, finalType.length - 5);
       }
+      if (finalType.endsWith('Fields') && finalType.length > 6) {
+        finalType = finalType.substring(0, finalType.length - 6);
+      }
       results.add(finalType);
     }
 

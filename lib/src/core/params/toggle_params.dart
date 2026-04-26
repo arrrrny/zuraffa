@@ -11,7 +11,7 @@ part 'toggle_params.g.dart';
 /// The type parameter [I] represents the ID type (e.g., `String`, `int`).
 /// The type parameter [F] represents the field enum type.
 ///
-/// Example: `ToggleParams<int, TodoField>(id: 123, field: TodoField.completed, value: true)`
+/// Example: `ToggleParams<int, TodoFields>(id: 123, field: TodoFields.isCompleted, value: true)`
 @Zorphy(generateJson: true, generateFilter: true)
 abstract class $ToggleParams<I, F> implements $Params {
   const $ToggleParams();

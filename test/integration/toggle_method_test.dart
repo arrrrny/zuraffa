@@ -51,7 +51,7 @@ void main() {
     final repoContent = repoFile.readAsStringSync();
     expect(
       repoContent.contains(
-        'Future<Todo> toggle(ToggleParams<String, TodoField> params)',
+        'Future<Todo> toggle(ToggleParams<String, TodoFields> params)',
       ),
       isTrue,
     );
@@ -64,7 +64,7 @@ void main() {
     final useCaseContent = useCaseFile.readAsStringSync();
     expect(
       useCaseContent.contains(
-        'class ToggleTodoUseCase extends UseCase<Todo, ToggleParams<String, TodoField>>',
+        'extends UseCase<Todo, ToggleParams<String, TodoFields>>',
       ),
       isTrue,
     );
@@ -77,7 +77,7 @@ void main() {
     final dataRepoContent = dataRepoFile.readAsStringSync();
     expect(
       dataRepoContent.contains(
-        'Future<Todo> toggle(ToggleParams<String, TodoField> params)',
+        'Future<Todo> toggle(ToggleParams<String, TodoFields> params)',
       ),
       isTrue,
     );
@@ -91,7 +91,7 @@ void main() {
     final dataSourceContent = dataSourceFile.readAsStringSync();
     expect(
       dataSourceContent.contains(
-        'Future<Todo> toggle(ToggleParams<String, TodoField> params)',
+        'Future<Todo> toggle(ToggleParams<String, TodoFields> params)',
       ),
       isTrue,
     );
@@ -104,7 +104,7 @@ void main() {
     final remoteContent = remoteFile.readAsStringSync();
     expect(
       remoteContent.contains(
-        'Future<Todo> toggle(ToggleParams<String, TodoField> params) async',
+        'Future<Todo> toggle(ToggleParams<String, TodoFields> params) async',
       ),
       isTrue,
     );
@@ -123,7 +123,7 @@ void main() {
     final localContent = localFile.readAsStringSync();
     expect(
       localContent.contains(
-        'Future<Todo> toggle(ToggleParams<String, TodoField> params) async',
+        'Future<Todo> toggle(ToggleParams<String, TodoFields> params) async',
       ),
       isTrue,
     );

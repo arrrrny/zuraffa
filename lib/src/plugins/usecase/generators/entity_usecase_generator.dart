@@ -225,7 +225,7 @@ class EntityUseCaseGenerator {
         break;
       case 'toggle':
         className = 'Toggle${entityName}UseCase';
-        final fieldEnum = '${entityName}Field';
+        final fieldEnum = '${entityName}Fields';
         baseClass = TypeReference(
           (t) => t
             ..symbol = 'UseCase'
