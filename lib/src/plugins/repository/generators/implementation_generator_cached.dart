@@ -82,7 +82,7 @@ extension RepositoryImplementationGeneratorCached
             ..body = _buildCacheAwareUpdateBody(baseCacheKey),
         );
       case 'toggle':
-        final fieldEnum = '${config.name}Field';
+        final fieldEnum = '${config.name}Fields';
         return Method(
           (m) => m
             ..name = 'toggle'

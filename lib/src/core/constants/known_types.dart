@@ -34,6 +34,7 @@ class KnownTypes {
     'CreateParams',
     'InitializationParams',
     'Partial',
+    'ToggleParams',
   ];
 
   /// Zuraffa result and failure types

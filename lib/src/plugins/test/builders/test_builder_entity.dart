@@ -116,9 +116,16 @@ extension TestBuilderEntity on TestBuilder {
       if (method != 'create') Directive.import('package:zuraffa/zuraffa.dart'),
     ];
 
+    String toPackageImport(String filePath) {
+      final relativeToLib = path.relative(
+        filePath,
+        from: path.join(projectRoot, 'lib'),
+      );
+      return 'package:$packageName/$relativeToLib';
+    }
+
     if (entityFile != null) {
-      final relPath = path.relative(entityFile.path, from: testDirPath);
-      directives.add(Directive.import(relPath));
+      directives.add(Directive.import(toPackageImport(entityFile.path)));
     } else {
       directives.add(
         Directive.import(
@@ -128,8 +135,7 @@ extension TestBuilderEntity on TestBuilder {
     }
 
     if (targetFile != null) {
-      final relPath = path.relative(targetFile.path, from: testDirPath);
-      directives.add(Directive.import(relPath));
+      directives.add(Directive.import(toPackageImport(targetFile.path)));
     } else {
       directives.add(
         Directive.import(
@@ -138,8 +144,7 @@ extension TestBuilderEntity on TestBuilder {
       );
     }
 
-    final relPath = path.relative(useCaseFile.path, from: testDirPath);
-    directives.add(Directive.import(relPath));
+    directives.add(Directive.import(toPackageImport(useCaseFile.path)));
 
     final mockRepoClass = 'Mock$targetName';
     final mockEntityClass = 'Mock$entityName';

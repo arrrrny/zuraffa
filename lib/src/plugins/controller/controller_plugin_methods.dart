@@ -283,7 +283,7 @@ extension ControllerPluginMethods on ControllerPlugin {
     String entityCamel,
     bool withState,
   ) {
-    final fieldEnum = '${entityName}Field';
+    final fieldEnum = '${entityName}Fields';
     final hasListMethod =
         config.methods.contains('getList') ||
         config.methods.contains('watchList');

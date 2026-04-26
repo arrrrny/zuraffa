@@ -257,7 +257,7 @@ class RemoteDataSourceBuilder {
           );
           break;
         case 'toggle':
-          final fieldEnum = '${config.name}Field';
+          final fieldEnum = '${config.name}Fields';
           methods.add(
             Method(
               (m) => m
