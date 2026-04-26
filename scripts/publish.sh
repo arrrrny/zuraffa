@@ -51,11 +51,13 @@ git push origin "v$VERSION"
 # NOTE: GitHub Actions will now handle the binary builds and uploads automatically
 echo "⚙️  GitHub Actions will now build and upload binaries for all platforms."
 
-# Update zuraffa-zed extension version locally if it exists
-ZED_EXTENSION_DIR="$HOME/Developer/zuraffa-zed"
-if [ -d "$ZED_EXTENSION_DIR" ]; then
-    echo "📝 Updating local zuraffa-zed extension..."
-    cd "$ZED_EXTENSION_DIR"
+# Update zuraffa-zed extension version via submodule
+ZED_SUBMODULE_DIR="$PACKAGE_DIR/extensions/zed"
+if [ -d "$ZED_SUBMODULE_DIR/.git" ]; then
+    echo "📝 Updating zuraffa-zed extension submodule..."
+    cd "$ZED_SUBMODULE_DIR"
+
+    # Update version in extension.toml and Cargo.toml
     if [[ "$OSTYPE" == "darwin"* ]]; then
         sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" extension.toml
         sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
@@ -63,10 +65,24 @@ if [ -d "$ZED_EXTENSION_DIR" ]; then
         sed -i "s/^version = \".*\"/version = \"$VERSION\"/" extension.toml
         sed -i "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
     fi
-    git add extension.toml Cargo.toml
+
+    # Rebuild WASM binary
+    echo "🔨 Rebuilding Zed extension WASM binary..."
+    cargo build --target wasm32-unknown-unknown --release
+    if command -v wasm-opt &> /dev/null; then
+        wasm-opt -O target/wasm32-unknown-unknown/release/mcp_server_zuraffa.wasm -o extension.wasm -g
+    else
+        cp target/wasm32-unknown-unknown/release/mcp_server_zuraffa.wasm extension.wasm
+        echo "⚠️  wasm-opt not found, skipping optimization. Install with: brew install binaryen"
+    fi
+
+    # Commit and push submodule changes
+    git add extension.toml Cargo.toml extension.wasm
     git commit -m "chore: update version to $VERSION" || true
-    git push || true
+    git push origin HEAD:refs/heads/master || true
+
     cd "$PACKAGE_DIR"
+    git add extensions/zed
 fi
 
 # Finally, publish to pub.dev
