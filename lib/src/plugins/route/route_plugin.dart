@@ -72,7 +72,9 @@ class RoutePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       generateRoute: true,
       generateVpcs: context.get<bool>('vpc') ?? context.data['vpcs'] == true,
       methods: context.data['methods']?.cast<String>().toList() ?? [],
+      usecases: (context.data['usecases'] as List?)?.cast<String>() ?? [],
       domain: context.data['domain'],
+      noEntity: context.data['no-entity'] == true,
     );
 
     return generate(config, context: context);

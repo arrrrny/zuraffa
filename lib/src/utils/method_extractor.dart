@@ -1,4 +1,3 @@
-import 'package:analyzer/dart/ast/ast.dart';
 import '../core/ast/ast_helper.dart';
 import '../core/context/file_system.dart';
 import '../models/parsed_usecase_info.dart';
@@ -33,9 +32,7 @@ class MethodExtractor {
       final parameters = method.parameters?.parameters;
       if (parameters != null && parameters.isNotEmpty) {
         final firstParam = parameters.first;
-        if (firstParam is SimpleFormalParameter) {
-          paramsType = firstParam.type?.toString();
-        }
+        paramsType = _getParameterType(firstParam);
       }
 
       // Determine usecase type based on return type
@@ -61,6 +58,23 @@ class MethodExtractor {
     }
 
     return methods;
+  }
+
+  static String? _getParameterType(dynamic p) {
+    try {
+      // Analyzer < 13: SimpleFormalParameter has type property
+      // Analyzer >= 13: RegularFormalParameter has type property
+      // If p is DefaultFormalParameter (Analyzer < 13), it has a 'parameter' property
+      dynamic param = p;
+      try {
+        param = p.parameter;
+      } catch (_) {
+        // Not a DefaultFormalParameter or Analyzer >= 13
+      }
+      return param.type?.toString();
+    } catch (_) {
+      return null;
+    }
   }
 
   static String _cleanReturnType(String returns) {

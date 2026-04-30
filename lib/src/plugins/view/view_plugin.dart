@@ -75,7 +75,10 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       revert: context.core.revert,
       generateView: true,
       generateVpcs: context.get<bool>('vpc') ?? context.data['vpcs'] == true,
+      generateController: context.data['controller'] == true,
+      generatePresenter: context.data['presenter'] == true,
       methods: context.data['methods']?.cast<String>().toList() ?? [],
+      usecases: (context.data['usecases'] as List?)?.cast<String>() ?? [],
       domain: context.data['domain'],
       idField: context.data['id-field'] ?? 'id',
       idFieldType: context.data['id-field-type'] ?? 'String',
@@ -215,7 +218,8 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         !config.generateVpcs &&
         !config.generateController &&
         !config.generatePresenter &&
-        !config.isEntityBased;
+        !config.isEntityBased &&
+        !config.isOrchestrator;
 
     final content = classBuilder.build(
       ViewClassSpec(
@@ -304,7 +308,8 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         (!config.generateVpcs &&
             !config.generateController &&
             !config.generatePresenter &&
-            !config.isEntityBased);
+            !config.isEntityBased &&
+            !config.isOrchestrator);
 
     final isStateful =
         isCustom &&
@@ -456,7 +461,8 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         !config.generateVpcs &&
         !config.generateController &&
         !config.generatePresenter &&
-        !config.isEntityBased;
+        !config.isEntityBased &&
+        !config.isOrchestrator;
 
     if (!isCustom) {
       imports.add('package:zuraffa/zuraffa.dart');

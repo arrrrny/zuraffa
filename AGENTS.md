@@ -4,7 +4,7 @@ This document provides comprehensive guidance for AI agents working with Zuraffa
 
 ## Introduction to Zuraffa
 
- 🦒 Zuraffa (Zürafa means Giraffe in Türkçe) is a modern Flutter package that implements Clean Architecture principles with a focus on developer experience and type safety. It provides a robust set of tools for building scalable, testable, and maintainable Flutter applications.
+🦒 Zuraffa (Zürafa means Giraffe in Türkçe) is a modern Flutter package that implements Clean Architecture principles with a focus on developer experience and type safety. It provides a robust set of tools for building scalable, testable, and maintainable Flutter applications.
 
 ### Key Features
 
@@ -44,11 +44,13 @@ lib/src/
 ### Entity Location Convention
 
 Entities MUST be at:
+
 ```
 lib/src/domain/entities/{entity_snake}/{entity_snake}.dart
 ```
 
 Example for `Product`:
+
 ```
 lib/src/domain/entities/product/product.dart
 ```
@@ -103,34 +105,34 @@ Entity-based generation creates UseCases that operate on a specific entity type.
 
 #### Available Methods
 
-| Method | UseCase Type | Description |
-|--------|--------------|-------------|
-| `get` | `UseCase` | Get single entity by ID |
-| `getList` | `UseCase` | Get all entities |
-| `create` | `UseCase` | Create new entity |
-| `update` | `UseCase` | Update existing entity |
-| `delete` | `CompletableUseCase` | Delete entity by ID |
-| `watch` | `StreamUseCase` | Watch single entity changes |
-| `watchList` | `StreamUseCase` | Watch all entities changes |
+| Method      | UseCase Type         | Description                 |
+| ----------- | -------------------- | --------------------------- |
+| `get`       | `UseCase`            | Get single entity by ID     |
+| `getList`   | `UseCase`            | Get all entities            |
+| `create`    | `UseCase`            | Create new entity           |
+| `update`    | `UseCase`            | Update existing entity      |
+| `delete`    | `CompletableUseCase` | Delete entity by ID         |
+| `watch`     | `StreamUseCase`      | Watch single entity changes |
+| `watchList` | `StreamUseCase`      | Watch all entities changes  |
 
 #### Entity-Based Options
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--methods=<list>` | `-m` | Comma-separated methods to generate |
-| `--data` | `-d` | Generate data repository + data source |
-| `--datasource` | | Generate data source only |
-| `--id-field=<name>` | | ID field name (default: `id`) |
-| `--id-field-type=<type>` | | ID field type (default: `String`) |
-| `--query-field=<name>` | | Query field name for `get`/`watch` (default: `id`) |
-| `--query-field-type=<type>` | | Query field type (default: matches id-type) |
-| `--zorphy` | | Use Zorphy-style typed patches |
-| `--gql` | | Generate GraphQL query/mutation/subscription files |
-| `--gql-type=<type>` | | GraphQL operation type: query, mutation, subscription (default: auto) |
-| `--gql-returns=<fields>` | | GraphQL return fields (comma-separated) |
-| `--gql-input-type=<type>` | | GraphQL input type name |
-| `--gql-input-name=<name>` | | GraphQL input variable name |
-| `--gql-name=<name>` | | Custom GraphQL operation name |
+| Flag                        | Short | Description                                                           |
+| --------------------------- | ----- | --------------------------------------------------------------------- |
+| `--methods=<list>`          | `-m`  | Comma-separated methods to generate                                   |
+| `--data`                    | `-d`  | Generate data repository + data source                                |
+| `--datasource`              |       | Generate data source only                                             |
+| `--id-field=<name>`         |       | ID field name (default: `id`)                                         |
+| `--id-field-type=<type>`    |       | ID field type (default: `String`)                                     |
+| `--query-field=<name>`      |       | Query field name for `get`/`watch` (default: `id`)                    |
+| `--query-field-type=<type>` |       | Query field type (default: matches id-type)                           |
+| `--zorphy`                  |       | Use Zorphy-style typed patches                                        |
+| `--gql`                     |       | Generate GraphQL query/mutation/subscription files                    |
+| `--gql-type=<type>`         |       | GraphQL operation type: query, mutation, subscription (default: auto) |
+| `--gql-returns=<fields>`    |       | GraphQL return fields (comma-separated)                               |
+| `--gql-input-type=<type>`   |       | GraphQL input type name                                               |
+| `--gql-input-name=<name>`   |       | GraphQL input variable name                                           |
+| `--gql-name=<name>`         |       | Custom GraphQL operation name                                         |
 
 **Note:** Repository interface is automatically generated for entity-based operations.
 
@@ -140,97 +142,97 @@ Create standalone UseCases without an entity, useful for complex business operat
 
 #### Custom UseCase Options
 
-| Flag | Description |
-|------|-------------|
-| `--repo=<name>` | Repository to inject (single, enforces SRP) |
-| `--service=<name>` | Service to inject (alternative to `--repo`) |
-| `--domain=<name>` | Domain folder (required for custom UseCases) |
-| `--method=<name>` | Dependency method name (default: auto from UseCase name) |
-| `--service-method=<name>` | Service method name (default: auto from UseCase name) |
-| `--append` | Append to existing repository or service |
-| `--usecases=<list>` | Orchestrator: compose UseCases (comma-separated) |
-| `--variants=<list>` | Polymorphic: generate variants (comma-separated) |
-| `--type=<type>` | UseCase type: `usecase`, `stream`, `background`, `completable` |
-| `--params=<type>` | Params type (default: `NoParams`) |
-| `--returns=<type>` | Return type (default: `void`) |
+| Flag                      | Description                                                    |
+| ------------------------- | -------------------------------------------------------------- |
+| `--repo=<name>`           | Repository to inject (single, enforces SRP)                    |
+| `--service=<name>`        | Service to inject (alternative to `--repo`)                    |
+| `--domain=<name>`         | Domain folder (required for custom UseCases)                   |
+| `--method=<name>`         | Dependency method name (default: auto from UseCase name)       |
+| `--service-method=<name>` | Service method name (default: auto from UseCase name)          |
+| `--append`                | Append to existing repository or service                       |
+| `--usecases=<list>`       | Orchestrator: compose UseCases (comma-separated)               |
+| `--variants=<list>`       | Polymorphic: generate variants (comma-separated)               |
+| `--type=<type>`           | UseCase type: `usecase`, `stream`, `background`, `completable` |
+| `--params=<type>`         | Params type (default: `NoParams`)                              |
+| `--returns=<type>`        | Return type (default: `void`)                                  |
 
 #### UseCase Types
 
-| Type | Description | Use When |
-|------|-------------|----------|
-| `usecase` | Single request-response operations | CRUD, API calls |
-| `stream` | Real-time data, WebSocket, Firebase listeners | Reactive data streams |
-| `background` | CPU-intensive work (image processing, crypto) | Heavy computations on isolates |
-| `completable` | Operations that don't return a value | Delete, logout, clear cache |
+| Type          | Description                                   | Use When                       |
+| ------------- | --------------------------------------------- | ------------------------------ |
+| `usecase`     | Single request-response operations            | CRUD, API calls                |
+| `stream`      | Real-time data, WebSocket, Firebase listeners | Reactive data streams          |
+| `background`  | CPU-intensive work (image processing, crypto) | Heavy computations on isolates |
+| `completable` | Operations that don't return a value          | Delete, logout, clear cache    |
 
 ### VPC Layer Generation
 
 Generate the presentation layer with View, Presenter, and Controller.
 
-| Flag | Description |
-|------|-------------|
-| `--vpcs` | Generate View + Presenter + Controller |
-| `--vpcs` | Generate View, Presenter, Controller, and State |
-| `--pc` | Generate Presenter + Controller only (preserve View) |
-| `--pcs` | Generate Presenter, Controller, and State (preserve View) |
-| `--state` | Generate State object with granular loading states |
+| Flag      | Description                                               |
+| --------- | --------------------------------------------------------- |
+| `--vpcs`  | Generate View + Presenter + Controller                    |
+| `--vpcs`  | Generate View, Presenter, Controller, and State           |
+| `--pc`    | Generate Presenter + Controller only (preserve View)      |
+| `--pcs`   | Generate Presenter, Controller, and State (preserve View) |
+| `--state` | Generate State object with granular loading states        |
 
 ### Advanced Generation Features
 
 #### Caching with Dual DataSource Pattern
 
-| Flag | Description |
-|------|-------------|
-| `--cache` | Enable caching with dual datasources (remote + local) |
-| `--cache-policy` | Cache expiration: daily, restart, ttl (default: daily) |
+| Flag              | Description                                                          |
+| ----------------- | -------------------------------------------------------------------- |
+| `--cache`         | Enable caching with dual datasources (remote + local)                |
+| `--cache-policy`  | Cache expiration: daily, restart, ttl (default: daily)               |
 | `--cache-storage` | Local storage hint: hive, sqlite, shared_preferences (default: hive) |
-| `--ttl` | TTL duration in minutes (default: 1440 = 24 hours) |
+| `--ttl`           | TTL duration in minutes (default: 1440 = 24 hours)                   |
 
 #### Mock Data Generation
 
-| Flag | Description |
-|------|-------------|
-| `--mock` | Generate mock data files alongside other layers |
+| Flag               | Description                                     |
+| ------------------ | ----------------------------------------------- |
+| `--mock`           | Generate mock data files alongside other layers |
 | `--mock-data-only` | Generate only mock data files (no other layers) |
 
 #### Dependency Injection Generation
 
-| Flag | Description |
-|------|-------------|
-| `--di` | Generate dependency injection files (get_it) |
+| Flag         | Description                                            |
+| ------------ | ------------------------------------------------------ |
+| `--di`       | Generate dependency injection files (get_it)           |
 | `--use-mock` | Use mock datasource in DI (default: remote datasource) |
 
 #### Additional Features
 
-| Flag | Description |
-|------|-------------|
-| `--init` | Add initialize method & isInitialized stream to repos |
-| `--test` | Generate unit tests for each UseCase |
+| Flag          | Description                                           |
+| ------------- | ----------------------------------------------------- |
+| `--init`      | Add initialize method & isInitialized stream to repos |
+| `--test`      | Generate unit tests for each UseCase                  |
 | `--subfolder` | Organize under a subfolder (e.g., `--subfolder=auth`) |
 
 #### Input/Output Options
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--from-json=<file>` | `-j` | JSON configuration file |
-| `--from-stdin` | | Read JSON from stdin (AI-friendly) |
-| `--output=<dir>` | `-o` | Output directory (default: `lib/src`) |
-| `--format=<type>` | | Output format: `json` or `text` (default: `text`) |
-| `--dry-run` | | Preview without writing files |
-| `--force` | | Overwrite existing files |
-| `--verbose` | `-v` | Verbose output |
-| `--quiet` | `-q` | Minimal output (errors only) |
+| Flag                 | Short | Description                                       |
+| -------------------- | ----- | ------------------------------------------------- |
+| `--from-json=<file>` | `-j`  | JSON configuration file                           |
+| `--from-stdin`       |       | Read JSON from stdin (AI-friendly)                |
+| `--output=<dir>`     | `-o`  | Output directory (default: `lib/src`)             |
+| `--format=<type>`    |       | Output format: `json` or `text` (default: `text`) |
+| `--dry-run`          |       | Preview without writing files                     |
+| `--force`            |       | Overwrite existing files                          |
+| `--verbose`          | `-v`  | Verbose output                                    |
+| `--quiet`            | `-q`  | Minimal output (errors only)                      |
 
 #### GraphQL Generation Options
 
-| Flag | Description |
-|------|-------------|
-| `--gql` | Enable GraphQL query/mutation/subscription generation |
-| `--gql-type=<type>` | GraphQL operation type: query, mutation, subscription |
-| `--gql-returns=<fields>` | Return fields as comma-separated string |
-| `--gql-input-type=<type>` | GraphQL input type name |
-| `--gql-input-name=<name>` | GraphQL input variable name (default: input) |
-| `--gql-name=<name>` | Custom GraphQL operation name |
+| Flag                      | Description                                           |
+| ------------------------- | ----------------------------------------------------- |
+| `--gql`                   | Enable GraphQL query/mutation/subscription generation |
+| `--gql-type=<type>`       | GraphQL operation type: query, mutation, subscription |
+| `--gql-returns=<fields>`  | Return fields as comma-separated string               |
+| `--gql-input-type=<type>` | GraphQL input type name                               |
+| `--gql-input-name=<name>` | GraphQL input variable name (default: input)          |
+| `--gql-name=<name>`       | Custom GraphQL operation name                         |
 
 ### Initialize Command
 
@@ -251,6 +253,7 @@ zfa initialize --entity=Order --output=lib/src
 ```
 
 The `initialize` command creates a sample entity with realistic fields:
+
 - `id` (String) - Unique identifier
 - `name` (String) - Display name
 - `description` (String) - Detailed description
@@ -281,6 +284,7 @@ zfa generate Product --methods=get,getList,create,update,delete --data --gql --g
 ```
 
 Generated files are placed in:
+
 ```
 lib/src/data/datasources/{entity}/graphql/
 ├── get_product_query.dart
@@ -327,16 +331,17 @@ zfa generate WatchUserLocation \
 
 #### GraphQL Options
 
-| Flag | Description |
-|------|-------------|
-| `--gql` | Enable GraphQL generation |
-| `--gql-type` | Operation type: query, mutation, subscription (auto-detected for entity methods) |
-| `--gql-returns` | Return fields as comma-separated string |
-| `--gql-input-type` | Input type name for mutation/subscription |
-| `--gql-input-name` | Input variable name (default: input) |
-| `--gql-name` | Custom operation name (default: auto-generated) |
+| Flag               | Description                                                                      |
+| ------------------ | -------------------------------------------------------------------------------- |
+| `--gql`            | Enable GraphQL generation                                                        |
+| `--gql-type`       | Operation type: query, mutation, subscription (auto-detected for entity methods) |
+| `--gql-returns`    | Return fields as comma-separated string                                          |
+| `--gql-input-type` | Input type name for mutation/subscription                                        |
+| `--gql-input-name` | Input variable name (default: input)                                             |
+| `--gql-name`       | Custom operation name (default: auto-generated)                                  |
 
 **Auto-Detection for Entity Methods:**
+
 - `get`, `getList` → query
 - `create`, `update`, `delete` → mutation
 - `watch`, `watchList` → subscription
@@ -527,6 +532,7 @@ sealed class AppFailure {
 ### VPC Architecture
 
 When `--vpcs` is used:
+
 - **View** → Pure UI, uses `ControlledWidgetBuilder`
 - **Controller** → Manages state, calls Presenter methods
 - **Presenter** → Contains UseCases, orchestrates business logic
@@ -595,17 +601,18 @@ class MyController extends Controller {
 ### Caching with Dual DataSource Pattern
 
 Zuraffa's caching strategy uses the **Dual DataSource Pattern**:
+
 - **Remote DataSource**: Fetches data from API/external service
 - **Local DataSource**: Stores data in local storage (Hive, SQLite, etc.)
 - **Repository**: Orchestrates between remote and local based on cache policy
 
 #### Cache Policies
 
-| Policy | Description | Use Case |
-|--------|-------------|----------|
-| `DailyCachePolicy` | Cache expires after 24 hours | Data that updates daily |
+| Policy                  | Description                         | Use Case                        |
+| ----------------------- | ----------------------------------- | ------------------------------- |
+| `DailyCachePolicy`      | Cache expires after 24 hours        | Data that updates daily         |
 | `AppRestartCachePolicy` | Cache valid only during app session | Config data that rarely changes |
-| `TtlCachePolicy` | Custom expiration duration | Fine-grained control |
+| `TtlCachePolicy`        | Custom expiration duration          | Fine-grained control            |
 
 ### Dependency Injection Generation
 
@@ -653,37 +660,41 @@ dart pub global activate zuraffa
 
 ## File Naming Conventions
 
-| Type | Pattern | Example |
-|------|---------|---------|
-| Entity | `{entity_snake}.dart` | `product.dart` |
-| Repository | `{entity_snake}_repository.dart` | `product_repository.dart` |
-| UseCase | `{action}_{entity_snake}_usecase.dart` | `get_product_usecase.dart` |
-| DataSource | `{entity_snake}_datasource.dart` | `product_datasource.dart` |
-| View | `{entity_snake}_view.dart` | `product_view.dart` |
-| Presenter | `{entity_snake}_presenter.dart` | `product_presenter.dart` |
-| Controller | `{entity_snake}_controller.dart` | `product_controller.dart` |
-| State | `{entity_snake}_state.dart` | `product_state.dart` |
+| Type       | Pattern                                | Example                    |
+| ---------- | -------------------------------------- | -------------------------- |
+| Entity     | `{entity_snake}.dart`                  | `product.dart`             |
+| Repository | `{entity_snake}_repository.dart`       | `product_repository.dart`  |
+| UseCase    | `{action}_{entity_snake}_usecase.dart` | `get_product_usecase.dart` |
+| DataSource | `{entity_snake}_datasource.dart`       | `product_datasource.dart`  |
+| View       | `{entity_snake}_view.dart`             | `product_view.dart`        |
+| Presenter  | `{entity_snake}_presenter.dart`        | `product_presenter.dart`   |
+| Controller | `{entity_snake}_controller.dart`       | `product_controller.dart`  |
+| State      | `{entity_snake}_state.dart`            | `product_state.dart`       |
 
 ## Workflow for Adding Features
 
 ### Adding a New Entity
 
 1. **Create Entity** (manual or use your preferred generator like freezed/zorphy)
+
    ```
    lib/src/domain/entities/product/product.dart
    ```
 
 2. **Generate Domain + Data Layer**
+
    ```bash
    zfa generate Product --methods=get,getList,create,update,delete --data
    ```
 
 3. **Generate Presentation Layer**
+
    ```bash
    zfa generate Product --methods=get,getList,create --vpcs --state --force
    ```
 
 4. **Generate with Advanced Features**
+
    ```bash
    zfa generate Product --methods=get,getList,create,update,delete,watchList --data --vpcs --state --cache --di --test
    ```
@@ -730,11 +741,13 @@ zfa validate config.json
 ### Entity-Based Generation
 
 1. **Basic CRUD Generation:**
+
    ```bash
    zfa generate Product --methods=get,getList,create,update,delete
    ```
 
 2. **Complete Feature with Presentation:**
+
    ```bash
    zfa generate Product --methods=get,getList,create,update,delete --vpcs --state
    ```
@@ -745,6 +758,7 @@ zfa validate config.json
    ```
 
 # Complete Feature with All Layers:
+
 ```bash
 zfa generate Product --methods=get,getList,create,update,delete,watchList --data --vpcs --state --cache --di --test
 ```
@@ -752,11 +766,13 @@ zfa generate Product --methods=get,getList,create,update,delete,watchList --data
 ### GraphQL Generation
 
 1. **Generate GraphQL for Entity:**
+
    ```bash
    zfa generate Product --methods=get,getList,create --gql --gql-returns="id,name,price,category"
    ```
 
 2. **Generate GraphQL for Custom UseCase:**
+
    ```bash
    zfa generate SearchProducts \
      --service=Search \
@@ -782,16 +798,19 @@ zfa generate Product --methods=get,getList,create,update,delete,watchList --data
 ### Custom UseCase Generation
 
 1. **Custom UseCase with Repository:**
+
    ```bash
    zfa generate SearchProduct --domain=search --repo=Product --params=Query --returns=List<Product>
    ```
 
 2. **Custom UseCase with Service:**
+
    ```bash
    zfa generate ProcessPayment --domain=payment --service=Payment --params=PaymentRequest --returns=PaymentResult
    ```
 
 3. **Stream UseCase with Service:**
+
    ```bash
    zfa generate WatchPrices --domain=pricing --service=PriceStream --type=stream --params=ProductId --returns=Price
    ```
@@ -804,16 +823,19 @@ zfa generate Product --methods=get,getList,create,update,delete,watchList --data
 ### Advanced Generation
 
 1. **With Caching:**
+
    ```bash
    zfa generate Config --methods=get,getList --data --cache --cache-policy=daily
    ```
 
 2. **With Mock Data:**
+
    ```bash
    zfa generate Product --methods=get,getList --mock
    ```
 
 3. **With Dependency Injection:**
+
    ```bash
    zfa generate Product --methods=get,getList --data --vpcs --di
    ```
@@ -826,16 +848,19 @@ zfa generate Product --methods=get,getList,create,update,delete,watchList --data
 ### AI-Agent Friendly Commands
 
 1. **JSON Output for Parsing:**
+
    ```bash
    zfa generate Product --methods=get,getList --format=json
    ```
 
 2. **From stdin (pipe JSON):**
+
    ```bash
    echo '{"name":"Product","methods":["get","getList"]}' | zfa generate Product --from-stdin
    ```
 
 3. **Get JSON schema:**
+
    ```bash
    zfa schema
    ```
@@ -915,8 +940,11 @@ zfa generate Product --methods=get,getList --force
 - [Example](./example) - Working example application
 
 ## Active Technologies
-- YAML (extension definition), Dart/ZFA CLI + ZFA CLI (v4.0.0+), Speckit extension framework (003-speckit-cli-commands)
+
+- YAML (extension definition), Dart/ZFA CLI + ZFA CLI (v4.1.0+), Speckit extension framework (003-speckit-cli-commands)
 - N/A (no persistent data) (003-speckit-cli-commands)
 
 ## Recent Changes
+
+- 4.1.0: Upgraded to Analyzer 13.0.0 and dart_style 3.1.9. Implemented reflection-based AST compatibility layer in `InjectBuilder` and `MethodExtractor` to support breaking changes in `analyzer` while maintaining backward compatibility.
 - 003-speckit-cli-commands: Added YAML (extension definition), Dart/ZFA CLI + ZFA CLI (v4.0.0+), Speckit extension framework
