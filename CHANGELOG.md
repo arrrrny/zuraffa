@@ -1,10 +1,5 @@
 ## [4.1.0] - 2026-04-30
 
-### Change
-- Release 4.1.0
-
-## [4.1.0] - 2026-05-15
-
 ### Added
 
 - **Analyzer 13 Support**: Full compatibility with `analyzer` package version 13.0.0.
