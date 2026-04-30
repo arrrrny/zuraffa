@@ -253,32 +253,29 @@ class InjectBuilder {
       // Extract existing parameters and initializers from AST
       final params = <Parameter>[];
       for (final p in oldConstructor.parameters.parameters) {
-        if (p is ast.DefaultFormalParameter) {
-          final fp = p.parameter;
+        final dynamic dp = p;
+        final isDefault =
+            p.runtimeType.toString().contains('DefaultFormalParameter') ||
+            (dp is ast.FormalParameter && _hasDefaultClause(dp));
+
+        if (isDefault) {
+          final dynamic fp = _getInternalParameter(dp);
           params.add(
             Parameter(
               (b) => b
-                ..name = fp.name?.lexeme ?? ''
-                ..type = refer(
-                  fp is ast.SimpleFormalParameter
-                      ? fp.type?.toString() ?? ''
-                      : '',
-                )
-                ..named = fp.isNamed
-                ..required = p.isRequired,
+                ..name = _getParameterName(fp)
+                ..type = refer(_getParameterType(fp))
+                ..named = _isNamed(fp)
+                ..required = _isRequired(dp),
             ),
           );
         } else {
           params.add(
             Parameter(
               (b) => b
-                ..name = p.name?.lexeme ?? ''
-                ..type = refer(
-                  p is ast.SimpleFormalParameter
-                      ? p.type?.toString() ?? ''
-                      : '',
-                )
-                ..named = p.isNamed
+                ..name = _getParameterName(dp)
+                ..type = refer(_getParameterType(dp))
+                ..named = _isNamed(dp)
                 ..required = true,
             ),
           );
@@ -335,6 +332,55 @@ class InjectBuilder {
         className: className,
         constructorSource: constructorSource,
       );
+    }
+  }
+
+  bool _hasDefaultClause(dynamic p) {
+    try {
+      return p.defaultClause != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  dynamic _getInternalParameter(dynamic p) {
+    try {
+      return p.parameter;
+    } catch (_) {
+      return p;
+    }
+  }
+
+  String _getParameterName(dynamic p) {
+    try {
+      return p.name?.lexeme ?? '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String _getParameterType(dynamic p) {
+    try {
+      // In Analyzer 13, SimpleFormalParameter is RegularFormalParameter
+      return p.type?.toString() ?? '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  bool _isNamed(dynamic p) {
+    try {
+      return p.isNamed;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool _isRequired(dynamic p) {
+    try {
+      return p.isRequired;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -569,12 +615,38 @@ class _DIUpdateVisitor extends ast_visitor.RecursiveAstVisitor<void> {
     super.visitInstanceCreationExpression(node);
   }
 
+  String? _getLabelName(dynamic labelNode) {
+    try {
+      // Analyzer < 13
+      return labelNode.label.name;
+    } catch (_) {
+      try {
+        // Analyzer >= 13
+        return labelNode.name.lexeme;
+      } catch (_) {
+        return null;
+      }
+    }
+  }
+
   void _handleArgumentList(ast.ArgumentList node) {
     bool alreadyExists = false;
     for (final arg in node.arguments) {
-      if (arg is ast.NamedExpression && arg.name.label.name == fieldName) {
-        alreadyExists = true;
-        break;
+      // Analyzer 13 replacement: NamedExpression is now NamedArgument in ArgumentList
+      final isNamed =
+          arg.runtimeType.toString().contains('NamedArgument') ||
+          arg.runtimeType.toString().contains('NamedExpression');
+
+      if (isNamed) {
+        // In Analyzer 13, Label.label (SimpleIdentifier) is removed, use Label.name (Token)
+        // For compatibility, we check if label or name property is available via reflection or string comparison if we can't use static types yet
+        // But since we are migrating, we will use a more robust way to check.
+        final dynamic namedArg = arg;
+        final String? name = _getLabelName(namedArg.name);
+        if (name == fieldName) {
+          alreadyExists = true;
+          break;
+        }
       }
     }
 

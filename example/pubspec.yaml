@@ -15,7 +15,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   zuraffa:
     path: ../
-  zorphy_annotation: ^1.6.6
+  zorphy_annotation: ^1.7.0
 
   build_runner: ^2.11.0
   hive_ce_flutter: ^2.3.4
@@ -24,6 +24,7 @@ dependencies:
   json_annotation: ^4.10.0
   path: ^1.9.1
   code_builder: ^4.11.1
+  dart_style: ^3.1.9
 
 dev_dependencies:
   flutter_test:
@@ -38,4 +39,9 @@ flutter:
 dependency_overrides:
   meta: ^1.18.0
   test_api: ^0.7.9
-  analyzer: 10.0.2
+  analyzer: 13.0.0
+  json_serializable:
+    git:
+      url: https://github.com/arrrrny/json_serializable.dart.git
+      ref: analyzer-13
+      path: json_serializable

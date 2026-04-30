@@ -1,26 +1,45 @@
+## [4.1.0] - 2026-05-15
+
+### Added
+
+- **Analyzer 13 Support**: Full compatibility with `analyzer` package version 13.0.0.
+- **Robust AST Migration**: Implemented reflection-based helper methods in `InjectBuilder` and `MethodExtractor` to support both legacy and new `analyzer` AST structures (`RegularFormalParameter`, `NamedArgument`, `Label.name`, etc.).
+- **Improved DI Generation**: Enhanced constructor merging and registration logic to handle breaking changes in formal parameter representation.
+
+### Changed
+
+- Upgraded `dart_style` to `^3.1.9` for improved code formatting and compatibility with new Dart features.
+- Pin `analyzer` to `13.0.0` in dependency overrides to ensure stable code generation.
+- Upgraded `zorphy_annotation` to `^1.7.0` and `zorphy` to `^1.6.9`.
+
 ## [4.0.10] - 2026-04-26
 
 ### Change
+
 - Release 4.0.10
 
 ## [4.0.9] - 2026-04-26
 
 ### Change
+
 - Release 4.0.9
 
 ## [4.0.9] - 2026-04-26
 
 ### Change
+
 - Release 4.0.9
 
 ## [4.0.8] - 2026-04-26
 
 ### Change
+
 - Release 4.0.8
 
 ## [4.0.7] - 2026-04-25
 
 ### Change
+
 - Release 4.0.7
 
 ## [4.0.7] - 2026-04-25
