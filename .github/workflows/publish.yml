@@ -1,0 +1,41 @@
+name: Publish to Pub.dev
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # Required for authentication with pub.dev via OIDC
+      contents: write # Required for creating a GitHub release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+
+      - name: Publish Zuraffa
+        run: |
+          # Retry logic for pub get to account for pub.dev indexing delays
+          echo "Fetching dependencies (with retries for indexing delay)..."
+          for i in {1..10}; do
+            dart pub get && break || {
+              if [ $i -lt 10 ]; then
+                echo "Retrying in 30 seconds ($i/10)..."
+                sleep 30
+              else
+                echo "Failed to resolve dependencies after 10 attempts."
+                exit 1
+              fi
+            }
+          done
+          dart test
+          dart pub publish --force
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
