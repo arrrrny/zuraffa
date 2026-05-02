@@ -77,10 +77,10 @@ packages:
     dependency: "direct dev"
     description:
       name: build_runner
-      sha256: "22fdcc3cfeb9d974d7408718c4be15ec5e9b1b350088f3a6c88f154e74dd700d"
+      sha256: "1523ce62448ebac2c15a8ba5fbad8acac169788658a7dd2a1c2d9c2a9318b9a6"
       url: "https://pub.dev"
     source: hosted
-    version: "2.14.1"
+    version: "2.15.0"
   built_collection:
     dependency: transitive
     description:
@@ -379,12 +379,11 @@ packages:
   json_serializable:
     dependency: "direct main"
     description:
-      path: json_serializable
-      ref: analyzer-13
-      resolved-ref: "447fb6766a7af34b62b50691431c0086371b46d2"
-      url: "https://github.com/arrrrny/json_serializable.dart.git"
-    source: git
-    version: "6.13.1"
+      name: json_serializable
+      sha256: "2c15e78e1cc6e62aadecf59f81566fd56829713d96a8c4177699e2b2e17f20db"
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.13.2"
   leak_tracker:
     dependency: transitive
     description:
@@ -858,18 +857,18 @@ packages:
     dependency: "direct main"
     description:
       name: zorphy
-      sha256: "6618bb59dcadfdcabe46c070b53f84a993d139df24fbf7de98c61f235014cdfb"
+      sha256: "632e98473ed1adff456c82d20a986dcfb89c3c77546740a633e778812ff0c0f1"
       url: "https://pub.dev"
     source: hosted
-    version: "1.7.0"
+    version: "1.7.1"
   zorphy_annotation:
     dependency: "direct main"
     description:
       name: zorphy_annotation
-      sha256: "4c633d5c9e5a1f46b3c9b3cb90a00c0084be33623466d88dc6f382f571c3fbac"
+      sha256: "21a5e6f5921d09563fcd22ac798bf2f755455ea498f9b3c4cf6a1a3a043d855d"
       url: "https://pub.dev"
     source: hosted
-    version: "1.7.0"
+    version: "1.7.1"
 sdks:
   dart: ">=3.11.0 <4.0.0"
   flutter: ">=3.41.0"
