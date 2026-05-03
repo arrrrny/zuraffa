@@ -6,6 +6,12 @@ This document provides comprehensive guidance for AI agents working with Zuraffa
 
 🦒 Zuraffa (Zürafa means Giraffe in Türkçe) is a modern Flutter package that implements Clean Architecture principles with a focus on developer experience and type safety. It provides a robust set of tools for building scalable, testable, and maintainable Flutter applications.
 
+### Code Search
+
+- **PREFER semantic search** (`mcp__claude-context__search_code`) over `grep`, `find`, or other shell-based searches for all code discovery tasks. Semantic search is faster and more accurate for understanding code relationships, finding implementations, and exploring the codebase.
+- **Use `search_code`**: When looking for implementations, understanding how features work, finding related code, or exploring the codebase.
+- **Use `grep`/`find` only**: When you need exact string matches, file name patterns, or the semantic search index is unavailable/broken.
+
 ### Key Features
 
 - ✅ **Clean Architecture Enforced**: Entity-based, Single (Responsibility) Repository, Orchestrator, and Polymorphic patterns
@@ -950,6 +956,8 @@ zfa generate Product --methods=get,getList --force
 - 003-speckit-cli-commands: Added YAML (extension definition), Dart/ZFA CLI + ZFA CLI (v4.0.0+), Speckit extension framework
 
 <!-- SPECKIT START -->
+
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
+
 <!-- SPECKIT END -->
