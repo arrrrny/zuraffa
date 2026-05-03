@@ -1,6 +1,18 @@
-## [4.1.1] - 2026-05-02
+## [4.1.2] - 2026-05-03
 
 ### Change
+- Release 4.1.2
+
+## [4.1.1] - 2026-05-02
+
+### Fixed
+
+- **OpenTelemetry Context Management**: Fixed \"unexpected (mismatched) token given to detach\" errors in concurrent scrape operations.
+  - `trace()` and `traceSync()` now wrap their entire body in `runZoned()` to fork isolated zones with independent context stacks.
+  - Parent context is explicitly captured and passed to `startSpan()` to maintain correct span lineage across asynchronous boundaries.
+
+### Change
+
 - Release 4.1.1
 
 ## [4.1.0] - 2026-04-30
