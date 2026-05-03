@@ -948,3 +948,8 @@ zfa generate Product --methods=get,getList --force
 
 - 4.1.0: Upgraded to Analyzer 13.0.0 and dart_style 3.1.9. Implemented reflection-based AST compatibility layer in `InjectBuilder` and `MethodExtractor` to support breaking changes in `analyzer` while maintaining backward compatibility.
 - 003-speckit-cli-commands: Added YAML (extension definition), Dart/ZFA CLI + ZFA CLI (v4.0.0+), Speckit extension framework
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+<!-- SPECKIT END -->

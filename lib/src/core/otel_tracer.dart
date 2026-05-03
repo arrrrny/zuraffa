@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:logging/logging.dart';
 import 'package:opentelemetry/api.dart'
     show
@@ -194,26 +196,36 @@ class OtelTracer {
     Future<T> Function() fn, {
     List<Attribute> attributes = const [],
     SpanKind kind = SpanKind.internal,
-  }) async {
-    final span = startSpan(name, attributes: attributes, kind: kind);
+  }) {
+    // Capture the parent context *before* forking so that the new span is
+    // correctly linked as a child of whatever span was active at the call-site.
+    final parentContext = Context.current;
 
-    // Make this span the active context for the duration of fn
-    final spanContext = contextWithSpan(Context.current, span);
-    // ignore: experimental_member_use
-    final token = Context.attach(spanContext);
+    return runZoned(() async {
+      final span = startSpan(
+        name,
+        attributes: attributes,
+        kind: kind,
+        parentContext: parentContext,
+      );
 
-    try {
-      final result = await fn();
-      endSpan(span);
+      final spanContext = contextWithSpan(Context.current, span);
       // ignore: experimental_member_use
-      Context.detach(token);
-      return result;
-    } catch (e, st) {
-      endSpanWithError(span, e, st);
-      // ignore: experimental_member_use
-      Context.detach(token);
-      rethrow;
-    }
+      final token = Context.attach(spanContext);
+
+      try {
+        final result = await fn();
+        endSpan(span);
+        // ignore: experimental_member_use
+        Context.detach(token);
+        return result;
+      } catch (e, st) {
+        endSpanWithError(span, e, st);
+        // ignore: experimental_member_use
+        Context.detach(token);
+        rethrow;
+      }
+    });
   }
 
   /// Synchronous variant of [trace] for non-async operations.
@@ -223,24 +235,33 @@ class OtelTracer {
     List<Attribute> attributes = const [],
     SpanKind kind = SpanKind.internal,
   }) {
-    final span = startSpan(name, attributes: attributes, kind: kind);
+    final parentContext = Context.current;
 
-    final spanContext = contextWithSpan(Context.current, span);
-    // ignore: experimental_member_use
-    final token = Context.attach(spanContext);
+    return runZoned(() {
+      final span = startSpan(
+        name,
+        attributes: attributes,
+        kind: kind,
+        parentContext: parentContext,
+      );
 
-    try {
-      final result = fn();
-      endSpan(span);
+      final spanContext = contextWithSpan(Context.current, span);
       // ignore: experimental_member_use
-      Context.detach(token);
-      return result;
-    } catch (e, st) {
-      endSpanWithError(span, e, st);
-      // ignore: experimental_member_use
-      Context.detach(token);
-      rethrow;
-    }
+      final token = Context.attach(spanContext);
+
+      try {
+        final result = fn();
+        endSpan(span);
+        // ignore: experimental_member_use
+        Context.detach(token);
+        return result;
+      } catch (e, st) {
+        endSpanWithError(span, e, st);
+        // ignore: experimental_member_use
+        Context.detach(token);
+        rethrow;
+      }
+    });
   }
 
   // ---------------------------------------------------------------------------
