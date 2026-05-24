@@ -24,6 +24,33 @@ Future<String> _getVersion() async {
   return _version!;
 }
 
+/// Singleton pattern for shared resources
+class SharedResources {
+  static SharedResources? _instance;
+  static bool _initializing = false;
+
+  SharedResources._();
+
+  static Future<SharedResources> get instance async {
+    if (_instance != null) return _instance!;
+
+    while (_initializing) {
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+
+    if (_instance != null) return _instance!;
+
+    _initializing = true;
+    try {
+      // Initialize shared resources (plugin registry is already a singleton)
+      _instance = SharedResources._();
+      return _instance!;
+    } finally {
+      _initializing = false;
+    }
+  }
+}
+
 /// MCP Server for Zuraffa CLI
 ///
 /// This server implements the Model Context Protocol to expose
@@ -31,6 +58,9 @@ Future<String> _getVersion() async {
 ///
 /// Run with: dart run zuraffa:zuraffa_mcp_server
 void main(List<String> args) async {
+  // Initialize shared resources (singleton pattern)
+  await SharedResources.instance;
+
   // Check for flags passed to the server process itself
   final useZorphyByDefault =
       args.contains('--zorphy') || args.contains('--always-zorphy');
