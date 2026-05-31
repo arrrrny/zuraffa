@@ -270,7 +270,12 @@ class MinioClient {
   }) async {
     try {
       _logger.fine('fPutObject $bucket/$key from $filePath');
-      await _delegate.fPutObject(bucket, key, filePath, metadata: metadata);
+      await _delegate.fPutObject(
+        bucket,
+        key,
+        filePath,
+        metadata: _sanitizeMetadata(metadata),
+      );
       _logger.fine('fPutObject succeeded: $bucket/$key');
       return true;
     } catch (e, stackTrace) {
@@ -427,14 +432,73 @@ class MinioClient {
   /// manages its own HTTP client lifecycle.
   void close() {}
 
+  static const int _maxHeaderValueLength = 512;
+  static const int _headerPreviewLength = 200;
+
   Map<String, String> _withContentType(
     Map<String, String>? metadata,
     String contentType,
   ) {
-    final map = <String, String>{};
-    if (metadata != null) map.addAll(metadata);
-    map['Content-Type'] = contentType;
+    final map = _sanitizeMetadata(metadata);
+    map['Content-Type'] = _sanitizeHeaderValue(contentType);
     return map;
+  }
+
+  Map<String, String> _sanitizeMetadata(Map<String, String>? metadata) {
+    final map = <String, String>{};
+    if (metadata == null) return map;
+
+    for (final entry in metadata.entries) {
+      map[entry.key] = _sanitizeHeaderValue(entry.value);
+    }
+
+    return map;
+  }
+
+  String _sanitizeHeaderValue(String value) {
+    final normalized = value.replaceAll(RegExp(r'[\r\n\t]+'), ' ').trim();
+    if (normalized.isEmpty) return '';
+
+    var isAscii = true;
+    for (final codeUnit in normalized.codeUnits) {
+      if (codeUnit < 32 || codeUnit > 126) {
+        isAscii = false;
+        break;
+      }
+    }
+
+    if (isAscii && normalized.length <= _maxHeaderValueLength) {
+      return normalized;
+    }
+
+    final buffer = StringBuffer();
+    var previousWasSpace = false;
+    for (final codeUnit in normalized.codeUnits) {
+      String char;
+      if (codeUnit == 13 || codeUnit == 10 || codeUnit == 9) {
+        char = ' ';
+      } else if (codeUnit >= 32 && codeUnit <= 126) {
+        char = String.fromCharCode(codeUnit);
+      } else {
+        char = '?';
+      }
+
+      if (char == ' ') {
+        if (previousWasSpace) continue;
+        previousWasSpace = true;
+      } else {
+        previousWasSpace = false;
+      }
+
+      buffer.write(char);
+      if (buffer.length >= _headerPreviewLength) {
+        break;
+      }
+    }
+
+    final preview = buffer.toString().trim();
+    return '[sanitized len=${normalized.length}] '
+        '${normalized.length > _headerPreviewLength ? '$preview...' : preview}';
   }
 }
 

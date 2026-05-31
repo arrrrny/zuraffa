@@ -621,19 +621,10 @@ class MinIOArtifactHook extends ArtifactHook {
     final ext = _extensionFor(context);
     final fullKey = ext != null ? '$key.$ext' : key;
 
-    // Build S3 metadata headers from context
-    final s3Metadata = <String, String>{'artifact-reason': context.reason};
-    if (context.source != null) s3Metadata['artifact-source'] = context.source!;
-    if (context.label != null) s3Metadata['artifact-label'] = context.label!;
-
-    // Trace context — enables navigation from artifact storage → OTel backend
-    if (context.traceId != null) s3Metadata['trace-id'] = context.traceId!;
-    if (context.spanId != null) s3Metadata['span-id'] = context.spanId!;
-
-    // Attach all stringifiable metadata values
-    for (final entry in context.metadata.entries) {
-      s3Metadata['ctx-${entry.key}'] = entry.value.toString();
-    }
+    // Build S3 metadata headers from context. Values must be safe for
+    // HTTP headers, so keys are normalized and long/non-ASCII values are
+    // compacted into ASCII-safe summaries.
+    final s3Metadata = _buildS3Metadata(context);
 
     _logger.info(
       'Uploading artifact to MinIO: bucket=$bucket, key=$fullKey, '
@@ -664,6 +655,112 @@ class MinIOArtifactHook extends ArtifactHook {
     } else {
       _logger.warning('Upload failed: $bucket/$fullKey');
     }
+  }
+
+  static const int _maxMetadataValueLength = 512;
+  static const int _metadataPreviewLength = 160;
+
+  Map<String, String> _buildS3Metadata(ArtifactContext context) {
+    final s3Metadata = <String, String>{};
+
+    void put(String key, String value) {
+      final sanitizedKey = _sanitizeMetadataKey(key);
+      if (sanitizedKey.isEmpty) return;
+      s3Metadata[sanitizedKey] = _sanitizeMetadataValue(value);
+    }
+
+    put('artifact-reason', context.reason);
+    if (context.source != null) put('artifact-source', context.source!);
+    if (context.label != null) put('artifact-label', context.label!);
+
+    if (context.traceId != null) put('trace-id', context.traceId!);
+    if (context.spanId != null) put('span-id', context.spanId!);
+
+    for (final entry in context.metadata.entries) {
+      put('ctx-${entry.key}', entry.value.toString());
+    }
+
+    return s3Metadata;
+  }
+
+  static String _sanitizeMetadataKey(String key) {
+    final trimmed = key.trim().toLowerCase();
+    if (trimmed.isEmpty) return '';
+
+    final buffer = StringBuffer();
+    var previousWasDash = false;
+
+    for (final rune in trimmed.runes) {
+      final isLowercaseLetter = rune >= 97 && rune <= 122;
+      final isDigit = rune >= 48 && rune <= 57;
+      final isDash = rune == 45;
+
+      if (isLowercaseLetter || isDigit) {
+        buffer.writeCharCode(rune);
+        previousWasDash = false;
+      } else if (isDash || !previousWasDash) {
+        buffer.write('-');
+        previousWasDash = true;
+      }
+    }
+
+    return buffer.toString().replaceAll(RegExp(r'^-+|-+$'), '');
+  }
+
+  static String _sanitizeMetadataValue(String value) {
+    final normalized = value.replaceAll(RegExp(r'[\r\n\t]+'), ' ').trim();
+    if (normalized.isEmpty) return '';
+
+    if (_isSafeHeaderValue(normalized) &&
+        normalized.length <= _maxMetadataValueLength) {
+      return normalized;
+    }
+
+    final preview = _headerPreview(normalized);
+    return '[sanitized len=${normalized.length}] $preview';
+  }
+
+  static bool _isSafeHeaderValue(String value) {
+    for (final codeUnit in value.codeUnits) {
+      if (codeUnit < 32 || codeUnit > 126) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  static String _headerPreview(String value) {
+    final buffer = StringBuffer();
+    var previousWasSpace = false;
+
+    for (final codeUnit in value.codeUnits) {
+      String char;
+      if (codeUnit == 13 || codeUnit == 10 || codeUnit == 9) {
+        char = ' ';
+      } else if (codeUnit >= 32 && codeUnit <= 126) {
+        char = String.fromCharCode(codeUnit);
+      } else {
+        char = '?';
+      }
+
+      if (char == ' ') {
+        if (previousWasSpace) continue;
+        previousWasSpace = true;
+      } else {
+        previousWasSpace = false;
+      }
+
+      buffer.write(char);
+      if (buffer.length >= _metadataPreviewLength) {
+        break;
+      }
+    }
+
+    final preview = buffer.toString().trim();
+    if (value.length > _metadataPreviewLength) {
+      return '$preview...';
+    }
+    return preview;
   }
 
   /// Build the S3 object key for this artifact.
