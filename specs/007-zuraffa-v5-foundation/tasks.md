@@ -171,19 +171,19 @@
 
 ### Tests for User Story 5 ⚠️
 
-- [ ] T054 [P] [US5] Add documentation reference checks in `test/regression/docs_command_consistency_test.dart`
-- [ ] T055 [P] [US5] Add test gating/isolation for MinIO/local-service tests in `test/core/artifact_publisher_test.dart` or a new external-integration test harness
-- [ ] T056 [P] [US5] Add a regression test for robust project root resolution in subprocess/temp-dir scenarios in `test/regression/cli_command_test.dart`
+- [x] T054 [P] [US5] Add documentation reference checks in `test/regression/docs_command_consistency_test.dart`
+- [x] T055 [P] [US5] Add test gating/isolation for MinIO/local-service tests in `test/core/artifact_publisher_test.dart` or a new external-integration test harness
+- [x] T056 [P] [US5] Add a regression test for robust project root resolution in subprocess/temp-dir scenarios in `test/regression/cli_command_test.dart`
 
 ### Implementation for User Story 5
 
-- [ ] T057 [US5] Replace `zfa generate` references in `README.md`
-- [ ] T058 [US5] Rewrite `CLI_GUIDE.md` around `zfa make` as canonical and `zfa feature` as wrapper
-- [ ] T059 [US5] Rewrite `AGENTS.md` to require `zfa entity create` → `zfa make` → `zfa build`, explicitly documenting fixed `lib/src/domain` and Zorphy-only assumptions
-- [ ] T060 [US5] Rewrite `SKILL.md` to align with the same canonical workflow and manual UI zones
-- [ ] T061 [US5] Update website docs under `website/docs/` to remove stale/contradictory `feature`/`generate` guidance and invalid `make` plugin examples
-- [ ] T062 [US5] Add `.zfa`/agent-memory documentation to README and website docs
-- [ ] T063 [US5] Gate MinIO/local-infra tests out of the default suite, e.g. by tags, environment variables, or moving them into a dedicated external integration suite
+- [x] T057 [US5] Replace `zfa generate` references in `README.md`
+- [x] T058 [US5] Rewrite `CLI_GUIDE.md` around `zfa make` as canonical and `zfa feature` as wrapper
+- [x] T059 [US5] Rewrite `AGENTS.md` to require `zfa entity create` → `zfa make` → `zfa build`, explicitly documenting fixed `lib/src/domain` and Zorphy-only assumptions
+- [x] T060 [US5] Rewrite `SKILL.md` to align with the same canonical workflow and manual UI zones
+- [x] T061 [US5] Update website docs under `website/docs/` to remove stale/contradictory `feature`/`generate` guidance and invalid `make` plugin examples
+- [x] T062 [US5] Add `.zfa`/agent-memory documentation to README and website docs
+- [x] T063 [US5] Gate MinIO/local-infra tests out of the default suite, e.g. by tags, environment variables, or moving them into a dedicated external integration suite
 - [x] T064 [US5] Create a robust project root resolver under `lib/src/core/project/project_root.dart` and replace brittle `Directory.current` bootstrapping in `lib/src/commands/`, `lib/src/config/`, `lib/src/cli/`, and `lib/src/plugins/feature/capabilities/`
 
 **Checkpoint**: Docs, prompts, and default tests are coherent and trustworthy.
@@ -194,13 +194,13 @@
 
 **Purpose**: Final cleanup, migration confidence, and release readiness for v5.
 
-- [ ] T065 [P] Remove or hide placeholder/no-op public plugin surfaces that should not be promoted in v5, notably ambiguity between `lib/src/plugins/gql/` and `lib/src/plugins/graphql/`
-- [ ] T066 [P] Add release/migration guide content for v4 → v5 under `doc/` and `website/docs/`
-- [ ] T067 [P] Run targeted command/docs grep checks to ensure no official v5 references to `zfa generate` remain
-- [ ] T068 Run hermetic `flutter test` suite excluding local-infra tests and confirm pass
-- [ ] T069 Run targeted CLI/integration/regression tests for `make`, feature wrapper, `.zfa` persistence, adaptive layouts, fixed-domain assumptions, and Zorphy-only flows
-- [ ] T070 Run `dart analyze` on all modified source/test/doc-support files
-- [ ] T071 Validate end-to-end quickstart: create entity, run `zfa make`, run `zfa build`, verify `.zfa/` artifacts and generated structure
+- [x] T065 [P] Remove or hide placeholder/no-op public plugin surfaces that should not be promoted in v5, notably ambiguity between `lib/src/plugins/gql/` and `lib/src/plugins/graphql/`
+- [x] T066 [P] Add release/migration guide content for v4 → v5 under `doc/` and `website/docs/`
+- [x] T067 [P] Run targeted command/docs grep checks to ensure no official v5 references to `zfa generate` remain
+- [x] T068 Run hermetic `flutter test` suite excluding local-infra tests and confirm pass
+- [x] T069 Run targeted CLI/integration/regression tests for `make`, feature wrapper, `.zfa` persistence, adaptive layouts, fixed-domain assumptions, and Zorphy-only flows
+- [x] T070 Run `dart analyze` on all modified source/test/doc-support files
+- [x] T071 Validate end-to-end quickstart: create entity, run `zfa make`, run `zfa build`, verify `.zfa/` artifacts and generated structure
 
 ---
 

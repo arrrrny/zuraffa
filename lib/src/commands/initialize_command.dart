@@ -81,16 +81,10 @@ class InitializeCommand {
 
       print('\n📝 Next steps:');
       print('   • Generate complete feature:');
+      print('     zfa make $entityName --preset=crud --with=vpc,state,di,test');
+      print('   • Or generate with adaptive layouts:');
       print(
-        '     zfa generate $entityName --methods=get,getList,create,update,delete --data --vpcs --state',
-      );
-      print('   • Or generate incrementally:');
-      print('     zfa generate $entityName --methods=get,getList');
-      print(
-        '     zfa generate $entityName --methods=get,getList --vpcs --state --force',
-      );
-      print(
-        '     zfa generate $entityName --methods=get,getList --data --force',
+        '     zfa make $entityName --preset=adaptive-feature --methods=get,getList',
       );
     } catch (e) {
       print('❌ Error: $e');
@@ -120,7 +114,7 @@ DESCRIPTION:
   under lib/src/domain/entities to help you quickly test Zuraffa's code generation
   capabilities.
 
-  After running this command, use 'zfa generate' to create the full Clean Architecture
+  After running this command, use 'zfa make' to create the full Clean Architecture
   structure around your entity.
 ''');
   }

@@ -93,7 +93,6 @@ zfa make Product usecase repository datasource view presenter controller state d
 | `--mock`             | Add mock data generation                          |
 | `--cache`            | Add cache generation                              |
 | `--gql`              | Add gql string generation                         |
-| `--graphql`          | Add graphql schema generation                     |
 | `--plan`             | Print the normalized plan and exit                |
 | `--explain`          | Explain plan resolution and exit                  |
 | `--format=json`      | Emit machine-readable output                      |

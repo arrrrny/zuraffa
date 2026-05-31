@@ -30,7 +30,7 @@ Manage your domain layer directly through AI.
 
 ### 3. Feature Generation (`zuraffa_generate`)
 
-This is the **primary tool** for scaffolding Clean Architecture features. It corresponds to the `zfa generate` CLI command but with structured inputs for AI.
+This is the **primary tool** for scaffolding Clean Architecture features. It corresponds to the `zfa make` CLI command but with structured inputs for AI.
 
 **Core Arguments:**
 - `name` (Required): The name of the Entity (e.g., "Product").

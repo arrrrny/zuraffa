@@ -12,13 +12,7 @@ GraphQL generation is additive in Zuraffa v5: create the entity first, then use 
 zfa make Product --preset=crud --methods=get,getList,create --gql
 ```
 
-### 2. Add schema generation too
-
-```bash
-zfa make Product --preset=crud --methods=get,getList,create --gql --graphql
-```
-
-### 3. Custom return fields
+### 2. Custom return fields
 
 ```bash
 zfa make Product \
