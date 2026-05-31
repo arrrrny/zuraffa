@@ -109,35 +109,85 @@ class MockEntityGraphBuilder {
               'dynamic',
             ].contains(baseType) &&
             !processedEntities.contains(baseType)) {
-          final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
-            baseType,
-            outputDir,
-            fileSystem: fileSystem,
-          );
-          if (subtypes.isNotEmpty) {
-            processedEntities.add(baseType);
+          try {
+            final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
+              baseType,
+              outputDir,
+              fileSystem: fileSystem,
+            );
+            if (subtypes.isNotEmpty) {
+              processedEntities.add(baseType);
 
-            for (final subtype in subtypes) {
-              if (!processedEntities.contains(subtype)) {
-                processedEntities.add(subtype);
+              for (final subtype in subtypes) {
+                if (!processedEntities.contains(subtype)) {
+                  processedEntities.add(subtype);
 
-                final subtypeConfig = GeneratorConfig(
-                  name: subtype,
-                  generateMockDataOnly: true,
-                  outputDir: outputDir,
-                  revert: revert,
-                  force: force,
-                  verbose: verbose,
-                );
-                files.add(await generateMockDataFile(subtypeConfig));
+                  final subtypeConfig = GeneratorConfig(
+                    name: subtype,
+                    generateMockDataOnly: true,
+                    outputDir: outputDir,
+                    revert: revert,
+                    force: force,
+                    verbose: verbose,
+                  );
+                  files.add(await generateMockDataFile(subtypeConfig));
 
-                final subtypeFields = EntityAnalyzer.analyzeEntity(
-                  subtype,
+                  final subtypeFields = EntityAnalyzer.analyzeEntity(
+                    subtype,
+                    outputDir,
+                    fileSystem: fileSystem,
+                  );
+                  await _collectAndGenerateNestedEntities(
+                    subtypeFields,
+                    files,
+                    processedEntities,
+                    generateMockDataFile,
+                    revert: revert,
+                    force: force,
+                    verbose: verbose,
+                  );
+                }
+              }
+              continue;
+            }
+
+            final isEnum = EntityAnalyzer.isEnum(
+              baseType,
+              outputDir,
+              fileSystem: fileSystem,
+            );
+            if (!isEnum &&
+                !EntityAnalyzer.entityFileExists(
+                  baseType,
                   outputDir,
                   fileSystem: fileSystem,
-                );
+                )) {
+              throw StateError('Entity file not found');
+            }
+
+            final entityFields = EntityAnalyzer.analyzeEntity(
+              baseType,
+              outputDir,
+              fileSystem: fileSystem,
+            );
+            if ((entityFields.isNotEmpty &&
+                    !entityHelper.isDefaultFields(entityFields)) ||
+                isEnum) {
+              processedEntities.add(baseType);
+
+              final nestedConfig = GeneratorConfig(
+                name: baseType,
+                generateMockDataOnly: true,
+                outputDir: outputDir,
+                revert: revert,
+                force: force,
+                verbose: verbose,
+              );
+              files.add(await generateMockDataFile(nestedConfig));
+
+              if (!isEnum) {
                 await _collectAndGenerateNestedEntities(
-                  subtypeFields,
+                  entityFields,
                   files,
                   processedEntities,
                   generateMockDataFile,
@@ -147,48 +197,12 @@ class MockEntityGraphBuilder {
                 );
               }
             }
-            continue;
-          }
-
-          final entityFields = EntityAnalyzer.analyzeEntity(
-            baseType,
-            outputDir,
-            fileSystem: fileSystem,
-          );
-          if ((entityFields.isNotEmpty &&
-                  !entityHelper.isDefaultFields(entityFields)) ||
-              EntityAnalyzer.isEnum(
-                baseType,
-                outputDir,
-                fileSystem: fileSystem,
-              )) {
-            processedEntities.add(baseType);
-
-            final nestedConfig = GeneratorConfig(
-              name: baseType,
-              generateMockDataOnly: true,
-              outputDir: outputDir,
-              revert: revert,
-              force: force,
-              verbose: verbose,
+          } catch (error) {
+            print(
+              '⚠️  Unable to resolve nested entity type $baseType '
+              'for field ${entry.key}: $error',
             );
-            files.add(await generateMockDataFile(nestedConfig));
-
-            if (!EntityAnalyzer.isEnum(
-              baseType,
-              outputDir,
-              fileSystem: fileSystem,
-            )) {
-              await _collectAndGenerateNestedEntities(
-                entityFields,
-                files,
-                processedEntities,
-                generateMockDataFile,
-                revert: revert,
-                force: force,
-                verbose: verbose,
-              );
-            }
+            continue;
           }
         }
       }

@@ -80,12 +80,44 @@ class MockBuilder {
       fileSystem: fileSystem,
     );
     final isPolymorphic = subtypes.isNotEmpty;
+    final entityExists = EntityAnalyzer.entityFileExists(
+      targetEntity,
+      outputDir,
+      fileSystem: fileSystem,
+    );
 
     if (!isPolymorphic) {
+      final requiresConcreteEntity =
+          config.generateMockDataOnly ||
+          (config.name == targetEntity &&
+              !config.isCustomUseCase &&
+              !config.hasService);
       final dataConfig = config.name == targetEntity
           ? config
           : config.copyWith(name: targetEntity);
-      files.add(await dataBuilder.generateMockDataFile(dataConfig));
+
+      if (!entityExists) {
+        if (requiresConcreteEntity) {
+          throw StateError(
+            'Entity file not found for $targetEntity. '
+            'Expected to find a Dart entity declaration under '
+            '$outputDir/domain/entities.',
+          );
+        }
+
+        files.add(await dataBuilder.generateMockDataFile(dataConfig));
+      } else if (EntityAnalyzer.isSealedEntity(
+        targetEntity,
+        outputDir,
+        fileSystem: fileSystem,
+      )) {
+        print(
+          '⚠️  No concrete polymorphic subtypes found for sealed entity '
+          '$targetEntity. Skipping mock data generation for the base type.',
+        );
+      } else {
+        files.add(await dataBuilder.generateMockDataFile(dataConfig));
+      }
     }
 
     files.addAll(
