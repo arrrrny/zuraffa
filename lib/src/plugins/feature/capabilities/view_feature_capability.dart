@@ -25,7 +25,7 @@ class ViewFeatureCapability implements ZuraffaCapability {
       'id-field-type': {'type': 'string', 'default': 'String'},
       'query-field': {'type': 'string', 'default': 'id'},
       'query-field-type': {'type': 'string', 'default': 'String'},
-      'outputDir': {'type': 'string', 'default': 'lib/src'},
+
       'dryRun': {'type': 'boolean', 'default': false},
       'force': {'type': 'boolean', 'default': false},
       'verbose': {'type': 'boolean', 'default': false},

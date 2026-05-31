@@ -1,3 +1,4 @@
+import '../../config/zfa_config.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'capability.dart';
@@ -28,7 +29,7 @@ abstract class ZuraffaPlugin {
   JsonSchema get configSchema => {};
 
   /// The key in .zfa.json that enables this plugin by default (e.g., 'diByDefault').
-  String? get configKey => null;
+  String? get configKey => ZfaConfig.configKeyForPlugin(id);
 
   /// List of capabilities exposed by this plugin.
   List<ZuraffaCapability> get capabilities => [];

@@ -1,78 +1,50 @@
 # Testing Strategy
 
-**Zuraffa** treats testing as a first-class citizen. By using the `--test` flag, you can automatically generate comprehensive unit and integration tests for your UseCases, Repositories, and Controllers.
+Zuraffa treats test generation as an opt-in part of the normalized `make` plan.
+
+Canonical flow:
+
+1. create entity
+2. generate architecture with `zfa make`
+3. add `--test` when you want generated tests
+4. run `zfa build`
 
 ---
 
-## 🦄 Why Automated Testing?
+## Generation
 
-*   **Consistency**: Every feature follows the same testing patterns (Mocktail/Flutter Test).
-*   **Safety**: Instantly verify that your refactors haven't broken existing business logic.
-*   **Documentation**: Tests serve as live documentation for how your UseCases should behave.
-*   **AI-Native Verification**: AI agents can run your generated tests to verify their own code changes before you even see them.
-
----
-
-## 🚀 Generation
-
-### 1. Feature with Tests
-Generate a full feature slice along with its test suite:
+### 1. CRUD slice with tests
 
 ```bash
-zfa feature Product --methods=get,getList,create --data --test
+zfa make Product --preset=crud --methods=get,getList,create --test
 ```
 
-### 2. Granular UseCase Tests
-Generate a test for a specific custom UseCase:
+### 2. Custom use case test generation
 
 ```bash
-zfa make SearchProducts usecase --domain=search --test
+zfa make SearchProducts usecase --domain=search --params=SearchQuery --returns=List<Product> --test
 ```
 
 ---
 
-## 🛠️ What Gets Generated?
+## What gets generated?
 
-### UseCase Unit Tests
-Located in `test/domain/usecases/{domain}/`. These tests verify:
-- **Success Scenarios**: Correct data mapping and repository calls.
-- **Failure Scenarios**: Handling of `ServerFailure`, `CacheFailure`, etc.
-- **Stream Behavior**: For `watch` UseCases, it verifies the stream emits the expected results.
+Typical generated tests cover:
 
-### Mock Setup
-Zuraffa uses **Mocktail** to generate repository and service mocks:
-
-```dart
-class MockProductRepository extends Mock implements ProductRepository {}
-
-void main() {
-  late GetProductUseCase usecase;
-  late MockProductRepository mockRepository;
-
-  setUp(() {
-    mockRepository = MockProductRepository();
-    usecase = GetProductUseCase(mockRepository);
-  });
-  
-  // ... tests follow
-}
-```
+- success paths
+- failure paths
+- repository or service interactions
+- stream behavior for watch-style use cases
 
 ---
 
-## 🧠 Smart Test Scenarios
+## Hermetic default suite
 
-Zuraffa doesn't just generate empty test files. It creates realistic scenarios based on your UseCase type:
-
-*   **Async UseCases**: Tests for `Future` completion and error catching.
-*   **Sync UseCases**: Direct assertions on the `Result` without `await`.
-*   **Orchestrators**: Verifies that all sub-UseCases are called in the correct order.
-*   **Background UseCases**: Handles Isolate-based execution testing.
+External infrastructure tests should stay opt-in and outside the default hermetic test path. In this repository, local-infra integration tests are tagged separately so normal `flutter test` runs remain hermetic.
 
 ---
 
-## 📂 Next Steps
+## Next steps
 
-*   [**Mock Data**](./mock-data) - Using static mock data in your tests.
-*   [**Result Type**](../architecture/result-type) - Understanding the failure types being tested.
-*   [**CLI Reference**](../cli/commands) - Master all testing generation flags.
+- [Mock Data](./mock-data)
+- [CLI Commands Reference](../cli/commands)

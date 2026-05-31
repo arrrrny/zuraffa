@@ -33,11 +33,7 @@ class InjectCapability implements ZuraffaCapability {
         'description':
             'Name of the dependency class (e.g. AuthService, AuthRepository)',
       },
-      'outputDir': {
-        'type': 'string',
-        'description': 'Directory to output the file',
-        'default': 'lib/src',
-      },
+
       'dryRun': {
         'type': 'boolean',
         'description': 'Run without writing files',

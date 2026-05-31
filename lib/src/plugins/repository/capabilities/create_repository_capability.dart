@@ -22,20 +22,16 @@ class CreateRepositoryCapability implements ZuraffaCapability {
         'type': 'string',
         'description': 'Name of the entity (e.g. User)',
       },
-      'outputDir': {
-        'type': 'string',
-        'description': 'Directory to output the file',
-        'default': 'lib/src',
-      },
+
       'data': {
         'type': 'boolean',
         'description': 'Generate repository implementation',
-        'default': true,
+        'default': false,
       },
       'datasource': {
         'type': 'boolean',
         'description': 'Generate data sources along with repository',
-        'default': true,
+        'default': false,
       },
       'methods': {
         'type': 'array',
@@ -104,9 +100,9 @@ class CreateRepositoryCapability implements ZuraffaCapability {
     required bool dryRun,
   }) async {
     final name = args['name'];
-    final outputDir = args['outputDir'] ?? 'lib/src';
-    final generateData = args['data'] ?? true;
-    final generateDataSource = args['datasource'] ?? true;
+    final outputDir = plugin.outputDir;
+    final generateData = args['data'] ?? false;
+    final generateDataSource = args['datasource'] ?? false;
     final methods = (args['methods'] as List?)?.cast<String>() ?? [];
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;

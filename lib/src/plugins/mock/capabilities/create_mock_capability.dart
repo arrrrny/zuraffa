@@ -101,7 +101,7 @@ class CreateMockCapability implements ZuraffaCapability {
     required bool dryRun,
   }) async {
     final name = args['name'];
-    final outputDir = args['outputDir'] ?? 'lib/src';
+    final outputDir = plugin.outputDir;
     final dataOnly = args['dataOnly'] ?? false;
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;

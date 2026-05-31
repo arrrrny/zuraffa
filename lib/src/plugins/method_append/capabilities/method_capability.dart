@@ -48,11 +48,7 @@ class MethodCapability implements ZuraffaCapability {
         'description': 'Method type (sync, stream, completable, usecase)',
         'default': 'usecase',
       },
-      'outputDir': {
-        'type': 'string',
-        'description': 'Directory to output the file',
-        'default': 'lib/src',
-      },
+
       'dryRun': {
         'type': 'boolean',
         'description': 'Run without writing files',
@@ -125,7 +121,7 @@ class MethodCapability implements ZuraffaCapability {
   }) async {
     final target = args['target'];
     final name = args['name'];
-    final outputDir = args['outputDir'] ?? 'lib/src';
+    final outputDir = methodAppendBuilder.outputDir;
     final returns = args['returns'] ?? 'void';
     final params = args['params'] ?? 'NoParams';
     final type = args['type'] ?? 'usecase';

@@ -84,6 +84,8 @@ class MethodAppendPlugin extends FileGeneratorPlugin {
           context.get<bool>('append') ?? context.data['append'] == true,
       methods: context.data['methods']?.cast<String>().toList() ?? [],
       domain: context.data['domain'],
+      service: context.data['service'],
+      repo: context.data['repo'],
       noEntity: context.data['no-entity'] == true,
     );
 

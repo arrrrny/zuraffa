@@ -46,7 +46,7 @@ class CreateUseCaseCapability implements ZuraffaCapability {
         'description':
             'List of methods (get,create,update,delete,list,watch,getList,watchList)',
       },
-      'outputDir': {'type': 'string', 'default': 'lib/src'},
+
       'dryRun': {
         'type': 'boolean',
         'description': 'Run without writing files',
@@ -151,7 +151,7 @@ class CreateUseCaseCapability implements ZuraffaCapability {
       methods: (methods.isEmpty && !isCustomUseCase)
           ? ['get', 'update']
           : methods,
-      outputDir: args['outputDir'] ?? 'lib/src',
+      outputDir: plugin.outputDir,
       domain: args['domain'],
       repo: repo,
       service: service,

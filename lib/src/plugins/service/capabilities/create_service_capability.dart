@@ -19,11 +19,7 @@ class CreateServiceCapability implements ZuraffaCapability {
     'type': 'object',
     'properties': {
       'name': {'type': 'string', 'description': 'Name of the service'},
-      'outputDir': {
-        'type': 'string',
-        'description': 'Directory to output the file',
-        'default': 'lib/src',
-      },
+
       'params': {
         'type': 'string',
         'description': 'Parameter type for the service method',
@@ -96,7 +92,7 @@ class CreateServiceCapability implements ZuraffaCapability {
     required bool dryRun,
   }) async {
     final name = args['name'];
-    final outputDir = args['outputDir'] ?? 'lib/src';
+    final outputDir = plugin.outputDir;
     final paramsType = args['params'];
     final returnsType = args['returns'];
     final useCaseType = args['type'] ?? 'usecase';

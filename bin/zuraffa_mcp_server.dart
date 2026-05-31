@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:zuraffa/src/cli/plugin_loader.dart';
+import 'package:zuraffa/src/config/zfa_config.dart';
 import 'package:zuraffa/src/core/plugin_system/plugin_registry.dart';
 
 /// Version loaded lazily to avoid heavy imports at startup
@@ -61,18 +62,15 @@ void main(List<String> args) async {
   // Initialize shared resources (singleton pattern)
   await SharedResources.instance;
 
-  // Check for flags passed to the server process itself
-  final useZorphyByDefault =
-      args.contains('--zorphy') || args.contains('--always-zorphy');
-
-  final server = ZuraffaMcpServer(useZorphyByDefault: useZorphyByDefault);
+  final server = ZuraffaMcpServer();
   await server.run();
 }
 
 class ZuraffaMcpServer {
-  final bool useZorphyByDefault;
+  static const String fixedOutputDir = 'lib/src';
+  static const String fixedEntityOutput = ZfaConfig.fixedEntityOutput;
 
-  ZuraffaMcpServer({this.useZorphyByDefault = false});
+  ZuraffaMcpServer();
 
   // Cache for resource listings to avoid repeated filesystem scans
   List<Map<String, dynamic>>? _resourcesCache;
@@ -121,10 +119,6 @@ class ZuraffaMcpServer {
       stdin.lineMode = true;
     } catch (_) {
       // Ignore errors in piped context
-    }
-
-    if (useZorphyByDefault) {
-      stderr.writeln('Spawned with default Zorphy mode enabled');
     }
 
     // Set up the stream first to ensure it's ready
@@ -318,7 +312,9 @@ COMMON PATTERNS:
 - Domain only: name="Product", methods=["get","getList"]
 - With caching: name="Product", methods=["get","getList"], data=true, cache=true
 
-TIP: Use dry_run=true to preview generated files before writing.''',
+TIP: Use dry_run=true to preview generated files before writing.
+
+All v5 generation uses the fixed lib/src and lib/src/domain layout.''',
       'inputSchema': {
         'type': 'object',
         'properties': {
@@ -400,10 +396,7 @@ TIP: Use dry_run=true to preview generated files before writing.''',
             'description':
                 'Query field type - ONLY include if user explicitly specifies (default: matches id_field_type)',
           },
-          'zorphy': {
-            'type': 'boolean',
-            'description': 'Use Zorphy-style typed patches',
-          },
+
           'gql': {
             'type': 'boolean',
             'description': 'Generate GraphQL query/mutation/subscription files',
@@ -489,11 +482,7 @@ TIP: Use dry_run=true to preview generated files before writing.''',
             'enum': ['usecase', 'stream', 'background', 'completable', 'sync'],
             'description': 'UseCase type for custom UseCases',
           },
-          'output': {
-            'type': 'string',
-            'description':
-                'Output directory - ONLY include if user explicitly specifies a custom path. Do NOT guess or include default value.',
-          },
+
           'dry_run': {
             'type': 'boolean',
             'description': 'Preview without writing files',
@@ -685,7 +674,6 @@ TIP: Use dry_run=true to preview generated files before writing.''',
       '--yes',
     ];
 
-    if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
     if (args['json'] == true) cliArgs.add('--json');
     if (args['json'] == false) cliArgs.add('--no-json');
     if (args['sealed'] == true) cliArgs.add('--sealed');
@@ -716,8 +704,6 @@ TIP: Use dry_run=true to preview generated files before writing.''',
   Future<String> _runEntityEnumCommand(Map<String, dynamic> args) async {
     final List<String> cliArgs = ['entity', 'enum', '--name=${args["name"]}'];
 
-    if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
-
     if (args['values'] != null) {
       final values = args['values'] as List;
       cliArgs.add('--value=${values.join(',')}');
@@ -733,8 +719,6 @@ TIP: Use dry_run=true to preview generated files before writing.''',
       'add-field',
       '--name=${args["name"]}',
     ];
-
-    if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
 
     if (args['fields'] != null) {
       final fields = args['fields'] as List;
@@ -755,7 +739,6 @@ TIP: Use dry_run=true to preview generated files before writing.''',
     ];
 
     if (args['name'] != null) cliArgs.add('--name=${args["name"]}');
-    if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
     if (args['json'] == true) cliArgs.add('--json');
     if (args['json'] == false) cliArgs.add('--no-json');
     if (args['prefix_nested'] == true) cliArgs.add('--prefix-nested');
@@ -768,8 +751,6 @@ TIP: Use dry_run=true to preview generated files before writing.''',
   Future<String> _runEntityListCommand(Map<String, dynamic> args) async {
     final List<String> cliArgs = ['entity', 'list'];
 
-    if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
-
     return await _runZuraffaProcess(cliArgs);
   }
 
@@ -778,7 +759,7 @@ TIP: Use dry_run=true to preview generated files before writing.''',
     return {
       'name': 'zuraffa_entity_create',
       'description':
-          'Create a new Zorphy entity with fields. Supports JSON serialization, sealed classes, inheritance, and all Zorphy features.',
+          'Create a new Zorphy entity with fields under the fixed v5 path lib/src/domain/entities.',
       'inputSchema': {
         'type': 'object',
         'properties': {
@@ -786,11 +767,7 @@ TIP: Use dry_run=true to preview generated files before writing.''',
             'type': 'string',
             'description': 'Entity name in PascalCase (e.g., User, Product)',
           },
-          'output': {
-            'type': 'string',
-            'description':
-                'Output directory (default: lib/src/domain/entities)',
-          },
+
           'fields': {
             'type': 'array',
             'items': {'type': 'string'},
@@ -827,12 +804,12 @@ TIP: Use dry_run=true to preview generated files before writing.''',
   Map<String, dynamic> _entityEnumToolDefinition() {
     return {
       'name': 'zuraffa_entity_enum',
-      'description': 'Create a new enum in the entities/enums directory',
+      'description':
+          'Create a new enum in the fixed entities/enums directory under lib/src/domain/entities',
       'inputSchema': {
         'type': 'object',
         'properties': {
           'name': {'type': 'string', 'description': 'Enum name in PascalCase'},
-          'output': {'type': 'string', 'description': 'Output base directory'},
           'values': {
             'type': 'array',
             'items': {'type': 'string'},
@@ -848,12 +825,12 @@ TIP: Use dry_run=true to preview generated files before writing.''',
   Map<String, dynamic> _entityAddFieldToolDefinition() {
     return {
       'name': 'zuraffa_entity_add_field',
-      'description': 'Add field(s) to an existing Zorphy entity',
+      'description':
+          'Add field(s) to an existing Zorphy entity under lib/src/domain/entities',
       'inputSchema': {
         'type': 'object',
         'properties': {
           'name': {'type': 'string', 'description': 'Entity name'},
-          'output': {'type': 'string', 'description': 'Output base directory'},
           'fields': {
             'type': 'array',
             'items': {'type': 'string'},
@@ -869,13 +846,13 @@ TIP: Use dry_run=true to preview generated files before writing.''',
   Map<String, dynamic> _entityFromJsonToolDefinition() {
     return {
       'name': 'zuraffa_entity_from_json',
-      'description': 'Create Zorphy entity/ies from a JSON file',
+      'description':
+          'Create Zorphy entity/ies from a JSON file under lib/src/domain/entities',
       'inputSchema': {
         'type': 'object',
         'properties': {
           'file': {'type': 'string', 'description': 'Path to JSON file'},
           'name': {'type': 'string', 'description': 'Entity name'},
-          'output': {'type': 'string', 'description': 'Output base directory'},
           'json': {
             'type': 'boolean',
             'description': 'Enable JSON serialization',
@@ -894,13 +871,9 @@ TIP: Use dry_run=true to preview generated files before writing.''',
   Map<String, dynamic> _entityListToolDefinition() {
     return {
       'name': 'zuraffa_entity_list',
-      'description': 'List all Zorphy entities and enums',
-      'inputSchema': {
-        'type': 'object',
-        'properties': {
-          'output': {'type': 'string', 'description': 'Directory to search'},
-        },
-      },
+      'description':
+          'List all Zorphy entities and enums from lib/src/domain/entities',
+      'inputSchema': {'type': 'object', 'properties': {}},
     };
   }
 
@@ -954,36 +927,38 @@ May take 30-60 seconds depending on project size.''',
     };
   }
 
+  List<String> _supportedConfigKeys() {
+    final pluginKeys =
+        ZfaConfig().pluginDefaults.keys
+            .map(ZfaConfig.configKeyForPlugin)
+            .toList()
+          ..sort();
+
+    return [
+      'buildByDefault',
+      'entityFirst',
+      'filterByDefault',
+      'formatByDefault',
+      ...pluginKeys,
+    ];
+  }
+
   /// Config Set tool definition
   Map<String, dynamic> _configSetToolDefinition() {
+    final supportedKeys = _supportedConfigKeys();
     return {
       'name': 'zuraffa_config_set',
       'description':
-          'Update a ZFA configuration value in .zfa.json. Valid keys: zorphyByDefault, jsonByDefault, compareByDefault, filterByDefault, defaultEntityOutput, gqlByDefault, buildByDefault, appendByDefault, routeByDefault, diByDefault, mockByDefault, testByDefault.',
+          'Update a supported ZFA configuration value in .zfa.json. Fixed v5 conventions such as lib/src/domain, lib/src/domain/entities, and Zorphy-only entities are not configurable here.',
       'inputSchema': {
         'type': 'object',
         'properties': {
           'key': {
             'type': 'string',
             'description': 'Configuration key to set',
-            'enum': [
-              'zorphyByDefault',
-              'jsonByDefault',
-              'compareByDefault',
-              'filterByDefault',
-              'defaultEntityOutput',
-              'gqlByDefault',
-              'buildByDefault',
-              'appendByDefault',
-              'routeByDefault',
-              'diByDefault',
-              'mockByDefault',
-              'testByDefault',
-            ],
+            'enum': supportedKeys,
           },
-          'value': {
-            'description': 'Value to set (boolean for flags, string for paths)',
-          },
+          'value': {'description': 'Boolean value to set for the selected key'},
         },
         'required': ['key', 'value'],
       },
@@ -995,7 +970,7 @@ May take 30-60 seconds depending on project size.''',
     return {
       'name': 'zuraffa_graphql',
       'description':
-          'Introspect a GraphQL schema and generate Zorphy entities, enums, and UseCases. Can generate complete Clean Architecture layers from a GraphQL endpoint.',
+          'Introspect a GraphQL schema and generate Zorphy entities, enums, and UseCases using the fixed v5 lib/src layout.',
       'inputSchema': {
         'type': 'object',
         'properties': {
@@ -1007,10 +982,7 @@ May take 30-60 seconds depending on project size.''',
             'type': 'string',
             'description': 'Bearer authentication token',
           },
-          'output': {
-            'type': 'string',
-            'description': 'Output directory (default: lib/src)',
-          },
+
           'methods': {
             'type': 'string',
             'description':
@@ -1056,11 +1028,7 @@ May take 30-60 seconds depending on project size.''',
             'type': 'boolean',
             'description': 'Generate Data layer (DataSource/DataRepository)',
           },
-          'zorphy': {
-            'type': 'boolean',
-            'description':
-                'Use Zorphy annotations for entities (default: true)',
-          },
+
           'dry_run': {
             'type': 'boolean',
             'description': 'Preview without writing files',
@@ -1095,7 +1063,6 @@ May take 30-60 seconds depending on project size.''',
     final List<String> cliArgs = ['graphql', '--url=${args["url"]}'];
 
     if (args['auth'] != null) cliArgs.add('--auth=${args["auth"]}');
-    if (args['output'] != null) cliArgs.add('--output=${args["output"]}');
     if (args['methods'] != null) cliArgs.add('--methods=${args["methods"]}');
     if (args['entities'] != null) {
       cliArgs.add('--entities=${args["entities"]}');
@@ -1110,8 +1077,6 @@ May take 30-60 seconds depending on project size.''',
     if (args['exclude'] != null) cliArgs.add('--exclude=${args["exclude"]}');
     if (args['display'] != null) cliArgs.add('--display=${args["display"]}');
     if (args['data'] == true) cliArgs.add('--data');
-    if (args['zorphy'] == true) cliArgs.add('--zorphy');
-    if (args['zorphy'] == false) cliArgs.add('--no-zorphy');
     if (args['dry_run'] == true) cliArgs.add('--dry-run');
     if (args['force'] == true) cliArgs.add('--force');
     if (args['verbose'] == true) cliArgs.add('--verbose');
@@ -1151,15 +1116,6 @@ May take 30-60 seconds depending on project size.''',
       cliArgs.add('--query-field-type=${args['query_field_type']}');
     }
 
-    // Zorphy logic: Explicit flag > Default flag
-    final useZorphy =
-        args['zorphy'] == true ||
-        args['zorphy'] == true ||
-        (args['zorphy'] == null &&
-            args['zorphy'] == null &&
-            useZorphyByDefault);
-    if (useZorphy) cliArgs.add('--zorphy');
-
     if (args['repo'] != null) cliArgs.add('--repo=${args['repo']}');
     if (args['service'] != null) cliArgs.add('--service=${args['service']}');
     if (args['usecases'] != null) {
@@ -1185,7 +1141,6 @@ May take 30-60 seconds depending on project size.''',
     if (args['type'] != null) cliArgs.add('--type=${args['type']}');
 
     // Output options
-    if (args['output'] != null) cliArgs.add('--output=${args['output']}');
     if (args['dry_run'] == true) cliArgs.add('--dry-run');
     if (args['force'] == true) cliArgs.add('--force');
     if (args['verbose'] == true) cliArgs.add('--verbose');

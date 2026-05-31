@@ -130,7 +130,7 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       generateDataSource: true,
       generateLocal: context.get<bool>('local') ?? false,
       generateRemote: context.get<bool>('remote') ?? true,
-      enableCache: context.get<bool>('cache') ?? context.data['cache'] == true,
+      enableCache: _resolveEnableCache(context),
       useService:
           context.data['use-service'] == true ||
           context.data['useService'] == true,
@@ -141,6 +141,19 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     );
 
     return generate(config, context: context);
+  }
+
+  bool _resolveEnableCache(PluginContext context) {
+    final normalizedOptions = context.getShared<Map<String, dynamic>>(
+      'normalizedOptions',
+    );
+    if (normalizedOptions != null && normalizedOptions.containsKey('cache')) {
+      return normalizedOptions['cache'] == true;
+    }
+    if (context.data.containsKey('enableCache')) {
+      return context.data['enableCache'] == true;
+    }
+    return context.data['cache'] == true;
   }
 
   @override

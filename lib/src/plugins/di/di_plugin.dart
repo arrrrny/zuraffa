@@ -126,12 +126,24 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       useService:
           context.data['use-service'] == true ||
           context.data['useService'] == true,
-      enableCache:
-          context.data['cache'] == true || context.data['enableCache'] == true,
+      enableCache: _resolveEnableCache(context),
       noEntity: context.data['no-entity'] == true,
     );
 
     return generate(config, context: context);
+  }
+
+  bool _resolveEnableCache(PluginContext context) {
+    final normalizedOptions = context.getShared<Map<String, dynamic>>(
+      'normalizedOptions',
+    );
+    if (normalizedOptions != null && normalizedOptions.containsKey('cache')) {
+      return normalizedOptions['cache'] == true;
+    }
+    if (context.data.containsKey('enableCache')) {
+      return context.data['enableCache'] == true;
+    }
+    return context.data['cache'] == true;
   }
 
   @override

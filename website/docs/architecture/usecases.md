@@ -1,50 +1,48 @@
 # UseCase Types
 
-**UseCases** are the heart of your application's business logic. In Zuraffa, they act as single-responsibility units that orchestrate repositories and services.
+Use cases are the center of the domain layer in Zuraffa.
+
+The v5 workflow for generating them is still:
+
+1. create or verify the entity with `zfa entity create`
+2. generate the use cases with `zfa make`
+3. run `zfa build`
 
 ---
 
-## 🦄 UseCase Patterns
+## UseCase patterns
 
-Zuraffa provides several base classes to handle different execution flows:
-
-### 1. Standard UseCase (Async)
-The default for most operations (e.g., fetching data from an API). Returns a `Future<Result<T, AppFailure>>`.
+### 1. Standard UseCase (async)
 
 ```bash
-zfa feature Product --methods=get,getList
+zfa make Product --preset=crud --methods=get,getList
 ```
 
 ### 2. Stream UseCase
-Ideal for real-time updates, WebSockets, or database watchers. Returns a `Stream<Result<T, AppFailure>>`.
 
 ```bash
-zfa feature Product --methods=watch,watchList
+zfa make Product --preset=crud --methods=watch,watchList
 ```
 
 ### 3. Sync UseCase
-For operations that complete immediately on the main thread (e.g., data mapping, local validation). Returns a `Result<T, AppFailure>` synchronously.
 
 ```bash
 zfa make ValidateEmail usecase --type=sync --params=String --returns=bool --domain=auth
 ```
 
 ### 4. Completable UseCase
-For async operations that don't return a value (e.g., logging out, deleting a record). Returns `Future<Result<void, AppFailure>>`.
 
 ```bash
-zfa feature Product --methods=delete
+zfa make Product --preset=crud --methods=delete
 ```
 
 ### 5. Background UseCase
-Runs CPU-intensive tasks on a separate **Isolate** to keep the UI smooth (e.g., image processing, large JSON parsing).
 
 ```bash
 zfa make ProcessImages usecase --type=background --params=List<File> --returns=List<Image> --domain=media
 ```
 
 ### 6. Orchestrator UseCase
-Composes multiple atomic UseCases into a single workflow (e.g., a checkout process that validates a cart, creates an order, and processes payment).
 
 ```bash
 zfa make ProcessCheckout usecase --domain=checkout --usecases=ValidateCart,CreateOrder,ProcessPayment --params=CheckoutRequest --returns=Order
@@ -52,17 +50,13 @@ zfa make ProcessCheckout usecase --domain=checkout --usecases=ValidateCart,Creat
 
 ---
 
-## 🚀 Execution
+## Execution model
 
-All UseCases are **Callable Classes**. You can execute them by calling the instance directly:
-
-```dart
-final getProduct = GetProductUseCase(repository);
-final result = await getProduct('id-123'); // Simple and clean
-```
+Generated use cases remain callable classes that return `Result<T, AppFailure>` variants or streams thereof, depending on the selected use case type.
 
 ---
 
-## 🧠 Why Multiple Types?
+## Next steps
 
-By choosing the right UseCase type, you provide clear intent to both your team and your AI agent. Zuraffa's generators automatically wire up the correct boilerplate for each type, ensuring consistency across your entire project.
+- [CLI Commands Reference](../cli/commands)
+- [Entity Generation](../entities/intro)

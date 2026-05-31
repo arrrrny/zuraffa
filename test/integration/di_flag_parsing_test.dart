@@ -33,15 +33,14 @@ void main() {
     final command = CapabilityCommand(capability);
     final runner = CommandRunner<void>('zfa', 'CLI')..addCommand(command);
 
-    // Run with --use-mock and --repo to ensure repository/datasource DI is generated
+    // Run with --repo and --use-mock to ensure repository/datasource DI is generated
+    // outputDir is already set on the DiPlugin constructor, not via CLI args
     await runner.run([
       'create',
       'Feedback',
       '--repo',
       'Feedback',
       '--use-mock',
-      '--output-dir',
-      outputDir,
     ]);
 
     final repoDiFile = File(

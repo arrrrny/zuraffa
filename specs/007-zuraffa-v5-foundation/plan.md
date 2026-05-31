@@ -237,6 +237,64 @@ MinIO/local-service tests will be moved behind an explicit opt-in mechanism, e.g
 
 **Mitigation**: add documentation validation checks and a single canonical quickstart that all docs link back to.
 
+## Phase 1 Baseline Findings
+
+### Current test-suite baseline (2026-05-31)
+
+A timed `flutter test` baseline confirmed the current suite is not hermetic by default. Key observed failures/regressions outside the requested local-MinIO exception include:
+
+- `test/integration/toggle_method_test.dart`
+- `test/integration/multi_entity_test.dart`
+- `test/integration/append_mode_test.dart`
+- `test/integration/performance_benchmark_test.dart`
+- `test/integration/full_entity_workflow_test.dart`
+- `test/integration/caching_workflow_test.dart`
+- `test/regression/compare_outputs_test.dart`
+- `test/regression/pattern_compliance_test.dart`
+- `test/regression/file_structure_test.dart`
+- `test/cli/cli_edge_cases_test.dart`
+- `test/regression/cli_command_test.dart`
+
+Additionally, the default suite currently includes a local-MinIO-dependent failure in `test/core/artifact_publisher_test.dart`, which v5 will explicitly gate out of the default path.
+
+### Command/docs drift audit
+
+Observed public/internal command drift includes:
+
+- `CLI_GUIDE.md`: 33 references to `zfa generate`
+- `AGENTS.md`: 47 references to `zfa generate`
+- `SKILL.md`: 17 references to `zfa generate`
+- `website/docs/**`: 32 references to `zfa feature`, 25 references to `zfa make`, 0 references to `zfa generate`
+
+This confirms split-brain guidance across internal and external surfaces.
+
+### Root-resolution audit
+
+Current brittle `Directory.current` usage exists across multiple runtime-critical surfaces, including:
+
+- `lib/src/commands/generate_command.dart`
+- `lib/src/commands/make_command.dart`
+- `lib/src/commands/config_command.dart`
+- `lib/src/config/zfa_config.dart`
+- `lib/src/cli/plugin_loader.dart`
+- `lib/src/core/plugin_system/plan_store.dart`
+- `lib/src/plugins/feature/capabilities/scaffold_feature_capability.dart`
+
+This matches the observed subprocess/temp-dir CLI failures.
+
+### Plugin default/config participation audit
+
+The registry currently exposes 20 plugins, but only a small subset participates in project-default activation via `configKey`, including:
+
+- `di`
+- `gql`
+- `method_append`
+- `mock`
+- `route`
+- `test`
+
+This confirms that `.zfa.json` default behavior is incomplete and inconsistent today.
+
 ## Complexity Tracking
 
 > No constitutional violations to justify. Complexity is intentional and cross-cutting because v5 is a foundation release, not a single-file bug fix.

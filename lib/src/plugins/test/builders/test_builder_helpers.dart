@@ -82,12 +82,8 @@ extension TestBuilderHelpers on TestBuilder {
       case 'create':
         return [refer(mockEntityClass).call([])];
       case 'update':
-        final dataType = config.useZorphy
-            ? '${entityName}Patch'
-            : 'Partial<$entityName>';
-        final dataValue = config.useZorphy
-            ? refer('${entityName}Patch').call([])
-            : refer('Partial<$entityName>').call([]);
+        final dataType = '${entityName}Patch';
+        final dataValue = refer('${entityName}Patch').call([]);
         return [
           refer(
             'UpdateParams<$idType, $dataType>',
@@ -135,18 +131,12 @@ extension TestBuilderHelpers on TestBuilder {
           mockVarName,
         ).property('get').call([refer('QueryParams').constInstance([])]);
       } else {
-        paramsExpr = config.useZorphy
-            ? refer('QueryParams<$entityName>').call([], {
-                'filter': refer('Eq').call([
-                  refer('${entityName}Fields').property(config.queryField),
-                  queryValue,
-                ]),
-              })
-            : refer('QueryParams<$entityName>').call([], {
-                'params': refer('Params').call([
-                  literalMap({config.queryField: queryValue}),
-                ]),
-              });
+        paramsExpr = refer('QueryParams<$entityName>').call([], {
+          'filter': refer('Eq').call([
+            refer('${entityName}Fields').property(config.queryField),
+            queryValue,
+          ]),
+        });
         arrangeCall = refer(
           mockVarName,
         ).property('get').call([refer('any').call([])]);
@@ -181,12 +171,8 @@ extension TestBuilderHelpers on TestBuilder {
         mockVarName,
       ).property('create').call([refer('any').call([])]);
     } else if (method == 'update') {
-      final dataType = config.useZorphy
-          ? '${entityName}Patch'
-          : 'Partial<$entityName>';
-      final dataValue = config.useZorphy
-          ? refer('${entityName}Patch').call([])
-          : refer('Partial<$entityName>').call([]);
+      final dataType = '${entityName}Patch';
+      final dataValue = refer('${entityName}Patch').call([]);
       paramsExpr = refer(
         'UpdateParams<$idType, $dataType>',
       ).call([], {'id': idValue, 'data': dataValue});
@@ -335,18 +321,12 @@ extension TestBuilderHelpers on TestBuilder {
           mockVarName,
         ).property('watch').call([refer('QueryParams').constInstance([])]);
       } else {
-        paramsExpr = config.useZorphy
-            ? refer('QueryParams<$entityName>').call([], {
-                'filter': refer('Eq').call([
-                  refer('${entityName}Fields').property(config.queryField),
-                  queryValue,
-                ]),
-              })
-            : refer('QueryParams<$entityName>').call([], {
-                'params': refer('Params').call([
-                  literalMap({config.queryField: queryValue}),
-                ]),
-              });
+        paramsExpr = refer('QueryParams<$entityName>').call([], {
+          'filter': refer('Eq').call([
+            refer('${entityName}Fields').property(config.queryField),
+            queryValue,
+          ]),
+        });
         arrangeCall = refer(
           mockVarName,
         ).property('watch').call([refer('any').call([])]);

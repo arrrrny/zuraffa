@@ -1,92 +1,99 @@
 # 🦒 Welcome to Zuraffa
 
-**The AI-First Clean Architecture Framework for Flutter.**
+**The AI-first Clean Architecture framework for Flutter.**
 
-Zuraffa is a comprehensive toolkit designed to bridge the gap between human intent and production-ready code. It enforces **Clean Architecture** principles, ensures **Type Safety**, and provides an **AI-Native** workflow through its built-in Model Context Protocol (MCP) server.
+Zuraffa v5 teaches one canonical generation workflow:
 
----
+1. `zfa entity create`
+2. `zfa make`
+3. `zfa build`
 
-## 🦄 Why Zuraffa?
-
-*   **🤖 AI-Native (MCP)**: The first Flutter framework with a built-in **Model Context Protocol** server. Your AI agent (Trae, Cursor, Windsurf) can now understand, generate, and refactor your code with 100% precision.
-*   **🏗️ Clean Architecture by Default**: Strict separation of Domain, Data, and Presentation layers. No more spaghetti code.
-*   **🛡️ Type-Safe Everything**: Uses `Result<T, AppFailure>` for error handling. Stop catching exceptions; start matching results.
-*   **⚡ Zero Boilerplate**: The `zfa` CLI handles the heavy lifting—UseCases, Repositories, VPCs (View-Presenter-Controller), and Tests are generated in seconds.
-*   **🧪 Mock-Ready**: Instant mock data generation for rapid prototyping without a backend.
+`zfa make` is the primary generator. `zfa feature scaffold` still exists, but only as a wrapper over the feature preset.
 
 ---
 
-## 🤖 The AI Advantage
+## Why Zuraffa?
 
-Zuraffa is built for the era of AI-assisted development. By exposing your project's architectural structure to AI agents, Zuraffa enables a higher level of autonomy and accuracy:
-
-1.  **Contextual Generation**: "Add a 'PlaceOrder' usecase to the existing 'Cart' domain."
-2.  **Smart Refactoring**: "Rename this entity field and update all related layers."
-3.  **Automated Alignment**: AI can run `zfa doctor` to identify and fix architectural violations automatically.
+- **AI-native structure** that is easy for humans and agents to navigate.
+- **Clean Architecture defaults** across domain, data, presentation, and DI.
+- **Zorphy-first entities** with a fixed domain layout.
+- **Deterministic planning** via presets, aliases, and normalized execution plans.
+- **Project memory surfaces** through `.zfa.json` defaults and the canonical `.zfa/` model.
 
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
-### 1. Install
-
-```yaml
-dev_dependencies:
-  zuraffa: ^3.19.0
-```
+### 1. Define an entity
 
 ```bash
-dart pub global activate zuraffa
-zfa init
+zfa entity create -n Product \
+  --field id:String \
+  --field name:String \
+  --field price:double
 ```
 
-### 2. Define an Entity
-Zuraffa uses **Zorphy** for immutable, type-safe entities.
+### 2. Generate architecture with `make`
+
 ```bash
-zfa entity create -n Product --field name:String --field price:double
+zfa make Product \
+  --preset=crud \
+  --methods=get,getList,create,update,delete \
+  --with=vpc \
+  --state \
+  --di \
+  --test
 ```
 
-### 3. Generate a Feature
-Generate the full stack (Domain, Data, Presentation, Tests) in one go:
-```bash
-zfa feature Product --methods=get,getList,create --data --vpcs --state --test
-```
+### 3. Build generated code
 
-### 4. Modular Generation (Make)
-Need just a specific part? Use `zfa make` to run one or more plugins:
-```bash
-zfa make Search usecase data di --domain=search --params=SearchRequest --returns=Listing
-```
-
-### 5. Build
 ```bash
 zfa build
 ```
 
 ---
 
-## 🏗️ Core Patterns
+## Fixed v5 assumptions
 
-### Entity-Based CRUD
-```bash
-zfa feature Product --methods=get,getList,create,update,delete --data --vpcs
+Zuraffa v5 assumes:
+
+```text
+lib/src/domain/entities/{entity_snake}/{entity_snake}.dart
 ```
 
-### Custom UseCase with a Repository
-```bash
-zfa make ProcessCheckout usecase data --domain=checkout --repo=Checkout --params=CheckoutRequest --returns=OrderConfirmation
+Example:
+
+```text
+lib/src/domain/entities/product/product.dart
 ```
 
-### Orchestrator UseCase
-```bash
-zfa make ProcessCheckout usecase --domain=checkout --usecases=ValidateCart,CreateOrder,ProcessPayment --params=CheckoutRequest --returns=Order
-```
+It also assumes a fixed domain root of `lib/src/domain` and Zorphy-based entities on public v5 surfaces.
 
 ---
 
-## 📂 Where to Go Next?
+## `.zfa.json` and `.zfa/`
 
-*   [**Architecture Overview**](./architecture/overview) - Learn about the VPC pattern and Result type.
-*   [**MCP Server**](./features/mcp-server) - Set up Zuraffa for your AI agent.
-*   [**CLI Reference**](./cli/commands) - Master the `zfa` command line.
-*   [**Entities**](./entities/intro) - Supercharge your data models with Zorphy.
+- **`.zfa.json`** stores project defaults.
+- **`.zfa/`** is the canonical v5 project-memory model for plans, runs, decisions, blueprints, manifests, and agent context.
+
+```text
+.zfa/
+├── plans/
+├── runs/
+├── blueprints/
+├── decisions/
+├── manifests/
+└── context.json
+```
+
+During the migration period, some internals may still reference older storage paths. Public-facing v5 docs should still point to `.zfa/` as the forward contract.
+
+---
+
+## Where to go next
+
+- [Getting Started](./guides/getting-started)
+- [CLI Commands Reference](./cli/commands)
+- [Entity Generation](./entities/intro)
+- [Migration Guide: v4 → v5](./guides/migration-v4-to-v5)
+- [MCP Server](./features/mcp-server)

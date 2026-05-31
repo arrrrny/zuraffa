@@ -24,11 +24,7 @@ class CustomViewCapability implements ZuraffaCapability {
         'description': 'Domain folder for the view (e.g. common, auth)',
         'default': 'general',
       },
-      'outputDir': {
-        'type': 'string',
-        'description': 'Directory to output the file',
-        'default': 'lib/src',
-      },
+
       'stateless': {
         'type': 'boolean',
         'description': 'Generate a StatelessWidget instead of CleanView',
@@ -96,7 +92,7 @@ class CustomViewCapability implements ZuraffaCapability {
   }) async {
     final name = args['name'];
     final domain = args['domain'] ?? 'general';
-    final outputDir = args['outputDir'] ?? 'lib/src';
+    final outputDir = plugin.outputDir;
     final stateless = args['stateless'] ?? false;
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;

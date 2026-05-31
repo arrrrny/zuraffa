@@ -19,11 +19,7 @@ class CreateObserverCapability implements ZuraffaCapability {
     'type': 'object',
     'properties': {
       'name': {'type': 'string', 'description': 'Name of the observer'},
-      'outputDir': {
-        'type': 'string',
-        'description': 'Directory to output the file',
-        'default': 'lib/src',
-      },
+
       'dryRun': {
         'type': 'boolean',
         'description': 'Run without writing files',
@@ -85,7 +81,7 @@ class CreateObserverCapability implements ZuraffaCapability {
     required bool dryRun,
   }) async {
     final name = args['name'];
-    final outputDir = args['outputDir'] ?? 'lib/src';
+    final outputDir = plugin.outputDir;
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
 

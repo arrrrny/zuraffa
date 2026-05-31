@@ -28,10 +28,10 @@
 
 **Purpose**: Establish the v5 branch, baseline the failing areas, and lock the migration direction before code changes.
 
-- [ ] T001 Run the current hermetic/default test suite and capture non-MinIO failures as baseline notes in `specs/007-zuraffa-v5-foundation/plan.md`
-- [ ] T002 [P] Audit public references to `zfa generate`, `zfa feature`, and `zfa make` across `README.md`, `CLI_GUIDE.md`, `AGENTS.md`, `SKILL.md`, and `website/docs/**`
-- [ ] T003 [P] Audit all direct `Directory.current` usage in `lib/src/commands/`, `lib/src/config/`, `lib/src/cli/`, and `lib/src/core/plugin_system/` that can break subprocess/agent execution
-- [ ] T004 [P] Audit plugin default/config participation in `lib/src/plugins/**` and record which plugins expose `configKey`
+- [x] T001 Run the current hermetic/default test suite and capture non-MinIO failures as baseline notes in `specs/007-zuraffa-v5-foundation/plan.md`
+- [x] T002 [P] Audit public references to `zfa generate`, `zfa feature`, and `zfa make` across `README.md`, `CLI_GUIDE.md`, `AGENTS.md`, `SKILL.md`, and `website/docs/**`
+- [x] T003 [P] Audit all direct `Directory.current` usage in `lib/src/commands/`, `lib/src/config/`, `lib/src/cli/`, and `lib/src/core/plugin_system/` that can break subprocess/agent execution
+- [x] T004 [P] Audit plugin default/config participation in `lib/src/plugins/**` and record which plugins expose `configKey`
 
 **Checkpoint**: The v5 migration scope is grounded in current failures and command/docs drift.
 
@@ -43,14 +43,14 @@
 
 **⚠️ CRITICAL**: No user-story implementation should proceed until this phase is complete.
 
-- [ ] T005 Create `lib/src/core/planning/generation_plan.dart` to model normalized plan data (name, preset, plugins, aliases, defaults, exclusions, warnings, execution order)
-- [ ] T006 Create `lib/src/core/planning/preset_registry.dart` for built-in presets such as `feature`, `crud`, `read-only`, `service-feature`, and `adaptive-feature`
-- [ ] T007 Create `lib/src/core/planning/plugin_alias_resolver.dart` for aliases/groups like `data => repository,datasource` and `vpc => view,presenter,controller`
-- [ ] T008 Create `lib/src/core/planning/plan_resolver.dart` to merge CLI args, `.zfa.json` defaults, presets, aliases, explicit plugin inclusions, and exclusions
-- [ ] T009 Update `lib/src/core/plugin_system/plugin_manager.dart` to consume a resolved `GenerationPlan` and execute only selected plugins
-- [ ] T010 Update `lib/src/generator/code_generator.dart` to use the same planning/resolution path as CLI instead of activating all registered plugins
-- [ ] T011 Add focused tests for plan normalization in `test/core/planning/plan_resolver_test.dart`
-- [ ] T012 Add focused tests for alias/preset expansion in `test/core/planning/preset_registry_test.dart`
+- [x] T005 Create `lib/src/core/planning/generation_plan.dart` to model normalized plan data (name, preset, plugins, aliases, defaults, exclusions, warnings, execution order)
+- [x] T006 Create `lib/src/core/planning/preset_registry.dart` for built-in presets such as `feature`, `crud`, `read-only`, `service-feature`, and `adaptive-feature`
+- [x] T007 Create `lib/src/core/planning/plugin_alias_resolver.dart` for aliases/groups like `data => repository,datasource` and `vpc => view,presenter,controller`
+- [x] T008 Create `lib/src/core/planning/plan_resolver.dart` to merge CLI args, `.zfa.json` defaults, presets, aliases, explicit plugin inclusions, and exclusions
+- [x] T009 Update `lib/src/core/plugin_system/plugin_manager.dart` to consume a resolved `GenerationPlan` and execute only selected plugins
+- [x] T010 Update `lib/src/generator/code_generator.dart` to use the same planning/resolution path as CLI instead of activating all registered plugins
+- [x] T011 Add focused tests for plan normalization in `test/core/planning/plan_resolver_test.dart`
+- [x] T012 Add focused tests for alias/preset expansion in `test/core/planning/preset_registry_test.dart`
 
 **Checkpoint**: One normalized plan contract exists and both CLI and programmatic generation can consume it.
 
@@ -66,19 +66,19 @@
 
 > **NOTE: Write or update these tests FIRST, ensure they fail before implementation**
 
-- [ ] T013 [P] [US1] Add CLI test for `zfa make --format=json` in `test/commands/make_command_test.dart`
-- [ ] T014 [P] [US1] Add CLI test for `zfa make --from-json` in `test/commands/make_command_test.dart`
-- [ ] T015 [P] [US1] Add CLI test for `zfa make --from-stdin` in `test/commands/make_command_test.dart`
-- [ ] T016 [P] [US1] Add regression test proving `zfa feature scaffold` resolves through the same normalized plan in `test/commands/feature_command_test.dart`
-- [ ] T017 [P] [US1] Update/remove legacy `zfa generate` tests in `test/commands/generate_command_test.dart`, `test/regression/cli_command_test.dart`, and `test/cli/cli_edge_cases_test.dart` for v5 behavior
+- [x] T013 [P] [US1] Add CLI test for `zfa make --format=json` in `test/commands/make_command_test.dart`
+- [x] T014 [P] [US1] Add CLI test for `zfa make --from-json` in `test/commands/make_command_test.dart`
+- [x] T015 [P] [US1] Add CLI test for `zfa make --from-stdin` in `test/commands/make_command_test.dart`
+- [x] T016 [P] [US1] Add regression test proving `zfa feature scaffold` resolves through the same normalized plan in `test/commands/feature_command_test.dart`
+- [x] T017 [P] [US1] Update/remove legacy `zfa generate` tests in `test/commands/generate_command_test.dart`, `test/regression/cli_command_test.dart`, and `test/cli/cli_edge_cases_test.dart` for v5 behavior
 
 ### Implementation for User Story 1
 
-- [ ] T018 [US1] Extend `lib/src/commands/make_command.dart` with `--format=json`, `--from-json`, `--from-stdin`, `--preset`, `--with`, `--without`, `--plan`, and `--explain`
-- [ ] T019 [US1] Refactor `lib/src/commands/feature_command.dart` into a preset wrapper over the planning layer and remove independent orchestration semantics
-- [ ] T020 [US1] Delete `lib/src/commands/generate_command.dart` and remove its registration from `lib/src/cli/cli_runner.dart`
-- [ ] T021 [US1] Remove any remaining runtime references to `generate` in CLI help text and public command registration under `lib/src/cli/`
-- [ ] T022 [US1] Remove the debug print from `lib/src/commands/feature_command.dart`
+- [x] T018 [US1] Extend `lib/src/commands/make_command.dart` with `--format=json`, `--from-json`, `--from-stdin`, `--preset`, `--with`, `--without`, `--plan`, and `--explain`
+- [x] T019 [US1] Refactor `lib/src/commands/feature_command.dart` into a preset wrapper over the planning layer and remove independent orchestration semantics
+- [x] T020 [US1] Delete `lib/src/commands/generate_command.dart` and remove its registration from `lib/src/cli/cli_runner.dart`
+- [x] T021 [US1] Remove any remaining runtime references to `generate` in CLI help text and public command registration under `lib/src/cli/`
+- [x] T022 [US1] Remove the debug print from `lib/src/commands/feature_command.dart`
 
 **Checkpoint**: `make` is the only canonical generation API in v5.
 
@@ -92,19 +92,19 @@
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T023 [P] [US2] Add tests for `.zfa.json` plugin defaults in `test/core/plugin_system/plugin_manager_test.dart`
-- [ ] T024 [P] [US2] Add tests for explicit plugin exclusion/negation in `test/commands/make_command_test.dart`
-- [ ] T025 [P] [US2] Add tests proving `CodeGenerator` and CLI resolve the same plugin set in `test/regression/compare_outputs_test.dart`
+- [x] T023 [P] [US2] Add tests for `.zfa.json` plugin defaults in `test/core/plugin_system/plugin_manager_test.dart`
+- [x] T024 [P] [US2] Add tests for explicit plugin exclusion/negation in `test/commands/make_command_test.dart`
+- [x] T025 [P] [US2] Add tests proving `CodeGenerator` and CLI resolve the same plugin set in `test/regression/compare_outputs_test.dart`
 
 ### Implementation for User Story 2
 
-- [ ] T026 [US2] Redesign `lib/src/config/zfa_config.dart` into a single v5 config schema with plugin defaults, presets, aliases, UI/layout defaults, entity policy, and fixed-domain/Zorphy-only constraints
-- [ ] T027 [US2] Update `lib/src/cli/plugin_loader.dart` so disabled/default plugin behavior is compatible with the unified v5 config
-- [ ] T028 [US2] Add `configKey` participation for any public plugins missing project-default support under `lib/src/plugins/**`
-- [ ] T029 [US2] Remove plugin self-activation assumptions in plugin implementations under `lib/src/plugins/**` where registration currently implies generation
-- [ ] T030 [US2] Add entity-first precondition validation to the planning/validation path for entity-aware plugin sets
-- [ ] T031 [US2] Remove public support for custom domain-root/domain-output overrides across `lib/src/commands/`, `lib/src/config/`, and relevant plugin/config parsing surfaces
-- [ ] T032 [US2] Remove non-Zorphy entity toggles and generation branches from the canonical v5 workflow under `lib/src/commands/`, `lib/src/config/`, and `lib/src/plugins/`
+- [x] T026 [US2] Redesign `lib/src/config/zfa_config.dart` into a single v5 config schema with plugin defaults, presets, aliases, UI/layout defaults, entity policy, and fixed-domain/Zorphy-only constraints
+- [x] T027 [US2] Update `lib/src/cli/plugin_loader.dart` so disabled/default plugin behavior is compatible with the unified v5 config
+- [x] T028 [US2] Add `configKey` participation for any public plugins missing project-default support under `lib/src/plugins/**`
+- [x] T029 [US2] Remove plugin self-activation assumptions in plugin implementations under `lib/src/plugins/**` where registration currently implies generation
+- [x] T030 [US2] Add entity-first precondition validation to the planning/validation path for entity-aware plugin sets
+- [x] T031 [US2] Remove public support for custom domain-root/domain-output overrides across `lib/src/commands/`, `lib/src/config/`, and relevant plugin/config parsing surfaces
+- [x] T032 [US2] Remove non-Zorphy entity toggles and generation branches from the canonical v5 workflow under `lib/src/commands/`, `lib/src/config/`, and `lib/src/plugins/`
 
 **Checkpoint**: Plugin selection is explicit, normalized, and consistent across all generation entrypoints.
 
@@ -118,18 +118,18 @@
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T033 [P] [US3] Add tests for plan persistence in `test/core/plugin_system/plan_store_test.dart`
-- [ ] T034 [P] [US3] Add tests for `.zfa` run artifact creation in `test/integration/zfa_memory_integration_test.dart`
-- [ ] T035 [P] [US3] Add tests for project context/agent contract export in `test/core/project/project_context_test.dart`
+- [x] T033 [P] [US3] Add tests for plan persistence in `test/core/plugin_system/plan_store_test.dart`
+- [x] T034 [P] [US3] Add tests for `.zfa` run artifact creation in `test/integration/zfa_memory_integration_test.dart`
+- [x] T035 [P] [US3] Add tests for project context/agent contract export in `test/core/project/project_context_test.dart`
 
 ### Implementation for User Story 3
 
-- [ ] T036 [US3] Migrate `lib/src/core/plugin_system/plan_store.dart` from `.zuraffa/plans` to `.zfa/plans`
-- [ ] T037 [US3] Create `lib/src/core/project/project_context_store.dart` for `.zfa/context.json`
-- [ ] T038 [US3] Create `lib/src/core/project/run_store.dart` for `.zfa/runs/*.json`
-- [ ] T039 [US3] Create `.zfa/blueprints/`, `.zfa/decisions/`, and `.zfa/manifests/` persistence helpers under `lib/src/core/project/`
-- [ ] T040 [US3] Add automatic run artifact writing after successful generation in `lib/src/core/plugin_system/plugin_manager.dart`
-- [ ] T041 [US3] Add a generated agent contract file such as `.zfa/AGENT_CONTRACT.md` describing generated/manual zones, fixed domain root, Zorphy-only assumptions, and required `zfa` workflow
+- [x] T036 [US3] Migrate `lib/src/core/plugin_system/plan_store.dart` from `.zuraffa/plans` to `.zfa/plans`
+- [x] T037 [US3] Create `lib/src/core/project/project_context_store.dart` for `.zfa/context.json`
+- [x] T038 [US3] Create `lib/src/core/project/run_store.dart` for `.zfa/runs/*.json`
+- [x] T039 [US3] Create `.zfa/blueprints/`, `.zfa/decisions/`, and `.zfa/manifests/` persistence helpers under `lib/src/core/project/`
+- [x] T040 [US3] Add automatic run artifact writing after successful generation in `lib/src/core/plugin_system/plugin_manager.dart`
+- [x] T041 [US3] Add a generated agent contract file such as `.zfa/AGENT_CONTRACT.md` describing generated/manual zones, fixed domain root, Zorphy-only assumptions, and required `zfa` workflow
 
 **Checkpoint**: New agents can recover prior plans, outputs, and architectural rules from `.zfa/`.
 
@@ -143,21 +143,21 @@
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T042 [P] [US4] Add unit tests for platform/device layout fallback logic in `test/presentation/platform_layout_resolver_test.dart`
-- [ ] T043 [P] [US4] Add integration test for adaptive feature generation in `test/integration/platform_layout_generation_test.dart`
-- [ ] T044 [P] [US4] Add regression test that generated shared logic is reused across layout variants in `test/regression/platform_layout_structure_test.dart`
+- [x] T042 [P] [US4] Add unit tests for platform/device layout fallback logic in `test/presentation/platform_layout_resolver_test.dart`
+- [x] T043 [P] [US4] Add integration test for adaptive feature generation in `test/integration/platform_layout_generation_test.dart`
+- [x] T044 [P] [US4] Add regression test that generated shared logic is reused across layout variants in `test/regression/platform_layout_structure_test.dart`
 
 ### Implementation for User Story 4
 
-- [ ] T045 [US4] Create `lib/src/presentation/platform/device_class.dart`
-- [ ] T046 [US4] Create `lib/src/presentation/platform/platform_class.dart`
-- [ ] T047 [US4] Create `lib/src/presentation/platform/platform_context.dart`
-- [ ] T048 [US4] Create `lib/src/presentation/platform/platform_layout_resolver.dart`
-- [ ] T049 [US4] Create `lib/src/presentation/shells/app_shell.dart` and platform/device-specific shell abstractions under `lib/src/presentation/shells/`
-- [ ] T050 [US4] Extend presentation generation builders under `lib/src/plugins/view/`, `lib/src/plugins/presenter/`, `lib/src/plugins/controller/`, and `lib/src/plugins/state/` to scaffold `pages/<feature>/layouts/`
-- [ ] T051 [US4] Extend `lib/src/presentation/responsive_view.dart` or introduce a new adaptive base view to incorporate platform + device fallback instead of width-only breakpoints
-- [ ] T052 [US4] Add v5 config/preset switches for adaptive/platform layout generation in `lib/src/config/zfa_config.dart` and `lib/src/core/planning/preset_registry.dart`
-- [ ] T053 [US4] Add a validation/quickstart note in the spec docs that a downstream app like `Developer/zik_zak` should be used to validate macOS vs mobile shell divergence once accessible
+- [x] T045 [US4] Create `lib/src/presentation/platform/device_class.dart`
+- [x] T046 [US4] Create `lib/src/presentation/platform/platform_class.dart`
+- [x] T047 [US4] Create `lib/src/presentation/platform/platform_context.dart`
+- [x] T048 [US4] Create `lib/src/presentation/platform/platform_layout_resolver.dart`
+- [x] T049 [US4] Create `lib/src/presentation/shells/app_shell.dart` and platform/device-specific shell abstractions under `lib/src/presentation/shells/`
+- [x] T050 [US4] Extend presentation generation builders under `lib/src/plugins/view/`, `lib/src/plugins/presenter/`, `lib/src/plugins/controller/`, and `lib/src/plugins/state/` to scaffold `pages/<feature>/layouts/`
+- [x] T051 [US4] Extend `lib/src/presentation/responsive_view.dart` or introduce a new adaptive base view to incorporate platform + device fallback instead of width-only breakpoints
+- [x] T052 [US4] Add v5 config/preset switches for adaptive/platform layout generation in `lib/src/config/zfa_config.dart` and `lib/src/core/planning/preset_registry.dart`
+- [x] T053 [US4] Add a validation/quickstart note in the spec docs that a downstream app like `Developer/zik_zak` should be used to validate macOS vs mobile shell divergence once accessible
 
 **Checkpoint**: Zuraffa has a framework-level answer for mobile/tablet/desktop/macOS layout divergence.
 
@@ -184,7 +184,7 @@
 - [ ] T061 [US5] Update website docs under `website/docs/` to remove stale/contradictory `feature`/`generate` guidance and invalid `make` plugin examples
 - [ ] T062 [US5] Add `.zfa`/agent-memory documentation to README and website docs
 - [ ] T063 [US5] Gate MinIO/local-infra tests out of the default suite, e.g. by tags, environment variables, or moving them into a dedicated external integration suite
-- [ ] T064 [US5] Create a robust project root resolver under `lib/src/core/project/project_root.dart` and replace brittle `Directory.current` bootstrapping in `lib/src/commands/`, `lib/src/config/`, `lib/src/cli/`, and `lib/src/plugins/feature/capabilities/`
+- [x] T064 [US5] Create a robust project root resolver under `lib/src/core/project/project_root.dart` and replace brittle `Directory.current` bootstrapping in `lib/src/commands/`, `lib/src/config/`, `lib/src/cli/`, and `lib/src/plugins/feature/capabilities/`
 
 **Checkpoint**: Docs, prompts, and default tests are coherent and trustworthy.
 

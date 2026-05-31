@@ -26,11 +26,6 @@ class AppendMethodCapability implements ZuraffaCapability {
       'service': {'type': 'string', 'description': 'Target service name'},
       'returns': {'type': 'string', 'description': 'Return type'},
       'params': {'type': 'string', 'description': 'Parameter type'},
-      'outputDir': {
-        'type': 'string',
-        'description': 'Directory to output the file',
-        'default': 'lib/src',
-      },
     },
     'required': ['name'],
   };
@@ -86,7 +81,7 @@ class AppendMethodCapability implements ZuraffaCapability {
     required bool dryRun,
   }) async {
     final name = args['name'];
-    final outputDir = args['outputDir'] ?? 'lib/src';
+    final outputDir = plugin.outputDir;
     final repo = args['repo'];
     final service = args['service'];
     final returns = args['returns'];

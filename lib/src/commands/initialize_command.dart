@@ -1,10 +1,13 @@
 import 'dart:io';
 import 'package:args/args.dart';
 import 'package:path/path.dart' as path;
+import '../config/zfa_config.dart';
 import '../utils/file_utils.dart';
 import '../utils/string_utils.dart';
 
 class InitializeCommand {
+  static const String fixedEntityOutput = ZfaConfig.fixedEntityOutput;
+
   Future<void> execute(List<String> args) async {
     final parser = ArgParser()
       ..addOption(
@@ -16,8 +19,9 @@ class InitializeCommand {
       ..addOption(
         'output',
         abbr: 'o',
-        defaultsTo: 'lib/src',
-        help: 'Output directory (default: lib/src)',
+        defaultsTo: fixedEntityOutput,
+        help:
+            'Entity output directory (fixed to lib/src/domain/entities in v5; custom values are ignored)',
       )
       ..addFlag(
         'force',
@@ -46,7 +50,6 @@ class InitializeCommand {
     }
 
     final entityName = results['entity'] as String;
-    final outputDir = results['output'] as String;
     final force = results['force'] as bool;
     final dryRun = results['dry-run'] as bool;
     final verbose = results['verbose'] as bool;
@@ -54,7 +57,7 @@ class InitializeCommand {
     final entitySnake = StringUtils.camelToSnake(entityName);
 
     // Create entity directory path
-    final entityDir = path.join(outputDir, 'domain', 'entities', entitySnake);
+    final entityDir = path.join(fixedEntityOutput, entitySnake);
     final entityFile = path.join(entityDir, '$entitySnake.dart');
 
     // Generate entity content
@@ -109,13 +112,14 @@ ${parser.usage}
 EXAMPLES:
   zfa initialize                           # Generate Product entity
   zfa initialize --entity=User             # Generate User entity
-  zfa init -e Order --output=lib/src       # Generate Order entity in lib/src
+  zfa init -e Order                        # Generate Order entity
   zfa initialize --dry-run                 # Preview without writing files
 
 DESCRIPTION:
   Creates a sample entity with common fields (id, name, description, price, etc.)
-  to help you quickly test Zuraffa's code generation capabilities.
-  
+  under lib/src/domain/entities to help you quickly test Zuraffa's code generation
+  capabilities.
+
   After running this command, use 'zfa generate' to create the full Clean Architecture
   structure around your entity.
 ''');

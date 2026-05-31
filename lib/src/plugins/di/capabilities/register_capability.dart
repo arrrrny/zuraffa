@@ -26,11 +26,7 @@ class RegisterCapability implements ZuraffaCapability {
         'description':
             'Name of the class to register (e.g. CategoryProvider, ListingUseCase)',
       },
-      'outputDir': {
-        'type': 'string',
-        'description': 'Directory to output the file',
-        'default': 'lib/src',
-      },
+
       'domain': {
         'type': 'string',
         'description': 'Domain name (required if it cannot be inferred)',
@@ -96,7 +92,7 @@ class RegisterCapability implements ZuraffaCapability {
     required bool dryRun,
   }) async {
     final target = args['target'] as String;
-    final outputDir = args['outputDir'] ?? 'lib/src';
+    final outputDir = plugin.outputDir;
     final domain = args['domain'];
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;

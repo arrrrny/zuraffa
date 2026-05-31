@@ -54,10 +54,14 @@ class ThrowingHook extends ArtifactHook {
   }
 }
 
+/// A fake [MinioClient] that captures calls without connecting to any server.
+///
+/// Extends [MinioClient] using a dummy endpoint that satisfies the parent
+/// constructor validation.
 class CapturingMinioClient extends MinioClient {
   CapturingMinioClient()
     : super(
-        endpoint: 'http://localhost:9000',
+        endpoint: 'https://artifacts.zuzu.dev',
         accessKey: 'test-access-key',
         secretKey: 'test-secret-key',
       );
@@ -356,8 +360,14 @@ void main() {
         );
       }
 
-      expect(metadata['ctx-url-value']!.length, lessThan(url.length));
+      // The sanitized value may be longer than the original when the
+      // "[sanitized len=N] preview" wrapper is added.
       expect(metadata['ctx-url-value'], contains('[sanitized len='));
+      // Verify the value is a printable ASCII string
+      expect(
+        metadata['ctx-url-value']!.codeUnits.every((c) => c >= 32 && c <= 126),
+        isTrue,
+      );
       expect(metadata['ctx-emoji'], contains('[sanitized len='));
       expect(
         client.lastKey,

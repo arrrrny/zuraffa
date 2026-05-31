@@ -64,7 +64,7 @@ class ControllerPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       },
       'state': {
         'type': 'boolean',
-        'default': true,
+        'default': false,
         'description': 'Generate state class for controller',
       },
     },

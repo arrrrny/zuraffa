@@ -178,42 +178,38 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
       projectRoot: projectRoot,
     );
 
-    // Resolve explicit plugins based on flags
-    final explicitIds = <String>[];
-    explicitIds.add(
-      'usecase',
-    ); // Scaffold always generates usecases by default unless overridden
-    if (args['repository'] != false) explicitIds.add('repository');
-    if (args['datasource'] != false) explicitIds.add('datasource');
-    if (args['use-service'] == true) explicitIds.add('service');
-    if (args['vpcs'] != false) {
-      explicitIds.addAll(['view', 'presenter', 'controller', 'state']);
-    }
-    if (args['mock'] == true) explicitIds.add('mock');
-    if (args['di'] == true) explicitIds.add('di');
-    if (args['route'] == true) explicitIds.add('route');
-    if (args['test'] == true) explicitIds.add('test');
-    if (args['cache'] == true) explicitIds.add('cache');
-
-    final activePlugins = manager.resolveActivePlugins(
-      explicitPluginIds: explicitIds,
-      argResults: null,
+    final normalizedOptions = _normalizePlanOptions(args);
+    final plan = manager.resolvePlan(
+      name: featureName,
+      options: normalizedOptions,
     );
+    final activePlugins = plan.activePlugins;
 
     final context = manager.buildContext(
       name: featureName,
       argResults: null,
       activePlugins: activePlugins,
+      overrideOutputDir: (args['outputDir'] as String?) ?? plugin.outputDir,
       overrideDryRun: dryRun,
       overrideForce: args['force'] == true,
       overrideVerbose: args['verbose'] == true,
       overrideRevert: args['revert'] == true,
     );
 
-    // Merge manual args into context data
+    context.data.addAll(plan.normalizedOptions);
+    context.setShared(
+      'normalizedOptions',
+      Map<String, dynamic>.from(plan.normalizedOptions),
+    );
+
+    // Merge manual args into context data.
     args.forEach((key, value) {
       context.data[key] = value;
     });
+
+    // Preserve normalized cache intent separately from plugin activation.
+    context.data['cache'] = plan.normalizedOptions['cache'] == true;
+    context.data['enableCache'] = plan.normalizedOptions['cache'] == true;
 
     // Ensure core flags are set
     context.data['dry-run'] = dryRun;
@@ -295,5 +291,71 @@ class ScaffoldFeatureCapability implements ZuraffaCapability {
     }
 
     return await manager.run(context, activePlugins);
+  }
+
+  Map<String, dynamic> _normalizePlanOptions(Map<String, dynamic> args) {
+    final options = <String, dynamic>{
+      'preset': 'feature',
+      'cache': args['cache'] == true,
+    };
+
+    if (args['methods'] case final List<dynamic> methods) {
+      options['methods'] = methods.cast<String>();
+    }
+    if (args['usecases'] case final List<dynamic> usecases) {
+      options['usecases'] = usecases.cast<String>();
+    }
+    if (args['local'] == true) {
+      options['local'] = true;
+    }
+    if (args['mock'] == true) {
+      options['mock'] = true;
+    }
+    if (args['route'] == true) {
+      options['route'] = true;
+    }
+    if (args['use-service'] == true) {
+      options['use-service'] = true;
+    }
+    if (args['id-field'] case final String idField when idField.isNotEmpty) {
+      options['id-field'] = idField;
+    }
+    if (args['id-field-type'] case final String idFieldType
+        when idFieldType.isNotEmpty) {
+      options['id-field-type'] = idFieldType;
+    }
+    if (args['query-field'] case final String queryField
+        when queryField.isNotEmpty) {
+      options['query-field'] = queryField;
+    }
+    if (args['query-field-type'] case final String queryFieldType
+        when queryFieldType.isNotEmpty) {
+      options['query-field-type'] = queryFieldType;
+    }
+
+    final excluded = <String>{'test'};
+    if (args['repository'] == false) {
+      excluded.add('repository');
+    }
+    if (args['datasource'] == false) {
+      excluded.add('datasource');
+    }
+    if (args['vpcs'] == false) {
+      excluded.addAll(['view', 'presenter', 'controller', 'state']);
+    }
+    if (args['di'] == false) {
+      excluded.add('di');
+    }
+    if (args['test'] == true) {
+      excluded.remove('test');
+    }
+    if (args['use-service'] == true) {
+      excluded.addAll(['repository', 'datasource']);
+    }
+    if (excluded.isNotEmpty) {
+      options['without'] = excluded.toList(growable: false);
+    }
+
+    return options;
   }
 }

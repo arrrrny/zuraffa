@@ -4,50 +4,44 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Documentation](https://img.shields.io/badge/docs-docusaurus-blue)](https://arrrrny.github.io/zuraffa/)
 
-**The AI-First Clean Architecture Framework for Flutter.**
+**The AI-first Clean Architecture framework for Flutter.**
 
-Zuraffa is a comprehensive toolkit designed to streamline Flutter development by enforcing Clean Architecture principles, ensuring type safety, and integrating seamlessly with modern AI coding assistants via MCP.
+Zuraffa v5 standardizes code generation around one canonical workflow:
 
----
+1. `zfa entity create`
+2. `zfa make`
+3. `zfa build`
 
-## 🦄 Why Zuraffa?
-
-- **🤖 AI-Native (MCP)**: The first Flutter framework with a built-in **Model Context Protocol** server. AI agents (Trae, Cursor, Windsurf) can understand, generate, and refactor your code with 100% precision.
-- **🏗️ Clean Architecture by Default**: Strict separation of Domain, Data, and Presentation layers. No more spaghetti code.
-- **🛡️ Type-Safe Everything**: Uses `Result<T, AppFailure>` for error handling. Stop catching exceptions; start matching results.
-- **⚡ Zero Boilerplate**: The `zfa` CLI handles the heavy lifting—UseCases, Repositories, VPCs (View-Presenter-Controller), and Tests are generated in seconds.
-- **🧩 Smart Caching & Sync**: Built-in patterns for offline-first apps with configurable cache policies and automatic sync.
-- **🧪 Mock-Ready**: Instant mock data generation for rapid prototyping without a backend.
+`zfa make` is the primary generation surface. `zfa feature` still exists, but only as a wrapper over the normalized feature preset.
 
 ---
 
-## 🤖 The AI Advantage (MCP)
+## Why Zuraffa?
 
-Zuraffa exposes your project structure to AI agents through its **MCP Server**. This allows AI to:
-
-- **Contextual Generation**: "Add a 'PlaceOrder' usecase to the existing 'Cart' domain."
-- **Smart Refactoring**: "Rename this entity field and update all related layers."
-- **Automated Diagnostics**: AI can run `zfa doctor` and fix architectural violations automatically.
-
-To enable, just install Zuraffa. Compatible IDEs will detect the server automatically.
+- **AI-native**: predictable structure for humans and coding agents.
+- **Clean Architecture by default**: domain, data, presentation, and DI stay consistent.
+- **Zorphy-first entities**: immutable, typed entities generated under a fixed domain root.
+- **Deterministic generation**: presets, aliases, `--with`, and `--without` resolve through the same plan system.
+- **Result-based failures**: generated code uses `Result<T, AppFailure>` patterns throughout.
+- **Hermetic-friendly workflows**: docs and tests are aligned around the current v5 surface.
 
 ---
 
-## 📦 Installation
+## Installation
 
-Add Zuraffa to your `pubspec.yaml`:
+Add Zuraffa to your project:
 
 ```yaml
 dependencies:
-  zuraffa: ^4.1.0
+  zuraffa: ^5.0.0
 
 dev_dependencies:
-  zuraffa: ^4.1.0
+  zuraffa: ^5.0.0
+  zorphy_annotation: ^1.7.0
   build_runner: ^2.4.0
-  zorphy_annotation: ^1.7.0 # Required for supercharged entities
 ```
 
-Activate the CLI globally:
+Install the CLI globally if you want `zfa` on your PATH:
 
 ```bash
 dart pub global activate zuraffa
@@ -55,98 +49,170 @@ dart pub global activate zuraffa
 
 ---
 
-## ⚡ Quick Start
+## Quick Start: the canonical v5 flow
 
-### 1. Initialize
+### 1. Create an entity
 
-```bash
-zfa init
-```
-
-### 2. Define an Entity
-
-Zuraffa uses **Zorphy** for immutable, type-safe entities.
+Entities are always generated under `lib/src/domain/entities` in v5.
 
 ```bash
-zfa entity create -n Product --field name:String --field price:double --field stock:int
+zfa entity create -n Product \
+  --field id:String \
+  --field name:String \
+  --field price:double \
+  --field description:String?
 ```
 
-### 3. Generate a Feature
+### 2. Generate architecture with `make`
 
-Generate the full stack (Domain, Data, Presentation, Tests) in one go:
+Use `zfa make` as the default way to build the architecture around that entity.
 
 ```bash
-# Using Repository/DataSource (Default)
-zfa feature scaffold Product --methods=get,getList,create --mock --vpcs --state --test
-
-# Using Service/Provider (Alternative)
-zfa feature scaffold Product --methods=get,getList --use-service --mock --vpcs --state --test
+zfa make Product \
+  --preset=crud \
+  --methods=get,getList,create,update,delete \
+  --with=vpc \
+  --state \
+  --di \
+  --test
 ```
 
-### 4. Granular Control (Make)
+That expands to a normalized plan that generates the domain, data, presentation, and test layers for `Product`.
 
-Need just a specific part? Use `zfa make`:
-
-```bash
-zfa make Search usecase --domain=search --params=SearchRequest --returns=Listing
-```
-
-### 5. Build
+### 3. Run the build step
 
 ```bash
 zfa build
 ```
 
----
-
-## 🛠️ CLI Power Commands
-
-| Command       | Description                                                            |
-| :------------ | :--------------------------------------------------------------------- |
-| `zfa feature` | High-level command to generate full feature slices.                    |
-| `zfa make`    | Low-level command for granular generation (UseCases, Mocks, DI, etc.). |
-| `zfa entity`  | Create and manage Zorphy entities with field validation.               |
-| `zfa doctor`  | Lints your architecture and suggests fixes.                            |
-| `zfa build`   | Optimized wrapper for `build_runner`.                                  |
+Use `zfa build` instead of calling `build_runner` directly in docs and agent workflows.
 
 ---
 
-## 🔄 Revert & Negation
+## Core v5 commands
 
-### Smart Revert
-
-Accidentally added a method or plugin? Use `--revert` to undo the change. Zuraffa's AST-aware reverter will remove only the specific code added, preserving your manual changes.
-
-```bash
-zfa make Product usecase --methods=watch --revert
-```
-
-### Negatable Flags
-
-Every boolean flag has a `--no-` counterpart to explicitly disable features.
-
-```bash
-zfa feature Product --data --no-zorphy # Generate data layer but skip Zorphy
-```
+| Command                | Role in v5                                 |
+| ---------------------- | ------------------------------------------ |
+| `zfa entity create`    | Define or update Zorphy entities           |
+| `zfa make`             | Canonical architecture generator           |
+| `zfa build`            | Run the codegen/build step                 |
+| `zfa feature scaffold` | Wrapper over the normalized feature preset |
+| `zfa config`           | Manage `.zfa.json` project defaults        |
+| `zfa manifest`         | Inspect available plugins and capabilities |
+| `zfa doctor`           | Inspect local tooling and project health   |
 
 ---
 
-## 📂 Project Layout
+## Fixed project layout
+
+Zuraffa v5 assumes a fixed architecture root:
 
 ```text
 lib/src/
-├── data/           # Models, DataSources, Repository Impls
-├── domain/         # Entities, Repository Interfaces, UseCases
-├── presentation/   # VPC (View, Presenter, Controller, State)
-└── di/             # Automated Dependency Injection (GetIt)
+├── data/
+├── di/
+├── domain/
+│   ├── entities/
+│   ├── repositories/
+│   └── usecases/
+└── presentation/
+```
+
+Entity files must live at:
+
+```text
+lib/src/domain/entities/{entity_snake}/{entity_snake}.dart
+```
+
+Example:
+
+```text
+lib/src/domain/entities/product/product.dart
 ```
 
 ---
 
-## 🌐 Learn More
+## `.zfa.json` defaults and `.zfa/` project memory
 
-- **Documentation**: [zuraffa.dev](https://arrrrny.github.io/zuraffa/)
-- **Example Project**: [Github Example](https://github.com/arrrrny/zuraffa/tree/master/example)
-- **Discord/Community**: [Join us!](https://github.com/arrrrny/zuraffa/issues)
+Zuraffa v5 separates **project defaults** from **project memory**:
 
-Made with 🦒 and ⚡️ by [Arrrrny](https://github.com/arrrrny).
+- **`.zfa.json`**: active project configuration such as plugin defaults and entity-first rules.
+- **`.zfa/`**: the canonical v5 project-memory model for plans, runs, decisions, blueprints, manifests, and future agent context.
+
+A useful mental model for humans and AI agents is:
+
+```text
+.zfa.json      -> what this project prefers by default
+.zfa/          -> what has been planned, generated, and decided over time
+```
+
+### Canonical `.zfa/` layout
+
+```text
+.zfa/
+├── plans/
+├── runs/
+├── blueprints/
+├── decisions/
+├── manifests/
+└── context.json
+```
+
+During the v5 migration, some internal surfaces may still reference older storage paths. Treat the structure above as the public documentation contract going forward.
+
+---
+
+## `make` first, `feature` second
+
+If you see both commands in the codebase, prefer this rule:
+
+- Use **`zfa make`** when you want explicit control.
+- Use **`zfa feature scaffold`** only when you intentionally want the feature preset wrapper.
+
+Equivalent example:
+
+```bash
+zfa make Product --preset=feature --plan
+```
+
+```bash
+zfa feature scaffold Product --plan
+```
+
+---
+
+## AI-agent contract
+
+For Zuraffa v5 projects:
+
+- Generate **architecture code** with `zfa`, not by hand.
+- Create entities with `zfa entity create`.
+- Generate layers with `zfa make`.
+- Run `zfa build` after generation.
+- Handcraft only manual UI composition/layout zones and normal business implementation details that generation does not own.
+
+---
+
+## Migration notes
+
+If you are coming from pre-v5 guidance:
+
+- the old one-shot generator command is gone,
+- `zfa make` is now the canonical generator,
+- `zfa feature` is a wrapper, not the primary public workflow,
+- the domain root is fixed to `lib/src/domain`, and
+- v5 public docs assume Zorphy-based entities.
+
+See `doc/MIGRATION_GUIDE.md` for a focused migration walkthrough.
+
+---
+
+## Learn more
+
+- `CLI_GUIDE.md`
+- `AGENTS.md`
+- `SKILL.md`
+- `website/docs/intro.md`
+- `doc/MIGRATION_GUIDE.md`
+
+Made with 🦒 and ⚡ by the Zuraffa project.

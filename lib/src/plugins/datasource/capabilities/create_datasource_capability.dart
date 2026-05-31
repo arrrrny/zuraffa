@@ -19,11 +19,7 @@ class CreateDataSourceCapability implements ZuraffaCapability {
     'type': 'object',
     'properties': {
       'name': {'type': 'string', 'description': 'Name of the data source'},
-      'outputDir': {
-        'type': 'string',
-        'description': 'Directory to output the file',
-        'default': 'lib/src',
-      },
+
       'local': {
         'type': 'boolean',
         'description': 'Generate local data source (instead of remote)',
@@ -95,7 +91,7 @@ class CreateDataSourceCapability implements ZuraffaCapability {
     required bool dryRun,
   }) async {
     final name = args['name'];
-    final outputDir = args['outputDir'] ?? 'lib/src';
+    final outputDir = plugin.outputDir;
     final generateLocal = args['local'] ?? false;
     final enableCache = args['cache'] ?? false;
     final force = args['force'] ?? false;

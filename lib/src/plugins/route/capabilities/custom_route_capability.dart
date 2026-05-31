@@ -27,11 +27,7 @@ class CustomRouteCapability implements ZuraffaCapability {
         'description': 'Domain folder for the route (e.g. common, auth)',
         'default': 'general',
       },
-      'outputDir': {
-        'type': 'string',
-        'description': 'Directory to output the file',
-        'default': 'lib/src',
-      },
+
       'dryRun': {
         'type': 'boolean',
         'description': 'Run without writing files',
@@ -94,7 +90,7 @@ class CustomRouteCapability implements ZuraffaCapability {
   }) async {
     final name = args['name'];
     final domain = args['domain'] ?? 'general';
-    final outputDir = args['outputDir'] ?? 'lib/src';
+    final outputDir = plugin.outputDir;
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
 

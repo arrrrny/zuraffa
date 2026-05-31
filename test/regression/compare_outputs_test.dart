@@ -1,11 +1,71 @@
 import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuraffa/src/cli/plugin_loader.dart';
+import 'package:zuraffa/src/config/zfa_config.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
+import 'package:zuraffa/src/core/plugin_system/plugin_manager.dart';
 import 'package:zuraffa/src/generator/code_generator.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 
 void main() {
+  test('code generator and CLI resolve the same plugin set', () async {
+    final tempRoot = await Directory.systemTemp.createTemp('zfa_parity_');
+    addTearDown(() => tempRoot.delete(recursive: true));
+    final outputDir = path.join(tempRoot.path, 'lib', 'src');
+    await Directory(outputDir).create(recursive: true);
+    await File(path.join(tempRoot.path, 'pubspec.yaml')).writeAsString('''
+name: zuraffa_parity_test
+environment:
+  sdk: ^3.11.0
+''');
+    await ZfaConfig.save(
+      ZfaConfig(
+        pluginDefaults: const {'di': true, 'route': true},
+        disabledPlugins: const {'route'},
+      ),
+      projectRoot: tempRoot.path,
+    );
+
+    final scenario = GeneratorConfig(
+      name: 'Product',
+      methods: const ['get'],
+      generateData: true,
+      generateState: true,
+      outputDir: outputDir,
+    );
+
+    final generator = CodeGenerator(
+      config: scenario,
+      outputDir: outputDir,
+      options: const GeneratorOptions(dryRun: true, force: true),
+    );
+    final generatorPlan = generator.resolvePlan();
+
+    final pluginConfig = PluginConfig.load(projectRoot: tempRoot.path);
+    final registry = PluginLoader(
+      outputDir: outputDir,
+      dryRun: true,
+      force: true,
+      verbose: false,
+      config: pluginConfig,
+    ).buildRegistry();
+    final cliManager = PluginManager(
+      registry: registry,
+      config: ZfaConfig.load(projectRoot: tempRoot.path),
+      pluginConfig: pluginConfig,
+      projectRoot: tempRoot.path,
+    );
+    final cliPlan = cliManager.resolvePlan(
+      name: scenario.name,
+      options: scenario.toJson(),
+    );
+
+    expect(generatorPlan.pluginIds, equals(cliPlan.pluginIds));
+    expect(generatorPlan.pluginIds, contains('di'));
+    expect(generatorPlan.pluginIds, isNot(contains('route')));
+  });
+
   test('plugin outputs include expected files for entity with data', () async {
     final outputDir = _tempOutputDir();
     final scenario = GeneratorConfig(

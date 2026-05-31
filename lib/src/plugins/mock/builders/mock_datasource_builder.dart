@@ -510,12 +510,9 @@ class MockDataSourceBuilder {
           break;
 
         case 'update':
-          final dataType = config.useZorphy
-              ? '${entityName}Patch'
-              : 'Map<String, dynamic>';
-          final updateParamsType = config.useZorphy
-              ? 'UpdateParams<${config.idFieldType}, $dataType>'
-              : dataType;
+          final dataType = '${entityName}Patch';
+          final updateParamsType =
+              'UpdateParams<${config.idFieldType}, $dataType>';
           final hasList = config.methods.contains('getList');
           final hasWatch = config.methods.contains('watch');
           final isNoParams = config.idFieldType == 'NoParams';

@@ -35,7 +35,7 @@ class TestFeatureCapability implements ZuraffaCapability {
         'description': 'Generate local data source instead of remote',
         'default': false,
       },
-      'outputDir': {'type': 'string', 'default': 'lib/src'},
+
       'dryRun': {'type': 'boolean', 'default': false},
       'force': {'type': 'boolean', 'default': false},
       'verbose': {'type': 'boolean', 'default': false},

@@ -22,11 +22,7 @@ class CreateViewCapability implements ZuraffaCapability {
         'type': 'string',
         'description': 'Name of the view entity (e.g. Product)',
       },
-      'outputDir': {
-        'type': 'string',
-        'description': 'Directory to output the file',
-        'default': 'lib/src',
-      },
+
       'methods': {
         'type': 'array',
         'items': {'type': 'string'},
@@ -37,7 +33,7 @@ class CreateViewCapability implements ZuraffaCapability {
       'di': {
         'type': 'boolean',
         'description': 'Generate with DI integration',
-        'default': true,
+        'default': false,
       },
       'state': {
         'type': 'boolean',
@@ -110,10 +106,10 @@ class CreateViewCapability implements ZuraffaCapability {
     required bool dryRun,
   }) async {
     final name = args['name'];
-    final outputDir = args['outputDir'] ?? 'lib/src';
+    final outputDir = plugin.outputDir;
     final methods =
         (args['methods'] as List?)?.cast<String>() ?? ['get', 'update'];
-    final generateDi = args['di'] ?? true;
+    final generateDi = args['di'] ?? false;
     final generateState = args['state'] ?? false;
     final generateRoute = args['route'] ?? false;
     final force = args['force'] ?? false;

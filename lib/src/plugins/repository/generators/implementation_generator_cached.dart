@@ -60,12 +60,9 @@ extension RepositoryImplementationGeneratorCached
             ..body = _buildCacheAwareCreateBody(baseCacheKey, entityCamel),
         );
       case 'update':
-        final dataType = config.useZorphy
-            ? '${config.name}Patch'
-            : 'Partial<${config.name}>';
-        final updateParamsType = config.useZorphy
-            ? 'UpdateParams<${config.idFieldType}, $dataType>'
-            : dataType;
+        final dataType = '${config.name}Patch';
+        final updateParamsType =
+            'UpdateParams<${config.idFieldType}, $dataType>';
         return Method(
           (m) => m
             ..name = 'update'
