@@ -1,14 +1,17 @@
 # Real-World Entity Examples
 
-The best way to learn Zuraffa's entity system is to see it in action. Below are production-ready entity setups for common app domains. Use these as blueprints for your own projects.
+These examples use the canonical Zuraffa v5 flow:
+
+1. define entities with `zfa entity create`
+2. generate architecture with `zfa make`
+3. finish with `zfa build`
 
 ---
 
 ## 🛒 E-commerce Domain
 
-A complete setup for products, orders, and money management.
+### 1. Enums and supporting types
 
-### 1. Enums & Base Types
 ```bash
 zfa entity enum -n OrderStatus --value pending,shipped,delivered,cancelled
 zfa entity enum -n Currency --value usd,eur,gbp
@@ -16,15 +19,15 @@ zfa entity enum -n Currency --value usd,eur,gbp
 zfa entity create -n Money --field amount:double --field currency:Currency
 ```
 
-### 2. Product & Reviews
+### 2. Product and reviews
+
 ```bash
 zfa entity create -n Product \
   --field id:String \
   --field sku:String \
   --field name:String \
   --field price:Money \
-  --field stock:int \
-  --field description:String?
+  --field stock:int
 
 zfa entity create -n Review \
   --field productId:String \
@@ -32,18 +35,22 @@ zfa entity create -n Review \
   --field comment:String?
 ```
 
-### 3. Generate the Feature
+### 3. Generate the architecture
+
 ```bash
-zfa feature Product --methods=get,getList,create,update --data --vpcs --di
+zfa make Product \
+  --preset=crud \
+  --methods=get,getList,create,update \
+  --with=vpc \
+  --di
 ```
 
 ---
 
 ## 📱 Social Media Domain
 
-Modeling users, posts, and complex interactions.
+### 1. User profile and stats
 
-### 1. User Profile & Stats
 ```bash
 zfa entity create -n UserProfile \
   --field username:String \
@@ -56,7 +63,8 @@ zfa entity create -n User \
   --field followerCount:int
 ```
 
-### 2. Posts with Media
+### 2. Posts with media
+
 ```bash
 zfa entity enum -n MediaType --value image,video,text
 
@@ -69,25 +77,29 @@ zfa entity create -n Post \
   --field createdAt:DateTime
 ```
 
-### 3. Generate the Feature
+### 3. Generate the architecture
+
 ```bash
-zfa feature Post --methods=getList,create,delete --data --vpcs --mock
+zfa make Post \
+  --preset=crud \
+  --methods=getList,create,delete \
+  --with=vpc \
+  --mock
 ```
 
 ---
 
 ## ✅ Task Management
 
-Modeling projects, tasks, and team assignments.
+### 1. Supporting types
 
-### 1. Task Priorities & Labels
 ```bash
 zfa entity enum -n Priority --value low,medium,high,urgent
-
 zfa entity create -n Label --field name:String --field color:String
 ```
 
-### 2. The Task Entity
+### 2. The task entity
+
 ```bash
 zfa entity create -n Task \
   --field id:String \
@@ -99,25 +111,30 @@ zfa entity create -n Task \
   --field isDone:bool
 ```
 
-### 3. Generate the Feature
+### 3. Generate the architecture
+
 ```bash
-zfa feature Task --methods=get,getList,create,update --data --cache --vpcs
+zfa make Task \
+  --preset=crud \
+  --methods=get,getList,create,update \
+  --with=vpc \
+  --cache
 ```
 
 ---
 
-## 🧠 Pro Tip: AI Generation
+## Pro tip for AI agents
 
-If you're using an AI agent like **Trae** or **Cursor**, you don't need to type all these commands manually. You can simply provide a JSON or a text description:
+If you describe the entity shape clearly, an AI agent should translate that into:
 
-> "Create a **Chat** domain with **Message** and **Conversation** entities. Messages should support text and images. Generate the full feature stack with real-time **watch** methods."
-
-Zuraffa's **MCP Server** will handle the execution of all necessary `zfa entity` and `zfa feature` commands for you.
+- one or more `zfa entity create` commands,
+- a `zfa make` command that matches the desired layers, and
+- a final `zfa build` step.
 
 ---
 
-## 📂 Next Steps
+## Next steps
 
-*   [**Field Types Reference**](./field-types) - Master the building blocks.
-*   [**Advanced Patterns**](./advanced-patterns) - Use sealed classes for state machines.
-*   [**CLI Reference**](../cli/commands) - See all available flags for feature generation.
+- [Entity Generation](./intro)
+- [Advanced Patterns](./advanced-patterns)
+- [CLI Commands Reference](../cli/commands)

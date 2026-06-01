@@ -79,11 +79,6 @@ class MockDataBuilder {
     final entityCamel = StringUtils.pascalToCamel(entityName);
     final collectionName = '${entityCamel}s';
 
-    final isEnum = EntityAnalyzer.isEnum(
-      entityName,
-      outputDir,
-      fileSystem: fileSystem,
-    );
     final entityFields = EntityAnalyzer.analyzeEntity(
       entityName,
       outputDir,
@@ -100,9 +95,11 @@ class MockDataBuilder {
       outputDir,
     );
 
-    final entityImport = isEnum
-        ? '../../domain/entities/enums/index.dart'
-        : '../../domain/entities/$entitySnake/$entitySnake.dart';
+    final entityImport = EntityAnalyzer.getEntityImportPath(
+      entityName,
+      outputDir,
+      fileSystem: fileSystem,
+    );
 
     final directives = <Directive>[
       Directive.import(entityImport),

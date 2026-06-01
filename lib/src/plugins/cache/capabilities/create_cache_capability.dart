@@ -22,11 +22,7 @@ class CreateCacheCapability implements ZuraffaCapability {
         'type': 'string',
         'description': 'Name of the entity (e.g. Product)',
       },
-      'outputDir': {
-        'type': 'string',
-        'description': 'Directory to output the file',
-        'default': 'lib/src',
-      },
+
       'policy': {
         'type': 'string',
         'description': 'Cache policy (daily, hourly, etc.)',
@@ -98,7 +94,7 @@ class CreateCacheCapability implements ZuraffaCapability {
     required bool dryRun,
   }) async {
     final name = args['name'];
-    final outputDir = args['outputDir'] ?? 'lib/src';
+    final outputDir = plugin.outputDir;
     final policy = args['policy'] ?? 'daily';
     final storage = args['storage'];
     final ttl = args['ttl'];

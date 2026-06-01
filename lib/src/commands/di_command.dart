@@ -8,6 +8,8 @@ import '../utils/string_utils.dart';
 import '../core/context/progress_reporter.dart';
 
 class DiCommand {
+  static const String fixedOutputDir = 'lib/src';
+
   Future<GeneratorResult> execute(
     List<String> args, {
     bool exitOnCompletion = true,
@@ -68,7 +70,7 @@ class DiCommand {
       );
     }
 
-    final outputDir = _resolveOutputDir(results['output'] as String?);
+    final outputDir = _resolveOutputDir();
     final verbose = results['verbose'] == true;
     final domain = results['domain'] as String? ?? 'general';
     final useMock = results['use-mock'] == true;
@@ -351,34 +353,15 @@ class DiCommand {
     );
   }
 
-  String _resolveOutputDir(String? output) {
-    if (output != null && output.isNotEmpty) {
-      return output;
-    }
-
-    // Try to find lib/src directory
-    final possiblePaths = [
-      'lib/src',
-      path.join('..', 'lib', 'src'),
-      path.join('..', '..', 'lib', 'src'),
-    ];
-
-    for (final p in possiblePaths) {
-      if (Directory(p).existsSync()) {
-        return p;
-      }
-    }
-
-    // Default fallback
-    return 'lib/src';
-  }
+  String _resolveOutputDir() => fixedOutputDir;
 
   ArgParser _buildArgParser() {
     return ArgParser()
       ..addOption(
         'output',
         abbr: 'o',
-        help: 'Output directory (default: lib/src)',
+        help:
+            'Output directory (fixed to lib/src in v5; custom values are ignored)',
       )
       ..addOption(
         'domain',
@@ -416,7 +399,7 @@ ARGUMENTS:
   <UseCaseName>       Name of the usecase to register (e.g., CreateCustomer)
 
 OPTIONS:
-  -o, --output        Output directory (default: lib/src)
+  -o, --output        Output directory (fixed to lib/src in v5; custom values are ignored)
   -d, --domain        Domain folder where usecase is located (default: general)
   --dry-run           Preview without writing files
   -f, --force         Overwrite existing DI files

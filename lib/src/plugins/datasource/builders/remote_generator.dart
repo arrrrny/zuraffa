@@ -233,9 +233,7 @@ class RemoteDataSourceBuilder {
           );
           break;
         case 'update':
-          final dataType = config.useZorphy
-              ? '${config.name}Patch'
-              : 'Partial<${config.name}>';
+          final dataType = '${config.name}Patch';
           methods.add(
             Method(
               (m) => m

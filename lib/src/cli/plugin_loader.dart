@@ -1,14 +1,12 @@
-import 'dart:convert';
 import 'dart:io';
-import 'package:path/path.dart' as path;
 
+import '../config/zfa_config.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/plugin_system/plugin_interface.dart';
 import '../core/generator_options.dart';
 import '../plugins/controller/controller_plugin.dart';
 import '../plugins/datasource/datasource_plugin.dart';
 import '../plugins/di/di_plugin.dart';
-import '../plugins/graphql/graphql_plugin.dart';
 import '../plugins/gql/gql_plugin.dart';
 import '../plugins/cache/cache_plugin.dart';
 import '../plugins/route/route_plugin.dart';
@@ -32,51 +30,15 @@ class PluginConfig {
   PluginConfig({Set<String>? disabled}) : disabled = disabled ?? {};
 
   static PluginConfig load({String? projectRoot}) {
-    final root = projectRoot ?? Directory.current.path;
-    final configFile = File(path.join(root, '.zfa.json'));
-    if (!configFile.existsSync()) {
-      return PluginConfig();
-    }
-    try {
-      final json = jsonDecode(configFile.readAsStringSync());
-      if (json is Map<String, dynamic>) {
-        final plugins = json['plugins'];
-        if (plugins is Map<String, dynamic>) {
-          final disabled = plugins['disabled'];
-          if (disabled is List) {
-            return PluginConfig(
-              disabled: disabled.map((e) => e.toString()).toSet(),
-            );
-          }
-        }
-        final disabled = json['disabledPlugins'];
-        if (disabled is List) {
-          return PluginConfig(
-            disabled: disabled.map((e) => e.toString()).toSet(),
-          );
-        }
-      }
-    } catch (_) {}
-    return PluginConfig();
+    final config = ZfaConfig.load(projectRoot: projectRoot);
+    return PluginConfig(disabled: config?.disabledPlugins);
   }
 
   void save({String? projectRoot}) {
     final root = projectRoot ?? Directory.current.path;
-    final configFile = File(path.join(root, '.zfa.json'));
-    Map<String, dynamic> data = {};
-    if (configFile.existsSync()) {
-      try {
-        final decoded = jsonDecode(configFile.readAsStringSync());
-        if (decoded is Map<String, dynamic>) {
-          data = decoded;
-        }
-      } catch (_) {}
-    }
-    final plugins = Map<String, dynamic>.from(data['plugins'] ?? {});
-    plugins['disabled'] = disabled.toList()..sort();
-    data['plugins'] = plugins;
-    final encoder = const JsonEncoder.withIndent('  ');
-    configFile.writeAsStringSync(encoder.convert(data));
+    final existing = ZfaConfig.load(projectRoot: root) ?? ZfaConfig();
+    final updated = existing.copyWith(disabledPlugins: disabled);
+    ZfaConfig.save(updated, projectRoot: root);
   }
 }
 
@@ -157,7 +119,6 @@ class PluginLoader {
       RoutePlugin(outputDir: outputDir, options: options),
       CachePlugin(outputDir: outputDir, options: options),
       GqlPlugin(outputDir: outputDir, options: options),
-      GraphqlPlugin(outputDir: outputDir, options: options),
       ShadcnPlugin(outputDir: outputDir, options: options),
       MethodAppendPlugin(outputDir: outputDir, options: options),
     ];

@@ -1,9 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as path;
 import 'package:zuraffa/src/core/plugin_system/capability.dart';
 import 'package:zuraffa/src/core/plugin_system/plan_store.dart';
-import 'package:path/path.dart' as path;
 
 void main() {
   group('EffectReport & Effect', () {
@@ -70,8 +71,12 @@ void main() {
       await PlanStore.instance.savePlan(report);
 
       final planFile = File(
+        path.join(tempDir.path, '.zfa', 'plans', 'plan_123.json'),
+      );
+      final legacyPlanFile = File(
         path.join(tempDir.path, '.zuraffa', 'plans', 'plan_123.json'),
       );
+      expect(legacyPlanFile.existsSync(), isFalse);
       expect(planFile.existsSync(), isTrue);
 
       final content = await planFile.readAsString();
@@ -102,6 +107,35 @@ void main() {
       expect(loaded.changes.first.diff, 'diff');
     });
 
+    test(
+      'loadPlan falls back to legacy .zuraffa plans during migration',
+      () async {
+        final legacyPlanFile = File(
+          path.join(tempDir.path, '.zuraffa', 'plans', 'legacy_plan.json'),
+        );
+        await legacyPlanFile.parent.create(recursive: true);
+        await legacyPlanFile.writeAsString(
+          jsonEncode({
+            'plan_id': 'legacy_plan',
+            'plugin_id': 'test_plugin',
+            'capability_name': 'test_cap',
+            'args': {'source': 'legacy'},
+            'valid': true,
+            'changes': [
+              {'file': 'legacy.dart', 'action': 'create'},
+            ],
+          }),
+        );
+
+        final loaded = await PlanStore.instance.loadPlan('legacy_plan');
+
+        expect(loaded, isNotNull);
+        expect(loaded!.planId, 'legacy_plan');
+        expect(loaded.args['source'], 'legacy');
+        expect(loaded.changes.single.file, 'legacy.dart');
+      },
+    );
+
     test('loadPlan returns null for non-existent plan', () async {
       final loaded = await PlanStore.instance.loadPlan('non_existent');
       expect(loaded, isNull);
@@ -119,7 +153,7 @@ void main() {
       await PlanStore.instance.savePlan(report);
 
       final planFile = File(
-        path.join(tempDir.path, '.zuraffa', 'plans', 'plan_789.json'),
+        path.join(tempDir.path, '.zfa', 'plans', 'plan_789.json'),
       );
       expect(planFile.existsSync(), isTrue);
 

@@ -21,3 +21,7 @@ DOCUSAURUS_SETUP.md*
 .claude
 .specify
 .memsearch
+.zfa/
+coverage/
+*.log
+.env*

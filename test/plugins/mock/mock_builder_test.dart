@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -5,6 +6,19 @@ import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/mock/builders/mock_builder.dart';
 import 'package:zuraffa/src/plugins/mock/mock_plugin.dart';
+
+Future<List<String>> _capturePrints(Future<void> Function() body) async {
+  final prints = <String>[];
+  await runZoned(
+    body,
+    zoneSpecification: ZoneSpecification(
+      print: (_, _, _, String message) {
+        prints.add(message);
+      },
+    ),
+  );
+  return prints;
+}
 
 void main() {
   late Directory tempDir;
@@ -417,6 +431,320 @@ void main() {
 
       final content = mockProviderFile.readAsStringSync();
       expect(content.contains("return [];"), isTrue);
+    },
+  );
+
+  test('generates mock data for sealed class concrete subtypes', () async {
+    final entityDir = Directory('$outputDir/domain/entities/category_config');
+    await entityDir.create(recursive: true);
+    await File('${entityDir.path}/category_config.dart').writeAsString('''
+sealed class CategoryConfig {
+  final String id;
+  final String name;
+
+  const CategoryConfig({required this.id, required this.name});
+}
+
+final class PrimaryCategory extends CategoryConfig {
+  const PrimaryCategory({required super.id, required super.name});
+}
+
+final class SecondaryCategory extends CategoryConfig {
+  const SecondaryCategory({required super.id, required super.name});
+}
+''');
+
+    final builder = MockBuilder(
+      outputDir: outputDir,
+      options: const GeneratorOptions(dryRun: false, force: true),
+    );
+
+    final files = await builder.generate(
+      GeneratorConfig(
+        name: 'CategoryConfig',
+        generateMockDataOnly: true,
+        outputDir: outputDir,
+      ),
+    );
+
+    expect(
+      files.where((file) => file.type == 'mock_data').map((f) => f.path),
+      containsAll([
+        '$outputDir/data/mock/primary_category_mock_data.dart',
+        '$outputDir/data/mock/secondary_category_mock_data.dart',
+      ]),
+    );
+    expect(
+      File('$outputDir/data/mock/category_config_mock_data.dart').existsSync(),
+      isFalse,
+    );
+
+    final primaryContent = File(
+      '$outputDir/data/mock/primary_category_mock_data.dart',
+    ).readAsStringSync();
+    final secondaryContent = File(
+      '$outputDir/data/mock/secondary_category_mock_data.dart',
+    ).readAsStringSync();
+
+    expect(
+      primaryContent,
+      contains(
+        "import '../../domain/entities/category_config/category_config.dart';",
+      ),
+    );
+    expect(primaryContent, contains('PrimaryCategory('));
+    expect(secondaryContent, contains('SecondaryCategory('));
+  });
+
+  test(
+    'skips abstract intermediate sealed subtypes and only generates leaf mocks',
+    () async {
+      final entityDir = Directory('$outputDir/domain/entities/base');
+      await entityDir.create(recursive: true);
+      await File('${entityDir.path}/base.dart').writeAsString('''
+sealed class Base {
+  final String id;
+
+  const Base({required this.id});
+}
+
+abstract class Middle extends Base {
+  const Middle({required super.id});
+}
+
+final class Leaf extends Middle {
+  const Leaf({required super.id});
+}
+''');
+
+      final builder = MockBuilder(
+        outputDir: outputDir,
+        options: const GeneratorOptions(dryRun: false, force: true),
+      );
+
+      final files = await builder.generate(
+        GeneratorConfig(
+          name: 'Base',
+          generateMockDataOnly: true,
+          outputDir: outputDir,
+        ),
+      );
+
+      expect(
+        files.where((file) => file.type == 'mock_data').map((f) => f.path),
+        contains('$outputDir/data/mock/leaf_mock_data.dart'),
+      );
+      expect(
+        File('$outputDir/data/mock/base_mock_data.dart').existsSync(),
+        isFalse,
+      );
+      expect(
+        File('$outputDir/data/mock/middle_mock_data.dart').existsSync(),
+        isFalse,
+      );
+    },
+  );
+
+  test(
+    'warns and skips sealed base classes without concrete subtypes',
+    () async {
+      final entityDir = Directory('$outputDir/domain/entities/empty_base');
+      await entityDir.create(recursive: true);
+      await File('${entityDir.path}/empty_base.dart').writeAsString('''
+sealed class EmptyBase {
+  final String id;
+
+  const EmptyBase({required this.id});
+}
+
+abstract class EmptyMiddle extends EmptyBase {
+  const EmptyMiddle({required super.id});
+}
+''');
+
+      final builder = MockBuilder(
+        outputDir: outputDir,
+        options: const GeneratorOptions(dryRun: false, force: true),
+      );
+
+      late List prints;
+      late List files;
+      prints = await _capturePrints(() async {
+        files = await builder.generate(
+          GeneratorConfig(
+            name: 'EmptyBase',
+            generateMockDataOnly: true,
+            outputDir: outputDir,
+          ),
+        );
+      });
+
+      expect(files, isEmpty);
+      expect(
+        File('$outputDir/data/mock/empty_base_mock_data.dart').existsSync(),
+        isFalse,
+      );
+      expect(
+        prints.join('\n'),
+        contains(
+          'No concrete polymorphic subtypes found for sealed entity EmptyBase',
+        ),
+      );
+    },
+  );
+
+  test('generates mock data for Zorphy explicit subtypes', () async {
+    final entityDir = Directory('$outputDir/domain/entities/template');
+    await entityDir.create(recursive: true);
+    await File('${entityDir.path}/template.dart').writeAsString('''
+@Zorphy(explicitSubTypes: [\$SubA, \$SubB])
+abstract class Template {
+  String get id;
+}
+
+final class SubA extends Template {
+  final String id;
+
+  const SubA({required this.id});
+}
+
+final class SubB extends Template {
+  final String id;
+
+  const SubB({required this.id});
+}
+''');
+
+    final builder = MockBuilder(
+      outputDir: outputDir,
+      options: const GeneratorOptions(dryRun: false, force: true),
+    );
+
+    final files = await builder.generate(
+      GeneratorConfig(
+        name: 'Template',
+        generateMockDataOnly: true,
+        outputDir: outputDir,
+      ),
+    );
+
+    expect(
+      files.where((file) => file.type == 'mock_data').map((f) => f.path),
+      containsAll([
+        '$outputDir/data/mock/sub_a_mock_data.dart',
+        '$outputDir/data/mock/sub_b_mock_data.dart',
+      ]),
+    );
+  });
+
+  test('deduplicates mixed Zorphy and sealed subtype detection', () async {
+    final entityDir = Directory('$outputDir/domain/entities/mixed_config');
+    await entityDir.create(recursive: true);
+    await File('${entityDir.path}/mixed_config.dart').writeAsString('''
+@Zorphy(explicitSubTypes: [\$PrimaryCategory, \$SecondaryCategory])
+sealed class MixedConfig {
+  final String id;
+
+  const MixedConfig({required this.id});
+}
+
+final class PrimaryCategory extends MixedConfig {
+  const PrimaryCategory({required super.id});
+}
+
+final class SecondaryCategory extends MixedConfig {
+  const SecondaryCategory({required super.id});
+}
+''');
+
+    final builder = MockBuilder(
+      outputDir: outputDir,
+      options: const GeneratorOptions(dryRun: false, force: true),
+    );
+
+    final files = await builder.generate(
+      GeneratorConfig(
+        name: 'MixedConfig',
+        generateMockDataOnly: true,
+        outputDir: outputDir,
+      ),
+    );
+
+    final mockFiles = files.where((file) => file.type == 'mock_data').toList();
+    expect(mockFiles, hasLength(2));
+    expect(
+      mockFiles.map((file) => file.path),
+      containsAll([
+        '$outputDir/data/mock/primary_category_mock_data.dart',
+        '$outputDir/data/mock/secondary_category_mock_data.dart',
+      ]),
+    );
+  });
+
+  test('throws a clear error when the entity file cannot be found', () async {
+    final builder = MockBuilder(
+      outputDir: outputDir,
+      options: const GeneratorOptions(dryRun: false, force: true),
+    );
+
+    await expectLater(
+      builder.generate(
+        GeneratorConfig(
+          name: 'NonExistentEntity',
+          generateMockDataOnly: true,
+          outputDir: outputDir,
+        ),
+      ),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          contains('Entity file not found for NonExistentEntity'),
+        ),
+      ),
+    );
+  });
+
+  test(
+    'warns and continues when a nested entity type cannot be resolved',
+    () async {
+      final entityDir = Directory('$outputDir/domain/entities/product');
+      await entityDir.create(recursive: true);
+      await File('${entityDir.path}/product.dart').writeAsString('''
+class Product {
+  final String id;
+  final MissingDetail detail;
+
+  const Product({required this.id, required this.detail});
+}
+''');
+
+      final builder = MockBuilder(
+        outputDir: outputDir,
+        options: const GeneratorOptions(dryRun: false, force: true),
+      );
+
+      late List<String> prints;
+      late List files;
+      prints = await _capturePrints(() async {
+        files = await builder.generate(
+          GeneratorConfig(
+            name: 'Product',
+            generateMockDataOnly: true,
+            outputDir: outputDir,
+          ),
+        );
+      });
+
+      expect(files, isNotEmpty);
+      expect(
+        File('$outputDir/data/mock/product_mock_data.dart').existsSync(),
+        isTrue,
+      );
+      expect(
+        prints.join('\n'),
+        contains('Unable to resolve nested entity type MissingDetail'),
+      );
     },
   );
 }

@@ -56,7 +56,7 @@ Maps extension commands to their ZFA CLI equivalents.
 ```yaml
 registry:
   speckit.zuraffa.generate:
-    cli: "dart run zuraffa:zfa generate"
+    cli: "dart run zuraffa:zfa make"
     args: "<name> [options]"
   speckit.zuraffa.feature.scaffold:
     cli: "dart run zuraffa:zfa feature scaffold"

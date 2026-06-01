@@ -1,169 +1,180 @@
 # CLI Commands Reference
 
-The `zfa` CLI is the primary way to interact with the Zuraffa framework. In v3, we've introduced a more granular and powerful command structure focused on **Features** and **Plugins**.
+Zuraffa v5 centers the CLI around one primary generation command: `zfa make`.
+
+The canonical workflow is:
+
+1. `zfa entity create`
+2. `zfa make`
+3. `zfa build`
+
+`zfa feature scaffold` still exists, but it is documented as a wrapper over the feature preset.
 
 ---
 
-## 🦄 Commands Overview
+## Commands overview
 
-| Command | Description |
-| :--- | :--- |
-| [`zfa feature`](#feature) | High-level command to generate full feature slices. |
-| [`zfa make`](#make) | Granular command to run specific plugins (UseCases, DI, Mocks, etc.). |
-| [`zfa entity`](#entity) | Create and manage Zorphy entities. |
-| [`zfa config`](#config) | Manage project-wide ZFA settings. |
-| [`zfa doctor`](#doctor) | Audit your project for architectural consistency. |
-| [`zfa init`](#init) | Initialize a new Zuraffa project. |
-
----
-
-## 🚀 feature
-
-The `feature` command is your main tool for scaffolding entire architectural slices. It coordinates multiple plugins to ensure a consistent, Clean Architecture implementation.
-
-```bash
-zfa feature <Name> [options]
-```
-
-### Examples
-
-**Generate a complete CRUD stack for an entity:**
-```bash
-zfa feature Product --methods=get,getList,create,update,delete --data --vpcs --state --di --test
-```
-
-**Generate a feature with caching and mock data:**
-```bash
-zfa feature Product --data --cache --mock --use-mock
-```
+| Command                | Description                                    |
+| ---------------------- | ---------------------------------------------- |
+| `zfa entity`           | Create and manage Zorphy entities              |
+| `zfa make`             | Canonical architecture/code generation command |
+| `zfa feature scaffold` | Wrapper over `zfa make --preset=feature`       |
+| `zfa build`            | Run the build/codegen step                     |
+| `zfa config`           | Manage `.zfa.json` project defaults            |
+| `zfa manifest`         | Inspect available plugins and capabilities     |
+| `zfa apply`            | Execute a previously generated plan            |
+| `zfa doctor`           | Inspect tooling and environment health         |
 
 ---
 
-## 🛠️ make
+## `zfa entity create`
 
-The `make` command provides granular access to individual Zuraffa plugins. This is ideal for adding specific components to an existing feature or for "AI-assisted" micro-refactors. **The key advantage of `make` is that you can run multiple plugins in a single command.**
+Use this to create entities under the fixed v5 domain layout.
+
+```bash
+zfa entity create -n Product \
+  --field id:String \
+  --field name:String \
+  --field price:double
+```
+
+Entity path contract:
+
+```text
+lib/src/domain/entities/{entity_snake}/{entity_snake}.dart
+```
+
+---
+
+## `zfa make`
+
+The primary command for generating architecture.
+
+### Syntax
 
 ```bash
 zfa make <Name> <plugin1> <plugin2> ... [options]
 ```
 
-### Available Plugins
+### Preset-driven examples
 
-Zuraffa v3 is built on a modular plugin system. Each plugin can be run independently using `zfa make` or combined for complex generation tasks.
-
-| Plugin ID | Description |
-| :--- | :--- |
-| **`usecase`** | Generates UseCases (Entity-based, Stream, Sync, Orchestrator, etc.). |
-| **`repository`** | Generates Repository interfaces and implementations. |
-| **`datasource`** | Generates Remote and Local DataSources. |
-| **`service`** | Generates Service interfaces for external integrations. |
-| **`provider`** | Generates Data Providers for the presentation layer. |
-| **`cache`** | Generates caching logic, dual-datasources, and cache policies. |
-| **`di`** | Generates GetIt dependency injection registrations. |
-| **`mock`** | Generates static mock data and mock data source implementations. |
-| **`view`** | Generates the Flutter View (UI layer). |
-| **`presenter`** | Generates the Presenter (logic orchestration). |
-| **`controller`** | Generates the Controller (interaction handling). |
-| **`state`** | Generates the immutable State object. |
-| **`route`** | Generates routing constants and entity-specific routes. |
-| **`graphql`** | Generates GraphQL queries, mutations, and subscriptions. |
-| **`observer`** | Generates Observer classes for tracking lifecycle events. |
-| **`test`** | Generates unit tests for UseCases and logic. |
-| **`feature`** | A meta-plugin that coordinates full feature scaffolding. |
-| **`method_append`** | AST-aware plugin for adding methods to existing files. |
-
-### Standalone vs. Combined Usage
-
-One of Zuraffa's most powerful features is that **plugins are context-aware**. 
-
-*   **Standalone**: Run a single plugin to add a specific component. 
-    *   Example: `zfa make Product di` only updates dependency injection.
-*   **Combined**: Run multiple plugins together to build a vertical slice.
-    *   Example: `zfa make Product usecase repository di` builds the domain logic, data interface, and wires them up in one go.
-*   **Feature Presets**: The `zfa feature` command is essentially a shortcut for running a curated list of plugins (usecase, data, vpc, di, test) with sensible defaults.
-
-### Examples
-
-**Run multiple plugins together:**
 ```bash
-# Generate UseCases, Data layer, and DI for a search feature
-zfa make Search usecase data di --domain=search --params=SearchRequest --returns=Listing
+zfa make Product --preset=crud --methods=get,getList,create,update,delete
 ```
 
-**Add a specific UseCase to an existing domain:**
 ```bash
-zfa make SearchProducts usecase --domain=search --params=SearchQuery --returns=List<Product>
+zfa make Product \
+  --preset=crud \
+  --methods=get,getList,create,update,delete \
+  --with=vpc \
+  --state \
+  --di \
+  --test
 ```
 
-**Regenerate only the DI registrations:**
+### Explicit-plugin example
+
 ```bash
-zfa make Product di --force
+zfa make Product usecase repository datasource view presenter controller state di test \
+  --methods=get,getList,create,update,delete
 ```
 
----
+### Common flags and selectors
 
-## 🔄 Smart Revert
+| Selector / Flag      | Purpose                                           |
+| -------------------- | ------------------------------------------------- |
+| `--preset=crud`      | Resolve the CRUD generation preset                |
+| `--preset=feature`   | Resolve the feature preset                        |
+| `--with=vpc`         | Expand the VPC alias to view/presenter/controller |
+| `--without=<plugin>` | Exclude a plugin or alias from the final plan     |
+| `--state`            | Add the state plugin                              |
+| `--di`               | Add dependency injection generation               |
+| `--test`             | Add tests                                         |
+| `--mock`             | Add mock data generation                          |
+| `--cache`            | Add cache generation                              |
+| `--gql`              | Add gql string generation                         |
+| `--plan`             | Print the normalized plan and exit                |
+| `--explain`          | Explain plan resolution and exit                  |
+| `--format=json`      | Emit machine-readable output                      |
 
-Every `make` and `feature` command supports the `--revert` flag. Zuraffa uses an **AST-aware reverter** that intelligently undoes changes:
-
-*   **File Deletion**: If a file was created by the command, it is deleted.
-*   **Method Removal**: If a method was appended to an existing file (e.g., adding a method to a Repository), only that method is removed.
-*   **Cleanup**: If removing an appended method leaves a class or file empty, Zuraffa will automatically clean up the file to keep your project tidy.
+### Planning examples
 
 ```bash
-# Undo the search usecase generation
-zfa make SearchProducts usecase --revert
+zfa make Product --preset=crud --with=vpc --plan
 ```
 
----
+```bash
+zfa make Product --preset=crud --with=vpc --plan --format=json
+```
 
-## 🛡️ Negatable Flags
+### JSON input
 
-Zuraffa supports negatable flags for all boolean options. This is useful when your project configuration defaults to `true` but you want to skip a feature for a specific command.
-
-*   `--no-zorphy`: Disable Zorphy entity patterns.
-*   `--no-data`: Skip data layer generation even if requested by a feature preset.
-*   `--no-test`: Skip test generation.
+```json
+{
+  "name": "Product",
+  "preset": "crud",
+  "with": ["vpc"],
+  "methods": ["get", "getList", "create", "update", "delete"]
+}
+```
 
 ```bash
-zfa feature Product --data --no-zorphy
+zfa make --from-json make_config.json --plan --format=json
 ```
 
 ---
 
-## 🏗️ Plugin-Specific Flags
+## `zfa feature scaffold`
 
-### UseCase Plugin (`zfa make <Name> usecase`)
+This command remains available, but in v5 it is documented as wrapper syntax.
 
-| Flag | Description |
-| :--- | :--- |
-| `--domain` | **Required** for custom usecases. Folder for organization. |
-| `--type` | `usecase` (default), `stream`, `sync`, `background`, `completable`. |
-| `--params` | Parameter type (default: `NoParams`). |
-| `--returns` | Return type (default: `void`). |
-| `--repo` | Repository interface to inject. |
-| `--service` | Service interface to inject. |
+Equivalent intent:
 
-### VPC Plugin (`zfa make <Name> vpc`)
+```bash
+zfa make Product --preset=feature --plan
+```
 
-| Flag | Description |
-| :--- | :--- |
-| `--vpcs` | Generate View, Presenter, Controller, and State. |
-| `--pcs` | Generate Presenter, Controller, and State (preserves custom View). |
-| `--pc` | Generate Presenter and Controller only. |
+```bash
+zfa feature scaffold Product --plan
+```
 
-### Data Plugin (`zfa make <Name> data`)
-
-| Flag | Description |
-| :--- | :--- |
-| `--cache` | Enable dual-datasource caching (Remote + Local). |
-| `--cache-storage` | `hive` (default) or `sqlite`. |
-| `--mock` | Generate mock data and data sources. |
+Prefer `zfa make` in tutorials, automation, and AI guidance.
 
 ---
 
-## 📂 Next Steps
+## `zfa build`
 
-*   [**Entity Commands**](./entity-commands) - Deep dive into Zorphy entities.
-*   [**Architecture Overview**](../architecture/overview) - Understand the patterns behind the commands.
-*   [**MCP Server**](../features/mcp-server) - How to use these commands via AI.
+Use `zfa build` after entity or architecture generation.
+
+```bash
+zfa build
+zfa build --watch
+zfa build --clean
+```
+
+---
+
+## `.zfa.json` and `.zfa/`
+
+- **`.zfa.json`** stores active project defaults.
+- **`.zfa/`** is the canonical v5 project-memory model.
+
+```text
+.zfa/
+├── plans/
+├── runs/
+├── blueprints/
+├── decisions/
+├── manifests/
+└── context.json
+```
+
+During the migration period, some internals may still reference older storage paths. Public-facing docs should still describe `.zfa/` as the forward contract.
+
+---
+
+## Related docs
+
+- [Getting Started](../guides/getting-started)
+- [Entity Commands Reference](./entity-commands)
+- [Migration Guide: v4 → v5](../guides/migration-v4-to-v5)

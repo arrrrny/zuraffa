@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:path/path.dart' as p;
-import '../utils/file_utils.dart';
+
+import '../config/zfa_config.dart';
 
 /// Config command - Manage ZFA configuration
 class ConfigCommand {
@@ -37,8 +37,6 @@ class ConfigCommand {
   }
 
   Future<void> _handleInit(List<String> args) async {
-    print('🔧 Initializing ZFA configuration...');
-
     final projectRoot = args.isEmpty ? null : args[0];
 
     if (projectRoot != null && !Directory(projectRoot).existsSync()) {
@@ -46,192 +44,108 @@ class ConfigCommand {
       exit(1);
     }
 
-    final root = projectRoot ?? Directory.current.path;
-    final configFile = File(p.join(root, '.zfa.json'));
-
-    if (configFile.existsSync()) {
-      print('⚠️  Configuration file already exists: ${configFile.path}');
-      print('   Use "zfa config set" to update configuration');
-      return;
-    }
-
-    // Create default config
-    final defaultConfig = {
-      'zorphyByDefault': true,
-      'jsonByDefault': true,
-      'compareByDefault': true,
-      'filterByDefault': true,
-      'defaultEntityOutput': 'lib/src/domain/entities',
-      'gqlByDefault': false,
-      'buildByDefault': false,
-      'appendByDefault': false,
-      'formatByDefault': false,
-      'routeByDefault': false,
-      'diByDefault': false,
-      'mockByDefault': false,
-      'testByDefault': false,
-      'notes': [
-        'Set "zorphyByDefault": false to use manual entity generation',
-        'Set "gqlByDefault": true to auto-generate GraphQL for entity operations',
-        'Set "buildByDefault": true to auto-run build_runner after entity/cache operations',
-        'Set "appendByDefault": true to auto-append to existing repositories/datasources',
-        'Set "formatByDefault": true to auto-run dart format after generation',
-        'Set "routeByDefault": true to auto-generate routing files with --vpcs/--vpcs',
-        'Set "diByDefault": true to auto-generate DI files',
-        'Set "mockByDefault": true to auto-generate mock datasources',
-        'Adjust "defaultEntityOutput" to change where entities are created',
-      ],
-    };
-
-    const encoder = JsonEncoder.withIndent('  ');
-    final content = encoder.convert(defaultConfig);
-    await FileUtils.writeFile(configFile.path, content, 'config', force: true);
-
-    print('✅ Created configuration file: ${configFile.path}');
-    print('');
-    print('📋 Current settings:');
-    print('  • zorphyByDefault: true (entities use Zorphy)');
-    print('  • jsonByDefault: true (entities include JSON serialization)');
-    print('  • compareByDefault: true (entities include compareTo)');
-    print('  • filterByDefault: false (type-safe filters disabled by default)');
-    print('  • defaultEntityOutput: lib/src/domain/entities');
-    print('  • gqlByDefault: false (GraphQL generation disabled by default)');
-    print(
-      '  • buildByDefault: false (build_runner auto-run disabled by default)',
-    );
-    print('  • appendByDefault: false (append mode disabled by default)');
-    print(
-      '  • formatByDefault: false (dart format auto-run disabled by default)',
-    );
-    print('  • routeByDefault: false (auto-routing disabled by default)');
-    print('  • diByDefault: false (auto-DI generation disabled by default)');
-    print(
-      '  • mockByDefault: false (auto-mock generation disabled by default)',
-    );
-    print('');
-    print('💡 To disable Zorphy by default, edit .zfa.json and set:');
-    print('   "zorphyByDefault": false');
-    print('');
-    print('💡 To enable auto-routing with VPC:');
-    print('   zfa config set routeByDefault true');
-    print('');
-    print('💡 To enable auto-test generation:');
-    print('   zfa config set testByDefault true');
-    print('');
-    print('💡 To enable auto-DI generation:');
-    print('   zfa config set diByDefault true');
-    print('');
-    print('💡 To customize these defaults for your project:');
-    print('   zfa config set zorphyByDefault false');
+    await ZfaConfig.init(projectRoot: projectRoot);
   }
 
   Future<void> _handleShow(List<String> args) async {
     final projectRoot = args.isEmpty ? null : args[0];
-    final root = projectRoot ?? Directory.current.path;
-    final configFile = File(p.join(root, '.zfa.json'));
+    final config = ZfaConfig.load(projectRoot: projectRoot);
 
-    if (!configFile.existsSync()) {
+    if (config == null) {
       print('ℹ️  No configuration file found.');
       print('   Run "zfa config init" to create one with defaults.');
       return;
     }
 
-    try {
-      final content = configFile.readAsStringSync();
-      final json = jsonDecode(content) as Map<String, dynamic>;
-
-      print('📋 ZFA Configuration (${configFile.path}):');
-      print('');
-
-      print('Settings:');
-      json.forEach((key, value) {
-        if (key != 'notes') {
-          print('  • $key: $value');
-        }
-      });
-
-      if (json.containsKey('notes') && json['notes'] is List) {
-        print('');
-        print('Notes:');
-        final notes = json['notes'] as List;
-        for (final note in notes) {
-          print('  • $note');
-        }
-      }
-    } catch (e) {
-      print('❌ Error reading configuration: $e');
-      exit(1);
-    }
+    const encoder = JsonEncoder.withIndent('  ');
+    print(encoder.convert(config.toJson()));
   }
 
   Future<void> _handleSet(List<String> args) async {
     if (args.length < 2) {
       print('❌ Usage: zfa config set <key> <value>');
-      print('   Example: zfa config set zorphyByDefault false');
+      print('   Example: zfa config set diByDefault true');
       exit(1);
     }
 
     final key = args[0];
     final value = args[1];
-
     final projectRoot = Directory.current.path;
-    final configFile = File(p.join(projectRoot, '.zfa.json'));
+    final existing = ZfaConfig.load(projectRoot: projectRoot);
 
-    if (!configFile.existsSync()) {
+    if (existing == null) {
       print('❌ Configuration file not found.');
       print('   Run "zfa config init" to create one first.');
       exit(1);
     }
 
-    try {
-      final content = configFile.readAsStringSync();
-      final json = jsonDecode(content) as Map<String, dynamic>;
-
-      // Parse value based on key
-      dynamic parsedValue;
-      switch (key) {
-        case 'zorphyByDefault':
-        case 'jsonByDefault':
-        case 'compareByDefault':
-        case 'filterByDefault':
-        case 'gqlByDefault':
-        case 'buildByDefault':
-        case 'appendByDefault':
-        case 'formatByDefault':
-        case 'routeByDefault':
-        case 'diByDefault':
-        case 'mockByDefault':
-        case 'testByDefault':
-          parsedValue = value.toLowerCase() == 'true';
-          break;
-        case 'defaultEntityOutput':
-          parsedValue = value;
-          break;
-        default:
-          print('❌ Unknown configuration key: $key');
-          print(
-            '   Valid keys: zorphyByDefault, jsonByDefault, compareByDefault, filterByDefault, defaultEntityOutput, gqlByDefault, buildByDefault, appendByDefault, routeByDefault, diByDefault, mockByDefault, testByDefault',
-          );
-          exit(1);
-      }
-
-      json[key] = parsedValue;
-
-      const encoder = JsonEncoder.withIndent('  ');
-      final newContent = encoder.convert(json);
-      await FileUtils.writeFile(
-        configFile.path,
-        newContent,
-        'config',
-        force: true,
-      );
-
-      print('✅ Updated configuration:');
-      print('   • $key: $parsedValue');
-    } catch (e) {
-      print('❌ Error updating configuration: $e');
+    final updated = _updatedConfig(existing, key, value);
+    if (updated == null) {
+      print('❌ Unknown configuration key: $key');
+      print('   Valid keys: ${_supportedKeys().join(', ')}');
       exit(1);
     }
+
+    await ZfaConfig.save(updated, projectRoot: projectRoot);
+    print('✅ Updated configuration:');
+    print('   • $key: ${_displayValue(updated, key)}');
+  }
+
+  ZfaConfig? _updatedConfig(ZfaConfig config, String key, String value) {
+    final boolValue = value.toLowerCase() == 'true';
+    switch (key) {
+      case 'buildByDefault':
+        return config.copyWith(buildByDefault: boolValue);
+      case 'formatByDefault':
+        return config.copyWith(formatByDefault: boolValue);
+      case 'filterByDefault':
+        return config.copyWith(filterByDefault: boolValue);
+      case 'entityFirst':
+        return config.copyWith(entityFirst: boolValue);
+    }
+
+    final pluginId = ZfaConfig.pluginIdForConfigKey(key);
+    if (pluginId == null) {
+      return null;
+    }
+
+    final defaults = Map<String, bool>.from(config.pluginDefaults);
+    defaults[pluginId] = boolValue;
+    return config.copyWith(pluginDefaults: defaults);
+  }
+
+  dynamic _displayValue(ZfaConfig config, String key) {
+    switch (key) {
+      case 'buildByDefault':
+        return config.buildByDefault;
+      case 'formatByDefault':
+        return config.formatByDefault;
+      case 'filterByDefault':
+        return config.filterByDefault;
+      case 'entityFirst':
+        return config.entityFirst;
+      default:
+        final pluginId = ZfaConfig.pluginIdForConfigKey(key);
+        return pluginId == null
+            ? null
+            : config.isPluginEnabledByDefault(pluginId);
+    }
+  }
+
+  List<String> _supportedKeys() {
+    final pluginKeys =
+        ZfaConfig().pluginDefaults.keys
+            .map(ZfaConfig.configKeyForPlugin)
+            .toList()
+          ..sort();
+
+    return [
+      'buildByDefault',
+      'entityFirst',
+      'filterByDefault',
+      'formatByDefault',
+      ...pluginKeys,
+    ];
   }
 
   void _printHelp() {
@@ -250,51 +164,26 @@ COMMANDS:
 OPTIONS:
   --help, -h          Show this help message
 
- CONFIGURATION KEYS:
-   zorphyByDefault      Use Zorphy for entity generation (default: true)
-                        Set to false to use manual entity generation
- 
-   jsonByDefault        Enable JSON serialization by default (default: true)
-   compareByDefault     Enable compareTo by default (default: true)
-   gqlByDefault         Enable GraphQL generation by default (default: false)
-   buildByDefault       Auto-run build_runner after entity/cache operations (default: false)
-   appendByDefault      Auto-append to existing repositories/datasources (default: false)
-   formatByDefault      Auto-run dart format after generation (default: false)
-   routeByDefault       Auto-generate routing files with VPC (default: false)
-   diByDefault          Auto-generate DI files (default: false)
-   mockByDefault        Auto-generate mock datasources (default: false)
-   testByDefault        Auto-generate unit tests (default: false)
-   defaultEntityOutput  Default output directory for entities
-                        (default: lib/src/domain/entities)
+CONFIGURATION KEYS:
+  buildByDefault      Auto-run build_runner after entity/cache operations
+  formatByDefault     Auto-run dart format after generation
+  filterByDefault     Enable type-safe filters for entities by default
+  entityFirst         Require entities before entity-aware architecture generation
+  <plugin>ByDefault   Enable a plugin by default during plan resolution
 
 EXAMPLES:
-  # Initialize configuration in current project
   zfa config init
-
-  # Initialize configuration in specific directory
-  zfa config init /path/to/project
-
-  # Show current configuration
   zfa config show
+  zfa config set diByDefault true
+  zfa config set repositoryByDefault true
+  zfa config set entityFirst true
+  zfa config set filterByDefault true
 
-  # Disable Zorphy by default
-  zfa config set zorphyByDefault false
-
-  # Set custom output directory
-  zfa config set defaultEntityOutput lib/src/models
-
-CONFIGURATION FILE:
-  Configuration is stored in .zfa.json in your project root:
-  {
-    "zorphyByDefault": true,
-    "jsonByDefault": true,
-    "compareByDefault": true,
-    "gqlByDefault": false,
-    "defaultEntityOutput": "lib/src/domain/entities"
-  }
-
-This file is created by "zfa config init" and can be edited manually
-or updated with "zfa config set" commands.
+NOTES:
+  - Zuraffa v5 is Zorphy-only on public config surfaces.
+  - The domain root is fixed to lib/src/domain in v5.
+  - Entity output is fixed to lib/src/domain/entities.
+  - Plugin defaults are stored under plugins.defaults in .zfa.json.
 ''');
   }
 }

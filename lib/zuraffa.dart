@@ -279,8 +279,29 @@ export 'src/presentation/view.dart';
 /// ResponsiveViewState for responsive layouts
 export 'src/presentation/responsive_view.dart';
 
+/// AdaptiveViewState for platform/device-aware layouts
+export 'src/presentation/adaptive_view.dart';
+
 /// ControlledWidgetBuilder and variants
 export 'src/presentation/controlled_widget.dart';
+
+// ============================================================
+// Platform-Aware Presentation
+// ============================================================
+
+/// Device and platform classification for adaptive layouts
+export 'src/presentation/platform/device_class.dart';
+export 'src/presentation/platform/platform_class.dart';
+export 'src/presentation/platform/platform_context.dart';
+export 'src/presentation/platform/platform_layout_resolver.dart';
+
+/// Adaptive application shells
+export 'src/presentation/shells/app_shell.dart';
+export 'src/presentation/shells/app_shell_resolver.dart';
+export 'src/presentation/shells/mobile_app_shell.dart';
+export 'src/presentation/shells/tablet_app_shell.dart';
+export 'src/presentation/shells/desktop_app_shell.dart';
+export 'src/presentation/shells/macos_app_shell.dart';
 
 // ============================================================
 // Extensions

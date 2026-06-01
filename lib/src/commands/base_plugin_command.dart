@@ -8,14 +8,17 @@ import 'capability_command.dart';
 ///
 /// Provides standard flags (output, dry-run, force, verbose) and helper getters.
 abstract class PluginCommand extends Command<void> {
+  static const String fixedOutputDir = 'lib/src';
+
   final ZuraffaPlugin plugin;
 
   PluginCommand(this.plugin) {
     argParser.addOption(
       'output',
       abbr: 'o',
-      help: 'Output directory for generated files',
-      defaultsTo: 'lib/src',
+      help:
+          'Output directory for generated files (fixed to lib/src in v5; custom values are ignored)',
+      defaultsTo: fixedOutputDir,
     );
     argParser.addFlag(
       'dry-run',
@@ -70,7 +73,7 @@ abstract class PluginCommand extends Command<void> {
 
   /// Returns the resolved output directory.
   @protected
-  String get outputDir => argResults?['output'] ?? 'lib/src';
+  String get outputDir => fixedOutputDir;
 
   /// Prints a summary of generated files.
   @protected

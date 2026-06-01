@@ -43,7 +43,7 @@
 
 **Goal**: All generated files use relative imports for project-local references; zero `package:app/` or `package:<pkg>/` occurrences
 
-**Independent Test**: Run `zfa generate Product --methods=get,getList,create,update,delete --data` in a project named `zik_zak` and verify all generated imports are relative
+**Independent Test**: Run `zfa make Product --methods=get,getList,create,update,delete --data` in a project named `zik_zak` and verify all generated imports are relative
 
 ### Tests for User Story 1
 
@@ -130,7 +130,7 @@
 
 **Goal**: DI registration files use correct relative paths for all project-local imports, verified by regression tests
 
-**Independent Test**: Generate a complete feature with `--data --vpcs --di` and verify all DI imports resolve correctly
+**Independent Test**: Generate a complete feature with `--data --with=vpc --state --di` and verify all DI imports resolve correctly
 
 ### Tests for User Story 4
 
@@ -155,7 +155,7 @@
 
 **Purpose**: End-to-end validation and cleanup
 
-- [x] T053 Run full end-to-end generation test: generate `ChatSession` with `--methods=get,getList,create,update,delete --data --vpcs --state --di` and verify zero `package:app/` or `package:zik_zak/` in output
+- [x] T053 Run full end-to-end generation test: generate `ChatSession` with `--methods=get,getList,create,update,delete --data --with=vpc --state --state --di` and verify zero `package:app/` or `package:zik_zak/` in output
 - [x] T054 Run full end-to-end generation test with `--zorphy` disabled: verify `UpdateParams<..., Partial<...>>` is consistent across all layers
 - [x] T055 Run full end-to-end generation test with `int` ID type: verify `UpdateParams<int, ...>` is consistent across all layers
 - [x] T056 Run `dart test` full suite and verify all tests pass

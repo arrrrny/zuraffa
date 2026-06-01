@@ -13,11 +13,11 @@ As a developer using the ZFA CLI to generate code for my Flutter project (e.g., 
 
 **Why this priority**: Without correct imports, generated code fails to compile entirely, blocking all other functionality. This is the most fundamental issue.
 
-**Independent Test**: Generate any entity with CRUD methods using `zfa generate` and verify all imports in generated files use relative paths (e.g., `../../domain/entities/...`) instead of `package:app/...` or `package:<pkg>/...`.
+**Independent Test**: Generate any entity with CRUD methods using `zfa make` and verify all imports in generated files use relative paths (e.g., `../../domain/entities/...`) instead of `package:app/...` or `package:<pkg>/...`.
 
 **Acceptance Scenarios**:
 
-1. **Given** a Flutter project with package name `zik_zak` (not `app`), **When** I run `zfa generate Product --methods=get,getList,create,update,delete --data`, **Then** all generated files use relative imports like `../../domain/entities/product/product.dart` and never contain `package:app/` or `package:zik_zak/`
+1. **Given** a Flutter project with package name `zik_zak` (not `app`), **When** I run `zfa make Product --methods=get,getList,create,update,delete --data`, **Then** all generated files use relative imports like `../../domain/entities/product/product.dart` and never contain `package:app/` or `package:zik_zak/`
 2. **Given** a Flutter project without a standard pubspec.yaml location, **When** code is generated, **Then** the generator falls back to computing relative paths from the output file location rather than defaulting to `package:app/`
 3. **Given** any project structure, **When** DI files are generated, **Then** all imports for project-local files use relative paths and only `package:zuraffa/zuraffa.dart` uses a package import (for the framework itself)
 
@@ -61,11 +61,11 @@ As a developer generating DI registration files, I want all project-local import
 
 **Why this priority**: DI files are the glue that wires everything together. Incorrect paths here break the entire dependency graph, but the issue is secondary to the core import/type issues above.
 
-**Independent Test**: Generate a complete feature with `--data --vpcs --di` and verify that the DI registration file uses correct relative paths like `../../domain/usecases/...` and `../../domain/repositories/...` that resolve to existing files.
+**Independent Test**: Generate a complete feature with `--data --with=vpc --state --di` and verify that the DI registration file uses correct relative paths like `../../domain/usecases/...` and `../../domain/repositories/...` that resolve to existing files.
 
 **Acceptance Scenarios**:
 
-1. **Given** I generate a feature with `--methods=get,getList,create,update,delete --data --vpcs --di`, **When** I inspect the generated DI file at `lib/src/data/di/`, **Then** all domain imports use `../../domain/...` relative paths
+1. **Given** I generate a feature with `--methods=get,getList,create,update,delete --data --with=vpc --state --di`, **When** I inspect the generated DI file at `lib/src/data/di/`, **Then** all domain imports use `../../domain/...` relative paths
 2. **Given** I generate DI with caching enabled (`--cache`), **When** I inspect the DI file, **Then** cache-related imports also use correct relative paths to the cache policy files
 3. **Given** I generate DI for a custom use case with `--domain=search`, **When** I inspect the DI file, **Then** the use case import path correctly resolves to the domain-scoped subdirectory
 

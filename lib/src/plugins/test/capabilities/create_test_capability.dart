@@ -19,11 +19,7 @@ class CreateTestCapability implements ZuraffaCapability {
     'type': 'object',
     'properties': {
       'name': {'type': 'string', 'description': 'Name of the test target'},
-      'outputDir': {
-        'type': 'string',
-        'description': 'Directory to output the file',
-        'default': 'lib/src',
-      },
+
       'methods': {
         'type': 'array',
         'items': {'type': 'string'},
@@ -95,7 +91,7 @@ class CreateTestCapability implements ZuraffaCapability {
     required bool dryRun,
   }) async {
     final name = args['name'];
-    final outputDir = args['outputDir'] ?? 'lib/src';
+    final outputDir = plugin.outputDir;
     final methods = (args['methods'] as List<dynamic>?)?.cast<String>() ?? [];
     final domain = args['domain'] ?? 'general';
     final force = args['force'] ?? false;

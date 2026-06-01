@@ -66,12 +66,12 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     'properties': {
       'data': {
         'type': 'boolean',
-        'default': true,
+        'default': false,
         'description': 'Generate repository implementation',
       },
       'datasource': {
         'type': 'boolean',
-        'default': true,
+        'default': false,
         'description': 'Generate data source dependencies',
       },
       'use-service': {
@@ -106,8 +106,9 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
               : ['get', 'update', 'toggle']),
       domain: context.data['domain'],
       repo: context.data['repo'],
-      generateData: context.get<bool>('data') ?? true,
-      generateDataSource: context.get<bool>('datasource') ?? true,
+      generateData: context.get<bool>('data') ?? context.data['data'] == true,
+      generateDataSource:
+          context.get<bool>('datasource') ?? context.data['datasource'] == true,
       enableCache: context.get<bool>('cache') ?? false,
       generateLocal: context.get<bool>('local') ?? false,
       noEntity: context.get<bool>('no-entity') ?? false,

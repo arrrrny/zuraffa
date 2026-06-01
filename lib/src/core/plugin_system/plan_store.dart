@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:path/path.dart' as path;
+
+import '../project/project_paths.dart';
 import 'capability.dart';
 
 /// Manages storage and retrieval of execution plans.
@@ -14,11 +15,14 @@ class PlanStore {
 
   PlanStore._();
 
-  File _getPlanFile(String planId, {String? baseDir}) {
-    final root = baseDir ?? _rootDirectory ?? Directory.current.path;
-    final planDir = path.join(root, '.zuraffa', 'plans');
-    return File(path.join(planDir, '$planId.json'));
-  }
+  ProjectPaths _paths(String? baseDir) =>
+      ProjectPaths(baseDir ?? _rootDirectory ?? Directory.current.path);
+
+  File _getPlanFile(String planId, {String? baseDir}) =>
+      _paths(baseDir).planFile(planId);
+
+  File _getLegacyPlanFile(String planId, {String? baseDir}) =>
+      _paths(baseDir).legacyPlanFile(planId);
 
   Future<void> savePlan(EffectReport report, {String? baseDir}) async {
     final file = _getPlanFile(report.planId, baseDir: baseDir);
@@ -29,7 +33,9 @@ class PlanStore {
   }
 
   Future<EffectReport?> loadPlan(String planId, {String? baseDir}) async {
-    final file = _getPlanFile(planId, baseDir: baseDir);
+    final currentFile = _getPlanFile(planId, baseDir: baseDir);
+    final legacyFile = _getLegacyPlanFile(planId, baseDir: baseDir);
+    final file = currentFile.existsSync() ? currentFile : legacyFile;
     if (!file.existsSync()) {
       return null;
     }
@@ -55,9 +61,14 @@ class PlanStore {
   }
 
   Future<void> deletePlan(String planId, {String? baseDir}) async {
-    final file = _getPlanFile(planId, baseDir: baseDir);
-    if (file.existsSync()) {
-      await file.delete();
+    final files = [
+      _getPlanFile(planId, baseDir: baseDir),
+      _getLegacyPlanFile(planId, baseDir: baseDir),
+    ];
+    for (final file in files) {
+      if (file.existsSync()) {
+        await file.delete();
+      }
     }
   }
 }

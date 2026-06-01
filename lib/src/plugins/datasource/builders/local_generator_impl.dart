@@ -152,9 +152,7 @@ extension LocalDataSourceBuilderImpl on LocalDataSourceBuilder {
           );
           break;
         case 'update':
-          final dataType = config.useZorphy
-              ? '${config.name}Patch'
-              : 'Partial<${config.name}>';
+          final dataType = '${config.name}Patch';
           if (hasListMethods) {
             methods.add(
               _buildMethodWithBody(
@@ -166,9 +164,7 @@ extension LocalDataSourceBuilderImpl on LocalDataSourceBuilder {
                     'UpdateParams<${config.idFieldType}, $dataType>',
                   ),
                 ],
-                body: config.useZorphy
-                    ? _buildUpdateWithZorphyBody(config, entityName)
-                    : _buildUpdateWithoutZorphyBody(config, entityName),
+                body: _buildUpdateWithZorphyBody(config, entityName),
                 isAsync: true,
               ),
             );
@@ -183,17 +179,11 @@ extension LocalDataSourceBuilderImpl on LocalDataSourceBuilder {
                     'UpdateParams<${config.idFieldType}, $dataType>',
                   ),
                 ],
-                body: config.useZorphy
-                    ? _buildUpdateSingleWithZorphyBody(
-                        config,
-                        entityName,
-                        entitySnake,
-                      )
-                    : _buildUpdateSingleWithoutZorphyBody(
-                        config,
-                        entityName,
-                        entitySnake,
-                      ),
+                body: _buildUpdateSingleWithZorphyBody(
+                  config,
+                  entityName,
+                  entitySnake,
+                ),
                 isAsync: true,
               ),
             );

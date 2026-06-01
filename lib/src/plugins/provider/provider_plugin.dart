@@ -78,7 +78,7 @@ class ProviderPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     'properties': {
       'data': {
         'type': 'boolean',
-        'default': true,
+        'default': false,
         'description': 'Generate provider implementation',
       },
     },
@@ -93,7 +93,8 @@ class ProviderPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       force: context.core.force,
       verbose: context.core.verbose,
       revert: context.core.revert,
-      generateData: context.get<bool>('data') ?? true,
+      generateData:
+          context.data['provider'] == true || context.get<bool>('data') == true,
       service: context.data['service'],
       useService:
           context.data['use-service'] == true ||

@@ -89,73 +89,6 @@ extension LocalDataSourceBuilderCrud on LocalDataSourceBuilder {
     );
   }
 
-  Block _buildUpdateWithoutZorphyBody(
-    GeneratorConfig config,
-    String entityName,
-  ) {
-    return Block(
-      (b) => b
-        ..statements.add(
-          declareFinal('existing')
-              .assign(
-                refer('_box')
-                    .property('values')
-                    .property('firstWhere')
-                    .call(
-                      [
-                        Method(
-                          (m) => m
-                            ..requiredParameters.add(
-                              Parameter((p) => p..name = 'item'),
-                            )
-                            ..lambda = true
-                            ..body = refer('item')
-                                .property(config.idField)
-                                .equalTo(refer('params').property('id'))
-                                .code,
-                        ).closure,
-                      ],
-                      {
-                        'orElse': Method(
-                          (m) => m
-                            ..lambda = true
-                            ..body = refer('notFoundFailure')
-                                .call([
-                                  literalString(
-                                    '$entityName not found in cache',
-                                  ),
-                                ])
-                                .thrown
-                                .code,
-                        ).closure,
-                      },
-                    ),
-              )
-              .statement,
-        )
-        ..statements.add(
-          declareFinal('updated')
-              .assign(
-                refer('existing').property('applyPartial').call([
-                  refer('params').property('data'),
-                ]),
-              )
-              .statement,
-        )
-        ..statements.add(
-          refer('_box')
-              .property('put')
-              .call([
-                refer('updated').property(config.idField),
-                refer('updated'),
-              ])
-              .awaited
-              .statement,
-        )
-        ..statements.add(refer('updated').returned.statement),
-    );
-  }
-
   Block _buildUpdateSingleWithZorphyBody(
     GeneratorConfig config,
     String entityName,
@@ -182,47 +115,6 @@ extension LocalDataSourceBuilderCrud on LocalDataSourceBuilder {
               .assign(
                 refer('params').property('data').property('applyTo').call([
                   refer('existing'),
-                ]),
-              )
-              .statement,
-        )
-        ..statements.add(
-          refer('_box')
-              .property('put')
-              .call([literalString(entitySnake), refer('updated')])
-              .awaited
-              .statement,
-        )
-        ..statements.add(refer('updated').returned.statement),
-    );
-  }
-
-  Block _buildUpdateSingleWithoutZorphyBody(
-    GeneratorConfig config,
-    String entityName,
-    String entitySnake,
-  ) {
-    return Block(
-      (b) => b
-        ..statements.add(
-          declareFinal('existing')
-              .assign(
-                refer(
-                  '_box',
-                ).property('get').call([literalString(entitySnake)]),
-              )
-              .statement,
-        )
-        ..statements.add(
-          Code(
-            'if (existing == null) { throw notFoundFailure(\'$entityName not found in cache\'); }',
-          ),
-        )
-        ..statements.add(
-          declareFinal('updated')
-              .assign(
-                refer('existing').property('applyPartial').call([
-                  refer('params').property('data'),
                 ]),
               )
               .statement,

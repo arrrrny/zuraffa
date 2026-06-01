@@ -1,54 +1,63 @@
 # Getting Started
 
-Welcome to **Zuraffa**, the AI-first framework for Flutter. This guide will walk you through setting up your project and generating your first feature in minutes.
+This guide walks through the canonical Zuraffa v5 flow:
+
+1. `zfa entity create`
+2. `zfa make`
+3. `zfa build`
 
 ---
 
-## 📦 Installation
+## Installation
 
-Add Zuraffa to your `pubspec.yaml`:
+Add Zuraffa to your project and install the CLI:
 
 ```yaml
 dev_dependencies:
-  zuraffa: ^3.19.0
+  zuraffa: ^5.0.0
+  zorphy_annotation: ^1.7.0
+  build_runner: ^2.4.0
 ```
-
-Activate the CLI globally:
 
 ```bash
 dart pub global activate zuraffa
 ```
 
----
-
-## ⚡ Quick Start
-
-### 1. Initialize Zuraffa
-Run this in your project root to set up the configuration:
+Optional but recommended:
 
 ```bash
-zfa init
+zfa config init
 ```
 
-### 2. Create an Entity
-Zuraffa uses **Zorphy** for immutable, type-safe entities. Let's create a `Product`:
+That creates `.zfa.json` for project defaults.
+
+---
+
+## Quick Start
+
+### 1. Create an entity
 
 ```bash
 zfa entity create -n Product \
+  --field id:String \
   --field name:String \
   --field price:double \
   --field description:String?
 ```
 
-### 3. Generate the Feature
-Now, generate the entire Clean Architecture stack for this entity:
+### 2. Generate the feature architecture
 
 ```bash
-zfa feature Product --methods=get,getList,create,update,delete --data --vpcs --state --test
+zfa make Product \
+  --preset=crud \
+  --methods=get,getList,create,update,delete \
+  --with=vpc \
+  --state \
+  --di \
+  --test
 ```
 
-### 4. Build Code
-Run the build runner to generate JSON serialization and entity boilerplate:
+### 3. Build generated code
 
 ```bash
 zfa build
@@ -56,27 +65,47 @@ zfa build
 
 ---
 
-## 🏗️ What Was Generated?
+## What was generated?
 
-Zuraffa just created a complete, production-ready feature slice:
+The command above typically produces:
 
-*   **Domain Layer**: Entities, Repository Interfaces, and 5 UseCases (`GetProduct`, `CreateProduct`, etc.).
-*   **Data Layer**: `DataProductRepository` implementation and both Remote and Local DataSources.
-*   **Presentation Layer**: A full VPC stack (`ProductView`, `ProductPresenter`, `ProductController`, and `ProductState`).
-*   **Infrastructure**: Automated Dependency Injection (GetIt) and Unit Tests.
-
----
-
-## 🤖 Using with AI
-
-If you are using an AI agent like **Trae**, **Cursor**, or **Windsurf**, Zuraffa's built-in **MCP Server** allows the agent to understand your project structure automatically. Just ask:
-
-> "Add a 'stock' field to the Product entity and update the UI to show it."
+- **Domain**: repository contract + use cases
+- **Data**: datasource + repository implementation
+- **Presentation**: view/presenter/controller/state
+- **Infrastructure**: DI and test files
 
 ---
 
-## 📂 Next Steps
+## `make` first, `feature` second
 
-*   [**Architecture Overview**](../architecture/overview) - Deep dive into the VPC pattern.
-*   [**MCP Server**](../features/mcp-server) - Enable AI-native development.
-*   [**CLI Reference**](../cli/commands) - Master the `zfa` command.
+`zfa feature scaffold` still exists, but the v5 docs treat it as a wrapper over `zfa make --preset=feature` rather than the primary workflow.
+
+Prefer `make` in docs, automation, and AI prompts.
+
+---
+
+## `.zfa.json` and `.zfa/`
+
+Use these as the project-memory surfaces:
+
+- **`.zfa.json`**: active defaults such as plugin defaults and entity-first behavior
+- **`.zfa/`**: canonical v5 memory for plans, runs, decisions, blueprints, manifests, and context
+
+```text
+.zfa/
+├── plans/
+├── runs/
+├── blueprints/
+├── decisions/
+├── manifests/
+└── context.json
+```
+
+---
+
+## Next steps
+
+- [CLI Commands Reference](../cli/commands)
+- [Entity Generation](../entities/intro)
+- [Migration Guide: v4 → v5](./migration-v4-to-v5)
+- [MCP Server](../features/mcp-server)

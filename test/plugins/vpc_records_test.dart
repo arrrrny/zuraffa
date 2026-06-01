@@ -31,10 +31,10 @@ void main() {
 
     // Run generation via CLI runner to ensure all context is built correctly
     await runner.run([
-      'generate',
+      'make',
       'Product',
       '--methods=watch',
-      '--vpcs',
+      '--with=vpc',
       '--state',
       '--output',
       outputDir,

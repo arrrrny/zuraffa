@@ -7,6 +7,8 @@ import '../utils/entity_utils.dart';
 import '../utils/string_utils.dart';
 
 class EntityCommand {
+  static const String fixedEntityOutput = ZfaConfig.fixedEntityOutput;
+
   Future<void> execute(
     List<String> args, {
     bool exitOnCompletion = true,
@@ -115,7 +117,7 @@ ${missing.map((d) => '   • $d').join('\n')}
    Add them with:
    ${missing.contains('zorphy_annotation') ? 'dart pub add zorphy_annotation' : ''}
    ${missing.contains('build_runner (dev)') ? 'dart pub add dev:build_runner' : ''}
-   
+
    Or run: zfa doctor
 ''';
       }
@@ -139,7 +141,7 @@ ${missing.map((d) => '   • $d').join('\n')}
       exit(1);
     }
 
-    final outputDir = parsed['output'] as String? ?? 'lib/src/domain/entities';
+    final outputDir = fixedEntityOutput;
     final fields = _parseFields([
       ..._asStringList(parsed['field']),
       ..._asStringList(parsed['fields']),
@@ -204,12 +206,12 @@ ${missing.map((d) => '   • $d').join('\n')}
 
     final enumConfig = EnumConfig(
       name: name,
-      outputDir: parsed['output'] as String?,
+      outputDir: fixedEntityOutput,
       values: values,
       dryRun: parsed['dry_run'] as bool? ?? false,
     );
 
-    final creator = EntityCreator(baseOutputDir: parsed['output'] as String?);
+    final creator = EntityCreator(baseOutputDir: fixedEntityOutput);
     final result = await creator.createEnum(enumConfig);
 
     if (result.isSuccess) {
@@ -241,20 +243,16 @@ ${missing.map((d) => '   • $d').join('\n')}
     }
 
     final fields = _parseFields(fieldStrings);
-    final creator = EntityCreator(baseOutputDir: parsed['output'] as String?);
+    final creator = EntityCreator(baseOutputDir: fixedEntityOutput);
     final result = await creator.addFields(
       name,
       fields,
-      outputDir: parsed['output'] as String?,
+      outputDir: fixedEntityOutput,
       dryRun: parsed['dry_run'] as bool? ?? false,
     );
 
     if (result.isSuccess) {
-      await _fixEntityImports(
-        result.filePath,
-        fields,
-        parsed['output'] as String? ?? 'lib/src/domain/entities',
-      );
+      await _fixEntityImports(result.filePath, fields, fixedEntityOutput);
       print('✓ Added ${fields.length} field(s) to ${result.className}');
       for (final field in fields) {
         print('  + ${field.name}: ${field.fullType}');
@@ -379,8 +377,7 @@ ${missing.map((d) => '   • $d').join('\n')}
   }
 
   Future<void> _handleList(List<String> args) async {
-    final parsed = _parseArgs(args);
-    final outputDir = parsed['output'] as String? ?? 'lib/src/domain/entities';
+    final outputDir = fixedEntityOutput;
     final dir = Directory(outputDir);
 
     if (!await dir.exists()) {
@@ -432,7 +429,7 @@ ${missing.map((d) => '   • $d').join('\n')}
 
     final entityConfig = EntityConfig(
       name: name,
-      outputDir: parsed['output'] as String?,
+      outputDir: fixedEntityOutput,
       fields: fields,
       generateJson: parsed['json'] as bool? ?? true,
       generateFilter:
@@ -440,7 +437,7 @@ ${missing.map((d) => '   • $d').join('\n')}
       dryRun: parsed['dry_run'] as bool? ?? false,
     );
 
-    final creator = EntityCreator(baseOutputDir: parsed['output'] as String?);
+    final creator = EntityCreator(baseOutputDir: fixedEntityOutput);
     final result = await creator.create(entityConfig);
 
     if (result.isSuccess) {
@@ -671,7 +668,7 @@ CREATE COMMAND:
   zfa entity create -n <Name> [options]
   Options:
     -n, --name              Entity name (required)
-    -o, --output            Output directory
+        --output            Ignored in v5 (entities always generate under lib/src/domain/entities)
     --json                  Enable JSON serialization (default: true)
     --filter                Enable type-safe filters
     --copywith-fn           Function-based copyWith
@@ -690,6 +687,10 @@ EXAMPLES:
   zfa entity enum -n Status --value pending,active,completed
   zfa entity add-field -n User --field email:String?
   zfa entity list
+
+NOTES:
+  - Entities always live under lib/src/domain/entities in Zuraffa v5.
+  - Legacy --output values are accepted for compatibility but ignored.
 
 For more information, visit: https://github.com/arrrrny/zorphy
 ''');

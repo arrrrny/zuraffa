@@ -191,10 +191,7 @@ class EntityUseCaseGenerator {
         break;
       case 'update':
         className = 'Update${entityName}UseCase';
-        // Use Patch for entity-based updates by default
-        final dataType = config.useZorphy
-            ? '${entityName}Patch'
-            : 'Partial<$entityName>';
+        final dataType = '${entityName}Patch';
         baseClass = TypeReference(
           (t) => t
             ..symbol = 'UseCase'
@@ -205,7 +202,7 @@ class EntityUseCaseGenerator {
                   ..symbol = 'UpdateParams'
                   ..types.addAll([
                     refer(config.idFieldType),
-                    _parseType(dataType, entityName),
+                    _parseType(dataType),
                   ]),
               ),
             ]),
@@ -213,10 +210,7 @@ class EntityUseCaseGenerator {
         paramsType = TypeReference(
           (tr) => tr
             ..symbol = 'UpdateParams'
-            ..types.addAll([
-              refer(config.idFieldType),
-              _parseType(dataType, entityName),
-            ]),
+            ..types.addAll([refer(config.idFieldType), _parseType(dataType)]),
         );
         returnType = refer(entityName);
         executeExpression = refer(
@@ -549,14 +543,7 @@ class EntityUseCaseGenerator {
     );
   }
 
-  Reference _parseType(String raw, String entityName) {
-    if (raw.startsWith('Partial<')) {
-      return TypeReference(
-        (tr) => tr
-          ..symbol = 'Partial'
-          ..types.add(refer(entityName)),
-      );
-    }
+  Reference _parseType(String raw) {
     return refer(raw);
   }
 }

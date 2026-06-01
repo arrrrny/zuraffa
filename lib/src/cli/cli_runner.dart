@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:args/args.dart';
-import '../commands/generate_command.dart';
 import '../commands/schema_command.dart';
 import '../commands/validate_command.dart';
 import '../commands/create_command.dart' as create;
@@ -66,7 +65,6 @@ class CliRunner {
     }
 
     // Add core commands that aren't plugins
-    _runner.addCommand(GenerateCommand());
     _runner.addCommand(SchemaCommand());
     _runner.addCommand(ValidateCommand());
     _runner.addCommand(_CreateCommand());
@@ -95,6 +93,12 @@ class CliRunner {
       print('zfa v$version');
       print('Zuraffa Code Generator');
       _exit(0);
+      return;
+    }
+
+    if (_isRemovedGenerateCommand(args)) {
+      _printRemovedGenerateMessage();
+      _exit(64);
       return;
     }
 
@@ -132,6 +136,11 @@ class CliRunner {
       return output.toString();
     }
 
+    if (_isRemovedGenerateCommand(args)) {
+      _printRemovedGenerateMessageTo(output.writeln);
+      return output.toString();
+    }
+
     await runZoned(
       () async {
         try {
@@ -160,6 +169,10 @@ class CliRunner {
   bool _isVersionCommand(List<String> args) {
     return args.length == 1 &&
         (args[0] == '--version' || args[0] == '-v' || args[0] == 'version');
+  }
+
+  bool _isRemovedGenerateCommand(List<String> args) {
+    return args.isNotEmpty && args.first == 'generate';
   }
 
   void _addSuggestions(String error) {
@@ -196,7 +209,8 @@ USAGE:
   zfa <command> [options]
 
 CORE COMMANDS:
-  generate <Name>     Generate Clean Architecture code
+  make <Name>         Canonical architecture/code generation command
+  feature <Name>      Wrapper over `make --preset=feature`
   initialize          Initialize a test entity
   entity              Create and manage Zorphy entities
   config              Manage ZFA configuration
@@ -216,6 +230,18 @@ OPTIONS:
 
 Run "zfa <command> --help" for more information.
 ''');
+  }
+
+  void _printRemovedGenerateMessage() {
+    _printRemovedGenerateMessageTo(print);
+  }
+
+  void _printRemovedGenerateMessageTo(void Function(String) printFn) {
+    printFn("❌ The 'generate' command was removed in Zuraffa v5.");
+    printFn('   Use `zfa make <Name> ...` for canonical generation.');
+    printFn(
+      '   Use `zfa feature <Name>` or `zfa feature scaffold <Name>` for the feature wrapper.',
+    );
   }
 
   void _exit(int code) {

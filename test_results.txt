@@ -1,0 +1,810 @@
+00:00 +0: loading /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart
+00:00 +0: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +1: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +2: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +3: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +4: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +5: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +6: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +7: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +8: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +9: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +10: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +11: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +12: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +13: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +14: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +15: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +16: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +17: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +18: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +19: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +20: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +21: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +22: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +23: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +24: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +25: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +26: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +27: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +28: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +29: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +30: /Users/ahmettok/Developer/zuraffa/test/benchmark/large_file_generation_test.dart: appends method to large class within budget
+00:00 +31: /Users/ahmettok/Developer/zuraffa/test/core/transaction/transaction_test.dart: GenerationTransaction commits create operations
+00:00 +32: /Users/ahmettok/Developer/zuraffa/test/core/transaction/transaction_test.dart: GenerationTransaction commits update operations
+00:00 +33: /Users/ahmettok/Developer/zuraffa/test/core/transaction/transaction_test.dart: GenerationTransaction commits delete operations
+00:00 +34: /Users/ahmettok/Developer/zuraffa/test/core/transaction/transaction_test.dart: GenerationTransaction detects conflicts before commit
+[conflict] /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/zuraffa_tx_U7ifw0/conflict.txt: File modified since planning
+00:00 +35: /Users/ahmettok/Developer/zuraffa/test/core/transaction/transaction_test.dart: GenerationTransaction rolls back on failed commit
+00:00 +36: /Users/ahmettok/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert TimeoutException to TimeoutFailure
+00:00 +37: /Users/ahmettok/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert FormatException to ValidationFailure
+00:00 +38: /Users/ahmettok/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert ArgumentError to ValidationFailure
+00:00 +39: /Users/ahmettok/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert CancelledException to CancellationFailure
+00:00 +40: /Users/ahmettok/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert RangeError to ValidationFailure
+00:00 +41: /Users/ahmettok/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert IndexError to ValidationFailure
+00:00 +42: /Users/ahmettok/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert StateError to StateFailure
+00:00 +43: /Users/ahmettok/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert UnimplementedError to UnimplementedFailure
+00:00 +44: /Users/ahmettok/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert UnsupportedError to UnsupportedFailure
+00:00 +45: /Users/ahmettok/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert TypeError to TypeFailure
+00:00 +46: /Users/ahmettok/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert PlatformException to PlatformFailure
+00:00 +47: /Users/ahmettok/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert MissingPluginException to UnsupportedFailure
+00:00 +48: /Users/ahmettok/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should convert ConcurrentModificationError to StateFailure
+00:00 +49: /Users/ahmettok/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should check for NoSuchMethodError and convert to TypeFailure
+00:00 +50: /Users/ahmettok/Developer/zuraffa/test/core/failure_handler_test.dart: FailureHandler handleError should use AppFailure.from for unknown exceptions
+00:01 +51: /Users/ahmettok/Developer/zuraffa/test/core/failure_report_store_test.dart: FailureReportStore save and load roundtrip preserves all failure types
+00:01 +52: /Users/ahmettok/Developer/zuraffa/test/core/failure_report_store_test.dart: FailureReportStore load returns empty list for non-existent file
+00:01 +53: /Users/ahmettok/Developer/zuraffa/test/core/failure_report_store_test.dart: FailureReportStore load returns empty list for corrupted file
+00:01 +54: /Users/ahmettok/Developer/zuraffa/test/core/failure_report_store_test.dart: FailureReportStore load skips individual corrupted entries
+00:01 +55: /Users/ahmettok/Developer/zuraffa/test/core/failure_report_store_test.dart: FailureReportStore clear deletes the file
+00:01 +56: /Users/ahmettok/Developer/zuraffa/test/core/failure_report_store_test.dart: FailureReportStore hasPersisted returns correct value
+00:01 +57: /Users/ahmettok/Developer/zuraffa/test/core/failure_report_store_test.dart: FailureReportStore save empty list clears the file
+00:01 +58: /Users/ahmettok/Developer/zuraffa/test/core/failure_report_store_test.dart: FailureReportStore unknown failure type deserializes as UnknownFailure
+00:01 +59: /Users/ahmettok/Developer/zuraffa/test/core/failure_report_store_test.dart: FailureReportQueue with persistence persists unflushed reports on dispose
+00:01 +60: /Users/ahmettok/Developer/zuraffa/test/core/failure_report_store_test.dart: FailureReportQueue with persistence loads persisted reports on creation
+00:01 +61: /Users/ahmettok/Developer/zuraffa/test/core/failure_report_store_test.dart: FailureReportQueue with persistence loads persisted reports on creation
+00:01 +62: /Users/ahmettok/Developer/zuraffa/test/core/failure_report_store_test.dart: FailureReportQueue with persistence loads persisted reports on creation
+00:01 +63: /Users/ahmettok/Developer/zuraffa/test/core/context/progress_reporter_test.dart: ProgressReporter NullProgressReporter ignores all reports
+00:01 +64: /Users/ahmettok/Developer/zuraffa/test/core/context/progress_reporter_test.dart: ProgressReporter CliProgressReporter formats started message
+00:01 +65: /Users/ahmettok/Developer/zuraffa/test/core/context/progress_reporter_test.dart: ProgressReporter ProgressReport calculates percentages correctly
+00:01 +66: /Users/ahmettok/Developer/zuraffa/test/core/context/context_store_test.dart: ContextStore stores and retrieves values by type
+00:01 +67: /Users/ahmettok/Developer/zuraffa/test/core/context/context_store_test.dart: ContextStore returns default value when missing
+00:01 +68: /Users/ahmettok/Developer/zuraffa/test/core/context/context_store_test.dart: ContextStore throws for missing key without default
+00:01 +69: /Users/ahmettok/Developer/zuraffa/test/core/context/context_store_test.dart: ContextStore throws for type mismatch
+00:01 +70: /Users/ahmettok/Developer/zuraffa/test/core/context/context_store_test.dart: ContextStore getOrNull returns null for missing or mismatch
+00:01 +71: /Users/ahmettok/Developer/zuraffa/test/core/context/context_store_test.dart: ContextStore notifies listeners on set and remove
+00:01 +72: /Users/ahmettok/Developer/zuraffa/test/core/context/context_store_test.dart: ContextStore clear resets data and listeners
+00:02 +73: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Success isSuccess returns true
+00:02 +74: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Success value returns the wrapped value
+00:02 +75: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Success fold calls onSuccess
+00:02 +76: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Success map transforms the value
+00:02 +77: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Success mapFailure returns unchanged Success
+00:02 +78: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Success flatMap chains operations
+00:02 +79: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Success getOrElse returns the value
+00:02 +80: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Success getOrNull returns the value
+00:02 +81: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Success getOrThrow returns the value
+00:02 +82: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Success getFailureOrNull returns null
+00:02 +83: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Success onSuccess executes the action
+00:02 +84: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Success onFailure does not execute the action
+00:02 +85: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Success equality works correctly
+00:02 +86: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Success hashCode is consistent with equality
+00:02 +87: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Success toString returns readable representation
+00:02 +88: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Failure isFailure returns true
+00:02 +89: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Failure error returns the wrapped error
+00:02 +90: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Failure fold calls onFailure
+00:02 +91: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Failure map returns unchanged Failure
+00:02 +92: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Failure mapFailure transforms the error
+00:02 +93: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Failure flatMap returns unchanged Failure
+00:02 +94: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Failure getOrElse returns the default value
+00:02 +95: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Failure getOrNull returns null
+00:02 +96: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Failure getOrThrow throws the error
+00:02 +97: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Failure getOrThrow wraps non-exception errors
+00:02 +98: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Failure getFailureOrNull returns the error
+00:02 +99: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Failure onSuccess does not execute the action
+00:02 +100: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Failure onFailure executes the action
+00:02 +101: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Failure equality works correctly
+00:02 +102: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Failure hashCode is consistent with equality
+00:02 +103: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Failure toString returns readable representation
+00:02 +104: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Result factory constructors Result.success creates Success
+00:02 +105: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result Result factory constructors Result.failure creates Failure
+00:02 +106: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result foldAsync calls onSuccess for Success
+00:02 +107: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result foldAsync calls onFailure for Failure
+00:02 +108: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result toFuture completes with value for Success
+00:02 +109: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: Result toFuture throws for Failure
+00:02 +110: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: ResultAsyncExtensions mapAsync transforms value asynchronously
+00:02 +111: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: ResultAsyncExtensions mapAsync preserves Failure
+00:02 +112: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: ResultAsyncExtensions flatMapAsync chains operations
+00:02 +113: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: FutureResultExtensions map transforms success value
+00:02 +114: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: FutureResultExtensions flatMap chains futures
+00:02 +115: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: FutureResultExtensions getOrElse returns value for success
+00:02 +116: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: FutureResultExtensions getOrElse returns default for failure
+00:02 +117: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: FutureResultExtensions getOrNull returns value for success
+00:02 +118: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: FutureResultExtensions getOrNull returns null for failure
+00:02 +119: /Users/ahmettok/Developer/zuraffa/test/core/result_test.dart: FutureResultExtensions fold works on future
+00:02 +120: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken initial state isCancelled is false initially
+00:02 +121: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken initial state cancelReason is null initially
+00:02 +122: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken cancel() sets isCancelled to true
+00:02 +123: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken cancel() stores cancel reason
+00:02 +124: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken cancel() is idempotent - multiple cancels have no effect
+00:02 +125: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken cancel() emits on onCancel stream
+00:02 +126: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken cancel() onCancel stream closes after cancel
+00:02 +127: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken throwIfCancelled() does nothing when not cancelled
+00:02 +128: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken throwIfCancelled() throws CancelledException when cancelled
+00:02 +129: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken throwIfCancelled() throws with cancel reason
+00:02 +130: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken linkTo() child is cancelled when parent is cancelled
+00:02 +131: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken linkTo() parent is not cancelled when child is cancelled
+00:02 +132: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken linkTo() child inherits cancelled state from parent
+00:02 +133: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken linkTo() throws when trying to link twice
+00:02 +134: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken linkTo() isCancelled returns true if parent is cancelled
+00:02 +135: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken createChild() creates a linked child token
+00:02 +136: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken createChild() child is independent until parent cancels
+00:02 +137: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken createChild() multiple children are all cancelled
+00:02 +138: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken createChild() grandchildren are cancelled
+00:02 +139: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken dispose() closes the stream
+00:02 +140: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken dispose() clears children
+00:02 +141: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken timeout factory creates token that cancels after timeout
+00:02 +142: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken timeout factory can be cancelled before timeout
+00:02 +143: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken fromFuture factory cancels when future completes
+00:02 +144: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelToken fromFuture factory does not cancel if already cancelled
+00:02 +145: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelledException has default message
+00:02 +146: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelledException accepts custom message
+00:02 +147: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelledException toString returns formatted message
+00:02 +148: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelTokenFutureExtension withCancellation completes normally if not cancelled
+00:02 +149: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelTokenFutureExtension withCancellation throws if cancelled
+00:02 +150: /Users/ahmettok/Developer/zuraffa/test/core/planning/preset_registry_test.dart: PresetRegistry returns expected plugin ids for feature preset
+00:02 +151: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelTokenFutureExtension withCancellation throws immediately if already cancelled
+00:02 +152: /Users/ahmettok/Developer/zuraffa/test/core/planning/preset_registry_test.dart: PresetRegistry returns empty list for unknown preset
+00:02 +153: /Users/ahmettok/Developer/zuraffa/test/core/planning/preset_registry_test.dart: PresetRegistry returns empty list for unknown preset
+00:02 +154: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelTokenStreamExtension withCancellation forwards events normally
+00:02 +155: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelTokenStreamExtension withCancellation forwards events normally
+00:02 +156: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelTokenStreamExtension withCancellation closes stream on cancel
+00:02 +157: /Users/ahmettok/Developer/zuraffa/test/core/cancel_token_test.dart: CancelTokenStreamExtension withCancellation with null token returns original stream
+00:02 +158: /Users/ahmettok/Developer/zuraffa/test/core/planning/plan_resolver_test.dart: resolves preset, aliases, defaults, exclusions, and dependency order
+00:02 +159: /Users/ahmettok/Developer/zuraffa/test/core/planning/plan_resolver_test.dart: warns when unknown preset or plugin is requested
+00:02 +160: /Users/ahmettok/Developer/zuraffa/test/core/planning/plan_resolver_test.dart: infers plugin selection from generator-style option flags
+00:02 +161: /Users/ahmettok/Developer/zuraffa/test/core/plugin_system/plan_store_test.dart: EffectReport & Effect Effect serialization
+00:03 +162: /Users/ahmettok/Developer/zuraffa/test/core/plugin_system/plan_store_test.dart: EffectReport & Effect EffectReport serialization
+00:03 +163: /Users/ahmettok/Developer/zuraffa/test/core/plugin_system/plan_store_test.dart: PlanStore savePlan creates file with correct content
+00:03 +164: /Users/ahmettok/Developer/zuraffa/test/core/plugin_system/plan_store_test.dart: PlanStore loadPlan retrieves saved plan
+00:03 +165: /Users/ahmettok/Developer/zuraffa/test/core/plugin_system/plan_store_test.dart: PlanStore loadPlan falls back to legacy .zuraffa plans during migration
+00:03 +166: /Users/ahmettok/Developer/zuraffa/test/core/plugin_system/plan_store_test.dart: PlanStore loadPlan returns null for non-existent plan
+00:03 +167: /Users/ahmettok/Developer/zuraffa/test/core/plugin_system/plan_store_test.dart: PlanStore deletePlan removes file
+00:03 +168: /Users/ahmettok/Developer/zuraffa/test/core/plugin_system/plugin_manager_test.dart: applies plugin defaults from .zfa.json and honors disabled plugins
+00:03 +169: /Users/ahmettok/Developer/zuraffa/test/core/plugin_system/plugin_manager_test.dart: fails fast when entity-first generation is requested without an entity
+00:04 +170: /Users/ahmettok/Developer/zuraffa/test/core/plugin_system/plugin_interface_test.dart: ZuraffaPlugin validate defaults to success
+00:04 +171: /Users/ahmettok/Developer/zuraffa/test/core/plugin_system/plugin_interface_test.dart: FileGeneratorPlugin implements ZuraffaPlugin
+00:04 +172: /Users/ahmettok/Developer/zuraffa/test/core/plugin_system/plugin_registry_test.dart: PluginRegistry registers and retrieves plugins
+00:04 +173: /Users/ahmettok/Developer/zuraffa/test/core/plugin_system/plugin_registry_test.dart: PluginRegistry discovers plugin factories
+00:04 +174: /Users/ahmettok/Developer/zuraffa/test/core/plugin_system/plugin_registry_test.dart: PluginRegistry validates all plugins
+00:04 +175: /Users/ahmettok/Developer/zuraffa/test/core/plugin_system/plugin_registry_lifecycle_test.dart: PluginRegistry forwards lifecycle calls
+00:04 +176: /Users/ahmettok/Developer/zuraffa/test/core/plugin_system/validation_result_test.dart: ValidationResult success merges with success
+00:04 +177: /Users/ahmettok/Developer/zuraffa/test/core/plugin_system/validation_result_test.dart: ValidationResult failure merges reasons
+test/core/project/project_context_test.dart:14:27: Error: Member not found: 'instance'.
+      ProjectContextStore.instance.rootDirectory = tempDir.path;
+                          ^^^^^^^^
+test/core/project/project_context_test.dart:18:27: Error: Member not found: 'instance'.
+      ProjectContextStore.instance.rootDirectory = null;
+                          ^^^^^^^^
+test/core/project/project_context_test.dart:26:22: Error: Method not found: 'ProjectContextRecord'.
+      final record = ProjectContextRecord(
+                     ^^^^^^^^^^^^^^^^^^^^
+test/core/project/project_context_test.dart:36:33: Error: Member not found: 'instance'.
+      await ProjectContextStore.instance.saveContext(record);
+                                ^^^^^^^^
+test/core/project/project_context_test.dart:38:48: Error: Member not found: 'instance'.
+      final loaded = await ProjectContextStore.instance.loadContext();
+                                               ^^^^^^^^
+00:04 +178 -1: loading /Users/ahmettok/Developer/zuraffa/test/core/project/project_context_test.dart [E]
+  Failed to load "/Users/ahmettok/Developer/zuraffa/test/core/project/project_context_test.dart":
+  Compilation failed for testPath=/Users/ahmettok/Developer/zuraffa/test/core/project/project_context_test.dart: test/core/project/project_context_test.dart:14:27: Error: Member not found: 'instance'.
+        ProjectContextStore.instance.rootDirectory = tempDir.path;
+                            ^^^^^^^^
+  test/core/project/project_context_test.dart:18:27: Error: Member not found: 'instance'.
+        ProjectContextStore.instance.rootDirectory = null;
+                            ^^^^^^^^
+  test/core/project/project_context_test.dart:26:22: Error: Method not found: 'ProjectContextRecord'.
+        final record = ProjectContextRecord(
+                       ^^^^^^^^^^^^^^^^^^^^
+  test/core/project/project_context_test.dart:36:33: Error: Member not found: 'instance'.
+        await ProjectContextStore.instance.saveContext(record);
+                                  ^^^^^^^^
+  test/core/project/project_context_test.dart:38:48: Error: Member not found: 'instance'.
+        final loaded = await ProjectContextStore.instance.loadContext();
+                                                 ^^^^^^^^
+  .
+00:05 +178 -1: /Users/ahmettok/Developer/zuraffa/test/core/zuraffa_config_test.dart: Zuraffa Config default environment should be development
+00:05 +179 -1: /Users/ahmettok/Developer/zuraffa/test/core/zuraffa_config_test.dart: Zuraffa Config setEnvironment should update environment, isDebug, and logging
+🔵 : Zuraffa logging enabled
+🔵 : Zuraffa environment set to: staging (isDebugMode: true, logLevel: all)
+🔵 : Zuraffa logging enabled
+🔵 : Zuraffa logging enabled
+🔵 : Zuraffa environment set to: development (isDebugMode: true, logLevel: all)
+🔵 : Zuraffa environment set to: development (isDebugMode: true, logLevel: all)
+00:05 +180 -1: /Users/ahmettok/Developer/zuraffa/test/core/zuraffa_config_test.dart: Zuraffa Config setEnvironment should respect custom logLevel
+00:05 +180 -1: /Users/ahmettok/Developer/zuraffa/test/core/zuraffa_config_test.dart: Zuraffa Config setEnvironment should update environment, isDebug, and logging
+🔵 : Zuraffa logging enabled
+🔵 : Zuraffa logging enabled
+00:05 +180 -1: /Users/ahmettok/Developer/zuraffa/test/core/zuraffa_config_test.dart: Zuraffa Config setEnvironment should respect custom logLevel
+🔵 : Zuraffa logging enabled
+🔵 : Zuraffa logging enabled
+🔵 : Zuraffa logging enabled
+00:05 +180 -1: /Users/ahmettok/Developer/zuraffa/test/core/zuraffa_config_test.dart: Zuraffa Config setEnvironment should update environment, isDebug, and logging
+🔵 : Zuraffa environment set to: development (isDebugMode: true, logLevel: all)
+🔵 : Zuraffa environment set to: development (isDebugMode: true, logLevel: all)
+00:05 +180 -1: /Users/ahmettok/Developer/zuraffa/test/core/zuraffa_config_test.dart: Zuraffa Config setEnvironment should respect custom logLevel
+🔵 : Zuraffa environment set to: development (isDebugMode: true, logLevel: all)
+🔵 : Zuraffa environment set to: development (isDebugMode: true, logLevel: all)
+🔵 : Zuraffa environment set to: development (isDebugMode: true, logLevel: all)
+00:05 +181 -1: /Users/ahmettok/Developer/zuraffa/test/core/zuraffa_config_test.dart: Zuraffa Config enableLogging should configure Logger.root
+00:05 +181 -1: /Users/ahmettok/Developer/zuraffa/test/core/zuraffa_config_test.dart: Zuraffa Config setEnvironment should update environment, isDebug, and logging
+🔵 : Zuraffa logging enabled
+🔵 : Zuraffa logging enabled
+00:05 +181 -1: /Users/ahmettok/Developer/zuraffa/test/core/zuraffa_config_test.dart: Zuraffa Config setEnvironment should respect custom logLevel
+🔵 : Zuraffa logging enabled
+🔵 : Zuraffa logging enabled
+🔵 : Zuraffa logging enabled
+00:05 +181 -1: /Users/ahmettok/Developer/zuraffa/test/core/zuraffa_config_test.dart: Zuraffa Config setEnvironment should update environment, isDebug, and logging
+🔵 test: test message
+🔵 test: test message
+00:05 +181 -1: /Users/ahmettok/Developer/zuraffa/test/core/zuraffa_config_test.dart: Zuraffa Config setEnvironment should respect custom logLevel
+🔵 test: test message
+🔵 test: test message
+🔵 test: test message
+00:05 +182 -1: /Users/ahmettok/Developer/zuraffa/test/core/artifact_publisher_test.dart: ArtifactContext creates with required fields and defaults
+00:05 +183 -1: /Users/ahmettok/Developer/zuraffa/test/core/artifact_publisher_test.dart: ArtifactContext pathSegments defaults to empty list
+00:05 +184 -1: /Users/ahmettok/Developer/zuraffa/test/core/artifact_publisher_test.dart: ArtifactContext pathSegments is passed through
+00:05 +185 -1: /Users/ahmettok/Developer/zuraffa/test/core/artifact_publisher_test.dart: ArtifactContext convenience getters work correctly
+00:05 +186 -1: /Users/ahmettok/Developer/zuraffa/test/core/artifact_publisher_test.dart: ArtifactContext typed metadata access
+00:05 +187 -1: /Users/ahmettok/Developer/zuraffa/test/core/artifact_publisher_test.dart: ArtifactPublisher publish() passes all fields to hook
+00:05 +188 -1: /Users/ahmettok/Developer/zuraffa/test/core/artifact_publisher_test.dart: ArtifactPublisher publish() with empty pathSegments by default
+00:05 +189 -1: /Users/ahmettok/Developer/zuraffa/test/core/artifact_publisher_test.dart: ArtifactPublisher hooks are called in priority order
+00:05 +190 -1: /Users/ahmettok/Developer/zuraffa/test/core/artifact_publisher_test.dart: ArtifactPublisher shouldPublish filters hooks
+00:05 +191 -1: /Users/ahmettok/Developer/zuraffa/test/core/artifact_publisher_test.dart: ArtifactPublisher hook exception does not block other hooks
+00:05 +192 -1: /Users/ahmettok/Developer/zuraffa/test/core/artifact_publisher_test.dart: ArtifactPublisher register replaces hook with same id
+00:05 +193 -1: /Users/ahmettok/Developer/zuraffa/test/core/artifact_publisher_test.dart: MinIOArtifactHook metadata sanitization sanitizes unsafe metadata keys and values before upload
+00:05 +193 -2: /Users/ahmettok/Developer/zuraffa/test/core/artifact_publisher_test.dart: MinIOArtifactHook metadata sanitization sanitizes unsafe metadata keys and values before upload [E]
+  MinioError: End point localhost:9000 is not a valid domain or ip address
+  package:minio/src/minio.dart 34:7                 new Minio
+  package:zuraffa/src/core/minio_client.dart 68:29  new MinioClient
+  test/core/artifact_publisher_test.dart 59:7       new CapturingMinioClient
+  test/core/artifact_publisher_test.dart 316:16     main.<fn>.<fn>
+  
+00:05 +193 -2: /Users/ahmettok/Developer/zuraffa/test/core/artifact_publisher_test.dart: FailureContext backward compatibility toArtifactContext preserves pathSegments
+00:05 +194 -2: /Users/ahmettok/Developer/zuraffa/test/core/artifact_publisher_test.dart: FailureContext backward compatibility toArtifactContext defaults pathSegments to empty
+00:05 +195 -2: /Users/ahmettok/Developer/zuraffa/test/core/query_params_test.dart: QueryParams QueryParams initialization
+00:05 +196 -2: /Users/ahmettok/Developer/zuraffa/test/core/query_params_test.dart: QueryParams should work with null filter and params
+00:05 +197 -2: /Users/ahmettok/Developer/zuraffa/test/core/query_params_test.dart: QueryParams should work with only filter
+00:05 +198 -2: /Users/ahmettok/Developer/zuraffa/test/core/query_params_test.dart: QueryParams copyWith should update fields correctly
+00:05 +199 -2: /Users/ahmettok/Developer/zuraffa/test/core/query_params_test.dart: QueryParams copyWith should clear fields when requested
+00:05 +200 -2: /Users/ahmettok/Developer/zuraffa/test/core/query_params_test.dart: QueryParams equality should work correctly
+00:05 +201 -2: /Users/ahmettok/Developer/zuraffa/test/core/query_params_test.dart: QueryParams hashCode should be consistent for same instance
+00:05 +202 -2: /Users/ahmettok/Developer/zuraffa/test/core/query_params_test.dart: QueryParams toString should be descriptive
+00:05 +203 -2: /Users/ahmettok/Developer/zuraffa/test/core/query_params_test.dart: QueryParams toQueryMap should serialize filter and params
+00:08 +204 -2: /Users/ahmettok/Developer/zuraffa/test/core/query_extension_test.dart: Query Extension Test Filter.toQuery() extension
+00:08 +205 -2: /Users/ahmettok/Developer/zuraffa/test/core/query_extension_test.dart: Query Extension Test Iterable<Filter>.toFilter() extension
+00:08 +206 -2: /Users/ahmettok/Developer/zuraffa/test/core/query_extension_test.dart: Query Extension Test Iterable<Filter>.toQuery() extension
+00:08 +207 -2: /Users/ahmettok/Developer/zuraffa/test/core/query_extension_test.dart: Query Extension Test List<T>.query(Filter<T>) extension
+00:08 +208 -2: /Users/ahmettok/Developer/zuraffa/test/core/query_extension_test.dart: Query Extension Test toQuery with custom params
+00:08 +209 -2: /Users/ahmettok/Developer/zuraffa/test/core/query_extension_test.dart: Query Extension Test Filter.toListQuery() extension
+00:08 +210 -2: /Users/ahmettok/Developer/zuraffa/test/core/query_extension_test.dart: Query Extension Test Iterable<Filter>.toListQuery() extension
+00:08 +211 -2: /Users/ahmettok/Developer/zuraffa/test/core/params_wrappers_test.dart: QueryParams should store filter and optional params
+00:08 +212 -2: /Users/ahmettok/Developer/zuraffa/test/core/params_wrappers_test.dart: QueryParams toJson serializes correctly
+00:08 +213 -2: /Users/ahmettok/Developer/zuraffa/test/core/params_wrappers_test.dart: QueryParams copyWith should allow partial updates
+00:08 +214 -2: /Users/ahmettok/Developer/zuraffa/test/core/params_wrappers_test.dart: QueryParams equality should work correctly
+00:08 +215 -2: /Users/ahmettok/Developer/zuraffa/test/core/params_wrappers_test.dart: QueryParams query extension should find matching entity
+00:08 +216 -2: /Users/ahmettok/Developer/zuraffa/test/core/params_wrappers_test.dart: QueryParams query extension should return first when no filter
+00:08 +217 -2: /Users/ahmettok/Developer/zuraffa/test/core/params_wrappers_test.dart: ListQueryParams should store all query options
+00:08 +218 -2: /Users/ahmettok/Developer/zuraffa/test/core/params_wrappers_test.dart: ListQueryParams copyWith should allow partial updates and clearing
+00:08 +219 -2: /Users/ahmettok/Developer/zuraffa/test/core/params_wrappers_test.dart: ListQueryParams equality and hashCode
+00:08 +220 -2: /Users/ahmettok/Developer/zuraffa/test/core/params_wrappers_test.dart: ListQueryParams toJson serializes correctly
+00:08 +221 -2: /Users/ahmettok/Developer/zuraffa/test/core/params_wrappers_test.dart: ListQueryParams default constructor works without type parameter
+00:08 +222 -2: /Users/ahmettok/Developer/zuraffa/test/core/params_wrappers_test.dart: CreateParams should store data and optional params
+00:08 +223 -2: /Users/ahmettok/Developer/zuraffa/test/core/params_wrappers_test.dart: CreateParams toJson serializes correctly
+00:08 +224 -2: /Users/ahmettok/Developer/zuraffa/test/core/params_wrappers_test.dart: CreateParams copyWith should work correctly
+00:08 +225 -2: /Users/ahmettok/Developer/zuraffa/test/core/params_wrappers_test.dart: CreateParams equality should work correctly
+00:08 +226 -2: /Users/ahmettok/Developer/zuraffa/test/core/params_wrappers_test.dart: UpdateParams should store id, data, and optional params
+00:08 +227 -2: /Users/ahmettok/Developer/zuraffa/test/core/params_wrappers_test.dart: UpdateParams toJson serializes correctly
+00:08 +228 -2: /Users/ahmettok/Developer/zuraffa/test/core/params_wrappers_test.dart: UpdateParams copyWith should work correctly
+00:08 +229 -2: /Users/ahmettok/Developer/zuraffa/test/core/params_wrappers_test.dart: UpdateParams equality should work correctly
+00:08 +230 -2: /Users/ahmettok/Developer/zuraffa/test/core/params_wrappers_test.dart: DeleteParams should store id and optional params
+00:08 +231 -2: /Users/ahmettok/Developer/zuraffa/test/core/params_wrappers_test.dart: DeleteParams toJson serializes correctly
+00:08 +232 -2: /Users/ahmettok/Developer/zuraffa/test/core/params_wrappers_test.dart: DeleteParams copyWith should work correctly
+00:08 +233 -2: /Users/ahmettok/Developer/zuraffa/test/core/params_wrappers_test.dart: DeleteParams equality should work correctly
+00:08 +234 -2: /Users/ahmettok/Developer/zuraffa/test/core/otel_log_exporter_test.dart: (setUpAll)
+00:08 +234 -2: /Users/ahmettok/Developer/zuraffa/test/core/otel_log_exporter_test.dart: OtelLogExporter determines correct logs endpoint from traces endpoint
+00:08 +235 -2: /Users/ahmettok/Developer/zuraffa/test/core/otel_log_exporter_test.dart: OtelLogExporter determines correct logs endpoint from base endpoint
+00:08 +236 -2: /Users/ahmettok/Developer/zuraffa/test/core/otel_log_exporter_test.dart: OtelLogExporter filters logs below remoteLogLevel
+00:08 +237 -2: /Users/ahmettok/Developer/zuraffa/test/core/otel_log_exporter_test.dart: OtelLogExporter batches logs and builds correct OTLP payload
+00:08 +238 -2: /Users/ahmettok/Developer/zuraffa/test/core/otel_log_exporter_test.dart: OtelLogExporter does not crash or retry on http failure
+00:08 +239 -2: /Users/ahmettok/Developer/zuraffa/test/core/otel_log_exporter_test.dart: (tearDownAll)
+00:08 +239 -2: /Users/ahmettok/Developer/zuraffa/test/core/ast/ast_helper_test.dart: AstHelper parses source and finds nodes
+00:09 +240 -2: /Users/ahmettok/Developer/zuraffa/test/core/ast/ast_helper_test.dart: AstHelper adds method to class
+00:09 +241 -2: /Users/ahmettok/Developer/zuraffa/test/core/ast/structural_equality_test.dart: Structural Equality areMethodsEqual returns true for identical methods with different formatting
+00:09 +242 -2: /Users/ahmettok/Developer/zuraffa/test/core/ast/structural_equality_test.dart: Structural Equality areMethodsEqual returns true for identical methods with different formatting
+00:09 +243 -2: /Users/ahmettok/Developer/zuraffa/test/core/ast/structural_equality_test.dart: Structural Equality areMethodsEqual returns true for identical methods with different formatting
+00:09 +244 -2: /Users/ahmettok/Developer/zuraffa/test/core/ast/structural_equality_test.dart: Structural Equality areMethodsEqual returns true for identical methods with different formatting
+00:09 +245 -2: /Users/ahmettok/Developer/zuraffa/test/core/ast/ast_helper_test.dart: AstHelper handles empty bodies
+00:09 +246 -2: /Users/ahmettok/Developer/zuraffa/test/core/ast/ast_helper_test.dart: AstHelper handles empty bodies
+00:09 +247 -2: /Users/ahmettok/Developer/zuraffa/test/core/ast/structural_equality_test.dart: Structural Equality areConstructorsEqual handles different formatting
+00:09 +248 -2: /Users/ahmettok/Developer/zuraffa/test/core/ast/ast_helper_test.dart: AstHelper handles malformed source
+00:09 +249 -2: /Users/ahmettok/Developer/zuraffa/test/core/ast/append_strategy_test.dart: MethodAppendStrategy appends method when missing
+00:09 +250 -2: /Users/ahmettok/Developer/zuraffa/test/core/ast/append_strategy_test.dart: MethodAppendStrategy replaces duplicate method
+00:09 +251 -2: /Users/ahmettok/Developer/zuraffa/test/core/ast/append_strategy_test.dart: ExportAppendStrategy adds export when missing
+00:09 +252 -2: /Users/ahmettok/Developer/zuraffa/test/core/nested_filter_test.dart: Nested Filter Verification Filter using Filter directly
+00:09 +253 -2: /Users/ahmettok/Developer/zuraffa/test/core/ast/append_strategy_test.dart: ImportAppendStrategy adds import when missing
+00:09 +254 -2: /Users/ahmettok/Developer/zuraffa/test/core/nested_filter_test.dart: Nested Filter Verification Filter using query() - User syntax
+00:09 +255 -2: /Users/ahmettok/Developer/zuraffa/test/core/ast/append_strategy_test.dart: FieldAppendStrategy appends field when missing
+00:09 +256 -2: /Users/ahmettok/Developer/zuraffa/test/core/ast/append_strategy_test.dart: FieldAppendStrategy appends field when missing
+00:09 +257 -2: /Users/ahmettok/Developer/zuraffa/test/core/nested_filter_test.dart: Nested Filter Verification Serialization to JSON
+00:09 +258 -2: /Users/ahmettok/Developer/zuraffa/test/core/ast/append_strategy_test.dart: ExtensionMethodAppendStrategy appends method
+00:09 +259 -2: /Users/ahmettok/Developer/zuraffa/test/core/ast/append_strategy_test.dart: FunctionStatementAppendStrategy appends statement
+00:09 +260 -2: /Users/ahmettok/Developer/zuraffa/test/core/ast/append_strategy_test.dart: AppendExecutor returns no strategy found for unknown
+00:09 +261 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/patterns/vpc_patterns_test.dart: VpcPatterns builds controller class
+00:10 +262 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/patterns/repository_patterns_test.dart: RepositoryPatterns builds repository interface
+00:10 +263 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/patterns/usecase_patterns_test.dart: UseCasePatterns builds usecase class
+00:10 +264 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/patterns/common_patterns_test.dart: CommonPatterns builds fields and constructors
+00:10 +265 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +266 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +267 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +268 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +269 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +270 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +271 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +272 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +273 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +274 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +275 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +276 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +277 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +278 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +279 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +280 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +281 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +282 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +283 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +284 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +285 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +286 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +287 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +288 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +289 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +290 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +291 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +292 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +293 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +294 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +295 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:10 +296 -2: /Users/ahmettok/Developer/zuraffa/test/core/failure_test.dart: AppFailure NotFoundFailure stores resourceId and resourceType
+00:10 +297 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds repository library
+00:10 +298 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds repository library
+00:10 +299 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds repository library
+00:10 +300 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds repository library
+00:10 +301 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds repository library
+00:10 +302 -2: /Users/ahmettok/Developer/zuraffa/test/core/failure_test.dart: AppFailure ForbiddenFailure stores requiredPermission
+00:10 +303 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds route library
+00:10 +304 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds route library
+00:10 +305 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds route library
+00:10 +306 -2: /Users/ahmettok/Developer/zuraffa/test/core/builder/code_builder_factory_test.dart: CodeBuilderFactory builds route library
+00:10 +307 -2: /Users/ahmettok/Developer/zuraffa/test/core/failure_test.dart: AppFailure TimeoutFailure stores timeout duration
+00:10 +308 -2: /Users/ahmettok/Developer/zuraffa/test/core/failure_test.dart: AppFailure TimeoutFailure toString includes timeout when present
+00:10 +309 -2: /Users/ahmettok/Developer/zuraffa/test/core/failure_test.dart: AppFailure TimeoutFailure toString works without timeout
+00:10 +310 -2: /Users/ahmettok/Developer/zuraffa/test/core/failure_test.dart: AppFailure CancellationFailure has default message
+00:10 +311 -2: /Users/ahmettok/Developer/zuraffa/test/core/failure_test.dart: AppFailure CancellationFailure accepts custom message
+00:10 +312 -2: /Users/ahmettok/Developer/zuraffa/test/core/failure_test.dart: AppFailure CancellationFailure toString returns correct format
+00:10 +313 -2: /Users/ahmettok/Developer/zuraffa/test/core/failure_test.dart: AppFailure UnknownFailure stores message
+00:10 +314 -2: /Users/ahmettok/Developer/zuraffa/test/core/failure_test.dart: AppFailure UnknownFailure toString returns correct format
+00:11 +315 -2: /Users/ahmettok/Developer/zuraffa/test/core/failure_test.dart: AppFailure ExceptionToFailure extension converts Exception to AppFailure
+00:11 +316 -2: /Users/ahmettok/Developer/zuraffa/test/core/failure_test.dart: AppFailure ExceptionToFailure extension preserves stackTrace
+00:11 +317 -2: /Users/ahmettok/Developer/zuraffa/test/core/failure_test.dart: AppFailure ErrorToFailure extension converts Error to AppFailure
+00:11 +318 -2: /Users/ahmettok/Developer/zuraffa/test/core/failure_test.dart: AppFailure sealed class exhaustiveness all failure types can be matched in switch
+00:11 +319 -2: /Users/ahmettok/Developer/zuraffa/test/core/generation/code_builder_factory_test.dart: CodeBuilderFactory builds usecase library
+00:11 +320 -2: /Users/ahmettok/Developer/zuraffa/test/core/generation/code_builder_factory_test.dart: CodeBuilderFactory builds repository library
+00:11 +321 -2: /Users/ahmettok/Developer/zuraffa/test/core/generation/code_builder_factory_test.dart: CodeBuilderFactory builds route library
+00:11 +322 -2: /Users/ahmettok/Developer/zuraffa/test/core/generation/code_builder_factory_test.dart: CodeBuilderFactory builds vpc controller
+00:11 +323 -2: /Users/ahmettok/Developer/zuraffa/test/core/generation/code_builder_factory_test.dart: CodeBuilderFactory builds vpc presenter
+00:11 +324 -2: /Users/ahmettok/Developer/zuraffa/test/core/generation/code_builder_factory_test.dart: CodeBuilderFactory builds vpc state
+00:11 +325 -2: /Users/ahmettok/Developer/zuraffa/test/core/generation/code_builder_factory_test.dart: CodeBuilderFactory emits formatted dart code
+00:11 +326 -2: /Users/ahmettok/Developer/zuraffa/test/core/generation/generation_context_test.dart: GenerationContext creates context with defaults
+00:11 +327 -2: /Users/ahmettok/Developer/zuraffa/test/core/generation/generation_context_test.dart: GenerationContext creates context with verbose progress reporter
+00:11 +328 -2: /Users/ahmettok/Developer/zuraffa/test/core/generation/generation_context_test.dart: GenerationContext uses provided progress reporter
+00:11 +329 -2: /Users/ahmettok/Developer/zuraffa/test/config/zfa_config_test.dart: ZfaConfig load returns null if file does not exist
+00:11 +330 -2: /Users/ahmettok/Developer/zuraffa/test/config/zfa_config_test.dart: ZfaConfig init creates default config file
+✅ Created configuration file: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/zfa_config_test_LJFccM/.zfa.json
+   Canonical generation defaults now live under plugins.defaults.
+   v5 uses fixed generation paths under lib/src/domain and lib/src/domain/entities.
+   Adaptive layout scaffolding can be enabled under ui.adaptiveLayouts with targets from ui.layoutTargets.
+00:11 +331 -2: /Users/ahmettok/Developer/zuraffa/test/config/zfa_config_test.dart: ZfaConfig save and load preserves plugin defaults and disabled plugins
+00:11 +332 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/datasource/local_generator_test.dart: generates hive-backed local datasource
+00:12 +333 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/datasource/datasource_plugin_test.dart: generates datasource interface and remote implementation
+00:12 +334 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/repository/repository_cached_stream_test.dart: generates cache-aware watch streams with local and remote sources
+00:12 +335 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/repository/repository_cached_stream_test.dart: generates cache-aware watch streams with local and remote sources
+00:12 +336 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/repository/repository_cached_stream_test.dart: generates cache-aware watch streams with local and remote sources
+00:12 +337 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/repository/repository_cached_stream_test.dart: generates cache-aware watch streams with local and remote sources
+00:12 +338 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/repository/repository_plugin_test.dart: generates repository interface
+00:12 +339 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/di/di_plugin_test.dart: generates repository and datasource registrations
+00:13 +340 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/di/di_plugin_test.dart: generates repository and datasource registrations
+00:13 +341 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/di/di_plugin_test.dart: generates repository and datasource registrations
+00:13 +342 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/route/route_builder_test.dart: generates app routes and entity routes
+00:13 +343 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/route/route_builder_test.dart: generates app routes and entity routes
+00:13 +344 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/route/route_builder_test.dart: generates app routes and entity routes
+00:13 +345 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/route/route_builder_test.dart: generates app routes and entity routes
+00:13 +345 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/di/di_plugin_test.dart: mock provider registration does not duplicate service interface
+--- MOCK PROVIDER DI CONTENT ---
+import 'package:zuraffa/zuraffa.dart';
+
+import '../../data/providers/listing/listing_mock_provider.dart';
+
+void registerListingMockProvider(GetIt getIt) {
+  getIt.registerLazySingleton(() => ListingMockProvider());
+}
+
+--------------------------------
+00:13 +346 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/route/route_builder_test.dart: generates app routes and entity routes
+00:13 +347 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/route/route_builder_test.dart: generates app routes and entity routes
+00:13 +348 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/route/route_generator_test.dart: updates app routes using AST append
+00:13 +349 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/route/route_generator_test.dart: updates app routes using AST append
+00:13 +350 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/route/route_generator_test.dart: updates app routes using AST append
+00:13 +351 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/route/route_generator_test.dart: updates app routes using AST append
+00:13 +352 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/route/route_generator_test.dart: updates app routes using AST append
+00:13 +353 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/route/route_builder_dependency_test.dart: omits repository injection when DI is enabled
+00:14 +354 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/route/route_builder_dependency_test.dart: omits repository injection when DI is enabled
+00:14 +355 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/route/route_builder_dependency_test.dart: omits repository injection when DI is enabled
+00:14 +356 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/route/route_builder_dependency_test.dart: omits repository injection when DI is enabled
+00:14 +357 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/vpc_records_test.dart: VPC generation uses Dart 3.0 Records for watch methods
+00:14 +358 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/vpc_records_test.dart: VPC generation uses Dart 3.0 Records for watch methods
+
+✅ Generation complete:
+  ✨ Created: 5 files
+  ✨ lib/src/presentation/pages/product/product_view.dart
+  ✨ lib/src/presentation/pages/product/product_presenter.dart
+  ✨ lib/src/presentation/pages/product/product_controller.dart
+  ✨ lib/src/domain/usecases/product/watch_product_usecase.dart
+  ✨ lib/src/presentation/pages/product/product_state.dart
+✅ Done.
+00:14 +359 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/mock/mock_builder_test.dart: generates mock data and mock data source
+00:14 +360 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/presenter/presenter_plugin_test.dart: generates presenter with usecase wiring
+00:14 +361 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/shadcn/shadcn_plugin_test.dart: ShadcnPlugin generates list widget with active discovery
+00:14 +362 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/shadcn/shadcn_plugin_test.dart: ShadcnPlugin generates list widget with active discovery
+00:14 +363 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/shadcn/shadcn_plugin_test.dart: ShadcnPlugin generates list widget with active discovery
+00:14 +364 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/shadcn/shadcn_plugin_test.dart: ShadcnPlugin generates list widget with active discovery
+00:14 +365 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/shadcn/shadcn_plugin_test.dart: ShadcnPlugin generates list widget with active discovery
+00:14 +366 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/shadcn/shadcn_plugin_test.dart: ShadcnPlugin generates list widget with active discovery
+00:14 +367 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/shadcn/shadcn_plugin_test.dart: ShadcnPlugin generates list widget with active discovery
+00:14 +368 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/shadcn/shadcn_plugin_test.dart: ShadcnPlugin generates list widget with active discovery
+00:15 +369 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/shadcn/shadcn_plugin_test.dart: ShadcnPlugin generates list widget with active discovery
+00:15 +370 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/shadcn/shadcn_plugin_test.dart: ShadcnPlugin generates list widget with active discovery
+00:15 +371 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/mock/mock_builder_test.dart: generates mock provider even if appendToExisting is true and file missing
+00:15 +372 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/shadcn/shadcn_plugin_test.dart: ShadcnPlugin generates form widget
+00:15 +373 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/shadcn/shadcn_plugin_test.dart: ShadcnPlugin generates form widget
+00:15 +374 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/mock/mock_builder_test.dart: skips mock data for custom usecase with primitive list return type
+00:15 +375 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/mock/mock_builder_test.dart: generates mock data for sealed class concrete subtypes
+00:15 +376 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/provider/provider_plugin_test.dart: generates provider and appends to existing
+00:15 +377 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/provider/provider_plugin_test.dart: generates provider and appends to existing
+00:15 +378 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/provider/provider_plugin_test.dart: generates provider and appends to existing
+00:15 +379 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/provider/provider_plugin_test.dart: generates provider and appends to existing
+00:15 +380 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/provider/provider_plugin_test.dart: generates provider and appends to existing
+00:15 +381 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/provider/provider_plugin_test.dart: generates provider and appends to existing
+00:15 +382 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/provider/provider_plugin_test.dart: generates provider and appends to existing
+00:15 +383 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/provider/provider_search_test.dart: finds existing provider in non-standard domain folder
+00:15 +384 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/state/state_builder_test.dart: generates state with fields and helpers
+00:16 +385 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/controller/stream_ondone_test.dart: stream onDone callbacks watch method with state includes onDone that sets isWatching to false
+00:16 +386 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/controller/stream_ondone_test.dart: stream onDone callbacks watch method with state includes onDone that sets isWatching to false
+00:16 +387 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/controller/controller_plugin_test.dart: generates stateful controller with cancel tokens
+00:16 +388 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/controller/controller_plugin_test.dart: generates stateful controller with cancel tokens
+00:16 +389 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/controller/controller_plugin_test.dart: generates stateful controller with cancel tokens
+00:16 +390 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/method_append/capabilities/append_method_capability_test.dart: AppendMethodCapability plan returns expected effects
+00:16 +391 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/method_append/capabilities/append_method_capability_test.dart: AppendMethodCapability plan returns expected effects
+00:16 +392 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/method_append/capabilities/append_method_capability_test.dart: AppendMethodCapability plan returns expected effects
+00:16 +393 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/method_append/capabilities/append_method_capability_test.dart: AppendMethodCapability plan returns expected effects
+00:16 +394 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/method_append/capabilities/append_method_capability_test.dart: AppendMethodCapability plan returns expected effects
+00:16 +395 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/method_append/capabilities/append_method_capability_test.dart: AppendMethodCapability plan returns expected effects
+00:16 +396 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/view/view_plugin_test.dart: generates view with route params
+00:16 +397 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/view/view_plugin_test.dart: generates view with route params
+00:16 +398 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/view/view_plugin_test.dart: generates view with route params
+00:16 +399 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/view/view_plugin_test.dart: generates view with route params
+00:17 +400 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/service/service_plugin_test.dart: generates service interface for custom usecase
+00:17 +401 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/service/service_plugin_test.dart: generates service interface for custom usecase
+00:17 +402 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/usecase/capabilities/create_usecase_capability_test.dart: CreateUseCaseCapability handles Logout example correctly
+00:17 +403 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/usecase/capabilities/create_usecase_capability_test.dart: CreateUseCaseCapability handles Logout example correctly
+00:17 +404 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/usecase/capabilities/create_usecase_capability_test.dart: CreateUseCaseCapability handles Logout example correctly
+00:17 +405 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/usecase/capabilities/create_usecase_capability_test.dart: CreateUseCaseCapability handles Logout example correctly
+00:17 +406 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/usecase/capabilities/create_usecase_capability_test.dart: CreateUseCaseCapability handles Logout example correctly
+00:17 +407 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/usecase/capabilities/create_usecase_capability_test.dart: CreateUseCaseCapability handles Logout example correctly
+00:17 +408 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/usecase/capabilities/create_usecase_capability_test.dart: CreateUseCaseCapability handles Logout example correctly
+00:17 +409 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/usecase/capabilities/create_usecase_capability_test.dart: CreateUseCaseCapability handles Logout example correctly
+00:17 +409 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/service/service_plugin_test.dart: correctly generates relative entity imports in usecase
+--- USECASE CONTENT ---
+import 'package:zuraffa/zuraffa.dart';
+
+import '../../../domain/entities/barcode/barcode.dart';
+import '../../../domain/entities/barcode_listing/barcode_listing.dart';
+import '../../services/listing_service.dart';
+
+class GetListingByBarcodeUseCase
+    extends StreamUseCase<BarcodeListing?, Barcode> {
+  GetListingByBarcodeUseCase(this._listingService);
+
+  final ListingService _listingService;
+
+  @override
+  Stream<BarcodeListing?> execute(Barcode params, CancelToken? cancelToken) {
+    return _listingService.getListingByBarcode(params);
+  }
+}
+
+----------------------
+00:17 +410 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/usecase/capabilities/create_usecase_capability_test.dart: CreateUseCaseCapability handles Logout example correctly
+test/integration/zfa_memory_integration_test.dart:54:33: Error: Member not found: 'instance'.
+    final runs = await RunStore.instance.listRuns(
+                                ^^^^^^^^
+test/integration/zfa_memory_integration_test.dart:68:47: Error: Member not found: 'instance'.
+    final context = await ProjectContextStore.instance.loadContext(
+                                              ^^^^^^^^
+00:17 +411 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/usecase/usecase_plugin_test.dart: generates entity usecase with code_builder
+00:17 +412 -2: /Users/ahmettok/Developer/zuraffa/test/plugins/usecase/usecase_plugin_test.dart: generates entity usecase with code_builder
+00:17 +412 -3: loading /Users/ahmettok/Developer/zuraffa/test/integration/zfa_memory_integration_test.dart [E]
+  Failed to load "/Users/ahmettok/Developer/zuraffa/test/integration/zfa_memory_integration_test.dart":
+  Compilation failed for testPath=/Users/ahmettok/Developer/zuraffa/test/integration/zfa_memory_integration_test.dart: test/integration/zfa_memory_integration_test.dart:54:33: Error: Member not found: 'instance'.
+      final runs = await RunStore.instance.listRuns(
+                                  ^^^^^^^^
+  test/integration/zfa_memory_integration_test.dart:68:47: Error: Member not found: 'instance'.
+      final context = await ProjectContextStore.instance.loadContext(
+                                                ^^^^^^^^
+  .
+00:17 +413 -3: /Users/ahmettok/Developer/zuraffa/test/plugins/usecase/usecase_plugin_test.dart: generates custom sync usecase with repo dependency
+00:17 +414 -3: /Users/ahmettok/Developer/zuraffa/test/plugins/usecase/usecase_plugin_test.dart: generates custom stream usecase with service dependency
+00:17 +415 -3: /Users/ahmettok/Developer/zuraffa/test/plugins/usecase/usecase_plugin_test.dart: generates custom future usecase with service dependency
+00:17 +416 -3: /Users/ahmettok/Developer/zuraffa/test/property/generator_properties_test.dart: append method is idempotent for random methods
+00:17 +417 -3: /Users/ahmettok/Developer/zuraffa/test/property/generator_properties_test.dart: append method is idempotent for random methods
+00:17 +418 -3: /Users/ahmettok/Developer/zuraffa/test/property/generator_properties_test.dart: append method is idempotent for random methods
+00:17 +419 -3: /Users/ahmettok/Developer/zuraffa/test/property/generator_properties_test.dart: append method is idempotent for random methods
+00:17 +420 -3: /Users/ahmettok/Developer/zuraffa/test/property/generator_properties_test.dart: append method is idempotent for random methods
+00:17 +421 -3: /Users/ahmettok/Developer/zuraffa/test/integration/di_flag_parsing_test.dart: zfa di create --use-mock correctly sets up mock injection
+00:18 +421 -4: /Users/ahmettok/Developer/zuraffa/test/integration/di_flag_parsing_test.dart: zfa di create --use-mock correctly sets up mock injection [E]
+  Could not find an option named "--output-dir".
+  
+  Usage: zfa create [arguments]
+  -h, --help             Print this usage information.
+      --json             Pass arguments as JSON string
+      --dry-run          Preview changes without executing
+      --revert           Revert generated files (delete them)
+      --name             Name of the entity (e.g. Product)
+      --domain           Domain name for the usecase/entity
+      --service          Service name for custom usecases
+      --repo             Repository name for custom usecases
+      --[no-]use-mock    Use mock implementation for datasources
+      --[no-]force       Force overwrite existing files
+      --[no-]verbose     Enable verbose logging
+  
+  Run "zfa help" to see global options.
+  package:args/command_runner.dart 466:7            Command.usageException
+  package:args/command_runner.dart 140:15           CommandRunner.parse
+  package:args/command_runner.dart 122:36           CommandRunner.run.<fn>
+  dart:async                                        new Future.sync
+  package:args/command_runner.dart 122:14           CommandRunner.run
+  test/integration/di_flag_parsing_test.dart 37:18  main.<fn>
+  ===== asynchronous gap ===========================
+  dart:async                                        new Future.sync
+  package:args/command_runner.dart 122:14           CommandRunner.run
+  test/integration/di_flag_parsing_test.dart 37:18  main.<fn>
+  
+00:18 +421 -4: /Users/ahmettok/Developer/zuraffa/test/integration/method_append_revert_test.dart: MethodAppendPlugin revert deletes the service file it created
+00:18 +421 -4: /Users/ahmettok/Developer/zuraffa/test/integration/cache_compilation_test.dart: generated cached repository should compile
+[_] Generating Order
+    → usecase
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testUCat7H/lib/src/domain/usecases/order/get_order_usecase.dart
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testUCat7H/lib/src/domain/usecases/order/get_order_list_usecase.dart
+    → repository
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testUCat7H/lib/src/domain/repositories/order_repository.dart
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testUCat7H/lib/src/data/repositories/data_order_repository.dart
+    → datasource
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testUCat7H/lib/src/data/datasources/order/order_local_datasource.dart
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testUCat7H/lib/src/data/datasources/order/order_remote_datasource.dart
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testUCat7H/lib/src/data/datasources/order/order_datasource.dart
+    → cache
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testUCat7H/lib/src/cache/order_cache.dart
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testUCat7H/lib/src/cache/daily_cache_policy.dart
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testUCat7H/lib/src/cache/timestamp_cache.dart
+[✓] Completed
+
+Generated Repository Content:
+$content
+00:18 +422 -4: /Users/ahmettok/Developer/zuraffa/test/integration/method_append_revert_test.dart: MethodAppendPlugin revert deletes the service file it created
+00:18 +422 -4: /Users/ahmettok/Developer/zuraffa/test/integration/cache_compilation_test.dart: generated cached DI should compile
+[_] Generating Order
+    → usecase
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testKlg5R0/lib/src/domain/usecases/order/get_order_usecase.dart
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testKlg5R0/lib/src/domain/usecases/order/get_order_list_usecase.dart
+    → repository
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testKlg5R0/lib/src/domain/repositories/order_repository.dart
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testKlg5R0/lib/src/data/repositories/data_order_repository.dart
+    → datasource
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testKlg5R0/lib/src/data/datasources/order/order_local_datasource.dart
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testKlg5R0/lib/src/data/datasources/order/order_remote_datasource.dart
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testKlg5R0/lib/src/data/datasources/order/order_datasource.dart
+    → di
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testKlg5R0/lib/src/di/datasources/order_remote_datasource_di.dart
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testKlg5R0/lib/src/di/datasources/order_local_datasource_di.dart
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testKlg5R0/lib/src/di/repositories/order_repository_di.dart
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testKlg5R0/lib/src/di/datasources/index.dart
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testKlg5R0/lib/src/di/repositories/index.dart
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testKlg5R0/lib/src/di/index.dart
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testKlg5R0/lib/src/di/service_locator.dart
+    → cache
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testKlg5R0/lib/src/cache/order_cache.dart
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testKlg5R0/lib/src/cache/daily_cache_policy.dart
+  ✓ Creating: /var/folders/p7/ntwclrrd0cdfjvsjvjnhns9m0000gn/T/cache_compilation_testKlg5R0/lib/src/cache/timestamp_cache.dart
+[✓] Completed
+
+Generated DI Repository Content:
+import 'package:zuraffa/zuraffa.dart';
+
+import '../../cache/daily_cache_policy.dart';
+import '../../data/datasources/order/order_local_datasource.dart';
+import '../../data/datasources/order/order_remote_datasource.dart';
+import '../../data/repositories/data_order_repository.dart';
+import '../../domain/repositories/order_repository.dart';
+
+void registerOrderRepository(GetIt getIt) {
+  getIt.registerLazySingleton<OrderRepository>(
+    () => DataOrderRepository(
+      getIt<OrderRemoteDataSource>(),
+      getIt<OrderLocalDataSource>(),
+      createDailyCachePolicy(),
+    ),
+  );
+}
+
+00:19 +423 -4: /Users/ahmettok/Developer/zuraffa/test/integration/method_append_revert_test.dart: MethodAppendPlugin revert deletes the service file it created
+00:21 +423 -5: /Users/ahmettok/Developer/zuraffa/test/integration/method_append_revert_test.dart: MethodAppendPlugin revert deletes the service file it created [E]
+  Expected: true
+    Actual: <false>
+  Service file should be created
+  
+  package:matcher                                       expect
+  package:flutter_test/src/widget_tester.dart 473:18    expect
+  test/integration/method_append_revert_test.dart 60:7  main.<fn>
+  
+00:21 +423 -5: /Users/ahmettok/Developer/zuraffa/test/integration/method_append_revert_test.dart: UseCasePlugin revert deletes custom usecases
+00:24 +423 -6: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:24 +423 -6: /Users/ahmettok/Developer/zuraffa/test/integration/method_append_revert_test.dart: UseCasePlugin revert deletes custom usecases [E]
+  Expected: true
+    Actual: <false>
+  
+  package:matcher                                        expect
+  package:flutter_test/src/widget_tester.dart 473:18     expect
+  test/integration/method_append_revert_test.dart 117:5  main.<fn>
+  
+00:26 +424 -6: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:26 +425 -6: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:26 +425 -7: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:26 +425 -7: /Users/ahmettok/Developer/zuraffa/test/integration/append_mode_test.dart: append mode updates repository and datasources [E]
+  Expected: true
+    Actual: <false>
+  
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test/integration/append_mode_test.dart 101:5        main.<fn>
+  
+00:26 +426 -7: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:27 +426 -8: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:27 +426 -8: /Users/ahmettok/Developer/zuraffa/test/integration/full_entity_workflow_test.dart: generates full entity workflow [E]
+  Expected: true
+    Actual: <false>
+  
+  package:matcher                                       expect
+  package:flutter_test/src/widget_tester.dart 473:18    expect
+  test/integration/full_entity_workflow_test.dart 58:7  main.<fn>
+  
+00:27 +427 -8: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:27 +427 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:27 +427 -9: /Users/ahmettok/Developer/zuraffa/test/integration/method_append_revert_test.dart: Enum imports are correctly handled in Provider and Service [E]
+  Provider file was not created
+  package:matcher                                        fail
+  test/integration/method_append_revert_test.dart 193:7  main.<fn>
+  
+00:28 +428 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:28 +429 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:28 +430 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:28 +431 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:28 +432 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:28 +433 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:28 +434 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:28 +435 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:28 +436 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:28 +437 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:28 +438 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:28 +439 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:28 +440 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:28 +441 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:29 +442 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:29 +443 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:29 +444 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:29 +445 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:29 +446 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:30 +447 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:30 +448 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:30 +449 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:30 +450 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:30 +451 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:30 +452 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:30 +453 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:30 +454 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:30 +455 -9: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:31 +455 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:31 +455 -10: /Users/ahmettok/Developer/zuraffa/test/integration/custom_usecase_workflow_test.dart: generates custom usecase with service and provider [E]
+  Expected: true
+    Actual: <false>
+  
+  package:matcher                                          expect
+  package:flutter_test/src/widget_tester.dart 473:18       expect
+  test/integration/custom_usecase_workflow_test.dart 49:5  main.<fn>
+  
+00:31 +456 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:32 +457 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:32 +458 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:32 +459 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:32 +460 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:32 +460 -10: /Users/ahmettok/Developer/zuraffa/test/commands/capability_command_test.dart: CapabilityCommand parses hyphenated flags correctly into camelCase args
+✅ Success! (No changes required)
+00:32 +461 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:32 +462 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:33 +463 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:34 +464 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:34 +465 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:34 +466 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:34 +467 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:34 +468 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:34 +469 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:35 +470 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:35 +471 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:35 +472 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:35 +473 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:37 +473 -10: /Users/ahmettok/Developer/zuraffa/test/regression/cli_command_test.dart: CLI command regression cli make from flags creates output
+
+✅ Generation complete:
+  ✨ Created: 6 files
+  ✨ lib/src/domain/usecases/product/get_product_usecase.dart
+  ✨ lib/src/domain/usecases/product/update_product_usecase.dart
+  ✨ lib/src/domain/usecases/product/toggle_product_usecase.dart
+  ✨ lib/src/domain/repositories/product_repository.dart
+  ✨ lib/src/data/datasources/product/product_remote_datasource.dart
+  ✨ lib/src/data/datasources/product/product_datasource.dart
+✅ Done.
+00:37 +474 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:37 +474 -10: /Users/ahmettok/Developer/zuraffa/test/regression/cli_command_test.dart: CLI command regression cli make from json keeps config format
+
+✅ Generation complete:
+  ✨ Created: 6 files
+  ✨ lib/src/domain/usecases/product/get_product_usecase.dart
+  ✨ lib/src/domain/usecases/product/update_product_usecase.dart
+  ✨ lib/src/domain/usecases/product/toggle_product_usecase.dart
+  ✨ lib/src/domain/repositories/product_repository.dart
+  ✨ lib/src/data/datasources/product/product_remote_datasource.dart
+  ✨ lib/src/data/datasources/product/product_datasource.dart
+✅ Done.
+00:37 +475 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:37 +476 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:37 +477 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:37 +478 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:38 +479 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:38 +480 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:38 +481 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:39 +482 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:39 +483 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:39 +484 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:39 +485 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:44 +486 -10: /Users/ahmettok/Developer/zuraffa/test/integration/polymorphic_mock_integration_test.dart: zfa mock data generates compilable subtype mocks for sealed hierarchies
+00:47 +487 -10: /Users/ahmettok/Developer/zuraffa/test/commands/make_command_test.dart: MakeCommand supports --from-stdin for plan resolution
+00:48 +488 -10: /Users/ahmettok/Developer/zuraffa/test/commands/make_command_test.dart: MakeCommand supports --from-stdin for plan resolution
+00:48 +489 -10: /Users/ahmettok/Developer/zuraffa/test/cli/cli_edge_cases_test.dart: CLI Edge Cases make handles invalid JSON structure from file
+00:48 +490 -10: /Users/ahmettok/Developer/zuraffa/test/cli/cli_edge_cases_test.dart: CLI Edge Cases make handles invalid JSON structure from file
+00:54 +491 -10: /Users/ahmettok/Developer/zuraffa/test/cli/cli_edge_cases_test.dart: CLI Edge Cases make shows usage when name and JSON input are missing
+01:02 +492 -10: /Users/ahmettok/Developer/zuraffa/test/cli/cli_edge_cases_test.dart: CLI Edge Cases removed generate command fails fast with migration guidance
+01:11 +493 -10: Some tests failed.
+
+Failing tests:
+  /Users/ahmettok/Developer/zuraffa/test/core/artifact_publisher_test.dart: MinIOArtifactHook metadata sanitization sanitizes unsafe metadata keys and values before upload
+  /Users/ahmettok/Developer/zuraffa/test/core/project/project_context_test.dart: loading /Users/ahmettok/Developer/zuraffa/test/core/project/project_context_test.dart
+  /Users/ahmettok/Developer/zuraffa/test/integration/append_mode_test.dart: append mode updates repository and datasources
+  /Users/ahmettok/Developer/zuraffa/test/integration/custom_usecase_workflow_test.dart: generates custom usecase with service and provider
+  ... and 6 more

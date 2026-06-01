@@ -54,6 +54,58 @@ class ThrowingHook extends ArtifactHook {
   }
 }
 
+/// A fake [MinioClient] that captures calls without connecting to any server.
+///
+/// Extends [MinioClient] using a dummy endpoint that satisfies the parent
+/// constructor validation.
+class CapturingMinioClient extends MinioClient {
+  CapturingMinioClient()
+    : super(
+        endpoint: 'https://artifacts.zuzu.dev',
+        accessKey: 'test-access-key',
+        secretKey: 'test-secret-key',
+      );
+
+  Map<String, String>? lastMetadata;
+  String? lastBucket;
+  String? lastKey;
+  String? lastContentType;
+  String? lastData;
+  Uint8List? lastBytes;
+
+  @override
+  Future<bool> putObject({
+    required String bucket,
+    required String key,
+    required String data,
+    String contentType = 'application/octet-stream',
+    Map<String, String>? metadata,
+  }) async {
+    lastBucket = bucket;
+    lastKey = key;
+    lastContentType = contentType;
+    lastMetadata = metadata;
+    lastData = data;
+    return true;
+  }
+
+  @override
+  Future<bool> putObjectBytes({
+    required String bucket,
+    required String key,
+    required Uint8List bytes,
+    String contentType = 'application/octet-stream',
+    Map<String, String>? metadata,
+  }) async {
+    lastBucket = bucket;
+    lastKey = key;
+    lastContentType = contentType;
+    lastMetadata = metadata;
+    lastBytes = bytes;
+    return true;
+  }
+}
+
 void main() {
   group('ArtifactContext', () {
     test('creates with required fields and defaults', () {
@@ -257,6 +309,70 @@ void main() {
 
       expect(hook.callCount, 0); // replaced
       expect(hook2.callCount, 1);
+    });
+  });
+
+  group('MinIOArtifactHook metadata sanitization', () {
+    late CapturingMinioClient client;
+    late MinIOArtifactHook hook;
+
+    setUp(() {
+      client = CapturingMinioClient();
+      hook = MinIOArtifactHook(client: client, bucket: 'artifacts');
+    });
+
+    test('sanitizes unsafe metadata keys and values before upload', () async {
+      const url =
+          'https://www.google.com.tr/async/oapv?udm=28&q=Amazon’un%20Secimi%20Finish%20Quantum%20100%20Kapsul%20Bulasik%20Makinesi%20Deterjani%20Tableti%20Kokusuz&async=very-long-value';
+
+      await hook.onPublish(
+        ArtifactContext(
+          id: 'artifact-123',
+          data: '<html>hello</html>',
+          contentType: 'text/html; charset=utf-8',
+          reason: 'success',
+          source: 'ScrapeProvider',
+          label: 'ScrapeSuccess',
+          metadata: {
+            'URL Value': '$url\nline-two',
+            'emoji': 'finish 😅 kapsül',
+            'statusCode': 200,
+          },
+        ),
+      );
+
+      final metadata = client.lastMetadata;
+      expect(metadata, isNotNull);
+      expect(metadata!['artifact-reason'], 'success');
+      expect(metadata['artifact-source'], 'ScrapeProvider');
+      expect(metadata['artifact-label'], 'ScrapeSuccess');
+      expect(metadata.keys, contains('ctx-url-value'));
+      expect(metadata.keys, contains('ctx-emoji'));
+      expect(metadata.keys, contains('ctx-statuscode'));
+      expect(metadata.keys, isNot(contains('ctx-URL Value')));
+
+      for (final value in metadata.values) {
+        expect(value.contains('\n'), isFalse);
+        expect(value.contains('\r'), isFalse);
+        expect(
+          value.codeUnits.every((code) => code >= 32 && code <= 126),
+          isTrue,
+        );
+      }
+
+      // The sanitized value may be longer than the original when the
+      // "[sanitized len=N] preview" wrapper is added.
+      expect(metadata['ctx-url-value'], contains('[sanitized len='));
+      // Verify the value is a printable ASCII string
+      expect(
+        metadata['ctx-url-value']!.codeUnits.every((c) => c >= 32 && c <= 126),
+        isTrue,
+      );
+      expect(metadata['ctx-emoji'], contains('[sanitized len='));
+      expect(
+        client.lastKey,
+        'success/scrape_provider/scrape_success/artifact-123.html',
+      );
     });
   });
 

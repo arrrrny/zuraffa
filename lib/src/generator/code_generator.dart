@@ -1,3 +1,9 @@
+import 'dart:io';
+
+import 'package:path/path.dart' as path;
+
+import '../cli/plugin_loader.dart';
+import '../config/zfa_config.dart';
 import '../models/generator_config.dart';
 import '../models/generator_result.dart';
 import '../models/generated_file.dart';
@@ -6,7 +12,7 @@ import '../plugins/state/state_plugin.dart';
 import '../plugins/observer/observer_plugin.dart';
 import '../plugins/test/test_plugin.dart';
 import '../plugins/mock/mock_plugin.dart';
-import '../plugins/graphql/graphql_plugin.dart';
+import '../plugins/gql/gql_plugin.dart';
 import '../plugins/cache/cache_plugin.dart';
 import '../plugins/route/route_plugin.dart';
 import '../plugins/method_append/method_append_plugin.dart';
@@ -26,6 +32,7 @@ import '../core/plugin_system/plugin_registry.dart';
 import '../core/plugin_system/plugin_interface.dart';
 import '../core/plugin_system/plugin_context.dart';
 import '../core/plugin_system/plugin_manager.dart';
+import '../core/planning/generation_plan.dart';
 
 /// Orchestrates the entire code generation process.
 ///
@@ -37,7 +44,9 @@ class CodeGenerator {
   final GeneratorOptions options;
   final Set<String> disabledPlugins;
   final GenerationContext context;
+  final String projectRoot;
   late final PluginRegistry pluginRegistry;
+  late final PluginManager _manager;
 
   CodeGenerator({
     required GeneratorConfig config,
@@ -64,10 +73,11 @@ class CodeGenerator {
          dryRun: options.dryRun,
          force: options.force,
          verbose: options.verbose,
-         root: outputDir,
+         root: _findProjectRoot(outputDir),
          progressReporter: progressReporter,
        ),
-       disabledPlugins = disabledPluginIds ?? {} {
+       disabledPlugins = disabledPluginIds ?? {},
+       projectRoot = _findProjectRoot(outputDir) {
     pluginRegistry = PluginRegistry();
 
     // Register all core plugins
@@ -84,33 +94,49 @@ class CodeGenerator {
     _registerPlugin(ObserverPlugin(outputDir: outputDir, options: options));
     _registerPlugin(TestPlugin(outputDir: outputDir, options: options));
     _registerPlugin(MockPlugin(outputDir: outputDir, options: options));
-    _registerPlugin(GraphqlPlugin(outputDir: outputDir, options: options));
+    _registerPlugin(GqlPlugin(outputDir: outputDir, options: options));
     _registerPlugin(CachePlugin(outputDir: outputDir, options: options));
     _registerPlugin(RoutePlugin(outputDir: outputDir, options: options));
     _registerPlugin(ShadcnPlugin(outputDir: outputDir, options: options));
     _registerPlugin(MethodAppendPlugin(outputDir: outputDir, options: options));
+
+    final loadedConfig = ZfaConfig.load(projectRoot: projectRoot);
+    final loadedPluginConfig = PluginConfig.load(projectRoot: projectRoot);
+    _manager = PluginManager(
+      registry: pluginRegistry,
+      config: loadedConfig,
+      pluginConfig: PluginConfig(
+        disabled: {...loadedPluginConfig.disabled, ...disabledPlugins},
+      ),
+      projectRoot: projectRoot,
+    );
+  }
+
+  GenerationPlan resolvePlan() {
+    final data = Map<String, dynamic>.from(config.toJson());
+    if (data['methods'] is List) {
+      data['methods'] = List<String>.from(data['methods'] as List);
+    }
+    return _manager.resolvePlan(name: config.name, options: data);
   }
 
   Future<GeneratorResult> generate() async {
-    final manager = PluginManager(
-      registry: pluginRegistry,
-      projectRoot: outputDir,
-    );
-
     try {
-      // Build context using manager to ensure TransactionalFileSystem is set up
-      final baseContext = manager.buildContext(
-        name: config.name,
-        argResults: null, // We are not in CLI mode, use config data
-        activePlugins: pluginRegistry.plugins,
-        overrideOutputDir: outputDir,
-      );
-
-      // Create a new context with the correct core flags from our options
+      // Resolve the same normalized plan contract used by the CLI.
       final data = Map<String, dynamic>.from(config.toJson());
       if (data['methods'] is List) {
         data['methods'] = List<String>.from(data['methods'] as List);
       }
+
+      final plan = _manager.resolvePlan(name: config.name, options: data);
+
+      // Build context using manager to ensure TransactionalFileSystem is set up.
+      final baseContext = _manager.buildContext(
+        name: config.name,
+        argResults: null,
+        activePlugins: plan.activePlugins,
+        overrideOutputDir: outputDir,
+      );
 
       final pluginContext = PluginContext(
         core: CoreConfig(
@@ -130,9 +156,9 @@ class CodeGenerator {
       // Ensure specific flags are respected in data map as well
       pluginContext.data['append'] = config.appendToExisting;
 
-      final files = await manager.run(
+      final files = await _manager.run(
         pluginContext,
-        pluginRegistry.plugins,
+        plan.activePlugins,
         progress: context.progress,
       );
 
@@ -188,6 +214,24 @@ class CodeGenerator {
   void _registerPlugin(ZuraffaPlugin plugin) {
     if (!disabledPlugins.contains(plugin.id)) {
       pluginRegistry.register(plugin);
+    }
+  }
+
+  static String _findProjectRoot(String startPath) {
+    var current = Directory(path.normalize(startPath)).absolute;
+    if (!current.existsSync()) {
+      current = current.parent;
+    }
+
+    while (true) {
+      if (File(path.join(current.path, 'pubspec.yaml')).existsSync()) {
+        return current.path;
+      }
+      final parent = current.parent;
+      if (parent.path == current.path) {
+        return Directory(path.normalize(startPath)).absolute.path;
+      }
+      current = parent;
     }
   }
 }

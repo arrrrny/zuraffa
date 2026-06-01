@@ -1,13 +1,57 @@
-import '../models/generated_file.dart';
-import 'base_plugin_command.dart';
+import 'package:args/command_runner.dart';
+
+import '../core/plugin_system/plugin_registry.dart';
 import '../plugins/feature/feature_plugin.dart';
-import '../core/plugin_system/capability.dart';
+import 'make_command.dart';
 
-class FeatureCommand extends PluginCommand {
-  @override
-  final FeaturePlugin plugin;
+class FeatureCommand extends Command<void> {
+  static const String fixedOutputDir = 'lib/src';
 
-  FeatureCommand(this.plugin) : super(plugin) {
+  FeatureCommand(FeaturePlugin plugin) {
+    argParser.addOption(
+      'output',
+      abbr: 'o',
+      help:
+          'Output directory for generated files (fixed to lib/src in v5; custom values are ignored)',
+      defaultsTo: fixedOutputDir,
+    );
+    argParser.addFlag(
+      'dry-run',
+      negatable: false,
+      help: 'Preview generated files without writing to disk',
+    );
+    argParser.addFlag(
+      'force',
+      abbr: 'f',
+      negatable: false,
+      help: 'Overwrite existing files',
+    );
+    argParser.addFlag(
+      'verbose',
+      abbr: 'v',
+      negatable: false,
+      help: 'Enable detailed logging',
+    );
+    argParser.addFlag(
+      'revert',
+      negatable: false,
+      help: 'Revert generated files (delete them)',
+    );
+    argParser.addOption(
+      'format',
+      help: 'Output format: text, json',
+      defaultsTo: 'text',
+    );
+    argParser.addFlag(
+      'plan',
+      negatable: false,
+      help: 'Print the normalized execution plan and exit',
+    );
+    argParser.addFlag(
+      'explain',
+      negatable: false,
+      help: 'Explain the normalized execution plan and exit',
+    );
     argParser.addFlag(
       'vpcs',
       help: 'Generate View, Presenter, Controller, State',
@@ -89,160 +133,140 @@ class FeatureCommand extends PluginCommand {
     );
     argParser.addOption('id-field', help: 'ID field name');
     argParser.addOption('id-field-type', help: 'ID field type');
-    argParser.addFlag(
-      'zorphy',
-      help:
-          'Use Zorphy patterns (e.g., LocalePatch instead of Partial<Locale>)',
-      defaultsTo: false,
-      negatable: false,
-    );
-    argParser.addFlag(
-      'init',
-      abbr: 'i',
-      help: 'Generate initialization and disposal methods',
-      defaultsTo: false,
-      negatable: false,
-    );
   }
 
   @override
   String get name => 'feature';
 
   @override
-  String get description => 'Scaffold full features';
+  String get description =>
+      'Wrapper over zfa make using the normalized feature preset.';
 
-  ZuraffaCapability? _findCapability(String name) {
-    try {
-      return plugin.capabilities.firstWhere((c) => c.name == name);
-    } catch (_) {
-      return null;
-    }
-  }
+  @override
+  String get invocation =>
+      'zfa feature [scaffold|route|di|mock|test|view|presenter|controller|state] <Name> [options]';
+
+  static const Set<String> _supportedModes = {
+    'scaffold',
+    'route',
+    'di',
+    'mock',
+    'test',
+    'view',
+    'presenter',
+    'controller',
+    'state',
+  };
 
   @override
   Future<void> run() async {
-    print('DEBUG: Running FeatureCommand.run()');
-    if (argResults?.rest.isEmpty ?? true) {
+    final rest = argResults?.rest ?? const <String>[];
+    if (rest.isEmpty) {
       printUsage();
       return;
     }
 
-    final firstArg = argResults!.rest.first;
-    final allGeneratedFiles = <GeneratedFile>[];
-
-    // Get the capability names
-    final capabilityNames = plugin.capabilities.map((c) => c.name).toSet();
-
-    // Check if first arg is a capability name AND there's a second arg (the feature name)
-    // This handles: zfa feature route Locale, zfa feature di Locale, etc.
-    if (capabilityNames.contains(firstArg) &&
-        (argResults?.rest.length ?? 0) > 1) {
-      // Handle: zfa feature <capability> <name> [options]
-      final capability = _findCapability(firstArg);
-      final featureName = argResults!.rest[1];
-
-      if (capability != null) {
-        final execArgs = _buildArgs(featureName);
-        final result = await capability.execute(execArgs);
-
-        if (result.success) {
-          final files =
-              result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
-          allGeneratedFiles.addAll(files);
-        } else {
-          print('Failed to generate $firstArg');
-          return;
-        }
-      }
-    } else {
-      // Handle: zfa feature Locale [flags] OR zfa feature Locale (defaults to scaffold)
-      final featureName = firstArg;
-
-      // Check which capabilities should run based on flags
-      // Default to scaffold if no specific flags are set
-      final bool runScaffold =
-          (!(argResults?.wasParsed('route') ?? false) &&
-              !(argResults?.wasParsed('di') ?? false) &&
-              !(argResults?.wasParsed('mock') ?? false) &&
-              !(argResults?.wasParsed('test') ?? false)) ||
-          (argResults?.wasParsed('vpcs') ?? false) ||
-          (argResults?.wasParsed('repository') ?? false) ||
-          (argResults?.wasParsed('datasource') ?? false);
-
-      final capabilityFlags = {
-        'scaffold': runScaffold,
-        'route': argResults?.wasParsed('route') ?? false,
-        'di': argResults?.wasParsed('di') ?? false,
-        'mock': argResults?.wasParsed('mock') ?? false,
-        'test': argResults?.wasParsed('test') ?? false,
-        'view': false,
-        'presenter': false,
-        'controller': false,
-        'state': false,
-      };
-
-      // Run selected capabilities
-      for (final entry in capabilityFlags.entries) {
-        if (entry.value) {
-          final cap = _findCapability(entry.key);
-          if (cap != null) {
-            final execArgs = _buildArgs(featureName);
-            final result = await cap.execute(execArgs);
-            if (result.success) {
-              final files =
-                  result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
-              allGeneratedFiles.addAll(files);
-            }
-          }
-        }
-      }
+    var mode = 'scaffold';
+    var nameIndex = 0;
+    if (_supportedModes.contains(rest.first)) {
+      mode = rest.first;
+      nameIndex = 1;
     }
 
-    if (allGeneratedFiles.isNotEmpty) {
-      logSummary(allGeneratedFiles);
-    } else {
-      print('No files generated');
+    if (rest.length <= nameIndex) {
+      print('❌ Missing feature name.');
+      printUsage();
+      return;
     }
+
+    final featureName = rest[nameIndex];
+    final translatedArgs = _buildMakeArgs(featureName, mode: mode);
+
+    final runner = CommandRunner<void>('zfa', 'Zuraffa Code Generator')
+      ..addCommand(MakeCommand(PluginRegistry.instance));
+    await runner.run(translatedArgs);
   }
 
-  Map<String, dynamic> _buildArgs(String featureName) {
-    final usecases = argResults!['usecases'] as List<String>;
-    final methods = argResults!['methods'] as List<String>;
+  List<String> _buildMakeArgs(String featureName, {required String mode}) {
+    final args = <String>[
+      'make',
+      featureName,
+      '--format=${argResults!["format"]}',
+    ];
 
-    final Map<String, dynamic> execArgs = {
-      'name': featureName,
-      'usecases': usecases,
-      'methods': methods,
-      'dryRun': isDryRun,
-      'force': isForce,
-      'verbose': isVerbose,
-      'revert': isRevert,
-      'init': argResults!['init'] == true,
-      'outputDir': outputDir,
-    };
+    if (argResults!["dry-run"] == true) args.add('--dry-run');
+    if (argResults!["force"] == true) args.add('--force');
+    if (argResults!["verbose"] == true) args.add('--verbose');
+    if (argResults!["revert"] == true) args.add('--revert');
+    if (argResults!["plan"] == true) args.add('--plan');
+    if (argResults!["explain"] == true) args.add('--explain');
 
-    void addIfParsed(String name) {
+    final methods = (argResults!["methods"] as List<String>)
+        .where((method) => method.isNotEmpty)
+        .toList();
+    if (methods.isNotEmpty) {
+      args.add('--methods=${methods.join(",")}');
+    }
+
+    final usecases = (argResults!["usecases"] as List<String>)
+        .where((usecase) => usecase.isNotEmpty)
+        .toList();
+    if (usecases.isNotEmpty) {
+      args.add('--usecases=${usecases.join(",")}');
+    }
+
+    void addOptionIfParsed(String name) {
       if (argResults!.wasParsed(name)) {
-        execArgs[name] = argResults![name];
+        final value = argResults![name];
+        if (value is String && value.isNotEmpty) {
+          args.add('--$name=$value');
+        }
       }
     }
 
-    addIfParsed('vpcs');
-    addIfParsed('repository');
-    addIfParsed('datasource');
-    addIfParsed('local');
-    addIfParsed('mock');
-    addIfParsed('di');
-    addIfParsed('cache');
-    addIfParsed('use-service');
-    addIfParsed('route');
-    addIfParsed('test');
-    addIfParsed('query-field');
-    addIfParsed('query-field-type');
-    addIfParsed('id-field');
-    addIfParsed('id-field-type');
-    addIfParsed('zorphy');
+    addOptionIfParsed('query-field');
+    addOptionIfParsed('query-field-type');
+    addOptionIfParsed('id-field');
+    addOptionIfParsed('id-field-type');
 
-    return execArgs;
+    switch (mode) {
+      case 'scaffold':
+        args.add('--preset=feature');
+        final excluded = <String>['test'];
+
+        if (argResults!["repository"] != true) {
+          excluded.add('repository');
+        }
+        if (argResults!["datasource"] != true) {
+          excluded.add('datasource');
+        }
+        if (argResults!["vpcs"] != true) {
+          excluded.addAll(['view', 'presenter', 'controller', 'state']);
+        }
+        if (argResults!["di"] != true) {
+          excluded.add('di');
+        }
+        if (argResults!["test"] == true) {
+          excluded.remove('test');
+        }
+        if (argResults!["use-service"] == true) {
+          args.add('--use-service');
+          excluded.addAll(['repository', 'datasource']);
+        }
+        if (argResults!["local"] == true) args.add('--local');
+        if (argResults!["mock"] == true) args.add('--mock');
+        if (argResults!["cache"] == true) args.add('--cache');
+        if (argResults!["route"] == true) args.add('--route');
+
+        if (excluded.isNotEmpty) {
+          args.add('--without=${excluded.toSet().join(",")}');
+        }
+        break;
+      default:
+        args.add('--with=$mode');
+        break;
+    }
+
+    return args;
   }
 }

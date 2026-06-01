@@ -511,15 +511,11 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   ) {
     final paramsExpression = config.queryFieldType == 'NoParams'
         ? refer('NoParams').constInstance([])
-        : config.useZorphy
-        ? refer('QueryParams<$entityName>').call([], {
+        : refer('QueryParams<$entityName>').call([], {
             'filter': refer('Eq').call([
               refer('${entityName}Fields').property(config.queryField),
               refer(config.queryField),
             ]),
-          })
-        : refer('QueryParams<$entityName>').call([], {
-            'params': literalMap({config.queryField: refer(config.queryField)}),
           });
 
     final callExpression = refer('_${info.fieldName}')
@@ -606,9 +602,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     ParsedUseCaseInfo info,
     String entityName,
   ) {
-    final dataType = config.useZorphy
-        ? '${entityName}Patch'
-        : 'Partial<$entityName>';
+    final dataType = '${entityName}Patch';
     final updateParams = refer(
       'UpdateParams<${config.idFieldType}, $dataType>',
     ).call([], {'id': refer(config.idField), 'data': refer('data')});
@@ -717,15 +711,11 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   ) {
     final paramsExpression = config.queryFieldType == 'NoParams'
         ? refer('NoParams').constInstance([])
-        : config.useZorphy
-        ? refer('QueryParams<$entityName>').call([], {
+        : refer('QueryParams<$entityName>').call([], {
             'filter': refer('Eq').call([
               refer('${entityName}Fields').property(config.queryField),
               refer(config.queryField),
             ]),
-          })
-        : refer('QueryParams<$entityName>').call([], {
-            'params': literalMap({config.queryField: refer(config.queryField)}),
           });
 
     final callExpression = refer('_${info.fieldName}')
@@ -787,15 +777,11 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   ) {
     final paramsExpression = config.queryFieldType == 'NoParams'
         ? refer('NoParams').constInstance([])
-        : config.useZorphy
-        ? refer('QueryParams<$entityName>').call([], {
+        : refer('QueryParams<$entityName>').call([], {
             'filter': refer('Eq').call([
               refer('${entityName}Fields').property(config.queryField),
               refer(config.queryField),
             ]),
-          })
-        : refer('QueryParams<$entityName>').call([], {
-            'params': literalMap({config.queryField: refer(config.queryField)}),
           });
 
     final getCall = refer('_${info.fieldName}')

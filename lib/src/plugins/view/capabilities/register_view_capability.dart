@@ -33,11 +33,7 @@ class RegisterViewCapability implements ZuraffaCapability {
         'description':
             'List of entities to add (e.g. Locale, User?). Trailing ? means optional.',
       },
-      'outputDir': {
-        'type': 'string',
-        'description': 'Directory to output the file',
-        'default': 'lib/src',
-      },
+
       'dryRun': {
         'type': 'boolean',
         'description': 'Run without writing files',
@@ -99,7 +95,7 @@ class RegisterViewCapability implements ZuraffaCapability {
   ) async {
     final target = args['target'] as String;
     final entities = List<String>.from(args['entities']);
-    final outputDir = args['outputDir'] ?? 'lib/src';
+    final outputDir = plugin.outputDir;
     final dryRun = args['dryRun'] ?? false;
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;

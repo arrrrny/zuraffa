@@ -35,14 +35,22 @@ void main() {
       expect(config.mockByDefault, isFalse);
     });
 
-    test('save and load preserves testByDefault', () async {
-      const config = ZfaConfig(testByDefault: true, mockByDefault: true);
-      await ZfaConfig.save(config, projectRoot: projectRoot);
+    test(
+      'save and load preserves plugin defaults and disabled plugins',
+      () async {
+        final config = ZfaConfig(
+          testByDefault: true,
+          mockByDefault: true,
+          disabledPlugins: const {'route'},
+        );
+        await ZfaConfig.save(config, projectRoot: projectRoot);
 
-      final loaded = ZfaConfig.load(projectRoot: projectRoot);
-      expect(loaded, isNotNull);
-      expect(loaded!.testByDefault, isTrue);
-      expect(loaded.mockByDefault, isTrue);
-    });
+        final loaded = ZfaConfig.load(projectRoot: projectRoot);
+        expect(loaded, isNotNull);
+        expect(loaded!.testByDefault, isTrue);
+        expect(loaded.mockByDefault, isTrue);
+        expect(loaded.disabledPlugins, contains('route'));
+      },
+    );
   });
 }

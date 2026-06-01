@@ -22,11 +22,7 @@ class CreateDiCapability implements ZuraffaCapability {
         'type': 'string',
         'description': 'Name of the entity (e.g. Product)',
       },
-      'outputDir': {
-        'type': 'string',
-        'description': 'Directory to output the file',
-        'default': 'lib/src',
-      },
+
       'domain': {
         'type': 'string',
         'description': 'Domain name for the usecase/entity',
@@ -110,7 +106,7 @@ class CreateDiCapability implements ZuraffaCapability {
     required bool dryRun,
   }) async {
     final name = args['name'];
-    final outputDir = args['outputDir'] ?? 'lib/src';
+    final outputDir = plugin.outputDir;
     final domain = args['domain'];
     final service = args['service'];
     final repo = args['repo'];

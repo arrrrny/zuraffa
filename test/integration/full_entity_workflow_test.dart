@@ -15,6 +15,7 @@ void main() {
     workspace = await createWorkspace('full_entity_workflow');
     await writePubspec(workspace);
     await runFlutterPubGet(workspace);
+    await writeEntityStub(workspace, name: 'Product');
     outputDir = workspace.outputDir;
   });
 
@@ -103,14 +104,6 @@ void main() {
           '$outputDir/presentation/pages/product/product_state.dart',
         ).existsSync(),
         isTrue,
-      );
-
-      final entityFile = File(
-        '$outputDir/domain/entities/product/product.dart',
-      );
-      await entityFile.parent.create(recursive: true);
-      await entityFile.writeAsString(
-        'class Product { final String id; const Product({required this.id}); }',
       );
 
       await runDartAnalyze(workspace);

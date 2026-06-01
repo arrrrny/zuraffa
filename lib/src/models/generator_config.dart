@@ -11,6 +11,8 @@ class Param {
 }
 
 class GeneratorConfig {
+  static const String fixedOutputDir = 'lib/src';
+
   final String name;
   final List<String> methods;
   final String? repo; // Changed from repos to single repo
@@ -178,7 +180,7 @@ class GeneratorConfig {
       generateInit: json['init'] == true,
       queryField: json['query_field'] ?? 'id',
       queryFieldType: json['query_field_type'],
-      useZorphy: json['zorphy'] != false && json['useZorphy'] != false,
+      useZorphy: true,
       noEntity: json['no_entity'] == true || json['noEntity'] == true,
       generateTest: json['test'] == true,
       enableCache: json['cache'] == true || json['enable_cache'] == true,
@@ -205,7 +207,7 @@ class GeneratorConfig {
       customControllerName:
           json['controller'] ?? json['custom_controller_name'],
       customStateName: json['state_class'] ?? json['custom_state_name'],
-      outputDir: json['output_dir'] ?? 'lib/src',
+      outputDir: fixedOutputDir,
     );
   }
 
@@ -585,13 +587,13 @@ class GeneratorConfig {
     'init': generateInit,
     'query_field': queryField,
     'query_field_type': queryFieldType,
-    'zorphy': useZorphy,
     'test': generateTest,
     'cache': enableCache,
     'cache_policy': cachePolicy,
     'cache_storage': cacheStorage,
     'ttl': ttlMinutes,
     'mock': generateMock,
+    'usecase': generateUseCase,
     'mock_data_only': generateMockDataOnly,
     'use_mock': useMockInDi,
     'di': generateDi,

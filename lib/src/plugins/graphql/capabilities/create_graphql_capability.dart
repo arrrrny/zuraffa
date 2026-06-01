@@ -22,11 +22,7 @@ class CreateGraphqlCapability implements ZuraffaCapability {
         'type': 'string',
         'description': 'Name of the entity (e.g. Product)',
       },
-      'outputDir': {
-        'type': 'string',
-        'description': 'Directory to output the file',
-        'default': 'lib/src',
-      },
+
       'type': {
         'type': 'string',
         'description': 'GraphQL operation type (query, mutation)',
@@ -97,7 +93,7 @@ class CreateGraphqlCapability implements ZuraffaCapability {
     required bool dryRun,
   }) async {
     final name = args['name'];
-    final outputDir = args['outputDir'] ?? 'lib/src';
+    final outputDir = plugin.outputDir;
     final type = args['type'] ?? 'query';
     final returns = args['returns'];
     final inputType = args['inputType'];

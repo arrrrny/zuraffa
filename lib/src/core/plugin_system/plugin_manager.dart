@@ -1,10 +1,13 @@
-import 'dart:io';
 import 'package:args/args.dart';
+import 'package:path/path.dart' as path;
 import '../../config/zfa_config.dart';
 import '../../cli/plugin_loader.dart';
 import '../context/file_system.dart';
 import '../context/progress_reporter.dart';
 import '../transaction/transactional_file_system.dart';
+import '../project/project_root.dart';
+import '../project/run_store.dart';
+import '../project/project_context_store.dart';
 import 'plugin_interface.dart';
 import 'plugin_registry.dart';
 import 'plugin_context.dart';
@@ -12,7 +15,10 @@ import 'discovery_engine.dart';
 import 'plan_store.dart';
 import 'capability.dart';
 import '../../models/generated_file.dart';
+import '../../models/generator_config.dart';
 import '../transaction/generation_transaction.dart';
+import '../planning/generation_plan.dart';
+import '../planning/plan_resolver.dart';
 
 /// Orchestrates the selection, validation, and execution of plugins.
 class PluginManager {
@@ -26,7 +32,25 @@ class PluginManager {
     this.config,
     this.pluginConfig,
     String? projectRoot,
-  }) : projectRoot = projectRoot ?? Directory.current.path;
+  }) : projectRoot = projectRoot ?? ProjectRoot.find();
+
+  GenerationPlan resolvePlan({
+    required String name,
+    List<String> explicitPluginIds = const [],
+    ArgResults? argResults,
+    Map<String, dynamic> options = const {},
+  }) {
+    return PlanResolver(
+      registry: registry,
+      config: config,
+      pluginConfig: pluginConfig,
+    ).resolve(
+      name: name,
+      explicitPluginIds: explicitPluginIds,
+      argResults: argResults,
+      options: options,
+    );
+  }
 
   /// Resolves the set of active plugins based on explicit requests,
   /// config defaults, and explicit muting (--no-flags).
@@ -34,46 +58,13 @@ class PluginManager {
     required List<String> explicitPluginIds,
     required ArgResults? argResults,
   }) {
-    final activeIds = <String>{...explicitPluginIds};
-
-    // 1. Add defaults from config if not explicitly muted
-    for (final plugin in registry.plugins) {
-      final configKey = plugin.configKey;
-      if (configKey != null) {
-        // Check if enabled by default in .zfa.json
-        final isDefault = _getConfigValue(configKey) ?? false;
-
-        // Check if explicitly muted via --no-plugin_id
-        final isMuted =
-            argResults != null &&
-            argResults.wasParsed(plugin.id) &&
-            argResults[plugin.id] == false;
-
-        if (isDefault && !isMuted) {
-          activeIds.add(plugin.id);
-        }
-      }
-    }
-
-    // 2. Filter out any plugin that is explicitly muted via --no-flag
-    if (argResults != null) {
-      activeIds.removeWhere((id) {
-        return argResults.wasParsed(id) && argResults[id] == false;
-      });
-    }
-
-    // 3. Filter out disabled plugins from PluginConfig
-    if (pluginConfig != null) {
-      activeIds.removeWhere((id) => pluginConfig!.disabled.contains(id));
-    }
-
-    final activePlugins = activeIds
-        .map((id) => registry.getById(id))
-        .whereType<ZuraffaPlugin>()
-        .toList();
-
-    // 4. Sort by dependencies (DAG)
-    return registry.sortPlugins(activePlugins);
+    return resolvePlan(
+      name: argResults != null && argResults.rest.isNotEmpty
+          ? argResults.rest.first
+          : 'Generation',
+      explicitPluginIds: explicitPluginIds,
+      argResults: argResults,
+    ).activePlugins;
   }
 
   /// Builds a [PluginContext] for a set of plugins and arguments.
@@ -327,7 +318,10 @@ class PluginManager {
       return await _handleRevert(context);
     }
 
+    await _validateEntityFirstPreconditions(context, activePlugins);
+
     final allFiles = <GeneratedFile>[];
+    final startedAt = DateTime.now().toUtc();
 
     // Sort plugins by dependencies before running
     final sortedPlugins = registry.sortPlugins(activePlugins);
@@ -393,27 +387,19 @@ class PluginManager {
       for (final plugin in sortedPlugins) {
         await plugin.afterGenerate(context);
       }
-
-      // 6. Save execution plan for future revert
-      if (!context.core.dryRun && !context.core.revert) {
-        final report = EffectReport(
-          planId: 'last_run_${context.core.name}',
-          pluginId: 'manager',
-          capabilityName: 'make',
-          args: context.data,
-          changes: transaction.operations
-              .map(
-                (op) => Effect(
-                  file: op.path,
-                  action: op.type.name,
-                  previousContent: op.previousContent,
-                ),
-              )
-              .toList(),
-        );
-        await PlanStore.instance.savePlan(report, baseDir: projectRoot);
-      }
     });
+
+    if (!context.core.dryRun && !context.core.revert) {
+      final completedAt = DateTime.now().toUtc();
+      await _persistProjectMemory(
+        context: context,
+        sortedPlugins: sortedPlugins,
+        allFiles: allFiles,
+        transaction: transaction,
+        startedAt: startedAt,
+        completedAt: completedAt,
+      );
+    }
 
     if (progress != null) {
       progress.completed();
@@ -422,9 +408,131 @@ class PluginManager {
     return allFiles;
   }
 
-  bool? _getConfigValue(String key) {
-    if (config == null) return null;
-    final json = config!.toJson();
-    return json[key] as bool?;
+  Future<void> _persistProjectMemory({
+    required PluginContext context,
+    required List<ZuraffaPlugin> sortedPlugins,
+    required List<GeneratedFile> allFiles,
+    required GenerationTransaction transaction,
+    required DateTime startedAt,
+    required DateTime completedAt,
+  }) async {
+    final planId = 'last_run_${context.core.name}';
+    final pluginIds = sortedPlugins
+        .map((plugin) => plugin.id)
+        .toList(growable: false);
+    final normalizedArgs = Map<String, dynamic>.from(context.data)
+      ..['plugin_ids'] = pluginIds
+      ..['execution_order'] = pluginIds
+      ..['output_dir'] = _normalizeProjectPath(context.core.outputDir);
+
+    final report = EffectReport(
+      planId: planId,
+      pluginId: 'manager',
+      capabilityName: 'make',
+      args: normalizedArgs,
+      changes: transaction.operations
+          .map(
+            (operation) => Effect(
+              file: _normalizeProjectPath(operation.path),
+              action: operation.type.name,
+              previousContent: operation.previousContent,
+            ),
+          )
+          .toList(growable: false),
+    );
+    await PlanStore.instance.savePlan(report, baseDir: projectRoot);
+
+    // Save run artifact
+    final runStore = RunStore(projectRoot: projectRoot);
+    await runStore.save(
+      RunArtifact(
+        name: context.core.name,
+        timestamp: startedAt,
+        duration: completedAt.difference(startedAt),
+        success: true,
+        files: allFiles,
+        errors: [],
+        warnings: [],
+        options: normalizedArgs,
+      ),
+    );
+
+    // Save project context
+    final contextStore = ProjectContextStore(projectRoot: projectRoot);
+    await contextStore.save(ProjectContextStore.defaultContext());
+  }
+
+  String _normalizeProjectPath(String value) {
+    if (value.isEmpty) {
+      return value;
+    }
+    return path.isAbsolute(value)
+        ? path.relative(value, from: projectRoot)
+        : value;
+  }
+
+  Future<void> _validateEntityFirstPreconditions(
+    PluginContext context,
+    List<ZuraffaPlugin> activePlugins,
+  ) async {
+    final methods = switch (context.data['methods']) {
+      List<dynamic> values =>
+        values
+            .map((value) => value.toString().trim())
+            .where((value) => value.isNotEmpty)
+            .toList(growable: false),
+      String value =>
+        value
+            .split(',')
+            .map((item) => item.trim())
+            .where((item) => item.isNotEmpty)
+            .toList(growable: false),
+      _ => const <String>[],
+    };
+    final noEntity = context.data['no-entity'] == true;
+    final entityAwarePlugins = {
+      'usecase',
+      'repository',
+      'datasource',
+      'view',
+      'presenter',
+      'controller',
+      'state',
+      'route',
+      'mock',
+      'cache',
+      'test',
+    };
+
+    final requiresEntity =
+        config?.entityFirst == true &&
+        !noEntity &&
+        methods.isNotEmpty &&
+        activePlugins.any((plugin) => entityAwarePlugins.contains(plugin.id));
+
+    if (!requiresEntity) {
+      return;
+    }
+
+    final entitySnake = GeneratorConfig(
+      name: context.core.name,
+      outputDir: context.core.outputDir,
+    ).nameSnake;
+    final entityPath = path.join(
+      context.core.outputDir,
+      'domain',
+      'entities',
+      entitySnake,
+      '$entitySnake.dart',
+    );
+
+    if (await context.fileSystem.exists(entityPath)) {
+      return;
+    }
+
+    throw StateError(
+      'Entity "${context.core.name}" not found at $entityPath. '
+      'Create it first with `zfa entity create -n ${context.core.name}` and then run `zfa build`.',
+    );
   }
 }

@@ -19,11 +19,7 @@ class CreateProviderCapability implements ZuraffaCapability {
     'type': 'object',
     'properties': {
       'name': {'type': 'string', 'description': 'Name of the provider'},
-      'outputDir': {
-        'type': 'string',
-        'description': 'Directory to output the file',
-        'default': 'lib/src',
-      },
+
       'domain': {
         'type': 'string',
         'description': 'Domain folder for the provider',
@@ -43,7 +39,7 @@ class CreateProviderCapability implements ZuraffaCapability {
       'data': {
         'type': 'boolean',
         'description': 'Generate data layer dependencies',
-        'default': true,
+        'default': false,
       },
       'dryRun': {
         'type': 'boolean',
@@ -106,12 +102,12 @@ class CreateProviderCapability implements ZuraffaCapability {
     required bool dryRun,
   }) async {
     final name = args['name'];
-    final outputDir = args['outputDir'] ?? 'lib/src';
+    final outputDir = plugin.outputDir;
     final domain = args['domain'];
     final paramsType = args['params'];
     final returnsType = args['returns'];
     final useCaseType = args['type'] ?? 'usecase';
-    final generateData = args['data'] ?? true;
+    final generateData = args['data'] ?? false;
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
 

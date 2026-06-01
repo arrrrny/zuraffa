@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 import 'package:args/command_runner.dart';
 import '../config/zfa_config.dart';
 import '../cli/plugin_loader.dart';
@@ -10,11 +12,29 @@ import '../models/generated_file.dart';
 /// Usage: `zfa make <Name> <plugin1> <plugin2> ... [flags]`
 /// Example: `zfa make User route di --force`
 class MakeCommand extends Command<void> {
+  static const String fixedOutputDir = 'lib/src';
+  static const Set<String> _ignoredJsonOptionKeys = {
+    'domainRoot',
+    'domain-root',
+    'domain_root',
+    'domainOutput',
+    'domain-output',
+    'domain_output',
+    'entityOutput',
+    'entity-output',
+    'entity_output',
+    'output',
+    'output-dir',
+    'output_dir',
+    'useZorphy',
+    'zorphy',
+  };
+
   final PluginRegistry registry;
   late final PluginManager manager;
 
   MakeCommand(this.registry) {
-    final projectRoot = _findProjectRoot('lib/src');
+    final projectRoot = _findProjectRoot();
     manager = PluginManager(
       registry: registry,
       config: ZfaConfig.load(projectRoot: projectRoot),
@@ -25,7 +45,7 @@ class MakeCommand extends Command<void> {
     _addPluginOptions();
   }
 
-  String _findProjectRoot(String outputDir) {
+  String _findProjectRoot() {
     var dir = Directory.current.path;
     while (dir != Directory(dir).parent.path) {
       if (File('$dir/pubspec.yaml').existsSync()) {
@@ -40,8 +60,9 @@ class MakeCommand extends Command<void> {
     argParser.addOption(
       'output',
       abbr: 'o',
-      help: 'Output directory for generated files',
-      defaultsTo: 'lib/src',
+      help:
+          'Output directory for generated files (fixed to lib/src in v5; custom values are ignored)',
+      defaultsTo: fixedOutputDir,
     );
     argParser.addFlag(
       'dry-run',
@@ -64,6 +85,34 @@ class MakeCommand extends Command<void> {
       'revert',
       negatable: false,
       help: 'Revert generated files (delete them)',
+    );
+    argParser.addOption(
+      'format',
+      help: 'Output format: text, json',
+      defaultsTo: 'text',
+    );
+    argParser.addOption(
+      'from-json',
+      abbr: 'j',
+      help: 'JSON configuration file',
+    );
+    argParser.addFlag(
+      'from-stdin',
+      negatable: false,
+      help: 'Read JSON configuration from stdin',
+    );
+    argParser.addOption('preset', help: 'Generation preset to expand');
+    argParser.addMultiOption('with', help: 'Additional plugins or aliases');
+    argParser.addMultiOption('without', help: 'Plugins or aliases to exclude');
+    argParser.addFlag(
+      'plan',
+      negatable: false,
+      help: 'Print the normalized execution plan and exit',
+    );
+    argParser.addFlag(
+      'explain',
+      negatable: false,
+      help: 'Explain the normalized execution plan and exit',
     );
 
     argParser.addMultiOption('methods', help: 'Entity methods to generate');
@@ -118,6 +167,14 @@ class MakeCommand extends Command<void> {
       'force',
       'verbose',
       'revert',
+      'format',
+      'from-json',
+      'from-stdin',
+      'preset',
+      'with',
+      'without',
+      'plan',
+      'explain',
       'methods',
       'usecases',
       'variants',
@@ -209,37 +266,54 @@ class MakeCommand extends Command<void> {
   bool get isRevert => argResults?['revert'] == true;
 
   /// Returns the resolved output directory.
-  String get outputDir => argResults?['output'] ?? 'lib/src';
+  String get outputDir => fixedOutputDir;
 
   @override
   Future<void> run() async {
+    final jsonConfig = await _loadJsonConfig();
     final rest = argResults!.rest;
-    if (rest.isEmpty) {
+
+    if (rest.isEmpty && jsonConfig == null) {
       print('❌ Usage: zfa make <Name> <plugin1> <plugin2> ... [options]');
       print('Example: zfa make User route di');
       exit(1);
     }
 
-    final entityName = rest[0];
-    final explicitPluginIds = rest.skip(1).toList();
+    final entityName = rest.isNotEmpty
+        ? rest.first
+        : (jsonConfig?['name']?.toString() ?? '');
+    if (entityName.isEmpty) {
+      print('❌ Missing required feature/entity name.');
+      exit(1);
+    }
 
-    // 1. Resolve active plugins (Config defaults + Explicit + Muting)
-    final activePlugins = manager.resolveActivePlugins(
+    final explicitPluginIds = rest.skip(1).toList();
+    final normalizedOptions = _normalizedOptions(jsonConfig);
+    final plan = manager.resolvePlan(
+      name: entityName,
       explicitPluginIds: explicitPluginIds,
       argResults: argResults!,
+      options: normalizedOptions,
     );
 
+    if (argResults?['plan'] == true || argResults?['explain'] == true) {
+      _printPlan(plan);
+      return;
+    }
+
+    final activePlugins = plan.activePlugins;
     if (activePlugins.isEmpty) {
       print('❌ No active plugins to run.');
       return;
     }
 
-    // 2. Build context
     final context = manager.buildContext(
       name: entityName,
       argResults: argResults!,
       activePlugins: activePlugins,
+      overrideOutputDir: fixedOutputDir,
     );
+    context.data.addAll(normalizedOptions);
 
     if (context.core.verbose) {
       print(
@@ -247,10 +321,9 @@ class MakeCommand extends Command<void> {
       );
     }
 
-    // 3. Run lifecycle
     try {
       final files = await manager.run(context, activePlugins);
-      _logSummary(files, context.core.verbose);
+      _logSummary(files, context.core.verbose, plan: plan);
     } catch (e) {
       print('❌ Generation failed: $e');
       if (context.core.verbose) {
@@ -259,10 +332,91 @@ class MakeCommand extends Command<void> {
       exit(1);
     }
 
-    print('✅ Done.');
+    if (argResults?['format'] != 'json') {
+      print('✅ Done.');
+    }
   }
 
-  void _logSummary(List<GeneratedFile> files, bool verbose) {
+  Future<Map<String, dynamic>?> _loadJsonConfig() async {
+    try {
+      if (argResults?['from-stdin'] == true) {
+        final input = await stdin.transform(utf8.decoder).join();
+        if (input.trim().isEmpty) return null;
+        return jsonDecode(input) as Map<String, dynamic>;
+      }
+
+      final fromJson = argResults?['from-json'] as String?;
+      if (fromJson == null || fromJson.isEmpty) {
+        return null;
+      }
+
+      final file = File(fromJson);
+      if (!file.existsSync()) {
+        throw StateError('JSON file not found: $fromJson');
+      }
+      return jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+    } catch (e) {
+      print('❌ Error parsing JSON input: $e');
+      exit(1);
+    }
+  }
+
+  Map<String, dynamic> _normalizedOptions(Map<String, dynamic>? jsonConfig) {
+    final normalized = <String, dynamic>{};
+    if (jsonConfig == null) {
+      return normalized;
+    }
+
+    jsonConfig.forEach((key, value) {
+      final normalizedKey = key.replaceAll('_', '-');
+      if (_ignoredJsonOptionKeys.contains(key) ||
+          _ignoredJsonOptionKeys.contains(normalizedKey)) {
+        return;
+      }
+      normalized[normalizedKey] = value;
+      normalized[key] = value;
+    });
+
+    return normalized;
+  }
+
+  void _printPlan(dynamic plan) {
+    if (argResults?['format'] == 'json') {
+      print(jsonEncode({'success': true, 'plan': plan.toJson()}));
+      return;
+    }
+
+    print('🧭 Normalized plan for ${plan.name}:');
+    if (plan.preset != null) {
+      print('  Preset: ${plan.preset}');
+    }
+    print('  Requested: ${plan.requestedPluginIds.join(', ')}');
+    print('  Resolved: ${plan.pluginIds.join(', ')}');
+    if (plan.warnings.isNotEmpty) {
+      print('  Warnings:');
+      for (final warning in plan.warnings) {
+        print('    - $warning');
+      }
+    }
+  }
+
+  void _logSummary(
+    List<GeneratedFile> files,
+    bool verbose, {
+    required dynamic plan,
+  }) {
+    if (argResults?['format'] == 'json') {
+      print(
+        jsonEncode({
+          'success': true,
+          'plan': plan.toJson(),
+          'files': files.map((file) => file.toJson()).toList(),
+          'warnings': plan.warnings,
+        }),
+      );
+      return;
+    }
+
     if (files.isEmpty) {
       print('ℹ️  No files generated.');
       return;

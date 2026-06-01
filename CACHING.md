@@ -15,7 +15,7 @@ Zuraffa's caching strategy uses the **Dual DataSource Pattern**:
 
 ```bash
 # Generate with daily cache policy
-zfa generate Product \
+zfa make Product \
   --methods=get,getList \
   --repository \
   --data \
@@ -24,7 +24,7 @@ zfa generate Product \
   --cache-storage=hive
 
 # Or use app restart policy (cache valid only during app session)
-zfa generate Product \
+zfa make Product \
   --methods=get,getList \
   --repository \
   --data \
@@ -437,11 +437,11 @@ void main() {
 
 ```bash
 # Daily cache with Hive
-zfa generate Product --methods=get,getList --repository --data --cache --cache-storage=hive
+zfa make Product --methods=get,getList --repository --data --cache --cache-storage=hive
 
 # App restart cache
-zfa generate Product --methods=get,getList --repository --data --cache --cache-policy=restart
+zfa make Product --methods=get,getList --repository --data --cache --cache-policy=restart
 
 # TTL cache (5 minutes)
-zfa generate Product --methods=get,getList --repository --data --cache --cache-policy=ttl --ttl=5
+zfa make Product --methods=get,getList --repository --data --cache --cache-policy=ttl --ttl=5
 ```
