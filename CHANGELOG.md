@@ -15,6 +15,11 @@
 
 ## [5.0.0] - 2026-06-01
 
+### Change
+- Release 5.0.0
+
+## [5.0.0] - 2026-06-01
+
 ### 🎉 Zuraffa v5 - Canonical Pipeline Release
 
 Zuraffa v5 establishes a unified, AI-first generation contract that replaces the legacy one-shot generator with a three-step canonical workflow.
