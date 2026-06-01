@@ -7,11 +7,9 @@ import '../regression/regression_test_utils.dart';
 
 void main() {
   late RegressionWorkspace workspace;
-  late String outputDir;
 
   setUp(() async {
     workspace = await createWorkspace('platform_layout_generation_test');
-    outputDir = workspace.outputDir;
     await writePubspec(workspace);
     await writeEntityStub(workspace, name: 'Product');
   });

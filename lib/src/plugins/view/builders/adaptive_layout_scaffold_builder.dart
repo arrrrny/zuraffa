@@ -55,7 +55,7 @@ class AdaptiveLayoutScaffoldBuilder {
     final files = <GeneratedFile>[];
     for (final target in targets) {
       final layoutClassName =
-          '${layoutPrefix}${_targetClassSuffix(target)}Layout';
+          '$layoutPrefix${_targetClassSuffix(target)}Layout';
       final filePath = path.join(
         layoutDir,
         '${baseName}_${target}_layout.dart',
@@ -208,12 +208,12 @@ class $layoutClassName extends StatelessWidget {
       title: '$title',
       body: KeyedSubtree(
         key: ValueKey('${target}_layout_
-${controllerName}'),
+$controllerName'),
         child: ControlledWidgetBuilder<$controllerName>(
           builder: (context, _) {
             return Center(
               child: Text(
-                'TODO: Implement ${title} ${target} layout',
+                'TODO: Implement $title $target layout',
                 textAlign: TextAlign.center,
               ),
             );

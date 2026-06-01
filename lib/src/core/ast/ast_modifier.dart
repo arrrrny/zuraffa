@@ -383,9 +383,7 @@ class AstModifier {
     bool format = true,
   }) {
     final result =
-        source.substring(0, rightBracketOffset) +
-        '\n$content$suffix\n' +
-        source.substring(rightBracketOffset);
+        '${source.substring(0, rightBracketOffset)}\n$content$suffix\n${source.substring(rightBracketOffset)}';
     return format ? _formatSafe(result) : result;
   }
 

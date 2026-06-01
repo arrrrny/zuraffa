@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:meta/meta.dart';
 
 import 'device_class.dart';
 import 'platform_class.dart';
@@ -33,7 +32,7 @@ class PlatformContext {
 
   String get deviceKey => deviceClass.layoutKey;
 
-  String get compoundKey => '${platformKey}_${deviceKey}';
+  String get compoundKey => '${platformKey}_$deviceKey';
 
   @override
   String toString() =>
