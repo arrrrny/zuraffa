@@ -53,10 +53,10 @@ The extension is already added as a git submodule:
 
 ```bash
 # Generate a Product entity with CRUD
-speckit.zuraffa.generate Product --methods=get,getList,create,update,delete --vpcs --state
+speckit.zuraffa.generate Product --methods=get,getList,create,update,delete --with=vpc --state --state
 
 # Scaffold a full feature
-speckit.zuraffa.feature scaffold Product --vpcs --di --test
+speckit.zuraffa.feature scaffold Product --with=vpc --state --di --test
 
 # Get help for a command
 speckit.zuraffa.generate --help

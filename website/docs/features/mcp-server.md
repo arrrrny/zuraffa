@@ -32,7 +32,7 @@ zuraffa_mcp_server
 
 ## Available tools
 
-### `zuraffa_generate`
+### `zuraffa_make`
 
 This tool should follow the same v5 contract as the CLI docs:
 
@@ -41,7 +41,7 @@ This tool should follow the same v5 contract as the CLI docs:
 - treat `zfa feature scaffold` as wrapper syntax, not the primary public workflow
 - finish with `zfa build` when generation changes require it
 
-### `entity_create`
+### `zuraffa_entity_create`
 
 Use this for Zorphy entity creation under the fixed v5 entity path:
 

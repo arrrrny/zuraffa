@@ -20,6 +20,16 @@ Zuraffa v5 teaches one canonical generation workflow:
 - **Deterministic planning** via presets, aliases, and normalized execution plans.
 - **Project memory surfaces** through `.zfa.json` defaults and the canonical `.zfa/` model.
 
+### Pipeline-first rule for agents
+
+When an agent is asked to build a feature, it should go through the Zuraffa pipeline:
+
+1. `zfa entity create`
+2. `zfa make`
+3. `zfa build`
+
+That pipeline establishes the architecture skeleton first. Only then should the agent fill in narrow implementation details like datasource logic, styling, shell composition, or other hand-authored business behavior.
+
 ---
 
 ## Quick Start
@@ -97,3 +107,4 @@ During the migration period, some internals may still reference older storage pa
 - [Entity Generation](./entities/intro)
 - [Migration Guide: v4 → v5](./guides/migration-v4-to-v5)
 - [MCP Server](./features/mcp-server)
+- [Adaptive Layouts](./features/adaptive-layouts)

@@ -51,7 +51,7 @@ After implementation, verify by:
 
 1. Generate a complete feature for a project named `zik_zak`:
    ```bash
-   zfa generate ChatSession --methods=get,getList,create,update,delete --data --vpcs --state --di
+   zfa make ChatSession --methods=get,getList,create,update,delete --data --with=vpc --state --state --di
    ```
 
 2. Check all generated files contain zero `package:app/` or `package:zik_zak/` imports

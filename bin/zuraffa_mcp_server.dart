@@ -242,7 +242,7 @@ class ZuraffaMcpServer {
   /// List available tools
   Map<String, dynamic> _listTools(dynamic id) {
     final tools = [
-      _generateToolDefinition(),
+      _makeToolDefinition(),
       _schemaToolDefinition(),
       _validateToolDefinition(),
       _entityCreateToolDefinition(),
@@ -286,11 +286,12 @@ class ZuraffaMcpServer {
     };
   }
 
-  /// Generate tool definition
-  Map<String, dynamic> _generateToolDefinition() {
+  /// Canonical v5 generation tool definition
+  Map<String, dynamic> _makeToolDefinition() {
     return {
-      'name': 'zuraffa_generate',
-      'description': '''Generate Clean Architecture code for an ENTITY.
+      'name': 'zuraffa_make',
+      'description':
+          '''Generate Clean Architecture code for an ENTITY via the canonical v5 pipeline.
 
 ⚠️ IMPORTANT: The "name" parameter is the ENTITY NAME, not a UseCase name.
 
@@ -340,10 +341,15 @@ All v5 generation uses the fixed lib/src and lib/src/domain layout.''',
             'description':
                 'CRUD methods to generate. Each method generates a UseCase: get=GetOne, getList=GetAll, create=Insert, update=Modify, delete=Remove, watch=StreamOne, watchList=StreamAll',
           },
-          'vpcs': {
+          'preset': {
+            'type': 'string',
+            'description':
+                'Optional v5 preset such as crud, feature, adaptive-feature, or read-only',
+          },
+          'vpc': {
             'type': 'boolean',
             'description':
-                'Generate View + Presenter + Controller + State (presentation layer)',
+                'Generate View + Presenter + Controller (presentation layer)',
           },
           'pc': {
             'type': 'boolean',
@@ -584,8 +590,8 @@ All v5 generation uses the fixed lib/src and lib/src/domain layout.''',
       String result;
 
       switch (toolName) {
-        case 'zuraffa_generate':
-          result = await _runGenerateCommand(args);
+        case 'zuraffa_make':
+          result = await _runMakeCommand(args);
           break;
         case 'zuraffa_schema':
           result = await _runSchemaCommand();
@@ -1084,9 +1090,9 @@ May take 30-60 seconds depending on project size.''',
     return await _runZuraffaProcess(cliArgs);
   }
 
-  /// Run the generate command
-  Future<String> _runGenerateCommand(Map<String, dynamic> args) async {
-    final List<String> cliArgs = ['generate', args['name'] as String];
+  /// Run the canonical v5 make command
+  Future<String> _runMakeCommand(Map<String, dynamic> args) async {
+    final List<String> cliArgs = ['make', args['name'] as String];
 
     // Entity-based options
     if (args['methods'] != null) {
@@ -1095,9 +1101,10 @@ May take 30-60 seconds depending on project size.''',
         cliArgs.add('--methods=${methods.join(',')}');
       }
     }
-    if (args['vpc'] == true) cliArgs.add('--vpcs');
+    if (args['preset'] != null) cliArgs.add('--preset=${args['preset']}');
+    if (args['vpc'] == true) cliArgs.add('--with=vpc');
     if (args['state'] == true) cliArgs.add('--state');
-    if (args['data'] == true) cliArgs.add('--data');
+    if (args['data'] == true) cliArgs.add('--with=data');
     if (args['datasource'] == true) cliArgs.add('--datasource');
     if (args['init'] == true) cliArgs.add('--init');
     if (args['id_field'] != null) {

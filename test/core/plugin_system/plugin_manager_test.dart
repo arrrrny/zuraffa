@@ -29,65 +29,73 @@ void main() {
     }
   });
 
-  test('applies plugin defaults from .zfa.json and honors disabled plugins', () async {
-    await ZfaConfig.save(
-      ZfaConfig(
-        pluginDefaults: const {'repository': true, 'di': true, 'route': true},
-        disabledPlugins: const {'route'},
-      ),
-      projectRoot: tempDir.path,
-    );
-
-    final registry = PluginRegistry()
-      ..registerAll([
-        _FakePlugin('repository'),
-        _FakePlugin('di', configKey: 'diByDefault'),
-        _FakePlugin('route', configKey: 'routeByDefault'),
-      ]);
-
-    final manager = PluginManager(
-      registry: registry,
-      config: ZfaConfig.load(projectRoot: tempDir.path),
-      pluginConfig: PluginConfig.load(projectRoot: tempDir.path),
-      projectRoot: tempDir.path,
-    );
-
-    final plan = manager.resolvePlan(name: 'Product');
-
-    expect(plan.pluginIds, equals(['repository', 'di']));
-  });
-
-  test('fails fast when entity-first generation is requested without an entity', () async {
-    final registry = PluginRegistry()..register(_NoopFilePlugin('usecase'));
-    final manager = PluginManager(
-      registry: registry,
-      config: ZfaConfig(),
-      projectRoot: tempDir.path,
-    );
-
-    final context = PluginContext(
-      core: CoreConfig(
-        name: 'Product',
-        projectRoot: tempDir.path,
-        outputDir: outputDir,
-        dryRun: true,
-      ),
-      discovery: DiscoveryEngine(projectRoot: tempDir.path),
-      fileSystem: FileSystem.create(root: tempDir.path),
-      data: const {'methods': ['get']},
-    );
-
-    expect(
-      () => manager.run(context, [_NoopFilePlugin('usecase')]),
-      throwsA(
-        isA<StateError>().having(
-          (error) => error.message,
-          'message',
-          contains('Create it first with `zfa entity create -n Product`'),
+  test(
+    'applies plugin defaults from .zfa.json and honors disabled plugins',
+    () async {
+      await ZfaConfig.save(
+        ZfaConfig(
+          pluginDefaults: const {'repository': true, 'di': true, 'route': true},
+          disabledPlugins: const {'route'},
         ),
-      ),
-    );
-  });
+        projectRoot: tempDir.path,
+      );
+
+      final registry = PluginRegistry()
+        ..registerAll([
+          _FakePlugin('repository'),
+          _FakePlugin('di', configKey: 'diByDefault'),
+          _FakePlugin('route', configKey: 'routeByDefault'),
+        ]);
+
+      final manager = PluginManager(
+        registry: registry,
+        config: ZfaConfig.load(projectRoot: tempDir.path),
+        pluginConfig: PluginConfig.load(projectRoot: tempDir.path),
+        projectRoot: tempDir.path,
+      );
+
+      final plan = manager.resolvePlan(name: 'Product');
+
+      expect(plan.pluginIds, equals(['repository', 'di']));
+    },
+  );
+
+  test(
+    'fails fast when entity-first generation is requested without an entity',
+    () async {
+      final registry = PluginRegistry()..register(_NoopFilePlugin('usecase'));
+      final manager = PluginManager(
+        registry: registry,
+        config: ZfaConfig(),
+        projectRoot: tempDir.path,
+      );
+
+      final context = PluginContext(
+        core: CoreConfig(
+          name: 'Product',
+          projectRoot: tempDir.path,
+          outputDir: outputDir,
+          dryRun: true,
+        ),
+        discovery: DiscoveryEngine(projectRoot: tempDir.path),
+        fileSystem: FileSystem.create(root: tempDir.path),
+        data: const {
+          'methods': ['get'],
+        },
+      );
+
+      expect(
+        () => manager.run(context, [_NoopFilePlugin('usecase')]),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('Create it first with `zfa entity create -n Product`'),
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class _FakePlugin extends ZuraffaPlugin {
@@ -121,5 +129,6 @@ class _NoopFilePlugin extends FileGeneratorPlugin {
   String get version => '1.0.0';
 
   @override
-  Future<List<GeneratedFile>> generate(GeneratorConfig config) async => const [];
+  Future<List<GeneratedFile>> generate(GeneratorConfig config) async =>
+      const [];
 }

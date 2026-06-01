@@ -111,7 +111,7 @@ ListQueryParams<Product>(
 The generator respects these flags throughout the generated code:
 
 ```bash
-zfa generate Todo --methods=get,update,delete --id-field=title --id-field-type=String
+zfa make Todo --methods=get,update,delete --id-field=title --id-field-type=String
 ```
 
 **Generated code uses the specified ID field:**
@@ -134,7 +134,7 @@ await _box.put(existing.title, updated);  // ✅ Uses title as box key
 **With default id field:**
 
 ```bash
-zfa generate Product --methods=update,delete
+zfa make Product --methods=update,delete
 ```
 
 ```dart
@@ -148,7 +148,7 @@ final existing = _box.values.firstWhere(
 The `--query-field` is used for QueryParams when you want to query by a different field:
 
 ```bash
-zfa generate Product --methods=get --query-field=sku --query-field-type=String
+zfa make Product --methods=get --query-field=sku --query-field-type=String
 ```
 
 ---

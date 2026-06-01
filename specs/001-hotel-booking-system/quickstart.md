@@ -165,7 +165,7 @@ zfa build
 # Generate complete hotel search feature with VPCS pattern
 zfa feature scaffold Hotel \
   --methods get,getList \
-  --vpcs \
+  --with=vpc --state \
   --state \
   --mock \
   --test \
@@ -178,7 +178,7 @@ zfa feature scaffold Hotel \
 # Generate room management with filtering capabilities
 zfa feature scaffold Room \
   --methods get,getList,create,update \
-  --vpcs \
+  --with=vpc --state \
   --state \
   --mock \
   --test
@@ -190,7 +190,7 @@ zfa feature scaffold Room \
 # Generate booking workflow with complete CRUD
 zfa feature scaffold Booking \
   --methods get,getList,create,update,delete \
-  --vpcs \
+  --with=vpc --state \
   --state \
   --mock \
   --test \
@@ -203,7 +203,7 @@ zfa feature scaffold Booking \
 # Generate user authentication and profile management
 zfa feature scaffold User \
   --methods get,create,update \
-  --vpcs \
+  --with=vpc --state \
   --state \
   --mock \
   --test
@@ -215,7 +215,7 @@ zfa feature scaffold User \
 # Generate review submission and display
 zfa feature scaffold Review \
   --methods get,getList,create,update \
-  --vpcs \
+  --with=vpc --state \
   --state \
   --mock \
   --test

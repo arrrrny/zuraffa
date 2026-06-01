@@ -71,7 +71,7 @@ lib/src/cache/
 
 ```bash
 # Generate with cache
-zfa generate Product --methods=get,getList --repository --data --cache --cache-policy=ttl --ttl=30 --di
+zfa make Product --methods=get,getList --repository --data --cache --cache-policy=ttl --ttl=30 --di
 ```
 
 ```dart

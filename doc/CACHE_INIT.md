@@ -34,7 +34,7 @@ The generator creates `hive_manual_additions.txt` for entities that aren't direc
 After adding entries, regenerate:
 
 ```bash
-zfa generate Product --methods=get --repository --data --cache --di --force
+zfa make Product --methods=get --repository --data --cache --di --force
 dart run build_runner build
 ```
 
@@ -103,7 +103,7 @@ void main() async {
 ## Generate Command
 
 ```bash
-zfa generate Product --methods=get,getList --repository --data --cache --di
+zfa make Product --methods=get,getList --repository --data --cache --di
 ```
 
 ## Benefits

@@ -191,6 +191,16 @@ For Zuraffa v5 projects:
 - Run `zfa build` after generation.
 - Handcraft only manual UI composition/layout zones and normal business implementation details that generation does not own.
 
+### The pipeline rule
+
+If an AI agent is asked to build a feature, it should always start by asking:
+
+1. **Does a new entity need to exist?** → use `zfa entity create`
+2. **Does the architecture skeleton need to exist or change?** → use `zfa make`
+3. **Do generated annotations/build outputs need to be finalized?** → use `zfa build`
+
+Zuraffa owns the architecture skeleton. Human or agent implementation work should narrow to the remaining business logic, datasource implementation, styling, and manual UI composition after that pipeline runs.
+
 ---
 
 ## Migration notes

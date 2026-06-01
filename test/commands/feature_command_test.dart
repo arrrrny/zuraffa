@@ -42,38 +42,42 @@ class Product {
       }
     });
 
-    test('feature scaffold resolves through the same normalized plan as make', () async {
-      final runner = CliRunner(exitOnCompletion: false);
+    test(
+      'feature scaffold resolves through the same normalized plan as make',
+      () async {
+        final runner = CliRunner(exitOnCompletion: false);
 
-      final makeOutput = await runner.runCapturing([
-        'make',
-        'Product',
-        '--preset=feature',
-        '--methods=get,update',
-        '--without=test',
-        '--plan',
-        '--format=json',
-        '--output',
-        outputDir,
-      ]);
+        final makeOutput = await runner.runCapturing([
+          'make',
+          'Product',
+          '--preset=feature',
+          '--methods=get,update',
+          '--without=test',
+          '--plan',
+          '--format=json',
+          '--output',
+          outputDir,
+        ]);
 
-      final featureOutput = await runner.runCapturing([
-        'feature',
-        'scaffold',
-        'Product',
-        '--plan',
-        '--format=json',
-        '--output',
-        outputDir,
-      ]);
+        final featureOutput = await runner.runCapturing([
+          'feature',
+          'scaffold',
+          'Product',
+          '--plan',
+          '--format=json',
+          '--output',
+          outputDir,
+        ]);
 
-      final makePlan = (jsonDecode(makeOutput) as Map<String, dynamic>)['plan']
-          as Map<String, dynamic>;
-      final featurePlan =
-          (jsonDecode(featureOutput) as Map<String, dynamic>)['plan']
-              as Map<String, dynamic>;
+        final makePlan =
+            (jsonDecode(makeOutput) as Map<String, dynamic>)['plan']
+                as Map<String, dynamic>;
+        final featurePlan =
+            (jsonDecode(featureOutput) as Map<String, dynamic>)['plan']
+                as Map<String, dynamic>;
 
-      expect(featurePlan, equals(makePlan));
-    });
+        expect(featurePlan, equals(makePlan));
+      },
+    );
   });
 }

@@ -89,7 +89,7 @@
 
 ### Implementation for User Story 1
 
-- [ ] T027 [US1] Generate Hotel feature scaffold using `zfa feature scaffold Hotel --methods get,getList --vpcs --state --mock --cache`
+- [ ] T027 [US1] Generate Hotel feature scaffold using `zfa feature scaffold Hotel --methods get,getList --with=vpc --state --state --mock --cache`
 - [ ] T028 [US1] Generate search-specific use cases using `zfa usecase create --name SearchHotelsByDestination --domain search --params SearchRequest --returns List<Hotel> --repo HotelRepository`
 - [ ] T029 [US1] Generate destination autocomplete use case using `zfa usecase create --name GetDestinationSuggestions --domain search --params String --returns List<String> --repo HotelRepository`
 - [ ] T030 [US1] Generate search filters use case using `zfa usecase create --name ApplySearchFilters --domain search --params FilterRequest --returns List<Hotel> --repo HotelRepository`
@@ -118,7 +118,7 @@
 
 ### Implementation for User Story 2
 
-- [ ] T037 [US2] Generate Review feature scaffold using `zfa feature scaffold Review --methods get,getList --vpcs --state --mock`
+- [ ] T037 [US2] Generate Review feature scaffold using `zfa feature scaffold Review --methods get,getList --with=vpc --state --state --mock`
 - [ ] T038 [US2] Generate hotel detail view using `zfa view create --name HotelDetailView --state --di`
 - [ ] T039 [US2] Generate get hotel details use case with related room information
 - [ ] T040 [US2] Generate get hotel reviews use case with filtering and pagination
@@ -149,7 +149,7 @@
 
 ### Implementation for User Story 3
 
-- [ ] T049 [US3] Generate Booking feature scaffold using `zfa feature scaffold Booking --methods get,create,update --vpcs --state --mock`
+- [ ] T049 [US3] Generate Booking feature scaffold using `zfa feature scaffold Booking --methods get,create,update --with=vpc --state --state --mock`
 - [ ] T050 [US3] Generate room availability check use case using `zfa usecase create --name CheckRoomAvailability --domain booking --params AvailabilityRequest --returns RoomAvailability --repo RoomRepository`
 - [ ] T051 [US3] Generate booking creation use case using `zfa usecase create --name CreateBooking --domain booking --params BookingRequest --returns BookingConfirmation --repo BookingRepository`
 - [ ] T052 [US3] Generate payment processing use case using `zfa usecase create --name ProcessPayment --domain payment --params PaymentRequest --returns PaymentResult --repo PaymentRepository`
@@ -184,7 +184,7 @@
 
 ### Implementation for User Story 5
 
-- [ ] T060 [US5] Generate User feature scaffold using `zfa feature scaffold User --methods get,create,update --vpcs --state --mock`
+- [ ] T060 [US5] Generate User feature scaffold using `zfa feature scaffold User --methods get,create,update --with=vpc --state --state --mock`
 - [ ] T061 [P] [US5] Generate authentication mock provider using `zfa mock create --name AuthMockProvider --domain auth --service AuthService`
 - [ ] T062 [US5] Generate user registration and login use cases
 - [ ] T063 [US5] Generate booking history and management use cases
