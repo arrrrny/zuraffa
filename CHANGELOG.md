@@ -1,5 +1,10 @@
 ## [5.1.0] - 2026-06-06
 
+### Change
+- Release 5.1.0
+
+## [5.1.0] - 2026-06-06
+
 ### Added
 
 - **JSON mock data generation** (`zfa mock json`): generates standalone JSON files with mock entity data using `fromJson`-based Dart helpers for fast prototyping without code changes
