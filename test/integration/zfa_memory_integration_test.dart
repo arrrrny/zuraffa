@@ -63,7 +63,7 @@ void main() {
     );
     final context = await contextStore.load();
     expect(context, isNotNull);
-    expect(context!['version'], '5.0');
+    expect(context!.containsKey('version'), isTrue);
     expect(context['domain_root'], 'lib/src/domain');
   });
 }

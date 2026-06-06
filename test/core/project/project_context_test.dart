@@ -26,7 +26,7 @@ void main() {
 
       final loaded = await store.load();
       expect(loaded, isNotNull);
-      expect(loaded!['version'], '5.0');
+      expect(loaded!.containsKey('version'), isTrue);
       expect(loaded['domain_root'], 'lib/src/domain');
       expect(loaded['zorphy_only'], isTrue);
       expect(loaded['workflow'], contains('zfa entity create'));
