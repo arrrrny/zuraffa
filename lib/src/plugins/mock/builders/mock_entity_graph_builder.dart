@@ -83,6 +83,101 @@ class MockEntityGraphBuilder {
     return files;
   }
 
+  Future<List<String>> generateNestedEntityJsonNames({
+    required String entityName,
+    required Map<String, String> entityFields,
+  }) async {
+    final nestedNames = <String>{};
+    final processed = <String>{entityName};
+
+    final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
+      entityName,
+      outputDir,
+      fileSystem: fileSystem,
+    );
+
+    for (final subtype in subtypes) {
+      if (processed.add(subtype)) {
+        nestedNames.add(subtype);
+        final subtypeFields = EntityAnalyzer.analyzeEntity(
+          subtype,
+          outputDir,
+          fileSystem: fileSystem,
+        );
+        await _collectNestedEntityNames(subtypeFields, nestedNames, processed);
+      }
+    }
+
+    await _collectNestedEntityNames(entityFields, nestedNames, processed);
+    return nestedNames.toList();
+  }
+
+  Future<void> _collectNestedEntityNames(
+    Map<String, String> fields,
+    Set<String> nestedNames,
+    Set<String> processed,
+  ) async {
+    for (final entry in fields.entries) {
+      final fieldType = entry.value;
+      final baseTypes = entityHelper.extractEntityTypesFromField(fieldType);
+
+      for (final baseType in baseTypes) {
+        if (baseType.isNotEmpty &&
+            baseType[0] == baseType[0].toUpperCase() &&
+            ![
+              'String',
+              'int',
+              'double',
+              'bool',
+              'DateTime',
+              'Object',
+              'dynamic',
+            ].contains(baseType) &&
+            processed.add(baseType)) {
+          final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
+            baseType,
+            outputDir,
+            fileSystem: fileSystem,
+          );
+          if (subtypes.isNotEmpty) {
+            for (final subtype in subtypes) {
+              if (processed.add(subtype)) {
+                nestedNames.add(subtype);
+              }
+            }
+          } else {
+            final isEnum = EntityAnalyzer.isEnum(
+              baseType,
+              outputDir,
+              fileSystem: fileSystem,
+            );
+            if (!isEnum &&
+                EntityAnalyzer.entityFileExists(
+                  baseType,
+                  outputDir,
+                  fileSystem: fileSystem,
+                )) {
+              nestedNames.add(baseType);
+              final nestedFields = EntityAnalyzer.analyzeEntity(
+                baseType,
+                outputDir,
+                fileSystem: fileSystem,
+              );
+              if (nestedFields.isNotEmpty &&
+                  !entityHelper.isDefaultFields(nestedFields)) {
+                await _collectNestedEntityNames(
+                  nestedFields,
+                  nestedNames,
+                  processed,
+                );
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
   Future<void> _collectAndGenerateNestedEntities(
     Map<String, String> fields,
     List<GeneratedFile> files,

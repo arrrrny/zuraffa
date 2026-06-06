@@ -16,6 +16,7 @@ import '../method_append/capabilities/inject_capability.dart';
 import '../method_append/capabilities/method_capability.dart';
 import 'builders/mock_builder.dart';
 import 'capabilities/create_mock_capability.dart';
+import 'capabilities/json_mock_capability.dart';
 
 /// Manages mock data and provider generation for testing.
 class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
@@ -49,6 +50,7 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   @override
   List<ZuraffaCapability> get capabilities => [
     CreateMockCapability(this),
+    JsonMockCapability(this),
     MethodCapability(
       this,
       methodAppendBuilder: methodAppendBuilder,
@@ -81,6 +83,11 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         'default': false,
         'description': 'Only generate mock data, not providers',
       },
+      'mock-json': {
+        'type': 'boolean',
+        'default': false,
+        'description': 'Generate JSON mock data with fromJson-based helpers',
+      },
     },
   };
 
@@ -98,6 +105,8 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       repo: context.data['repo'],
       generateMock: true,
       generateMockDataOnly: context.get<bool>('mock-data-only') ?? false,
+      generateMockJson: context.get<bool>('mock-json') ?? false,
+      mockJsonDomain: context.data['mock-json-domain'],
       noEntity: context.data['no-entity'] == true,
       generateData: context.data['data'] == true,
       generateDataSource: context.data['datasource'] == true,

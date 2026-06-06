@@ -105,7 +105,6 @@ class EntityAnalyzer {
   }) {
     final fs = fileSystem ?? const DefaultFileSystem();
     final typeSnake = StringUtils.camelToSnake(typeName);
-    // Check in enums/ directory first (index.dart or specific file)
     final enumDir = p.join(outputDir, 'domain', 'entities', 'enums');
     final indexFile = p.join(enumDir, 'index.dart');
     if (fs.existsSync(indexFile)) {
@@ -119,7 +118,6 @@ class EntityAnalyzer {
       return content.contains('enum $typeName');
     }
 
-    // Check in entities/ directory (legacy or direct)
     final entityPath = p.join(
       outputDir,
       'domain',
@@ -133,6 +131,44 @@ class EntityAnalyzer {
     }
 
     return false;
+  }
+
+  static List<String> getEnumValues(
+    String enumName,
+    String outputDir, {
+    FileSystem? fileSystem,
+  }) {
+    final fs = fileSystem ?? const DefaultFileSystem();
+    final typeSnake = StringUtils.camelToSnake(enumName);
+
+    final pathsToCheck = <String>[
+      p.join(outputDir, 'domain', 'entities', 'enums', 'index.dart'),
+      p.join(outputDir, 'domain', 'entities', 'enums', '$typeSnake.dart'),
+      p.join(outputDir, 'domain', 'entities', typeSnake, '$typeSnake.dart'),
+    ];
+
+    for (final path in pathsToCheck) {
+      if (fs.existsSync(path)) {
+        final content = fs.readSync(path);
+        if (content.contains('enum $enumName')) {
+          final valuesMatch = RegExp(
+            r'enum\s+' + RegExp.escape(enumName) + r'\s*\{([^}]+)\}',
+            dotAll: true,
+          ).firstMatch(content);
+
+          if (valuesMatch != null) {
+            final body = valuesMatch.group(1)!;
+            return RegExp(r'(\w+)')
+                .allMatches(body)
+                .map((m) => m.group(1)!)
+                .where((v) => v != enumName && !v.startsWith('_'))
+                .toList();
+          }
+        }
+      }
+    }
+
+    return <String>[];
   }
 
   static List<String> _parseSuperTypes(

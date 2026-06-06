@@ -97,6 +97,7 @@ class ZfaConfig {
   bool get diByDefault => isPluginEnabledByDefault('di');
   bool get routeByDefault => isPluginEnabledByDefault('route');
   bool get mockByDefault => isPluginEnabledByDefault('mock');
+  bool get mockJsonByDefault => isPluginEnabledByDefault('mock');
   bool get testByDefault => isPluginEnabledByDefault('test');
   bool get gqlByDefault => isPluginEnabledByDefault('gql');
   bool get graphqlByDefault => isPluginEnabledByDefault('graphql');
