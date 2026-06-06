@@ -8,7 +8,11 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PACKAGE_DIR="$(dirname "$SCRIPT_DIR")"
-PUB_BIN="$HOME/.pub-cache/bin"
+# NOTE: Do NOT install compiled binaries into ~/.pub-cache/bin/
+# That directory is managed by `dart pub global activate` which reads every
+# file as UTF-8 text. A native compiled binary there causes pub to crash with
+# "Failed to decode data using encoding utf-8" on ANY project sharing the cache.
+INSTALL_DIR="${ZURAFFA_BIN:-$HOME/.local/bin}"
 
 echo "🔄 Rebuilding ZFA..."
 
@@ -58,10 +62,10 @@ cd "$PACKAGE_DIR"
 dart pub get
 
 # Create the pub bin directory if it doesn't exist
-mkdir -p "$PUB_BIN"
+mkdir -p "$INSTALL_DIR"
 
 # Remove existing binaries to prevent UTF-8 decode errors during activation
-rm -f "$PUB_BIN/zfa" "$PUB_BIN/zuraffa_mcp_server" 2>/dev/null || true
+rm -f "$INSTALL_DIR/zfa" "$INSTALL_DIR/zuraffa_mcp_server" 2>/dev/null || true
 
 # Activate the package globally
 echo "🌍 Activating package globally..."
@@ -74,24 +78,24 @@ echo "🔨 Compiling zfa CLI to executable..."
 mkdir -p "$PACKAGE_DIR/build"
 
 if dart build cli --target=bin/zfa.dart -o "$PACKAGE_DIR/build/zfa_bundle"; then
-    cp "$PACKAGE_DIR/build/zfa_bundle/bundle/bin/zfa" "$PUB_BIN/zfa"
+    cp "$PACKAGE_DIR/build/zfa_bundle/bundle/bin/zfa" "$INSTALL_DIR/zfa"
 else
     echo "  ⚠️  dart build cli failed, attempting dart compile exe..."
-    dart compile exe bin/zfa.dart -o "$PUB_BIN/zfa"
+    dart compile exe bin/zfa.dart -o "$INSTALL_DIR/zfa"
 fi
 
 echo "🔨 Compiling zuraffa_mcp_server to executable..."
 if dart build cli --target=bin/zuraffa_mcp_server.dart -o "$PACKAGE_DIR/build/mcp_server_bundle"; then
-    cp "$PACKAGE_DIR/build/mcp_server_bundle/bundle/bin/zuraffa_mcp_server" "$PUB_BIN/zuraffa_mcp_server"
+    cp "$PACKAGE_DIR/build/mcp_server_bundle/bundle/bin/zuraffa_mcp_server" "$INSTALL_DIR/zuraffa_mcp_server"
 else
     echo "  ⚠️  dart build cli failed, attempting dart compile exe..."
-    dart compile exe bin/zuraffa_mcp_server.dart -o "$PUB_BIN/zuraffa_mcp_server"
+    dart compile exe bin/zuraffa_mcp_server.dart -o "$INSTALL_DIR/zuraffa_mcp_server"
 fi
 
 echo "📝 Ensuring permissions for binaries..."
-chmod +x "$PUB_BIN/zfa" 2>/dev/null || true
-chmod +x "$PUB_BIN/zuraffa" 2>/dev/null || true
-chmod +x "$PUB_BIN/zuraffa_mcp_server" 2>/dev/null || true
+chmod +x "$INSTALL_DIR/zfa" 2>/dev/null || true
+chmod +x "$INSTALL_DIR/zuraffa" 2>/dev/null || true
+chmod +x "$INSTALL_DIR/zuraffa_mcp_server" 2>/dev/null || true
 
 echo ""
 echo "✅ Rebuild complete!"
