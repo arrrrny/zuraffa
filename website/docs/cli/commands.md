@@ -20,6 +20,7 @@ The canonical workflow is:
 | `zfa make`             | Canonical architecture/code generation command |
 | `zfa feature scaffold` | Wrapper over `zfa make --preset=feature`       |
 | `zfa build`            | Run the build/codegen step                     |
+| `zfa mock`            | Generate mock data (Dart or JSON)              |
 | `zfa config`           | Manage `.zfa.json` project defaults            |
 | `zfa manifest`         | Inspect available plugins and capabilities     |
 | `zfa apply`            | Execute a previously generated plan            |
@@ -91,6 +92,7 @@ zfa make Product usecase repository datasource view presenter controller state d
 | `--di`               | Add dependency injection generation               |
 | `--test`             | Add tests                                         |
 | `--mock`             | Add mock data generation                          |
+| `--json`             | Generate JSON mock data (with --mock)            |
 | `--cache`            | Add cache generation                              |
 | `--gql`              | Add gql string generation                         |
 | `--plan`             | Print the normalized plan and exit                |
@@ -139,6 +141,44 @@ zfa feature scaffold Product --plan
 ```
 
 Prefer `zfa make` in tutorials, automation, and AI guidance.
+
+---
+
+## `zfa mock`
+
+Generate mock data for testing and prototyping. Supports Dart code generation and JSON output (v5.1.0).
+
+### Generate Dart mock data
+
+```bash
+zfa mock Product
+zfa mock data Product    # Mock data fixtures only
+```
+
+### Generate JSON mock data
+
+```bash
+zfa mock json Product
+zfa mock json Product --domain=catalog --force
+```
+
+JSON mock output:
+```
+data/mock_json/{domain}/
+├── {entity}.mock.json        # 3 mock instances
+├── {entity}.mock.json.meta   # Generation metadata
+└── {entity}_mock_json.dart   # fromJson-based helper
+```
+
+### Options
+
+| Flag         | Description                                |
+| ------------ | ------------------------------------------ |
+| `--data-only` | Generate only mock data fixtures (Dart)   |
+| `--json`     | Generate JSON mock data with fromJson helper |
+| `--force` / `-f` | Overwrite existing files               |
+| `--dry-run`  | Preview without writing files              |
+| `--verbose` / `-v` | Enable detailed logging               |
 
 ---
 

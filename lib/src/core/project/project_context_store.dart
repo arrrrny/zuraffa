@@ -63,7 +63,7 @@ class ProjectContextStore {
   /// Generates the default v5 agent contract context.
   static Map<String, dynamic> defaultContext() {
     return {
-      'version': '5.0',
+      'version': '5.1',
       'domain_root': 'lib/src/domain',
       'entity_output': 'lib/src/domain/entities',
       'zorphy_only': true,

@@ -9,6 +9,7 @@ import 'mock_data_builder.dart';
 import 'mock_datasource_builder.dart';
 import 'mock_provider_builder.dart';
 import 'mock_entity_graph_builder.dart';
+import 'mock_json_builder.dart';
 
 /// Generates mock data builders for entities and their variants.
 class MockBuilder {
@@ -19,6 +20,7 @@ class MockBuilder {
   final MockDataSourceBuilder dataSourceBuilder;
   final MockProviderBuilder providerBuilder;
   final MockEntityGraphBuilder entityGraphBuilder;
+  final MockJsonBuilder jsonBuilder;
   final FileSystem fileSystem;
 
   /// Creates a [MockBuilder].
@@ -30,6 +32,7 @@ class MockBuilder {
     MockDataSourceBuilder? dataSourceBuilder,
     MockProviderBuilder? providerBuilder,
     MockEntityGraphBuilder? entityGraphBuilder,
+    MockJsonBuilder? jsonBuilder,
     FileSystem? fileSystem,
   }) : specLibrary = specLibrary ?? const SpecLibrary(),
        fileSystem = fileSystem ?? FileSystem.create(),
@@ -63,10 +66,21 @@ class MockBuilder {
              outputDir: outputDir,
              options: options,
              fileSystem: fileSystem ?? FileSystem.create(),
+           ),
+       jsonBuilder =
+           jsonBuilder ??
+           MockJsonBuilder(
+             outputDir: outputDir,
+             options: options,
+             fileSystem: fileSystem ?? FileSystem.create(),
            );
 
   /// Generates mock files for the given [config].
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
+    if (config.generateMockJson) {
+      return jsonBuilder.generate(config);
+    }
+
     final files = <GeneratedFile>[];
 
     final targetEntity = config.isCustomUseCase && config.returnsType != null

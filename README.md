@@ -228,6 +228,27 @@ See `doc/MIGRATION_GUIDE.md` for a focused migration walkthrough.
 
 ---
 
+## Mock data & prototyping (v5.1.0)
+
+```bash
+# Generate Dart mock data
+zfa mock Product
+
+# Generate JSON mock data with fromJson-based helpers
+zfa mock json Product
+```
+
+JSON mocks produce standalone JSON files under `data/mock_json/{domain}/` and Dart helpers that load them via `fromJson`. Swap JSON content for instant prototyping without code changes or regeneration.
+
+```dart
+final products = await ProductMockJson.loadProducts();
+final sample = await ProductMockJson.loadSampleProduct();
+```
+
+See [`website/docs/features/mock-data.md`](website/docs/features/mock-data.md) for details.
+
+---
+
 ## Learn more
 
 - `CLI_GUIDE.md`

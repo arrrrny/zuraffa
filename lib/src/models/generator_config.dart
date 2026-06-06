@@ -55,6 +55,8 @@ class GeneratorConfig {
   final int? ttlMinutes;
   final bool generateMock;
   final bool generateMockDataOnly;
+  final bool generateMockJson;
+  final String? mockJsonDomain;
   final bool useMockInDi;
   final bool generateDi;
   final String diFramework;
@@ -120,6 +122,8 @@ class GeneratorConfig {
     this.ttlMinutes,
     this.generateMock = false,
     this.generateMockDataOnly = false,
+    this.generateMockJson = false,
+    this.mockJsonDomain,
     this.useMockInDi = false,
     this.generateDi = false,
     this.diFramework = 'get_it',
@@ -193,6 +197,9 @@ class GeneratorConfig {
       generateMockDataOnly:
           json['mock_data_only'] == true ||
           json['generate_mock_data_only'] == true,
+      generateMockJson:
+          json['mock_json'] == true || json['generate_mock_json'] == true,
+      mockJsonDomain: json['mock_json_domain'],
       useMockInDi: json['use_mock'] == true || json['use_mock_in_di'] == true,
       generateDi: json['di'] == true || json['generate_di'] == true,
       diFramework: json['di_framework'] ?? 'get_it',
@@ -275,6 +282,8 @@ class GeneratorConfig {
     int? ttlMinutes,
     bool? generateMock,
     bool? generateMockDataOnly,
+    bool? generateMockJson,
+    String? mockJsonDomain,
     bool? useMockInDi,
     bool? generateDi,
     String? diFramework,
@@ -335,6 +344,8 @@ class GeneratorConfig {
       ttlMinutes: ttlMinutes ?? this.ttlMinutes,
       generateMock: generateMock ?? this.generateMock,
       generateMockDataOnly: generateMockDataOnly ?? this.generateMockDataOnly,
+      generateMockJson: generateMockJson ?? this.generateMockJson,
+      mockJsonDomain: mockJsonDomain ?? this.mockJsonDomain,
       useMockInDi: useMockInDi ?? this.useMockInDi,
       generateDi: generateDi ?? this.generateDi,
       diFramework: diFramework ?? this.diFramework,
@@ -593,8 +604,9 @@ class GeneratorConfig {
     'cache_storage': cacheStorage,
     'ttl': ttlMinutes,
     'mock': generateMock,
-    'usecase': generateUseCase,
     'mock_data_only': generateMockDataOnly,
+    'mock_json': generateMockJson,
+    'mock_json_domain': mockJsonDomain,
     'use_mock': useMockInDi,
     'di': generateDi,
     'di_framework': diFramework,

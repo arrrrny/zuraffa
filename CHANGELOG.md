@@ -1,3 +1,33 @@
+## [5.1.0] - 2026-06-06
+
+### Change
+- Release 5.1.0
+
+## [5.1.0] - 2026-06-06
+
+### Added
+
+- **JSON mock data generation** (`zfa mock json`): generates standalone JSON files with mock entity data using `fromJson`-based Dart helpers for fast prototyping without code changes
+- Clean folder convention for mock JSON data: `data/mock_json/{domain}/{entity}.mock.json`
+- `JsonMockCapability` plugin capability with plan/execute interface
+- `MockJsonBuilder` with path resolution, domain auto-detection, and recursive nested entity generation
+- `MockJsonHelperBuilder` generating typed async accessors (`loadProducts()`, `loadSampleProduct()`, etc.)
+- `MockValueBuilder.generateMockValuesForJson()` heuristic value generation for JSON output
+- Polymorphic entity `_type` discriminator support in JSON output with switch-based deserialization
+- Enum value extraction via `EntityAnalyzer.getEnumValues()` for correct JSON serialization
+- Generation metadata tracking (`.mock.json.meta`) with hash comparison for non-overwrite safety
+- Field mismatch detection warning when entity fields change between generations
+- `--json` flag on `zfa mock` command and `zfa mock json <Entity>` subcommand
+- `generateMockJson` and `mockJsonDomain` fields to `GeneratorConfig`
+- `mockJsonByDefault` config key to `ZfaConfig`
+
+### Changed
+
+- `MockBuilder.generate()` delegates to `MockJsonBuilder` when `generateMockJson` is true
+- `MockPlugin` registers `JsonMockCapability` and exposes `mock-json` config schema option
+- `MockEntityGraphBuilder` supports recursive nested entity name collection for JSON generation
+- Version bumped to 5.1.0
+
 ## [5.0.1] - 2026-06-01
 
 ### Change

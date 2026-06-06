@@ -3,6 +3,7 @@ import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import '../plugins/mock/mock_plugin.dart';
 import '../plugins/mock/capabilities/create_mock_capability.dart';
+import '../plugins/mock/capabilities/json_mock_capability.dart';
 
 class MockCommand extends PluginCommand {
   @override
@@ -10,9 +11,20 @@ class MockCommand extends PluginCommand {
 
   MockCommand(this.plugin) : super(plugin) {
     addSubcommand(DataMockCommand(plugin));
+    try {
+      addSubcommand(JsonMockCommand(plugin));
+    } catch (_) {
+      // JsonMockCommand may already be registered if MockCommand is
+      // instantiated multiple times during test setup.
+    }
     argParser.addFlag(
       'data-only',
       help: 'Generate only mock data (fixtures)',
+      defaultsTo: false,
+    );
+    argParser.addFlag(
+      'json',
+      help: 'Generate JSON mock data with fromJson-based helpers',
       defaultsTo: false,
     );
     argParser.addOption('service', help: 'Service name for mock provider');
@@ -37,15 +49,43 @@ class MockCommand extends PluginCommand {
     if (argResults?.rest.isEmpty ?? true) {
       print('❌ Usage: zfa mock <EntityName> [options]');
       print('   Or: zfa mock data <EntityName> [options]');
+      print('   Or: zfa mock json <EntityName> [options]');
       return;
     }
 
     final entityName = argResults!.rest.first;
+    final useJson = argResults?['json'] as bool? ?? false;
     final dataOnly = argResults?['data-only'] as bool? ?? false;
     final service = argResults?['service'] as String?;
     final domain = argResults?['domain'] as String?;
     final params = argResults?['params'] as String?;
     final returns = argResults?['returns'] as String?;
+
+    if (useJson) {
+      final jsonCaps = plugin.capabilities.whereType<JsonMockCapability>();
+      if (jsonCaps.isEmpty) {
+        print('Failed to find JSON mock capability');
+        return;
+      }
+      final capability = jsonCaps.first;
+
+      final result = await capability.execute({
+        'name': entityName,
+        'domain': domain,
+        'dryRun': isDryRun,
+        'force': isForce,
+        'verbose': isVerbose,
+      });
+
+      if (result.success) {
+        final files =
+            result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+        logSummary(files);
+      } else {
+        print('Failed to generate JSON mock');
+      }
+      return;
+    }
 
     final capability =
         plugin.capabilities.firstWhere((c) => c is CreateMockCapability)
@@ -134,9 +174,86 @@ class DataMockCommand extends Command<void> {
     if (result.success) {
       final files =
           result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
-      // logSummary(files) - Need access to logSummary from PluginCommand
-      // Since it's not accessible here, we just print a simple success message
       print('\n✅ Mock data generation complete for: $entityName');
+      for (final file in files) {
+        if (file.action == 'created') {
+          print('  ✨ ${file.path}');
+        } else if (file.action == 'overwritten') {
+          print('  📝 ${file.path}');
+        }
+      }
+    } else {
+      print('❌ Error: ${result.message}');
+    }
+  }
+}
+
+class JsonMockCommand extends Command<void> {
+  final MockPlugin plugin;
+
+  JsonMockCommand(this.plugin) {
+    argParser.addOption(
+      'output',
+      abbr: 'o',
+      help: 'Output directory for generated files',
+      defaultsTo: 'lib/src',
+    );
+    argParser.addOption(
+      'domain',
+      abbr: 'd',
+      help: 'Domain folder for grouping JSON files',
+    );
+    argParser.addFlag(
+      'dry-run',
+      negatable: false,
+      help: 'Preview generated files without writing to disk',
+    );
+    argParser.addFlag(
+      'force',
+      abbr: 'f',
+      negatable: false,
+      help: 'Overwrite existing JSON files',
+    );
+    argParser.addFlag(
+      'verbose',
+      abbr: 'v',
+      negatable: false,
+      help: 'Enable detailed logging',
+    );
+  }
+
+  @override
+  String get name => 'json';
+
+  @override
+  String get description =>
+      'Generate JSON mock data with fromJson-based Dart helpers';
+
+  @override
+  Future<void> run() async {
+    final results = argResults;
+    if (results == null || results.rest.isEmpty) {
+      print('❌ Usage: zfa mock json <EntityName> [options]');
+      return;
+    }
+
+    final entityName = results.rest.first;
+    final capability =
+        plugin.capabilities.firstWhere((c) => c is JsonMockCapability)
+            as JsonMockCapability;
+
+    final result = await capability.execute({
+      'name': entityName,
+      'domain': results['domain'],
+      'dryRun': results['dry-run'] == true,
+      'force': results['force'] == true,
+      'verbose': results['verbose'] == true,
+    });
+
+    if (result.success) {
+      final files =
+          result.data?['generatedFiles'] as List<GeneratedFile>? ?? [];
+      print('\n✅ JSON mock data generated for: $entityName');
       for (final file in files) {
         if (file.action == 'created') {
           print('  ✨ ${file.path}');

@@ -11,6 +11,181 @@ class MockValueBuilder {
   MockValueBuilder({required this.outputDir, MockEntityHelper? entityHelper})
     : entityHelper = entityHelper ?? const MockEntityHelper();
 
+  List<Map<String, dynamic>> generateMockValuesForJson(
+    String entityName,
+    Map<String, String> fields,
+  ) {
+    final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
+      entityName,
+      outputDir,
+    );
+
+    return List.generate(3, (i) {
+      final seed = i + 1;
+      final map = _generateFieldValuesForJson(entityName, fields, seed: seed);
+
+      if (subtypes.isNotEmpty) {
+        final subtype = subtypes[seed % subtypes.length];
+        final subtypeFields = EntityAnalyzer.analyzeEntity(subtype, outputDir);
+        if (subtypeFields.isNotEmpty) {
+          map.addAll(
+            _generateFieldValuesForJson(subtype, subtypeFields, seed: seed),
+          );
+        }
+        map['_type'] = subtype;
+      }
+
+      return map;
+    });
+  }
+
+  Map<String, dynamic> _generateFieldValuesForJson(
+    String entityName,
+    Map<String, String> fields, {
+    int seed = 1,
+  }) {
+    final map = <String, dynamic>{};
+    for (final entry in fields.entries) {
+      map[entry.key] = _jsonValueFor(entry.key, entry.value, seed);
+    }
+    return map;
+  }
+
+  dynamic _jsonValueFor(String fieldName, String fieldType, int seed) {
+    final isNullable = fieldType.endsWith('?');
+    final baseType = fieldType.replaceAll('?', '');
+
+    if (isNullable && seed % 3 == 0) {
+      return null;
+    }
+
+    if (baseType.startsWith('List<') && baseType.endsWith('>')) {
+      final innerType = baseType.substring(5, baseType.length - 1);
+      return _jsonListValue(innerType, seed);
+    }
+
+    if (baseType.startsWith('Map<') && baseType.endsWith('>')) {
+      return _jsonMapValue(baseType, seed);
+    }
+
+    final primitive = _jsonPrimitiveValue(baseType, fieldName, seed);
+    if (primitive != null) return primitive;
+
+    final entityValue = _jsonEntityValue(baseType, seed);
+    if (entityValue != null) return entityValue;
+
+    return '$fieldName $seed';
+  }
+
+  dynamic _jsonPrimitiveValue(String baseType, String fieldName, int seed) {
+    switch (baseType) {
+      case 'String':
+        return '$fieldName $seed';
+      case 'int':
+        return seed;
+      case 'double':
+        return seed * 10.5;
+      case 'bool':
+        return seed % 2 == 1;
+      case 'DateTime':
+        return DateTime.now()
+            .subtract(Duration(days: seed * 30))
+            .toIso8601String();
+      case 'Object':
+      case 'dynamic':
+        return {'key$seed': 'value$seed'};
+      default:
+        return null;
+    }
+  }
+
+  dynamic _jsonEnumValue(String entityName, int seed) {
+    final enumValues = EntityAnalyzer.getEnumValues(entityName, outputDir);
+    if (enumValues.isEmpty) return 'value$seed';
+    return enumValues[seed % enumValues.length];
+  }
+
+  dynamic _jsonEntityValue(String baseType, int seed) {
+    if (baseType.isEmpty || baseType[0] != baseType[0].toUpperCase()) {
+      return null;
+    }
+    final cleanType = baseType.startsWith('\$')
+        ? baseType.substring(1)
+        : baseType;
+
+    if (EntityAnalyzer.isEnum(cleanType, outputDir)) {
+      return _jsonEnumValue(cleanType, seed);
+    }
+
+    final subtypes = EntityAnalyzer.getPolymorphicSubtypes(
+      cleanType,
+      outputDir,
+    );
+    if (subtypes.isNotEmpty) {
+      final subtype = subtypes[seed % subtypes.length];
+      final subtypeFields = EntityAnalyzer.analyzeEntity(subtype, outputDir);
+      final nested = _generateFieldValuesForJson(
+        subtype,
+        subtypeFields,
+        seed: seed,
+      );
+      nested['_type'] = subtype;
+      return nested;
+    }
+
+    final entityFields = EntityAnalyzer.analyzeEntity(cleanType, outputDir);
+    if (entityFields.isNotEmpty &&
+        !entityHelper.isDefaultFields(entityFields)) {
+      return _generateFieldValuesForJson(cleanType, entityFields, seed: seed);
+    }
+
+    return {'_type': cleanType};
+  }
+
+  List<dynamic> _jsonListValue(String innerType, int seed) {
+    final count = 3;
+    if (innerType.isEmpty) return <dynamic>['item 1', 'item 2', 'item 3'];
+
+    final isEntity =
+        innerType[0] == innerType[0].toUpperCase() &&
+        ![
+          'String',
+          'int',
+          'double',
+          'bool',
+          'DateTime',
+          'Object',
+          'dynamic',
+        ].contains(innerType);
+
+    if (isEntity) {
+      return List.generate(count, (i) {
+        final value = _jsonEntityValue(innerType, seed + i);
+        return value ?? 'item $i';
+      });
+    }
+
+    return List.generate(count, (i) {
+      final prim = _jsonPrimitiveValue(innerType, 'item', seed + i);
+      return prim ?? 'item $i';
+    });
+  }
+
+  Map<String, dynamic> _jsonMapValue(String mapType, int seed) {
+    final innerTypes = mapType.substring(4, mapType.length - 1);
+    final typeParts = innerTypes.split(',').map((s) => s.trim()).toList();
+    if (typeParts.length != 2) return <String, dynamic>{};
+
+    final keyType = typeParts[0];
+    final valueType = typeParts[1];
+
+    return {
+      for (int i = 0; i < 3; i++)
+        (_jsonPrimitiveValue(keyType, 'key', seed + i)?.toString() ?? 'key$i'):
+            _jsonValueFor('value', valueType, seed + i),
+    };
+  }
+
   List<Expression> generateMockDataInstances(
     String entityName,
     Map<String, String> fields,

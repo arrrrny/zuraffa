@@ -192,7 +192,18 @@ class Product {
         final exitCode = await process.exitCode;
 
         expect(exitCode, equals(0), reason: stderrOutput);
-        final decoded = jsonDecode(stdoutOutput) as Map<String, dynamic>;
+
+        final jsonMatch = RegExp(
+          r'\{.*"success".*\}',
+          dotAll: true,
+        ).firstMatch(stdoutOutput);
+        expect(
+          jsonMatch,
+          isNotNull,
+          reason: 'No JSON found in stdout: $stdoutOutput',
+        );
+        final decoded =
+            jsonDecode(jsonMatch!.group(0)!) as Map<String, dynamic>;
         expect(decoded['success'], isTrue);
         final plan = decoded['plan'] as Map<String, dynamic>;
         expect(plan['preset'], 'crud');
