@@ -81,6 +81,12 @@ if [ -e "$ZED_SUBMODULE_DIR/.git" ]; then
     git commit -m "chore: update version to $VERSION" || true
     git push origin HEAD:refs/heads/master || true
 
+    # Create and push tag for the zuraffa-zed repo so CI builds a release
+    if ! git rev-parse "v$VERSION" >/dev/null 2>&1; then
+        git tag -a "v$VERSION" -m "Release $VERSION"
+    fi
+    git push origin "v$VERSION" || true
+
     cd "$PACKAGE_DIR"
     git add extensions/zed
 fi

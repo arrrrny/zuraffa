@@ -1,27 +1,41 @@
 ## [5.2.0] - 2026-06-12
 
-### Change
-- Release 5.2.0
+### Added
+
+- **Declarative UseCase Registration** (`zfa register <UseCaseName>`): batch command to register a use case across Presenter, Controller, State, and DI layers without regenerating files.
+  - `zfa presenter register <UseCaseName>` — register in an existing Presenter
+  - `zfa controller register <UseCaseName>` — register in an existing Controller
+  - `zfa state register <FieldName>` — register a field in an existing State class
+  - `zfa register <UseCaseName> --all` — batch register across all layers in one command
+  - Individual plugin capabilities auto-discovered by the MCP server
+- **MCP `zuraffa_register` tool** — batch registration tool exposed via the MCP server, calls `RegisterCommand` in-process
+- **Zed extension arch fix** — corrected arm64 asset matching (no longer incorrectly falls back to x64 binaries)
+- **Zed extension API fallback** — `try_direct_download` constructs GitHub release download URL directly when the API is rate-limited or unavailable
+- **publish.sh now tags zuraffa-zed** — creates and pushes a `v<VERSION>` tag on the zuraffa-zed repo to trigger CI releases
+
+### Changed
+
+- **MCP server runs fully in-process**: all CLI commands (`make`, `entity create`, `build`, `config`, `graphql`, `register`, etc.) now execute via `CliRunner.runCapturing()` instead of spawning subprocesses. The `zuraffa_mcp_server` binary no longer requires a separate `zfa` CLI download or `dart run zuraffa:zuraffa`.
+- Removed `_resolveExecutable()`, `_cachedExecutable`, and subprocess-based `_runZuraffaProcess` — dead code from the old subprocess approach
+- Zed extension version updated from `4.1.2` to `5.1.1`, matching the zuraffa package version
+- MCP server source refactored for better readability and maintainability
+
+### Fixed
+
+- **Zed extension timeout on setup**: fixed asset matching logic and added a direct URL download fallback that works when the GitHub API is rate-limited
+- **MCP server `_runQuickDoctor`** restored (was accidentally removed during refactoring)
 
 ## [5.1.1] - 2026-06-12
 
 ### Change
+
 - Release 5.1.1
 
 ## [5.0.2] - 2026-06-12
 
 ### Change
+
 - Release 5.0.2
-
-## [5.0.2] - 2026-06-12
-
-### Change
-- Release 5.0.2
-
-## [5.1.0] - 2026-06-06
-
-### Change
-- Release 5.1.0
 
 ## [5.1.0] - 2026-06-06
 
@@ -51,27 +65,8 @@
 ## [5.0.1] - 2026-06-01
 
 ### Change
+
 - Release 5.0.1
-
-## [5.0.0] - 2026-06-01
-
-### Change
-- Release 5.0.0
-
-## [5.0.0] - 2026-06-01
-
-### Change
-- Release 5.0.0
-
-## [5.0.0] - 2026-06-01
-
-### Change
-- Release 5.0.0
-
-## [5.0.0] - 2026-06-01
-
-### Change
-- Release 5.0.0
 
 ## [5.0.0] - 2026-06-01
 
