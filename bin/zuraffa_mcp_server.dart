@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:zuraffa/src/cli/plugin_loader.dart';
+import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/commands/register_command.dart';
+import 'package:zuraffa/src/commands/entity_command.dart';
 import 'package:zuraffa/src/config/zfa_config.dart';
 import 'package:zuraffa/src/core/plugin_system/plugin_registry.dart';
 
@@ -1500,157 +1502,43 @@ EXAMPLES:
     return buffer.toString();
   }
 
-  /// Cached path to the zfa executable (resolved once, reused)
-  String? _cachedExecutable;
-  bool _cachedIsDartRun = false;
-
-  /// Execute zfa CLI process by spawning a subprocess
-  /// This avoids importing the heavy zuraffa package which causes slow JIT startup
+  /// Execute zfa CLI in-process (no subprocess needed).
   Future<String> _runZuraffaProcess(List<String> args) async {
     try {
-      // Resolve executable once and cache it
-      if (_cachedExecutable == null) {
-        await _resolveExecutable();
+      // Entity commands call exit() internally, so handle them separately
+      if (args.isNotEmpty && args[0] == 'entity') {
+        return await _runEntityInProcess(args);
       }
 
-      final executableArgs = _cachedIsDartRun
-          ? ['run', 'zuraffa:zuraffa', ...args]
-          : args;
-
-      stderr.writeln(
-        '[zfa-exec] Running: $_cachedExecutable ${executableArgs.join(' ')}',
-      );
-      final stopwatch = Stopwatch()..start();
-
-      final result = await Process.run(
-        _cachedExecutable!,
-        executableArgs,
-        workingDirectory: Directory.current.path,
-        environment: Platform.environment,
-      );
-
-      stopwatch.stop();
-      stderr.writeln(
-        '[zfa-exec] Completed in ${stopwatch.elapsedMilliseconds}ms (exit ${result.exitCode})',
-      );
-
-      final output = result.stdout.toString();
-      final error = result.stderr.toString();
-
-      if (result.exitCode != 0) {
-        return 'Error (exit ${result.exitCode}): ${error.isNotEmpty ? error : output}';
-      }
-
-      return output.isNotEmpty ? output : 'Success';
+      final runner = CliRunner(exitOnCompletion: false);
+      final result = await runner.runCapturing(args);
+      return result.isNotEmpty ? result : 'Success';
     } catch (e, stack) {
       stderr.writeln('Process error: $e\n$stack');
       return 'Error: $e';
     }
   }
 
-  /// Resolve the zfa executable path once
-  Future<void> _resolveExecutable() async {
-    final selfPath = Platform.resolvedExecutable;
-    final selfDir = File(selfPath).parent.path;
-    stderr.writeln('[zfa-resolve] MCP server at: $selfPath');
-    stderr.writeln('[zfa-resolve] Looking for CLI in: $selfDir');
-
-    // 1. Check for compiled binary next to this MCP server (Zed extension scenario)
-    // Look for exact name first, then platform-specific names (zfa-macos-arm64, etc.)
-    final candidates = ['zfa', 'zuraffa'];
-    // Add platform-specific binary names from Zed extension downloads
-    try {
-      final entries = Directory(selfDir).listSync();
-      for (final entry in entries) {
-        final name = entry.uri.pathSegments.last;
-        if (name.startsWith('zfa-') && entry is File) {
-          candidates.add(name);
-        }
-      }
-    } catch (_) {}
-
-    for (final name in candidates) {
-      final candidate = File('$selfDir/$name');
-      if (await candidate.exists()) {
-        // Don't use ourselves as the CLI
+  /// Run entity subcommands in-process with exit() prevention.
+  Future<String> _runEntityInProcess(List<String> args) async {
+    // Strip the 'entity' prefix — EntityCommand expects just subcommand + options
+    final entityArgs = args.length > 1 ? args.sublist(1) : <String>[];
+    final output = StringBuffer();
+    await runZoned(
+      () async {
         try {
-          if (candidate.resolveSymbolicLinksSync() != selfPath) {
-            _cachedExecutable = candidate.path;
-            stderr.writeln(
-              '[zfa-resolve] ✓ Found CLI binary: $_cachedExecutable',
-            );
-            return;
-          }
-        } catch (_) {}
-      }
-    }
-
-    // 2. Check for compiled binary in current directory
-    final currentDir = Directory.current.path;
-    for (final name in ['zfa', 'zuraffa']) {
-      final localExe = File('$currentDir/$name');
-      if (await localExe.exists()) {
-        // Only use if it's a real binary, not a shell script
-        if (await _isCompiledBinary(localExe.path)) {
-          _cachedExecutable = localExe.path;
-          stderr.writeln(
-            '[zfa-resolve] ✓ Found compiled binary: $_cachedExecutable',
-          );
-          return;
+          await EntityCommand().execute(entityArgs, exitOnCompletion: false);
+        } catch (e) {
+          output.writeln('Error: $e');
         }
-      }
-    }
-
-    // 3. Check for zfa in PATH — but only if it's a compiled binary
-    final whichResult = await Process.run('which', ['zfa']);
-    if (whichResult.exitCode == 0) {
-      final zfaPath = whichResult.stdout.toString().trim();
-      if (await _isCompiledBinary(zfaPath)) {
-        _cachedExecutable = 'zfa';
-        stderr.writeln('[zfa-resolve] ✓ Found compiled zfa in PATH');
-        return;
-      } else {
-        stderr.writeln(
-          '[zfa-resolve] ⚠ zfa in PATH is a script (JIT), skipping',
-        );
-      }
-    }
-
-    // 4. Fall back to dart run (requires zuraffa in pubspec)
-    final pubspecFile = File('${Directory.current.path}/pubspec.yaml');
-    if (!await pubspecFile.exists()) {
-      _cachedExecutable = 'echo';
-      stderr.writeln('[zfa-resolve] ⚠ No pubspec.yaml found, no CLI available');
-      return;
-    }
-
-    final pubspecContent = await pubspecFile.readAsString();
-    if (!pubspecContent.contains('zuraffa:')) {
-      _cachedExecutable = 'echo';
-      stderr.writeln(
-        '[zfa-resolve] ⚠ zuraffa not in pubspec, no CLI available',
-      );
-      return;
-    }
-
-    _cachedExecutable = 'dart';
-    _cachedIsDartRun = true;
-    stderr.writeln('[zfa-resolve] ⚠ Falling back to dart run (slow JIT)');
-  }
-
-  /// Check if a file is a compiled binary (not a shell script)
-  Future<bool> _isCompiledBinary(String path) async {
-    try {
-      final file = File(path);
-      final bytes = await file.openRead(0, 4).first;
-      // Shell scripts start with '#!' (0x23 0x21)
-      if (bytes.length >= 2 && bytes[0] == 0x23 && bytes[1] == 0x21) {
-        return false;
-      }
-      return true;
-    } catch (_) {
-      return false;
-    }
+      },
+      zoneSpecification: ZoneSpecification(
+        print: (self, parent, zone, line) {
+          output.writeln(line);
+        },
+      ),
+    );
+    return output.toString().trim();
   }
 
   /// Create a success response
