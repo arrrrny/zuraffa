@@ -17,6 +17,8 @@ import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
 import 'builders/controller_class_builder.dart';
 import 'capabilities/create_controller_capability.dart';
+import 'capabilities/register_controller_capability.dart';
+import 'capabilities/unregister_controller_capability.dart';
 
 part 'controller_plugin_bodies.dart';
 part 'controller_plugin_methods.dart';
@@ -39,6 +41,8 @@ class ControllerPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   @override
   List<ZuraffaCapability> get capabilities => [
     CreateControllerCapability(this),
+    RegisterControllerCapability(this),
+    UnregisterControllerCapability(this),
   ];
 
   @override

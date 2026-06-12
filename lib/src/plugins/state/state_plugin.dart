@@ -9,6 +9,8 @@ import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'builders/state_builder.dart';
 import 'capabilities/create_state_capability.dart';
+import 'capabilities/register_state_capability.dart';
+import 'capabilities/unregister_state_capability.dart';
 
 /// Manages UI state class generation for the presentation layer.
 class StatePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
@@ -24,7 +26,11 @@ class StatePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }
 
   @override
-  List<ZuraffaCapability> get capabilities => [CreateStateCapability(this)];
+  List<ZuraffaCapability> get capabilities => [
+    CreateStateCapability(this),
+    RegisterStateCapability(this),
+    UnregisterStateCapability(this),
+  ];
 
   @override
   Command createCommand() => StateCommand(this);

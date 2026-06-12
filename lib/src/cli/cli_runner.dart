@@ -14,6 +14,7 @@ import '../commands/doctor_command.dart';
 import '../commands/build_command.dart';
 import '../commands/manifest_command.dart';
 import '../commands/apply_command.dart';
+import '../commands/register_command.dart';
 import '../core/plugin_system/cli_aware_plugin.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/error/suggestion_engine.dart';
@@ -77,6 +78,7 @@ class CliRunner {
     _runner.addCommand(BuildCommand());
     _runner.addCommand(ManifestCommand(registry));
     _runner.addCommand(ApplyCommand(registry));
+    _runner.addCommand(_RegisterCommand());
   }
 
   /// Run CLI with arguments.
@@ -218,11 +220,12 @@ CORE COMMANDS:
   schema              Output JSON schema
   validate <file>     Validate JSON configuration
 
-MODULAR COMMANDS:
-  route <Name>        Generate route definitions
-  view <Name>         Generate View/Presenter/Controller
-  di <Name>           Generate dependency injection
-  test <Name>         Generate unit tests
+	MODULAR COMMANDS:
+	  route <Name>        Generate route definitions
+	  view <Name>         Generate View/Presenter/Controller
+	  di <Name>           Generate dependency injection
+	  register <Name>     Register a use case across layers
+	  test <Name>         Generate unit tests
 
 OPTIONS:
   -v, --version       Print version
@@ -248,6 +251,20 @@ Run "zfa <command> --help" for more information.
     if (exitOnCompletion) {
       exit(code);
     }
+  }
+}
+
+class _RegisterCommand extends Command<void> {
+  @override
+  String get name => 'register';
+
+  @override
+  String get description => 'Register a use case across layers';
+
+  @override
+  Future<void> run() async {
+    final cmd = RegisterCommand();
+    await cmd.execute(argResults!.rest.toList());
   }
 }
 

@@ -17,6 +17,8 @@ import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
 import 'builders/presenter_class_builder.dart';
 import 'capabilities/create_presenter_capability.dart';
+import 'capabilities/register_presenter_capability.dart';
+import 'capabilities/unregister_presenter_capability.dart';
 
 class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
@@ -32,7 +34,11 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }) : fileSystem = fileSystem ?? FileSystem.create();
 
   @override
-  List<ZuraffaCapability> get capabilities => [CreatePresenterCapability(this)];
+  List<ZuraffaCapability> get capabilities => [
+    CreatePresenterCapability(this),
+    RegisterPresenterCapability(this),
+    UnregisterPresenterCapability(this),
+  ];
 
   @override
   String get id => 'presenter';

@@ -60,6 +60,25 @@ Also assume:
 - entities are Zorphy-first on public v5 surfaces
 - output examples should target `lib/src`, not custom architecture roots
 
+## New: register/unregister commands
+
+Use the register commands to add use cases to existing presentation layers:
+
+```bash
+# Per-layer registration
+zfa presenter register GetProduct
+zfa controller register GetProduct
+zfa state register product --type=Product?
+
+# Batch registration across all layers
+zfa register GetProduct --all
+
+# Remove a registered use case
+zfa presenter unregister DeleteProduct
+```
+
+These commands are auto-discovered as plugin capabilities (no separate CLI wiring needed).
+
 ## What `make` should be used for
 
 Use `zfa make` for:
@@ -173,6 +192,6 @@ For a user coming from older Zuraffa docs, the shortest correct explanation is:
 <!-- SPECKIT START -->
 
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read specs/009-cache-adapter-command/plan.md
+shell commands, and other important information, read specs/010-usecase-registration/plan.md
 
 <!-- SPECKIT END -->
