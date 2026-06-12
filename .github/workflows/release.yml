@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Build (${{ matrix.os }})
@@ -80,3 +84,27 @@ jobs:
           tag_name: ${{ github.ref }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Update the Zed extension in the zed-industries/extensions monorepo.
+  # This creates a PR in your fork (arrrrny/extensions) with the new submodule
+  # SHA and updated version in extensions.toml.
+  #
+  # Prerequisites:
+  #   1. Fork https://github.com/zed-industries/extensions to arrrrny/extensions
+  #   2. Add extensions/mcp-server-zuraffa/ as a submodule in that fork pointing
+  #      to a repo that contains extension.toml + extension.wasm at its root
+  #   3. Add a [mcp-server-zuraffa] version entry in extensions.toml in that fork
+  #   4. Create a PAT (repo + workflow scopes) and save it as COMMITTER_TOKEN
+  #      in the repo secrets
+  update-zed-extension:
+    name: Update Zed Extension
+    runs-on: ubuntu-latest
+    needs: build
+    if: secrets.COMMITTER_TOKEN != ''
+    steps:
+      - uses: huacnlee/zed-extension-action@v2
+        with:
+          extension-name: mcp-server-zuraffa
+          push-to: arrrrny/extensions
+        env:
+          COMMITTER_TOKEN: ${{ secrets.COMMITTER_TOKEN }}
