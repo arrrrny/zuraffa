@@ -1,110 +1,45 @@
 #!/bin/bash
 
 # Rebuild and reinstall ZFA MCP server
-# This script clears the cached snapshots, reactivates the package,
-# and creates wrapper scripts that bypass the noisy pub global run
+# Compiles executables to ~/.local/bin/
+# Never touches ~/.pub-cache/ — native binaries there crash pub.
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PACKAGE_DIR="$(dirname "$SCRIPT_DIR")"
-# NOTE: Do NOT install compiled binaries into ~/.pub-cache/bin/
-# That directory is managed by `dart pub global activate` which reads every
-# file as UTF-8 text. A native compiled binary there causes pub to crash with
-# "Failed to decode data using encoding utf-8" on ANY project sharing the cache.
 INSTALL_DIR="${ZURAFFA_BIN:-$HOME/.local/bin}"
 
 echo "🔄 Rebuilding ZFA..."
 
-# Deactivate if currently active
-echo "📦 Deactivating current installation..."
-dart pub global deactivate zuraffa 2>/dev/null || true
-
-# Clear the global package cache for this package
-CACHE_DIR="$HOME/.pub-cache/global_packages/zuraffa"
-if [ -d "$CACHE_DIR" ]; then
-    echo "🗑️  Clearing global package cache..."
-    rm -rf "$CACHE_DIR"
-fi
-
-# Clear the .dart_tool snapshots (this is where JIT snapshots are cached)
-SNAPSHOT_DIR="$PACKAGE_DIR/.dart_tool/pub/bin/zuraffa"
-if [ -d "$SNAPSHOT_DIR" ]; then
-    echo "🗑️  Clearing JIT snapshots..."
-    rm -rf "$SNAPSHOT_DIR"
-fi
-
-# Also clear any other cached bin snapshots
-DART_TOOL_BIN="$PACKAGE_DIR/.dart_tool/pub/bin"
-if [ -d "$DART_TOOL_BIN" ]; then
-    echo "🗑️  Clearing all bin snapshots..."
-    rm -rf "$DART_TOOL_BIN"
-fi
-
-# Clear build cache and hooks runner
-BUILD_CACHE="$PACKAGE_DIR/.dart_tool/build_cache"
-HOOKS_RUNNER="$PACKAGE_DIR/.dart_tool/hooks_runner"
-if [ -d "$BUILD_CACHE" ]; then
-    echo "🗑️  Clearing build cache..."
-    rm -rf "$BUILD_CACHE"
-fi
-if [ -d "$HOOKS_RUNNER" ]; then
-    echo "🗑️  Clearing hooks runner..."
-    rm -rf "$HOOKS_RUNNER"
-fi
-
-# Clear any .dill and .snap files in .dart_tool
-find "$PACKAGE_DIR/.dart_tool" -type f \( -name "*.dill" -o -name "*.snap" \) -delete 2>/dev/null || true
+# Clear .dart_tool build artifacts
+rm -rf .dart_tool/pub/bin
+rm -rf .dart_tool/build_cache
+rm -rf .dart_tool/hooks_runner
+find .dart_tool -type f \( -name "*.dill" -o -name "*.snap" \) -delete 2>/dev/null || true
 
 # Get dependencies
 echo "📥 Getting dependencies..."
-cd "$PACKAGE_DIR"
-dart pub get
-
-# Create the pub bin directory if it doesn't exist
+dart pub get > /dev/null 2>&1
+echo "  ✅ Dependencies resolved"
 mkdir -p "$INSTALL_DIR"
 
-# Remove existing binaries to prevent UTF-8 decode errors during activation
-rm -f "$INSTALL_DIR/zfa" "$INSTALL_DIR/zuraffa_mcp_server" 2>/dev/null || true
-
-# Activate the package globally
-echo "🌍 Activating package globally..."
-dart pub global activate --source=path .
-
-# Compile binaries to AOT executables
-# We attempt dart build cli first as it's the official way to handle projects with build hooks.
-# If it fails, we fall back to dart compile exe which is more direct.
-echo "🔨 Compiling zfa CLI to executable..."
-mkdir -p "$PACKAGE_DIR/build"
-
-if dart build cli --target=bin/zfa.dart -o "$PACKAGE_DIR/build/zfa_bundle"; then
-    cp "$PACKAGE_DIR/build/zfa_bundle/bundle/bin/zfa" "$INSTALL_DIR/zfa"
-else
-    echo "  ⚠️  dart build cli failed, attempting dart compile exe..."
-    dart compile exe bin/zfa.dart -o "$INSTALL_DIR/zfa"
-fi
-
-echo "🔨 Compiling zuraffa_mcp_server to executable..."
-if dart build cli --target=bin/zuraffa_mcp_server.dart -o "$PACKAGE_DIR/build/mcp_server_bundle"; then
-    cp "$PACKAGE_DIR/build/mcp_server_bundle/bundle/bin/zuraffa_mcp_server" "$INSTALL_DIR/zuraffa_mcp_server"
-else
-    echo "  ⚠️  dart build cli failed, attempting dart compile exe..."
-    dart compile exe bin/zuraffa_mcp_server.dart -o "$INSTALL_DIR/zuraffa_mcp_server"
-fi
-
-echo "📝 Ensuring permissions for binaries..."
+# Compile zfa CLI — use dart build cli for build hooks support, suppress intermediate output
+echo "🔨 Compiling zfa..."
+rm -rf build/zfa_bundle
+dart build cli --target=bin/zfa.dart -o build/zfa_bundle > /dev/null 2>&1
+cp build/zfa_bundle/bundle/bin/zfa "$INSTALL_DIR/zfa"
 chmod +x "$INSTALL_DIR/zfa" 2>/dev/null || true
-chmod +x "$INSTALL_DIR/zuraffa" 2>/dev/null || true
+echo "  ✅ $INSTALL_DIR/zfa"
+
+# Compile zuraffa_mcp_server
+echo "🔨 Compiling zuraffa_mcp_server..."
+rm -rf build/mcp_server_bundle
+dart build cli --target=bin/zuraffa_mcp_server.dart -o build/mcp_server_bundle > /dev/null 2>&1
+cp build/mcp_server_bundle/bundle/bin/zuraffa_mcp_server "$INSTALL_DIR/zuraffa_mcp_server"
 chmod +x "$INSTALL_DIR/zuraffa_mcp_server" 2>/dev/null || true
+echo "  ✅ $INSTALL_DIR/zuraffa_mcp_server"
 
 echo ""
-echo "✅ Rebuild complete!"
-echo ""
-echo "Installed executables:"
-echo "  • zfa"
-echo "  • zuraffa_mcp_server"
+echo "✅ Rebuild complete — installed to $INSTALL_DIR"
 echo ""
 echo "To verify:"
 echo "  zfa --version"
-echo "  zfa generate --help"
-echo "  zfa schema"

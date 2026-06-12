@@ -9,6 +9,7 @@ import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import 'builders/cache_builder.dart';
 import 'capabilities/create_cache_capability.dart';
+import 'capabilities/create_cache_adapter_capability.dart';
 
 /// Manages Hive-based cache generation for the data layer.
 ///
@@ -36,7 +37,10 @@ class CachePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }
 
   @override
-  List<ZuraffaCapability> get capabilities => [CreateCacheCapability(this)];
+  List<ZuraffaCapability> get capabilities => [
+    CreateCacheCapability(this),
+    CreateCacheAdapterCapability(this),
+  ];
 
   @override
   Command createCommand() => CacheCommand(this);

@@ -30,6 +30,15 @@ class CacheBuilder {
   }) : specLibrary = specLibrary ?? const SpecLibrary(),
        fileSystem = fileSystem ?? FileSystem.create();
 
+  /// Regenerates the Hive registrar file.
+  ///
+  /// Scans the cache directory for `*_cache.dart` files and the
+  /// `hive_manual_additions.txt` file to rebuild `hive_registrar.dart`
+  /// from scratch. Call this after adding entity adapters.
+  Future<void> regenerateHiveRegistrar(GeneratorConfig config) async {
+    await _regenerateHiveRegistrar(config);
+  }
+
   /// Generates cache support files for the given [config].
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async {
     if (!config.enableCache || config.cacheStorage != 'hive') {
