@@ -100,7 +100,6 @@ jobs:
     name: Update Zed Extension
     runs-on: ubuntu-latest
     needs: build
-    if: secrets.COMMITTER_TOKEN != ''
     steps:
       - uses: huacnlee/zed-extension-action@v2
         with:
