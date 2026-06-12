@@ -22,14 +22,37 @@ extension CacheBuilderRegistrar on CacheBuilder {
     }
 
     if (files.isEmpty) {
-      if (await fileSystem.exists(registrarPath)) {
-        if (options.dryRun) {
-          if (options.verbose) print('  Dry run: Deleting $registrarPath');
-        } else {
-          await fileSystem.delete(registrarPath);
+      // Check if there are manual additions to preserve
+      final manualAdditionsPath = path.join(
+        outputDir,
+        'cache',
+        'hive_manual_additions.txt',
+      );
+      bool hasManualAdditions = false;
+      if (await fileSystem.exists(manualAdditionsPath)) {
+        final content = await fileSystem.read(manualAdditionsPath);
+        for (final line in content.split('\n')) {
+          final trimmed = line.trim();
+          if (trimmed.isNotEmpty && !trimmed.startsWith('#')) {
+            final parts = trimmed.split('|');
+            if (parts.length == 2) {
+              hasManualAdditions = true;
+              break;
+            }
+          }
         }
       }
-      return;
+
+      if (!hasManualAdditions) {
+        if (await fileSystem.exists(registrarPath)) {
+          if (options.dryRun) {
+            if (options.verbose) print('  Dry run: Deleting $registrarPath');
+          } else {
+            await fileSystem.delete(registrarPath);
+          }
+        }
+        return;
+      }
     }
 
     final imports = <String>[];

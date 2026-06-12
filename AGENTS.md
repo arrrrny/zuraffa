@@ -8,7 +8,8 @@ When you need to create or evolve architecture code, use this sequence:
 
 1. `zfa entity create`
 2. `zfa make`
-3. `zfa build`
+3. `zfa cache adapter <EntityName>` (if entity needs cache/local storage)
+4. `zfa build`
 
 ### Canonical example
 
@@ -25,6 +26,8 @@ zfa make Product \
   --state \
   --di \
   --test
+
+zfa cache adapter Product   # optional: register Hive adapters if caching needed
 
 zfa build
 ```
@@ -168,6 +171,8 @@ For a user coming from older Zuraffa docs, the shortest correct explanation is:
 > In v5, create the entity first, generate architecture with `zfa make`, and finish with `zfa build`. Treat `zfa feature` as a wrapper, not the primary workflow.
 
 <!-- SPECKIT START -->
+
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read specs/008-mock-json-method/plan.md
+shell commands, and other important information, read specs/009-cache-adapter-command/plan.md
+
 <!-- SPECKIT END -->
