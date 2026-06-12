@@ -1,31 +1,16 @@
 #!/bin/bash
 
 # Rebuild and reinstall ZFA MCP server
-# This script clears the cached snapshots, reactivates the package,
-# and creates wrapper scripts that bypass the noisy pub global run
+# This script compiles executables directly to ~/.local/bin/
+# Never touches ~/.pub-cache/ — native binaries there crash pub.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PACKAGE_DIR="$(dirname "$SCRIPT_DIR")"
-# NOTE: Do NOT install compiled binaries into ~/.pub-cache/bin/
-# That directory is managed by `dart pub global activate` which reads every
-# file as UTF-8 text. A native compiled binary there causes pub to crash with
-# "Failed to decode data using encoding utf-8" on ANY project sharing the cache.
 INSTALL_DIR="${ZURAFFA_BIN:-$HOME/.local/bin}"
 
 echo "🔄 Rebuilding ZFA..."
-
-# Deactivate if currently active
-echo "📦 Deactivating current installation..."
-dart pub global deactivate zuraffa 2>/dev/null || true
-
-# Clear the global package cache for this package
-CACHE_DIR="$HOME/.pub-cache/global_packages/zuraffa"
-if [ -d "$CACHE_DIR" ]; then
-    echo "🗑️  Clearing global package cache..."
-    rm -rf "$CACHE_DIR"
-fi
 
 # Clear the .dart_tool snapshots (this is where JIT snapshots are cached)
 SNAPSHOT_DIR="$PACKAGE_DIR/.dart_tool/pub/bin/zuraffa"
@@ -61,19 +46,16 @@ echo "📥 Getting dependencies..."
 cd "$PACKAGE_DIR"
 dart pub get
 
-# Create the pub bin directory if it doesn't exist
+# Ensure install directory exists
 mkdir -p "$INSTALL_DIR"
 
-# Remove existing binaries to prevent UTF-8 decode errors during activation
+# Remove existing binaries to prevent stale versions
 rm -f "$INSTALL_DIR/zfa" "$INSTALL_DIR/zuraffa_mcp_server" 2>/dev/null || true
 
-# Activate the package globally
-echo "🌍 Activating package globally..."
-dart pub global activate --source=path .
-
-# Compile binaries to AOT executables
+# Compile binaries to AOT executables directly into ~/.local/bin/
 # We attempt dart build cli first as it's the official way to handle projects with build hooks.
 # If it fails, we fall back to dart compile exe which is more direct.
+# NOTE: We skip dart pub global activate entirely — everything is loaded from ~/.local/bin/.
 echo "🔨 Compiling zfa CLI to executable..."
 mkdir -p "$PACKAGE_DIR/build"
 
@@ -94,13 +76,12 @@ fi
 
 echo "📝 Ensuring permissions for binaries..."
 chmod +x "$INSTALL_DIR/zfa" 2>/dev/null || true
-chmod +x "$INSTALL_DIR/zuraffa" 2>/dev/null || true
 chmod +x "$INSTALL_DIR/zuraffa_mcp_server" 2>/dev/null || true
 
 echo ""
 echo "✅ Rebuild complete!"
 echo ""
-echo "Installed executables:"
+echo "Installed executables (run directly from PATH via ~/.local/bin/):"
 echo "  • zfa"
 echo "  • zuraffa_mcp_server"
 echo ""

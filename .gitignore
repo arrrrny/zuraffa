@@ -25,3 +25,4 @@ DOCUSAURUS_SETUP.md*
 coverage/
 *.log
 .env*
+codedb*

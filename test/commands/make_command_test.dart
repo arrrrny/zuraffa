@@ -29,7 +29,7 @@ void main() {
 
     setUpAll(() {
       final homeDir = Platform.environment['HOME'] ?? '';
-      final compiledBin = path.join(homeDir, '.pub-cache', 'bin', 'zfa');
+      final compiledBin = path.join(homeDir, '.local', 'bin', 'zfa');
       final compiledExists = File(compiledBin).existsSync();
 
       if (compiledExists) {
