@@ -63,6 +63,32 @@ void main() {
       );
     });
 
+    test('MCP server advertises zuraffa_register and invokes in-process', () {
+      final content = readText('bin/zuraffa_mcp_server.dart');
+      expect(content, contains("'name': 'zuraffa_register'"));
+      expect(content, contains('RegisterCommand()'));
+      expect(content, contains('RegisterCommand'));
+    });
+
+    test('MCP register tool uses in-process API not subprocess', () {
+      final content = readText('bin/zuraffa_mcp_server.dart');
+      // The register tool should call RegisterCommand directly,
+      // NOT _runZuraffaProcess (which spawns external CLI)
+      expect(content, contains('final cmd = RegisterCommand();'));
+      expect(content, contains('await cmd.execute(registerArgs)'));
+    });
+
+    test('MCP register tool has required name parameter', () {
+      final content = readText('bin/zuraffa_mcp_server.dart');
+      expect(content, contains("'required': ['name']"));
+      expect(
+        content,
+        contains(
+          "'UseCase name in PascalCase (e.g., GetProduct, CreateOrder)'",
+        ),
+      );
+    });
+
     test('example .zfa.json uses v5 config shape', () {
       final content = readText('example/.zfa.json');
       final json = jsonDecode(content) as Map<String, dynamic>;

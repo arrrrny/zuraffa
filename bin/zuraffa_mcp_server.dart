@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:zuraffa/src/cli/plugin_loader.dart';
+import 'package:zuraffa/src/commands/register_command.dart';
 import 'package:zuraffa/src/config/zfa_config.dart';
 import 'package:zuraffa/src/core/plugin_system/plugin_registry.dart';
 
@@ -256,6 +257,7 @@ class ZuraffaMcpServer {
       _configSetToolDefinition(),
       _graphqlToolDefinition(),
       _doctorToolDefinition(),
+      _registerToolDefinition(),
     ];
 
     // Add plugin tools dynamically
@@ -635,6 +637,9 @@ All v5 generation uses the fixed lib/src and lib/src/domain layout.''',
           break;
         case 'zuraffa_doctor':
           result = await _runDoctorCommand(args);
+          break;
+        case 'zuraffa_register':
+          result = await _runRegisterCommand(args);
           break;
         default:
           if (toolName.startsWith('zuraffa_')) {
@@ -1356,6 +1361,143 @@ Use quick for fast diagnostics, full for troubleshooting.''',
     );
 
     return output.toString();
+  }
+
+  /// Register tool definition
+  Map<String, dynamic> _registerToolDefinition() {
+    return {
+      'name': 'zuraffa_register',
+      'description': '''Register a use case across layers in existing files.
+
+This is the batch registration command for adding use cases to existing
+Presenter, Controller, State, and DI files without regenerating them.
+
+Use --all to register across all layers at once.
+For individual layer registration, use the dedicated plugin tools:
+- zuraffa_presenter_register
+- zuraffa_controller_register
+- zuraffa_state_register
+- zuraffa_view_register
+- zuraffa_di_register
+
+EXAMPLES:
+- Register GetProduct in all layers:
+  name="GetProduct", all=true
+- Register in presenter + di only:
+  name="GetProduct", presenter=true, di=true
+- Register with domain:
+  name="GetProduct", all=true, domain="product"
+- Register state field with custom type:
+  name="products", state=true, state_type="List<Product>"''',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'name': {
+            'type': 'string',
+            'description':
+                'UseCase name in PascalCase (e.g., GetProduct, CreateOrder)',
+          },
+          'all': {
+            'type': 'boolean',
+            'description':
+                'Register in all layers (controller, presenter, state, di)',
+          },
+          'controller': {
+            'type': 'boolean',
+            'description': 'Register in Controller layer',
+          },
+          'presenter': {
+            'type': 'boolean',
+            'description': 'Register in Presenter layer',
+          },
+          'state': {
+            'type': 'boolean',
+            'description': 'Register in State layer',
+          },
+          'di': {
+            'type': 'boolean',
+            'description': 'Register in Dependency Injection',
+          },
+          'domain': {
+            'type': 'string',
+            'description': 'Domain subdirectory (e.g., product, user)',
+          },
+          'entity': {
+            'type': 'string',
+            'description': 'Entity name for domain inference',
+          },
+          'state_type': {
+            'type': 'string',
+            'description':
+                'Dart type for state field (required when --state is used)',
+          },
+          'dry_run': {
+            'type': 'boolean',
+            'description': 'Preview changes without writing files',
+          },
+          'force': {
+            'type': 'boolean',
+            'description': 'Force overwrite without confirmation',
+          },
+          'verbose': {'type': 'boolean', 'description': 'Show detailed output'},
+        },
+        'required': ['name'],
+      },
+    };
+  }
+
+  /// Run register command (in-process, no subprocess needed)
+  Future<String> _runRegisterCommand(Map<String, dynamic> args) async {
+    final List<String> registerArgs = [args['name'] as String];
+
+    // Layer flags
+    if (args['all'] == true) registerArgs.add('--all');
+    if (args['controller'] == true) registerArgs.add('--controller');
+    if (args['presenter'] == true) registerArgs.add('--presenter');
+    if (args['state'] == true) registerArgs.add('--state');
+    if (args['di'] == true) registerArgs.add('--di');
+
+    // Options
+    if (args['domain'] != null) {
+      registerArgs.add('--domain=${args['domain']}');
+    }
+    if (args['entity'] != null) {
+      registerArgs.add('--entity=${args['entity']}');
+    }
+    if (args['state_type'] != null) {
+      registerArgs.add('--state-type=${args['state_type']}');
+    }
+
+    // Execution flags
+    if (args['dry_run'] == true) registerArgs.add('--dry-run');
+    if (args['force'] == true) registerArgs.add('--force');
+    if (args['verbose'] == true) registerArgs.add('--verbose');
+
+    final cmd = RegisterCommand();
+    final result = await cmd.execute(registerArgs);
+
+    final buffer = StringBuffer();
+    if (result.success) {
+      buffer.writeln('✅ Registration completed for ${args['name']}');
+    } else {
+      buffer.writeln('❌ Registration had errors:');
+      for (final error in result.errors) {
+        buffer.writeln('  - $error');
+      }
+    }
+    if (result.files.isNotEmpty) {
+      buffer.writeln('Modified files:');
+      for (final file in result.files) {
+        buffer.writeln('  - $file');
+      }
+    }
+    if (result.nextSteps.isNotEmpty) {
+      buffer.writeln('Next steps:');
+      for (final step in result.nextSteps) {
+        buffer.writeln('  - $step');
+      }
+    }
+    return buffer.toString();
   }
 
   /// Cached path to the zfa executable (resolved once, reused)
