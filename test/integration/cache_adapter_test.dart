@@ -263,7 +263,6 @@ Future<void> initTimestampCache() async {
 
       // Read first registrar content
       final registrarFile = File('$outputDir/cache/hive_registrar.dart');
-      final firstRegistrarContent = registrarFile.readAsStringSync();
 
       // Second run — should succeed without duplicates
       final secondResult = await capability.execute({'name': 'Product'});
