@@ -127,6 +127,8 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
               : ['get', 'update', 'toggle']),
       domain: context.data['domain'],
       repo: context.data['repo'],
+      paramsType: context.data['params'],
+      returnsType: context.data['returns'],
       generateDataSource: true,
       generateLocal: context.get<bool>('local') ?? false,
       generateRemote: context.get<bool>('remote') ?? true,
@@ -137,7 +139,8 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       noEntity: context.data['no-entity'] == true,
       appendToExisting:
           context.data['append'] == true ||
-          context.data['method_append'] == true,
+          context.data['method_append'] == true ||
+          (context.data['no-entity'] == true && context.data['repo'] != null),
     );
 
     return generate(config, context: context);

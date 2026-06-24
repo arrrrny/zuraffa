@@ -106,6 +106,8 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
               : ['get', 'update', 'toggle']),
       domain: context.data['domain'],
       repo: context.data['repo'],
+      paramsType: context.data['params'],
+      returnsType: context.data['returns'],
       generateData: context.get<bool>('data') ?? context.data['data'] == true,
       generateDataSource:
           context.get<bool>('datasource') ?? context.data['datasource'] == true,
@@ -116,7 +118,9 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       generateRepository: true,
       appendToExisting:
           context.data['append'] == true ||
-          context.data['method_append'] == true,
+          context.data['method_append'] == true ||
+          (context.get<bool>('no-entity') == true &&
+              context.data['repo'] != null),
     );
 
     return generate(config, context: context);
