@@ -5,7 +5,10 @@ import 'package:meta/meta.dart';
 import '../core/cancel_token.dart';
 import '../core/failure.dart';
 import '../core/failure_reporter_registry.dart';
+import '../core/hook.dart';
+import '../core/hook_registry.dart';
 import '../core/loggable.dart';
+import '../core/otel_tracer.dart';
 import '../core/result.dart';
 
 /// A UseCase for streaming/reactive operations.
@@ -61,6 +64,13 @@ abstract class StreamUseCase<T, Params> with Loggable {
     Params params, {
     CancelToken? cancelToken,
   }) async* {
+    final startTime = DateTime.now();
+    final traceCtx = (
+      traceId: OtelTracer.instance.currentTraceId,
+      spanId: OtelTracer.instance.currentSpanId,
+    );
+    final hookMetadata = <String, dynamic>{};
+
     // Check for cancellation before starting
     if (cancelToken?.isCancelled ?? false) {
       logger.info('$runtimeType cancelled before starting');
@@ -71,6 +81,18 @@ abstract class StreamUseCase<T, Params> with Loggable {
       );
       return;
     }
+
+    HookRegistry.instance.dispatch(
+      HookContext(
+        useCaseName: '$runtimeType',
+        params: params,
+        timestamp: startTime,
+        traceId: traceCtx.traceId,
+        spanId: traceCtx.spanId,
+        metadata: hookMetadata,
+      ),
+      HookPhase.pre,
+    );
 
     try {
       final sourceStream = execute(params, cancelToken);
@@ -96,6 +118,19 @@ abstract class StreamUseCase<T, Params> with Loggable {
       }
 
       logger.fine('$runtimeType stream completed successfully');
+
+      HookRegistry.instance.dispatch(
+        HookContext(
+          useCaseName: '$runtimeType',
+          params: params,
+          duration: DateTime.now().difference(startTime),
+          timestamp: startTime,
+          traceId: traceCtx.traceId,
+          spanId: traceCtx.spanId,
+          metadata: hookMetadata,
+        ),
+        HookPhase.success,
+      );
     } on CancelledException catch (e) {
       logger.info('$runtimeType was cancelled: ${e.message}');
       yield Result.failure(CancellationFailure(e.message));
@@ -106,6 +141,21 @@ abstract class StreamUseCase<T, Params> with Loggable {
         stackTrace: e.stackTrace,
         attributes: {'usecase': '$runtimeType'},
       );
+
+      HookRegistry.instance.dispatch(
+        HookContext(
+          useCaseName: '$runtimeType',
+          params: params,
+          failure: e,
+          duration: DateTime.now().difference(startTime),
+          timestamp: startTime,
+          traceId: traceCtx.traceId,
+          spanId: traceCtx.spanId,
+          metadata: hookMetadata,
+        ),
+        HookPhase.failure,
+      );
+
       yield Result.failure(e);
     } catch (e, stackTrace) {
       logger.severe('$runtimeType failed unexpectedly', e, stackTrace);
@@ -115,6 +165,21 @@ abstract class StreamUseCase<T, Params> with Loggable {
         stackTrace: stackTrace,
         attributes: {'usecase': '$runtimeType'},
       );
+
+      HookRegistry.instance.dispatch(
+        HookContext(
+          useCaseName: '$runtimeType',
+          params: params,
+          failure: failure,
+          duration: DateTime.now().difference(startTime),
+          timestamp: startTime,
+          traceId: traceCtx.traceId,
+          spanId: traceCtx.spanId,
+          metadata: hookMetadata,
+        ),
+        HookPhase.failure,
+      );
+
       yield Result.failure(failure);
     }
   }

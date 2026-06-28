@@ -3,6 +3,8 @@ library;
 import 'src/core/failure_hooks.dart';
 import 'src/core/failure_reporter.dart';
 import 'src/core/failure_reporter_registry.dart';
+import 'src/core/hook.dart';
+import 'src/core/hook_registry.dart';
 import 'src/core/otel_failure_reporter.dart';
 import 'src/core/otel_log_exporter.dart';
 import 'src/core/retry_policy.dart';
@@ -200,6 +202,11 @@ export 'src/core/retry_policy.dart' show ReportRetryPolicy;
 /// artifacts (HTML, images, files) for any reason (failure, scan, debug).
 export 'src/core/artifact_publisher.dart'
     show ArtifactPublisher, ArtifactHook, ArtifactContext, MinIOArtifactHook;
+
+/// UseCase Hook system — intercept any UseCase at pre/success/failure phases
+export 'src/core/hook.dart' show Hook, HookPhase, HookContext;
+export 'src/core/hook_registry.dart' show HookRegistry;
+export 'src/core/telemetry_hook.dart' show TelemetryHook;
 
 /// Failure hooks — backward-compatible layer delegating to ArtifactPublisher.
 export 'src/core/failure_hooks.dart'
@@ -806,6 +813,37 @@ class Zuraffa {
       traceId: traceId,
       spanId: spanId,
     );
+  }
+
+  // ============================================================
+  // Hooks (generic)
+  // ============================================================
+
+  /// Register a generic hook.
+  ///
+  /// Hooks intercept UseCase execution at pre/success/failure phases.
+  /// Multiple hooks can be registered simultaneously and all will fire.
+  ///
+  /// ## Example
+  /// ```dart
+  /// Zuraffa.registerHook(TelemetryHook());
+  /// Zuraffa.registerHook(EngagementHook(repository));
+  /// ```
+  static void registerHook(Hook hook) {
+    HookRegistry.instance.register(hook);
+  }
+
+  /// Unregister a hook by ID.
+  static void unregisterHook(String id) {
+    HookRegistry.instance.unregister(id);
+  }
+
+  /// Enable/disable all hooks globally.
+  ///
+  /// Set to `false` to instantly disable all hooks (GDPR compliance,
+  /// debug mode, performance profiling).
+  static set hooksEnabled(bool value) {
+    HookRegistry.instance.isEnabled = value;
   }
 
   // ============================================================

@@ -5,7 +5,10 @@ import 'package:meta/meta.dart';
 import '../core/cancel_token.dart';
 import '../core/failure.dart';
 import '../core/failure_reporter_registry.dart';
+import '../core/hook.dart';
+import '../core/hook_registry.dart';
 import '../core/loggable.dart';
+import '../core/otel_tracer.dart';
 import '../core/result.dart';
 
 /// Base UseCase class for Clean Architecture.
@@ -62,6 +65,27 @@ abstract class UseCase<T, Params> with Loggable {
     Params params, {
     CancelToken? cancelToken,
   }) async {
+    final startTime = DateTime.now();
+    final traceCtx = (
+      traceId: OtelTracer.instance.currentTraceId,
+      spanId: OtelTracer.instance.currentSpanId,
+    );
+
+    // Shared metadata bag — hooks can write in pre, read in success/failure
+    final hookMetadata = <String, dynamic>{};
+
+    HookRegistry.instance.dispatch(
+      HookContext(
+        useCaseName: '$runtimeType',
+        params: params,
+        timestamp: startTime,
+        traceId: traceCtx.traceId,
+        spanId: traceCtx.spanId,
+        metadata: hookMetadata,
+      ),
+      HookPhase.pre,
+    );
+
     try {
       // Check for cancellation before starting
       cancelToken?.throwIfCancelled();
@@ -69,6 +93,21 @@ abstract class UseCase<T, Params> with Loggable {
       final value = await execute(params, cancelToken);
 
       logger.fine('$runtimeType completed successfully');
+
+      HookRegistry.instance.dispatch(
+        HookContext(
+          useCaseName: '$runtimeType',
+          params: params,
+          result: value,
+          duration: DateTime.now().difference(startTime),
+          timestamp: startTime,
+          traceId: traceCtx.traceId,
+          spanId: traceCtx.spanId,
+          metadata: hookMetadata,
+        ),
+        HookPhase.success,
+      );
+
       return Result.success(value);
     } on CancelledException catch (e) {
       logger.info('$runtimeType was cancelled: ${e.message}');
@@ -80,6 +119,21 @@ abstract class UseCase<T, Params> with Loggable {
         stackTrace: e.stackTrace,
         attributes: {'usecase': '$runtimeType'},
       );
+
+      HookRegistry.instance.dispatch(
+        HookContext(
+          useCaseName: '$runtimeType',
+          params: params,
+          failure: e,
+          duration: DateTime.now().difference(startTime),
+          timestamp: startTime,
+          traceId: traceCtx.traceId,
+          spanId: traceCtx.spanId,
+          metadata: hookMetadata,
+        ),
+        HookPhase.failure,
+      );
+
       return Result.failure(e);
     } catch (e, stackTrace) {
       logger.severe('$runtimeType failed unexpectedly', e, stackTrace);
@@ -89,6 +143,21 @@ abstract class UseCase<T, Params> with Loggable {
         stackTrace: stackTrace,
         attributes: {'usecase': '$runtimeType'},
       );
+
+      HookRegistry.instance.dispatch(
+        HookContext(
+          useCaseName: '$runtimeType',
+          params: params,
+          failure: failure,
+          duration: DateTime.now().difference(startTime),
+          timestamp: startTime,
+          traceId: traceCtx.traceId,
+          spanId: traceCtx.spanId,
+          metadata: hookMetadata,
+        ),
+        HookPhase.failure,
+      );
+
       return Result.failure(failure);
     }
   }

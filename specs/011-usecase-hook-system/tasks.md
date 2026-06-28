@@ -30,12 +30,12 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 [P] Create `HookPhase` enum with values `pre`, `success`, `failure` in `zuraffa/lib/src/core/hook.dart`
-- [ ] T005 [P] Create `HookContext` class with fields `useCaseName`, `params`, `result`, `failure`, `duration`, `timestamp`, `traceId`, `spanId`, `metadata` and helper methods `paramsAs<P>()`, `resultAs<R>()` in `zuraffa/lib/src/core/hook.dart`
-- [ ] T006 Create `Hook` abstract base class with `id`, `priority` (default 0), `phases` (default all three), `shouldTrigger()` (default true), `execute()` (abstract) in `zuraffa/lib/src/core/hook.dart` (depends on T004, T005)
-- [ ] T007 Create `HookRegistry` singleton with `register()`, `unregister()`, `clear()`, `isEnabled`, `hooks` (sorted by priority), `dispatch()` (fire-and-forget, catches all errors) in `zuraffa/lib/src/core/hook_registry.dart` (depends on T006)
-- [ ] T008 Write unit tests for `HookRegistry` covering register/unregister, dispatch filtering by phases and shouldTrigger, error isolation, empty-registry fast path, global kill switch in `zuraffa/test/core/hook_registry_test.dart` (depends on T007)
-- [ ] T009 Export `Hook`, `HookPhase`, `HookContext`, `HookRegistry` from `zuraffa/lib/zuraffa.dart`
+- [x] T004 [P] Create `HookPhase` enum with values `pre`, `success`, `failure` in `zuraffa/lib/src/core/hook.dart`
+- [x] T005 [P] Create `HookContext` class with fields `useCaseName`, `params`, `result`, `failure`, `duration`, `timestamp`, `traceId`, `spanId`, `metadata` and helper methods `paramsAs<P>()`, `resultAs<R>()` in `zuraffa/lib/src/core/hook.dart`
+- [x] T006 Create `Hook` abstract base class with `id`, `priority` (default 0), `phases` (default all three), `shouldTrigger()` (default true), `execute()` (abstract) in `zuraffa/lib/src/core/hook.dart` (depends on T004, T005)
+- [x] T007 Create `HookRegistry` singleton with `register()`, `unregister()`, `clear()`, `isEnabled`, `hooks` (sorted by priority), `dispatch()` (fire-and-forget, catches all errors) in `zuraffa/lib/src/core/hook_registry.dart` (depends on T006)
+- [x] T008 Write unit tests for `HookRegistry` covering register/unregister, dispatch filtering by phases and shouldTrigger, error isolation, empty-registry fast path, global kill switch in `zuraffa/test/core/hook_registry_test.dart` (depends on T007)
+- [x] T009 Export `Hook`, `HookPhase`, `HookContext`, `HookRegistry` from `zuraffa/lib/zuraffa.dart`
 
 **Checkpoint**: Foundation ready — `HookRegistry` exists and is tested. User story implementation can now begin.
 
@@ -49,10 +49,10 @@
 
 ### Implementation for User Story 1
 
-- [ ] T010 [US1] Add three `HookRegistry.instance.dispatch()` calls to `UseCase.call()` in `zuraffa/lib/src/domain/usecase.dart`: `pre` before `execute()`, `success` after success, `failure` after catching error. Preserve existing try-catch and `FailureReporterRegistry` calls unchanged. Create `HookContext` with shared `metadata` map per invocation.
-- [ ] T011 [US1] Add three `HookRegistry.instance.dispatch()` calls to `StreamUseCase.call()` in `zuraffa/lib/src/domain/stream_usecase.dart`: `pre` before stream starts, `success` after stream completes, `failure` if stream emits failure or throws.
-- [ ] T012 [P] [US1] Add `registerHook(Hook)`, `unregisterHook(String)`, and `hooksEnabled` setter to `Zuraffa` facade class in `zuraffa/lib/zuraffa.dart`
-- [ ] T013 [US1] Write integration test verifying UseCase dispatches to hooks at correct phases with correct context in `zuraffa/test/domain/usecase_hook_test.dart` (depends on T010)
+- [x] T010 [US1] Add three `HookRegistry.instance.dispatch()` calls to `UseCase.call()` in `zuraffa/lib/src/domain/usecase.dart`: `pre` before `execute()`, `success` after success, `failure` after catching error. Preserve existing try-catch and `FailureReporterRegistry` calls unchanged. Create `HookContext` with shared `metadata` map per invocation.
+- [x] T011 [US1] Add three `HookRegistry.instance.dispatch()` calls to `StreamUseCase.call()` in `zuraffa/lib/src/domain/stream_usecase.dart`: `pre` before stream starts, `success` after stream completes, `failure` if stream emits failure or throws.
+- [x] T012 [P] [US1] Add `registerHook(Hook)`, `unregisterHook(String)`, and `hooksEnabled` setter to `Zuraffa` facade class in `zuraffa/lib/zuraffa.dart`
+- [x] T013 [US1] Write integration test verifying UseCase dispatches to hooks at correct phases with correct context in `zuraffa/test/domain/usecase_hook_test.dart` (depends on T010)
 - [ ] T014 [US1] Write integration test verifying StreamUseCase dispatches to hooks at correct phases in `zuraffa/test/domain/stream_usecase_hook_test.dart` (depends on T011)
 
 **Checkpoint**: Generic hook system is fully functional. Any registered hook fires automatically on every UseCase/StreamUseCase execution.
@@ -67,11 +67,11 @@
 
 ### Implementation for User Story 2
 
-- [ ] T015 [P] [US2] Create `TelemetryHook` class extending `Hook` in `zuraffa/lib/src/core/telemetry_hook.dart` with `onlyUseCases`, `excludeUseCases`, `spanNamePrefix` constructor params. Override `phases` to all three, `id` to `'zuraffa-telemetry'`.
-- [ ] T016 [US2] Implement `shouldTrigger()` in `TelemetryHook` with filtering logic: skip if in `excludeUseCases`; if `onlyUseCases` non-empty, skip if not in it. `excludeUseCases` always wins. in `zuraffa/lib/src/core/telemetry_hook.dart` (depends on T015)
-- [ ] T017 [US2] Implement `execute()` in `TelemetryHook` with span lifecycle: `pre` phase calls `OtelTracer.instance.startSpan()` and stashes span in `context.metadata['_telemetry_span']`; `success` phase sets duration attribute and calls `endSpan()`; `failure` phase calls `endSpanWithError()` in `zuraffa/lib/src/core/telemetry_hook.dart` (depends on T016)
-- [ ] T018 [US2] Export `TelemetryHook` from `zuraffa/lib/zuraffa.dart`
-- [ ] T019 [US2] Write unit tests for `TelemetryHook` covering span creation, span ending on success/failure, `onlyUseCases` whitelist filtering, `excludeUseCases` blacklist filtering, both-filters-precedence in `zuraffa/test/core/telemetry_hook_test.dart` (depends on T017)
+- [x] T015 [P] [US2] Create `TelemetryHook` class extending `Hook` in `zuraffa/lib/src/core/telemetry_hook.dart` with `onlyUseCases`, `excludeUseCases`, `spanNamePrefix` constructor params. Override `phases` to all three, `id` to `'zuraffa-telemetry'`.
+- [x] T016 [US2] Implement `shouldTrigger()` in `TelemetryHook` with filtering logic: skip if in `excludeUseCases`; if `onlyUseCases` non-empty, skip if not in it. `excludeUseCases` always wins. in `zuraffa/lib/src/core/telemetry_hook.dart` (depends on T015)
+- [x] T017 [US2] Implement `execute()` in `TelemetryHook` with span lifecycle: `pre` phase calls `OtelTracer.instance.startSpan()` and stashes span in `context.metadata['_telemetry_span']`; `success` phase sets duration attribute and calls `endSpan()`; `failure` phase calls `endSpanWithError()` in `zuraffa/lib/src/core/telemetry_hook.dart` (depends on T016)
+- [x] T018 [US2] Export `TelemetryHook` from `zuraffa/lib/zuraffa.dart`
+- [x] T019 [US2] Write unit tests for `TelemetryHook` covering span creation, span ending on success/failure, `onlyUseCases` whitelist filtering, `excludeUseCases` blacklist filtering, both-filters-precedence in `zuraffa/test/core/telemetry_hook_test.dart` (depends on T017)
 
 **Checkpoint**: `TelemetryHook` is shipped and tested. Users can register it with one line for automatic OTel tracing.
 
@@ -100,10 +100,10 @@
 
 **Purpose**: Documentation, analysis, and final validation
 
-- [ ] T026 [P] Update `zuraffa/doc/HOOK_SYSTEM.md` with final implementation details (actual file paths, confirmed API signatures)
-- [ ] T027 [P] Run `dart format .` on all new and modified files in `zuraffa/`
-- [ ] T028 Run `dart analyze` with zero errors/warnings on modified files in `zuraffa/lib/src/core/hook.dart`, `zuraffa/lib/src/core/hook_registry.dart`, `zuraffa/lib/src/core/telemetry_hook.dart`, `zuraffa/lib/src/domain/usecase.dart`, `zuraffa/lib/src/domain/stream_usecase.dart`, `zuraffa/lib/zuraffa.dart`
-- [ ] T029 Run `flutter test test/core/hook_registry_test.dart test/core/telemetry_hook_test.dart test/domain/usecase_hook_test.dart test/domain/stream_usecase_hook_test.dart` and verify all pass
+- [x] T026 [P] Update `zuraffa/doc/HOOK_SYSTEM.md` with final implementation details (actual file paths, confirmed API signatures)
+- [x] T027 [P] Run `dart format .` on all new and modified files in `zuraffa/`
+- [x] T028 Run `dart analyze` with zero errors/warnings on modified files in `zuraffa/lib/src/core/hook.dart`, `zuraffa/lib/src/core/hook_registry.dart`, `zuraffa/lib/src/core/telemetry_hook.dart`, `zuraffa/lib/src/domain/usecase.dart`, `zuraffa/lib/src/domain/stream_usecase.dart`, `zuraffa/lib/zuraffa.dart`
+- [x] T029 Run `flutter test test/core/hook_registry_test.dart test/core/telemetry_hook_test.dart test/domain/usecase_hook_test.dart test/domain/stream_usecase_hook_test.dart` and verify all pass
 - [ ] T030 Run validation scenarios from `specs/011-usecase-hook-system/quickstart.md` — scenarios 1-5 in Zuraffa, scenario 6 (EngagementHook) in ZikZak
 
 ---
