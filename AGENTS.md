@@ -182,6 +182,6 @@ For a user coming from older Zuraffa docs, the shortest correct explanation is:
 <!-- SPECKIT START -->
 
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read specs/010-offline-first-sync/plan.md
+shell commands, and other important information, read specs/011-usecase-hook-system/plan.md
 
 <!-- SPECKIT END -->
