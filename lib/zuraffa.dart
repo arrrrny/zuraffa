@@ -170,6 +170,19 @@ export 'src/core/cache_policy.dart';
 /// Concrete cache policy implementations (Daily, AppRestart, TTL)
 export 'src/core/cache_policies.dart';
 
+/// SyncStrategy abstraction for offline-first synchronization
+export 'src/core/sync_strategy.dart';
+export 'src/core/sync_status.dart';
+export 'src/core/sync_operation.dart';
+export 'src/core/sync_metadata.dart';
+export 'src/core/sync_direction.dart';
+export 'src/core/sync_config.dart';
+
+/// Sync runtime infrastructure (used by generated sync code)
+export 'src/plugins/sync/builders/sync_metadata_store.dart';
+export 'src/plugins/sync/builders/push_only_sync_strategy.dart';
+export 'src/plugins/sync/builders/bidirectional_sync_strategy.dart';
+
 /// Abstract failure reporter contract
 export 'src/core/failure_report_queue.dart' show FailureReportQueue;
 export 'src/core/failure_report_store.dart' show FailureReportStore;

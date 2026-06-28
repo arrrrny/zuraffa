@@ -60,9 +60,34 @@ extension RepositoryImplementationGeneratorAppend
         '../datasources/$entitySnake/${entitySnake}_local_datasource.dart',
       );
       imports.add('../../cache/${entitySnake}_cache.dart');
+    } else if (config.enableSync) {
+      imports.add(
+        '../datasources/$entitySnake/${entitySnake}_local_datasource.dart',
+      );
+      imports.add('../datasources/$entitySnake/${entitySnake}_datasource.dart');
+      imports.add(
+        '../datasources/$entitySnake/${entitySnake}_remote_datasource.dart',
+      );
+      imports.add(
+        '../datasources/$entitySnake/${entitySnake}_sync_metadata_store.dart',
+      );
     } else {
       imports.add('../datasources/$entitySnake/${entitySnake}_datasource.dart');
     }
+
+    // Resolve entity imports for custom params/returns types
+    if (config.paramsType != null || config.returnsType != null) {
+      imports.addAll(
+        CommonPatterns.entityImports(
+          [config.paramsType, config.returnsType],
+          config,
+          depth: 2,
+          discovery: discovery,
+          fileSystem: fileSystem,
+        ),
+      );
+    }
+
     return imports;
   }
 }

@@ -53,6 +53,14 @@ class GeneratorConfig {
   final String cachePolicy;
   final String? cacheStorage;
   final int? ttlMinutes;
+
+  // Sync fields
+  final bool enableSync;
+  final String syncDirection;
+  final int syncBatchSize;
+  final int syncMaxRetries;
+  final int syncBackoffBaseMs;
+  final int syncBackoffMaxMs;
   final bool generateMock;
   final bool generateMockDataOnly;
   final bool generateMockJson;
@@ -120,6 +128,12 @@ class GeneratorConfig {
     this.cachePolicy = 'daily',
     this.cacheStorage,
     this.ttlMinutes,
+    this.enableSync = false,
+    this.syncDirection = 'push',
+    this.syncBatchSize = 50,
+    this.syncMaxRetries = 5,
+    this.syncBackoffBaseMs = 1000,
+    this.syncBackoffMaxMs = 60000,
     this.generateMock = false,
     this.generateMockDataOnly = false,
     this.generateMockJson = false,
@@ -280,6 +294,12 @@ class GeneratorConfig {
     String? cachePolicy,
     String? cacheStorage,
     int? ttlMinutes,
+    bool? enableSync,
+    String? syncDirection,
+    int? syncBatchSize,
+    int? syncMaxRetries,
+    int? syncBackoffBaseMs,
+    int? syncBackoffMaxMs,
     bool? generateMock,
     bool? generateMockDataOnly,
     bool? generateMockJson,
@@ -342,6 +362,12 @@ class GeneratorConfig {
       cachePolicy: cachePolicy ?? this.cachePolicy,
       cacheStorage: cacheStorage ?? this.cacheStorage,
       ttlMinutes: ttlMinutes ?? this.ttlMinutes,
+      enableSync: enableSync ?? this.enableSync,
+      syncDirection: syncDirection ?? this.syncDirection,
+      syncBatchSize: syncBatchSize ?? this.syncBatchSize,
+      syncMaxRetries: syncMaxRetries ?? this.syncMaxRetries,
+      syncBackoffBaseMs: syncBackoffBaseMs ?? this.syncBackoffBaseMs,
+      syncBackoffMaxMs: syncBackoffMaxMs ?? this.syncBackoffMaxMs,
       generateMock: generateMock ?? this.generateMock,
       generateMockDataOnly: generateMockDataOnly ?? this.generateMockDataOnly,
       generateMockJson: generateMockJson ?? this.generateMockJson,
@@ -603,6 +629,12 @@ class GeneratorConfig {
     'cache_policy': cachePolicy,
     'cache_storage': cacheStorage,
     'ttl': ttlMinutes,
+    'sync': enableSync,
+    'sync_direction': syncDirection,
+    'sync_batch_size': syncBatchSize,
+    'sync_max_retries': syncMaxRetries,
+    'sync_backoff_base_ms': syncBackoffBaseMs,
+    'sync_backoff_max_ms': syncBackoffMaxMs,
     'mock': generateMock,
     'mock_data_only': generateMockDataOnly,
     'mock_json': generateMockJson,

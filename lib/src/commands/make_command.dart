@@ -150,6 +150,26 @@ class MakeCommand extends Command<void> {
       help: 'Generate data source',
     );
     argParser.addFlag('cache', negatable: false, help: 'Enable caching');
+    argParser.addFlag(
+      'sync',
+      negatable: false,
+      help: 'Enable offline-first sync',
+    );
+    argParser.addFlag(
+      'bidirectional',
+      negatable: false,
+      help: 'Enable bidirectional sync (push + pull)',
+    );
+    argParser.addOption(
+      'sync-batch-size',
+      help: 'Sync batch size (default: 50)',
+      defaultsTo: '50',
+    );
+    argParser.addOption(
+      'sync-max-retries',
+      help: 'Max sync retry attempts (default: 5)',
+      defaultsTo: '5',
+    );
     argParser.addFlag('route', negatable: false, help: 'Generate route');
     argParser.addFlag('mock', negatable: false, help: 'Generate mock data');
     argParser.addFlag('test', negatable: false, help: 'Generate tests');
@@ -192,6 +212,10 @@ class MakeCommand extends Command<void> {
       'data',
       'datasource',
       'cache',
+      'sync',
+      'bidirectional',
+      'sync-batch-size',
+      'sync-max-retries',
       'route',
       'mock',
       'test',

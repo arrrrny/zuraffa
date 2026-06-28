@@ -63,6 +63,70 @@ extension CustomUseCaseGeneratorOrchestrator on CustomUseCaseGenerator {
       );
     }
 
+    // Also inject service dependency if specified
+    if (config.hasService) {
+      final serviceName = config.effectiveService;
+      if (serviceName == null) {
+        throw ArgumentError(
+          'Service name must be specified via --service or config.service',
+        );
+      }
+      final svcSnake = config.serviceSnake;
+      if (svcSnake != null) {
+        usecaseImports.add('../../services/${svcSnake}_service.dart');
+      }
+
+      final serviceBaseName = serviceName.endsWith('Service')
+          ? serviceName.substring(0, serviceName.length - 7)
+          : serviceName;
+      final serviceFieldName =
+          '_${StringUtils.pascalToCamel(serviceBaseName)}Service';
+
+      usecaseFields.add(
+        Field(
+          (b) => b
+            ..name = serviceFieldName
+            ..type = refer(serviceName)
+            ..modifier = FieldModifier.final$,
+        ),
+      );
+      usecaseParams.add(
+        Parameter(
+          (p) => p
+            ..name = serviceFieldName
+            ..toThis = true,
+        ),
+      );
+    }
+
+    // Also inject repo dependency if specified (when no service)
+    if (config.hasRepo && !config.hasService) {
+      for (final repo in config.effectiveRepos) {
+        final repoBaseName = repo.replaceAll('Repository', '');
+        final repoFieldName =
+            '_${StringUtils.pascalToCamel(repoBaseName)}Repository';
+
+        final repoSnake = StringUtils.camelToSnake(repoBaseName);
+        usecaseImports.add('../../repositories/${repoSnake}_repository.dart');
+
+        usecaseFields.add(
+          Field(
+            (b) => b
+              ..name = repoFieldName
+              ..type = refer(repo)
+              ..modifier = FieldModifier.final$,
+          ),
+        );
+        usecaseParams.add(
+          Parameter(
+            (p) => p
+              ..name = repoFieldName
+              ..toThis = true,
+          ),
+        );
+      }
+    }
+
     final entityImports = CommonPatterns.entityImports(
       [paramsType, returnsType],
       config,

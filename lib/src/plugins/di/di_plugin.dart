@@ -189,6 +189,9 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         if (config.enableCache) {
           files.add(await _generateRemoteDataSourceDI(config, fs));
           files.add(await _generateLocalDataSourceDI(config, fs));
+        } else if (config.enableSync) {
+          files.add(await _generateLocalDataSourceDI(config, fs));
+          files.add(await _generateRemoteDataSourceDI(config, fs));
         } else if (config.useMockInDi) {
           files.add(await _generateMockDataSourceDI(config, fs));
         } else if (config.generateLocal) {
@@ -499,6 +502,28 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         refer('getIt').call([], {}, [refer(remoteDataSourceName)]),
         refer('getIt').call([], {}, [refer(localDataSourceName)]),
         refer(policyFunctionName).call([]),
+      ]);
+    } else if (config.enableSync) {
+      final localDataSourceName = '${baseName}LocalDataSource';
+      final remoteDataSourceName = '${baseName}RemoteDataSource';
+
+      imports.add(
+        '../../data/datasources/$baseSnake/${baseSnake}_local_datasource.dart',
+      );
+      imports.add(
+        '../../data/datasources/$baseSnake/${baseSnake}_remote_datasource.dart',
+      );
+      imports.add(
+        '../../data/datasources/$baseSnake/${baseSnake}_sync_metadata_store.dart',
+      );
+      imports.add(
+        '../../data/datasources/$baseSnake/${baseSnake}_sync_strategy.dart',
+      );
+      constructorCall = refer(dataRepoName).call([
+        refer('getIt').call([], {}, [refer(localDataSourceName)]),
+        refer('getIt').call([], {}, [refer(remoteDataSourceName)]),
+        refer('getIt').call([], {}, [refer('SyncMetadataStore')]),
+        refer('getIt').call([], {}, [refer('SyncStrategy<$baseName>')]),
       ]);
     } else {
       String dataSourceName;

@@ -60,6 +60,15 @@ Also assume:
 - entities are Zorphy-first on public v5 surfaces
 - output examples should target `lib/src`, not custom architecture roots
 
+## Spec Kit: Branch Naming
+
+When running `/speckit-specify`, the git branch name MUST match the feature directory name exactly.
+This is non-negotiable: `specs/010-offline-first-sync` → branch `010-offline-first-sync`.
+
+The `before_specify` git hook is responsible for creating this branch. If it does not run
+(e.g., when an AI agent drives the workflow directly), the agent MUST manually create the
+branch with `git checkout -b <feature-directory-name>` before proceeding.
+
 ## What `make` should be used for
 
 Use `zfa make` for:
@@ -173,6 +182,6 @@ For a user coming from older Zuraffa docs, the shortest correct explanation is:
 <!-- SPECKIT START -->
 
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read specs/009-cache-adapter-command/plan.md
+shell commands, and other important information, read specs/010-offline-first-sync/plan.md
 
 <!-- SPECKIT END -->

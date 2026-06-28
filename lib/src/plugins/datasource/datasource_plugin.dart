@@ -133,6 +133,7 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       generateLocal: context.get<bool>('local') ?? false,
       generateRemote: context.get<bool>('remote') ?? true,
       enableCache: _resolveEnableCache(context),
+      enableSync: context.get<bool>('sync') ?? false,
       useService:
           context.data['use-service'] == true ||
           context.data['useService'] == true,
@@ -256,12 +257,13 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return files;
     }
 
-    if (config.generateLocal || config.enableCache) {
+    if (config.generateLocal || config.enableCache || config.enableSync) {
       files.add(await localGen.generate(config));
     }
 
     if (config.generateRemote ||
-        (config.enableCache && !config.generateLocal)) {
+        (config.enableCache && !config.generateLocal) ||
+        config.enableSync) {
       files.add(await remoteGen.generate(config));
     }
 

@@ -4,6 +4,7 @@ import 'package:path/path.dart' as path;
 import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
 import '../../../core/ast/ast_helper.dart';
+import '../../../core/builder/patterns/common_patterns.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../../../core/plugin_system/discovery_engine.dart';
@@ -227,6 +228,20 @@ class RepositoryInterfaceGenerator {
         }
       }
     }
+
+    // Resolve entity imports for custom params/returns types
+    if (config.paramsType != null || config.returnsType != null) {
+      imports.addAll(
+        CommonPatterns.entityImports(
+          [config.paramsType, config.returnsType],
+          config,
+          depth: 2,
+          discovery: discovery,
+          fileSystem: fileSystem,
+        ),
+      );
+    }
+
     return imports;
   }
 

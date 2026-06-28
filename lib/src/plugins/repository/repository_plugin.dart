@@ -112,6 +112,8 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       generateDataSource:
           context.get<bool>('datasource') ?? context.data['datasource'] == true,
       enableCache: context.get<bool>('cache') ?? false,
+      enableSync: context.get<bool>('sync') ?? false,
+      syncDirection: context.get<String>('sync-direction') ?? 'push',
       generateLocal: context.get<bool>('local') ?? false,
       noEntity: context.get<bool>('no-entity') ?? false,
       useService: useService,

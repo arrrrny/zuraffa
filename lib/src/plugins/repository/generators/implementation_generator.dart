@@ -5,6 +5,7 @@ import '../../../core/ast/append_executor.dart';
 import '../../../core/ast/strategies/append_strategy.dart';
 
 import '../../../core/ast/ast_helper.dart';
+import '../../../core/builder/patterns/common_patterns.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../../../core/plugin_system/discovery_engine.dart';
@@ -17,6 +18,7 @@ import '../../../utils/entity_analyzer.dart';
 part 'implementation_generator_append.dart';
 part 'implementation_generator_cached.dart';
 part 'implementation_generator_simple.dart';
+part 'implementation_generator_synced.dart';
 
 /// Generates repository implementation classes.
 ///
@@ -70,12 +72,29 @@ class RepositoryImplementationGenerator {
       );
     }
 
+    // Mutual exclusivity check
+    if (config.enableCache && config.enableSync) {
+      throw ArgumentError(
+        'Cannot enable both --cache and --sync on the same entity. '
+        'Cache is remote-first; sync is local-first. They are architecturally incompatible.',
+      );
+    }
+
     if (config.enableCache) {
       for (final method in config.methods) {
         methods.add(
           _generateCachedMethod(config, method, entityName, entityCamel),
         );
       }
+    } else if (config.enableSync) {
+      for (final method in config.methods) {
+        methods.add(
+          _generateSyncedMethod(config, method, entityName, entityCamel),
+        );
+      }
+      // Add sync-specific methods
+      methods.add(generateSyncPendingMethod());
+      methods.add(generatePullRemoteMethod());
     } else {
       for (final method in config.methods) {
         methods.add(
@@ -177,28 +196,7 @@ class RepositoryImplementationGenerator {
 
     final fields = <Field>[];
     final constructors = <Constructor>[];
-    if (config.generateLocal) {
-      fields.add(
-        Field(
-          (f) => f
-            ..modifier = FieldModifier.final$
-            ..type = refer(localDataSourceName)
-            ..name = '_dataSource',
-        ),
-      );
-      constructors.add(
-        Constructor(
-          (c) => c
-            ..requiredParameters.add(
-              Parameter(
-                (p) => p
-                  ..name = '_dataSource'
-                  ..toThis = true,
-              ),
-            ),
-        ),
-      );
-    } else if (config.enableCache) {
+    if (config.enableCache) {
       fields.add(
         Field(
           (f) => f
@@ -244,6 +242,93 @@ class RepositoryImplementationGenerator {
               Parameter(
                 (p) => p
                   ..name = '_cachePolicy'
+                  ..toThis = true,
+              ),
+            ),
+        ),
+      );
+    } else if (config.enableSync) {
+      fields.add(
+        Field(
+          (f) => f
+            ..modifier = FieldModifier.final$
+            ..type = refer(localDataSourceName)
+            ..name = '_localDataSource',
+        ),
+      );
+      fields.add(
+        Field(
+          (f) => f
+            ..modifier = FieldModifier.final$
+            ..type = refer(dataSourceName)
+            ..name = '_remoteDataSource',
+        ),
+      );
+      fields.add(
+        Field(
+          (f) => f
+            ..modifier = FieldModifier.final$
+            ..type = refer('SyncMetadataStore')
+            ..name = '_syncMetadataStore',
+        ),
+      );
+      fields.add(
+        Field(
+          (f) => f
+            ..modifier = FieldModifier.final$
+            ..type = refer('SyncStrategy<$entityName>')
+            ..name = '_syncStrategy',
+        ),
+      );
+      constructors.add(
+        Constructor(
+          (c) => c
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = '_localDataSource'
+                  ..toThis = true,
+              ),
+            )
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = '_remoteDataSource'
+                  ..toThis = true,
+              ),
+            )
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = '_syncMetadataStore'
+                  ..toThis = true,
+              ),
+            )
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = '_syncStrategy'
+                  ..toThis = true,
+              ),
+            ),
+        ),
+      );
+    } else if (config.generateLocal) {
+      fields.add(
+        Field(
+          (f) => f
+            ..modifier = FieldModifier.final$
+            ..type = refer(localDataSourceName)
+            ..name = '_dataSource',
+        ),
+      );
+      constructors.add(
+        Constructor(
+          (c) => c
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = '_dataSource'
                   ..toThis = true,
               ),
             ),

@@ -86,6 +86,8 @@ class MethodAppendPlugin extends FileGeneratorPlugin {
       domain: context.data['domain'],
       service: context.data['service'],
       repo: context.data['repo'],
+      paramsType: context.data['params'],
+      returnsType: context.data['returns'],
       noEntity: context.data['no-entity'] == true,
     );
 
