@@ -85,12 +85,12 @@
 
 ### Implementation for User Story 3
 
-- [ ] T020 [P] [US3] Create `EngagementHook` class extending `Hook` in `zik_zak/lib/src/presentation/hooks/engagement_hook.dart` that takes `EngagementEventRepository` as constructor dependency
-- [ ] T021 [US3] Implement `useCaseEventMap` mapping 8 UseCase names to `EngagementEventType` enum values (BARCODE_SCAN, LINK_SHARE, DEAL_LIKE, DEAL_SHARE, LISTING_SHARE, ASK_ZIKZAK, VISIT_LINK, SEARCH_TERM) and `shouldTrigger()` checking the map in `zik_zak/lib/src/presentation/hooks/engagement_hook.dart` (depends on T020)
-- [ ] T022 [US3] Implement `execute()` calling `_repository.create(EngagementEvent(...))` with extracted payload from `HookContext.params` per UseCase type, `phases` set to `{HookPhase.success}` only in `zik_zak/lib/src/presentation/hooks/engagement_hook.dart` (depends on T021)
-- [ ] T023 [US3] Register `EngagementHook(getIt<EngagementEventRepository>())` in ZikZak's `main()` in `zik_zak/lib/main.dart` (depends on T022)
-- [ ] T024 [US3] Remove all `CreateTelemetryEventUseCase` calls and `trackXxx()` methods from controllers in `zik_zak/lib/src/presentation/pages/barcode_listing/barcode_listing_controller.dart`, `zik_zak/lib/src/presentation/pages/ask_zikzak/ask_zikzak_controller.dart`, `zik_zak/lib/src/presentation/pages/url_listing/url_listing_controller.dart`, `zik_zak/lib/src/presentation/pages/deal/deal_controller.dart`, and `zik_zak/lib/src/presentation/widgets/share/share_button.dart` (depends on T023)
-- [ ] T025 [US3] Verify zero `CreateTelemetryEventUseCase` or `TelemetryEvent` imports remain in any controller by running `grep -r "CreateTelemetryEventUseCase\|TelemetryEvent" zik_zak/lib/src/presentation/` (depends on T024)
+- [x] T020 [P] [US3] Create `EngagementHook` class extending `Hook` in `zik_zak/lib/src/presentation/hooks/engagement_hook.dart` that takes `EngagementEventRepository` as constructor dependency
+- [x] T021 [US3] Implement `useCaseEventMap` mapping 8 UseCase names to `EngagementEventType` enum values (BARCODE_SCAN, LINK_SHARE, DEAL_LIKE, DEAL_SHARE, LISTING_SHARE, ASK_ZIKZAK, VISIT_LINK, SEARCH_TERM) and `shouldTrigger()` checking the map in `zik_zak/lib/src/presentation/hooks/engagement_hook.dart` (depends on T020)
+- [x] T022 [US3] Implement `execute()` calling `_repository.create(EngagementEvent(...))` with extracted payload from `HookContext.params` per UseCase type, `phases` set to `{HookPhase.success}` only in `zik_zak/lib/src/presentation/hooks/engagement_hook.dart` (depends on T021)
+- [x] T023 [US3] Register `EngagementHook(getIt<EngagementEventRepository>())` in ZikZak's `main()` in `zik_zak/lib/main.dart` (depends on T022)
+- [x] T024 [US3] Remove all `CreateTelemetryEventUseCase` calls and `trackXxx()` methods from controllers in `zik_zak/lib/src/presentation/pages/barcode_listing/barcode_listing_controller.dart`, `zik_zak/lib/src/presentation/pages/ask_zikzak/ask_zikzak_controller.dart`, `zik_zak/lib/src/presentation/pages/url_listing/url_listing_controller.dart`, `zik_zak/lib/src/presentation/pages/deal/deal_controller.dart`, and `zik_zak/lib/src/presentation/widgets/share/share_button.dart` (depends on T023)
+- [x] T025 [US3] Verify zero `CreateTelemetryEventUseCase` or `TelemetryEvent` imports remain in any controller by running `grep -r "CreateTelemetryEventUseCase\|TelemetryEvent" zik_zak/lib/src/presentation/` (depends on T024)
 
 **Checkpoint**: ZikZak engagement tracking is fully automated via hooks. Zero controller boilerplate remains.
 
@@ -104,7 +104,7 @@
 - [x] T027 [P] Run `dart format .` on all new and modified files in `zuraffa/`
 - [x] T028 Run `dart analyze` with zero errors/warnings on modified files in `zuraffa/lib/src/core/hook.dart`, `zuraffa/lib/src/core/hook_registry.dart`, `zuraffa/lib/src/core/telemetry_hook.dart`, `zuraffa/lib/src/domain/usecase.dart`, `zuraffa/lib/src/domain/stream_usecase.dart`, `zuraffa/lib/zuraffa.dart`
 - [x] T029 Run `flutter test test/core/hook_registry_test.dart test/core/telemetry_hook_test.dart test/domain/usecase_hook_test.dart test/domain/stream_usecase_hook_test.dart` and verify all pass
-- [ ] T030 Run validation scenarios from `specs/011-usecase-hook-system/quickstart.md` — scenarios 1-5 in Zuraffa, scenario 6 (EngagementHook) in ZikZak
+- [x] T030 Run validation scenarios from `specs/011-usecase-hook-system/quickstart.md` — scenarios 1-5 in Zuraffa, scenario 6 (EngagementHook) in ZikZak
 
 ---
 
