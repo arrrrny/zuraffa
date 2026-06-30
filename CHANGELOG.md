@@ -1,4 +1,17 @@
-## [Unreleased]
+## [5.3.0] - 2026-06-30
+
+### Added
+
+- **UseCase Hook System**: implement `UseCaseHook` protocol with pre-execute, post-execute, and error handlers. Supports stream and future usecases.
+  - `EngagementHook` with smart timeout + fallback orchestration
+  - Declarative hook registration via `UseCase<T, P>` constructor
+- **Offline-first sync plugin**: local-first architecture with pending change queue and conflict resolution
+- **Sync retry strategy**: `syncFailed` + `autoSync` for smart retry on failure
+
+### Fixed
+
+- Zed extension WASM binary now uses correct `wasm32-wasip1` target in publish script
+- Various repository fixes
 
 ## [5.2.1] - 2026-06-12
 
