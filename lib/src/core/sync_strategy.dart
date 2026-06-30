@@ -42,10 +42,19 @@ import 'sync_status.dart';
 abstract class SyncStrategy<T> {
   /// Push all pending local changes to the remote data source.
   ///
-  /// Processes records with [SyncStatus.pending] or [SyncStatus.failed].
+  /// Processes records with [SyncStatus.pending] only.
+  /// Does NOT retry [SyncStatus.failed] records — use [syncFailed] for that.
   /// Uses batching and retry with exponential backoff.
   /// Respects [cancelToken] for cancellation.
   Future<void> syncPending({CancelToken? cancelToken});
+
+  /// Retry all previously failed records.
+  ///
+  /// Resets [SyncStatus.failed] records to pending and processes them
+  /// through the same pipeline as [syncPending].
+  ///
+  /// Default implementation delegates to [syncPending].
+  Future<void> syncFailed({CancelToken? cancelToken});
 
   /// Pull remote data and merge into local storage.
   ///

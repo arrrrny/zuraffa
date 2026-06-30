@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:zuraffa/zuraffa.dart';
 
 /// Default push-only synchronization strategy.
@@ -74,25 +76,54 @@ class PushOnlySyncStrategy<T> extends SyncStrategy<T> with Loggable {
 
   @override
   Future<void> syncPending({CancelToken? cancelToken}) async {
-    // 1. Gather all keys needing sync: pending + previously failed
+    // Gather only pending (fresh, never-failed) records.
+    // Failed records are not retried here — use [syncFailed] for that.
     final pendingKeys = await _metadataStore.getKeysByStatus(
       SyncStatus.pending,
     );
-    final failedKeys = await _metadataStore.getKeysByStatus(SyncStatus.failed);
-    final allKeys = [...pendingKeys, ...failedKeys];
 
-    if (allKeys.isEmpty) {
+    if (pendingKeys.isEmpty) {
       logger.fine('No pending records to sync');
       return;
     }
 
-    logger.info('Syncing ${allKeys.length} pending records');
+    logger.info('Syncing ${pendingKeys.length} pending records');
+    await _processKeys(pendingKeys, cancelToken);
+  }
 
-    // 2. Partition tombstones from live records
+  @override
+  Future<void> syncFailed({CancelToken? cancelToken}) async {
+    // Reset all failed records to pending with fresh retry counts.
+    // This gives them a clean slate on the next sync cycle.
+    final failedKeys = await _metadataStore.getKeysByStatus(SyncStatus.failed);
+
+    if (failedKeys.isEmpty) {
+      logger.fine('No failed records to retry');
+      return;
+    }
+
+    logger.info('Retrying ${failedKeys.length} failed records');
+    for (final key in failedKeys) {
+      final metadata = await _metadataStore.get(key);
+      if (metadata != null) {
+        await _metadataStore.put(
+          key,
+          metadata.copyWith(status: SyncStatus.pending, retryCount: 0),
+        );
+      }
+    }
+
+    // Now process them through the same pipeline as pending records.
+    await _processKeys(failedKeys, cancelToken);
+  }
+
+  /// Shared processing pipeline: partition keys into tombstones and live
+  /// records, then process tombstones first, then live records in batches.
+  Future<void> _processKeys(List<String> keys, CancelToken? cancelToken) async {
     final tombstoneKeys = <String>[];
     final liveKeys = <String>[];
 
-    for (final key in allKeys) {
+    for (final key in keys) {
       final metadata = await _metadataStore.get(key);
       if (metadata != null && metadata.isTombstone) {
         tombstoneKeys.add(key);
@@ -101,13 +132,13 @@ class PushOnlySyncStrategy<T> extends SyncStrategy<T> with Loggable {
       }
     }
 
-    // 3. Process tombstones first (remote deletes)
+    // Process tombstones first (remote deletes)
     for (final key in tombstoneKeys) {
       cancelToken?.throwIfCancelled();
       await _syncTombstone(key);
     }
 
-    // 4. Process live records in batches
+    // Process live records in batches
     for (var i = 0; i < liveKeys.length; i += _config.batchSize) {
       cancelToken?.throwIfCancelled();
 
@@ -117,7 +148,7 @@ class PushOnlySyncStrategy<T> extends SyncStrategy<T> with Loggable {
       await _syncBatch(batchKeys, cancelToken);
     }
 
-    logger.info('Sync complete');
+    logger.info('Sync processing complete');
   }
 
   /// Push a single tombstone (remote delete) and clean up metadata.
@@ -254,6 +285,7 @@ class PushOnlySyncStrategy<T> extends SyncStrategy<T> with Loggable {
       key,
       SyncMetadata(status: SyncStatus.pending, operation: operation),
     );
+    _maybeAutoSync();
   }
 
   @override
@@ -266,6 +298,17 @@ class PushOnlySyncStrategy<T> extends SyncStrategy<T> with Loggable {
         deletedAt: DateTime.now(),
       ),
     );
+    _maybeAutoSync();
+  }
+
+  /// If [autoSync] is enabled, fire a background sync (fire-and-forget).
+  ///
+  /// Uses [unawaited] so the caller — typically a repository write method —
+  /// returns immediately without waiting for the sync to complete.
+  void _maybeAutoSync() {
+    if (!_config.autoSync) return;
+    logger.fine('autoSync triggered, syncing pending records');
+    unawaited(syncPending());
   }
 
   @override

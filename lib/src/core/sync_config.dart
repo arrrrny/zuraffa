@@ -22,12 +22,23 @@ class SyncConfig {
   /// Sync direction: push-only or bidirectional.
   final SyncDirection direction;
 
+  /// Whether to automatically trigger sync after each local write.
+  ///
+  /// When `true`, [PushOnlySyncStrategy.markPending] and
+  /// [PushOnlySyncStrategy.markDeleted] will also fire a background
+  /// [SyncStrategy.syncPending] call (fire-and-forget).
+  ///
+  /// Default: `false` — sync only happens when [SyncStrategy.syncPending]
+  /// is explicitly called.
+  final bool autoSync;
+
   const SyncConfig({
     this.batchSize = 50,
     this.maxRetries = 5,
     this.backoffBaseMs = 1000,
     this.backoffMaxMs = 60000,
     this.direction = SyncDirection.push,
+    this.autoSync = false,
   });
 
   /// Calculate the backoff delay for a given retry count.
