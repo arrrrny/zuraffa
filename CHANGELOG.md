@@ -1,3 +1,13 @@
+## [5.4.2] - 2026-07-09
+
+### Fixed
+
+- **API bridge codegen**: `_paramsTypeHasFromJson()` now strips generic type parameters (e.g. `QueryParams<Product>` → `QueryParams`) before checking for entity directories
+- **API bridge codegen**: known Zuraffa core types (`QueryParams`, `QueryParamsPatch`) now correctly identified as having `fromJson`
+- **API bridge codegen**: stream handlers with primitive params (String, int, etc.) now generate proper extraction instead of broken `.fromJson(json)` calls
+- **API bridge codegen**: usecases whose params type lacks `fromJson` are now skipped with a warning instead of generating uncompilable code
+- **Test**: added `skip` test for unknown param types, all 8 tests passing
+
 ## [5.4.1] - 2026-07-09
 
 ### Fixed
