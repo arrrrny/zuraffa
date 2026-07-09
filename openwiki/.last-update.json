@@ -1,0 +1,7 @@
+{
+  "gitHead": null,
+  "updatedAt": "2026-04-17T00:00:00.000Z",
+  "targetRepository": "zuraffa",
+  "version": "5.3.0",
+  "notes": "Added integrations.md, operations.md, plugin-development.md pages. Updated quickstart with cross-references. Added cross-links in architecture.md and cli.md."
+}
