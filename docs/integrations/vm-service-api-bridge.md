@@ -71,11 +71,11 @@ ext.zuraffa.<domain>.<usecaseName>
 
 Three built-in meta-extensions:
 
-| Extension | Purpose |
-|-----------|---------|
-| `ext.zuraffa._list` | Returns JSON catalog of all registered UseCase endpoints |
-| `ext.zuraffa._pollStream` | Polls latest value from a StreamUseCase subscription |
-| `ext.zuraffa._cancelStream` | Cancels a StreamUseCase subscription |
+| Extension                   | Purpose                                                  |
+| --------------------------- | -------------------------------------------------------- |
+| `ext.zuraffa._list`         | Returns JSON catalog of all registered UseCase endpoints |
+| `ext.zuraffa._pollStream`   | Polls latest value from a StreamUseCase subscription     |
+| `ext.zuraffa._cancelStream` | Cancels a StreamUseCase subscription                     |
 
 ## Usage
 
@@ -139,6 +139,7 @@ Future<developer.ServiceExtensionResponse> _handleCreateTodo(
 ```
 
 Or with arguments:
+
 ```bash
 ./call_api.sh http://127.0.0.1:50385/XXX=/ ext.zuraffa.todo.createTodo \
   '{"title":"Test","isCompleted":false}'
@@ -165,6 +166,7 @@ Or with arguments:
 ### Stream UseCases
 
 For `Stream<Result<T, AppFailure>>` UseCases, the bridge:
+
 1. Registers a subscription ID
 2. Returns `{"status": "streaming", "subscriptionId": "abc123"}` immediately
 3. Caches the latest emitted value
@@ -173,23 +175,55 @@ For `Stream<Result<T, AppFailure>>` UseCases, the bridge:
 
 ## Safety
 
-| Gate | Behavior |
-|------|----------|
-| `kReleaseMode` | `init()` and all `register*()` are no-ops |
-| `kProfileMode` | Opt-in via `Zuraffa.enableApiInProfile = true` |
-| Handler crashes | Caught, returned as structured error — never crash app |
+| Gate             | Behavior                                                                   |
+| ---------------- | -------------------------------------------------------------------------- |
+| `kReleaseMode`   | `init()` and all `register*()` are no-ops                                  |
+| `kProfileMode`   | Opt-in via `Zuraffa.enableApiInProfile = true`                             |
+| Handler crashes  | Caught, returned as structured error — never crash app                     |
 | Wrong isolate ID | Silently routes to wrong handler — always resolve dynamically from `getVM` |
 
 ## Key Files
 
-| File | Role |
-|------|------|
-| `lib/src/core/api_bridge.dart` | Core bridge: init, registration, serialization, stream management |
-| `lib/src/core/api_endpoint.dart` | Endpoint metadata model |
-| `lib/src/plugins/api/api_plugin.dart` | CLI plugin: `zfa api <Entity>` |
-| `lib/src/plugins/api/builders/api_bridge_builder.dart` | Codegen: generates `register*ApiBridge()` functions |
-| `example/lib/src/api/bridges/todo_api_bridge.dart` | Example: Todo UseCase bridge |
-| `example/call_api.sh` | Script: one-liner extension caller |
+| File                                                   | Role                                                              |
+| ------------------------------------------------------ | ----------------------------------------------------------------- |
+| `lib/src/core/api_bridge.dart`                         | Core bridge: init, registration, serialization, stream management |
+| `lib/src/core/api_endpoint.dart`                       | Endpoint metadata model                                           |
+| `lib/src/plugins/api/api_plugin.dart`                  | CLI plugin: `zfa api <Entity>`                                    |
+| `lib/src/plugins/api/builders/api_bridge_builder.dart` | Codegen: generates `register*ApiBridge()` functions               |
+| `example/lib/src/api/bridges/todo_api_bridge.dart`     | Example: Todo UseCase bridge                                      |
+| `example/call_api.sh`                                  | Script: one-liner extension caller                                |
+| `test/plugins/api/api_bridge_builder_test.dart`        | 8 tests: discovery, codegen, imports, skip logic                  |
+
+## Codegen Design (v5.4.2)
+
+The `ApiBridgeBuilder` scans `lib/src/domain/usecases/<entity>/` and generates a bridge file with one handler per UseCase.
+
+### UseCase Filtering
+
+- **Primitive params** (String, int, double, bool, NoParams): always included
+- **Known Zuraffa types** (QueryParams, QueryParamsPatch): included — they have `fromJson` via Zorphy
+- **Zorphy entity params**: included if `domain/entities/<snake>/` directory exists
+- **Unknown params** (plain Dart classes without `fromJson`): **skipped with a warning**
+
+### Handler Types
+
+| UseCase Type | Handler Pattern |
+|---|---|
+| Primitive param | `_generateSimpleHandler` — extracts from `args['value']` |
+| Complex param (entity) | `_generateComplexHandler` — JSON-decodes `args['args']`, auto-fills `id`, calls `fromJson` |
+| StreamUseCase | `_generateStreamHandler` — subscribes, caches, returns subscription ID |
+
+### Auto-Fill Logic
+
+For complex params, generated handlers auto-fill `id` with `DateTime.now().microsecondsSinceEpoch.toString()` before calling `fromJson`, avoiding null crashes on non-nullable Zorphy entity fields.
+
+### Import Generation
+
+- UseCase imports: strip `UseCase` suffix, camelToSnake, append `_usecase.dart`
+- Entity imports: from `domain/entities/<snake>/<snake>.dart`
+- Param imports: only for types with existing entity directories
+
+
 
 ## Known Issues
 
@@ -202,5 +236,6 @@ The bridge calls `GetIt.I<UseCaseType>()` — if the UseCase isn't registered, t
 `Entity.fromJson()` crashes on missing non-nullable primitives. Generated `create*` handlers should auto-fill `id`, `createdAt`, etc. The template in `api_bridge_builder.dart` should detect non-nullable fields during codegen.
 
 ---
-*Last updated: 2026-07-09*
-*Session: Validated bridge implementation on iOS and macOS, fixed DI registration gap and test scripts*
+
+_Last updated: 2026-07-09_
+_Session: v5.4.2 codegen fixes — fromJson detection, generic type stripping, primitive stream handler, 8 tests passing; validated on iOS Simulator and macOS Desktop_
