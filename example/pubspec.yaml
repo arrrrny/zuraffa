@@ -42,8 +42,3 @@ dependency_overrides:
   test_api: ^0.7.9
   analyzer: 13.0.0
 
-  json_serializable:
-    git:
-      url: https://github.com/arrrrny/json_serializable.dart.git
-      ref: analyzer-13
-      path: json_serializable
