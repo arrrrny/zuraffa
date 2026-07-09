@@ -8,6 +8,7 @@ import 'src/core/hook_registry.dart';
 import 'src/core/otel_failure_reporter.dart';
 import 'src/core/otel_log_exporter.dart';
 import 'src/core/retry_policy.dart';
+import 'src/core/zuraffa_bridge_facade.dart';
 
 /// Zuraffa
 ///
@@ -138,6 +139,12 @@ export 'src/core/result.dart';
 
 /// Failure types for error classification
 export 'src/core/failure.dart';
+
+/// VM Service extension bridge — exposes UseCases as dart:developer extensions
+export 'src/core/api_bridge.dart';
+
+/// Endpoint metadata model for the API bridge
+export 'src/core/api_endpoint.dart';
 
 /// Cancellation token for cooperative cancellation
 export 'src/core/cancel_token.dart';
@@ -375,6 +382,20 @@ class Zuraffa {
   static bool _isDebugMode = true;
 
   static bool _disableCache = false;
+
+  /// Whether the API bridge is active in profile mode.
+  ///
+  /// Defaults to false — profile mode is opt-in.
+  /// Set this to `true` before calling `ZuraffaApiBridge.init()` to enable
+  /// the bridge in profile builds. Has no effect in release or debug mode.
+  ///
+  /// Writing to this field also updates [ZuraffaBridgeFacade.enableApiInProfile]
+  /// so that ZuraffaApiBridge can read it without importing zuraffa.dart.
+  static bool get enableApiInProfile => ZuraffaBridgeFacade.enableApiInProfile;
+
+  static set enableApiInProfile(bool value) {
+    ZuraffaBridgeFacade.enableApiInProfile = value;
+  }
 
   /// Get the current application environment.
   static Environment get environment => _environment;

@@ -16,6 +16,7 @@ import '../plugins/state/state_plugin.dart';
 import '../plugins/observer/observer_plugin.dart';
 import '../plugins/test/test_plugin.dart';
 import '../plugins/mock/mock_plugin.dart';
+import '../plugins/api/api_plugin.dart';
 import '../plugins/method_append/method_append_plugin.dart';
 import '../plugins/presenter/presenter_plugin.dart';
 import '../plugins/repository/repository_plugin.dart';
@@ -114,6 +115,7 @@ class PluginLoader {
       ObserverPlugin(outputDir: outputDir, options: options),
       TestPlugin(outputDir: outputDir, options: options),
       MockPlugin(outputDir: outputDir, options: options),
+      ApiPlugin(outputDir: outputDir, options: options),
       DiPlugin(outputDir: outputDir, options: options),
       DataSourcePlugin(outputDir: outputDir, options: options),
       ServicePlugin(outputDir: outputDir, options: options),
