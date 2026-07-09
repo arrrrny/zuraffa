@@ -30,12 +30,17 @@ class _UseCaseDescriptor {
   /// True when extends `StreamUseCase`
   final bool isStream;
 
+  /// True when the params type has a Zorphy entity directory
+  /// (i.e. `fromJson` is available for JSON deserialization).
+  final bool hasFromJson;
+
   const _UseCaseDescriptor({
     required this.className,
     required this.methodName,
     required this.returnType,
     required this.paramsType,
     required this.isStream,
+    required this.hasFromJson,
   });
 }
 
@@ -133,7 +138,16 @@ class ApiBridgeBuilder {
         final content = fileSystem.readSync(file.path);
         final descriptor = _parseUseCaseFile(content);
         if (descriptor != null) {
-          descriptors.add(descriptor);
+          // Only include if params can be deserialized from JSON.
+          if (descriptor.hasFromJson) {
+            descriptors.add(descriptor);
+          } else {
+            print(
+              '⚠️  Skipping ${descriptor.className}: params type '
+              '${descriptor.paramsType} has no fromJson — '
+              'create a Zorphy entity or add a factory.',
+            );
+          }
         }
       }
     } catch (_) {
@@ -168,7 +182,29 @@ class ApiBridgeBuilder {
       returnType: returnType,
       paramsType: paramsType,
       isStream: isStream,
+      hasFromJson: _paramsTypeHasFromJson(paramsType),
     );
+  }
+
+  /// Returns true if [paramsType] is NoParams, a primitive, a known Zuraffa
+  /// core type with fromJson (e.g. QueryParams), or has a Zorphy entity
+  /// directory (meaning `fromJson` is available).
+  ///
+  /// Strips generic type parameters before checking (e.g.
+  /// `QueryParams<Product>` → checks `QueryParams`).
+  bool _paramsTypeHasFromJson(String paramsType) {
+    // Strip generic params: QueryParams<Product> → QueryParams
+    final baseType = paramsType.split('<').first.trim();
+    if (_isNoParams(baseType) || _isPrimitive(baseType)) return true;
+
+    // Known Zuraffa core types that have fromJson
+    if (baseType == 'QueryParams' || baseType == 'QueryParamsPatch') {
+      return true;
+    }
+
+    final paramSnake = StringUtils.camelToSnake(baseType);
+    final entityDir = '$outputDir/domain/entities/$paramSnake';
+    return fileSystem.existsSync(entityDir);
   }
 
   /// `GetProductUseCase` → `getProduct`
@@ -363,6 +399,9 @@ class ApiBridgeBuilder {
       "      return ZuraffaApiBridge.errorResponse('deserialization', e.toString());",
     );
     buf.writeln('    }');
+    buf.writeln(
+      "    json.putIfAbsent('id', () => DateTime.now().microsecondsSinceEpoch.toString());",
+    );
     buf.writeln('    final params = ${uc.paramsType}.fromJson(json);');
     buf.writeln('    final useCase = GetIt.I<${uc.className}>();');
     buf.writeln('    final result = await useCase(params);');
@@ -411,9 +450,33 @@ class ApiBridgeBuilder {
     if (_isNoParams(uc.paramsType)) {
       buf.writeln('    final params = const NoParams();');
     } else if (_isPrimitive(uc.paramsType)) {
-      // Simple fallback for stream with primitive param — unlikely but handled
-      buf.writeln('    final params = ${uc.paramsType}.fromJson(json);');
+      // Primitive values are passed as json['value'] in stream handlers
+      final t = uc.paramsType.trim();
+      switch (t) {
+        case 'int':
+          buf.writeln(
+            "    final params = int.tryParse(json['value']?.toString() ?? '0') ?? 0;",
+          );
+          break;
+        case 'double':
+          buf.writeln(
+            "    final params = double.tryParse(json['value']?.toString() ?? '0') ?? 0.0;",
+          );
+          break;
+        case 'bool':
+          buf.writeln(
+            "    final params = (json['value']?.toString() ?? 'false') == 'true';",
+          );
+          break;
+        default:
+          buf.writeln(
+            "    final params = json['value']?.toString() ?? '';",
+          );
+      }
     } else {
+      buf.writeln(
+        "    json.putIfAbsent('id', () => DateTime.now().microsecondsSinceEpoch.toString());",
+      );
       buf.writeln('    final params = ${uc.paramsType}.fromJson(json);');
     }
 

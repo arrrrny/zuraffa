@@ -229,6 +229,12 @@ void main() {
           entitySnake: 'barcode_listing',
           entityName: 'BarcodeListing',
         );
+        // BarcodeSpark is the params type — needs its own entity dir for fromJson detection
+        await createEntity(
+          outputDir: outputDir,
+          entitySnake: 'barcode_spark',
+          entityName: 'BarcodeSpark',
+        );
         await createUseCase(
           outputDir: outputDir,
           entitySnake: 'barcode_listing',
@@ -273,5 +279,32 @@ void main() {
         expect(content, isNot(contains('package:uuid')));
       },
     );
+
+    test('skips usecases whose params type lacks fromJson', () async {
+      await createEntity(
+        outputDir: outputDir,
+        entitySnake: 'product',
+        entityName: 'Product',
+      );
+      // Params type is SomeRandomClass — no entity dir, no fromJson
+      await createUseCase(
+        outputDir: outputDir,
+        entitySnake: 'product',
+        className: 'SearchMissingUseCase',
+        content:
+            'class SearchMissingUseCase extends UseCase<Product, SomeRandomClass> {}',
+      );
+
+      final builder = ApiBridgeBuilder(
+        outputDir: outputDir,
+        options: const GeneratorOptions(dryRun: false, force: true),
+      );
+      final files = await builder.generate(
+        GeneratorConfig(name: 'Product', outputDir: outputDir),
+      );
+
+      // Should return empty — the usecase was skipped
+      expect(files, isEmpty);
+    });
   });
 }
