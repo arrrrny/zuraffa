@@ -22,7 +22,6 @@ import 'package:zuraffa/zuraffa.dart';
 
 // Example app types
 import 'package:example/src/data/datasources/concert/concert_datasource.dart';
-// import 'package:example/src/data/datasources/concert/concert_mock_datasource.dart';  // not needed directly
 import 'package:example/src/data/datasources/product/product_datasource.dart';
 import 'package:example/src/data/datasources/product/product_mock_datasource.dart';
 import 'package:example/src/data/mock/concert_mock_data.dart';
@@ -106,7 +105,9 @@ Future<developer.ServiceExtensionResponse> handleGetProductList(
   Map<String, String> args,
 ) async {
   try {
-    final result = await _getProductListUseCase(ListQueryParams<Product>());
+    final result = await _getProductListUseCase(
+      const ListQueryParams<Product>(),
+    );
     return ZuraffaApiBridge.serializeResult(
       result,
       (v) => {'items': v.map((p) => p.toJson()).toList()},
@@ -156,7 +157,7 @@ Future<developer.ServiceExtensionResponse> handleGetProductThatFails(
     // Calling update with a non-existent id causes notFoundFailure
     // Simulate a failure scenario by throwing an AppFailure directly.
     // This proves SC-005: AppFailure is serialized, not re-thrown.
-    throw NotFoundFailure('Product not found');
+    throw const NotFoundFailure('Product not found');
   } catch (e, st) {
     if (e is AppFailure) {
       return ZuraffaApiBridge.serializeResult(
@@ -197,7 +198,7 @@ Future<developer.ServiceExtensionResponse> handleWatchConcert(
   Map<String, String> args,
 ) async {
   try {
-    final params = QueryParams<Concert>();
+    const params = QueryParams<Concert>();
     final stream = _watchConcertUseCase(params);
     final subscriptionId = ZuraffaApiBridge.generateSubscriptionId();
 
@@ -338,11 +339,11 @@ void main() {
     test(
       'subscribe → poll → cancel lifecycle completes without leaks',
       () async {
-        // Use a StreamController to avoid the 2-second Stream.periodic delay.
-        final controller = StreamController<Concert>.broadcast();
-
-        // Wire a WatchConcertUseCase to the controller stream.
-        final concertDs = _ControllerBackedConcertDataSource(controller.stream);
+        // Use a DataSource backed by Stream.value() to avoid timing races.
+        // Stream.value() emits asynchronously after subscription is established.
+        final concertDs = _ValueStreamConcertDataSource(
+          ConcertMockData.sampleConcert,
+        );
         final concertRepo = _DirectConcertRepository(concertDs);
         _watchConcertUseCase = WatchConcertUseCase(concertRepo);
 
@@ -357,9 +358,12 @@ void main() {
         final subId = startBody['subscriptionId'] as String;
         expect(subId, isNotEmpty);
 
-        // 2. Emit a Concert value
-        controller.add(ConcertMockData.sampleConcert);
-        await Future.microtask(() {}); // allow listener to process
+        // 2. Wait for Stream.value() to propagate through the async* generator.
+        // Stream.value() emits as a microtask, the await for receives it, and
+        // the yield schedules another microtask for the .listen callback.
+        // Two microtask waits ensure both propagation steps complete.
+        await Future.microtask(() {});
+        await Future.microtask(() {});
 
         // 3. Poll — should return the emitted concert
         final pollResponse = await ZuraffaApiBridge.handlePollStream(
@@ -389,26 +393,24 @@ void main() {
             jsonDecode(postCancelPoll.result!) as Map<String, dynamic>;
         expect(postBody['status'], 'error');
         expect(postBody['failure']['type'], 'notFound');
-
-        await controller.close();
       },
     );
   });
 }
 
 // ---------------------------------------------------------------------------
-// Minimal ConcertDataSource backed by a Stream controller for testing
+// Minimal ConcertDataSource backed by Stream.value() for testing
 // ---------------------------------------------------------------------------
 
-class _ControllerBackedConcertDataSource
+class _ValueStreamConcertDataSource
     with Loggable, FailureHandler
     implements ConcertDataSource {
-  final Stream<Concert> _stream;
+  final Concert _value;
 
-  _ControllerBackedConcertDataSource(this._stream);
+  _ValueStreamConcertDataSource(this._value);
 
   @override
-  Stream<Concert> watch(QueryParams<Concert> params) => _stream;
+  Stream<Concert> watch(QueryParams<Concert> params) => Stream.value(_value);
 
   @override
   Future<Concert> get(QueryParams<Concert> params) =>

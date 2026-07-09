@@ -231,9 +231,7 @@ class ZuraffaApiBridge {
       );
     }
 
-    return developer.ServiceExtensionResponse.result(
-      jsonEncode({'status': 'success', 'data': latest}),
-    );
+    return developer.ServiceExtensionResponse.result(jsonEncode(latest));
   }
 
   /// Cancel a StreamUseCase subscription and remove it from the registry.
@@ -280,8 +278,13 @@ class ZuraffaApiBridge {
   }
 
   // ---------------------------------------------------------------------------
-  // Test-only reset — do NOT call in production code
+  // Test-only helpers — do NOT call in production code
   // ---------------------------------------------------------------------------
+
+  /// Expose the registered endpoints list for test verification.
+  @visibleForTesting
+  static List<ApiEndpoint> getRegisteredEndpoints() =>
+      List.unmodifiable(_endpoints);
 
   /// Reset all bridge state.
   ///

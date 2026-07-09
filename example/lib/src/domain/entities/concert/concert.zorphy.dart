@@ -25,7 +25,7 @@ class Concert {
 
   Concert patchWithConcert({ConcertPatch? patchInput}) {
     final _patcher = patchInput ?? ConcertPatch();
-    final _patchMap = _patcher.toPatch();
+    final _patchMap = _patcher.patchMap;
     return Concert(
       id: _patchMap.containsKey(Concert$.id)
           ? (_patchMap[Concert$.id] is Function)
@@ -106,79 +106,18 @@ extension ConcertSerialization on Concert {
 
 enum Concert$ { id, artist }
 
-class ConcertPatch implements Patch<Concert> {
-  final Map<Concert$, dynamic> _patch = {};
-
-  static ConcertPatch create([Map<String, dynamic>? diff]) {
-    final patch = ConcertPatch();
-    if (diff != null) {
-      diff.forEach((key, value) {
-        try {
-          final enumValue = Concert$.values.firstWhere((e) => e.name == key);
-          if (value is Function) {
-            patch._patch[enumValue] = value();
-          } else {
-            patch._patch[enumValue] = value;
-          }
-        } catch (_) {}
-      });
-    }
-    return patch;
-  }
-
-  static ConcertPatch fromPatch(Map<Concert$, dynamic> patch) {
-    final _patch = ConcertPatch();
-    _patch._patch.addAll(patch);
-    return _patch;
-  }
-
-  Map<Concert$, dynamic> toPatch() => Map.from(_patch);
-
+class ConcertPatch extends PatchBase<Concert, Concert$> {
   Concert applyTo(Concert entity) {
     return entity.patchWithConcert(patchInput: this);
   }
 
-  Map<String, dynamic> toJson() {
-    final json = <String, dynamic>{};
-    _patch.forEach((key, value) {
-      if (value != null) {
-        if (value is Function) {
-          final result = value();
-          json[key.name] = _convertToJson(result);
-        } else {
-          json[key.name] = _convertToJson(value);
-        }
-      }
-    });
-    return json;
-  }
-
-  dynamic _convertToJson(dynamic value) {
-    if (value == null) return null;
-    if (value is DateTime) return value.toIso8601String();
-    if (value is Enum) return value.toString().split('.').last;
-    if (value is List) return value.map((e) => _convertToJson(e)).toList();
-    if (value is Map)
-      return value.map((k, v) => MapEntry(k.toString(), _convertToJson(v)));
-    if (value is num || value is bool || value is String) return value;
-    try {
-      if (value?.toJsonLean != null) return value.toJsonLean();
-    } catch (_) {}
-    if (value?.toJson != null) return value.toJson();
-    return value.toString();
-  }
-
-  static ConcertPatch fromJson(Map<String, dynamic> json) {
-    return create(json);
-  }
-
   ConcertPatch withId(String? value) {
-    _patch[Concert$.id] = value;
+    patchMap[Concert$.id] = value;
     return this;
   }
 
   ConcertPatch withArtist(String? value) {
-    _patch[Concert$.artist] = value;
+    patchMap[Concert$.artist] = value;
     return this;
   }
 }

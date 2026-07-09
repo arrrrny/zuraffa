@@ -21,7 +21,7 @@ void main() {
   });
 
   /// Creates a minimal UseCase file in the expected location.
-  Future<void> _createUseCase({
+  Future<void> createUseCase({
     required String outputDir,
     required String entitySnake,
     required String className,
@@ -39,7 +39,7 @@ void main() {
   }
 
   /// Creates a minimal entity file.
-  Future<void> _createEntity({
+  Future<void> createEntity({
     required String outputDir,
     required String entitySnake,
     required String entityName,
@@ -54,12 +54,12 @@ void main() {
 
   group('ApiBridgeBuilder.generate()', () {
     test('generates file at correct path for Product entity', () async {
-      await _createEntity(
+      await createEntity(
         outputDir: outputDir,
         entitySnake: 'product',
         entityName: 'Product',
       );
-      await _createUseCase(
+      await createUseCase(
         outputDir: outputDir,
         entitySnake: 'product',
         className: 'GetProductUseCase',
@@ -83,12 +83,12 @@ void main() {
     test(
       'generated file contains registerProductApiBridge() function',
       () async {
-        await _createEntity(
+        await createEntity(
           outputDir: outputDir,
           entitySnake: 'product',
           entityName: 'Product',
         );
-        await _createUseCase(
+        await createUseCase(
           outputDir: outputDir,
           entitySnake: 'product',
           className: 'GetProductUseCase',
@@ -114,12 +114,12 @@ void main() {
     );
 
     test('generated file has kReleaseMode guard as first statement', () async {
-      await _createEntity(
+      await createEntity(
         outputDir: outputDir,
         entitySnake: 'product',
         entityName: 'Product',
       );
-      await _createUseCase(
+      await createUseCase(
         outputDir: outputDir,
         entitySnake: 'product',
         className: 'GetProductUseCase',
@@ -144,12 +144,12 @@ void main() {
     });
 
     test('generates StreamUseCase handler with streaming response', () async {
-      await _createEntity(
+      await createEntity(
         outputDir: outputDir,
         entitySnake: 'product',
         entityName: 'Product',
       );
-      await _createUseCase(
+      await createUseCase(
         outputDir: outputDir,
         entitySnake: 'product',
         className: 'WatchProductUseCase',
@@ -172,7 +172,7 @@ void main() {
     });
 
     test('returns empty list when no UseCases found', () async {
-      await _createEntity(
+      await createEntity(
         outputDir: outputDir,
         entitySnake: 'product',
         entityName: 'Product',
@@ -191,12 +191,12 @@ void main() {
     test(
       'dry run returns file with action but does not write to disk',
       () async {
-        await _createEntity(
+        await createEntity(
           outputDir: outputDir,
           entitySnake: 'product',
           entityName: 'Product',
         );
-        await _createUseCase(
+        await createUseCase(
           outputDir: outputDir,
           entitySnake: 'product',
           className: 'GetProductUseCase',

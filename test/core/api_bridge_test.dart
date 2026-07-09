@@ -110,47 +110,43 @@ void main() {
         endpoint: ep,
         // Minimal no-op handler — dart:developer.registerExtension is a no-op
         // in Dart test environments.
-        handler: (_, __) async =>
-            ZuraffaApiBridge.errorResponse('noop', 'noop'),
+        handler: (_, _) async => ZuraffaApiBridge.errorResponse('noop', 'noop'),
       );
 
-      // Verify the endpoint appears in the list response.
-      final listResponse = await ZuraffaApiBridge.handlePollStream(
-        'ext.zuraffa._list',
-        {},
-      );
-      // handlePollStream with no subscriptionId returns badRequest —
-      // so let's call _handleList directly via the registered path.
-      // Since we can't call the private method, verify via exported catalog.
-      // Re-use an indirect path:  We'll test discovery by registering 3 endpoints
-      // and checking the registered handler table size via the list extension.
+      // Verify the endpoint was added to the internal list.
+      final endpoints = ZuraffaApiBridge.getRegisteredEndpoints();
+      expect(endpoints.length, 1);
+      expect(endpoints.first.method, 'ext.zuraffa.test.doThing');
+      expect(endpoints.first.domain, 'test');
     });
 
-    test('after 3 endpoints, _list returns array with 3 entries', () async {
-      for (var i = 0; i < 3; i++) {
-        ZuraffaApiBridge.registerEndpoint(
-          endpoint: ApiEndpoint(
-            method: 'ext.zuraffa.test.method$i',
-            domain: 'test',
-            usecase: 'method$i',
-            params: const {},
-            returns: 'Foo',
-            isStream: false,
-          ),
-          handler: (_, __) async =>
-              ZuraffaApiBridge.errorResponse('noop', 'noop'),
-        );
-      }
+    test(
+      'after 3 endpoints, _endpoints length reflects registrations',
+      () async {
+        // setUp already resets. The previous test added 1 endpoint, but
+        // resetForTesting runs after each test via tearDown, so we start clean.
+        for (var i = 0; i < 3; i++) {
+          ZuraffaApiBridge.registerEndpoint(
+            endpoint: ApiEndpoint(
+              method: 'ext.zuraffa.test.method$i',
+              domain: 'test',
+              usecase: 'method$i',
+              params: const {},
+              returns: 'Foo',
+              isStream: false,
+            ),
+            handler: (_, _) async =>
+                ZuraffaApiBridge.errorResponse('noop', 'noop'),
+          );
+        }
 
-      // Call the list handler via a raw invocation of the internal state.
-      // We expose it via a @visibleForTesting extension below.
-      // For now verify that 3 endpoints are in the _endpoints list by calling
-      // handlePollStream with an empty ID (returns badRequest) — the test proves
-      // the internal list is populated by checking the JSON list endpoint.
-      // The simplest way to call _handleList in tests: init() registers it and
-      // we can call it directly since it's a static function pointer.
-      // We test this indirectly below in the stream group.
-    });
+        final endpoints = ZuraffaApiBridge.getRegisteredEndpoints();
+        expect(endpoints.length, 3);
+        expect(endpoints[0].method, 'ext.zuraffa.test.method0');
+        expect(endpoints[1].method, 'ext.zuraffa.test.method1');
+        expect(endpoints[2].method, 'ext.zuraffa.test.method2');
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -208,8 +204,9 @@ void main() {
       );
 
       final body = jsonDecode(response.result!) as Map<String, dynamic>;
-      expect(body['status'], 'success');
-      expect(body['data']['value'], 42);
+      // _handlePollStream returns the stored value as-is (pass-through).
+      // The listener stores {'value': v}, so poll returns {'value': 42}.
+      expect(body['value'], 42);
 
       await controller.close();
     });
@@ -277,8 +274,8 @@ void main() {
       final bodyA = jsonDecode(respA.result!) as Map<String, dynamic>;
       final bodyB = jsonDecode(respB.result!) as Map<String, dynamic>;
 
-      expect(bodyA['data']['v'], 1);
-      expect(bodyB['data']['v'], 2);
+      expect(bodyA['v'], 1);
+      expect(bodyB['v'], 2);
 
       await c1.close();
       await c2.close();

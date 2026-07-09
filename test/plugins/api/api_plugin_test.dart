@@ -21,7 +21,7 @@ void main() {
     }
   });
 
-  Future<void> _createUseCase(
+  Future<void> createUseCase(
     String entitySnake,
     String className,
     String content,
@@ -37,7 +37,7 @@ void main() {
     await File('${dir.path}/$snake.dart').writeAsString(content);
   }
 
-  Future<void> _createEntity(String entitySnake, String entityName) async {
+  Future<void> createEntity(String entitySnake, String entityName) async {
     final dir = Directory('$outputDir/domain/entities/$entitySnake');
     await dir.create(recursive: true);
     await File('${dir.path}/$entitySnake.dart').writeAsString(
@@ -76,8 +76,8 @@ void main() {
     });
 
     test('generate returns GeneratedFile for entity with UseCase', () async {
-      await _createEntity('product', 'Product');
-      await _createUseCase(
+      await createEntity('product', 'Product');
+      await createUseCase(
         'product',
         'GetProductUseCase',
         'class GetProductUseCase extends UseCase<Product, String> {}',
@@ -104,8 +104,8 @@ void main() {
     });
 
     test('execute returns success with generatedFiles key', () async {
-      await _createEntity('product', 'Product');
-      await _createUseCase(
+      await createEntity('product', 'Product');
+      await createUseCase(
         'product',
         'GetProductUseCase',
         'class GetProductUseCase extends UseCase<Product, String> {}',
@@ -130,8 +130,8 @@ void main() {
     });
 
     test('plan returns EffectReport (dry run)', () async {
-      await _createEntity('product', 'Product');
-      await _createUseCase(
+      await createEntity('product', 'Product');
+      await createUseCase(
         'product',
         'GetProductUseCase',
         'class GetProductUseCase extends UseCase<Product, String> {}',
@@ -153,8 +153,8 @@ void main() {
     });
 
     test('--dry-run flag does not write file to disk', () async {
-      await _createEntity('product', 'Product');
-      await _createUseCase(
+      await createEntity('product', 'Product');
+      await createUseCase(
         'product',
         'GetProductUseCase',
         'class GetProductUseCase extends UseCase<Product, String> {}',

@@ -1,3 +1,30 @@
+## [5.4.0] - 2026-07-09
+
+### Added
+
+- **VM Service API Plugin (`--with=vmapi`)**: auto-registers every UseCase as a Dart VM Service extension
+  - `ZuraffaApiBridge` core: init, registration, result serialization, stream subscription management
+  - `ApiEndpoint` metadata model with `_list` discovery endpoint
+  - `zfa api <Entity>` CLI command generating usecase bridge code
+  - `call_api.sh` convenience script with auto-isolate discovery
+  - Complete example: Todo entity with 2 exposed usecases (create, getList)
+  - Release mode safety gate (`kReleaseMode` no-op), profile mode opt-in
+  - Tested and validated on iOS Simulator and macOS Desktop
+
+### Fixed
+
+- **Build**: removed broken `json_serializable` git override (`ref: analyzer-13`) — uses pub.dev `^6.13.1` instead
+- **Build**: `flutter pub get` now resolves cleanly with analyzer 13.0.0 override for hive_ce_generator + dart_style coexistence
+- **Example app**: `setupDependencies()` `catchError` now logs the full error and stack trace instead of silently swallowing
+- **Example app**: Todo UseCases now properly registered in DI (all 7: create, delete, get, getList, update, watch, watchList)
+- **Bridge handler**: `createTodo` auto-fills `id` and `createdAt` defaults for Zorphy `fromJson` compatibility
+
+### Docs
+
+- Architecture, sequence, and class diagrams for the VM Service API bridge
+- Platform testing guide with Python, curl, and shell script examples
+- 6 key insights captured in INSIGHTS.md (isolateId requirement, DI registration, Zorphy defaults, Hive initialization, analyzer compatibility)
+
 ## [5.3.0] - 2026-06-30
 
 ### Added

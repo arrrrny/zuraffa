@@ -261,17 +261,28 @@ Future<void> initTimestampCache() async {
       final firstResult = await capability.execute({'name': 'Product'});
       expect(firstResult.success, isTrue);
 
-      // Read first registrar content
+      // Read first registrar content for comparison
       final registrarFile = File('$outputDir/cache/hive_registrar.dart');
       final firstRegistrarContent = registrarFile.readAsStringSync();
+
+      // Verify the first run produced valid output before running again
+      expect(
+        firstRegistrarContent,
+        contains('registerAdapter(ProductAdapter())'),
+      );
 
       // Second run — should succeed without duplicates
       final secondResult = await capability.execute({'name': 'Product'});
       expect(secondResult.success, isTrue);
 
       // Verify no duplicate entries — the content should contain the
-      // expected invocation exactly once in each of the two extensions.
+      // expected invocation exactly once in each of the two extensions,
+      // and the second run should NOT add duplicates beyond what the
+      // first run produced.
       final secondRegistrarContent = registrarFile.readAsStringSync();
+
+      // The second run should preserve all first-run content
+      expect(secondRegistrarContent, contains(firstRegistrarContent));
 
       // Count occurrences of the ProductAdapter registration string
       final searchStr = 'registerAdapter(ProductAdapter())';

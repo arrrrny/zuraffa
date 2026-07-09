@@ -8,6 +8,7 @@
 ## Integrations
 
 - [VM Service API Bridge](integrations/vm-service-api-bridge.md) - Auto-generated debug RPC bridge for all UseCases via `dart:developer.registerExtension`
+- [API Plugin Development & Testing](integrations/api-plugin-testing.md) - How to develop, test, and debug the VM Service API plugin across platforms
 
 ---
 

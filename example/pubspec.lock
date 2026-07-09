@@ -387,12 +387,11 @@ packages:
   json_serializable:
     dependency: "direct main"
     description:
-      path: json_serializable
-      ref: analyzer-13
-      resolved-ref: "447fb6766a7af34b62b50691431c0086371b46d2"
-      url: "https://github.com/arrrrny/json_serializable.dart.git"
-    source: git
-    version: "6.13.1"
+      name: json_serializable
+      sha256: "2c15e78e1cc6e62aadecf59f81566fd56829713d96a8c4177699e2b2e17f20db"
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.13.2"
   leak_tracker:
     dependency: transitive
     description:
@@ -453,10 +452,10 @@ packages:
     dependency: "direct overridden"
     description:
       name: meta
-      sha256: c82594181e3312f3d0695fc95aaaf7758d75b8d4ae2bbecf223b9fd5109a059d
+      sha256: "307249ce4ff29d58a18e97f6345f539382eb9c9c29ecda628900f31de0443dd9"
       url: "https://pub.dev"
     source: hosted
-    version: "1.18.3"
+    version: "1.19.0"
   mime:
     dependency: transitive
     description:

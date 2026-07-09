@@ -34,4 +34,14 @@
 
 - **Repository operations fail with `HiveError: Box not found. Did you forget to call Hive.openBox()?` if `initAllCaches()` doesn't complete successfully before the repository is used.**
   - Context: The example app's `main.dart` has a `catchError` path that starts the app even when `setupDependencies()` fails. On macOS, Hive initialization may fail silently, causing the app to boot without Hive boxes open. UseCase operations via the bridge then fail at the repository layer.
-  - Impact: The `catchError` in main.dart should at minimum log the error and NOT start the app. Alternatively, the bridge handler should return `ServiceExtensionError.result` with a descriptive message when the UseCase throws a `HiveError`.
+  - Impact: The `catchError` in main.dart should at minimum log the error. The example app now logs the full error and stack trace before starting the fallback.
+
+## Build: json_serializable Git Fork `analyzer-13` Branch Is Incompatible with Analyzer 13.0.0
+
+- **The `arrrrny/json_serializable.dart` fork at ref `analyzer-13` is broken — `InternalExecutableElement` no longer implements `GetterElement` in analyzer 13, so `v is GetterElement` is always `false` and `v.variable` is inaccessible through any type promotion path.**
+  - Context: The fork's `field_helpers.dart:90` does `v is GetterElement` and `v.variable as FieldElement`. In analyzer 13.0.0, the internal element hierarchy changed: `InternalExecutableElement` extends `ExecutableElementImpl` but NOT `PropertyAccessorElementImpl`. Runtime type-checks against the public interface `GetterElement` always fail. Attempted fixes: `v is PropertyAccessorElement` (promotion fails in AOT kernel compilation), `v.kind == ElementKind.GETTER` (works but `.variable` still unreachable), `v.variable2` (doesn't exist on `InternalExecutableElement`).
+  - Impact: Remove the git override from `pubspec.yaml` and use pub.dev `json_serializable ^6.13.1` which already handles analyzer 13 correctly. The fork needs a full internal API migration before it can be used with analyzer 13.
+
+- **`flutter pub get` fails with `hive_ce_generator ^1.11.1` and `dart_style ^3.1.9` because they require conflicting analyzer versions (^12.0.0 vs ^13.0.0).**
+  - Context: hive_ce_generator 1.11.2 depends on analyzer ^12.0.0, but dart_style 3.1.9 depends on analyzer ^13.0.0. An `analyzer: 13.0.0` dependency override is required to force resolution. Without it, `flutter pub get` produces "version solving failed."
+  - Impact: Keep `analyzer: 13.0.0` in `dependency_overrides` of both the main `pubspec.yaml` and the example app. This override is necessary for co-existence of build_runner, json_serializable, hive_ce_generator, and dart_style.
