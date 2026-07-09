@@ -207,24 +207,44 @@ class ApiBridgeBuilder {
     buf.writeln(
       "import 'package:flutter/foundation.dart' show kProfileMode, kReleaseMode;",
     );
-    buf.writeln("import 'package:get_it/get_it.dart';");
     buf.writeln("import 'package:zuraffa/zuraffa.dart';");
-    buf.writeln("import 'package:uuid/uuid.dart';");
     buf.writeln();
 
-    // UseCase imports — scan domain/usecases/{snake}/
+    // UseCase imports — strip "UseCase" suffix, snake_case the rest,
+    // then re-append "usecase" as one word (matches DI command convention).
     final usecaseImportBase = 'domain/usecases/$entitySnake';
     for (final uc in useCases) {
-      final fileName = StringUtils.camelToSnake(uc.className);
+      final nameWithoutSuffix = uc.className.replaceAll('UseCase', '');
+      final fileName = '${StringUtils.camelToSnake(nameWithoutSuffix)}_usecase';
       buf.writeln("import '../../$usecaseImportBase/$fileName.dart';");
     }
     buf.writeln();
 
     // Entity import (for return types that have toJson)
-    final entityFileName = entitySnake;
     buf.writeln(
-      "import '../../domain/entities/$entitySnake/$entityFileName.dart';",
+      "import '../../domain/entities/$entitySnake/$entitySnake.dart';",
     );
+
+    // Param type imports — only for types that exist as Zorphy entities
+    // (have their own directory under domain/entities/).
+    // Non-entity param classes (like *Params in the usecases directory)
+    // must be manually imported if needed.
+    final addedParamImports = <String>{};
+    for (final uc in useCases) {
+      final pt = uc.paramsType;
+      if (_isNoParams(pt) || _isPrimitive(pt)) continue;
+      final paramSnake = StringUtils.camelToSnake(pt);
+      if (!addedParamImports.add(paramSnake)) continue;
+
+      // Only import if a domain/entities/{snake} directory exists.
+      final entityDir = '$outputDir/domain/entities/$paramSnake';
+      if (fileSystem.existsSync(entityDir)) {
+        buf.writeln(
+          "import '../../domain/entities/$paramSnake/$paramSnake.dart';"
+          '  // param: $pt',
+        );
+      }
+    }
     buf.writeln();
 
     // Registration function

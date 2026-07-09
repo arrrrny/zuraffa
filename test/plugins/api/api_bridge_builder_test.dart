@@ -21,6 +21,8 @@ void main() {
   });
 
   /// Creates a minimal UseCase file in the expected location.
+  /// Naming convention: strip "UseCase" → snake_case → append "_usecase.dart"
+  /// (matches DI command convention, e.g. GetProductUseCase → get_product_usecase.dart).
   Future<void> createUseCase({
     required String outputDir,
     required String entitySnake,
@@ -29,13 +31,14 @@ void main() {
   }) async {
     final dir = Directory('$outputDir/domain/usecases/$entitySnake');
     await dir.create(recursive: true);
-    final snake = className
+    final nameWithoutSuffix = className.replaceAll('UseCase', '');
+    final snake = nameWithoutSuffix
         .replaceAllMapped(
           RegExp(r'(?<=[a-z])([A-Z])'),
           (m) => '_${m.group(1)!.toLowerCase()}',
         )
         .toLowerCase();
-    await File('${dir.path}/$snake.dart').writeAsString(content);
+    await File('${dir.path}/${snake}_usecase.dart').writeAsString(content);
   }
 
   /// Creates a minimal entity file.
@@ -215,6 +218,59 @@ void main() {
         expect(files, hasLength(1));
         final outPath = '$outputDir/api/bridges/product_api_bridge.dart';
         expect(File(outPath).existsSync(), isFalse);
+      },
+    );
+
+    test(
+      'generates correct import filenames with _usecase convention',
+      () async {
+        await createEntity(
+          outputDir: outputDir,
+          entitySnake: 'barcode_listing',
+          entityName: 'BarcodeListing',
+        );
+        await createUseCase(
+          outputDir: outputDir,
+          entitySnake: 'barcode_listing',
+          className: 'GetBarcodeListingUseCase',
+          content:
+              'class GetBarcodeListingUseCase extends StreamUseCase<BarcodeListing, BarcodeSpark> {}',
+        );
+
+        final builder = ApiBridgeBuilder(
+          outputDir: outputDir,
+          options: const GeneratorOptions(dryRun: false, force: true),
+        );
+        final files = await builder.generate(
+          GeneratorConfig(
+            name: 'BarcodeListing',
+            outputDir: outputDir,
+          ),
+        );
+
+        final content = await File(files.first.path).readAsString();
+
+        // UseCase import must use _usecase convention (not _use_case)
+        expect(
+          content,
+          contains(
+            "import '../../domain/usecases/barcode_listing/get_barcode_listing_usecase.dart'",
+          ),
+        );
+        // Must NOT have the old broken convention
+        expect(
+          content,
+          isNot(contains('_use_case.dart')),
+        );
+        // Entity import must be present
+        expect(
+          content,
+          contains(
+            "import '../../domain/entities/barcode_listing/barcode_listing.dart'",
+          ),
+        );
+        // No unused uuid import
+        expect(content, isNot(contains('package:uuid')));
       },
     );
   });

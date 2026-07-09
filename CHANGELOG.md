@@ -1,3 +1,13 @@
+## [5.4.1] - 2026-07-09
+
+### Fixed
+
+- **API bridge codegen**: usecase import filenames now use `_usecase.dart` convention (strip "UseCase" suffix before camelToSnake)
+- **API bridge codegen**: missing param type imports (e.g. `BarcodeSpark`) now auto-detected from entity directory
+- **API bridge codegen**: bogus entity-path imports for non-entity param types (e.g. `SearchMissingCoreChannelsParams`) no longer generated
+- **API bridge codegen**: removed unused `uuid` import from generated bridge files
+- **Test**: added import correctness test covering `_usecase.dart` convention and entity param imports
+
 ## [5.4.0] - 2026-07-09
 
 ### Added
