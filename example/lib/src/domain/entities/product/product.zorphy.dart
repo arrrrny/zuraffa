@@ -58,31 +58,41 @@ class Product {
 
   Product patchWithProduct({ProductPatch? patchInput}) {
     final _patcher = patchInput ?? ProductPatch();
-    final _patchMap = _patcher.toPatch();
+    final _patchMap = _patcher.patchMap;
     return Product(
       id: _patchMap.containsKey(Product$.id)
           ? (_patchMap[Product$.id] is Function)
                 ? _patchMap[Product$.id](this.id)
+                : (_patchMap[Product$.id] is Patch)
+                ? _patchMap[Product$.id].applyTo(this.id)
                 : _patchMap[Product$.id]
           : this.id,
       name: _patchMap.containsKey(Product$.name)
           ? (_patchMap[Product$.name] is Function)
                 ? _patchMap[Product$.name](this.name)
+                : (_patchMap[Product$.name] is Patch)
+                ? _patchMap[Product$.name].applyTo(this.name)
                 : _patchMap[Product$.name]
           : this.name,
       description: _patchMap.containsKey(Product$.description)
           ? (_patchMap[Product$.description] is Function)
                 ? _patchMap[Product$.description](this.description)
+                : (_patchMap[Product$.description] is Patch)
+                ? _patchMap[Product$.description].applyTo(this.description)
                 : _patchMap[Product$.description]
           : this.description,
       price: _patchMap.containsKey(Product$.price)
           ? (_patchMap[Product$.price] is Function)
                 ? _patchMap[Product$.price](this.price)
+                : (_patchMap[Product$.price] is Patch)
+                ? _patchMap[Product$.price].applyTo(this.price)
                 : _patchMap[Product$.price]
           : this.price,
       createdAt: _patchMap.containsKey(Product$.createdAt)
           ? (_patchMap[Product$.createdAt] is Function)
                 ? _patchMap[Product$.createdAt](this.createdAt)
+                : (_patchMap[Product$.createdAt] is Patch)
+                ? _patchMap[Product$.createdAt].applyTo(this.createdAt)
                 : _patchMap[Product$.createdAt]
           : this.createdAt,
     );
@@ -135,7 +145,7 @@ class Product {
 
   dynamic _sanitizeJson(dynamic json) {
     if (json is Map<String, dynamic>) {
-      json.remove('_className_');
+      json.remove('__typename');
       return json..forEach((key, value) {
         json[key] = _sanitizeJson(value);
       });
@@ -157,7 +167,7 @@ extension ProductSerialization on Product {
 
   dynamic _sanitizeJson(dynamic json) {
     if (json is Map<String, dynamic>) {
-      json.remove('_className_');
+      json.remove('__typename');
       return json..forEach((key, value) {
         json[key] = _sanitizeJson(value);
       });
@@ -170,94 +180,33 @@ extension ProductSerialization on Product {
 
 enum Product$ { id, name, description, price, createdAt }
 
-class ProductPatch implements Patch<Product> {
-  final Map<Product$, dynamic> _patch = {};
-
-  static ProductPatch create([Map<String, dynamic>? diff]) {
-    final patch = ProductPatch();
-    if (diff != null) {
-      diff.forEach((key, value) {
-        try {
-          final enumValue = Product$.values.firstWhere((e) => e.name == key);
-          if (value is Function) {
-            patch._patch[enumValue] = value();
-          } else {
-            patch._patch[enumValue] = value;
-          }
-        } catch (_) {}
-      });
-    }
-    return patch;
-  }
-
-  static ProductPatch fromPatch(Map<Product$, dynamic> patch) {
-    final _patch = ProductPatch();
-    _patch._patch.addAll(patch);
-    return _patch;
-  }
-
-  Map<Product$, dynamic> toPatch() => Map.from(_patch);
-
+class ProductPatch extends PatchBase<Product, Product$> {
   Product applyTo(Product entity) {
     return entity.patchWithProduct(patchInput: this);
   }
 
-  Map<String, dynamic> toJson() {
-    final json = <String, dynamic>{};
-    _patch.forEach((key, value) {
-      if (value != null) {
-        if (value is Function) {
-          final result = value();
-          json[key.name] = _convertToJson(result);
-        } else {
-          json[key.name] = _convertToJson(value);
-        }
-      }
-    });
-    return json;
-  }
-
-  dynamic _convertToJson(dynamic value) {
-    if (value == null) return null;
-    if (value is DateTime) return value.toIso8601String();
-    if (value is Enum) return value.toString().split('.').last;
-    if (value is List) return value.map((e) => _convertToJson(e)).toList();
-    if (value is Map)
-      return value.map((k, v) => MapEntry(k.toString(), _convertToJson(v)));
-    if (value is num || value is bool || value is String) return value;
-    try {
-      if (value?.toJsonLean != null) return value.toJsonLean();
-    } catch (_) {}
-    if (value?.toJson != null) return value.toJson();
-    return value.toString();
-  }
-
-  static ProductPatch fromJson(Map<String, dynamic> json) {
-    return create(json);
-  }
-
   ProductPatch withId(String? value) {
-    _patch[Product$.id] = value;
+    patchMap[Product$.id] = value;
     return this;
   }
 
   ProductPatch withName(String? value) {
-    _patch[Product$.name] = value;
+    patchMap[Product$.name] = value;
     return this;
   }
 
   ProductPatch withDescription(String? value) {
-    _patch[Product$.description] = value;
+    patchMap[Product$.description] = value;
     return this;
   }
 
   ProductPatch withPrice(double? value) {
-    _patch[Product$.price] = value;
+    patchMap[Product$.price] = value;
     return this;
   }
 
   ProductPatch withCreatedAt(DateTime? value) {
-    _patch[Product$.createdAt] = value;
+    patchMap[Product$.createdAt] = value;
     return this;
   }
 }

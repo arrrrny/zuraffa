@@ -24,7 +24,6 @@ class _RecordingHook extends Hook {
 
   final HookPhase? throwOnPhase;
 
-  @override
   final int hookPriority;
 
   final List<(HookContext, HookPhase)> calls = [];
@@ -226,8 +225,6 @@ void main() {
     });
 
     test('metadata map is shared across phases in same invocation', () async {
-      // A hook that writes in pre and reads in success
-      late String? readValue;
       final hook = _RecordingHook(
         id: 'metadata-test',
         triggerFilter: (_, phase) =>

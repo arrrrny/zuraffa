@@ -177,6 +177,9 @@ void main() {
       expect(metadata!.retryCount, equals(2));
       expect(metadata.status, equals(SyncStatus.failed));
       expect(metadata.lastError, contains('Network error'));
+
+      // createRemote was called exactly twice (once per sync attempt)
+      expect(callCount, equals(2));
     });
 
     test('getPendingCount returns pending + failed count', () async {

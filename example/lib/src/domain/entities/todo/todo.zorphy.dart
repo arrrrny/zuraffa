@@ -52,26 +52,34 @@ class Todo {
 
   Todo patchWithTodo({TodoPatch? patchInput}) {
     final _patcher = patchInput ?? TodoPatch();
-    final _patchMap = _patcher.toPatch();
+    final _patchMap = _patcher.patchMap;
     return Todo(
       id: _patchMap.containsKey(Todo$.id)
           ? (_patchMap[Todo$.id] is Function)
                 ? _patchMap[Todo$.id](this.id)
+                : (_patchMap[Todo$.id] is Patch)
+                ? _patchMap[Todo$.id].applyTo(this.id)
                 : _patchMap[Todo$.id]
           : this.id,
       title: _patchMap.containsKey(Todo$.title)
           ? (_patchMap[Todo$.title] is Function)
                 ? _patchMap[Todo$.title](this.title)
+                : (_patchMap[Todo$.title] is Patch)
+                ? _patchMap[Todo$.title].applyTo(this.title)
                 : _patchMap[Todo$.title]
           : this.title,
       isCompleted: _patchMap.containsKey(Todo$.isCompleted)
           ? (_patchMap[Todo$.isCompleted] is Function)
                 ? _patchMap[Todo$.isCompleted](this.isCompleted)
+                : (_patchMap[Todo$.isCompleted] is Patch)
+                ? _patchMap[Todo$.isCompleted].applyTo(this.isCompleted)
                 : _patchMap[Todo$.isCompleted]
           : this.isCompleted,
       createdAt: _patchMap.containsKey(Todo$.createdAt)
           ? (_patchMap[Todo$.createdAt] is Function)
                 ? _patchMap[Todo$.createdAt](this.createdAt)
+                : (_patchMap[Todo$.createdAt] is Patch)
+                ? _patchMap[Todo$.createdAt].applyTo(this.createdAt)
                 : _patchMap[Todo$.createdAt]
           : this.createdAt,
     );
@@ -114,7 +122,7 @@ class Todo {
 
   dynamic _sanitizeJson(dynamic json) {
     if (json is Map<String, dynamic>) {
-      json.remove('_className_');
+      json.remove('__typename');
       return json..forEach((key, value) {
         json[key] = _sanitizeJson(value);
       });
@@ -136,7 +144,7 @@ extension TodoSerialization on Todo {
 
   dynamic _sanitizeJson(dynamic json) {
     if (json is Map<String, dynamic>) {
-      json.remove('_className_');
+      json.remove('__typename');
       return json..forEach((key, value) {
         json[key] = _sanitizeJson(value);
       });
@@ -149,89 +157,28 @@ extension TodoSerialization on Todo {
 
 enum Todo$ { id, title, isCompleted, createdAt }
 
-class TodoPatch implements Patch<Todo> {
-  final Map<Todo$, dynamic> _patch = {};
-
-  static TodoPatch create([Map<String, dynamic>? diff]) {
-    final patch = TodoPatch();
-    if (diff != null) {
-      diff.forEach((key, value) {
-        try {
-          final enumValue = Todo$.values.firstWhere((e) => e.name == key);
-          if (value is Function) {
-            patch._patch[enumValue] = value();
-          } else {
-            patch._patch[enumValue] = value;
-          }
-        } catch (_) {}
-      });
-    }
-    return patch;
-  }
-
-  static TodoPatch fromPatch(Map<Todo$, dynamic> patch) {
-    final _patch = TodoPatch();
-    _patch._patch.addAll(patch);
-    return _patch;
-  }
-
-  Map<Todo$, dynamic> toPatch() => Map.from(_patch);
-
+class TodoPatch extends PatchBase<Todo, Todo$> {
   Todo applyTo(Todo entity) {
     return entity.patchWithTodo(patchInput: this);
   }
 
-  Map<String, dynamic> toJson() {
-    final json = <String, dynamic>{};
-    _patch.forEach((key, value) {
-      if (value != null) {
-        if (value is Function) {
-          final result = value();
-          json[key.name] = _convertToJson(result);
-        } else {
-          json[key.name] = _convertToJson(value);
-        }
-      }
-    });
-    return json;
-  }
-
-  dynamic _convertToJson(dynamic value) {
-    if (value == null) return null;
-    if (value is DateTime) return value.toIso8601String();
-    if (value is Enum) return value.toString().split('.').last;
-    if (value is List) return value.map((e) => _convertToJson(e)).toList();
-    if (value is Map)
-      return value.map((k, v) => MapEntry(k.toString(), _convertToJson(v)));
-    if (value is num || value is bool || value is String) return value;
-    try {
-      if (value?.toJsonLean != null) return value.toJsonLean();
-    } catch (_) {}
-    if (value?.toJson != null) return value.toJson();
-    return value.toString();
-  }
-
-  static TodoPatch fromJson(Map<String, dynamic> json) {
-    return create(json);
-  }
-
   TodoPatch withId(int? value) {
-    _patch[Todo$.id] = value;
+    patchMap[Todo$.id] = value;
     return this;
   }
 
   TodoPatch withTitle(String? value) {
-    _patch[Todo$.title] = value;
+    patchMap[Todo$.title] = value;
     return this;
   }
 
   TodoPatch withIsCompleted(bool? value) {
-    _patch[Todo$.isCompleted] = value;
+    patchMap[Todo$.isCompleted] = value;
     return this;
   }
 
   TodoPatch withCreatedAt(DateTime? value) {
-    _patch[Todo$.createdAt] = value;
+    patchMap[Todo$.createdAt] = value;
     return this;
   }
 }
