@@ -1,3 +1,14 @@
+## [5.5.0] - 2026-07-13
+
+### Changed
+
+- **API bridge codegen**: generated bridge files now use `getIt<Type>()` pattern instead of `GetIt.I<Type>()`, aligning with Zuraffa project conventions
+- **Example app**: added `registerTodoApiBridge()` to main.dart, demonstrating full bridge initialization lifecycle on app startup
+
+### Documentation
+
+- Updated VM Service API Bridge design docs with v5.4.2 codegen details
+
 ## [5.4.2] - 2026-07-09
 
 ### Fixed
