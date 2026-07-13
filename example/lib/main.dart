@@ -1,5 +1,3 @@
-import 'dart:developer' as developer;
-
 import 'package:example/src/domain/domain.dart';
 import 'package:example/src/presentation/pages/todo/todo_view.dart';
 import 'package:flutter/material.dart';
@@ -17,16 +15,8 @@ Future<void> setupDependencies() async {
 }
 
 void _initializeBridge() {
-  debugPrint('🔧 _initializeBridge: init + register');
   ZuraffaApiBridge.init();
   registerTodoApiBridge();
-
-  // Test: register a simple extension to verify the mechanism works
-  developer.registerExtension('ext.test.ping', (method, params) async {
-    return developer.ServiceExtensionResponse.result('pong');
-  });
-
-  debugPrint('🔧 _initializeBridge: done');
 }
 
 void main() {

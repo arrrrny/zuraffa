@@ -283,6 +283,10 @@ class ApiBridgeBuilder {
     }
     buf.writeln();
 
+    // Top-level GetIt instance for handler resolution
+    buf.writeln('final getIt = GetIt.instance;');
+    buf.writeln();
+
     // Registration function
     buf.writeln(
       '/// Registers all $entityName UseCase extensions with [ZuraffaApiBridge].',
@@ -353,11 +357,11 @@ class ApiBridgeBuilder {
     buf.writeln('  try {');
 
     if (_isNoParams(uc.paramsType)) {
-      buf.writeln('    final useCase = GetIt.I<${uc.className}>();');
+      buf.writeln('    final useCase = getIt<${uc.className}>();');
       buf.writeln('    final result = await useCase(const NoParams());');
     } else {
       buf.writeln(paramExtract);
-      buf.writeln('    final useCase = GetIt.I<${uc.className}>();');
+      buf.writeln('    final useCase = getIt<${uc.className}>();');
       buf.writeln('    final result = await useCase(params);');
     }
 
@@ -403,7 +407,7 @@ class ApiBridgeBuilder {
       "    json.putIfAbsent('id', () => DateTime.now().microsecondsSinceEpoch.toString());",
     );
     buf.writeln('    final params = ${uc.paramsType}.fromJson(json);');
-    buf.writeln('    final useCase = GetIt.I<${uc.className}>();');
+    buf.writeln('    final useCase = getIt<${uc.className}>();');
     buf.writeln('    final result = await useCase(params);');
     buf.writeln('    return ZuraffaApiBridge.serializeResult(');
     buf.writeln('      result,');
@@ -469,9 +473,7 @@ class ApiBridgeBuilder {
           );
           break;
         default:
-          buf.writeln(
-            "    final params = json['value']?.toString() ?? '';",
-          );
+          buf.writeln("    final params = json['value']?.toString() ?? '';");
       }
     } else {
       buf.writeln(
@@ -480,7 +482,7 @@ class ApiBridgeBuilder {
       buf.writeln('    final params = ${uc.paramsType}.fromJson(json);');
     }
 
-    buf.writeln('    final useCase = GetIt.I<${uc.className}>();');
+    buf.writeln('    final useCase = getIt<${uc.className}>();');
     buf.writeln('    final stream = useCase(params);');
     buf.writeln(
       '    final subscriptionId = ZuraffaApiBridge.generateSubscriptionId();',

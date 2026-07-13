@@ -13,7 +13,8 @@ import '../../domain/entities/todo/todo.dart';
 import '../../domain/usecases/todo/create_todo_usecase.dart';
 import '../../domain/usecases/todo/get_todo_list_usecase.dart';
 
-/// Registers all Todo UseCase extensions with [ZuraffaApiBridge].
+final getIt = GetIt.instance;
+
 void registerTodoApiBridge() {
   if (kReleaseMode) return;
   if (kProfileMode && !Zuraffa.enableApiInProfile) return;
@@ -67,7 +68,7 @@ Future<developer.ServiceExtensionResponse> _handleCreateTodo(
       json['createdAt'] = DateTime.now().toIso8601String();
     }
     final params = Todo.fromJson(json);
-    final useCase = GetIt.I<CreateTodoUseCase>();
+    final useCase = getIt<CreateTodoUseCase>();
     final result = await useCase(params);
     return ZuraffaApiBridge.serializeResult(result, (v) => v.toJson());
   } catch (e, st) {
@@ -88,7 +89,7 @@ Future<developer.ServiceExtensionResponse> _handleGetTodoList(
 ) async {
   try {
     final params = ListQueryParams<Todo>();
-    final useCase = GetIt.I<GetTodoListUseCase>();
+    final useCase = getIt<GetTodoListUseCase>();
     final result = await useCase(params);
     return ZuraffaApiBridge.serializeResult(
       result,
