@@ -179,6 +179,12 @@ export 'src/core/cache_policy.dart';
 /// Concrete cache policy implementations (Daily, AppRestart, TTL)
 export 'src/core/cache_policies.dart';
 
+/// FetchStrategy abstraction for pluggable data-fetching pipelines
+export 'src/core/fetch_strategy.dart';
+
+/// StrategyPlugin — generates FetchStrategy skeletons for a domain
+export 'src/plugins/strategy/strategy_plugin.dart';
+
 /// SyncStrategy abstraction for offline-first synchronization
 export 'src/core/sync_strategy.dart';
 export 'src/core/sync_status.dart';

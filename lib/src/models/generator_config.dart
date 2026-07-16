@@ -54,6 +54,10 @@ class GeneratorConfig {
   final String? cacheStorage;
   final int? ttlMinutes;
 
+  // Strategy fields
+  final bool enableStrategy;
+  final List<String> strategyNames;
+
   // Sync fields
   final bool enableSync;
   final String syncDirection;
@@ -128,6 +132,8 @@ class GeneratorConfig {
     this.cachePolicy = 'daily',
     this.cacheStorage,
     this.ttlMinutes,
+    this.enableStrategy = false,
+    this.strategyNames = const [],
     this.enableSync = false,
     this.syncDirection = 'push',
     this.syncBatchSize = 50,
@@ -294,6 +300,8 @@ class GeneratorConfig {
     String? cachePolicy,
     String? cacheStorage,
     int? ttlMinutes,
+    bool? enableStrategy,
+    List<String>? strategyNames,
     bool? enableSync,
     String? syncDirection,
     int? syncBatchSize,
@@ -362,6 +370,8 @@ class GeneratorConfig {
       cachePolicy: cachePolicy ?? this.cachePolicy,
       cacheStorage: cacheStorage ?? this.cacheStorage,
       ttlMinutes: ttlMinutes ?? this.ttlMinutes,
+      enableStrategy: enableStrategy ?? this.enableStrategy,
+      strategyNames: strategyNames ?? this.strategyNames,
       enableSync: enableSync ?? this.enableSync,
       syncDirection: syncDirection ?? this.syncDirection,
       syncBatchSize: syncBatchSize ?? this.syncBatchSize,
@@ -630,6 +640,8 @@ class GeneratorConfig {
     'cache_storage': cacheStorage,
     'ttl': ttlMinutes,
     'sync': enableSync,
+    'strategy': enableStrategy,
+    'strategy_names': strategyNames,
     'sync_direction': syncDirection,
     'sync_batch_size': syncBatchSize,
     'sync_max_retries': syncMaxRetries,

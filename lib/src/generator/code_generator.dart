@@ -25,6 +25,7 @@ import '../plugins/di/di_plugin.dart';
 import '../plugins/datasource/datasource_plugin.dart';
 import '../plugins/service/service_plugin.dart';
 import '../plugins/shadcn/shadcn_plugin.dart';
+import '../plugins/strategy/strategy_plugin.dart';
 import '../core/generator_options.dart';
 import '../core/generation/generation_context.dart';
 import '../core/context/progress_reporter.dart';
@@ -98,6 +99,7 @@ class CodeGenerator {
     _registerPlugin(CachePlugin(outputDir: outputDir, options: options));
     _registerPlugin(RoutePlugin(outputDir: outputDir, options: options));
     _registerPlugin(ShadcnPlugin(outputDir: outputDir, options: options));
+    _registerPlugin(StrategyPlugin(outputDir: outputDir, options: options));
     _registerPlugin(MethodAppendPlugin(outputDir: outputDir, options: options));
 
     final loadedConfig = ZfaConfig.load(projectRoot: projectRoot);

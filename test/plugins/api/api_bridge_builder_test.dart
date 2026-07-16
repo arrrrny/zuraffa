@@ -221,64 +221,55 @@ void main() {
       },
     );
 
-    test(
-      'generates correct import filenames with _usecase convention',
-      () async {
-        await createEntity(
-          outputDir: outputDir,
-          entitySnake: 'barcode_listing',
-          entityName: 'BarcodeListing',
-        );
-        // BarcodeSpark is the params type — needs its own entity dir for fromJson detection
-        await createEntity(
-          outputDir: outputDir,
-          entitySnake: 'barcode_spark',
-          entityName: 'BarcodeSpark',
-        );
-        await createUseCase(
-          outputDir: outputDir,
-          entitySnake: 'barcode_listing',
-          className: 'GetBarcodeListingUseCase',
-          content:
-              'class GetBarcodeListingUseCase extends StreamUseCase<BarcodeListing, BarcodeSpark> {}',
-        );
+    test('generates correct import filenames with _usecase convention', () async {
+      await createEntity(
+        outputDir: outputDir,
+        entitySnake: 'barcode_listing',
+        entityName: 'BarcodeListing',
+      );
+      // BarcodeSpark is the params type — needs its own entity dir for fromJson detection
+      await createEntity(
+        outputDir: outputDir,
+        entitySnake: 'barcode_spark',
+        entityName: 'BarcodeSpark',
+      );
+      await createUseCase(
+        outputDir: outputDir,
+        entitySnake: 'barcode_listing',
+        className: 'GetBarcodeListingUseCase',
+        content:
+            'class GetBarcodeListingUseCase extends StreamUseCase<BarcodeListing, BarcodeSpark> {}',
+      );
 
-        final builder = ApiBridgeBuilder(
-          outputDir: outputDir,
-          options: const GeneratorOptions(dryRun: false, force: true),
-        );
-        final files = await builder.generate(
-          GeneratorConfig(
-            name: 'BarcodeListing',
-            outputDir: outputDir,
-          ),
-        );
+      final builder = ApiBridgeBuilder(
+        outputDir: outputDir,
+        options: const GeneratorOptions(dryRun: false, force: true),
+      );
+      final files = await builder.generate(
+        GeneratorConfig(name: 'BarcodeListing', outputDir: outputDir),
+      );
 
-        final content = await File(files.first.path).readAsString();
+      final content = await File(files.first.path).readAsString();
 
-        // UseCase import must use _usecase convention (not _use_case)
-        expect(
-          content,
-          contains(
-            "import '../../domain/usecases/barcode_listing/get_barcode_listing_usecase.dart'",
-          ),
-        );
-        // Must NOT have the old broken convention
-        expect(
-          content,
-          isNot(contains('_use_case.dart')),
-        );
-        // Entity import must be present
-        expect(
-          content,
-          contains(
-            "import '../../domain/entities/barcode_listing/barcode_listing.dart'",
-          ),
-        );
-        // No unused uuid import
-        expect(content, isNot(contains('package:uuid')));
-      },
-    );
+      // UseCase import must use _usecase convention (not _use_case)
+      expect(
+        content,
+        contains(
+          "import '../../domain/usecases/barcode_listing/get_barcode_listing_usecase.dart'",
+        ),
+      );
+      // Must NOT have the old broken convention
+      expect(content, isNot(contains('_use_case.dart')));
+      // Entity import must be present
+      expect(
+        content,
+        contains(
+          "import '../../domain/entities/barcode_listing/barcode_listing.dart'",
+        ),
+      );
+      // No unused uuid import
+      expect(content, isNot(contains('package:uuid')));
+    });
 
     test('skips usecases whose params type lacks fromJson', () async {
       await createEntity(

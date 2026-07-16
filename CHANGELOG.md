@@ -1,3 +1,23 @@
+## [5.6.0] - 2026-07-16
+
+### Added
+
+- **Strategy plugin**: new `zfa strategy create` command generates `FetchStrategy` abstract base, concrete pipeline variants, and a `StrategySelector` for pluggable data-fetching — ideal for A/B testing scraper vs AI pipelines at runtime
+- **Strategy builder**: auto-resolves entity imports for `paramsType`/`returnsType` generics via `CommonPatterns.entityImports()`, using the same resolution logic as all other generators
+- **`FetchStrategy<Input, Output>`**: core abstraction with `fetchOne`, `fetch` (stream), and `canHandle` — analogous to `SyncStrategy` for the fetch side
+- **`StrategySelector`**: wires candidates in priority order, returns the first applicable strategy via `select()`, or all via `selectAll()`
+- **`GeneratorConfig`**: `enableStrategy` and `strategyNames` fields for strategy-aware code generation
+
+### Fixed
+
+- **Strategy builder**: unnecessary braces in string interpolation (`${variantPascal}` → `$variantPascal`)
+- **Strategy plugin**: eliminated `late final StrategyBuilder` by moving initialization to the initializer list
+- **Hook registry**: replaced `bool get isEnabled` / `set isEnabled` wrapper with a direct public field (`unnecessary_getters_setters` lint)
+
+### Tests
+
+- **23 new tests** covering the strategy plugin and builder: plugin metadata & capability lifecycle, builder content verification (abstract base, concrete variants, selector), entity import resolution, dry-run behavior, file path correctness, and dynamic type fallback
+
 ## [5.5.0] - 2026-07-13
 
 ### Changed

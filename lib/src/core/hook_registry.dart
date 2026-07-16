@@ -33,14 +33,12 @@ class HookRegistry {
   HookRegistry._();
 
   final Map<String, Hook> _hooks = {};
-  bool _isEnabled = true;
 
   /// Whether hooks are globally enabled.
   ///
   /// When `false`, [dispatch] returns immediately without iterating hooks.
   /// Defaults to `true`.
-  bool get isEnabled => _isEnabled;
-  set isEnabled(bool value) => _isEnabled = value;
+  bool isEnabled = true;
 
   /// All registered hooks, sorted by priority (ascending — lower first).
   List<Hook> get hooks {
@@ -89,7 +87,7 @@ class HookRegistry {
   /// When [isEnabled] is `false` or no hooks are registered, returns
   /// immediately with negligible overhead.
   void dispatch(HookContext context, HookPhase phase) {
-    if (!_isEnabled || _hooks.isEmpty) return;
+    if (!isEnabled || _hooks.isEmpty) return;
 
     // Snapshot the hooks list to avoid concurrent modification issues
     final matching = hooks.where((h) {

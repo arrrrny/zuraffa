@@ -25,6 +25,7 @@ import '../plugins/usecase/usecase_plugin.dart';
 import '../plugins/view/view_plugin.dart';
 import '../plugins/feature/feature_plugin.dart';
 import '../plugins/shadcn/shadcn_plugin.dart';
+import '../plugins/strategy/strategy_plugin.dart';
 
 class PluginConfig {
   final Set<String> disabled;
@@ -124,6 +125,7 @@ class PluginLoader {
       SyncPlugin(outputDir: outputDir, options: options),
       GqlPlugin(outputDir: outputDir, options: options),
       ShadcnPlugin(outputDir: outputDir, options: options),
+      StrategyPlugin(outputDir: outputDir, options: options),
       MethodAppendPlugin(outputDir: outputDir, options: options),
     ];
   }
