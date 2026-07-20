@@ -16,7 +16,9 @@ CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
 echo "🚀 Publishing zuraffa version $VERSION on branch $CURRENT_BRANCH..."
 
-# Update versions
+# ============================================================
+# Step 1: Update versions in main repo files
+# ============================================================
 if [[ "$OSTYPE" == "darwin"* ]]; then
     sed -i '' "s/^version: .*/version: $VERSION/" pubspec.yaml
     sed -i '' "s/^const version = '.*'/const version = '$VERSION'/" lib/src/zfa_cli.dart
@@ -37,34 +39,26 @@ else
     echo "ℹ️  CHANGELOG entry for $VERSION already exists, skipping auto-write."
 fi
 
-# Commit and Tag
-echo "🔨 Committing and tagging..."
-git add pubspec.yaml CHANGELOG.md lib/src/zfa_cli.dart example/pubspec.yaml
-git commit -m "chore: release $VERSION" || true
-
-# Only create tag if it doesn't exist
-if ! git rev-parse "v$VERSION" >/dev/null 2>&1; then
-    git tag -a "v$VERSION" -m "Release $VERSION"
-fi
-
-# Push current branch and ONLY the specific tag
-echo "📤 Pushing to remote..."
-git push origin "$CURRENT_BRANCH"
-git push origin "v$VERSION"
-
-# NOTE: GitHub Actions will now handle the binary builds and uploads automatically
-echo "⚙️  GitHub Actions will now build and upload binaries for all platforms."
-
-# Update zuraffa-zed extension version via submodule
+# ============================================================
+# Step 2: Update zuraffa-zed submodule FIRST
+# (must happen before main repo commit so the submodule pointer is correct)
+# ============================================================
 ZED_SUBMODULE_DIR="$PACKAGE_DIR/extensions/zed"
 if [ -e "$ZED_SUBMODULE_DIR/.git" ]; then
     echo "📝 Updating zuraffa-zed extension submodule..."
     cd "$ZED_SUBMODULE_DIR"
 
     # Ensure submodule is on master with the latest remote commits
-    # (this includes .github/workflows/release.yml which is needed for CI release)
     git checkout master 2>/dev/null || git checkout -b master origin/master 2>/dev/null || true
-    git pull --rebase origin master 2>/dev/null || echo "⚠️  Could not rebase, committing on top of current HEAD"
+
+    # Use fetch + reset instead of pull --rebase to guarantee clean state
+    git fetch origin master
+    CURRENT_REMOTE=$(git rev-parse origin/master)
+    CURRENT_LOCAL=$(git rev-parse HEAD)
+    if [ "$CURRENT_REMOTE" != "$CURRENT_LOCAL" ]; then
+        echo "⚠️  Submodule is behind origin/master, resetting to remote..."
+        git reset --hard origin/master
+    fi
 
     # Update version in extension.toml and Cargo.toml
     if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -98,17 +92,42 @@ if [ -e "$ZED_SUBMODULE_DIR/.git" ]; then
     else
         echo "ℹ️  No changes to commit in zuraffa-zed"
     fi
+
+    # Capture the new submodule commit SHA for logging
+    SUBMOD_NEW_SHA=$(git rev-parse HEAD)
+
+    # Push submodule branch
     git push origin HEAD:refs/heads/master
 
-    # Create and push tag for the zuraffa-zed repo so CI builds a release
-    # (GitHub Actions triggers on tags matching v*)
-    # Use --force to update the tag if it already exists from a previous run
+    # Create and push tag for the zuraffa-zed repo (triggers CI release + extension PR)
+    echo "📤 Pushing zuraffa-zed tag v$VERSION..."
     git tag -f -a "v$VERSION" -m "Release $VERSION"
     git push origin "v$VERSION" --force
 
     cd "$PACKAGE_DIR"
+
+    # Stage the updated submodule pointer so it goes into the main release commit
     git add extensions/zed
+    echo "   zuraffa-zed submodule pinned to: $SUBMOD_NEW_SHA"
 fi
+
+# ============================================================
+# Step 3: Commit and push main repo (now includes correct submodule pointer)
+# ============================================================
+echo "🔨 Committing and tagging main repo..."
+git add pubspec.yaml CHANGELOG.md lib/src/zfa_cli.dart example/pubspec.yaml
+git commit -m "chore: release $VERSION" || true
+
+# Create and push tag for the main repo
+if ! git rev-parse "v$VERSION" >/dev/null 2>&1; then
+    git tag -a "v$VERSION" -m "Release $VERSION"
+fi
+
+echo "📤 Pushing main repo to remote..."
+git push origin "$CURRENT_BRANCH"
+git push origin "v$VERSION"
+
+echo "⚙️  GitHub Actions will now build and upload binaries for all platforms."
 
 # Finally, publish to pub.dev
 echo "📦 Publishing to pub.dev..."
