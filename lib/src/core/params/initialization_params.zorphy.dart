@@ -8,8 +8,10 @@ part of 'initialization_params.dart';
 // ZorphyGenerator
 // **************************************************************************
 
-@JsonSerializable(explicitToJson: true)
+@JsonSerializable(explicitToJson: true, createFactory: false)
 class InitializationParams extends Params {
+  @override
+  final Map<String, dynamic>? params;
   @JsonKey(
     toJson: DurationConverter.durationToJson,
     fromJson: DurationConverter.durationFromJson,
@@ -21,13 +23,13 @@ class InitializationParams extends Params {
   final Settings? settings;
 
   const InitializationParams({
-    Map<String, dynamic>? params,
+    this.params,
     required this.timeout,
     bool? forceRefresh,
     this.credentials,
     this.settings,
   }) : this.forceRefresh = forceRefresh ?? false,
-       super(params: params);
+       super();
 
   InitializationParams copyWith({
     Map<String, dynamic>? params,
@@ -59,10 +61,6 @@ class InitializationParams extends Params {
       credentials: credentials,
       settings: settings,
     );
-  }
-
-  InitializationParams copyWithParams({Map<String, dynamic>? params}) {
-    return copyWith(params: params);
   }
 
   InitializationParams patchWithInitializationParams({
@@ -117,24 +115,6 @@ class InitializationParams extends Params {
     );
   }
 
-  InitializationParams patchWithParams({ParamsPatch? patchInput}) {
-    final _patcher = patchInput ?? ParamsPatch();
-    final _patchMap = _patcher.patchMap;
-    return InitializationParams(
-      params: _patchMap.containsKey(Params$.params)
-          ? (_patchMap[Params$.params] is Function)
-                ? _patchMap[Params$.params](this.params)
-                : (_patchMap[Params$.params] is Patch)
-                ? _patchMap[Params$.params].applyTo(this.params)
-                : _patchMap[Params$.params]
-          : this.params,
-      timeout: this.timeout,
-      forceRefresh: this.forceRefresh,
-      credentials: this.credentials,
-      settings: this.settings,
-    );
-  }
-
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
@@ -172,8 +152,25 @@ class InitializationParams extends Params {
   }
 
   /// Creates a [InitializationParams] instance from JSON
-  factory InitializationParams.fromJson(Map<String, dynamic> json) =>
-      _$InitializationParamsFromJson(json);
+  factory InitializationParams.fromJson(Map<String, dynamic> json) {
+    return InitializationParams(
+      params: ZorphyJsonHelper.cast<Map<String, dynamic>?>(json, 'params'),
+      timeout: Duration(
+        microseconds: (ZorphyJsonHelper.cast<num>(json, 'timeout')).toInt(),
+      ),
+      forceRefresh: ZorphyJsonHelper.cast<bool?>(json, 'forceRefresh') ?? false,
+      credentials: json['credentials'] == null
+          ? null
+          : Credentials.fromJson(
+              ZorphyJsonHelper.cast<Map<String, dynamic>>(json, 'credentials'),
+            ),
+      settings: json['settings'] == null
+          ? null
+          : Settings.fromJson(
+              ZorphyJsonHelper.cast<Map<String, dynamic>>(json, 'settings'),
+            ),
+    );
+  }
 
   Map<String, dynamic> toJsonLean() {
     final Map<String, dynamic> data = _$InitializationParamsToJson(this);

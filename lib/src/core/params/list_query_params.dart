@@ -13,7 +13,7 @@ part 'list_query_params.g.dart';
 /// The type parameter [T] represents the entity type being queried,
 /// enabling type-safe [Filter], [Field], and [Sort] references.
 @Zorphy(generateJson: true, generateFilter: true)
-abstract class $ListQueryParams<T> implements $Params {
+abstract class $ListQueryParams<T> implements $$Params {
   const $ListQueryParams();
 
   /// A search string for filtering results.

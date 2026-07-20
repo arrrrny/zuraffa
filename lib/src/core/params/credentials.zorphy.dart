@@ -8,19 +8,18 @@ part of 'credentials.dart';
 // ZorphyGenerator
 // **************************************************************************
 
-@JsonSerializable(explicitToJson: true)
+@JsonSerializable(explicitToJson: true, createFactory: false)
 class Credentials extends Params {
-  const Credentials({Map<String, dynamic>? params}) : super(params: params);
+  @override
+  final Map<String, dynamic>? params;
+
+  const Credentials({this.params}) : super();
 
   Credentials copyWith({Map<String, dynamic>? params}) {
     return Credentials(params: params ?? this.params);
   }
 
   Credentials copyWithCredentials({Map<String, dynamic>? params}) {
-    return copyWith(params: params);
-  }
-
-  Credentials copyWithParams({Map<String, dynamic>? params}) {
     return copyWith(params: params);
   }
 
@@ -34,20 +33,6 @@ class Credentials extends Params {
                 : (_patchMap[Credentials$.params] is Patch)
                 ? _patchMap[Credentials$.params].applyTo(this.params)
                 : _patchMap[Credentials$.params]
-          : this.params,
-    );
-  }
-
-  Credentials patchWithParams({ParamsPatch? patchInput}) {
-    final _patcher = patchInput ?? ParamsPatch();
-    final _patchMap = _patcher.patchMap;
-    return Credentials(
-      params: _patchMap.containsKey(Params$.params)
-          ? (_patchMap[Params$.params] is Function)
-                ? _patchMap[Params$.params](this.params)
-                : (_patchMap[Params$.params] is Patch)
-                ? _patchMap[Params$.params].applyTo(this.params)
-                : _patchMap[Params$.params]
           : this.params,
     );
   }
@@ -69,8 +54,11 @@ class Credentials extends Params {
   }
 
   /// Creates a [Credentials] instance from JSON
-  factory Credentials.fromJson(Map<String, dynamic> json) =>
-      _$CredentialsFromJson(json);
+  factory Credentials.fromJson(Map<String, dynamic> json) {
+    return Credentials(
+      params: ZorphyJsonHelper.cast<Map<String, dynamic>?>(json, 'params'),
+    );
+  }
 
   Map<String, dynamic> toJsonLean() {
     final Map<String, dynamic> data = _$CredentialsToJson(this);

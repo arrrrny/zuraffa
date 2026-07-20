@@ -8,7 +8,7 @@ part 'delete_params.g.dart';
 ///
 /// The type parameter [I] represents the ID type being deleted.
 @Zorphy(generateJson: true, generateFilter: true)
-abstract class $DeleteParams<I> implements $Params {
+abstract class $DeleteParams<I> implements $$Params {
   const $DeleteParams();
 
   /// The ID of the entity to delete (strongly typed).

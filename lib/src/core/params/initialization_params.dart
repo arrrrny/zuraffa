@@ -9,7 +9,7 @@ part 'initialization_params.g.dart';
 
 /// Parameters for initializing a repository or data source.
 @Zorphy(generateJson: true, generateFilter: true)
-abstract class $InitializationParams implements $Params {
+abstract class $InitializationParams implements $$Params {
   const $InitializationParams();
 
   /// How long to wait for the app to initialize before timing out.

@@ -10,10 +10,11 @@ part of 'create_params.dart';
 
 @JsonSerializable(explicitToJson: true, genericArgumentFactories: true)
 class CreateParams<T> extends Params {
+  @override
+  final Map<String, dynamic>? params;
   final T data;
 
-  const CreateParams({Map<String, dynamic>? params, required this.data})
-    : super(params: params);
+  const CreateParams({this.params, required this.data}) : super();
 
   CreateParams copyWith({Map<String, dynamic>? params, T? data}) {
     return CreateParams(params: params ?? this.params, data: data ?? this.data);
@@ -21,10 +22,6 @@ class CreateParams<T> extends Params {
 
   CreateParams copyWithCreateParams({Map<String, dynamic>? params, T? data}) {
     return copyWith(params: params, data: data);
-  }
-
-  CreateParams copyWithParams({Map<String, dynamic>? params}) {
-    return copyWith(params: params);
   }
 
   CreateParams patchWithCreateParams({CreateParamsPatch? patchInput}) {
@@ -45,21 +42,6 @@ class CreateParams<T> extends Params {
                 ? _patchMap[CreateParams$.data].applyTo(this.data)
                 : _patchMap[CreateParams$.data]
           : this.data,
-    );
-  }
-
-  CreateParams patchWithParams({ParamsPatch? patchInput}) {
-    final _patcher = patchInput ?? ParamsPatch();
-    final _patchMap = _patcher.patchMap;
-    return CreateParams(
-      params: _patchMap.containsKey(Params$.params)
-          ? (_patchMap[Params$.params] is Function)
-                ? _patchMap[Params$.params](this.params)
-                : (_patchMap[Params$.params] is Patch)
-                ? _patchMap[Params$.params].applyTo(this.params)
-                : _patchMap[Params$.params]
-          : this.params,
-      data: this.data,
     );
   }
 

@@ -8,19 +8,18 @@ part of 'settings.dart';
 // ZorphyGenerator
 // **************************************************************************
 
-@JsonSerializable(explicitToJson: true)
+@JsonSerializable(explicitToJson: true, createFactory: false)
 class Settings extends Params {
-  const Settings({Map<String, dynamic>? params}) : super(params: params);
+  @override
+  final Map<String, dynamic>? params;
+
+  const Settings({this.params}) : super();
 
   Settings copyWith({Map<String, dynamic>? params}) {
     return Settings(params: params ?? this.params);
   }
 
   Settings copyWithSettings({Map<String, dynamic>? params}) {
-    return copyWith(params: params);
-  }
-
-  Settings copyWithParams({Map<String, dynamic>? params}) {
     return copyWith(params: params);
   }
 
@@ -34,20 +33,6 @@ class Settings extends Params {
                 : (_patchMap[Settings$.params] is Patch)
                 ? _patchMap[Settings$.params].applyTo(this.params)
                 : _patchMap[Settings$.params]
-          : this.params,
-    );
-  }
-
-  Settings patchWithParams({ParamsPatch? patchInput}) {
-    final _patcher = patchInput ?? ParamsPatch();
-    final _patchMap = _patcher.patchMap;
-    return Settings(
-      params: _patchMap.containsKey(Params$.params)
-          ? (_patchMap[Params$.params] is Function)
-                ? _patchMap[Params$.params](this.params)
-                : (_patchMap[Params$.params] is Patch)
-                ? _patchMap[Params$.params].applyTo(this.params)
-                : _patchMap[Params$.params]
           : this.params,
     );
   }
@@ -69,8 +54,11 @@ class Settings extends Params {
   }
 
   /// Creates a [Settings] instance from JSON
-  factory Settings.fromJson(Map<String, dynamic> json) =>
-      _$SettingsFromJson(json);
+  factory Settings.fromJson(Map<String, dynamic> json) {
+    return Settings(
+      params: ZorphyJsonHelper.cast<Map<String, dynamic>?>(json, 'params'),
+    );
+  }
 
   Map<String, dynamic> toJsonLean() {
     final Map<String, dynamic> data = _$SettingsToJson(this);

@@ -10,16 +10,18 @@ part of 'toggle_params.dart';
 
 @JsonSerializable(explicitToJson: true, genericArgumentFactories: true)
 class ToggleParams<I, F> extends Params {
+  @override
+  final Map<String, dynamic>? params;
   final I id;
   final F field;
   final bool value;
 
   const ToggleParams({
-    Map<String, dynamic>? params,
+    this.params,
     required this.id,
     required this.field,
     required this.value,
-  }) : super(params: params);
+  }) : super();
 
   ToggleParams copyWith({
     Map<String, dynamic>? params,
@@ -42,10 +44,6 @@ class ToggleParams<I, F> extends Params {
     bool? value,
   }) {
     return copyWith(params: params, id: id, field: field, value: value);
-  }
-
-  ToggleParams copyWithParams({Map<String, dynamic>? params}) {
-    return copyWith(params: params);
   }
 
   ToggleParams patchWithToggleParams({ToggleParamsPatch? patchInput}) {
@@ -80,23 +78,6 @@ class ToggleParams<I, F> extends Params {
                 ? _patchMap[ToggleParams$.value].applyTo(this.value)
                 : _patchMap[ToggleParams$.value]
           : this.value,
-    );
-  }
-
-  ToggleParams patchWithParams({ParamsPatch? patchInput}) {
-    final _patcher = patchInput ?? ParamsPatch();
-    final _patchMap = _patcher.patchMap;
-    return ToggleParams(
-      params: _patchMap.containsKey(Params$.params)
-          ? (_patchMap[Params$.params] is Function)
-                ? _patchMap[Params$.params](this.params)
-                : (_patchMap[Params$.params] is Patch)
-                ? _patchMap[Params$.params].applyTo(this.params)
-                : _patchMap[Params$.params]
-          : this.params,
-      id: this.id,
-      field: this.field,
-      value: this.value,
     );
   }
 

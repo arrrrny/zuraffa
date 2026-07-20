@@ -6,20 +6,6 @@ part of 'initialization_params.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-InitializationParams _$InitializationParamsFromJson(
-  Map<String, dynamic> json,
-) => InitializationParams(
-  params: json['params'] as Map<String, dynamic>?,
-  timeout: DurationConverter.durationFromJson((json['timeout'] as num).toInt()),
-  forceRefresh: json['forceRefresh'] as bool? ?? false,
-  credentials: json['credentials'] == null
-      ? null
-      : Credentials.fromJson(json['credentials'] as Map<String, dynamic>),
-  settings: json['settings'] == null
-      ? null
-      : Settings.fromJson(json['settings'] as Map<String, dynamic>),
-);
-
 Map<String, dynamic> _$InitializationParamsToJson(
   InitializationParams instance,
 ) => <String, dynamic>{
@@ -28,4 +14,5 @@ Map<String, dynamic> _$InitializationParamsToJson(
   'forceRefresh': ?instance.forceRefresh,
   'credentials': ?instance.credentials?.toJson(),
   'settings': ?instance.settings?.toJson(),
+  'hashCode': instance.hashCode,
 };

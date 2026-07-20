@@ -10,6 +10,8 @@ part of 'list_query_params.dart';
 
 @JsonSerializable(explicitToJson: true, genericArgumentFactories: true)
 class ListQueryParams<T> extends Params {
+  @override
+  final Map<String, dynamic>? params;
   final String? search;
   @JsonKey(
     includeFromJson: false,
@@ -29,13 +31,13 @@ class ListQueryParams<T> extends Params {
   final int? offset;
 
   const ListQueryParams({
-    Map<String, dynamic>? params,
+    this.params,
     this.search,
     this.filter,
     this.sort,
     this.limit,
     this.offset,
-  }) : super(params: params);
+  }) : super();
 
   ListQueryParams copyWith({
     Map<String, dynamic>? params,
@@ -71,10 +73,6 @@ class ListQueryParams<T> extends Params {
       limit: limit,
       offset: offset,
     );
-  }
-
-  ListQueryParams copyWithParams({Map<String, dynamic>? params}) {
-    return copyWith(params: params);
   }
 
   ListQueryParams patchWithListQueryParams({ListQueryParamsPatch? patchInput}) {
@@ -123,25 +121,6 @@ class ListQueryParams<T> extends Params {
                 ? _patchMap[ListQueryParams$.offset].applyTo(this.offset)
                 : _patchMap[ListQueryParams$.offset]
           : this.offset,
-    );
-  }
-
-  ListQueryParams patchWithParams({ParamsPatch? patchInput}) {
-    final _patcher = patchInput ?? ParamsPatch();
-    final _patchMap = _patcher.patchMap;
-    return ListQueryParams(
-      params: _patchMap.containsKey(Params$.params)
-          ? (_patchMap[Params$.params] is Function)
-                ? _patchMap[Params$.params](this.params)
-                : (_patchMap[Params$.params] is Patch)
-                ? _patchMap[Params$.params].applyTo(this.params)
-                : _patchMap[Params$.params]
-          : this.params,
-      search: this.search,
-      filter: this.filter,
-      sort: this.sort,
-      limit: this.limit,
-      offset: this.offset,
     );
   }
 
@@ -209,8 +188,8 @@ class ListQueryParams<T> extends Params {
 }
 
 extension ListQueryParamsPropertyHelpers<T> on ListQueryParams<T> {
-  bool get hasSearch => search != null;
-  bool get noSearch => search == null;
+  bool get hasSearch => search?.isNotEmpty == true;
+  bool get noSearch => search?.isEmpty ?? true;
   String get searchRequired =>
       search ?? (throw StateError('search is required but was null'));
   bool get hasFilter => filter != null;

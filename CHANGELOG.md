@@ -1,3 +1,10 @@
+## [5.6.1] - 2026-07-20
+
+### Changed
+
+- **Dependencies**: updated zorphy to ^1.8.3, zorphy_annotation to ^1.8.3, json_annotation to ^4.12.0, uuid to ^4.6.0, dart_style to ^3.1.12, analyzer to 14.1.0, meta to ^1.19.0, build_runner to ^2.15.2
+- Regenerated `.zorphy.dart` and `.g.dart` files for compatibility with updated zorphy and json_serializable
+
 ## [5.6.0] - 2026-07-16
 
 ### Added

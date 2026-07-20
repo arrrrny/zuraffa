@@ -10,6 +10,8 @@ part of 'query_params.dart';
 
 @JsonSerializable(explicitToJson: true, genericArgumentFactories: true)
 class QueryParams<T> extends Params {
+  @override
+  final Map<String, dynamic>? params;
   @JsonKey(
     includeFromJson: false,
     includeToJson: false,
@@ -18,8 +20,7 @@ class QueryParams<T> extends Params {
   )
   final Filter<T>? filter;
 
-  const QueryParams({Map<String, dynamic>? params, this.filter})
-    : super(params: params);
+  const QueryParams({this.params, this.filter}) : super();
 
   QueryParams copyWith({Map<String, dynamic>? params, Filter<T>? filter}) {
     return QueryParams(
@@ -33,10 +34,6 @@ class QueryParams<T> extends Params {
     Filter<T>? filter,
   }) {
     return copyWith(params: params, filter: filter);
-  }
-
-  QueryParams copyWithParams({Map<String, dynamic>? params}) {
-    return copyWith(params: params);
   }
 
   QueryParams patchWithQueryParams({QueryParamsPatch? patchInput}) {
@@ -57,21 +54,6 @@ class QueryParams<T> extends Params {
                 ? _patchMap[QueryParams$.filter].applyTo(this.filter)
                 : _patchMap[QueryParams$.filter]
           : this.filter,
-    );
-  }
-
-  QueryParams patchWithParams({ParamsPatch? patchInput}) {
-    final _patcher = patchInput ?? ParamsPatch();
-    final _patchMap = _patcher.patchMap;
-    return QueryParams(
-      params: _patchMap.containsKey(Params$.params)
-          ? (_patchMap[Params$.params] is Function)
-                ? _patchMap[Params$.params](this.params)
-                : (_patchMap[Params$.params] is Patch)
-                ? _patchMap[Params$.params].applyTo(this.params)
-                : _patchMap[Params$.params]
-          : this.params,
-      filter: this.filter,
     );
   }
 

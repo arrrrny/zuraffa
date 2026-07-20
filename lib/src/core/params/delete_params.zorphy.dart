@@ -10,10 +10,11 @@ part of 'delete_params.dart';
 
 @JsonSerializable(explicitToJson: true, genericArgumentFactories: true)
 class DeleteParams<I> extends Params {
+  @override
+  final Map<String, dynamic>? params;
   final I id;
 
-  const DeleteParams({Map<String, dynamic>? params, required this.id})
-    : super(params: params);
+  const DeleteParams({this.params, required this.id}) : super();
 
   DeleteParams copyWith({Map<String, dynamic>? params, I? id}) {
     return DeleteParams(params: params ?? this.params, id: id ?? this.id);
@@ -21,10 +22,6 @@ class DeleteParams<I> extends Params {
 
   DeleteParams copyWithDeleteParams({Map<String, dynamic>? params, I? id}) {
     return copyWith(params: params, id: id);
-  }
-
-  DeleteParams copyWithParams({Map<String, dynamic>? params}) {
-    return copyWith(params: params);
   }
 
   DeleteParams patchWithDeleteParams({DeleteParamsPatch? patchInput}) {
@@ -45,21 +42,6 @@ class DeleteParams<I> extends Params {
                 ? _patchMap[DeleteParams$.id].applyTo(this.id)
                 : _patchMap[DeleteParams$.id]
           : this.id,
-    );
-  }
-
-  DeleteParams patchWithParams({ParamsPatch? patchInput}) {
-    final _patcher = patchInput ?? ParamsPatch();
-    final _patchMap = _patcher.patchMap;
-    return DeleteParams(
-      params: _patchMap.containsKey(Params$.params)
-          ? (_patchMap[Params$.params] is Function)
-                ? _patchMap[Params$.params](this.params)
-                : (_patchMap[Params$.params] is Patch)
-                ? _patchMap[Params$.params].applyTo(this.params)
-                : _patchMap[Params$.params]
-          : this.params,
-      id: this.id,
     );
   }
 

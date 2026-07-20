@@ -13,7 +13,7 @@ part 'toggle_params.g.dart';
 ///
 /// Example: `ToggleParams<int, TodoFields>(id: 123, field: TodoFields.isCompleted, value: true)`
 @Zorphy(generateJson: true, generateFilter: true)
-abstract class $ToggleParams<I, F> implements $Params {
+abstract class $ToggleParams<I, F> implements $$Params {
   const $ToggleParams();
 
   /// The ID of the entity to update (strongly typed).

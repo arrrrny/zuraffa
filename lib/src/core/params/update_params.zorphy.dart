@@ -10,14 +10,13 @@ part of 'update_params.dart';
 
 @JsonSerializable(explicitToJson: true, genericArgumentFactories: true)
 class UpdateParams<I, P> extends Params {
+  @override
+  final Map<String, dynamic>? params;
   final I id;
   final P data;
 
-  const UpdateParams({
-    Map<String, dynamic>? params,
-    required this.id,
-    required this.data,
-  }) : super(params: params);
+  const UpdateParams({this.params, required this.id, required this.data})
+    : super();
 
   UpdateParams copyWith({Map<String, dynamic>? params, I? id, P? data}) {
     return UpdateParams(
@@ -33,10 +32,6 @@ class UpdateParams<I, P> extends Params {
     P? data,
   }) {
     return copyWith(params: params, id: id, data: data);
-  }
-
-  UpdateParams copyWithParams({Map<String, dynamic>? params}) {
-    return copyWith(params: params);
   }
 
   UpdateParams patchWithUpdateParams({UpdateParamsPatch? patchInput}) {
@@ -64,22 +59,6 @@ class UpdateParams<I, P> extends Params {
                 ? _patchMap[UpdateParams$.data].applyTo(this.data)
                 : _patchMap[UpdateParams$.data]
           : this.data,
-    );
-  }
-
-  UpdateParams patchWithParams({ParamsPatch? patchInput}) {
-    final _patcher = patchInput ?? ParamsPatch();
-    final _patchMap = _patcher.patchMap;
-    return UpdateParams(
-      params: _patchMap.containsKey(Params$.params)
-          ? (_patchMap[Params$.params] is Function)
-                ? _patchMap[Params$.params](this.params)
-                : (_patchMap[Params$.params] is Patch)
-                ? _patchMap[Params$.params].applyTo(this.params)
-                : _patchMap[Params$.params]
-          : this.params,
-      id: this.id,
-      data: this.data,
     );
   }
 
