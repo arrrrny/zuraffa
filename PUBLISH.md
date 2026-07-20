@@ -17,14 +17,15 @@
 ## Workflow
 
 1. Update changelogs (changelog-manager skill)
-2. `./scripts/publish.sh <version>`
+2. Stage all changes: `git add -A`
+3. `./scripts/publish.sh <version>`
    - Updates version in `pubspec.yaml`, `lib/src/zfa_cli.dart`, `example/pubspec.yaml`
    - Commits with `chore: release <version>`
    - Tags with `v<version>`
    - Pushes branch and tag
    - Updates `extensions/zed` submodule (version, WASM rebuild, commit, push, tag)
    - Publishes to pub.dev via `dart pub publish --force`
-3. (Optional) `./scripts/release.sh <version>` — builds binaries for GitHub release
+4. `./scripts/release.sh <version>` — builds CLI + MCP binaries and creates GitHub release with assets
 
 ## Notes
 
