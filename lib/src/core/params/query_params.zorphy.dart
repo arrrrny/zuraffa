@@ -8,7 +8,11 @@ part of 'query_params.dart';
 // ZorphyGenerator
 // **************************************************************************
 
-@JsonSerializable(explicitToJson: true, genericArgumentFactories: true)
+@JsonSerializable(
+  explicitToJson: true,
+  checked: true,
+  genericArgumentFactories: true,
+)
 class QueryParams<T> extends Params {
   @override
   final Map<String, dynamic>? params;

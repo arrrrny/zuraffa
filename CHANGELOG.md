@@ -1,9 +1,18 @@
-## [5.6.1] - 2026-07-20
+## [5.6.2] - 2026-07-21
 
 ### Changed
 
-- **Dependencies**: updated zorphy to ^1.8.3, zorphy_annotation to ^1.8.3, json_annotation to ^4.12.0, uuid to ^4.6.0, dart_style to ^3.1.12, analyzer to 14.1.0, meta to ^1.19.0, build_runner to ^2.15.2
-- Regenerated `.zorphy.dart` and `.g.dart` files for compatibility with updated zorphy and json_serializable
+- **Zorphy upgrade**: updated zorphy to ^1.9.0, zorphy_annotation to ^1.9.0
+- **Checked deserialization**: all `fromJson` methods now use `$checkedCreate` with `checked: true`, providing field-level error messages that identify which field failed and the input data on deserialization failure — significantly easier debugging for malformed JSON
+- **Credentials**: `fromJson` now delegates to the generated `_$CredentialsFromJson` instead of manual casting; `toJson` no longer includes the spurious `hashCode` field
+
+### Fixed
+
+- **Publish script**: hardened submodule handling — `git pull --rebase` replaced with `git fetch origin master` + `reset --hard` for deterministic zuraffa-zed sync; submodule is now updated in step 2 (before the main repo commit) so the submodule pointer is correct in the release commit
+
+### Chores
+
+- Zed extension submodule updated for v5.6.2
 
 ## [5.6.0] - 2026-07-16
 

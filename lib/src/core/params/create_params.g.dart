@@ -9,10 +9,13 @@ part of 'create_params.dart';
 CreateParams<T> _$CreateParamsFromJson<T>(
   Map<String, dynamic> json,
   T Function(Object? json) fromJsonT,
-) => CreateParams<T>(
-  params: json['params'] as Map<String, dynamic>?,
-  data: fromJsonT(json['data']),
-);
+) => $checkedCreate('CreateParams', json, ($checkedConvert) {
+  final val = CreateParams<T>(
+    params: $checkedConvert('params', (v) => v as Map<String, dynamic>?),
+    data: $checkedConvert('data', (v) => fromJsonT(v)),
+  );
+  return val;
+});
 
 Map<String, dynamic> _$CreateParamsToJson<T>(
   CreateParams<T> instance,

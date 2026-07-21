@@ -8,7 +8,7 @@ part of 'initialization_params.dart';
 // ZorphyGenerator
 // **************************************************************************
 
-@JsonSerializable(explicitToJson: true, createFactory: false)
+@JsonSerializable(explicitToJson: true, checked: true)
 class InitializationParams extends Params {
   @override
   final Map<String, dynamic>? params;
@@ -152,25 +152,8 @@ class InitializationParams extends Params {
   }
 
   /// Creates a [InitializationParams] instance from JSON
-  factory InitializationParams.fromJson(Map<String, dynamic> json) {
-    return InitializationParams(
-      params: ZorphyJsonHelper.cast<Map<String, dynamic>?>(json, 'params'),
-      timeout: Duration(
-        microseconds: (ZorphyJsonHelper.cast<num>(json, 'timeout')).toInt(),
-      ),
-      forceRefresh: ZorphyJsonHelper.cast<bool?>(json, 'forceRefresh') ?? false,
-      credentials: json['credentials'] == null
-          ? null
-          : Credentials.fromJson(
-              ZorphyJsonHelper.cast<Map<String, dynamic>>(json, 'credentials'),
-            ),
-      settings: json['settings'] == null
-          ? null
-          : Settings.fromJson(
-              ZorphyJsonHelper.cast<Map<String, dynamic>>(json, 'settings'),
-            ),
-    );
-  }
+  factory InitializationParams.fromJson(Map<String, dynamic> json) =>
+      _$InitializationParamsFromJson(json);
 
   Map<String, dynamic> toJsonLean() {
     final Map<String, dynamic> data = _$InitializationParamsToJson(this);

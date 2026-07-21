@@ -8,7 +8,11 @@ part of 'toggle_params.dart';
 // ZorphyGenerator
 // **************************************************************************
 
-@JsonSerializable(explicitToJson: true, genericArgumentFactories: true)
+@JsonSerializable(
+  explicitToJson: true,
+  checked: true,
+  genericArgumentFactories: true,
+)
 class ToggleParams<I, F> extends Params {
   @override
   final Map<String, dynamic>? params;

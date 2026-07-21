@@ -8,7 +8,7 @@ part of 'credentials.dart';
 // ZorphyGenerator
 // **************************************************************************
 
-@JsonSerializable(explicitToJson: true, createFactory: false)
+@JsonSerializable(explicitToJson: true, checked: true)
 class Credentials extends Params {
   @override
   final Map<String, dynamic>? params;
@@ -54,11 +54,8 @@ class Credentials extends Params {
   }
 
   /// Creates a [Credentials] instance from JSON
-  factory Credentials.fromJson(Map<String, dynamic> json) {
-    return Credentials(
-      params: ZorphyJsonHelper.cast<Map<String, dynamic>?>(json, 'params'),
-    );
-  }
+  factory Credentials.fromJson(Map<String, dynamic> json) =>
+      _$CredentialsFromJson(json);
 
   Map<String, dynamic> toJsonLean() {
     final Map<String, dynamic> data = _$CredentialsToJson(this);

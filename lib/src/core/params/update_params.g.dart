@@ -10,11 +10,14 @@ UpdateParams<I, P> _$UpdateParamsFromJson<I, P>(
   Map<String, dynamic> json,
   I Function(Object? json) fromJsonI,
   P Function(Object? json) fromJsonP,
-) => UpdateParams<I, P>(
-  params: json['params'] as Map<String, dynamic>?,
-  id: fromJsonI(json['id']),
-  data: fromJsonP(json['data']),
-);
+) => $checkedCreate('UpdateParams', json, ($checkedConvert) {
+  final val = UpdateParams<I, P>(
+    params: $checkedConvert('params', (v) => v as Map<String, dynamic>?),
+    id: $checkedConvert('id', (v) => fromJsonI(v)),
+    data: $checkedConvert('data', (v) => fromJsonP(v)),
+  );
+  return val;
+});
 
 Map<String, dynamic> _$UpdateParamsToJson<I, P>(
   UpdateParams<I, P> instance,

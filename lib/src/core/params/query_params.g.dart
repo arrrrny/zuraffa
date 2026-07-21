@@ -9,7 +9,12 @@ part of 'query_params.dart';
 QueryParams<T> _$QueryParamsFromJson<T>(
   Map<String, dynamic> json,
   T Function(Object? json) fromJsonT,
-) => QueryParams<T>(params: json['params'] as Map<String, dynamic>?);
+) => $checkedCreate('QueryParams', json, ($checkedConvert) {
+  final val = QueryParams<T>(
+    params: $checkedConvert('params', (v) => v as Map<String, dynamic>?),
+  );
+  return val;
+});
 
 Map<String, dynamic> _$QueryParamsToJson<T>(
   QueryParams<T> instance,

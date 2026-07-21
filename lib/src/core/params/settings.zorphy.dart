@@ -8,7 +8,7 @@ part of 'settings.dart';
 // ZorphyGenerator
 // **************************************************************************
 
-@JsonSerializable(explicitToJson: true, createFactory: false)
+@JsonSerializable(explicitToJson: true, checked: true)
 class Settings extends Params {
   @override
   final Map<String, dynamic>? params;
@@ -54,11 +54,8 @@ class Settings extends Params {
   }
 
   /// Creates a [Settings] instance from JSON
-  factory Settings.fromJson(Map<String, dynamic> json) {
-    return Settings(
-      params: ZorphyJsonHelper.cast<Map<String, dynamic>?>(json, 'params'),
-    );
-  }
+  factory Settings.fromJson(Map<String, dynamic> json) =>
+      _$SettingsFromJson(json);
 
   Map<String, dynamic> toJsonLean() {
     final Map<String, dynamic> data = _$SettingsToJson(this);

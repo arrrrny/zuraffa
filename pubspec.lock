@@ -849,18 +849,18 @@ packages:
     dependency: "direct main"
     description:
       name: zorphy
-      sha256: d35a2b1ce2a89726d0d3ef6a8ade1f2c259fe34019b38cae466849588aa9c06f
+      sha256: d6d31d8a1ee6fa224dd152fab43109a49ecf1dcb413554dfd2005c7d53942d5a
       url: "https://pub.dev"
     source: hosted
-    version: "1.8.3"
+    version: "1.9.0"
   zorphy_annotation:
     dependency: "direct main"
     description:
       name: zorphy_annotation
-      sha256: "3af88e25d8a4ef17c7a27d4ae230a55bb5360e7bee6ba0a6f3e0762ac460a033"
+      sha256: d5c2e446856ecaa2bf86887f66db55f0fe6cc0d01b4a5cc32f88dc9489d98390
       url: "https://pub.dev"
     source: hosted
-    version: "1.8.3"
+    version: "1.9.0"
 sdks:
   dart: ">=3.11.0 <4.0.0"
   flutter: ">=3.41.0"

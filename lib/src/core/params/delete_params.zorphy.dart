@@ -8,7 +8,11 @@ part of 'delete_params.dart';
 // ZorphyGenerator
 // **************************************************************************
 
-@JsonSerializable(explicitToJson: true, genericArgumentFactories: true)
+@JsonSerializable(
+  explicitToJson: true,
+  checked: true,
+  genericArgumentFactories: true,
+)
 class DeleteParams<I> extends Params {
   @override
   final Map<String, dynamic>? params;
