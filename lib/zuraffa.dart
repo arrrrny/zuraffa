@@ -123,6 +123,7 @@ import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
 import 'src/presentation/controller.dart';
+import 'src/plugins/xray/xray_plugin.dart';
 
 // ============================================================
 // Core - Error Handling & Utilities
@@ -264,6 +265,14 @@ export 'src/core/transaction/file_operation.dart';
 export 'src/core/transaction/generation_transaction.dart';
 export 'src/core/transaction/transaction_result.dart';
 export 'src/core/transaction/conflict_detector.dart';
+
+/// XRayPlugin — deterministic DTD/VM-Service element keys + debug overlay
+export 'src/plugins/xray/xray_plugin.dart';
+export 'src/plugins/xray/xray_element_key.dart';
+export 'src/plugins/xray/widgets/xray_overlay.dart';
+export 'src/plugins/xray/widgets/xray_section.dart';
+export 'src/plugins/xray/widgets/xray_button.dart';
+export 'src/plugins/xray/widgets/xray_host.dart';
 
 // ============================================================
 // Zorphy Integration - Type-safe filtering
@@ -920,6 +929,24 @@ class Zuraffa {
   /// Call this on app shutdown alongside [disposeFailureReporters].
   static void disposeFailureHooks() {
     ArtifactPublisher.instance.dispose();
+  }
+
+  // ============================================================
+  // X-Ray (DTD/VM-Service element mapping + debug overlay)
+  // ============================================================
+
+  /// Enable the x-ray plugin: stable, deterministic DTD/VM-Service keys on
+  /// every element the overlay renders, plus an in-app debug overlay for
+  /// triggering registered UseCases by hand.
+  ///
+  /// No-op in release builds — safe to call unconditionally from `main()`.
+  ///
+  /// Call this *after* `ZuraffaApiBridge.init()` and your
+  /// `register*ApiBridge()` calls so the overlay has endpoints to show.
+  ///
+  /// Wrap your root widget in `XRayHost` to mount the overlay.
+  static void enableXRay(XRayConfig config) {
+    XRayPlugin().enable(config);
   }
 
   static void _defaultLogHandler(LogRecord record) {

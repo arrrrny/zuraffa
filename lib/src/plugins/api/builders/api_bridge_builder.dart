@@ -1,7 +1,9 @@
 import 'dart:io';
 
+import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/context/file_system.dart';
 import '../../../core/generator_options.dart';
 import '../../../models/generated_file.dart';
@@ -58,12 +60,18 @@ class ApiBridgeBuilder {
   final String outputDir;
   final GeneratorOptions options;
   final FileSystem fileSystem;
+  final SpecLibrary specLibrary;
+  final DartEmitter emitter;
 
   ApiBridgeBuilder({
     required this.outputDir,
     this.options = const GeneratorOptions(),
     FileSystem? fileSystem,
-  }) : fileSystem = fileSystem ?? FileSystem.create();
+    SpecLibrary? specLibrary,
+    DartEmitter? emitter,
+  }) : fileSystem = fileSystem ?? FileSystem.create(),
+       specLibrary = specLibrary ?? const SpecLibrary(),
+       emitter = emitter ?? DartEmitter(orderDirectives: true, useNullSafetySyntax: true);
 
   /// Generate the bridge file for the entity described by [config].
   ///
@@ -329,102 +337,154 @@ class ApiBridgeBuilder {
     return buf.toString();
   }
 
+  /// Emit a [Method] spec as formatted source via [specLibrary].
+  String _methodToString(Method method) {
+    return specLibrary.emitSpec(method);
+  }
+
+  /// Build a shared try-catch handler body wrapping the given [tryStatements].
+  /// The catch block logs via `developer.log` and returns an error response.
+  Block _handlerBlock(String methodName, List<Code> tryStatements) {
+    return Block((b) => b..statements.addAll([
+      const Code('try {'),
+      ...tryStatements,
+      Code("""
+  } catch (e, st) {
+    developer.log('Bridge error: $methodName',
+      error: e, stackTrace: st,
+      name: 'ZuraffaApiBridge');
+    return ZuraffaApiBridge.errorResponse('unknown', e.toString());
+  }"""),
+    ]));
+  }
+
+  /// Emit a handler function as a `Method` with the standard
+  /// `Future<developer.ServiceExtensionResponse>` signature.
+  String _emitHandler(String handlerName, Block body) {
+    return _methodToString(Method((m) => m
+      ..name = handlerName
+      ..returns = refer('Future<developer.ServiceExtensionResponse>')
+      ..modifier = MethodModifier.async
+      ..requiredParameters.add(Parameter((p) => p
+        ..name = 'method'
+        ..type = refer('String')))
+      ..requiredParameters.add(Parameter((p) => p
+        ..name = 'args'
+        ..type = refer('Map<String, String>')))
+      ..body = body));
+  }
+
   String _generateHandler(_UseCaseDescriptor uc, String domain) {
     final handlerName = '_handle${_capitalize(uc.methodName)}';
     final method = 'ext.zuraffa.$domain.${uc.methodName}';
-    final buf = StringBuffer();
 
     if (uc.isStream) {
-      buf.write(_generateStreamHandler(uc, handlerName, method));
+      return _generateStreamHandler(uc, handlerName, method);
+    } else if (_isQueryParams(uc.paramsType)) {
+      return _generateQueryParamsHandler(uc, handlerName);
+    } else if (_isListQueryParams(uc.paramsType)) {
+      return _generateListQueryParamsHandler(uc, handlerName);
     } else if (_isPrimitive(uc.paramsType) || _isNoParams(uc.paramsType)) {
-      buf.write(_generateSimpleHandler(uc, handlerName));
+      return _generateSimpleHandler(uc, handlerName);
     } else {
-      buf.write(_generateComplexHandler(uc, handlerName));
+      return _generateComplexHandler(uc, handlerName);
     }
-
-    return buf.toString();
   }
 
   /// Handler for UseCases with primitive or NoParams params.
   String _generateSimpleHandler(_UseCaseDescriptor uc, String handlerName) {
     final paramExtract = _generatePrimitiveParamExtraction(uc.paramsType);
-    final buf = StringBuffer();
-
-    buf.writeln('Future<developer.ServiceExtensionResponse> $handlerName(');
-    buf.writeln('  String method,');
-    buf.writeln('  Map<String, String> args,');
-    buf.writeln(') async {');
-    buf.writeln('  try {');
+    final tryStmts = <Code>[];
 
     if (_isNoParams(uc.paramsType)) {
-      buf.writeln('    final useCase = getIt<${uc.className}>();');
-      buf.writeln('    final result = await useCase(const NoParams());');
+      tryStmts.add(Code("""
+    final useCase = getIt<${uc.className}>();
+    final result = await useCase(const NoParams());
+    return ZuraffaApiBridge.serializeResult(
+      result,
+      (v) => _toJsonFor${_capitalize(uc.methodName)}(v),
+    );"""));
     } else {
-      buf.writeln(paramExtract);
-      buf.writeln('    final useCase = getIt<${uc.className}>();');
-      buf.writeln('    final result = await useCase(params);');
+      tryStmts.add(Code("""
+    $paramExtract
+    final useCase = getIt<${uc.className}>();
+    final result = await useCase(params);
+    return ZuraffaApiBridge.serializeResult(
+      result,
+      (v) => _toJsonFor${_capitalize(uc.methodName)}(v),
+    );"""));
     }
 
-    buf.writeln('    return ZuraffaApiBridge.serializeResult(');
-    buf.writeln('      result,');
-    buf.writeln('      (v) => _toJsonFor${_capitalize(uc.methodName)}(v),');
-    buf.writeln('    );');
-    buf.writeln('  } catch (e, st) {');
-    buf.writeln("    developer.log('Bridge error: \$method',");
-    buf.writeln('      error: e, stackTrace: st,');
-    buf.writeln("      name: 'ZuraffaApiBridge');");
-    buf.writeln(
-      "    return ZuraffaApiBridge.errorResponse('unknown', e.toString());",
-    );
-    buf.writeln('  }');
-    buf.writeln('}');
-    buf.writeln();
-    // toJson helper
-    buf.write(_generateToJsonHelper(uc));
-    return buf.toString();
+    return _emitHandler(handlerName, _handlerBlock('', tryStmts))
+      + _generateToJsonHelper(uc);
+  }
+
+  /// Handler for UseCases with `QueryParams<Entity>` params (entity-lookup-by-id).
+  String _generateQueryParamsHandler(_UseCaseDescriptor uc, String handlerName) {
+    final entityName = _extractEntityFromGeneric(uc.paramsType);
+    final tryStmts = <Code>[
+      Code("""
+    final id = args['id'];
+    if (id == null || id.isEmpty) {
+      return ZuraffaApiBridge.errorResponse('badRequest', 'id is required');
+    }
+    final params = ${uc.paramsType}(filter: ${entityName}Fields.id.eq(id));
+    final useCase = getIt<${uc.className}>();
+    final result = await useCase(params);
+    return ZuraffaApiBridge.serializeResult(
+      result,
+      (v) => _toJsonFor${_capitalize(uc.methodName)}(v),
+    );"""),
+    ];
+
+    return _emitHandler(handlerName, _handlerBlock('', tryStmts))
+      + _generateToJsonHelper(uc);
+  }
+
+  /// Handler for UseCases with `ListQueryParams<Entity>` params.
+  String _generateListQueryParamsHandler(_UseCaseDescriptor uc, String handlerName) {
+    final entityName = _extractEntityFromGeneric(uc.paramsType);
+    final tryStmts = <Code>[
+      Code("""
+    final id = args['id'];
+    if (id == null || id.isEmpty) {
+      return ZuraffaApiBridge.errorResponse('badRequest', 'id is required');
+    }
+    final params = ListQueryParams<$entityName>(filter: ${entityName}Fields.id.eq(id));
+    final useCase = getIt<${uc.className}>();
+    final result = await useCase(params);
+    return ZuraffaApiBridge.serializeResult(
+      result,
+      (v) => _toJsonFor${_capitalize(uc.methodName)}(v),
+    );"""),
+    ];
+
+    return _emitHandler(handlerName, _handlerBlock('', tryStmts))
+      + _generateToJsonHelper(uc);
   }
 
   /// Handler for UseCases with complex (JSON-deserializable) params.
   String _generateComplexHandler(_UseCaseDescriptor uc, String handlerName) {
-    final buf = StringBuffer();
+    final tryStmts = <Code>[
+      Code("""
+    final Map<String, dynamic> json;
+    try {
+      json = jsonDecode(args['args'] ?? '{}') as Map<String, dynamic>;
+    } catch (e) {
+      return ZuraffaApiBridge.errorResponse('deserialization', e.toString());
+    }
+    json.putIfAbsent('id', () => DateTime.now().microsecondsSinceEpoch.toString());
+    final params = ${uc.paramsType}.fromJson(json);
+    final useCase = getIt<${uc.className}>();
+    final result = await useCase(params);
+    return ZuraffaApiBridge.serializeResult(
+      result,
+      (v) => _toJsonFor${_capitalize(uc.methodName)}(v),
+    );"""),
+    ];
 
-    buf.writeln('Future<developer.ServiceExtensionResponse> $handlerName(');
-    buf.writeln('  String method,');
-    buf.writeln('  Map<String, String> args,');
-    buf.writeln(') async {');
-    buf.writeln('  try {');
-    buf.writeln('    final Map<String, dynamic> json;');
-    buf.writeln('    try {');
-    buf.writeln(
-      "      json = jsonDecode(args['args'] ?? '{}') as Map<String, dynamic>;",
-    );
-    buf.writeln('    } catch (e) {');
-    buf.writeln(
-      "      return ZuraffaApiBridge.errorResponse('deserialization', e.toString());",
-    );
-    buf.writeln('    }');
-    buf.writeln(
-      "    json.putIfAbsent('id', () => DateTime.now().microsecondsSinceEpoch.toString());",
-    );
-    buf.writeln('    final params = ${uc.paramsType}.fromJson(json);');
-    buf.writeln('    final useCase = getIt<${uc.className}>();');
-    buf.writeln('    final result = await useCase(params);');
-    buf.writeln('    return ZuraffaApiBridge.serializeResult(');
-    buf.writeln('      result,');
-    buf.writeln('      (v) => _toJsonFor${_capitalize(uc.methodName)}(v),');
-    buf.writeln('    );');
-    buf.writeln('  } catch (e, st) {');
-    buf.writeln("    developer.log('Bridge error: \$method',");
-    buf.writeln('      error: e, stackTrace: st,');
-    buf.writeln("      name: 'ZuraffaApiBridge');");
-    buf.writeln(
-      "    return ZuraffaApiBridge.errorResponse('unknown', e.toString());",
-    );
-    buf.writeln('  }');
-    buf.writeln('}');
-    buf.writeln();
-    buf.write(_generateToJsonHelper(uc));
-    return buf.toString();
+    return _emitHandler(handlerName, _handlerBlock('', tryStmts))
+      + _generateToJsonHelper(uc);
   }
 
   /// Handler for StreamUseCase — subscribe/poll/cancel pattern.
@@ -433,110 +493,56 @@ class ApiBridgeBuilder {
     String handlerName,
     String method,
   ) {
-    final buf = StringBuffer();
-
-    buf.writeln('Future<developer.ServiceExtensionResponse> $handlerName(');
-    buf.writeln('  String method,');
-    buf.writeln('  Map<String, String> args,');
-    buf.writeln(') async {');
-    buf.writeln('  try {');
-    buf.writeln('    final Map<String, dynamic> json;');
-    buf.writeln('    try {');
-    buf.writeln(
-      "      json = jsonDecode(args['args'] ?? '{}') as Map<String, dynamic>;",
-    );
-    buf.writeln('    } catch (e) {');
-    buf.writeln(
-      "      return ZuraffaApiBridge.errorResponse('deserialization', e.toString());",
-    );
-    buf.writeln('    }');
+    final tryStmts = <Code>[
+      Code("""
+    final Map<String, dynamic> json;
+    try {
+      json = jsonDecode(args['args'] ?? '{}') as Map<String, dynamic>;
+    } catch (e) {
+      return ZuraffaApiBridge.errorResponse('deserialization', e.toString());
+    }"""),
+    ];
 
     if (_isNoParams(uc.paramsType)) {
-      buf.writeln('    final params = const NoParams();');
+      tryStmts.add(const Code("    final params = const NoParams();"));
     } else if (_isPrimitive(uc.paramsType)) {
-      // Primitive values are passed as json['value'] in stream handlers
-      final t = uc.paramsType.trim();
-      switch (t) {
-        case 'int':
-          buf.writeln(
-            "    final params = int.tryParse(json['value']?.toString() ?? '0') ?? 0;",
-          );
-          break;
-        case 'double':
-          buf.writeln(
-            "    final params = double.tryParse(json['value']?.toString() ?? '0') ?? 0.0;",
-          );
-          break;
-        case 'bool':
-          buf.writeln(
-            "    final params = (json['value']?.toString() ?? 'false') == 'true';",
-          );
-          break;
-        default:
-          buf.writeln("    final params = json['value']?.toString() ?? '';");
-      }
+      tryStmts.add(Code("""
+    ${_generatePrimitiveParamExtraction(uc.paramsType).replaceFirst('    final params =', '    final params = /* stream */')}"""));
     } else {
-      buf.writeln(
-        "    json.putIfAbsent('id', () => DateTime.now().microsecondsSinceEpoch.toString());",
-      );
-      buf.writeln('    final params = ${uc.paramsType}.fromJson(json);');
+      tryStmts.add(Code("""
+    json.putIfAbsent('id', () => DateTime.now().microsecondsSinceEpoch.toString());
+    final params = ${uc.paramsType}.fromJson(json);"""));
     }
 
-    buf.writeln('    final useCase = getIt<${uc.className}>();');
-    buf.writeln('    final stream = useCase(params);');
-    buf.writeln(
-      '    final subscriptionId = ZuraffaApiBridge.generateSubscriptionId();',
+    tryStmts.add(Code("""
+    final useCase = getIt<${uc.className}>();
+    final stream = useCase(params);
+    final subscriptionId = ZuraffaApiBridge.generateSubscriptionId();
+
+    // Subscribe and cache each emitted Result value for polling.
+    final subscription = stream.listen(
+      (result) {
+        final serialized = result.fold(
+          (v) => <String, dynamic>{'status': 'success', 'data': _toJsonFor${_capitalize(uc.methodName)}(v)},
+          (f) => <String, dynamic>{'status': 'error', 'failure': {'type': f.runtimeType.toString(), 'message': f.message}},
+        );
+        ZuraffaApiBridge.updateStreamValue(subscriptionId, serialized);
+      },
+      onError: (Object e, StackTrace st) {
+        developer.log('Bridge stream error: $method',
+          error: e, stackTrace: st, name: 'ZuraffaApiBridge');
+        ZuraffaApiBridge.updateStreamValue(subscriptionId, {'status': 'error', 'failure': {'type': 'unknown', 'message': e.toString()}});
+      },
     );
-    buf.writeln();
-    buf.writeln(
-      '    // Subscribe and cache each emitted Result value for polling.',
-    );
-    buf.writeln('    final subscription = stream.listen(');
-    buf.writeln('      (result) {');
-    buf.writeln('        final serialized = result.fold(');
-    buf.writeln(
-      "          (v) => <String, dynamic>{'status': 'success', 'data': _toJsonFor${_capitalize(uc.methodName)}(v)},",
-    );
-    buf.writeln(
-      "          (f) => <String, dynamic>{'status': 'error', 'failure': {'type': f.runtimeType.toString(), 'message': f.message}},",
-    );
-    buf.writeln('        );');
-    buf.writeln(
-      '        ZuraffaApiBridge.updateStreamValue(subscriptionId, serialized);',
-    );
-    buf.writeln('      },');
-    buf.writeln('      onError: (Object e, StackTrace st) {');
-    buf.writeln("        developer.log('Bridge stream error: \$method',");
-    buf.writeln(
-      "          error: e, stackTrace: st, name: 'ZuraffaApiBridge');",
-    );
-    buf.writeln(
-      "        ZuraffaApiBridge.updateStreamValue(subscriptionId, {'status': 'error', 'failure': {'type': 'unknown', 'message': e.toString()}});",
-    );
-    buf.writeln('      },');
-    buf.writeln('    );');
-    buf.writeln();
-    buf.writeln(
-      '    ZuraffaApiBridge.registerStreamSubscription(subscriptionId, subscription, (_) {});',
-    );
-    buf.writeln();
-    buf.writeln("    return developer.ServiceExtensionResponse.result(");
-    buf.writeln(
-      "      jsonEncode({'status': 'streaming', 'subscriptionId': subscriptionId}),",
-    );
-    buf.writeln('    );');
-    buf.writeln('  } catch (e, st) {');
-    buf.writeln("    developer.log('Bridge error: \$method',");
-    buf.writeln('      error: e, stackTrace: st,');
-    buf.writeln("      name: 'ZuraffaApiBridge');");
-    buf.writeln(
-      "    return ZuraffaApiBridge.errorResponse('unknown', e.toString());",
-    );
-    buf.writeln('  }');
-    buf.writeln('}');
-    buf.writeln();
-    buf.write(_generateToJsonHelper(uc));
-    return buf.toString();
+
+    ZuraffaApiBridge.registerStreamSubscription(subscriptionId, subscription, (_) {});
+
+    return developer.ServiceExtensionResponse.result(
+      jsonEncode({'status': 'streaming', 'subscriptionId': subscriptionId}),
+    );"""));
+
+    return _emitHandler(handlerName, _handlerBlock(method, tryStmts))
+      + _generateToJsonHelper(uc);
   }
 
   /// Generates a `_toJsonForX(v)` helper that handles `List<T>` and plain T.
@@ -573,6 +579,24 @@ class ApiBridgeBuilder {
     return t == 'String' || t == 'int' || t == 'double' || t == 'bool';
   }
 
+  /// Returns true when paramsType is `QueryParams<Entity>` (a query-by-id).
+  bool _isQueryParams(String paramsType) {
+    final base = paramsType.trim().split('<').first.trim();
+    return base == 'QueryParams' && paramsType.contains('<');
+  }
+
+  /// Returns true when paramsType is `ListQueryParams<Entity>`.
+  bool _isListQueryParams(String paramsType) {
+    final base = paramsType.trim().split('<').first.trim();
+    return base == 'ListQueryParams' && paramsType.contains('<');
+  }
+
+  /// Extracts the entity type from a generic like `QueryParams<Product>` → `Product`.
+  String _extractEntityFromGeneric(String paramsType) {
+    final match = RegExp(r'^\w+<(\w+)>$').firstMatch(paramsType.trim());
+    return match?.group(1) ?? paramsType.trim();
+  }
+
   String _generatePrimitiveParamExtraction(String paramsType) {
     // For complex Params types like QueryParams<Product> we use a different path.
     // This helper is only called when isPrimitive() is true.
@@ -592,6 +616,8 @@ class ApiBridgeBuilder {
   String _buildParamsMap(String paramsType) {
     if (_isNoParams(paramsType)) return '{}';
     if (_isPrimitive(paramsType)) return "{'value': '$paramsType'}";
+    if (_isQueryParams(paramsType)) return "{'id': 'String'}";
+    if (_isListQueryParams(paramsType)) return "{'id': 'String'}";
     // Complex type — advertise as JSON blob via args key
     return "{'args': '$paramsType'}";
   }
