@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 
-import 'package:flutter/foundation.dart' show kProfileMode, kReleaseMode;
+import 'package:flutter/foundation.dart'
+    show kProfileMode, kReleaseMode, ValueNotifier;
 import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
 
@@ -60,6 +61,11 @@ class ZuraffaApiBridge {
   static bool _initialized = false;
   static final List<ApiEndpoint> _endpoints = [];
   static final Map<String, _StreamRecord> _streamSubscriptions = {};
+
+  /// Bumped whenever the endpoint catalog changes (registration or
+  /// reset), so listeners — e.g. the x-ray debug overlay — can rebuild
+  /// with fresh data instead of waiting for an unrelated rebuild.
+  static final ValueNotifier<int> revision = ValueNotifier<int>(0);
 
   /// In-process mirror of every handler passed to
   /// [developer.registerExtension], keyed by [ApiEndpoint.method].
@@ -125,6 +131,7 @@ class ZuraffaApiBridge {
   }) {
     _endpoints.add(endpoint);
     _handlers[endpoint.method] = handler;
+    revision.value++;
     developer.registerExtension(endpoint.method, handler);
   }
 
@@ -335,6 +342,7 @@ class ZuraffaApiBridge {
     _streamSubscriptions.clear();
     _endpoints.clear();
     _handlers.clear();
+    revision.value++;
     _initialized = false;
   }
 }
