@@ -1477,7 +1477,10 @@ Use quick for fast diagnostics, full for troubleshooting.''',
     }
 
     // 3. Check for zfa in PATH
-    final whichResult = await Process.run('which', ['zfa']);
+    final whichResult = await Process.run(
+      'which',
+      ['zfa'],
+    ).catchError((_) => ProcessResult(0, 1, '', ''));
     if (whichResult.exitCode == 0) {
       final zfaPath = whichResult.stdout.toString().trim();
       if (zfaPath.isNotEmpty) {
