@@ -46,6 +46,8 @@ class _XRayButtonState extends State<XRayButton> {
     setState(() => _busy = true);
     try {
       await action();
+    } catch (e) {
+      _snack('Error: $e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
