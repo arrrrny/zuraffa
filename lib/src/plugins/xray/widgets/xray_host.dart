@@ -45,13 +45,12 @@ class _XRayHostState extends State<XRayHost> {
   void _dismiss() => setState(() => _panelOpen = false);
   void _reopen() => setState(() => _panelOpen = true);
 
-  /// Screen size without requiring a [MediaQuery] ancestor — [XRayHost]
-  /// is typically placed *above* `MaterialApp`, where none exists.
-  Size _screenSize(BuildContext context) {
-    final query = MediaQuery.maybeOf(context);
-    if (query != null) return query.size;
-    final view = View.of(context);
-    return view.physicalSize / view.devicePixelRatio;
+  /// Provides a [MediaQuery] for overlay chrome when the host sits above
+  /// the app's own MediaQuery (e.g. above `MaterialApp`) — widgets like
+  /// [SafeArea] require one. Sourced from the view so it stays live.
+  Widget _mediaQueryScope(BuildContext context, Widget child) {
+    if (MediaQuery.maybeOf(context) != null) return child;
+    return MediaQuery.fromView(view: View.of(context), child: child);
   }
 
   Positioned _panelPosition(Size screen, OverlayPosition position) {
@@ -96,10 +95,13 @@ class _XRayHostState extends State<XRayHost> {
     }
   }
 
-  Positioned _launcherPosition(OverlayPosition position) {
+  Positioned _launcherPosition(BuildContext context, OverlayPosition position) {
     final child = Directionality(
       textDirection: TextDirection.ltr,
-      child: SafeArea(child: _Launcher(onTap: _reopen)),
+      child: _mediaQueryScope(
+        context,
+        SafeArea(child: _Launcher(onTap: _reopen)),
+      ),
     );
     switch (position) {
       case OverlayPosition.topLeft:
@@ -116,24 +118,37 @@ class _XRayHostState extends State<XRayHost> {
   @override
   Widget build(BuildContext context) {
     final plugin = XRayPlugin();
-    if (!plugin.enabled) return widget.child;
+    // Listen to revision so enable()/disable() after the first build still
+    // mount or drop the overlay (no silent no-ops).
+    return ValueListenableBuilder<int>(
+      valueListenable: plugin.revision,
+      builder: (context, _, __) {
+        if (!plugin.enabled) return widget.child;
 
-    final position = plugin.config.overlayPosition;
-    final screen = _screenSize(context);
-    return Stack(
-      // XRayHost usually sits *above* MaterialApp, where no ambient
-      // Directionality exists yet.
-      textDirection: TextDirection.ltr,
-      children: [
-        // Index 0: the app itself. Never remounted by x-ray toggles.
-        widget.child,
-        // Index 1: only the panel (or launcher) rectangle — gestures
-        // outside it fall through to the app.
-        if (_panelOpen)
-          _panelPosition(screen, position)
-        else
-          _launcherPosition(position),
-      ],
+        final position = plugin.config.overlayPosition;
+        // Size the panel from live constraints so window resizes and
+        // orientation changes never leave it at stale dimensions.
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final screen = Size(constraints.maxWidth, constraints.maxHeight);
+            return Stack(
+              // XRayHost usually sits *above* MaterialApp, where no ambient
+              // Directionality exists yet.
+              textDirection: TextDirection.ltr,
+              children: [
+                // Index 0: the app itself. Never remounted by x-ray toggles.
+                widget.child,
+                // Index 1: only the panel (or launcher) rectangle — gestures
+                // outside it fall through to the app.
+                if (_panelOpen)
+                  _panelPosition(screen, position)
+                else
+                  _launcherPosition(context, position),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

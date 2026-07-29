@@ -46,8 +46,9 @@ class _XRayButtonState extends State<XRayButton> {
     setState(() => _busy = true);
     try {
       await action();
-    } catch (e) {
-      _snack('Error: $e');
+    } catch (error, stack) {
+      debugPrint('x-ray action failed: $error\n$stack');
+      _snack('Error: $error');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -163,6 +164,9 @@ class _XRayParamFormState extends State<_XRayParamForm> {
   final Map<String, bool> _boolValues = {};
   final Map<String, DateTime> _dateValues = {};
 
+  /// Shown when submit is blocked by unparseable numeric input.
+  String? _validationError;
+
   @override
   void initState() {
     super.initState();
@@ -201,7 +205,10 @@ class _XRayParamFormState extends State<_XRayParamForm> {
     return null;
   }
 
-  Map<String, String> _collectValues() {
+  /// Collects the form values, or returns null — leaving the dialog open
+  /// with a visible error — when a numeric field holds unparseable text.
+  /// A debug tool must surface bad input, not silently submit 0.
+  Map<String, String>? _collectValues() {
     final entityFields = _entityFields();
     if (entityFields == null) {
       return {
@@ -212,14 +219,27 @@ class _XRayParamFormState extends State<_XRayParamForm> {
     for (final field in entityFields) {
       switch (field.type) {
         case 'int':
-          json[field.name] =
-              int.tryParse(_controllers[field.name]?.text ?? '') ?? 0;
+          final raw = _controllers[field.name]?.text ?? '';
+          final parsed = int.tryParse(raw);
+          if (parsed == null && raw.isNotEmpty) {
+            setState(() => _validationError =
+                '${field.name}: "$raw" is not a valid int');
+            return null;
+          }
+          json[field.name] = parsed ?? 0;
         case 'double':
-          json[field.name] =
-              double.tryParse(_controllers[field.name]?.text ?? '') ?? 0.0;
+          final raw = _controllers[field.name]?.text ?? '';
+          final parsed = double.tryParse(raw);
+          if (parsed == null && raw.isNotEmpty) {
+            setState(() => _validationError =
+                '${field.name}: "$raw" is not a valid double');
+            return null;
+          }
+          json[field.name] = parsed ?? 0.0;
         case 'bool':
           json[field.name] = _boolValues[field.name] ?? false;
         case 'DateTime':
+          // Unpicked dates deliberately default to now — surfaced in the UI.
           json[field.name] = (_dateValues[field.name] ?? DateTime.now())
               .toIso8601String();
         default:
@@ -252,6 +272,15 @@ class _XRayParamFormState extends State<_XRayParamForm> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (_validationError != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  _validationError!,
+                  style:
+                      const TextStyle(color: Colors.redAccent, fontSize: 12),
+                ),
+              ),
             if (entityFields != null)
               for (final field in entityFields) _buildEntityField(field)
             else
@@ -281,7 +310,11 @@ class _XRayParamFormState extends State<_XRayParamForm> {
         ),
         ElevatedButton(
           key: XRayElementKey.formSubmit(widget.endpoint.method),
-          onPressed: () => Navigator.of(context).pop(_collectValues()),
+          onPressed: () {
+            final values = _collectValues();
+            // Invalid input keeps the dialog open with a visible error.
+            if (values != null) Navigator.of(context).pop(values);
+          },
           child: const Text('Call'),
         ),
       ],
@@ -318,7 +351,9 @@ class _XRayParamFormState extends State<_XRayParamForm> {
         return ListTile(
           key: key,
           title: Text(
-            value == null ? '$label — tap to pick' : value.toIso8601String(),
+            value == null
+                ? '$label — tap to pick (defaults to now)'
+                : value.toIso8601String(),
             style: const TextStyle(color: Colors.white, fontSize: 13),
           ),
           trailing: const Icon(Icons.calendar_today, color: Colors.white54),
