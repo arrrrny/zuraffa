@@ -61,6 +61,24 @@ class ZuraffaApiBridge {
   static final List<ApiEndpoint> _endpoints = [];
   static final Map<String, _StreamRecord> _streamSubscriptions = {};
 
+  /// In-process mirror of every handler passed to
+  /// [developer.registerExtension], keyed by [ApiEndpoint.method].
+  ///
+  /// Lets in-isolate callers (e.g. the x-ray debug overlay) invoke the
+  /// exact same handler function an external VM Service client would
+  /// reach over the wire — same parameter deserialization, same UseCase
+  /// invocation, same `Result<T, AppFailure>` serialization — without
+  /// re-implementing
+  /// the VM Service transport.
+  static final Map<
+    String,
+    Future<developer.ServiceExtensionResponse> Function(
+      String,
+      Map<String, String>,
+    )
+  >
+  _handlers = {};
+
   static const _uuid = Uuid();
 
   // ---------------------------------------------------------------------------
@@ -106,6 +124,7 @@ class ZuraffaApiBridge {
     handler,
   }) {
     _endpoints.add(endpoint);
+    _handlers[endpoint.method] = handler;
     developer.registerExtension(endpoint.method, handler);
   }
 
@@ -281,10 +300,29 @@ class ZuraffaApiBridge {
   // Test-only helpers — do NOT call in production code
   // ---------------------------------------------------------------------------
 
-  /// Expose the registered endpoints list for test verification.
-  @visibleForTesting
+  /// The registered endpoint catalog (read-only).
+  ///
+  /// Used by the x-ray plugin's debug overlay and by tests.
   static List<ApiEndpoint> getRegisteredEndpoints() =>
       List.unmodifiable(_endpoints);
+
+  /// Invoke a registered endpoint handler directly, in-process.
+  ///
+  /// Returns the same [developer.ServiceExtensionResponse] an external VM
+  /// Service client would receive for [method], or an error response with
+  /// type `notFound` when no handler is registered for [method].
+  static Future<developer.ServiceExtensionResponse> invokeLocally(
+    String method,
+    Map<String, String> params,
+  ) {
+    final handler = _handlers[method];
+    if (handler == null) {
+      return Future.value(
+        errorResponse('notFound', 'No handler registered for $method'),
+      );
+    }
+    return handler(method, params);
+  }
 
   /// Reset all bridge state.
   ///
@@ -296,6 +334,7 @@ class ZuraffaApiBridge {
     }
     _streamSubscriptions.clear();
     _endpoints.clear();
+    _handlers.clear();
     _initialized = false;
   }
 }

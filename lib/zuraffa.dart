@@ -123,6 +123,7 @@ import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
 import 'src/presentation/controller.dart';
+import 'src/plugins/xray/xray_plugin.dart' show XRayConfig, XRayPlugin;
 
 // ============================================================
 // Core - Error Handling & Utilities
@@ -264,6 +265,16 @@ export 'src/core/transaction/file_operation.dart';
 export 'src/core/transaction/generation_transaction.dart';
 export 'src/core/transaction/transaction_result.dart';
 export 'src/core/transaction/conflict_detector.dart';
+
+// ============================================================
+// X-Ray Plugin - DTD/VM-Service element mapping + debug overlay
+// ============================================================
+export 'src/plugins/xray/xray_plugin.dart';
+export 'src/plugins/xray/xray_element_key.dart';
+export 'src/plugins/xray/widgets/xray_overlay.dart';
+export 'src/plugins/xray/widgets/xray_section.dart';
+export 'src/plugins/xray/widgets/xray_button.dart';
+export 'src/plugins/xray/widgets/xray_host.dart';
 
 // ============================================================
 // Zorphy Integration - Type-safe filtering
@@ -913,6 +924,28 @@ class Zuraffa {
       ensureBucketExists: ensureBucketExists,
       pathPrefix: pathPrefix,
     );
+  }
+
+  // ============================================================
+  // X-Ray (DTD/VM-Service element mapping + debug overlay)
+  // ============================================================
+
+  /// Enable the x-ray plugin: deterministic DTD/VM-Service keys on every
+  /// element the overlay renders, plus an in-app debug overlay for
+  /// triggering registered UseCases by hand.
+  ///
+  /// No-op in release builds — safe to call unconditionally from `main()`.
+  ///
+  /// Call this *after* `ZuraffaApiBridge.init()` and your
+  /// `register*ApiBridge()` calls, and wrap your root widget in
+  /// [XRayHost] so the overlay can mount:
+  ///
+  /// ```dart
+  /// Zuraffa.enableXRay(const XRayConfig(useCases: true));
+  /// runApp(const XRayHost(child: MyApp()));
+  /// ```
+  static void enableXRay(XRayConfig config) {
+    XRayPlugin().enable(config);
   }
 
   /// Dispose all artifact and failure hooks.

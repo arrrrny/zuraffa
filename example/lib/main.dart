@@ -17,6 +17,21 @@ Future<void> setupDependencies() async {
 void _initializeBridge() {
   ZuraffaApiBridge.init();
   registerTodoApiBridge();
+
+  // x-ray plugin: DTD/VM-Service keys + debug overlay (debug builds only).
+  // Typed param form for endpoints taking a Todo.
+  XRayPlugin().registerEntitySchema('Todo', const [
+    XRayEntityField(name: 'id', type: 'int'),
+    XRayEntityField(name: 'title', type: 'String'),
+    XRayEntityField(name: 'isCompleted', type: 'bool'),
+    XRayEntityField(name: 'createdAt', type: 'DateTime'),
+  ]);
+  XRayPlugin().registerElement(
+    type: XRayElementType.repository,
+    domain: 'todo',
+    name: 'TodoRepository',
+  );
+  Zuraffa.enableXRay(const XRayConfig(useCases: true, repositories: true));
 }
 
 void main() {
@@ -24,13 +39,13 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   setupDependencies()
       .then((_) {
-        runApp(const ZuraffaExampleApp());
+        runApp(const XRayHost(child: ZuraffaExampleApp()));
         _initializeBridge();
       })
       .catchError((Object error, StackTrace st) {
         debugPrint('❌ setupDependencies failed: $error');
         debugPrintStack(stackTrace: st);
-        runApp(const ZuraffaExampleApp());
+        runApp(const XRayHost(child: ZuraffaExampleApp()));
         _initializeBridge();
       });
 }
