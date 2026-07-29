@@ -1358,33 +1358,35 @@ Use quick for fast diagnostics, full for troubleshooting.''',
     return output.toString();
   }
 
-  /// Cached path to the zfa executable (resolved once, reused)
-  String? _cachedExecutable;
-  bool _cachedIsDartRun = false;
+  /// Cached zfa CLI invocation (resolved once, reused)
+  _ResolvedCli? _cachedCli;
+
+  /// Cached dart executable path (used when dart is not in PATH)
+  String? _cachedDartPath;
+  bool _dartProbeDone = false;
 
   /// Execute zfa CLI process by spawning a subprocess
   /// This avoids importing the heavy zuraffa package which causes slow JIT startup
   Future<String> _runZuraffaProcess(List<String> args) async {
     try {
-      // Resolve executable once and cache it
-      if (_cachedExecutable == null) {
-        await _resolveExecutable();
-      }
+      // Resolve the CLI invocation once and cache it
+      final cli = _cachedCli ??= await _resolveCli();
 
-      final executableArgs = _cachedIsDartRun
-          ? ['run', 'zuraffa:zuraffa', ...args]
-          : args;
+      final executableArgs = [...cli.prefixArgs, ...args];
 
       stderr.writeln(
-        '[zfa-exec] Running: $_cachedExecutable ${executableArgs.join(' ')}',
+        '[zfa-exec] Running: ${cli.executable} ${executableArgs.join(' ')}',
       );
       final stopwatch = Stopwatch()..start();
 
+      final environment = Map<String, String>.from(Platform.environment)
+        ..addAll(cli.extraEnvironment);
+
       final result = await Process.run(
-        _cachedExecutable!,
+        cli.executable,
         executableArgs,
         workingDirectory: Directory.current.path,
-        environment: Platform.environment,
+        environment: environment,
       );
 
       stopwatch.stop();
@@ -1396,7 +1398,12 @@ Use quick for fast diagnostics, full for troubleshooting.''',
       final error = result.stderr.toString();
 
       if (result.exitCode != 0) {
-        return 'Error (exit ${result.exitCode}): ${error.isNotEmpty ? error : output}';
+        // Include both streams — CLIs often print the real error to stdout
+        final details = [
+          if (error.isNotEmpty) error,
+          if (output.isNotEmpty) output,
+        ].join('\n');
+        return 'Error (exit ${result.exitCode}): $details';
       }
 
       return output.isNotEmpty ? output : 'Success';
@@ -1406,8 +1413,20 @@ Use quick for fast diagnostics, full for troubleshooting.''',
     }
   }
 
-  /// Resolve the zfa executable path once
-  Future<void> _resolveExecutable() async {
+  /// Resolve how to invoke the zfa CLI.
+  ///
+  /// Preference order:
+  /// 1. Compiled binary next to this MCP server (Zed extension scenario)
+  /// 2. Compiled binary in the current directory
+  /// 3. Compiled `zfa` binary in PATH
+  /// 4. `zfa` in PATH (pub global activation script — slower JIT, but works)
+  /// 5. `dart run zuraffa:zfa` when the current project depends on zuraffa
+  /// 6. `dart pub global run zuraffa:zfa` when zuraffa is globally activated
+  ///
+  /// Throws a [StateError] when no working CLI can be found. It never falls
+  /// back to echoing the would-be command — an honest error beats a tool
+  /// that silently pretends to succeed.
+  Future<_ResolvedCli> _resolveCli() async {
     final selfPath = Platform.resolvedExecutable;
     final selfDir = File(selfPath).parent.path;
     stderr.writeln('[zfa-resolve] MCP server at: $selfPath');
@@ -1433,11 +1452,10 @@ Use quick for fast diagnostics, full for troubleshooting.''',
         // Don't use ourselves as the CLI
         try {
           if (candidate.resolveSymbolicLinksSync() != selfPath) {
-            _cachedExecutable = candidate.path;
             stderr.writeln(
-              '[zfa-resolve] ✓ Found CLI binary: $_cachedExecutable',
+              '[zfa-resolve] ✓ Found CLI binary: ${candidate.path}',
             );
-            return;
+            return _ResolvedCli(candidate.path);
           }
         } catch (_) {}
       }
@@ -1450,50 +1468,137 @@ Use quick for fast diagnostics, full for troubleshooting.''',
       if (await localExe.exists()) {
         // Only use if it's a real binary, not a shell script
         if (await _isCompiledBinary(localExe.path)) {
-          _cachedExecutable = localExe.path;
           stderr.writeln(
-            '[zfa-resolve] ✓ Found compiled binary: $_cachedExecutable',
+            '[zfa-resolve] ✓ Found compiled binary: ${localExe.path}',
           );
-          return;
+          return _ResolvedCli(localExe.path);
         }
       }
     }
 
-    // 3. Check for zfa in PATH — but only if it's a compiled binary
+    // 3. Check for zfa in PATH
     final whichResult = await Process.run('which', ['zfa']);
     if (whichResult.exitCode == 0) {
       final zfaPath = whichResult.stdout.toString().trim();
-      if (await _isCompiledBinary(zfaPath)) {
-        _cachedExecutable = 'zfa';
-        stderr.writeln('[zfa-resolve] ✓ Found compiled zfa in PATH');
-        return;
-      } else {
+      if (zfaPath.isNotEmpty) {
+        if (await _isCompiledBinary(zfaPath)) {
+          stderr.writeln('[zfa-resolve] ✓ Found compiled zfa in PATH');
+          return _ResolvedCli(zfaPath);
+        }
+        // 4. Pub global activation script (JIT — slower, but correct).
+        // The script shells out to `dart`, so make sure dart is reachable.
+        final dartPath = await _findDartExecutable();
+        if (dartPath != null) {
+          stderr.writeln(
+            '[zfa-resolve] ✓ Found zfa activation script in PATH (JIT)',
+          );
+          return _ResolvedCli(
+            zfaPath,
+            extraEnvironment: _pathWithDart(dartPath),
+          );
+        }
         stderr.writeln(
-          '[zfa-resolve] ⚠ zfa in PATH is a script (JIT), skipping',
+          '[zfa-resolve] ⚠ zfa script found in PATH but dart is unavailable',
         );
       }
     }
 
-    // 4. Fall back to dart run (requires zuraffa in pubspec)
-    final pubspecFile = File('${Directory.current.path}/pubspec.yaml');
-    if (!await pubspecFile.exists()) {
-      _cachedExecutable = 'echo';
-      stderr.writeln('[zfa-resolve] ⚠ No pubspec.yaml found, no CLI available');
-      return;
+    // The remaining fallbacks require dart
+    final dartPath = await _findDartExecutable();
+    if (dartPath != null) {
+      // 5. Current project depends on zuraffa — run the pinned version
+      final pubspecFile = File('${Directory.current.path}/pubspec.yaml');
+      if (await pubspecFile.exists()) {
+        final pubspecContent = await pubspecFile.readAsString();
+        if (pubspecContent.contains('zuraffa:')) {
+          stderr.writeln(
+            '[zfa-resolve] ✓ Using dart run zuraffa:zfa (project dependency)',
+          );
+          return _ResolvedCli(dartPath, prefixArgs: const ['run', 'zuraffa:zfa']);
+        }
+      }
+
+      // 6. Globally activated zuraffa — works from any directory
+      try {
+        final globalList = await Process.run(dartPath, [
+          'pub',
+          'global',
+          'list',
+        ]);
+        if (globalList.exitCode == 0 &&
+            globalList.stdout.toString().contains('zuraffa')) {
+          stderr.writeln(
+            '[zfa-resolve] ✓ Using dart pub global run zuraffa:zfa (JIT)',
+          );
+          return _ResolvedCli(
+            dartPath,
+            prefixArgs: const ['pub', 'global', 'run', 'zuraffa:zfa'],
+          );
+        }
+      } catch (_) {}
     }
 
-    final pubspecContent = await pubspecFile.readAsString();
-    if (!pubspecContent.contains('zuraffa:')) {
-      _cachedExecutable = 'echo';
-      stderr.writeln(
-        '[zfa-resolve] ⚠ zuraffa not in pubspec, no CLI available',
-      );
-      return;
+    // Never echo the command — report an actionable error instead.
+    throw StateError(
+      'zuraffa CLI (zfa) not found. Install it with '
+      '`dart pub global activate zuraffa` (and ensure ~/.pub-cache/bin is in '
+      'PATH), add zuraffa as a dev_dependency to this project, or place a '
+      'compiled zfa binary next to the MCP server.',
+    );
+  }
+
+  /// Locate the dart executable, even when it is not in PATH.
+  Future<String?> _findDartExecutable() async {
+    if (_dartProbeDone) return _cachedDartPath;
+    _dartProbeDone = true;
+
+    // 1. dart in PATH
+    try {
+      final whichDart = await Process.run('which', ['dart']);
+      if (whichDart.exitCode == 0) {
+        final path = whichDart.stdout.toString().trim();
+        if (path.isNotEmpty) return _cachedDartPath = path;
+      }
+    } catch (_) {}
+
+    // 2. dart next to the flutter binary
+    try {
+      final whichFlutter = await Process.run('which', ['flutter']);
+      if (whichFlutter.exitCode == 0) {
+        final flutterPath = whichFlutter.stdout.toString().trim();
+        if (flutterPath.isNotEmpty) {
+          final resolved = File(flutterPath).resolveSymbolicLinksSync();
+          final dartPath = '${File(resolved).parent.path}/dart';
+          if (await File(dartPath).exists()) return _cachedDartPath = dartPath;
+        }
+      }
+    } catch (_) {}
+
+    // 3. FLUTTER_ROOT or common Flutter SDK install locations
+    final home = Platform.environment['HOME'] ?? '';
+    final candidates = [
+      if (Platform.environment['FLUTTER_ROOT'] != null)
+        '${Platform.environment['FLUTTER_ROOT']}/bin/dart',
+      '$home/flutter/bin/dart',
+      '$home/development/flutter/bin/dart',
+      '/opt/flutter/bin/dart',
+      '/usr/local/flutter/bin/dart',
+    ];
+    for (final path in candidates) {
+      if (await File(path).exists()) return _cachedDartPath = path;
     }
 
-    _cachedExecutable = 'dart';
-    _cachedIsDartRun = true;
-    stderr.writeln('[zfa-resolve] ⚠ Falling back to dart run (slow JIT)');
+    return null;
+  }
+
+  /// Environment overrides that put dart's directory on PATH, so pub global
+  /// activation scripts (which invoke `dart`) work even when the MCP server
+  /// itself was launched without dart in PATH.
+  Map<String, String> _pathWithDart(String dartPath) {
+    final dartDir = File(dartPath).parent.path;
+    final currentPath = Platform.environment['PATH'] ?? '';
+    if (currentPath.split(':').contains(dartDir)) return const {};
+    return {'PATH': '$dartDir:$currentPath'};
   }
 
   /// Check if a file is a compiled binary (not a shell script)
@@ -1704,4 +1809,19 @@ Use quick for fast diagnostics, full for troubleshooting.''',
     }
     throw Exception('Tool not found in plugins: $toolName');
   }
+}
+
+/// A resolved zfa CLI invocation: the executable to spawn, any arguments
+/// that must precede the CLI args (e.g. `pub global run zuraffa:zfa`), and
+/// environment overrides needed for the child process.
+class _ResolvedCli {
+  final String executable;
+  final List<String> prefixArgs;
+  final Map<String, String> extraEnvironment;
+
+  const _ResolvedCli(
+    this.executable, {
+    this.prefixArgs = const [],
+    this.extraEnvironment = const {},
+  });
 }
