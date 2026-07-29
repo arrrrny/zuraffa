@@ -39,14 +39,14 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   setupDependencies()
       .then((_) {
-        runApp(const XRayHost(child: ZuraffaExampleApp()));
         _initializeBridge();
+        runApp(const XRayHost(child: ZuraffaExampleApp()));
       })
       .catchError((Object error, StackTrace st) {
         debugPrint('❌ setupDependencies failed: $error');
         debugPrintStack(stackTrace: st);
-        runApp(const XRayHost(child: ZuraffaExampleApp()));
         _initializeBridge();
+        runApp(const XRayHost(child: ZuraffaExampleApp()));
       });
 }
 

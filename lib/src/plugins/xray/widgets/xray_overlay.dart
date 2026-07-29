@@ -26,16 +26,9 @@ class XRayOverlay extends StatefulWidget {
 }
 
 class _XRayOverlayState extends State<XRayOverlay> {
+  // Escape works once the panel has focus (e.g. via tap); the panel never
+  // grabs focus on its own, so the app underneath keeps the keyboard.
   late final FocusNode _focusNode = FocusNode();
-
-  @override
-  void initState() {
-    super.initState();
-    // Grab focus so Escape works without clicking into the panel first.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _focusNode.requestFocus();
-    });
-  }
 
   @override
   void dispose() {
@@ -49,7 +42,6 @@ class _XRayOverlayState extends State<XRayOverlay> {
 
     return Focus(
       focusNode: _focusNode,
-      autofocus: true,
       onKeyEvent: (node, event) {
         if (event is KeyDownEvent &&
             event.logicalKey == LogicalKeyboardKey.escape) {
@@ -70,9 +62,11 @@ class _XRayOverlayState extends State<XRayOverlay> {
             _Header(onClose: widget.onClose),
             const Divider(height: 1, color: Color(0xFF2A2D34)),
             Expanded(
-              child: ValueListenableBuilder<int>(
-                valueListenable: plugin.revision,
-                builder: (context, _, __) =>
+              child: AnimatedBuilder(
+                // Element-registry changes AND bridge endpoint-catalog
+                // changes both rebuild the section list.
+                animation: plugin.contentRevision,
+                builder: (context, _) =>
                     _SectionList(config: widget.config, plugin: plugin),
               ),
             ),

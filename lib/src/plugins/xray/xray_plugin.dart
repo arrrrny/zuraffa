@@ -112,6 +112,13 @@ class XRayPlugin {
   /// registry, so a mounted overlay rebuilds with fresh data.
   final ValueNotifier<int> revision = ValueNotifier<int>(0);
 
+  /// Rebuild trigger for overlay *content*: fires on element-registry
+  /// changes (own [revision]) and on bridge endpoint-catalog changes, so
+  /// endpoints registered after the overlay mounts still appear without
+  /// waiting for an unrelated rebuild.
+  Listenable get contentRevision =>
+      Listenable.merge([revision, ZuraffaApiBridge.revision]);
+
   /// Test hook for the "release mode is a no-op" acceptance case: when set
   /// to `true`, [enable] behaves exactly as if `kReleaseMode` were true.
   /// Never set this in app code.
@@ -130,6 +137,9 @@ class XRayPlugin {
     if (kReleaseMode || debugSimulateReleaseMode) return;
     _enabled = true;
     _config = config;
+    // Notify mounted hosts/overlays so late enable() calls take effect
+    // without waiting for an unrelated rebuild.
+    revision.value++;
     developer.log(
       'XRayPlugin enabled '
       '(useCases: ${config.useCases}, '
@@ -141,6 +151,7 @@ class XRayPlugin {
   /// Disable x-ray (drops the overlay). Mostly useful for tests.
   void disable() {
     _enabled = false;
+    revision.value++;
   }
 
   /// The live endpoint catalog, read straight from [ZuraffaApiBridge] so
