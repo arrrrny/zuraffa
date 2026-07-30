@@ -42,7 +42,11 @@ class BuildPipeline {
     _log('🔧 Build start...');
     final config = _loadConfig();
     for (final plugin in plugins) {
-      plugin.onBuildStart(config);
+      try {
+        plugin.onBuildStart(config);
+      } catch (e) {
+        _errors.add('Plugin ${plugin.targetDecorator} onBuildStart failed: $e');
+      }
     }
 
     // ── Stage 3: AST Scan ──
@@ -57,11 +61,11 @@ class BuildPipeline {
       onUnknownDecorator: (name, loc) {
         final msg = 'Unknown decorator @$name${loc != null ? ' at $loc' : ''}';
         _warnings.add(msg);
-        _log('   ⚠️  $msg');
+        _log(msg, force: true);
       },
       onParseError: (e) {
         _errors.add(e.toString());
-        _log('   ❌ $e');
+        _log(e.toString(), force: true);
       },
     );
     final generationResults = dispatcher.dispatch(scanResults);
@@ -80,7 +84,11 @@ class BuildPipeline {
     // ── Stage 6: Build End ──
     _log('🏁 Build end...');
     for (final plugin in plugins) {
-      plugin.onBuildEnd(config);
+      try {
+        plugin.onBuildEnd(config);
+      } catch (e) {
+        _errors.add('Plugin ${plugin.targetDecorator} onBuildEnd failed: $e');
+      }
     }
 
     return BuildResult(
@@ -114,12 +122,16 @@ class BuildPipeline {
   Map<String, dynamic> _loadConfig() => {};
 
   String _outputPath(String sourcePath) {
-    final basename = p.basenameWithoutExtension(sourcePath);
-    return p.join(outputDir, '$basename.g.dart');
+    // Preserve the relative path structure from projectRoot/lib
+    final libDir = p.join(projectRoot, 'lib');
+    final relative = p.relative(sourcePath, from: libDir);
+    final dir = p.dirname(relative);
+    final basename = p.basenameWithoutExtension(relative);
+    return p.join(outputDir, dir, '$basename.g.dart');
   }
 
-  void _log(String message) {
-    if (verbose || message.startsWith('   ⚠️') || message.startsWith('   ❌')) {
+  void _log(String message, {bool force = false}) {
+    if (verbose || force) {
       // ignore: avoid_print
       print(message);
     }

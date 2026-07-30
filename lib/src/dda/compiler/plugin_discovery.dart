@@ -49,16 +49,11 @@ class PluginDiscovery {
   }
 
   List<ZorphyDecoratorPlugin> _loadPackagePlugins(String packageName) {
-    final packageConfigPath = '$projectRoot/.dart_tool/package_config.json';
-    final configFile = File(packageConfigPath);
-    if (!configFile.existsSync()) {
-      throw PluginDiscoveryError(
-        'package_config.json not found. Run `dart pub get` first.',
-      );
-    }
-    // Dynamic loading (via Isolate.spawnUri) is planned for Track 5.x.
-    // For now, plugins register manually via ZorphyPluginRegistry.register().
-    return [];
+    throw PluginDiscoveryError(
+      'Dynamic decorator package loading is not yet implemented '
+      '(planned for Track 5.x). Register plugins manually via '
+      'ZorphyPluginRegistry.register() in your main library.',
+    );
   }
 
   void _warn(String message) {

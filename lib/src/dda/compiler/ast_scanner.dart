@@ -6,6 +6,7 @@ import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/decorator_ast.dart';
+import '../models/zorphy_context.dart';
 import 'zorphy_decorator_plugin.dart';
 
 /// Scans a Dart project for all decorator annotations and produces
@@ -13,8 +14,8 @@ import 'zorphy_decorator_plugin.dart';
 class ASTScanner {
   ASTScanner({
     required this.projectRoot,
-    this.includeGlobs = const ['lib/**/*.dart'],
-    this.excludeGlobs = const ['lib/**/*.g.dart', 'lib/**/*.freezed.dart'],
+    this.includeGlobs = const ['**/*.dart'],
+    this.excludeGlobs = const ['**/*.g.dart', '**/*.freezed.dart'],
   });
 
   final String projectRoot;
@@ -106,12 +107,28 @@ class _DecoratorVisitor extends RecursiveAstVisitor<void> {
   }
 
   void _visitMethod(MethodDeclaration node, String className) {
+    final params = <ParameterInfo>[];
+    final paramList = node.parameters;
+    if (paramList != null) {
+      for (final param in paramList.parameters) {
+        params.add(
+          ParameterInfo(
+            name: param.name?.lexeme ?? 'unnamed',
+            type: param.type?.toSource() ?? 'dynamic',
+            isNamed: param.isNamed,
+            isOptional: param.isOptional,
+          ),
+        );
+      }
+    }
+
     final methodAst = MethodAST(
       name: node.name.lexeme,
       elementKind: 'method',
       className: className,
       libraryUri: filePath,
       returnType: node.returnType?.toSource(),
+      parameters: params,
       isAsync: node.body.isAsynchronous,
       isStatic: node.isStatic,
     );
@@ -140,11 +157,24 @@ class _DecoratorVisitor extends RecursiveAstVisitor<void> {
       }
     }
 
+    final offset = annotation.offset;
+    final root = annotation.root;
+    final lineInfo = root is CompilationUnit ? root.lineInfo : null;
+    final location = lineInfo != null
+        ? SourceLocation(
+            filePath: filePath,
+            line: lineInfo.getLocation(offset).lineNumber,
+            column: lineInfo.getLocation(offset).columnNumber,
+            offset: offset,
+          )
+        : null;
+
     return DecoratorAST(
       name: name,
       target: annotation,
       positionalArgs: posArgs,
       namedArgs: namedArgs,
+      sourceLocation: location,
     );
   }
 }

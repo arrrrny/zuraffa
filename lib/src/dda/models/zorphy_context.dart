@@ -16,7 +16,6 @@ enum InjectionPoint {
 /// [ZorphyContext] accumulates **type-safe AST fragments** (via
 /// `package:code_builder`) at various [InjectionPoint]s. Plugins inject
 /// expressions and specs for type-safe code generation.
-@immutable
 class ZorphyContext {
   ZorphyContext({
     required this.className,
@@ -106,6 +105,8 @@ class ZorphyContext {
     final before = statementsFor(InjectionPoint.beforeExecution);
     final after = statementsFor(InjectionPoint.afterExecution);
     final onExc = statementsFor(InjectionPoint.onException);
+    // TODO: support wrapMethod injection point — requires restructuring
+    // to nest wrapper Code objects around the body.
 
     return cb.Block((b) {
       if (onExc.isNotEmpty) {
