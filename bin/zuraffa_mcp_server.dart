@@ -1480,21 +1480,35 @@ TIP: Use dry_run=true to preview the changes without modifying pubspec.yaml.''',
     final output = StringBuffer('Zuraffa setup\n');
     for (final command in commands) {
       output.writeln('\n\$ dart ${command.join(' ')}');
-      final ProcessResult result;
-      try {
-        result = await Process.run(
-          dartPath,
-          command,
-          workingDirectory: projectDir,
-          environment: environment,
-        ).timeout(Duration(seconds: 120));
-      } on TimeoutException {
+      var timedOut = false;
+      final process = await Process.start(
+        dartPath,
+        command,
+        workingDirectory: projectDir,
+        environment: environment,
+      );
+      final timer = Timer(const Duration(seconds: 120), () {
+        timedOut = true;
+        process.kill();
+      });
+      final stdoutBuf = StringBuffer();
+      final stderrBuf = StringBuffer();
+      process.stdout.transform(utf8.decoder).listen(stdoutBuf.write);
+      process.stderr.transform(utf8.decoder).listen(stderrBuf.write);
+      final exitCode = await process.exitCode.whenComplete(timer.cancel);
+      if (timedOut) {
         output.writeln(
-          '\n❌ dart ${command.join(' ')} timed out after 120 seconds.',
+          '\n❌ dart ${command.join(' ')} timed out after 120 seconds and was killed.',
         );
         _cachedCli = null;
         return output.toString();
       }
+      final result = ProcessResult(
+        process.pid,
+        exitCode,
+        stdoutBuf.toString(),
+        stderrBuf.toString(),
+      );
       // pub reports progress on stderr — surface both streams.
       final details = [
         result.stdout.toString().trim(),
