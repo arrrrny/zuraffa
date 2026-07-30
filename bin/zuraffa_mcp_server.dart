@@ -256,6 +256,7 @@ class ZuraffaMcpServer {
       _configSetToolDefinition(),
       _graphqlToolDefinition(),
       _doctorToolDefinition(),
+      _setupToolDefinition(),
     ];
 
     // Add plugin tools dynamically
@@ -615,7 +616,7 @@ All v5 generation uses the fixed lib/src and lib/src/domain layout.''',
           result = await _runEntityListCommand(args);
           break;
         case 'zuraffa_config_init':
-          result = await _runConfigCommand(['init', ...?_configArgs(args)]);
+          result = await _runConfigInitCommand(args);
           break;
         case 'zuraffa_config_show':
           result = await _runConfigCommand(['show']);
@@ -635,6 +636,9 @@ All v5 generation uses the fixed lib/src and lib/src/domain layout.''',
           break;
         case 'zuraffa_doctor':
           result = await _runDoctorCommand(args);
+          break;
+        case 'zuraffa_setup':
+          result = await _runSetupCommand(args);
           break;
         default:
           if (toolName.startsWith('zuraffa_')) {
@@ -1064,6 +1068,52 @@ May take 30-60 seconds depending on project size.''',
     return await _runZuraffaProcess(['config', ...subArgs]);
   }
 
+  /// Run config init, then report any missing code-generation dependencies
+  /// so the gap surfaces now — not when entity creation fails later.
+  Future<String> _runConfigInitCommand(Map<String, dynamic> args) async {
+    final initOutput = await _runConfigCommand(['init', ...?_configArgs(args)]);
+    return '${initOutput.trimRight()}\n\n${await _dependencyReport()}';
+  }
+
+  /// Detect zuraffa code-generation dependencies missing from the current
+  /// project's pubspec.yaml. Names use the `dev:` prefix for packages that
+  /// belong in dev_dependencies.
+  Future<List<String>> _missingCodegenDeps() async {
+    final pubspecFile = File('${Directory.current.path}/pubspec.yaml');
+    if (!await pubspecFile.exists()) return const [];
+    final content = await pubspecFile.readAsString();
+    return [
+      if (!content.contains('zuraffa:')) 'zuraffa',
+      if (!content.contains('zorphy_annotation:')) 'zorphy_annotation',
+      if (!content.contains('build_runner:')) 'dev:build_runner',
+    ];
+  }
+
+  /// Human-readable dependency status with actionable remediation.
+  Future<String> _dependencyReport() async {
+    final missing = await _missingCodegenDeps();
+    if (missing.isEmpty) {
+      return 'Dependency check: ✅ zuraffa, zorphy_annotation and build_runner all present.';
+    }
+    final runtime = missing.where((d) => !d.startsWith('dev:')).toList();
+    final dev = missing.where((d) => d.startsWith('dev:')).toList();
+    final buffer = StringBuffer('Dependency check: ⚠️ missing packages:\n');
+    for (final dep in missing) {
+      buffer.writeln('  - $dep');
+    }
+    buffer.writeln('\nRun the zuraffa_setup tool to add them automatically, or:');
+    if (runtime.isNotEmpty) {
+      buffer.writeln('  dart pub add ${runtime.join(' ')}');
+    }
+    if (dev.isNotEmpty) {
+      buffer.writeln('  dart pub add ${dev.join(' ')}');
+    }
+    buffer.write(
+      'Without these, entity generation and builds will fail — run zuraffa_doctor for details.',
+    );
+    return buffer.toString();
+  }
+
   /// Run the graphql command
   Future<String> _runGraphqlCommand(Map<String, dynamic> args) async {
     final List<String> cliArgs = ['graphql', '--url=${args["url"]}'];
@@ -1358,6 +1408,127 @@ Use quick for fast diagnostics, full for troubleshooting.''',
     return output.toString();
   }
 
+  /// Setup tool definition
+  Map<String, dynamic> _setupToolDefinition() {
+    return {
+      'name': 'zuraffa_setup',
+      'description': '''Add zuraffa and its required code-generation dependencies (zorphy_annotation, build_runner) to the current project's pubspec.yaml via dart pub add.
+
+Use this FIRST when other zuraffa tools report that the zfa CLI cannot be found — the MCP server needs zuraffa in the project (or a global zfa activation) before it can execute commands. This solves the chicken-and-egg onboarding problem.
+
+TIP: Use dry_run=true to preview the changes without modifying pubspec.yaml.''',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'dry_run': {
+            'type': 'boolean',
+            'description':
+                'Preview the dependency changes without modifying pubspec.yaml',
+          },
+        },
+      },
+    };
+  }
+
+  /// Add zuraffa and its code-generation dependencies to the current
+  /// project. Implemented server-side (not delegated to the zfa CLI)
+  /// precisely because it serves the case where no CLI is resolvable yet.
+  Future<String> _runSetupCommand(Map<String, dynamic> args) async {
+    final dryRun = args['dry_run'] == true;
+    final projectDir = Directory.current.path;
+
+    final pubspecFile = File('$projectDir/pubspec.yaml');
+    if (!await pubspecFile.exists()) {
+      return 'Error: No pubspec.yaml found in $projectDir.\n'
+          'Create a project first (e.g. `flutter create my_app`) and run '
+          'zuraffa_setup from the project root.';
+    }
+
+    final dartPath = await _findDartExecutable();
+    if (dartPath == null) {
+      return 'Error: dart executable not found. Install the Flutter/Dart SDK '
+          'and make sure dart is in PATH, then re-run zuraffa_setup.';
+    }
+
+    final missing = await _missingCodegenDeps();
+    if (missing.isEmpty) {
+      return '✅ Setup already complete — zuraffa, zorphy_annotation and '
+          'build_runner are all present in pubspec.yaml.';
+    }
+
+    final runtimeDeps = missing.where((d) => !d.startsWith('dev:')).toList();
+    final devDeps = missing.where((d) => d.startsWith('dev:')).toList();
+    final commands = <List<String>>[
+      if (runtimeDeps.isNotEmpty) ['pub', 'add', ...runtimeDeps],
+      if (devDeps.isNotEmpty) ['pub', 'add', ...devDeps],
+    ];
+
+    if (dryRun) {
+      final planned = commands.map((c) => 'dart ${c.join(' ')}').join('\n  ');
+      return 'Dry run — would execute:\n  $planned';
+    }
+
+    final environment = Map<String, String>.from(Platform.environment)
+      ..addAll(_pathWithDart(dartPath));
+
+    final output = StringBuffer('Zuraffa setup\n');
+    for (final command in commands) {
+      output.writeln('\n\$ dart ${command.join(' ')}');
+      final result = await Process.run(
+        dartPath,
+        command,
+        workingDirectory: projectDir,
+        environment: environment,
+      );
+      // pub reports progress on stderr — surface both streams.
+      final details = [
+        result.stdout.toString().trim(),
+        result.stderr.toString().trim(),
+      ].where((s) => s.isNotEmpty).join('\n');
+      if (details.isNotEmpty) output.writeln(details);
+      if (result.exitCode != 0) {
+        output.writeln(
+          '\n❌ dart ${command.join(' ')} failed (exit ${result.exitCode}).',
+        );
+        output.write(
+          'This is usually a version conflict with SDK-pinned packages '
+          '(commonly meta or analyzer, pinned by flutter_test). Add '
+          'dependency_overrides for the conflicting packages to pubspec.yaml, '
+          'run `dart pub get`, then re-run zuraffa_setup.',
+        );
+        return output.toString();
+      }
+    }
+
+    // The project now depends on zuraffa — re-resolve the CLI so the
+    // project-pinned `dart run zuraffa:zfa` is picked up.
+    _cachedCli = null;
+
+    // Pub may resolve an older zuraffa when SDK-pinned packages constrain
+    // version solving — an outdated CLI can lack commands the MCP tools
+    // expect, so flag it with the way out.
+    final stale = RegExp(
+      r'zuraffa\s+(\S+)\s+\((\S+)\s+available\)',
+    ).firstMatch(output.toString());
+    if (stale != null && stale.group(1) != stale.group(2)) {
+      output.writeln(
+        '\n⚠️ zuraffa resolved to ${stale.group(1)}, but ${stale.group(2)} is '
+        'available — version solving was limited by SDK-pinned packages '
+        '(commonly meta or analyzer via flutter_test).',
+      );
+      output.writeln(
+        'An older CLI may not support every MCP tool. To use the latest: '
+        'add dependency_overrides for the conflicting packages to '
+        "pubspec.yaml, then run `dart pub add 'zuraffa:^${stale.group(2)}'`.",
+      );
+    }
+
+    output.writeln('\n✅ Setup complete. Next steps:');
+    output.writeln('  1. zuraffa_config_init — create .zfa.json');
+    output.write('  2. zuraffa_entity_create — define your entities');
+    return output.toString();
+  }
+
   /// Cached zfa CLI invocation (resolved once, reused)
   _ResolvedCli? _cachedCli;
 
@@ -1406,7 +1577,10 @@ Use quick for fast diagnostics, full for troubleshooting.''',
         return 'Error (exit ${result.exitCode}): $details';
       }
 
-      return output.isNotEmpty ? output : 'Success';
+      // Some CLIs (dart pub, flutter) print real output to stderr even on
+      // success — surface it instead of a bare 'Success'.
+      if (output.isNotEmpty) return output;
+      return error.isNotEmpty ? error : 'Success';
     } catch (e, stack) {
       stderr.writeln('Process error: $e\n$stack');
       return 'Error: $e';

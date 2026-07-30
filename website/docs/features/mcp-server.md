@@ -32,6 +32,14 @@ zuraffa_mcp_server
 
 ## Available tools
 
+### `zuraffa_setup`
+
+Onboarding helper: adds `zuraffa`, `zorphy_annotation`, and `dev:build_runner`
+to the current project's `pubspec.yaml` via `dart pub add`. Use it when other
+tools report that the zfa CLI cannot be found — the MCP server needs zuraffa
+in the project (or a global activation) before it can execute commands.
+Supports `dry_run` to preview the changes.
+
 ### `zuraffa_make`
 
 This tool should follow the same v5 contract as the CLI docs:

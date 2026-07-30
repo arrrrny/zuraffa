@@ -63,6 +63,28 @@ void main() {
       );
     });
 
+    test('MCP server never falls back to echoing commands', () {
+      final content = readText('bin/zuraffa_mcp_server.dart');
+      // The silent echo fallback made tools pretend to succeed (#150, #156).
+      expect(content, isNot(contains("_cachedExecutable = 'echo'")));
+      expect(content, contains('Never echo'));
+    });
+
+    test('MCP server advertises zuraffa_setup and adds deps via pub add', () {
+      final content = readText('bin/zuraffa_mcp_server.dart');
+      expect(content, contains("'name': 'zuraffa_setup'"));
+      expect(content, contains("case 'zuraffa_setup':"));
+      // Setup exists for the case where no zfa CLI is resolvable yet, so it
+      // cannot delegate to the CLI — it must run `dart pub add` directly.
+      expect(content, contains("'pub', 'add'"));
+    });
+
+    test('MCP config_init reports missing code-gen dependencies', () {
+      final content = readText('bin/zuraffa_mcp_server.dart');
+      expect(content, contains('_runConfigInitCommand'));
+      expect(content, contains('Dependency check'));
+    });
+
     test('example .zfa.json uses v5 config shape', () {
       final content = readText('example/.zfa.json');
       final json = jsonDecode(content) as Map<String, dynamic>;
