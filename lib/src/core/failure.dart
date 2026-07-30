@@ -45,6 +45,9 @@ sealed class AppFailure implements Exception {
 
   const AppFailure(this.message, {this.stackTrace, this.cause});
 
+  /// Create a generic failure with a default message.
+  factory AppFailure.create() => const UnknownFailure.create();
+
   /// Create an [AppFailure] from any error
   ///
   /// Attempts to intelligently classify the error based on its type and message.
@@ -203,6 +206,9 @@ final class ServerFailure extends AppFailure {
     super.cause,
   });
 
+  /// Create a server failure with a default message.
+  const ServerFailure.create() : statusCode = null, super('Server error');
+
   /// Factory that creates a ServerFailure if the error matches,
   /// otherwise returns null
   static ServerFailure? from(Object error, StackTrace? stackTrace) {
@@ -239,6 +245,9 @@ final class ServerFailure extends AppFailure {
 /// or the device is offline.
 final class NetworkFailure extends AppFailure {
   const NetworkFailure(super.message, {super.stackTrace, super.cause});
+
+  /// Create a network failure with a default message.
+  const NetworkFailure.create() : super('Network error');
 
   /// Factory that creates a NetworkFailure if the error matches,
   /// otherwise returns null
@@ -570,6 +579,9 @@ final class PlatformFailure extends AppFailure {
 /// Prefer using more specific failure types when possible.
 final class UnknownFailure extends AppFailure {
   const UnknownFailure(super.message, {super.stackTrace, super.cause});
+
+  /// Create an unknown failure with a default message.
+  const UnknownFailure.create() : super('Unexpected error');
 
   /// Factory that always creates an UnknownFailure
   /// This is the fallback when no other failure type matches

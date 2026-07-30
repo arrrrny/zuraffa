@@ -351,6 +351,22 @@ export 'src/extensions/future_extensions.dart';
 export 'src/utils/test_utils.dart';
 
 // ============================================================
+// V6 Reactive Signals
+// ============================================================
+
+/// Signal — zero-cost reactive primitive.
+export 'src/core/signals/signal.dart';
+
+/// SignalResult — reactive Result wrapper backed by Signal.
+export 'src/core/signals/signal_result.dart';
+
+/// ZuraffaUseCase — v6 UseCase contract with SignalResult return type.
+export 'src/core/usecase/zuraffa_usecase.dart';
+
+/// ZuraffaContext — lightweight correlation context carrier.
+export 'src/core/context/zuraffa_context.dart';
+
+// ============================================================
 // Framework Configuration
 // ============================================================
 
