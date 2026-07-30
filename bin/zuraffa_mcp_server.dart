@@ -1474,12 +1474,21 @@ TIP: Use dry_run=true to preview the changes without modifying pubspec.yaml.''',
     final output = StringBuffer('Zuraffa setup\n');
     for (final command in commands) {
       output.writeln('\n\$ dart ${command.join(' ')}');
-      final result = await Process.run(
-        dartPath,
-        command,
-        workingDirectory: projectDir,
-        environment: environment,
-      );
+      final ProcessResult result;
+      try {
+        result = await Process.run(
+          dartPath,
+          command,
+          workingDirectory: projectDir,
+          environment: environment,
+        ).timeout(Duration(seconds: 120));
+      } on TimeoutException {
+        output.writeln(
+          '\n❌ dart ${command.join(' ')} timed out after 120 seconds.',
+        );
+        _cachedCli = null;
+        return output.toString();
+      }
       // pub reports progress on stderr — surface both streams.
       final details = [
         result.stdout.toString().trim(),
@@ -1496,6 +1505,7 @@ TIP: Use dry_run=true to preview the changes without modifying pubspec.yaml.''',
           'dependency_overrides for the conflicting packages to pubspec.yaml, '
           'run `dart pub get`, then re-run zuraffa_setup.',
         );
+        _cachedCli = null;
         return output.toString();
       }
     }
