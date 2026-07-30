@@ -1091,6 +1091,12 @@ May take 30-60 seconds depending on project size.''',
 
   /// Human-readable dependency status with actionable remediation.
   Future<String> _dependencyReport() async {
+    final pubspecFile = File('${Directory.current.path}/pubspec.yaml');
+    if (!await pubspecFile.exists()) {
+      return 'Dependency check: ⚠️ no pubspec.yaml found in '
+          '${Directory.current.path} — cannot verify code-generation '
+          'dependencies. Run from a Flutter/Dart project root.';
+    }
     final missing = await _missingCodegenDeps();
     if (missing.isEmpty) {
       return 'Dependency check: ✅ zuraffa, zorphy_annotation and build_runner all present.';
