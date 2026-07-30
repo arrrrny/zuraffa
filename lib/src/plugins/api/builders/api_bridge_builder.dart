@@ -651,8 +651,23 @@ class ApiBridgeBuilder {
 
   /// Extracts the entity type from a generic like `QueryParams<Product>` → `Product`.
   String _extractEntityFromGeneric(String paramsType) {
-    final match = RegExp(r'^\w+<(\w+)>?$').firstMatch(paramsType.trim());
-    return match?.group(1) ?? paramsType.trim();
+    final trimmed = paramsType.trim();
+    final firstOpen = trimmed.indexOf('<');
+    final lastClose = trimmed.lastIndexOf('>');
+
+    // Valid enclosing pair: both found, lastClose after firstOpen,
+    // and lastClose is the terminating character.
+    if (firstOpen != -1 &&
+        lastClose != -1 &&
+        lastClose > firstOpen &&
+        lastClose == trimmed.length - 1) {
+      final inner = trimmed.substring(firstOpen + 1, lastClose).trim();
+      // Only a simple identifier can form `<Entity>Fields` in generated
+      // handlers — nested generics/nullables would emit uncompilable code.
+      if (RegExp(r'^\w+$').hasMatch(inner)) return inner;
+    }
+
+    return trimmed;
   }
 
   String _generatePrimitiveParamExtraction(String paramsType) {
