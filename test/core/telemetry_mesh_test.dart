@@ -266,12 +266,13 @@ void main() {
     });
 
     test('disable flushes and clears', () {
-      TelemetryMesh.instance.trace('before', () {});
-      expect(exporter.traces.isNotEmpty, true);
+      final span = TelemetryMesh.instance.startSpan('before');
+      expect(exporter.traces.isEmpty, true);
 
       TelemetryMesh.instance.disable();
       expect(TelemetryMesh.instance.isEnabled, false);
-      expect(exporter.traces.length, 1); // flushed on disable
+      expect(exporter.traces.length, 1);
+      expect(span.isEnded, false);
     });
   });
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 /// Lightweight correlation context carrier flowing from UI → UseCase → Data.
 ///
@@ -139,11 +140,14 @@ class ZuraffaContext {
 
   // ── Utility ──
 
-  /// Generate a fresh trace ID (UUID v4 style, without external deps).
+  static final Random _random = Random();
+
+  /// Generate a fresh trace ID.
   static String generateTraceId() {
     final now = DateTime.now().millisecondsSinceEpoch;
-    final random = now.hashCode ^ now;
-    return '${now.toRadixString(16)}-${random.toRadixString(16)}';
+    final r1 = _random.nextInt(1 << 32);
+    final r2 = _random.nextInt(1 << 32);
+    return '${now.toRadixString(16)}-${r1.toRadixString(16)}${r2.toRadixString(16)}';
   }
 
   @override
@@ -153,6 +157,10 @@ class ZuraffaContext {
       'agentMutationId: $agentMutationId, '
       'metadata: ${_metadata?.keys.toList()})';
 
+  /// Equality uses only correlation IDs (traceId, sessionToken, agentMutationId).
+  ///
+  /// Metadata is intentionally excluded — two contexts with the same IDs but
+  /// different metadata are considered equal for correlation-identity purposes.
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||

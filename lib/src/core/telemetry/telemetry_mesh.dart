@@ -6,28 +6,6 @@ import '../context/zuraffa_context.dart';
 /// [TelemetryMesh] is a singleton that manages trace collection, span
 /// creation, and exporter dispatch. When disabled (the default), every
 /// operation is a no-op with zero allocation overhead.
-///
-/// ## Enabling
-///
-/// ```dart
-/// TelemetryMesh.instance.enable(
-///   exporters: [ConsoleExporter()],
-///   sampleRate: 0.1, // 10% of traces
-/// );
-/// ```
-///
-/// ## Auto-Instrumentation
-///
-/// The mesh automatically creates spans around:
-/// - UseCase execution (via `traceUseCase`)
-/// - Repository calls (via `traceRepository`)
-/// - Network requests (via `traceNetwork`)
-///
-/// ## Zero-Cost When Disabled
-///
-/// When [isEnabled] is `false`, [startSpan] returns [NoopSpan], and
-/// all span methods are empty inlined no-ops. The JIT/AOT compiler
-/// eliminates the dead code entirely.
 class TelemetryMesh {
   TelemetryMesh._();
   static final TelemetryMesh instance = TelemetryMesh._();
@@ -44,11 +22,14 @@ class TelemetryMesh {
 
   /// Enable telemetry with the given exporters and sample rate.
   ///
-  /// [sampleRate] is a value between 0.0 (none) and 1.0 (all).
+  /// Clears any prior session state (exporters, active traces) before applying
+  /// the new configuration.
   void enable({
     required List<TelemetryExporter> exporters,
     double sampleRate = 1.0,
   }) {
+    _exporters.clear();
+    _activeTraces.clear();
     _exporters.addAll(exporters);
     _sampleRate = sampleRate.clamp(0.0, 1.0);
     _enabled = true;
@@ -91,7 +72,7 @@ class TelemetryMesh {
       operation: operation,
       traceId: traceId,
       parentId: trace.currentSpanId,
-      attributes: attributes ?? const {},
+      attributes: attributes,
     );
 
     trace.addSpan(span);
@@ -99,8 +80,7 @@ class TelemetryMesh {
     return span;
   }
 
-  /// Execute [body] inside a traced span. Automatically handles start/end
-  /// and exception recording.
+  /// Execute [body] inside a traced span.
   T trace<T>(
     String name,
     T Function() body, {
@@ -108,20 +88,12 @@ class TelemetryMesh {
     Map<String, dynamic>? attributes,
   }) {
     final span = startSpan(name, operation: operation, attributes: attributes);
+    // Skip zone propagation for no-op spans — body runs in caller's context.
+    if (identical(span, NoopSpan.instance)) {
+      return _runBody(span, body);
+    }
     // Propagate traceId so child spans inherit it.
-    return _runInTraceZoneIfNeeded(span.traceId, () {
-      try {
-        final result = body();
-        span.setStatus(SpanStatus.ok);
-        return result;
-      } catch (e, st) {
-        span.recordException(e, st);
-        span.setStatus(SpanStatus.error);
-        rethrow;
-      } finally {
-        span.end();
-      }
-    });
+    return _runInTraceZoneIfNeeded(span.traceId, () => _runBody(span, body));
   }
 
   /// Async variant of [trace].
@@ -132,6 +104,31 @@ class TelemetryMesh {
     Map<String, dynamic>? attributes,
   }) async {
     final span = startSpan(name, operation: operation, attributes: attributes);
+    return _runInTraceZoneIfNeeded(span.traceId, () async {
+      return _runBodyAsync(span, body);
+    });
+  }
+
+  /// Common sync body execution with span lifecycle.
+  static T _runBody<T>(ZuraffaSpan span, T Function() body) {
+    try {
+      final result = body();
+      span.setStatus(SpanStatus.ok);
+      return result;
+    } catch (e, st) {
+      span.recordException(e, st);
+      span.setStatus(SpanStatus.error);
+      rethrow;
+    } finally {
+      span.end();
+    }
+  }
+
+  /// Common async body execution with span lifecycle.
+  static Future<T> _runBodyAsync<T>(
+    ZuraffaSpan span,
+    Future<T> Function() body,
+  ) async {
     try {
       final result = await body();
       span.setStatus(SpanStatus.ok);
@@ -143,14 +140,11 @@ class TelemetryMesh {
     } finally {
       span.end();
     }
-    // traceAsync doesn't need zone propagation — the zone flows through
-    // async continuations automatically in the same zone where startSpan ran.
   }
 
   // ── UseCase / Repository helpers ──
 
-  /// Trace a UseCase execution. Automatically extracts the operation name
-  /// from the UseCase runtime type.
+  /// Trace a UseCase execution under the span name `usecase.<useCaseName>`.
   T traceUseCase<T>(String useCaseName, T Function() body) =>
       trace('usecase.$useCaseName', body, operation: 'UseCase');
 
@@ -179,8 +173,6 @@ class TelemetryMesh {
   // ── Trace lifecycle ──
 
   /// Called by [ZuraffaSpan.end] when a span finishes.
-  /// Decrements the active span count and flushes the trace when all
-  /// spans have completed.
   void _onSpanEnded(String traceId) {
     final trace = _activeTraces[traceId];
     if (trace == null) return;
@@ -194,22 +186,29 @@ class TelemetryMesh {
     final trace = _activeTraces.remove(traceId);
     if (trace == null) return;
     for (final ex in _exporters) {
-      ex.export(trace);
+      _safeExport(ex, trace);
     }
   }
 
   void _flushAll() {
     for (final trace in _activeTraces.values) {
       for (final ex in _exporters) {
-        ex.export(trace);
+        _safeExport(ex, trace);
       }
+    }
+  }
+
+  void _safeExport(TelemetryExporter ex, ZuraffaTrace trace) {
+    try {
+      ex.export(trace);
+    } catch (_) {
+      // Isolate exporter failures — never let an exporter crash the caller.
     }
   }
 
   bool _shouldSample(String traceId) {
     if (_sampleRate >= 1.0) return true;
     if (_sampleRate <= 0.0) return false;
-    // Deterministic sampling based on traceId hash
     final hash = traceId.hashCode.abs();
     return (hash % 1000) < (_sampleRate * 1000);
   }
@@ -234,8 +233,9 @@ class ZuraffaSpan {
     this.operation,
     required this.traceId,
     this.parentId,
-    this.attributes = const {},
-  }) : spanId = _generateSpanId(),
+    Map<String, dynamic>? attributes,
+  }) : attributes = Map<String, dynamic>.of(attributes ?? const {}),
+       spanId = _generateSpanId(),
        _startTime = DateTime.now();
 
   final String name;
@@ -291,14 +291,16 @@ class ZuraffaSpan {
     'exceptions': _exceptions.map((e) => e.toJson()).toList(),
   };
 
+  static int _spanIdCounter = 0;
+
   static String _generateSpanId() {
     final now = DateTime.now().microsecondsSinceEpoch;
-    return 'span-${now.toRadixString(16)}';
+    _spanIdCounter = (_spanIdCounter + 1) & 0xFFFF;
+    return 'span-${now.toRadixString(16)}-${_spanIdCounter.toRadixString(16)}';
   }
 }
 
 /// No-op span returned when telemetry is disabled or trace is unsampled.
-/// All methods are empty — the compiler eliminates these calls entirely.
 class NoopSpan implements ZuraffaSpan {
   NoopSpan._() : _startTime = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -333,7 +335,7 @@ class NoopSpan implements ZuraffaSpan {
   @override
   Map<String, dynamic> toJson() => const {};
 
-  // Private interface conformance (required by implements ZuraffaSpan)
+  // Private interface conformance
   @override
   final DateTime _startTime;
   @override
@@ -357,8 +359,7 @@ class ZuraffaTrace {
   final List<ZuraffaSpan> spans = [];
 
   /// Number of spans that have started but not yet ended.
-  /// Used by [TelemetryMesh] to avoid flushing the trace before all
-  /// nested spans complete.
+  /// Used to avoid flushing the trace before all nested spans complete.
   int activeSpanCount = 0;
 
   String? get currentSpanId => spans.isNotEmpty ? spans.last.spanId : null;
