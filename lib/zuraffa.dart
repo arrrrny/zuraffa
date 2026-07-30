@@ -206,7 +206,7 @@ export 'src/core/failure_reporter_registry.dart' show FailureReporterRegistry;
 export 'src/core/otel_failure_reporter.dart' show OtelFailureReporter;
 export 'src/core/otel_log_exporter.dart' show OtelLogExporter;
 export 'src/core/otel_tracer.dart' show OtelTracer;
-export 'package:opentelemetry/api.dart';
+export 'package:opentelemetry/api.dart' hide SpanStatus;
 export 'src/core/retry_policies.dart'
     show ExponentialBackoffRetryPolicy, FixedIntervalRetryPolicy, NoRetryPolicy;
 export 'src/core/retry_policy.dart' show ReportRetryPolicy;
@@ -365,6 +365,9 @@ export 'src/core/usecase/zuraffa_usecase.dart';
 
 /// ZuraffaContext — lightweight correlation context carrier.
 export 'src/core/context/zuraffa_context.dart';
+
+/// TelemetryMesh — global trace/span coordinator and auto-instrumentation.
+export 'src/core/telemetry/telemetry_mesh.dart';
 
 // ============================================================
 // Framework Configuration
