@@ -298,4 +298,116 @@ void main() {
       expect(files, isEmpty);
     });
   });
+
+  group('generated handler output (regression)', () {
+    Future<String> generateBridge(List<Map<String, String>> useCases) async {
+      await createEntity(
+        outputDir: outputDir,
+        entitySnake: 'product',
+        entityName: 'Product',
+      );
+      for (final uc in useCases) {
+        await createUseCase(
+          outputDir: outputDir,
+          entitySnake: 'product',
+          className: uc['className']!,
+          content: uc['content']!,
+        );
+      }
+      final builder = ApiBridgeBuilder(
+        outputDir: outputDir,
+        options: const GeneratorOptions(dryRun: false, force: true),
+      );
+      final files = await builder.generate(
+        GeneratorConfig(name: 'Product', outputDir: outputDir),
+      );
+      expect(files, hasLength(1));
+      return File(files.first.path).readAsString();
+    }
+
+    test('handlers log the endpoint method name on error', () async {
+      final content = await generateBridge([
+        {
+          'className': 'GetProductUseCase',
+          'content':
+              'class GetProductUseCase extends UseCase<Product, String> {}',
+        },
+      ]);
+      expect(content, contains('Bridge error: ext.zuraffa.product.getProduct'));
+    });
+
+    test('generic type arguments survive discovery intact', () async {
+      final content = await generateBridge([
+        {
+          'className': 'GetProductUseCase',
+          'content':
+              'class GetProductUseCase extends UseCase<Product, QueryParams<Product>> {}',
+        },
+      ]);
+      // Truncated fragments like these would not compile.
+      expect(content, isNot(contains('QueryParams<Product.')));
+      expect(content, isNot(contains('QueryParams<Product(')));
+      expect(
+        content,
+        contains('QueryParams<Product>(filter: ProductFields.id.eq(id))'),
+      );
+    });
+
+    test('QueryParams usecases get a typed id handler', () async {
+      final content = await generateBridge([
+        {
+          'className': 'GetProductUseCase',
+          'content':
+              'class GetProductUseCase extends UseCase<Product, QueryParams<Product>> {}',
+        },
+      ]);
+      expect(content, contains("params: {'id': 'String'}"));
+      expect(content, contains("'id is required'"));
+    });
+
+    test('ListQueryParams usecases get a no-params full-list handler', () async {
+      final content = await generateBridge([
+        {
+          'className': 'GetProductListUseCase',
+          'content':
+              'class GetProductListUseCase extends UseCase<List<Product>, ListQueryParams<Product>> {}',
+        },
+      ]);
+      expect(content, contains('final params = ListQueryParams<Product>();'));
+      expect(content, contains('params: {}'));
+      expect(content, isNot(contains('id is required')));
+      // Generic return type must survive intact for the toJson helper.
+      expect(content, contains('(List<Product> v)'));
+    });
+
+    test(
+      'stream usecase with primitive params reads args value directly',
+      () async {
+        final content = await generateBridge([
+          {
+            'className': 'WatchStockUseCase',
+            'content':
+                'class WatchStockUseCase extends StreamUseCase<Product, int> {}',
+          },
+        ]);
+        expect(content, contains("int.tryParse(args['value']"));
+        expect(content, isNot(contains('jsonDecode')));
+      },
+    );
+
+    test(
+      'stream usecase with complex params keeps the JSON blob contract',
+      () async {
+        final content = await generateBridge([
+          {
+            'className': 'WatchProductUseCase',
+            'content':
+                'class WatchProductUseCase extends StreamUseCase<Product, QueryParams<Product>> {}',
+          },
+        ]);
+        expect(content, contains("params: {'args': 'QueryParams<Product>'}"));
+        expect(content, contains('QueryParams<Product>.fromJson(json)'));
+      },
+    );
+  });
 }
