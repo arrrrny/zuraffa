@@ -370,6 +370,31 @@ export 'src/core/context/zuraffa_context.dart';
 export 'src/core/telemetry/telemetry_mesh.dart';
 
 // ============================================================
+// V6 DDA (Decorator-Driven Architecture) — Compiler Pipeline
+// ============================================================
+
+/// DecoratorAST — parsed decorator annotation model.
+export 'src/dda/models/decorator_ast.dart';
+
+/// ZorphyContext — code_builder-based injection context.
+export 'src/dda/models/zorphy_context.dart';
+
+/// ZorphyDecoratorPlugin — abstract plugin contract.
+export 'src/dda/compiler/zorphy_decorator_plugin.dart';
+
+/// ASTScanner — finds @DecoratorName() across the project.
+export 'src/dda/compiler/ast_scanner.dart';
+
+/// PluginDiscovery — loads plugins from pubspec.yaml.
+export 'src/dda/compiler/plugin_discovery.dart';
+
+/// DecoratorDispatcher — routes annotations to handlers.
+export 'src/dda/compiler/decorator_dispatcher.dart';
+
+/// BuildPipeline — 6-stage build orchestrator.
+export 'src/dda/compiler/build_pipeline.dart';
+
+// ============================================================
 // Framework Configuration
 // ============================================================
 
