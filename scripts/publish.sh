@@ -1,5 +1,5 @@
 #!/bin/bash
-# Optimized publish script for zuraffa - compatible with Zed extensions
+# Publish script for zuraffa — clones zuraffa-zed repo to update WASM extension
 set -e
 
 VERSION="$1"
@@ -40,76 +40,63 @@ else
 fi
 
 # ============================================================
-# Step 2: Update zuraffa-zed submodule FIRST
-# (must happen before main repo commit so the submodule pointer is correct)
+# Step 2: Update zuraffa-zed extension (standalone clone)
+# Must happen before main repo commit so we can reference the new SHA
 # ============================================================
-ZED_SUBMODULE_DIR="$PACKAGE_DIR/extensions/zed"
-if [ -e "$ZED_SUBMODULE_DIR/.git" ]; then
-    echo "📝 Updating zuraffa-zed extension submodule..."
-    cd "$ZED_SUBMODULE_DIR"
+ZED_REPO="git@github.com:arrrrny/zuraffa-zed.git"
+ZED_CLONE_DIR="$(mktemp -d)"
 
-    # Ensure submodule is on master with the latest remote commits
-    git checkout master 2>/dev/null || git checkout -b master origin/master 2>/dev/null || true
+echo "📝 Cloning zuraffa-zed extension repo..."
+git clone --depth=1 "$ZED_REPO" "$ZED_CLONE_DIR"
+cd "$ZED_CLONE_DIR"
 
-    # Use fetch + reset instead of pull --rebase to guarantee clean state
-    git fetch origin master
-    CURRENT_REMOTE=$(git rev-parse origin/master)
-    CURRENT_LOCAL=$(git rev-parse HEAD)
-    if [ "$CURRENT_REMOTE" != "$CURRENT_LOCAL" ]; then
-        echo "⚠️  Submodule is behind origin/master, resetting to remote..."
-        git reset --hard origin/master
-    fi
-
-    # Update version in extension.toml and Cargo.toml
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" extension.toml
-        sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
-    else
-        sed -i "s/^version = \".*\"/version = \"$VERSION\"/" extension.toml
-        sed -i "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
-    fi
-
-    # Update CHANGELOG if exists
-    if [ -f CHANGELOG.md ]; then
-        if ! grep -q "^## \[$VERSION\]" CHANGELOG.md 2>/dev/null; then
-            awk -v version="$VERSION" -v date="$DATE" '
-            BEGIN { print "## [" version "] - " date "\n\n### Changed\n- Updated to version " version "\n" }
-            { print }
-            ' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
-            git add CHANGELOG.md
-        fi
-    fi
-
-    # Rebuild WASM binary
-    echo "🔨 Rebuilding Zed extension WASM binary..."
-    cargo build --target wasm32-wasip1 --release
-    cp target/wasm32-wasip1/release/mcp_server_zuraffa.wasm extension.wasm
-
-    # Commit and push submodule changes
-    git add extension.toml Cargo.toml extension.wasm CHANGELOG.md
-    if [ -n "$(git status --porcelain)" ]; then
-        git commit -m "chore: update version to $VERSION"
-    else
-        echo "ℹ️  No changes to commit in zuraffa-zed"
-    fi
-
-    # Capture the new submodule commit SHA for logging
-    SUBMOD_NEW_SHA=$(git rev-parse HEAD)
-
-    # Push submodule branch
-    git push origin HEAD:refs/heads/master
-
-    # Create and push tag for the zuraffa-zed repo (triggers CI release + extension PR)
-    echo "📤 Pushing zuraffa-zed tag v$VERSION..."
-    git tag -f -a "v$VERSION" -m "Release $VERSION"
-    git push origin "v$VERSION" --force
-
-    cd "$PACKAGE_DIR"
-
-    # Stage the updated submodule pointer so it goes into the main release commit
-    git add extensions/zed
-    echo "   zuraffa-zed submodule pinned to: $SUBMOD_NEW_SHA"
+# Update version in extension.toml and Cargo.toml
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" extension.toml
+    sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
+else
+    sed -i "s/^version = \".*\"/version = \"$VERSION\"/" extension.toml
+    sed -i "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
 fi
+
+# Update CHANGELOG if exists
+if [ -f CHANGELOG.md ]; then
+    if ! grep -q "^## \[$VERSION\]" CHANGELOG.md 2>/dev/null; then
+        awk -v version="$VERSION" -v date="$DATE" '
+        BEGIN { print "## [" version "] - " date "\n\n### Changed\n- Updated to version " version "\n" }
+        { print }
+        ' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
+        git add CHANGELOG.md
+    fi
+fi
+
+# Rebuild WASM binary
+echo "🔨 Rebuilding Zed extension WASM binary..."
+cargo build --target wasm32-wasip1 --release
+cp target/wasm32-wasip1/release/mcp_server_zuraffa.wasm extension.wasm
+
+# Commit and push changes
+git add extension.toml Cargo.toml extension.wasm CHANGELOG.md
+if [ -n "$(git status --porcelain)" ]; then
+    git commit -m "chore: update version to $VERSION"
+else
+    echo "ℹ️  No changes to commit in zuraffa-zed"
+fi
+
+# Capture the new SHA
+ZED_NEW_SHA=$(git rev-parse HEAD)
+
+# Push to master
+git push origin HEAD:refs/heads/master
+
+# Create and push tag
+echo "📤 Pushing zuraffa-zed tag v$VERSION..."
+git tag -f -a "v$VERSION" -m "Release $VERSION"
+git push origin "v$VERSION" --force
+
+cd "$PACKAGE_DIR"
+rm -rf "$ZED_CLONE_DIR"
+echo "   zuraffa-zed pinned to: $ZED_NEW_SHA"
 
 # ============================================================
 # Step 3: Commit and push main repo (now includes correct submodule pointer)

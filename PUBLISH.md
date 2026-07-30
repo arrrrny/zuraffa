@@ -30,6 +30,7 @@
 ## Notes
 
 - The publish script auto-detects the CHANGELOG entry — skip it if already updated
-- Zed extension submodule is at `extensions/zed/` — pushes to `zuraffa-zed` repo master
+- Zed extension is maintained in a separate repo (`arrrrny/zuraffa-zed`) — the publish script clones it, updates version/WASM, and pushes
 - WASM binary is rebuilt during publish for the zuraffa Zed extension
 - GitHub Actions handles binary builds for all platforms after tag push
+- The release workflow (`release.yml`) also updates the extension in `arrrrny/extensions` (fork of `zed-industries/extensions`) via `huacnlee/zed-extension-action`
