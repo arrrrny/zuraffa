@@ -661,7 +661,10 @@ class ApiBridgeBuilder {
         lastClose != -1 &&
         lastClose > firstOpen &&
         lastClose == trimmed.length - 1) {
-      return trimmed.substring(firstOpen + 1, lastClose).trim();
+      final inner = trimmed.substring(firstOpen + 1, lastClose).trim();
+      // Only a simple identifier can form `<Entity>Fields` in generated
+      // handlers — nested generics/nullables would emit uncompilable code.
+      if (RegExp(r'^\w+$').hasMatch(inner)) return inner;
     }
 
     return trimmed;
