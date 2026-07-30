@@ -72,27 +72,24 @@ class StreamToSignalResultAdapter<T> {
   /// [SignalResult.fromFuture] or native signals instead.
   static SignalResult<T> adapt<T>(Stream<Result<T, AppFailure>> stream) {
     final sr = SignalResult<T>.initial(LoadingResult<T, AppFailure>.loading());
-    late final StreamSubscription<Result<T, AppFailure>> sub;
+    _DisposableSignalResult<T>? wrapper;
 
-    sub = stream.listen(
+    final sub = stream.listen(
       (result) => sr.emit(result),
-      onError: (Object e, StackTrace st) =>
-          sr.emitFailure(_mapException(e, st)),
+      onError: (Object e, StackTrace st) {
+        sr.emitFailure(AppFailure.from(e, st));
+        wrapper?.dispose();
+      },
       onDone: () {
-        // If stream completed without emitting success, mark as unknown failure
         if (!sr.isSuccess && !sr.isFailure) {
           sr.emitFailure(UnknownFailure('Stream completed without result'));
         }
+        wrapper?.dispose();
       },
     );
 
-    // Return a disposable wrapper that cancels the stream sub on dispose.
-    return _DisposableSignalResult(sr, sub);
-  }
-
-  static AppFailure _mapException(Object error, StackTrace? stack) {
-    if (error is AppFailure) return error;
-    return UnknownFailure(error.toString());
+    wrapper = _DisposableSignalResult(sr, sub);
+    return wrapper;
   }
 }
 

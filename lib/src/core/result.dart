@@ -312,15 +312,15 @@ class LoadingResult<S, F> extends Result<S, F> {
 
   @override
   Result<T, F> map<T>(T Function(S value) transform) =>
-      LoadingResult<T, F>.loading();
+      _idle ? LoadingResult<T, F>.idle() : LoadingResult<T, F>.loading();
 
   @override
   Result<S, T> mapFailure<T>(T Function(F error) transform) =>
-      LoadingResult<S, T>.loading();
+      _idle ? LoadingResult<S, T>.idle() : LoadingResult<S, T>.loading();
 
   @override
   Result<T, F> flatMap<T>(Result<T, F> Function(S value) transform) =>
-      LoadingResult<T, F>.loading();
+      _idle ? LoadingResult<T, F>.idle() : LoadingResult<T, F>.loading();
 
   @override
   S getOrElse(S Function() defaultValue) => defaultValue();

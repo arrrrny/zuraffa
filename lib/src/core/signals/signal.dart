@@ -60,7 +60,8 @@ class Signal<T> implements ReadonlySignal<T> {
   @override
   Signal<R> map<R>(R Function(T value) transform, {bool autoDispose = true}) {
     final derived = Signal<R>(transform(_value));
-    listen((v) => derived.value = transform(v));
+    final sub = listen((v) => derived.value = transform(v));
+    derived._onDispose(() => sub.cancel());
     if (autoDispose) {
       _onDispose(() => derived.dispose());
     }
@@ -75,8 +76,12 @@ class Signal<T> implements ReadonlySignal<T> {
   ) {
     final derived = Signal<R>(combiner(s1._value, s2._value));
     void sync() => derived.value = combiner(s1._value, s2._value);
-    s1.listen((_) => sync());
-    s2.listen((_) => sync());
+    final sub1 = s1.listen((_) => sync());
+    final sub2 = s2.listen((_) => sync());
+    derived._onDispose(() {
+      sub1.cancel();
+      sub2.cancel();
+    });
     return derived;
   }
 

@@ -109,14 +109,13 @@ void main() {
       expect(log2, ['a', 'b']);
     });
 
-    test('concurrent reads are safe', () {
+    test('reads remain consistent across interleaved async access', () async {
       final s = Signal<int>(0);
       final results = <int>[];
 
-      // Simulate 100 concurrent reads
-      for (var i = 0; i < 100; i++) {
-        results.add(s.value);
-      }
+      await Future.wait([
+        for (var i = 0; i < 100; i++) Future(() => results.add(s.value)),
+      ]);
 
       expect(results.every((v) => v == 0), true);
     });
@@ -297,13 +296,14 @@ void main() {
       );
 
       expect(result.isLoading, true);
+      expect(useCase.lastContext?.traceId, 'abc-123');
     });
 
     test('use case default context is noop', () {
       final useCase = _TestUseCase();
       // Should compile and run without explicit context
-      final result = useCase.call(_TestParams(1));
-      expect(result, isNotNull);
+      useCase.call(_TestParams(1));
+      expect(useCase.lastContext, isNull);
     });
   });
 
@@ -364,6 +364,7 @@ void main() {
       // If listeners leaked, this would retain 1000 closures.
       // Test passes if dispose runs without error.
       expect(s.isDisposed, true);
+      expect(() => s.value = 1, throwsStateError);
     });
 
     test('SignalResult disposal cleans up internal signal', () {
@@ -375,6 +376,7 @@ void main() {
       // After disposal, the internal signal is disposed.
       // Any further interaction should throw or be safe.
       expect(sr.isDisposed, true);
+      expect(() => sr.value, throwsStateError);
     });
 
     test('derived signals dispose with parent when autoDispose', () {
@@ -397,8 +399,11 @@ class _TestParams {
 }
 
 class _TestUseCase extends ZuraffaUseCase<_TestParams, int> {
+  ZuraffaContext? lastContext;
+
   @override
   SignalResult<int> call(_TestParams params, {ZuraffaContext? context}) {
+    lastContext = context;
     final sr = SignalResult<int>.initial(
       const LoadingResult<int, AppFailure>.loading(),
     );

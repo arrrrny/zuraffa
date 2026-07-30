@@ -22,17 +22,22 @@ void main() async {
   // ── Benchmark 2: Stream read (O(N) with listener overhead) ──
   final controller = StreamController<int>.broadcast();
   final stream = controller.stream;
-  stream.listen((_) {});
+  final warmupSub = stream.listen((_) {});
   controller.add(42);
   await Future.delayed(Duration.zero); // let listener process
+  warmupSub.cancel();
 
   final sw2 = Stopwatch()..start();
+  final benchSubs = <StreamSubscription<int>>[];
   for (var i = 0; i < iterations; i++) {
     // To read a stream's current value, you need a listener + buffer.
     // This simulates the overhead: creating a new listener each time.
-    stream.listen((_) {});
+    benchSubs.add(stream.listen((_) {}));
   }
   sw2.stop();
+  for (final sub in benchSubs) {
+    sub.cancel();
+  }
   print(
     'Stream listener creation ($iterations iterations): ${sw2.elapsedMicroseconds} µs',
   );
@@ -92,5 +97,7 @@ void main() async {
     print('  → Total notifications: $notifications\n');
   }
 
+  // Cleanup
+  await controller.close();
   print('=== End Benchmark ===');
 }

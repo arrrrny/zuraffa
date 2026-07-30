@@ -53,7 +53,7 @@ class SignalResult<T> {
         sr._signal.value = Success<T, AppFailure>(v);
       },
       onError: (e, st) {
-        sr._signal.value = Failure<T, AppFailure>(_mapException(e, st));
+        sr._signal.value = Failure<T, AppFailure>(AppFailure.from(e, st));
       },
     );
     return sr;
@@ -72,8 +72,11 @@ class SignalResult<T> {
   /// Current error if [Failure], otherwise `null`.
   AppFailure? get error => _signal.value.getFailureOrNull();
 
-  /// Whether the current state is loading.
-  bool get isLoading => _signal.value is LoadingResult<T, AppFailure>;
+  /// Whether the current state is actively loading (not idle).
+  bool get isLoading {
+    final v = _signal.value;
+    return v is LoadingResult<T, AppFailure> && !v.isIdle;
+  }
 
   /// Whether the current state is a success.
   bool get isSuccess => _signal.value.isSuccess;
@@ -155,15 +158,24 @@ class SignalResult<T> {
   }
 
   /// Flat-map: chain another async operation on success.
+  /// The previous inner subscription is cancelled before binding a new one.
   SignalResult<R> flatMap<R>(SignalResult<R> Function(T value) transform) {
     final out = SignalResult<R>.initial(LoadingResult<R, AppFailure>.idle());
-    listen((r) {
+    SignalSubscription? innerSub;
+
+    final parentSub = listen((r) {
       if (r is Success<T, AppFailure>) {
-        final next = transform(r.value);
-        out._bind(next);
+        innerSub?.cancel();
+        innerSub = transform(r.value).listen((nr) => out.emit(nr));
       } else if (r is Failure<T, AppFailure>) {
+        innerSub?.cancel();
         out.emitFailure(r.error);
       }
+    });
+
+    out._disposables.add(() {
+      parentSub.cancel();
+      innerSub?.cancel();
     });
     return out;
   }
@@ -171,18 +183,17 @@ class SignalResult<T> {
   // ── Lifecycle ──
 
   /// Dispose this [SignalResult] and release all listeners.
-  void dispose() => _signal.dispose();
+  void dispose() {
+    for (final fn in _disposables) {
+      fn();
+    }
+    _disposables.clear();
+    _signal.dispose();
+  }
 
   bool get isDisposed => _signal.isDisposed;
 
-  // ── Internal helpers ──
+  // ── Internal state ──
 
-  void _bind(SignalResult<T> other) {
-    other.listen((r) => emit(r));
-  }
-
-  static AppFailure _mapException(Object error, StackTrace? stack) {
-    if (error is AppFailure) return error;
-    return UnknownFailure(error.toString());
-  }
+  final List<void Function()> _disposables = [];
 }
