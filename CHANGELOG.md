@@ -1,3 +1,8 @@
+## [5.7.0] - 2026-07-30
+
+### Change
+- MCP tools now execute commands (fixes #150); new zuraffa_setup tool; Process.start timeout fix; api_bridge_builder code_builder refactor
+
 ## [5.6.2] - 2026-07-21
 
 ### Changed
