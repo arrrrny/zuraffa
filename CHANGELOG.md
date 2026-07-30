@@ -1,3 +1,8 @@
+## [5.7.1] - 2026-07-30
+
+### Change
+- MCP tools now execute CLI commands (fixes #150, #160); zuraffa_setup tool; config_init dependency report; Process.start timeout fix
+
 ## [5.6.2] - 2026-07-21
 
 ### Changed
