@@ -26,3 +26,5 @@ coverage/
 *.log
 .env*
 codedb*
+patches
+contracts
