@@ -35,6 +35,9 @@ abstract class ControlledWidget<C> extends StatefulWidget {
   /// Override to clean up subscriptions or timers.
   void onDispose() {}
 
+  /// Subclasses build their UI here, using [controller].
+  Widget build(BuildContext context);
+
   @override
   State<ControlledWidget<C>> createState() => _ControlledWidgetState<C>();
 }
@@ -54,8 +57,6 @@ class _ControlledWidgetState<C> extends State<ControlledWidget<C>> {
 
   @override
   Widget build(BuildContext context) {
-    // Subclasses override build() via the abstract widget's build method.
-    // This is a fallback that should never be called.
-    throw UnimplementedError('Subclasses must override build()');
+    return widget.build(context);
   }
 }

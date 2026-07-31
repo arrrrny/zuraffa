@@ -37,13 +37,7 @@ class _FragmentBuilderState<T> extends State<FragmentBuilder<T>> {
   T? _data;
   AppFailure? _error;
   bool _isLoading = true;
-  late final _subscription = widget.slice.listen((data, err) {
-    setState(() {
-      _data = data;
-      _error = err;
-      _isLoading = widget.slice.isLoading && data == null;
-    });
-  });
+  SignalSubscription? _subscription;
 
   @override
   void initState() {
@@ -51,11 +45,37 @@ class _FragmentBuilderState<T> extends State<FragmentBuilder<T>> {
     _data = widget.slice.data;
     _error = widget.slice.error;
     _isLoading = widget.slice.isLoading && _data == null;
+    _attachSubscription();
+  }
+
+  @override
+  void didUpdateWidget(FragmentBuilder<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // If the parent swapped the slice (new key or params), drop the old
+    // subscription and subscribe to the new slice.
+    if (!identical(oldWidget.slice, widget.slice)) {
+      _subscription?.cancel();
+      _data = widget.slice.data;
+      _error = widget.slice.error;
+      _isLoading = widget.slice.isLoading && _data == null;
+      _attachSubscription();
+    }
+  }
+
+  void _attachSubscription() {
+    _subscription = widget.slice.listen((data, err) {
+      if (!mounted) return;
+      setState(() {
+        _data = data;
+        _error = err;
+        _isLoading = widget.slice.isLoading && data == null;
+      });
+    });
   }
 
   @override
   void dispose() {
-    _subscription.cancel();
+    _subscription?.cancel();
     super.dispose();
   }
 

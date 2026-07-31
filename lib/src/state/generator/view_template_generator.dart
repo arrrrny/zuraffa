@@ -1,7 +1,8 @@
-import 'dart:io';
 import 'package:code_builder/code_builder.dart' as cb;
 import 'package:dart_style/dart_style.dart';
 import 'package:path/path.dart' as p;
+
+import 'generator_utils.dart';
 
 /// Generates `zfa make`-style view templates using `ControlledWidget`,
 /// `FragmentBuilder`, and `SignalBuilder`.
@@ -24,17 +25,18 @@ class ViewTemplateGenerator {
     String name, {
     required List<String> useCases,
     List<String> uiSignals = const ['isLoading', 'activeTabIndex'],
+    Map<String, String> uiSignalTypes = const {},
   }) {
     final className = '${name}View';
     final presenterName = '${name}Presenter';
-    final fileName = '${_snakeCase(name)}_view.dart';
+    final fileName = '${snakeCase(name)}_view.dart';
     final filePath = p.join(outputDir, fileName);
 
     final library = cb.Library((b) {
       b.directives.add(cb.Directive.import('package:flutter/material.dart'));
       b.directives.add(cb.Directive.import('package:zuraffa/zuraffa.dart'));
       b.directives.add(
-        cb.Directive.import('${_snakeCase(name)}_presenter.dart'),
+        cb.Directive.import('${snakeCase(name)}_presenter.dart'),
       );
 
       b.body.add(
@@ -46,7 +48,10 @@ class ViewTemplateGenerator {
               cb.Constructor((ctor) {
                 ctor
                   ..constant = true
-                  ..requiredParameters.add(
+                  // code_builder renders named parameters from
+                  // optionalParameters; named entries in requiredParameters
+                  // would emit invalid positional syntax.
+                  ..optionalParameters.add(
                     cb.Parameter((p) {
                       p
                         ..name = 'key'
@@ -55,12 +60,13 @@ class ViewTemplateGenerator {
                         ..toSuper = true;
                     }),
                   )
-                  ..requiredParameters.add(
+                  ..optionalParameters.add(
                     cb.Parameter((p) {
                       p
                         ..name = 'controller'
                         ..type = cb.refer(presenterName)
                         ..named = true
+                        ..required = true
                         ..toSuper = true;
                     }),
                   );
@@ -76,13 +82,10 @@ class ViewTemplateGenerator {
                 ..annotations.add(cb.refer('override'))
                 ..body = cb.Block((bl) {
                   for (final uc in useCases) {
-                    bl.addExpression(
-                      cb
-                          .refer('controller.domain.slice')
-                          .call([], {}, [cb.refer('dynamic')])
-                          .property(uc)
-                          .property('refresh')
-                          .call([]),
+                    // slice(key) takes the use-case name as its string key;
+                    // refresh() on the nullable return is guarded with `?.`.
+                    bl.statements.add(
+                      cb.Code("controller.domain.slice('$uc')?.refresh();"),
                     );
                   }
                 });
@@ -139,7 +142,9 @@ class ViewTemplateGenerator {
                   if (uiSignals.isNotEmpty) {
                     bl.statements.add(cb.Code('      // UI signals'));
                     for (final signal in uiSignals) {
-                      bl.statements.add(cb.Code('      SignalBuilder<bool>('));
+                      final type =
+                          uiSignalTypes[signal] ?? _defaultUiSignalType(signal);
+                      bl.statements.add(cb.Code('      SignalBuilder<$type>('));
                       bl.statements.add(
                         cb.Code("        signal: controller.view.$signal,"),
                       );
@@ -167,26 +172,24 @@ class ViewTemplateGenerator {
     var formatted = raw;
     try {
       formatted = _formatter.format(raw);
-    } on Exception {
-      // Fallback: unformatted code is better than a crash.
+    } on FormatterException {
+      // Fallback: unformatted code is better than a crash. Narrow the catch
+      // to FormatterException so unrelated generator bugs surface instead of
+      // silently writing invalid output.
     }
 
-    _writeFile(filePath, formatted);
+    writeFile(filePath, formatted);
     return filePath;
   }
 
-  void _writeFile(String path, String content) {
-    final file = File(path);
-    file.createSync(recursive: true);
-    file.writeAsStringSync(content);
-  }
-
-  String _snakeCase(String name) {
-    return name
-        .replaceAllMapped(
-          RegExp(r'[A-Z]'),
-          (m) => '_${m.group(0)!.toLowerCase()}',
-        )
-        .replaceFirst(RegExp(r'^_'), '');
+  /// Default signal types matching the [ViewStateField] defaults used by
+  /// [StateGenerator.generateViewState]; unknown signals default to
+  /// `dynamic` so `SignalBuilder<dynamic>` remains assignable to any signal.
+  static String _defaultUiSignalType(String signal) {
+    return switch (signal) {
+      'isLoading' => 'bool',
+      'activeTabIndex' => 'int',
+      _ => 'dynamic',
+    };
   }
 }

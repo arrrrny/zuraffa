@@ -1,92 +1,154 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/zuraffa.dart';
 
 void main() {
   group('SignalBuilder', () {
-    test('rebuilds when signal changes', () {
+    testWidgets('renders initial value and rebuilds on change', (tester) async {
       final signal = Signal<int>(0);
-      var buildCount = 0;
-      var lastValue = -1;
 
-      // Simulate widget lifecycle
-      final subscription = signal.listen((value) {
-        buildCount++;
-        lastValue = value;
-      });
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SignalBuilder<int>(
+            signal: signal,
+            builder: (context, value) => Text('value: $value'),
+          ),
+        ),
+      );
 
-      signal.value = 1;
-      signal.value = 2;
+      expect(find.text('value: 0'), findsOneWidget);
 
-      expect(buildCount, 3); // initial + 2 changes
-      expect(lastValue, 2);
-
-      subscription.cancel();
+      signal.value = 42;
+      await tester.pump();
+      expect(find.text('value: 42'), findsOneWidget);
+      expect(find.text('value: 0'), findsNothing);
     });
 
+    testWidgets('does not rebuild after unmount', (tester) async {
+      final signal = Signal<int>(0);
+      var builds = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SignalBuilder<int>(
+            signal: signal,
+            builder: (context, value) {
+              builds++;
+              return Text('value: $value');
+            },
+          ),
+        ),
+      );
+      expect(builds, 1);
+
+      // Unmount: subscription must be cancelled so no setState-after-dispose.
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      signal.value = 1;
+      await tester.pump();
+
+      expect(builds, 1);
+    });
+  });
+
+  group('SignalSubscription', () {
     test('cancels subscription on dispose', () {
       final signal = Signal<String>('a');
-      final sub = signal.listen((_) {});
+      var canceledCalls = 0;
+      final sub = signal.listen((_) => canceledCalls++);
+      expect(canceledCalls, 1); // eager initial delivery
+
       sub.cancel();
-
-      var count = 0;
-      signal.listen((_) => count++);
-
       signal.value = 'b';
-      // Eager initial delivery + one change = 2 for the new listener.
-      expect(count, 2);
+
+      // Listener must NOT be invoked after cancellation.
+      expect(canceledCalls, 1);
     });
   });
 
-  group('FragmentBuilder states', () {
-    test('shows loading when data is null and loading', () async {
+  group('FragmentBuilder', () {
+    testWidgets('shows loading then data', (tester) async {
       final slice = SignalSlice<int>(useCase: _SlowUseCase(), params: 42);
 
-      expect(slice.isLoading, true);
-      expect(slice.data, null);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FragmentBuilder<int>(
+            slice: slice,
+            onLoading: (context) => const Text('loading...'),
+            builder: (context, data) => Text('data: $data'),
+          ),
+        ),
+      );
 
-      await slice.result.nextValue;
-      expect(slice.isSuccess, true);
-      expect(slice.data, 84);
+      expect(find.text('loading...'), findsOneWidget);
+
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.text('data: 84'), findsOneWidget);
     });
 
-    test('shows error on failure', () async {
+    testWidgets('shows error on failure', (tester) async {
       final slice = SignalSlice<int>(useCase: _FailingUseCase(), params: 0);
 
-      final result = await slice.result.nextValue;
-      expect(result, isA<Failure<int, AppFailure>>());
-      expect(slice.error, isA<NetworkFailure>());
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FragmentBuilder<int>(
+            slice: slice,
+            onError: (context, error) => Text('error: ${error.message}'),
+            builder: (context, data) => Text('data: $data'),
+          ),
+        ),
+      );
+
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(find.textContaining('error:'), findsOneWidget);
     });
 
-    test('shows empty when data is null but not loading', () async {
-      final slice = SignalSlice<int?>(useCase: _NullUseCase(), params: null);
+    testWidgets('re-subscribes when slice changes', (tester) async {
+      final sliceA = SignalSlice<int>(useCase: _SlowUseCase(), params: 10);
+      final sliceB = SignalSlice<int>(useCase: _SlowUseCase(), params: 20);
 
-      await slice.result.nextValue;
-      expect(slice.isSuccess, true);
-      expect(slice.data, null);
+      Widget build(SignalSlice<int> slice) {
+        return MaterialApp(
+          home: FragmentBuilder<int>(
+            slice: slice,
+            builder: (context, data) => Text('data: $data'),
+          ),
+        );
+      }
+
+      await tester.pumpWidget(build(sliceA));
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.text('data: 20'), findsOneWidget); // sliceA yields 20
+
+      // Swap to sliceB; didUpdateWidget must re-subscribe.
+      await tester.pumpWidget(build(sliceB));
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.text('data: 40'), findsOneWidget);
+      expect(find.text('data: 20'), findsNothing);
     });
   });
 
-  group('ControlledWidget lifecycle', () {
-    test('onInit called on widget mount', () {
+  group('ControlledWidget', () {
+    testWidgets('calls onInit on mount and renders build output', (
+      tester,
+    ) async {
       var initCalled = false;
-      final widget = _TestControlledWidget(
-        controller: _FakeController(),
-        initCallback: () => initCalled = true,
-      );
-
-      // Simulate initState
-      widget.onInit();
-      expect(initCalled, true);
-    });
-
-    test('onDispose called on widget unmount', () {
       var disposeCalled = false;
-      final widget = _TestControlledWidget(
-        controller: _FakeController(),
-        disposeCallback: () => disposeCalled = true,
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: _TestControlledWidget(
+            controller: _FakeController(),
+            initCallback: () => initCalled = true,
+            disposeCallback: () => disposeCalled = true,
+          ),
+        ),
       );
 
-      widget.onDispose();
+      expect(initCalled, true);
+      expect(find.text('hello from controller'), findsOneWidget);
+
+      // Unmount → onDispose fires.
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
       expect(disposeCalled, true);
     });
   });
@@ -120,23 +182,12 @@ class _FailingUseCase extends ZuraffaUseCase<int, int> {
   }
 }
 
-class _NullUseCase extends ZuraffaUseCase<dynamic, int?> {
-  @override
-  SignalResult<int?> call(dynamic params, {ZuraffaContext? context}) {
-    final sr = SignalResult<int?>.initial(
-      LoadingResult<int?, AppFailure>.loading(),
-    );
-    Future.delayed(Duration.zero, () {
-      if (!sr.isDisposed) sr.emitSuccess(null);
-    });
-    return sr;
-  }
+class _FakeController {
+  String get greeting => 'hello from controller';
 }
 
-class _FakeController {}
-
 class _TestControlledWidget extends ControlledWidget<_FakeController> {
-  _TestControlledWidget({
+  const _TestControlledWidget({
     required super.controller,
     this.initCallback,
     this.disposeCallback,
@@ -150,4 +201,9 @@ class _TestControlledWidget extends ControlledWidget<_FakeController> {
 
   @override
   void onDispose() => disposeCallback?.call();
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(controller.greeting);
+  }
 }

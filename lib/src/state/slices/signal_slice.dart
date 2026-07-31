@@ -33,6 +33,11 @@ class SignalSlice<T> {
   /// Registered listeners with their current result subscription.
   final List<_SliceListener<T>> _listeners = [];
 
+  /// Cache subscriptions created via [CacheBinding.bindCache]; cancelled
+  /// when the slice is disposed so disposed slices do not keep callbacks
+  /// registered on the type-level cache stream.
+  final List<SignalSubscription> _cacheSubscriptions = [];
+
   // ── Lazy execution ──
 
   /// The underlying [SignalResult]. Lazily created on first access.
@@ -99,6 +104,14 @@ class SignalSlice<T> {
     _reattachListeners();
   }
 
+  /// Registers a subscription to be cancelled when this slice is disposed.
+  ///
+  /// Used by [CacheBinding.bindCache] so disposed slices do not keep
+  /// callbacks registered on the type-level cache stream.
+  void trackCacheSubscription(SignalSubscription sub) {
+    _cacheSubscriptions.add(sub);
+  }
+
   // ── Lifecycle ──
 
   void dispose() {
@@ -108,6 +121,10 @@ class SignalSlice<T> {
       listener.subscription?.cancel();
     }
     _listeners.clear();
+    for (final sub in _cacheSubscriptions) {
+      sub.cancel();
+    }
+    _cacheSubscriptions.clear();
     _result?.dispose();
     _result = null;
   }

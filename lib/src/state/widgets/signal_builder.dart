@@ -25,14 +25,24 @@ class SignalBuilder<T> extends StatefulWidget {
 }
 
 class _SignalBuilderState<T> extends State<SignalBuilder<T>> {
-  late T _value = widget.signal.value;
-  late final _subscription = widget.signal.listen((value) {
-    setState(() => _value = value);
-  });
+  late T _value;
+  SignalSubscription? _subscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _value = widget.signal.value;
+    // Subscribe eagerly — a `late final` initializer would only run on the
+    // first read (in dispose), so updates would never rebuild the widget.
+    _subscription = widget.signal.listen((value) {
+      if (!mounted) return;
+      setState(() => _value = value);
+    });
+  }
 
   @override
   void dispose() {
-    _subscription.cancel();
+    _subscription?.cancel();
     super.dispose();
   }
 

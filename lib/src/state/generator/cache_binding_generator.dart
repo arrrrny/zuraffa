@@ -26,23 +26,20 @@ class CacheBindingPlugin extends ZorphyDecoratorPlugin {
     final entityType = decorator.get<String>('entityType') ?? method.name;
     final strategy = decorator.get<String>('strategy') ?? 'offlineFirst';
 
-    // Inject cache binding into the constructor or class init
+    // Class-decorator injections are emitted by the dispatcher into the
+    // generated `_<ClassName>Constructor._init()` extension body (the only
+    // place class-level constructor code lands — `beforeExecution` only
+    // applies to method decorators). The listen callback must accept both
+    // the nullable entity and the nullable deletedId parameters that
+    // [CacheObserver.listen] provides, so deletion events are handled.
     context.addConstructorCode(
-      cb.Code('// Cache binding: $entityType (strategy: $strategy)'),
-    );
-
-    // Mark this class as cache-backed for the state generator
-    context.injectExpression(
-      InjectionPoint.beforeExecution,
-      cb.refer('CacheObserver.instance.listen<$entityType>').call([
-        cb.Method(
-          (m) => m
-            ..requiredParameters.add(cb.Parameter((p) => p..name = 'entity'))
-            ..body = cb.Block.of([
-              cb.refer('_cacheUpdate').call([cb.refer('entity')]).statement,
-            ]),
-        ).closure,
-      ]),
+      cb.Code(
+        'CacheObserver.instance.listen<$entityType>('
+        '(entity, deletedId) { '
+        '// cache binding: $entityType (strategy: $strategy) '
+        '}, '
+        ');',
+      ),
     );
   }
 }

@@ -1,7 +1,5 @@
 import 'package:zuraffa/zuraffa.dart';
 
-import 'cache_observer.dart';
-
 /// Binds a [SignalSlice<T>] to the [CacheObserver] for automatic
 /// cross-view state synchronization.
 ///
@@ -24,7 +22,7 @@ extension CacheBinding<T> on SignalSlice<T> {
   /// The subscription is automatically cancelled when the slice
   /// is disposed.
   SignalSubscription bindCache() {
-    return CacheObserver.instance.listen<T>((entity, deletedId) {
+    final sub = CacheObserver.instance.listen<T>((entity, deletedId) {
       // Ignore cache events after the slice has been disposed.
       if (isDisposed) return;
       if (deletedId != null) {
@@ -36,6 +34,9 @@ extension CacheBinding<T> on SignalSlice<T> {
         result.emitSuccess(entity);
       }
     });
+    // Retain the subscription so [SignalSlice.dispose] cancels it.
+    trackCacheSubscription(sub);
+    return sub;
   }
 }
 
