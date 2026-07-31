@@ -21,6 +21,13 @@ abstract class ZorphyDecoratorPlugin {
   /// The decorator name this plugin handles, without the `@` prefix.
   String get targetDecorator;
 
+  /// All decorator names this plugin handles, without the `@` prefix.
+  ///
+  /// Defaults to just [targetDecorator]. Override to handle multiple
+  /// decorator names (e.g. a plugin that processes both `@Datasource`
+  /// and `@Repository`).
+  List<String> get targetDecorators => [targetDecorator];
+
   /// Priority for ordering when multiple plugins target the same method.
   ///
   /// Higher values → applied later → outermost wrapper.
@@ -43,7 +50,9 @@ class ZorphyPluginRegistry {
   static final Map<String, ZorphyDecoratorPlugin> _plugins = {};
 
   static void register(ZorphyDecoratorPlugin plugin) {
-    _plugins[plugin.targetDecorator] = plugin;
+    for (final name in plugin.targetDecorators) {
+      _plugins[name] = plugin;
+    }
   }
 
   static void registerAll(List<ZorphyDecoratorPlugin> plugins) {

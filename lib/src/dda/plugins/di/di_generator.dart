@@ -19,6 +19,7 @@ class DIGenerator {
       _datasources.isNotEmpty || _repositories.isNotEmpty;
 
   void addDatasource({
+    required String name,
     required String className,
     required String importUri,
     String? interfaceName,
@@ -29,6 +30,7 @@ class DIGenerator {
     if (!_matchesEnv(env)) return;
     _datasources.add(
       _DiRegistration(
+        name: name,
         className: className,
         importUri: importUri,
         interfaceName: interfaceName,
@@ -39,6 +41,7 @@ class DIGenerator {
   }
 
   void addRepository({
+    required String name,
     required String className,
     required String importUri,
     String? interfaceName,
@@ -46,6 +49,7 @@ class DIGenerator {
   }) {
     _repositories.add(
       _DiRegistration(
+        name: name,
         className: className,
         importUri: importUri,
         interfaceName: interfaceName,
@@ -103,20 +107,21 @@ class DIGenerator {
     final namedArgs = <String, cb.Expression>{};
     for (final param in reg.constructorParams) {
       if (param.isNamed) {
-        namedArgs[param.name] = cb.refer('container').property('resolve').call(
-          [],
-          {},
-          [cb.refer(param.type)],
-        );
+        namedArgs[param.name] = cb
+            .refer('ZuraffaContainer.instance')
+            .property('resolve')
+            .call([], {}, [cb.refer(param.type)]);
       }
     }
 
     final positionalArgs = reg.constructorParams
         .where((p) => !p.isNamed)
         .map(
-          (p) => cb.refer('container').property('resolve').call([], {}, [
-            cb.refer(p.type),
-          ]),
+          (p) => cb.refer('ZuraffaContainer.instance').property('resolve').call(
+            [],
+            {},
+            [cb.refer(p.type)],
+          ),
         )
         .toList();
 
@@ -141,6 +146,7 @@ class DIGenerator {
 
 class _DiRegistration {
   _DiRegistration({
+    required this.name,
     required this.className,
     required this.importUri,
     this.interfaceName,
@@ -148,6 +154,7 @@ class _DiRegistration {
     required this.constructorParams,
   });
 
+  final String name;
   final String className;
   final String importUri;
   final String? interfaceName;

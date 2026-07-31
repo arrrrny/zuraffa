@@ -10,13 +10,23 @@ import 'di_generator.dart';
 /// After the build, call [generateInjectionFile] to emit
 /// `lib/src/di/zuraffa_injection.g.dart`.
 class DIPlugin extends ZorphyDecoratorPlugin {
-  DIPlugin({this.targetEnv = '*'});
+  DIPlugin({this.targetEnv = '*', this.packageName = 'zuraffa'});
 
+  /// The active environment. Only datasources whose `env` includes
+  /// this value (or `*`) are registered.
   final String targetEnv;
-  final _generator = DIGenerator();
+
+  /// The package name used to build import URIs. Defaults to `zuraffa`.
+  final String packageName;
+
+  late final _generator = DIGenerator(targetEnv: targetEnv);
 
   @override
-  String get targetDecorator => 'Datasource'; // Also handles Repository via onApply
+  String get targetDecorator => 'Datasource';
+
+  /// Handles both `@Datasource` and `@Repository` annotations.
+  @override
+  List<String> get targetDecorators => const ['Datasource', 'Repository'];
 
   @override
   void onApply(
@@ -32,11 +42,12 @@ class DIPlugin extends ZorphyDecoratorPlugin {
     final constructorParams = _extractConstructorParams(method);
 
     if (decorator.name == 'Datasource') {
-      decorator.get<String>('name') ?? className;
+      final name = decorator.get<String>('name') ?? className;
       final scopeStr = decorator.get<String>('scope') ?? 'singleton';
       final env = _parseEnv(decorator.get<dynamic>('env'));
 
       _generator.addDatasource(
+        name: name,
         className: className,
         importUri: importUri,
         interfaceName: interfaceName,
@@ -45,9 +56,10 @@ class DIPlugin extends ZorphyDecoratorPlugin {
         constructorParams: constructorParams,
       );
     } else if (decorator.name == 'Repository') {
-      decorator.get<String>('name') ?? className;
+      final name = decorator.get<String>('name') ?? className;
 
       _generator.addRepository(
+        name: name,
         className: className,
         importUri: importUri,
         interfaceName: interfaceName,
@@ -69,7 +81,7 @@ class DIPlugin extends ZorphyDecoratorPlugin {
     if (libraryUri.contains('/lib/')) {
       final parts = libraryUri.split('/lib/');
       if (parts.length == 2) {
-        return 'package:zuraffa/${parts[1]}';
+        return 'package:$packageName/${parts[1]}';
       }
     }
     return libraryUri;
