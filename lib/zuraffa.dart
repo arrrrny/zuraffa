@@ -434,6 +434,18 @@ export 'src/state/widgets/fragment_builder.dart';
 // StateMigrator — converts v5 .state.dart to v6 slice pattern.
 export 'src/state/migration/state_migrator.dart';
 
+// DomainState — auto-generated read-only slice container.
+export 'src/state/domain_state.dart';
+
+// ViewState — developer-editable transient UI state.
+export 'src/state/view_state.dart';
+
+// DualLayerPresenter — strict domain/view state separation.
+export 'src/state/presenter/dual_layer_presenter.dart';
+
+// StateGenerator — code_builder-based generation with preservation.
+export 'src/state/generator/state_generator.dart';
+
 // ============================================================
 // Framework Configuration
 // ============================================================
