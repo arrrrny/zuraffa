@@ -27,19 +27,15 @@ class CacheBindingPlugin extends ZorphyDecoratorPlugin {
     final strategy = decorator.get<String>('strategy') ?? 'offlineFirst';
 
     // Class-decorator injections are emitted by the dispatcher into the
-    // generated `_<ClassName>Constructor._init()` extension body (the only
-    // place class-level constructor code lands — `beforeExecution` only
-    // applies to method decorators). The listen callback must accept both
-    // the nullable entity and the nullable deletedId parameters that
-    // [CacheObserver.listen] provides, so deletion events are handled.
+    // generated `_<ClassName>Constructor._init()` extension body. The actual
+    // cache binding (updates + deletes routed to a SignalSlice) is generated
+    // by the state generator as `..bindCache()` on the slice — the runtime
+    // CacheBinding extension — where a SignalSlice is in scope and the
+    // subscription can be retained and cancelled. Emitting a functional
+    // listener here would be dead code: there is no SignalSlice at the
+    // repository/datasource level to route events into.
     context.addConstructorCode(
-      cb.Code(
-        'CacheObserver.instance.listen<$entityType>('
-        '(entity, deletedId) { '
-        '// cache binding: $entityType (strategy: $strategy) '
-        '}, '
-        ');',
-      ),
+      cb.Code('// @Cacheable: $entityType (strategy: $strategy)'),
     );
   }
 }
