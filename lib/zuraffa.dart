@@ -463,6 +463,25 @@ export 'src/state/widgets/signal_builder.dart';
 export 'src/state/generator/view_template_generator.dart';
 
 // ============================================================
+// V6 GraphQL Core
+// ============================================================
+
+// GraphQLType — polymorphic GraphQL type hierarchy.
+export 'src/graphql/types/graphql_type.dart';
+
+// SchemaParser — two-pass introspection JSON parser.
+export 'src/graphql/schema/schema_parser.dart';
+
+// SchemaCache — load/save schema.json with HTTP fetch stub.
+export 'src/graphql/cache/schema_cache.dart';
+
+// TypeMapper — GraphQL type to Dart type mapping.
+export 'src/graphql/mapping/type_mapper.dart';
+
+// DocumentBuilder — query/mutation/subscription document generation.
+export 'src/graphql/document/document_builder.dart';
+
+// ============================================================
 // Framework Configuration
 // ============================================================
 
