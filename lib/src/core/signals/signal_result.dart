@@ -140,6 +140,7 @@ class SignalResult<T> {
     SignalSubscription? sub;
     var done = false;
     void handle(Result<T, AppFailure> r) {
+      if (done) return;
       if (r is! LoadingResult<T, AppFailure>) {
         done = true;
         sub?.cancel();

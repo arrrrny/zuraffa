@@ -1,10 +1,11 @@
 import 'dart:io';
+import 'package:path/path.dart' as p;
 
 /// Migrates v5 `.state.dart` files to v6 Signal Slice pattern.
 ///
 /// Usage:
 /// ```bash
-/// dart run zuraffa_state:migrate --input=lib/presentation --output=lib/presentation
+/// zfa migrate state --input=lib/presentation --output=lib/presentation
 /// ```
 class StateMigrator {
   StateMigrator({
@@ -30,19 +31,27 @@ class StateMigrator {
       throw StateError('Input directory does not exist: $inputDir');
     }
 
-    await for (final entity in dir.list(recursive: true)) {
+    final sameDir = p.equals(p.normalize(inputDir), p.normalize(outputDir));
+
+    await for (final entity
+        in dir.list(recursive: true, followLinks: false).handleError((
+          Object e,
+          StackTrace st,
+        ) {
+          _errors.add('Directory listing error: $e');
+        })) {
       if (entity is! File) continue;
       if (!entity.path.endsWith('.state.dart')) continue;
 
       try {
-        await _migrateFile(entity);
+        await _migrateFile(entity, sameDir: sameDir);
       } catch (e) {
         _errors.add('${entity.path}: $e');
       }
     }
   }
 
-  Future<void> _migrateFile(File file) async {
+  Future<void> _migrateFile(File file, {required bool sameDir}) async {
     final content = await file.readAsString();
     final migrated = _transformStateFile(content);
 
@@ -51,8 +60,15 @@ class StateMigrator {
       return;
     }
 
-    final relative = file.path.substring(inputDir.length);
-    final outputPath = '$outputDir$relative';
+    // Prevent destructive migration when writing back over the source.
+    if (sameDir) {
+      // Create a backup before replacing any source file.
+      final backupPath = '${file.path}.bak';
+      await File(backupPath).writeAsString(content);
+    }
+
+    final relative = p.relative(file.path, from: inputDir);
+    final outputPath = p.join(outputDir, relative);
     final outputFile = File(outputPath);
     await outputFile.create(recursive: true);
     await outputFile.writeAsString(migrated);
@@ -61,15 +77,17 @@ class StateMigrator {
 
   /// Transform a v5 state file into v6 slice pattern.
   String _transformStateFile(String content) {
-    // Detect v5 patterns and rewrite
     final buffer = StringBuffer();
     buffer.writeln('// MIGRATED TO V6 SIGNAL SLICES');
     buffer.writeln('// Original: v5 monolithic state');
     buffer.writeln();
 
-    // Extract class name
+    // Extract class name — throw if not found so the file is recorded as an error.
     final classMatch = RegExp(r'class (\w+)Presenter').firstMatch(content);
-    final presenterName = classMatch?.group(1) ?? 'Unknown';
+    if (classMatch == null) {
+      throw StateError('No <Name>Presenter class found to migrate.');
+    }
+    final presenterName = classMatch.group(1)!;
 
     buffer.writeln("import 'package:zuraffa/zuraffa.dart';");
     buffer.writeln();
@@ -85,10 +103,18 @@ class StateMigrator {
       multiLine: true,
     ).allMatches(content);
 
+    final usedKeys = <String>{};
     for (final match in useCaseMatches) {
       final typeName = match.group(1)!;
       final fieldName = match.group(2)!;
-      final sliceKey = fieldName.replaceAll('UseCase', '').toLowerCase();
+      // Derive slice key from the field name without lowercasing the whole id.
+      final rawKey = fieldName.replaceAll('UseCase', '');
+      final sliceKey = _camelToLower(rawKey);
+      if (sliceKey.isEmpty || usedKeys.contains(sliceKey)) {
+        _errors.add('Skipped duplicate/invalid slice key "$sliceKey".');
+        continue;
+      }
+      usedKeys.add(sliceKey);
 
       buffer.writeln('  late final $sliceKey = bind<$typeName>(');
       buffer.writeln("    '$sliceKey',");
@@ -101,5 +127,13 @@ class StateMigrator {
     buffer.writeln('}');
 
     return buffer.toString();
+  }
+
+  /// Converts a camelCase identifier to a lowercase snake/key (first word).
+  String _camelToLower(String name) {
+    final first = RegExp(r'^[A-Z]').firstMatch(name);
+    if (first == null) return name.toLowerCase();
+    final lower = first.group(0)!.toLowerCase();
+    return name.replaceFirst(RegExp(r'^[A-Z]'), lower);
   }
 }

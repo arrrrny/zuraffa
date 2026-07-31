@@ -19,8 +19,9 @@ void main() {
       final presenter = _TestPresenter();
       final combined = presenter.combinedState;
 
-      // Wait for slices to resolve
-      await Future.delayed(const Duration(milliseconds: 10));
+      // Await each slice resolution instead of wall-clock delay
+      await presenter.slice<int>('product')!.result.nextValue;
+      await presenter.slice<String>('reviews')!.result.nextValue;
 
       expect(combined.value['product'], 42);
       expect(combined.value['reviews'], 'hello');
@@ -53,7 +54,8 @@ void main() {
 
     test('refreshAll re-executes all slices', () async {
       final presenter = _TestPresenter();
-      await Future.delayed(const Duration(milliseconds: 10));
+      await presenter.slice<int>('product')!.result.nextValue;
+      await presenter.slice<String>('reviews')!.result.nextValue;
 
       final product = presenter.slice<int>('product')!;
       final reviews = presenter.slice<String>('reviews')!;

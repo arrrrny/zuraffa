@@ -420,16 +420,18 @@ export 'src/dda/plugins/di/di_generator.dart';
 // V6 State — Fragmented Signal Slices
 // ============================================================
 
-/// SignalSlice — fine-grained reactive slice wrapping SignalResult.
+// V6 State — Fragmented Signal Slices
+
+// SignalSlice — fine-grained reactive slice wrapping SignalResult.
 export 'src/state/slices/signal_slice.dart';
 
-/// SlicePresenter — manages multiple slices with backward-compatible state.
+// SlicePresenter — manages multiple slices with backward-compatible state.
 export 'src/state/presenter/slice_presenter.dart';
 
-/// FragmentBuilder — widget subscribing to a single slice.
+// FragmentBuilder — widget subscribing to a single slice.
 export 'src/state/widgets/fragment_builder.dart';
 
-/// StateMigrator — converts v5 .state.dart to v6 slice pattern.
+// StateMigrator — converts v5 .state.dart to v6 slice pattern.
 export 'src/state/migration/state_migrator.dart';
 
 // ============================================================

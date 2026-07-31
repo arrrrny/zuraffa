@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:zuraffa/zuraffa.dart';
 
 import '../slices/signal_slice.dart';
 
@@ -44,24 +45,42 @@ class FragmentBuilder<T> extends StatefulWidget {
 class _FragmentBuilderState<T> extends State<FragmentBuilder<T>> {
   T? _data;
   Object? _error;
-  late final _subscription = widget.slice.listen((data, err) {
-    setState(() {
-      _data = data;
-      _error = err;
-    });
-  });
+  SignalSubscription? _subscription;
 
   @override
   void initState() {
     super.initState();
-    // Eager read current state
+    _attachSubscription();
+  }
+
+  @override
+  void didUpdateWidget(FragmentBuilder<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.slice != widget.slice) {
+      _subscription?.cancel();
+      _data = null;
+      _error = null;
+      _attachSubscription();
+    }
+  }
+
+  void _attachSubscription() {
+    // Eager read current state before subscribing (the subscription also
+    // delivers the current value immediately).
     _data = widget.slice.data;
     _error = widget.slice.error;
+    _subscription = widget.slice.listen((data, err) {
+      if (!mounted) return;
+      setState(() {
+        _data = data;
+        _error = err;
+      });
+    });
   }
 
   @override
   void dispose() {
-    _subscription.cancel();
+    _subscription?.cancel();
     super.dispose();
   }
 

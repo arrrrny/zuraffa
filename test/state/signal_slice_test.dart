@@ -5,8 +5,10 @@ void main() {
   group('SignalSlice', () {
     test('lazily executes use case on first access', () {
       final slice = SignalSlice<int>(useCase: _DoubleUseCase(), params: 5);
-      expect(slice.isLoading, true); // before access
-      expect(slice.result, isA<SignalResult<int>>());
+      // Accessing result triggers lazy execution.
+      final result = slice.result;
+      expect(result, isA<SignalResult<int>>());
+      expect(slice.isLoading, true);
     });
 
     test('data reflects SignalResult state', () async {
@@ -45,6 +47,23 @@ void main() {
       final result = await slice.result.nextValue;
       expect(result, isA<Success<int, AppFailure>>());
       expect(slice.data, 20);
+    });
+
+    test('cancelling listener after refresh stops notifications', () async {
+      final slice = SignalSlice<int>(useCase: _DoubleUseCase(), params: 1);
+      final values = <int?>[];
+      final sub = slice.listen((data, _) => values.add(data));
+      await slice.result.nextValue;
+      expect(values, [null, 2]); // eager loading (null) + success (2)
+
+      // Refresh (re-attach emits eager loading), then cancel the handle.
+      slice.refresh(3);
+      sub.cancel();
+      await slice.result.nextValue;
+
+      // The eager loading from re-attach is delivered, but the refreshed
+      // success (6) must not reach the cancelled listener.
+      expect(values, [null, 2, null]);
     });
 
     test('dispose releases resources', () {

@@ -4,7 +4,7 @@ import 'package:zuraffa/zuraffa.dart';
 /// Golden test: N-use-case presenter -> N slices generated in .state.dart
 void main() {
   group('Golden: Signal Slices', () {
-    test('golden: 3-use-case presenter has 3 isolated slices', () async {
+    test('runtime: 3-use-case presenter has 3 isolated slices', () async {
       final presenter = _ProductDetailPresenter();
 
       expect(presenter.sliceCount, 3);
@@ -25,7 +25,7 @@ void main() {
       expect(related.data, isA<List<Product>>());
     });
 
-    test('golden: combinedState has all slice data', () async {
+    test('runtime: combinedState has all slice data', () async {
       final presenter = _ProductDetailPresenter();
       final combined = presenter.combinedState;
 
@@ -37,7 +37,7 @@ void main() {
       expect(state['related'], isA<List<Product>>());
     });
 
-    test('golden: updating one slice does not trigger others', () async {
+    test('runtime: updating one slice does not trigger others', () async {
       final presenter = _ProductDetailPresenter();
       final product = presenter.slice<Product>('product')!;
       final reviews = presenter.slice<List<Review>>('reviews')!;
@@ -62,7 +62,7 @@ void main() {
       expect(reviewsCount, 1);
     });
 
-    test('golden: backward compat combinedState works', () async {
+    test('runtime: backward compat combinedState works', () async {
       final presenter = _ProductDetailPresenter();
       final combined = presenter.combinedState;
 

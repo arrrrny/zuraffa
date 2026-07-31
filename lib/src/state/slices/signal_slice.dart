@@ -30,9 +30,8 @@ class SignalSlice<T> {
   SignalResult<T>? _result;
   bool _disposed = false;
 
-  /// Active subscriptions. Re-attached to the current result on refresh.
-  final List<void Function(T? data, AppFailure? error)> _listeners = [];
-  final List<SignalSubscription> _activeSubscriptions = [];
+  /// Registered listeners with their current result subscription.
+  final List<_SliceListener<T>> _listeners = [];
 
   // ── Lazy execution ──
 
@@ -67,15 +66,12 @@ class SignalSlice<T> {
     void Function(T? data, AppFailure? error) callback,
   ) {
     _assertNotDisposed();
-    _listeners.add(callback);
-    final sub = result.listen((res) {
-      callback(res.getOrNull(), res.getFailureOrNull());
-    });
-    _activeSubscriptions.add(sub);
-    return SignalSubscription(() {
-      _listeners.remove(callback);
-      sub.cancel();
-    });
+    final listener = _SliceListener<T>(callback);
+    _listeners.add(listener);
+    listener.subscription = result.listen(
+      (res) => listener.callback(res.getOrNull(), res.getFailureOrNull()),
+    );
+    return SignalSubscription(() => _removeListener(listener));
   }
 
   /// Subscribe only to success values.
@@ -108,10 +104,9 @@ class SignalSlice<T> {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
-    for (final sub in _activeSubscriptions) {
-      sub.cancel();
+    for (final listener in _listeners) {
+      listener.subscription?.cancel();
     }
-    _activeSubscriptions.clear();
     _listeners.clear();
     _result?.dispose();
     _result = null;
@@ -123,17 +118,31 @@ class SignalSlice<T> {
     if (_disposed) throw StateError('SignalSlice has been disposed.');
   }
 
+  void _removeListener(_SliceListener<T> listener) {
+    _listeners.remove(listener);
+    listener.subscription?.cancel();
+  }
+
   void _reattachListeners() {
-    _activeSubscriptions.clear();
+    final current = _result!;
     for (final listener in _listeners) {
-      final sub = _result!.listen((res) {
-        listener(res.getOrNull(), res.getFailureOrNull());
-      });
-      _activeSubscriptions.add(sub);
+      // Cancel the old subscription and subscribe to the new result.
+      listener.subscription?.cancel();
+      listener.subscription = current.listen(
+        (res) => listener.callback(res.getOrNull(), res.getFailureOrNull()),
+      );
     }
   }
 
   @override
   String toString() =>
       'SignalSlice<$T>(loading=$isLoading, success=$isSuccess, failure=$isFailure)';
+}
+
+/// Internal listener wrapper: tracks the current subscription so that
+/// cancelling the handle stops whichever subscription is active.
+class _SliceListener<T> {
+  _SliceListener(this.callback);
+  final void Function(T? data, AppFailure? error) callback;
+  SignalSubscription? subscription;
 }

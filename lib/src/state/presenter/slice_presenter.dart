@@ -36,6 +36,7 @@ abstract class SlicePresenter {
   final ZuraffaContext _context;
   final _slices = HashMap<String, SignalSlice<dynamic>>();
   Signal<Map<String, dynamic>>? _combinedState;
+  final List<SignalSubscription> _combinedSubscriptions = [];
   bool _disposed = false;
 
   // ── Slice binding ──
@@ -82,7 +83,13 @@ abstract class SlicePresenter {
   /// { 'product': Product?, 'reviews': List<Review>? }
   /// ```
   ///
-  /// This is O(N) to read but cached until any slice changes.
+  /// Reading it **eagerly initializes every bound slice** (each
+  /// `SignalSlice.data` access triggers lazy use-case execution) and is
+  /// O(N) to read. The result is cached until any slice changes or a new
+  /// slice is bound.
+  ///
+  /// Note: previously obtained combined signals are invalidated (disposed)
+  /// when a new slice is bound via [bind] — callers must re-read this getter.
   /// Prefer accessing individual slices for O(1) performance.
   ReadonlySignal<Map<String, dynamic>> get combinedState {
     _assertNotDisposed();
@@ -91,7 +98,7 @@ abstract class SlicePresenter {
   }
 
   Signal<Map<String, dynamic>> _buildCombinedSignal() {
-    // Start with current values
+    // Start with current values (this eagerly executes each lazy slice)
     final initial = <String, dynamic>{
       for (final entry in _slices.entries) entry.key: entry.value.data,
     };
@@ -99,17 +106,22 @@ abstract class SlicePresenter {
 
     // Subscribe to each slice and update the combined map
     for (final entry in _slices.entries) {
-      entry.value.listen((data, _) {
+      final sub = entry.value.listen((data, _) {
         combined.update(
           (map) => Map<String, dynamic>.from(map)..[entry.key] = data,
         );
       });
+      _combinedSubscriptions.add(sub);
     }
 
     return combined;
   }
 
   void _invalidateCombinedState() {
+    for (final sub in _combinedSubscriptions) {
+      sub.cancel();
+    }
+    _combinedSubscriptions.clear();
     _combinedState?.dispose();
     _combinedState = null;
   }
