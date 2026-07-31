@@ -444,6 +444,24 @@ export 'src/state/presenter/dual_layer_presenter.dart';
 // StateGenerator — code_builder-based generation with preservation.
 export 'src/state/generator/state_generator.dart';
 
+// CacheObserver — observable cache for cross-view state sync.
+export 'src/state/cache/cache_observer.dart';
+
+// CacheBinding — binds SignalSlice to cache updates.
+export 'src/state/cache/cache_binding.dart';
+
+// CacheBindingPlugin — DDA plugin for @Cacheable processing.
+export 'src/state/generator/cache_binding_generator.dart';
+
+// ControlledWidget — base widget with typed controller and lifecycle hooks.
+export 'src/state/widgets/controlled_widget.dart';
+
+// SignalBuilder — rebuilds on pure UI Signal changes.
+export 'src/state/widgets/signal_builder.dart';
+
+// ViewTemplateGenerator — generates ControlledWidget-based views.
+export 'src/state/generator/view_template_generator.dart';
+
 // ============================================================
 // V6 GraphQL Core
 // ============================================================
