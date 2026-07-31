@@ -16,11 +16,13 @@ class SliceOrchestrator {
     required this.schema,
     required this.outputDir,
     TypeMapper? typeMapper,
+    this.force = false,
   }) : typeMapper = typeMapper ?? TypeMapper();
 
   final GraphQLSchema schema;
   final String outputDir;
   final TypeMapper typeMapper;
+  final bool force;
 
   final List<String> _generatedFiles = [];
   List<String> get generatedFiles => List.unmodifiable(_generatedFiles);
@@ -91,7 +93,11 @@ class SliceOrchestrator {
     if (queryType != null) {
       final seen = <String>{};
       for (final field in queryType.fields) {
-        final typeName = field.type.innerType.name;
+        if (field.name.startsWith('__')) continue; // Skip introspection
+        final innerType = field.type.innerType;
+        // Only register object types (skip scalars, enums, unions)
+        if (innerType is! GraphQLObjectType) continue;
+        final typeName = innerType.name;
         if (seen.contains(typeName)) continue;
         seen.add(typeName);
         registrations.add(DiRegistration(name: typeName));
@@ -105,16 +111,26 @@ class SliceOrchestrator {
 
   void _writeFile(String path, String content) {
     final file = File(path);
+    if (!force && file.existsSync()) {
+      // Skip existing files when force is disabled
+      return;
+    }
     file.createSync(recursive: true);
     file.writeAsStringSync(content);
   }
 
   String _snakeCase(String name) {
+    // Handle acronyms and consecutive uppercase letters properly:
+    // ProductID -> product_id, SKU -> sku, HTTPRequest -> http_request
     return name
         .replaceAllMapped(
-          RegExp(r'[A-Z]'),
-          (m) => '_${m.group(0)!.toLowerCase()}',
+          // Insert underscore before uppercase that follows lowercase or digit,
+          // or before the last uppercase in a sequence (e.g., HTTPRequest -> HTTP_Request)
+          RegExp(r'([a-z0-9])([A-Z])|([A-Z])([A-Z][a-z])'),
+          (m) => m.group(1) != null
+              ? '${m.group(1)}_${m.group(2)}'
+              : '${m.group(3)}_${m.group(4)}',
         )
-        .replaceFirst(RegExp(r'^_'), '');
+        .toLowerCase();
   }
 }

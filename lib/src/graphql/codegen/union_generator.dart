@@ -23,7 +23,6 @@ class UnionGenerator {
   String generate(GraphQLUnionType unionType) {
     final baseName = '\$\$${unionType.name}';
     final library = cb.Library((b) {
-      b.directives.add(cb.Directive.import('package:meta/meta.dart'));
 
       // Sealed base class
       b.body.add(
@@ -34,6 +33,13 @@ class UnionGenerator {
             // base is declared abstract here and upgraded to `sealed` in the
             // raw output below.
             ..abstract = true;
+
+          // Const generative constructor (for subclasses)
+          c.constructors.add(
+            cb.Constructor((ctor) {
+              ctor.constant = true;
+            }),
+          );
 
           // fromJson factory
           c.constructors.add(
@@ -73,82 +79,38 @@ class UnionGenerator {
         }),
       );
 
-      // Subclasses for each possible type
+      // Import directives for entity types (will be added before emitting)
+      final entityImports = <String>[];
+
+      // Subclasses for each possible type (reuse entity if it's an object type)
       for (final typeName in unionType.possibleTypes) {
-        final objectType = schema.getType(typeName);
-        if (objectType is! GraphQLObjectType) continue;
+        final possibleType = schema.getType(typeName);
+        if (possibleType is GraphQLObjectType) {
+          // Entity already exists; add import and skip duplicate class
+          final snakeName = _snakeCase(typeName);
+          entityImports.add('../entities/$snakeName.dart');
+        } else {
+          // Not an object type; generate inline (shouldn't happen in practice)
+          final subclassName = '\$$typeName';
+          b.body.add(
+            cb.Class((c) {
+              c
+                ..name = subclassName
+                ..extend = cb.refer(baseName);
 
-        final subclassName = '\$$typeName';
-        final fields = objectType.fields.where((f) => !f.isDeprecated).toList();
-
-        b.body.add(
-          cb.Class((c) {
-            c
-              ..name = subclassName
-              ..extend = cb.refer(baseName)
-              ..constructors.add(
+              c.constructors.add(
                 cb.Constructor((ctor) {
                   ctor.constant = true;
-                  for (final field in fields) {
-                    final fieldName = TypeMapper.fieldName(field.name);
-                    final isNullable = !field.type.isNonNull;
-                    ctor.optionalParameters.add(
-                      cb.Parameter((p) {
-                        p
-                          ..name = fieldName
-                          ..named = true
-                          ..required = !isNullable
-                          ..toThis = true;
-                      }),
-                    );
-                  }
                 }),
               );
+            }),
+          );
+        }
+      }
 
-            for (final field in fields) {
-              final fieldName = TypeMapper.fieldName(field.name);
-              final dartType = zorphyType(typeMapper, field.type);
-              c.fields.add(
-                cb.Field((f) {
-                  f
-                    ..name = fieldName
-                    ..modifier = cb.FieldModifier.final$
-                    ..type = cb.refer(dartType);
-                }),
-              );
-            }
-
-            // fromJson
-            c.methods.add(
-              cb.Method((m) {
-                m
-                  ..name = 'fromJson'
-                  ..returns = cb.refer(subclassName)
-                  ..static = true
-                  ..requiredParameters.add(
-                    cb.Parameter((p) {
-                      p
-                        ..name = 'json'
-                        ..type = cb.refer('Map<String, dynamic>');
-                    }),
-                  )
-                  ..body = cb.Block((bl) {
-                    bl.statements.add(cb.Code('return $subclassName('));
-                    for (final field in fields) {
-                      final fieldName = TypeMapper.fieldName(field.name);
-                      final jsonExpr = 'json[\'${field.name}\']';
-                      bl.statements.add(
-                        cb.Code(
-                          '$fieldName: ${_parseFieldFromJson(field.type, jsonExpr)},',
-                        ),
-                      );
-                    }
-                    bl.statements.add(cb.Code(');'));
-                  });
-              }),
-            );
-          }),
-        );
+      // Add entity imports at the end
+      for (final importPath in entityImports) {
+        b.directives.add(cb.Directive.import(importPath));
       }
     });
 
@@ -210,5 +172,20 @@ class UnionGenerator {
     }
 
     return jsonExpr;
+  }
+
+  String _snakeCase(String name) {
+    // Handle acronyms and consecutive uppercase letters properly:
+    // ProductID -> product_id, SKU -> sku, HTTPRequest -> http_request
+    return name
+        .replaceAllMapped(
+          // Insert underscore before uppercase that follows lowercase or digit,
+          // or before the last uppercase in a sequence (e.g., HTTPRequest -> HTTP_Request)
+          RegExp(r'([a-z0-9])([A-Z])|([A-Z])([A-Z][a-z])'),
+          (m) => m.group(1) != null
+              ? '${m.group(1)}_${m.group(2)}'
+              : '${m.group(3)}_${m.group(4)}',
+        )
+        .toLowerCase();
   }
 }

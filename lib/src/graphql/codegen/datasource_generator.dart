@@ -147,29 +147,55 @@ class DatasourceGenerator {
         bl.statements.add(cb.Code('  );'));
         bl.statements.add(cb.Code('}'));
         bl.statements.add(cb.Code(''));
-        bl.statements.add(
-          cb.Code(
-            'final data = result.data?[\'${query.fieldName}\'] as Map<String, dynamic>?;',
-          ),
-        );
-        bl.statements.add(cb.Code('if (data == null) {'));
-        bl.statements.add(
-          cb.Code('  return SignalResult<$returnType>.failure('),
-        );
-        bl.statements.add(
-          cb.Code("    const ServerFailure(message: 'No data returned'),"),
-        );
-        bl.statements.add(cb.Code('  );'));
-        bl.statements.add(cb.Code('}'));
-        bl.statements.add(cb.Code(''));
-        bl.statements.add(
-          cb.Code(
-            'final entity = \$${query.returnType.innerType.name}.fromJson(data);',
-          ),
-        );
-        bl.statements.add(
-          cb.Code('return SignalResult<$returnType>.success(entity);'),
-        );
+        if (query.returnType.isList) {
+          bl.statements.add(
+            cb.Code(
+              'final data = result.data?[\'${query.fieldName}\'] as List<dynamic>?;',
+            ),
+          );
+          bl.statements.add(cb.Code('if (data == null) {'));
+          bl.statements.add(
+            cb.Code('  return SignalResult<$returnType>.failure('),
+          );
+          bl.statements.add(
+            cb.Code("    const ServerFailure(message: 'No data returned'),"),
+          );
+          bl.statements.add(cb.Code('  );'));
+          bl.statements.add(cb.Code('}'));
+          bl.statements.add(cb.Code(''));
+          bl.statements.add(
+            cb.Code(
+              'final entity = data.map((e) => \$${query.returnType.innerType.name}.fromJson(e as Map<String, dynamic>)).toList();',
+            ),
+          );
+          bl.statements.add(
+            cb.Code('return SignalResult<$returnType>.success(entity);'),
+          );
+        } else {
+          bl.statements.add(
+            cb.Code(
+              'final data = result.data?[\'${query.fieldName}\'] as Map<String, dynamic>?;',
+            ),
+          );
+          bl.statements.add(cb.Code('if (data == null) {'));
+          bl.statements.add(
+            cb.Code('  return SignalResult<$returnType>.failure('),
+          );
+          bl.statements.add(
+            cb.Code("    const ServerFailure(message: 'No data returned'),"),
+          );
+          bl.statements.add(cb.Code('  );'));
+          bl.statements.add(cb.Code('}'));
+          bl.statements.add(cb.Code(''));
+          bl.statements.add(
+            cb.Code(
+              'final entity = \$${query.returnType.innerType.name}.fromJson(data);',
+            ),
+          );
+          bl.statements.add(
+            cb.Code('return SignalResult<$returnType>.success(entity);'),
+          );
+        }
       });
     });
   }
@@ -219,29 +245,55 @@ class DatasourceGenerator {
         bl.statements.add(cb.Code('  );'));
         bl.statements.add(cb.Code('}'));
         bl.statements.add(cb.Code(''));
-        bl.statements.add(
-          cb.Code(
-            'final data = result.data?[\'${mutation.fieldName}\'] as Map<String, dynamic>?;',
-          ),
-        );
-        bl.statements.add(cb.Code('if (data == null) {'));
-        bl.statements.add(
-          cb.Code('  return SignalResult<$returnType>.failure('),
-        );
-        bl.statements.add(
-          cb.Code("    const ServerFailure(message: 'No data returned'),"),
-        );
-        bl.statements.add(cb.Code('  );'));
-        bl.statements.add(cb.Code('}'));
-        bl.statements.add(cb.Code(''));
-        bl.statements.add(
-          cb.Code(
-            'final entity = \$${mutation.returnType.innerType.name}.fromJson(data);',
-          ),
-        );
-        bl.statements.add(
-          cb.Code('return SignalResult<$returnType>.success(entity);'),
-        );
+        if (mutation.returnType.isList) {
+          bl.statements.add(
+            cb.Code(
+              'final data = result.data?[\'${mutation.fieldName}\'] as List<dynamic>?;',
+            ),
+          );
+          bl.statements.add(cb.Code('if (data == null) {'));
+          bl.statements.add(
+            cb.Code('  return SignalResult<$returnType>.failure('),
+          );
+          bl.statements.add(
+            cb.Code("    const ServerFailure(message: 'No data returned'),"),
+          );
+          bl.statements.add(cb.Code('  );'));
+          bl.statements.add(cb.Code('}'));
+          bl.statements.add(cb.Code(''));
+          bl.statements.add(
+            cb.Code(
+              'final entity = data.map((e) => \$${mutation.returnType.innerType.name}.fromJson(e as Map<String, dynamic>)).toList();',
+            ),
+          );
+          bl.statements.add(
+            cb.Code('return SignalResult<$returnType>.success(entity);'),
+          );
+        } else {
+          bl.statements.add(
+            cb.Code(
+              'final data = result.data?[\'${mutation.fieldName}\'] as Map<String, dynamic>?;',
+            ),
+          );
+          bl.statements.add(cb.Code('if (data == null) {'));
+          bl.statements.add(
+            cb.Code('  return SignalResult<$returnType>.failure('),
+          );
+          bl.statements.add(
+            cb.Code("    const ServerFailure(message: 'No data returned'),"),
+          );
+          bl.statements.add(cb.Code('  );'));
+          bl.statements.add(cb.Code('}'));
+          bl.statements.add(cb.Code(''));
+          bl.statements.add(
+            cb.Code(
+              'final entity = \$${mutation.returnType.innerType.name}.fromJson(data);',
+            ),
+          );
+          bl.statements.add(
+            cb.Code('return SignalResult<$returnType>.success(entity);'),
+          );
+        }
       });
     });
   }
@@ -290,28 +342,53 @@ class DatasourceGenerator {
         );
         bl.statements.add(cb.Code('    );'));
         bl.statements.add(cb.Code('  }'));
-        bl.statements.add(
-          cb.Code(
-            '  final data = result.data?[\'${sub.fieldName}\'] as Map<String, dynamic>?;',
-          ),
-        );
-        bl.statements.add(cb.Code('  if (data == null) {'));
-        bl.statements.add(
-          cb.Code('    return SignalResult<$returnType>.failure('),
-        );
-        bl.statements.add(
-          cb.Code("      const ServerFailure(message: 'No data returned'),"),
-        );
-        bl.statements.add(cb.Code('    );'));
-        bl.statements.add(cb.Code('  }'));
-        bl.statements.add(
-          cb.Code(
-            '  final entity = \$${sub.returnType.innerType.name}.fromJson(data);',
-          ),
-        );
-        bl.statements.add(
-          cb.Code('  return SignalResult<$returnType>.success(entity);'),
-        );
+        if (sub.returnType.isList) {
+          bl.statements.add(
+            cb.Code(
+              '  final data = result.data?[\'${sub.fieldName}\'] as List<dynamic>?;',
+            ),
+          );
+          bl.statements.add(cb.Code('  if (data == null) {'));
+          bl.statements.add(
+            cb.Code('    return SignalResult<$returnType>.failure('),
+          );
+          bl.statements.add(
+            cb.Code("      const ServerFailure(message: 'No data returned'),"),
+          );
+          bl.statements.add(cb.Code('    );'));
+          bl.statements.add(cb.Code('  }'));
+          bl.statements.add(
+            cb.Code(
+              '  final entity = data.map((e) => \$${sub.returnType.innerType.name}.fromJson(e as Map<String, dynamic>)).toList();',
+            ),
+          );
+          bl.statements.add(
+            cb.Code('  return SignalResult<$returnType>.success(entity);'),
+          );
+        } else {
+          bl.statements.add(
+            cb.Code(
+              '  final data = result.data?[\'${sub.fieldName}\'] as Map<String, dynamic>?;',
+            ),
+          );
+          bl.statements.add(cb.Code('  if (data == null) {'));
+          bl.statements.add(
+            cb.Code('    return SignalResult<$returnType>.failure('),
+          );
+          bl.statements.add(
+            cb.Code("      const ServerFailure(message: 'No data returned'),"),
+          );
+          bl.statements.add(cb.Code('    );'));
+          bl.statements.add(cb.Code('  }'));
+          bl.statements.add(
+            cb.Code(
+              '  final entity = \$${sub.returnType.innerType.name}.fromJson(data);',
+            ),
+          );
+          bl.statements.add(
+            cb.Code('  return SignalResult<$returnType>.success(entity);'),
+          );
+        }
         bl.statements.add(cb.Code('});'));
       });
     });

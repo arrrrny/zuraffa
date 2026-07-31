@@ -78,7 +78,7 @@ void main() {
       );
 
       final code = gen.generate(type);
-      expect(code.contains('id'), true);
+      expect(code.contains('final String id'), true);
       expect(code.contains('oldField'), false);
     });
   });

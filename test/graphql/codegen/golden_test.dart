@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zuraffa/zuraffa.dart';
+import 'package:zuraffa/codegen.dart';
+import 'package:path/path.dart' as p;
 
 void main() {
   group('Golden: Full-Stack Generation', () {
@@ -95,7 +96,7 @@ void main() {
       orchestrator.generateAll();
 
       // Assert entities generated
-      final entityFile = File('${tempDir.path}/entities/product.dart');
+      final entityFile = File(p.join(tempDir.path, 'entities', 'product.dart'));
       expect(entityFile.existsSync(), true);
       final entityContent = entityFile.readAsStringSync();
       expect(entityContent.contains('class \$Product'), true);
@@ -103,7 +104,7 @@ void main() {
       expect(entityContent.contains('toJson'), true);
 
       // Assert DTOs generated
-      final dtoFile = File('${tempDir.path}/dto/product_list_options.dart');
+      final dtoFile = File(p.join(tempDir.path, 'dto', 'product_list_options.dart'));
       expect(dtoFile.existsSync(), true);
       final dtoContent = dtoFile.readAsStringSync();
       expect(dtoContent.contains('class \$ProductListOptions'), true);
@@ -111,7 +112,7 @@ void main() {
 
       // Assert unions generated
       final unionFile = File(
-        '${tempDir.path}/unions/add_item_to_order_result.dart',
+        p.join(tempDir.path, 'unions', 'add_item_to_order_result.dart'),
       );
       expect(unionFile.existsSync(), true);
       final unionContent = unionFile.readAsStringSync();
@@ -119,7 +120,7 @@ void main() {
       expect(unionContent.contains('__typename'), true);
 
       // Assert DI generated
-      final diFile = File('${tempDir.path}/graphql_di.dart');
+      final diFile = File(p.join(tempDir.path, 'graphql_di.dart'));
       expect(diFile.existsSync(), true);
       final diContent = diFile.readAsStringSync();
       expect(diContent.contains('configureGraphqlDi'), true);
@@ -154,7 +155,7 @@ void main() {
       orchestrator.generateAll();
 
       final content = File(
-        '${tempDir.path}/entities/product.dart',
+        p.join(tempDir.path, 'entities', 'product.dart'),
       ).readAsStringSync();
       expect(content.contains('final String id'), true); // non-null
       expect(content.contains('final String? description'), true); // nullable

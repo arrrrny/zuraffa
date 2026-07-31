@@ -17,6 +17,18 @@ class DiGenerator {
   String generate(List<DiRegistration> registrations) {
     final library = cb.Library((b) {
       b.directives.add(cb.Directive.import('package:zuraffa/zuraffa.dart'));
+      b.directives.add(cb.Directive.import('package:graphql/client.dart'));
+
+      // Add relative imports for each datasource and repository
+      for (final reg in registrations) {
+        final snakeName = _snakeCase(reg.name);
+        b.directives.add(
+          cb.Directive.import('datasources/${snakeName}_datasource.dart'),
+        );
+        b.directives.add(
+          cb.Directive.import('repositories/${snakeName}_repository.dart'),
+        );
+      }
 
       b.body.add(
         cb.Method((m) {
@@ -28,12 +40,15 @@ class DiGenerator {
                 final datasourceType = '\$${reg.name}Datasource';
                 final repoInterface = '${reg.name}Repository';
                 final repoImpl = '${reg.name}RepositoryImpl';
+                final registerMethod = reg.scope == DiScope.transient
+                    ? 'registerTransient'
+                    : 'registerSingleton';
 
                 // Register datasource
                 bl.addExpression(
                   cb
                       .refer('ZuraffaContainer.instance')
-                      .property('registerSingleton')
+                      .property(registerMethod)
                       .call(
                         [
                           cb.Method(
@@ -55,7 +70,7 @@ class DiGenerator {
                 bl.addExpression(
                   cb
                       .refer('ZuraffaContainer.instance')
-                      .property('registerSingleton')
+                      .property(registerMethod)
                       .call(
                         [
                           cb.Method(
@@ -87,6 +102,21 @@ class DiGenerator {
       // Fallback: unformatted code is better than a crash.
     }
     return formatted;
+  }
+
+  String _snakeCase(String name) {
+    // Handle acronyms and consecutive uppercase letters properly:
+    // ProductID -> product_id, SKU -> sku, HTTPRequest -> http_request
+    return name
+        .replaceAllMapped(
+          // Insert underscore before uppercase that follows lowercase or digit,
+          // or before the last uppercase in a sequence (e.g., HTTPRequest -> HTTP_Request)
+          RegExp(r'([a-z0-9])([A-Z])|([A-Z])([A-Z][a-z])'),
+          (m) => m.group(1) != null
+              ? '${m.group(1)}_${m.group(2)}'
+              : '${m.group(3)}_${m.group(4)}',
+        )
+        .toLowerCase();
   }
 }
 

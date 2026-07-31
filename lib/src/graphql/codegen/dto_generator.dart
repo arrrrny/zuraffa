@@ -23,7 +23,6 @@ class DtoGenerator {
     final className = '\$${inputType.name}';
 
     final library = cb.Library((b) {
-      b.directives.add(cb.Directive.import('package:meta/meta.dart'));
 
       final fields = <cb.Field>[];
       final constructorParams = <cb.Parameter>[];
@@ -31,7 +30,7 @@ class DtoGenerator {
 
       for (final field in inputType.inputFields) {
         final fieldName = TypeMapper.fieldName(field.name);
-        final dartType = typeMapper.mapType(field.type);
+        final dartType = zorphyType(typeMapper, field.type);
         final isNullable = !field.type.isNonNull;
 
         fields.add(
@@ -101,17 +100,30 @@ class DtoGenerator {
 
   cb.Expression _toJsonValue(String fieldName, GraphQLType type) {
     final inner = type.innerType;
+    final isNullable = !type.isNonNull;
 
-    if (inner is GraphQLScalarType) {
-      return cb.refer(fieldName);
-    }
+    // Handle list types first
+    if (isListType(type)) {
+      final elementType = listElementType(type);
+      final elementInner = elementType.innerType;
 
-    if (inner is GraphQLEnumType) {
-      return cb.refer(fieldName).nullSafeProperty('name');
-    }
-
-    if (inner is GraphQLInputObjectType) {
-      if (isListType(type)) {
+      if (elementInner is GraphQLEnumType) {
+        // List of enums: map to name
+        return cb
+            .refer(fieldName)
+            .nullSafeProperty('map')
+            .call([
+              cb.Method((m) {
+                m
+                  ..requiredParameters.add(cb.Parameter((p) => p..name = 'e'))
+                  ..lambda = true
+                  ..body = cb.refer('e').property('name').code;
+              }).closure,
+            ])
+            .nullSafeProperty('toList')
+            .call([]);
+      } else if (elementInner is GraphQLInputObjectType) {
+        // List of input objects: map to toJson
         return cb
             .refer(fieldName)
             .nullSafeProperty('map')
@@ -125,7 +137,21 @@ class DtoGenerator {
             ])
             .nullSafeProperty('toList')
             .call([]);
+      } else {
+        // List of scalars
+        return cb.refer(fieldName);
       }
+    }
+
+    if (inner is GraphQLScalarType) {
+      return cb.refer(fieldName);
+    }
+
+    if (inner is GraphQLEnumType) {
+      return cb.refer(fieldName).nullSafeProperty('name');
+    }
+
+    if (inner is GraphQLInputObjectType) {
       return cb.refer(fieldName).nullSafeProperty('toJson').call([]);
     }
 
@@ -145,7 +171,7 @@ class DtoGenerator {
                 ..name = fieldName
                 // Nullable param type so omitting a field keeps its value;
                 // avoid doubling the `?` for already-nullable fields.
-                ..type = cb.refer(_nullableType(typeMapper.mapType(f.type)))
+                ..type = cb.refer(_nullableType(zorphyType(typeMapper, f.type)))
                 ..named = true;
             });
           }),

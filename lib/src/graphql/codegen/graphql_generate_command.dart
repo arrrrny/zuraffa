@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' show File, exitCode, stderr, stdout;
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 
@@ -95,6 +95,7 @@ class GraphqlGenerateCommand extends Command<void> {
       final orchestrator = SliceOrchestrator(
         schema: schema,
         outputDir: outputDir,
+        force: forceRefresh,
       );
       orchestrator.generateAll();
 
@@ -111,7 +112,8 @@ class GraphqlGenerateCommand extends Command<void> {
       if (args['verbose'] as bool? ?? false) {
         stderr.writeln(st.toString());
       }
-      throw UsageException('$e', usage);
+      exitCode = 1;
+      rethrow;
     }
   }
 }

@@ -38,13 +38,15 @@ class RepositoryGenerator {
             ..abstract = true;
 
           for (final method in methods) {
+            final returnTypeStr = method.kind == RepoMethodKind.subscription
+                ? 'Stream<SignalResult<${zorphyType(typeMapper, method.returnType)}>>'
+                : 'Future<SignalResult<${zorphyType(typeMapper, method.returnType)}>>';
+
             c.methods.add(
               cb.Method((m) {
                 m
                   ..name = method.name
-                  ..returns = cb.refer(
-                    'SignalResult<${zorphyType(typeMapper, method.returnType)}>',
-                  )
+                  ..returns = cb.refer(returnTypeStr)
                   ..requiredParameters.addAll(
                     method.args.map(
                       (arg) => cb.Parameter((p) {
@@ -89,13 +91,16 @@ class RepositoryGenerator {
           );
 
           for (final method in methods) {
+            final returnTypeStr = method.kind == RepoMethodKind.subscription
+                ? 'Stream<SignalResult<${zorphyType(typeMapper, method.returnType)}>>'
+                : 'Future<SignalResult<${zorphyType(typeMapper, method.returnType)}>>';
+
             c.methods.add(
               cb.Method((m) {
                 m
                   ..name = method.name
-                  ..returns = cb.refer(
-                    'SignalResult<${zorphyType(typeMapper, method.returnType)}>',
-                  )
+                  ..annotations.add(cb.refer('override'))
+                  ..returns = cb.refer(returnTypeStr)
                   ..requiredParameters.addAll(
                     method.args.map(
                       (arg) => cb.Parameter((p) {
@@ -138,8 +143,13 @@ class RepoMethod {
     required this.name,
     required this.returnType,
     required this.args,
+    this.kind = RepoMethodKind.query,
   });
   final String name;
   final GraphQLType returnType;
   final List<GraphQLInputField> args;
+  final RepoMethodKind kind;
 }
+
+/// Repository method operation kind.
+enum RepoMethodKind { query, mutation, subscription }

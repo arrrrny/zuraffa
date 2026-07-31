@@ -30,7 +30,6 @@ class EntityGenerator {
     final className = '\$${objectType.name}';
 
     final library = cb.Library((b) {
-      b.directives.add(cb.Directive.import('package:meta/meta.dart'));
 
       // Build fields
       final fields = <cb.Field>[];
@@ -209,6 +208,48 @@ class EntityGenerator {
   cb.Expression _toJsonExpression(String fieldName, GraphQLType type) {
     final inner = type.innerType;
     final ref = cb.refer(fieldName);
+    final isNullable = !type.isNonNull;
+
+    // Handle list types first
+    if (isListType(type)) {
+      final elementType = listElementType(type);
+      final elementInner = elementType.innerType;
+
+      if (elementInner is GraphQLEnumType) {
+        // List of enums: map to name
+        final nullSafe = isNullable ? '?.' : '.';
+        return cb.refer(fieldName)
+            .nullSafeProperty('map')
+            .call([
+              cb.Method((m) {
+                m
+                  ..requiredParameters.add(cb.Parameter((p) => p..name = 'e'))
+                  ..lambda = true
+                  ..body = cb.refer('e').property('name').code;
+              }).closure,
+            ])
+            .nullSafeProperty('toList')
+            .call([]);
+      } else if (elementInner is GraphQLObjectType ||
+          elementInner is GraphQLInputObjectType) {
+        // List of objects: map to toJson
+        return ref
+            .nullSafeProperty('map')
+            .call([
+              cb.Method((m) {
+                m
+                  ..requiredParameters.add(cb.Parameter((p) => p..name = 'e'))
+                  ..lambda = true
+                  ..body = cb.refer('e').property('toJson').call([]).code;
+              }).closure,
+            ])
+            .nullSafeProperty('toList')
+            .call([]);
+      } else {
+        // List of scalars
+        return ref;
+      }
+    }
 
     if (inner is GraphQLScalarType) {
       // Scalars serialize as-is (Map<String, dynamic> accepts null).
@@ -220,20 +261,6 @@ class EntityGenerator {
     }
 
     // Object / InputObject: nested entities serialize via toJson().
-    if (isListType(type)) {
-      return ref
-          .nullSafeProperty('map')
-          .call([
-            cb.Method((m) {
-              m
-                ..requiredParameters.add(cb.Parameter((p) => p..name = 'e'))
-                ..lambda = true
-                ..body = cb.refer('e').property('toJson').call([]).code;
-            }).closure,
-          ])
-          .nullSafeProperty('toList')
-          .call([]);
-    }
     return ref.nullSafeProperty('toJson').call([]);
   }
 
