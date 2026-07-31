@@ -70,8 +70,10 @@ class GraphQLObjectType extends GraphQLType {
   final List<GraphQLField> fields;
   final List<String> interfaces;
 
+  /// Named types are referenced by their bare name; nullability is expressed
+  /// by a [GraphQLNonNullType] wrapper (matching scalars, which append `?`).
   @override
-  String get dartType => '$name?';
+  String get dartType => name;
 }
 
 /// Input object type (e.g. ProductListOptions).
@@ -82,7 +84,7 @@ class GraphQLInputObjectType extends GraphQLType {
   final List<GraphQLInputField> inputFields;
 
   @override
-  String get dartType => '$name?';
+  String get dartType => name;
 }
 
 /// Union type (e.g. AddItemToOrderResult).
@@ -93,7 +95,7 @@ class GraphQLUnionType extends GraphQLType {
   final List<String> possibleTypes;
 
   @override
-  String get dartType => '$name?';
+  String get dartType => name;
 }
 
 /// Enum type.
@@ -104,7 +106,7 @@ class GraphQLEnumType extends GraphQLType {
   final List<String> values;
 
   @override
-  String get dartType => '$name?';
+  String get dartType => name;
 }
 
 /// Interface type.
@@ -119,7 +121,7 @@ class GraphQLInterfaceType extends GraphQLType {
   final List<String> possibleTypes;
 
   @override
-  String get dartType => '$name?';
+  String get dartType => name;
 }
 
 /// List wrapper type.
