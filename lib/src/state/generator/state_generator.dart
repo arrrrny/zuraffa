@@ -61,10 +61,11 @@ class StateGenerator {
               cb.Constructor((ctor) {
                 ctor
                   ..name = null
-                  ..requiredParameters.add(
+                  ..optionalParameters.add(
                     cb.Parameter((p) {
                       p
                         ..name = 'presenter'
+                        ..named = true
                         ..required = true
                         ..toSuper = true;
                     }),
@@ -104,7 +105,7 @@ class StateGenerator {
     var formatted = raw;
     try {
       formatted = _formatter.format(raw);
-    } on FormatException {
+    } on Exception {
       // Fallback: unformatted code is better than a crash.
     }
 
@@ -183,7 +184,7 @@ class StateGenerator {
     var formatted = raw;
     try {
       formatted = _formatter.format(raw);
-    } on FormatException {
+    } on Exception {
       // Fallback: unformatted code is better than a crash.
     }
 
