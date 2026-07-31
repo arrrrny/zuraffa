@@ -49,8 +49,9 @@ abstract class DualLayerPresenter {
 
   /// Combined backward-compatible state map.
   ///
-  /// Merges domain slice data with view state signals into a single map.
-  /// This is O(N) and intended for migration bridges only.
+  /// Exposes all domain slice data as a single map.
+  /// This is O(N) in slice count and intended for migration bridges only.
+  /// ViewState signals are not included — access them via [view] directly.
   Map<String, dynamic> get combinedState {
     final map = <String, dynamic>{};
     // Domain slices
@@ -63,6 +64,6 @@ abstract class DualLayerPresenter {
   /// Dispose both layers.
   void dispose() {
     _view.dispose();
-    // DomainState disposal is handled by the underlying SlicePresenter
+    _domain.dispose();
   }
 }

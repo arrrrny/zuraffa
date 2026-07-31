@@ -1,4 +1,3 @@
-import 'package:meta/meta.dart';
 import 'package:zuraffa/zuraffa.dart';
 
 /// Base class for auto-generated **DomainState**.
@@ -18,7 +17,6 @@ import 'package:zuraffa/zuraffa.dart';
 ///   late final reviews = bind<List<Review>>('reviews', getReviewsUseCase, params);
 /// }
 /// ```
-@immutable
 abstract class DomainState {
   DomainState({required SlicePresenter presenter}) : _presenter = presenter;
 
@@ -38,6 +36,9 @@ abstract class DomainState {
 
   /// Access a slice by key. Returns `null` if not bound.
   SignalSlice<T>? slice<T>(String key) => _presenter.slice<T>(key);
+
+  /// Dispose all slices managed by this domain state.
+  void dispose() => _presenter.dispose();
 
   @override
   String toString() => 'DomainState(keys=${_presenter.sliceKeys.toList()})';

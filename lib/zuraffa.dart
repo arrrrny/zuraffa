@@ -420,8 +420,6 @@ export 'src/dda/plugins/di/di_generator.dart';
 // V6 State — Fragmented Signal Slices
 // ============================================================
 
-// V6 State — Fragmented Signal Slices
-
 // SignalSlice — fine-grained reactive slice wrapping SignalResult.
 export 'src/state/slices/signal_slice.dart';
 

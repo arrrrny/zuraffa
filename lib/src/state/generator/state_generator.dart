@@ -101,7 +101,12 @@ class StateGenerator {
 
     final emitter = cb.DartEmitter();
     final raw = library.accept(emitter).toString();
-    final formatted = _formatter.format(raw);
+    var formatted = raw;
+    try {
+      formatted = _formatter.format(raw);
+    } on FormatException {
+      // Fallback: unformatted code is better than a crash.
+    }
 
     _writeFile(filePath, formatted);
     _generatedFiles.add(filePath);
@@ -175,7 +180,12 @@ class StateGenerator {
 
     final emitter = cb.DartEmitter();
     final raw = library.accept(emitter).toString();
-    final formatted = _formatter.format(raw);
+    var formatted = raw;
+    try {
+      formatted = _formatter.format(raw);
+    } on FormatException {
+      // Fallback: unformatted code is better than a crash.
+    }
 
     _writeFile(filePath, formatted);
     _generatedFiles.add(filePath);

@@ -35,19 +35,14 @@ void main() {
       expect(combined['product'], 42);
     });
 
-    test('dispose cleans up view state signals', () {
+    test('dispose cleans up both domain and view state', () {
       final presenter = _TestDualLayerPresenter();
       presenter.dispose();
+
+      // View state signals are disposed.
       expect(presenter.view.isActive, false);
-    });
-
-    test('domain slices remain after view dispose', () async {
-      final presenter = _TestDualLayerPresenter();
-      presenter.dispose();
-
-      // Domain slices are managed by SlicePresenter, not ViewState
-      final product = presenter.domain.slice<int>('product');
-      expect(product, isNotNull);
+      // Domain slices are disposed via the underlying SlicePresenter.
+      expect(() => presenter.domain.slice<int>('product'), throwsStateError);
     });
   });
 }

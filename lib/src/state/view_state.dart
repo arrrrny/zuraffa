@@ -21,9 +21,7 @@ import 'package:zuraffa/zuraffa.dart';
 abstract class ViewState {
   ViewState();
 
-  /// All [Signal] fields declared on this ViewState.
-  ///
-  /// Populated via reflection in debug mode; empty in release.
+  /// All [Signal] fields explicitly registered on this ViewState.
   final List<Signal<dynamic>> _signals = [];
 
   /// Register a signal so it can be disposed with the view state.
