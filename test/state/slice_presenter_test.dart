@@ -39,8 +39,8 @@ void main() {
       var productUpdates = 0;
       var reviewsUpdates = 0;
 
-      productSlice.listen((_, __) => productUpdates++);
-      reviewsSlice.listen((_, __) => reviewsUpdates++);
+      productSlice.listen((_, _) => productUpdates++);
+      reviewsSlice.listen((_, _) => reviewsUpdates++);
 
       // Refresh only product
       productSlice.refresh(100);
@@ -54,17 +54,25 @@ void main() {
 
     test('refreshAll re-executes all slices', () async {
       final presenter = _TestPresenter();
-      await presenter.slice<int>('product')!.result.nextValue;
-      await presenter.slice<String>('reviews')!.result.nextValue;
-
       final product = presenter.slice<int>('product')!;
       final reviews = presenter.slice<String>('reviews')!;
 
+      // Trigger initial execution
+      await product.result.nextValue;
+      await reviews.result.nextValue;
+      final productCallsBefore = _ProductUseCase.invocationCount;
+      final reviewsCallsBefore = _ReviewsUseCase.invocationCount;
+
       presenter.refreshAll();
 
+      // Wait for the refreshed results to resolve
       await product.result.nextValue;
       await reviews.result.nextValue;
 
+      // Both use cases must have been re-invoked (counts increased)
+      expect(_ProductUseCase.invocationCount, greaterThan(productCallsBefore));
+      expect(_ReviewsUseCase.invocationCount, greaterThan(reviewsCallsBefore));
+      expect(_ReviewsUseCase.invocationCount, greaterThan(reviewsCallsBefore));
       expect(product.isSuccess, true);
       expect(reviews.isSuccess, true);
     });
@@ -79,27 +87,48 @@ void main() {
     test('duplicate slice key throws', () {
       final presenter = _TestPresenter();
       expect(
-        () => presenter.bind('product', _ConstUseCase<String>(), 'x'),
+        () => presenter.bind('product', _ProductUseCase(), 1),
         throwsStateError,
       );
     });
   });
 }
 
-class _TestPresenter extends SlicePresenter {
-  _TestPresenter() {
-    bind('product', _ConstUseCase<int>(), 42);
-    bind('reviews', _ConstUseCase<String>(), 'hello');
-  }
-}
+class _ProductUseCase extends ZuraffaUseCase<int, int> {
+  static int invocationCount = 0;
 
-class _ConstUseCase<T> extends ZuraffaUseCase<T, T> {
   @override
-  SignalResult<T> call(T params, {ZuraffaContext? context}) {
-    final sr = SignalResult<T>.initial(LoadingResult<T, AppFailure>.loading());
+  SignalResult<int> call(int params, {ZuraffaContext? context}) {
+    invocationCount++;
+    final sr = SignalResult<int>.initial(
+      LoadingResult<int, AppFailure>.loading(),
+    );
     Future.delayed(Duration.zero, () {
       if (!sr.isDisposed) sr.emitSuccess(params);
     });
     return sr;
+  }
+}
+
+class _ReviewsUseCase extends ZuraffaUseCase<String, String> {
+  static int invocationCount = 0;
+
+  @override
+  SignalResult<String> call(String params, {ZuraffaContext? context}) {
+    invocationCount++;
+    final sr = SignalResult<String>.initial(
+      LoadingResult<String, AppFailure>.loading(),
+    );
+    Future.delayed(Duration.zero, () {
+      if (!sr.isDisposed) sr.emitSuccess(params);
+    });
+    return sr;
+  }
+}
+
+class _TestPresenter extends SlicePresenter {
+  _TestPresenter() {
+    bind('product', _ProductUseCase(), 42);
+    bind('reviews', _ReviewsUseCase(), 'hello');
   }
 }
