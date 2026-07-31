@@ -3,6 +3,8 @@ import 'package:code_builder/code_builder.dart' as cb;
 import 'package:dart_style/dart_style.dart';
 import 'package:path/path.dart' as p;
 
+import 'generator_utils.dart';
+
 /// Generates dual-layer state files:
 ///
 /// - `{Name}DomainState` — **regenerated every build** (read-only, signal slices)
@@ -43,7 +45,7 @@ class StateGenerator {
     String? presenterImport,
   }) {
     final className = '${name}DomainState';
-    final fileName = _snakeCase(name);
+    final fileName = snakeCase(name);
     final filePath = p.join(outputDir, '${fileName}_domain_state.dart');
 
     final library = cb.Library((b) {
@@ -61,10 +63,11 @@ class StateGenerator {
               cb.Constructor((ctor) {
                 ctor
                   ..name = null
-                  ..requiredParameters.add(
+                  ..optionalParameters.add(
                     cb.Parameter((p) {
                       p
                         ..name = 'presenter'
+                        ..named = true
                         ..required = true
                         ..toSuper = true;
                     }),
@@ -104,11 +107,13 @@ class StateGenerator {
     var formatted = raw;
     try {
       formatted = _formatter.format(raw);
-    } on FormatException {
-      // Fallback: unformatted code is better than a crash.
+    } on FormatterException {
+      // Fallback: unformatted code is better than a crash. Narrow the catch
+      // to FormatterException so unrelated generator bugs surface instead of
+      // silently writing invalid output.
     }
 
-    _writeFile(filePath, formatted);
+    writeFile(filePath, formatted);
     _generatedFiles.add(filePath);
     return filePath;
   }
@@ -123,7 +128,7 @@ class StateGenerator {
     List<ViewStateField> fields = const [],
   }) {
     final className = '${name}ViewState';
-    final fileName = _snakeCase(name);
+    final fileName = snakeCase(name);
     final filePath = p.join(outputDir, '${fileName}_view_state.dart');
 
     if (File(filePath).existsSync()) {
@@ -183,31 +188,18 @@ class StateGenerator {
     var formatted = raw;
     try {
       formatted = _formatter.format(raw);
-    } on FormatException {
-      // Fallback: unformatted code is better than a crash.
+    } on FormatterException {
+      // Fallback: unformatted code is better than a crash. Narrow the catch
+      // to FormatterException so unrelated generator bugs surface instead of
+      // silently writing invalid output.
     }
 
-    _writeFile(filePath, formatted);
+    writeFile(filePath, formatted);
     _generatedFiles.add(filePath);
     return filePath;
   }
 
   // ── Helpers ──
-
-  void _writeFile(String path, String content) {
-    final file = File(path);
-    file.createSync(recursive: true);
-    file.writeAsStringSync(content);
-  }
-
-  String _snakeCase(String name) {
-    return name
-        .replaceAllMapped(
-          RegExp(r'[A-Z]'),
-          (m) => '_${m.group(0)!.toLowerCase()}',
-        )
-        .replaceFirst(RegExp(r'^_'), '');
-  }
 }
 
 /// Metadata for a UseCase → slice binding.

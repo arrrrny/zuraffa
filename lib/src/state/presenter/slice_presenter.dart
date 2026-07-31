@@ -1,8 +1,6 @@
 import 'dart:collection';
 import 'package:zuraffa/zuraffa.dart';
 
-import '../slices/signal_slice.dart';
-
 /// A presenter that manages multiple [SignalSlice]s — one per UseCase.
 ///
 /// Replaces the monolithic v5 state object. Each slice is independent,
