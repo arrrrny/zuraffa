@@ -137,13 +137,20 @@ class SignalResult<T> {
   /// Listen only to the next non-loading result (success or failure).
   Future<Result<T, AppFailure>> get nextValue async {
     final completer = Completer<Result<T, AppFailure>>();
-    late SignalSubscription sub;
-    sub = listen((r) {
+    SignalSubscription? sub;
+    var done = false;
+    void handle(Result<T, AppFailure> r) {
+      if (done) return;
       if (r is! LoadingResult<T, AppFailure>) {
-        sub.cancel();
+        done = true;
+        sub?.cancel();
         completer.complete(r);
       }
-    });
+    }
+
+    sub = listen(handle);
+    // Eager delivery may have completed the future before `sub` was assigned.
+    if (done) sub.cancel();
     return completer.future;
   }
 
