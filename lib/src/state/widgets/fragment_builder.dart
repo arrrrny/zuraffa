@@ -65,10 +65,6 @@ class _FragmentBuilderState<T> extends State<FragmentBuilder<T>> {
   }
 
   void _attachSubscription() {
-    // Eager read current state before subscribing (the subscription also
-    // delivers the current value immediately).
-    _data = widget.slice.data;
-    _error = widget.slice.error;
     _subscription = widget.slice.listen((data, err) {
       if (!mounted) return;
       setState(() {

@@ -29,7 +29,9 @@ void main() {
       final presenter = _ProductDetailPresenter();
       final combined = presenter.combinedState;
 
-      await Future.delayed(const Duration(milliseconds: 20));
+      await presenter.slice<Product>('product')!.result.nextValue;
+      await presenter.slice<List<Review>>('reviews')!.result.nextValue;
+      await presenter.slice<List<Product>>('related')!.result.nextValue;
 
       final state = combined.value;
       expect(state['product'], isA<Product>());
@@ -66,7 +68,9 @@ void main() {
       final presenter = _ProductDetailPresenter();
       final combined = presenter.combinedState;
 
-      await Future.delayed(const Duration(milliseconds: 20));
+      await presenter.slice<Product>('product')!.result.nextValue;
+      await presenter.slice<List<Review>>('reviews')!.result.nextValue;
+      await presenter.slice<List<Product>>('related')!.result.nextValue;
 
       // Old-style view can read full state map
       final state = combined.value;

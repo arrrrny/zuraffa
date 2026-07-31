@@ -107,8 +107,8 @@ class StateMigrator {
     for (final match in useCaseMatches) {
       final typeName = match.group(1)!;
       final fieldName = match.group(2)!;
-      // Derive slice key from the field name without lowercasing the whole id.
-      final rawKey = fieldName.replaceAll('UseCase', '');
+      // Derive semantic slice key from the field name.
+      final rawKey = _deriveSliceKey(fieldName);
       final sliceKey = _camelToLower(rawKey);
       if (sliceKey.isEmpty || usedKeys.contains(sliceKey)) {
         _errors.add('Skipped duplicate/invalid slice key "$sliceKey".');
@@ -127,6 +127,16 @@ class StateMigrator {
     buffer.writeln('}');
 
     return buffer.toString();
+  }
+
+  /// Strip 'UseCase' suffix and common action prefixes to produce a semantic key.
+  String _deriveSliceKey(String fieldName) {
+    var raw = fieldName.replaceAll('UseCase', '');
+    raw = raw.replaceFirst(RegExp(r'^(get|fetch|load|retrieve|query)'), '');
+    if (raw.isEmpty) {
+      raw = fieldName.replaceAll('UseCase', '');
+    }
+    return raw;
   }
 
   /// Converts a camelCase identifier to a lowercase snake/key (first word).
