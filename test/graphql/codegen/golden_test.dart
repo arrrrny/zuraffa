@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zuraffa/codegen.dart';
+import 'package:zuraffa/zuraffa.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
@@ -104,7 +104,9 @@ void main() {
       expect(entityContent.contains('toJson'), true);
 
       // Assert DTOs generated
-      final dtoFile = File(p.join(tempDir.path, 'dto', 'product_list_options.dart'));
+      final dtoFile = File(
+        p.join(tempDir.path, 'dto', 'product_list_options.dart'),
+      );
       expect(dtoFile.existsSync(), true);
       final dtoContent = dtoFile.readAsStringSync();
       expect(dtoContent.contains('class \$ProductListOptions'), true);

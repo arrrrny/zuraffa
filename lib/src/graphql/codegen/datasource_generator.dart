@@ -17,9 +17,18 @@ import 'codegen_types.dart';
 /// );
 /// ```
 class DatasourceGenerator {
-  DatasourceGenerator({required this.typeMapper});
+  DatasourceGenerator({
+    required this.typeMapper,
+    this.enableSubscriptions = false,
+  });
 
   final TypeMapper typeMapper;
+
+  /// Whether to generate subscription/watch methods backed by the
+  /// [GraphQLClientSubscription] runtime (requires `subscriptions: true`
+  /// and a `wsEndpoint` in `.zfa.json`). When false, watch methods are
+  /// generated as stubs that report subscriptions are disabled.
+  final bool enableSubscriptions;
   static final _formatter = DartFormatter(
     languageVersion: DartFormatter.latestLanguageVersion,
   );
@@ -29,6 +38,7 @@ class DatasourceGenerator {
     required List<QueryConfig> queries,
     required List<MutationConfig> mutations,
     List<SubscriptionConfig> subscriptions = const [],
+    List<SubscriptionConfig> watches = const [],
   }) {
     final className = '\$${name}Datasource';
 
@@ -82,9 +92,23 @@ class DatasourceGenerator {
             c.methods.add(_buildMutationMethod(mutation));
           }
 
-          // Subscription methods
-          for (final sub in subscriptions) {
-            c.methods.add(_buildSubscriptionMethod(sub));
+          // Subscription methods (only when subscriptions are enabled)
+          if (enableSubscriptions) {
+            for (final sub in subscriptions) {
+              c.methods.add(_buildSubscriptionMethod(sub));
+            }
+          }
+
+          // Watch methods: live subscription queries when enabled, stubs
+          // that report subscriptions-disabled otherwise.
+          if (enableSubscriptions) {
+            for (final watch in watches) {
+              c.methods.add(_buildWatchMethod(watch));
+            }
+          } else {
+            for (final watch in watches) {
+              c.methods.add(_buildWatchStub(watch));
+            }
           }
         }),
       );
@@ -305,7 +329,7 @@ class DatasourceGenerator {
     return cb.Method((m) {
       m
         ..name = methodName
-        ..returns = cb.refer('Stream<SignalResult<$returnType>>');
+        ..returns = cb.refer('SignalResult<$returnType>');
 
       for (final arg in sub.args) {
         m.requiredParameters.add(
@@ -318,84 +342,110 @@ class DatasourceGenerator {
       }
 
       m.body = cb.Block((bl) {
-        bl.statements.add(
-          cb.Code('return _client.subscribe(SubscriptionOptions('),
-        );
-        bl.statements.add(cb.Code("  document: gql(r'''"));
+        bl.statements.add(cb.Code('return _client.subscribeTo<$returnType>('));
+        bl.statements.add(cb.Code("  document: r'''"));
         bl.statements.add(cb.Code(sub.document));
-        bl.statements.add(cb.Code("'''),"));
+        bl.statements.add(cb.Code("''',"));
+        bl.statements.add(
+          cb.Code(
+            '  parser: (data) => \$${sub.returnType.innerType.name}.fromJson(data[\'${sub.fieldName}\'] as Map<String, dynamic>),',
+          ),
+        );
         bl.statements.add(cb.Code('  variables: {'));
         for (final arg in sub.args) {
           final fieldName = TypeMapper.fieldName(arg.name);
           bl.statements.add(cb.Code("    '${arg.name}': $fieldName,"));
         }
         bl.statements.add(cb.Code('  },'));
-        bl.statements.add(cb.Code(')).map((result) {'));
-        bl.statements.add(cb.Code('  if (result.hasException) {'));
-        bl.statements.add(
-          cb.Code('    return SignalResult<$returnType>.failure('),
+        bl.statements.add(cb.Code(');'));
+      });
+    });
+  }
+
+  cb.Method _buildWatchMethod(SubscriptionConfig watch) {
+    final returnType = zorphyType(typeMapper, watch.returnType);
+    final methodName = 'watch${_pascalCase(watch.fieldName)}';
+
+    return cb.Method((m) {
+      m
+        ..name = methodName
+        ..returns = cb.refer('SignalResult<$returnType>');
+
+      for (final arg in watch.args) {
+        m.requiredParameters.add(
+          cb.Parameter((p) {
+            p
+              ..name = TypeMapper.fieldName(arg.name)
+              ..type = cb.refer(typeMapper.mapType(arg.type));
+          }),
         );
+      }
+
+      m.body = cb.Block((bl) {
+        bl.statements.add(
+          cb.Code('// Live subscription: emits updates on every change'),
+        );
+        bl.statements.add(cb.Code('return _client.subscribeTo<$returnType>('));
+        bl.statements.add(cb.Code("  document: r'''"));
+        bl.statements.add(cb.Code(watch.document));
+        bl.statements.add(cb.Code("''',"));
         bl.statements.add(
           cb.Code(
-            '      NetworkFailure(message: result.exception.toString()),',
+            '  parser: (data) => \$${watch.returnType.innerType.name}.fromJson(data[\'${watch.fieldName}\'] as Map<String, dynamic>),',
           ),
         );
-        bl.statements.add(cb.Code('    );'));
-        bl.statements.add(cb.Code('  }'));
-        if (sub.returnType.isList) {
-          bl.statements.add(
-            cb.Code(
-              '  final data = result.data?[\'${sub.fieldName}\'] as List<dynamic>?;',
-            ),
-          );
-          bl.statements.add(cb.Code('  if (data == null) {'));
-          bl.statements.add(
-            cb.Code('    return SignalResult<$returnType>.failure('),
-          );
-          bl.statements.add(
-            cb.Code("      const ServerFailure(message: 'No data returned'),"),
-          );
-          bl.statements.add(cb.Code('    );'));
-          bl.statements.add(cb.Code('  }'));
-          bl.statements.add(
-            cb.Code(
-              '  final entity = data.map((e) => \$${sub.returnType.innerType.name}.fromJson(e as Map<String, dynamic>)).toList();',
-            ),
-          );
-          bl.statements.add(
-            cb.Code('  return SignalResult<$returnType>.success(entity);'),
-          );
-        } else {
-          bl.statements.add(
-            cb.Code(
-              '  final data = result.data?[\'${sub.fieldName}\'] as Map<String, dynamic>?;',
-            ),
-          );
-          bl.statements.add(cb.Code('  if (data == null) {'));
-          bl.statements.add(
-            cb.Code('    return SignalResult<$returnType>.failure('),
-          );
-          bl.statements.add(
-            cb.Code("      const ServerFailure(message: 'No data returned'),"),
-          );
-          bl.statements.add(cb.Code('    );'));
-          bl.statements.add(cb.Code('  }'));
-          bl.statements.add(
-            cb.Code(
-              '  final entity = \$${sub.returnType.innerType.name}.fromJson(data);',
-            ),
-          );
-          bl.statements.add(
-            cb.Code('  return SignalResult<$returnType>.success(entity);'),
-          );
+        bl.statements.add(cb.Code('  variables: {'));
+        for (final arg in watch.args) {
+          final fieldName = TypeMapper.fieldName(arg.name);
+          bl.statements.add(cb.Code("    '${arg.name}': $fieldName,"));
         }
-        bl.statements.add(cb.Code('});'));
+        bl.statements.add(cb.Code('  },'));
+        bl.statements.add(cb.Code(');'));
+      });
+    });
+  }
+
+  cb.Method _buildWatchStub(SubscriptionConfig watch) {
+    final returnType = zorphyType(typeMapper, watch.returnType);
+    final methodName = 'watch${_pascalCase(watch.fieldName)}';
+
+    return cb.Method((m) {
+      m
+        ..name = methodName
+        ..returns = cb.refer('SignalResult<$returnType>');
+
+      for (final arg in watch.args) {
+        m.requiredParameters.add(
+          cb.Parameter((p) {
+            p
+              ..name = TypeMapper.fieldName(arg.name)
+              ..type = cb.refer(typeMapper.mapType(arg.type));
+          }),
+        );
+      }
+
+      m.body = cb.Block((bl) {
+        bl.statements.add(cb.Code('// ignore: avoid_print'));
+        bl.statements.add(
+          cb.Code(
+            "print('[graphql] watch${_pascalCase(watch.fieldName)} skipped: subscriptions disabled in .zfa.json');",
+          ),
+        );
+        bl.statements.add(cb.Code('return SignalResult<$returnType>.failure('));
+        bl.statements.add(
+          cb.Code("  const NetworkFailure(message: 'Subscriptions disabled'),"),
+        );
+        bl.statements.add(cb.Code(');'));
       });
     });
   }
 
   String _camelCase(String name) {
     return name[0].toLowerCase() + name.substring(1);
+  }
+
+  String _pascalCase(String name) {
+    return name[0].toUpperCase() + name.substring(1);
   }
 }
 

@@ -2,8 +2,6 @@ import 'package:code_builder/code_builder.dart' as cb;
 import 'package:dart_style/dart_style.dart';
 import 'package:zuraffa/zuraffa.dart';
 
-import 'codegen_types.dart';
-
 /// Generates sealed class hierarchies from GraphQL UNION types.
 ///
 /// Uses `__typename` JSON discriminator for factory constructors.
@@ -23,7 +21,6 @@ class UnionGenerator {
   String generate(GraphQLUnionType unionType) {
     final baseName = '\$\$${unionType.name}';
     final library = cb.Library((b) {
-
       // Sealed base class
       b.body.add(
         cb.Class((c) {
@@ -128,50 +125,6 @@ class UnionGenerator {
       // Fallback: unformatted code is better than a crash.
     }
     return formatted;
-  }
-
-  String _parseFieldFromJson(GraphQLType type, String jsonExpr) {
-    final inner = type.innerType;
-    final isNullable = !type.isNonNull;
-
-    if (isListType(type)) {
-      final elementType = listElementType(type);
-      final listCast = 'as List<dynamic>${isNullable ? '?' : ''}';
-      final nullSafeMap = isNullable ? '?.' : '.';
-      return '($jsonExpr $listCast)$nullSafeMap'
-          'map((e) => ${_parseFieldFromJson(elementType, 'e')}).toList()';
-    }
-
-    if (inner is GraphQLScalarType) {
-      final cast = switch (inner.name) {
-        'Int' => 'int',
-        'Float' => 'double',
-        'Boolean' => 'bool',
-        'String' || 'ID' => 'String',
-        _ => '',
-      };
-      if (cast.isEmpty) return jsonExpr;
-      // `as T` throws on null (non-null field); `as T?` allows null
-      // (nullable field). A bare `!` after `as` is not valid Dart.
-      return '$jsonExpr as $cast${isNullable ? '?' : ''}';
-    }
-
-    if (inner is GraphQLObjectType || inner is GraphQLInputObjectType) {
-      final entityName = '\$${inner.name}';
-      if (isNullable) {
-        return '$jsonExpr != null ? $entityName.fromJson($jsonExpr as Map<String, dynamic>) : null';
-      }
-      return '$entityName.fromJson($jsonExpr as Map<String, dynamic>)';
-    }
-
-    if (inner is GraphQLEnumType) {
-      if (isNullable) {
-        return '$jsonExpr != null ? ${inner.name}.values.byName($jsonExpr as String) : null';
-      }
-      return '${inner.name}.values.byName($jsonExpr as String)';
-    }
-
-    return jsonExpr;
   }
 
   String _snakeCase(String name) {

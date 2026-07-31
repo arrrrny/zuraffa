@@ -482,6 +482,47 @@ export 'src/graphql/mapping/type_mapper.dart';
 export 'src/graphql/document/document_builder.dart';
 
 // ============================================================
+// V6 GraphQL Client Runtime & Subscriptions
+// ============================================================
+
+// GraphQLClientFactory — assembles GraphQLClient from .zfa.json config.
+export 'src/graphql/client/graphql_client_factory.dart';
+
+// GraphQLClientProvider — singleton lazily-built client provider.
+export 'src/graphql/client/graphql_client_provider.dart';
+
+// SubscriptionStream — GraphQL subscription -> SignalResult streams.
+export 'src/graphql/client/subscription_stream.dart';
+
+// ============================================================
+// V6 GraphQL Codegen — Schema-to-Full-Stack Generation
+// ============================================================
+
+// EntityGenerator — GraphQL OBJECT types -> zorphy $Entity classes.
+export 'src/graphql/codegen/entity_generator.dart';
+
+// DtoGenerator — GraphQL INPUT types -> DTO classes.
+export 'src/graphql/codegen/dto_generator.dart';
+
+// UnionGenerator — GraphQL UNION types -> sealed class hierarchies.
+export 'src/graphql/codegen/union_generator.dart';
+
+// DatasourceGenerator — package:graphql remote datasource.
+export 'src/graphql/codegen/datasource_generator.dart';
+
+// RepositoryGenerator — interface + impl delegating to datasource.
+export 'src/graphql/codegen/repository_generator.dart';
+
+// DiGenerator — ZuraffaContainer registrations.
+export 'src/graphql/codegen/di_generator.dart';
+
+// SliceOrchestrator — orchestrates all generators for a schema slice.
+export 'src/graphql/codegen/slice_orchestrator.dart';
+
+// GraphqlGenerateCommand — `zfa graphql generate` command class.
+export 'src/graphql/codegen/graphql_generate_command.dart';
+
+// ============================================================
 // Framework Configuration
 // ============================================================
 

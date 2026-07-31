@@ -38,14 +38,11 @@ void main() {
       final code = gen.generate(union);
 
       expect(code.contains('sealed class \$\$AddItemToOrderResult'), true);
+      // Possible types are object entities — the generator reuses them via
+      // imports instead of generating duplicate inline subclasses.
+      expect(code.contains("import '../entities/order.dart';"), true);
       expect(
-        code.contains('class \$Order extends \$\$AddItemToOrderResult'),
-        true,
-      );
-      expect(
-        code.contains(
-          'class \$OrderModificationError extends \$\$AddItemToOrderResult',
-        ),
+        code.contains("import '../entities/order_modification_error.dart';"),
         true,
       );
       expect(code.contains('fromJson'), true);
