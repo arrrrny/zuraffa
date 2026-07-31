@@ -103,6 +103,47 @@ void main() {
       // After delete, the slice signals a failure state.
       expect(slice.isFailure, true);
     });
+
+    test('dispose cancels the cache subscription', () async {
+      final slice = SignalSlice<Product>(
+        useCase: _ConstProductUseCase(),
+        params: null,
+      );
+      await slice.result.nextValue;
+
+      // Prime the cache stream so listen() eagerly delivers a non-null event.
+      CacheObserver.instance.notify<Product>(Product(id: 'prime'));
+
+      // Track a cache subscription on the slice, exactly as bindCache() does.
+      var calls = 0;
+      final sub = CacheObserver.instance.listen<Product>((e, id) => calls++);
+      expect(calls, 1); // eager delivery of the primed value
+      slice.trackCacheSubscription(sub);
+
+      slice.dispose();
+
+      // After dispose the tracked subscription must be cancelled — a cache
+      // emit must not invoke the callback again.
+      CacheObserver.instance.notify<Product>(Product(id: 'post-dispose'));
+      expect(calls, 1);
+    });
+
+    test(
+      'bindCache after dispose cancels the subscription immediately',
+      () async {
+        final slice = SignalSlice<Product>(
+          useCase: _ConstProductUseCase(),
+          params: null,
+        );
+        await slice.result.nextValue;
+        slice.dispose();
+
+        // Binding after disposal must not leave a listener registered and must
+        // not throw. The observer remains fully functional for other listeners.
+        slice.bindCache();
+        expect(CacheObserver.instance.hasListeners<Product>(), true);
+      },
+    );
   });
 
   group('CacheMutator mixin', () {

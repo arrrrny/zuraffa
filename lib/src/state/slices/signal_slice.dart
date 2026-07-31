@@ -107,8 +107,14 @@ class SignalSlice<T> {
   /// Registers a subscription to be cancelled when this slice is disposed.
   ///
   /// Used by [CacheBinding.bindCache] so disposed slices do not keep
-  /// callbacks registered on the type-level cache stream.
+  /// callbacks registered on the type-level cache stream. If the slice is
+  /// already disposed, the subscription is cancelled immediately — the
+  /// disposal path has already cleared the tracked list.
   void trackCacheSubscription(SignalSubscription sub) {
+    if (_disposed) {
+      sub.cancel();
+      return;
+    }
     _cacheSubscriptions.add(sub);
   }
 
