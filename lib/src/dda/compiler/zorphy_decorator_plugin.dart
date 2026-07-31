@@ -35,7 +35,11 @@ abstract class ZorphyDecoratorPlugin {
   /// Fine-grained plugins (auth, validation): lower values.
   int get priority => 0;
 
-  /// Called when the AST scanner finds [targetDecorator] on an element.
+  /// Called when the AST scanner finds a decorator this plugin handles.
+  ///
+  /// The [decorator] may be any name listed in [targetDecorators] (which
+  /// defaults to just [targetDecorator]). The callback should inspect
+  /// [decorator.name] to handle each annotation it supports.
   void onApply(MethodAST method, DecoratorAST decorator, ZorphyContext context);
 
   /// Optional: called once per build before scanning begins.
@@ -56,7 +60,9 @@ class ZorphyPluginRegistry {
   }
 
   static void registerAll(List<ZorphyDecoratorPlugin> plugins) {
-    for (final p in plugins) register(p);
+    for (final p in plugins) {
+      register(p);
+    }
   }
 
   static ZorphyDecoratorPlugin? get(String decoratorName) =>
