@@ -38,7 +38,7 @@ void main() {
     });
 
     test('throws when no cache and no endpoint', () async {
-      expect(() => cache.load(), throwsA(isA<SchemaCacheError>()));
+      await expectLater(cache.load(), throwsA(isA<SchemaCacheError>()));
     });
 
     test('hasCache returns false when no file', () async {

@@ -45,25 +45,32 @@ class SchemaParser {
 
   static GraphQLType _parseTypeStub(Map<String, dynamic> data) {
     final kind = data['kind'] as String;
-    final name = data['name'] as String? ?? '';
+    final name = data['name'] as String?;
+
+    // Named types (SCALAR, OBJECT, INPUT_OBJECT, UNION, ENUM, INTERFACE) must have non-empty names
+    if (kind != 'LIST' && kind != 'NON_NULL') {
+      if (name == null || name.isEmpty) {
+        throw SchemaParseError('Named type of kind $kind has null or empty name');
+      }
+    }
 
     switch (kind) {
       case 'SCALAR':
-        return GraphQLScalarType(name: name);
+        return GraphQLScalarType(name: name!);
       case 'OBJECT':
         return GraphQLObjectType(
-          name: name,
+          name: name!,
           fields: const [],
           interfaces: const [],
         );
       case 'INPUT_OBJECT':
-        return GraphQLInputObjectType(name: name, inputFields: const []);
+        return GraphQLInputObjectType(name: name!, inputFields: const []);
       case 'UNION':
-        return GraphQLUnionType(name: name, possibleTypes: const []);
+        return GraphQLUnionType(name: name!, possibleTypes: const []);
       case 'ENUM':
-        return GraphQLEnumType(name: name, values: const []);
+        return GraphQLEnumType(name: name!, values: const []);
       case 'INTERFACE':
-        return GraphQLInterfaceType(name: name, fields: const []);
+        return GraphQLInterfaceType(name: name!, fields: const []);
       case 'LIST':
         // Will be resolved in second pass
         return GraphQLListType(
@@ -196,6 +203,10 @@ class SchemaParser {
         );
         return GraphQLNonNullType(ofType: ofType);
       case 'SCALAR':
+        final name = ref['name'] as String?;
+        if (name == null) throw SchemaParseError('Named type without name');
+        // For scalars, allow fallback to unknown scalar (server-defined custom scalars)
+        return types[name] ?? GraphQLScalarType(name: name);
       case 'OBJECT':
       case 'INPUT_OBJECT':
       case 'UNION':
@@ -203,7 +214,11 @@ class SchemaParser {
       case 'INTERFACE':
         final name = ref['name'] as String?;
         if (name == null) throw SchemaParseError('Named type without name');
-        return types[name] ?? GraphQLScalarType(name: name);
+        final type = types[name];
+        if (type == null) {
+          throw SchemaParseError('Type "$name" referenced but not found in schema');
+        }
+        return type;
       default:
         throw SchemaParseError('Unknown type kind in ref: $kind');
     }

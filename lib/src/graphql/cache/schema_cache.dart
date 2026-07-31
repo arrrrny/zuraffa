@@ -23,8 +23,9 @@ class SchemaCache {
 
   /// Load schema from cache or fetch from endpoint.
   ///
-  /// If [endpoint] is provided, fetches fresh introspection and caches it.
-  /// If [endpoint] is null, loads from cached file.
+  /// Returns cached schema by default when available.
+  /// If [forceRefresh] is true, bypasses cache and fetches from [endpoint].
+  /// If no cache exists, fetches from [endpoint] if provided.
   /// If neither exists, throws [SchemaCacheError].
   Future<GraphQLSchema> load({
     String? endpoint,
@@ -33,9 +34,18 @@ class SchemaCache {
   }) async {
     final cacheFile = File('$cacheDir/schema.json');
 
-    if (!forceRefresh && endpoint == null && await cacheFile.exists()) {
-      final json = jsonDecode(await cacheFile.readAsString());
-      return SchemaParser.parse(json);
+    if (!forceRefresh && await cacheFile.exists()) {
+      try {
+        final json = jsonDecode(await cacheFile.readAsString());
+        if (json is! Map<String, dynamic>) {
+          throw FormatException('Cache root is not a JSON object');
+        }
+        return SchemaParser.parse(json);
+      } on FormatException catch (e) {
+        throw SchemaCacheError('Cache file is corrupted (invalid JSON): $e');
+      } on TypeError catch (e) {
+        throw SchemaCacheError('Cache file has unexpected structure: $e');
+      }
     }
 
     if (endpoint != null) {

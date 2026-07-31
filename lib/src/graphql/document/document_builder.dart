@@ -5,7 +5,8 @@ import '../schema/schema_parser.dart';
 /// ```dart
 /// final builder = DocumentBuilder(schema: schema);
 /// final doc = builder.buildQuery(
-///   'GetProduct',
+///   operationName: 'GetProduct',
+///   fieldName: 'product',
 ///   fields: ['id', 'name', 'price'],
 ///   args: {'id': 'String!'},
 /// );
@@ -53,13 +54,13 @@ class DocumentBuilder {
     required Map<String, String> inputVars,
   }) {
     final buffer = StringBuffer();
-    final varDefs = inputVars.entries
-        .map((e) => '\$${e.key}: ${e.value}')
-        .join(', ');
+    final hasVars = inputVars.isNotEmpty;
 
-    buffer.writeln('mutation $operationName($varDefs) {');
     buffer.writeln(
-      '  $fieldName(${inputVars.keys.map((k) => '$k: \$$k').join(', ')}) {',
+      'mutation $operationName${hasVars ? '(${inputVars.entries.map((e) => '\$${e.key}: ${e.value}').join(', ')})' : ''} {',
+    );
+    buffer.writeln(
+      '  $fieldName${hasVars ? '(${inputVars.keys.map((k) => '$k: \$$k').join(', ')})' : ''} {',
     );
     for (final field in fields) {
       buffer.writeln('    $field');
