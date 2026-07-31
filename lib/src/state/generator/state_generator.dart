@@ -65,7 +65,7 @@ class StateGenerator {
                     cb.Parameter((p) {
                       p
                         ..name = 'presenter'
-                        ..type = cb.refer('SlicePresenter')
+                        ..required = true
                         ..toSuper = true;
                     }),
                   );

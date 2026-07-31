@@ -1,8 +1,5 @@
 import 'package:zuraffa/zuraffa.dart';
 
-import '../domain_state.dart';
-import '../view_state.dart';
-
 /// A presenter that strictly separates **DomainState** (auto-generated,
 /// immutable, regenerated) from **ViewState** (developer-editable, preserved).
 ///
