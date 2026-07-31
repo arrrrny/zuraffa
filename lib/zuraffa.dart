@@ -395,6 +395,28 @@ export 'src/dda/compiler/decorator_dispatcher.dart';
 export 'src/dda/compiler/build_pipeline.dart';
 
 // ============================================================
+// V6 DI — Auto-Dependency Injection
+// ============================================================
+
+/// DependencyScope — lifecycle scopes for DI.
+export 'src/core/di/dependency_scope.dart';
+
+/// @Datasource annotation.
+export 'src/core/di/datasource.dart';
+
+/// @Repository annotation.
+export 'src/core/di/repository.dart';
+
+/// ZuraffaContainer — lightweight DI container.
+export 'src/core/di/zuraffa_container.dart';
+
+/// DIPlugin — DDA plugin for @Datasource/@Repository processing.
+export 'src/dda/plugins/di/di_plugin.dart';
+
+/// DIGenerator — code_builder-based DI registration generation.
+export 'src/dda/plugins/di/di_generator.dart';
+
+// ============================================================
 // Framework Configuration
 // ============================================================
 
