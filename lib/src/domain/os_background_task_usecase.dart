@@ -19,10 +19,46 @@ import 'os_background_task.dart';
 ///   time budget (~30 s for refresh, minutes for BGProcessingTask).
 /// - **Web**: Not supported; calling [register] is a no-op.
 ///
+/// ## CRITICAL: Background Isolate Dispatch
+///
+/// On Android, workmanager spawns a **fresh isolate** that does NOT share
+/// memory with the main isolate. Your app MUST provide its own top-level
+/// callback dispatcher that contains a compile-time map of task handlers:
+///
+/// ```dart
+/// @pragma('vm:entry-point')
+/// void myAppCallbackDispatcher() {
+///   OsBackgroundTask.dispatch({
+///     'com.app.sync-data': SyncDataTaskUseCase.callbackHandler,
+///     'com.app.cleanup': CleanupTaskUseCase.callbackHandler,
+///   });
+/// }
+///
+/// Future<void> main() async {
+///   WidgetsFlutterBinding.ensureInitialized();
+///   await OsBackgroundTask.initialize(
+///     callbackDispatcher: myAppCallbackDispatcher,
+///   );
+///   // Create use case instances for main-isolate use:
+///   final syncTask = SyncDataTaskUseCase(dataService);
+///   await syncTask.register();
+///   runApp(MyApp());
+/// }
+/// ```
+///
+/// ## Background Isolate Limitations
+///
+/// Instance dependencies (services, repositories) from the main isolate are
+/// NOT available in the background isolate. Generated `callbackHandler`
+/// methods must reconstruct dependencies using isolate-safe mechanisms:
+/// 1. Re-initialize GetIt or other DI containers in the background isolate
+/// 2. Read data from isolate-safe storage (Hive, SharedPreferences)
+/// 3. Use top-level functions that don't rely on instance state
+///
 /// ## Example
 ///
 /// ```dart
-/// class SyncDataTask extends OsBackgroundTaskUseCase<void, NoParams> {
+/// class SyncDataTask extends OsBackgroundTaskUseCase<void> {
 ///   final DataService _dataService;
 ///   SyncDataTask(this._dataService);
 ///
@@ -41,9 +77,18 @@ import 'os_background_task.dart';
 ///   Future<void> execute(NoParams params) async {
 ///     await _dataService.syncAll();
 ///   }
+///
+///   // Generated static handler (referenced in your app's dispatcher):
+///   static Future<void> callbackHandler() async {
+///     // Reconstruct dependencies in background isolate:
+///     final getIt = GetIt.instance;
+///     getIt.registerSingleton(DataService());
+///     final service = getIt<DataService>();
+///     await service.syncAll();
+///   }
 /// }
 /// ```
-abstract class OsBackgroundTaskUseCase<T, Params> with Loggable {
+abstract class OsBackgroundTaskUseCase<T> with Loggable {
   /// The task descriptor for OS scheduler registration.
   ///
   /// Subclasses must override this to define the task's unique identifier,
@@ -54,19 +99,21 @@ abstract class OsBackgroundTaskUseCase<T, Params> with Loggable {
   ///
   /// This method may run in a **separate isolate** on Android. Keep it
   /// lightweight and isolate-safe.
-  Future<T> execute(Params params);
+  ///
+  /// workmanager does not pass parameterized data to callbacks; subclasses
+  /// should read any required data from isolate-safe storage inside this method.
+  Future<T> execute(NoParams params);
 
   /// Register this task with the OS background scheduler.
   ///
-  /// Calls [OsBackgroundTask.register] with this use case's [descriptor]
-  /// and a handler that invokes [execute].
+  /// **IMPORTANT**: Before calling this, ensure your app's top-level callback
+  /// dispatcher (passed to [OsBackgroundTask.initialize]) includes an entry
+  /// for [descriptor.identifier] in its handlers map. See class documentation
+  /// for the complete setup pattern.
   ///
   /// Returns `true` if registration succeeded.
   Future<bool> register() async {
-    return OsBackgroundTask.register(
-      descriptor,
-      _handler,
-    );
+    return OsBackgroundTask.register(descriptor);
   }
 
   /// Cancel this task from the OS scheduler.
@@ -74,26 +121,6 @@ abstract class OsBackgroundTaskUseCase<T, Params> with Loggable {
   /// Returns `true` if cancellation succeeded.
   Future<bool> cancel() async {
     return OsBackgroundTask.cancel(descriptor.identifier);
-  }
-
-  /// Internal handler bridging the workmanager callback to [execute].
-  ///
-  /// Uses a default `NoParams` instance since workmanager callbacks
-  /// do not pass parameterized data directly. Subclasses that need
-  /// data should read it from local storage or a shared preference
-  /// inside their [execute] override.
-  Future<void> _handler() async {
-    // workmanager does not pass typed params to callbacks;
-    // subclasses read their data from local storage inside execute().
-    try {
-      await execute(NoParams() as Params);
-    } catch (e, stackTrace) {
-      logger.severe(
-        '$runtimeType background task failed',
-        e,
-        stackTrace,
-      );
-    }
   }
 }
 

@@ -170,35 +170,109 @@ class OsBackgroundTaskGenerator {
         ..body = executeBody,
     );
 
-    // 3. The `callbackHandler` static method (entry point for workmanager)
+    // 3. The `callbackHandler` static method (background isolate entry point)
+    // This must be referenced in your app's top-level callback dispatcher
+    final handlerBody = depField.isEmpty
+        ? Block(
+            (b) => b
+              ..statements.add(
+                Code('// TODO: Implement background task logic here'),
+              )
+              ..statements.add(
+                Code(
+                  '// IMPORTANT: This runs in a background isolate on Android.',
+                ),
+              )
+              ..statements.add(
+                Code(
+                  '// You CANNOT access instance dependencies from the main isolate.',
+                ),
+              )
+              ..statements.add(
+                Code(
+                  '// Reconstruct dependencies here or read data from isolate-safe storage (Hive, SharedPreferences).',
+                ),
+              )
+              ..statements.add(
+                refer('UnimplementedError')
+                    .call([
+                      literalString(
+                        'Implement $className.callbackHandler — '
+                        'this runs in the background isolate',
+                      ),
+                    ])
+                    .thrown
+                    .statement,
+              ),
+          )
+        : Block(
+            (b) => b
+              ..statements.add(
+                Code(
+                  '// IMPORTANT: This runs in a background isolate on Android.',
+                ),
+              )
+              ..statements.add(
+                Code(
+                  '// Instance dependencies ($_depField) from the main isolate are NOT available.',
+                ),
+              )
+              ..statements.add(
+                Code(
+                  '// TODO: Reconstruct dependencies here. For example:',
+                ),
+              )
+              ..statements.add(Code('// final getIt = GetIt.instance;'))
+              ..statements.add(Code('// // Re-register services in background isolate'))
+              ..statements.add(Code('// getIt.registerSingleton(...);'))
+              ..statements.add(Code('// final service = getIt<...>();'))
+              ..statements.add(Code('// await service.doBackgroundWork();'))
+              ..statements.add(Code(''))
+              ..statements.add(
+                refer('UnimplementedError')
+                    .call([
+                      literalString(
+                        'Reconstruct dependencies in $className.callbackHandler — '
+                        'background isolate cannot access main isolate state',
+                      ),
+                    ])
+                    .thrown
+                    .statement,
+              ),
+          );
+
     final callbackHandler = Method(
       (b) => b
         ..name = 'callbackHandler'
         ..static = true
         ..returns = refer('Future<void>')
         ..annotations.add(CodeExpression(Code('@pragma(\'vm:entry-point\')')))
-        ..body = Block(
-          (b) => b
-            ..statements.add(Code('// TODO: Wire up service/repository here'))
-            ..statements.add(Code('// This runs in a background isolate (Android)'))
-            ..statements.add(
-              refer('UnimplementedError')
-                  .call([
-                    literalString(
-                      'Implement callbackHandler — '
-                      'this runs in the background isolate',
-                    ),
-                  ])
-                  .thrown
-                  .statement,
-            ),
-        ),
+        ..docs.addAll([
+          '/// Static handler for background task execution.',
+          '///',
+          '/// **CRITICAL**: Add this to your app\'s top-level callback dispatcher:',
+          '/// ```dart',
+          '/// @pragma(\'vm:entry-point\')',
+          '/// void myAppCallbackDispatcher() {',
+          '///   OsBackgroundTask.dispatch({',
+          "///     'com.zuraffa.${classSnake}_task': $className.callbackHandler,",
+          '///     // ... other task handlers',
+          '///   });',
+          '/// }',
+          '///',
+          '/// // Then in main():',
+          '/// await OsBackgroundTask.initialize(',
+          '///   callbackDispatcher: myAppCallbackDispatcher,',
+          '/// );',
+          '/// ```',
+        ])
+        ..body = handlerBody,
     );
 
     // --- Build class spec ---
     final spec = UseCaseClassSpec(
       className: className,
-      baseClass: 'OsBackgroundTaskUseCase<$returnsType, $paramsType>',
+      baseClass: 'OsBackgroundTaskUseCase<$returnsType>',
       fields: dependencyFields,
       constructors: constructorParams.isEmpty
           ? const []

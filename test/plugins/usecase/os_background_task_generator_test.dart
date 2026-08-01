@@ -44,7 +44,7 @@ void main() {
 
     // Must extend OsBackgroundTaskUseCase
     expect(
-      content.contains('OsBackgroundTaskUseCase<void, NoParams>'),
+      content.contains('OsBackgroundTaskUseCase<void>'),
       isTrue,
     );
     expect(content.contains('class SyncDataUseCase'), isTrue);
@@ -92,7 +92,7 @@ void main() {
 
     expect(content.contains('class PeriodicCleanupUseCase'), isTrue);
     expect(
-      content.contains('OsBackgroundTaskUseCase<void, NoParams>'),
+      content.contains('OsBackgroundTaskUseCase<void>'),
       isTrue,
     );
     expect(content.contains('final CacheRepository _cacheRepository;'), isTrue);
@@ -126,7 +126,7 @@ void main() {
 
     expect(content.contains('class HeartbeatPingUseCase'), isTrue);
     expect(
-      content.contains('OsBackgroundTaskUseCase<void, NoParams>'),
+      content.contains('OsBackgroundTaskUseCase<void>'),
       isTrue,
     );
     // No service/repo dependency fields
@@ -161,7 +161,7 @@ void main() {
     final content = files.first.content ?? '';
 
     expect(
-      content.contains('OsBackgroundTaskUseCase<WeatherData, NoParams>'),
+      content.contains('OsBackgroundTaskUseCase<WeatherData>'),
       isTrue,
     );
     expect(content.contains('Future<WeatherData> execute'), isTrue);
