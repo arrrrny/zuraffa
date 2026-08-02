@@ -44,6 +44,17 @@ class GraphQLClientConfig {
   }
 }
 
+/// Result of building a [GraphQLClient] with optional [WebSocketLink].
+class GraphQLClientBuildResult {
+  const GraphQLClientBuildResult({
+    required this.client,
+    this.wsLink,
+  });
+
+  final GraphQLClient client;
+  final WebSocketLink? wsLink;
+}
+
 /// Factory that assembles a [GraphQLClient] from [GraphQLClientConfig].
 ///
 /// Links are chained in order:
@@ -55,7 +66,10 @@ class GraphQLClientFactory {
   const GraphQLClientFactory();
 
   /// Build a [GraphQLClient] from [config].
-  GraphQLClient build(GraphQLClientConfig config) {
+  ///
+  /// Returns a [GraphQLClientBuildResult] containing the client and an optional
+  /// [WebSocketLink] that should be disposed when the client is replaced.
+  GraphQLClientBuildResult build(GraphQLClientConfig config) {
     final httpLink = HttpLink(
       config.endpoint,
       defaultHeaders: config.headers,
@@ -63,25 +77,31 @@ class GraphQLClientFactory {
     );
 
     final Link link;
+    final WebSocketLink? wsLink;
     if (config.subscriptions && config.wsEndpoint != null) {
+      wsLink = WebSocketLink(config.wsEndpoint!);
       // Split link: subscriptions go to WebSocket, everything else to HTTP.
       link = Link.split(
         (request) =>
             request.operation.getOperationType() == OperationType.subscription,
-        WebSocketLink(config.wsEndpoint!),
+        wsLink,
         httpLink,
       );
     } else {
+      wsLink = null;
       link = httpLink;
     }
 
-    return GraphQLClient(
-      link: link,
-      cache: GraphQLCache(),
-      defaultPolicies: DefaultPolicies(
-        query: Policies(fetch: FetchPolicy.noCache),
-        mutate: Policies(fetch: FetchPolicy.noCache),
+    return GraphQLClientBuildResult(
+      client: GraphQLClient(
+        link: link,
+        cache: GraphQLCache(),
+        defaultPolicies: DefaultPolicies(
+          query: Policies(fetch: FetchPolicy.noCache),
+          mutate: Policies(fetch: FetchPolicy.noCache),
+        ),
       ),
+      wsLink: wsLink,
     );
   }
 }

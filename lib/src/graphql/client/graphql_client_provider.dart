@@ -19,10 +19,12 @@ class GraphQLClientProvider {
 
   GraphQLClientConfig? _config;
   GraphQLClient? _client;
+  WebSocketLink? _wsLink;
   final _factory = const GraphQLClientFactory();
 
   /// Initialize with configuration. Must be called before [client].
   void initialize(GraphQLClientConfig config) {
+    _disposeCurrentClient();
     _config = config;
     _client = null; // Reset to rebuild with new config
   }
@@ -38,12 +40,23 @@ class GraphQLClientProvider {
         'Call initialize() with GraphQLClientConfig before accessing client.',
       );
     }
-    _client ??= _factory.build(_config!);
+    if (_client == null) {
+      final result = _factory.build(_config!);
+      _client = result.client;
+      _wsLink = result.wsLink;
+    }
     return _client!;
   }
 
   /// Dispose the current client. Next [client] access will rebuild.
   void dispose() {
+    _disposeCurrentClient();
+  }
+
+  /// Dispose the WebSocketLink (if any) and clear the client.
+  void _disposeCurrentClient() {
+    _wsLink?.dispose();
+    _wsLink = null;
     _client = null;
   }
 }

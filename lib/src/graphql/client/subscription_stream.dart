@@ -57,11 +57,62 @@ class SubscriptionStream<T> {
   }
 
   /// A [SignalResult] that updates on each subscription event.
+  ///
+  /// The returned signal is resilient to transient errors: if the subscription
+  /// stream emits an error, it will automatically retry by recreating the
+  /// subscription, preserving the signal for long-lived watchXxx() usage.
   SignalResult<T> toSignalResult() {
-    // Note: `StreamToSignalResultAdapter<T>.adapt` is invalid Dart —
-    // statics are accessed via the raw class name, so `T` is inferred
-    // from the stream type instead.
-    return StreamToSignalResultAdapter.adapt(toResultStream());
+    // Wrap the subscription stream with retry logic to handle transient errors.
+    final resilientStream = _createResilientStream();
+    return StreamToSignalResultAdapter.adapt(resilientStream);
+  }
+
+  /// Create a stream that automatically retries subscription on errors.
+  Stream<Result<T, AppFailure>> _createResilientStream() {
+    late StreamController<Result<T, AppFailure>> controller;
+    StreamSubscription<Result<T, AppFailure>>? subscription;
+
+    void subscribe() {
+      subscription?.cancel();
+      subscription = toResultStream().listen(
+        (result) {
+          if (!controller.isClosed) {
+            controller.add(result);
+          }
+        },
+        onError: (Object e, StackTrace st) {
+          // Emit the error as a failure result, then retry the subscription.
+          if (!controller.isClosed) {
+            controller.add(
+              Failure<T, AppFailure>(AppFailure.from(e, st)),
+            );
+            // Recreate the subscription after a brief delay to avoid tight loops.
+            Future.delayed(const Duration(milliseconds: 100), () {
+              if (!controller.isClosed) {
+                subscribe();
+              }
+            });
+          }
+        },
+        onDone: () {
+          // If the stream completes without error, recreate it to maintain
+          // the long-lived subscription behavior.
+          if (!controller.isClosed) {
+            subscribe();
+          }
+        },
+      );
+    }
+
+    controller = StreamController<Result<T, AppFailure>>(
+      onListen: subscribe,
+      onCancel: () {
+        subscription?.cancel();
+        subscription = null;
+      },
+    );
+
+    return controller.stream;
   }
 }
 
