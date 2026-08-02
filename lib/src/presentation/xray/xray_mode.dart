@@ -15,6 +15,12 @@ class XRayMode {
   XRayMode._();
 
   static bool _enabled = false;
+  static final ValueNotifier<bool> _notifier = ValueNotifier<bool>(false);
+
+  /// Notifier that updates when X-Ray mode is toggled.
+  ///
+  /// Scopes can listen to this to refresh their active state without remounting.
+  static ValueNotifier<bool> get notifier => _notifier;
 
   /// Path to the persistent X-Ray config file.
   /// Shared with [XrayCommand] in the CLI layer.
@@ -35,11 +41,13 @@ class XRayMode {
   static void enable() {
     if (kReleaseMode) return;
     _enabled = true;
+    _notifier.value = true;
   }
 
   /// Disable X-Ray mode. All scopes stop tracking.
   static void disable() {
     _enabled = false;
+    _notifier.value = false;
   }
 
   /// Toggle X-Ray mode.
@@ -71,6 +79,7 @@ class XRayMode {
       final config = json.decode(content) as Map<String, dynamic>;
       if (config['enabled'] == true) {
         _enabled = true;
+        _notifier.value = true;
       }
     } catch (_) {
       // Config file missing or malformed — ignore silently.
@@ -81,5 +90,6 @@ class XRayMode {
   @visibleForTesting
   static void reset() {
     _enabled = false;
+    _notifier.value = false;
   }
 }

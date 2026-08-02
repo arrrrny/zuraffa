@@ -183,73 +183,75 @@ class XRayScopeOverlayState extends State<XRayScopeOverlay> {
       top: rect.top - 2,
       width: rect.width + 4,
       height: rect.height + 4,
-      // Key: IgnorePointer on the box itself so touches pass through.
-      child: IgnorePointer(
-        child: CustomPaint(
-          painter: _NeonBorderPainter(
-            color: viewColor,
-            isEnabled: isEnabled,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Border painting — wrapped in IgnorePointer so touches pass through.
+          IgnorePointer(
+            child: CustomPaint(
+              painter: _NeonBorderPainter(
+                color: viewColor,
+                isEnabled: isEnabled,
+              ),
+            ),
           ),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              // Top label — TAPPABLE for detail inspection.
-              Positioned(
-                left: 0,
-                top: -18,
-                child: GestureDetector(
-                  onTap: () => _onBoxTapped(nodeId),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 1,
-                    ),
-                    decoration: BoxDecoration(
-                      color: XRayColors.labelBackgroundFor(viewColor),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                    child: Text(
-                      nodeId,
-                      style: const TextStyle(
-                        color: Color(0xFF000000),
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        decoration: TextDecoration.none,
-                      ),
+          // Top label — TAPPABLE for detail inspection.
+          Positioned(
+            left: 0,
+            top: -18,
+            child: GestureDetector(
+              onTap: () => _onBoxTapped(nodeId),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 4,
+                  vertical: 1,
+                ),
+                decoration: BoxDecoration(
+                  color: XRayColors.labelBackgroundFor(viewColor),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+                child: Text(
+                  nodeId,
+                  style: const TextStyle(
+                    color: Color(0xFF000000),
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Bottom label — read-only, IgnorePointer.
+          if (actionName != null || stateText != null)
+            Positioned(
+              left: 0,
+              bottom: -16,
+              child: IgnorePointer(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: XRayColors.labelBackgroundFor(viewColor),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                  child: Text(
+                    [actionName, stateText]
+                        .whereType<String>()
+                        .join(' \u00B7 '),
+                    style: const TextStyle(
+                      color: Color(0xFF000000),
+                      fontSize: 9,
+                      fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.none,
                     ),
                   ),
                 ),
               ),
-              // Bottom label — read-only, IgnorePointer.
-              if (actionName != null || stateText != null)
-                Positioned(
-                  left: 0,
-                  bottom: -16,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 1,
-                    ),
-                    decoration: BoxDecoration(
-                      color: XRayColors.labelBackgroundFor(viewColor),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                    child: Text(
-                      [actionName, stateText]
-                          .whereType<String>()
-                          .join(' \u00B7 '),
-                      style: const TextStyle(
-                        color: Color(0xFF000000),
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                        decoration: TextDecoration.none,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
+            ),
+        ],
       ),
     );
   }

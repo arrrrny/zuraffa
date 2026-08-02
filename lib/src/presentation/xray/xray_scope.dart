@@ -100,6 +100,28 @@ class XRayScopeState extends State<XRayScope> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _active = XRayMode.isEnabled;
+    XRayMode.notifier.addListener(_onXRayModeChanged);
+  }
+
+  @override
+  void dispose() {
+    XRayMode.notifier.removeListener(_onXRayModeChanged);
+    super.dispose();
+  }
+
+  void _onXRayModeChanged() {
+    final shouldActivate = XRayMode.isEnabled;
+    if (shouldActivate != _active) {
+      setState(() {
+        _active = shouldActivate;
+      });
+    }
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final shouldActivate = XRayMode.isEnabled;

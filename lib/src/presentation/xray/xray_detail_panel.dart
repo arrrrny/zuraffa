@@ -41,9 +41,14 @@ class XRayDetailPanel extends StatelessWidget {
     const dimTextColor = Color(0xFF888888);
 
     final stateJson = metadata?.stateJson;
-    final stateString = stateJson != null
-        ? const JsonEncoder.withIndent('  ').convert(stateJson)
-        : null;
+    String? stateString;
+    if (stateJson != null) {
+      try {
+        stateString = const JsonEncoder.withIndent('  ').convert(stateJson);
+      } catch (_) {
+        stateString = stateJson.toString();
+      }
+    }
 
     return Positioned.fill(
       child: GestureDetector(
