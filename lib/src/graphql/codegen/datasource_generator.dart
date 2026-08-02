@@ -49,6 +49,15 @@ class DatasourceGenerator {
   }) {
     final className = '\$${name}Datasource';
 
+    // Check if any union operation exists
+    final hasUnionOperation =
+        queries.any(
+          (q) => q.returnType.innerType is GraphQLUnionType && !q.returnType.isList,
+        ) ||
+        mutations.any(
+          (m) => m.returnType.innerType is GraphQLUnionType && !m.returnType.isList,
+        );
+
     final library = cb.Library((b) {
       b.directives.add(cb.Directive.import('package:zuraffa/zuraffa.dart'));
       b.directives.add(
@@ -77,8 +86,8 @@ class DatasourceGenerator {
               }),
             );
 
-          // Error config field + mapping helper when unions are enabled
-          if (errorConfig != null) {
+          // Error config field + mapping helper when unions are enabled and union operations exist
+          if (errorConfig != null && hasUnionOperation) {
             final handler = UnionResultHandler(errorConfig: errorConfig!);
             c.fields.add(handler.buildErrorConfigField());
           }
@@ -124,8 +133,8 @@ class DatasourceGenerator {
             }
           }
 
-          // _mapError helper if union error mapping is enabled
-          if (errorConfig != null) {
+          // _mapError helper if union error mapping is enabled and union operations exist
+          if (errorConfig != null && hasUnionOperation) {
             c.methods.add(
               UnionResultHandler(
                 errorConfig: errorConfig!,
@@ -194,7 +203,7 @@ class DatasourceGenerator {
         bl.statements.add(cb.Code('  );'));
         bl.statements.add(cb.Code('}'));
         bl.statements.add(cb.Code(''));
-        if (isUnion) {
+        if (isUnion && !query.returnType.isList) {
           _buildUnionHandler(bl, query, isMutation: false);
         } else if (query.returnType.isList) {
           bl.statements.add(
@@ -295,7 +304,7 @@ class DatasourceGenerator {
         bl.statements.add(cb.Code('  );'));
         bl.statements.add(cb.Code('}'));
         bl.statements.add(cb.Code(''));
-        if (isUnion) {
+        if (isUnion && !mutation.returnType.isList) {
           _buildUnionHandler(bl, mutation, isMutation: true);
         } else if (mutation.returnType.isList) {
           bl.statements.add(
@@ -383,6 +392,15 @@ class DatasourceGenerator {
       bl.statements.add(cb.Code('  return SignalResult<$signalType>.failure('));
       bl.statements.add(
         cb.Code("    const ServerFailure('No data returned'),"),
+      );
+      bl.statements.add(cb.Code('  );'));
+      bl.statements.add(cb.Code('}'));
+      bl.statements.add(cb.Code(''));
+      bl.statements.add(cb.Code("final typename = data['__typename'] as String?;"));
+      bl.statements.add(cb.Code('if (typename == null) {'));
+      bl.statements.add(cb.Code('  return SignalResult<$signalType>.failure('));
+      bl.statements.add(
+        cb.Code("    const ServerFailure('Missing __typename in union result'),"),
       );
       bl.statements.add(cb.Code('  );'));
       bl.statements.add(cb.Code('}'));

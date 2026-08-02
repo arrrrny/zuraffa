@@ -16,9 +16,16 @@ import 'error_mapping_config.dart';
 ///     const ServerFailure('No data returned'),
 ///   );
 /// }
-/// final typename = data['__typename'] as String? ?? '';
+/// final typename = data['__typename'] as String?;
+/// if (typename == null) {
+///   return SignalResult<$$AddItemToOrderResult>.failure(
+///     const ServerFailure('Missing __typename in union result'),
+///   );
+/// }
 /// if (_errorConfig.isError(typename, operationName: 'addItemToOrder')) {
-///   return SignalResult<$$AddItemToOrderResult>.failure(_mapError(typename, data));
+///   return SignalResult<$$AddItemToOrderResult>.failure(
+///     _mapError(typename, data, 'addItemToOrder'),
+///   );
 /// }
 /// final entity = $$AddItemToOrderResult.fromJson(data);
 /// return SignalResult<$$AddItemToOrderResult>.success(entity);
@@ -68,6 +75,11 @@ class UnionResultHandler {
               ..name = 'json'
               ..type = cb.refer('Map<String, dynamic>'),
           ),
+          cb.Parameter(
+            (p) => p
+              ..name = 'operationName'
+              ..type = cb.refer('String'),
+          ),
         ])
         ..body = cb.Block((bl) {
           bl.statements.add(
@@ -75,7 +87,7 @@ class UnionResultHandler {
           );
           bl.statements.add(
             cb.Code(
-              'return _errorConfig.toFailure(errorType, message: message);',
+              'return _errorConfig.toFailure(errorType, message: message, operationName: operationName);',
             ),
           );
         });
@@ -111,14 +123,24 @@ class UnionResultHandler {
     buffer.writeln('  );');
     buffer.writeln('}');
     buffer.writeln('');
-    buffer.writeln("final typename = data['__typename'] as String? ?? '';");
+    buffer.writeln("final typename = data['__typename'] as String?;");
+    buffer.writeln('if (typename == null) {');
+    buffer.writeln('  return SignalResult<$returnType>.failure(');
+    buffer.writeln("    const ServerFailure('Missing __typename in union result'),");
+    buffer.writeln('  );');
+    buffer.writeln('}');
+    buffer.writeln('');
     final opArg = operationName == null
         ? ''
         : ", operationName: '$operationName'";
+    final opArgForMapError = operationName == null
+        ? "''"
+        : "'$operationName'";
     buffer.writeln('if (_errorConfig.isError(typename$opArg)) {');
     buffer.writeln(
-      '  return SignalResult<$returnType>.failure(_mapError(typename, data));',
+      '  return SignalResult<$returnType>.failure(_mapError(typename, data, $opArgForMapError));',
     );
+    buffer.writeln('}');
     buffer.writeln('');
     buffer.writeln('final entity = ${unionType.symbol}.fromJson(data);');
     buffer.writeln('return SignalResult<$returnType>.success(entity);');
