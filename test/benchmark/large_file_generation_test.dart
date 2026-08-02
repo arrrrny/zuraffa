@@ -4,12 +4,12 @@ import 'package:zuraffa/src/core/ast/strategies/append_strategy.dart';
 
 void main() {
   test('appends method to large class within budget', () {
-    final buffer = StringBuffer()..writeln('class Big {');
-    for (var i = 0; i < 400; i += 1) {
-      buffer.writeln('  void m$i() {}');
-    }
-    buffer.writeln('}');
-    final source = buffer.toString();
+    final lines = <String>[
+      'class Big {',
+      ...List.generate(400, (i) => '  void m$i() {}'),
+      '}',
+    ];
+    final source = '${lines.join('\n')}\n';
 
     final executor = AppendExecutor();
     final stopwatch = Stopwatch()..start();

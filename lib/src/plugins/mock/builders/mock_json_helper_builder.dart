@@ -32,7 +32,7 @@ class MockJsonHelperBuilder {
     );
     final isPolymorphic = subtypes.isNotEmpty;
 
-    final subtypeImports = StringBuffer();
+    final subtypeImports = <String>[];
     if (isPolymorphic) {
       for (final subtype in subtypes) {
         final subImport = EntityAnalyzer.getEntityImportPath(
@@ -40,9 +40,14 @@ class MockJsonHelperBuilder {
           outputDir,
           fromDir: 'data/mock_json/$domain',
         );
-        subtypeImports.writeln("import '$subImport';");
+        subtypeImports.add("import '$subImport';");
       }
     }
+    // writeln() semantics: each import is followed by a newline so the
+    // template's own trailing newline yields a blank line before the class.
+    final subtypeImportsText = isPolymorphic
+        ? '${subtypeImports.join('\n')}\n'
+        : '';
 
     final deserializeMethod = isPolymorphic
         ? _buildPolymorphicDeserializer(entityName, subtypes)
@@ -86,7 +91,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '$entityImport';
-$subtypeImports
+$subtypeImportsText
 class $helperClassName {
   $loadMethod
 
@@ -107,14 +112,15 @@ $privat}
     String entityName,
     List<String> subtypes,
   ) {
-    final buffer = StringBuffer();
-    buffer.writeln('    final type = j[\'_type\'] as String?;');
-    buffer.writeln('    switch (type) {');
-    for (final subtype in subtypes) {
-      buffer.writeln("      case '$subtype': return $subtype.fromJson(j);");
-    }
-    buffer.writeln('      default: return $entityName.fromJson(j);');
-    buffer.write('    }');
-    return buffer.toString();
+    final lines = <String>[
+      '    final type = j[\'_type\'] as String?;',
+      '    switch (type) {',
+      ...subtypes.map(
+        (subtype) => "      case '$subtype': return $subtype.fromJson(j);",
+      ),
+      '      default: return $entityName.fromJson(j);',
+      '    }',
+    ];
+    return lines.join('\n');
   }
 }

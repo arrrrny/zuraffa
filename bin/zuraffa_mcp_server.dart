@@ -1245,19 +1245,17 @@ Use quick for fast diagnostics, full for troubleshooting.''',
 
   /// Quick doctor - fast checks without subprocess
   Future<String> _runQuickDoctor() async {
-    final output = StringBuffer();
-    output.writeln('Zuraffa Doctor (quick mode)');
-    output.writeln('');
+    final output = <String>['Zuraffa Doctor (quick mode)', ''];
 
     // Check Dart version
     try {
       final result = await Process.run('dart', ['--version']);
       final dartVersion = result.stderr.toString().trim();
       if (dartVersion.isNotEmpty) {
-        output.writeln('Dart: ✅ $dartVersion');
+        output.add('Dart: ✅ $dartVersion');
       }
     } catch (e) {
-      output.writeln('Dart: ❌ Not found');
+      output.add('Dart: ❌ Not found');
     }
 
     // Check Flutter version
@@ -1265,23 +1263,23 @@ Use quick for fast diagnostics, full for troubleshooting.''',
       final result = await Process.run('flutter', ['--version']);
       final flutterVersion = result.stderr.toString().split('\n').first.trim();
       if (flutterVersion.isNotEmpty) {
-        output.writeln('Flutter: ✅ $flutterVersion');
+        output.add('Flutter: ✅ $flutterVersion');
       }
     } catch (e) {
-      output.writeln('Flutter: ❌ Not found');
+      output.add('Flutter: ❌ Not found');
     }
 
     // Check pubspec.yaml
     final pubspecFile = File('${Directory.current.path}/pubspec.yaml');
     if (!await pubspecFile.exists()) {
-      output.writeln('');
-      output.writeln('Project: ❌ No pubspec.yaml in current directory');
-      output.writeln('   Make sure you are in a Flutter/Dart project root.');
-      return output.toString();
+      output.add('');
+      output.add('Project: ❌ No pubspec.yaml in current directory');
+      output.add('   Make sure you are in a Flutter/Dart project root.');
+      return '${output.join('\n')}\n';
     }
 
-    output.writeln('');
-    output.writeln('Project: ✅ pubspec.yaml found');
+    output.add('');
+    output.add('Project: ✅ pubspec.yaml found');
 
     // Check zuraffa dependency
     try {
@@ -1290,12 +1288,12 @@ Use quick for fast diagnostics, full for troubleshooting.''',
         r'zuraffa:\s*(.+)',
       ).firstMatch(pubspecContent);
       if (zuraffaMatch != null) {
-        output.writeln(
+        output.add(
           '  zuraffa: ✅ ${zuraffaMatch.group(1)?.trim() ?? "installed"}',
         );
       } else {
-        output.writeln('  zuraffa: ❌ Not in dependencies');
-        output.writeln('     Run: dart pub add zuraffa');
+        output.add('  zuraffa: ❌ Not in dependencies');
+        output.add('     Run: dart pub add zuraffa');
       }
 
       // Check zorphy_annotation
@@ -1303,59 +1301,55 @@ Use quick for fast diagnostics, full for troubleshooting.''',
         r'zorphy_annotation:\s*(.+)',
       ).firstMatch(pubspecContent);
       if (zorphyMatch != null) {
-        output.writeln(
+        output.add(
           '  zorphy_annotation: ✅ ${zorphyMatch.group(1)?.trim() ?? "installed"}',
         );
       } else {
-        output.writeln(
+        output.add(
           '  zorphy_annotation: ⚠️  Not found (optional for entities)',
         );
       }
 
       // Check build_runner
       if (pubspecContent.contains('build_runner:')) {
-        output.writeln('  build_runner: ✅ installed');
+        output.add('  build_runner: ✅ installed');
       } else {
-        output.writeln('  build_runner: ⚠️  Not found (optional for code gen)');
+        output.add('  build_runner: ⚠️  Not found (optional for code gen)');
       }
     } catch (e) {
-      output.writeln('  Error reading pubspec: $e');
+      output.add('  Error reading pubspec: $e');
     }
 
     // Check for zfa CLI globally
     try {
       final result = await Process.run('which', ['zfa']);
       if (result.exitCode == 0) {
-        output.writeln('');
-        output.writeln('zfa CLI: ✅ Globally installed');
+        output.add('');
+        output.add('zfa CLI: ✅ Globally installed');
       } else {
-        output.writeln('');
-        output.writeln('zfa CLI: ℹ️  Not installed globally (optional)');
-        output.writeln('     Install: dart pub global activate zuraffa');
+        output.add('');
+        output.add('zfa CLI: ℹ️  Not installed globally (optional)');
+        output.add('     Install: dart pub global activate zuraffa');
       }
     } catch (e) {
-      output.writeln('');
-      output.writeln('zfa CLI: ℹ️  Not installed globally (optional)');
+      output.add('');
+      output.add('zfa CLI: ℹ️  Not installed globally (optional)');
     }
 
     // Check .zfa.json config
     final configFile = File('${Directory.current.path}/.zfa.json');
     if (await configFile.exists()) {
-      output.writeln('');
-      output.writeln('Config: ✅ .zfa.json found');
+      output.add('');
+      output.add('Config: ✅ .zfa.json found');
     } else {
-      output.writeln('');
-      output.writeln(
-        'Config: ℹ️  No .zfa.json (use zfa config init to create)',
-      );
+      output.add('');
+      output.add('Config: ℹ️  No .zfa.json (use zfa config init to create)');
     }
 
-    output.writeln('');
-    output.writeln(
-      '💡 Run zuraffa_doctor with mode=full for complete diagnostics',
-    );
+    output.add('');
+    output.add('💡 Run zuraffa_doctor with mode=full for complete diagnostics');
 
-    return output.toString();
+    return '${output.join('\n')}\n';
   }
 
   /// Cached zfa CLI invocation (resolved once, reused)
@@ -1514,7 +1508,10 @@ Use quick for fast diagnostics, full for troubleshooting.''',
           stderr.writeln(
             '[zfa-resolve] ✓ Using dart run zuraffa:zfa (project dependency)',
           );
-          return _ResolvedCli(dartPath, prefixArgs: const ['run', 'zuraffa:zfa']);
+          return _ResolvedCli(
+            dartPath,
+            prefixArgs: const ['run', 'zuraffa:zfa'],
+          );
         }
       }
 
@@ -1792,18 +1789,18 @@ Use quick for fast diagnostics, full for troubleshooting.''',
           if (!result.success) {
             throw Exception(result.message ?? 'Plugin execution failed');
           }
-          final buffer = StringBuffer();
-          if (result.message != null) buffer.writeln(result.message);
+          final buffer = <String>[];
+          if (result.message != null) buffer.add(result.message!);
           if (result.files.isNotEmpty) {
-            buffer.writeln('Modified files:');
+            buffer.add('Modified files:');
             for (final file in result.files) {
-              buffer.writeln('- $file');
+              buffer.add('- $file');
             }
           }
           if (result.data != null) {
-            buffer.writeln('Data: ${jsonEncode(result.data)}');
+            buffer.add('Data: ${jsonEncode(result.data)}');
           }
-          return buffer.toString();
+          return '${buffer.join('\n')}\n';
         }
       }
     }

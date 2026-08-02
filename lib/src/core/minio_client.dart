@@ -471,7 +471,7 @@ class MinioClient {
       return normalized;
     }
 
-    final buffer = StringBuffer();
+    final buffer = <String>[];
     var previousWasSpace = false;
     for (final codeUnit in normalized.codeUnits) {
       String char;
@@ -490,13 +490,13 @@ class MinioClient {
         previousWasSpace = false;
       }
 
-      buffer.write(char);
+      buffer.add(char);
       if (buffer.length >= _headerPreviewLength) {
         break;
       }
     }
 
-    final preview = buffer.toString().trim();
+    final preview = buffer.join().trim();
     return '[sanitized len=${normalized.length}] '
         '${normalized.length > _headerPreviewLength ? '$preview...' : preview}';
   }

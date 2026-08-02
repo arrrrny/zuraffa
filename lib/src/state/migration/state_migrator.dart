@@ -77,11 +77,6 @@ class StateMigrator {
 
   /// Transform a v5 state file into v6 slice pattern.
   String _transformStateFile(String content) {
-    final buffer = StringBuffer();
-    buffer.writeln('// MIGRATED TO V6 SIGNAL SLICES');
-    buffer.writeln('// Original: v5 monolithic state');
-    buffer.writeln();
-
     // Extract class name — throw if not found so the file is recorded as an error.
     final classMatch = RegExp(r'class (\w+)Presenter').firstMatch(content);
     if (classMatch == null) {
@@ -89,13 +84,16 @@ class StateMigrator {
     }
     final presenterName = classMatch.group(1)!;
 
-    buffer.writeln("import 'package:zuraffa/zuraffa.dart';");
-    buffer.writeln();
-
-    // Generate SlicePresenter subclass
-    buffer.writeln('class ${presenterName}Presenter extends SlicePresenter {');
-    buffer.writeln('  ${presenterName}Presenter({super.context});');
-    buffer.writeln();
+    final lines = <String>[
+      '// MIGRATED TO V6 SIGNAL SLICES',
+      '// Original: v5 monolithic state',
+      '',
+      "import 'package:zuraffa/zuraffa.dart';",
+      '',
+      'class ${presenterName}Presenter extends SlicePresenter {',
+      '  ${presenterName}Presenter({super.context});',
+      '',
+    ];
 
     // Detect use case bindings and generate slices
     final useCaseMatches = RegExp(
@@ -116,17 +114,17 @@ class StateMigrator {
       }
       usedKeys.add(sliceKey);
 
-      buffer.writeln('  late final $sliceKey = bind<$typeName>(');
-      buffer.writeln("    '$sliceKey',");
-      buffer.writeln('    $fieldName,');
-      buffer.writeln('    ${typeName}Params(), // TODO: provide actual params');
-      buffer.writeln('  );');
-      buffer.writeln();
+      lines.add('  late final $sliceKey = bind<$typeName>(');
+      lines.add("    '$sliceKey',");
+      lines.add('    $fieldName,');
+      lines.add('    ${typeName}Params(), // TODO: provide actual params');
+      lines.add('  );');
+      lines.add('');
     }
 
-    buffer.writeln('}');
+    lines.add('}');
 
-    return buffer.toString();
+    return '${lines.join('\n')}\n';
   }
 
   /// Strip 'UseCase' suffix and common action prefixes to produce a semantic key.

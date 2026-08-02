@@ -24,26 +24,15 @@ class DocumentBuilder {
     Map<String, String>? args,
     List<String>? fragments,
   }) {
-    final buffer = StringBuffer();
-    buffer.writeln(
+    final lines = <String>[
       'query $operationName${args != null && args.isNotEmpty ? _buildArgs(args) : ''} {',
-    );
-    buffer.writeln(
       '  $fieldName${args != null && args.isNotEmpty ? _buildArgValues(args) : ''} {',
-    );
-    for (final field in fields) {
-      buffer.writeln('    $field');
-    }
-    buffer.writeln('  }');
-    buffer.writeln('}');
-
-    if (fragments != null) {
-      for (final fragment in fragments) {
-        buffer.writeln(fragment);
-      }
-    }
-
-    return buffer.toString();
+      ...fields.map((field) => '    $field'),
+      '  }',
+      '}',
+      ...?fragments,
+    ];
+    return '${lines.join('\n')}\n';
   }
 
   /// Build a mutation document string.
@@ -53,22 +42,15 @@ class DocumentBuilder {
     required List<String> fields,
     required Map<String, String> inputVars,
   }) {
-    final buffer = StringBuffer();
     final hasVars = inputVars.isNotEmpty;
-
-    buffer.writeln(
+    final lines = <String>[
       'mutation $operationName${hasVars ? '(${inputVars.entries.map((e) => '\$${e.key}: ${e.value}').join(', ')})' : ''} {',
-    );
-    buffer.writeln(
       '  $fieldName${hasVars ? '(${inputVars.keys.map((k) => '$k: \$$k').join(', ')})' : ''} {',
-    );
-    for (final field in fields) {
-      buffer.writeln('    $field');
-    }
-    buffer.writeln('  }');
-    buffer.writeln('}');
-
-    return buffer.toString();
+      ...fields.map((field) => '    $field'),
+      '  }',
+      '}',
+    ];
+    return '${lines.join('\n')}\n';
   }
 
   /// Build a subscription document string.
@@ -78,20 +60,14 @@ class DocumentBuilder {
     required List<String> fields,
     Map<String, String>? args,
   }) {
-    final buffer = StringBuffer();
-    buffer.writeln(
+    final lines = <String>[
       'subscription $operationName${args != null && args.isNotEmpty ? _buildArgs(args) : ''} {',
-    );
-    buffer.writeln(
       '  $fieldName${args != null && args.isNotEmpty ? _buildArgValues(args) : ''} {',
-    );
-    for (final field in fields) {
-      buffer.writeln('    $field');
-    }
-    buffer.writeln('  }');
-    buffer.writeln('}');
-
-    return buffer.toString();
+      ...fields.map((field) => '    $field'),
+      '  }',
+      '}',
+    ];
+    return '${lines.join('\n')}\n';
   }
 
   /// Build a fragment definition.
@@ -100,13 +76,12 @@ class DocumentBuilder {
     required String onType,
     required List<String> fields,
   }) {
-    final buffer = StringBuffer();
-    buffer.writeln('fragment $name on $onType {');
-    for (final field in fields) {
-      buffer.writeln('  $field');
-    }
-    buffer.writeln('}');
-    return buffer.toString();
+    final lines = <String>[
+      'fragment $name on $onType {',
+      ...fields.map((field) => '  $field'),
+      '}',
+    ];
+    return '${lines.join('\n')}\n';
   }
 
   String _buildArgs(Map<String, String> args) {

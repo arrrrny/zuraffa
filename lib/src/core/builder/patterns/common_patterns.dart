@@ -358,20 +358,20 @@ class CommonPatterns {
   static List<String> _splitByComma(String input) {
     final results = <String>[];
     var bracketCount = 0;
-    var current = StringBuffer();
+    var current = <String>[];
     for (var i = 0; i < input.length; i++) {
       final char = input[i];
       if (char == '<') bracketCount++;
       if (char == '>') bracketCount--;
       if (char == ',' && bracketCount == 0) {
-        results.add(current.toString().trim());
-        current = StringBuffer();
+        results.add(current.join().trim());
+        current = <String>[];
       } else {
-        current.write(char);
+        current.add(char);
       }
     }
     if (current.isNotEmpty) {
-      results.add(current.toString().trim());
+      results.add(current.join().trim());
     }
     return results;
   }

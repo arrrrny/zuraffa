@@ -325,7 +325,7 @@ class GqlBuilder {
 
   String _formatGraphQLFields(String fieldsStr) {
     final fields = fieldsStr.split(',').map((f) => f.trim()).toList();
-    final result = StringBuffer();
+    final lines = <String>[];
     final fieldTree = <String, dynamic>{};
 
     for (final field in fields) {
@@ -347,28 +347,28 @@ class GqlBuilder {
       }
     }
 
-    _writeGraphQLFields(fieldTree, result, 6);
-    return result.toString().trimRight();
+    _writeGraphQLFields(fieldTree, lines, 6);
+    return lines.join('\n').trimRight();
   }
 
   void _writeGraphQLFields(
     Map<String, dynamic> fields,
-    StringBuffer buffer,
+    List<String> lines,
     int indent,
   ) {
     final spaces = ' ' * indent;
 
     for (final entry in fields.entries) {
       if (entry.value == true) {
-        buffer.writeln('$spaces${entry.key}');
+        lines.add('$spaces${entry.key}');
       } else if (entry.value is Map) {
-        buffer.writeln('$spaces${entry.key}{');
+        lines.add('$spaces${entry.key}{');
         _writeGraphQLFields(
           entry.value as Map<String, dynamic>,
-          buffer,
+          lines,
           indent + 2,
         );
-        buffer.writeln('$spaces}');
+        lines.add('$spaces}');
       }
     }
   }

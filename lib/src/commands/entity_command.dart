@@ -554,22 +554,22 @@ ${missing.map((d) => '   • $d').join('\n')}
   List<String> _smartSplit(String input) {
     final parts = <String>[];
     var depth = 0;
-    var current = StringBuffer();
+    var current = <String>[];
 
     for (final char in input.split('')) {
       if (char == '<') depth++;
       if (char == '>') depth--;
       if (char == ',' && depth == 0) {
-        if (current.toString().trim().isNotEmpty) {
-          parts.add(current.toString().trim());
+        if (current.join().trim().isNotEmpty) {
+          parts.add(current.join().trim());
         }
-        current = StringBuffer();
+        current = <String>[];
       } else {
-        current.write(char);
+        current.add(char);
       }
     }
-    if (current.toString().trim().isNotEmpty) {
-      parts.add(current.toString().trim());
+    if (current.join().trim().isNotEmpty) {
+      parts.add(current.join().trim());
     }
     return parts;
   }

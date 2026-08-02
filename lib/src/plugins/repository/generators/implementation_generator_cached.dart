@@ -270,23 +270,12 @@ extension RepositoryImplementationGeneratorCached
     return Block(
       (b) => b
         ..statements.add(
-          declareFinal('listCacheKeyBuffer')
-              .assign(refer('StringBuffer').call([literalString(baseCacheKey)]))
-              .statement,
-        )
-        ..statements.add(
-          refer('listCacheKeyBuffer').property('write').call([
-            literalString('${baseCacheKey}_'),
-          ]).statement,
-        )
-        ..statements.add(
-          refer('listCacheKeyBuffer').property('write').call([
-            refer('params').property('hashCode'),
-          ]).statement,
-        )
-        ..statements.add(
           declareFinal('listCacheKey')
-              .assign(refer('listCacheKeyBuffer').property('toString').call([]))
+              .assign(
+                CodeExpression(
+                  Code("'$baseCacheKey${baseCacheKey}_\${params.hashCode}'"),
+                ),
+              )
               .statement,
         )
         ..statements.add(

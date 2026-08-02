@@ -205,14 +205,14 @@ class DiscoveryEngine {
 
   String _camelToSnake(String input) {
     if (input.isEmpty) return '';
-    final buffer = StringBuffer();
+    final result = <String>[];
     for (var i = 0; i < input.length; i++) {
       final char = input[i];
       if (i > 0 && char.toUpperCase() == char && char != '_') {
-        buffer.write('_');
+        result.add('_');
       }
-      buffer.write(char.toLowerCase());
+      result.add(char.toLowerCase());
     }
-    return buffer.toString();
+    return result.join();
   }
 }
