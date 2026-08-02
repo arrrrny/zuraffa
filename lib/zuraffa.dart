@@ -481,6 +481,18 @@ export 'src/graphql/mapping/type_mapper.dart';
 // DocumentBuilder — query/mutation/subscription document generation.
 export 'src/graphql/document/document_builder.dart';
 
+// GraphQLDocumentBuilder — AST-based .graphql file generation via package:gql.
+export 'src/graphql/gql/graphql_document_builder.dart';
+
+// DocumentsDartGenerator — documents.dart with DocumentNode constants.
+export 'src/graphql/gql/documents_dart_generator.dart';
+
+// GraphQLValidator — validates documents against the cached schema.
+export 'src/graphql/validators/graphql_validator.dart';
+
+// GqlFilePreserver — preserves valid user-edited .graphql files.
+export 'src/graphql/preservers/gql_file_preserver.dart';
+
 // ============================================================
 // V6 GraphQL Client Runtime & Subscriptions
 // ============================================================
