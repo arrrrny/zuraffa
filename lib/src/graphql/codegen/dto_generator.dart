@@ -23,7 +23,6 @@ class DtoGenerator {
     final className = '\$${inputType.name}';
 
     final library = cb.Library((b) {
-
       final fields = <cb.Field>[];
       final constructorParams = <cb.Parameter>[];
       final toJsonEntries = <Object?, Object?>{};
@@ -100,7 +99,6 @@ class DtoGenerator {
 
   cb.Expression _toJsonValue(String fieldName, GraphQLType type) {
     final inner = type.innerType;
-    final isNullable = !type.isNonNull;
 
     // Handle list types first
     if (isListType(type)) {

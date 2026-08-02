@@ -30,7 +30,6 @@ class EntityGenerator {
     final className = '\$${objectType.name}';
 
     final library = cb.Library((b) {
-
       // Build fields
       final fields = <cb.Field>[];
       final constructorParams = <cb.Parameter>[];
@@ -208,7 +207,6 @@ class EntityGenerator {
   cb.Expression _toJsonExpression(String fieldName, GraphQLType type) {
     final inner = type.innerType;
     final ref = cb.refer(fieldName);
-    final isNullable = !type.isNonNull;
 
     // Handle list types first
     if (isListType(type)) {
@@ -217,8 +215,8 @@ class EntityGenerator {
 
       if (elementInner is GraphQLEnumType) {
         // List of enums: map to name
-        final nullSafe = isNullable ? '?.' : '.';
-        return cb.refer(fieldName)
+        return cb
+            .refer(fieldName)
             .nullSafeProperty('map')
             .call([
               cb.Method((m) {

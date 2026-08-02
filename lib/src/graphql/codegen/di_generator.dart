@@ -36,6 +36,26 @@ class DiGenerator {
             ..name = 'configureGraphqlDi'
             ..returns = cb.refer('void')
             ..body = cb.Block((bl) {
+              // Register GraphQLClientProvider (lazily built client).
+              bl.addExpression(
+                cb
+                    .refer('ZuraffaContainer.instance')
+                    .property('registerSingleton')
+                    .call(
+                      [
+                        cb.Method(
+                          (mm) => mm
+                            ..body = cb
+                                .refer('GraphQLClientProvider.instance')
+                                .property('client')
+                                .code,
+                        ).closure,
+                      ],
+                      {},
+                      [cb.refer('GraphQLClient')],
+                    ),
+              );
+
               for (final reg in registrations) {
                 final datasourceType = '\$${reg.name}Datasource';
                 final repoInterface = '${reg.name}Repository';

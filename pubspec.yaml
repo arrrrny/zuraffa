@@ -39,6 +39,7 @@ dependencies:
   dart_style: ^3.1.12
   analyzer: 14.1.0
   graphql: ^5.2.3
+  gql: ^1.0.1
 
   json_serializable: ^6.13.2
   get_it: ^9.2.1
