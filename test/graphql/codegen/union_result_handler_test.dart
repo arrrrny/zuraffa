@@ -53,7 +53,10 @@ void main() {
       expect(code.contains("data['__typename']"), true);
       expect(code.contains("operationName: 'addItemToOrder'"), true);
       expect(code.contains('_errorConfig.isError'), true);
-      expect(code.contains('_mapError(typename, data)'), true);
+      expect(
+        code.contains("_mapError(typename, data, 'addItemToOrder')"),
+        true,
+      );
       expect(code.contains('\$\$AddItemToOrderResult.fromJson(data)'), true);
       expect(
         code.contains('SignalResult<\$\$AddItemToOrderResult>.failure'),
@@ -64,6 +67,12 @@ void main() {
         true,
       );
       expect(code.contains("const ServerFailure('No data returned')"), true);
+      expect(
+        code.contains(
+          "const ServerFailure('Missing __typename in union result')",
+        ),
+        true,
+      );
     });
   });
 }

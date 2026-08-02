@@ -112,40 +112,48 @@ class UnionResultHandler {
     required String returnType,
     String resultVar = 'result',
   }) {
-    final buffer = StringBuffer();
-
-    buffer.writeln(
-      "final data = $resultVar.data?['$fieldName'] as Map<String, dynamic>?;",
-    );
-    buffer.writeln('if (data == null) {');
-    buffer.writeln('  return SignalResult<$returnType>.failure(');
-    buffer.writeln("    const ServerFailure('No data returned'),");
-    buffer.writeln('  );');
-    buffer.writeln('}');
-    buffer.writeln('');
-    buffer.writeln("final typename = data['__typename'] as String?;");
-    buffer.writeln('if (typename == null) {');
-    buffer.writeln('  return SignalResult<$returnType>.failure(');
-    buffer.writeln("    const ServerFailure('Missing __typename in union result'),");
-    buffer.writeln('  );');
-    buffer.writeln('}');
-    buffer.writeln('');
     final opArg = operationName == null
         ? ''
         : ", operationName: '$operationName'";
-    final opArgForMapError = operationName == null
-        ? "''"
-        : "'$operationName'";
-    buffer.writeln('if (_errorConfig.isError(typename$opArg)) {');
-    buffer.writeln(
-      '  return SignalResult<$returnType>.failure(_mapError(typename, data, $opArgForMapError));',
-    );
-    buffer.writeln('}');
-    buffer.writeln('');
-    buffer.writeln('final entity = ${unionType.symbol}.fromJson(data);');
-    buffer.writeln('return SignalResult<$returnType>.success(entity);');
+    final opArgForMapError = operationName == null ? "''" : "'$operationName'";
+    final body = cb.Block((bl) {
+      bl.statements.addAll([
+        cb.Code(
+          "final data = $resultVar.data?['$fieldName'] as Map<String, dynamic>?;",
+        ),
+        cb.Code('if (data == null) {'),
+        cb.Code('  return SignalResult<$returnType>.failure('),
+        cb.Code("    const ServerFailure('No data returned'),"),
+        cb.Code('  );'),
+        cb.Code('}'),
+        cb.Code(''),
+        cb.Code("final typename = data['__typename'] as String?;"),
+        cb.Code('if (typename == null) {'),
+        cb.Code('  return SignalResult<$returnType>.failure('),
+        cb.Code(
+          "    const ServerFailure('Missing __typename in union result'),",
+        ),
+        cb.Code('  );'),
+        cb.Code('}'),
+        cb.Code(''),
+        cb.Code('if (_errorConfig.isError(typename$opArg)) {'),
+        cb.Code(
+          '  return SignalResult<$returnType>.failure(_mapError(typename, data, $opArgForMapError));',
+        ),
+        cb.Code('}'),
+        cb.Code(''),
+        cb.Code('final entity = ${unionType.symbol}.fromJson(data);'),
+        cb.Code('return SignalResult<$returnType>.success(entity);'),
+      ]);
+    });
 
-    return cb.Code(buffer.toString());
+    // Emit the statements (without the surrounding block braces) so they
+    // inline directly into the generated method body; DartFormatter in the
+    // datasource generator normalizes the final output.
+    final emitter = cb.DartEmitter();
+    return cb.Code(
+      body.statements.map((s) => s.accept(emitter).toString()).join('\n'),
+    );
   }
 
   /// Render [errorConfig] as a Dart `ErrorMappingConfig(...)` literal.
