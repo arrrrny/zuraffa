@@ -14,6 +14,7 @@ import '../commands/doctor_command.dart';
 import '../commands/build_command.dart';
 import '../commands/manifest_command.dart';
 import '../commands/apply_command.dart';
+import '../commands/xray_command.dart';
 import '../core/plugin_system/cli_aware_plugin.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/error/suggestion_engine.dart';
@@ -77,6 +78,7 @@ class CliRunner {
     _runner.addCommand(BuildCommand());
     _runner.addCommand(ManifestCommand(registry));
     _runner.addCommand(ApplyCommand(registry));
+    _runner.addCommand(XrayCommand());
   }
 
   /// Run CLI with arguments.
