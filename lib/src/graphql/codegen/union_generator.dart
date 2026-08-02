@@ -53,8 +53,15 @@ class UnionGenerator {
                 )
                 ..body = cb.Block((bl) {
                   bl.statements.add(
-                    cb.Code('final typename = json[\'__typename\'] as String;'),
+                    cb.Code("final typename = json['__typename'] as String?;"),
                   );
+                  bl.statements.add(cb.Code('if (typename == null) {'));
+                  bl.statements.add(
+                    cb.Code(
+                      "  throw ArgumentError('Missing __typename in union JSON');",
+                    ),
+                  );
+                  bl.statements.add(cb.Code('}'));
                   bl.statements.add(cb.Code('switch (typename) {'));
                   for (final typeName in unionType.possibleTypes) {
                     final entityName = '\$$typeName';
