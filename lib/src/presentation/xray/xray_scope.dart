@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import 'xray_mode.dart';
+import 'xray_scope_overlay.dart';
 
 /// Information about a registered X-Ray node.
 class XRayNodeInfo {
@@ -117,7 +118,10 @@ class XRayScopeState extends State<XRayScope> {
 
     return _XRayScopeInherited(
       state: this,
-      child: widget.child,
+      child: XRayScopeOverlay(
+        scope: this,
+        child: widget.child,
+      ),
     );
   }
 }
