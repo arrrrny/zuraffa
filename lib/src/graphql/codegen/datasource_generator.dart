@@ -7,7 +7,8 @@ import 'codegen_types.dart';
 /// Generates fully implemented remote datasource classes.
 ///
 /// Creates a datasource with `query`, `mutation`, and `subscription` methods
-/// using `package:graphql` client.
+/// using `package:graphql` client. Union-returning operations are handled
+/// through [UnionResultHandler] when an [errorConfig] is provided.
 /// ```dart
 /// final gen = DatasourceGenerator(typeMapper: mapper);
 /// final code = gen.generate(
@@ -20,6 +21,7 @@ class DatasourceGenerator {
   DatasourceGenerator({
     required this.typeMapper,
     this.enableSubscriptions = false,
+    this.errorConfig,
   });
 
   final TypeMapper typeMapper;
@@ -29,6 +31,11 @@ class DatasourceGenerator {
   /// and a `wsEndpoint` in `.zfa.json`). When false, watch methods are
   /// generated as stubs that report subscriptions are disabled.
   final bool enableSubscriptions;
+
+  /// Optional error mapping table for union-returning operations. When set,
+  /// union results are dispatched on `__typename` and error variants are
+  /// mapped to [AppFailure] via the generated `_mapError` helper.
+  final ErrorMappingConfig? errorConfig;
   static final _formatter = DartFormatter(
     languageVersion: DartFormatter.latestLanguageVersion,
   );
@@ -41,6 +48,15 @@ class DatasourceGenerator {
     List<SubscriptionConfig> watches = const [],
   }) {
     final className = '\$${name}Datasource';
+
+    // Check if any union operation exists
+    final hasUnionOperation =
+        queries.any(
+          (q) => q.returnType.innerType is GraphQLUnionType && !q.returnType.isList,
+        ) ||
+        mutations.any(
+          (m) => m.returnType.innerType is GraphQLUnionType && !m.returnType.isList,
+        );
 
     final library = cb.Library((b) {
       b.directives.add(cb.Directive.import('package:zuraffa/zuraffa.dart'));
@@ -69,6 +85,12 @@ class DatasourceGenerator {
                   ..type = cb.refer('GraphQLClient');
               }),
             );
+
+          // Error config field + mapping helper when unions are enabled and union operations exist
+          if (errorConfig != null && hasUnionOperation) {
+            final handler = UnionResultHandler(errorConfig: errorConfig!);
+            c.fields.add(handler.buildErrorConfigField());
+          }
 
           c.constructors.add(
             cb.Constructor((ctor) {
@@ -110,6 +132,15 @@ class DatasourceGenerator {
               c.methods.add(_buildWatchStub(watch));
             }
           }
+
+          // _mapError helper if union error mapping is enabled and union operations exist
+          if (errorConfig != null && hasUnionOperation) {
+            c.methods.add(
+              UnionResultHandler(
+                errorConfig: errorConfig!,
+              ).buildMapErrorMethod(),
+            );
+          }
         }),
       );
     });
@@ -128,6 +159,7 @@ class DatasourceGenerator {
   cb.Method _buildQueryMethod(QueryConfig query) {
     final returnType = zorphyType(typeMapper, query.returnType);
     final methodName = _camelCase(query.fieldName);
+    final isUnion = query.returnType.innerType is GraphQLUnionType;
 
     return cb.Method((m) {
       m
@@ -152,7 +184,7 @@ class DatasourceGenerator {
         );
         bl.statements.add(cb.Code("  document: gql(r'''"));
         bl.statements.add(cb.Code(query.document));
-        bl.statements.add(cb.Code("'''),"));
+        bl.statements.add(cb.Code("''',"));
         bl.statements.add(cb.Code('  variables: {'));
         for (final arg in query.args) {
           final fieldName = TypeMapper.fieldName(arg.name);
@@ -166,12 +198,14 @@ class DatasourceGenerator {
           cb.Code('  return SignalResult<$returnType>.failure('),
         );
         bl.statements.add(
-          cb.Code('    NetworkFailure(message: result.exception.toString()),'),
+          cb.Code('    NetworkFailure(result.exception.toString()),'),
         );
         bl.statements.add(cb.Code('  );'));
         bl.statements.add(cb.Code('}'));
         bl.statements.add(cb.Code(''));
-        if (query.returnType.isList) {
+        if (isUnion && !query.returnType.isList) {
+          _buildUnionHandler(bl, query, isMutation: false);
+        } else if (query.returnType.isList) {
           bl.statements.add(
             cb.Code(
               'final data = result.data?[\'${query.fieldName}\'] as List<dynamic>?;',
@@ -182,7 +216,7 @@ class DatasourceGenerator {
             cb.Code('  return SignalResult<$returnType>.failure('),
           );
           bl.statements.add(
-            cb.Code("    const ServerFailure(message: 'No data returned'),"),
+            cb.Code("    const ServerFailure('No data returned'),"),
           );
           bl.statements.add(cb.Code('  );'));
           bl.statements.add(cb.Code('}'));
@@ -206,7 +240,7 @@ class DatasourceGenerator {
             cb.Code('  return SignalResult<$returnType>.failure('),
           );
           bl.statements.add(
-            cb.Code("    const ServerFailure(message: 'No data returned'),"),
+            cb.Code("    const ServerFailure('No data returned'),"),
           );
           bl.statements.add(cb.Code('  );'));
           bl.statements.add(cb.Code('}'));
@@ -227,6 +261,7 @@ class DatasourceGenerator {
   cb.Method _buildMutationMethod(MutationConfig mutation) {
     final returnType = zorphyType(typeMapper, mutation.returnType);
     final methodName = _camelCase(mutation.fieldName);
+    final isUnion = mutation.returnType.innerType is GraphQLUnionType;
 
     return cb.Method((m) {
       m
@@ -250,7 +285,7 @@ class DatasourceGenerator {
         );
         bl.statements.add(cb.Code("  document: gql(r'''"));
         bl.statements.add(cb.Code(mutation.document));
-        bl.statements.add(cb.Code("'''),"));
+        bl.statements.add(cb.Code("''',"));
         bl.statements.add(cb.Code('  variables: {'));
         for (final arg in mutation.args) {
           final fieldName = TypeMapper.fieldName(arg.name);
@@ -264,12 +299,14 @@ class DatasourceGenerator {
           cb.Code('  return SignalResult<$returnType>.failure('),
         );
         bl.statements.add(
-          cb.Code('    NetworkFailure(message: result.exception.toString()),'),
+          cb.Code('    NetworkFailure(result.exception.toString()),'),
         );
         bl.statements.add(cb.Code('  );'));
         bl.statements.add(cb.Code('}'));
         bl.statements.add(cb.Code(''));
-        if (mutation.returnType.isList) {
+        if (isUnion && !mutation.returnType.isList) {
+          _buildUnionHandler(bl, mutation, isMutation: true);
+        } else if (mutation.returnType.isList) {
           bl.statements.add(
             cb.Code(
               'final data = result.data?[\'${mutation.fieldName}\'] as List<dynamic>?;',
@@ -280,7 +317,7 @@ class DatasourceGenerator {
             cb.Code('  return SignalResult<$returnType>.failure('),
           );
           bl.statements.add(
-            cb.Code("    const ServerFailure(message: 'No data returned'),"),
+            cb.Code("    const ServerFailure('No data returned'),"),
           );
           bl.statements.add(cb.Code('  );'));
           bl.statements.add(cb.Code('}'));
@@ -304,7 +341,7 @@ class DatasourceGenerator {
             cb.Code('  return SignalResult<$returnType>.failure('),
           );
           bl.statements.add(
-            cb.Code("    const ServerFailure(message: 'No data returned'),"),
+            cb.Code("    const ServerFailure('No data returned'),"),
           );
           bl.statements.add(cb.Code('  );'));
           bl.statements.add(cb.Code('}'));
@@ -320,6 +357,74 @@ class DatasourceGenerator {
         }
       });
     });
+  }
+
+  /// Generate statements that handle a union-returning operation.
+  ///
+  /// With an [errorConfig], the result is dispatched on `__typename` and
+  /// error variants map to [AppFailure]; otherwise the sealed union object
+  /// is unwrapped directly.
+  void _buildUnionHandler(
+    cb.BlockBuilder bl,
+    Object config, {
+    required bool isMutation,
+  }) {
+    final fieldName = config is QueryConfig
+        ? config.fieldName
+        : (config as MutationConfig).fieldName;
+    final returnType = config is QueryConfig
+        ? config.returnType
+        : (config as MutationConfig).returnType;
+    final signalType = isMutation
+        ? zorphyType(typeMapper, (config as MutationConfig).returnType)
+        : zorphyType(typeMapper, (config as QueryConfig).returnType);
+    final unionType = returnType.innerType as GraphQLUnionType;
+    final unionClass = cb.refer('\$\$${unionType.name}');
+
+    if (errorConfig == null) {
+      // No error mapping: unwrap the sealed union directly.
+      bl.statements.add(
+        cb.Code(
+          'final data = result.data?[\'$fieldName\'] as Map<String, dynamic>?;',
+        ),
+      );
+      bl.statements.add(cb.Code('if (data == null) {'));
+      bl.statements.add(cb.Code('  return SignalResult<$signalType>.failure('));
+      bl.statements.add(
+        cb.Code("    const ServerFailure('No data returned'),"),
+      );
+      bl.statements.add(cb.Code('  );'));
+      bl.statements.add(cb.Code('}'));
+      bl.statements.add(cb.Code(''));
+      bl.statements.add(cb.Code("final typename = data['__typename'] as String?;"));
+      bl.statements.add(cb.Code('if (typename == null) {'));
+      bl.statements.add(cb.Code('  return SignalResult<$signalType>.failure('));
+      bl.statements.add(
+        cb.Code("    const ServerFailure('Missing __typename in union result'),"),
+      );
+      bl.statements.add(cb.Code('  );'));
+      bl.statements.add(cb.Code('}'));
+      bl.statements.add(cb.Code(''));
+      bl.statements.add(
+        cb.Code('final entity = ${unionClass.symbol}.fromJson(data);'),
+      );
+      bl.statements.add(
+        cb.Code('return SignalResult<$signalType>.success(entity);'),
+      );
+      return;
+    }
+
+    final handler = UnionResultHandler(
+      errorConfig: errorConfig!,
+      operationName: fieldName,
+    );
+    bl.statements.add(
+      handler.buildHandler(
+        unionType: unionClass,
+        fieldName: fieldName,
+        returnType: signalType,
+      ),
+    );
   }
 
   cb.Method _buildSubscriptionMethod(SubscriptionConfig sub) {
@@ -433,7 +538,7 @@ class DatasourceGenerator {
         );
         bl.statements.add(cb.Code('return SignalResult<$returnType>.failure('));
         bl.statements.add(
-          cb.Code("  const NetworkFailure(message: 'Subscriptions disabled'),"),
+          cb.Code("  const NetworkFailure('Subscriptions disabled'),"),
         );
         bl.statements.add(cb.Code(');'));
       });

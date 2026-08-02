@@ -50,5 +50,22 @@ void main() {
       expect(code.contains("case 'OrderModificationError':"), true);
       expect(code.contains('__typename'), true);
     });
+
+    test('fromJson validates __typename presence', () {
+      final schema = GraphQLSchema(
+        types: {'Order': GraphQLObjectType(name: 'Order', fields: [])},
+      );
+
+      final union = GraphQLUnionType(
+        name: 'TestResult',
+        possibleTypes: ['Order'],
+      );
+
+      final gen = UnionGenerator(typeMapper: TypeMapper(), schema: schema);
+      final code = gen.generate(union);
+
+      expect(code.contains('Missing __typename in union JSON'), true);
+      expect(code.contains('json[\'__typename\'] as String?'), true);
+    });
   });
 }

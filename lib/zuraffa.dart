@@ -519,6 +519,12 @@ export 'src/graphql/codegen/di_generator.dart';
 // SliceOrchestrator — orchestrates all generators for a schema slice.
 export 'src/graphql/codegen/slice_orchestrator.dart';
 
+// ErrorMappingConfig — .zfa.json graphql.errorMapping -> AppFailure mapping.
+export 'src/graphql/codegen/error_mapping_config.dart';
+
+// UnionResultHandler — union result -> AppFailure/SignalResult codegen.
+export 'src/graphql/codegen/union_result_handler.dart';
+
 // GraphqlGenerateCommand — `zfa graphql generate` command class.
 export 'src/graphql/codegen/graphql_generate_command.dart';
 

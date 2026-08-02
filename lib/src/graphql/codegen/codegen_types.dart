@@ -13,6 +13,10 @@ String zorphyType(TypeMapper mapper, GraphQLType type) {
   if (inner is GraphQLObjectType || inner is GraphQLInputObjectType) {
     return mapped.replaceAll(inner.name, '\$${inner.name}');
   }
+  // Sealed union bases are generated as `$$Union` classes.
+  if (inner is GraphQLUnionType) {
+    return mapped.replaceAll(inner.name, '\$\$${inner.name}');
+  }
   return mapped;
 }
 
