@@ -2,6 +2,7 @@ import 'package:code_builder/code_builder.dart' as cb;
 import 'package:dart_style/dart_style.dart';
 import 'package:zuraffa/zuraffa.dart';
 
+import '../gql/naming_utils.dart';
 import 'codegen_types.dart';
 
 /// Generates fully implemented remote datasource classes.
@@ -22,6 +23,7 @@ class DatasourceGenerator {
     required this.typeMapper,
     this.enableSubscriptions = false,
     this.errorConfig,
+    this.documentsImportPath = 'graphql/documents.dart',
   });
 
   final TypeMapper typeMapper;
@@ -36,6 +38,11 @@ class DatasourceGenerator {
   /// union results are dispatched on `__typename` and error variants are
   /// mapped to [AppFailure] via the generated `_mapError` helper.
   final ErrorMappingConfig? errorConfig;
+
+  /// Path to the generated `documents.dart` file holding parsed
+  /// [DocumentNode] constants. Generated datasources import this instead of
+  /// inlining `gql(r'''...''')` strings.
+  final String documentsImportPath;
   static final _formatter = DartFormatter(
     languageVersion: DartFormatter.latestLanguageVersion,
   );
@@ -52,11 +59,22 @@ class DatasourceGenerator {
     // Check if any union operation exists
     final hasUnionOperation =
         queries.any(
-          (q) => q.returnType.innerType is GraphQLUnionType && !q.returnType.isList,
+          (q) =>
+              q.returnType.innerType is GraphQLUnionType &&
+              !q.returnType.isList,
         ) ||
         mutations.any(
-          (m) => m.returnType.innerType is GraphQLUnionType && !m.returnType.isList,
+          (m) =>
+              m.returnType.innerType is GraphQLUnionType &&
+              !m.returnType.isList,
         );
+
+    // Check if any operation actually references a document constant
+    // (watch-only stubs don't reference documents when subscriptions disabled)
+    final hasDocumentReferences = queries.isNotEmpty ||
+        mutations.isNotEmpty ||
+        (enableSubscriptions && subscriptions.isNotEmpty) ||
+        (enableSubscriptions && watches.isNotEmpty);
 
     final library = cb.Library((b) {
       b.directives.add(cb.Directive.import('package:zuraffa/zuraffa.dart'));
@@ -72,6 +90,12 @@ class DatasourceGenerator {
           ],
         ),
       );
+
+      // Generated documents.dart with DocumentNode constants.
+      // Only import when at least one method references a document.
+      if (hasDocumentReferences) {
+        b.directives.add(cb.Directive.import(documentsImportPath));
+      }
 
       b.body.add(
         cb.Class((c) {
@@ -159,6 +183,7 @@ class DatasourceGenerator {
   cb.Method _buildQueryMethod(QueryConfig query) {
     final returnType = zorphyType(typeMapper, query.returnType);
     final methodName = _camelCase(query.fieldName);
+    final documentVar = _documentVarName(query.fieldName);
     final isUnion = query.returnType.innerType is GraphQLUnionType;
 
     return cb.Method((m) {
@@ -182,9 +207,7 @@ class DatasourceGenerator {
         bl.statements.add(
           cb.Code('final result = await _client.query(QueryOptions('),
         );
-        bl.statements.add(cb.Code("  document: gql(r'''"));
-        bl.statements.add(cb.Code(query.document));
-        bl.statements.add(cb.Code("''',"));
+        bl.statements.add(cb.Code('  document: $documentVar,'));
         bl.statements.add(cb.Code('  variables: {'));
         for (final arg in query.args) {
           final fieldName = TypeMapper.fieldName(arg.name);
@@ -261,6 +284,7 @@ class DatasourceGenerator {
   cb.Method _buildMutationMethod(MutationConfig mutation) {
     final returnType = zorphyType(typeMapper, mutation.returnType);
     final methodName = _camelCase(mutation.fieldName);
+    final documentVar = _documentVarName(mutation.fieldName);
     final isUnion = mutation.returnType.innerType is GraphQLUnionType;
 
     return cb.Method((m) {
@@ -283,9 +307,7 @@ class DatasourceGenerator {
         bl.statements.add(
           cb.Code('final result = await _client.mutate(MutationOptions('),
         );
-        bl.statements.add(cb.Code("  document: gql(r'''"));
-        bl.statements.add(cb.Code(mutation.document));
-        bl.statements.add(cb.Code("''',"));
+        bl.statements.add(cb.Code('  document: $documentVar,'));
         bl.statements.add(cb.Code('  variables: {'));
         for (final arg in mutation.args) {
           final fieldName = TypeMapper.fieldName(arg.name);
@@ -396,11 +418,15 @@ class DatasourceGenerator {
       bl.statements.add(cb.Code('  );'));
       bl.statements.add(cb.Code('}'));
       bl.statements.add(cb.Code(''));
-      bl.statements.add(cb.Code("final typename = data['__typename'] as String?;"));
+      bl.statements.add(
+        cb.Code("final typename = data['__typename'] as String?;"),
+      );
       bl.statements.add(cb.Code('if (typename == null) {'));
       bl.statements.add(cb.Code('  return SignalResult<$signalType>.failure('));
       bl.statements.add(
-        cb.Code("    const ServerFailure('Missing __typename in union result'),"),
+        cb.Code(
+          "    const ServerFailure('Missing __typename in union result'),",
+        ),
       );
       bl.statements.add(cb.Code('  );'));
       bl.statements.add(cb.Code('}'));
@@ -430,6 +456,7 @@ class DatasourceGenerator {
   cb.Method _buildSubscriptionMethod(SubscriptionConfig sub) {
     final returnType = zorphyType(typeMapper, sub.returnType);
     final methodName = _camelCase(sub.fieldName);
+    final documentVar = _documentVarName(sub.fieldName);
 
     return cb.Method((m) {
       m
@@ -448,9 +475,7 @@ class DatasourceGenerator {
 
       m.body = cb.Block((bl) {
         bl.statements.add(cb.Code('return _client.subscribeTo<$returnType>('));
-        bl.statements.add(cb.Code("  document: r'''"));
-        bl.statements.add(cb.Code(sub.document));
-        bl.statements.add(cb.Code("''',"));
+        bl.statements.add(cb.Code('  document: $documentVar,'));
         bl.statements.add(
           cb.Code(
             '  parser: (data) => \$${sub.returnType.innerType.name}.fromJson(data[\'${sub.fieldName}\'] as Map<String, dynamic>),',
@@ -470,6 +495,7 @@ class DatasourceGenerator {
   cb.Method _buildWatchMethod(SubscriptionConfig watch) {
     final returnType = zorphyType(typeMapper, watch.returnType);
     final methodName = 'watch${_pascalCase(watch.fieldName)}';
+    final documentVar = _documentVarName(watch.fieldName);
 
     return cb.Method((m) {
       m
@@ -491,9 +517,7 @@ class DatasourceGenerator {
           cb.Code('// Live subscription: emits updates on every change'),
         );
         bl.statements.add(cb.Code('return _client.subscribeTo<$returnType>('));
-        bl.statements.add(cb.Code("  document: r'''"));
-        bl.statements.add(cb.Code(watch.document));
-        bl.statements.add(cb.Code("''',"));
+        bl.statements.add(cb.Code('  document: $documentVar,'));
         bl.statements.add(
           cb.Code(
             '  parser: (data) => \$${watch.returnType.innerType.name}.fromJson(data[\'${watch.fieldName}\'] as Map<String, dynamic>),',
@@ -543,6 +567,10 @@ class DatasourceGenerator {
         bl.statements.add(cb.Code(');'));
       });
     });
+  }
+
+  String _documentVarName(String fieldName) {
+    return NamingUtils.documentVarName(fieldName);
   }
 
   String _camelCase(String name) {
