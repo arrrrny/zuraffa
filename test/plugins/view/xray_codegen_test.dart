@@ -50,11 +50,11 @@ void main() {
 
     // Must contain the node enum
     expect(content.contains('enum ProductViewNode'), isTrue);
-    expect(content.contains('actionButton'), isTrue);
+    expect(content.contains('body'), isTrue);
 
     // Must contain XRayNode wrapping
     expect(content.contains('XRayNode<'), isTrue);
-    expect(content.contains('ProductViewNode.actionButton'), isTrue);
+    expect(content.contains('ProductViewNode.body'), isTrue);
   });
 
   test('generates view without XRayScope when xray disabled (default)',

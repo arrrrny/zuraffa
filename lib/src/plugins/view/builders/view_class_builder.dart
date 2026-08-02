@@ -87,7 +87,7 @@ class ViewClassBuilder {
     ).format(raw);
 
     if (spec.withXRay) {
-      final enumRaw = 'enum ${spec.viewName}Node { actionButton }';
+      final enumRaw = 'enum ${spec.viewName}Node { body }';
       final enumFormatted = DartFormatter(
         languageVersion: DartFormatter.latestLanguageVersion,
       ).format(enumRaw);
@@ -463,50 +463,41 @@ class ViewClassBuilder {
   }
 
   Block _buildBuilderBody(ViewClassSpec spec) {
-    if (spec.withXRay) {
-      return Block(
-        (b) => b
-          ..statements.add(
-            refer('XRayNode<${spec.viewName}Node>')
-                .call([], {
-                  'nodeId': refer('${spec.viewName}Node.actionButton'),
-                  'child': refer('ElevatedButton').call([], {
-                    'onPressed': refer('() {}'),
-                    'child': refer('Text').call([
-                      literalString('Action'),
-                    ]),
-                  }),
-                })
-                .returned
-                .statement,
-          ),
-      );
-    }
+    // Build the inner widget expression based on withState
+    final Expression innerWidget;
+    final List<Code> stateDeclarations = [];
+
     if (spec.withState) {
-      return Block(
-        (b) => b
-          ..statements.add(
-            declareFinal(
-              'viewState',
-              type: spec.stateClassName != null
-                  ? refer(spec.stateClassName!)
-                  : null,
-            ).assign(refer('controller').property('viewState')).statement,
-          )
-          ..statements.add(
-            refer('Container')
-                .call([], {
-                  'key': refer(
-                    'ValueKey',
-                  ).call([refer('viewState').property('hashCode')]),
-                })
-                .returned
-                .statement,
-          ),
+      // Declare viewState variable
+      stateDeclarations.add(
+        declareFinal(
+          'viewState',
+          type: spec.stateClassName != null
+              ? refer(spec.stateClassName!)
+              : null,
+        ).assign(refer('controller').property('viewState')).statement,
       );
+      // State-aware Container with ValueKey
+      innerWidget = refer('Container').call([], {
+        'key': refer('ValueKey').call([refer('viewState').property('hashCode')]),
+      });
+    } else {
+      // Plain Container
+      innerWidget = refer('Container').call([]);
     }
+
+    // Wrap in XRayNode if enabled
+    final Expression returnedWidget = spec.withXRay
+        ? refer('XRayNode<${spec.viewName}Node>').call([], {
+            'nodeId': refer('${spec.viewName}Node.body'),
+            'child': innerWidget,
+          })
+        : innerWidget;
+
     return Block(
-      (b) => b..statements.add(refer('Container').call([]).returned.statement),
+      (b) => b
+        ..statements.addAll(stateDeclarations)
+        ..statements.add(returnedWidget.returned.statement),
     );
   }
 }
