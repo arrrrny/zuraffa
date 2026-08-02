@@ -71,6 +71,7 @@ class GeneratorConfig {
   final String? mockJsonDomain;
   final bool useMockInDi;
   final bool generateDi;
+  final bool generateXRay;
   final String diFramework;
   final bool generateRoute;
   final bool generateGql;
@@ -146,6 +147,7 @@ class GeneratorConfig {
     this.mockJsonDomain,
     this.useMockInDi = false,
     this.generateDi = false,
+    this.generateXRay = false,
     this.diFramework = 'get_it',
     this.generateRoute = false,
     this.generateGql = false,
@@ -222,6 +224,7 @@ class GeneratorConfig {
       mockJsonDomain: json['mock_json_domain'],
       useMockInDi: json['use_mock'] == true || json['use_mock_in_di'] == true,
       generateDi: json['di'] == true || json['generate_di'] == true,
+      generateXRay: json['xray'] == true || json['generate_xray'] == true,
       diFramework: json['di_framework'] ?? 'get_it',
       generateRoute: json['route'] == true || json['generate_route'] == true,
       generateGql: json['gql'] == true || json['generate_gql'] == true,
@@ -314,6 +317,7 @@ class GeneratorConfig {
     String? mockJsonDomain,
     bool? useMockInDi,
     bool? generateDi,
+    bool? generateXRay,
     String? diFramework,
     bool? generateRoute,
     bool? generateGql,
@@ -384,6 +388,7 @@ class GeneratorConfig {
       mockJsonDomain: mockJsonDomain ?? this.mockJsonDomain,
       useMockInDi: useMockInDi ?? this.useMockInDi,
       generateDi: generateDi ?? this.generateDi,
+      generateXRay: generateXRay ?? this.generateXRay,
       diFramework: diFramework ?? this.diFramework,
       generateRoute: generateRoute ?? this.generateRoute,
       generateGql: generateGql ?? this.generateGql,

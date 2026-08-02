@@ -112,6 +112,7 @@ class CreateViewCapability implements ZuraffaCapability {
     final generateDi = args['di'] ?? false;
     final generateState = args['state'] ?? false;
     final generateRoute = args['route'] ?? false;
+    final generateXRay = args['xray'] ?? false;
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
 
@@ -123,6 +124,7 @@ class CreateViewCapability implements ZuraffaCapability {
       methods: methods,
       generateDi: generateDi,
       generateState: generateState,
+      generateXRay: generateXRay,
       dryRun: dryRun,
       force: force,
       verbose: verbose,

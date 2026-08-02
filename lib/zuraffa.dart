@@ -308,6 +308,7 @@ export 'src/presentation/presenter.dart';
 
 /// CleanView and CleanViewState base classes
 export 'src/presentation/view.dart';
+export 'src/presentation/xray/xray.dart';
 
 /// ResponsiveViewState for responsive layouts
 export 'src/presentation/responsive_view.dart';

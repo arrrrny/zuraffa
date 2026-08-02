@@ -59,6 +59,7 @@ class ViewCommand extends PluginCommand {
     final generateDi = argResults?['di'] as bool? ?? false;
     final generateState = argResults?['state'] as bool? ?? false;
     final generateRoute = argResults?['route'] as bool? ?? false;
+    final generateXRay = argResults?['xray'] as bool? ?? false;
 
     final capability = plugin.capabilities.firstWhere(
       (c) => c.name == capabilityName,
@@ -93,6 +94,7 @@ class ViewCommand extends PluginCommand {
         'di': generateDi,
         'state': generateState,
         'route': false, // Don't generate route in view capability
+        'xray': generateXRay,
         'dryRun': isDryRun,
         'force': isForce,
         'verbose': isVerbose,
@@ -118,6 +120,7 @@ class ViewCommand extends PluginCommand {
         'di': generateDi,
         'state': generateState,
         'route': false,
+        'xray': generateXRay,
         'dryRun': isDryRun,
         'force': isForce,
         'verbose': isVerbose,

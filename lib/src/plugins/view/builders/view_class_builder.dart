@@ -21,6 +21,7 @@ class ViewClassSpec {
   final bool withState;
   final bool isCustom;
   final bool isStateful;
+  final bool withXRay;
 
   const ViewClassSpec({
     required this.viewName,
@@ -37,6 +38,7 @@ class ViewClassSpec {
     this.entityCamel,
     this.isCustom = false,
     this.isStateful = false,
+    this.withXRay = false,
     this.stateClassName,
   });
 }
@@ -80,9 +82,19 @@ class ViewClassBuilder {
       raw = '$comment\n$raw';
     }
 
-    return DartFormatter(
+    var formatted = DartFormatter(
       languageVersion: DartFormatter.latestLanguageVersion,
     ).format(raw);
+
+    if (spec.withXRay) {
+      final enumRaw = 'enum ${spec.viewName}Node { actionButton }';
+      final enumFormatted = DartFormatter(
+        languageVersion: DartFormatter.latestLanguageVersion,
+      ).format(enumRaw);
+      formatted = '$formatted\n$enumFormatted';
+    }
+
+    return formatted;
   }
 
   String _buildCustomView(ViewClassSpec spec, {String? leadingComment}) {
@@ -388,6 +400,19 @@ class ViewClassBuilder {
         ..body = builderBody,
     ).closure;
 
+    final scaffoldWidget = refer('Scaffold')
+        .call([], {
+          'key': refer('globalKey'),
+          'appBar': refer('AppBar').call([], {
+            'title': refer('Text').constInstance([
+              literalString(spec.entityName ?? spec.viewName),
+            ]),
+          }),
+          'body': refer(
+            'ControlledWidgetBuilder<${spec.controllerName}>',
+          ).call([], {'builder': builderClosure}),
+        });
+
     final viewGetter = Method(
       (m) => m
         ..name = 'view'
@@ -397,18 +422,12 @@ class ViewClassBuilder {
         ..body = Block(
           (b) => b
             ..statements.add(
-              refer('Scaffold')
-                  .call([], {
-                    'key': refer('globalKey'),
-                    'appBar': refer('AppBar').call([], {
-                      'title': refer('Text').constInstance([
-                        literalString(spec.entityName ?? spec.viewName),
-                      ]),
-                    }),
-                    'body': refer(
-                      'ControlledWidgetBuilder<${spec.controllerName}>',
-                    ).call([], {'builder': builderClosure}),
-                  })
+              (spec.withXRay
+                  ? refer('XRayScope').call([], {
+                      'viewId': literalString(spec.viewName),
+                      'child': scaffoldWidget,
+                    })
+                  : scaffoldWidget)
                   .returned
                   .statement,
             ),
@@ -444,6 +463,25 @@ class ViewClassBuilder {
   }
 
   Block _buildBuilderBody(ViewClassSpec spec) {
+    if (spec.withXRay) {
+      return Block(
+        (b) => b
+          ..statements.add(
+            refer('XRayNode<${spec.viewName}Node>')
+                .call([], {
+                  'nodeId': refer('${spec.viewName}Node.actionButton'),
+                  'child': refer('ElevatedButton').call([], {
+                    'onPressed': refer('() {}'),
+                    'child': refer('Text').call([
+                      literalString('Action'),
+                    ]),
+                  }),
+                })
+                .returned
+                .statement,
+          ),
+      );
+    }
     if (spec.withState) {
       return Block(
         (b) => b
