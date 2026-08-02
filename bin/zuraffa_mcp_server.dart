@@ -1800,7 +1800,7 @@ Use quick for fast diagnostics, full for troubleshooting.''',
           if (result.data != null) {
             buffer.add('Data: ${jsonEncode(result.data)}');
           }
-          return '${buffer.join('\n')}\n';
+          return buffer.isEmpty ? '' : '${buffer.join('\n')}\n';
         }
       }
     }

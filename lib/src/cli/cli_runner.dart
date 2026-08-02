@@ -163,7 +163,7 @@ class CliRunner {
       ),
     );
 
-    return '${output.join('\n')}\n';
+    return output.isEmpty ? '' : '${output.join('\n')}\n';
   }
 
   bool _isVersionCommand(List<String> args) {

@@ -103,4 +103,36 @@ void main() {
     );
     expect(augmentFile.existsSync(), isFalse);
   });
+
+  test('generates cache key with single occurrence of base cache key', () async {
+    final plugin = RepositoryPlugin(
+      outputDir: outputDir,
+      options: const GeneratorOptions(
+        dryRun: false,
+        force: true,
+        verbose: false,
+      ),
+    );
+    final config = GeneratorConfig(
+      name: 'Product',
+      methods: ['getList'],
+      generateData: true,
+      enableCache: true,
+      cacheStorage: 'hive',
+      outputDir: outputDir,
+    );
+    final files = await plugin.generate(config);
+    final impl = files.firstWhere(
+      (f) => f.path.contains('data_product_repository.dart'),
+    );
+    final content = impl.content ?? '';
+
+    // The cache key should be 'product_cache_${params.hashCode}', not 'product_cacheproduct_cache_${params.hashCode}'
+    expect(content.contains("'product_cache_\${params.hashCode}'"), isTrue);
+
+    // Ensure the base cache key doesn't appear duplicated
+    final baseCacheKeyPattern = RegExp(r"'product_cache.*product_cache");
+    expect(baseCacheKeyPattern.hasMatch(content), isFalse,
+        reason: 'Base cache key should not be duplicated in generated cache key');
+  });
 }
