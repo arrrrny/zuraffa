@@ -687,7 +687,7 @@ class MinIOArtifactHook extends ArtifactHook {
     final trimmed = key.trim().toLowerCase();
     if (trimmed.isEmpty) return '';
 
-    final buffer = StringBuffer();
+    final result = <int>[];
     var previousWasDash = false;
 
     for (final rune in trimmed.runes) {
@@ -696,15 +696,15 @@ class MinIOArtifactHook extends ArtifactHook {
       final isDash = rune == 45;
 
       if (isLowercaseLetter || isDigit) {
-        buffer.writeCharCode(rune);
+        result.add(rune);
         previousWasDash = false;
       } else if (isDash || !previousWasDash) {
-        buffer.write('-');
+        result.add(45); // '-'
         previousWasDash = true;
       }
     }
 
-    return buffer.toString().replaceAll(RegExp(r'^-+|-+$'), '');
+    return String.fromCharCodes(result).replaceAll(RegExp(r'^-+|-+$'), '');
   }
 
   static String _sanitizeMetadataValue(String value) {
@@ -730,7 +730,7 @@ class MinIOArtifactHook extends ArtifactHook {
   }
 
   static String _headerPreview(String value) {
-    final buffer = StringBuffer();
+    final result = <String>[];
     var previousWasSpace = false;
 
     for (final codeUnit in value.codeUnits) {
@@ -750,13 +750,13 @@ class MinIOArtifactHook extends ArtifactHook {
         previousWasSpace = false;
       }
 
-      buffer.write(char);
-      if (buffer.length >= _metadataPreviewLength) {
+      result.add(char);
+      if (result.length >= _metadataPreviewLength) {
         break;
       }
     }
 
-    final preview = buffer.toString().trim();
+    final preview = result.join().trim();
     if (value.length > _metadataPreviewLength) {
       return '$preview...';
     }
@@ -814,15 +814,15 @@ class MinIOArtifactHook extends ArtifactHook {
   /// `'RequestFailed'` → `'request_failed'`
   /// `'product_scan'` → `'product_scan'`
   static String _toFolderName(String input) {
-    final buffer = StringBuffer();
+    final result = <String>[];
     for (var i = 0; i < input.length; i++) {
       final char = input[i];
       if (i > 0 && char.toUpperCase() == char && char.toLowerCase() != char) {
-        buffer.write('_');
+        result.add('_');
       }
-      buffer.write(char.toLowerCase());
+      result.add(char.toLowerCase());
     }
-    return buffer.toString();
+    return result.join();
   }
 
   /// Determine the file extension for the given content type.

@@ -561,7 +561,7 @@ class GeneratorConfig {
 
   static List<String> _splitByComma(String content) {
     final result = <String>[];
-    var buffer = StringBuffer();
+    var current = <String>[];
     var depth = 0;
     var inQuotes = false;
     var quoteChar = '';
@@ -570,7 +570,7 @@ class GeneratorConfig {
       final char = content[i];
 
       if (inQuotes) {
-        buffer.write(char);
+        current.add(char);
         if (char == quoteChar) {
           inQuotes = false;
         }
@@ -580,7 +580,7 @@ class GeneratorConfig {
       if (char == '"' || char == "'") {
         inQuotes = true;
         quoteChar = char;
-        buffer.write(char);
+        current.add(char);
         continue;
       }
 
@@ -591,16 +591,16 @@ class GeneratorConfig {
       }
 
       if (char == ',' && depth == 0) {
-        if (buffer.toString().trim().isNotEmpty) {
-          result.add(buffer.toString());
+        if (current.join().trim().isNotEmpty) {
+          result.add(current.join());
         }
-        buffer = StringBuffer();
+        current = <String>[];
       } else {
-        buffer.write(char);
+        current.add(char);
       }
     }
-    if (buffer.toString().trim().isNotEmpty) {
-      result.add(buffer.toString());
+    if (current.join().trim().isNotEmpty) {
+      result.add(current.join());
     }
     return result;
   }
@@ -672,15 +672,15 @@ class GeneratorConfig {
 
   String _camelToSnake(String input) {
     if (input.isEmpty) return '';
-    final buffer = StringBuffer();
+    final result = <String>[];
     for (var i = 0; i < input.length; i++) {
       final char = input[i];
       if (i > 0 && char.toUpperCase() == char && char != '_') {
-        buffer.write('_');
+        result.add('_');
       }
-      buffer.write(char.toLowerCase());
+      result.add(char.toLowerCase());
     }
-    return buffer.toString();
+    return result.join();
   }
 
   String _pascalToCamel(String input) {

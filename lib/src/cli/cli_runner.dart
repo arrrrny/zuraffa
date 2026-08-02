@@ -123,22 +123,22 @@ class CliRunner {
   Future<String> runCapturing(List<String> args) async {
     _ensureInitialized();
 
-    final output = StringBuffer();
+    final output = <String>[];
 
     if (args.isEmpty) {
-      _printHelpTo(output.writeln);
-      return output.toString();
+      _printHelpTo(output.add);
+      return '${output.join('\n')}\n';
     }
 
     if (_isVersionCommand(args)) {
-      output.writeln('zfa v$version');
-      output.writeln('Zuraffa Code Generator');
-      return output.toString();
+      output.add('zfa v$version');
+      output.add('Zuraffa Code Generator');
+      return '${output.join('\n')}\n';
     }
 
     if (_isRemovedGenerateCommand(args)) {
-      _printRemovedGenerateMessageTo(output.writeln);
-      return output.toString();
+      _printRemovedGenerateMessageTo(output.add);
+      return '${output.join('\n')}\n';
     }
 
     await runZoned(
@@ -146,24 +146,24 @@ class CliRunner {
         try {
           await _runner.run(args);
         } on UsageException catch (e) {
-          output.writeln('❌ ${e.message}');
-          output.writeln(e.usage);
+          output.add('❌ ${e.message}');
+          output.add(e.usage);
         } catch (e, stack) {
-          output.writeln('❌ Error: $e');
-          _addSuggestionsTo(output.writeln, e.toString());
+          output.add('❌ Error: $e');
+          _addSuggestionsTo(output.add, e.toString());
           if (args.contains('--verbose') || args.contains('-v')) {
-            output.writeln('\nStack trace:\n$stack');
+            output.add('\nStack trace:\n$stack');
           }
         }
       },
       zoneSpecification: ZoneSpecification(
         print: (self, parent, zone, line) {
-          output.writeln(line);
+          output.add(line);
         },
       ),
     );
 
-    return output.toString();
+    return output.isEmpty ? '' : '${output.join('\n')}\n';
   }
 
   bool _isVersionCommand(List<String> args) {

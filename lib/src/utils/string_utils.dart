@@ -1,13 +1,12 @@
 class StringUtils {
   static String camelToSnake(String input) {
     if (input.isEmpty) return '';
-    final buffer = StringBuffer();
+    final result = <String>[];
     for (var i = 0; i < input.length; i++) {
       final char = input[i];
       if (char == ' ') {
-        final current = buffer.toString();
-        if (current.isNotEmpty && current[current.length - 1] != '_') {
-          buffer.write('_');
+        if (result.isNotEmpty && result.last != '_') {
+          result.add('_');
         }
         continue;
       }
@@ -18,11 +17,11 @@ class StringUtils {
           char != '_' &&
           input[i - 1] != '_' &&
           input[i - 1] != ' ') {
-        buffer.write('_');
+        result.add('_');
       }
-      buffer.write(char.toLowerCase());
+      result.add(char.toLowerCase());
     }
-    return buffer.toString();
+    return result.join();
   }
 
   static String pascalToCamel(String input) {
