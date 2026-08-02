@@ -487,6 +487,9 @@ export 'src/graphql/gql/graphql_document_builder.dart';
 // DocumentsDartGenerator — documents.dart with DocumentNode constants.
 export 'src/graphql/gql/documents_dart_generator.dart';
 
+// NamingUtils — shared naming utilities for consistent variable naming.
+export 'src/graphql/gql/naming_utils.dart';
+
 // GraphQLValidator — validates documents against the cached schema.
 export 'src/graphql/validators/graphql_validator.dart';
 

@@ -84,23 +84,41 @@ class GraphQLValidator {
             if (arg.value is ast.VariableNode &&
                 (arg.value as ast.VariableNode).name.value == varName) {
               used = true;
+              // Find the corresponding schema field
+              final schemaField = rootType.fields
+                  .where((f) => f.name == selection.name.value)
+                  .firstOrNull;
+
+              if (schemaField == null) {
+                errors.add(
+                  ValidationError(
+                    message:
+                        'Unknown field "${selection.name.value}" on type ${rootType.name}',
+                    location: _locationOf(selection),
+                  ),
+                );
+                continue;
+              }
+
               // Find the corresponding schema argument
-              final schemaField = rootType.fields.firstWhere(
-                (f) => f.name == selection.name.value,
-                orElse: () => GraphQLField(
-                  name: '',
-                  type: GraphQLScalarType(name: 'String'),
-                ),
-              );
-              final schemaArg = schemaField.args.firstWhere(
-                (a) => a.name == arg.name.value,
-                orElse: () => GraphQLInputField(
-                  name: '',
-                  type: GraphQLScalarType(name: 'String'),
-                ),
-              );
-              final expectedType = schemaArg.type.innerType.name;
-              if (!varType.contains(expectedType)) {
+              final schemaArg = schemaField.args
+                  .where((a) => a.name == arg.name.value)
+                  .firstOrNull;
+
+              if (schemaArg == null) {
+                errors.add(
+                  ValidationError(
+                    message:
+                        'Unknown argument "${arg.name.value}" on field "${selection.name.value}"',
+                    location: _locationOf(arg),
+                  ),
+                );
+                continue;
+              }
+
+              // Compare complete type strings including wrappers
+              final expectedType = _schemaTypeToString(schemaArg.type);
+              if (varType != expectedType) {
                 errors.add(
                   ValidationError(
                     message:
@@ -253,6 +271,18 @@ class GraphQLValidator {
       return '${type.name.value}$suffix';
     }
     return 'unknown';
+  }
+
+  /// Convert a schema [GraphQLType] to a string representation matching
+  /// the format used by [_astTypeToString], including list and non-null wrappers.
+  String _schemaTypeToString(GraphQLType type) {
+    if (type is GraphQLNonNullType) {
+      return '${_schemaTypeToString(type.ofType)}!';
+    }
+    if (type is GraphQLListType) {
+      return '[${_schemaTypeToString(type.ofType)}]';
+    }
+    return type.innerType.name;
   }
 
   String _locationOf(ast.Node node) {

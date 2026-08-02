@@ -2,6 +2,7 @@ import 'package:code_builder/code_builder.dart' as cb;
 import 'package:dart_style/dart_style.dart';
 import 'package:zuraffa/zuraffa.dart';
 
+import '../gql/naming_utils.dart';
 import 'codegen_types.dart';
 
 /// Generates fully implemented remote datasource classes.
@@ -68,6 +69,13 @@ class DatasourceGenerator {
               !m.returnType.isList,
         );
 
+    // Check if any operation actually references a document constant
+    // (watch-only stubs don't reference documents when subscriptions disabled)
+    final hasDocumentReferences = queries.isNotEmpty ||
+        mutations.isNotEmpty ||
+        (enableSubscriptions && subscriptions.isNotEmpty) ||
+        (enableSubscriptions && watches.isNotEmpty);
+
     final library = cb.Library((b) {
       b.directives.add(cb.Directive.import('package:zuraffa/zuraffa.dart'));
       b.directives.add(
@@ -84,7 +92,10 @@ class DatasourceGenerator {
       );
 
       // Generated documents.dart with DocumentNode constants.
-      b.directives.add(cb.Directive.import(documentsImportPath));
+      // Only import when at least one method references a document.
+      if (hasDocumentReferences) {
+        b.directives.add(cb.Directive.import(documentsImportPath));
+      }
 
       b.body.add(
         cb.Class((c) {
@@ -559,7 +570,7 @@ class DatasourceGenerator {
   }
 
   String _documentVarName(String fieldName) {
-    return '${_camelCase(fieldName)}Document';
+    return NamingUtils.documentVarName(fieldName);
   }
 
   String _camelCase(String name) {

@@ -24,12 +24,17 @@ class GraphQLDocumentBuilder {
   final bool unvalidated;
 
   /// Build a query document AST from schema metadata.
+  ///
+  /// [fragmentSpreads] contains fragment spread names only.
+  /// [fragmentDefinitions] contains the full fragment definition text to be
+  /// parsed and included in the document.
   ast.DocumentNode buildQueryDocument({
     required String operationName,
     required String fieldName,
     required List<String> fields,
     Map<String, GraphQLType>? args,
-    List<String>? fragments,
+    List<String>? fragmentSpreads,
+    List<String>? fragmentDefinitions,
   }) {
     final variableDefinitions = <ast.VariableDefinitionNode>[];
     final argumentNodes = <ast.ArgumentNode>[];
@@ -48,7 +53,7 @@ class GraphQLDocumentBuilder {
       }
     }
 
-    final selectionSet = _buildSelectionSet(fields, fragments);
+    final selectionSet = _buildSelectionSet(fields, fragmentSpreads);
 
     final operation = ast.OperationDefinitionNode(
       type: ast.OperationType.query,
@@ -66,8 +71,8 @@ class GraphQLDocumentBuilder {
     );
 
     final definitions = <ast.DefinitionNode>[operation];
-    if (fragments != null) {
-      for (final fragmentText in fragments) {
+    if (fragmentDefinitions != null) {
+      for (final fragmentText in fragmentDefinitions) {
         // Parse fragment text into AST and extract definition
         final fragmentDoc = gql_lang.parseString(fragmentText);
         definitions.addAll(fragmentDoc.definitions);
@@ -78,12 +83,17 @@ class GraphQLDocumentBuilder {
   }
 
   /// Build a mutation document AST.
+  ///
+  /// [fragmentSpreads] contains fragment spread names only.
+  /// [fragmentDefinitions] contains the full fragment definition text to be
+  /// parsed and included in the document.
   ast.DocumentNode buildMutationDocument({
     required String operationName,
     required String fieldName,
     required List<String> fields,
     required Map<String, GraphQLType> inputVars,
-    List<String>? fragments,
+    List<String>? fragmentSpreads,
+    List<String>? fragmentDefinitions,
   }) {
     final variableDefinitions = <ast.VariableDefinitionNode>[];
     final argumentNodes = <ast.ArgumentNode>[];
@@ -98,7 +108,7 @@ class GraphQLDocumentBuilder {
       );
     }
 
-    final selectionSet = _buildSelectionSet(fields, fragments);
+    final selectionSet = _buildSelectionSet(fields, fragmentSpreads);
 
     final operation = ast.OperationDefinitionNode(
       type: ast.OperationType.mutation,
@@ -116,8 +126,8 @@ class GraphQLDocumentBuilder {
     );
 
     final definitions = <ast.DefinitionNode>[operation];
-    if (fragments != null) {
-      for (final fragmentText in fragments) {
+    if (fragmentDefinitions != null) {
+      for (final fragmentText in fragmentDefinitions) {
         final fragmentDoc = gql_lang.parseString(fragmentText);
         definitions.addAll(fragmentDoc.definitions);
       }
@@ -127,12 +137,17 @@ class GraphQLDocumentBuilder {
   }
 
   /// Build a subscription document AST.
+  ///
+  /// [fragmentSpreads] contains fragment spread names only.
+  /// [fragmentDefinitions] contains the full fragment definition text to be
+  /// parsed and included in the document.
   ast.DocumentNode buildSubscriptionDocument({
     required String operationName,
     required String fieldName,
     required List<String> fields,
     Map<String, GraphQLType>? args,
-    List<String>? fragments,
+    List<String>? fragmentSpreads,
+    List<String>? fragmentDefinitions,
   }) {
     final variableDefinitions = <ast.VariableDefinitionNode>[];
     final argumentNodes = <ast.ArgumentNode>[];
@@ -151,7 +166,7 @@ class GraphQLDocumentBuilder {
       }
     }
 
-    final selectionSet = _buildSelectionSet(fields, fragments);
+    final selectionSet = _buildSelectionSet(fields, fragmentSpreads);
 
     final operation = ast.OperationDefinitionNode(
       type: ast.OperationType.subscription,
@@ -169,8 +184,8 @@ class GraphQLDocumentBuilder {
     );
 
     final definitions = <ast.DefinitionNode>[operation];
-    if (fragments != null) {
-      for (final fragmentText in fragments) {
+    if (fragmentDefinitions != null) {
+      for (final fragmentText in fragmentDefinitions) {
         final fragmentDoc = gql_lang.parseString(fragmentText);
         definitions.addAll(fragmentDoc.definitions);
       }
@@ -250,7 +265,7 @@ class GraphQLDocumentBuilder {
 
   ast.SelectionSetNode _buildSelectionSet(
     List<String> fields,
-    List<String>? fragments,
+    List<String>? fragmentSpreads,
   ) {
     final selections = <ast.SelectionNode>[];
 
@@ -263,8 +278,8 @@ class GraphQLDocumentBuilder {
       }
     }
 
-    if (fragments != null) {
-      for (final fragmentName in fragments) {
+    if (fragmentSpreads != null) {
+      for (final fragmentName in fragmentSpreads) {
         selections.add(
           ast.FragmentSpreadNode(name: ast.NameNode(value: fragmentName)),
         );
@@ -283,22 +298,93 @@ class GraphQLDocumentBuilder {
   }
 
   ast.FieldNode _parseNestedField(String fieldSpec) {
-    // Simple nested field parser: "fieldName { sub1 sub2 }"
-    final match = RegExp(r'(\w+)\s*\{\s*([^}]+)\s*\}').firstMatch(fieldSpec);
-    if (match == null) {
-      return ast.FieldNode(name: ast.NameNode(value: fieldSpec));
+    // Parse nested field specification using full GraphQL syntax.
+    // For complex nesting, parse the entire field as a GraphQL selection.
+    final trimmed = fieldSpec.trim();
+
+    // Try to extract field name and content between braces
+    final openBrace = trimmed.indexOf('{');
+    if (openBrace == -1) {
+      throw ArgumentError(
+        'Malformed nested field specification: expected braces but found none in "$fieldSpec"',
+      );
     }
 
-    final fieldName = match.group(1)!;
-    final subFields = match.group(2)!.trim().split(RegExp(r'\s+'));
+    final fieldName = trimmed.substring(0, openBrace).trim();
+    if (fieldName.isEmpty || !RegExp(r'^\w+$').hasMatch(fieldName)) {
+      throw ArgumentError(
+        'Malformed nested field specification: invalid field name in "$fieldSpec"',
+      );
+    }
+
+    // Find matching closing brace, accounting for nested braces
+    var depth = 0;
+    var closeBrace = -1;
+    for (var i = openBrace; i < trimmed.length; i++) {
+      if (trimmed[i] == '{') {
+        depth++;
+      } else if (trimmed[i] == '}') {
+        depth--;
+        if (depth == 0) {
+          closeBrace = i;
+          break;
+        }
+      }
+    }
+
+    if (closeBrace == -1 || depth != 0) {
+      throw ArgumentError(
+        'Malformed nested field specification: unbalanced braces in "$fieldSpec"',
+      );
+    }
+
+    final selectionContent = trimmed.substring(openBrace + 1, closeBrace).trim();
+    if (selectionContent.isEmpty) {
+      throw ArgumentError(
+        'Malformed nested field specification: empty selection set in "$fieldSpec"',
+      );
+    }
+
+    // Parse sub-fields recursively if they contain braces, otherwise treat as simple fields
+    final subFields = <String>[];
+    var currentField = StringBuffer();
+    depth = 0;
+
+    for (var i = 0; i < selectionContent.length; i++) {
+      final char = selectionContent[i];
+      if (char == '{') {
+        depth++;
+        currentField.write(char);
+      } else if (char == '}') {
+        depth--;
+        currentField.write(char);
+      } else if (char == ' ' && depth == 0) {
+        if (currentField.isNotEmpty) {
+          subFields.add(currentField.toString().trim());
+          currentField.clear();
+        }
+      } else {
+        currentField.write(char);
+      }
+    }
+    if (currentField.isNotEmpty) {
+      subFields.add(currentField.toString().trim());
+    }
+
+    final selections = <ast.SelectionNode>[];
+    for (final subField in subFields) {
+      if (subField.isEmpty) continue;
+      if (subField.contains('{')) {
+        // Recursively parse nested field
+        selections.add(_parseNestedField(subField));
+      } else {
+        selections.add(ast.FieldNode(name: ast.NameNode(value: subField)));
+      }
+    }
 
     return ast.FieldNode(
       name: ast.NameNode(value: fieldName),
-      selectionSet: ast.SelectionSetNode(
-        selections: subFields
-            .map((f) => ast.FieldNode(name: ast.NameNode(value: f.trim())))
-            .toList(),
-      ),
+      selectionSet: ast.SelectionSetNode(selections: selections),
     );
   }
 }

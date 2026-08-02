@@ -3,6 +3,8 @@ import 'package:code_builder/code_builder.dart' as cb;
 import 'package:dart_style/dart_style.dart';
 import 'package:path/path.dart' as p;
 
+import 'naming_utils.dart';
+
 /// Generates `documents.dart` — a file with parsed `DocumentNode` constants
 /// for every `.graphql` file in a directory.
 ///
@@ -27,15 +29,35 @@ class DocumentsDartGenerator {
       throw StateError('GraphQL directory does not exist: $graphqlDir');
     }
 
-    final documentVars = <cb.Field>[];
-
+    // Collect all .graphql files first
+    final graphqlFiles = <File>[];
     for (final entity in dir.listSync(recursive: true)) {
       if (entity is! File) continue;
       if (!entity.path.endsWith('.graphql')) continue;
+      graphqlFiles.add(entity);
+    }
 
-      final fileName = p.basenameWithoutExtension(entity.path);
-      final varName = '${_camelCase(fileName)}Document';
-      final content = entity.readAsStringSync();
+    // Sort by path for deterministic output
+    graphqlFiles.sort((a, b) => a.path.compareTo(b.path));
+
+    final documentVars = <cb.Field>[];
+    final seenVarNames = <String>{};
+
+    for (final file in graphqlFiles) {
+      final fileName = p.basenameWithoutExtension(file.path);
+      final varName = NamingUtils.documentVarName(fileName);
+      final content = file.readAsStringSync();
+
+      // Check for duplicate variable names (from different directories)
+      if (seenVarNames.contains(varName)) {
+        throw StateError(
+          'Duplicate document variable name "$varName" detected. '
+          'Files from different directories produced the same camelCase name. '
+          'Please rename one of the .graphql files to avoid collision.\n'
+          'Current file: ${file.path}',
+        );
+      }
+      seenVarNames.add(varName);
 
       // Skip unvalidated files (they have a header comment)
       final cleanContent = content
@@ -94,9 +116,4 @@ class DocumentsDartGenerator {
     file.writeAsStringSync(code);
   }
 
-  String _camelCase(String name) {
-    final parts = name.split(RegExp(r'[_\-]'));
-    return parts.first +
-        parts.skip(1).map((p) => p[0].toUpperCase() + p.substring(1)).join();
-  }
 }
