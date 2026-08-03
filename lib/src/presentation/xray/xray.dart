@@ -19,3 +19,5 @@ export 'xray_mock_annotation.dart';
 export 'xray_mock_entry.dart';
 export 'xray_mock_parser.dart';
 export 'xray_control_deck.dart';
+export 'xray_bridge.dart';
+export 'xray_bridge_server.dart';

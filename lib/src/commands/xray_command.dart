@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import '../presentation/xray/xray_mode.dart';
+import 'xray_bridge_command.dart';
 import 'xray_deck_command.dart';
 
 /// CLI command for X-Ray mode management.
@@ -12,6 +13,7 @@ import 'xray_deck_command.dart';
 /// ```
 /// zfa xray enable   # activate X-Ray overlay on next app launch
 /// zfa xray disable  # deactivate X-Ray overlay
+/// zfa xray bridge   # start the AI agent bridge server
 /// zfa xray deck     # generate Control Deck registration
 /// ```
 class XrayCommand extends Command<void> {
@@ -19,22 +21,24 @@ class XrayCommand extends Command<void> {
   String get name => 'xray';
 
   @override
-  String get description => 'X-Ray debug tools (overlay, control deck)';
+  String get description => 'X-Ray debug tools (overlay, control deck, bridge)';
 
   XrayCommand() {
     addSubcommand(_XrayEnableCommand());
     addSubcommand(_XrayDisableCommand());
     addSubcommand(_XrayStatusCommand());
     addSubcommand(XrayDeckCommand());
+    addSubcommand(XrayBridgeCommand());
   }
 
   @override
   Future<void> run() async {
-    print('Usage: zfa xray <enable|disable|status|deck>');
+    print('Usage: zfa xray <enable|disable|status|deck|bridge>');
     print('  enable   Activate X-Ray overlay (debug/profile mode)');
     print('  disable  Deactivate X-Ray overlay');
     print('  status   Show current X-Ray configuration status');
     print('  deck     Generate Control Deck from annotations/YAML');
+    print('  bridge   Start the AI agent bridge server');
     print('');
     print('Activation methods:');
     print('  · Two-finger long press in the running app');
