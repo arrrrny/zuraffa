@@ -1142,3 +1142,7 @@ class Zuraffa {
     return '⚫';
   }
 }
+
+
+// v5 -> v6 migration tooling
+export 'src/migration/migration.dart';

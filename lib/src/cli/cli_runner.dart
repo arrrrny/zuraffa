@@ -11,6 +11,7 @@ import '../commands/entity_command.dart';
 import '../commands/plugin_command.dart' as plugincmd;
 import '../commands/make_command.dart';
 import '../commands/doctor_command.dart';
+import '../commands/migrate_command.dart';
 import '../commands/build_command.dart';
 import '../commands/manifest_command.dart';
 import '../commands/apply_command.dart';
@@ -75,6 +76,7 @@ class CliRunner {
     _runner.addCommand(_PluginCommand());
     _runner.addCommand(MakeCommand(registry));
     _runner.addCommand(DoctorCommand());
+    _runner.addCommand(MigrateCommand());
     _runner.addCommand(BuildCommand());
     _runner.addCommand(ManifestCommand(registry));
     _runner.addCommand(ApplyCommand(registry));
@@ -216,9 +218,10 @@ CORE COMMANDS:
   initialize          Initialize a test entity
   entity              Create and manage Zorphy entities
   config              Manage ZFA configuration
-  doctor              Check your environment
+  doctor              Check your environment and v5 migration readiness
   schema              Output JSON schema
   validate <file>     Validate JSON configuration
+  migrate <target>     Migrate v5 artifacts to v6 (state, gql, di)
 
 MODULAR COMMANDS:
   route <Name>        Generate route definitions
