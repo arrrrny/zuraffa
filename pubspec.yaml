@@ -27,8 +27,17 @@ dependencies:
   provider: ^6.1.5+1
   responsive_builder: ^0.7.1
   uuid: ^4.6.0
-  zorphy: ^1.9.0
-  zorphy_annotation: ^1.9.0
+  zorphy:
+    git:
+      url: https://github.com/arrrrny/zorphy.git
+      path: zorphy
+      ref: "662acffeda3f34a6c9cf9cf82df08cdcb2ec5e21"
+  zorphy_annotation:
+    git:
+      url: https://github.com/arrrrny/zorphy.git
+      path: zorphy_annotation
+      ref: "662acffeda3f34a6c9cf9cf82df08cdcb2ec5e21"
+
   json_annotation: ^4.12.0
 
   http: ^1.6.0

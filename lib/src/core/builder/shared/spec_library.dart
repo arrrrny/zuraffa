@@ -19,6 +19,7 @@ class SpecLibrary {
     Library library, {
     bool format = true,
     String? leadingComment,
+    bool wrapWithGeneratedMarkers = true,
   }) {
     final emitter = DartEmitter(
       allocator: Allocator.simplePrefixing(),
@@ -30,6 +31,14 @@ class SpecLibrary {
     if (leadingComment != null) {
       raw = '$leadingComment\n$raw';
     }
+
+    // Wrap with GENERATED markers for smart regeneration.
+    // This allows the AST merge engine to identify and safely
+    // replace generated code while preserving user edits.
+    if (wrapWithGeneratedMarkers) {
+      raw = '// GENERATED - DO NOT EDIT\n$raw\n// END GENERATED';
+    }
+
     if (!format) {
       return raw;
     }
@@ -46,10 +55,12 @@ class SpecLibrary {
     Spec spec, {
     Iterable<Directive> directives = const [],
     bool format = true,
+    bool wrapWithGeneratedMarkers = true,
   }) {
     return emitLibrary(
       library(specs: [spec], directives: directives),
       format: format,
+      wrapWithGeneratedMarkers: wrapWithGeneratedMarkers,
     );
   }
 
@@ -57,10 +68,12 @@ class SpecLibrary {
     String code, {
     Iterable<Directive> directives = const [],
     bool format = true,
+    bool wrapWithGeneratedMarkers = true,
   }) {
     return emitLibrary(
       library(specs: [Code(code)], directives: directives),
       format: format,
+      wrapWithGeneratedMarkers: wrapWithGeneratedMarkers,
     );
   }
 }

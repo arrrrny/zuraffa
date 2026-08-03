@@ -2,6 +2,7 @@ import 'dart:io';
 
 import '../context/file_system.dart';
 import 'conflict_detector.dart';
+import 'smart_merge_writer.dart';
 
 enum FileOperationType { create, update, delete }
 
@@ -12,7 +13,6 @@ class FileOperation {
   final String? previousContent;
   final int? expectedHash;
   final bool existedAtPlan;
-
   final bool force;
 
   const FileOperation._({
@@ -86,6 +86,15 @@ class FileOperation {
       case FileOperationType.update:
         if (content == null) {
           throw StateError('Missing content for $path');
+        }
+        // Smart merge: use AST merge for .dart files when not in force mode
+        if (!force && path.endsWith('.dart') && type == FileOperationType.update) {
+          await SmartMergeWriter.writeMerged(
+            fileSystem: fs,
+            path: path,
+            newContent: content!,
+          );
+          return;
         }
         await fs.write(path, content!);
         return;
