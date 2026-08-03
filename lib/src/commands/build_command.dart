@@ -16,6 +16,16 @@ class BuildCommand extends Command {
       help: 'Delete the build cache before building (fixes stale cache errors)',
       negatable: false,
     );
+    argParser.addFlag(
+      'dry-run',
+      negatable: false,
+      help: 'Preview what would change without writing files',
+    );
+    argParser.addFlag(
+      'force',
+      negatable: false,
+      help: 'Bypass AST merge and regenerate all files from scratch',
+    );
   }
 
   @override
@@ -23,18 +33,35 @@ class BuildCommand extends Command {
     final entityCount = await _countEntities();
     final dartFileCount = await _countDartFiles();
     final clean = argResults!['clean'] as bool;
+    final dryRun = argResults!['dry-run'] as bool;
+    final force = argResults!['force'] as bool;
 
     if (clean) {
       await _cleanBuildCache();
     }
 
-    print('🔨 Running build_runner build...');
-    print('   Entities: $entityCount, Dart files: $dartFileCount');
+    if (dryRun) {
+      print('🔍 Dry-run mode: previewing changes...');
+      print('   Entities: $entityCount, Dart files: $dartFileCount');
+      if (force) {
+        print('   ⚠️  --force: will regenerate all files from scratch');
+      } else {
+        print('   🧠 Smart merge: will preserve user code and @preserve blocks');
+      }
+      print('');
+    } else {
+      print('🔨 Running build_runner build...');
+      print('   Entities: $entityCount, Dart files: $dartFileCount');
+      if (force) {
+        print('   ⚠️  Force mode: regenerating from scratch');
+      }
+    }
 
     final exitCode = await _runBuild();
 
     if (exitCode == 0) {
-      print('\n✅ Build completed successfully');
+      if (!dryRun) print('');
+      print(dryRun ? '✅ Dry-run completed' : '✅ Build completed successfully');
     } else if (!clean) {
       print(
         '\n⚠️  Build failed (exit $exitCode). Retrying with clean cache...',
@@ -52,12 +79,14 @@ class BuildCommand extends Command {
   }
 
   Future<int> _runBuild() async {
-    final process = await Process.start('dart', [
+    final args = [
       'run',
       'build_runner',
       'build',
       '--delete-conflicting-outputs',
-    ], mode: ProcessStartMode.inheritStdio);
+    ];
+
+    final process = await Process.start('dart', args, mode: ProcessStartMode.inheritStdio);
     return process.exitCode;
   }
 
