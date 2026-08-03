@@ -24,7 +24,7 @@ class XRayMode {
 
   /// Path to the persistent X-Ray config file.
   /// Shared with [XrayCommand] in the CLI layer.
-  @visibleForTesting
+  // CLI-accessible
   static String get configPath => '.dart_tool/zuraffa/xray.json';
 
   /// Whether X-Ray mode is currently active.
@@ -87,7 +87,7 @@ class XRayMode {
   }
 
   /// Reset for testing.
-  @visibleForTesting
+  // CLI-accessible
   static void reset() {
     _enabled = false;
     _notifier.value = false;

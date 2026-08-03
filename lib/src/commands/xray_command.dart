@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import '../presentation/xray/xray_mode.dart';
+import 'xray_deck_command.dart';
 
 /// CLI command for X-Ray mode management.
 ///
@@ -11,30 +12,29 @@ import '../presentation/xray/xray_mode.dart';
 /// ```
 /// zfa xray enable   # activate X-Ray overlay on next app launch
 /// zfa xray disable  # deactivate X-Ray overlay
+/// zfa xray deck     # generate Control Deck registration
 /// ```
-///
-/// Writes a flag file at `.dart_tool/zuraffa/xray.json` that the
-/// framework reads at startup (debug/profile mode only).
 class XrayCommand extends Command<void> {
   @override
   String get name => 'xray';
 
   @override
-  String get description => 'Toggle X-Ray visual debug overlay';
+  String get description => 'X-Ray debug tools (overlay, control deck)';
 
   XrayCommand() {
     addSubcommand(_XrayEnableCommand());
     addSubcommand(_XrayDisableCommand());
     addSubcommand(_XrayStatusCommand());
+    addSubcommand(XrayDeckCommand());
   }
 
   @override
   Future<void> run() async {
-    // No subcommand given — print usage/help.
-    print('Usage: zfa xray <enable|disable|status>');
+    print('Usage: zfa xray <enable|disable|status|deck>');
     print('  enable   Activate X-Ray overlay (debug/profile mode)');
     print('  disable  Deactivate X-Ray overlay');
     print('  status   Show current X-Ray configuration status');
+    print('  deck     Generate Control Deck from annotations/YAML');
     print('');
     print('Activation methods:');
     print('  · Two-finger long press in the running app');
@@ -66,7 +66,6 @@ class XrayCommand extends Command<void> {
   }
 
   /// Check if the X-Ray config flag is set to enabled.
-  /// Used by the framework at startup.
   static bool isConfigEnabled() {
     final config = _readConfig();
     return config?['enabled'] == true;
