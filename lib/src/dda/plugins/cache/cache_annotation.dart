@@ -57,8 +57,9 @@ class Cacheable {
   /// Time-to-live for cached entries. Expired entries are skipped
   /// and fresh data is fetched instead.
   ///
-  /// When `null`, the default TTL from `.zfa.json` is used, or
-  /// 24 hours if no config exists.
+  /// When `null`, the default TTL is hardcoded to 24 hours.
+  /// The cache is managed via `ZfaCacheStore` and invalidation
+  /// uses `_store.invalidateByPrefix(prefix)`.
   final Duration? ttl;
 
   /// Caching strategy. Defaults to [CacheStrategy.offlineFirst].
@@ -70,7 +71,8 @@ class Cacheable {
   /// ```dart
   /// @Cacheable(keyPrefix: 'product_list')
   /// Future<List<Product>> getProducts() async { ... }
-  /// // Cache key: "product_list:{}"
+  /// // Cache key (no args): "product_list"
+  /// // Cache key (with args): "product_list:arg1:arg2"
   /// ```
   final String? keyPrefix;
 
@@ -90,7 +92,7 @@ class Cacheable {
 ///
 /// When placed on a method (e.g., `updateProduct`, `deleteProduct`),
 /// `zfa build` generates cache-invalidation calls that clear entries
-  /// for the specified target methods.
+/// for the specified target methods.
 ///
 /// ```dart
 /// @CacheInvalidate(methods: ['getProduct', 'getProductList'])

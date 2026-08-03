@@ -86,6 +86,7 @@ class CacheDDAPlugin extends ZorphyDecoratorPlugin {
         methodName: methodName,
         importUri: importUri,
         methods: methods,
+        parameters: params,
         keyPrefix: keyPrefix,
       );
     }
@@ -112,28 +113,36 @@ class CacheDDAPlugin extends ZorphyDecoratorPlugin {
 
   Duration? _parseTtl(String? ttlStr) {
     if (ttlStr == null) return null;
-    // Handle simple Duration expressions like Duration(hours: 1)
-    final hours = RegExp(r'Duration\(hours:\s*(\d+)\)');
-    final minutes = RegExp(r'Duration\(minutes:\s*(\d+)\)');
-    final seconds = RegExp(r'Duration\(seconds:\s*(\d+)\)');
 
-    final hMatch = hours.firstMatch(ttlStr);
-    if (hMatch != null) {
-      return Duration(hours: int.parse(hMatch.group(1)!));
+    // Extract all Duration parameter values
+    final days = RegExp(r'days:\s*(\d+)').firstMatch(ttlStr);
+    final hours = RegExp(r'hours:\s*(\d+)').firstMatch(ttlStr);
+    final minutes = RegExp(r'minutes:\s*(\d+)').firstMatch(ttlStr);
+    final seconds = RegExp(r'seconds:\s*(\d+)').firstMatch(ttlStr);
+    final milliseconds = RegExp(r'milliseconds:\s*(\d+)').firstMatch(ttlStr);
+
+    // If no valid units found, return null
+    if (days == null && hours == null && minutes == null && seconds == null && milliseconds == null) {
+      return null;
     }
-    final mMatch = minutes.firstMatch(ttlStr);
-    if (mMatch != null) {
-      return Duration(minutes: int.parse(mMatch.group(1)!));
-    }
-    final sMatch = seconds.firstMatch(ttlStr);
-    if (sMatch != null) {
-      return Duration(seconds: int.parse(sMatch.group(1)!));
-    }
-    return null;
+
+    // Sum all provided units
+    return Duration(
+      days: days != null ? int.parse(days.group(1)!) : 0,
+      hours: hours != null ? int.parse(hours.group(1)!) : 0,
+      minutes: minutes != null ? int.parse(minutes.group(1)!) : 0,
+      seconds: seconds != null ? int.parse(seconds.group(1)!) : 0,
+      milliseconds: milliseconds != null ? int.parse(milliseconds.group(1)!) : 0,
+    );
   }
 
   CacheStrategy _parseStrategy(String strategyStr) {
-    switch (strategyStr) {
+    // Normalize: trim and extract enum value after last dot
+    final normalized = strategyStr.trim().split('.').last;
+
+    switch (normalized) {
+      case 'offlineFirst':
+        return CacheStrategy.offlineFirst;
       case 'networkFirst':
         return CacheStrategy.networkFirst;
       case 'cacheOnly':
@@ -141,6 +150,8 @@ class CacheDDAPlugin extends ZorphyDecoratorPlugin {
       case 'networkOnly':
         return CacheStrategy.networkOnly;
       default:
+        // Invalid strategy - log and default to offlineFirst
+        print('Warning: Invalid cache strategy "$strategyStr", defaulting to offlineFirst');
         return CacheStrategy.offlineFirst;
     }
   }

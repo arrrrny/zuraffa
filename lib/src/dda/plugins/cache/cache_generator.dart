@@ -48,6 +48,7 @@ class CacheGenerator {
     required String methodName,
     required String importUri,
     required List<String> methods,
+    required List<ParameterInfo> parameters,
     String? keyPrefix,
   }) {
     _invalidators.add(_InvalidatorEntry(
@@ -55,6 +56,7 @@ class CacheGenerator {
       methodName: methodName,
       importUri: importUri,
       methods: methods,
+      parameters: parameters,
       keyPrefix: keyPrefix,
     ));
   }
@@ -102,17 +104,19 @@ class CacheGenerator {
   cb.Class _cacheStoreClass() {
     return cb.Class((c) => c
       ..name = 'ZfaCacheStore'
+      ..abstract = true
       ..fields.addAll([
         cb.Field((f) => f
           ..name = '_defaultTtlMs'
           ..type = cb.refer('int')
-          ..modifier = cb.FieldModifier.final$
-          ..assignment = cb.Code('86400000')),
+          ..modifier = cb.FieldModifier.final$),
       ])
       ..constructors.addAll([
         cb.Constructor((ctor) => ctor
           ..optionalParameters.add(cb.Parameter((p) => p
             ..name = 'defaultTtlMs'
+            ..named = true
+            ..defaultTo = cb.Code('86400000')
             ..toThis = true))),
       ])
       ..methods.addAll([
@@ -194,7 +198,8 @@ class CacheGenerator {
     final body = _joinLines([
       'final box = await _openBox();',
       'final keysToDelete = box.keys',
-      '    .where((k) => (k as String).startsWith(prefix))',
+      '    .whereType<String>()',
+      '    .where((k) => k.startsWith(prefix))',
       '    .toList();',
       'for (final key in keysToDelete) {',
       '  await box.delete(key);',
@@ -228,15 +233,10 @@ class CacheGenerator {
   }
 
   cb.Method _openBoxMethod() {
-    final body = _joinLines([
-      '// Hive box open is handled by the app.',
-      "throw UnimplementedError('Hive box must be configured');",
-    ]);
     return cb.Method((m) => m
       ..name = '_openBox'
       ..returns = cb.refer('Future<dynamic>')
-      ..modifier = cb.MethodModifier.async
-      ..body = cb.Code(body));
+      ..body = null);
   }
 
   String _joinLines(List<String> lines) => lines.join('\n');
@@ -281,26 +281,59 @@ class CacheGenerator {
   cb.Method _cachedMethod(_CacheableEntry entry) {
     final kp = entry.keyPrefix ?? entry.methodName;
     final pNames = entry.parameters.map((p) => p.name).toList();
-    final pTypes = entry.parameters.map((p) => p.type).toList();
     final ttlMs = entry.ttl?.inMilliseconds;
-    final argsList = pNames.join(', ');
+    final argsListStr = pNames.map((n) => '\${$n.toString()}').join(', ');
     final keyExpr = pNames.isEmpty
-        ? "'${entry.methodName}'"
-        : "_store.buildKey('$kp', [$argsList])";
-    final params = <cb.Parameter>[];
-    for (var i = 0; i < entry.parameters.length; i++) {
-      params.add(cb.Parameter((p) => p
-        ..name = pNames[i]
-        ..type = cb.refer(pTypes[i])));
+        ? "'$kp'"
+        : "ZfaCacheStore.buildKey('$kp', [$argsListStr])";
+
+    final requiredParams = <cb.Parameter>[];
+    final optionalParams = <cb.Parameter>[];
+    final namedParams = <cb.Parameter>[];
+
+    for (final param in entry.parameters) {
+      final p = cb.Parameter((b) {
+        b
+          ..name = param.name
+          ..type = cb.refer(param.type)
+          ..defaultTo = param.defaultValue != null ? cb.Code(param.defaultValue!) : null;
+
+        // Set named and required flags for named parameters
+        if (param.isNamed) {
+          b.named = true;
+          if (!param.isOptional) {
+            b.required = true;
+          }
+        }
+      });
+
+      if (param.isNamed) {
+        namedParams.add(p);
+      } else if (param.isOptional) {
+        optionalParams.add(p);
+      } else {
+        requiredParams.add(p);
+      }
     }
-    final callArgs = pNames.join(', ');
+
+    // Build call arguments respecting named/positional structure
+    final callArgs = entry.parameters.map((p) {
+      if (p.isNamed) {
+        return '${p.name}: ${p.name}';
+      }
+      return p.name;
+    }).join(', ');
+
     final originalCall = '_source.${entry.methodName}($callArgs)';
     final bodyCode = _strategyBody(entry, keyExpr, originalCall, ttlMs);
+
     return cb.Method((m) => m
       ..name = entry.methodName
       ..returns = cb.refer(entry.returnType)
       ..modifier = cb.MethodModifier.async
-      ..requiredParameters.addAll(params)
+      ..requiredParameters.addAll(requiredParams)
+      ..optionalParameters.addAll(optionalParams)
+      ..optionalParameters.addAll(namedParams)
       ..body = cb.Code(bodyCode));
   }
 
@@ -315,11 +348,10 @@ class CacheGenerator {
       case CacheStrategy.offlineFirst:
         return _joinLines([
           '// offlineFirst: emit cache immediately, then fetch network',
+          '// TODO: Signal support requires additional stream/controller setup',
           'final key = $keyExpr;',
           'final cachedRaw = await _store.get(key);',
-          'if (cachedRaw != null) {',
-          '  cachedSignal.add(cachedRaw);',
-          '}',
+          '// Cached data available but signal emission not yet implemented',
           'final freshData = await $originalCall;',
           'final encoded = jsonEncode(freshData);',
           'await _store.put(key, encoded$ttlArg);',
@@ -328,6 +360,7 @@ class CacheGenerator {
       case CacheStrategy.networkFirst:
         return _joinLines([
           '// networkFirst: try network first, fall back to cache',
+          '// NOTE: Return type must support toJson/fromJson serialization',
           'final key = $keyExpr;',
           'try {',
           '  final freshData = await $originalCall;',
@@ -345,10 +378,11 @@ class CacheGenerator {
       case CacheStrategy.cacheOnly:
         return _joinLines([
           '// cacheOnly: read from cache only',
+          '// NOTE: Return type must be nullable and support fromJson deserialization',
           'final key = $keyExpr;',
           'final cachedRaw = await _store.get(key);',
           'if (cachedRaw != null) {',
-          '  return jsonDecode(cachedRaw);',
+          '    return jsonDecode(cachedRaw);',
           '}',
           'return null;',
         ]);
@@ -361,17 +395,57 @@ class CacheGenerator {
   }
 
   cb.Method _invalidatorMethod(_InvalidatorEntry inv) {
+    final requiredParams = <cb.Parameter>[];
+    final optionalParams = <cb.Parameter>[];
+    final namedParams = <cb.Parameter>[];
+
+    for (final param in inv.parameters) {
+      final p = cb.Parameter((b) {
+        b
+          ..name = param.name
+          ..type = cb.refer(param.type)
+          ..defaultTo = param.defaultValue != null ? cb.Code(param.defaultValue!) : null;
+
+        // Set named and required flags for named parameters
+        if (param.isNamed) {
+          b.named = true;
+          if (!param.isOptional) {
+            b.required = true;
+          }
+        }
+      });
+
+      if (param.isNamed) {
+        namedParams.add(p);
+      } else if (param.isOptional) {
+        optionalParams.add(p);
+      } else {
+        requiredParams.add(p);
+      }
+    }
+
+    // Build call arguments respecting named/positional structure
+    final callArgs = inv.parameters.map((p) {
+      if (p.isNamed) {
+        return '${p.name}: ${p.name}';
+      }
+      return p.name;
+    }).join(', ');
+
     final invalidateCalls = <String>[];
     for (final method in inv.methods) {
       final prefix = inv.keyPrefix ?? method;
       invalidateCalls.add("await _store.invalidateByPrefix('$prefix');");
     }
-    final body = "await _source.${inv.methodName}();\n"
+    final body = "await _source.${inv.methodName}($callArgs);\n"
         "${invalidateCalls.join('\n')}";
     return cb.Method((m) => m
       ..name = "${inv.methodName}WithInvalidate"
       ..returns = cb.refer('Future<void>')
       ..modifier = cb.MethodModifier.async
+      ..requiredParameters.addAll(requiredParams)
+      ..optionalParameters.addAll(optionalParams)
+      ..optionalParameters.addAll(namedParams)
       ..body = cb.Code(body));
   }
 }
@@ -405,11 +479,13 @@ class _InvalidatorEntry {
     required this.methodName,
     required this.importUri,
     required this.methods,
+    required this.parameters,
     this.keyPrefix,
   });
   final String className;
   final String methodName;
   final String importUri;
   final List<String> methods;
+  final List<ParameterInfo> parameters;
   final String? keyPrefix;
 }
