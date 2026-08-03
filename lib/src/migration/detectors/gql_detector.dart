@@ -20,7 +20,7 @@ class GqlConstStringDetector extends MigrationDetector {
   @override
   Future<DetectorResult> detect(String projectDir) async {
     final findings = <MigrationFinding>[];
-    final libDir = Directory('projectDir' + '/lib');
+    final libDir = Directory('$projectDir/lib');
     if (!libDir.existsSync()) {
       return DetectorResult(detectorId: detectorId, findings: findings);
     }
@@ -31,14 +31,14 @@ class GqlConstStringDetector extends MigrationDetector {
         continue;
       }
 
-      final relativePath = _relative(entity.path, projectDir);
+      final relativePath = relativePathOf(entity.path, projectDir);
       if (!shouldScan(relativePath)) continue;
 
       final content = readFile(entity.path);
       if (content == null) continue;
 
       for (final match in _gqlCallPattern.allMatches(content)) {
-        final line = _lineNumber(content, match.start);
+        final line = lineNumberAt(content, match.start);
         findings.add(MigrationFinding(
           message: 'GraphQL document defined as inline Dart string via gql() call',
           filePath: relativePath,
@@ -51,20 +51,5 @@ class GqlConstStringDetector extends MigrationDetector {
     }
 
     return DetectorResult(detectorId: detectorId, findings: findings);
-  }
-
-  String _relative(String absolute, String base) {
-    final abs = absolute.replaceAll('\\', '/');
-    final b = base.replaceAll('\\', '/');
-    if (abs.startsWith(b)) {
-      var rel = abs.substring(b.length);
-      while (rel.startsWith('/')) rel = rel.substring(1);
-      return rel;
-    }
-    return absolute;
-  }
-
-  int _lineNumber(String content, int offset) {
-    return '\n'.allMatches(content.substring(0, offset)).length + 1;
   }
 }

@@ -178,7 +178,8 @@ class StateMigrator extends MigrationFixer {
       for (final field in fields) {
         final typeName = _stripNull(field.type);
         buf.writeln('  /// ${field.doc ?? "Bound $typeName slice"}');
-        buf.writeln("  late final ${field.name} = bind<$typeName>('${field.name}', /* useCase */, /* params */);");
+        buf.writeln("  // TODO: Replace useCase and params");
+        buf.writeln("  // late final ${field.name} = bind<$typeName>('${field.name}', useCase, params);");
         buf.writeln();
       }
     }
@@ -199,33 +200,25 @@ class StateMigrator extends MigrationFixer {
     if (fields.isEmpty) {
       buf.writeln('  // No transient UI state fields detected.');
     } else {
+      // Declare private backing fields
       for (final field in fields) {
-        if (field.type == 'bool' || field.type == 'bool?') {
-          buf.writeln('  bool _${field.name} = false;');
-          buf.writeln();
-          buf.writeln('  /// ${field.doc ?? field.name}');
-          buf.writeln('  bool get ${field.name} => _${field.name};');
-        } else if (field.type.startsWith('AppFailure')) {
-          buf.writeln('  /// ${field.doc ?? field.name}');
-          buf.writeln('  ${field.type} ${field.name};');
-        } else {
-          buf.writeln('  /// ${field.doc ?? field.name}');
-          buf.writeln('  ${field.type} ${field.name} = ${_defaultInitValue(field.type)};');
-        }
-        buf.writeln();
+        final declaredType = field.type.endsWith('?') ? field.type : '${field.type}?';
+        final initValue = _defaultInitValue(field.type);
+        buf.writeln('  $declaredType _${field.name} = $initValue;');
       }
-    }
+      buf.writeln();
 
-    for (final field in fields) {
-      if (field.type == 'bool' || field.type == 'bool?') {
-        buf.writeln('  set ${field.name}(bool value) {');
-        buf.writeln('    _${field.name} = value;');
-        buf.writeln('    notifyListeners();');
-        buf.writeln('  }');
-        buf.writeln();
-      } else {
+      // Generate getters
+      for (final field in fields) {
+        buf.writeln('  /// ${field.doc ?? field.name}');
+        buf.writeln('  ${field.type} get ${field.name} => _${field.name}${field.type.endsWith('?') ? '' : '!'};');
+      }
+      buf.writeln();
+
+      // Generate setters
+      for (final field in fields) {
         buf.writeln('  set ${field.name}(${field.type} value) {');
-        buf.writeln('    ${field.name} = value;');
+        buf.writeln('    _${field.name} = value;');
         buf.writeln('    notifyListeners();');
         buf.writeln('  }');
         buf.writeln();
@@ -237,17 +230,21 @@ class StateMigrator extends MigrationFixer {
   }
 
   String _defaultInitValue(String type) {
+    if (type == 'bool' || type == 'bool?') return 'false';
     if (type == 'int' || type == 'int?') return '0';
     if (type == 'double' || type == 'double?') return '0.0';
     if (type == 'String' || type == 'String?') return "''";
-    return 'false';
+    return 'null';
   }
 
   String _stripNull(String type) => type.replaceAll('?', '');
 
   String _extractEntityName(String baseName) {
     final parts = baseName.replaceAll('_state', '').split('_');
-    return parts.map((p) => p[0].toUpperCase() + p.substring(1)).join();
+    return parts
+        .where((segment) => segment.isNotEmpty)
+        .map((segment) => segment[0].toUpperCase() + segment.substring(1))
+        .join();
   }
 
   String _toSnake(String name) {

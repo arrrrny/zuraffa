@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:yaml/yaml.dart';
 
 import 'base_detector.dart';
 import '../migration_models.dart';
@@ -27,47 +28,73 @@ class DependencyOverridesDetector extends MigrationDetector {
       return DetectorResult(detectorId: detectorId, findings: findings);
     }
 
-    final inDepOverrides = _findDependencyOverridesSection(content);
-    if (inDepOverrides == null) {
+    final sectionInfo = _findDependencyOverridesSection(content);
+    if (sectionInfo == null) {
       return DetectorResult(detectorId: detectorId, findings: findings);
     }
 
-    final sectionStart = content.indexOf(inDepOverrides);
-    final sectionLines = inDepOverrides.split('\n');
-    for (int i = 0; i < sectionLines.length; i++) {
-      final line = sectionLines[i].trim();
-      if (line.isEmpty || line.startsWith('#')) continue;
+    try {
+      final yaml = loadYaml(content) as YamlMap;
+      final depOverrides = yaml['dependency_overrides'];
+      if (depOverrides is! YamlMap) {
+        return DetectorResult(detectorId: detectorId, findings: findings);
+      }
 
-      final overrideMatch = RegExp(r'^(\w[\w-]*):\s*(.+)').firstMatch(line);
-      if (overrideMatch != null) {
-        final package = overrideMatch.group(1)!;
-        final version = overrideMatch.group(2)!.trim();
+      for (final entry in depOverrides.entries) {
+        final package = entry.key.toString();
+        final value = entry.value;
+
+        // Determine display value
+        String displayValue;
+        if (value is String) {
+          displayValue = value;
+        } else if (value is YamlMap) {
+          if (value.containsKey('path')) {
+            displayValue = 'path: ${value['path']}';
+          } else if (value.containsKey('git')) {
+            displayValue = 'git: ${value['git']}';
+          } else {
+            displayValue = value.toString();
+          }
+        } else {
+          displayValue = value.toString();
+        }
+
+        // Find the line number for this package key
+        final packagePattern = RegExp('^\\s*${RegExp.escape(package)}:\\s*', multiLine: true);
+        final packageMatch = packagePattern.firstMatch(content.substring(sectionInfo.offset));
+        final line = packageMatch != null
+            ? lineNumberAt(content, sectionInfo.offset + packageMatch.start)
+            : lineNumberAt(content, sectionInfo.offset);
 
         if (package == 'analyzer') {
           findings.add(MigrationFinding(
-            message: 'dependency_overrides: analyzer: $version is a v5 zorphy 1.x workaround',
+            message: 'dependency_overrides: analyzer: $displayValue is a v5 zorphy 1.x workaround',
             filePath: 'pubspec.yaml',
-            line: _lineNumber(content, sectionStart) + i + 1,
+            line: line,
             ruleId: 'v5_dependency_overrides',
             severity: MigrationSeverity.warning,
             suggestion: 'Remove if zorphy 2.0 is in use',
           ));
         } else {
           findings.add(MigrationFinding(
-            message: 'dependency_overrides: $package: $version',
+            message: 'dependency_overrides: $package: $displayValue',
             filePath: 'pubspec.yaml',
-            line: _lineNumber(content, sectionStart) + i + 1,
+            line: line,
             ruleId: 'v5_dependency_overrides',
             severity: MigrationSeverity.info,
           ));
         }
       }
+    } catch (e) {
+      // If YAML parsing fails, return empty findings
+      return DetectorResult(detectorId: detectorId, findings: findings);
     }
 
     return DetectorResult(detectorId: detectorId, findings: findings);
   }
 
-  String? _findDependencyOverridesSection(String content) {
+  _Section? _findDependencyOverridesSection(String content) {
     final match = RegExp(
       r'^dependency_overrides:\s*$',
       multiLine: true,
@@ -76,11 +103,17 @@ class DependencyOverridesDetector extends MigrationDetector {
 
     final after = content.substring(match.end);
     final endMatch = RegExp(r'^\S', multiLine: true).firstMatch(after);
-    if (endMatch == null) return after.trimRight();
-    return after.substring(0, endMatch.start).trimRight();
-  }
 
-  int _lineNumber(String content, int offset) {
-    return '\n'.allMatches(content.substring(0, offset)).length + 1;
+    final sectionText = endMatch == null
+        ? after.trimRight()
+        : after.substring(0, endMatch.start).trimRight();
+
+    return _Section(text: sectionText, offset: match.end);
   }
+}
+
+class _Section {
+  final String text;
+  final int offset;
+  const _Section({required this.text, required this.offset});
 }

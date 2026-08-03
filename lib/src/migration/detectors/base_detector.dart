@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'package:meta/meta.dart';
+import 'package:glob/glob.dart';
+import 'package:path/path.dart' as p;
 
 import '../migration_models.dart';
 
@@ -24,17 +26,10 @@ abstract class MigrationDetector {
   }
 
   static bool _matchesGlob(String path, String pattern) {
-    final p = path.replaceAll('\\', '/');
-    final pat = pattern.replaceAll('\\', '/');
-    if (pat == '**' || pat == '*') return true;
-    if (pat.startsWith('**/')) {
-      return p.endsWith(pat.substring(3)) || p.contains(pat.substring(2));
-    }
-    if (pat.endsWith('/**')) {
-      return p.startsWith(pat.substring(0, pat.length - 3));
-    }
-    return p == pat ||
-        (p.startsWith(pat) && p.length > pat.length && p[pat.length] == '/');
+    final normalizedPath = path.replaceAll('\\', '/');
+    final normalizedPattern = pattern.replaceAll('\\', '/');
+    final glob = Glob(normalizedPattern);
+    return glob.matches(normalizedPath);
   }
 
   @protected
@@ -46,5 +41,22 @@ abstract class MigrationDetector {
     } on FileSystemException {
       return null;
     }
+  }
+
+  @protected
+  String relativePathOf(String absolute, String base) {
+    final abs = absolute.replaceAll('\\', '/');
+    final b = base.replaceAll('\\', '/');
+    if (abs.startsWith(b)) {
+      var rel = abs.substring(b.length);
+      while (rel.startsWith('/')) rel = rel.substring(1);
+      return rel;
+    }
+    return absolute;
+  }
+
+  @protected
+  int lineNumberAt(String content, int offset) {
+    return '\n'.allMatches(content.substring(0, offset)).length + 1;
   }
 }

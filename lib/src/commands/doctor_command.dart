@@ -178,7 +178,10 @@ class DoctorCommand extends Command<void> {
           _print('  $line');
         }
 
-        if (deadCodeLines.length < lines.where((l) => l.contains('dead_code')).length) {
+        final totalDeadCodeLines = lines
+            .where((line) => line.contains('Dead code') || line.contains('dead_code'))
+            .length;
+        if (deadCodeLines.length < totalDeadCodeLines) {
           _print('  ... and more.');
         }
       } else {

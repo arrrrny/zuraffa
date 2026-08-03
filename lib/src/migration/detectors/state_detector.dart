@@ -37,7 +37,7 @@ class StateDetector extends MigrationDetector {
         continue;
       }
 
-      final relativePath = _relative(entity.path, projectDir);
+      final relativePath = relativePathOf(entity.path, projectDir);
       final content = readFile(entity.path);
       if (content == null) continue;
 
@@ -69,7 +69,7 @@ class StateDetector extends MigrationDetector {
     final classMatch = RegExp(r'class\s+(\w+State)\b').firstMatch(content);
     if (classMatch != null) {
       className = classMatch.group(1);
-      classLine = _lineNumber(content, classMatch.start);
+      classLine = lineNumberAt(content, classMatch.start);
     }
 
     if (className == null) {
@@ -85,7 +85,7 @@ class StateDetector extends MigrationDetector {
     for (final line in content.split('\n')) {
       final trimmed = line.trim();
       final fieldMatch = RegExp(
-        r'^(?:final\s+)?(\w+(?:<[^>]+>)?)\s+(\w+)\s*[;=]'
+        r'^(?:final\s+)?([\w<>?]+)\s+(\w+)\s*[;=]'
       ).firstMatch(trimmed);
       if (fieldMatch == null) continue;
 
@@ -115,21 +115,6 @@ class StateDetector extends MigrationDetector {
     if (name == 'isLoading' || name == 'isRefreshing') return true;
     if (name == 'offset' || name == 'limit' || name == 'hasMore') return true;
     return false;
-  }
-
-  String _relative(String absolute, String base) {
-    final abs = absolute.replaceAll(r'\', '/');
-    final b = base.replaceAll(r'\', '/');
-    if (abs.startsWith(b)) {
-      var rel = abs.substring(b.length);
-      while (rel.startsWith('/')) rel = rel.substring(1);
-      return rel;
-    }
-    return absolute;
-  }
-
-  int _lineNumber(String content, int offset) {
-    return '\n'.allMatches(content.substring(0, offset)).length + 1;
   }
 }
 

@@ -21,12 +21,17 @@ class GqlMigrator extends MigrationFixer {
     final actions = <MigrationAction>[];
     final remaining = <MigrationFinding>[];
 
+    // Deduplicate findings by filePath
+    final findingsByFile = <String, MigrationFinding>{};
     for (final finding in findings) {
       if (finding.ruleId != 'v5_gql_const_string') {
         remaining.add(finding);
         continue;
       }
+      findingsByFile[finding.filePath] = finding;
+    }
 
+    for (final finding in findingsByFile.values) {
       final filePath = p.join(projectDir, finding.filePath);
       if (!File(filePath).existsSync()) {
         remaining.add(finding);
@@ -34,6 +39,12 @@ class GqlMigrator extends MigrationFixer {
       }
 
       final content = File(filePath).readAsStringSync();
+
+      // Check if already migrated
+      if (content.startsWith('// NOTE: GraphQL documents have been migrated to .graphql files.')) {
+        continue;
+      }
+
       final extracted = _extractGqlDocuments(content);
       if (extracted.isEmpty) {
         remaining.add(finding);
@@ -43,11 +54,23 @@ class GqlMigrator extends MigrationFixer {
       final fileDir = p.dirname(filePath);
       final graphqlDir = p.join(fileDir, 'graphql');
 
+      final usedNames = <String>{};
       for (final doc in extracted) {
-        final opName = doc.operationName.toLowerCase();
-        final graphqlPath = p.join(graphqlDir, opName + '.graphql');
+        var opName = doc.operationName.toLowerCase();
+        var targetName = opName;
+        var counter = 1;
+
+        // Detect collisions and choose unique name
+        while (usedNames.contains(targetName) ||
+               File(p.join(graphqlDir, '$targetName.graphql')).existsSync()) {
+          targetName = '${opName}_$counter';
+          counter++;
+        }
+        usedNames.add(targetName);
+
+        final graphqlPath = p.join(graphqlDir, targetName + '.graphql');
         actions.add(MigrationAction(
-          description: 'Extract ' + opName + ' to .graphql file',
+          description: 'Extract ' + targetName + ' to .graphql file',
           filePath: graphqlPath,
           action: 'created',
           newContent: doc.content,
@@ -58,11 +81,13 @@ class GqlMigrator extends MigrationFixer {
         }
       }
 
+      final header =
+          '// NOTE: GraphQL documents have been migrated to .graphql files.\n'
+          '// Run zfa build to regenerate documents.dart.\n\n';
+      final newContent = header + content;
+
       if (!dryRun) {
-        final header =
-            '// NOTE: GraphQL documents have been migrated to .graphql files.\n'
-            '// Run zfa build to regenerate documents.dart.\n\n';
-        File(filePath).writeAsStringSync(header + content);
+        File(filePath).writeAsStringSync(newContent);
       }
 
       actions.add(MigrationAction(
@@ -70,6 +95,7 @@ class GqlMigrator extends MigrationFixer {
         filePath: filePath,
         action: 'modified',
         originalContent: content,
+        newContent: newContent,
       ));
     }
 
@@ -83,29 +109,22 @@ class GqlMigrator extends MigrationFixer {
   List<_GqlDoc> _extractGqlDocuments(String content) {
     final docs = <_GqlDoc>[];
     // Match gql( calls with triple-quoted string arguments
-    final startPattern = RegExp('gql\\s*\\(');
-    final singleQuote3 = RegExp("'''");
-    final doubleQuote3 = RegExp('"""');
+    final startPattern = RegExp(r'gql\s*\(');
 
     for (final startMatch in startPattern.allMatches(content)) {
       final afterStart = startMatch.end;
-      // Determine which quote style is used
+      // Look for optional whitespace and optional 'r' prefix before quotes
       final remaining = content.substring(afterStart);
-      String? quoteStr;
-      int quoteStart = -1;
-      final sq = singleQuote3.firstMatch(remaining);
-      final dq = doubleQuote3.firstMatch(remaining);
-      if (sq != null && (dq == null || sq.start <= dq.start)) {
-        quoteStr = "'''";
-        quoteStart = sq.start;
-      } else if (dq != null) {
-        quoteStr = '"""';
-        quoteStart = dq.start;
-      }
-      if (quoteStr == null) continue;
+      final quotePattern = RegExp(r'^\s*(r)?\s*(\'\'\'|""")');
+      final quoteMatch = quotePattern.firstMatch(remaining);
 
-      final bodyStart = afterStart + quoteStart + 3;
-      final endPattern = RegExp(quoteStr);
+      if (quoteMatch == null) continue;
+
+      final quoteStr = quoteMatch.group(2)!; // ''' or """
+      final bodyStart = afterStart + quoteMatch.end;
+
+      // Find closing triple quote
+      final endPattern = RegExp(RegExp.escape(quoteStr));
       final endMatch = endPattern.firstMatch(content.substring(bodyStart));
       if (endMatch == null) continue;
 

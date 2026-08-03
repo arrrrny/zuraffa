@@ -217,11 +217,9 @@ class ProductState {
       await stateDir.create(recursive: true);
 
       await File(p.join(stateDir.path, 'product_domain_state.dart'))
-          .writeAsString('class ProductDomainState {}
-');
+          .writeAsString('class ProductDomainState {}\n');
       await File(p.join(stateDir.path, 'product_view_state.dart'))
-          .writeAsString('class ProductViewState {}
-');
+          .writeAsString('class ProductViewState {}\n');
 
       final detector = StateDetector();
       final result = await detector.detect(tmpDir.path);
