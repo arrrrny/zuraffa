@@ -102,8 +102,13 @@ class XrayDeckCommand extends Command<void> {
         slashIdx >= 0 ? sourcePath.substring(slashIdx + 1) : sourcePath;
     final parts = fileName.replaceAll('.dart', '').split('_');
     return parts
-        .map((p) =>
-            p.isEmpty ? '' : p[0].toUpperCase() + p.substring(1))
+        .map((p) {
+          if (p.isEmpty) return '';
+          // Preserve the expected "UseCase" casing (two capitalized words)
+          // instead of collapsing it to "Usecase".
+          if (p.toLowerCase() == 'usecase') return 'UseCase';
+          return p[0].toUpperCase() + p.substring(1).toLowerCase();
+        })
         .join();
   }
 
@@ -198,6 +203,13 @@ class XrayDeckCommand extends Command<void> {
     }
   }
 
+  String _escapeLiteral(String value) {
+    return value
+        .replaceAll(r'\', r'\\')
+        .replaceAll("'", r"\'")
+        .replaceAll(r'$', r'\$');
+  }
+
   String _generateDeckFile(
       String ucName, List<Map<String, dynamic>> entries) {
     final lines = <String>[
@@ -218,12 +230,15 @@ class XrayDeckCommand extends Command<void> {
 
     for (final entry in entries) {
       final type = (entry['type'] ?? 'unknown').toString();
+      final name = _escapeLiteral(entry['name'].toString());
+      final payload = _escapeLiteral(entry['payload'].toString());
       final desc = entry['description'];
-      final descPart =
-          desc != null ? ", description: '" + desc.toString() + "'" : '';
+      final descPart = desc != null
+          ? ", description: '" + _escapeLiteral(desc.toString()) + "'"
+          : '';
       lines.add('      XRayMockEntry(');
-      lines.add("        name: '" + entry['name'].toString() + "',");
-      lines.add("        payload: '" + entry['payload'].toString() + "',");
+      lines.add("        name: '" + name + "',");
+      lines.add("        payload: '" + payload + "',");
       lines.add('        type: XRayMockType.' + type + descPart + ',');
       lines.add('      ),');
     }

@@ -1,7 +1,6 @@
-import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuraffa/src/presentation/xray/xray_control_deck.dart';
@@ -9,6 +8,10 @@ import 'package:zuraffa/src/presentation/xray/xray_mock_annotation.dart';
 import 'package:zuraffa/src/presentation/xray/xray_mock_entry.dart';
 import 'package:zuraffa/src/presentation/xray/xray_mock_parser.dart';
 import 'package:zuraffa/src/presentation/xray/xray_mode.dart';
+
+void _nopInjector(dynamic payload) {
+  // No-op injector for testing
+}
 
 void main() {
   group('XRayMockAnnotation', () {
@@ -256,7 +259,242 @@ void main() {
     });
   });
 
-  group('Golden: annotated UseCase -> generated XRayDeck', () {
+  group('XRayControlDeck Widget Tests', () {
+    tearDown(() {
+      XRayMode.reset();
+    });
+
+    testWidgets('renders SizedBox.shrink when XRayMode is disabled', (tester) async {
+      XRayMode.reset();
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: XRayControlDeck(
+              useCaseName: 'TestUseCase',
+              injector: _nopInjector,
+              entries: [],
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byType(SizedBox), findsOneWidget);
+      expect(find.text('MOCK DECK'), findsNothing);
+    });
+
+    testWidgets('renders toggle button when XRayMode is enabled', (tester) async {
+      XRayMode.enable();
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: XRayControlDeck(
+              useCaseName: 'TestUseCase',
+              injector: _nopInjector,
+              entries: [],
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('MOCK DECK'), findsOneWidget);
+      expect(find.byIcon(Icons.science), findsOneWidget);
+    });
+
+    testWidgets('toggle opens and closes panel', (tester) async {
+      XRayMode.enable();
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: XRayControlDeck(
+              useCaseName: 'TestUseCase',
+              injector: _nopInjector,
+              entries: [
+                XRayMockEntry(name: 'Test', payload: 'data'),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      // Initially closed
+      expect(find.text('Control Deck'), findsNothing);
+
+      // Tap to open
+      await tester.tap(find.text('MOCK DECK'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Control Deck'), findsOneWidget);
+      expect(find.text('TestUseCase'), findsOneWidget);
+      expect(find.byIcon(Icons.close), findsOneWidget);
+
+      // Tap to close
+      await tester.tap(find.text('MOCK DECK'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Control Deck'), findsNothing);
+      expect(find.byIcon(Icons.science), findsOneWidget);
+    });
+
+    testWidgets('inject callback is invoked and shows feedback', (tester) async {
+      XRayMode.enable();
+      dynamic capturedPayload;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: XRayControlDeck(
+              useCaseName: 'TestUseCase',
+              injector: (payload) {
+                capturedPayload = payload;
+              },
+              entries: const [
+                XRayMockEntry(name: 'Test Entry', payload: 'test-data'),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      // Open panel
+      await tester.tap(find.text('MOCK DECK'));
+      await tester.pumpAndSettle();
+
+      // Tap entry button
+      await tester.tap(find.text('Test Entry'));
+      await tester.pumpAndSettle();
+
+      expect(capturedPayload, equals('test-data'));
+      expect(find.text('Test Entry'), findsNWidgets(2)); // In button label and entry
+    });
+
+    testWidgets('color mapping for XRayMockType.valid', (tester) async {
+      XRayMode.enable();
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: XRayControlDeck(
+              useCaseName: 'TestUseCase',
+              injector: _nopInjector,
+              entries: [
+                XRayMockEntry(name: 'Valid', payload: 'data', type: XRayMockType.valid),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('MOCK DECK'));
+      await tester.pumpAndSettle();
+
+      // Valid type should show checkmark emoji
+      expect(find.text('\u2705'), findsOneWidget);
+    });
+
+    testWidgets('color mapping for XRayMockType.error', (tester) async {
+      XRayMode.enable();
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: XRayControlDeck(
+              useCaseName: 'TestUseCase',
+              injector: _nopInjector,
+              entries: [
+                XRayMockEntry(name: 'Error', payload: 'data', type: XRayMockType.error),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('MOCK DECK'));
+      await tester.pumpAndSettle();
+
+      // Error type should show cross emoji
+      expect(find.text('\u274C'), findsOneWidget);
+    });
+
+    testWidgets('color mapping for XRayMockType.unknown', (tester) async {
+      XRayMode.enable();
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: XRayControlDeck(
+              useCaseName: 'TestUseCase',
+              injector: _nopInjector,
+              entries: [
+                XRayMockEntry(name: 'Unknown', payload: 'data', type: XRayMockType.unknown),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('MOCK DECK'));
+      await tester.pumpAndSettle();
+
+      // Unknown type should show circle emoji
+      expect(find.text('\u26AA'), findsOneWidget);
+    });
+
+    testWidgets('empty state shows helpful message', (tester) async {
+      XRayMode.enable();
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: XRayControlDeck(
+              useCaseName: 'TestUseCase',
+              injector: _nopInjector,
+              entries: [],
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('MOCK DECK'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('No mock scenarios registered.\nAdd @XRayMock annotations or use registerEntries().'), findsOneWidget);
+      expect(find.text('0 mocks'), findsOneWidget);
+    });
+
+    testWidgets('heightFactor constrains panel height', (tester) async {
+      XRayMode.enable();
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: XRayControlDeck(
+              useCaseName: 'TestUseCase',
+              injector: _nopInjector,
+              heightFactor: 0.3,
+              entries: [
+                XRayMockEntry(name: 'Test1', payload: 'data1'),
+                XRayMockEntry(name: 'Test2', payload: 'data2'),
+                XRayMockEntry(name: 'Test3', payload: 'data3'),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('MOCK DECK'));
+      await tester.pumpAndSettle();
+
+      // Panel should be visible
+      expect(find.text('Control Deck'), findsOneWidget);
+      // Entries should be rendered
+      expect(find.text('Test1'), findsOneWidget);
+    });
+  });
+
+  group('Registry Integration Tests', () {
     late Directory tempDir;
 
     setUp(() async {

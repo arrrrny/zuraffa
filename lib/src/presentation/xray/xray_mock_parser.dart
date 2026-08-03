@@ -1,13 +1,13 @@
 // X-Ray mock YAML parser and annotation scanner.
 
-import "dart:io";
-
 import "package:flutter/foundation.dart";
 import "package:yaml/yaml.dart";
 
 import "xray_mock_entry.dart";
+import "xray_mock_parser_stub.dart"
+    if (dart.library.io) "xray_mock_parser_io.dart" as platform;
 
-/// Parses mock scenarios from a YAML file.
+/// Parses mock scenarios from a YAML file or string.
 ///
 /// Expected format:
 /// ```yaml
@@ -28,20 +28,17 @@ class XRayMockParser {
   XRayMockParser._();
 
   /// Parse mock entries from a YAML file at [yamlPath].
+  ///
+  /// NOTE: This method uses dart:io and is only available on native platforms
+  /// (not web). For Flutter web, use [fromYamlString] with asset loading via
+  /// rootBundle.loadString instead.
+  ///
+  /// For runtime use in Flutter apps with asset files, prefer loading via
+  /// rootBundle and parsing with [fromYamlString]. This method is primarily
+  /// intended for CLI/build-time usage.
   static List<XRayMockEntry> fromYamlFile(String yamlPath) {
     if (kReleaseMode) return const [];
-
-    final file = File(yamlPath);
-    if (!file.existsSync()) {
-      return const [];
-    }
-
-    try {
-      final content = file.readAsStringSync();
-      return fromYamlString(content);
-    } catch (_) {
-      return const [];
-    }
+    return platform.readYamlFile(yamlPath, fromYamlString);
   }
 
   /// Parse mock entries from a YAML string.

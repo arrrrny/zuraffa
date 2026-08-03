@@ -29,7 +29,7 @@ enum XRayMockType {
 /// A single mock scenario entry in the Control Deck.
 ///
 /// Created from @XRayMock annotations at build time, from YAML files,
-/// or registered programmatically via [XRayControlDeck.registerEntries].
+/// or registered programmatically via [XRayControlDeckRegistry.registerEntries].
 class XRayMockEntry {
   /// Human-readable name shown on the button.
   final String name;
@@ -95,6 +95,14 @@ class XRayMockEntry {
   int get hashCode => Object.hash(name, payload, type);
 
   @override
-  String toString() => "XRayMockEntry($name, $type, ${jsonEncode(payload)})";
+  String toString() {
+    String payloadStr;
+    try {
+      payloadStr = jsonEncode(payload);
+    } catch (_) {
+      payloadStr = payload.toString();
+    }
+    return "XRayMockEntry($name, $type, $payloadStr)";
+  }
 }
 

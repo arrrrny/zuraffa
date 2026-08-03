@@ -42,6 +42,7 @@ class XRayControlDeck extends StatefulWidget {
   final List<XRayMockEntry> entries;
 
   /// Optional height fraction of the screen for the deck (0.0-1.0).
+  /// Defaults to 0.4 (40% of screen height).
   final double heightFactor;
 
   const XRayControlDeck({
@@ -50,7 +51,8 @@ class XRayControlDeck extends StatefulWidget {
     required this.injector,
     this.entries = const [],
     this.heightFactor = 0.4,
-  });
+  }) : assert(heightFactor >= 0.0 && heightFactor <= 1.0,
+            'heightFactor must be between 0.0 and 1.0');
 
   @override
   State<XRayControlDeck> createState() => _XRayControlDeckState();
@@ -165,102 +167,118 @@ class _XRayControlDeckState extends State<XRayControlDeck>
             ),
           ),
         ),
-        // Sliding panel.
-        if (_isOpen)
-          Positioned.fill(
-            child: SlideTransition(
-              position: _slideAnimation,
-              child: _buildPanel(),
-            ),
-          ),
+        // Sliding panel - remains mounted during animation.
+        AnimatedBuilder(
+          animation: _animationController,
+          builder: (context, child) {
+            if (_animationController.isDismissed) {
+              return const SizedBox.shrink();
+            }
+            return Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: SlideTransition(
+                position: _slideAnimation,
+                child: _buildPanel(),
+              ),
+            );
+          },
+        ),
       ],
     );
   }
 
   Widget _buildPanel() {
     final entries = widget.entries;
-    return Container(
-      color: const Color(0xE61A1A2E),
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header.
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: const BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(color: Color(0x33FFFFFF)),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxHeight = MediaQuery.of(context).size.height * widget.heightFactor;
+        return Container(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          color: const Color(0xE61A1A2E),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header.
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: const BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(color: Color(0x33FFFFFF)),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.science, color: Color(0xFF00FFFF), size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Control Deck',
+                              style: TextStyle(
+                                color: Color(0xFFFFFFFF),
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                decoration: TextDecoration.none,
+                              ),
+                            ),
+                            Text(
+                              widget.useCaseName,
+                              style: const TextStyle(
+                                color: Color(0xAAFFFFFF),
+                                fontSize: 11,
+                                decoration: TextDecoration.none,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        '${entries.length} mock${entries.length != 1 ? 's' : ''}',
+                        style: const TextStyle(
+                          color: Color(0x88FFFFFF),
+                          fontSize: 11,
+                          decoration: TextDecoration.none,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.science, color: Color(0xFF00FFFF), size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Control Deck',
-                          style: TextStyle(
-                            color: Color(0xFFFFFFFF),
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            decoration: TextDecoration.none,
-                          ),
-                        ),
-                        Text(
-                          widget.useCaseName,
-                          style: const TextStyle(
-                            color: Color(0xAAFFFFFF),
-                            fontSize: 11,
-                            decoration: TextDecoration.none,
-                          ),
-                        ),
-                      ],
+                // Entry list.
+                if (entries.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'No mock scenarios registered.\n'
+                      'Add @XRayMock annotations or use registerEntries().',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0x66FFFFFF),
+                        fontSize: 12,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  )
+                else
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.all(8),
+                      itemCount: entries.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 4),
+                      itemBuilder: (context, index) =>
+                          _buildEntryButton(entries[index]),
                     ),
                   ),
-                  Text(
-                    '${entries.length} mock${entries.length != 1 ? 's' : ''}',
-                    style: const TextStyle(
-                      color: Color(0x88FFFFFF),
-                      fontSize: 11,
-                      decoration: TextDecoration.none,
-                    ),
-                  ),
-                ],
-              ),
+              ],
             ),
-            // Entry list.
-            if (entries.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'No mock scenarios registered.\n'
-                  'Add @XRayMock annotations or use registerEntries().',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Color(0x66FFFFFF),
-                    fontSize: 12,
-                    decoration: TextDecoration.none,
-                  ),
-                ),
-              )
-            else
-              Flexible(
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  padding: const EdgeInsets.all(8),
-                  itemCount: entries.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 4),
-                  itemBuilder: (context, index) =>
-                      _buildEntryButton(entries[index]),
-                ),
-              ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 

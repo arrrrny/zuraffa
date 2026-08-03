@@ -182,5 +182,30 @@ class ProcessUseCase {}
       expect(content, contains("name: 'V3'"));
       expect(content, contains('XRayMockType.unknown')); // V3 has no type
     });
+
+    test('auto-detected usecase name preserves UseCase casing', () async {
+      Directory.current = tempDir;
+
+      final sourceFile = File('${tempDir.path}/scan_barcode_usecase.dart');
+      sourceFile.writeAsStringSync('''@XRayMock(name: 'Test', payload: 'data', type: 'valid')
+class ScanBarcodeUseCase {}
+''');
+
+      final outputFile = '${tempDir.path}/scan_barcode_xray_deck.dart';
+
+      // Don't provide --usecase-name, let it auto-detect
+      final output = await runCapturing([
+        'xray', 'deck',
+        '--source=${sourceFile.path}',
+        '--output=$outputFile',
+        '--force',
+      ]);
+
+      expect(output, contains('ScanBarcodeUseCase'));
+
+      final content = File(outputFile).readAsStringSync();
+      expect(content, contains('registerScanBarcodeUseCaseXRayDeck'));
+      expect(content, contains("'ScanBarcodeUseCase'"));
+    });
   });
 }
