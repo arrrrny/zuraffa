@@ -324,6 +324,8 @@ class ArchInspector {
     for (final file in await _listDartFiles(p.join(projectRoot, 'lib', 'src', 'presentation'))) {
       final fileName = p.basenameWithoutExtension(file.path);
       String? type;
+
+      // Check PascalCase suffixes
       if (fileName.endsWith('View') || fileName.endsWith('Page')) {
         type = 'view';
       } else if (fileName.endsWith('Presenter')) {
@@ -333,6 +335,20 @@ class ArchInspector {
       } else if (fileName.endsWith('State')) {
         type = 'state';
       }
+
+      // Check snake_case suffixes (generated file naming)
+      if (type == null) {
+        if (fileName.endsWith('_view') || fileName.endsWith('_page')) {
+          type = 'view';
+        } else if (fileName.endsWith('_presenter')) {
+          type = 'presenter';
+        } else if (fileName.endsWith('_controller')) {
+          type = 'controller';
+        } else if (fileName.endsWith('_state')) {
+          type = 'state';
+        }
+      }
+
       if (type != null) {
         results.add(ArchPresentation(
           name: fileName,
@@ -406,11 +422,8 @@ class ArchInspector {
       return {'success': false, 'affectedFiles': affectedFiles, 'message': 'Entity not found: $entityName'};
     }
     var content = await entityFile.readAsString();
-    // Replace field declaration: final Type? oldName; -> final Type? newName;
-    content = content.replaceAll(oldName + ';', newName + ';');
-    content = content.replaceAll('this.' + oldName, 'this.' + newName);
-    content = content.replaceAll(oldName + ':', newName + ':');
-    affectedFiles.add(p.relative(entityFile.path, from: projectRoot));
+    // Replace field declaration using word boundaries to avoid partial matches
+    content = _replaceIdentifier(content, oldName, newName);
     await entityFile.writeAsString(content);
     affectedFiles.add(p.relative(entityFile.path, from: projectRoot));
 
@@ -422,22 +435,43 @@ class ArchInspector {
       if (entity is! File || !entity.path.endsWith('.dart') || entity.path == entityFile.path) continue;
       var fileContent = await entity.readAsString();
       var modified = false;
-      final dotAccess = RegExp('\.' + RegExp.escape(oldName) + r'(?=\W|$)');
+
+      // Replace member access (dot notation) with word boundaries
+      final dotAccess = RegExp(r'\.' + RegExp.escape(oldName) + r'\b');
       if (dotAccess.hasMatch(fileContent)) {
         fileContent = fileContent.replaceAll(dotAccess, '.$newName');
         modified = true;
       }
-      final namedParam = RegExp(RegExp.escape(oldName) + r'\s*:');
+
+      // Replace named arguments with word boundaries
+      final namedParam = RegExp(r'\b' + RegExp.escape(oldName) + r'\s*:');
       if (namedParam.hasMatch(fileContent)) {
         fileContent = fileContent.replaceAll(namedParam, '$newName:');
         modified = true;
       }
+
       if (modified) {
         await entity.writeAsString(fileContent);
         affectedFiles.add(p.relative(entity.path, from: projectRoot));
       }
     }
     return {'success': true, 'affectedFiles': affectedFiles, 'message': 'Renamed field "$oldName" to "$newName" in ${affectedFiles.length} files'};
+  }
+
+  /// Replace identifier with word boundaries (declarations, references, named args)
+  String _replaceIdentifier(String content, String oldName, String newName) {
+    // Match field declarations, member access, named arguments
+    final patterns = [
+      RegExp(r'\b' + RegExp.escape(oldName) + r'\s*;'),  // field declaration
+      RegExp(r'\bthis\.' + RegExp.escape(oldName) + r'\b'),  // this.field
+      RegExp(r'\b' + RegExp.escape(oldName) + r'\s*:'),  // named argument
+    ];
+
+    var result = content;
+    result = result.replaceAll(patterns[0], '$newName;');
+    result = result.replaceAll(patterns[1], 'this.$newName');
+    result = result.replaceAll(patterns[2], '$newName:');
+    return result;
   }
 
   Future<Map<String, dynamic>> _addEntityMethod({required String entityName, required String methodCode}) async {
@@ -447,16 +481,36 @@ class ArchInspector {
       return {'success': false, 'affectedFiles': <String>[], 'message': 'Entity not found: $entityName'};
     }
     var content = await entityFile.readAsString();
-    final classMatch = RegExp('class\\s+\\\\\$?${RegExp.escape(entityName)}').firstMatch(content);
+    final classMatch = RegExp(r'class\s+\$?' + RegExp.escape(entityName)).firstMatch(content);
     if (classMatch == null) {
       return {'success': false, 'affectedFiles': <String>[], 'message': 'Could not find entity class definition'};
     }
-    final lastBrace = content.lastIndexOf('}');
-    if (lastBrace == -1) {
+
+    // Find the matching closing brace for this specific class
+    final classStart = classMatch.end;
+    var braceDepth = 0;
+    var classClosingBrace = -1;
+    var i = classStart;
+
+    while (i < content.length) {
+      if (content[i] == '{') {
+        braceDepth++;
+      } else if (content[i] == '}') {
+        braceDepth--;
+        if (braceDepth == 0) {
+          classClosingBrace = i;
+          break;
+        }
+      }
+      i++;
+    }
+
+    if (classClosingBrace == -1) {
       return {'success': false, 'affectedFiles': <String>[], 'message': 'Could not find class closing brace'};
     }
+
     final insertion = methodCode.endsWith('\n') ? methodCode : '$methodCode\n';
-    content = content.substring(0, lastBrace) + '$insertion}';
+    content = content.substring(0, classClosingBrace) + '$insertion}' + content.substring(classClosingBrace + 1);
     await entityFile.writeAsString(content);
     final relativePath = p.relative(entityFile.path, from: projectRoot);
     return {'success': true, 'affectedFiles': [relativePath], 'message': 'Added method to $entityName in $relativePath'};

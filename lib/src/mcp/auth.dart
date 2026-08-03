@@ -46,7 +46,7 @@ class McpAuth {
     if (auth == null) {
       return 'Authentication required: include "auth" field with bearer token';
     }
-    if (auth is! String || auth != token) {
+    if (auth is! String || !_constantTimeEquals(auth, token ?? '')) {
       return 'Authentication failed: invalid token';
     }
     return null;
@@ -56,7 +56,13 @@ class McpAuth {
   bool validateHeader(String? authHeader) {
     if (!isEnabled) return true;
     if (authHeader == null) return false;
-    return authHeader == 'Bearer $token';
+
+    // Parse scheme case-insensitively
+    final parts = authHeader.split(' ');
+    if (parts.length != 2) return false;
+    if (parts[0].toLowerCase() != 'bearer') return false;
+
+    return _constantTimeEquals(parts[1], token ?? '');
   }
 
   bool _isLocalhost(InternetAddress addr) {
@@ -65,7 +71,25 @@ class McpAuth {
 
   bool _isLocalhostIp(String? ip) {
     if (ip == null) return false;
-    return ip == '127.0.0.1' || ip == '::1' || ip == 'localhost';
+    // Reject the string "localhost" as it's spoofable
+    if (ip == 'localhost') return false;
+
+    try {
+      final addr = InternetAddress(ip);
+      return addr.isLoopback;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Constant-time string comparison to prevent timing attacks.
+  bool _constantTimeEquals(String a, String b) {
+    if (a.length != b.length) return false;
+    var result = 0;
+    for (var i = 0; i < a.length; i++) {
+      result |= a.codeUnitAt(i) ^ b.codeUnitAt(i);
+    }
+    return result == 0;
   }
 
   /// Generates a random hex token.

@@ -56,8 +56,10 @@ class TestCapability {
       mocks: mocks ?? {},
     );
 
-    // 3. Write and run the test script
-    final tempFile = File(p.join(projectRoot, '.zfa', '_mcp_test_runner.dart'));
+    // 3. Write and run the test script with unique temp file
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final pid = ProcessInfo.currentRss; // Use RSS as pseudo-unique ID
+    final tempFile = File(p.join(projectRoot, '.zfa', '_mcp_test_runner_${timestamp}_$pid.dart'));
     try {
       await tempFile.parent.create(recursive: true);
       await tempFile.writeAsString(testScript);
@@ -66,6 +68,11 @@ class TestCapability {
         'dart',
         ['run', tempFile.path],
         workingDirectory: projectRoot,
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          return ProcessResult(0, 124, '', 'Test execution timed out after 30 seconds');
+        },
       );
 
       final stdout = result.stdout.toString();
@@ -76,7 +83,9 @@ class TestCapability {
           'success': false,
           'useCase': useCaseName,
           'result': null,
-          'error': 'Test execution failed: $stderr\n$stdout',
+          'error': result.exitCode == 124
+              ? 'Test execution timed out'
+              : 'Test execution failed: $stderr\n$stdout',
         };
       }
 
@@ -125,28 +134,59 @@ class TestCapability {
     required Map<String, dynamic> params,
     required Map<String, dynamic> mocks,
   }) {
-    final paramJson = jsonEncode(params);
-    final mockEntries = mocks.entries
-        .map((e) => "  // mock: ${e.key} -> ${jsonEncode(e.value)}")
-        .join('\n');
+    // Safely encode params and mocks as JSON strings to avoid code injection
+    final paramsEncoded = jsonEncode(params);
+    final mocksEncoded = jsonEncode(mocks);
 
-    // Extract the import path relative to lib/
+    // Extract the import path relative to lib/ using path package
     final relativePath = p.relative(useCasePath, from: projectRoot);
-    final importPath = relativePath.replaceFirst('lib/', '');
+    final pathSegments = p.split(relativePath);
+
+    // Remove 'lib' from the start if present
+    final libIndex = pathSegments.indexOf('lib');
+    final importSegments = libIndex >= 0 ? pathSegments.sublist(libIndex + 1) : pathSegments;
+
+    // Read pubspec.yaml to get package name instead of hardcoding 'zuraffa'
+    String packageName = 'zuraffa';
+    try {
+      final pubspecFile = File(p.join(projectRoot, 'pubspec.yaml'));
+      if (pubspecFile.existsSync()) {
+        final pubspecContent = pubspecFile.readAsStringSync();
+        final nameMatch = RegExp(r'name:\s*(\w+)').firstMatch(pubspecContent);
+        if (nameMatch != null) {
+          packageName = nameMatch.group(1)!;
+        }
+      }
+    } catch (_) {
+      // Fall back to 'zuraffa'
+    }
+
+    final importPath = importSegments.join('/');
+
+    // Pass data via base64-encoded stdin to avoid injection
+    final dataPayload = base64.encode(utf8.encode(jsonEncode({
+      'params': params,
+      'mocks': mocks,
+    })));
 
     return '''
 import 'dart:convert';
-import 'package:zuraffa/$importPath';
+import 'dart:io';
+import 'package:$packageName/$importPath';
 
 void main() async {
-  // Params: $paramJson
-$mockEntries
-
   try {
+    // Decode params and mocks from base64 stdin data
+    final encodedData = '$dataPayload';
+    final decodedJson = utf8.decode(base64.decode(encodedData));
+    final data = jsonDecode(decodedJson) as Map<String, dynamic>;
+    final params = data['params'] as Map<String, dynamic>;
+    final mocks = data['mocks'] as Map<String, dynamic>;
+
     // Note: This is a minimal runner. Full DI resolution requires
     // the application context. For isolated testing, use flutter test.
-    final result = 'UseCase useCaseName found. Full execution requires app context. Params received: $paramJson';
-    print(result);
+    final result = 'UseCase $useCaseName found. Full execution requires app context. Params: \${jsonEncode(params)}';
+    print(jsonEncode({'result': result, 'useCase': '$useCaseName'}));
   } catch (e) {
     print(jsonEncode({'error': e.toString()}));
   }

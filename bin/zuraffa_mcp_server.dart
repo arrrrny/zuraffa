@@ -106,7 +106,11 @@ class ZuraffaMcpServer {
   static const String fixedOutputDir = 'lib/src';
   static const String fixedEntityOutput = ZfaConfig.fixedEntityOutput;
 
-  ZuraffaMcpServer();
+  late final McpSessionStore _sessionStore;
+
+  ZuraffaMcpServer() {
+    _sessionStore = McpSessionStore(projectRoot: Directory.current.path);
+  }
 
   // Cache for resource listings to avoid repeated filesystem scans
   List<Map<String, dynamic>>? _resourcesCache;
@@ -676,16 +680,17 @@ All v5 generation uses the fixed lib/src and lib/src/domain layout.''',
           result = await _runDoctorCommand(args);
           break;
         default:
-          // Try v2.0 capabilities first
+          // Check if it's a plugin tool (zuraffa_ prefix but not a v2 capability)
           if (toolName.startsWith('zuraffa_')) {
             result = await _runPluginTool(toolName, args);
             break;
           }
-          // Delegate to v2.0 tool handler
+          // Delegate to v2.0 tool handler for capability tools
           final v2Result = await handleV2ToolCall(
             toolName: toolName,
             args: args,
             projectRoot: Directory.current.path,
+            sessionStore: _sessionStore,
           );
           if (v2Result != null) {
             return {

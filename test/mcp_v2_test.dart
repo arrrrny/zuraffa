@@ -156,7 +156,7 @@ void main() {
       );
       await entityDir.create(recursive: true);
       await File(p.join(entityDir.path, 'product.dart')).writeAsString(
-        'class \\$Product {\n  final String title;\n  final double? price;\n}\n',
+        r'class $Product {' '\n  final String title;\n  final double? price;\n}\n',
       );
 
       final model = await inspector.inspect();

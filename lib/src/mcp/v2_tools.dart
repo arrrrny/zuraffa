@@ -247,6 +247,10 @@ Map<String, dynamic> _xrayTriggerActionTool() {
           'type': 'object',
           'description': 'Optional payload to pass to the action',
         },
+        'port': {
+          'type': 'integer',
+          'description': 'X-Ray bridge port (default: 8372)',
+        },
       },
       'required': ['nodeId'],
     },
@@ -270,6 +274,10 @@ Map<String, dynamic> _xrayTriggerMockTool() {
           'type': 'object',
           'description': 'Optional payload for the mock',
         },
+        'port': {
+          'type': 'integer',
+          'description': 'X-Ray bridge port (default: 8372)',
+        },
       },
       'required': ['mockName'],
     },
@@ -288,6 +296,10 @@ Map<String, dynamic> _sessionSaveTool() {
         'sessionId': {
           'type': 'string',
           'description': 'Unique session identifier',
+        },
+        'state': {
+          'type': 'object',
+          'description': 'Session state to persist (arbitrary JSON object)',
         },
       },
       'required': ['sessionId'],
@@ -444,8 +456,13 @@ Future<Map<String, dynamic>?> handleV2ToolCall({
     case 'session_save':
       if (sessionStore != null) {
         final sessionId = args['sessionId'] as String;
+        final stateToSave = args['state'] as Map<String, dynamic>? ?? {};
         final session = await sessionStore.getOrCreate(sessionId);
-        session.state['lastInspect'] = 'saved';
+
+        // Replace session state with supplied state
+        session.state.clear();
+        session.state.addAll(stateToSave);
+
         await sessionStore.save(session);
         return {
           'content': [
@@ -478,19 +495,37 @@ Future<Map<String, dynamic>?> handleV2ToolCall({
         final sessionId = args['sessionId'] as String;
         final sessions = await sessionStore.listSessions();
         final exists = sessions.contains(sessionId);
-        return {
-          'content': [
-            {
-              'type': 'text',
-              'text': jsonEncode({
-                'success': exists,
-                'sessionId': sessionId,
-                'message': exists ? 'Session restored' : 'Session not found',
-              }),
-            },
-          ],
-          'isError': !exists,
-        };
+
+        if (exists) {
+          final session = await sessionStore.getOrCreate(sessionId);
+          return {
+            'content': [
+              {
+                'type': 'text',
+                'text': jsonEncode({
+                  'success': true,
+                  'sessionId': sessionId,
+                  'state': session.state,
+                  'message': 'Session restored',
+                }),
+              },
+            ],
+          };
+        } else {
+          return {
+            'content': [
+              {
+                'type': 'text',
+                'text': jsonEncode({
+                  'success': false,
+                  'sessionId': sessionId,
+                  'message': 'Session not found',
+                }),
+              },
+            ],
+            'isError': true,
+          };
+        }
       }
       return {
         'content': [
@@ -520,6 +555,42 @@ Future<Map<String, dynamic>?> _handleGraphqlPullSchema(
   final url = args['url'] as String;
   final auth = args['auth'] as String?;
 
+  // Validate URL scheme and host
+  Uri parsedUrl;
+  try {
+    parsedUrl = Uri.parse(url);
+  } catch (e) {
+    return {
+      'content': [
+        {'type': 'text', 'text': 'Invalid URL: $e'},
+      ],
+      'isError': true,
+    };
+  }
+
+  // Only allow http/https schemes
+  if (parsedUrl.scheme != 'http' && parsedUrl.scheme != 'https') {
+    return {
+      'content': [
+        {'type': 'text', 'text': 'Invalid URL scheme: only http and https are allowed'},
+      ],
+      'isError': true,
+    };
+  }
+
+  // Reject loopback and link-local hosts unless explicitly allowed
+  // (For now, we'll reject them to be safe - an operator opt-in config could be added)
+  final host = parsedUrl.host.toLowerCase();
+  if (host == 'localhost' || host == '127.0.0.1' || host == '::1' ||
+      host.startsWith('169.254.') || host.startsWith('fe80:')) {
+    return {
+      'content': [
+        {'type': 'text', 'text': 'Loopback and link-local hosts are not allowed for GraphQL introspection'},
+      ],
+      'isError': true,
+    };
+  }
+
   const introspectionQuery = r'''
 query IntrospectionQuery {
   __schema {
@@ -539,18 +610,19 @@ query IntrospectionQuery {
 }
 ''';
 
+  final client = HttpClient();
+  client.connectionTimeout = const Duration(seconds: 10);
+
   try {
-    final client = HttpClient();
-    final request = await client.postUrl(Uri.parse(url));
+    final request = await client.postUrl(parsedUrl);
     request.headers.set('Content-Type', 'application/json');
     if (auth != null) {
       request.headers.set('Authorization', 'Bearer $auth');
     }
     request.write(jsonEncode({'query': introspectionQuery}));
 
-    final response = await request.close();
+    final response = await request.close().timeout(const Duration(seconds: 30));
     final body = await response.transform(utf8.decoder).join();
-    client.close();
 
     if (response.statusCode == 200) {
       final json = jsonDecode(body) as Map<String, dynamic>;
@@ -570,6 +642,13 @@ query IntrospectionQuery {
         'isError': true,
       };
     }
+  } on TimeoutException {
+    return {
+      'content': [
+        {'type': 'text', 'text': 'GraphQL introspection timed out'},
+      ],
+      'isError': true,
+    };
   } catch (e) {
     return {
       'content': [
@@ -577,6 +656,8 @@ query IntrospectionQuery {
       ],
       'isError': true,
     };
+  } finally {
+    client.close();
   }
 }
 
@@ -641,8 +722,10 @@ Future<HttpServer> startWebSocketServer({
   final auth = McpAuth(token: authToken);
   final sessions = <WebSocket, String>{};
 
-  final server = await HttpServer.bind('0.0.0.0', port);
-  stderr.writeln('[mcp-ws] Listening on ws://0.0.0.0:$port');
+  // Bind to localhost if auth is disabled, otherwise allow external connections
+  final bindAddress = auth.isEnabled ? '0.0.0.0' : '127.0.0.1';
+  final server = await HttpServer.bind(bindAddress, port);
+  stderr.writeln('[mcp-ws] Listening on ws://$bindAddress:$port');
 
   fileWatcher ??= McpFileWatcher(projectRoot: projectRoot);
   await fileWatcher.start();
@@ -662,9 +745,26 @@ Future<HttpServer> startWebSocketServer({
   });
 
   server.listen((HttpRequest request) async {
-    if (request.headers.value('Upgrade') == 'websocket') {
-      if (auth.isEnabled &&
-          !request.connectionInfo!.remoteAddress.isLoopback) {
+    if (WebSocketTransformer.isUpgradeRequest(request)) {
+      // Validate connection info is available
+      final connectionInfo = request.connectionInfo;
+      if (connectionInfo == null) {
+        request.response.statusCode = 400;
+        request.response.write('Connection info unavailable');
+        await request.response.close();
+        return;
+      }
+
+      // Reject remote clients when auth is disabled
+      if (!auth.isEnabled && !connectionInfo.remoteAddress.isLoopback) {
+        request.response.statusCode = 403;
+        request.response.write('Remote connections not allowed without authentication');
+        await request.response.close();
+        return;
+      }
+
+      // Validate auth for remote connections when enabled
+      if (auth.isEnabled && !connectionInfo.remoteAddress.isLoopback) {
         final authHeader = request.headers.value('Authorization');
         if (!auth.validateHeader(authHeader)) {
           request.response.statusCode = 401;
@@ -675,8 +775,8 @@ Future<HttpServer> startWebSocketServer({
       }
 
       final ws = await WebSocketTransformer.upgrade(request);
-      final remoteIp = request.connectionInfo?.remoteAddress.address;
-      sessions[ws] = remoteIp ?? 'unknown';
+      final remoteIp = connectionInfo.remoteAddress.address;
+      sessions[ws] = remoteIp;
       stderr.writeln('[mcp-ws] Client connected from $remoteIp');
 
       ws.listen(

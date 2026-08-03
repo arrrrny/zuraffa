@@ -47,7 +47,14 @@ class McpFileWatcher {
     final dir = Directory(watchDir);
     if (!await dir.exists()) return;
 
-    _subscription = dir.watch(recursive: true).listen(_handleEvent);
+    _subscription = dir.watch(recursive: true).listen(
+      _handleEvent,
+      onError: (error) {
+        // Log filesystem watch errors but don't crash
+        // ignore: avoid_print
+        print('[McpFileWatcher] Watch error: $error');
+      },
+    );
     _running = true;
   }
 
@@ -56,6 +63,7 @@ class McpFileWatcher {
     _running = false;
     await _subscription?.cancel();
     _subscription = null;
+    await _controller.close();
   }
 
   void _handleEvent(FileSystemEvent event) {

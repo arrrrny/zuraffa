@@ -21,12 +21,13 @@ class XrayCapability {
 
   /// Inspects the live X-Ray widget tree.
   Future<Map<String, dynamic>> inspect() async {
+    final client = HttpClient();
+    client.connectionTimeout = const Duration(seconds: 5);
+
     try {
-      final client = HttpClient();
       final request = await client.getUrl(Uri.parse('$_baseUrl/xray/tree'));
-      final response = await request.close();
+      final response = await request.close().timeout(const Duration(seconds: 10));
       final body = await response.transform(utf8.decoder).join();
-      client.close();
 
       if (response.statusCode == 200) {
         return {
@@ -47,12 +48,20 @@ class XrayCapability {
         'tree': null,
         'error': 'Cannot connect to X-Ray bridge at $_baseUrl. Is the app running with xray enabled?',
       };
+    } on TimeoutException {
+      return {
+        'success': false,
+        'tree': null,
+        'error': 'X-Ray bridge request timed out at $_baseUrl',
+      };
     } catch (e) {
       return {
         'success': false,
         'tree': null,
         'error': e.toString(),
       };
+    } finally {
+      client.close();
     }
   }
 
@@ -61,8 +70,10 @@ class XrayCapability {
     required String nodeId,
     Map<String, dynamic>? payload,
   }) async {
+    final client = HttpClient();
+    client.connectionTimeout = const Duration(seconds: 5);
+
     try {
-      final client = HttpClient();
       final body = jsonEncode({
         'nodeId': nodeId,
         if (payload != null) 'payload': payload,
@@ -72,9 +83,8 @@ class XrayCapability {
       );
       request.headers.set('Content-Type', 'application/json');
       request.write(body);
-      final response = await request.close();
+      final response = await request.close().timeout(const Duration(seconds: 10));
       final responseBody = await response.transform(utf8.decoder).join();
-      client.close();
 
       if (response.statusCode == 200) {
         return {
@@ -94,11 +104,18 @@ class XrayCapability {
         'success': false,
         'message': 'Cannot connect to X-Ray bridge at $_baseUrl. Is the app running?',
       };
+    } on TimeoutException {
+      return {
+        'success': false,
+        'message': 'X-Ray bridge request timed out at $_baseUrl',
+      };
     } catch (e) {
       return {
         'success': false,
         'message': e.toString(),
       };
+    } finally {
+      client.close();
     }
   }
 
@@ -107,8 +124,10 @@ class XrayCapability {
     required String mockName,
     dynamic payload,
   }) async {
+    final client = HttpClient();
+    client.connectionTimeout = const Duration(seconds: 5);
+
     try {
-      final client = HttpClient();
       final body = jsonEncode({
         'mockName': mockName,
         'payload': payload,
@@ -118,9 +137,8 @@ class XrayCapability {
       );
       request.headers.set('Content-Type', 'application/json');
       request.write(body);
-      final response = await request.close();
+      final response = await request.close().timeout(const Duration(seconds: 10));
       final responseBody = await response.transform(utf8.decoder).join();
-      client.close();
 
       if (response.statusCode == 200) {
         return {
@@ -140,11 +158,18 @@ class XrayCapability {
         'success': false,
         'message': 'Cannot connect to X-Ray bridge at $_baseUrl. Is the app running?',
       };
+    } on TimeoutException {
+      return {
+        'success': false,
+        'message': 'X-Ray bridge request timed out at $_baseUrl',
+      };
     } catch (e) {
       return {
         'success': false,
         'message': e.toString(),
       };
+    } finally {
+      client.close();
     }
   }
 }
