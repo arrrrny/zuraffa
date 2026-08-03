@@ -27,8 +27,16 @@ dependencies:
   provider: ^6.1.5+1
   responsive_builder: ^0.7.1
   uuid: ^4.6.0
-  zorphy: any
-  zorphy_annotation: any
+  zorphy:
+    git:
+      url: https://github.com/arrrrny/zorphy.git
+      path: zorphy
+      ref: "662acffeda3f34a6c9cf9cf82df08cdcb2ec5e21"
+  zorphy_annotation:
+    git:
+      url: https://github.com/arrrrny/zorphy.git
+      path: zorphy_annotation
+      ref: "662acffeda3f34a6c9cf9cf82df08cdcb2ec5e21"
 
   json_annotation: ^4.12.0
 
@@ -52,10 +60,6 @@ dependencies:
   hive_ce_flutter: ^2.3.4
 
 dependency_overrides:
-  zorphy:
-    path: /workspace/zorphy/zorphy
-  zorphy_annotation:
-    path: /workspace/zorphy/zorphy_annotation
   meta: ^1.19.0
   analyzer: 14.1.0
 
