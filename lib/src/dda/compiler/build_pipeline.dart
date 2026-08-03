@@ -7,6 +7,9 @@ import 'plugin_discovery.dart';
 import 'zorphy_decorator_plugin.dart';
 import '../plugins/route/route_plugin.dart';
 import '../plugins/cache/cache_plugin.dart';
+import '../plugins/middleware/auth_plugin.dart';
+import '../plugins/middleware/retry_plugin.dart';
+import '../plugins/middleware/track_event_plugin.dart';
 
 /// Orchestrates the complete `zfa build` DDA pipeline.
 class BuildPipeline {
@@ -106,7 +109,42 @@ class BuildPipeline {
       }
     }
 
-    // ── Stage 6: Build End ──
+
+
+    // ── Stage 5.7: Auth Middleware Generation ──
+    _log('🛡️  Generating auth middleware...');
+    if (!dryRun) {
+      await _generateAuthConfig();
+    } else {
+      final authPlugin = ZorphyPluginRegistry.get('RequiresAuth');
+      if (authPlugin is AuthDDAPlugin && authPlugin.hasAuthEntries) {
+        _log('   (dry-run — would generate: lib/src/middleware/zfa_auth.g.dart)');
+      }
+    }
+
+    // ── Stage 5.8: Retry Middleware Generation ──
+    _log('🔄  Generating retry middleware...');
+    if (!dryRun) {
+      await _generateRetryConfig();
+    } else {
+      final retryPlugin = ZorphyPluginRegistry.get('Retry');
+      if (retryPlugin is RetryDDAPlugin && retryPlugin.hasRetryEntries) {
+        _log('   (dry-run — would generate: lib/src/middleware/zfa_retry.g.dart)');
+      }
+    }
+
+    // ── Stage 5.9: TrackEvent Middleware Generation ──
+    _log('📊  Generating event tracking middleware...');
+    if (!dryRun) {
+      await _generateTrackEventConfig();
+    } else {
+      final trackPlugin = ZorphyPluginRegistry.get('TrackEvent');
+      if (trackPlugin is TrackEventDDAPlugin && trackPlugin.hasTrackEventEntries) {
+        _log('   (dry-run — would generate: lib/src/middleware/zfa_events.g.dart)');
+      }
+    }
+
+        // ── Stage 6: Build End ──
     _log('🏁 Build end...');
     for (final plugin in plugins) {
       try {
@@ -198,6 +236,60 @@ class BuildPipeline {
     }
   }
 
+  Future<void> _generateAuthConfig() async {
+    final authPlugin = ZorphyPluginRegistry.get('RequiresAuth');
+    if (authPlugin is! AuthDDAPlugin) return;
+    if (!authPlugin.hasAuthEntries) return;
+    try {
+      final code = authPlugin.generateAuthFile();
+      final outputPath = p.join(
+        projectRoot, 'lib', 'src', 'middleware', 'zfa_auth.g.dart',
+      );
+      await File(outputPath).create(recursive: true);
+      await File(outputPath).writeAsString(code);
+      _generatedFiles.add(outputPath);
+      _log('   \u2705 $outputPath');
+    } catch (e) {
+      _errors.add('Auth generation failed: $e');
+    }
+  }
+
+  Future<void> _generateRetryConfig() async {
+    final retryPlugin = ZorphyPluginRegistry.get('Retry');
+    if (retryPlugin is! RetryDDAPlugin) return;
+    if (!retryPlugin.hasRetryEntries) return;
+    try {
+      final code = retryPlugin.generateRetryFile();
+      final outputPath = p.join(
+        projectRoot, 'lib', 'src', 'middleware', 'zfa_retry.g.dart',
+      );
+      await File(outputPath).create(recursive: true);
+      await File(outputPath).writeAsString(code);
+      _generatedFiles.add(outputPath);
+      _log('   \u2705 $outputPath');
+    } catch (e) {
+      _errors.add('Retry generation failed: $e');
+    }
+  }
+
+  Future<void> _generateTrackEventConfig() async {
+    final trackPlugin = ZorphyPluginRegistry.get('TrackEvent');
+    if (trackPlugin is! TrackEventDDAPlugin) return;
+    if (!trackPlugin.hasTrackEventEntries) return;
+    try {
+      final code = trackPlugin.generateTrackEventFile();
+      final outputPath = p.join(
+        projectRoot, 'lib', 'src', 'middleware', 'zfa_events.g.dart',
+      );
+      await File(outputPath).create(recursive: true);
+      await File(outputPath).writeAsString(code);
+      _generatedFiles.add(outputPath);
+      _log('   \u2705 $outputPath');
+    } catch (e) {
+      _errors.add('TrackEvent generation failed: $e');
+    }
+  }
+
   void _log(String message, {bool force = false}) {
     if (verbose || force) {
       // ignore: avoid_print
@@ -221,4 +313,7 @@ class BuildResult {
   final List<String> errors;
   final List<String> generatedFiles;
 }
+
+
+
 

@@ -430,6 +430,13 @@ export 'src/dda/plugins/cache/cache_plugin.dart';
 
 /// CacheGenerator — generates zfa_cache.g.dart from @Cacheable metadata.
 export 'src/dda/plugins/cache/cache_generator.dart';
+export 'src/dda/plugins/middleware/middleware_annotation.dart';
+export 'src/dda/plugins/middleware/auth_plugin.dart';
+export 'src/dda/plugins/middleware/auth_generator.dart';
+export 'src/dda/plugins/middleware/retry_plugin.dart';
+export 'src/dda/plugins/middleware/retry_generator.dart';
+export 'src/dda/plugins/middleware/track_event_plugin.dart';
+export 'src/dda/plugins/middleware/track_event_generator.dart';
 
 /// DIGenerator — code_builder-based DI registration generation.
 export 'src/dda/plugins/di/di_generator.dart';
@@ -1163,4 +1170,5 @@ class Zuraffa {
 
 // v5 -> v6 migration tooling
 export 'src/migration/migration.dart';
+
 
