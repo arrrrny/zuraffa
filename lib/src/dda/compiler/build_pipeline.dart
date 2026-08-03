@@ -84,7 +84,14 @@ class BuildPipeline {
 
     // ── Stage 5.5: Route Generation ──
     _log('🗺️  Generating router config...');
-    await _generateRouteConfig();
+    if (!dryRun) {
+      await _generateRouteConfig();
+    } else {
+      final routePlugin = ZorphyPluginRegistry.get('Route');
+      if (routePlugin is RouteDDAPlugin && routePlugin.hasRoutes) {
+        _log('   (dry-run — would generate: lib/src/routing/zfa_router.g.dart)');
+      }
+    }
 
     // ── Stage 6: Build End ──
     _log('🏁 Build end...');
@@ -124,7 +131,7 @@ class BuildPipeline {
     return discovery.discover();
   }
 
-  Map<String, dynamic> _loadConfig() => {};
+  Map<String, dynamic> _loadConfig() => {'projectRoot': projectRoot};
 
   String _outputPath(String sourcePath) {
     // Preserve the relative path structure from projectRoot/lib
@@ -140,16 +147,20 @@ class BuildPipeline {
     if (routePlugin is! RouteDDAPlugin) return;
     if (!routePlugin.hasRoutes) return;
 
-    final code = routePlugin.generateRouterFile();
-    final outputPath = p.join(
-      projectRoot, 'lib', 'src', 'routing', 'zfa_router.g.dart',
-    );
+    try {
+      final code = routePlugin.generateRouterFile();
+      final outputPath = p.join(
+        projectRoot, 'lib', 'src', 'routing', 'zfa_router.g.dart',
+      );
 
-    await File(outputPath).create(recursive: true);
-    await File(outputPath).writeAsString(code);
+      await File(outputPath).create(recursive: true);
+      await File(outputPath).writeAsString(code);
 
-    _generatedFiles.add(outputPath);
-    _log('   ✅ $outputPath');
+      _generatedFiles.add(outputPath);
+      _log('   ✅ $outputPath');
+    } catch (e) {
+      _errors.add('Route generation failed: $e');
+    }
   }
 
   void _log(String message, {bool force = false}) {

@@ -1,20 +1,22 @@
-/// Annotation classes for the `@Route` decorator-driven navigation system.
+/// Annotation classes for the `@ZfaRoute` decorator-driven navigation system.
 ///
-/// Place `@Route(path: '/products/:id')` on a View class, then run
+/// Place `@ZfaRoute(path: '/products/:id')` on a View class, then run
 /// `zfa build` to auto-generate the complete GoRouter configuration.
 library;
+
+import 'package:go_router/go_router.dart';
 
 
 /// Marks a View class as a route with the given [path].
 ///
 /// ```dart
-/// @Route(path: '/products/:id', deepLinkAware: true)
+/// @ZfaRoute(path: '/products/:id', deepLinkAware: true)
 /// class ProductDetailView extends StatelessWidget { ... }
 /// ```
 ///
-/// The DDA pipeline scans for `@Route` annotations and compiles a
+/// The DDA pipeline scans for `@ZfaRoute` annotations and compiles a
 /// master `zfa_router.g.dart` with GoRouter configuration.
-class Route {
+class ZfaRoute {
   /// The URL path pattern, e.g. `'/products/:id'`.
   ///
   /// Path parameters use `:paramName` syntax.
@@ -45,7 +47,7 @@ class Route {
   /// Query parameter names and their Dart types.
   ///
   /// ```dart
-  /// @Route(
+  /// @ZfaRoute(
   ///   path: '/search',
   ///   queryParameters: {'q': 'String', 'page': 'int'},
   /// )
@@ -62,12 +64,12 @@ class Route {
   /// callback is invoked.
   ///
   /// ```dart
-  /// @Route(path: '/profile', middleware: [AuthGuard])
+  /// @ZfaRoute(path: '/profile', middleware: [AuthGuard])
   /// class ProfileView extends StatelessWidget { ... }
   /// ```
   final List<Type>? middleware;
 
-  const Route({
+  const ZfaRoute({
     required this.path,
     this.name,
     this.deepLinkAware = false,
@@ -81,9 +83,9 @@ class Route {
   /// Convenience constructor for redirect-only route entries.
   ///
   /// ```dart
-  /// @Route.redirect(from: '/old-products', to: '/products')
+  /// @ZfaRoute.redirect(from: '/old-products', to: '/products')
   /// ```
-  const Route.redirect({
+  const ZfaRoute.redirect({
     required this.redirectFrom,
     required this.redirectTo,
   }) : path = '',
@@ -93,6 +95,12 @@ class Route {
        queryParameters = null,
        middleware = null;
 }
+
+/// Backward-compatible alias for [ZfaRoute].
+///
+/// @deprecated Use [ZfaRoute] instead to avoid conflicts with Flutter's Route.
+@Deprecated('Use ZfaRoute instead')
+typedef Route = ZfaRoute;
 
 /// Base class for route guard / middleware implementations.
 ///
@@ -120,25 +128,9 @@ abstract class ZuraffaRouteGuard {
   String onRejected(GoRouterState state);
 }
 
-/// Stub for GoRouterState — users import the real one from `go_router`.
-/// This avoids a hard `go_router` dependency in the annotation-only file.
-class GoRouterState {
-  final String matchedLocation;
-  final String fullPath;
-  final Map<String, String> pathParameters;
-  final Map<String, String> uriQueryParameters;
-
-  const GoRouterState({
-    this.matchedLocation = '',
-    this.fullPath = '',
-    this.pathParameters = const {},
-    this.uriQueryParameters = const {},
-  });
-}
-
 /// Base class for generated route parameter classes.
 ///
-/// Each `@Route(path: '/products/:id')` with path parameters gets a
+/// Each `@ZfaRoute(path: '/products/:id')` with path parameters gets a
 /// generated `ProductDetailRouteParams extends RouteParams` with
 /// typed fields and `fromGoRouterState` factory.
 abstract class RouteParams {

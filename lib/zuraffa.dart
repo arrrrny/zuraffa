@@ -414,8 +414,8 @@ export 'src/core/di/zuraffa_container.dart';
 /// DIPlugin — DDA plugin for @Datasource/@Repository processing.
 export 'src/dda/plugins/di/di_plugin.dart';
 
-/// Route annotation — @Route, ZuraffaRouteGuard, RouteParams base classes.
-export 'src/dda/plugins/route/route_annotation.dart' hide GoRouterState;
+/// Route annotation — @ZfaRoute, ZuraffaRouteGuard, RouteParams base classes.
+export 'src/dda/plugins/route/route_annotation.dart';
 
 /// RouteDDAPlugin — DDA plugin for @Route annotation processing.
 export 'src/dda/plugins/route/route_plugin.dart';

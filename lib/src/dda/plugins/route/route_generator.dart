@@ -2,12 +2,12 @@ import 'package:code_builder/code_builder.dart' as cb;
 import 'package:dart_style/dart_style.dart';
 
 /// Generates `lib/src/routing/zfa_router.g.dart` from collected
-/// `@Route` annotation metadata.
+/// `@ZfaRoute` annotation metadata.
 ///
 /// Produces:
 /// - A `GoRouter` factory function with all discovered routes
 /// - Typed `RouteParams` class per route that has path or query parameters
-/// - Redirect rules from `@Route.redirect` annotations
+/// - Redirect rules from `@ZfaRoute.redirect` annotations
 /// - `ShellRoute` wrappers for nested route groups (parentPath)
 /// - Guard-based `redirect` callbacks for middleware-protected routes
 /// - Deep link path patterns documented in generated code
@@ -44,10 +44,11 @@ class RouteGenerator {
     required String name,
     required String className,
     required String importUri,
-    deepLinkAware = false,
+    bool deepLinkAware = false,
     String? parentPath,
     Map<String, String> queryParameters = const {},
-    List<String> middleware = const [],
+    List<String> middleware = const {},
+    Map<String, String> middlewareImports = const {},
   }) {
     final pathParams = _extractPathParams(path);
     _routes.add(
@@ -61,6 +62,7 @@ class RouteGenerator {
         pathParams: pathParams,
         queryParameters: queryParameters,
         middleware: middleware,
+        middlewareImports: middlewareImports,
       ),
     );
   }
@@ -80,6 +82,12 @@ class RouteGenerator {
       for (final route in _routes) {
         if (route.importUri.isNotEmpty) {
           viewImports.add(route.importUri);
+        }
+        // Add middleware imports
+        for (final uri in route.middlewareImports.values) {
+          if (uri.isNotEmpty) {
+            viewImports.add(uri);
+          }
         }
       }
       b.directives.add(
@@ -118,7 +126,8 @@ class RouteGenerator {
   cb.Class _routeParamsClass(_RouteEntry route) {
     final className = '${route.className}RouteParams';
     final fields = <cb.Field>[];
-    final factoryBodyStatements = <cb.Code>[];
+    final constructorParams = <cb.Parameter>[];
+    final factoryAssignments = <String>[];
 
     // Path params
     for (final p in route.pathParams) {
@@ -130,8 +139,16 @@ class RouteGenerator {
             ..modifier = cb.FieldModifier.final$,
         ),
       );
+      constructorParams.add(
+        cb.Parameter(
+          (p2) => p2
+            ..name = p.name
+            ..toThis = true
+            ..required = true,
+        ),
+      );
       final parser = _paramParser(p.name, p.dartType, isPath: true);
-      factoryBodyStatements.add(cb.Code('$parser;'));
+      factoryAssignments.add(parser);
     }
 
     // Query params
@@ -144,8 +161,16 @@ class RouteGenerator {
             ..modifier = cb.FieldModifier.final$,
         ),
       );
+      constructorParams.add(
+        cb.Parameter(
+          (p) => p
+            ..name = entry.key
+            ..toThis = true
+            ..required = true,
+        ),
+      );
       final parser = _paramParser(entry.key, entry.value, isPath: false);
-      factoryBodyStatements.add(cb.Code('$parser;'));
+      factoryAssignments.add(parser);
     }
 
     // pathParameters and queryParameters maps
@@ -157,6 +182,14 @@ class RouteGenerator {
           ..modifier = cb.FieldModifier.final$,
       ),
     );
+    constructorParams.add(
+      cb.Parameter(
+        (p) => p
+          ..name = 'pathParameters'
+          ..toThis = true
+          ..required = true,
+      ),
+    );
     fields.add(
       cb.Field(
         (f) => f
@@ -165,20 +198,34 @@ class RouteGenerator {
           ..modifier = cb.FieldModifier.final$,
       ),
     );
+    constructorParams.add(
+      cb.Parameter(
+        (p) => p
+          ..name = 'queryParameters'
+          ..toThis = true
+          ..required = true,
+      ),
+    );
 
-    factoryBodyStatements.add(
-      cb.Code('pathParameters = state.pathParameters;'),
-    );
-    factoryBodyStatements.add(
-      cb.Code('queryParameters = state.uriQueryParameters;'),
-    );
+    factoryAssignments.add('pathParameters: state.pathParameters');
+    factoryAssignments.add('queryParameters: state.uriQueryParameters');
+
+    // Build factory body
+    final factoryBody = 'return $className(${factoryAssignments.join(', ')});';
 
     return cb.Class(
       (c) => c
         ..name = className
         ..extend = cb.refer('RouteParams')
         ..fields.addAll(fields)
-        ..constructors.add(
+        ..constructors.addAll([
+          // Private generative constructor
+          cb.Constructor(
+            (ctor) => ctor
+              ..name = '_'
+              ..optionalParameters.addAll(constructorParams),
+          ),
+          // Factory constructor
           cb.Constructor(
             (ctor) => ctor
               ..factory = true
@@ -190,9 +237,9 @@ class RouteGenerator {
                     ..type = cb.refer('GoRouterState'),
                 ),
               )
-              ..body = cb.Block.of(factoryBodyStatements),
+              ..body = cb.Code(factoryBody),
           ),
-        ),
+        ]),
     );
   }
 
@@ -203,18 +250,18 @@ class RouteGenerator {
     switch (type) {
       case 'int':
         return isPath
-            ? "$name = int.parse($source!)"
-            : "$name = int.tryParse($source ?? '')";
+            ? "$name: int.parse($source!)"
+            : "$name: int.tryParse($source ?? '') ?? 0";
       case 'double':
         return isPath
-            ? "$name = double.parse($source!)"
-            : "$name = double.tryParse($source ?? '')";
+            ? "$name: double.parse($source!)"
+            : "$name: double.tryParse($source ?? '') ?? 0.0";
       case 'bool':
-        return "$name = $source == 'true'";
+        return "$name: $source == 'true'";
       default:
         return isPath
-            ? "$name = $source!"
-            : "$name = $source";
+            ? "$name: $source!"
+            : "$name: $source ?? ''";
     }
   }
 
@@ -223,8 +270,6 @@ class RouteGenerator {
   // ────────────────────────────────────────────────────────────────
 
   cb.Method _routerFunction() {
-    final statements = <String>[];
-
     // Build route tree: group by parentPath
     final standaloneRoutes = <_RouteEntry>[];
     final shellGroups = <String, List<_RouteEntry>>{};
@@ -260,29 +305,36 @@ class RouteGenerator {
       routeLines.add(_goRouteCode(route, indent: 4));
     }
 
-    statements.addAll(routeLines);
+    // Build complete GoRouter expression
+    final goRouterParts = <String>[];
+    goRouterParts.add('return GoRouter(');
+    goRouterParts.add('  routes: [');
+    goRouterParts.addAll(routeLines);
+    goRouterParts.add('  ],');
 
-    // Redirects
+    // Add redirect callback if there are redirects
     if (_redirects.isNotEmpty) {
       final redirectParts = <String>[];
       for (final r in _redirects) {
         redirectParts.add(
-          "if (state.matchedLocation == '${r.from}') return '${r.to}';",
+          "    if (state.matchedLocation == '${r.from}') return '${r.to}';",
         );
       }
-      statements.add('');
-      statements.add(
-        '  // Auto-redirect rules from @Route.redirect annotations',
-      );
+      goRouterParts.add('  // Auto-redirect rules from @ZfaRoute.redirect annotations');
+      goRouterParts.add('  redirect: (context, state) {');
+      goRouterParts.addAll(redirectParts);
+      goRouterParts.add('    return null;');
+      goRouterParts.add('  },');
     }
+
+    goRouterParts.add('  initialLocation: \'/\',');
+    goRouterParts.add(');');
 
     return cb.Method(
       (m) => m
         ..name = 'createZfaRouter'
         ..returns = cb.refer('GoRouter')
-        ..body = cb.Block.of(
-          statements.map((s) => cb.Code(s)),
-        ),
+        ..body = cb.Code(goRouterParts.join('\n')),
     );
   }
 
@@ -310,7 +362,7 @@ class RouteGenerator {
         '${pad}    final params = ${route.className}RouteParams.fromGoRouterState(state);',
       );
       lines.add(
-        '${pad}    return const ${route.className}();',
+        '${pad}    return ${route.className}(params);',
       );
       lines.add('${pad}  },');
     } else {
@@ -322,10 +374,11 @@ class RouteGenerator {
     // Middleware redirect
     if (route.middleware.isNotEmpty) {
       final checks = <String>[];
-      for (final guard in route.middleware) {
+      for (var i = 0; i < route.middleware.length; i++) {
+        final guard = route.middleware[i];
         checks.add(
-          'final _g = $guard();'
-          'if (!await _g.canActivate(state)) return _g.onRejected(state);',
+          'final _g$i = $guard();'
+          'if (!await _g$i.canActivate(state)) return _g$i.onRejected(state);',
         );
       }
       lines.add('${pad}  redirect: (context, state) async {');
@@ -367,6 +420,7 @@ class _RouteEntry {
     this.pathParams = const [],
     this.queryParameters = const {},
     this.middleware = const [],
+    this.middlewareImports = const {},
   });
 
   final String path;
@@ -378,6 +432,7 @@ class _RouteEntry {
   final List<_PathParam> pathParams;
   final Map<String, String> queryParameters;
   final List<String> middleware;
+  final Map<String, String> middlewareImports;
 
   bool get hasParams => pathParams.isNotEmpty || queryParameters.isNotEmpty;
 }

@@ -1,9 +1,12 @@
+import 'dart:io';
+import 'package:yaml/yaml.dart';
+import 'package:path/path.dart' as p;
 import '../../compiler/zorphy_decorator_plugin.dart';
 import '../../models/decorator_ast.dart';
 import '../../models/zorphy_context.dart';
 import 'route_generator.dart';
 
-/// DDA plugin that processes `@Route` annotations and collects
+/// DDA plugin that processes `@ZfaRoute` annotations and collects
 /// route metadata for GoRouter configuration generation.
 ///
 /// This plugin is registered automatically when `zfa build` runs.
@@ -11,8 +14,8 @@ import 'route_generator.dart';
 /// `lib/src/routing/zfa_router.g.dart`.
 ///
 /// Supported annotations:
-/// - `@Route(path: '/products/:id', deepLinkAware: true)` — view route
-/// - `@Route.redirect(from: '/old', to: '/new')` — redirect rule
+/// - `@ZfaRoute(path: '/products/:id', deepLinkAware: true)` — view route
+/// - `@ZfaRoute.redirect(from: '/old', to: '/new')` — redirect rule
 ///
 /// Features:
 /// - Path parameter extraction (`:id` → typed field)
@@ -39,6 +42,27 @@ class RouteDDAPlugin extends ZorphyDecoratorPlugin {
   int get priority => 10;
 
   @override
+  void onBuildStart(Map<String, dynamic> config) {
+    final projectRoot = config['projectRoot'] as String?;
+    if (projectRoot != null) {
+      final pubspecPath = p.join(projectRoot, 'pubspec.yaml');
+      try {
+        final pubspecFile = File(pubspecPath);
+        if (pubspecFile.existsSync()) {
+          final pubspecContent = pubspecFile.readAsStringSync();
+          final pubspec = loadYaml(pubspecContent) as Map;
+          final name = pubspec['name'] as String?;
+          if (name != null && name.isNotEmpty) {
+            _generator = RouteGenerator(packageName: name);
+          }
+        }
+      } catch (e) {
+        // Silently ignore errors reading pubspec
+      }
+    }
+  }
+
+  @override
   void onApply(
     MethodAST method,
     DecoratorAST decorator,
@@ -49,11 +73,13 @@ class RouteDDAPlugin extends ZorphyDecoratorPlugin {
     final className = method.name;
     final importUri = _extractImportUri(method.libraryUri);
 
-    // Detect redirect pattern: @Route.redirect(from: '...', to: '...')
+    // Detect redirect pattern: @ZfaRoute.redirect(from: '...', to: '...')
     final redirectFrom = decorator.get<String>('redirectFrom');
     final redirectTo = decorator.get<String>('redirectTo');
+    final path = decorator.get<String>('path');
 
-    if (redirectFrom != null && redirectTo != null) {
+    // Redirect-only route: no path, both redirectFrom and redirectTo present
+    if (redirectFrom != null && redirectTo != null && (path == null || path.isEmpty)) {
       _generator.addRedirect(
         from: redirectFrom,
         to: redirectTo,
@@ -61,8 +87,7 @@ class RouteDDAPlugin extends ZorphyDecoratorPlugin {
       return;
     }
 
-    // Standard route: @Route(path: '/products/:id', ...)
-    final path = decorator.get<String>('path');
+    // Standard route: @ZfaRoute(path: '/products/:id', ...)
     if (path == null || path.isEmpty) return;
 
     final name = decorator.get<String>('name') ?? _routeNameFrom(className);
@@ -71,6 +96,7 @@ class RouteDDAPlugin extends ZorphyDecoratorPlugin {
     final parentPath = decorator.get<String>('parentPath');
     final queryParams = _parseQueryParams(decorator);
     final middleware = _parseMiddleware(decorator);
+    final middlewareImports = _extractMiddlewareImports(decorator, method.libraryUri);
 
     _generator.addRoute(
       path: path,
@@ -81,6 +107,7 @@ class RouteDDAPlugin extends ZorphyDecoratorPlugin {
       parentPath: parentPath,
       queryParameters: queryParams,
       middleware: middleware,
+      middlewareImports: middlewareImports,
     );
   }
 
@@ -130,5 +157,21 @@ class RouteDDAPlugin extends ZorphyDecoratorPlugin {
       return raw.map((e) => e.toString()).toList();
     }
     return const [];
+  }
+
+  Map<String, String> _extractMiddlewareImports(DecoratorAST decorator, String? libraryUri) {
+    final middleware = _parseMiddleware(decorator);
+    if (middleware.isEmpty || libraryUri == null) return const {};
+
+    final imports = <String, String>{};
+    final baseImport = _extractImportUri(libraryUri);
+
+    // For each middleware class, assume it's in the same library
+    // or needs the same import as the route view
+    for (final guard in middleware) {
+      imports[guard] = baseImport;
+    }
+
+    return imports;
   }
 }
