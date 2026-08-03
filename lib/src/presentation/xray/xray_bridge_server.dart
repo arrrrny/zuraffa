@@ -124,6 +124,26 @@ class XRayBridgeServer {
   // ----------------------------------------------------------------
 
   void _handleRequest(HttpRequest request) {
+    // Reject any request with an Origin header (CSRF protection)
+    if (request.headers.value('origin') != null) {
+      _jsonResponse(request, 403, {
+        'error': 'Forbidden',
+        'message': 'Cross-origin requests are not allowed',
+      });
+      return;
+    }
+
+    // Validate Host header matches expected loopback address
+    final hostHeader = request.headers.value('host');
+    final expectedHost = '127.0.0.1:$_port';
+    if (hostHeader != expectedHost && hostHeader != 'localhost:$_port') {
+      _jsonResponse(request, 400, {
+        'error': 'Bad request',
+        'message': 'Invalid Host header',
+      });
+      return;
+    }
+
     // Auth check
     if (_authToken != null) {
       final authHeader = request.headers.value('authorization');
@@ -195,19 +215,29 @@ class XRayBridgeServer {
   // ----------------------------------------------------------------
 
   Future<void> _handlePostAction(HttpRequest request) async {
+    final Map<String, dynamic> body;
     try {
-      final body = await _readJsonBody(request);
-      final targetNode = body['targetNode'] as String?;
-      final payload = body['payload'] as Map<String, dynamic>?;
+      body = await _readJsonBody(request);
+    } catch (e) {
+      _jsonResponse(request, 400, {
+        'error': 'Bad request',
+        'message': 'Invalid JSON body: $e',
+      });
+      return;
+    }
 
-      if (targetNode == null || targetNode.isEmpty) {
-        _jsonResponse(request, 400, {
-          'error': 'Bad request',
-          'message': 'Field "targetNode" is required',
-        });
-        return;
-      }
+    final targetNode = body['targetNode'] as String?;
+    final payload = body['payload'] as Map<String, dynamic>?;
 
+    if (targetNode == null || targetNode.isEmpty) {
+      _jsonResponse(request, 400, {
+        'error': 'Bad request',
+        'message': 'Field "targetNode" is required',
+      });
+      return;
+    }
+
+    try {
       final invoked = XRayActionRegistry.invoke(targetNode, payload ?? {});
       if (invoked) {
         _jsonResponse(request, 200, {
@@ -223,9 +253,9 @@ class XRayBridgeServer {
         });
       }
     } catch (e) {
-      _jsonResponse(request, 400, {
-        'error': 'Bad request',
-        'message': 'Invalid JSON body: $e',
+      _jsonResponse(request, 500, {
+        'error': 'Action callback failed',
+        'message': 'Error executing action: $e',
       });
     }
   }
@@ -235,19 +265,29 @@ class XRayBridgeServer {
   // ----------------------------------------------------------------
 
   Future<void> _handlePostControlDeck(HttpRequest request) async {
+    final Map<String, dynamic> body;
     try {
-      final body = await _readJsonBody(request);
-      final mockName = body['mockName'] as String?;
-      final payload = body['payload'];
+      body = await _readJsonBody(request);
+    } catch (e) {
+      _jsonResponse(request, 400, {
+        'error': 'Bad request',
+        'message': 'Invalid JSON body: $e',
+      });
+      return;
+    }
 
-      if (mockName == null || mockName.isEmpty) {
-        _jsonResponse(request, 400, {
-          'error': 'Bad request',
-          'message': 'Field "mockName" is required',
-        });
-        return;
-      }
+    final mockName = body['mockName'] as String?;
+    final payload = body['payload'];
 
+    if (mockName == null || mockName.isEmpty) {
+      _jsonResponse(request, 400, {
+        'error': 'Bad request',
+        'message': 'Field "mockName" is required',
+      });
+      return;
+    }
+
+    try {
       final triggered = XRayMockInjectorRegistry.trigger(mockName, payload);
       if (triggered) {
         _jsonResponse(request, 200, {
@@ -263,9 +303,9 @@ class XRayBridgeServer {
         });
       }
     } catch (e) {
-      _jsonResponse(request, 400, {
-        'error': 'Bad request',
-        'message': 'Invalid JSON body: $e',
+      _jsonResponse(request, 500, {
+        'error': 'Mock callback failed',
+        'message': 'Error triggering mock: $e',
       });
     }
   }
@@ -300,10 +340,15 @@ class XRayBridgeServer {
       StreamSubscription<XRayTreeDiff>? subscription;
       subscription = XRayBridgeStream.stream.listen((diff) {
         if (webSocket.readyState == WebSocket.open) {
-          webSocket.add(jsonEncode({
-            'type': 'diff',
-            'data': diff.toJson(),
-          }));
+          try {
+            webSocket.add(jsonEncode({
+              'type': 'diff',
+              'data': diff.toJson(),
+            }));
+          } catch (e) {
+            // WebSocket write failed, cancel subscription
+            subscription?.cancel();
+          }
         }
       });
 

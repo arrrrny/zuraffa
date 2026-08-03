@@ -33,12 +33,16 @@ class XRayTreeNodeJson {
   /// Snapshot of associated state (e.g. loading, data, error).
   final Map<String, dynamic>? state;
 
+  /// Parent node ID determined from BuildContext hierarchy, if any.
+  final String? parentId;
+
   const XRayTreeNodeJson({
     required this.id,
     required this.enumName,
     this.actionName,
     this.isEnabled = true,
     this.state,
+    this.parentId,
   });
 
   Map<String, dynamic> toJson() => {
@@ -47,6 +51,7 @@ class XRayTreeNodeJson {
         if (actionName != null) 'boundAction': actionName,
         'enabled': isEnabled,
         if (state != null) 'state': state,
+        if (parentId != null) 'parentId': parentId,
       };
 }
 
@@ -208,7 +213,7 @@ class XRayTreeDiff {
 class XRayBridgeStream {
   XRayBridgeStream._();
 
-  static final StreamController<XRayTreeDiff> _controller =
+  static StreamController<XRayTreeDiff> _controller =
       StreamController<XRayTreeDiff>.broadcast();
 
   /// Subscribe to tree change events.
@@ -225,9 +230,15 @@ class XRayBridgeStream {
     }
   }
 
-  /// Close the stream (for testing).
+  /// Close the current stream and create a fresh controller (for testing).
+  ///
+  /// This allows multiple tests to subscribe without encountering
+  /// a closed controller from previous tests.
   @visibleForTesting
-  static Future<void> close() => _controller.close();
+  static Future<void> close() async {
+    await _controller.close();
+    _controller = StreamController<XRayTreeDiff>.broadcast();
+  }
 }
 
 // ------------------------------------------------------------------
@@ -237,9 +248,43 @@ class XRayBridgeStream {
 /// Serializes an [XRayScopeState] tree into a JSON-ready structure.
 ///
 /// Enriches each node with metadata from [XRayMetadataRegistry]
-/// (action name, enabled state, state snapshot).
+/// (action name, enabled state, state snapshot). Computes parent-child
+/// relationships based on BuildContext hierarchy: each node's parentId
+/// contains the ID of its closest XRayNode ancestor in the widget tree.
+///
+/// In release mode, returns an empty tree without serializing scope data.
 XRayTreeJson serializeXRayTree(XRayScopeState scope) {
-  final nodes = scope.tree.map((info) {
+  if (kReleaseMode) {
+    return const XRayTreeJson(activeView: '', nodes: []);
+  }
+
+  final allNodes = scope.tree;
+  final contextToId = <BuildContext, String>{
+    for (final node in allNodes) node.context: node.id,
+  };
+
+  // For each node, find its parent by walking up the BuildContext tree
+  final parentMap = <String, String?>{};
+
+  for (final node in allNodes) {
+    String? foundParentId;
+    try {
+      // Walk up the tree to find the first ancestor that is also an XRayNode
+      node.context.visitAncestorElements((element) {
+        // Check if this ancestor's context belongs to another XRayNode
+        if (contextToId.containsKey(element)) {
+          foundParentId = contextToId[element];
+          return false; // Stop visiting, we found the parent
+        }
+        return true; // Continue visiting further ancestors
+      });
+    } catch (_) {
+      // BuildContext may be invalid, skip
+    }
+    parentMap[node.id] = foundParentId;
+  }
+
+  final nodes = allNodes.map((info) {
     final meta = XRayMetadataRegistry.forNode(info.id);
     return XRayTreeNodeJson(
       id: info.id,
@@ -247,6 +292,7 @@ XRayTreeJson serializeXRayTree(XRayScopeState scope) {
       actionName: meta?.actionName,
       isEnabled: meta?.isEnabled ?? true,
       state: meta?.stateJson,
+      parentId: parentMap[info.id],
     );
   }).toList();
 

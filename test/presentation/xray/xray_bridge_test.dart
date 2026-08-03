@@ -87,6 +87,17 @@ void main() {
       expect(json.containsKey('boundAction'), false);
       expect(json['enabled'], true);
       expect(json.containsKey('state'), false);
+      expect(json.containsKey('parentId'), false);
+    });
+
+    test('toJson includes parentId when present', () {
+      const node = XRayTreeNodeJson(
+        id: 'ProductView.childButton',
+        enumName: 'childButton',
+        parentId: 'ProductView.parentContainer',
+      );
+      final json = node.toJson();
+      expect(json['parentId'], 'ProductView.parentContainer');
     });
   });
 
@@ -284,14 +295,14 @@ void main() {
       client.close();
     });
 
-    test('GET /xray/tree returns tree when scope is registered', () async {
-      // We can't create a real XRayScopeState without a widget tree,
-      // so we test the server's 503 path. The 200 path is verified
-      // through the XRayTreeJson serialization tests above.
+    test('GET /xray/tree returns 503 when scope is unregistered (duplicate check)', () async {
+      // This test verifies the same 503 path as the previous test.
+      // We can't create a real XRayScopeState without a widget tree.
+      // The 200 path is verified through the XRayTreeJson serialization tests above.
       // The bridge server calls serializeXRayTree which calls
       // scope.tree and scope.viewId — this is a pure data pass-through.
       //
-      // For a full integration test, see the widget test directory.
+      // For a full integration test with a mounted XRayScope, see the widget test directory.
       XRayBridgeScopeHolder.reset();
       final client = HttpClient();
       final request =
@@ -495,7 +506,12 @@ void main() {
       await server.stop();
     });
 
-    test('full agent flow: inspect, action, verify', () async {
+    test('action invocation without mounted scope (partial flow)', () async {
+      // NOTE: This test does NOT perform tree inspection because no XRayScope
+      // is mounted in this unit test environment. It verifies action invocation
+      // and state changes only. For a complete inspect -> action -> verify flow
+      // with actual tree traversal, see widget tests with mounted XRayScope.
+
       bool buttonPressed = false;
       XRayActionRegistry.register('ProfileView.editProfileButton', (_) {
         buttonPressed = true;
@@ -503,13 +519,13 @@ void main() {
 
       final client = HttpClient();
 
-      // Step 1: Inspect tree (503 since no scope in unit test)
+      // Step 1: Attempt tree inspection (returns 503 since no scope is mounted)
       final treeRequest = await client
           .getUrl(Uri.parse('http://127.0.0.1:$port/xray/tree'));
       final treeResponse = await treeRequest.close();
       expect(treeResponse.statusCode, 503);
 
-      // Step 2: Tap button via action endpoint
+      // Step 2: Invoke registered action directly (works without scope)
       final actionRequest = await client
           .postUrl(Uri.parse('http://127.0.0.1:$port/xray/action'));
       actionRequest.headers.set('Content-Type', 'application/json');
@@ -520,7 +536,7 @@ void main() {
       final actionResponse = await actionRequest.close();
       expect(actionResponse.statusCode, 200);
 
-      // Step 3: Verify state changed
+      // Step 3: Verify action callback was executed
       expect(buttonPressed, true);
 
       client.close();

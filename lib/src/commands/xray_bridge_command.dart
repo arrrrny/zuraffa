@@ -28,8 +28,9 @@ class XrayBridgeCommand extends Command<void> {
     argParser.addOption(
       'port',
       abbr: 'p',
-      help: 'Port to bind the bridge server (default: 8471)',
-      defaultsTo: '8471',
+      help:
+          'Port to bind the bridge server (default: ${XRayBridgeServer.defaultPort})',
+      defaultsTo: '${XRayBridgeServer.defaultPort}',
     );
     argParser.addOption(
       'token',
@@ -47,15 +48,31 @@ class XrayBridgeCommand extends Command<void> {
   @override
   Future<void> run() async {
     final portStr = argResults!['port'] as String;
-    final port = int.tryParse(portStr) ?? XRayBridgeServer.defaultPort;
+    final port = int.tryParse(portStr);
+
+    if (port == null) {
+      throw UsageException(
+        'Invalid port: "$portStr" is not a valid integer.',
+        usage,
+      );
+    }
+
+    if (port < 1 || port > 65535) {
+      throw UsageException(
+        'Port must be between 1 and 65535, got: $port',
+        usage,
+      );
+    }
+
     final token = argResults!['token'] as String?;
     final remote = argResults!['remote'] as bool;
     final localhostOnly = !remote;
 
     if (remote && token == null) {
-      print('Error: --remote requires --token for authentication.');
-      print('Use --token=<secret> to set a Bearer token.');
-      return;
+      throw UsageException(
+        '--remote requires --token for authentication.',
+        usage,
+      );
     }
 
     // Check if X-Ray mode is enabled
@@ -90,19 +107,33 @@ class XrayBridgeCommand extends Command<void> {
       print('');
       print('Shutting down X-Ray bridge...');
       server.stop().then((_) {
-        completer.complete();
+        if (!completer.isCompleted) {
+          completer.complete();
+        }
         exit(0);
       });
     });
 
-    ProcessSignal.sigterm.watch().listen((_) {
-      server.stop().then((_) {
-        completer.complete();
-        exit(0);
+    if (!Platform.isWindows) {
+      ProcessSignal.sigterm.watch().listen((_) {
+        server.stop().then((_) {
+          if (!completer.isCompleted) {
+            completer.complete();
+          }
+          exit(0);
+        });
       });
-    });
+    }
 
-    final actualPort = await server.start();
+    int actualPort;
+    try {
+      actualPort = await server.start();
+    } on SocketException catch (e) {
+      print('Failed to start X-Ray bridge: ${e.message}');
+      print('Port $port may already be in use or unavailable.');
+      return;
+    }
+
     if (actualPort < 0) {
       print('X-Ray bridge cannot start in release mode.');
       return;
