@@ -1,14 +1,10 @@
-/// Domain layer exports.
+/// Domain layer barrel.
 ///
-/// This layer contains the business logic and entities.
-/// It should be independent of other layers.
+/// The domain layer is the innermost circle of Clean Architecture.
+/// It contains entities, repository contracts, and use cases —
+/// all independent of Flutter, Hive, HTTP, or any framework.
 library;
 
-// Entities
-export 'entities/prime_result.dart';
-
-// Repositories (contracts)
+export 'entities/todo.dart';
 export 'repositories/todo_repository.dart';
-
-// Use Cases
-export 'usecases/calculate_primes_usecase.dart';
+export 'usecases/usecases.dart';

@@ -1,9 +1,10 @@
 name: example
-description: Example app demonstrating Zuraffa.
+description: >-
+  Example app demonstrating Zuraffa Clean Architecture with
+  Zorphy v2.1 entity generation.
 
 publish_to: none
-
-version: 5.7.1
+version: 7.0.0
 
 environment:
   sdk: ^3.11.0
@@ -16,17 +17,28 @@ dependencies:
   zuraffa:
     path: ../
 
+flutter:
+  uses-material-design: true
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
   mocktail: ^1.0.4
   hive_ce_generator: ^1.11.1
-
-flutter:
-  uses-material-design: true
+  build_runner: ^2.16.0
 
 dependency_overrides:
-  meta: ^1.18.0
+  meta: ^1.19.0
   test_api: ^0.7.9
-  analyzer: 13.0.0
+  analyzer: 14.1.0
+  zorphy:
+    git:
+      url: https://github.com/arrrrny/zorphy.git
+      path: zorphy
+      ref: "development"
+  zorphy_annotation:
+    git:
+      url: https://github.com/arrrrny/zorphy.git
+      path: zorphy_annotation
+      ref: "development"

@@ -5,18 +5,19 @@ targets:
         enabled: true
         generate_for:
           - lib/src/**
-          - test/**
-      json_serializable:
-        enabled: true
-        generate_for:
-          - lib/src/**
-          - test/**
-        options:
-          explicit_to_json: false
-          include_if_null: false
-          generic_argument_factories: true
 
       source_gen:combining_builder:
         enabled: true
-      mockito:mockBuilder:
+
+      hive_ce_generator:hive_adapters_generator:
+        enabled: true
+        generate_for:
+          - lib/src/data/cache/**
+
+      hive_ce_generator:hive_registrar_intermediate_generator:
+        enabled: true
+        generate_for:
+          - lib/src/data/cache/**
+
+      hive_ce_generator:hive_registrar_generator:
         enabled: true
