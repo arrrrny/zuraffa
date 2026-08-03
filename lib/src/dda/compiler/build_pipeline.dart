@@ -5,6 +5,7 @@ import 'ast_scanner.dart';
 import 'decorator_dispatcher.dart';
 import 'plugin_discovery.dart';
 import 'zorphy_decorator_plugin.dart';
+import '../plugins/route/route_plugin.dart';
 
 /// Orchestrates the complete `zfa build` DDA pipeline.
 class BuildPipeline {
@@ -81,6 +82,10 @@ class BuildPipeline {
       }
     }
 
+    // ── Stage 5.5: Route Generation ──
+    _log('🗺️  Generating router config...');
+    await _generateRouteConfig();
+
     // ── Stage 6: Build End ──
     _log('🏁 Build end...');
     for (final plugin in plugins) {
@@ -130,6 +135,23 @@ class BuildPipeline {
     return p.join(outputDir, dir, '$basename.g.dart');
   }
 
+  Future<void> _generateRouteConfig() async {
+    final routePlugin = ZorphyPluginRegistry.get('Route');
+    if (routePlugin is! RouteDDAPlugin) return;
+    if (!routePlugin.hasRoutes) return;
+
+    final code = routePlugin.generateRouterFile();
+    final outputPath = p.join(
+      projectRoot, 'lib', 'src', 'routing', 'zfa_router.g.dart',
+    );
+
+    await File(outputPath).create(recursive: true);
+    await File(outputPath).writeAsString(code);
+
+    _generatedFiles.add(outputPath);
+    _log('   ✅ $outputPath');
+  }
+
   void _log(String message, {bool force = false}) {
     if (verbose || force) {
       // ignore: avoid_print
@@ -137,6 +159,8 @@ class BuildPipeline {
     }
   }
 }
+
+
 
 class BuildResult {
   BuildResult({
