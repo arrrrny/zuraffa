@@ -422,6 +422,14 @@ export 'src/dda/plugins/route/route_plugin.dart';
 
 /// RouteGenerator — GoRouter configuration generation from @Route metadata.
 export 'src/dda/plugins/route/route_generator.dart';
+/// CacheStrategy enum, @Cacheable and @CacheInvalidate annotations.
+export 'src/dda/plugins/cache/cache_annotation.dart';
+
+/// CacheDDAPlugin — DDA plugin for @Cacheable/@CacheInvalidate processing.
+export 'src/dda/plugins/cache/cache_plugin.dart';
+
+/// CacheGenerator — generates zfa_cache.g.dart from @Cacheable metadata.
+export 'src/dda/plugins/cache/cache_generator.dart';
 
 /// DIGenerator — code_builder-based DI registration generation.
 export 'src/dda/plugins/di/di_generator.dart';
@@ -1155,3 +1163,4 @@ class Zuraffa {
 
 // v5 -> v6 migration tooling
 export 'src/migration/migration.dart';
+

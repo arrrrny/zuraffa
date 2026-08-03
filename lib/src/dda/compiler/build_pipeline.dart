@@ -6,6 +6,7 @@ import 'decorator_dispatcher.dart';
 import 'plugin_discovery.dart';
 import 'zorphy_decorator_plugin.dart';
 import '../plugins/route/route_plugin.dart';
+import '../plugins/cache/cache_plugin.dart';
 
 /// Orchestrates the complete `zfa build` DDA pipeline.
 class BuildPipeline {
@@ -93,6 +94,18 @@ class BuildPipeline {
       }
     }
 
+
+    // ── Stage 5.6: Cache Generation ──
+    _log('💾 Generating cache layer...');
+    if (!dryRun) {
+      await _generateCacheConfig();
+    } else {
+      final cachePlugin = ZorphyPluginRegistry.get('Cacheable');
+      if (cachePlugin is CacheDDAPlugin && cachePlugin.hasCacheEntries) {
+        _log('   (dry-run — would generate: lib/src/cache/zfa_cache.g.dart)');
+      }
+    }
+
     // ── Stage 6: Build End ──
     _log('🏁 Build end...');
     for (final plugin in plugins) {
@@ -163,6 +176,28 @@ class BuildPipeline {
     }
   }
 
+
+  Future<void> _generateCacheConfig() async {
+    final cachePlugin = ZorphyPluginRegistry.get('Cacheable');
+    if (cachePlugin is! CacheDDAPlugin) return;
+    if (!cachePlugin.hasCacheEntries) return;
+
+    try {
+      final code = cachePlugin.generateCacheFile();
+      final outputPath = p.join(
+        projectRoot, 'lib', 'src', 'cache', 'zfa_cache.g.dart',
+      );
+
+      await File(outputPath).create(recursive: true);
+      await File(outputPath).writeAsString(code);
+
+      _generatedFiles.add(outputPath);
+      _log('   ✅ $outputPath');
+    } catch (e) {
+      _errors.add('Cache generation failed: $e');
+    }
+  }
+
   void _log(String message, {bool force = false}) {
     if (verbose || force) {
       // ignore: avoid_print
@@ -186,3 +221,4 @@ class BuildResult {
   final List<String> errors;
   final List<String> generatedFiles;
 }
+
