@@ -1,54 +1,37 @@
-import 'package:example/src/domain/domain.dart';
-import 'package:example/src/presentation/pages/todo/todo_view.dart';
 import 'package:flutter/material.dart';
 import 'package:zuraffa/zuraffa.dart';
-import 'package:example/src/api/bridges/todo_api_bridge.dart';
-import './src/di/index.dart' as auto_di;
-import './src/cache/index.dart' as auto_cache;
 
-final getIt = GetIt.instance;
-
-Future<void> setupDependencies() async {
-  auto_di.setupDependencies(getIt);
-  await Hive.initFlutter();
-  await auto_cache.initAllCaches();
-}
-
-void _initializeBridge() {
-  ZuraffaApiBridge.init();
-  registerTodoApiBridge();
-}
+import 'src/presentation/todo_page.dart';
+import 'src/presentation/todo_presenter.dart';
+import 'src/setup.dart';
 
 void main() {
   Zuraffa.enableLogging();
   WidgetsFlutterBinding.ensureInitialized();
-  setupDependencies()
-      .then((_) {
-        runApp(const ZuraffaExampleApp());
-        _initializeBridge();
-      })
-      .catchError((Object error, StackTrace st) {
-        debugPrint('❌ setupDependencies failed: $error');
-        debugPrintStack(stackTrace: st);
-        runApp(const ZuraffaExampleApp());
-        _initializeBridge();
-      });
+
+  setup().then((_) {
+    runApp(const TodoApp());
+  }).catchError((Object error, StackTrace st) {
+    debugPrint('Setup failed: $error');
+    debugPrintStack(stackTrace: st);
+    runApp(const TodoApp());
+  });
 }
 
-/// Example app demonstrating Zuraffa Clean Architecture.
-class ZuraffaExampleApp extends StatelessWidget {
-  const ZuraffaExampleApp({super.key});
+/// Minimal app shell that wires [TodoPage] with the injected [TodoPresenter].
+class TodoApp extends StatelessWidget {
+  const TodoApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Zuraffa Clean Architecture Demo',
+      title: 'Zuraffa Todo Demo',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
         useMaterial3: true,
       ),
-      home: TodoView(todoRepository: getIt<TodoRepository>()),
+      home: TodoPage(presenter: getIt<TodoPresenter>()),
     );
   }
 }
