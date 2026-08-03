@@ -5,6 +5,9 @@ import 'dart:io';
 import 'package:zuraffa/src/cli/plugin_loader.dart';
 import 'package:zuraffa/src/config/zfa_config.dart';
 import 'package:zuraffa/src/core/plugin_system/plugin_registry.dart';
+import 'package:zuraffa/src/mcp/v2_tools.dart' show v2ToolDefinitions, handleV2ToolCall, startWebSocketServer;
+import 'package:zuraffa/src/mcp/session_store.dart' show McpSessionStore;
+import 'package:zuraffa/src/mcp/file_watcher.dart' show McpFileWatcher;
 
 /// Version loaded lazily to avoid heavy imports at startup
 String? _version;
@@ -61,6 +64,39 @@ class SharedResources {
 void main(List<String> args) async {
   // Initialize shared resources (singleton pattern)
   await SharedResources.instance;
+
+  // Check for --ws flag to start in WebSocket mode
+  final wsIndex = args.indexOf('--ws');
+  if (wsIndex != -1) {
+    final portIndex = args.indexOf('--ws-port');
+    final port = portIndex != -1 && portIndex + 1 < args.length
+        ? int.tryParse(args[portIndex + 1]) ?? 8371
+        : 8371;
+    final tokenIndex = args.indexOf('--ws-token');
+    final authToken = tokenIndex != -1 && tokenIndex + 1 < args.length
+        ? args[tokenIndex + 1]
+        : null;
+
+    final sessionStore = McpSessionStore(
+      projectRoot: Directory.current.path,
+    );
+    final fileWatcher = McpFileWatcher(
+      projectRoot: Directory.current.path,
+    );
+
+    stderr.writeln('[m[mcp] Starting WebSocket server on port $port');
+    await startWebSocketServer(
+      port: port,
+      projectRoot: Directory.current.path,
+      authToken: authToken,
+      sessionStore: sessionStore,
+      fileWatcher: fileWatcher,
+    );
+    // Keep alive
+    final completer = Completer<void>();
+    await completer.future;
+    return;
+  }
 
   final server = ZuraffaMcpServer();
   await server.run();
@@ -278,6 +314,9 @@ class ZuraffaMcpServer {
         });
       }
     }
+
+    // Add v2.0 capability tools
+    tools.addAll(v2ToolDefinitions());
 
     return {
       'jsonrpc': '2.0',
@@ -637,9 +676,23 @@ All v5 generation uses the fixed lib/src and lib/src/domain layout.''',
           result = await _runDoctorCommand(args);
           break;
         default:
+          // Try v2.0 capabilities first
           if (toolName.startsWith('zuraffa_')) {
             result = await _runPluginTool(toolName, args);
             break;
+          }
+          // Delegate to v2.0 tool handler
+          final v2Result = await handleV2ToolCall(
+            toolName: toolName,
+            args: args,
+            projectRoot: Directory.current.path,
+          );
+          if (v2Result != null) {
+            return {
+              'jsonrpc': '2.0',
+              'result': v2Result,
+              'id': id,
+            };
           }
           return _error(id, -32602, 'Unknown tool: $toolName');
       }
