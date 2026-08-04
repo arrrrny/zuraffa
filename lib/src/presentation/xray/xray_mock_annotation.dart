@@ -31,15 +31,9 @@ class XRayMock {
   final String? yamlPath;
 
   /// Direct annotation with name and payload.
-  const XRayMock({
-    required this.name,
-    required this.payload,
-    this.type,
-  }) : yamlPath = null;
+  const XRayMock({required this.name, required this.payload, this.type})
+    : yamlPath = null;
 
   /// YAML-based annotation -- scenarios loaded from a file.
-  const XRayMock.fromYaml(this.yamlPath)
-      : name = '',
-        payload = '',
-        type = null;
+  const XRayMock.fromYaml(this.yamlPath) : name = '', payload = '', type = null;
 }

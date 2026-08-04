@@ -105,4 +105,3 @@ class XRayMockEntry {
     return "XRayMockEntry($name, $type, $payloadStr)";
   }
 }
-

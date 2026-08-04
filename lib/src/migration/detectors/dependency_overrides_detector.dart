@@ -61,29 +61,39 @@ class DependencyOverridesDetector extends MigrationDetector {
         }
 
         // Find the line number for this package key
-        final packagePattern = RegExp('^\\s*${RegExp.escape(package)}:\\s*', multiLine: true);
-        final packageMatch = packagePattern.firstMatch(content.substring(sectionInfo.offset));
+        final packagePattern = RegExp(
+          '^\\s*${RegExp.escape(package)}:\\s*',
+          multiLine: true,
+        );
+        final packageMatch = packagePattern.firstMatch(
+          content.substring(sectionInfo.offset),
+        );
         final line = packageMatch != null
             ? lineNumberAt(content, sectionInfo.offset + packageMatch.start)
             : lineNumberAt(content, sectionInfo.offset);
 
         if (package == 'analyzer') {
-          findings.add(MigrationFinding(
-            message: 'dependency_overrides: analyzer: $displayValue is a v5 zorphy 1.x workaround',
-            filePath: 'pubspec.yaml',
-            line: line,
-            ruleId: 'v5_dependency_overrides',
-            severity: MigrationSeverity.warning,
-            suggestion: 'Remove if zorphy 2.0 is in use',
-          ));
+          findings.add(
+            MigrationFinding(
+              message:
+                  'dependency_overrides: analyzer: $displayValue is a v5 zorphy 1.x workaround',
+              filePath: 'pubspec.yaml',
+              line: line,
+              ruleId: 'v5_dependency_overrides',
+              severity: MigrationSeverity.warning,
+              suggestion: 'Remove if zorphy 2.0 is in use',
+            ),
+          );
         } else {
-          findings.add(MigrationFinding(
-            message: 'dependency_overrides: $package: $displayValue',
-            filePath: 'pubspec.yaml',
-            line: line,
-            ruleId: 'v5_dependency_overrides',
-            severity: MigrationSeverity.info,
-          ));
+          findings.add(
+            MigrationFinding(
+              message: 'dependency_overrides: $package: $displayValue',
+              filePath: 'pubspec.yaml',
+              line: line,
+              ruleId: 'v5_dependency_overrides',
+              severity: MigrationSeverity.info,
+            ),
+          );
         }
       }
     } catch (e) {

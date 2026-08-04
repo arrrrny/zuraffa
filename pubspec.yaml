@@ -31,12 +31,12 @@ dependencies:
     git:
       url: https://github.com/arrrrny/zorphy.git
       path: zorphy
-      ref: "662acffeda3f34a6c9cf9cf82df08cdcb2ec5e21"
+      ref: "development"
   zorphy_annotation:
     git:
       url: https://github.com/arrrrny/zorphy.git
       path: zorphy_annotation
-      ref: "662acffeda3f34a6c9cf9cf82df08cdcb2ec5e21"
+      ref: "development"
 
   json_annotation: ^4.12.0
 
@@ -62,7 +62,10 @@ dependencies:
 dependency_overrides:
   meta: ^1.19.0
   analyzer: 14.1.0
-
+  zorphy:
+    path: ../zorphy/zorphy
+  zorphy_annotation:
+    path: ../zorphy/zorphy_annotation
 executables:
   zuraffa:
   zfa:

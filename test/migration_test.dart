@@ -51,10 +51,7 @@ void main() {
     });
 
     test('hasFindings returns false when empty', () {
-      const result = DetectorResult(
-        detectorId: 'test',
-        findings: [],
-      );
+      const result = DetectorResult(detectorId: 'test', findings: []);
       expect(result.hasFindings, isFalse);
     });
   });
@@ -133,12 +130,7 @@ void main() {
 
     test('isClean when no errors or warnings', () {
       final report = MigrationReport(
-        detectorResults: [
-          const DetectorResult(
-            detectorId: 'a',
-            findings: [],
-          ),
-        ],
+        detectorResults: [const DetectorResult(detectorId: 'a', findings: [])],
       );
       expect(report.isClean, isTrue);
     });
@@ -158,7 +150,9 @@ void main() {
     });
 
     test('detects mixed state with both domain and UI fields', () async {
-      final stateDir = Directory(p.join(tmpDir.path, 'lib', 'presentation', 'pages', 'product'));
+      final stateDir = Directory(
+        p.join(tmpDir.path, 'lib', 'presentation', 'pages', 'product'),
+      );
       await stateDir.create(recursive: true);
 
       final stateFile = File(p.join(stateDir.path, 'product_state.dart'));
@@ -188,7 +182,9 @@ class ProductState {
     });
 
     test('skips files with only UI fields', () async {
-      final stateDir = Directory(p.join(tmpDir.path, 'lib', 'presentation', 'pages', 'product'));
+      final stateDir = Directory(
+        p.join(tmpDir.path, 'lib', 'presentation', 'pages', 'product'),
+      );
       await stateDir.create(recursive: true);
 
       final stateFile = File(p.join(stateDir.path, 'product_state.dart'));
@@ -216,10 +212,12 @@ class ProductState {
       final stateDir = Directory(p.join(tmpDir.path, 'lib', 'presentation'));
       await stateDir.create(recursive: true);
 
-      await File(p.join(stateDir.path, 'product_domain_state.dart'))
-          .writeAsString('class ProductDomainState {}\n');
-      await File(p.join(stateDir.path, 'product_view_state.dart'))
-          .writeAsString('class ProductViewState {}\n');
+      await File(
+        p.join(stateDir.path, 'product_domain_state.dart'),
+      ).writeAsString('class ProductDomainState {}\n');
+      await File(
+        p.join(stateDir.path, 'product_view_state.dart'),
+      ).writeAsString('class ProductViewState {}\n');
 
       final detector = StateDetector();
       final result = await detector.detect(tmpDir.path);
@@ -311,8 +309,14 @@ executables:
       final result = await detector.detect(tmpDir.path);
 
       expect(result.hasFindings, isTrue);
-      expect(result.findings.any((f) => f.severity == MigrationSeverity.warning), isTrue);
-      expect(result.findings.any((f) => f.message.contains('analyzer')), isTrue);
+      expect(
+        result.findings.any((f) => f.severity == MigrationSeverity.warning),
+        isTrue,
+      );
+      expect(
+        result.findings.any((f) => f.message.contains('analyzer')),
+        isTrue,
+      );
     });
 
     test('no findings when no dependency_overrides', () async {
@@ -378,7 +382,9 @@ class MyPage extends ControlledWidget<MyController> {
     });
 
     test('detects gql() calls', () async {
-      final dsDir = Directory(p.join(tmpDir.path, 'lib', 'data', 'datasources'));
+      final dsDir = Directory(
+        p.join(tmpDir.path, 'lib', 'data', 'datasources'),
+      );
       await dsDir.create(recursive: true);
 
       await File(p.join(dsDir.path, 'product_ds.dart')).writeAsString("""
@@ -416,7 +422,9 @@ final getProductQuery = gql(r'''
     });
 
     test('dry-run does not write files', () async {
-      final stateDir = Directory(p.join(tmpDir.path, 'lib', 'presentation', 'pages', 'order'));
+      final stateDir = Directory(
+        p.join(tmpDir.path, 'lib', 'presentation', 'pages', 'order'),
+      );
       await stateDir.create(recursive: true);
 
       final stateFile = File(p.join(stateDir.path, 'order_state.dart'));
@@ -447,12 +455,20 @@ class OrderState {
 
       expect(result.filesCreated, equals(2));
       // No new files should exist on disk
-      expect(File(p.join(stateDir.path, 'order_domain_state.dart')).existsSync(), isFalse);
-      expect(File(p.join(stateDir.path, 'order_view_state.dart')).existsSync(), isFalse);
+      expect(
+        File(p.join(stateDir.path, 'order_domain_state.dart')).existsSync(),
+        isFalse,
+      );
+      expect(
+        File(p.join(stateDir.path, 'order_view_state.dart')).existsSync(),
+        isFalse,
+      );
     });
 
     test('wet-run creates domain and view state files', () async {
-      final stateDir = Directory(p.join(tmpDir.path, 'lib', 'presentation', 'pages', 'cart'));
+      final stateDir = Directory(
+        p.join(tmpDir.path, 'lib', 'presentation', 'pages', 'cart'),
+      );
       await stateDir.create(recursive: true);
 
       final stateFile = File(p.join(stateDir.path, 'cart_state.dart'));
@@ -483,14 +499,24 @@ class CartState {
 
       expect(result.filesCreated, equals(2));
       expect(result.filesModified, equals(1));
-      expect(File(p.join(stateDir.path, 'cart_domain_state.dart')).existsSync(), isTrue);
-      expect(File(p.join(stateDir.path, 'cart_view_state.dart')).existsSync(), isTrue);
+      expect(
+        File(p.join(stateDir.path, 'cart_domain_state.dart')).existsSync(),
+        isTrue,
+      );
+      expect(
+        File(p.join(stateDir.path, 'cart_view_state.dart')).existsSync(),
+        isTrue,
+      );
       // Verify generated domain state extends DomainState
-      final domainContent = await File(p.join(stateDir.path, 'cart_domain_state.dart')).readAsString();
+      final domainContent = await File(
+        p.join(stateDir.path, 'cart_domain_state.dart'),
+      ).readAsString();
       expect(domainContent, contains('CartDomainState'));
       expect(domainContent, contains('extends DomainState'));
       // Verify generated view state extends ChangeNotifier
-      final viewContent = await File(p.join(stateDir.path, 'cart_view_state.dart')).readAsString();
+      final viewContent = await File(
+        p.join(stateDir.path, 'cart_view_state.dart'),
+      ).readAsString();
       expect(viewContent, contains('CartViewState'));
       expect(viewContent, contains('ChangeNotifier'));
     });

@@ -422,6 +422,21 @@ export 'src/dda/plugins/route/route_plugin.dart';
 
 /// RouteGenerator — GoRouter configuration generation from @Route metadata.
 export 'src/dda/plugins/route/route_generator.dart';
+/// CacheStrategy enum, @Cacheable and @CacheInvalidate annotations.
+export 'src/dda/plugins/cache/cache_annotation.dart';
+
+/// CacheDDAPlugin — DDA plugin for @Cacheable/@CacheInvalidate processing.
+export 'src/dda/plugins/cache/cache_plugin.dart';
+
+/// CacheGenerator — generates zfa_cache.g.dart from @Cacheable metadata.
+export 'src/dda/plugins/cache/cache_generator.dart';
+export 'src/dda/plugins/middleware/middleware_annotation.dart';
+export 'src/dda/plugins/middleware/auth_plugin.dart';
+export 'src/dda/plugins/middleware/auth_generator.dart';
+export 'src/dda/plugins/middleware/retry_plugin.dart';
+export 'src/dda/plugins/middleware/retry_generator.dart';
+export 'src/dda/plugins/middleware/track_event_plugin.dart';
+export 'src/dda/plugins/middleware/track_event_generator.dart';
 
 /// DIGenerator — code_builder-based DI registration generation.
 export 'src/dda/plugins/di/di_generator.dart';
@@ -440,7 +455,10 @@ export 'src/state/presenter/slice_presenter.dart';
 export 'src/state/widgets/fragment_builder.dart';
 
 // StateMigrator — converts v5 .state.dart to v6 slice pattern.
-export 'src/state/migration/state_migrator.dart';
+export 'src/state/migration/state_migrator.dart' hide StateMigrator;
+
+// v5 -> v6 migration tooling
+export 'src/migration/migration.dart';
 
 // DomainState — auto-generated read-only slice container.
 export 'src/state/domain_state.dart';
@@ -1153,5 +1171,6 @@ class Zuraffa {
 }
 
 
-// v5 -> v6 migration tooling
-export 'src/migration/migration.dart';
+
+
+

@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
@@ -6,7 +5,6 @@ import 'package:path/path.dart' as p;
 import 'package:zuraffa/src/mcp/auth.dart';
 import 'package:zuraffa/src/mcp/capabilities/arch_capability.dart';
 import 'package:zuraffa/src/mcp/session_store.dart';
-import 'package:zuraffa/src/mcp/file_watcher.dart';
 import 'package:zuraffa/src/mcp/v2_tools.dart';
 
 void main() {
@@ -32,10 +30,11 @@ void main() {
 
     test('validates message auth', () {
       final auth = McpAuth(token: 'my-secret');
-      expect(auth.validateMessage({}, '192.168.1.1'),
-          isNot(null));
-      expect(auth.validateMessage({'auth': 'wrong'}, '192.168.1.1'),
-          isNot(null));
+      expect(auth.validateMessage({}, '192.168.1.1'), isNot(null));
+      expect(
+        auth.validateMessage({'auth': 'wrong'}, '192.168.1.1'),
+        isNot(null),
+      );
       expect(auth.validateMessage({'auth': 'my-secret'}, '192.168.1.1'), null);
       expect(auth.validateMessage({}, '127.0.0.1'), null);
       expect(auth.validateMessage({}, '::1'), null);
@@ -109,8 +108,11 @@ void main() {
     test('each tool has required inputSchema', () {
       final tools = v2ToolDefinitions();
       for (final tool in tools) {
-        expect(tool.containsKey('inputSchema'), true,
-            reason: '${tool['name']} missing inputSchema');
+        expect(
+          tool.containsKey('inputSchema'),
+          true,
+          reason: '${tool['name']} missing inputSchema',
+        );
         final schema = tool['inputSchema'] as Map<String, dynamic>;
         expect(schema['type'], 'object');
       }
@@ -156,7 +158,8 @@ void main() {
       );
       await entityDir.create(recursive: true);
       await File(p.join(entityDir.path, 'product.dart')).writeAsString(
-        r'class $Product {' '\n  final String title;\n  final double? price;\n}\n',
+        r'class $Product {'
+        '\n  final String title;\n  final double? price;\n}\n',
       );
 
       final model = await inspector.inspect();

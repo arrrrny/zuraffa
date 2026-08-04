@@ -32,7 +32,7 @@ class TestCapability {
         if (entity is! File || !entity.path.endsWith('.dart')) continue;
         final name = p.basenameWithoutExtension(entity.path);
         if (name == useCaseName ||
-            '${useCaseName.toLowerCase()}' == name.toLowerCase()) {
+            useCaseName.toLowerCase() == name.toLowerCase()) {
           ucFile = entity;
           break;
         }
@@ -59,21 +59,28 @@ class TestCapability {
     // 3. Write and run the test script with unique temp file
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final pid = ProcessInfo.currentRss; // Use RSS as pseudo-unique ID
-    final tempFile = File(p.join(projectRoot, '.zfa', '_mcp_test_runner_${timestamp}_$pid.dart'));
+    final tempFile = File(
+      p.join(projectRoot, '.zfa', '_mcp_test_runner_${timestamp}_$pid.dart'),
+    );
     try {
       await tempFile.parent.create(recursive: true);
       await tempFile.writeAsString(testScript);
 
-      final result = await Process.run(
-        'dart',
-        ['run', tempFile.path],
-        workingDirectory: projectRoot,
-      ).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          return ProcessResult(0, 124, '', 'Test execution timed out after 30 seconds');
-        },
-      );
+      final result =
+          await Process.run('dart', [
+            'run',
+            tempFile.path,
+          ], workingDirectory: projectRoot).timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              return ProcessResult(
+                0,
+                124,
+                '',
+                'Test execution timed out after 30 seconds',
+              );
+            },
+          );
 
       final stdout = result.stdout.toString();
       final stderr = result.stderr.toString();
@@ -144,7 +151,9 @@ class TestCapability {
 
     // Remove 'lib' from the start if present
     final libIndex = pathSegments.indexOf('lib');
-    final importSegments = libIndex >= 0 ? pathSegments.sublist(libIndex + 1) : pathSegments;
+    final importSegments = libIndex >= 0
+        ? pathSegments.sublist(libIndex + 1)
+        : pathSegments;
 
     // Read pubspec.yaml to get package name instead of hardcoding 'zuraffa'
     String packageName = 'zuraffa';
@@ -164,10 +173,9 @@ class TestCapability {
     final importPath = importSegments.join('/');
 
     // Pass data via base64-encoded stdin to avoid injection
-    final dataPayload = base64.encode(utf8.encode(jsonEncode({
-      'params': params,
-      'mocks': mocks,
-    })));
+    final dataPayload = base64.encode(
+      utf8.encode(jsonEncode({'params': params, 'mocks': mocks})),
+    );
 
     return '''
 import 'dart:convert';

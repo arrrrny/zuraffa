@@ -6,7 +6,6 @@ library;
 
 import 'package:go_router/go_router.dart';
 
-
 /// Marks a View class as a route with the given [path].
 ///
 /// ```dart

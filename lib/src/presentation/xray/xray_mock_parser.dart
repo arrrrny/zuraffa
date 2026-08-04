@@ -5,7 +5,8 @@ import "package:yaml/yaml.dart";
 
 import "xray_mock_entry.dart";
 import "xray_mock_parser_stub.dart"
-    if (dart.library.io) "xray_mock_parser_io.dart" as platform;
+    if (dart.library.io) "xray_mock_parser_io.dart"
+    as platform;
 
 /// Parses mock scenarios from a YAML file or string.
 ///
@@ -77,4 +78,3 @@ class XRayMockParser {
     ];
   }
 }
-

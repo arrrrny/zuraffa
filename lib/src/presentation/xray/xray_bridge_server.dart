@@ -89,9 +89,9 @@ class XRayBridgeServer {
     int port = defaultPort,
     String? authToken,
     bool localhostOnly = true,
-  })  : _port = port,
-        _authToken = authToken,
-        _localhostOnly = localhostOnly;
+  }) : _port = port,
+       _authToken = authToken,
+       _localhostOnly = localhostOnly;
 
   /// Start the bridge server.
   ///
@@ -319,46 +319,44 @@ class XRayBridgeServer {
     if (scope == null) {
       // Reject upgrade — no scope to stream
       request.response.statusCode = 503;
-      request.response.write(jsonEncode({
-        'error': 'No active scope',
-      }));
+      request.response.write(jsonEncode({'error': 'No active scope'}));
       request.response.close();
       return;
     }
 
     // Accept the WebSocket upgrade
     final wsFuture = WebSocketTransformer.upgrade(request);
-    wsFuture.then((webSocket) {
-      // Send initial tree snapshot
-      final tree = serializeXRayTree(scope);
-      webSocket.add(jsonEncode({
-        'type': 'snapshot',
-        'data': tree.toJson(),
-      }));
+    wsFuture
+        .then((webSocket) {
+          // Send initial tree snapshot
+          final tree = serializeXRayTree(scope);
+          webSocket.add(
+            jsonEncode({'type': 'snapshot', 'data': tree.toJson()}),
+          );
 
-      // Subscribe to tree diffs
-      StreamSubscription<XRayTreeDiff>? subscription;
-      subscription = XRayBridgeStream.stream.listen((diff) {
-        if (webSocket.readyState == WebSocket.open) {
-          try {
-            webSocket.add(jsonEncode({
-              'type': 'diff',
-              'data': diff.toJson(),
-            }));
-          } catch (e) {
-            // WebSocket write failed, cancel subscription
+          // Subscribe to tree diffs
+          StreamSubscription<XRayTreeDiff>? subscription;
+          subscription = XRayBridgeStream.stream.listen((diff) {
+            if (webSocket.readyState == WebSocket.open) {
+              try {
+                webSocket.add(
+                  jsonEncode({'type': 'diff', 'data': diff.toJson()}),
+                );
+              } catch (e) {
+                // WebSocket write failed, cancel subscription
+                subscription?.cancel();
+              }
+            }
+          });
+
+          // Clean up on close
+          webSocket.done.whenComplete(() {
             subscription?.cancel();
-          }
-        }
-      });
-
-      // Clean up on close
-      webSocket.done.whenComplete(() {
-        subscription?.cancel();
-      });
-    }).catchError((e) {
-      stderr.writeln('[xray-bridge] WebSocket upgrade error: $e');
-    });
+          });
+        })
+        .catchError((e) {
+          stderr.writeln('[xray-bridge] WebSocket upgrade error: $e');
+        });
   }
 
   // ----------------------------------------------------------------
