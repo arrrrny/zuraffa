@@ -21,9 +21,11 @@ class NamingUtils {
   ///
   /// Rules (applied in order):
   /// 1. Strip the `.graphql` extension if present.
-  /// 2. Replace non-alphanumeric separators (`_`, `-`, spaces) with
-  ///    `_`, then split on `_`.
-  /// 3. Lower-case the first segment; title-case every subsequent
+  /// 2. Replace all non-alphanumeric characters (including `.`, `_`,
+  ///    `-`, spaces) with `_`, then split on `_`.
+  /// 3. For a single segment: lowercase only the first character,
+  ///    preserving internal casing. For multiple segments: fully
+  ///    lowercase the first segment; title-case every subsequent
   ///    segment (first char upper, rest lower).
   /// 4. Concatenate all segments.
   ///
@@ -36,6 +38,8 @@ class NamingUtils {
   /// NamingUtils.documentVarName('get-todo')       // 'getTodo'
   /// NamingUtils.documentVarName('all products')   // 'allProducts'
   /// NamingUtils.documentVarName('get_todo.graphql') // 'getTodo'
+  /// NamingUtils.documentVarName('get.todo.graphql') // 'getTodo'
+  /// NamingUtils.documentVarName('MyHTTPServer')   // 'myHTTPServer'
   /// ```
   static String documentVarName(String fileName) {
     // 1. Strip .graphql extension
@@ -44,21 +48,33 @@ class NamingUtils {
       base = base.substring(0, base.length - 7);
     }
 
-    // 2. Replace hyphens and spaces with underscores, split
-    final normalized = base.replaceAll('-', '_').replaceAll(' ', '_');
+    // 2. Replace all non-alphanumeric characters with underscores, split
+    final normalized = base.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
     final parts = normalized.split('_').where((s) => s.isNotEmpty).toList();
 
     if (parts.isEmpty) return '';
 
-    // 3. First segment: lowercase; rest: title-case
+    // 3. First segment: lowercase first char only; rest: title-case
     final buffer = StringBuffer();
-    buffer.write(parts[0].toLowerCase());
-    for (var i = 1; i < parts.length; i++) {
-      final part = parts[i];
-      if (part.isEmpty) continue;
-      buffer.write(part[0].toUpperCase());
-      if (part.length > 1) {
-        buffer.write(part.substring(1).toLowerCase());
+    if (parts.length == 1) {
+      // Single segment: lowercase only the first character, preserve rest
+      final first = parts[0];
+      if (first.isNotEmpty) {
+        buffer.write(first[0].toLowerCase());
+        if (first.length > 1) {
+          buffer.write(first.substring(1));
+        }
+      }
+    } else {
+      // Multiple segments: fully lowercase first, title-case rest
+      buffer.write(parts[0].toLowerCase());
+      for (var i = 1; i < parts.length; i++) {
+        final part = parts[i];
+        if (part.isEmpty) continue;
+        buffer.write(part[0].toUpperCase());
+        if (part.length > 1) {
+          buffer.write(part.substring(1).toLowerCase());
+        }
       }
     }
 
