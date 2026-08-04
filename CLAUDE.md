@@ -26,6 +26,8 @@ Dart 3.11+ / Flutter 3.41+: Follow standard conventions
 
 - 001-hotel-booking-system: Added Dart 3.11+ / Flutter 3.41+ + Zuraffa framework, Zorphy entity generation, GetIt DI, GoRouter navigation, Hive local storage for mock data persistence
 
+- 013-plugin-usecase-abstraction: Added DI override support (`override: true` on ZuraffaDIContainer), UseCase interceptor pipeline (InterceptorRegistry, InterceptableUseCase), UseCase contract codegen (UseCaseContractFactory), and `zfa plugin add` CLI action.
+
 <!-- MANUAL ADDITIONS START -->
 ## OpenWiki
 
