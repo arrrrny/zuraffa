@@ -47,7 +47,7 @@ class RouteGenerator {
     bool deepLinkAware = false,
     String? parentPath,
     Map<String, String> queryParameters = const {},
-    List<String> middleware = const {},
+    List<String> middleware = const [],
     Map<String, String> middlewareImports = const {},
   }) {
     final pathParams = _extractPathParams(path);
@@ -90,15 +90,9 @@ class RouteGenerator {
           }
         }
       }
-      b.directives.add(
-        cb.Directive.import('package:go_router/go_router.dart'),
-      );
-      b.directives.add(
-        cb.Directive.import('package:flutter/material.dart'),
-      );
-      b.directives.add(
-        cb.Directive.import('package:zuraffa/zuraffa.dart'),
-      );
+      b.directives.add(cb.Directive.import('package:go_router/go_router.dart'));
+      b.directives.add(cb.Directive.import('package:flutter/material.dart'));
+      b.directives.add(cb.Directive.import('package:zuraffa/zuraffa.dart'));
       for (final uri in viewImports) {
         b.directives.add(cb.Directive.import(uri));
       }
@@ -259,9 +253,7 @@ class RouteGenerator {
       case 'bool':
         return "$name: $source == 'true'";
       default:
-        return isPath
-            ? "$name: $source!"
-            : "$name: $source ?? ''";
+        return isPath ? "$name: $source!" : "$name: $source ?? ''";
     }
   }
 
@@ -320,7 +312,9 @@ class RouteGenerator {
           "    if (state.matchedLocation == '${r.from}') return '${r.to}';",
         );
       }
-      goRouterParts.add('  // Auto-redirect rules from @ZfaRoute.redirect annotations');
+      goRouterParts.add(
+        '  // Auto-redirect rules from @ZfaRoute.redirect annotations',
+      );
       goRouterParts.add('  redirect: (context, state) {');
       goRouterParts.addAll(redirectParts);
       goRouterParts.add('    return null;');
@@ -355,15 +349,11 @@ class RouteGenerator {
     // Builder
     final hasParams = route.hasParams;
     if (hasParams) {
-      lines.add(
-        '${pad}  builder: (context, state) {',
-      );
+      lines.add('${pad}  builder: (context, state) {');
       lines.add(
         '${pad}    final params = ${route.className}RouteParams.fromGoRouterState(state);',
       );
-      lines.add(
-        '${pad}    return ${route.className}(params);',
-      );
+      lines.add('${pad}    return ${route.className}(params);');
       lines.add('${pad}  },');
     } else {
       lines.add(

@@ -8,11 +8,10 @@ void main() {
       gen.addCacheableMethod(
         className: 'ProductRepositoryImpl',
         methodName: 'getProduct',
-        importUri: 'package:myapp/data/repositories/product_repository_impl.dart',
+        importUri:
+            'package:myapp/data/repositories/product_repository_impl.dart',
         returnType: 'Future<Product>',
-        parameters: [
-          const ParameterInfo(name: 'id', type: 'String'),
-        ],
+        parameters: [const ParameterInfo(name: 'id', type: 'String')],
         ttl: const Duration(hours: 1),
       );
 
@@ -32,7 +31,8 @@ void main() {
       gen.addCacheableMethod(
         className: 'ProductRepositoryImpl',
         methodName: 'getProductList',
-        importUri: 'package:myapp/data/repositories/product_repository_impl.dart',
+        importUri:
+            'package:myapp/data/repositories/product_repository_impl.dart',
         returnType: 'Future<List<Product>>',
         parameters: const [],
         strategy: CacheStrategy.offlineFirst,
@@ -51,7 +51,8 @@ void main() {
       gen.addCacheableMethod(
         className: 'CategoryRepositoryImpl',
         methodName: 'getCategories',
-        importUri: 'package:myapp/data/repositories/category_repository_impl.dart',
+        importUri:
+            'package:myapp/data/repositories/category_repository_impl.dart',
         returnType: 'Future<List<Category>>',
         parameters: const [],
         strategy: CacheStrategy.networkFirst,
@@ -70,7 +71,8 @@ void main() {
       gen.addCacheableMethod(
         className: 'ConfigRepositoryImpl',
         methodName: 'getCachedConfig',
-        importUri: 'package:myapp/data/repositories/config_repository_impl.dart',
+        importUri:
+            'package:myapp/data/repositories/config_repository_impl.dart',
         returnType: 'Future<Config?>',
         parameters: const [],
         strategy: CacheStrategy.cacheOnly,
@@ -105,8 +107,10 @@ void main() {
       gen.addInvalidatorMethod(
         className: 'ProductRepositoryImpl',
         methodName: 'updateProduct',
-        importUri: 'package:myapp/data/repositories/product_repository_impl.dart',
+        importUri:
+            'package:myapp/data/repositories/product_repository_impl.dart',
         methods: ['getProduct', 'getProductList'],
+        parameters: const [],
       );
 
       final output = gen.generate();
@@ -124,9 +128,7 @@ void main() {
         methodName: 'getUser',
         importUri: 'package:myapp/data/repositories/user_repository_impl.dart',
         returnType: 'Future<User>',
-        parameters: [
-          const ParameterInfo(name: 'id', type: 'String'),
-        ],
+        parameters: [const ParameterInfo(name: 'id', type: 'String')],
         ttl: const Duration(minutes: 30),
       );
 
@@ -143,11 +145,10 @@ void main() {
       gen.addCacheableMethod(
         className: 'ProductRepositoryImpl',
         methodName: 'getProduct',
-        importUri: 'package:myapp/data/repositories/product_repository_impl.dart',
+        importUri:
+            'package:myapp/data/repositories/product_repository_impl.dart',
         returnType: 'Future<Product>',
-        parameters: [
-          const ParameterInfo(name: 'id', type: 'String'),
-        ],
+        parameters: [const ParameterInfo(name: 'id', type: 'String')],
         keyPrefix: 'product_detail',
       );
 
@@ -197,11 +198,10 @@ void main() {
         gen.addCacheableMethod(
           className: 'ProductRepositoryImpl',
           methodName: 'getProduct',
-          importUri: 'package:myapp/data/repositories/product_repository_impl.dart',
+          importUri:
+              'package:myapp/data/repositories/product_repository_impl.dart',
           returnType: 'Future<Product>',
-          parameters: [
-            const ParameterInfo(name: 'id', type: 'String'),
-          ],
+          parameters: [const ParameterInfo(name: 'id', type: 'String')],
           ttl: const Duration(hours: 1),
         );
 
@@ -209,7 +209,8 @@ void main() {
         gen.addCacheableMethod(
           className: 'ProductRepositoryImpl',
           methodName: 'getProductList',
-          importUri: 'package:myapp/data/repositories/product_repository_impl.dart',
+          importUri:
+              'package:myapp/data/repositories/product_repository_impl.dart',
           returnType: 'Future<List<Product>>',
           parameters: const [],
           strategy: CacheStrategy.offlineFirst,
@@ -219,8 +220,10 @@ void main() {
         gen.addInvalidatorMethod(
           className: 'ProductRepositoryImpl',
           methodName: 'updateProduct',
-          importUri: 'package:myapp/data/repositories/product_repository_impl.dart',
+          importUri:
+              'package:myapp/data/repositories/product_repository_impl.dart',
           methods: ['getProduct', 'getProductList'],
+          parameters: const [],
         );
 
         final output = gen.generate();
