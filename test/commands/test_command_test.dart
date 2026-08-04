@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:zuraffa/src/commands/test_command.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/plugins/test/test_plugin.dart';

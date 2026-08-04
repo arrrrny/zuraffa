@@ -1,5 +1,5 @@
 import 'package:zuraffa/zuraffa.dart';
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 
 /// Matcher that checks if a Result is a Success
 Matcher isSuccess<T>() => _IsSuccessMatcher<T>();

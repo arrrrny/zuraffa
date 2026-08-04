@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:zuraffa/zuraffa.dart';
 
 /// Golden test: N-use-case presenter -> N slices generated in .state.dart

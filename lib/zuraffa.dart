@@ -13,7 +13,7 @@ import 'src/core/module/contracts.dart';
 
 /// Zuraffa
 ///
-/// A comprehensive Clean Architecture framework for Flutter applications
+/// A comprehensive Clean Architecture framework for Dart and Flutter applications
 /// with Result-based error handling, dependency injection, and minimal boilerplate.
 ///
 /// ## Overview
@@ -119,21 +119,16 @@ import 'src/core/module/contracts.dart';
 /// }
 /// ```
 
-import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
-import 'package:provider/provider.dart';
 
-import 'src/presentation/controller.dart';
 
 // ============================================================
 // Core - Error Handling & Utilities
 // ============================================================
 
 /// Re-exported essential packages so users don't need separate dependencies
-export 'package:go_router/go_router.dart';
 export 'package:get_it/get_it.dart';
 export 'package:hive_ce/hive_ce.dart';
-export 'package:hive_ce_flutter/hive_ce_flutter.dart';
 
 /// Result type for type-safe success/failure handling
 export 'src/core/result.dart';
@@ -305,41 +300,24 @@ export 'src/domain/observer.dart';
 // ============================================================
 
 /// Controller for state management
-export 'src/presentation/controller.dart';
 
 /// Presenter for complex orchestration (optional)
-export 'src/presentation/presenter.dart';
 
 /// CleanView and CleanViewState base classes
-export 'src/presentation/view.dart';
-export 'src/presentation/xray/xray.dart';
 
 /// ResponsiveViewState for responsive layouts
-export 'src/presentation/responsive_view.dart';
 
 /// AdaptiveViewState for platform/device-aware layouts
-export 'src/presentation/adaptive_view.dart';
 
 /// ControlledWidgetBuilder and variants
-export 'src/presentation/controlled_widget.dart';
 
 // ============================================================
 // Platform-Aware Presentation
 // ============================================================
 
 /// Device and platform classification for adaptive layouts
-export 'src/presentation/platform/device_class.dart';
-export 'src/presentation/platform/platform_class.dart';
-export 'src/presentation/platform/platform_context.dart';
-export 'src/presentation/platform/platform_layout_resolver.dart';
 
 /// Adaptive application shells
-export 'src/presentation/shells/app_shell.dart';
-export 'src/presentation/shells/app_shell_resolver.dart';
-export 'src/presentation/shells/mobile_app_shell.dart';
-export 'src/presentation/shells/tablet_app_shell.dart';
-export 'src/presentation/shells/desktop_app_shell.dart';
-export 'src/presentation/shells/macos_app_shell.dart';
 
 // ============================================================
 // Extensions
@@ -456,7 +434,6 @@ export 'src/state/slices/signal_slice.dart';
 export 'src/state/presenter/slice_presenter.dart';
 
 // FragmentBuilder — widget subscribing to a single slice.
-export 'src/state/widgets/fragment_builder.dart';
 
 // StateMigrator — converts v5 .state.dart to v6 slice pattern.
 // The StateMigrator class is hidden from public API but remains accessible
@@ -488,13 +465,10 @@ export 'src/state/cache/cache_binding.dart';
 export 'src/state/generator/cache_binding_generator.dart';
 
 // ControlledWidget — base widget with typed controller and lifecycle hooks.
-export 'src/state/widgets/controlled_widget.dart';
 
 // SignalBuilder — rebuilds on pure UI Signal changes.
-export 'src/state/widgets/signal_builder.dart';
 
 // ViewTemplateGenerator — generates ControlledWidget-based views.
-export 'src/state/generator/view_template_generator.dart';
 
 // ============================================================
 // V6 GraphQL Core
@@ -584,7 +558,13 @@ export 'src/graphql/codegen/graphql_generate_command.dart';
 /// Runtime contracts for the micro-frontend plugin architecture.
 /// [ZuraffaPlugin], [ZuraffaEngine], [ZuraffaDIContainer],
 /// [ZuraffaRouteBuilder], and [ZuraffaAppRunner].
-export 'src/core/module/contracts.dart';
+/// Runtime contracts for the micro-frontend plugin architecture (Dart-only parts).
+/// [ZuraffaPlugin], [ZuraffaEngine], [ZuraffaDIContainer] ship here.
+/// [ZuraffaRouteBuilder] is a platform-agnostic typedef. [ZuraffaAppRunner] is in zuraffa_flutter.
+export 'src/core/module/route_builder.dart';
+export 'src/core/module/di_container.dart';
+export 'src/core/module/engine.dart';
+export 'src/core/module/zuraffa_plugin.dart';
 
 // ============================================================
 // Framework Configuration
@@ -708,35 +688,6 @@ class Zuraffa {
     }
   }
 
-  /// Retrieve a [Controller] from the widget tree.
-  ///
-  /// Use this to access a Controller from widgets that are children
-  /// of a [CleanViewState].
-  ///
-  /// Set [listen] to `false` if you don't need to rebuild when the
-  /// Controller changes (e.g., for event handlers).
-  ///
-  /// ## Example
-  /// ```dart
-  /// // In a child widget
-  /// final controller = Zuraffa.getController<MyController>(context);
-  /// controller.doSomething();
-  ///
-  /// // Without listening (for callbacks)
-  /// onPressed: () {
-  ///   final controller = Zuraffa.getController<MyController>(
-  ///     context,
-  ///     listen: false,
-  ///   );
-  ///   controller.handleButtonPress();
-  /// }
-  /// ```
-  static Con getController<Con extends Controller>(
-    BuildContext context, {
-    bool listen = true,
-  }) {
-    return Provider.of<Con>(context, listen: listen);
-  }
 
   /// Enable debug logging for the framework.
   ///

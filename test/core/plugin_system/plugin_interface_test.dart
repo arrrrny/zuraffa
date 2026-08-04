@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:zuraffa/src/models/generated_file.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/core/plugin_system/plugin_context.dart';

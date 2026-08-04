@@ -4,7 +4,8 @@
 /// `zfa build` to auto-generate the complete GoRouter configuration.
 library;
 
-import 'package:go_router/go_router.dart';
+// Map<String, dynamic> /* GoRouterState */ is available in Flutter consumers via go_router package.
+// The annotation stores route metadata as plain strings.
 
 /// Marks a View class as a route with the given [path].
 ///
@@ -110,28 +111,28 @@ typedef Route = ZfaRoute;
 /// ```dart
 /// class AuthGuard extends ZuraffaRouteGuard {
 ///   @override
-///   Future<bool> canActivate(GoRouterState state) async {
+///   Future<bool> canActivate(Map<String, dynamic> /* GoRouterState */ state) async {
 ///     final isLoggedIn = await AuthService.instance.isAuthenticated;
 ///     return isLoggedIn;
 ///   }
 ///
 ///   @override
-///   String onRejected(GoRouterState state) => '/login';
+///   String onRejected(Map<String, dynamic> /* GoRouterState */ state) => '/login';
 /// }
 /// ```
 abstract class ZuraffaRouteGuard {
   /// Whether the route may be activated for the given [state].
-  Future<bool> canActivate(GoRouterState state);
+  Future<bool> canActivate(Map<String, dynamic> /* GoRouterState */ state);
 
   /// The path to redirect to when [canActivate] returns `false`.
-  String onRejected(GoRouterState state);
+  String onRejected(Map<String, dynamic> /* GoRouterState */ state);
 }
 
 /// Base class for generated route parameter classes.
 ///
 /// Each `@ZfaRoute(path: '/products/:id')` with path parameters gets a
 /// generated `ProductDetailRouteParams extends RouteParams` with
-/// typed fields and `fromGoRouterState` factory.
+/// typed fields and `fromMap<String, dynamic> /* GoRouterState */` factory.
 abstract class RouteParams {
   const RouteParams();
 }

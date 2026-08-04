@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:zuraffa/zuraffa.dart';
 
 /// A simple UseCase for testing that returns a value.

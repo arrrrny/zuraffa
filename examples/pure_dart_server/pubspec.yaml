@@ -1,0 +1,11 @@
+name: zuraffa_pure_dart_example
+description: Example pure Dart server/CLI using zuraffa without Flutter.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  zuraffa:
+    path: ../../

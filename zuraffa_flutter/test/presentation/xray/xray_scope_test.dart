@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zuraffa/src/presentation/xray/xray_mode.dart';
-import 'package:zuraffa/src/presentation/xray/xray_scope.dart';
-import 'package:zuraffa/src/presentation/xray/xray_node.dart';
+import 'package:zuraffa_flutter/src/presentation/xray/xray_mode.dart';
+import 'package:zuraffa_flutter/src/presentation/xray/xray_scope.dart';
+import 'package:zuraffa_flutter/src/presentation/xray/xray_node.dart';
 
 enum TestViewNode { actionButton, editButton }
 

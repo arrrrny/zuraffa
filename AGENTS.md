@@ -182,7 +182,7 @@ For a user coming from older Zuraffa docs, the shortest correct explanation is:
 <!-- SPECKIT START -->
 
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read specs/013-plugin-usecase-abstraction/plan.md
+shell commands, and other important information, read specs/014-pure-dart-core-split/spec.md
 
 ## OpenWiki
 

@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:zuraffa/zuraffa.dart' hide ZuraffaPlugin;
 import 'package:zuraffa/src/core/plugin_system/plugin_context.dart';
 import 'package:zuraffa/src/core/plugin_system/discovery_engine.dart';

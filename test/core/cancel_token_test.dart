@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:zuraffa/zuraffa.dart';
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 
 void main() {
   group('CancelToken', () {

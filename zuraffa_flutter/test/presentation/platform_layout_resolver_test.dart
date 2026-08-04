@@ -1,8 +1,8 @@
-import 'package:flutter_test/flutter_test.dart';
-import 'package:zuraffa/src/presentation/platform/device_class.dart';
-import 'package:zuraffa/src/presentation/platform/platform_class.dart';
-import 'package:zuraffa/src/presentation/platform/platform_context.dart';
-import 'package:zuraffa/src/presentation/platform/platform_layout_resolver.dart';
+import 'package:test/test.dart';
+import 'package:zuraffa_flutter/src/presentation/platform/device_class.dart';
+import 'package:zuraffa_flutter/src/presentation/platform/platform_class.dart';
+import 'package:zuraffa_flutter/src/presentation/platform/platform_context.dart';
+import 'package:zuraffa_flutter/src/presentation/platform/platform_layout_resolver.dart';
 
 void main() {
   group('DeviceClass', () {

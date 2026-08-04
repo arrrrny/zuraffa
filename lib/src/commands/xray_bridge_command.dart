@@ -1,19 +1,13 @@
 // X-Ray Bridge CLI command.
 //
-// Usage:
-//   zfa xray bridge              Start the X-Ray bridge (default port 8471)
-//   zfa xray bridge --port=9000  Custom port
-//   zfa xray bridge --token=secret   Require Bearer token for auth
-//   zfa xray bridge --remote     Bind to 0.0.0.0 instead of localhost
+// The bridge server requires Flutter (it communicates with the widget tree).
+// This command is retained in zuraffa so `zfa xray bridge` exists in the CLI,
+// but it prints a guidance message directing users to zuraffa_flutter.
 
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
-
-import '../presentation/xray/xray_bridge_server.dart';
-import '../presentation/xray/xray_mode.dart';
 
 /// CLI subcommand for the X-Ray bridge server.
 class XrayBridgeCommand extends Command<void> {
@@ -24,13 +18,14 @@ class XrayBridgeCommand extends Command<void> {
   String get description =>
       'Start the X-Ray bridge server for AI agent inspection';
 
+  static const int _defaultPort = 8471;
+
   XrayBridgeCommand() {
     argParser.addOption(
       'port',
       abbr: 'p',
-      help:
-          'Port to bind the bridge server (default: ${XRayBridgeServer.defaultPort})',
-      defaultsTo: '${XRayBridgeServer.defaultPort}',
+      help: 'Port to bind the bridge server (default: $_defaultPort)',
+      defaultsTo: '$_defaultPort',
     );
     argParser.addOption(
       'token',
@@ -66,7 +61,6 @@ class XrayBridgeCommand extends Command<void> {
 
     final token = argResults!['token'] as String?;
     final remote = argResults!['remote'] as bool;
-    final localhostOnly = !remote;
 
     if (remote && token == null) {
       throw UsageException(
@@ -75,8 +69,9 @@ class XrayBridgeCommand extends Command<void> {
       );
     }
 
-    // Check if X-Ray mode is enabled
-    final configFile = File(XRayMode.configPath);
+    // Check if X-Ray is enabled via config file.
+    const configPath = '.dart_tool/zuraffa/xray.json';
+    final configFile = File(configPath);
     bool xrayEnabled = false;
     if (configFile.existsSync()) {
       try {
@@ -84,80 +79,35 @@ class XrayBridgeCommand extends Command<void> {
         final config = jsonDecode(content) as Map<String, dynamic>;
         xrayEnabled = config['enabled'] == true;
       } catch (_) {
-        // Ignore malformed config
+        // Ignore malformed config.
       }
     }
 
     if (!xrayEnabled) {
-      print('X-Ray mode is not enabled. The bridge will still start,');
-      print('but /xray/tree will return 503 until X-Ray is activated.');
+      print('X-Ray mode is not enabled.');
       print('Run: zfa xray enable');
       print('');
     }
 
-    final server = XRayBridgeServer(
-      port: port,
-      authToken: token,
-      localhostOnly: localhostOnly,
-    );
-
-    // Handle SIGINT / SIGTERM for graceful shutdown
-    final completer = Completer<void>();
-    ProcessSignal.sigint.watch().listen((_) {
-      print('');
-      print('Shutting down X-Ray bridge...');
-      server.stop().then((_) {
-        if (!completer.isCompleted) {
-          completer.complete();
-        }
-        exit(0);
-      });
-    });
-
-    if (!Platform.isWindows) {
-      ProcessSignal.sigterm.watch().listen((_) {
-        server.stop().then((_) {
-          if (!completer.isCompleted) {
-            completer.complete();
-          }
-          exit(0);
-        });
-      });
-    }
-
-    int actualPort;
-    try {
-      actualPort = await server.start();
-    } on SocketException catch (e) {
-      print('Failed to start X-Ray bridge: ${e.message}');
-      print('Port $port may already be in use or unavailable.');
-      return;
-    }
-
-    if (actualPort < 0) {
-      print('X-Ray bridge cannot start in release mode.');
-      return;
-    }
-
-    final bindAddr = localhostOnly ? '127.0.0.1' : '0.0.0.0';
+    // The bridge server communicates with the Flutter widget tree and
+    // therefore lives in the zuraffa_flutter package.
+    // To start it, call XRayBridgeServer.start() from your Flutter app
+    // after registering ZuraffaFlutterPlugin.
+    print('The X-Ray bridge server runs inside the Flutter app process.');
+    print('Make sure your app depends on zuraffa_flutter and calls:');
     print('');
-    print('  X-Ray Bridge running');
-    print('  ─────────────────────────────');
-    print('  Endpoints:');
-    print('    GET  http://$bindAddr:$actualPort/xray/tree');
-    print('    POST http://$bindAddr:$actualPort/xray/action');
-    print('    POST http://$bindAddr:$actualPort/xray/control-deck');
-    print('    WS   ws://$bindAddr:$actualPort/xray/ws');
+    print('  XRayBridgeServer(port: $port).start();');
+    print('');
+    print('The bridge will be available at:');
+    final bindAddr = remote ? '0.0.0.0' : '127.0.0.1';
+    print('  GET  http://$bindAddr:$port/xray/tree');
+    print('  POST http://$bindAddr:$port/xray/action');
+    print('  POST http://$bindAddr:$port/xray/control-deck');
+    print('  WS   ws://$bindAddr:$port/xray/ws');
     if (token != null) {
       print('  Auth: Bearer token required');
     } else {
       print('  Auth: localhost-only (no token)');
     }
-    print('');
-    print('  Press Ctrl+C to stop.');
-    print('');
-
-    // Keep alive
-    await completer.future;
   }
 }
