@@ -61,6 +61,7 @@ class ModuleCommand extends Command<void> {
     final featureName = rest.first;
     final outputDir = argResults!['output'] as String;
     final dryRun = argResults!['dry-run'] as bool;
+    final force = argResults!['force'] as bool;
     final verbose = argResults!['verbose'] as bool;
 
     final packageName = 'zuraffa_feature_${_toSnake(featureName)}';
@@ -69,6 +70,13 @@ class ModuleCommand extends Command<void> {
     if (verbose) {
       print('Scaffolding feature package: $packageName');
       print('  Directory: $packageDir');
+    }
+
+    // Check if package already exists
+    if (!force && Directory(packageDir).existsSync()) {
+      print('Error: Package directory already exists: $packageDir');
+      print('Use --force to overwrite existing files.');
+      return;
     }
 
     if (!dryRun) {
@@ -88,14 +96,21 @@ class ModuleCommand extends Command<void> {
 
       _writePubspec(packageDir, packageName, verbose);
       _writeAnalysisOptions(packageDir);
-      _writeBarrel(packageDir, packageName);
-      _writePlaceholderFiles(packageDir, verbose);
+      _writeBarrel(packageDir, featureName);
+      _writePlaceholderFiles(packageDir, featureName, verbose);
     }
 
     print('  Feature package $packageName scaffolded successfully.');
   }
 
   void _writePubspec(String dir, String packageName, bool verbose) {
+    // Calculate relative path from generated package to zuraffa package
+    final packageDirUri = Uri.directory(dir);
+    final zuraffaDirUri = Uri.directory(Directory.current.path);
+    final relativePath = packageDirUri.toFilePath().endsWith('/')
+        ? zuraffaDirUri.toFilePath().replaceAll(packageDirUri.toFilePath(), '../')
+        : '../';
+
     final content = '''
 name: $packageName
 description: Zuraffa feature package: ${_toSnake(packageName)}
@@ -110,7 +125,7 @@ dependencies:
   flutter:
     sdk: flutter
   zuraffa:
-    path: ../
+    path: $relativePath
 
 flutter:
   uses-material-design: true
@@ -122,6 +137,7 @@ dependency_overrides:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_lints: ^6.0.0
   mocktail: ^1.0.4
 ''';
     File('$dir/pubspec.yaml').writeAsStringSync(content);
@@ -133,17 +149,18 @@ dev_dependencies:
         .writeAsStringSync('include: package:flutter_lints/flutter.yaml\n');
   }
 
-  void _writeBarrel(String dir, String packageName) {
-    final snake = _toSnake(packageName);
-    File('$dir/lib/$snake.dart').writeAsStringSync(
+  void _writeBarrel(String dir, String featureName) {
+    final snake = _toSnake(featureName);
+    final packageName = 'zuraffa_feature_$snake';
+    File('$dir/lib/zuraffa_feature_$snake.dart').writeAsStringSync(
       '/// Feature package: $packageName\nlibrary;\n\n'
       "export 'src/plugin/${snake}_feature_plugin.dart';\n",
     );
   }
 
-  void _writePlaceholderFiles(String dir, bool verbose) {
-    final snake = _toSnake(dir.split('/').last);
-    final className = '${_toPascal(snake)}FeaturePlugin';
+  void _writePlaceholderFiles(String dir, String featureName, bool verbose) {
+    final snake = _toSnake(featureName);
+    final className = '${_toPascal(featureName)}FeaturePlugin';
     File('$dir/lib/src/plugin/${snake}_feature_plugin.dart')
         .writeAsStringSync('''
 import 'package:flutter/material.dart';

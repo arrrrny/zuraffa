@@ -1,8 +1,5 @@
-import 'package:args/command_runner.dart';
-
 import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
-import '../../core/plugin_system/cli_aware_plugin.dart';
 import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/plugin_context.dart';
 import '../../models/generated_file.dart';
@@ -14,8 +11,7 @@ import '../module/capabilities/create_module_capability.dart';
 ///
 /// The generated plugin wires the feature's DI registrations and
 /// route map into the ZuraffaEngine lifecycle.
-class ModuleGeneratorPlugin extends FileGeneratorPlugin
-    implements CliAwarePlugin {
+class ModuleGeneratorPlugin extends FileGeneratorPlugin {
   final String outputDir;
   final GeneratorOptions options;
 
@@ -28,12 +24,6 @@ class ModuleGeneratorPlugin extends FileGeneratorPlugin
   List<ZuraffaCapability> get capabilities => [
         CreateModuleCapability(this),
       ];
-
-  @override
-  Command createCommand() => throw UnimplementedError(
-        'ModuleGeneratorPlugin has no standalone CLI command. '
-        'Use "zfa module <Name>" instead.',
-      );
 
   @override
   String get id => 'module';
@@ -67,7 +57,11 @@ class ModuleGeneratorPlugin extends FileGeneratorPlugin
   }) async {
     final builder = ModuleOrchestratorBuilder(
       outputDir: config.outputDir,
-      options: options,
+      options: GeneratorOptions(
+        dryRun: config.dryRun,
+        force: config.force,
+        verbose: config.verbose,
+      ),
     );
     return builder.generate(config);
   }

@@ -44,7 +44,7 @@ class ModuleOrchestratorBuilder {
                     ..name = 'pluginId'
                     ..type = MethodType.getter
                     ..returns = refer('String')
-                    ..body = Code("'$_snake(featureName)'"),
+                    ..body = Code("'${_snake(featureName)}'"),
                 ),
                 Method(
                   (m) => m
@@ -73,7 +73,7 @@ class ModuleOrchestratorBuilder {
                     ..body = Code(
                       "// TODO: expose this feature's routes.\n"
                       "return {\n"
-                      "  '/$_snake(featureName)': (context, args) => const SizedBox(),\n"
+                      "  '/${_snake(featureName)}': (context, args) => const SizedBox(),\n"
                       "};",
                     ),
                 ),

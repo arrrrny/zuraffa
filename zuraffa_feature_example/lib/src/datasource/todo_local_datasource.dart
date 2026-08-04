@@ -2,12 +2,14 @@
 class TodoLocalDataSource {
   final List<Map<String, dynamic>> _store = [];
 
-  /// Returns all stored todo items.
-  List<Map<String, dynamic>> getAll() => List.unmodifiable(_store);
+  /// Returns all stored todo items as immutable snapshots.
+  List<Map<String, dynamic>> getAll() => List.unmodifiable(
+        _store.map((todo) => Map<String, dynamic>.unmodifiable(todo)),
+      );
 
   /// Adds a [todo] to the store and returns its index.
   int add(Map<String, dynamic> todo) {
-    _store.add(todo);
+    _store.add(Map<String, dynamic>.from(todo));
     return _store.length - 1;
   }
 

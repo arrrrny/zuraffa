@@ -123,7 +123,7 @@ class ZuraffaDIContainer {
   ///
   /// Call this only during test teardown or full application
   /// re-initialisation.
-  void reset() {
-    getIt.reset();
+  Future<void> reset() {
+    return getIt.reset();
   }
 }

@@ -44,7 +44,9 @@ class ZuraffaAppRunner extends StatelessWidget {
 
     return MaterialApp(
       home: builder != null
-          ? builder(context, null)
+          ? Builder(
+              builder: (context) => builder(context, null),
+            )
           : const _PlaceholderHome(),
     );
   }

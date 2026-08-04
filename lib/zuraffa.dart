@@ -258,6 +258,9 @@ export 'src/core/builder/patterns/usecase_patterns.dart';
 export 'src/core/builder/patterns/repository_patterns.dart';
 export 'src/core/builder/patterns/vpc_patterns.dart';
 export 'src/core/builder/shared/spec_library.dart';
+// Hide the code-generation plugin interface to avoid naming collision with
+// the micro-frontend runtime contract (src/core/module/zuraffa_plugin.dart).
+// CLI commands and internal code can still import plugin_interface.dart directly.
 export 'src/core/plugin_system/plugin_interface.dart' hide ZuraffaPlugin;
 export 'src/core/plugin_system/plugin_lifecycle.dart';
 export 'src/core/plugin_system/plugin_registry.dart';
@@ -456,6 +459,8 @@ export 'src/state/presenter/slice_presenter.dart';
 export 'src/state/widgets/fragment_builder.dart';
 
 // StateMigrator — converts v5 .state.dart to v6 slice pattern.
+// The StateMigrator class is hidden from public API but remains accessible
+// to migration and doctor commands via direct import.
 export 'src/state/migration/state_migrator.dart' hide StateMigrator;
 
 // v5 -> v6 migration tooling

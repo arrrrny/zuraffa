@@ -56,11 +56,16 @@ minimal Clean Architecture slice and an `ExampleFeaturePlugin` orchestrator.
 
 ## Consequences
 
-- Feature packages can be developed, tested, and shipped independently.
+- Feature packages are scaffolded as repository-local packages with
+  `publish_to: none` and a relative `path: ../` dependency to `zuraffa`,
+  simplifying initial development. Production deployments can migrate to
+  hosted or Git dependencies as needed.
 - The host app only depends on `zuraffa` + the feature packages it needs.
 - No circular dependencies between feature packages.
 - `go_router` integration is deferred to a follow-up issue.
-- The existing `ZuraffaPlugin` interface (code generation plugin) and the
-  new `ZuraffaPlugin` (micro-frontend runtime contract) share the same name
-  but live in different files and serve different purposes. The barrel file
-  exports both.
+- The existing `ZuraffaPlugin` interface (code generation plugin in
+  `src/core/plugin_system/plugin_interface.dart`) and the new `ZuraffaPlugin`
+  (micro-frontend runtime contract in `src/core/module/zuraffa_plugin.dart`)
+  share the same name but live in different files and serve different purposes.
+  The barrel file at `lib/zuraffa.dart` hides the code generation plugin
+  interface to avoid naming collisions when importing the package.
