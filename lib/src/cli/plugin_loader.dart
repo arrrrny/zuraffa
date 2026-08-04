@@ -26,6 +26,7 @@ import '../plugins/view/view_plugin.dart';
 import '../plugins/feature/feature_plugin.dart';
 import '../plugins/shadcn/shadcn_plugin.dart';
 import '../plugins/strategy/strategy_plugin.dart';
+import '../plugins/module/module_plugin.dart';
 
 class PluginConfig {
   final Set<String> disabled;
@@ -127,6 +128,7 @@ class PluginLoader {
       ShadcnPlugin(outputDir: outputDir, options: options),
       StrategyPlugin(outputDir: outputDir, options: options),
       MethodAppendPlugin(outputDir: outputDir, options: options),
+      ModuleGeneratorPlugin(outputDir: outputDir, options: options),
     ];
   }
 }
