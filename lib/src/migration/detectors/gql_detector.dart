@@ -25,9 +25,13 @@ class GqlConstStringDetector extends MigrationDetector {
       return DetectorResult(detectorId: detectorId, findings: findings);
     }
 
-    await for (final entity in libDir.list(recursive: true, followLinks: false)) {
+    await for (final entity in libDir.list(
+      recursive: true,
+      followLinks: false,
+    )) {
       if (entity is! File || !entity.path.endsWith('.dart')) continue;
-      if (entity.path.contains('.g.dart') || entity.path.contains('.freezed.dart')) {
+      if (entity.path.contains('.g.dart') ||
+          entity.path.contains('.freezed.dart')) {
         continue;
       }
 
@@ -39,14 +43,17 @@ class GqlConstStringDetector extends MigrationDetector {
 
       for (final match in _gqlCallPattern.allMatches(content)) {
         final line = lineNumberAt(content, match.start);
-        findings.add(MigrationFinding(
-          message: 'GraphQL document defined as inline Dart string via gql() call',
-          filePath: relativePath,
-          line: line,
-          ruleId: 'v5_gql_const_string',
-          severity: MigrationSeverity.warning,
-          suggestion: 'Extract to a .graphql file and use zfa migrate gql',
-        ));
+        findings.add(
+          MigrationFinding(
+            message:
+                'GraphQL document defined as inline Dart string via gql() call',
+            filePath: relativePath,
+            line: line,
+            ruleId: 'v5_gql_const_string',
+            severity: MigrationSeverity.warning,
+            suggestion: 'Extract to a .graphql file and use zfa migrate gql',
+          ),
+        );
       }
     }
 

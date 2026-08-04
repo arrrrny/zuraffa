@@ -83,9 +83,7 @@ class SubscriptionStream<T> {
         onError: (Object e, StackTrace st) {
           // Emit the error as a failure result, then retry the subscription.
           if (!controller.isClosed) {
-            controller.add(
-              Failure<T, AppFailure>(AppFailure.from(e, st)),
-            );
+            controller.add(Failure<T, AppFailure>(AppFailure.from(e, st)));
             // Recreate the subscription after a brief delay to avoid tight loops.
             Future.delayed(const Duration(milliseconds: 100), () {
               if (!controller.isClosed) {

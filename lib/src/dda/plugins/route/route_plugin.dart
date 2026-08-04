@@ -30,7 +30,7 @@ class RouteDDAPlugin extends ZorphyDecoratorPlugin {
   /// The package name used to build import URIs. Defaults to `zuraffa`.
   final String packageName;
 
-  late final _generator = RouteGenerator();
+  late var _generator = RouteGenerator();
 
   @override
   String get targetDecorator => 'Route';
@@ -79,11 +79,10 @@ class RouteDDAPlugin extends ZorphyDecoratorPlugin {
     final path = decorator.get<String>('path');
 
     // Redirect-only route: no path, both redirectFrom and redirectTo present
-    if (redirectFrom != null && redirectTo != null && (path == null || path.isEmpty)) {
-      _generator.addRedirect(
-        from: redirectFrom,
-        to: redirectTo,
-      );
+    if (redirectFrom != null &&
+        redirectTo != null &&
+        (path == null || path.isEmpty)) {
+      _generator.addRedirect(from: redirectFrom, to: redirectTo);
       return;
     }
 
@@ -91,12 +90,14 @@ class RouteDDAPlugin extends ZorphyDecoratorPlugin {
     if (path == null || path.isEmpty) return;
 
     final name = decorator.get<String>('name') ?? _routeNameFrom(className);
-    final deepLinkAware =
-        decorator.get<bool>('deepLinkAware') ?? false;
+    final deepLinkAware = decorator.get<bool>('deepLinkAware') ?? false;
     final parentPath = decorator.get<String>('parentPath');
     final queryParams = _parseQueryParams(decorator);
     final middleware = _parseMiddleware(decorator);
-    final middlewareImports = _extractMiddlewareImports(decorator, method.libraryUri);
+    final middlewareImports = _extractMiddlewareImports(
+      decorator,
+      method.libraryUri,
+    );
 
     _generator.addRoute(
       path: path,
@@ -159,7 +160,10 @@ class RouteDDAPlugin extends ZorphyDecoratorPlugin {
     return const [];
   }
 
-  Map<String, String> _extractMiddlewareImports(DecoratorAST decorator, String? libraryUri) {
+  Map<String, String> _extractMiddlewareImports(
+    DecoratorAST decorator,
+    String? libraryUri,
+  ) {
     final middleware = _parseMiddleware(decorator);
     if (middleware.isEmpty || libraryUri == null) return const {};
 

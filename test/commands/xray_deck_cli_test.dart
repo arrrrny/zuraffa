@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -40,7 +39,8 @@ void main() {
       final outputFile = '${tempDir.path}/barcodes_xray_deck.dart';
 
       final output = await runCapturing([
-        'xray', 'deck',
+        'xray',
+        'deck',
         '--yaml=${yamlFile.path}',
         '--output=$outputFile',
         '--usecase-name=ScanBarcode',
@@ -72,15 +72,18 @@ void main() {
 
       // Create a source file with annotations.
       final sourceFile = File('${tempDir.path}/scan_barcode_usecase.dart');
-      sourceFile.writeAsStringSync('''@XRayMock(name: 'Valid Product A', payload: '123456789', type: 'valid')
+      sourceFile.writeAsStringSync(
+        '''@XRayMock(name: 'Valid Product A', payload: '123456789', type: 'valid')
 @XRayMock(name: 'Bad Scan', payload: 'err', type: 'error')
 class ScanBarcodeUseCase {}
-''');
+''',
+      );
 
       final outputFile = '${tempDir.path}/scan_barcode_xray_deck.dart';
 
       final output = await runCapturing([
-        'xray', 'deck',
+        'xray',
+        'deck',
         '--source=${sourceFile.path}',
         '--output=$outputFile',
         '--usecase-name=ScanBarcode',
@@ -99,9 +102,11 @@ class ScanBarcodeUseCase {}
       Directory.current = tempDir;
 
       final sourceFile = File('${tempDir.path}/process_usecase.dart');
-      sourceFile.writeAsStringSync('''@XRayMock(name: 'FromAnnotation', payload: 'ann', type: 'valid')
+      sourceFile.writeAsStringSync(
+        '''@XRayMock(name: 'FromAnnotation', payload: 'ann', type: 'valid')
 class ProcessUseCase {}
-''');
+''',
+      );
 
       final yamlFile = File('${tempDir.path}/extra.yaml');
       yamlFile.writeAsStringSync('''- name: FromYaml
@@ -112,7 +117,8 @@ class ProcessUseCase {}
       final outputFile = '${tempDir.path}/process_xray_deck.dart';
 
       final output = await runCapturing([
-        'xray', 'deck',
+        'xray',
+        'deck',
         '--source=${sourceFile.path}',
         '--yaml=${yamlFile.path}',
         '--output=$outputFile',
@@ -146,7 +152,8 @@ class ProcessUseCase {}
 
       // First run.
       await runCapturing([
-        'xray', 'deck',
+        'xray',
+        'deck',
         '--yaml=${yamlFile.path}',
         '--output=$outputFile',
         '--usecase-name=ScenariosTest',
@@ -169,7 +176,8 @@ class ProcessUseCase {}
 ''');
 
       await runCapturing([
-        'xray', 'deck',
+        'xray',
+        'deck',
         '--yaml=${yamlFile.path}',
         '--output=$outputFile',
         '--usecase-name=ScenariosTest',
@@ -187,15 +195,18 @@ class ProcessUseCase {}
       Directory.current = tempDir;
 
       final sourceFile = File('${tempDir.path}/scan_barcode_usecase.dart');
-      sourceFile.writeAsStringSync('''@XRayMock(name: 'Test', payload: 'data', type: 'valid')
+      sourceFile.writeAsStringSync(
+        '''@XRayMock(name: 'Test', payload: 'data', type: 'valid')
 class ScanBarcodeUseCase {}
-''');
+''',
+      );
 
       final outputFile = '${tempDir.path}/scan_barcode_xray_deck.dart';
 
       // Don't provide --usecase-name, let it auto-detect
       final output = await runCapturing([
-        'xray', 'deck',
+        'xray',
+        'deck',
         '--source=${sourceFile.path}',
         '--output=$outputFile',
         '--force',

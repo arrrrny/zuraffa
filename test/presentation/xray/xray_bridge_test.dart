@@ -25,10 +25,7 @@ class TestScopeWrapper {
   final String viewId;
   final List<XRayNodeInfo> nodes;
 
-  const TestScopeWrapper({
-    required this.viewId,
-    this.nodes = const [],
-  });
+  const TestScopeWrapper({required this.viewId, this.nodes = const []});
 
   /// Serialize through [XRayTreeJson] directly (same path as
   /// [serializeXRayTree] but without requiring a real scope).
@@ -137,8 +134,9 @@ void main() {
         receivedPayload = payload;
       });
 
-      final result = XRayActionRegistry.invoke(
-          'TestView.tapButton', {'key': 'value'});
+      final result = XRayActionRegistry.invoke('TestView.tapButton', {
+        'key': 'value',
+      });
       expect(result, true);
       expect(receivedPayload, {'key': 'value'});
     });
@@ -181,8 +179,10 @@ void main() {
         receivedPayload = payload;
       });
 
-      final result =
-          XRayMockInjectorRegistry.trigger('Valid Product', 'barcode123');
+      final result = XRayMockInjectorRegistry.trigger(
+        'Valid Product',
+        'barcode123',
+      );
       expect(result, true);
       expect(receivedPayload, 'barcode123');
     });
@@ -233,10 +233,9 @@ void main() {
       final sub1 = XRayBridgeStream.stream.listen(events1.add);
       final sub2 = XRayBridgeStream.stream.listen(events2.add);
 
-      XRayBridgeStream.emit(const XRayTreeDiff(
-        type: XRayBridgeEventType.removed,
-        nodeId: 'A.b',
-      ));
+      XRayBridgeStream.emit(
+        const XRayTreeDiff(type: XRayBridgeEventType.removed, nodeId: 'A.b'),
+      );
 
       await Future<void>.delayed(const Duration(milliseconds: 10));
 
@@ -284,8 +283,9 @@ void main() {
       XRayBridgeScopeHolder.reset();
 
       final client = HttpClient();
-      final request =
-          await client.getUrl(Uri.parse('http://127.0.0.1:$port/xray/tree'));
+      final request = await client.getUrl(
+        Uri.parse('http://127.0.0.1:$port/xray/tree'),
+      );
       final response = await request.close();
 
       expect(response.statusCode, 503);
@@ -295,22 +295,26 @@ void main() {
       client.close();
     });
 
-    test('GET /xray/tree returns 503 when scope is unregistered (duplicate check)', () async {
-      // This test verifies the same 503 path as the previous test.
-      // We can't create a real XRayScopeState without a widget tree.
-      // The 200 path is verified through the XRayTreeJson serialization tests above.
-      // The bridge server calls serializeXRayTree which calls
-      // scope.tree and scope.viewId — this is a pure data pass-through.
-      //
-      // For a full integration test with a mounted XRayScope, see the widget test directory.
-      XRayBridgeScopeHolder.reset();
-      final client = HttpClient();
-      final request =
-          await client.getUrl(Uri.parse('http://127.0.0.1:$port/xray/tree'));
-      final response = await request.close();
-      expect(response.statusCode, 503);
-      client.close();
-    });
+    test(
+      'GET /xray/tree returns 503 when scope is unregistered (duplicate check)',
+      () async {
+        // This test verifies the same 503 path as the previous test.
+        // We can't create a real XRayScopeState without a widget tree.
+        // The 200 path is verified through the XRayTreeJson serialization tests above.
+        // The bridge server calls serializeXRayTree which calls
+        // scope.tree and scope.viewId — this is a pure data pass-through.
+        //
+        // For a full integration test with a mounted XRayScope, see the widget test directory.
+        XRayBridgeScopeHolder.reset();
+        final client = HttpClient();
+        final request = await client.getUrl(
+          Uri.parse('http://127.0.0.1:$port/xray/tree'),
+        );
+        final response = await request.close();
+        expect(response.statusCode, 503);
+        client.close();
+      },
+    );
 
     test('POST /xray/action invokes registered action', () async {
       Map<String, dynamic>? received;
@@ -319,13 +323,16 @@ void main() {
       });
 
       final client = HttpClient();
-      final request = await client
-          .postUrl(Uri.parse('http://127.0.0.1:$port/xray/action'));
+      final request = await client.postUrl(
+        Uri.parse('http://127.0.0.1:$port/xray/action'),
+      );
       request.headers.set('Content-Type', 'application/json');
-      request.write(jsonEncode({
-        'targetNode': 'TestView.tapMe',
-        'payload': {'key': 'val'},
-      }));
+      request.write(
+        jsonEncode({
+          'targetNode': 'TestView.tapMe',
+          'payload': {'key': 'val'},
+        }),
+      );
       final response = await request.close();
 
       expect(response.statusCode, 200);
@@ -339,13 +346,13 @@ void main() {
 
     test('POST /xray/action with invalid nodeId returns 404', () async {
       final client = HttpClient();
-      final request = await client
-          .postUrl(Uri.parse('http://127.0.0.1:$port/xray/action'));
+      final request = await client.postUrl(
+        Uri.parse('http://127.0.0.1:$port/xray/action'),
+      );
       request.headers.set('Content-Type', 'application/json');
-      request.write(jsonEncode({
-        'targetNode': 'NonExistent.node',
-        'payload': {},
-      }));
+      request.write(
+        jsonEncode({'targetNode': 'NonExistent.node', 'payload': {}}),
+      );
       final response = await request.close();
 
       expect(response.statusCode, 404);
@@ -358,8 +365,9 @@ void main() {
 
     test('POST /xray/action without targetNode returns 400', () async {
       final client = HttpClient();
-      final request = await client
-          .postUrl(Uri.parse('http://127.0.0.1:$port/xray/action'));
+      final request = await client.postUrl(
+        Uri.parse('http://127.0.0.1:$port/xray/action'),
+      );
       request.headers.set('Content-Type', 'application/json');
       request.write(jsonEncode({'payload': {}}));
       final response = await request.close();
@@ -377,12 +385,12 @@ void main() {
 
       final client = HttpClient();
       final request = await client.postUrl(
-          Uri.parse('http://127.0.0.1:$port/xray/control-deck'));
+        Uri.parse('http://127.0.0.1:$port/xray/control-deck'),
+      );
       request.headers.set('Content-Type', 'application/json');
-      request.write(jsonEncode({
-        'mockName': 'Expired Product',
-        'payload': 'expired_data',
-      }));
+      request.write(
+        jsonEncode({'mockName': 'Expired Product', 'payload': 'expired_data'}),
+      );
       final response = await request.close();
 
       expect(response.statusCode, 200);
@@ -397,7 +405,8 @@ void main() {
     test('POST /xray/control-deck with invalid name returns 404', () async {
       final client = HttpClient();
       final request = await client.postUrl(
-          Uri.parse('http://127.0.0.1:$port/xray/control-deck'));
+        Uri.parse('http://127.0.0.1:$port/xray/control-deck'),
+      );
       request.headers.set('Content-Type', 'application/json');
       request.write(jsonEncode({'mockName': 'NonExistent'}));
       final response = await request.close();
@@ -413,7 +422,8 @@ void main() {
     test('POST /xray/control-deck without mockName returns 400', () async {
       final client = HttpClient();
       final request = await client.postUrl(
-          Uri.parse('http://127.0.0.1:$port/xray/control-deck'));
+        Uri.parse('http://127.0.0.1:$port/xray/control-deck'),
+      );
       request.headers.set('Content-Type', 'application/json');
       request.write(jsonEncode({}));
       final response = await request.close();
@@ -425,8 +435,9 @@ void main() {
 
     test('unknown endpoint returns 404', () async {
       final client = HttpClient();
-      final request = await client
-          .getUrl(Uri.parse('http://127.0.0.1:$port/xray/nonexistent'));
+      final request = await client.getUrl(
+        Uri.parse('http://127.0.0.1:$port/xray/nonexistent'),
+      );
       final response = await request.close();
 
       expect(response.statusCode, 404);
@@ -437,12 +448,16 @@ void main() {
     test('auth token rejects unauthenticated requests', () async {
       await server.stop();
       server = XRayBridgeServer(
-          port: 0, authToken: 'secret123', localhostOnly: true);
+        port: 0,
+        authToken: 'secret123',
+        localhostOnly: true,
+      );
       port = await server.start();
 
       final client = HttpClient();
-      final request =
-          await client.getUrl(Uri.parse('http://127.0.0.1:$port/xray/tree'));
+      final request = await client.getUrl(
+        Uri.parse('http://127.0.0.1:$port/xray/tree'),
+      );
       final response = await request.close();
 
       expect(response.statusCode, 401);
@@ -478,8 +493,9 @@ void main() {
       XRayBridgeScopeHolder.reset();
 
       try {
-        await WebSocket.connect('ws://127.0.0.1:$port/xray/ws')
-            .timeout(const Duration(seconds: 2));
+        await WebSocket.connect(
+          'ws://127.0.0.1:$port/xray/ws',
+        ).timeout(const Duration(seconds: 2));
         fail('Should have thrown');
       } catch (e) {
         // The server rejects the upgrade with 503.
@@ -520,19 +536,23 @@ void main() {
       final client = HttpClient();
 
       // Step 1: Attempt tree inspection (returns 503 since no scope is mounted)
-      final treeRequest = await client
-          .getUrl(Uri.parse('http://127.0.0.1:$port/xray/tree'));
+      final treeRequest = await client.getUrl(
+        Uri.parse('http://127.0.0.1:$port/xray/tree'),
+      );
       final treeResponse = await treeRequest.close();
       expect(treeResponse.statusCode, 503);
 
       // Step 2: Invoke registered action directly (works without scope)
-      final actionRequest = await client
-          .postUrl(Uri.parse('http://127.0.0.1:$port/xray/action'));
+      final actionRequest = await client.postUrl(
+        Uri.parse('http://127.0.0.1:$port/xray/action'),
+      );
       actionRequest.headers.set('Content-Type', 'application/json');
-      actionRequest.write(jsonEncode({
-        'targetNode': 'ProfileView.editProfileButton',
-        'payload': {},
-      }));
+      actionRequest.write(
+        jsonEncode({
+          'targetNode': 'ProfileView.editProfileButton',
+          'payload': {},
+        }),
+      );
       final actionResponse = await actionRequest.close();
       expect(actionResponse.statusCode, 200);
 

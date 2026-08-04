@@ -46,10 +46,7 @@ class GraphQLClientConfig {
 
 /// Result of building a [GraphQLClient] with optional [WebSocketLink].
 class GraphQLClientBuildResult {
-  const GraphQLClientBuildResult({
-    required this.client,
-    this.wsLink,
-  });
+  const GraphQLClientBuildResult({required this.client, this.wsLink});
 
   final GraphQLClient client;
   final WebSocketLink? wsLink;

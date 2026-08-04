@@ -79,9 +79,7 @@ class _XRayActivationState extends State<XRayActivation> {
   void _initShakeDetector() {
     final stream = widget.accelerometerStream;
     if (stream == null) return;
-    _shakeDetector = ShakeDetector(
-      onShake: _toggleXRay,
-    )..start(stream);
+    _shakeDetector = ShakeDetector(onShake: _toggleXRay)..start(stream);
   }
 
   @override

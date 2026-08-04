@@ -88,7 +88,9 @@ class FileOperation {
           throw StateError('Missing content for $path');
         }
         // Smart merge: use AST merge for .dart files when not in force mode
-        if (!force && path.endsWith('.dart') && type == FileOperationType.update) {
+        if (!force &&
+            path.endsWith('.dart') &&
+            type == FileOperationType.update) {
           await SmartMergeWriter.writeMerged(
             fileSystem: fs,
             path: path,

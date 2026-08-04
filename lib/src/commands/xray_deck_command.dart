@@ -13,16 +13,32 @@ class XrayDeckCommand extends Command<void> {
       'Generate X-Ray Control Deck registration from annotations or YAML';
 
   XrayDeckCommand() {
-    argParser.addOption('source', abbr: 's',
-        help: 'Dart source file to scan for @XRayMock annotations');
     argParser.addOption(
-        'yaml', abbr: 'y', help: 'YAML file with mock scenarios');
-    argParser.addOption('output', abbr: 'o',
-        help: 'Output file path for the generated deck registration');
-    argParser.addOption('usecase-name', abbr: 'n',
-        help: 'UseCase name (auto-detected from source if omitted)');
-    argParser.addFlag('force', abbr: 'f',
-        help: 'Overwrite existing output file', negatable: false);
+      'source',
+      abbr: 's',
+      help: 'Dart source file to scan for @XRayMock annotations',
+    );
+    argParser.addOption(
+      'yaml',
+      abbr: 'y',
+      help: 'YAML file with mock scenarios',
+    );
+    argParser.addOption(
+      'output',
+      abbr: 'o',
+      help: 'Output file path for the generated deck registration',
+    );
+    argParser.addOption(
+      'usecase-name',
+      abbr: 'n',
+      help: 'UseCase name (auto-detected from source if omitted)',
+    );
+    argParser.addFlag(
+      'force',
+      abbr: 'f',
+      help: 'Overwrite existing output file',
+      negatable: false,
+    );
   }
 
   @override
@@ -50,8 +66,9 @@ class XrayDeckCommand extends Command<void> {
     final annotationEntries = sourcePath != null
         ? _scanAnnotations(sourcePath)
         : <Map<String, dynamic>>[];
-    final yamlEntries =
-        yamlPath != null ? _parseYamlFile(yamlPath) : <Map<String, dynamic>>[];
+    final yamlEntries = yamlPath != null
+        ? _parseYamlFile(yamlPath)
+        : <Map<String, dynamic>>[];
 
     final allEntries = [...annotationEntries, ...yamlEntries];
 
@@ -64,7 +81,7 @@ class XrayDeckCommand extends Command<void> {
 
     final outFile = File(effectiveOutput);
     if (outFile.existsSync() && !force) {
-      print('Error: ' + effectiveOutput + ' already exists. Use --force.');
+      print('Error: $effectiveOutput already exists. Use --force.');
       return;
     }
 
@@ -73,13 +90,10 @@ class XrayDeckCommand extends Command<void> {
 
     final count = allEntries.length;
     final suffix = count == 1 ? 'y' : 'ies';
-    print('Generated ' +
-        count.toString() +
-        ' mock entr' +
-        suffix +
-        ' for ' +
-        effectiveName);
-    print('  Output: ' + effectiveOutput);
+    print(
+      'Generated $count mock entr$suffix for $effectiveName',
+    );
+    print('  Output: $effectiveOutput');
   }
 
   String _defaultOutputPath(String? sourcePath, String? yamlPath) {
@@ -88,34 +102,33 @@ class XrayDeckCommand extends Command<void> {
     final dir = slashIdx >= 0 ? base.substring(0, slashIdx) : '.';
     final name = slashIdx >= 0
         ? base
-            .substring(slashIdx + 1)
-            .replaceAll('.dart', '')
-            .replaceAll('.yaml', '')
+              .substring(slashIdx + 1)
+              .replaceAll('.dart', '')
+              .replaceAll('.yaml', '')
         : base;
-    return dir + '/' + name + '_xray_deck.dart';
+    return '$dir/${name}_xray_deck.dart';
   }
 
   String? _detectUseCaseName(String? sourcePath) {
     if (sourcePath == null) return null;
     final slashIdx = sourcePath.lastIndexOf('/');
-    final fileName =
-        slashIdx >= 0 ? sourcePath.substring(slashIdx + 1) : sourcePath;
+    final fileName = slashIdx >= 0
+        ? sourcePath.substring(slashIdx + 1)
+        : sourcePath;
     final parts = fileName.replaceAll('.dart', '').split('_');
-    return parts
-        .map((p) {
-          if (p.isEmpty) return '';
-          // Preserve the expected "UseCase" casing (two capitalized words)
-          // instead of collapsing it to "Usecase".
-          if (p.toLowerCase() == 'usecase') return 'UseCase';
-          return p[0].toUpperCase() + p.substring(1).toLowerCase();
-        })
-        .join();
+    return parts.map((p) {
+      if (p.isEmpty) return '';
+      // Preserve the expected "UseCase" casing (two capitalized words)
+      // instead of collapsing it to "Usecase".
+      if (p.toLowerCase() == 'usecase') return 'UseCase';
+      return p[0].toUpperCase() + p.substring(1).toLowerCase();
+    }).join();
   }
 
   List<Map<String, dynamic>> _scanAnnotations(String sourcePath) {
     final file = File(sourcePath);
     if (!file.existsSync()) {
-      print('Warning: source file not found: ' + sourcePath);
+      print('Warning: source file not found: $sourcePath');
       return [];
     }
 
@@ -134,7 +147,7 @@ class XrayDeckCommand extends Command<void> {
         entries.add({
           'name': name,
           'payload': payload,
-          if (type != null) 'type': type,
+          'type': ?type,
         });
       }
     }
@@ -169,7 +182,7 @@ class XrayDeckCommand extends Command<void> {
     final ws = r'\s*:\s*';
     final qClass = "['\\x22]"; // character class: single-quote or double-quote
     final qNeg = "[^'\\x22]*"; // negated class: any char except quotes
-    final pattern = field + ws + qClass + '(' + qNeg + ')' + qClass;
+    final pattern = '$field$ws$qClass($qNeg)$qClass';
     final regex = RegExp(pattern);
     final match = regex.firstMatch(body);
     return match?.group(1);
@@ -178,27 +191,31 @@ class XrayDeckCommand extends Command<void> {
   List<Map<String, dynamic>> _parseYamlFile(String yamlPath) {
     final file = File(yamlPath);
     if (!file.existsSync()) {
-      print('Warning: YAML file not found: ' + yamlPath);
+      print('Warning: YAML file not found: $yamlPath');
       return [];
     }
     try {
       final content = file.readAsStringSync();
       final yaml = loadYaml(content);
       if (yaml is! YamlList) return [];
-      return yaml.whereType<YamlMap>().map((m) {
-        final name = m['name'];
-        final payload = m['payload'];
-        if (name == null || payload == null) return null;
-        return <String, dynamic>{
-          'name': name.toString(),
-          'payload': payload.toString(),
-          if (m['type'] != null) 'type': m['type'].toString(),
-          if (m['description'] != null)
-            'description': m['description'].toString(),
-        };
-      }).whereType<Map<String, dynamic>>().toList();
+      return yaml
+          .whereType<YamlMap>()
+          .map((m) {
+            final name = m['name'];
+            final payload = m['payload'];
+            if (name == null || payload == null) return null;
+            return <String, dynamic>{
+              'name': name.toString(),
+              'payload': payload.toString(),
+              if (m['type'] != null) 'type': m['type'].toString(),
+              if (m['description'] != null)
+                'description': m['description'].toString(),
+            };
+          })
+          .whereType<Map<String, dynamic>>()
+          .toList();
     } catch (e) {
-      print('Warning: failed to parse YAML: ' + yamlPath);
+      print('Warning: failed to parse YAML: $yamlPath');
       return [];
     }
   }
@@ -210,21 +227,20 @@ class XrayDeckCommand extends Command<void> {
         .replaceAll(r'$', r'\$');
   }
 
-  String _generateDeckFile(
-      String ucName, List<Map<String, dynamic>> entries) {
+  String _generateDeckFile(String ucName, List<Map<String, dynamic>> entries) {
     final lines = <String>[
       '// GENERATED BY zfa xray deck -- DO NOT EDIT.',
-      '// UseCase: ' + ucName,
-      '// Mocks: ' + entries.length.toString(),
+      '// UseCase: $ucName',
+      '// Mocks: ${entries.length}',
       '',
       "import 'package:flutter/foundation.dart';",
       "import 'package:zuraffa/src/presentation/xray/xray_control_deck.dart';",
       '',
-      '/// Registers mock entries for ' + ucName + ' with the Control Deck.',
-      'void register' + ucName + 'XRayDeck() {',
+      '/// Registers mock entries for $ucName with the Control Deck.',
+      'void register${ucName}XRayDeck() {',
       '  if (kReleaseMode) return;',
       '  XRayControlDeckRegistry.registerEntries(',
-      "  '" + ucName + "',",
+      "  '$ucName',",
       '    const [',
     ];
 
@@ -234,20 +250,16 @@ class XrayDeckCommand extends Command<void> {
       final payload = _escapeLiteral(entry['payload'].toString());
       final desc = entry['description'];
       final descPart = desc != null
-          ? ", description: '" + _escapeLiteral(desc.toString()) + "'"
+          ? ", description: '${_escapeLiteral(desc.toString())}'"
           : '';
       lines.add('      XRayMockEntry(');
-      lines.add("        name: '" + name + "',");
-      lines.add("        payload: '" + payload + "',");
-      lines.add('        type: XRayMockType.' + type + descPart + ',');
+      lines.add("        name: '$name',");
+      lines.add("        payload: '$payload',");
+      lines.add('        type: XRayMockType.$type$descPart,');
       lines.add('      ),');
     }
 
-    lines.addAll([
-      '    ],',
-      '  );',
-      '}',
-    ]);
+    lines.addAll(['    ],', '  );', '}']);
 
     return lines.join('\n');
   }

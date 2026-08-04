@@ -20,10 +20,7 @@ class CodeCapability {
     bool state = true,
     bool di = false,
   }) async {
-    final args = [
-      'make', entityName,
-      '--with=vpc',
-    ];
+    final args = ['make', entityName, '--with=vpc'];
 
     if (methods != null && methods.isNotEmpty) {
       args.add('--methods=${methods.join(',')}');
@@ -32,11 +29,11 @@ class CodeCapability {
     if (di) args.add('--di');
     args.add('--format=json');
 
-    final result = await Process.run(
-      'dart',
-      ['run', 'zuraffa:zfa', ...args],
-      workingDirectory: projectRoot,
-    );
+    final result = await Process.run('dart', [
+      'run',
+      'zuraffa:zfa',
+      ...args,
+    ], workingDirectory: projectRoot);
 
     final stdout = result.stdout.toString();
     final stderr = result.stderr.toString();
@@ -66,9 +63,7 @@ class CodeCapability {
     } catch (_) {
       // Fallback: try to extract file paths from text output
       final pathRegex = RegExp(r'lib/src/[\w/]+\.dart');
-      files.addAll(
-        pathRegex.allMatches(stdout).map((m) => m.group(0)!),
-      );
+      files.addAll(pathRegex.allMatches(stdout).map((m) => m.group(0)!));
     }
 
     return {

@@ -44,10 +44,7 @@ Map<String, dynamic> _archInspectTool() {
         'use cases, repositories, data sources, presentation layers, '
         'DI registrations, and routes. Use this to understand the '
         'project structure before making changes.',
-    'inputSchema': {
-      'type': 'object',
-      'properties': {},
-    },
+    'inputSchema': {'type': 'object', 'properties': {}},
   };
 }
 
@@ -164,10 +161,7 @@ Map<String, dynamic> _graphqlPullSchemaTool() {
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'url': {
-          'type': 'string',
-          'description': 'GraphQL endpoint URL',
-        },
+        'url': {'type': 'string', 'description': 'GraphQL endpoint URL'},
         'auth': {
           'type': 'string',
           'description': 'Bearer authentication token',
@@ -187,10 +181,7 @@ Map<String, dynamic> _graphqlGenerateFromSchemaTool() {
     'inputSchema': {
       'type': 'object',
       'properties': {
-        'url': {
-          'type': 'string',
-          'description': 'GraphQL endpoint URL',
-        },
+        'url': {'type': 'string', 'description': 'GraphQL endpoint URL'},
         'auth': {
           'type': 'string',
           'description': 'Bearer authentication token',
@@ -358,10 +349,7 @@ Future<Map<String, dynamic>?> handleV2ToolCall({
       );
       return {
         'content': [
-          {
-            'type': 'text',
-            'text': jsonEncode(result),
-          },
+          {'type': 'text', 'text': jsonEncode(result)},
         ],
         'isError': !(result['success'] as bool? ?? false),
       };
@@ -374,10 +362,7 @@ Future<Map<String, dynamic>?> handleV2ToolCall({
       );
       return {
         'content': [
-          {
-            'type': 'text',
-            'text': jsonEncode(result),
-          },
+          {'type': 'text', 'text': jsonEncode(result)},
         ],
         'isError': !(result['success'] as bool? ?? false),
       };
@@ -391,10 +376,7 @@ Future<Map<String, dynamic>?> handleV2ToolCall({
       );
       return {
         'content': [
-          {
-            'type': 'text',
-            'text': jsonEncode(result),
-          },
+          {'type': 'text', 'text': jsonEncode(result)},
         ],
         'isError': !(result['success'] as bool? ?? false),
       };
@@ -411,10 +393,7 @@ Future<Map<String, dynamic>?> handleV2ToolCall({
       final result = await xray.inspect();
       return {
         'content': [
-          {
-            'type': 'text',
-            'text': jsonEncode(result),
-          },
+          {'type': 'text', 'text': jsonEncode(result)},
         ],
         'isError': !(result['success'] as bool? ?? false),
       };
@@ -428,10 +407,7 @@ Future<Map<String, dynamic>?> handleV2ToolCall({
       );
       return {
         'content': [
-          {
-            'type': 'text',
-            'text': jsonEncode(result),
-          },
+          {'type': 'text', 'text': jsonEncode(result)},
         ],
         'isError': !(result['success'] as bool? ?? false),
       };
@@ -445,10 +421,7 @@ Future<Map<String, dynamic>?> handleV2ToolCall({
       );
       return {
         'content': [
-          {
-            'type': 'text',
-            'text': jsonEncode(result),
-          },
+          {'type': 'text', 'text': jsonEncode(result)},
         ],
         'isError': !(result['success'] as bool? ?? false),
       };
@@ -572,7 +545,10 @@ Future<Map<String, dynamic>?> _handleGraphqlPullSchema(
   if (parsedUrl.scheme != 'http' && parsedUrl.scheme != 'https') {
     return {
       'content': [
-        {'type': 'text', 'text': 'Invalid URL scheme: only http and https are allowed'},
+        {
+          'type': 'text',
+          'text': 'Invalid URL scheme: only http and https are allowed',
+        },
       ],
       'isError': true,
     };
@@ -581,11 +557,18 @@ Future<Map<String, dynamic>?> _handleGraphqlPullSchema(
   // Reject loopback and link-local hosts unless explicitly allowed
   // (For now, we'll reject them to be safe - an operator opt-in config could be added)
   final host = parsedUrl.host.toLowerCase();
-  if (host == 'localhost' || host == '127.0.0.1' || host == '::1' ||
-      host.startsWith('169.254.') || host.startsWith('fe80:')) {
+  if (host == 'localhost' ||
+      host == '127.0.0.1' ||
+      host == '::1' ||
+      host.startsWith('169.254.') ||
+      host.startsWith('fe80:')) {
     return {
       'content': [
-        {'type': 'text', 'text': 'Loopback and link-local hosts are not allowed for GraphQL introspection'},
+        {
+          'type': 'text',
+          'text':
+              'Loopback and link-local hosts are not allowed for GraphQL introspection',
+        },
       ],
       'isError': true,
     };
@@ -636,7 +619,8 @@ query IntrospectionQuery {
         'content': [
           {
             'type': 'text',
-            'text': 'GraphQL introspection failed: ${response.statusCode} - $body',
+            'text':
+                'GraphQL introspection failed: ${response.statusCode} - $body',
           },
         ],
         'isError': true,
@@ -676,11 +660,11 @@ Future<Map<String, dynamic>?> _handleGraphqlGenerateFromSchema(
   if (methods != null) cliArgs.add('--methods=$methods');
 
   try {
-    final result = await Process.run(
-      'dart',
-      ['run', 'zuraffa:zfa', ...cliArgs],
-      workingDirectory: projectRoot,
-    );
+    final result = await Process.run('dart', [
+      'run',
+      'zuraffa:zfa',
+      ...cliArgs,
+    ], workingDirectory: projectRoot);
 
     final stdout = result.stdout.toString();
     final stderr = result.stderr.toString();
@@ -758,7 +742,9 @@ Future<HttpServer> startWebSocketServer({
       // Reject remote clients when auth is disabled
       if (!auth.isEnabled && !connectionInfo.remoteAddress.isLoopback) {
         request.response.statusCode = 403;
-        request.response.write('Remote connections not allowed without authentication');
+        request.response.write(
+          'Remote connections not allowed without authentication',
+        );
         await request.response.close();
         return;
       }
@@ -787,11 +773,13 @@ Future<HttpServer> startWebSocketServer({
 
             final authError = auth.validateMessage(rpc, remoteIp);
             if (authError != null) {
-              ws.add(jsonEncode({
-                'jsonrpc': '2.0',
-                'error': {'code': -32001, 'message': authError},
-                'id': rpc['id'],
-              }));
+              ws.add(
+                jsonEncode({
+                  'jsonrpc': '2.0',
+                  'error': {'code': -32001, 'message': authError},
+                  'id': rpc['id'],
+                }),
+              );
               return;
             }
 
@@ -799,36 +787,39 @@ Future<HttpServer> startWebSocketServer({
             final id = rpc['id'];
 
             if (method == 'initialize') {
-              ws.add(jsonEncode({
-                'jsonrpc': '2.0',
-                'result': {
-                  'protocolVersion': '2024-11-05',
-                  'capabilities': {
-                    'tools': {'listChanged': true},
-                    'resources': {'subscribe': true, 'listChanged': true},
+              ws.add(
+                jsonEncode({
+                  'jsonrpc': '2.0',
+                  'result': {
+                    'protocolVersion': '2024-11-05',
+                    'capabilities': {
+                      'tools': {'listChanged': true},
+                      'resources': {'subscribe': true, 'listChanged': true},
+                    },
+                    'serverInfo': {
+                      'name': 'zfa-mcp-server',
+                      'version': '6.0.0',
+                    },
                   },
-                  'serverInfo': {
-                    'name': 'zfa-mcp-server',
-                    'version': '6.0.0',
-                  },
-                },
-                'id': id,
-              }));
+                  'id': id,
+                }),
+              );
               return;
             }
 
             if (method == 'tools/list') {
-              ws.add(jsonEncode({
-                'jsonrpc': '2.0',
-                'result': {'tools': v2ToolDefinitions()},
-                'id': id,
-              }));
+              ws.add(
+                jsonEncode({
+                  'jsonrpc': '2.0',
+                  'result': {'tools': v2ToolDefinitions()},
+                  'id': id,
+                }),
+              );
               return;
             }
 
             if (method == 'tools/call') {
-              final params =
-                  rpc['params'] as Map<String, dynamic>? ?? {};
+              final params = rpc['params'] as Map<String, dynamic>? ?? {};
               final toolName = params['name'] as String;
               final toolArgs =
                   params['arguments'] as Map<String, dynamic>? ?? {};
@@ -841,39 +832,43 @@ Future<HttpServer> startWebSocketServer({
               );
 
               if (result != null) {
-                ws.add(jsonEncode({
-                  'jsonrpc': '2.0',
-                  'result': result,
-                  'id': id,
-                }));
+                ws.add(
+                  jsonEncode({'jsonrpc': '2.0', 'result': result, 'id': id}),
+                );
               } else {
-                ws.add(jsonEncode({
-                  'jsonrpc': '2.0',
-                  'error': {
-                    'code': -32602,
-                    'message': 'Unknown tool: $toolName',
-                  },
-                  'id': id,
-                }));
+                ws.add(
+                  jsonEncode({
+                    'jsonrpc': '2.0',
+                    'error': {
+                      'code': -32602,
+                      'message': 'Unknown tool: $toolName',
+                    },
+                    'id': id,
+                  }),
+                );
               }
               return;
             }
 
             if (id != null) {
-              ws.add(jsonEncode({
-                'jsonrpc': '2.0',
-                'error': {'code': -32601, 'message': 'Method not found'},
-                'id': id,
-              }));
+              ws.add(
+                jsonEncode({
+                  'jsonrpc': '2.0',
+                  'error': {'code': -32601, 'message': 'Method not found'},
+                  'id': id,
+                }),
+              );
             }
           } catch (e) {
             stderr.writeln('[mcp-ws] Error: $e');
             try {
-              ws.add(jsonEncode({
-                'jsonrpc': '2.0',
-                'error': {'code': -32603, 'message': '$e'},
-                'id': null,
-              }));
+              ws.add(
+                jsonEncode({
+                  'jsonrpc': '2.0',
+                  'error': {'code': -32603, 'message': '$e'},
+                  'id': null,
+                }),
+              );
             } catch (_) {}
           }
         },
@@ -887,8 +882,7 @@ Future<HttpServer> startWebSocketServer({
         },
       );
     } else {
-      if (request.method == 'GET' &&
-          request.uri.path == '/health') {
+      if (request.method == 'GET' && request.uri.path == '/health') {
         request.response
           ..statusCode = 200
           ..write(jsonEncode({'status': 'ok', 'transport': 'websocket'}))

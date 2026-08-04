@@ -14,9 +14,7 @@ class ControlledWidgetDetector extends MigrationDetector {
   @override
   List<String> get globs => ['lib/**/*.dart'];
 
-  static final _extendsPattern = RegExp(
-    r'extends\s+ControlledWidget\b',
-  );
+  static final _extendsPattern = RegExp(r'extends\s+ControlledWidget\b');
 
   @override
   Future<DetectorResult> detect(String projectDir) async {
@@ -26,9 +24,13 @@ class ControlledWidgetDetector extends MigrationDetector {
       return DetectorResult(detectorId: detectorId, findings: findings);
     }
 
-    await for (final entity in libDir.list(recursive: true, followLinks: false)) {
+    await for (final entity in libDir.list(
+      recursive: true,
+      followLinks: false,
+    )) {
       if (entity is! File || !entity.path.endsWith('.dart')) continue;
-      if (entity.path.contains('.g.dart') || entity.path.contains('.freezed.dart')) {
+      if (entity.path.contains('.g.dart') ||
+          entity.path.contains('.freezed.dart')) {
         continue;
       }
 
@@ -40,14 +42,17 @@ class ControlledWidgetDetector extends MigrationDetector {
 
       for (final match in _extendsPattern.allMatches(content)) {
         final line = lineNumberAt(content, match.start);
-        findings.add(MigrationFinding(
-          message: 'Class extends legacy ControlledWidget',
-          filePath: relativePath,
-          line: line,
-          ruleId: 'v5_controlled_widget',
-          severity: MigrationSeverity.info,
-          suggestion: 'Migrate to ControlledWidgetBuilder for fine-grained rebuilds',
-        ));
+        findings.add(
+          MigrationFinding(
+            message: 'Class extends legacy ControlledWidget',
+            filePath: relativePath,
+            line: line,
+            ruleId: 'v5_controlled_widget',
+            severity: MigrationSeverity.info,
+            suggestion:
+                'Migrate to ControlledWidgetBuilder for fine-grained rebuilds',
+          ),
+        );
       }
     }
 

@@ -338,7 +338,9 @@ class GraphQLDocumentBuilder {
       );
     }
 
-    final selectionContent = trimmed.substring(openBrace + 1, closeBrace).trim();
+    final selectionContent = trimmed
+        .substring(openBrace + 1, closeBrace)
+        .trim();
     if (selectionContent.isEmpty) {
       throw ArgumentError(
         'Malformed nested field specification: empty selection set in "$fieldSpec"',

@@ -51,8 +51,8 @@ void main() {
       var productCount = 0;
       var reviewsCount = 0;
 
-      product.listen((_, __) => productCount++);
-      reviews.listen((_, __) => reviewsCount++);
+      product.listen((_, _) => productCount++);
+      reviews.listen((_, _) => reviewsCount++);
 
       // Refresh only product
       product.refresh('new');

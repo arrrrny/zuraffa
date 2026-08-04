@@ -23,9 +23,7 @@ class ManualDiDetector extends MigrationDetector {
     r'locator\.(registerLazySingleton|registerSingleton|registerFactory|registerLazyFactory)\s*<',
   );
 
-  static final _getItInstancePattern = RegExp(
-    r'GetIt\.instance(?:<[^>]+>)?',
-  );
+  static final _getItInstancePattern = RegExp(r'GetIt\.instance(?:<[^>]+>)?');
 
   @override
   Future<DetectorResult> detect(String projectDir) async {
@@ -35,9 +33,13 @@ class ManualDiDetector extends MigrationDetector {
       return DetectorResult(detectorId: detectorId, findings: findings);
     }
 
-    await for (final entity in libDir.list(recursive: true, followLinks: false)) {
+    await for (final entity in libDir.list(
+      recursive: true,
+      followLinks: false,
+    )) {
       if (entity is! File || !entity.path.endsWith('.dart')) continue;
-      if (entity.path.contains('.g.dart') || entity.path.contains('.freezed.dart')) {
+      if (entity.path.contains('.g.dart') ||
+          entity.path.contains('.freezed.dart')) {
         continue;
       }
 
@@ -49,38 +51,45 @@ class ManualDiDetector extends MigrationDetector {
 
       for (final match in _getItRegisterPattern.allMatches(content)) {
         final line = lineNumberAt(content, match.start);
-        findings.add(MigrationFinding(
-          message: 'Manual getIt registration found',
-          filePath: relativePath,
-          line: line,
-          ruleId: 'v5_manual_di',
-          severity: MigrationSeverity.info,
-          suggestion: 'Consider using @Datasource/@Repository annotations',
-        ));
+        findings.add(
+          MigrationFinding(
+            message: 'Manual getIt registration found',
+            filePath: relativePath,
+            line: line,
+            ruleId: 'v5_manual_di',
+            severity: MigrationSeverity.info,
+            suggestion: 'Consider using @Datasource/@Repository annotations',
+          ),
+        );
       }
 
       for (final match in _locatorRegisterPattern.allMatches(content)) {
         final line = lineNumberAt(content, match.start);
-        findings.add(MigrationFinding(
-          message: 'Manual locator registration found',
-          filePath: relativePath,
-          line: line,
-          ruleId: 'v5_manual_di',
-          severity: MigrationSeverity.info,
-          suggestion: 'Consider using @Datasource/@Repository annotations',
-        ));
+        findings.add(
+          MigrationFinding(
+            message: 'Manual locator registration found',
+            filePath: relativePath,
+            line: line,
+            ruleId: 'v5_manual_di',
+            severity: MigrationSeverity.info,
+            suggestion: 'Consider using @Datasource/@Repository annotations',
+          ),
+        );
       }
 
       for (final match in _getItInstancePattern.allMatches(content)) {
         final line = lineNumberAt(content, match.start);
-        findings.add(MigrationFinding(
-          message: 'GetIt.instance service location call found',
-          filePath: relativePath,
-          line: line,
-          ruleId: 'v5_manual_di',
-          severity: MigrationSeverity.info,
-          suggestion: 'In v6, prefer constructor injection over service location',
-        ));
+        findings.add(
+          MigrationFinding(
+            message: 'GetIt.instance service location call found',
+            filePath: relativePath,
+            line: line,
+            ruleId: 'v5_manual_di',
+            severity: MigrationSeverity.info,
+            suggestion:
+                'In v6, prefer constructor injection over service location',
+          ),
+        );
       }
     }
 

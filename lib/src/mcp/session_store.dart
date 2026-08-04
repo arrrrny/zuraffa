@@ -22,11 +22,11 @@ class McpSession {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'createdAt': createdAt.toUtc().toIso8601String(),
-        'lastActiveAt': lastActiveAt.toUtc().toIso8601String(),
-        'state': state,
-      };
+    'id': id,
+    'createdAt': createdAt.toUtc().toIso8601String(),
+    'lastActiveAt': lastActiveAt.toUtc().toIso8601String(),
+    'state': state,
+  };
 
   factory McpSession.fromJson(Map<String, dynamic> json) {
     return McpSession(
@@ -114,7 +114,9 @@ class McpSessionStore {
   File _sessionFile(String id) {
     // Validate session ID to prevent path traversal
     if (id.contains('..') || id.contains('/') || id.contains('\\')) {
-      throw ArgumentError('Invalid session ID: must not contain path separators or traversal components');
+      throw ArgumentError(
+        'Invalid session ID: must not contain path separators or traversal components',
+      );
     }
 
     final filePath = p.join(_sessionsDir, '$id.json');
@@ -123,7 +125,9 @@ class McpSessionStore {
 
     // Ensure the resolved path is still within _sessionsDir
     if (!p.isWithin(normalizedSessionsDir, normalizedPath)) {
-      throw ArgumentError('Invalid session ID: resolves outside sessions directory');
+      throw ArgumentError(
+        'Invalid session ID: resolves outside sessions directory',
+      );
     }
 
     return File(filePath);

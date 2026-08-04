@@ -50,7 +50,9 @@ class SchemaParser {
     // Named types (SCALAR, OBJECT, INPUT_OBJECT, UNION, ENUM, INTERFACE) must have non-empty names
     if (kind != 'LIST' && kind != 'NON_NULL') {
       if (name == null || name.isEmpty) {
-        throw SchemaParseError('Named type of kind $kind has null or empty name');
+        throw SchemaParseError(
+          'Named type of kind $kind has null or empty name',
+        );
       }
     }
 
@@ -216,7 +218,9 @@ class SchemaParser {
         if (name == null) throw SchemaParseError('Named type without name');
         final type = types[name];
         if (type == null) {
-          throw SchemaParseError('Type "$name" referenced but not found in schema');
+          throw SchemaParseError(
+            'Type "$name" referenced but not found in schema',
+          );
         }
         return type;
       default:

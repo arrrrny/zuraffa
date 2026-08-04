@@ -4,7 +4,6 @@
 // - remote connections: Bearer token in Authorization header or
 //   "auth" field in the JSON-RPC request body
 
-
 import 'dart:io';
 import 'dart:math';
 
@@ -18,7 +17,7 @@ class McpAuth {
   /// [token] — if null, all connections are allowed (dev mode).
   /// [nonLocalAllowedIps] — IPs that bypass auth even when a token is set.
   McpAuth({this.token, List<String>? nonLocalAllowedIps})
-      : _nonLocalAllowedIps = nonLocalAllowedIps ?? const [];
+    : _nonLocalAllowedIps = nonLocalAllowedIps ?? const [];
 
   /// Whether authentication is enabled (i.e. a token is configured).
   bool get isEnabled => token != null && token!.isNotEmpty;
@@ -95,7 +94,9 @@ class McpAuth {
   /// Generates a random hex token.
   static String generateToken({int length = 32}) {
     final random = Random.secure();
-    return List.generate(length, (_) => random.nextInt(16).toRadixString(16))
-        .join();
+    return List.generate(
+      length,
+      (_) => random.nextInt(16).toRadixString(16),
+    ).join();
   }
 }
