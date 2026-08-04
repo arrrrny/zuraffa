@@ -1110,6 +1110,44 @@ class Zuraffa {
   }
 
   // ============================================================
+  // Interceptors (UseCase pipeline)
+  // ============================================================
+
+  /// Global interceptor registry for UseCase pipelines.
+  ///
+  /// Use [registerInterceptor] to add interceptors. The registry
+  /// is keyed by UseCase input type.
+  static final interceptorRegistry = InterceptorRegistry();
+
+  /// Register a UseCase interceptor for input type [In] and output
+  /// type [Out].
+  ///
+  /// Interceptors run in registration order. Each receives the
+  /// original request and a `next` function to continue the chain.
+  ///
+  /// ## Example
+  /// ```dart
+  /// Zuraffa.registerInterceptor<String, User>(
+  ///   InterceptorEntry(
+  ///     name: 'cache',
+  ///     handler: (request, next) {
+  ///       final cached = cache.get(request);
+  ///       if (cached != null) return SignalResult.success(cached);
+  ///       return next(request);
+  ///     },
+  ///   ),
+  /// );
+  /// ```
+  static void registerInterceptor<In, Out>(InterceptorEntry<In, Out> entry) {
+    interceptorRegistry.register<In, Out>(entry);
+  }
+
+  /// Clear all registered interceptors.
+  static void clearInterceptors() {
+    interceptorRegistry.clear();
+  }
+
+  // ============================================================
   // Backward-compatible Failure Hooks
   // ============================================================
 
