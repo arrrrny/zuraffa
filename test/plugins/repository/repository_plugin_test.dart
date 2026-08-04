@@ -132,7 +132,10 @@ void main() {
 
     // Ensure the base cache key doesn't appear duplicated
     final baseCacheKeyPattern = RegExp(r"'product_cache.*product_cache");
-    expect(baseCacheKeyPattern.hasMatch(content), isFalse,
-        reason: 'Base cache key should not be duplicated in generated cache key');
+    expect(
+      baseCacheKeyPattern.hasMatch(content),
+      isFalse,
+      reason: 'Base cache key should not be duplicated in generated cache key',
+    );
   });
 }

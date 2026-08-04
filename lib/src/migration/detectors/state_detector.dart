@@ -27,13 +27,18 @@ class StateDetector extends MigrationDetector {
       return DetectorResult(detectorId: detectorId, findings: findings);
     }
 
-    await for (final entity in libDir.list(recursive: true, followLinks: false)) {
+    await for (final entity in libDir.list(
+      recursive: true,
+      followLinks: false,
+    )) {
       if (entity is! File) continue;
       if (!entity.path.endsWith('_state.dart')) continue;
-      if (entity.path.contains('domain_state') || entity.path.contains('view_state')) {
+      if (entity.path.contains('domain_state') ||
+          entity.path.contains('view_state')) {
         continue;
       }
-      if (entity.path.contains('.g.dart') || entity.path.contains('.freezed.dart')) {
+      if (entity.path.contains('.g.dart') ||
+          entity.path.contains('.freezed.dart')) {
         continue;
       }
 
@@ -43,17 +48,21 @@ class StateDetector extends MigrationDetector {
 
       final analysis = _analyzeStateFile(content);
       if (analysis.needsMigration) {
-        findings.add(MigrationFinding(
-          message: 'Mixed state class `${analysis.className}` contains both domain data '
-              '(${analysis.domainFieldCount} fields) and UI state '
-              '(${analysis.uiFieldCount} fields). Consider splitting into '
-              'DomainState + ViewState for v6.',
-          filePath: relativePath,
-          line: analysis.classLine,
-          ruleId: 'v5_mixed_state',
-          severity: MigrationSeverity.warning,
-          suggestion: 'Run `zfa migrate state` to generate DomainState + ViewState',
-        ));
+        findings.add(
+          MigrationFinding(
+            message:
+                'Mixed state class `${analysis.className}` contains both domain data '
+                '(${analysis.domainFieldCount} fields) and UI state '
+                '(${analysis.uiFieldCount} fields). Consider splitting into '
+                'DomainState + ViewState for v6.',
+            filePath: relativePath,
+            line: analysis.classLine,
+            ruleId: 'v5_mixed_state',
+            severity: MigrationSeverity.warning,
+            suggestion:
+                'Run `zfa migrate state` to generate DomainState + ViewState',
+          ),
+        );
       }
     }
 
@@ -85,7 +94,7 @@ class StateDetector extends MigrationDetector {
     for (final line in content.split('\n')) {
       final trimmed = line.trim();
       final fieldMatch = RegExp(
-        r'^(?:final\s+)?([\w<>?]+)\s+(\w+)\s*[;=]'
+        r'^(?:final\s+)?([\w<>?]+)\s+(\w+)\s*[;=]',
       ).firstMatch(trimmed);
       if (fieldMatch == null) continue;
 
@@ -110,8 +119,13 @@ class StateDetector extends MigrationDetector {
   }
 
   bool _isUiField(String type, String name) {
-    if ((type == 'bool' || type == 'bool?') && (name.startsWith('is') || name.startsWith('has'))) return true;
-    if (name == 'error' || type == 'AppFailure?' || type == 'AppFailure') return true;
+    if ((type == 'bool' || type == 'bool?') &&
+        (name.startsWith('is') || name.startsWith('has'))) {
+      return true;
+    }
+    if (name == 'error' || type == 'AppFailure?' || type == 'AppFailure') {
+      return true;
+    }
     if (name == 'isLoading' || name == 'isRefreshing') return true;
     if (name == 'offset' || name == 'limit' || name == 'hasMore') return true;
     return false;

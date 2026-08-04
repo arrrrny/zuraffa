@@ -5,7 +5,8 @@ import 'dart:io';
 import 'package:zuraffa/src/cli/plugin_loader.dart';
 import 'package:zuraffa/src/config/zfa_config.dart';
 import 'package:zuraffa/src/core/plugin_system/plugin_registry.dart';
-import 'package:zuraffa/src/mcp/v2_tools.dart' show v2ToolDefinitions, handleV2ToolCall, startWebSocketServer;
+import 'package:zuraffa/src/mcp/v2_tools.dart'
+    show v2ToolDefinitions, handleV2ToolCall, startWebSocketServer;
 import 'package:zuraffa/src/mcp/session_store.dart' show McpSessionStore;
 import 'package:zuraffa/src/mcp/file_watcher.dart' show McpFileWatcher;
 
@@ -77,12 +78,8 @@ void main(List<String> args) async {
         ? args[tokenIndex + 1]
         : null;
 
-    final sessionStore = McpSessionStore(
-      projectRoot: Directory.current.path,
-    );
-    final fileWatcher = McpFileWatcher(
-      projectRoot: Directory.current.path,
-    );
+    final sessionStore = McpSessionStore(projectRoot: Directory.current.path);
+    final fileWatcher = McpFileWatcher(projectRoot: Directory.current.path);
 
     stderr.writeln('[m[mcp] Starting WebSocket server on port $port');
     await startWebSocketServer(
@@ -693,11 +690,7 @@ All v5 generation uses the fixed lib/src and lib/src/domain layout.''',
             sessionStore: _sessionStore,
           );
           if (v2Result != null) {
-            return {
-              'jsonrpc': '2.0',
-              'result': v2Result,
-              'id': id,
-            };
+            return {'jsonrpc': '2.0', 'result': v2Result, 'id': id};
           }
           return _error(id, -32602, 'Unknown tool: $toolName');
       }

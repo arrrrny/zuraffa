@@ -15,8 +15,9 @@ void main() {
     XRayMode.reset();
   });
 
-  testWidgets('XRayScope is transparent pass-through when disabled',
-      (WidgetTester tester) async {
+  testWidgets('XRayScope is transparent pass-through when disabled', (
+    WidgetTester tester,
+  ) async {
     final childKey = GlobalKey();
 
     await tester.pumpWidget(
@@ -36,8 +37,9 @@ void main() {
     expect(state.tree, isEmpty);
   });
 
-  testWidgets('XRayScope.tree returns registered nodes when enabled',
-      (WidgetTester tester) async {
+  testWidgets('XRayScope.tree returns registered nodes when enabled', (
+    WidgetTester tester,
+  ) async {
     XRayMode.enable();
 
     await tester.pumpWidget(
@@ -69,8 +71,9 @@ void main() {
     expect(state.tree[1].id, 'TestView.editButton');
   });
 
-  testWidgets('XRayNode creates deterministic string ID format',
-      (WidgetTester tester) async {
+  testWidgets('XRayNode creates deterministic string ID format', (
+    WidgetTester tester,
+  ) async {
     XRayMode.enable();
 
     await tester.pumpWidget(
@@ -93,8 +96,9 @@ void main() {
     expect(node!.enumName, 'actionButton');
   });
 
-  testWidgets('XRayNode is transparent pass-through when disabled',
-      (WidgetTester tester) async {
+  testWidgets('XRayNode is transparent pass-through when disabled', (
+    WidgetTester tester,
+  ) async {
     final childKey = GlobalKey();
 
     await tester.pumpWidget(

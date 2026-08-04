@@ -47,14 +47,20 @@ class RetryDDAPlugin extends ZorphyDecoratorPlugin {
     final params = method.parameters;
 
     final attempts = decorator.get<int>('attempts') ?? 3;
-    final backoffStr = decorator.get<String>('backoff') ?? 'BackoffStrategy.exponential';
+    final backoffStr =
+        decorator.get<String>('backoff') ?? 'BackoffStrategy.exponential';
     final backoff = _parseBackoff(backoffStr);
-    final maxDelayMs = _parseDurationMs(decorator.get<String>('maxDelay')) ?? 30000;
-    final baseDelayMs = _parseDurationMs(decorator.get<String>('baseDelay')) ?? 1000;
-    final maxCumulativeMs = _parseDurationMs(decorator.get<String>('maxCumulativeTime'));
+    final maxDelayMs =
+        _parseDurationMs(decorator.get<String>('maxDelay')) ?? 30000;
+    final baseDelayMs =
+        _parseDurationMs(decorator.get<String>('baseDelay')) ?? 1000;
+    final maxCumulativeMs = _parseDurationMs(
+      decorator.get<String>('maxCumulativeTime'),
+    );
 
     final retryOnRaw = decorator.get<List>('retryOn');
-    final retryOn = retryOnRaw?.cast<String>().toList() ?? const ['network', 'server'];
+    final retryOn =
+        retryOnRaw?.cast<String>().toList() ?? const ['network', 'server'];
 
     _generator.addRetryEntry(
       className: className,
@@ -111,17 +117,17 @@ class RetryDDAPlugin extends ZorphyDecoratorPlugin {
     final minutes = RegExp(r'minutes:\s*(\d+)').firstMatch(durationStr);
     final seconds = RegExp(r'seconds:\s*(\d+)').firstMatch(durationStr);
     final millis = RegExp(r'milliseconds:\s*(\d+)').firstMatch(durationStr);
-    if (days == null && hours == null && minutes == null &&
-        seconds == null && millis == null) {
+    if (days == null &&
+        hours == null &&
+        minutes == null &&
+        seconds == null &&
+        millis == null) {
       return null;
     }
-    return (
-      (days != null ? int.parse(days.group(1)!) * 86400000 : 0) +
-      (hours != null ? int.parse(hours.group(1)!) * 3600000 : 0) +
-      (minutes != null ? int.parse(minutes.group(1)!) * 60000 : 0) +
-      (seconds != null ? int.parse(seconds.group(1)!) * 1000 : 0) +
-      (millis != null ? int.parse(millis.group(1)!) : 0)
-    );
+    return ((days != null ? int.parse(days.group(1)!) * 86400000 : 0) +
+        (hours != null ? int.parse(hours.group(1)!) * 3600000 : 0) +
+        (minutes != null ? int.parse(minutes.group(1)!) * 60000 : 0) +
+        (seconds != null ? int.parse(seconds.group(1)!) * 1000 : 0) +
+        (millis != null ? int.parse(millis.group(1)!) : 0));
   }
 }
-

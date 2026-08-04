@@ -68,9 +68,7 @@ class ShakeDetector {
       final now = DateTime.now();
       _spikeTimes.add(now);
 
-      _spikeTimes.removeWhere(
-        (t) => now.difference(t) > shakeCountWindow,
-      );
+      _spikeTimes.removeWhere((t) => now.difference(t) > shakeCountWindow);
 
       if (_spikeTimes.length >= shakeCount) {
         _spikeTimes.clear();

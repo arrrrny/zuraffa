@@ -457,6 +457,9 @@ export 'src/state/widgets/fragment_builder.dart';
 // StateMigrator — converts v5 .state.dart to v6 slice pattern.
 export 'src/state/migration/state_migrator.dart' hide StateMigrator;
 
+// v5 -> v6 migration tooling
+export 'src/migration/migration.dart';
+
 // DomainState — auto-generated read-only slice container.
 export 'src/state/domain_state.dart';
 
@@ -1168,7 +1171,6 @@ class Zuraffa {
 }
 
 
-// v5 -> v6 migration tooling
-export 'src/migration/migration.dart';
+
 
 

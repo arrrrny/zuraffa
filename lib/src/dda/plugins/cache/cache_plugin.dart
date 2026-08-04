@@ -34,8 +34,7 @@ class CacheDDAPlugin extends ZorphyDecoratorPlugin {
   String get targetDecorator => 'Cacheable';
 
   @override
-  List<String> get targetDecorators =>
-      const ['Cacheable', 'CacheInvalidate'];
+  List<String> get targetDecorators => const ['Cacheable', 'CacheInvalidate'];
 
   @override
   int get priority => 5;
@@ -122,7 +121,11 @@ class CacheDDAPlugin extends ZorphyDecoratorPlugin {
     final milliseconds = RegExp(r'milliseconds:\s*(\d+)').firstMatch(ttlStr);
 
     // If no valid units found, return null
-    if (days == null && hours == null && minutes == null && seconds == null && milliseconds == null) {
+    if (days == null &&
+        hours == null &&
+        minutes == null &&
+        seconds == null &&
+        milliseconds == null) {
       return null;
     }
 
@@ -132,7 +135,9 @@ class CacheDDAPlugin extends ZorphyDecoratorPlugin {
       hours: hours != null ? int.parse(hours.group(1)!) : 0,
       minutes: minutes != null ? int.parse(minutes.group(1)!) : 0,
       seconds: seconds != null ? int.parse(seconds.group(1)!) : 0,
-      milliseconds: milliseconds != null ? int.parse(milliseconds.group(1)!) : 0,
+      milliseconds: milliseconds != null
+          ? int.parse(milliseconds.group(1)!)
+          : 0,
     );
   }
 
@@ -151,7 +156,9 @@ class CacheDDAPlugin extends ZorphyDecoratorPlugin {
         return CacheStrategy.networkOnly;
       default:
         // Invalid strategy - log and default to offlineFirst
-        print('Warning: Invalid cache strategy "$strategyStr", defaulting to offlineFirst');
+        print(
+          'Warning: Invalid cache strategy "$strategyStr", defaulting to offlineFirst',
+        );
         return CacheStrategy.offlineFirst;
     }
   }

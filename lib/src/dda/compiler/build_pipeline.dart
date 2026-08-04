@@ -93,10 +93,11 @@ class BuildPipeline {
     } else {
       final routePlugin = ZorphyPluginRegistry.get('Route');
       if (routePlugin is RouteDDAPlugin && routePlugin.hasRoutes) {
-        _log('   (dry-run — would generate: lib/src/routing/zfa_router.g.dart)');
+        _log(
+          '   (dry-run — would generate: lib/src/routing/zfa_router.g.dart)',
+        );
       }
     }
-
 
     // ── Stage 5.6: Cache Generation ──
     _log('💾 Generating cache layer...');
@@ -109,8 +110,6 @@ class BuildPipeline {
       }
     }
 
-
-
     // ── Stage 5.7: Auth Middleware Generation ──
     _log('🛡️  Generating auth middleware...');
     if (!dryRun) {
@@ -118,7 +117,9 @@ class BuildPipeline {
     } else {
       final authPlugin = ZorphyPluginRegistry.get('RequiresAuth');
       if (authPlugin is AuthDDAPlugin && authPlugin.hasAuthEntries) {
-        _log('   (dry-run — would generate: lib/src/middleware/zfa_auth.g.dart)');
+        _log(
+          '   (dry-run — would generate: lib/src/middleware/zfa_auth.g.dart)',
+        );
       }
     }
 
@@ -129,7 +130,9 @@ class BuildPipeline {
     } else {
       final retryPlugin = ZorphyPluginRegistry.get('Retry');
       if (retryPlugin is RetryDDAPlugin && retryPlugin.hasRetryEntries) {
-        _log('   (dry-run — would generate: lib/src/middleware/zfa_retry.g.dart)');
+        _log(
+          '   (dry-run — would generate: lib/src/middleware/zfa_retry.g.dart)',
+        );
       }
     }
 
@@ -139,12 +142,15 @@ class BuildPipeline {
       await _generateTrackEventConfig();
     } else {
       final trackPlugin = ZorphyPluginRegistry.get('TrackEvent');
-      if (trackPlugin is TrackEventDDAPlugin && trackPlugin.hasTrackEventEntries) {
-        _log('   (dry-run — would generate: lib/src/middleware/zfa_events.g.dart)');
+      if (trackPlugin is TrackEventDDAPlugin &&
+          trackPlugin.hasTrackEventEntries) {
+        _log(
+          '   (dry-run — would generate: lib/src/middleware/zfa_events.g.dart)',
+        );
       }
     }
 
-        // ── Stage 6: Build End ──
+    // ── Stage 6: Build End ──
     _log('🏁 Build end...');
     for (final plugin in plugins) {
       try {
@@ -201,7 +207,11 @@ class BuildPipeline {
     try {
       final code = routePlugin.generateRouterFile();
       final outputPath = p.join(
-        projectRoot, 'lib', 'src', 'routing', 'zfa_router.g.dart',
+        projectRoot,
+        'lib',
+        'src',
+        'routing',
+        'zfa_router.g.dart',
       );
 
       await File(outputPath).create(recursive: true);
@@ -214,7 +224,6 @@ class BuildPipeline {
     }
   }
 
-
   Future<void> _generateCacheConfig() async {
     final cachePlugin = ZorphyPluginRegistry.get('Cacheable');
     if (cachePlugin is! CacheDDAPlugin) return;
@@ -223,7 +232,11 @@ class BuildPipeline {
     try {
       final code = cachePlugin.generateCacheFile();
       final outputPath = p.join(
-        projectRoot, 'lib', 'src', 'cache', 'zfa_cache.g.dart',
+        projectRoot,
+        'lib',
+        'src',
+        'cache',
+        'zfa_cache.g.dart',
       );
 
       await File(outputPath).create(recursive: true);
@@ -243,7 +256,11 @@ class BuildPipeline {
     try {
       final code = authPlugin.generateAuthFile();
       final outputPath = p.join(
-        projectRoot, 'lib', 'src', 'middleware', 'zfa_auth.g.dart',
+        projectRoot,
+        'lib',
+        'src',
+        'middleware',
+        'zfa_auth.g.dart',
       );
       await File(outputPath).create(recursive: true);
       await File(outputPath).writeAsString(code);
@@ -261,7 +278,11 @@ class BuildPipeline {
     try {
       final code = retryPlugin.generateRetryFile();
       final outputPath = p.join(
-        projectRoot, 'lib', 'src', 'middleware', 'zfa_retry.g.dart',
+        projectRoot,
+        'lib',
+        'src',
+        'middleware',
+        'zfa_retry.g.dart',
       );
       await File(outputPath).create(recursive: true);
       await File(outputPath).writeAsString(code);
@@ -279,7 +300,11 @@ class BuildPipeline {
     try {
       final code = trackPlugin.generateTrackEventFile();
       final outputPath = p.join(
-        projectRoot, 'lib', 'src', 'middleware', 'zfa_events.g.dart',
+        projectRoot,
+        'lib',
+        'src',
+        'middleware',
+        'zfa_events.g.dart',
       );
       await File(outputPath).create(recursive: true);
       await File(outputPath).writeAsString(code);
@@ -298,8 +323,6 @@ class BuildPipeline {
   }
 }
 
-
-
 class BuildResult {
   BuildResult({
     required this.success,
@@ -313,7 +336,3 @@ class BuildResult {
   final List<String> errors;
   final List<String> generatedFiles;
 }
-
-
-
-

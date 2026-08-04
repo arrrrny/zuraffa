@@ -46,7 +46,9 @@ class BuildCommand extends Command {
       if (force) {
         print('   ⚠️  --force: will regenerate all files from scratch');
       } else {
-        print('   🧠 Smart merge: will preserve user code and @preserve blocks');
+        print(
+          '   🧠 Smart merge: will preserve user code and @preserve blocks',
+        );
       }
       print('');
     } else {
@@ -86,7 +88,11 @@ class BuildCommand extends Command {
       '--delete-conflicting-outputs',
     ];
 
-    final process = await Process.start('dart', args, mode: ProcessStartMode.inheritStdio);
+    final process = await Process.start(
+      'dart',
+      args,
+      mode: ProcessStartMode.inheritStdio,
+    );
     return process.exitCode;
   }
 

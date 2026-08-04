@@ -86,8 +86,8 @@ class RequiresAuth {
 
   /// Convenience constructor for single-role auth.
   const RequiresAuth.single(this.role)
-      : roles = null,
-        mode = AuthorizationMode.all;
+    : roles = null,
+      mode = AuthorizationMode.all;
 }
 
 /// Marks a UseCase or datasource method for automatic retry on failure.
@@ -127,11 +127,11 @@ class Retry {
     int attempts = 3,
     Duration delay = const Duration(seconds: 2),
   }) : this(
-          attempts: attempts,
-          backoff: BackoffStrategy.fixed,
-          baseDelay: delay,
-          maxDelay: delay,
-        );
+         attempts: attempts,
+         backoff: BackoffStrategy.fixed,
+         baseDelay: delay,
+         maxDelay: delay,
+       );
 }
 
 /// Marks a UseCase method for automatic telemetry event tracking.

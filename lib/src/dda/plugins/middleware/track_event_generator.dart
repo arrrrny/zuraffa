@@ -34,18 +34,20 @@ class TrackEventGenerator {
     required bool trackResult,
     required String analyticsService,
   }) {
-    _entries.add(_TrackEventEntry(
-      className: className,
-      methodName: methodName,
-      importUri: importUri,
-      returnType: returnType,
-      parameters: parameters,
-      eventName: eventName,
-      properties: properties,
-      trackDuration: trackDuration,
-      trackResult: trackResult,
-      analyticsService: analyticsService,
-    ));
+    _entries.add(
+      _TrackEventEntry(
+        className: className,
+        methodName: methodName,
+        importUri: importUri,
+        returnType: returnType,
+        parameters: parameters,
+        eventName: eventName,
+        properties: properties,
+        trackDuration: trackDuration,
+        trackResult: trackResult,
+        analyticsService: analyticsService,
+      ),
+    );
   }
 
   String generate() {
@@ -78,8 +80,7 @@ class TrackEventGenerator {
         classNames.add(entry.className);
       }
       for (final cn in classNames) {
-        final classEntries =
-            _entries.where((e) => e.className == cn).toList();
+        final classEntries = _entries.where((e) => e.className == cn).toList();
         b.body.add(_trackerAdapterClass(cn, classEntries));
       }
     });
@@ -91,68 +92,98 @@ class TrackEventGenerator {
   // -- ZfaEventTracker --
 
   cb.Class _eventTrackerClass() {
-    return cb.Class((c) => c
-      ..name = 'ZfaEventTracker'
-      ..abstract = true
-      ..fields.addAll([
-        cb.Field((f) => f
-          ..name = 'logEvent'
-          ..type = cb.refer('void Function(String, Map<String, dynamic>)')
-          ..modifier = cb.FieldModifier.final$),
-      ])
-      ..constructors.addAll([
-        cb.Constructor((ctor) => ctor
-          ..requiredParameters.add(
-              cb.Parameter((p) => p..name = 'logEvent'..toThis = true))),
-      ])
-      ..methods.addAll([
-        cb.Method((m) => m
-          ..name = 'trackStart'
-          ..returns = cb.refer('void')
-          ..requiredParameters.addAll([
-            cb.Parameter((p) => p
-              ..name = 'eventName'
-              ..type = cb.refer('String')),
-            cb.Parameter((p) => p
-              ..name = 'properties'
-              ..type = cb.refer('Map<String, dynamic>')),
-          ])
-          ..body = cb.Code(_joinLines([
-            'final enriched = Map<String, dynamic>.from(properties);',
-            "enriched['event_phase'] = 'start';",
-            'logEvent(eventName, enriched);',
-          ]))),
-        cb.Method((m) => m
-          ..name = 'trackEnd'
-          ..returns = cb.refer('void')
-          ..requiredParameters.addAll([
-            cb.Parameter((p) => p
-              ..name = 'eventName'
-              ..type = cb.refer('String')),
-            cb.Parameter((p) => p
-              ..name = 'properties'
-              ..type = cb.refer('Map<String, dynamic>')),
-          ])
-          ..optionalParameters.addAll([
-            cb.Parameter((p) => p
-              ..name = 'durationMs'
-              ..type = cb.refer('int?')),
-            cb.Parameter((p) => p
-              ..name = 'success'
-              ..type = cb.refer('bool?')),
-          ])
-          ..body = cb.Code(_joinLines([
-            'final enriched = Map<String, dynamic>.from(properties);',
-            "enriched['event_phase'] = 'end';",
-            'if (durationMs != null) {',
-            "  enriched['durationMs'] = durationMs;",
-            '}',
-            'if (success != null) {',
-            "  enriched['success'] = success;",
-            '}',
-            'logEvent(eventName, enriched);',
-          ]))),
-      ]),
+    return cb.Class(
+      (c) => c
+        ..name = 'ZfaEventTracker'
+        ..abstract = true
+        ..fields.addAll([
+          cb.Field(
+            (f) => f
+              ..name = 'logEvent'
+              ..type = cb.refer('void Function(String, Map<String, dynamic>)')
+              ..modifier = cb.FieldModifier.final$,
+          ),
+        ])
+        ..constructors.addAll([
+          cb.Constructor(
+            (ctor) => ctor
+              ..requiredParameters.add(
+                cb.Parameter(
+                  (p) => p
+                    ..name = 'logEvent'
+                    ..toThis = true,
+                ),
+              ),
+          ),
+        ])
+        ..methods.addAll([
+          cb.Method(
+            (m) => m
+              ..name = 'trackStart'
+              ..returns = cb.refer('void')
+              ..requiredParameters.addAll([
+                cb.Parameter(
+                  (p) => p
+                    ..name = 'eventName'
+                    ..type = cb.refer('String'),
+                ),
+                cb.Parameter(
+                  (p) => p
+                    ..name = 'properties'
+                    ..type = cb.refer('Map<String, dynamic>'),
+                ),
+              ])
+              ..body = cb.Code(
+                _joinLines([
+                  'final enriched = Map<String, dynamic>.from(properties);',
+                  "enriched['event_phase'] = 'start';",
+                  'logEvent(eventName, enriched);',
+                ]),
+              ),
+          ),
+          cb.Method(
+            (m) => m
+              ..name = 'trackEnd'
+              ..returns = cb.refer('void')
+              ..requiredParameters.addAll([
+                cb.Parameter(
+                  (p) => p
+                    ..name = 'eventName'
+                    ..type = cb.refer('String'),
+                ),
+                cb.Parameter(
+                  (p) => p
+                    ..name = 'properties'
+                    ..type = cb.refer('Map<String, dynamic>'),
+                ),
+              ])
+              ..optionalParameters.addAll([
+                cb.Parameter(
+                  (p) => p
+                    ..name = 'durationMs'
+                    ..type = cb.refer('int?'),
+                ),
+                cb.Parameter(
+                  (p) => p
+                    ..name = 'success'
+                    ..type = cb.refer('bool?'),
+                ),
+              ])
+              ..body = cb.Code(
+                _joinLines([
+                  'final enriched = Map<String, dynamic>.from(properties);',
+                  "enriched['event_phase'] = 'end';",
+                  'if (durationMs != null) {',
+                  "  enriched['durationMs'] = durationMs;",
+                  '}',
+                  'if (success != null) {',
+                  "  enriched['success'] = success;",
+                  '}',
+                  'logEvent(eventName, enriched);',
+                ]),
+              ),
+          ),
+        ]),
     );
   }
 
@@ -166,26 +197,41 @@ class TrackEventGenerator {
     for (final entry in entries) {
       methods.add(_trackedMethod(entry));
     }
-    return cb.Class((c) => c
-      ..name = '_${className}EventAdapter'
-      ..fields.addAll([
-        cb.Field((f) => f
-          ..name = '_tracker'
-          ..type = cb.refer('ZfaEventTracker')
-          ..modifier = cb.FieldModifier.final$),
-        cb.Field((f) => f
-          ..name = '_source'
-          ..type = cb.refer(className)
-          ..modifier = cb.FieldModifier.final$),
-      ])
-      ..constructors.addAll([
-        cb.Constructor((ctor) => ctor
-          ..requiredParameters.addAll([
-            cb.Parameter((p) => p..name = 'tracker'..toThis = true),
-            cb.Parameter((p) => p..name = 'source'..toThis = true),
-          ])),
-      ])
-      ..methods.addAll(methods),
+    return cb.Class(
+      (c) => c
+        ..name = '_${className}EventAdapter'
+        ..fields.addAll([
+          cb.Field(
+            (f) => f
+              ..name = '_tracker'
+              ..type = cb.refer('ZfaEventTracker')
+              ..modifier = cb.FieldModifier.final$,
+          ),
+          cb.Field(
+            (f) => f
+              ..name = '_source'
+              ..type = cb.refer(className)
+              ..modifier = cb.FieldModifier.final$,
+          ),
+        ])
+        ..constructors.addAll([
+          cb.Constructor(
+            (ctor) => ctor
+              ..requiredParameters.addAll([
+                cb.Parameter(
+                  (p) => p
+                    ..name = 'tracker'
+                    ..toThis = true,
+                ),
+                cb.Parameter(
+                  (p) => p
+                    ..name = 'source'
+                    ..toThis = true,
+                ),
+              ]),
+          ),
+        ])
+        ..methods.addAll(methods),
     );
   }
 
@@ -216,9 +262,11 @@ class TrackEventGenerator {
       }
     }
 
-    final callArgs = entry.parameters.map((p) {
-      return p.isNamed ? '${p.name}: ${p.name}' : p.name;
-    }).join(', ');
+    final callArgs = entry.parameters
+        .map((p) {
+          return p.isNamed ? '${p.name}: ${p.name}' : p.name;
+        })
+        .join(', ');
 
     // Build properties map from declared property names
     final propAssignments = <String>[];
@@ -248,40 +296,50 @@ class TrackEventGenerator {
       ]);
       if (entry.trackDuration) {
         bodyLines.add('  sw.stop();');
-        bodyLines.add("  _tracker.trackEnd('${entry.eventName}', props, durationMs: sw.elapsedMilliseconds, success: true);");
+        bodyLines.add(
+          "  _tracker.trackEnd('${entry.eventName}', props, durationMs: sw.elapsedMilliseconds, success: true);",
+        );
       } else {
-        bodyLines.add("  _tracker.trackEnd('${entry.eventName}', props, success: true);");
+        bodyLines.add(
+          "  _tracker.trackEnd('${entry.eventName}', props, success: true);",
+        );
       }
-      bodyLines.addAll([
-        '  return result;',
-        '} catch (e) {',
-      ]);
+      bodyLines.addAll(['  return result;', '} catch (e) {']);
       if (entry.trackDuration) {
         bodyLines.add('  sw.stop();');
-        bodyLines.add("  _tracker.trackEnd('${entry.eventName}', props, durationMs: sw.elapsedMilliseconds, success: false);");
+        bodyLines.add(
+          "  _tracker.trackEnd('${entry.eventName}', props, durationMs: sw.elapsedMilliseconds, success: false);",
+        );
       } else {
-        bodyLines.add("  _tracker.trackEnd('${entry.eventName}', props, success: false);");
+        bodyLines.add(
+          "  _tracker.trackEnd('${entry.eventName}', props, success: false);",
+        );
       }
       bodyLines.add('  rethrow;');
       bodyLines.add('}');
     } else {
       // No result tracking — just execute and track end
-      bodyLines.add('final result = await _source.${entry.methodName}($callArgs);');
+      bodyLines.add(
+        'final result = await _source.${entry.methodName}($callArgs);',
+      );
       if (entry.trackDuration) {
         bodyLines.add('sw.stop();');
-        bodyLines.add("_tracker.trackEnd('${entry.eventName}', props, durationMs: sw.elapsedMilliseconds);");
+        bodyLines.add(
+          "_tracker.trackEnd('${entry.eventName}', props, durationMs: sw.elapsedMilliseconds);",
+        );
       }
       bodyLines.add('return result;');
     }
 
-    return cb.Method((m) => m
-      ..name = entry.methodName
-      ..returns = cb.refer(entry.returnType)
-      ..modifier = cb.MethodModifier.async
-      ..requiredParameters.addAll(requiredParams)
-      ..optionalParameters.addAll(optionalParams)
-      ..optionalParameters.addAll(namedParams)
-      ..body = cb.Code(_joinLines(bodyLines)),
+    return cb.Method(
+      (m) => m
+        ..name = entry.methodName
+        ..returns = cb.refer(entry.returnType)
+        ..modifier = cb.MethodModifier.async
+        ..requiredParameters.addAll(requiredParams)
+        ..optionalParameters.addAll(optionalParams)
+        ..optionalParameters.addAll(namedParams)
+        ..body = cb.Code(_joinLines(bodyLines)),
     );
   }
 

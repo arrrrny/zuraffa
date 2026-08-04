@@ -17,10 +17,10 @@ class McpFileEvent {
   });
 
   Map<String, dynamic> toJson() => {
-        'type': type,
-        'path': path,
-        'timestamp': timestamp.toUtc().toIso8601String(),
-      };
+    'type': type,
+    'path': path,
+    'timestamp': timestamp.toUtc().toIso8601String(),
+  };
 }
 
 /// Watches the project's lib/src/ directory for .dart file changes.
@@ -47,14 +47,16 @@ class McpFileWatcher {
     final dir = Directory(watchDir);
     if (!await dir.exists()) return;
 
-    _subscription = dir.watch(recursive: true).listen(
-      _handleEvent,
-      onError: (error) {
-        // Log filesystem watch errors but don't crash
-        // ignore: avoid_print
-        print('[McpFileWatcher] Watch error: $error');
-      },
-    );
+    _subscription = dir
+        .watch(recursive: true)
+        .listen(
+          _handleEvent,
+          onError: (error) {
+            // Log filesystem watch errors but don't crash
+            // ignore: avoid_print
+            print('[McpFileWatcher] Watch error: $error');
+          },
+        );
     _running = true;
   }
 
@@ -94,22 +96,22 @@ class McpFileWatcher {
         return;
     }
 
-    _controller.add(McpFileEvent(
-      type: type,
-      path: relativePath,
-      timestamp: DateTime.now().toUtc(),
-    ));
+    _controller.add(
+      McpFileEvent(
+        type: type,
+        path: relativePath,
+        timestamp: DateTime.now().toUtc(),
+      ),
+    );
   }
 
   /// Emits a synthetic regeneration notification (e.g. after zfa build).
   void notifyRegeneration(List<String> affectedPaths) {
     final now = DateTime.now().toUtc();
     for (final path in affectedPaths) {
-      _controller.add(McpFileEvent(
-        type: 'modified',
-        path: path,
-        timestamp: now,
-      ));
+      _controller.add(
+        McpFileEvent(type: 'modified', path: path, timestamp: now),
+      );
     }
   }
 }

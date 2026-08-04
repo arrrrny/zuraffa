@@ -86,11 +86,7 @@ class XRayScopeState extends State<XRayScope> {
   /// Register a node with this scope.
   void register<T extends Enum>(BuildContext context, T nodeId) {
     final id = '${widget.viewId}.${nodeId.name}';
-    _nodes[id] = XRayNodeInfo(
-      id: id,
-      enumName: nodeId.name,
-      context: context,
-    );
+    _nodes[id] = XRayNodeInfo(id: id, enumName: nodeId.name, context: context);
   }
 
   /// Unregister a node from this scope.
@@ -140,10 +136,7 @@ class XRayScopeState extends State<XRayScope> {
 
     return _XRayScopeInherited(
       state: this,
-      child: XRayScopeOverlay(
-        scope: this,
-        child: widget.child,
-      ),
+      child: XRayScopeOverlay(scope: this, child: widget.child),
     );
   }
 }
@@ -151,10 +144,7 @@ class XRayScopeState extends State<XRayScope> {
 class _XRayScopeInherited extends InheritedWidget {
   final XRayScopeState state;
 
-  const _XRayScopeInherited({
-    required this.state,
-    required super.child,
-  });
+  const _XRayScopeInherited({required this.state, required super.child});
 
   @override
   bool updateShouldNotify(_XRayScopeInherited oldWidget) => true;

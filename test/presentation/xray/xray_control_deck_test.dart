@@ -55,9 +55,21 @@ void main() {
     });
 
     test('equality', () {
-      const a = XRayMockEntry(name: 'X', payload: 'p', type: XRayMockType.valid);
-      const b = XRayMockEntry(name: 'X', payload: 'p', type: XRayMockType.valid);
-      const c = XRayMockEntry(name: 'X', payload: 'q', type: XRayMockType.valid);
+      const a = XRayMockEntry(
+        name: 'X',
+        payload: 'p',
+        type: XRayMockType.valid,
+      );
+      const b = XRayMockEntry(
+        name: 'X',
+        payload: 'p',
+        type: XRayMockType.valid,
+      );
+      const c = XRayMockEntry(
+        name: 'X',
+        payload: 'q',
+        type: XRayMockType.valid,
+      );
       expect(a, equals(b));
       expect(a, isNot(equals(c)));
     });
@@ -185,13 +197,10 @@ void main() {
     });
 
     test('registerEntries and retrieve', () {
-      XRayControlDeckRegistry.registerEntries(
-        'ScanBarcodeUseCase',
-        const [
-          XRayMockEntry(name: 'A', payload: '1', type: XRayMockType.valid),
-          XRayMockEntry(name: 'B', payload: '2', type: XRayMockType.error),
-        ],
-      );
+      XRayControlDeckRegistry.registerEntries('ScanBarcodeUseCase', const [
+        XRayMockEntry(name: 'A', payload: '1', type: XRayMockType.valid),
+        XRayMockEntry(name: 'B', payload: '2', type: XRayMockType.error),
+      ]);
 
       final entries = XRayControlDeckRegistry.entriesFor('ScanBarcodeUseCase');
       expect(entries, hasLength(2));
@@ -205,14 +214,12 @@ void main() {
     });
 
     test('allEntries returns snapshot', () {
-      XRayControlDeckRegistry.registerEntries(
-        'UC1',
-        const [XRayMockEntry(name: 'X', payload: 'p')],
-      );
-      XRayControlDeckRegistry.registerEntries(
-        'UC2',
-        const [XRayMockEntry(name: 'Y', payload: 'q')],
-      );
+      XRayControlDeckRegistry.registerEntries('UC1', const [
+        XRayMockEntry(name: 'X', payload: 'p'),
+      ]);
+      XRayControlDeckRegistry.registerEntries('UC2', const [
+        XRayMockEntry(name: 'Y', payload: 'q'),
+      ]);
 
       final all = XRayControlDeckRegistry.allEntries;
       expect(all, hasLength(2));
@@ -221,14 +228,12 @@ void main() {
     });
 
     test('registerEntries replaces previous entries for same key', () {
-      XRayControlDeckRegistry.registerEntries(
-        'UC',
-        const [XRayMockEntry(name: 'Old', payload: 'o')],
-      );
-      XRayControlDeckRegistry.registerEntries(
-        'UC',
-        const [XRayMockEntry(name: 'New', payload: 'n')],
-      );
+      XRayControlDeckRegistry.registerEntries('UC', const [
+        XRayMockEntry(name: 'Old', payload: 'o'),
+      ]);
+      XRayControlDeckRegistry.registerEntries('UC', const [
+        XRayMockEntry(name: 'New', payload: 'n'),
+      ]);
 
       final entries = XRayControlDeckRegistry.entriesFor('UC');
       expect(entries, hasLength(1));
@@ -249,10 +254,9 @@ void main() {
     });
 
     test('Registry clear works', () {
-      XRayControlDeckRegistry.registerEntries(
-        'UC',
-        const [XRayMockEntry(name: 'T', payload: 't')],
-      );
+      XRayControlDeckRegistry.registerEntries('UC', const [
+        XRayMockEntry(name: 'T', payload: 't'),
+      ]);
       expect(XRayControlDeckRegistry.entriesFor('UC'), hasLength(1));
       XRayControlDeckRegistry.clear();
       expect(XRayControlDeckRegistry.entriesFor('UC'), isEmpty);
@@ -264,7 +268,9 @@ void main() {
       XRayMode.reset();
     });
 
-    testWidgets('renders SizedBox.shrink when XRayMode is disabled', (tester) async {
+    testWidgets('renders SizedBox.shrink when XRayMode is disabled', (
+      tester,
+    ) async {
       XRayMode.reset();
 
       await tester.pumpWidget(
@@ -283,7 +289,9 @@ void main() {
       expect(find.text('MOCK DECK'), findsNothing);
     });
 
-    testWidgets('renders toggle button when XRayMode is enabled', (tester) async {
+    testWidgets('renders toggle button when XRayMode is enabled', (
+      tester,
+    ) async {
       XRayMode.enable();
 
       await tester.pumpWidget(
@@ -311,9 +319,7 @@ void main() {
             body: XRayControlDeck(
               useCaseName: 'TestUseCase',
               injector: _nopInjector,
-              entries: [
-                XRayMockEntry(name: 'Test', payload: 'data'),
-              ],
+              entries: [XRayMockEntry(name: 'Test', payload: 'data')],
             ),
           ),
         ),
@@ -338,7 +344,9 @@ void main() {
       expect(find.byIcon(Icons.science), findsOneWidget);
     });
 
-    testWidgets('inject callback is invoked and shows feedback', (tester) async {
+    testWidgets('inject callback is invoked and shows feedback', (
+      tester,
+    ) async {
       XRayMode.enable();
       dynamic capturedPayload;
 
@@ -367,7 +375,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(capturedPayload, equals('test-data'));
-      expect(find.text('Test Entry'), findsNWidgets(2)); // In button label and entry
+      expect(
+        find.text('Test Entry'),
+        findsNWidgets(2),
+      ); // In button label and entry
     });
 
     testWidgets('color mapping for XRayMockType.valid', (tester) async {
@@ -380,7 +391,11 @@ void main() {
               useCaseName: 'TestUseCase',
               injector: _nopInjector,
               entries: [
-                XRayMockEntry(name: 'Valid', payload: 'data', type: XRayMockType.valid),
+                XRayMockEntry(
+                  name: 'Valid',
+                  payload: 'data',
+                  type: XRayMockType.valid,
+                ),
               ],
             ),
           ),
@@ -404,7 +419,11 @@ void main() {
               useCaseName: 'TestUseCase',
               injector: _nopInjector,
               entries: [
-                XRayMockEntry(name: 'Error', payload: 'data', type: XRayMockType.error),
+                XRayMockEntry(
+                  name: 'Error',
+                  payload: 'data',
+                  type: XRayMockType.error,
+                ),
               ],
             ),
           ),
@@ -428,7 +447,11 @@ void main() {
               useCaseName: 'TestUseCase',
               injector: _nopInjector,
               entries: [
-                XRayMockEntry(name: 'Unknown', payload: 'data', type: XRayMockType.unknown),
+                XRayMockEntry(
+                  name: 'Unknown',
+                  payload: 'data',
+                  type: XRayMockType.unknown,
+                ),
               ],
             ),
           ),
@@ -460,7 +483,12 @@ void main() {
       await tester.tap(find.text('MOCK DECK'));
       await tester.pumpAndSettle();
 
-      expect(find.text('No mock scenarios registered.\nAdd @XRayMock annotations or use registerEntries().'), findsOneWidget);
+      expect(
+        find.text(
+          'No mock scenarios registered.\nAdd @XRayMock annotations or use registerEntries().',
+        ),
+        findsOneWidget,
+      );
       expect(find.text('0 mocks'), findsOneWidget);
     });
 
@@ -511,11 +539,11 @@ void main() {
       XRayControlDeckRegistry.clear();
     });
 
-    test('annotated UseCase produces expected deck buttons after registration', () {
-      // Simulate what the generated {ViewName}_XRayDeck.dart would do:
-      XRayControlDeckRegistry.registerEntries(
-        'ScanBarcodeUseCase',
-        const [
+    test(
+      'annotated UseCase produces expected deck buttons after registration',
+      () {
+        // Simulate what the generated {ViewName}_XRayDeck.dart would do:
+        XRayControlDeckRegistry.registerEntries('ScanBarcodeUseCase', const [
           XRayMockEntry(
             name: 'Valid Product A',
             payload: '123456789',
@@ -527,36 +555,35 @@ void main() {
             type: XRayMockType.error,
             description: 'Triggers barcode validation failure',
           ),
-          XRayMockEntry(
-            name: 'Unknown Format',
-            payload: 'abcdef',
-          ),
-        ],
-      );
+          XRayMockEntry(name: 'Unknown Format', payload: 'abcdef'),
+        ]);
 
-      final entries = XRayControlDeckRegistry.entriesFor('ScanBarcodeUseCase');
-      expect(entries, hasLength(3));
+        final entries = XRayControlDeckRegistry.entriesFor(
+          'ScanBarcodeUseCase',
+        );
+        expect(entries, hasLength(3));
 
-      // Verify color-coding types
-      expect(entries[0].type, XRayMockType.valid);
-      expect(entries[1].type, XRayMockType.error);
-      expect(entries[2].type, XRayMockType.unknown);
+        // Verify color-coding types
+        expect(entries[0].type, XRayMockType.valid);
+        expect(entries[1].type, XRayMockType.error);
+        expect(entries[2].type, XRayMockType.unknown);
 
-      // Verify names
-      expect(entries[0].name, 'Valid Product A');
-      expect(entries[1].name, 'Invalid Barcode');
-      expect(entries[2].name, 'Unknown Format');
+        // Verify names
+        expect(entries[0].name, 'Valid Product A');
+        expect(entries[1].name, 'Invalid Barcode');
+        expect(entries[2].name, 'Unknown Format');
 
-      // Verify payloads
-      expect(entries[0].payload, '123456789');
-      expect(entries[1].payload, '000000');
-      expect(entries[2].payload, 'abcdef');
+        // Verify payloads
+        expect(entries[0].payload, '123456789');
+        expect(entries[1].payload, '000000');
+        expect(entries[2].payload, 'abcdef');
 
-      // Verify description on error entry
-      expect(entries[1].description, 'Triggers barcode validation failure');
-      expect(entries[0].description, isNull);
-      expect(entries[2].description, isNull);
-    });
+        // Verify description on error entry
+        expect(entries[1].description, 'Triggers barcode validation failure');
+        expect(entries[0].description, isNull);
+        expect(entries[2].description, isNull);
+      },
+    );
 
     test('YAML-based entries match annotation-based entries', () {
       // Create a YAML file
@@ -575,8 +602,16 @@ void main() {
 
       // Create equivalent annotation entries
       final annotationEntries = [
-        XRayMockEntry.fromAnnotation(name: 'Valid Product A', payload: '123456789', type: 'valid'),
-        XRayMockEntry.fromAnnotation(name: 'Invalid Barcode', payload: '000000', type: 'error'),
+        XRayMockEntry.fromAnnotation(
+          name: 'Valid Product A',
+          payload: '123456789',
+          type: 'valid',
+        ),
+        XRayMockEntry.fromAnnotation(
+          name: 'Invalid Barcode',
+          payload: '000000',
+          type: 'error',
+        ),
       ];
 
       // Both should produce the same data

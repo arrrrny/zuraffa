@@ -51,8 +51,10 @@ class XRayControlDeck extends StatefulWidget {
     required this.injector,
     this.entries = const [],
     this.heightFactor = 0.4,
-  }) : assert(heightFactor >= 0.0 && heightFactor <= 1.0,
-            'heightFactor must be between 0.0 and 1.0');
+  }) : assert(
+         heightFactor >= 0.0 && heightFactor <= 1.0,
+         'heightFactor must be between 0.0 and 1.0',
+       );
 
   @override
   State<XRayControlDeck> createState() => _XRayControlDeckState();
@@ -75,13 +77,13 @@ class _XRayControlDeckState extends State<XRayControlDeck>
       vsync: this,
       duration: const Duration(milliseconds: 250),
     );
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOutCubic,
-    ));
+    _slideAnimation = Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _animationController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
   }
 
   @override
@@ -137,10 +139,7 @@ class _XRayControlDeckState extends State<XRayControlDeck>
               decoration: BoxDecoration(
                 color: const Color(0xCC1A1A2E),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: _deckAccent,
-                  width: 1,
-                ),
+                border: Border.all(color: _deckAccent, width: 1),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -193,7 +192,8 @@ class _XRayControlDeckState extends State<XRayControlDeck>
     final entries = widget.entries;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final maxHeight = MediaQuery.of(context).size.height * widget.heightFactor;
+        final maxHeight =
+            MediaQuery.of(context).size.height * widget.heightFactor;
         return Container(
           constraints: BoxConstraints(maxHeight: maxHeight),
           color: const Color(0xE61A1A2E),
@@ -211,7 +211,11 @@ class _XRayControlDeckState extends State<XRayControlDeck>
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.science, color: Color(0xFF00FFFF), size: 20),
+                      const Icon(
+                        Icons.science,
+                        color: Color(0xFF00FFFF),
+                        size: 20,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Column(
@@ -301,10 +305,7 @@ class _XRayControlDeckState extends State<XRayControlDeck>
             Container(
               width: 8,
               height: 8,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-              ),
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -341,10 +342,7 @@ class _XRayControlDeckState extends State<XRayControlDeck>
                 ],
               ),
             ),
-            Text(
-              icon,
-              style: const TextStyle(fontSize: 14),
-            ),
+            Text(icon, style: const TextStyle(fontSize: 14)),
           ],
         ),
       ),
@@ -398,10 +396,7 @@ class XRayControlDeckRegistry {
   static final Map<String, List<XRayMockEntry>> _entries = {};
 
   /// Register mock entries for a given UseCase name.
-  static void registerEntries(
-    String useCaseName,
-    List<XRayMockEntry> entries,
-  ) {
+  static void registerEntries(String useCaseName, List<XRayMockEntry> entries) {
     if (kReleaseMode) return;
     _entries[useCaseName] = List.unmodifiable(entries);
   }
