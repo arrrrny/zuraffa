@@ -73,12 +73,12 @@ class UseCaseContractSpecConfig {
 ///
 /// ```dart
 /// // Contract registration (core)
-/// di.registerLazySingleton<GetUserUseCase>(
+/// await di.registerLazySingleton<GetUserUseCase>(
 ///   () => DefaultGetUserUseCase(di.get()),
 /// );
 ///
 /// // Plugin override
-/// di.registerLazySingleton<GetUserUseCase>(
+/// await di.registerLazySingleton<GetUserUseCase>(
 ///   () => CustomGetUserUseCase(di.get()),
 ///   override: true,
 /// );
@@ -124,12 +124,32 @@ class UseCaseContractFactory {
         Parameter(
           (p) => p
             ..name = 'context'
-            ..type = refer('ZuraffaContext?'),
+            ..type = refer('ZuraffaContext?')
+            ..named = true,
         ),
       );
       method = eb.build();
     } else {
       method = executeMethod;
+    }
+
+    final constructorParams = [
+      Parameter(
+        (p) => p
+          ..name = config.repositoryField
+          ..toThis = true,
+      ),
+    ];
+
+    if (isInterceptable) {
+      constructorParams.add(
+        Parameter(
+          (p) => p
+            ..name = 'interceptorRegistry'
+            ..named = true
+            ..toSuper = true,
+        ),
+      );
     }
 
     final clazz = Class(
@@ -142,13 +162,7 @@ class UseCaseContractFactory {
         ))
         ..constructors.add(
           CommonPatterns.constructor(
-            parameters: [
-              Parameter(
-                (p) => p
-                  ..name = config.repositoryField
-                  ..toThis = true,
-              ),
-            ],
+            parameters: constructorParams,
           ),
         )
         ..methods.add(method),

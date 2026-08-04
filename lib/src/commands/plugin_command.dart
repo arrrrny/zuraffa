@@ -92,8 +92,13 @@ class PluginCommand {
     final insertPos = lastImport.end;
     content = content.substring(0, insertPos) + '\n' + importLine + content.substring(insertPos);
 
+    // Normalize package name to derive the plugin class name.
+    // Convention: zuraffa_feature_example -> FeatureExamplePlugin
+    // Convention: custom_plugin -> CustomPlugin
     var baseName = packageName;
-    if (baseName.startsWith('zuraffa_')) {
+    if (baseName.startsWith('zuraffa_feature_')) {
+      baseName = baseName.substring('zuraffa_feature_'.length);
+    } else if (baseName.startsWith('zuraffa_')) {
       baseName = baseName.substring('zuraffa_'.length);
     }
     final parts = baseName.split('_');
@@ -101,33 +106,43 @@ class PluginCommand {
     final pluginClass = className + 'Plugin';
 
     // Find the engine registration block and add the plugin.
+    // Pattern: locate engine creation, then find ..register calls before bootstrap.
+    final enginePattern = RegExp(r'(final|var)\s+engine\s*=\s*ZuraffaEngine\(\)', multiLine: true);
+    final engineMatch = enginePattern.firstMatch(content);
+    final bootstrapPattern = RegExp(r'await\s+engine\.bootstrap\(\)', multiLine: true);
+    final bootstrapMatch = bootstrapPattern.firstMatch(content);
+
+    if (engineMatch == null || bootstrapMatch == null) {
+      print('Error: Could not find engine creation or bootstrap call in lib/main.dart.');
+      print('Please manually add the plugin registration.');
+      exit(1);
+    }
+
+    // Search for ..register calls between engine creation and bootstrap.
+    final engineBlock = content.substring(engineMatch.end, bootstrapMatch.start);
     final registerPattern = RegExp(r'\.\.register\([^)]+\)\n');
-    final registerMatches = registerPattern.allMatches(content);
+    final registerMatches = registerPattern.allMatches(engineBlock);
+
     if (registerMatches.isEmpty) {
-      final bootstrapPattern = RegExp(r'await\s+engine\.bootstrap\(\)', multiLine: true);
-      final bootstrapMatch = bootstrapPattern.firstMatch(content);
-      if (bootstrapMatch != null) {
-        final lineStart = content.lastIndexOf('\n', bootstrapMatch.start);
-        final linePrefix = content.substring(lineStart + 1, lineStart + 5);
-        final indent = linePrefix.replaceAll(RegExp(r'\S'), ' ');
-        final varName = _uncapitalize(className) + 'Plugin';
-        final insertion = '$indent  final $varName = $pluginClass();\n'
-            '$indent  engine\n'
-            '$indent    ..register($varName)\n\n';
-        content = content.substring(0, bootstrapMatch.start) + insertion + content.substring(bootstrapMatch.start);
-      } else {
-        print('Error: Could not find engine registration or bootstrap call in lib/main.dart.');
-        print('Please manually add the plugin registration.');
-        exit(1);
-      }
+      // No existing registrations; insert before bootstrap.
+      final lineStart = content.lastIndexOf('\n', bootstrapMatch.start);
+      final linePrefix = content.substring(lineStart + 1, lineStart + 5);
+      final indent = linePrefix.replaceAll(RegExp(r'\S'), ' ');
+      final varName = _uncapitalize(className) + 'Plugin';
+      final insertion = '$indent  final $varName = $pluginClass();\n'
+          '$indent  engine\n'
+          '$indent    ..register($varName)\n\n';
+      content = content.substring(0, bootstrapMatch.start) + insertion + content.substring(bootstrapMatch.start);
     } else {
+      // Append to the last ..register call in the engine block.
       final lastRegister = registerMatches.last;
-      final lineStart = content.lastIndexOf('\n', lastRegister.start);
+      final absolutePos = engineMatch.end + lastRegister.end;
+      final lineStart = content.lastIndexOf('\n', engineMatch.end + lastRegister.start);
       final lineContent = content.substring(lineStart + 1);
       final indentMatch = RegExp(r'^(\s+)\.\.register').firstMatch(lineContent);
       final indent = indentMatch?.group(1) ?? '    ';
       final insertion = '\n${indent}..register($pluginClass())';
-      content = content.substring(0, lastRegister.end) + insertion + content.substring(lastRegister.end);
+      content = content.substring(0, absolutePos) + insertion + content.substring(absolutePos);
     }
 
     mainFile.writeAsStringSync(content);

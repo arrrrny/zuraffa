@@ -1,6 +1,7 @@
 import 'package:zuraffa/zuraffa.dart';
 
 import '../state/todo_state.dart';
+import '../usecase/get_todos_usecase_contract.dart';
 
 /// Example interceptor that logs todo fetch calls.
 ///

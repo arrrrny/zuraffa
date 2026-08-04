@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuraffa/src/commands/plugin_command.dart';
 
 void main() {
   late Directory tmpDir;
@@ -20,55 +21,69 @@ void main() {
     }
   });
 
-  group('_addPlugin logic', () {
-    test('does not modify file when package is already imported', () {
+  group('PluginCommand.execute add', () {
+    test('adds zuraffa_feature_example plugin to main.dart', () async {
+      final mainFile = File('${tmpDir.path}/lib/main.dart');
+      mainFile.writeAsStringSync("""
+import 'package:flutter/material.dart';
+import 'package:zuraffa/zuraffa.dart';
+
+void main() async {
+  final engine = ZuraffaEngine()..register(CorePlugin());
+  await engine.bootstrap();
+  runApp(MyApp());
+}
+""");
+
+      final cmd = PluginCommand();
+      await cmd.execute(['add', 'zuraffa_feature_example']);
+
+      final content = mainFile.readAsStringSync();
+      expect(content, contains("import 'package:zuraffa_feature_example/zuraffa_feature_example.dart';"));
+      expect(content, contains('..register(ExamplePlugin())'));
+    });
+
+    test('adds plugin to existing cascade chain', () async {
+      final mainFile = File('${tmpDir.path}/lib/main.dart');
+      mainFile.writeAsStringSync("""
+import 'package:flutter/material.dart';
+import 'package:zuraffa/zuraffa.dart';
+
+void main() async {
+  final engine = ZuraffaEngine()
+    ..register(CorePlugin())
+    ..register(AuthPlugin());
+  await engine.bootstrap();
+  runApp(MyApp());
+}
+""");
+
+      final cmd = PluginCommand();
+      await cmd.execute(['add', 'zuraffa_analytics']);
+
+      final content = mainFile.readAsStringSync();
+      expect(content, contains("import 'package:zuraffa_analytics/zuraffa_analytics.dart';"));
+      expect(content, contains('..register(AnalyticsPlugin())'));
+    });
+
+    test('does not duplicate already imported package', () async {
       final mainFile = File('${tmpDir.path}/lib/main.dart');
       mainFile.writeAsStringSync("""
 import 'package:flutter/material.dart';
 import 'package:zuraffa_payments/zuraffa_payments.dart';
 
 void main() async {
-  final engine = ZuraffaEngine()..register(CorePlugin());
+  final engine = ZuraffaEngine()..register(PaymentsPlugin());
   await engine.bootstrap();
 }
 """);
 
-      final original = mainFile.readAsStringSync();
-      // We can't easily call _addPlugin without the exit issue,
-      // so test the idempotency logic by verifying the content
-      // detection logic.
-      expect(original.contains("import 'package:zuraffa_payments/zuraffa_payments.dart';"), true);
-    });
+      final cmd = PluginCommand();
+      await cmd.execute(['add', 'zuraffa_payments']);
 
-    test('class name derivation strips zuraffa_ prefix', () {
-      // Verify the name derivation logic directly.
-      var baseName = 'zuraffa_analytics';
-      if (baseName.startsWith('zuraffa_')) {
-        baseName = baseName.substring('zuraffa_'.length);
-      }
-      final parts = baseName.split('_');
-      final className = parts.map((p) => _capitalize(p)).join('');
-      expect(className, 'Analytics');
-      expect(className + 'Plugin', 'AnalyticsPlugin');
-    });
-
-    test('class name derivation without zuraffa_ prefix', () {
-      var baseName = 'custom_feature';
-      final parts = baseName.split('_');
-      final className = parts.map((p) => _capitalize(p)).join('');
-      expect(className + 'Plugin', 'CustomFeaturePlugin');
-    });
-
-    test('class name derivation for single-word package', () {
-      var baseName = 'payments';
-      final parts = baseName.split('_');
-      final className = parts.map((p) => _capitalize(p)).join('');
-      expect(className + 'Plugin', 'PaymentsPlugin');
+      final content = mainFile.readAsStringSync();
+      // Should only have one import
+      expect('import'.allMatches(content).where((m) => content.substring(m.start).startsWith("import 'package:zuraffa_payments")).length, 1);
     });
   });
-}
-
-String _capitalize(String s) {
-  if (s.isEmpty) return s;
-  return s[0].toUpperCase() + s.substring(1);
 }

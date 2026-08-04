@@ -1,5 +1,27 @@
 import '../signals/signal_result.dart';
 
+/// Composite key for interceptor registry lookup, grouping by both input and output types.
+class _TypePair {
+  final Type inType;
+  final Type outType;
+
+  const _TypePair(this.inType, this.outType);
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is _TypePair &&
+          runtimeType == other.runtimeType &&
+          inType == other.inType &&
+          outType == other.outType;
+
+  @override
+  int get hashCode => Object.hash(inType, outType);
+
+  @override
+  String toString() => '_TypePair($inType, $outType)';
+}
+
 /// Signature for an interceptor function that wraps a [ZuraffaUseCase]
 /// invocation.
 ///
@@ -50,9 +72,9 @@ class InterceptorEntry<In, Out> {
   String toString() => 'InterceptorEntry($name)';
 }
 
-/// A keyed registry of interceptor chains, one list per UseCase type.
+/// A keyed registry of interceptor chains, one list per UseCase type pair.
 ///
-/// The registry maps a UseCase input type to an ordered list of
+/// The registry maps a UseCase `(In, Out)` type pair to an ordered list of
 /// [InterceptorEntry] instances. When [execute] is called, the
 /// entries are chained so that each interceptor's `next` function
 /// invokes the next one in the list (or the original UseCase).
@@ -66,29 +88,31 @@ class InterceptorEntry<In, Out> {
 /// The registry lives on the [ZuraffaDIContainer] and is cleared
 /// when the container is reset.
 class InterceptorRegistry {
-  /// Internal map: UseCase input type -> ordered list of interceptor
-  /// entries.
-  final Map<Type, List<InterceptorEntry<dynamic, dynamic>>> _entries = {};
+  /// Internal map: (In, Out) type pair -> ordered list of interceptor entries.
+  /// Key is a composite of both input and output types to prevent collisions.
+  final Map<_TypePair, List<InterceptorEntry<dynamic, dynamic>>> _entries = {};
 
   /// Whether any interceptors are registered.
   bool get isEmpty => _entries.isEmpty;
 
-  /// Returns all registered interceptor entries for input type [In],
+  /// Returns all registered interceptor entries for type pair `(In, Out)`,
   /// or an empty list if none are registered.
   List<InterceptorEntry<In, Out>> entriesFor<In, Out>() {
-    final raw = _entries[In];
+    final key = _TypePair(In, Out);
+    final raw = _entries[key];
     if (raw == null || raw.isEmpty) return const [];
     return raw.cast<InterceptorEntry<In, Out>>();
   }
 
-  /// Register an interceptor for UseCase input type [In].
+  /// Register an interceptor for UseCase type pair `(In, Out)`.
   ///
   /// The [handler] will be called with the request and a [next]
   /// function that invokes the next interceptor in the chain.
-  /// Multiple interceptors for the same type run in registration
+  /// Multiple interceptors for the same type pair run in registration
   /// order (first registered = outermost).
   void register<In, Out>(InterceptorEntry<In, Out> entry) {
-    (_entries[In] ??= []).add(entry);
+    final key = _TypePair(In, Out);
+    (_entries[key] ??= []).add(entry);
   }
 
   /// Builds a chained interceptor pipeline for type [In, Out].

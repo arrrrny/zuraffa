@@ -39,7 +39,7 @@ class ExampleFeaturePlugin extends ZuraffaPlugin {
     );
 
     // Register an interceptor for the GetTodosUseCase pipeline.
-    di.registerInterceptor<void, List<dynamic>>(
+    di.registerInterceptor(
       loggingInterceptor(),
     );
 

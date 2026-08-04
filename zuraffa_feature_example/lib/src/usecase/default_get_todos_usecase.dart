@@ -5,17 +5,19 @@ import 'get_todos_usecase_contract.dart';
 
 /// Default implementation of [GetTodosUseCase].
 ///
-/// Delegates to [TodoRepository.getTodos] and wraps the
+/// Delegates to [TodoRepository.getAll] and wraps the
 /// result in a [SignalResult].
 class DefaultGetTodosUseCase extends GetTodosUseCase {
   final TodoRepository _repository;
 
   DefaultGetTodosUseCase(this._repository, {super.interceptorRegistry});
 
+  @override
   SignalResult<List<Todo>> executeCall(
     void params, {
     ZuraffaContext? context,
   }) {
-    return SignalResult.fromFuture(_repository.getTodos());
+    final todos = _repository.getAll();
+    return SignalResult.success(todos);
   }
 }

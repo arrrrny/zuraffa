@@ -27,10 +27,10 @@ import 'interceptor.dart';
 ///
 /// ```dart
 /// // Core registration
-/// di.registerLazySingleton<PaymentGateway>(() => StripeGateway());
+/// await di.registerLazySingleton<PaymentGateway>(() => StripeGateway());
 ///
 /// // Plugin override
-/// di.registerLazySingleton<PaymentGateway>(
+/// await di.registerLazySingleton<PaymentGateway>(
 ///   () => MockPaymentGateway(),
 ///   override: true,
 /// );
@@ -54,7 +54,7 @@ import 'interceptor.dart';
 /// final di = ZuraffaDIContainer();
 ///
 /// // Manual registration
-/// di.registerLazySingleton<MyService>(() => MyServiceImpl());
+/// await di.registerLazySingleton<MyService>(() => MyServiceImpl());
 ///
 /// // Interop with generated code that expects GetIt
 /// generatedRegisterAll(di.getIt);
@@ -83,7 +83,7 @@ class ZuraffaDIContainer {
   /// gets an isolated container:
   ///
   /// ```dart
-  /// final di = ZuraffaDIContainer(GetIt.asynchronousFactory());
+  /// final di = ZuraffaDIContainer(getIt: GetIt.asNewInstance());
   /// ```
   ZuraffaDIContainer({
     GetIt? getIt,
@@ -100,14 +100,14 @@ class ZuraffaDIContainer {
   /// When [override] is `true`, any existing registration for [T] is
   /// replaced. When `false` (default) and [T] is already registered,
   /// throws [StateError].
-  void registerLazySingleton<T extends Object>(
+  Future<void> registerLazySingleton<T extends Object>(
     T Function() factoryFunc, {
     String? instanceName,
     bool override = false,
-  }) {
+  }) async {
     _checkOverride<T>(override, instanceName);
     if (override && getIt.isRegistered<T>(instanceName: instanceName)) {
-      getIt.unregister<T>(instanceName: instanceName);
+      await getIt.unregister<T>(instanceName: instanceName);
     }
     getIt.registerLazySingleton<T>(factoryFunc, instanceName: instanceName);
   }
@@ -120,14 +120,14 @@ class ZuraffaDIContainer {
   /// When [override] is `true`, any existing registration for [T] is
   /// replaced. When `false` (default) and [T] is already registered,
   /// throws [StateError].
-  void registerFactory<T extends Object>(
+  Future<void> registerFactory<T extends Object>(
     T Function() factoryFunc, {
     String? instanceName,
     bool override = false,
-  }) {
+  }) async {
     _checkOverride<T>(override, instanceName);
     if (override && getIt.isRegistered<T>(instanceName: instanceName)) {
-      getIt.unregister<T>(instanceName: instanceName);
+      await getIt.unregister<T>(instanceName: instanceName);
     }
     getIt.registerFactory<T>(factoryFunc, instanceName: instanceName);
   }
@@ -140,14 +140,14 @@ class ZuraffaDIContainer {
   /// When [override] is `true`, any existing registration for [T] is
   /// replaced. When `false` (default) and [T] is already registered,
   /// throws [StateError].
-  void registerSingleton<T extends Object>(
+  Future<void> registerSingleton<T extends Object>(
     T Function() factoryFunc, {
     String? instanceName,
     bool override = false,
-  }) {
+  }) async {
     _checkOverride<T>(override, instanceName);
     if (override && getIt.isRegistered<T>(instanceName: instanceName)) {
-      getIt.unregister<T>(instanceName: instanceName);
+      await getIt.unregister<T>(instanceName: instanceName);
     }
     getIt.registerSingletonWithDependencies<T>(
       factoryFunc,
@@ -165,14 +165,14 @@ class ZuraffaDIContainer {
   /// When [override] is `true`, any existing registration for [T] is
   /// replaced. When `false` (default) and [T] is already registered,
   /// throws [StateError].
-  void registerInstance<T extends Object>(
+  Future<void> registerInstance<T extends Object>(
     T instance, {
     String? instanceName,
     bool override = false,
-  }) {
+  }) async {
     _checkOverride<T>(override, instanceName);
     if (override && getIt.isRegistered<T>(instanceName: instanceName)) {
-      getIt.unregister<T>(instanceName: instanceName);
+      await getIt.unregister<T>(instanceName: instanceName);
     }
     getIt.registerSingleton<T>(instance, instanceName: instanceName);
   }

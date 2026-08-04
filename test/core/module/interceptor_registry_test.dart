@@ -134,9 +134,8 @@ void main() {
       final tail = (String req) => SignalResult.success(10);
       final chained = registry.chain<String, int>(tail);
       final result = chained('x');
-      // Note: map creates a new SignalResult. The data depends on
-      // the underlying signal propagation.
       expect(result.isSuccess, true);
+      expect(result.data, 20);
     });
 
     test('clear removes all interceptors', () {

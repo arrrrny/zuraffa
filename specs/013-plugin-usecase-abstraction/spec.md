@@ -13,7 +13,7 @@ A Vendure-inspired plugin mechanism for Zuraffa that enables plugins to extend, 
 
 1. **IoC via contract definitions** — core feature logic defined via abstract UseCase contracts; UI/state depend only on contracts.
 2. **DI override engine** — plugin packages registered with the `ZuraffaEngine` can override previously registered default implementations in the DI container (`override: true`).
-3. **Interceptors & event hooks** — a UseCase Interceptor pipeline for observing/augmenting UseCases without replacing them: `di.registerInterceptor<PurchaseUseCase>((request, next) async { ... })`.
+3. **Interceptors & event hooks** — a UseCase Interceptor pipeline for observing/augmenting UseCases without replacing them: `di.registerInterceptor<PurchaseUseCase>((request, next) { ... })`.
 
 ## Non-Goals
 
