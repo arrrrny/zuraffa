@@ -1,0 +1,242 @@
+{
+  "id": "2026-08-02-071957",
+  "generated_at": "2026-08-02T04:19:57.729291Z",
+  "language": "en",
+  "pages": [
+    {
+      "slug": "1-overview",
+      "title": "Overview",
+      "file": "1-overview.md",
+      "section": "Get Started",
+      "level": "Beginner"
+    },
+    {
+      "slug": "2-quick-start",
+      "title": "Quick Start",
+      "file": "2-quick-start.md",
+      "section": "Get Started",
+      "level": "Beginner"
+    },
+    {
+      "slug": "3-cli-command-reference",
+      "title": "CLI Command Reference",
+      "file": "3-cli-command-reference.md",
+      "section": "Get Started",
+      "level": "Beginner"
+    },
+    {
+      "slug": "4-zorphy-entity-creation",
+      "title": "Zorphy Entity Creation",
+      "file": "4-zorphy-entity-creation.md",
+      "section": "Get Started",
+      "level": "Beginner"
+    },
+    {
+      "slug": "5-generated-project-layout",
+      "title": "Generated Project Layout",
+      "file": "5-generated-project-layout.md",
+      "section": "Get Started",
+      "level": "Beginner"
+    },
+    {
+      "slug": "6-code-generation-pipeline-from-cli-to-files",
+      "title": "Code Generation Pipeline: From CLI to Files",
+      "file": "6-code-generation-pipeline-from-cli-to-files.md",
+      "section": "Deep Dive",
+      "group": "Architecture \u0026 Generation Pipeline",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "7-plugin-system-architecture",
+      "title": "Plugin System Architecture",
+      "file": "7-plugin-system-architecture.md",
+      "section": "Deep Dive",
+      "group": "Architecture \u0026 Generation Pipeline",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "8-presets-aliases-and-plan-resolution",
+      "title": "Presets, Aliases \u0026 Plan Resolution",
+      "file": "8-presets-aliases-and-plan-resolution.md",
+      "section": "Deep Dive",
+      "group": "Architecture \u0026 Generation Pipeline",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "9-transactional-file-system-revert-and-plan-store",
+      "title": "Transactional File System, Revert \u0026 Plan Store",
+      "file": "9-transactional-file-system-revert-and-plan-store.md",
+      "section": "Deep Dive",
+      "group": "Architecture \u0026 Generation Pipeline",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "10-usecase-hierarchy-and-the-result-pattern",
+      "title": "UseCase Hierarchy \u0026 the Result Pattern",
+      "file": "10-usecase-hierarchy-and-the-result-pattern.md",
+      "section": "Deep Dive",
+      "group": "Runtime Framework",
+      "level": "Beginner"
+    },
+    {
+      "slug": "11-sealed-failures-and-error-handling",
+      "title": "Sealed Failures \u0026 Error Handling",
+      "file": "11-sealed-failures-and-error-handling.md",
+      "section": "Deep Dive",
+      "group": "Runtime Framework",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "12-presentation-layer-controller-view-and-presenter",
+      "title": "Presentation Layer: Controller, View \u0026 Presenter",
+      "file": "12-presentation-layer-controller-view-and-presenter.md",
+      "section": "Deep Dive",
+      "group": "Runtime Framework",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "13-usecase-hook-system",
+      "title": "UseCase Hook System",
+      "file": "13-usecase-hook-system.md",
+      "section": "Deep Dive",
+      "group": "Runtime Framework",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "14-params-and-query-system",
+      "title": "Params \u0026 Query System",
+      "file": "14-params-and-query-system.md",
+      "section": "Deep Dive",
+      "group": "Runtime Framework",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "15-cache-policies-and-dual-datasource-pattern",
+      "title": "Cache Policies \u0026 Dual DataSource Pattern",
+      "file": "15-cache-policies-and-dual-datasource-pattern.md",
+      "section": "Deep Dive",
+      "group": "Runtime Framework",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "16-offline-first-sync-strategies",
+      "title": "Offline-First Sync Strategies",
+      "file": "16-offline-first-sync-strategies.md",
+      "section": "Deep Dive",
+      "group": "Runtime Framework",
+      "level": "Advanced"
+    },
+    {
+      "slug": "17-dependency-injection-generation",
+      "title": "Dependency Injection Generation",
+      "file": "17-dependency-injection-generation.md",
+      "section": "Deep Dive",
+      "group": "Generation Features",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "18-mock-data-generation",
+      "title": "Mock Data Generation",
+      "file": "18-mock-data-generation.md",
+      "section": "Deep Dive",
+      "group": "Generation Features",
+      "level": "Beginner"
+    },
+    {
+      "slug": "19-graphql-schema-generation",
+      "title": "GraphQL Schema Generation",
+      "file": "19-graphql-schema-generation.md",
+      "section": "Deep Dive",
+      "group": "Generation Features",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "20-adaptive-layouts-and-platform-shells",
+      "title": "Adaptive Layouts \u0026 Platform Shells",
+      "file": "20-adaptive-layouts-and-platform-shells.md",
+      "section": "Deep Dive",
+      "group": "Generation Features",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "21-ast-based-code-modification",
+      "title": "AST-Based Code Modification",
+      "file": "21-ast-based-code-modification.md",
+      "section": "Deep Dive",
+      "group": "Generation Features",
+      "level": "Advanced"
+    },
+    {
+      "slug": "22-building-custom-plugins",
+      "title": "Building Custom Plugins",
+      "file": "22-building-custom-plugins.md",
+      "section": "Deep Dive",
+      "group": "Extending Zuraffa",
+      "level": "Advanced"
+    },
+    {
+      "slug": "23-capability-system-and-plan-preview",
+      "title": "Capability System \u0026 Plan Preview",
+      "file": "23-capability-system-and-plan-preview.md",
+      "section": "Deep Dive",
+      "group": "Extending Zuraffa",
+      "level": "Advanced"
+    },
+    {
+      "slug": "24-mcp-server-and-ai-agent-workflows",
+      "title": "MCP Server \u0026 AI Agent Workflows",
+      "file": "24-mcp-server-and-ai-agent-workflows.md",
+      "section": "Deep Dive",
+      "group": "Extending Zuraffa",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "25-project-memory-and-configuration",
+      "title": "Project Memory \u0026 Configuration",
+      "file": "25-project-memory-and-configuration.md",
+      "section": "Deep Dive",
+      "group": "Extending Zuraffa",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "26-testing-strategy-and-result-matchers",
+      "title": "Testing Strategy \u0026 Result Matchers",
+      "file": "26-testing-strategy-and-result-matchers.md",
+      "section": "Deep Dive",
+      "group": "Quality, Testing \u0026 Operations",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "27-regression-and-integration-test-suites",
+      "title": "Regression \u0026 Integration Test Suites",
+      "file": "27-regression-and-integration-test-suites.md",
+      "section": "Deep Dive",
+      "group": "Quality, Testing \u0026 Operations",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "28-performance-and-memory-benchmarks",
+      "title": "Performance \u0026 Memory Benchmarks",
+      "file": "28-performance-and-memory-benchmarks.md",
+      "section": "Deep Dive",
+      "group": "Quality, Testing \u0026 Operations",
+      "level": "Advanced"
+    },
+    {
+      "slug": "29-telemetry-failure-reporting-and-artifacts",
+      "title": "Telemetry, Failure Reporting \u0026 Artifacts",
+      "file": "29-telemetry-failure-reporting-and-artifacts.md",
+      "section": "Deep Dive",
+      "group": "Quality, Testing \u0026 Operations",
+      "level": "Advanced"
+    },
+    {
+      "slug": "30-migrating-from-v4-to-v5",
+      "title": "Migrating from v4 to v5",
+      "file": "30-migrating-from-v4-to-v5.md",
+      "section": "Deep Dive",
+      "group": "Quality, Testing \u0026 Operations",
+      "level": "Intermediate"
+    }
+  ]
+}

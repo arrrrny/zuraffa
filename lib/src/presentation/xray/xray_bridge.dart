@@ -8,6 +8,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import 'xray_node_metadata.dart';
 import 'xray_scope.dart';
@@ -46,13 +47,13 @@ class XRayTreeNodeJson {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'type': enumName,
-        if (actionName != null) 'boundAction': actionName,
-        'enabled': isEnabled,
-        if (state != null) 'state': state,
-        if (parentId != null) 'parentId': parentId,
-      };
+    'id': id,
+    'type': enumName,
+    if (actionName != null) 'boundAction': actionName,
+    'enabled': isEnabled,
+    if (state != null) 'state': state,
+    if (parentId != null) 'parentId': parentId,
+  };
 }
 
 /// Full JSON response for `GET /xray/tree`.
@@ -63,15 +64,12 @@ class XRayTreeJson {
   /// All registered nodes in registration order.
   final List<XRayTreeNodeJson> nodes;
 
-  const XRayTreeJson({
-    required this.activeView,
-    required this.nodes,
-  });
+  const XRayTreeJson({required this.activeView, required this.nodes});
 
   Map<String, dynamic> toJson() => {
-        'activeView': activeView,
-        'nodes': nodes.map((n) => n.toJson()).toList(),
-      };
+    'activeView': activeView,
+    'nodes': nodes.map((n) => n.toJson()).toList(),
+  };
 }
 
 // ------------------------------------------------------------------
@@ -192,17 +190,13 @@ class XRayTreeDiff {
   final String nodeId;
   final XRayTreeNodeJson? node;
 
-  const XRayTreeDiff({
-    required this.type,
-    required this.nodeId,
-    this.node,
-  });
+  const XRayTreeDiff({required this.type, required this.nodeId, this.node});
 
   Map<String, dynamic> toJson() => {
-        'type': type.name,
-        'nodeId': nodeId,
-        if (node != null) 'node': node!.toJson(),
-      };
+    'type': type.name,
+    'nodeId': nodeId,
+    if (node != null) 'node': node!.toJson(),
+  };
 }
 
 /// Stream controller that broadcasts tree change events.

@@ -3,12 +3,14 @@
 
 // ignore_for_file: implementation_imports
 
-import 'package:zorphy/zorphy.dart';
+import 'dart:io';
 
 import '../context/file_system.dart';
+import 'smart_merge_writer.dart';
 
 /// Re-export merge types for convenience.
-export 'package:zorphy/src/merge/merge.dart' show MergeOrchestrator, MergeMode, MergeResult;
+export 'package:zorphy/src/merge/merge.dart'
+    show MergeOrchestrator, MergeMode, MergeResult;
 
 class SmartMergeWriter {
   static Future<void> writeMerged({

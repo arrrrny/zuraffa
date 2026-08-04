@@ -62,7 +62,10 @@ dependencies:
 dependency_overrides:
   meta: ^1.19.0
   analyzer: 14.1.0
-
+  zorphy:
+    path: ../zorphy/zorphy
+  zorphy_annotation:
+    path: ../zorphy/zorphy_annotation
 executables:
   zuraffa:
   zfa:

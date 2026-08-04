@@ -33,12 +33,6 @@ dependency_overrides:
   test_api: ^0.7.9
   analyzer: 14.1.0
   zorphy:
-    git:
-      url: https://github.com/arrrrny/zorphy.git
-      path: zorphy
-      ref: "development"
+    path: ../../zorphy/zorphy
   zorphy_annotation:
-    git:
-      url: https://github.com/arrrrny/zorphy.git
-      path: zorphy_annotation
-      ref: "development"
+    path: ../../zorphy/zorphy_annotation
