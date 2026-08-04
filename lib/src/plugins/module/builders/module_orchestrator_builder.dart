@@ -101,6 +101,6 @@ class ModuleOrchestratorBuilder {
       .join();
 
   String _snake(String name) => name
-      .replaceAllMapped(RegExp(r'[A-Z]'), (m) => '_${m[0]!.toLowerCase}')
+      .replaceAllMapped(RegExp(r'[A-Z]'), (m) => '_${m[0]!.toLowerCase()}')
       .replaceFirst(RegExp(r'^_'), '');
 }

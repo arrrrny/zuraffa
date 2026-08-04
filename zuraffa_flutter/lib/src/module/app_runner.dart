@@ -50,10 +50,14 @@ class ZuraffaAppRunner extends StatelessWidget {
               builder: (context) {
                 // Flutter routes are registered as `ZuraffaRouteBuilder`s
                 // (Widget Function(BuildContext, Object?)). The engine stores
-                // them as platform-agnostic handlers, so adapt the raw
-                // handler result into a Widget here, supplying the
-                // [BuildContext] from the widget tree.
-                final result = handler(null);
+                // them as platform-agnostic handlers. Pass the runtime
+                // [BuildContext] through the payload so adapted route builders
+                // can access it.
+                final payload = <String, dynamic>{
+                  '_context': context,
+                  'args': null,
+                };
+                final result = handler(payload);
                 return result is Widget ? result : const SizedBox.shrink();
               },
             )

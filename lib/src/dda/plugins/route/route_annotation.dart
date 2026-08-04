@@ -106,16 +106,16 @@ typedef Route = ZfaRoute;
 ///
 /// This is the platform-agnostic counterpart to `GoRouterState` (from
 /// `go_router`), so route guards can be implemented in pure Dart code.
-/// Flutter consumers can construct it from a `GoRouterState` via
-/// `ZuraffaRouteState.fromGoRouter(state)` (see `zuraffa_flutter`).
+/// The generated router code includes an adapter that constructs
+/// [ZuraffaRouteState] from `GoRouterState` for middleware evaluation.
 class ZuraffaRouteState {
   /// The current route location, e.g. `'/products/42?page=2'`.
   final String location;
 
-  /// The matched route path, e.g. `'/products/:id'`.
+  /// The route template pattern, e.g. `'/products/:id'`.
   final String path;
 
-  /// The path after the matched prefix, e.g. `'/42?page=2'`.
+  /// The matched URI location, e.g. `'/products/42'`.
   final String matchedLocation;
 
   /// Query parameters from the URI.

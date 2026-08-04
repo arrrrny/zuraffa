@@ -122,7 +122,7 @@ class RouteGenerator {
               ..body = cb.Code(
                 'return ZuraffaRouteState('
                 "location: state.uri.toString(), "
-                'path: state.matchedLocation, '
+                'path: state.fullPath ?? state.matchedLocation, '
                 'matchedLocation: state.matchedLocation, '
                 'queryParameters: state.uriQueryParameters, '
                 'pathParameters: state.pathParameters, '

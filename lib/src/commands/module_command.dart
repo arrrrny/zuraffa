@@ -130,6 +130,8 @@ dependencies:
     sdk: flutter
   zuraffa:
     path: $relativePath
+  zuraffa_flutter:
+    path: ${relativePath}zuraffa_flutter
 
 flutter:
   uses-material-design: true
@@ -192,7 +194,7 @@ class $className extends ZuraffaPlugin {
   }
 
   String _toSnake(String name) => name
-      .replaceAllMapped(RegExp(r'[A-Z]'), (m) => '_${m[0]!.toLowerCase}')
+      .replaceAllMapped(RegExp(r'[A-Z]'), (m) => '_${m[0]!.toLowerCase()}')
       .replaceFirst(RegExp(r'^_'), '');
 
   String _toPascal(String name) => name

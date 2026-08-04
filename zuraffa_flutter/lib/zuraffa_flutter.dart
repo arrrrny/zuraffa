@@ -77,5 +77,5 @@ export 'package:zuraffa_flutter/src/zuraffa_flutter_plugin.dart';
 
 // ── Controller access ─────────────────────────────────────────────────
 
-/// Zuraffa.getController — retrieves a [Controller] from the widget tree.
+/// ZuraffaControllerAccess.getController — retrieves a [Controller] from the widget tree.
 export 'package:zuraffa_flutter/src/controller_access.dart';

@@ -24,20 +24,28 @@ typedef ZuraffaRouteBuilder =
 /// Adapts a Flutter [ZuraffaRouteBuilder] to the engine's platform-agnostic
 /// [ZuraffaRouteHandler] (`Object? Function(Object?)`).
 ///
-/// The host (e.g. [ZuraffaAppRunner]) supplies the [BuildContext] at build
-/// time; handlers that need it close over it. If [context] is omitted
-/// (`null`), the builder is invoked with a `null` context, which is safe
-/// only for routes that don't touch the widget tree.
-ZuraffaRouteHandler adaptRouteBuilder(
-  ZuraffaRouteBuilder builder, {
-  BuildContext? context,
-}) {
-  return (Object? args) => builder(
-    context ??
-        (throw StateError(
-          'ZuraffaRouteBuilder requires a BuildContext. Provide one via '
-          'adaptRouteBuilder(context: ...) when registering Flutter routes.',
-        )),
-    args,
-  );
+/// The host (e.g. [ZuraffaAppRunner]) must pass the runtime [BuildContext]
+/// as part of the [args] payload. The payload should be a [Map] with a
+/// '_context' key containing the [BuildContext], and an optional 'args' key
+/// for route-specific arguments.
+///
+/// If the payload is not a Map or lacks '_context', an error is thrown.
+ZuraffaRouteHandler adaptRouteBuilder(ZuraffaRouteBuilder builder) {
+  return (Object? args) {
+    if (args is! Map<String, dynamic>) {
+      throw StateError(
+        'ZuraffaRouteBuilder requires a Map payload with "_context" key. '
+        'Received: ${args.runtimeType}',
+      );
+    }
+    final context = args['_context'] as BuildContext?;
+    if (context == null) {
+      throw StateError(
+        'ZuraffaRouteBuilder requires a BuildContext in the payload. '
+        'Pass it via {"_context": context, "args": ...}',
+      );
+    }
+    final routeArgs = args['args'];
+    return builder(context, routeArgs);
+  };
 }
