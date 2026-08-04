@@ -55,29 +55,21 @@ class NamingUtils {
     if (parts.isEmpty) return '';
 
     // 3. First segment: lowercase first char only; rest: title-case
-    final buffer = StringBuffer();
     if (parts.length == 1) {
       // Single segment: lowercase only the first character, preserve rest
       final first = parts[0];
-      if (first.isNotEmpty) {
-        buffer.write(first[0].toLowerCase());
-        if (first.length > 1) {
-          buffer.write(first.substring(1));
-        }
-      }
-    } else {
-      // Multiple segments: fully lowercase first, title-case rest
-      buffer.write(parts[0].toLowerCase());
-      for (var i = 1; i < parts.length; i++) {
-        final part = parts[i];
-        if (part.isEmpty) continue;
-        buffer.write(part[0].toUpperCase());
-        if (part.length > 1) {
-          buffer.write(part.substring(1).toLowerCase());
-        }
-      }
+      if (first.isEmpty) return '';
+      return first[0].toLowerCase() +
+          (first.length > 1 ? first.substring(1) : '');
     }
 
-    return buffer.toString();
+    // Multiple segments: fully lowercase first, title-case rest
+    final head = parts[0].toLowerCase();
+    final tail = parts.skip(1).map((part) {
+      if (part.isEmpty) return '';
+      return part[0].toUpperCase() +
+          (part.length > 1 ? part.substring(1).toLowerCase() : '');
+    }).join();
+    return head + tail;
   }
 }

@@ -685,15 +685,15 @@ class ArchInspector {
   }
 
   String _toSnakeCase(String input) {
-    final buffer = StringBuffer();
+    final chars = <String>[];
     for (var i = 0; i < input.length; i++) {
       final char = input[i];
       if (char.toUpperCase() == char && char.toLowerCase() != char && i > 0) {
-        buffer.write('_');
+        chars.add('_');
       }
-      buffer.write(char.toLowerCase());
+      chars.add(char.toLowerCase());
     }
-    return buffer.toString();
+    return chars.join();
   }
 
   String _toPascalCase(String input) {

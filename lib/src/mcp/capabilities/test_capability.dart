@@ -142,8 +142,7 @@ class TestCapability {
     required Map<String, dynamic> mocks,
   }) {
     // Safely encode params and mocks as JSON strings to avoid code injection
-    final paramsEncoded = jsonEncode(params);
-    final mocksEncoded = jsonEncode(mocks);
+    // (payload is base64-encoded below and passed via stdin).
 
     // Extract the import path relative to lib/ using path package
     final relativePath = p.relative(useCasePath, from: projectRoot);

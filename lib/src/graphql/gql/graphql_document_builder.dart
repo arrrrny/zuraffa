@@ -349,28 +349,28 @@ class GraphQLDocumentBuilder {
 
     // Parse sub-fields recursively if they contain braces, otherwise treat as simple fields
     final subFields = <String>[];
-    var currentField = StringBuffer();
+    var currentField = '';
     depth = 0;
 
     for (var i = 0; i < selectionContent.length; i++) {
       final char = selectionContent[i];
       if (char == '{') {
         depth++;
-        currentField.write(char);
+        currentField += char;
       } else if (char == '}') {
         depth--;
-        currentField.write(char);
+        currentField += char;
       } else if (char == ' ' && depth == 0) {
         if (currentField.isNotEmpty) {
-          subFields.add(currentField.toString().trim());
-          currentField.clear();
+          subFields.add(currentField.trim());
+          currentField = '';
         }
       } else {
-        currentField.write(char);
+        currentField += char;
       }
     }
     if (currentField.isNotEmpty) {
-      subFields.add(currentField.toString().trim());
+      subFields.add(currentField.trim());
     }
 
     final selections = <ast.SelectionNode>[];

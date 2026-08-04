@@ -41,7 +41,9 @@ class GqlMigrator extends MigrationFixer {
       final content = File(filePath).readAsStringSync();
 
       // Check if already migrated
-      if (content.startsWith('// NOTE: GraphQL documents have been migrated to .graphql files.')) {
+      if (content.startsWith(
+        '// NOTE: GraphQL documents have been migrated to .graphql files.',
+      )) {
         continue;
       }
 
@@ -62,19 +64,21 @@ class GqlMigrator extends MigrationFixer {
 
         // Detect collisions and choose unique name
         while (usedNames.contains(targetName) ||
-               File(p.join(graphqlDir, '$targetName.graphql')).existsSync()) {
+            File(p.join(graphqlDir, '$targetName.graphql')).existsSync()) {
           targetName = '${opName}_$counter';
           counter++;
         }
         usedNames.add(targetName);
 
         final graphqlPath = p.join(graphqlDir, '$targetName.graphql');
-        actions.add(MigrationAction(
-          description: 'Extract $targetName to .graphql file',
-          filePath: graphqlPath,
-          action: 'created',
-          newContent: doc.content,
-        ));
+        actions.add(
+          MigrationAction(
+            description: 'Extract $targetName to .graphql file',
+            filePath: graphqlPath,
+            action: 'created',
+            newContent: doc.content,
+          ),
+        );
         if (!dryRun) {
           Directory(graphqlDir).createSync(recursive: true);
           File(graphqlPath).writeAsStringSync(doc.content);
@@ -90,13 +94,15 @@ class GqlMigrator extends MigrationFixer {
         File(filePath).writeAsStringSync(newContent);
       }
 
-      actions.add(MigrationAction(
-        description: 'Annotate ${finding.filePath} with migration notice',
-        filePath: filePath,
-        action: 'modified',
-        originalContent: content,
-        newContent: newContent,
-      ));
+      actions.add(
+        MigrationAction(
+          description: 'Annotate ${finding.filePath} with migration notice',
+          filePath: filePath,
+          action: 'modified',
+          originalContent: content,
+          newContent: newContent,
+        ),
+      );
     }
 
     return MigrationResult(
@@ -115,7 +121,7 @@ class GqlMigrator extends MigrationFixer {
       final afterStart = startMatch.end;
       // Look for optional whitespace and optional 'r' prefix before quotes
       final remaining = content.substring(afterStart);
-      final quotePattern = RegExp(r'^\s*(r)?\s*(\'\'\'|""")');
+      final quotePattern = RegExp("^\\s*(r)?\\s*('''|\"\"\")");
       final quoteMatch = quotePattern.firstMatch(remaining);
 
       if (quoteMatch == null) continue;
@@ -128,7 +134,9 @@ class GqlMigrator extends MigrationFixer {
       final endMatch = endPattern.firstMatch(content.substring(bodyStart));
       if (endMatch == null) continue;
 
-      final body = content.substring(bodyStart, bodyStart + endMatch.start).trim();
+      final body = content
+          .substring(bodyStart, bodyStart + endMatch.start)
+          .trim();
       final opName = _extractOperationName(body);
       if (opName != null) {
         docs.add(_GqlDoc(operationName: opName, content: body));

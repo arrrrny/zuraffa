@@ -2,7 +2,7 @@ This page explains Zuraffa's caching architecture: how generated repositories or
 
 ## The Dual DataSource Pattern
 
-Zuraffa's caching strategy is a **dual datasource pattern**: a single repository implementation coordinates two datasources behind one domain interface. The remote datasource (`{Entity}RemoteDataSource`) is the source of truth for fresh data; the local datasource (`{Entity}LocalDataSource`) is a persistent, Hive-backed replica. The `CachePolicy` decides *when* the replica is trustworthy.
+Zuraffa's caching strategy is a **dual datasource pattern**: a single repository implementation coordinates two datasources behind one domain interface. The remote datasource (`{Entity}RemoteDataSource`) is the source of truth for fresh data; the local datasource (`{Entity}LocalDataSource`) is a persistent, Hive-backed replica. The `CachePolicy` decides _when_ the replica is trustworthy.
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
@@ -53,11 +53,11 @@ Sources: [implementation_generator.dart](lib/src/plugins/repository/generators/i
 
 ### Three Repository Modes Compared
 
-| Mode | Source of truth | Read path | Write path | Selected by |
-|---|---|---|---|---|
-| **Simple** | Remote (`_dataSource`) | Remote only | Remote only | default |
-| **Cached** | Remote (`_remoteDataSource`) | Policy-gated local, fallback to remote | Remote-first + local replica + `markFresh` | `--cache` |
-| **Synced** | Local (`_localDataSource`) | Local only (instant) | Local + pending metadata | `--sync` |
+| Mode       | Source of truth              | Read path                              | Write path                                 | Selected by |
+| ---------- | ---------------------------- | -------------------------------------- | ------------------------------------------ | ----------- |
+| **Simple** | Remote (`_dataSource`)       | Remote only                            | Remote only                                | default     |
+| **Cached** | Remote (`_remoteDataSource`) | Policy-gated local, fallback to remote | Remote-first + local replica + `markFresh` | `--cache`   |
+| **Synced** | Local (`_localDataSource`)   | Local only (instant)                   | Local + pending metadata                   | `--sync`    |
 
 Sources: [implementation_generator.dart](lib/src/plugins/repository/generators/implementation_generator.dart#L83-L104), [implementation_generator_synced.dart](lib/src/plugins/repository/generators/implementation_generator_synced.dart#L159-L184)
 
@@ -111,12 +111,12 @@ classDiagram
 
 Sources: [cache_policies.dart](lib/src/core/cache_policies.dart#L17-L199)
 
-| Policy | Validity | Persistence | Storage of timestamps | Best for |
-|---|---|---|---|---|
-| `DailyCachePolicy` | 24 hours from `markFresh` | Persistent | Injected callbacks (SharedPreferences, Hive box) | Daily-refresh catalogs |
-| `AppRestartCachePolicy` | Current app session | In-memory `Map<String, bool>` | None (volatile) | Session config, rarely-changed data |
-| `TtlCachePolicy` | Configurable `Duration` | Persistent | Injected callbacks | Fine-grained control (e.g. 6h) |
-| `DisabledCachePolicy` | Never (`isValid` ⇒ `false`) | Decorator over another policy | Delegates `clear`/`invalidate` to inner | Debug mode, remote config kill-switch |
+| Policy                  | Validity                    | Persistence                   | Storage of timestamps                            | Best for                              |
+| ----------------------- | --------------------------- | ----------------------------- | ------------------------------------------------ | ------------------------------------- |
+| `DailyCachePolicy`      | 24 hours from `markFresh`   | Persistent                    | Injected callbacks (SharedPreferences, Hive box) | Daily-refresh catalogs                |
+| `AppRestartCachePolicy` | Current app session         | In-memory `Map<String, bool>` | None (volatile)                                  | Session config, rarely-changed data   |
+| `TtlCachePolicy`        | Configurable `Duration`     | Persistent                    | Injected callbacks                               | Fine-grained control (e.g. 6h)        |
+| `DisabledCachePolicy`   | Never (`isValid` ⇒ `false`) | Decorator over another policy | Delegates `clear`/`invalidate` to inner          | Debug mode, remote config kill-switch |
 
 All persistent policies prefix stored keys with `cache_` (e.g. `cache_products`) and compare `DateTime.now().difference(cached)` against their window — `< 1 day` for daily, `< ttl` for TTL. The in-memory restart policy simply stores a boolean per key and loses everything on process restart. Sources: [cache_policies.dart](lib/src/core/cache_policies.dart#L33-L57), [cache_policies.dart](lib/src/core/cache_policies.dart#L79-L96), [cache_policies.dart](lib/src/core/cache_policies.dart#L132-L156), [cache_policies.dart](lib/src/core/cache_policies.dart#L182-L199)
 
@@ -160,7 +160,7 @@ Three behaviors worth noting:
 
 1. **Graceful degradation on cache miss** — when the policy says the cache is valid but the local read throws, the generated `catchError` closure logs `'Cache miss, fetching from remote'`, fetches, saves, marks fresh, and returns — the caller never sees the local failure.
 2. **Conditional write-through** — the local `save` and `markFresh` calls are emitted as conditionals on `cacheValid`, so they execute only on the miss/stale branch, never on a hot read.
-3. **`getList` keys are query-scoped** — the list cache key is composed as `{baseCacheKey}_{params.hashCode}` via a `StringBuffer`, meaning different `ListQueryParams` produce different cache entries. This prevents one filtered query from serving another's results.
+3. **`getList` keys are query-scoped** — the list cache key is composed as `{baseCacheKey}_{params.hashCode}`, meaning different `ListQueryParams` produce different cache entries. This prevents one filtered query from serving another's results.
 
 Sources: [implementation_generator_cached.dart](lib/src/plugins/repository/generators/implementation_generator_cached.dart#L234-L335)
 
@@ -170,11 +170,11 @@ The generated `getList` uses the same structure with `saveAll`, and the Hive loc
 
 Mutations take a **remote-first, write-through** shape: the remote call is authoritative, and its result is mirrored into the local datasource so the next read is already warm:
 
-| Method | Generated sequence |
-|---|---|
-| `create(entity)` | remote `create` → local `save` → `markFresh(baseKey)` |
-| `update(params)` | remote `update` → local `save` → `markFresh(baseKey)` |
-| `toggle(params)` | remote `toggle` → local `save` → `markFresh(baseKey)` |
+| Method           | Generated sequence                                      |
+| ---------------- | ------------------------------------------------------- |
+| `create(entity)` | remote `create` → local `save` → `markFresh(baseKey)`   |
+| `update(params)` | remote `update` → local `save` → `markFresh(baseKey)`   |
+| `toggle(params)` | remote `toggle` → local `save` → `markFresh(baseKey)`   |
 | `delete(params)` | remote `delete` → local `delete` → policy stale-marking |
 
 Sources: [implementation_generator_cached.dart](lib/src/plugins/repository/generators/implementation_generator_cached.dart#L337-L363), [implementation_generator_cached.dart](lib/src/plugins/repository/generators/implementation_generator_cached.dart#L365-L391), [implementation_generator_cached.dart](lib/src/plugins/repository/generators/implementation_generator_cached.dart#L393-L419), [implementation_generator_cached.dart](lib/src/plugins/repository/generators/implementation_generator_cached.dart#L421-L442)
@@ -280,12 +280,12 @@ zfa cache Product --policy=daily --storage=hive --ttl=30   # standalone plugin c
 
 Sources: [make_command.dart](lib/src/commands/make_command.dart#L152-L157), [make_command.dart](lib/src/commands/make_command.dart#L225-L240), [cache_plugin.dart](lib/src/plugins/cache/cache_plugin.dart#L57-L69), [cache_command.dart](lib/src/commands/cache_command.dart#L10-L18)
 
-| Option | Values | Default | Effect |
-|---|---|---|---|
-| `--cache` | flag | off | Enables dual datasource repository generation |
-| `--cache-policy` | `daily` \| `restart` \| `ttl` | `daily` | Selects the generated policy factory |
-| `--cache-storage` | `hive` | `hive` | Storage backend for the local datasource |
-| `--ttl` | minutes | `1440` | TTL duration when policy is `ttl` |
+| Option            | Values                        | Default | Effect                                        |
+| ----------------- | ----------------------------- | ------- | --------------------------------------------- |
+| `--cache`         | flag                          | off     | Enables dual datasource repository generation |
+| `--cache-policy`  | `daily` \| `restart` \| `ttl` | `daily` | Selects the generated policy factory          |
+| `--cache-storage` | `hive`                        | `hive`  | Storage backend for the local datasource      |
+| `--ttl`           | minutes                       | `1440`  | TTL duration when policy is `ttl`             |
 
 Config fields persist in `.zfa.json` / `GeneratorConfig` as `cache`, `cache_policy`, `cache_storage`, `ttl_minutes`. Sources: [generator_config.dart](lib/src/models/generator_config.dart#L210-L212), [generator_config.dart](lib/src/models/generator_config.dart#L638-L640)
 

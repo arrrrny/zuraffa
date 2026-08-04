@@ -116,7 +116,6 @@ class XRayScopeOverlayState extends State<XRayScopeOverlay> {
   @override
   Widget build(BuildContext context) {
     final viewColor = XRayColors.forView(widget.scope.viewId);
-    final nodes = widget.scope.tree;
 
     return Stack(
       clipBehavior: Clip.none,
