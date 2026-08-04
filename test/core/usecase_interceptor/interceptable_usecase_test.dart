@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:zuraffa/src/core/signals/signal_result.dart';
 import 'package:zuraffa/src/core/context/zuraffa_context.dart';
 import 'package:zuraffa/src/core/usecase_interceptor/interceptable_usecase.dart';

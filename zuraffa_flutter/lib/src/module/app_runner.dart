@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-import 'engine.dart';
+import 'package:zuraffa/zuraffa.dart';
+
+import 'route_builder.dart';
 
 /// Minimal widget that resolves routes from a [ZuraffaEngine]'s
 /// [ZuraffaEngine.masterRouteMap].
@@ -14,7 +16,9 @@ import 'engine.dart';
 /// ## Usage
 ///
 /// ```dart
-/// final engine = ZuraffaEngine()..register(MyFeaturePlugin());
+/// final engine = ZuraffaEngine()
+///   ..register(ZuraffaFlutterPlugin())
+///   ..register(MyFeaturePlugin());
 /// await engine.bootstrap();
 ///
 /// runApp(
@@ -27,7 +31,7 @@ class ZuraffaAppRunner extends StatelessWidget {
   final ZuraffaEngine engine;
 
   /// Optional initial route key to display on first frame.
-  /// Defaults to `'/``.
+  /// Defaults to `'/`.
   final String initialRoute;
 
   /// Creates a [ZuraffaAppRunner] powered by the given [engine].
@@ -45,7 +49,10 @@ class ZuraffaAppRunner extends StatelessWidget {
     return MaterialApp(
       home: builder != null
           ? Builder(
-              builder: (context) => builder(context, null),
+              builder: (context) {
+                final result = builder(null);
+                return result is Widget ? result : const SizedBox.shrink();
+              },
             )
           : const _PlaceholderHome(),
     );

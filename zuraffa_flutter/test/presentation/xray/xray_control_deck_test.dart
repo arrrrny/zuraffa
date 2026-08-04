@@ -3,11 +3,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:zuraffa/src/presentation/xray/xray_control_deck.dart';
-import 'package:zuraffa/src/presentation/xray/xray_mock_annotation.dart';
-import 'package:zuraffa/src/presentation/xray/xray_mock_entry.dart';
-import 'package:zuraffa/src/presentation/xray/xray_mock_parser.dart';
-import 'package:zuraffa/src/presentation/xray/xray_mode.dart';
+import 'package:zuraffa_flutter/src/presentation/xray/xray_control_deck.dart';
+import 'package:zuraffa_flutter/src/presentation/xray/xray_mock_annotation.dart';
+import 'package:zuraffa_flutter/src/presentation/xray/xray_mock_entry.dart';
+import 'package:zuraffa_flutter/src/presentation/xray/xray_mock_parser.dart';
+import 'package:zuraffa_flutter/src/presentation/xray/xray_mode.dart';
 
 void _nopInjector(dynamic payload) {
   // No-op injector for testing

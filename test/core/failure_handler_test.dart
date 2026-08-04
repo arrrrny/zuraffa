@@ -1,7 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/services.dart';
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:logging/logging.dart';
 import 'package:zuraffa/zuraffa.dart';
 
@@ -104,17 +103,6 @@ void main() {
     );
 
     test('handleError should convert TypeError to TypeFailure', () {
-      try {
-        throw ArgumentError(); // Dummy error to catch
-      } catch (e) {
-        // We can't easily instantiate TypeError as it is private/internal in unexpected ways sometimes,
-        // but we can simulate handling one if we cast something invalid.
-        // Or cleaner: just manually call handleError with a mock or if we can use a known TypeError scenario.
-        // Actually, let's just use the behavior of the mixin which calculates it from `error is TypeError`.
-        // Dart's TypeError is an Error.
-      }
-      // Simulating a TypeError is tricky in test code without actually causing one.
-      // Let's create a real TypeError.
       Object x = 1;
       try {
         // ignore: unused_local_variable
@@ -126,8 +114,8 @@ void main() {
       }
     });
 
-    test('handleError should convert PlatformException to PlatformFailure', () {
-      final exception = PlatformException(
+    test('handleError should convert ZuraffaPlatformException to PlatformFailure', () {
+      final exception = ZuraffaPlatformException(
         code: 'ERROR',
         message: 'Platform error',
       );
@@ -139,13 +127,13 @@ void main() {
     });
 
     test(
-      'handleError should convert MissingPluginException to UnsupportedFailure',
+      'handleError should convert ZuraffaMissingPluginException to UnsupportedFailure',
       () {
-        final exception = MissingPluginException('Plugin not present');
+        final exception = ZuraffaMissingPluginException('Plugin not present');
         final failure = dataSource.handleError(exception);
 
-        expect(failure, isA<UnsupportedFailure>());
-        expect(failure.message, 'Plugin not present');
+      expect(failure, isA<UnsupportedFailure>());
+      expect(failure.message, 'Plugin not present');
       },
     );
 
@@ -155,8 +143,8 @@ void main() {
         final exception = ConcurrentModificationError();
         final failure = dataSource.handleError(exception);
 
-        expect(failure, isA<StateFailure>());
-        expect(failure.message, 'Concurrent modification detected');
+      expect(failure, isA<StateFailure>());
+      expect(failure.message, 'Concurrent modification detected');
       },
     );
 
@@ -164,7 +152,6 @@ void main() {
       'handleError should check for NoSuchMethodError and convert to TypeFailure',
       () {
         try {
-          // Create a real NoSuchMethodError
           dynamic d = 1;
           d.substring(0);
         } catch (e) {

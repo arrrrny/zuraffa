@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:zuraffa/zuraffa.dart';
 
 Future<List<String>> _capturePrints(Future<void> Function() body) async {

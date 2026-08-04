@@ -1,5 +1,4 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:zuraffa/src/core/module/contracts.dart';
 
@@ -12,7 +11,7 @@ class _AlphaPlugin extends ZuraffaPlugin {
   }
   @override
   Map<String, ZuraffaRouteBuilder> get routes => {
-        '/alpha': (context, args) => const SizedBox(),
+        '/alpha': (args) => 'alpha_route',
       };
 }
 
@@ -26,8 +25,8 @@ class _BetaPlugin extends ZuraffaPlugin {
   }
   @override
   Map<String, ZuraffaRouteBuilder> get routes => {
-        '/beta': (context, args) => const SizedBox(),
-        '/shared': (context, args) => const SizedBox(),
+        '/beta': (args) => 'beta_route',
+        '/shared': (args) => 'shared_route',
       };
   @override
   Future<void> onInit(ZuraffaDIContainer di) async {

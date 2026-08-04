@@ -2,14 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zuraffa/src/presentation/xray/xray_mode.dart';
-import 'package:zuraffa/src/presentation/xray/xray_scope.dart';
-import 'package:zuraffa/src/presentation/xray/xray_node.dart';
-import 'package:zuraffa/src/presentation/xray/xray_node_metadata.dart';
-import 'package:zuraffa/src/presentation/xray/xray_activation.dart';
-import 'package:zuraffa/src/presentation/xray/xray_colors.dart';
-import 'package:zuraffa/src/presentation/xray/xray_shake_detector.dart';
-import 'package:zuraffa/src/presentation/xray/xray_scope_overlay.dart';
+import 'package:zuraffa_flutter/src/presentation/xray/xray_mode.dart';
+import 'package:zuraffa_flutter/src/presentation/xray/xray_scope.dart';
+import 'package:zuraffa_flutter/src/presentation/xray/xray_node.dart';
+import 'package:zuraffa_flutter/src/presentation/xray/xray_node_metadata.dart';
+import 'package:zuraffa_flutter/src/presentation/xray/xray_activation.dart';
+import 'package:zuraffa_flutter/src/presentation/xray/xray_colors.dart';
+import 'package:zuraffa_flutter/src/presentation/xray/xray_shake_detector.dart';
+import 'package:zuraffa_flutter/src/presentation/xray/xray_scope_overlay.dart';
 
 enum TestViewNode { actionButton, editButton, saveButton }
 

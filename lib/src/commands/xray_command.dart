@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
-import '../presentation/xray/xray_mode.dart';
+import '../core/xray_config.dart';
 import 'xray_bridge_command.dart';
 import 'xray_deck_command.dart';
 
@@ -46,7 +46,7 @@ class XrayCommand extends Command<void> {
     print('  · zfa xray enable (sets persistent flag)');
   }
 
-  static String get _configPath => XRayMode.configPath;
+  static String get _configPath => xrayConfigPath;
 
   static Map<String, dynamic>? _readConfig() {
     final file = File(_configPath);

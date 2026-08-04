@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:zuraffa/src/core/transaction/smart_merge_writer.dart';
 import 'package:zuraffa/src/core/context/file_system.dart';
 

@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:zuraffa/src/core/plugin_system/plugin_lifecycle.dart';
 
 void main() {

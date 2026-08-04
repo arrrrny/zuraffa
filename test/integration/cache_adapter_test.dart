@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/cache/cache_plugin.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/plugins/cache/capabilities/create_cache_adapter_capability.dart';

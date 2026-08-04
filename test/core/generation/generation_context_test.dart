@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:zuraffa/src/core/context/progress_reporter.dart';
 import 'package:zuraffa/src/core/generation/generation_context.dart';
 import 'package:zuraffa/src/models/generator_config.dart';

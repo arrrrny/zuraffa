@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:code_builder/code_builder.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/plugins/route/builders/route_builder.dart';

@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'dart:io';
 import 'package:path/path.dart' as p;
 

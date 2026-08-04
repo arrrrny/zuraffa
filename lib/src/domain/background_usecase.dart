@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'dart:isolate';
 
-import 'package:flutter/foundation.dart';
+// Pure-Dart: kIsWeb replaced with bool.fromEnvironment.
 
+import 'package:meta/meta.dart';
 import '../core/cancel_token.dart';
 import '../core/failure.dart';
 import '../core/failure_reporter_registry.dart';
@@ -139,7 +140,7 @@ abstract class BackgroundUseCase<T, Params> with Loggable {
   /// Throws an assertion error on web platforms.
   BackgroundUseCase() {
     assert(
-      !kIsWeb,
+      !const bool.fromEnvironment('dart.library.js_util'),
       'BackgroundUseCase is not supported on web. '
       'Use UseCase with compute() for simple cases, or consider web workers.',
     );
