@@ -9,6 +9,7 @@ import 'src/core/otel_failure_reporter.dart';
 import 'src/core/otel_log_exporter.dart';
 import 'src/core/retry_policy.dart';
 import 'src/core/zuraffa_bridge_facade.dart';
+import 'src/core/module/contracts.dart';
 
 /// Zuraffa
 ///
@@ -257,7 +258,10 @@ export 'src/core/builder/patterns/usecase_patterns.dart';
 export 'src/core/builder/patterns/repository_patterns.dart';
 export 'src/core/builder/patterns/vpc_patterns.dart';
 export 'src/core/builder/shared/spec_library.dart';
-export 'src/core/plugin_system/plugin_interface.dart';
+// Hide the code-generation plugin interface to avoid naming collision with
+// the micro-frontend runtime contract (src/core/module/zuraffa_plugin.dart).
+// CLI commands and internal code can still import plugin_interface.dart directly.
+export 'src/core/plugin_system/plugin_interface.dart' hide ZuraffaPlugin;
 export 'src/core/plugin_system/plugin_lifecycle.dart';
 export 'src/core/plugin_system/plugin_registry.dart';
 export 'src/core/transaction/file_operation.dart';
@@ -455,6 +459,8 @@ export 'src/state/presenter/slice_presenter.dart';
 export 'src/state/widgets/fragment_builder.dart';
 
 // StateMigrator — converts v5 .state.dart to v6 slice pattern.
+// The StateMigrator class is hidden from public API but remains accessible
+// to migration and doctor commands via direct import.
 export 'src/state/migration/state_migrator.dart' hide StateMigrator;
 
 // v5 -> v6 migration tooling
@@ -570,6 +576,15 @@ export 'src/graphql/codegen/union_result_handler.dart';
 
 // GraphqlGenerateCommand — `zfa graphql generate` command class.
 export 'src/graphql/codegen/graphql_generate_command.dart';
+
+// ============================================================
+// Micro-Frontend Module System (v6)
+// ============================================================
+
+/// Runtime contracts for the micro-frontend plugin architecture.
+/// [ZuraffaPlugin], [ZuraffaEngine], [ZuraffaDIContainer],
+/// [ZuraffaRouteBuilder], and [ZuraffaAppRunner].
+export 'src/core/module/contracts.dart';
 
 // ============================================================
 // Framework Configuration

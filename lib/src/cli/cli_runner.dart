@@ -15,6 +15,7 @@ import '../commands/migrate_command.dart';
 import '../commands/build_command.dart';
 import '../commands/manifest_command.dart';
 import '../commands/apply_command.dart';
+import '../commands/module_command.dart';
 import '../commands/xray_command.dart';
 import '../core/plugin_system/cli_aware_plugin.dart';
 import '../core/plugin_system/plugin_registry.dart';
@@ -80,6 +81,7 @@ class CliRunner {
     _runner.addCommand(BuildCommand());
     _runner.addCommand(ManifestCommand(registry));
     _runner.addCommand(ApplyCommand(registry));
+    _runner.addCommand(ModuleCommand());
     _runner.addCommand(XrayCommand());
   }
 
@@ -224,6 +226,8 @@ CORE COMMANDS:
   migrate <target>     Migrate v5 artifacts to v6 (state, gql, di)
 
 MODULAR COMMANDS:
+  module <Name>      Scaffold a new feature package with plugin orchestrator
+  feature <Name>      Wrapper over `make --preset=feature`
   route <Name>        Generate route definitions
   view <Name>         Generate View/Presenter/Controller
   di <Name>           Generate dependency injection
