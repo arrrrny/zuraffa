@@ -114,17 +114,20 @@ void main() {
       }
     });
 
-    test('handleError should convert ZuraffaPlatformException to PlatformFailure', () {
-      final exception = ZuraffaPlatformException(
-        code: 'ERROR',
-        message: 'Platform error',
-      );
-      final failure = dataSource.handleError(exception);
+    test(
+      'handleError should convert ZuraffaPlatformException to PlatformFailure',
+      () {
+        final exception = ZuraffaPlatformException(
+          code: 'ERROR',
+          message: 'Platform error',
+        );
+        final failure = dataSource.handleError(exception);
 
-      expect(failure, isA<PlatformFailure>());
-      expect((failure as PlatformFailure).code, 'ERROR');
-      expect(failure.message, 'Platform error');
-    });
+        expect(failure, isA<PlatformFailure>());
+        expect((failure as PlatformFailure).code, 'ERROR');
+        expect(failure.message, 'Platform error');
+      },
+    );
 
     test(
       'handleError should convert ZuraffaMissingPluginException to UnsupportedFailure',
@@ -132,8 +135,8 @@ void main() {
         final exception = ZuraffaMissingPluginException('Plugin not present');
         final failure = dataSource.handleError(exception);
 
-      expect(failure, isA<UnsupportedFailure>());
-      expect(failure.message, 'Plugin not present');
+        expect(failure, isA<UnsupportedFailure>());
+        expect(failure.message, 'Plugin not present');
       },
     );
 
@@ -143,8 +146,8 @@ void main() {
         final exception = ConcurrentModificationError();
         final failure = dataSource.handleError(exception);
 
-      expect(failure, isA<StateFailure>());
-      expect(failure.message, 'Concurrent modification detected');
+        expect(failure, isA<StateFailure>());
+        expect(failure.message, 'Concurrent modification detected');
       },
     );
 

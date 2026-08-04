@@ -30,7 +30,7 @@ class ModuleOrchestratorBuilder {
       (b) => b
         ..directives.addAll([
           Directive.import('package:flutter/widgets.dart'),
-          Directive.import('package:zuraffa/zuraffa.dart'),
+          Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
         ])
         ..body.add(
           Class(
@@ -101,9 +101,6 @@ class ModuleOrchestratorBuilder {
       .join();
 
   String _snake(String name) => name
-      .replaceAllMapped(
-        RegExp(r'[A-Z]'),
-        (m) => '_${m[0]!.toLowerCase}',
-      )
+      .replaceAllMapped(RegExp(r'[A-Z]'), (m) => '_${m[0]!.toLowerCase}')
       .replaceFirst(RegExp(r'^_'), '');
 }

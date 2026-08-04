@@ -121,7 +121,6 @@ import 'src/core/module/contracts.dart';
 
 import 'package:logging/logging.dart';
 
-
 // ============================================================
 // Core - Error Handling & Utilities
 // ============================================================
@@ -404,6 +403,7 @@ export 'src/dda/plugins/route/route_plugin.dart';
 
 /// RouteGenerator — GoRouter configuration generation from @Route metadata.
 export 'src/dda/plugins/route/route_generator.dart';
+
 /// CacheStrategy enum, @Cacheable and @CacheInvalidate annotations.
 export 'src/dda/plugins/cache/cache_annotation.dart';
 
@@ -469,6 +469,7 @@ export 'src/state/generator/cache_binding_generator.dart';
 // SignalBuilder — rebuilds on pure UI Signal changes.
 
 // ViewTemplateGenerator — generates ControlledWidget-based views.
+export 'src/state/generator/view_template_generator.dart';
 
 // ============================================================
 // V6 GraphQL Core
@@ -555,12 +556,10 @@ export 'src/graphql/codegen/graphql_generate_command.dart';
 // Micro-Frontend Module System (v6)
 // ============================================================
 
-/// Runtime contracts for the micro-frontend plugin architecture.
-/// [ZuraffaPlugin], [ZuraffaEngine], [ZuraffaDIContainer],
-/// [ZuraffaRouteBuilder], and [ZuraffaAppRunner].
 /// Runtime contracts for the micro-frontend plugin architecture (Dart-only parts).
-/// [ZuraffaPlugin], [ZuraffaEngine], [ZuraffaDIContainer] ship here.
-/// [ZuraffaRouteBuilder] is a platform-agnostic typedef. [ZuraffaAppRunner] is in zuraffa_flutter.
+/// [ZuraffaPlugin], [ZuraffaEngine], [ZuraffaDIContainer], and
+/// [ZuraffaRouteHandler] ship here.
+/// [ZuraffaRouteBuilder] (Widget-returning) and [ZuraffaAppRunner] are in zuraffa_flutter.
 export 'src/core/module/route_builder.dart';
 export 'src/core/module/di_container.dart';
 export 'src/core/module/engine.dart';
@@ -687,7 +686,6 @@ class Zuraffa {
         return Level.OFF;
     }
   }
-
 
   /// Enable debug logging for the framework.
   ///
@@ -1173,8 +1171,3 @@ class Zuraffa {
     return '⚫';
   }
 }
-
-
-
-
-

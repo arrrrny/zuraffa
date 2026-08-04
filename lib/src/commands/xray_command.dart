@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import '../core/xray_config.dart';
-import 'xray_bridge_command.dart';
 import 'xray_deck_command.dart';
 
 /// CLI command for X-Ray mode management.
@@ -13,7 +12,6 @@ import 'xray_deck_command.dart';
 /// ```
 /// zfa xray enable   # activate X-Ray overlay on next app launch
 /// zfa xray disable  # deactivate X-Ray overlay
-/// zfa xray bridge   # start the AI agent bridge server
 /// zfa xray deck     # generate Control Deck registration
 /// ```
 class XrayCommand extends Command<void> {
@@ -21,29 +19,27 @@ class XrayCommand extends Command<void> {
   String get name => 'xray';
 
   @override
-  String get description => 'X-Ray debug tools (overlay, control deck, bridge)';
+  String get description => 'X-Ray debug tools (overlay, control deck)';
 
   XrayCommand() {
     addSubcommand(_XrayEnableCommand());
     addSubcommand(_XrayDisableCommand());
     addSubcommand(_XrayStatusCommand());
     addSubcommand(XrayDeckCommand());
-    addSubcommand(XrayBridgeCommand());
   }
 
   @override
   Future<void> run() async {
-    print('Usage: zfa xray <enable|disable|status|deck|bridge>');
+    print('Usage: zfa xray <enable|disable|status|deck>');
     print('  enable   Activate X-Ray overlay (debug/profile mode)');
     print('  disable  Deactivate X-Ray overlay');
     print('  status   Show current X-Ray configuration status');
     print('  deck     Generate Control Deck from annotations/YAML');
-    print('  bridge   Start the AI agent bridge server');
     print('');
-    print('Activation methods:');
-    print('  · Two-finger long press in the running app');
-    print('  · Shake device (requires sensors_plus)');
-    print('  · zfa xray enable (sets persistent flag)');
+    print('X-Ray bridge: the bridge server now runs inside the Flutter app');
+    print('  process via zuraffa_flutter (XRayBridgeServer.start()). The');
+    print('  standalone `zfa xray bridge` command was removed with the');
+    print('  pure-Dart core split — the bridge needs the widget tree.');
   }
 
   static String get _configPath => xrayConfigPath;

@@ -1,4 +1,4 @@
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa_flutter/src/presentation/platform/device_class.dart';
 import 'package:zuraffa_flutter/src/presentation/platform/platform_class.dart';
 import 'package:zuraffa_flutter/src/presentation/platform/platform_context.dart';

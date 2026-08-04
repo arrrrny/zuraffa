@@ -1,13 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:meta/meta.dart';
-
-import '../core/cancel_token.dart';
-import '../core/failure.dart';
-import '../core/loggable.dart';
-import '../core/result.dart';
-import '../domain/usecase.dart';
+import 'package:zuraffa/zuraffa.dart';
 
 /// Mixin for controllers that manage state.
 ///

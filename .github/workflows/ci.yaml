@@ -12,6 +12,46 @@ env:
   dart_sdk_version: ">=3.0.0 <4.0.0"
 
 jobs:
+  dart_core:
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Configuring Dart environment
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: "3.11.0"
+      - name: "Get dependencies"
+        run: dart pub get
+      - name: "Dart Analyze (pure Dart, no Flutter)"
+        run: dart analyze
+      - name: "Dart Test (pure Dart, no Flutter)"
+        run: dart test
+
+  flutter_package:
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Configuring flutter environment
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.flutter_version }}
+          channel: "stable"
+      - name: "Get dependencies"
+        run: flutter pub get
+        working-directory: ./zuraffa_flutter
+      - name: "Flutter Analyze"
+        run: flutter analyze
+        working-directory: ./zuraffa_flutter
+      - name: "Flutter Test"
+        run: flutter test
+        working-directory: ./zuraffa_flutter
+
   analyze:
     timeout-minutes: 15
     runs-on: ubuntu-latest

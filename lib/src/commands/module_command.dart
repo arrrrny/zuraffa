@@ -108,10 +108,14 @@ class ModuleCommand extends Command<void> {
     final packageDirUri = Uri.directory(dir);
     final zuraffaDirUri = Uri.directory(Directory.current.path);
     final relativePath = packageDirUri.toFilePath().endsWith('/')
-        ? zuraffaDirUri.toFilePath().replaceAll(packageDirUri.toFilePath(), '../')
+        ? zuraffaDirUri.toFilePath().replaceAll(
+            packageDirUri.toFilePath(),
+            '../',
+          )
         : '../';
 
-    final content = '''
+    final content =
+        '''
 name: $packageName
 description: Zuraffa feature package: ${_toSnake(packageName)}
 publish_to: none
@@ -145,8 +149,9 @@ dev_dependencies:
   }
 
   void _writeAnalysisOptions(String dir) {
-    File('$dir/analysis_options.yaml')
-        .writeAsStringSync('include: package:flutter_lints/flutter.yaml\n');
+    File(
+      '$dir/analysis_options.yaml',
+    ).writeAsStringSync('include: package:flutter_lints/flutter.yaml\n');
   }
 
   void _writeBarrel(String dir, String featureName) {
@@ -161,10 +166,10 @@ dev_dependencies:
   void _writePlaceholderFiles(String dir, String featureName, bool verbose) {
     final snake = _toSnake(featureName);
     final className = '${_toPascal(featureName)}FeaturePlugin';
-    File('$dir/lib/src/plugin/${snake}_feature_plugin.dart')
-        .writeAsStringSync('''
+    File('$dir/lib/src/plugin/${snake}_feature_plugin.dart').writeAsStringSync(
+      '''
 import 'package:flutter/material.dart';
-import 'package:zuraffa/zuraffa.dart';
+import 'package:zuraffa_flutter/zuraffa_flutter.dart';
 
 /// Orchestrator plugin for the $snake feature.
 class $className extends ZuraffaPlugin {
@@ -181,7 +186,8 @@ class $className extends ZuraffaPlugin {
     // TODO: expose this feature's routes.
   };
 }
-''');
+''',
+    );
     if (verbose) print('  Created plugin orchestrator');
   }
 

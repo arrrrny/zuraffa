@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart' show ThemeData, GlobalKey, NavigatorState;
+import 'package:flutter/material.dart'
+    show ThemeData, GlobalKey, NavigatorState;
 
 import 'package:zuraffa/zuraffa.dart';
 
@@ -29,10 +30,7 @@ class ZuraffaFlutterPlugin extends ZuraffaPlugin {
   /// Optional custom navigation key for imperative navigation.
   final GlobalKey<NavigatorState>? navigatorKey;
 
-  const ZuraffaFlutterPlugin({
-    this.theme,
-    this.navigatorKey,
-  });
+  ZuraffaFlutterPlugin({this.theme, this.navigatorKey});
 
   @override
   void registerDependencies(ZuraffaDIContainer di) {
@@ -46,11 +44,11 @@ class ZuraffaFlutterPlugin extends ZuraffaPlugin {
   }
 
   @override
-  void onInit(ZuraffaDIContainer di) {
+  Future<void> onInit(ZuraffaDIContainer di) async {
     // Future: initialize xray bridge server, platform layout resolver, etc.
     // For now this is a hook point for when those services are ready.
   }
 
   @override
-  Map<String, ZuraffaRouteBuilder> get routes => const {};
+  Map<String, ZuraffaRouteHandler> get routes => const {};
 }
