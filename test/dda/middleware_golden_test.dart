@@ -6,8 +6,7 @@ void main() {
   // @RequiresAuth golden tests
   // ═══════════════════════════════════════════════════════════════
   group('Golden: @RequiresAuth DDA Plugin', () {
-    test(
-        'AC1: @RequiresAuth(Role.admin) generates security interceptor '
+    test('AC1: @RequiresAuth(Role.admin) generates security interceptor '
         'that emits AppFailure.session for unauthorized', () {
       final gen = AuthGenerator();
       gen.addAuthEntry(
@@ -15,9 +14,7 @@ void main() {
         methodName: 'execute',
         importUri: 'package:myapp/domain/usecases/delete_user_usecase.dart',
         returnType: 'Future<void>',
-        parameters: [
-          const ParameterInfo(name: 'userId', type: 'String'),
-        ],
+        parameters: [const ParameterInfo(name: 'userId', type: 'String')],
         roles: ['admin'],
         mode: AuthorizationMode.all,
         isClassLevel: true,
@@ -207,8 +204,7 @@ void main() {
   // @TrackEvent golden tests
   // ═══════════════════════════════════════════════════════════════
   group('Golden: @TrackEvent DDA Plugin', () {
-    test(
-        'AC6: @TrackEvent(eventName: ...) generates analytics call '
+    test('AC6: @TrackEvent(eventName: ...) generates analytics call '
         'before/after execution', () {
       final gen = TrackEventGenerator();
       gen.addTrackEventEntry(
@@ -244,9 +240,7 @@ void main() {
         methodName: 'execute',
         importUri: 'package:myapp/domain/usecases/place_order_usecase.dart',
         returnType: 'Future<Order>',
-        parameters: [
-          const ParameterInfo(name: 'cartId', type: 'String'),
-        ],
+        parameters: [const ParameterInfo(name: 'cartId', type: 'String')],
         eventName: 'order_placed',
         properties: ['cartId'],
         trackDuration: true,
@@ -293,67 +287,67 @@ void main() {
   // ═══════════════════════════════════════════════════════════════
   // AC8: Mixed middleware golden test
   // ═══════════════════════════════════════════════════════════════
-  group('AC8: Mixed middleware — all three decorators produce expected output',
-      () {
-    test('auth + retry + trackEvent each produce valid output', () {
-      // Auth
-      final authGen = AuthGenerator();
-      authGen.addAuthEntry(
-        className: 'AdminDeleteUseCase',
-        methodName: 'execute',
-        importUri: 'package:myapp/domain/usecases/admin_delete.dart',
-        returnType: 'Future<void>',
-        parameters: [
-          const ParameterInfo(name: 'id', type: 'String'),
-        ],
-        roles: ['admin'],
-        mode: AuthorizationMode.all,
-        isClassLevel: true,
-      );
-      final authOutput = authGen.generate();
-      expect(authOutput, contains('ZfaAuthGuard'));
-      expect(authOutput, contains('AppFailure.session'));
+  group(
+    'AC8: Mixed middleware — all three decorators produce expected output',
+    () {
+      test('auth + retry + trackEvent each produce valid output', () {
+        // Auth
+        final authGen = AuthGenerator();
+        authGen.addAuthEntry(
+          className: 'AdminDeleteUseCase',
+          methodName: 'execute',
+          importUri: 'package:myapp/domain/usecases/admin_delete.dart',
+          returnType: 'Future<void>',
+          parameters: [const ParameterInfo(name: 'id', type: 'String')],
+          roles: ['admin'],
+          mode: AuthorizationMode.all,
+          isClassLevel: true,
+        );
+        final authOutput = authGen.generate();
+        expect(authOutput, contains('ZfaAuthGuard'));
+        expect(authOutput, contains('AppFailure.session'));
 
-      // Retry
-      final retryGen = RetryGenerator();
-      retryGen.addRetryEntry(
-        className: 'FetchDataUseCase',
-        methodName: 'execute',
-        importUri: 'package:myapp/domain/usecases/fetch_data.dart',
-        returnType: 'Future<List<Data>>',
-        parameters: const [],
-        attempts: 3,
-        backoff: BackoffStrategy.exponential,
-        maxDelayMs: 30000,
-        baseDelayMs: 1000,
-        retryOn: ['network', 'server'],
-      );
-      final retryOutput = retryGen.generate();
-      expect(retryOutput, contains('ZfaRetryPolicy'));
-      expect(retryOutput, contains('computeDelay'));
-      expect(retryOutput, contains('isRetryable'));
+        // Retry
+        final retryGen = RetryGenerator();
+        retryGen.addRetryEntry(
+          className: 'FetchDataUseCase',
+          methodName: 'execute',
+          importUri: 'package:myapp/domain/usecases/fetch_data.dart',
+          returnType: 'Future<List<Data>>',
+          parameters: const [],
+          attempts: 3,
+          backoff: BackoffStrategy.exponential,
+          maxDelayMs: 30000,
+          baseDelayMs: 1000,
+          retryOn: ['network', 'server'],
+        );
+        final retryOutput = retryGen.generate();
+        expect(retryOutput, contains('ZfaRetryPolicy'));
+        expect(retryOutput, contains('computeDelay'));
+        expect(retryOutput, contains('isRetryable'));
 
-      // TrackEvent
-      final eventGen = TrackEventGenerator();
-      eventGen.addTrackEventEntry(
-        className: 'CheckoutUseCase',
-        methodName: 'execute',
-        importUri: 'package:myapp/domain/usecases/checkout.dart',
-        returnType: 'Future<Order>',
-        parameters: [
-          const ParameterInfo(name: 'userId', type: 'String'),
-          const ParameterInfo(name: 'total', type: 'double'),
-        ],
-        eventName: 'checkout_started',
-        properties: ['userId', 'total'],
-        trackDuration: true,
-        trackResult: true,
-        analyticsService: 'AnalyticsService',
-      );
-      final eventOutput = eventGen.generate();
-      expect(eventOutput, contains('ZfaEventTracker'));
-      expect(eventOutput, contains('trackStart'));
-      expect(eventOutput, contains('trackEnd'));
-    });
-  });
+        // TrackEvent
+        final eventGen = TrackEventGenerator();
+        eventGen.addTrackEventEntry(
+          className: 'CheckoutUseCase',
+          methodName: 'execute',
+          importUri: 'package:myapp/domain/usecases/checkout.dart',
+          returnType: 'Future<Order>',
+          parameters: [
+            const ParameterInfo(name: 'userId', type: 'String'),
+            const ParameterInfo(name: 'total', type: 'double'),
+          ],
+          eventName: 'checkout_started',
+          properties: ['userId', 'total'],
+          trackDuration: true,
+          trackResult: true,
+          analyticsService: 'AnalyticsService',
+        );
+        final eventOutput = eventGen.generate();
+        expect(eventOutput, contains('ZfaEventTracker'));
+        expect(eventOutput, contains('trackStart'));
+        expect(eventOutput, contains('trackEnd'));
+      });
+    },
+  );
 }

@@ -71,7 +71,8 @@ class DatasourceGenerator {
 
     // Check if any operation actually references a document constant
     // (watch-only stubs don't reference documents when subscriptions disabled)
-    final hasDocumentReferences = queries.isNotEmpty ||
+    final hasDocumentReferences =
+        queries.isNotEmpty ||
         mutations.isNotEmpty ||
         (enableSubscriptions && subscriptions.isNotEmpty) ||
         (enableSubscriptions && watches.isNotEmpty);

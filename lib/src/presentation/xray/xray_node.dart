@@ -22,20 +22,14 @@ class XRayNode<T extends Enum> extends StatelessWidget {
   /// The child widget to wrap.
   final Widget child;
 
-  const XRayNode({
-    super.key,
-    required this.nodeId,
-    required this.child,
-  });
+  const XRayNode({super.key, required this.nodeId, required this.child});
 
   /// Deterministic string ID: `"$viewId.$nodeEnumName"`.
   ///
   /// Only valid when a parent [XRayScope] is present.
   static String nodeIdFor<T extends Enum>(BuildContext context, T nodeId) {
     final scope = XRayScope.maybeOf(context);
-    return scope != null
-        ? '${scope.viewId}.${nodeId.name}'
-        : nodeId.name;
+    return scope != null ? '${scope.viewId}.${nodeId.name}' : nodeId.name;
   }
 
   @override
@@ -44,10 +38,7 @@ class XRayNode<T extends Enum> extends StatelessWidget {
       return child;
     }
 
-    return _XRayNodeWidget<T>(
-      nodeId: nodeId,
-      child: child,
-    );
+    return _XRayNodeWidget<T>(nodeId: nodeId, child: child);
   }
 }
 
@@ -55,17 +46,13 @@ class _XRayNodeWidget<T extends Enum> extends StatefulWidget {
   final T nodeId;
   final Widget child;
 
-  const _XRayNodeWidget({
-    required this.nodeId,
-    required this.child,
-  });
+  const _XRayNodeWidget({required this.nodeId, required this.child});
 
   @override
   State<_XRayNodeWidget<T>> createState() => _XRayNodeWidgetState<T>();
 }
 
-class _XRayNodeWidgetState<T extends Enum>
-    extends State<_XRayNodeWidget<T>> {
+class _XRayNodeWidgetState<T extends Enum> extends State<_XRayNodeWidget<T>> {
   XRayScopeState? _cachedScope;
 
   @override

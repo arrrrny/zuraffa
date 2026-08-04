@@ -115,5 +115,4 @@ class DocumentsDartGenerator {
     file.createSync(recursive: true);
     file.writeAsStringSync(code);
   }
-
 }

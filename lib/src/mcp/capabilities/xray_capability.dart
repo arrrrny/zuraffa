@@ -72,7 +72,7 @@ class XrayCapability {
     try {
       final body = jsonEncode({
         'nodeId': nodeId,
-        if (payload != null) 'payload': payload,
+        'payload': ?payload,
       });
       final request = await client.postUrl(Uri.parse('$_baseUrl/xray/action'));
       request.headers.set('Content-Type', 'application/json');

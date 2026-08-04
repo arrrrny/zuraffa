@@ -33,16 +33,18 @@ class AuthGenerator {
     required AuthorizationMode mode,
     required bool isClassLevel,
   }) {
-    _entries.add(_AuthEntry(
-      className: className,
-      methodName: methodName,
-      importUri: importUri,
-      returnType: returnType,
-      parameters: parameters,
-      roles: roles,
-      mode: mode,
-      isClassLevel: isClassLevel,
-    ));
+    _entries.add(
+      _AuthEntry(
+        className: className,
+        methodName: methodName,
+        importUri: importUri,
+        returnType: returnType,
+        parameters: parameters,
+        roles: roles,
+        mode: mode,
+        isClassLevel: isClassLevel,
+      ),
+    );
   }
 
   String generate() {
@@ -81,58 +83,80 @@ class AuthGenerator {
   // ── ZfaAuthGuard ──
 
   cb.Class _authGuardClass() {
-    return cb.Class((c) => c
-      ..name = 'ZfaAuthGuard'
-      ..abstract = true
-      ..fields.addAll([
-        cb.Field((f) => f
-          ..name = '_roleProvider'
-          ..type = cb.refer('Future<Role> Function()')
-          ..modifier = cb.FieldModifier.final$),
-      ])
-      ..constructors.addAll([
-        cb.Constructor((ctor) => ctor
-          ..requiredParameters.add(cb.Parameter((p) => p
-            ..name = 'roleProvider'
-            ..toThis = true)),
-        ),
-      ])
-      ..methods.addAll([
-        cb.Method((m) => m
-          ..name = 'requireRole'
-          ..returns = cb.refer('Future<void>')
-          ..modifier = cb.MethodModifier.async
-          ..requiredParameters.addAll([
-            cb.Parameter((p) => p
-              ..name = 'requiredRole'
-              ..type = cb.refer('Role')),
-            cb.Parameter((p) => p
-              ..name = 'mode'
-              ..type = cb.refer('AuthorizationMode')),
-          ])
-          ..body = cb.Code(_joinLines([
-            'final userRole = await _roleProvider();',
-            'final required = Role.satisfies(userRole, requiredRole);',
-            'if (required) return;',
-            'throw AppFailure.session("Unauthorized: requires \${requiredRole.name} role");',
-          ])),
-        ),
-        cb.Method((m) => m
-          ..name = 'requireAnyRole'
-          ..returns = cb.refer('Future<void>')
-          ..modifier = cb.MethodModifier.async
-          ..requiredParameters.add(cb.Parameter((p) => p
-            ..name = 'roles'
-            ..type = cb.refer('List<Role>')))
-          ..body = cb.Code(_joinLines([
-            'final userRole = await _roleProvider();',
-            'for (final role in roles) {',
-            '  if (Role.satisfies(userRole, role)) return;',
-            '}',
-            'throw AppFailure.session("Unauthorized: requires one of \${roles.map((r) => r.name)}");',
-          ])),
-        ),
-      ]),
+    return cb.Class(
+      (c) => c
+        ..name = 'ZfaAuthGuard'
+        ..abstract = true
+        ..fields.addAll([
+          cb.Field(
+            (f) => f
+              ..name = '_roleProvider'
+              ..type = cb.refer('Future<Role> Function()')
+              ..modifier = cb.FieldModifier.final$,
+          ),
+        ])
+        ..constructors.addAll([
+          cb.Constructor(
+            (ctor) => ctor
+              ..requiredParameters.add(
+                cb.Parameter(
+                  (p) => p
+                    ..name = 'roleProvider'
+                    ..toThis = true,
+                ),
+              ),
+          ),
+        ])
+        ..methods.addAll([
+          cb.Method(
+            (m) => m
+              ..name = 'requireRole'
+              ..returns = cb.refer('Future<void>')
+              ..modifier = cb.MethodModifier.async
+              ..requiredParameters.addAll([
+                cb.Parameter(
+                  (p) => p
+                    ..name = 'requiredRole'
+                    ..type = cb.refer('Role'),
+                ),
+                cb.Parameter(
+                  (p) => p
+                    ..name = 'mode'
+                    ..type = cb.refer('AuthorizationMode'),
+                ),
+              ])
+              ..body = cb.Code(
+                _joinLines([
+                  'final userRole = await _roleProvider();',
+                  'final required = Role.satisfies(userRole, requiredRole);',
+                  'if (required) return;',
+                  'throw AppFailure.session("Unauthorized: requires \${requiredRole.name} role");',
+                ]),
+              ),
+          ),
+          cb.Method(
+            (m) => m
+              ..name = 'requireAnyRole'
+              ..returns = cb.refer('Future<void>')
+              ..modifier = cb.MethodModifier.async
+              ..requiredParameters.add(
+                cb.Parameter(
+                  (p) => p
+                    ..name = 'roles'
+                    ..type = cb.refer('List<Role>'),
+                ),
+              )
+              ..body = cb.Code(
+                _joinLines([
+                  'final userRole = await _roleProvider();',
+                  'for (final role in roles) {',
+                  '  if (Role.satisfies(userRole, role)) return;',
+                  '}',
+                  'throw AppFailure.session("Unauthorized: requires one of \${roles.map((r) => r.name)}");',
+                ]),
+              ),
+          ),
+        ]),
     );
   }
 
@@ -143,26 +167,41 @@ class AuthGenerator {
     for (final entry in entries) {
       methods.add(_authMethod(entry));
     }
-    return cb.Class((c) => c
-      ..name = '_${className}AuthAdapter'
-      ..fields.addAll([
-        cb.Field((f) => f
-          ..name = '_guard'
-          ..type = cb.refer('ZfaAuthGuard')
-          ..modifier = cb.FieldModifier.final$),
-        cb.Field((f) => f
-          ..name = '_source'
-          ..type = cb.refer(className)
-          ..modifier = cb.FieldModifier.final$),
-      ])
-      ..constructors.addAll([
-        cb.Constructor((ctor) => ctor
-          ..requiredParameters.addAll([
-            cb.Parameter((p) => p..name = 'guard'..toThis = true),
-            cb.Parameter((p) => p..name = 'source'..toThis = true),
-          ])),
-      ])
-      ..methods.addAll(methods),
+    return cb.Class(
+      (c) => c
+        ..name = '_${className}AuthAdapter'
+        ..fields.addAll([
+          cb.Field(
+            (f) => f
+              ..name = '_guard'
+              ..type = cb.refer('ZfaAuthGuard')
+              ..modifier = cb.FieldModifier.final$,
+          ),
+          cb.Field(
+            (f) => f
+              ..name = '_source'
+              ..type = cb.refer(className)
+              ..modifier = cb.FieldModifier.final$,
+          ),
+        ])
+        ..constructors.addAll([
+          cb.Constructor(
+            (ctor) => ctor
+              ..requiredParameters.addAll([
+                cb.Parameter(
+                  (p) => p
+                    ..name = 'guard'
+                    ..toThis = true,
+                ),
+                cb.Parameter(
+                  (p) => p
+                    ..name = 'source'
+                    ..toThis = true,
+                ),
+              ]),
+          ),
+        ])
+        ..methods.addAll(methods),
     );
   }
 
@@ -193,17 +232,21 @@ class AuthGenerator {
       }
     }
 
-    final callArgs = entry.parameters.map((p) {
-      return p.isNamed ? '${p.name}: ${p.name}' : p.name;
-    }).join(', ');
+    final callArgs = entry.parameters
+        .map((p) {
+          return p.isNamed ? '${p.name}: ${p.name}' : p.name;
+        })
+        .join(', ');
 
     final bodyLines = <String>[];
 
     if (entry.mode == AuthorizationMode.any && entry.roles.length > 1) {
       // Any mode: check if user satisfies at least one role
-      final roleChecks = entry.roles.map((r) {
-        return "Role.satisfies(userRole, Role.$r)";
-      }).join(' || ');
+      final roleChecks = entry.roles
+          .map((r) {
+            return "Role.satisfies(userRole, Role.$r)";
+          })
+          .join(' || ');
       bodyLines.addAll([
         'final userRole = await _guard._roleProvider();',
         'if (!($roleChecks)) {',
@@ -220,14 +263,15 @@ class AuthGenerator {
 
     bodyLines.add('return await _source.${entry.methodName}($callArgs);');
 
-    return cb.Method((m) => m
-      ..name = entry.methodName
-      ..returns = cb.refer(entry.returnType)
-      ..modifier = cb.MethodModifier.async
-      ..requiredParameters.addAll(requiredParams)
-      ..optionalParameters.addAll(optionalParams)
-      ..optionalParameters.addAll(namedParams)
-      ..body = cb.Code(_joinLines(bodyLines)),
+    return cb.Method(
+      (m) => m
+        ..name = entry.methodName
+        ..returns = cb.refer(entry.returnType)
+        ..modifier = cb.MethodModifier.async
+        ..requiredParameters.addAll(requiredParams)
+        ..optionalParameters.addAll(optionalParams)
+        ..optionalParameters.addAll(namedParams)
+        ..body = cb.Code(_joinLines(bodyLines)),
     );
   }
 
@@ -254,4 +298,3 @@ class _AuthEntry {
   final AuthorizationMode mode;
   final bool isClassLevel;
 }
-

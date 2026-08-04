@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:meta/meta.dart';
 import 'package:glob/glob.dart';
-import 'package:path/path.dart' as p;
 
 import '../migration_models.dart';
 
@@ -49,7 +48,9 @@ abstract class MigrationDetector {
     final b = base.replaceAll('\\', '/');
     if (abs.startsWith(b)) {
       var rel = abs.substring(b.length);
-      while (rel.startsWith('/')) rel = rel.substring(1);
+      while (rel.startsWith('/')) {
+        rel = rel.substring(1);
+      }
       return rel;
     }
     return absolute;

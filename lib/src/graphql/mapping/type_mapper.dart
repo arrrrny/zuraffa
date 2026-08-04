@@ -89,7 +89,11 @@ class TypeMapper {
   /// Map a GraphQL enum value to a Dart enum value (camelCase).
   static String enumValue(String graphQLValue) {
     // Convert SCREAMING_SNAKE_CASE to camelCase
-    final parts = graphQLValue.toLowerCase().split('_').where((p) => p.isNotEmpty).toList();
+    final parts = graphQLValue
+        .toLowerCase()
+        .split('_')
+        .where((p) => p.isNotEmpty)
+        .toList();
     if (parts.length == 1) return parts.first;
     return parts.first +
         parts.skip(1).map((p) => p[0].toUpperCase() + p.substring(1)).join();

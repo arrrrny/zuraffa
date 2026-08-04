@@ -25,11 +25,7 @@ class XRayScopeOverlay extends StatefulWidget {
   final XRayScopeState scope;
   final Widget child;
 
-  const XRayScopeOverlay({
-    super.key,
-    required this.scope,
-    required this.child,
-  });
+  const XRayScopeOverlay({super.key, required this.scope, required this.child});
 
   @override
   State<XRayScopeOverlay> createState() => XRayScopeOverlayState();
@@ -41,7 +37,8 @@ class XRayScopeOverlayState extends State<XRayScopeOverlay> {
   String? _selectedNodeId;
 
   bool get _isRootScope {
-    return widget.scope.context.findAncestorStateOfType<XRayScopeState>() == null;
+    return widget.scope.context.findAncestorStateOfType<XRayScopeState>() ==
+        null;
   }
 
   @override
@@ -70,14 +67,11 @@ class XRayScopeOverlayState extends State<XRayScopeOverlay> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _measureNodes();
-      _measureTimer = Timer.periodic(
-        const Duration(milliseconds: 100),
-        (_) {
-          if (mounted && XRayMode.isEnabled) {
-            _measureNodes();
-          }
-        },
-      );
+      _measureTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+        if (mounted && XRayMode.isEnabled) {
+          _measureNodes();
+        }
+      });
     });
   }
 
@@ -202,10 +196,7 @@ class XRayScopeOverlayState extends State<XRayScopeOverlay> {
             child: GestureDetector(
               onTap: () => _onBoxTapped(nodeId),
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 4,
-                  vertical: 1,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                 decoration: BoxDecoration(
                   color: XRayColors.labelBackgroundFor(viewColor),
                   borderRadius: BorderRadius.circular(2),
@@ -238,9 +229,10 @@ class XRayScopeOverlayState extends State<XRayScopeOverlay> {
                     borderRadius: BorderRadius.circular(2),
                   ),
                   child: Text(
-                    [actionName, stateText]
-                        .whereType<String>()
-                        .join(' \u00B7 '),
+                    [
+                      actionName,
+                      stateText,
+                    ].whereType<String>().join(' \u00B7 '),
                     style: const TextStyle(
                       color: Color(0xFF000000),
                       fontSize: 9,
@@ -279,10 +271,7 @@ class _NeonBorderPainter extends CustomPainter {
   final Color color;
   final bool isEnabled;
 
-  _NeonBorderPainter({
-    required this.color,
-    required this.isEnabled,
-  });
+  _NeonBorderPainter({required this.color, required this.isEnabled});
 
   @override
   void paint(Canvas canvas, Size size) {

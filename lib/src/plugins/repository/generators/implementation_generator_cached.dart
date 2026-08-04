@@ -272,9 +272,7 @@ extension RepositoryImplementationGeneratorCached
         ..statements.add(
           declareFinal('listCacheKey')
               .assign(
-                CodeExpression(
-                  Code("'${baseCacheKey}_\${params.hashCode}'"),
-                ),
+                CodeExpression(Code("'${baseCacheKey}_\${params.hashCode}'")),
               )
               .statement,
         )

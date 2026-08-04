@@ -68,9 +68,9 @@ class GqlMigrator extends MigrationFixer {
         }
         usedNames.add(targetName);
 
-        final graphqlPath = p.join(graphqlDir, targetName + '.graphql');
+        final graphqlPath = p.join(graphqlDir, '$targetName.graphql');
         actions.add(MigrationAction(
-          description: 'Extract ' + targetName + ' to .graphql file',
+          description: 'Extract $targetName to .graphql file',
           filePath: graphqlPath,
           action: 'created',
           newContent: doc.content,
@@ -91,7 +91,7 @@ class GqlMigrator extends MigrationFixer {
       }
 
       actions.add(MigrationAction(
-        description: 'Annotate ' + finding.filePath + ' with migration notice',
+        description: 'Annotate ${finding.filePath} with migration notice',
         filePath: filePath,
         action: 'modified',
         originalContent: content,

@@ -26,8 +26,9 @@ void main() {
 
   // ── Overlay rendering ──
 
-  testWidgets('overlay renders bounding boxes when X-Ray is enabled',
-      (WidgetTester tester) async {
+  testWidgets('overlay renders bounding boxes when X-Ray is enabled', (
+    WidgetTester tester,
+  ) async {
     XRayMode.enable();
 
     await tester.pumpWidget(
@@ -102,8 +103,9 @@ void main() {
 
   // ── Metadata ──
 
-  testWidgets('bounding boxes show action name and state from metadata',
-      (WidgetTester tester) async {
+  testWidgets('bounding boxes show action name and state from metadata', (
+    WidgetTester tester,
+  ) async {
     XRayMode.enable();
 
     XRayMetadataRegistry.register(
@@ -144,10 +146,7 @@ void main() {
 
     XRayMetadataRegistry.register(
       'TestView.editButton',
-      const XRayNodeMetadata(
-        actionName: 'onEdit',
-        isEnabled: false,
-      ),
+      const XRayNodeMetadata(actionName: 'onEdit', isEnabled: false),
     );
 
     await tester.pumpWidget(
@@ -173,8 +172,9 @@ void main() {
 
   // ── Touch passthrough ──
 
-  testWidgets('tapping child button still works through overlay',
-      (WidgetTester tester) async {
+  testWidgets('tapping child button still works through overlay', (
+    WidgetTester tester,
+  ) async {
     XRayMode.enable();
     var tapCount = 0;
 
@@ -253,14 +253,11 @@ void main() {
 
   // ── XRayActivation (two-finger long press) ──
 
-  testWidgets('XRayActivation is pass-through when X-Ray is off',
-      (WidgetTester tester) async {
+  testWidgets('XRayActivation is pass-through when X-Ray is off', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(
-      MaterialApp(
-        home: XRayActivation(
-          child: const Text('Hello'),
-        ),
-      ),
+      MaterialApp(home: XRayActivation(child: const Text('Hello'))),
     );
 
     expect(find.text('Hello'), findsOneWidget);

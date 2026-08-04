@@ -400,18 +400,17 @@ class ViewClassBuilder {
         ..body = builderBody,
     ).closure;
 
-    final scaffoldWidget = refer('Scaffold')
-        .call([], {
-          'key': refer('globalKey'),
-          'appBar': refer('AppBar').call([], {
-            'title': refer('Text').constInstance([
-              literalString(spec.entityName ?? spec.viewName),
-            ]),
-          }),
-          'body': refer(
-            'ControlledWidgetBuilder<${spec.controllerName}>',
-          ).call([], {'builder': builderClosure}),
-        });
+    final scaffoldWidget = refer('Scaffold').call([], {
+      'key': refer('globalKey'),
+      'appBar': refer('AppBar').call([], {
+        'title': refer(
+          'Text',
+        ).constInstance([literalString(spec.entityName ?? spec.viewName)]),
+      }),
+      'body': refer(
+        'ControlledWidgetBuilder<${spec.controllerName}>',
+      ).call([], {'builder': builderClosure}),
+    });
 
     final viewGetter = Method(
       (m) => m
@@ -423,11 +422,11 @@ class ViewClassBuilder {
           (b) => b
             ..statements.add(
               (spec.withXRay
-                  ? refer('XRayScope').call([], {
-                      'viewId': literalString(spec.viewName),
-                      'child': scaffoldWidget,
-                    })
-                  : scaffoldWidget)
+                      ? refer('XRayScope').call([], {
+                          'viewId': literalString(spec.viewName),
+                          'child': scaffoldWidget,
+                        })
+                      : scaffoldWidget)
                   .returned
                   .statement,
             ),
@@ -479,7 +478,9 @@ class ViewClassBuilder {
       );
       // State-aware Container with ValueKey
       innerWidget = refer('Container').call([], {
-        'key': refer('ValueKey').call([refer('viewState').property('hashCode')]),
+        'key': refer(
+          'ValueKey',
+        ).call([refer('viewState').property('hashCode')]),
       });
     } else {
       // Plain Container

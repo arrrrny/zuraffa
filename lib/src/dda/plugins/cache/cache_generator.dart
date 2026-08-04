@@ -30,17 +30,19 @@ class CacheGenerator {
     String? keyPrefix,
     String? boxName,
   }) {
-    _entries.add(_CacheableEntry(
-      className: className,
-      methodName: methodName,
-      importUri: importUri,
-      returnType: returnType,
-      parameters: parameters,
-      ttl: ttl,
-      strategy: strategy,
-      keyPrefix: keyPrefix,
-      boxName: boxName,
-    ));
+    _entries.add(
+      _CacheableEntry(
+        className: className,
+        methodName: methodName,
+        importUri: importUri,
+        returnType: returnType,
+        parameters: parameters,
+        ttl: ttl,
+        strategy: strategy,
+        keyPrefix: keyPrefix,
+        boxName: boxName,
+      ),
+    );
   }
 
   void addInvalidatorMethod({
@@ -51,14 +53,16 @@ class CacheGenerator {
     required List<ParameterInfo> parameters,
     String? keyPrefix,
   }) {
-    _invalidators.add(_InvalidatorEntry(
-      className: className,
-      methodName: methodName,
-      importUri: importUri,
-      methods: methods,
-      parameters: parameters,
-      keyPrefix: keyPrefix,
-    ));
+    _invalidators.add(
+      _InvalidatorEntry(
+        className: className,
+        methodName: methodName,
+        importUri: importUri,
+        methods: methods,
+        parameters: parameters,
+        keyPrefix: keyPrefix,
+      ),
+    );
   }
 
   String generate() {
@@ -102,31 +106,40 @@ class CacheGenerator {
   // \u2500\u2500 ZfaCacheStore \u2500\u2500
 
   cb.Class _cacheStoreClass() {
-    return cb.Class((c) => c
-      ..name = 'ZfaCacheStore'
-      ..abstract = true
-      ..fields.addAll([
-        cb.Field((f) => f
-          ..name = '_defaultTtlMs'
-          ..type = cb.refer('int')
-          ..modifier = cb.FieldModifier.final$),
-      ])
-      ..constructors.addAll([
-        cb.Constructor((ctor) => ctor
-          ..optionalParameters.add(cb.Parameter((p) => p
-            ..name = 'defaultTtlMs'
-            ..named = true
-            ..defaultTo = cb.Code('86400000')
-            ..toThis = true))),
-      ])
-      ..methods.addAll([
-        _getMethod(),
-        _putMethod(),
-        _invalidateMethod(),
-        _invalidateByPrefixMethod(),
-        _buildKeyMethod(),
-        _openBoxMethod(),
-      ]),
+    return cb.Class(
+      (c) => c
+        ..name = 'ZfaCacheStore'
+        ..abstract = true
+        ..fields.addAll([
+          cb.Field(
+            (f) => f
+              ..name = '_defaultTtlMs'
+              ..type = cb.refer('int')
+              ..modifier = cb.FieldModifier.final$,
+          ),
+        ])
+        ..constructors.addAll([
+          cb.Constructor(
+            (ctor) => ctor
+              ..optionalParameters.add(
+                cb.Parameter(
+                  (p) => p
+                    ..name = 'defaultTtlMs'
+                    ..named = true
+                    ..defaultTo = cb.Code('86400000')
+                    ..toThis = true,
+                ),
+              ),
+          ),
+        ])
+        ..methods.addAll([
+          _getMethod(),
+          _putMethod(),
+          _invalidateMethod(),
+          _invalidateByPrefixMethod(),
+          _buildKeyMethod(),
+          _openBoxMethod(),
+        ]),
     );
   }
 
@@ -145,14 +158,20 @@ class CacheGenerator {
       '}',
       "return entry['data'] as String?;",
     ]);
-    return cb.Method((m) => m
-      ..name = 'get'
-      ..returns = cb.refer('Future<String?>')
-      ..modifier = cb.MethodModifier.async
-      ..requiredParameters.add(cb.Parameter((p) => p
-        ..name = 'key'
-        ..type = cb.refer('String')))
-      ..body = cb.Code(body));
+    return cb.Method(
+      (m) => m
+        ..name = 'get'
+        ..returns = cb.refer('Future<String?>')
+        ..modifier = cb.MethodModifier.async
+        ..requiredParameters.add(
+          cb.Parameter(
+            (p) => p
+              ..name = 'key'
+              ..type = cb.refer('String'),
+          ),
+        )
+        ..body = cb.Code(body),
+    );
   }
 
   cb.Method _putMethod() {
@@ -165,18 +184,32 @@ class CacheGenerator {
       '});',
       'await box.put(key, entry);',
     ]);
-    return cb.Method((m) => m
-      ..name = 'put'
-      ..returns = cb.refer('Future<void>')
-      ..modifier = cb.MethodModifier.async
-      ..requiredParameters.addAll([
-        cb.Parameter((p) => p..name = 'key'..type = cb.refer('String')),
-        cb.Parameter((p) => p..name = 'data'..type = cb.refer('String')),
-      ])
-      ..optionalParameters.add(cb.Parameter((p) => p
-        ..name = 'ttlMs'
-        ..type = cb.refer('int?')))
-      ..body = cb.Code(body));
+    return cb.Method(
+      (m) => m
+        ..name = 'put'
+        ..returns = cb.refer('Future<void>')
+        ..modifier = cb.MethodModifier.async
+        ..requiredParameters.addAll([
+          cb.Parameter(
+            (p) => p
+              ..name = 'key'
+              ..type = cb.refer('String'),
+          ),
+          cb.Parameter(
+            (p) => p
+              ..name = 'data'
+              ..type = cb.refer('String'),
+          ),
+        ])
+        ..optionalParameters.add(
+          cb.Parameter(
+            (p) => p
+              ..name = 'ttlMs'
+              ..type = cb.refer('int?'),
+          ),
+        )
+        ..body = cb.Code(body),
+    );
   }
 
   cb.Method _invalidateMethod() {
@@ -184,14 +217,20 @@ class CacheGenerator {
       'final box = await _openBox();',
       'await box.delete(key);',
     ]);
-    return cb.Method((m) => m
-      ..name = 'invalidate'
-      ..returns = cb.refer('Future<void>')
-      ..modifier = cb.MethodModifier.async
-      ..requiredParameters.add(cb.Parameter((p) => p
-        ..name = 'key'
-        ..type = cb.refer('String')))
-      ..body = cb.Code(body));
+    return cb.Method(
+      (m) => m
+        ..name = 'invalidate'
+        ..returns = cb.refer('Future<void>')
+        ..modifier = cb.MethodModifier.async
+        ..requiredParameters.add(
+          cb.Parameter(
+            (p) => p
+              ..name = 'key'
+              ..type = cb.refer('String'),
+          ),
+        )
+        ..body = cb.Code(body),
+    );
   }
 
   cb.Method _invalidateByPrefixMethod() {
@@ -205,14 +244,20 @@ class CacheGenerator {
       '  await box.delete(key);',
       '}',
     ]);
-    return cb.Method((m) => m
-      ..name = 'invalidateByPrefix'
-      ..returns = cb.refer('Future<void>')
-      ..modifier = cb.MethodModifier.async
-      ..requiredParameters.add(cb.Parameter((p) => p
-        ..name = 'prefix'
-        ..type = cb.refer('String')))
-      ..body = cb.Code(body));
+    return cb.Method(
+      (m) => m
+        ..name = 'invalidateByPrefix'
+        ..returns = cb.refer('Future<void>')
+        ..modifier = cb.MethodModifier.async
+        ..requiredParameters.add(
+          cb.Parameter(
+            (p) => p
+              ..name = 'prefix'
+              ..type = cb.refer('String'),
+          ),
+        )
+        ..body = cb.Code(body),
+    );
   }
 
   cb.Method _buildKeyMethod() {
@@ -221,22 +266,34 @@ class CacheGenerator {
       "final argsHash = args.join(':');",
       "return '\$prefix:\$argsHash';",
     ]);
-    return cb.Method((m) => m
-      ..name = 'buildKey'
-      ..returns = cb.refer('String')
-      ..static = true
-      ..requiredParameters.addAll([
-        cb.Parameter((p) => p..name = 'prefix'..type = cb.refer('String')),
-        cb.Parameter((p) => p..name = 'args'..type = cb.refer('List<String>')),
-      ])
-      ..body = cb.Code(body));
+    return cb.Method(
+      (m) => m
+        ..name = 'buildKey'
+        ..returns = cb.refer('String')
+        ..static = true
+        ..requiredParameters.addAll([
+          cb.Parameter(
+            (p) => p
+              ..name = 'prefix'
+              ..type = cb.refer('String'),
+          ),
+          cb.Parameter(
+            (p) => p
+              ..name = 'args'
+              ..type = cb.refer('List<String>'),
+          ),
+        ])
+        ..body = cb.Code(body),
+    );
   }
 
   cb.Method _openBoxMethod() {
-    return cb.Method((m) => m
-      ..name = '_openBox'
-      ..returns = cb.refer('Future<dynamic>')
-      ..body = null);
+    return cb.Method(
+      (m) => m
+        ..name = '_openBox'
+        ..returns = cb.refer('Future<dynamic>')
+        ..body = null,
+    );
   }
 
   String _joinLines(List<String> lines) => lines.join('\n');
@@ -255,26 +312,41 @@ class CacheGenerator {
     for (final inv in invalidators) {
       methods.add(_invalidatorMethod(inv));
     }
-    return cb.Class((c) => c
-      ..name = "_${className}CacheAdapter"
-      ..fields.addAll([
-        cb.Field((f) => f
-          ..name = '_store'
-          ..type = cb.refer('ZfaCacheStore')
-          ..modifier = cb.FieldModifier.final$),
-        cb.Field((f) => f
-          ..name = '_source'
-          ..type = cb.refer(className)
-          ..modifier = cb.FieldModifier.final$),
-      ])
-      ..constructors.addAll([
-        cb.Constructor((ctor) => ctor
-          ..requiredParameters.addAll([
-            cb.Parameter((p) => p..name = 'store'..toThis = true),
-            cb.Parameter((p) => p..name = 'source'..toThis = true),
-          ])),
-      ])
-      ..methods.addAll(methods),
+    return cb.Class(
+      (c) => c
+        ..name = "_${className}CacheAdapter"
+        ..fields.addAll([
+          cb.Field(
+            (f) => f
+              ..name = '_store'
+              ..type = cb.refer('ZfaCacheStore')
+              ..modifier = cb.FieldModifier.final$,
+          ),
+          cb.Field(
+            (f) => f
+              ..name = '_source'
+              ..type = cb.refer(className)
+              ..modifier = cb.FieldModifier.final$,
+          ),
+        ])
+        ..constructors.addAll([
+          cb.Constructor(
+            (ctor) => ctor
+              ..requiredParameters.addAll([
+                cb.Parameter(
+                  (p) => p
+                    ..name = 'store'
+                    ..toThis = true,
+                ),
+                cb.Parameter(
+                  (p) => p
+                    ..name = 'source'
+                    ..toThis = true,
+                ),
+              ]),
+          ),
+        ])
+        ..methods.addAll(methods),
     );
   }
 
@@ -296,7 +368,9 @@ class CacheGenerator {
         b
           ..name = param.name
           ..type = cb.refer(param.type)
-          ..defaultTo = param.defaultValue != null ? cb.Code(param.defaultValue!) : null;
+          ..defaultTo = param.defaultValue != null
+              ? cb.Code(param.defaultValue!)
+              : null;
 
         // Set named and required flags for named parameters
         if (param.isNamed) {
@@ -317,24 +391,28 @@ class CacheGenerator {
     }
 
     // Build call arguments respecting named/positional structure
-    final callArgs = entry.parameters.map((p) {
-      if (p.isNamed) {
-        return '${p.name}: ${p.name}';
-      }
-      return p.name;
-    }).join(', ');
+    final callArgs = entry.parameters
+        .map((p) {
+          if (p.isNamed) {
+            return '${p.name}: ${p.name}';
+          }
+          return p.name;
+        })
+        .join(', ');
 
     final originalCall = '_source.${entry.methodName}($callArgs)';
     final bodyCode = _strategyBody(entry, keyExpr, originalCall, ttlMs);
 
-    return cb.Method((m) => m
-      ..name = entry.methodName
-      ..returns = cb.refer(entry.returnType)
-      ..modifier = cb.MethodModifier.async
-      ..requiredParameters.addAll(requiredParams)
-      ..optionalParameters.addAll(optionalParams)
-      ..optionalParameters.addAll(namedParams)
-      ..body = cb.Code(bodyCode));
+    return cb.Method(
+      (m) => m
+        ..name = entry.methodName
+        ..returns = cb.refer(entry.returnType)
+        ..modifier = cb.MethodModifier.async
+        ..requiredParameters.addAll(requiredParams)
+        ..optionalParameters.addAll(optionalParams)
+        ..optionalParameters.addAll(namedParams)
+        ..body = cb.Code(bodyCode),
+    );
   }
 
   String _strategyBody(
@@ -404,7 +482,9 @@ class CacheGenerator {
         b
           ..name = param.name
           ..type = cb.refer(param.type)
-          ..defaultTo = param.defaultValue != null ? cb.Code(param.defaultValue!) : null;
+          ..defaultTo = param.defaultValue != null
+              ? cb.Code(param.defaultValue!)
+              : null;
 
         // Set named and required flags for named parameters
         if (param.isNamed) {
@@ -425,28 +505,33 @@ class CacheGenerator {
     }
 
     // Build call arguments respecting named/positional structure
-    final callArgs = inv.parameters.map((p) {
-      if (p.isNamed) {
-        return '${p.name}: ${p.name}';
-      }
-      return p.name;
-    }).join(', ');
+    final callArgs = inv.parameters
+        .map((p) {
+          if (p.isNamed) {
+            return '${p.name}: ${p.name}';
+          }
+          return p.name;
+        })
+        .join(', ');
 
     final invalidateCalls = <String>[];
     for (final method in inv.methods) {
       final prefix = inv.keyPrefix ?? method;
       invalidateCalls.add("await _store.invalidateByPrefix('$prefix');");
     }
-    final body = "await _source.${inv.methodName}($callArgs);\n"
+    final body =
+        "await _source.${inv.methodName}($callArgs);\n"
         "${invalidateCalls.join('\n')}";
-    return cb.Method((m) => m
-      ..name = "${inv.methodName}WithInvalidate"
-      ..returns = cb.refer('Future<void>')
-      ..modifier = cb.MethodModifier.async
-      ..requiredParameters.addAll(requiredParams)
-      ..optionalParameters.addAll(optionalParams)
-      ..optionalParameters.addAll(namedParams)
-      ..body = cb.Code(body));
+    return cb.Method(
+      (m) => m
+        ..name = "${inv.methodName}WithInvalidate"
+        ..returns = cb.refer('Future<void>')
+        ..modifier = cb.MethodModifier.async
+        ..requiredParameters.addAll(requiredParams)
+        ..optionalParameters.addAll(optionalParams)
+        ..optionalParameters.addAll(namedParams)
+        ..body = cb.Code(body),
+    );
   }
 }
 

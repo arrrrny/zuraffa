@@ -23,7 +23,7 @@ enum CacheStrategy {
 
   /// Skip the cache entirely. Always fetch from the network.
   /// Equivalent to not using `@Cacheable` at all.
-  networkOnly;
+  networkOnly,
 }
 
 /// Marks a repository or datasource method for auto-generated caching.
@@ -115,8 +115,5 @@ class CacheInvalidate {
   /// When set, overrides the auto-generated prefix.
   final String? keyPrefix;
 
-  const CacheInvalidate({
-    required this.methods,
-    this.keyPrefix,
-  });
+  const CacheInvalidate({required this.methods, this.keyPrefix});
 }

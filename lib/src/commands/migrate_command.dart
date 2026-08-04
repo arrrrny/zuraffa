@@ -60,7 +60,11 @@ class MigrateCommand extends Command<void> {
     }
   }
 
-  Future<void> _migrateState(String projectDir, bool dryRun, bool verbose) async {
+  Future<void> _migrateState(
+    String projectDir,
+    bool dryRun,
+    bool verbose,
+  ) async {
     print('Scanning for v5 state files...');
 
     final detector = StateDetector();
@@ -153,7 +157,11 @@ class MigrateCommand extends Command<void> {
     }
   }
 
-  void _printMigrationResult(MigrationResult result, bool dryRun, bool verbose) {
+  void _printMigrationResult(
+    MigrationResult result,
+    bool dryRun,
+    bool verbose,
+  ) {
     if (result.actions.isEmpty) {
       print('No actions taken.');
       return;
@@ -173,8 +181,11 @@ class MigrateCommand extends Command<void> {
 
     if (verbose || dryRun) {
       for (final action in result.actions) {
-        final tag = action.action == 'created' ? '[created]' :
-                     action.action == 'modified' ? '[modified]' : '[deleted]';
+        final tag = action.action == 'created'
+            ? '[created]'
+            : action.action == 'modified'
+            ? '[modified]'
+            : '[deleted]';
         print('  $tag ${action.filePath}');
         print('    ${action.description}');
       }
@@ -184,7 +195,9 @@ class MigrateCommand extends Command<void> {
     if (dryRun) {
       print('Dry-run complete. Re-run without --dry-run to apply.');
     } else {
-      print('Migration complete. Review generated files and update references.');
+      print(
+        'Migration complete. Review generated files and update references.',
+      );
       print('Run `dart analyze` to verify no regressions.');
     }
   }
@@ -193,9 +206,15 @@ class MigrateCommand extends Command<void> {
     print('USAGE: zfa migrate <target> [options]');
     print('');
     print('TARGETS:');
-    print('  state   Migrate v5 mixed .state.dart files to v6 DomainState + ViewState');
-    print('  gql     Migrate v5 const-string GraphQL documents to .graphql files');
-    print('  di      Detect manual get_it registrations (detection-only, manual fix)');
+    print(
+      '  state   Migrate v5 mixed .state.dart files to v6 DomainState + ViewState',
+    );
+    print(
+      '  gql     Migrate v5 const-string GraphQL documents to .graphql files',
+    );
+    print(
+      '  di      Detect manual get_it registrations (detection-only, manual fix)',
+    );
     print('');
     print('OPTIONS:');
     print('  --dry-run   Preview changes without writing files');

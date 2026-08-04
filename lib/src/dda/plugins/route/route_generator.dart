@@ -343,21 +343,21 @@ class RouteGenerator {
 
     // GoRoute start
     lines.add('${pad}GoRoute(');
-    lines.add('${pad}  path: ${_dartLiteral(route.path)},');
-    lines.add('${pad}  name: ${_dartLiteral(route.name)},');
+    lines.add('$pad  path: ${_dartLiteral(route.path)},');
+    lines.add('$pad  name: ${_dartLiteral(route.name)},');
 
     // Builder
     final hasParams = route.hasParams;
     if (hasParams) {
-      lines.add('${pad}  builder: (context, state) {');
+      lines.add('$pad  builder: (context, state) {');
       lines.add(
-        '${pad}    final params = ${route.className}RouteParams.fromGoRouterState(state);',
+        '$pad    final params = ${route.className}RouteParams.fromGoRouterState(state);',
       );
-      lines.add('${pad}    return ${route.className}(params);');
-      lines.add('${pad}  },');
+      lines.add('$pad    return ${route.className}(params);');
+      lines.add('$pad  },');
     } else {
       lines.add(
-        '${pad}  builder: (context, state) => const ${route.className}(),',
+        '$pad  builder: (context, state) => const ${route.className}(),',
       );
     }
 
@@ -371,17 +371,17 @@ class RouteGenerator {
           'if (!await _g$i.canActivate(state)) return _g$i.onRejected(state);',
         );
       }
-      lines.add('${pad}  redirect: (context, state) async {');
-      lines.add('${pad}    ${checks.join(' ')}');
-      lines.add('${pad}    return null;');
-      lines.add('${pad}  },');
+      lines.add('$pad  redirect: (context, state) async {');
+      lines.add('$pad    ${checks.join(' ')}');
+      lines.add('$pad    return null;');
+      lines.add('$pad  },');
     }
 
     lines.add('$pad),');
     return lines.join('\n');
   }
 
-  String _dartLiteral(String value) => "'${value}'";
+  String _dartLiteral(String value) => "'$value'";
 
   // ────────────────────────────────────────────────────────────────
   // Path parameter extraction

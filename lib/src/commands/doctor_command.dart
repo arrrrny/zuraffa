@@ -3,14 +3,6 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 
 import '../migration/migration.dart';
-import '../migration/migration_models.dart';
-import '../migration/detectors/gql_detector.dart';
-import '../migration/detectors/state_detector.dart';
-import '../migration/detectors/di_detector.dart';
-import '../migration/detectors/controlled_widget_detector.dart';
-import '../migration/detectors/dependency_overrides_detector.dart';
-import '../migration/fixers/state_fixer.dart';
-import '../migration/fixers/gql_fixer.dart';
 import '../version.dart';
 
 class DoctorCommand extends Command<void> {
@@ -18,7 +10,8 @@ class DoctorCommand extends Command<void> {
   final String name = 'doctor';
 
   @override
-  final String description = 'Show information about the installed tooling and v5 migration readiness.';
+  final String description =
+      'Show information about the installed tooling and v5 migration readiness.';
 
   static const _timeout = Duration(seconds: 10);
 
@@ -46,7 +39,8 @@ class DoctorCommand extends Command<void> {
 
   @override
   Future<void> run() async {
-    final shouldFix = argResults!['fix'] == true || argResults!['dry-run'] == true;
+    final shouldFix =
+        argResults!['fix'] == true || argResults!['dry-run'] == true;
     final dryRun = argResults!['dry-run'] == true;
     final migrationOnly = argResults!['migration-only'] == true;
 
@@ -64,7 +58,9 @@ class DoctorCommand extends Command<void> {
     _print('Zuraffa CLI: v$version');
 
     try {
-      final dartResult = await Process.run('dart', ['--version']).timeout(_timeout);
+      final dartResult = await Process.run('dart', [
+        '--version',
+      ]).timeout(_timeout);
       final dartOutput = dartResult.stdout.toString().trim().isNotEmpty
           ? dartResult.stdout.toString().trim()
           : dartResult.stderr.toString().trim();
@@ -76,9 +72,15 @@ class DoctorCommand extends Command<void> {
     }
 
     try {
-      final flutterResult = await Process.run('flutter', ['--version']).timeout(_timeout);
+      final flutterResult = await Process.run('flutter', [
+        '--version',
+      ]).timeout(_timeout);
       if (flutterResult.exitCode == 0) {
-        final flutterOutput = flutterResult.stderr.toString().split('\n').first.trim();
+        final flutterOutput = flutterResult.stderr
+            .toString()
+            .split('\n')
+            .first
+            .trim();
         if (flutterOutput.isEmpty) {
           _print('Flutter: Installed');
         } else {
@@ -99,7 +101,9 @@ class DoctorCommand extends Command<void> {
     if (configFile.existsSync()) {
       _print('Configuration: Found .zfa.json');
     } else {
-      _print('Configuration: No .zfa.json found (run "zfa config init" to create one)');
+      _print(
+        'Configuration: No .zfa.json found (run "zfa config init" to create one)',
+      );
     }
 
     final pubspecFile = File('pubspec.yaml');
@@ -117,7 +121,9 @@ class DoctorCommand extends Command<void> {
         if (content.contains('zorphy_annotation:')) {
           _print('              zorphy_annotation found');
         } else {
-          _print('              zorphy_annotation not found - required for entity generation');
+          _print(
+            '              zorphy_annotation not found - required for entity generation',
+          );
           _print('                 Add: dart pub add zorphy_annotation');
         }
       } catch (e) {
@@ -130,7 +136,11 @@ class DoctorCommand extends Command<void> {
     _print('');
 
     try {
-      final zorphyResult = await Process.run('dart', ['pub', 'global', 'list']).timeout(_timeout);
+      final zorphyResult = await Process.run('dart', [
+        'pub',
+        'global',
+        'list',
+      ]).timeout(_timeout);
       final output = zorphyResult.stdout.toString();
       if (output.contains('zorphy')) {
         final match = RegExp(r'zorphy\s+(\S+)').firstMatch(output);
@@ -139,7 +149,9 @@ class DoctorCommand extends Command<void> {
       } else {
         _print('zorphy CLI: Not installed globally (optional)');
         _print('             zfa entity commands work without it (bundled)');
-        _print('             For standalone use: dart pub global activate zorphy');
+        _print(
+          '             For standalone use: dart pub global activate zorphy',
+        );
       }
     } on TimeoutException {
       _print('zorphy CLI: Timeout checking global packages');
@@ -157,7 +169,10 @@ class DoctorCommand extends Command<void> {
     final entitiesDir = Directory('lib/src/domain/entities');
     int entityCount = 0;
     if (await entitiesDir.exists()) {
-      entityCount = await entitiesDir.list().where((e) => e is Directory).length;
+      entityCount = await entitiesDir
+          .list()
+          .where((e) => e is Directory)
+          .length;
     }
     final timeout = Duration(seconds: (entityCount * 5 + 60).clamp(60, 120));
 
@@ -170,7 +185,10 @@ class DoctorCommand extends Command<void> {
 
         final lines = output.split('\n');
         final deadCodeLines = lines
-            .where((line) => line.contains('Dead code') || line.contains('dead_code'))
+            .where(
+              (line) =>
+                  line.contains('Dead code') || line.contains('dead_code'),
+            )
             .take(5)
             .toList();
 
@@ -179,7 +197,10 @@ class DoctorCommand extends Command<void> {
         }
 
         final totalDeadCodeLines = lines
-            .where((line) => line.contains('Dead code') || line.contains('dead_code'))
+            .where(
+              (line) =>
+                  line.contains('Dead code') || line.contains('dead_code'),
+            )
             .length;
         if (deadCodeLines.length < totalDeadCodeLines) {
           _print('  ... and more.');
@@ -221,7 +242,9 @@ class DoctorCommand extends Command<void> {
 
     // Print results grouped by detector
     for (final detResult in report.detectorResults) {
-      final detector = detectors.firstWhere((d) => d.detectorId == detResult.detectorId);
+      final detector = detectors.firstWhere(
+        (d) => d.detectorId == detResult.detectorId,
+      );
       if (!detResult.hasFindings) {
         _print('  [PASS] ${detector.displayName}');
         continue;
@@ -240,7 +263,9 @@ class DoctorCommand extends Command<void> {
     }
 
     _print('');
-    _print('Summary: ${report.totalErrors} error(s), ${report.totalWarnings} warning(s), ${report.totalInfo} info');
+    _print(
+      'Summary: ${report.totalErrors} error(s), ${report.totalWarnings} warning(s), ${report.totalInfo} info',
+    );
 
     if (report.isClean) {
       _print('');
@@ -262,7 +287,9 @@ class DoctorCommand extends Command<void> {
       }
 
       // Fix state migrations
-      final stateFindings = report.allFindings.where((f) => f.ruleId == 'v5_mixed_state').toList();
+      final stateFindings = report.allFindings
+          .where((f) => f.ruleId == 'v5_mixed_state')
+          .toList();
       if (stateFindings.isNotEmpty) {
         final migrator = StateMigrator();
         final result = await migrator.migrate(
@@ -270,11 +297,15 @@ class DoctorCommand extends Command<void> {
           projectDir: projectDir,
           dryRun: dryRun,
         );
-        _print('  State migration: ${result.filesCreated} created, ${result.filesModified} modified');
+        _print(
+          '  State migration: ${result.filesCreated} created, ${result.filesModified} modified',
+        );
       }
 
       // Fix gql migrations
-      final gqlFindings = report.allFindings.where((f) => f.ruleId == 'v5_gql_const_string').toList();
+      final gqlFindings = report.allFindings
+          .where((f) => f.ruleId == 'v5_gql_const_string')
+          .toList();
       if (gqlFindings.isNotEmpty) {
         final migrator = GqlMigrator();
         final result = await migrator.migrate(
@@ -282,7 +313,9 @@ class DoctorCommand extends Command<void> {
           projectDir: projectDir,
           dryRun: dryRun,
         );
-        _print('  GQL migration: ${result.filesCreated} created, ${result.filesModified} modified');
+        _print(
+          '  GQL migration: ${result.filesCreated} created, ${result.filesModified} modified',
+        );
       }
 
       if (dryRun) {

@@ -49,7 +49,8 @@ class TrackEventDDAPlugin extends ZorphyDecoratorPlugin {
     final properties = propertiesRaw?.cast<String>().toList() ?? const [];
     final trackDuration = decorator.get<bool>('trackDuration') ?? true;
     final trackResult = decorator.get<bool>('trackResult') ?? true;
-    final analyticsService = decorator.get<String>('analyticsService') ?? 'AnalyticsService';
+    final analyticsService =
+        decorator.get<String>('analyticsService') ?? 'AnalyticsService';
 
     _generator.addTrackEventEntry(
       className: className,
@@ -84,4 +85,3 @@ class TrackEventDDAPlugin extends ZorphyDecoratorPlugin {
     return libraryUri;
   }
 }
-

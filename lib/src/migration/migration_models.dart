@@ -32,8 +32,7 @@ class MigrationFinding {
   });
 
   @override
-  String toString() =>
-      '[$severity] $filePath:$line $ruleId: $message';
+  String toString() => '[$severity] $filePath:$line $ruleId: $message';
 }
 
 /// Severity levels for migration findings.
@@ -54,10 +53,7 @@ class DetectorResult {
   final String detectorId;
   final List<MigrationFinding> findings;
 
-  const DetectorResult({
-    required this.detectorId,
-    required this.findings,
-  });
+  const DetectorResult({required this.detectorId, required this.findings});
 
   bool get hasFindings => findings.isNotEmpty;
 
@@ -109,12 +105,9 @@ class MigrationResult {
     this.remaining = const [],
   });
 
-  int get filesCreated =>
-      actions.where((a) => a.action == 'created').length;
-  int get filesModified =>
-      actions.where((a) => a.action == 'modified').length;
-  int get filesDeleted =>
-      actions.where((a) => a.action == 'deleted').length;
+  int get filesCreated => actions.where((a) => a.action == 'created').length;
+  int get filesModified => actions.where((a) => a.action == 'modified').length;
+  int get filesDeleted => actions.where((a) => a.action == 'deleted').length;
 }
 
 /// Aggregated report for `zfa doctor` or `zfa migrate`.
@@ -134,15 +127,12 @@ class MigrationReport {
   List<MigrationAction> get allActions =>
       migrationResults.expand((m) => m.actions).toList();
 
-  int get totalErrors => allFindings
-      .where((f) => f.severity == MigrationSeverity.error)
-      .length;
-  int get totalWarnings => allFindings
-      .where((f) => f.severity == MigrationSeverity.warning)
-      .length;
-  int get totalInfo => allFindings
-      .where((f) => f.severity == MigrationSeverity.info)
-      .length;
+  int get totalErrors =>
+      allFindings.where((f) => f.severity == MigrationSeverity.error).length;
+  int get totalWarnings =>
+      allFindings.where((f) => f.severity == MigrationSeverity.warning).length;
+  int get totalInfo =>
+      allFindings.where((f) => f.severity == MigrationSeverity.info).length;
 
   bool get hasIssues => totalErrors > 0 || totalWarnings > 0;
 
