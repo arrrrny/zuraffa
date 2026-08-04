@@ -74,3 +74,8 @@ export 'package:zuraffa_flutter/src/module/app_runner.dart';
 
 /// ZuraffaFlutterPlugin wires UI services into the ZuraffaEngine.
 export 'package:zuraffa_flutter/src/zuraffa_flutter_plugin.dart';
+
+// ── Controller access ─────────────────────────────────────────────────
+
+/// ZuraffaControllerAccess.getController — retrieves a [Controller] from the widget tree.
+export 'package:zuraffa_flutter/src/controller_access.dart';

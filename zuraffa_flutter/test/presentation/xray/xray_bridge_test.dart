@@ -1,8 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:test/test.dart';
-
+import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa_flutter/src/presentation/xray/xray_bridge.dart';
 import 'package:zuraffa_flutter/src/presentation/xray/xray_bridge_server.dart';
 import 'package:zuraffa_flutter/src/presentation/xray/xray_node_metadata.dart';

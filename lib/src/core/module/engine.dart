@@ -136,8 +136,8 @@ class ZuraffaEngine {
   /// Collects every [ZuraffaPlugin.routes] map and merges them
   /// into a single unmodifiable map. If multiple plugins define
   /// the same route key, the **last** registered plugin wins.
-  Map<String, ZuraffaRouteBuilder> get masterRouteMap {
-    final merged = <String, ZuraffaRouteBuilder>{};
+  Map<String, ZuraffaRouteHandler> get masterRouteMap {
+    final merged = <String, ZuraffaRouteHandler>{};
     for (final plugin in _plugins.values) {
       merged.addAll(plugin.routes);
     }

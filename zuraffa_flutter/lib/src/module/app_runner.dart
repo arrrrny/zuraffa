@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'package:zuraffa/zuraffa.dart';
 
-import 'route_builder.dart';
-
 /// Minimal widget that resolves routes from a [ZuraffaEngine]'s
 /// [ZuraffaEngine.masterRouteMap].
 ///
@@ -44,13 +42,22 @@ class ZuraffaAppRunner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final routes = engine.masterRouteMap;
-    final builder = routes[initialRoute];
+    final handler = routes[initialRoute];
 
     return MaterialApp(
-      home: builder != null
+      home: handler != null
           ? Builder(
               builder: (context) {
-                final result = builder(null);
+                // Flutter routes are registered as `ZuraffaRouteBuilder`s
+                // (Widget Function(BuildContext, Object?)). The engine stores
+                // them as platform-agnostic handlers. Pass the runtime
+                // [BuildContext] through the payload so adapted route builders
+                // can access it.
+                final payload = <String, dynamic>{
+                  '_context': context,
+                  'args': null,
+                };
+                final result = handler(payload);
                 return result is Widget ? result : const SizedBox.shrink();
               },
             )

@@ -104,6 +104,35 @@ class RouteGenerator {
         }
       }
 
+      // ── ZuraffaRouteState adapter (only needed when guards exist) ──
+      final hasMiddleware = _routes.any((route) => route.middleware.isNotEmpty);
+      if (hasMiddleware) {
+        b.body.add(
+          cb.Method(
+            (m) => m
+              ..name = '_zuraffaRouteState'
+              ..returns = cb.refer('ZuraffaRouteState')
+              ..requiredParameters.add(
+                cb.Parameter(
+                  (p) => p
+                    ..name = 'state'
+                    ..type = cb.refer('GoRouterState'),
+                ),
+              )
+              ..body = cb.Code(
+                'return ZuraffaRouteState('
+                "location: state.uri.toString(), "
+                'path: state.fullPath ?? state.matchedLocation, '
+                'matchedLocation: state.matchedLocation, '
+                'queryParameters: state.uriQueryParameters, '
+                'pathParameters: state.pathParameters, '
+                'extra: state.extra, '
+                ');',
+              ),
+          ),
+        );
+      }
+
       // ── createZfaRouter() function ──
       b.body.add(_routerFunction());
     });
@@ -368,7 +397,8 @@ class RouteGenerator {
         final guard = route.middleware[i];
         checks.add(
           'final _g$i = $guard();'
-          'if (!await _g$i.canActivate(state)) return _g$i.onRejected(state);',
+          'if (!await _g$i.canActivate(_zuraffaRouteState(state))) '
+          'return _g$i.onRejected(_zuraffaRouteState(state));',
         );
       }
       lines.add('$pad  redirect: (context, state) async {');
