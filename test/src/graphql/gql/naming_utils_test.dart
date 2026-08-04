@@ -46,9 +46,7 @@ void main() {
     });
 
     test('different inputs produce different outputs (collision-safe)', () {
-      final names = {
-        'get_todo', 'get_product', 'user_by_id', 'create_order',
-      };
+      final names = {'get_todo', 'get_product', 'user_by_id', 'create_order'};
       final results = names.map(NamingUtils.documentVarName).toSet();
       expect(results.length, names.length);
     });

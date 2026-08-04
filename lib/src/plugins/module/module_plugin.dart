@@ -21,9 +21,7 @@ class ModuleGeneratorPlugin extends FileGeneratorPlugin {
   });
 
   @override
-  List<ZuraffaCapability> get capabilities => [
-        CreateModuleCapability(this),
-      ];
+  List<ZuraffaCapability> get capabilities => [CreateModuleCapability(this)];
 
   @override
   String get id => 'module';
@@ -35,9 +33,7 @@ class ModuleGeneratorPlugin extends FileGeneratorPlugin {
   String get version => '1.0.0';
 
   @override
-  Future<List<GeneratedFile>> generateWithContext(
-    PluginContext context,
-  ) async {
+  Future<List<GeneratedFile>> generateWithContext(PluginContext context) async {
     final config = GeneratorConfig(
       name: context.core.name,
       outputDir: context.core.outputDir,

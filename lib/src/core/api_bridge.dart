@@ -76,7 +76,10 @@ class ZuraffaApiBridge {
     if (const bool.fromEnvironment('dart.vm.product')) return;
 
     // Profile mode is opt-in via Zuraffa.enableApiInProfile.
-    if (const bool.fromEnvironment('dart.vm.profile') && !ZuraffaBridgeFacade.enableApiInProfile) return;
+    if (const bool.fromEnvironment('dart.vm.profile') &&
+        !ZuraffaBridgeFacade.enableApiInProfile) {
+      return;
+    }
 
     // Idempotent — calling init() twice must be harmless.
     if (_initialized) return;

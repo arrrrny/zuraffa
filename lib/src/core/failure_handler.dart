@@ -331,7 +331,6 @@ mixin FailureHandler on Loggable {
   }
 }
 
-
 // ── Pure-Dart platform exception replacements ──────────────────────────
 // These mirror the Flutter services.dart exceptions so that failure_handler
 // works without any Flutter SDK dependency.

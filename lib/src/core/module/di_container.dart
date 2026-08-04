@@ -62,7 +62,6 @@ import 'interceptor.dart';
 /// final service = di.get<MyService>();
 /// ```
 class ZuraffaDIContainer {
-
   /// The underlying [GetIt] instance that backs this container.
   ///
   /// Exposed for interoperability with generated DI helpers that
@@ -85,11 +84,9 @@ class ZuraffaDIContainer {
   /// ```dart
   /// final di = ZuraffaDIContainer(getIt: GetIt.asNewInstance());
   /// ```
-  ZuraffaDIContainer({
-    GetIt? getIt,
-    InterceptorRegistry? interceptorRegistry,
-  })  : getIt = getIt ?? GetIt.instance,
-        interceptorRegistry = interceptorRegistry ?? InterceptorRegistry();
+  ZuraffaDIContainer({GetIt? getIt, InterceptorRegistry? interceptorRegistry})
+    : getIt = getIt ?? GetIt.instance,
+      interceptorRegistry = interceptorRegistry ?? InterceptorRegistry();
 
   /// Registers a lazy singleton factory for type [T].
   ///

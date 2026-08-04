@@ -156,14 +156,14 @@ class UseCaseContractFactory {
       (b) => b
         ..name = config.implClassName
         ..extend = refer(config.contractClassName)
-        ..fields.add(CommonPatterns.finalField(
-          config.repositoryField,
-          config.repositoryType,
-        ))
-        ..constructors.add(
-          CommonPatterns.constructor(
-            parameters: constructorParams,
+        ..fields.add(
+          CommonPatterns.finalField(
+            config.repositoryField,
+            config.repositoryType,
           ),
+        )
+        ..constructors.add(
+          CommonPatterns.constructor(parameters: constructorParams),
         )
         ..methods.add(method),
     );

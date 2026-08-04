@@ -45,10 +45,11 @@ class _TypePair {
 ///   return result;
 /// }
 /// ```
-typedef InterceptorFunction<In, Out> = SignalResult<Out> Function(
-  In request,
-  SignalResult<Out> Function(In request) next,
-);
+typedef InterceptorFunction<In, Out> =
+    SignalResult<Out> Function(
+      In request,
+      SignalResult<Out> Function(In request) next,
+    );
 
 /// A registered interceptor entry with an optional descriptive name.
 ///
@@ -63,10 +64,7 @@ class InterceptorEntry<In, Out> {
   final String name;
 
   /// Creates an interceptor entry.
-  const InterceptorEntry({
-    required this.handler,
-    this.name = 'anonymous',
-  });
+  const InterceptorEntry({required this.handler, this.name = 'anonymous'});
 
   @override
   String toString() => 'InterceptorEntry($name)';

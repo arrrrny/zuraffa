@@ -39,7 +39,12 @@ void main() async {
       await cmd.execute(['add', 'zuraffa_feature_example']);
 
       final content = mainFile.readAsStringSync();
-      expect(content, contains("import 'package:zuraffa_feature_example/zuraffa_feature_example.dart';"));
+      expect(
+        content,
+        contains(
+          "import 'package:zuraffa_feature_example/zuraffa_feature_example.dart';",
+        ),
+      );
       expect(content, contains('..register(ExamplePlugin())'));
     });
 
@@ -62,7 +67,10 @@ void main() async {
       await cmd.execute(['add', 'zuraffa_analytics']);
 
       final content = mainFile.readAsStringSync();
-      expect(content, contains("import 'package:zuraffa_analytics/zuraffa_analytics.dart';"));
+      expect(
+        content,
+        contains("import 'package:zuraffa_analytics/zuraffa_analytics.dart';"),
+      );
       expect(content, contains('..register(AnalyticsPlugin())'));
     });
 
@@ -83,7 +91,17 @@ void main() async {
 
       final content = mainFile.readAsStringSync();
       // Should only have one import
-      expect('import'.allMatches(content).where((m) => content.substring(m.start).startsWith("import 'package:zuraffa_payments")).length, 1);
+      expect(
+        'import'
+            .allMatches(content)
+            .where(
+              (m) => content
+                  .substring(m.start)
+                  .startsWith("import 'package:zuraffa_payments"),
+            )
+            .length,
+        1,
+      );
     });
   });
 }

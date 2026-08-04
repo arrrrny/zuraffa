@@ -90,9 +90,7 @@ class XrayDeckCommand extends Command<void> {
 
     final count = allEntries.length;
     final suffix = count == 1 ? 'y' : 'ies';
-    print(
-      'Generated $count mock entr$suffix for $effectiveName',
-    );
+    print('Generated $count mock entr$suffix for $effectiveName');
     print('  Output: $effectiveOutput');
   }
 
@@ -144,11 +142,7 @@ class XrayDeckCommand extends Command<void> {
       final type = _extractField(body, 'type');
 
       if (name != null && payload != null) {
-        entries.add({
-          'name': name,
-          'payload': payload,
-          'type': ?type,
-        });
+        entries.add({'name': name, 'payload': payload, 'type': ?type});
       }
     }
 

@@ -72,13 +72,10 @@ void main() {
         ),
       );
 
-      final uc = _AsyncTestUseCase(
-        (s) async {
-          // This should never execute since the interceptor short-circuits.
-          return s.length;
-        },
-        interceptorRegistry: registry,
-      );
+      final uc = _AsyncTestUseCase((s) async {
+        // This should never execute since the interceptor short-circuits.
+        return s.length;
+      }, interceptorRegistry: registry);
       final result = uc('hello');
       expect(result.data, -1);
     });

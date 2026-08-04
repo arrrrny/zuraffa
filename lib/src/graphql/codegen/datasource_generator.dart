@@ -2,7 +2,6 @@ import 'package:code_builder/code_builder.dart' as cb;
 import 'package:dart_style/dart_style.dart';
 import 'package:zuraffa/zuraffa.dart';
 
-import '../gql/naming_utils.dart';
 import 'codegen_types.dart';
 
 /// Generates fully implemented remote datasource classes.
