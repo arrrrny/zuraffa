@@ -5,8 +5,10 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/core/project/project_context_store.dart';
 
 /// CWD-safe project root resolution.
+/// Tries Platform.script (immune to CWD), then CWD walk (with temp guard),
+/// then git rev-parse. Throws [StateError] if the root cannot be found.
 String _findProjectRoot() {
-  // Strategy 1: Walk up from Platform.script.
+  // Strategy 1: Walk up from Platform.script (immune to CWD changes).
   try {
     var dir = File(Platform.script.toFilePath()).parent;
     for (var i = 0; i < 10; i++) {
@@ -21,8 +23,28 @@ String _findProjectRoot() {
       if (parent.path == dir.path) break;
       dir = parent;
     }
-  } catch (_) {}
-  // Strategy 2: Walk up from CWD (fallback).
+  } catch (_) {
+    // Platform.script.toFilePath() may fail if CWD was deleted.
+    // Recover CWD to a known-good location and retry.
+    try { Directory.current = Directory.systemTemp.path; } catch (_) {}
+    try {
+      var dir = File(Platform.script.toFilePath()).parent;
+      for (var i = 0; i < 10; i++) {
+        final pubspec = File('${dir.path}/pubspec.yaml');
+        if (pubspec.existsSync()) {
+          final c = pubspec.readAsStringSync();
+          if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true).hasMatch(c)) {
+            return dir.path;
+          }
+        }
+        final parent = dir.parent;
+        if (parent.path == dir.path) break;
+        dir = parent;
+      }
+    } catch (_) {}
+  }
+
+  // Strategy 2: Walk up from CWD (may be poisoned, so guard against temp dirs).
   try {
     var dir = Directory.current;
     for (var i = 0; i < 15; i++) {
@@ -30,7 +52,10 @@ String _findProjectRoot() {
       if (pubspec.existsSync()) {
         final c = pubspec.readAsStringSync();
         if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true).hasMatch(c)) {
-          return dir.path;
+          final candidate = dir.path;
+          if (!_isTempPath(candidate)) {
+            return candidate;
+          }
         }
       }
       final parent = dir.parent;
@@ -38,7 +63,38 @@ String _findProjectRoot() {
       dir = parent;
     }
   } catch (_) {}
-  return Directory.current.path;
+
+  // Strategy 3: git rev-parse as last resort.
+  try {
+    final result = Process.runSync('git', ['rev-parse', '--show-toplevel']);
+    if (result.exitCode == 0) {
+      final gitRoot = (result.stdout as String).trim();
+      if (!_isTempPath(gitRoot)) {
+        final pubspec = File('$gitRoot/pubspec.yaml');
+        if (pubspec.existsSync()) {
+          final c = pubspec.readAsStringSync();
+          if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true).hasMatch(c)) {
+            return gitRoot;
+          }
+        }
+      }
+    }
+  } catch (_) {}
+
+  throw StateError(
+    'Cannot determine zuraffa project root. '
+    'CWD=${Directory.current.path}',
+  );
+}
+
+/// Returns true if [path] looks like it is inside a temp directory.
+bool _isTempPath(String p) {
+  final lower = p.toLowerCase();
+  return lower.contains('/tmp') ||
+      lower.contains(RegExp(r'/temp[/\"]')) ||
+      lower.contains('/var/folders/') ||
+      lower.contains('/noSuchFile') ||
+      lower == Directory.systemTemp.path;
 }
 
 void main() {
