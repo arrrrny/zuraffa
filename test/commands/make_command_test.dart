@@ -5,6 +5,41 @@ import 'package:test/test.dart';
 import 'package:path/path.dart' as path;
 import 'package:zuraffa/src/cli/cli_runner.dart';
 
+/// Resolve the project root from this test file's location.
+String _findProjectRoot() {
+  try {
+    var dir = File(Platform.script.toFilePath()).parent;
+    for (var i = 0; i < 10; i++) {
+      final pubspec = File('${dir.path}/pubspec.yaml');
+      if (pubspec.existsSync()) {
+        final content = pubspec.readAsStringSync();
+        if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true).hasMatch(content)) {
+          return dir.path;
+        }
+      }
+      final parent = dir.parent;
+      if (parent.path == dir.path) break;
+      dir = parent;
+    }
+  } catch (_) {}
+  try {
+    var dir = Directory.current;
+    for (var i = 0; i < 15; i++) {
+      final pubspec = File('${dir.path}/pubspec.yaml');
+      if (pubspec.existsSync()) {
+        final content = pubspec.readAsStringSync();
+        if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true).hasMatch(content)) {
+          return dir.path;
+        }
+      }
+      final parent = dir.parent;
+      if (parent.path == dir.path) break;
+      dir = parent;
+    }
+  } catch (_) {}
+  return Directory.current.path;
+}
+
 void main() {
   group('MakeCommand', () {
     late Directory workspace;
@@ -36,7 +71,10 @@ void main() {
         zfaBin = compiledBin;
         useCompiledBinary = true;
       } else {
-        zfaBin = File('bin/zfa.dart').absolute.path;
+        // Resolve bin/zfa.dart relative to the project root, NOT CWD.
+        // CWD may be a temp dir from another test at setUpAll time.
+        final projectRoot = _findProjectRoot();
+        zfaBin = path.join(projectRoot, 'bin', 'zfa.dart');
         useCompiledBinary = false;
       }
     });
@@ -66,7 +104,9 @@ class Product {
     });
 
     tearDown(() async {
-      Directory.current = previousCwd;
+      if (Directory(previousCwd).existsSync()) {
+        Directory.current = previousCwd;
+      }
       if (workspace.existsSync()) {
         await workspace.delete(recursive: true);
       }
