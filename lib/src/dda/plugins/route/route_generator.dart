@@ -237,8 +237,8 @@ class RouteGenerator {
     factoryAssignments.add('pathParameters: state.pathParameters');
     factoryAssignments.add('queryParameters: state.uriQueryParameters');
 
-    // Build factory body
-    final factoryBody = 'return $className(${factoryAssignments.join(', ')});';
+    // Build factory body - call private named constructor
+    final factoryBody = 'return $className._(${factoryAssignments.join(', ')});';
 
     return cb.Class(
       (c) => c

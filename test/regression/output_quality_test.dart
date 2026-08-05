@@ -81,13 +81,17 @@ void main() {
   test(
     'generated output is properly formatted',
     () async {
-      // Run dart format (without --set-exit-if-changed) to verify
-      // the generated code is valid and formattable.
+      // Run dart format in check mode to verify formatting without modifying files.
       final format = await Process.run(
-        'dart', ['format', ...generatedPaths],
+        'dart',
+        ['format', '--output=none', '--set-exit-if-changed', ...generatedPaths],
         workingDirectory: workspace.directory.path,
       );
-      expect(format.exitCode, equals(0), reason: format.stderr.toString());
+      expect(
+        format.exitCode,
+        equals(0),
+        reason: 'Generated files are not properly formatted:\n${format.stderr}',
+      );
     },
     timeout: const Timeout(Duration(minutes: 2)),
   );

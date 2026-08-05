@@ -22,9 +22,17 @@ class SmartMergeWriter {
       String existingContent;
       try {
         existingContent = await fileSystem.read(path);
-      } on FileSystemException {
-        // File doesn't exist yet — treat as empty (first write).
-        existingContent = '';
+      } on FileSystemException catch (e) {
+        // Only treat "file not found" as empty content.
+        // Rethrow permission, access, and other failures.
+        if (e.osError?.errorCode == 2 || // ENOENT (No such file or directory)
+            e.message.contains('Cannot open file') ||
+            e.message.contains('No such file')) {
+          existingContent = '';
+        } else {
+          // Permission denied, access error, or other failure - rethrow
+          rethrow;
+        }
       }
       if (existingContent.isEmpty) {
         // File doesn't exist or is empty - safe to write directly
