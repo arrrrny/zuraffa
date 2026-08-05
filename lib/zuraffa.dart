@@ -25,6 +25,7 @@ import 'src/core/module/contracts.dart';
 /// - **StreamUseCase**: Reactive operations that emit multiple values over time
 /// - **SyncUseCase**: Synchronous operations that return immediately without async
 /// - **BackgroundUseCase**: CPU-intensive operations that run on a separate isolate
+/// - **OsBackgroundTask**: OS-scheduled periodic background tasks via workmanager
 /// - **Controller**: Manages UI state and coordinates with UseCases
 /// - **Presenter**: Optional orchestration layer for complex business flows
 /// - **Result**: Type-safe success/failure handling
@@ -290,6 +291,12 @@ export 'src/domain/sync_usecase.dart';
 
 /// BackgroundUseCase for isolate-based operations
 export 'src/domain/background_usecase.dart';
+
+/// OsBackgroundTask for OS-scheduled background tasks wrapping workmanager
+export 'src/domain/os_background_task.dart';
+
+/// OsBackgroundTaskUseCase abstract base for OS background task use cases
+export 'src/domain/os_background_task_usecase.dart';
 
 /// Observer for callback-based stream listening (optional)
 export 'src/domain/observer.dart';
