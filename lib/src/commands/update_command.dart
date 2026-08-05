@@ -41,7 +41,7 @@ class UpdateCommand extends Command<void> {
       latest = await _fetchLatestVersion();
     } catch (e) {
       print('  Failed to check for updates: $e');
-      exit(1);
+      throw Exception('Failed to check for updates: $e');
     }
 
     print('Latest version:  $latest');
@@ -88,7 +88,7 @@ class UpdateCommand extends Command<void> {
         print('  $stdout');
       }
       print('Update failed. Try: dart pub global activate zuraffa');
-      exit(1);
+      throw Exception('Update failed. Try: dart pub global activate zuraffa');
     }
   }
 
@@ -110,7 +110,8 @@ class UpdateCommand extends Command<void> {
 
       final body = await response.transform(utf8.decoder).join();
       final json = jsonDecode(body) as Map<String, dynamic>;
-      return json['latest'] as String? ?? 'unknown';
+      final latest = json['latest'] as Map<String, dynamic>?;
+      return latest?['version'] as String? ?? 'unknown';
     } finally {
       client.close(force: true);
     }
@@ -118,24 +119,52 @@ class UpdateCommand extends Command<void> {
 
   /// Compare two semantic versions.
   /// Returns negative if [a] < [b], zero if equal, positive if [a] > [b].
+  /// Follows SemVer: pre-release versions have lower precedence than stable.
   static int compareVersions(String a, String b) {
-    final aParts = parseVersion(a);
-    final bParts = parseVersion(b);
+    final aParsed = parseVersion(a);
+    final bParsed = parseVersion(b);
+
+    // Compare major.minor.patch
     for (var i = 0; i < 3; i++) {
-      if (aParts[i] != bParts[i]) return aParts[i] - bParts[i];
+      if (aParsed.numeric[i] != bParsed.numeric[i]) {
+        return aParsed.numeric[i] - bParsed.numeric[i];
+      }
     }
-    return 0;
+
+    // If numeric parts are equal, compare pre-release identifiers
+    // Per SemVer: stable > pre-release, pre-release compared lexically
+    if (aParsed.preRelease == null && bParsed.preRelease == null) {
+      return 0; // Both stable and equal
+    }
+    if (aParsed.preRelease == null) {
+      return 1; // a is stable, b is pre-release: a > b
+    }
+    if (bParsed.preRelease == null) {
+      return -1; // a is pre-release, b is stable: a < b
+    }
+
+    // Both have pre-release: compare lexically
+    return aParsed.preRelease!.compareTo(bParsed.preRelease!);
   }
 
-  /// Parse a version string like "1.2.3" into a list of 3 ints.
-  /// Pre-release/build suffixes are stripped before parsing.
-  static List<int> parseVersion(String v) {
-    final clean = v.split(RegExp(r'[-+]')).first;
-    final parts = clean.split('.');
-    return [
-      int.tryParse(parts.elementAtOrNull(0) ?? '0') ?? 0,
-      int.tryParse(parts.elementAtOrNull(1) ?? '0') ?? 0,
-      int.tryParse(parts.elementAtOrNull(2) ?? '0') ?? 0,
+  /// Parse a version string like "1.2.3" or "1.2.3-alpha" into numeric and pre-release parts.
+  /// Build metadata (after +) is ignored per SemVer.
+  static ({List<int> numeric, String? preRelease}) parseVersion(String v) {
+    // Strip build metadata (everything after +)
+    final withoutBuild = v.split('+').first;
+
+    // Split on - to separate numeric from pre-release
+    final parts = withoutBuild.split('-');
+    final numericPart = parts.first;
+    final preRelease = parts.length > 1 ? parts.sublist(1).join('-') : null;
+
+    final numericParts = numericPart.split('.');
+    final numeric = [
+      int.tryParse(numericParts.elementAtOrNull(0) ?? '0') ?? 0,
+      int.tryParse(numericParts.elementAtOrNull(1) ?? '0') ?? 0,
+      int.tryParse(numericParts.elementAtOrNull(2) ?? '0') ?? 0,
     ];
+
+    return (numeric: numeric, preRelease: preRelease);
   }
 }

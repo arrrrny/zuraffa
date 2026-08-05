@@ -27,10 +27,19 @@ void main() {
       });
 
       test('handles pre-release suffixes', () {
-        // Pre-release is treated as the base version (suffix stripped)
-        expect(UpdateCommand.compareVersions('1.0.0-alpha', '1.0.0'), 0);
-        expect(UpdateCommand.compareVersions('1.0.0-beta', '1.0.0'), 0);
+        // Per SemVer: pre-release versions have lower precedence than stable
+        expect(UpdateCommand.compareVersions('1.0.0-alpha', '1.0.0'), isNegative);
+        expect(UpdateCommand.compareVersions('1.0.0-beta', '1.0.0'), isNegative);
+        expect(UpdateCommand.compareVersions('1.0.0', '1.0.0-alpha'), isPositive);
+        // Build metadata is ignored
         expect(UpdateCommand.compareVersions('1.0.0+build', '1.0.0'), 0);
+      });
+
+      test('pre-release ordering', () {
+        // Pre-release versions with same numeric part are compared lexically
+        expect(UpdateCommand.compareVersions('1.0.0-alpha', '1.0.0-beta'), isNegative);
+        expect(UpdateCommand.compareVersions('1.0.0-beta', '1.0.0-alpha'), isPositive);
+        expect(UpdateCommand.compareVersions('1.0.0-alpha', '1.0.0-alpha'), 0);
       });
 
       test('handles missing parts', () {
@@ -54,24 +63,43 @@ void main() {
 
     group('_parseVersion', () {
       test('parses standard version', () {
-        expect(UpdateCommand.parseVersion('1.2.3'), [1, 2, 3]);
+        final result = UpdateCommand.parseVersion('1.2.3');
+        expect(result.numeric, [1, 2, 3]);
+        expect(result.preRelease, isNull);
       });
 
       test('parses version with pre-release', () {
-        expect(UpdateCommand.parseVersion('1.2.3-alpha.1'), [1, 2, 3]);
+        final result = UpdateCommand.parseVersion('1.2.3-alpha.1');
+        expect(result.numeric, [1, 2, 3]);
+        expect(result.preRelease, 'alpha.1');
       });
 
       test('parses version with build metadata', () {
-        expect(UpdateCommand.parseVersion('1.2.3+build.42'), [1, 2, 3]);
+        final result = UpdateCommand.parseVersion('1.2.3+build.42');
+        expect(result.numeric, [1, 2, 3]);
+        expect(result.preRelease, isNull);
+      });
+
+      test('parses version with both pre-release and build metadata', () {
+        final result = UpdateCommand.parseVersion('1.2.3-alpha+build.42');
+        expect(result.numeric, [1, 2, 3]);
+        expect(result.preRelease, 'alpha');
       });
 
       test('handles short versions', () {
-        expect(UpdateCommand.parseVersion('1'), [1, 0, 0]);
-        expect(UpdateCommand.parseVersion('1.2'), [1, 2, 0]);
+        var result = UpdateCommand.parseVersion('1');
+        expect(result.numeric, [1, 0, 0]);
+        expect(result.preRelease, isNull);
+
+        result = UpdateCommand.parseVersion('1.2');
+        expect(result.numeric, [1, 2, 0]);
+        expect(result.preRelease, isNull);
       });
 
       test('handles empty string', () {
-        expect(UpdateCommand.parseVersion(''), [0, 0, 0]);
+        final result = UpdateCommand.parseVersion('');
+        expect(result.numeric, [0, 0, 0]);
+        expect(result.preRelease, isNull);
       });
     });
   });
