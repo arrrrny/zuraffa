@@ -559,6 +559,12 @@ export 'src/graphql/codegen/union_result_handler.dart';
 // GraphqlGenerateCommand — `zfa graphql generate` command class.
 export 'src/graphql/codegen/graphql_generate_command.dart';
 
+// GraphQL introspection — fetch and parse remote schemas.
+export 'src/graphql/graphql_introspection_service.dart';
+export 'src/graphql/graphql_schema.dart';
+export 'src/graphql/graphql_schema_translator.dart';
+export 'src/graphql/graphql_entity_emitter.dart';
+
 // ============================================================
 // Micro-Frontend Module System (v6)
 // ============================================================

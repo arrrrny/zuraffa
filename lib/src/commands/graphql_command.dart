@@ -1,5 +1,6 @@
 import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
+import 'graphql_introspect_command.dart';
 import '../plugins/graphql/graphql_plugin.dart';
 import '../plugins/graphql/capabilities/create_graphql_capability.dart';
 
@@ -18,6 +19,9 @@ class GraphqlCommand extends PluginCommand {
     argParser.addOption('input-type', help: 'Input type name');
     argParser.addOption('input-name', help: 'Input variable name');
     argParser.addOption('op-name', help: 'Operation name');
+
+    // Register introspect subcommand
+    addSubcommand(IntrospectCommand());
   }
 
   @override

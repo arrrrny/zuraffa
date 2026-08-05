@@ -1,0 +1,275 @@
+{
+  "data": {
+    "__schema": {
+      "queryType": { "name": "Query" },
+      "mutationType": { "name": "Mutation" },
+      "subscriptionType": null,
+      "types": [
+        {
+          "kind": "OBJECT",
+          "name": "Query",
+          "description": "Root query type",
+          "fields": [
+            {
+              "name": "products",
+              "description": "List all products",
+              "args": [
+                {
+                  "name": "options",
+                  "description": "Filter options",
+                  "type": { "kind": "INPUT_OBJECT", "name": "ProductListOptions" }
+                }
+              ],
+              "type": {
+                "kind": "NON_NULL",
+                "ofType": {
+                  "kind": "LIST",
+                  "ofType": { "kind": "OBJECT", "name": "Product" }
+                }
+              }
+            },
+            {
+              "name": "product",
+              "description": "Get a single product by ID",
+              "args": [
+                {
+                  "name": "id",
+                  "description": "Product ID",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "ofType": { "kind": "SCALAR", "name": "ID" }
+                  }
+                }
+              ],
+              "type": { "kind": "OBJECT", "name": "Product" }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "Mutation",
+          "description": "Root mutation type",
+          "fields": [
+            {
+              "name": "createProduct",
+              "description": "Create a new product",
+              "args": [
+                {
+                  "name": "input",
+                  "description": "Product input data",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "ofType": { "kind": "INPUT_OBJECT", "name": "CreateProductInput" }
+                  }
+                }
+              ],
+              "type": { "kind": "OBJECT", "name": "Product" }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "Product",
+          "description": "A product in the catalog",
+          "fields": [
+            {
+              "name": "id",
+              "description": "Unique identifier",
+              "args": [],
+              "type": {
+                "kind": "NON_NULL",
+                "ofType": { "kind": "SCALAR", "name": "ID" }
+              }
+            },
+            {
+              "name": "name",
+              "description": "Product name",
+              "args": [],
+              "type": {
+                "kind": "NON_NULL",
+                "ofType": { "kind": "SCALAR", "name": "String" }
+              }
+            },
+            {
+              "name": "slug",
+              "description": "URL slug",
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "String" }
+            },
+            {
+              "name": "price",
+              "description": "Product price",
+              "args": [],
+              "type": {
+                "kind": "NON_NULL",
+                "ofType": { "kind": "SCALAR", "name": "Int" }
+              }
+            },
+            {
+              "name": "description",
+              "description": "Product description",
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "String" }
+            },
+            {
+              "name": "featured",
+              "description": "Whether featured",
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "Boolean" }
+            },
+            {
+              "name": "variants",
+              "description": "Product variants",
+              "args": [],
+              "type": {
+                "kind": "LIST",
+                "ofType": { "kind": "OBJECT", "name": "ProductVariant" }
+              }
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "ProductVariant",
+          "description": "A variant of a product",
+          "fields": [
+            {
+              "name": "id",
+              "description": "Unique identifier",
+              "args": [],
+              "type": {
+                "kind": "NON_NULL",
+                "ofType": { "kind": "SCALAR", "name": "ID" }
+              }
+            },
+            {
+              "name": "name",
+              "description": "Variant name",
+              "args": [],
+              "type": {
+                "kind": "NON_NULL",
+                "ofType": { "kind": "SCALAR", "name": "String" }
+              }
+            },
+            {
+              "name": "price",
+              "description": "Variant price",
+              "args": [],
+              "type": {
+                "kind": "NON_NULL",
+                "ofType": { "kind": "SCALAR", "name": "Int" }
+              }
+            },
+            {
+              "name": "sku",
+              "description": "Stock keeping unit",
+              "args": [],
+              "type": { "kind": "SCALAR", "name": "String" }
+            }
+          ]
+        },
+        {
+          "kind": "INPUT_OBJECT",
+          "name": "ProductListOptions",
+          "description": "Options for listing products",
+          "inputFields": [
+            {
+              "name": "take",
+              "description": "Limit results",
+              "type": { "kind": "SCALAR", "name": "Int" }
+            },
+            {
+              "name": "skip",
+              "description": "Offset results",
+              "type": { "kind": "SCALAR", "name": "Int" }
+            },
+            {
+              "name": "sort",
+              "description": "Sort field",
+              "type": { "kind": "SCALAR", "name": "String" }
+            }
+          ]
+        },
+        {
+          "kind": "INPUT_OBJECT",
+          "name": "CreateProductInput",
+          "description": "Input for creating a product",
+          "inputFields": [
+            {
+              "name": "name",
+              "description": "Product name",
+              "type": {
+                "kind": "NON_NULL",
+                "ofType": { "kind": "SCALAR", "name": "String" }
+              }
+            },
+            {
+              "name": "slug",
+              "description": "URL slug",
+              "type": { "kind": "SCALAR", "name": "String" }
+            },
+            {
+              "name": "price",
+              "description": "Product price",
+              "type": {
+                "kind": "NON_NULL",
+                "ofType": { "kind": "SCALAR", "name": "Int" }
+              }
+            },
+            {
+              "name": "description",
+              "description": "Product description",
+              "type": { "kind": "SCALAR", "name": "String" }
+            }
+          ]
+        },
+        {
+          "kind": "ENUM",
+          "name": "ProductSortOrder",
+          "description": "Sort order for products",
+          "enumValues": [
+            { "name": "NAME_ASC", "description": "Sort by name ascending" },
+            { "name": "NAME_DESC", "description": "Sort by name descending" },
+            { "name": "PRICE_ASC", "description": "Sort by price ascending" },
+            { "name": "PRICE_DESC", "description": "Sort by price descending" },
+            { "name": "CREATED_AT_ASC", "description": "Sort by creation date ascending" },
+            { "name": "CREATED_AT_DESC", "description": "Sort by creation date descending" }
+          ]
+        },
+        {
+          "kind": "SCALAR",
+          "name": "ID",
+          "description": "Built-in ID scalar"
+        },
+        {
+          "kind": "SCALAR",
+          "name": "String",
+          "description": "Built-in String scalar"
+        },
+        {
+          "kind": "SCALAR",
+          "name": "Int",
+          "description": "Built-in Int scalar"
+        },
+        {
+          "kind": "SCALAR",
+          "name": "Boolean",
+          "description": "Built-in Boolean scalar"
+        },
+        {
+          "kind": "SCALAR",
+          "name": "Float",
+          "description": "Built-in Float scalar"
+        },
+        { "kind": "OBJECT", "name": "__Schema" },
+        { "kind": "OBJECT", "name": "__Type" },
+        { "kind": "OBJECT", "name": "__TypeKind" },
+        { "kind": "OBJECT", "name": "__Field" },
+        { "kind": "OBJECT", "name": "__InputValue" },
+        { "kind": "OBJECT", "name": "__EnumValue" },
+        { "kind": "OBJECT", "name": "__Directive" },
+        { "kind": "OBJECT", "name": "__DirectiveLocation" }
+      ]
+    }
+  }
+}
