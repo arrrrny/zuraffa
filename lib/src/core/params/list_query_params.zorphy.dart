@@ -14,9 +14,41 @@ part of 'list_query_params.dart';
   genericArgumentFactories: true,
 )
 class ListQueryParams<T> extends Params {
+  const ListQueryParams({
+    Map<String, dynamic>? this.params,
+    String? this.search,
+    Filter<T>? this.filter,
+    Sort<T>? this.sort,
+    int? this.limit,
+    int? this.offset,
+  }) : super();
+
+  factory ListQueryParams.fromJson(
+    Map<String, dynamic> json,
+    T Function(Object? json) fromJsonT,
+  ) {
+    final instance = _$ListQueryParamsFromJson(json, fromJsonT);
+    return ListQueryParams(
+      params: instance.params,
+      search: instance.search,
+      filter: json['filter'] != null
+          ? FilterConverter.fromJson(json['filter'] as Map<String, dynamic>)
+                as Filter<T>?
+          : null,
+      sort: json['sort'] != null
+          ? SortConverter.fromJson(json['sort'] as Map<String, dynamic>)
+                as Sort<T>?
+          : null,
+      limit: instance.limit,
+      offset: instance.offset,
+    );
+  }
+
   @override
   final Map<String, dynamic>? params;
+
   final String? search;
+
   @JsonKey(
     includeFromJson: false,
     includeToJson: false,
@@ -24,6 +56,7 @@ class ListQueryParams<T> extends Params {
     fromJson: FilterConverter.fromJson,
   )
   final Filter<T>? filter;
+
   @JsonKey(
     includeFromJson: false,
     includeToJson: false,
@@ -31,17 +64,10 @@ class ListQueryParams<T> extends Params {
     fromJson: SortConverter.fromJson,
   )
   final Sort<T>? sort;
-  final int? limit;
-  final int? offset;
 
-  const ListQueryParams({
-    this.params,
-    this.search,
-    this.filter,
-    this.sort,
-    this.limit,
-    this.offset,
-  }) : super();
+  final int? limit;
+
+  final int? offset;
 
   ListQueryParams copyWith({
     Map<String, dynamic>? params,
@@ -79,7 +105,7 @@ class ListQueryParams<T> extends Params {
     );
   }
 
-  ListQueryParams patchWithListQueryParams({ListQueryParamsPatch? patchInput}) {
+  ListQueryParams patchWithListQueryParams([ListQueryParamsPatch? patchInput]) {
     final _patcher = patchInput ?? ListQueryParamsPatch();
     final _patchMap = _patcher.patchMap;
     return ListQueryParams(
@@ -167,51 +193,68 @@ class ListQueryParams<T> extends Params {
         ', ' +
         'offset: ${offset})';
   }
-
-  /// Creates a [ListQueryParams] instance from JSON
-  factory ListQueryParams.fromJson(
-    Map<String, dynamic> json,
-    T Function(Object? json) fromJsonT,
-  ) {
-    final instance = _$ListQueryParamsFromJson(json, fromJsonT);
-    return ListQueryParams(
-      params: instance.params,
-      search: instance.search,
-      filter: json['filter'] != null
-          ? FilterConverter.fromJson(json['filter'] as Map<String, dynamic>)
-                as Filter<T>?
-          : null,
-      sort: json['sort'] != null
-          ? SortConverter.fromJson(json['sort'] as Map<String, dynamic>)
-                as Sort<T>?
-          : null,
-      limit: instance.limit,
-      offset: instance.offset,
-    );
-  }
 }
 
 extension ListQueryParamsPropertyHelpers<T> on ListQueryParams<T> {
-  bool get hasSearch => search?.isNotEmpty == true;
-  bool get noSearch => search?.isEmpty ?? true;
-  String get searchRequired =>
-      search ?? (throw StateError('search is required but was null'));
-  bool get hasFilter => filter != null;
-  bool get noFilter => filter == null;
-  Filter<T> get filterRequired =>
-      filter ?? (throw StateError('filter is required but was null'));
-  bool get hasSort => sort != null;
-  bool get noSort => sort == null;
-  Sort<T> get sortRequired =>
-      sort ?? (throw StateError('sort is required but was null'));
-  bool get hasLimit => limit != null;
-  bool get noLimit => limit == null;
-  int get limitRequired =>
-      limit ?? (throw StateError('limit is required but was null'));
-  bool get hasOffset => offset != null;
-  bool get noOffset => offset == null;
-  int get offsetRequired =>
-      offset ?? (throw StateError('offset is required but was null'));
+  bool get hasSearch {
+    return search?.isNotEmpty == true;
+  }
+
+  bool get noSearch {
+    return search?.isEmpty ?? true;
+  }
+
+  String get searchRequired {
+    return search ?? (throw StateError('search is required but was null'));
+  }
+
+  bool get hasFilter {
+    return filter != null;
+  }
+
+  bool get noFilter {
+    return filter == null;
+  }
+
+  Filter<T> get filterRequired {
+    return filter ?? (throw StateError('filter is required but was null'));
+  }
+
+  bool get hasSort {
+    return sort != null;
+  }
+
+  bool get noSort {
+    return sort == null;
+  }
+
+  Sort<T> get sortRequired {
+    return sort ?? (throw StateError('sort is required but was null'));
+  }
+
+  bool get hasLimit {
+    return limit != null;
+  }
+
+  bool get noLimit {
+    return limit == null;
+  }
+
+  int get limitRequired {
+    return limit ?? (throw StateError('limit is required but was null'));
+  }
+
+  bool get hasOffset {
+    return offset != null;
+  }
+
+  bool get noOffset {
+    return offset == null;
+  }
+
+  int get offsetRequired {
+    return offset ?? (throw StateError('offset is required but was null'));
+  }
 }
 
 extension ListQueryParamsSerialization<T> on ListQueryParams<T> {
@@ -221,25 +264,6 @@ extension ListQueryParamsSerialization<T> on ListQueryParams<T> {
     if (sort != null) data['sort'] = SortConverter.toJson(sort!);
     return data;
   }
-
-  Map<String, dynamic> toJsonLean(Object? Function(T value) toJsonT) {
-    final Map<String, dynamic> data = _$ListQueryParamsToJson(this, toJsonT);
-    if (filter != null) data['filter'] = FilterConverter.toJson(filter!);
-    if (sort != null) data['sort'] = SortConverter.toJson(sort!);
-    return _sanitizeJson(data);
-  }
-
-  dynamic _sanitizeJson(dynamic json) {
-    if (json is Map<String, dynamic>) {
-      json.remove('__typename');
-      return json..forEach((key, value) {
-        json[key] = _sanitizeJson(value);
-      });
-    } else if (json is List) {
-      return json.map((e) => _sanitizeJson(e)).toList();
-    }
-    return json;
-  }
 }
 
 enum ListQueryParams$ { params, search, filter, sort, limit, offset }
@@ -247,7 +271,7 @@ enum ListQueryParams$ { params, search, filter, sort, limit, offset }
 class ListQueryParamsPatch
     extends PatchBase<ListQueryParams, ListQueryParams$> {
   ListQueryParams applyTo(ListQueryParams entity) {
-    return entity.patchWithListQueryParams(patchInput: this);
+    return entity.patchWithListQueryParams(this);
   }
 
   ListQueryParamsPatch withParams(Map<String, dynamic>? value) {
@@ -282,28 +306,57 @@ class ListQueryParamsPatch
 }
 
 /// Field descriptors for [ListQueryParams] query construction
-abstract final class ListQueryParamsFields {
-  static Map<String, dynamic>? _$getparams<T>(ListQueryParams<T> e) => e.params;
-  static Field<ListQueryParams<T>, Map<String, dynamic>?> params<T>() =>
-      Field<ListQueryParams<T>, Map<String, dynamic>?>(
-        'params',
-        _$getparams<T>,
-      );
-  static String? _$getsearch<T>(ListQueryParams<T> e) => e.search;
-  static Field<ListQueryParams<T>, String?> search<T>() =>
-      Field<ListQueryParams<T>, String?>('search', _$getsearch<T>);
-  static Filter<T>? _$getfilter<T>(ListQueryParams<T> e) => e.filter;
-  static Field<ListQueryParams<T>, Filter<T>?> filter<T>() =>
-      Field<ListQueryParams<T>, Filter<T>?>('filter', _$getfilter<T>);
-  static Sort<T>? _$getsort<T>(ListQueryParams<T> e) => e.sort;
-  static Field<ListQueryParams<T>, Sort<T>?> sort<T>() =>
-      Field<ListQueryParams<T>, Sort<T>?>('sort', _$getsort<T>);
-  static int? _$getlimit<T>(ListQueryParams<T> e) => e.limit;
-  static Field<ListQueryParams<T>, int?> limit<T>() =>
-      Field<ListQueryParams<T>, int?>('limit', _$getlimit<T>);
-  static int? _$getoffset<T>(ListQueryParams<T> e) => e.offset;
-  static Field<ListQueryParams<T>, int?> offset<T>() =>
-      Field<ListQueryParams<T>, int?>('offset', _$getoffset<T>);
+abstract final class ListQueryParamsFields<T> {
+  static Map<String, dynamic>? _$params<T>(ListQueryParams<T> e) {
+    return e.params;
+  }
+
+  static Field<ListQueryParams<T>, Map<String, dynamic>?> params<T>() {
+    return Field<ListQueryParams<T>, Map<String, dynamic>?>(
+      'params',
+      _$params<T>,
+    );
+  }
+
+  static String? _$search<T>(ListQueryParams<T> e) {
+    return e.search;
+  }
+
+  static Field<ListQueryParams<T>, String?> search<T>() {
+    return Field<ListQueryParams<T>, String?>('search', _$search<T>);
+  }
+
+  static Filter<T>? _$filter<T>(ListQueryParams<T> e) {
+    return e.filter;
+  }
+
+  static Field<ListQueryParams<T>, Filter<T>?> filter<T>() {
+    return Field<ListQueryParams<T>, Filter<T>?>('filter', _$filter<T>);
+  }
+
+  static Sort<T>? _$sort<T>(ListQueryParams<T> e) {
+    return e.sort;
+  }
+
+  static Field<ListQueryParams<T>, Sort<T>?> sort<T>() {
+    return Field<ListQueryParams<T>, Sort<T>?>('sort', _$sort<T>);
+  }
+
+  static int? _$limit<T>(ListQueryParams<T> e) {
+    return e.limit;
+  }
+
+  static Field<ListQueryParams<T>, int?> limit<T>() {
+    return Field<ListQueryParams<T>, int?>('limit', _$limit<T>);
+  }
+
+  static int? _$offset<T>(ListQueryParams<T> e) {
+    return e.offset;
+  }
+
+  static Field<ListQueryParams<T>, int?> offset<T>() {
+    return Field<ListQueryParams<T>, int?>('offset', _$offset<T>);
+  }
 }
 
 extension ListQueryParamsCompareE on ListQueryParams {
@@ -313,18 +366,23 @@ extension ListQueryParamsCompareE on ListQueryParams {
     if (params != other.params) {
       diff['params'] = () => other.params;
     }
+
     if (search != other.search) {
       diff['search'] = () => other.search;
     }
+
     if (filter != other.filter) {
       diff['filter'] = () => other.filter;
     }
+
     if (sort != other.sort) {
       diff['sort'] = () => other.sort;
     }
+
     if (limit != other.limit) {
       diff['limit'] = () => other.limit;
     }
+
     if (offset != other.offset) {
       diff['offset'] = () => other.offset;
     }

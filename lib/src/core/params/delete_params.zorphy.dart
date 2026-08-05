@@ -14,11 +14,18 @@ part of 'delete_params.dart';
   genericArgumentFactories: true,
 )
 class DeleteParams<I> extends Params {
+  const DeleteParams({Map<String, dynamic>? this.params, required I this.id})
+    : super();
+
+  factory DeleteParams.fromJson(
+    Map<String, dynamic> json,
+    I Function(Object? json) fromJsonI,
+  ) => _$DeleteParamsFromJson(json, fromJsonI);
+
   @override
   final Map<String, dynamic>? params;
-  final I id;
 
-  const DeleteParams({this.params, required this.id}) : super();
+  final I id;
 
   DeleteParams copyWith({Map<String, dynamic>? params, I? id}) {
     return DeleteParams(params: params ?? this.params, id: id ?? this.id);
@@ -28,7 +35,7 @@ class DeleteParams<I> extends Params {
     return copyWith(params: params, id: id);
   }
 
-  DeleteParams patchWithDeleteParams({DeleteParamsPatch? patchInput}) {
+  DeleteParams patchWithDeleteParams([DeleteParamsPatch? patchInput]) {
     final _patcher = patchInput ?? DeleteParamsPatch();
     final _patchMap = _patcher.patchMap;
     return DeleteParams(
@@ -64,12 +71,6 @@ class DeleteParams<I> extends Params {
   String toString() {
     return 'DeleteParams(' + 'params: ${params}' + ', ' + 'id: ${id})';
   }
-
-  /// Creates a [DeleteParams] instance from JSON
-  factory DeleteParams.fromJson(
-    Map<String, dynamic> json,
-    I Function(Object? json) fromJsonI,
-  ) => _$DeleteParamsFromJson(json, fromJsonI);
 }
 
 extension DeleteParamsPropertyHelpers<I> on DeleteParams<I> {}
@@ -77,29 +78,13 @@ extension DeleteParamsPropertyHelpers<I> on DeleteParams<I> {}
 extension DeleteParamsSerialization<I> on DeleteParams<I> {
   Map<String, dynamic> toJson(Object? Function(I value) toJsonI) =>
       _$DeleteParamsToJson(this, toJsonI);
-  Map<String, dynamic> toJsonLean(Object? Function(I value) toJsonI) {
-    final Map<String, dynamic> data = _$DeleteParamsToJson(this, toJsonI);
-    return _sanitizeJson(data);
-  }
-
-  dynamic _sanitizeJson(dynamic json) {
-    if (json is Map<String, dynamic>) {
-      json.remove('__typename');
-      return json..forEach((key, value) {
-        json[key] = _sanitizeJson(value);
-      });
-    } else if (json is List) {
-      return json.map((e) => _sanitizeJson(e)).toList();
-    }
-    return json;
-  }
 }
 
 enum DeleteParams$ { params, id }
 
 class DeleteParamsPatch extends PatchBase<DeleteParams, DeleteParams$> {
   DeleteParams applyTo(DeleteParams entity) {
-    return entity.patchWithDeleteParams(patchInput: this);
+    return entity.patchWithDeleteParams(this);
   }
 
   DeleteParamsPatch withParams(Map<String, dynamic>? value) {
@@ -114,13 +99,22 @@ class DeleteParamsPatch extends PatchBase<DeleteParams, DeleteParams$> {
 }
 
 /// Field descriptors for [DeleteParams] query construction
-abstract final class DeleteParamsFields {
-  static Map<String, dynamic>? _$getparams<I>(DeleteParams<I> e) => e.params;
-  static Field<DeleteParams<I>, Map<String, dynamic>?> params<I>() =>
-      Field<DeleteParams<I>, Map<String, dynamic>?>('params', _$getparams<I>);
-  static I _$getid<I>(DeleteParams<I> e) => e.id;
-  static Field<DeleteParams<I>, I> id<I>() =>
-      Field<DeleteParams<I>, I>('id', _$getid<I>);
+abstract final class DeleteParamsFields<I> {
+  static Map<String, dynamic>? _$params<I>(DeleteParams<I> e) {
+    return e.params;
+  }
+
+  static Field<DeleteParams<I>, Map<String, dynamic>?> params<I>() {
+    return Field<DeleteParams<I>, Map<String, dynamic>?>('params', _$params<I>);
+  }
+
+  static I _$id<I>(DeleteParams<I> e) {
+    return e.id;
+  }
+
+  static Field<DeleteParams<I>, I> id<I>() {
+    return Field<DeleteParams<I>, I>('id', _$id<I>);
+  }
 }
 
 extension DeleteParamsCompareE on DeleteParams {
@@ -130,6 +124,7 @@ extension DeleteParamsCompareE on DeleteParams {
     if (params != other.params) {
       diff['params'] = () => other.params;
     }
+
     if (id != other.id) {
       diff['id'] = () => other.id;
     }

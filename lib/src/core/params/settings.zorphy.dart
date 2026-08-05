@@ -10,10 +10,13 @@ part of 'settings.dart';
 
 @JsonSerializable(explicitToJson: true, checked: true)
 class Settings extends Params {
+  const Settings({Map<String, dynamic>? this.params}) : super();
+
+  factory Settings.fromJson(Map<String, dynamic> json) =>
+      _$SettingsFromJson(json);
+
   @override
   final Map<String, dynamic>? params;
-
-  const Settings({this.params}) : super();
 
   Settings copyWith({Map<String, dynamic>? params}) {
     return Settings(params: params ?? this.params);
@@ -23,7 +26,7 @@ class Settings extends Params {
     return copyWith(params: params);
   }
 
-  Settings patchWithSettings({SettingsPatch? patchInput}) {
+  Settings patchWithSettings([SettingsPatch? patchInput]) {
     final _patcher = patchInput ?? SettingsPatch();
     final _patchMap = _patcher.patchMap;
     return Settings(
@@ -53,10 +56,6 @@ class Settings extends Params {
     return 'Settings(' + 'params: ${params})';
   }
 
-  /// Creates a [Settings] instance from JSON
-  factory Settings.fromJson(Map<String, dynamic> json) =>
-      _$SettingsFromJson(json);
-
   Map<String, dynamic> toJsonLean() {
     final Map<String, dynamic> data = _$SettingsToJson(this);
     return _sanitizeJson(data);
@@ -76,22 +75,8 @@ class Settings extends Params {
 }
 
 extension SettingsSerialization on Settings {
-  Map<String, dynamic> toJson() => _$SettingsToJson(this);
-  Map<String, dynamic> toJsonLean() {
-    final Map<String, dynamic> data = _$SettingsToJson(this);
-    return _sanitizeJson(data);
-  }
-
-  dynamic _sanitizeJson(dynamic json) {
-    if (json is Map<String, dynamic>) {
-      json.remove('__typename');
-      return json..forEach((key, value) {
-        json[key] = _sanitizeJson(value);
-      });
-    } else if (json is List) {
-      return json.map((e) => _sanitizeJson(e)).toList();
-    }
-    return json;
+  Map<String, dynamic> toJson() {
+    return _$SettingsToJson(this);
   }
 }
 
@@ -99,7 +84,7 @@ enum Settings$ { params }
 
 class SettingsPatch extends PatchBase<Settings, Settings$> {
   Settings applyTo(Settings entity) {
-    return entity.patchWithSettings(patchInput: this);
+    return entity.patchWithSettings(this);
   }
 
   SettingsPatch withParams(Map<String, dynamic>? value) {
@@ -110,11 +95,14 @@ class SettingsPatch extends PatchBase<Settings, Settings$> {
 
 /// Field descriptors for [Settings] query construction
 abstract final class SettingsFields {
-  static Map<String, dynamic>? _$getparams(Settings e) => e.params;
   static const params = Field<Settings, Map<String, dynamic>?>(
     'params',
-    _$getparams,
+    _$params,
   );
+
+  static Map<String, dynamic>? _$params(Settings e) {
+    return e.params;
+  }
 }
 
 extension SettingsCompareE on Settings {

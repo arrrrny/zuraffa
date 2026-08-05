@@ -14,8 +14,26 @@ part of 'query_params.dart';
   genericArgumentFactories: true,
 )
 class QueryParams<T> extends Params {
+  const QueryParams({Map<String, dynamic>? this.params, Filter<T>? this.filter})
+    : super();
+
+  factory QueryParams.fromJson(
+    Map<String, dynamic> json,
+    T Function(Object? json) fromJsonT,
+  ) {
+    final instance = _$QueryParamsFromJson(json, fromJsonT);
+    return QueryParams(
+      params: instance.params,
+      filter: json['filter'] != null
+          ? FilterConverter.fromJson(json['filter'] as Map<String, dynamic>)
+                as Filter<T>?
+          : null,
+    );
+  }
+
   @override
   final Map<String, dynamic>? params;
+
   @JsonKey(
     includeFromJson: false,
     includeToJson: false,
@@ -23,8 +41,6 @@ class QueryParams<T> extends Params {
     fromJson: FilterConverter.fromJson,
   )
   final Filter<T>? filter;
-
-  const QueryParams({this.params, this.filter}) : super();
 
   QueryParams copyWith({Map<String, dynamic>? params, Filter<T>? filter}) {
     return QueryParams(
@@ -40,7 +56,7 @@ class QueryParams<T> extends Params {
     return copyWith(params: params, filter: filter);
   }
 
-  QueryParams patchWithQueryParams({QueryParamsPatch? patchInput}) {
+  QueryParams patchWithQueryParams([QueryParamsPatch? patchInput]) {
     final _patcher = patchInput ?? QueryParamsPatch();
     final _patchMap = _patcher.patchMap;
     return QueryParams(
@@ -78,28 +94,20 @@ class QueryParams<T> extends Params {
   String toString() {
     return 'QueryParams(' + 'params: ${params}' + ', ' + 'filter: ${filter})';
   }
-
-  /// Creates a [QueryParams] instance from JSON
-  factory QueryParams.fromJson(
-    Map<String, dynamic> json,
-    T Function(Object? json) fromJsonT,
-  ) {
-    final instance = _$QueryParamsFromJson(json, fromJsonT);
-    return QueryParams(
-      params: instance.params,
-      filter: json['filter'] != null
-          ? FilterConverter.fromJson(json['filter'] as Map<String, dynamic>)
-                as Filter<T>?
-          : null,
-    );
-  }
 }
 
 extension QueryParamsPropertyHelpers<T> on QueryParams<T> {
-  bool get hasFilter => filter != null;
-  bool get noFilter => filter == null;
-  Filter<T> get filterRequired =>
-      filter ?? (throw StateError('filter is required but was null'));
+  bool get hasFilter {
+    return filter != null;
+  }
+
+  bool get noFilter {
+    return filter == null;
+  }
+
+  Filter<T> get filterRequired {
+    return filter ?? (throw StateError('filter is required but was null'));
+  }
 }
 
 extension QueryParamsSerialization<T> on QueryParams<T> {
@@ -108,31 +116,13 @@ extension QueryParamsSerialization<T> on QueryParams<T> {
     if (filter != null) data['filter'] = FilterConverter.toJson(filter!);
     return data;
   }
-
-  Map<String, dynamic> toJsonLean(Object? Function(T value) toJsonT) {
-    final Map<String, dynamic> data = _$QueryParamsToJson(this, toJsonT);
-    if (filter != null) data['filter'] = FilterConverter.toJson(filter!);
-    return _sanitizeJson(data);
-  }
-
-  dynamic _sanitizeJson(dynamic json) {
-    if (json is Map<String, dynamic>) {
-      json.remove('__typename');
-      return json..forEach((key, value) {
-        json[key] = _sanitizeJson(value);
-      });
-    } else if (json is List) {
-      return json.map((e) => _sanitizeJson(e)).toList();
-    }
-    return json;
-  }
 }
 
 enum QueryParams$ { params, filter }
 
 class QueryParamsPatch extends PatchBase<QueryParams, QueryParams$> {
   QueryParams applyTo(QueryParams entity) {
-    return entity.patchWithQueryParams(patchInput: this);
+    return entity.patchWithQueryParams(this);
   }
 
   QueryParamsPatch withParams(Map<String, dynamic>? value) {
@@ -147,13 +137,22 @@ class QueryParamsPatch extends PatchBase<QueryParams, QueryParams$> {
 }
 
 /// Field descriptors for [QueryParams] query construction
-abstract final class QueryParamsFields {
-  static Map<String, dynamic>? _$getparams<T>(QueryParams<T> e) => e.params;
-  static Field<QueryParams<T>, Map<String, dynamic>?> params<T>() =>
-      Field<QueryParams<T>, Map<String, dynamic>?>('params', _$getparams<T>);
-  static Filter<T>? _$getfilter<T>(QueryParams<T> e) => e.filter;
-  static Field<QueryParams<T>, Filter<T>?> filter<T>() =>
-      Field<QueryParams<T>, Filter<T>?>('filter', _$getfilter<T>);
+abstract final class QueryParamsFields<T> {
+  static Map<String, dynamic>? _$params<T>(QueryParams<T> e) {
+    return e.params;
+  }
+
+  static Field<QueryParams<T>, Map<String, dynamic>?> params<T>() {
+    return Field<QueryParams<T>, Map<String, dynamic>?>('params', _$params<T>);
+  }
+
+  static Filter<T>? _$filter<T>(QueryParams<T> e) {
+    return e.filter;
+  }
+
+  static Field<QueryParams<T>, Filter<T>?> filter<T>() {
+    return Field<QueryParams<T>, Filter<T>?>('filter', _$filter<T>);
+  }
 }
 
 extension QueryParamsCompareE on QueryParams {
@@ -163,6 +162,7 @@ extension QueryParamsCompareE on QueryParams {
     if (params != other.params) {
       diff['params'] = () => other.params;
     }
+
     if (filter != other.filter) {
       diff['filter'] = () => other.filter;
     }
