@@ -5,8 +5,29 @@ import 'dart:io';
 import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 
-/// Resolve at discovery time before CWD races.
-final _zfaRoot = Directory.current.path;
+/// Resolve a known-good directory via Platform.script.
+/// Immune to CWD changes by other tests.
+String _safeRoot() {
+  try {
+    var dir = File(Platform.script.toFilePath()).parent;
+    for (var i = 0; i < 10; i++) {
+      final ps = File('${dir.path}/pubspec.yaml');
+      if (ps.existsSync()) {
+        final c = ps.readAsStringSync();
+        if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true).hasMatch(c)) {
+          return dir.path;
+        }
+      }
+      final parent = dir.parent;
+      if (parent.path == dir.path) break;
+      dir = parent;
+    }
+  } catch (_) {}
+  return Directory.systemTemp.path;
+}
+
+String _zfaRoot = _safeRoot();
+
 
 void main() {
   group('FeatureCommand', () {

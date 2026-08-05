@@ -8,12 +8,8 @@ void _safeSetCwd(Directory dir) {
   try {
     Directory.current = dir;
   } catch (_) {
-    // The current CWD may have been deleted by a prior test.
-    // Try recovering via a known-good directory first.
-    try {
-      Directory.current = Directory.systemTemp;
-    } catch (_) {}
-    Directory.current = dir;
+    try { Directory.current = Directory.systemTemp; } catch (_) {}
+    try { Directory.current = dir; } catch (_) {}
   }
 }
 
@@ -31,8 +27,14 @@ void main() {
       await tempDir.delete(recursive: true);
     }
     // Restore CWD only if the saved path still exists.
-    if (Directory(originalWd).existsSync()) {
-      _safeSetCwd(Directory(originalWd));
+    try {
+      if (Directory(originalWd).existsSync()) {
+        Directory.current = Directory(originalWd);
+      } else {
+        Directory.current = Directory.systemTemp;
+      }
+    } catch (_) {
+      try { Directory.current = Directory.systemTemp; } catch (_) {}
     }
   });
 

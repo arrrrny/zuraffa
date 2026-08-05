@@ -4,8 +4,9 @@ import 'package:test/test.dart';
 import 'package:path/path.dart' as p;
 
 /// Resolve package root at discovery time, before any test changes CWD.
-/// Dart test compiles to .dill so Platform.script is useless.
+/// This is safe because dart test loads all files before running any test.
 final _zfaRoot = Directory.current.path;
+
 
 void main() {
   group('CLI Edge Cases', () {

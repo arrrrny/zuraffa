@@ -66,7 +66,9 @@ class Product {
     });
 
     tearDown(() async {
-      Directory.current = _savedCwd;
+      try { Directory.current = _savedCwd; } catch (_) {
+        try { Directory.current = Directory.systemTemp; } catch (_) {}
+      }
       if (workspace.existsSync()) {
         await workspace.delete(recursive: true);
       }
@@ -201,7 +203,9 @@ environment:
         ).resolveSymbolicLinks();
         expect(result, equals(resolvedWorkspace));
       } finally {
-        Directory.current = savedCwd;
+        try { Directory.current = savedCwd; } catch (_) {
+          try { Directory.current = Directory.systemTemp; } catch (_) {}
+        }
         if (workspace.existsSync()) {
           await workspace.delete(recursive: true);
         }
@@ -248,7 +252,9 @@ environment:
         // ProjectRoot.find() accesses Directory.current before it can recover.
         expect(() => ProjectRoot.find(), throwsA(isA<PathNotFoundException>()));
       } finally {
-        Directory.current = savedCwd;
+        try { Directory.current = savedCwd; } catch (_) {
+          try { Directory.current = Directory.systemTemp; } catch (_) {}
+        }
       }
     });
   });
