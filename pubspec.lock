@@ -759,13 +759,13 @@ packages:
       path: "../zorphy/zorphy"
       relative: true
     source: path
-    version: "2.1.0"
+    version: "2.0.0"
   zorphy_annotation:
     dependency: "direct main"
     description:
       path: "../zorphy/zorphy_annotation"
       relative: true
     source: path
-    version: "2.1.0"
+    version: "2.0.0"
 sdks:
   dart: ">=3.11.0 <4.0.0"

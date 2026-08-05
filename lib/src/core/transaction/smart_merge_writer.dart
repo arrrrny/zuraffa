@@ -19,7 +19,13 @@ class SmartMergeWriter {
     required String newContent,
   }) async {
     try {
-      final existingContent = await fileSystem.read(path);
+      String existingContent;
+      try {
+        existingContent = await fileSystem.read(path);
+      } on FileSystemException {
+        // File doesn't exist yet — treat as empty (first write).
+        existingContent = '';
+      }
       if (existingContent.isEmpty) {
         // File doesn't exist or is empty - safe to write directly
         await fileSystem.write(path, newContent);
@@ -50,10 +56,6 @@ class SmartMergeWriter {
         print('[merge error] $path: Failed to merge: $mergeError');
         rethrow;
       }
-    } on FileSystemException catch (fsError) {
-      // I/O error reading file
-      print('[file system error] $path: $fsError');
-      rethrow;
     } catch (error) {
       // Unexpected error
       print('[error] $path: $error');

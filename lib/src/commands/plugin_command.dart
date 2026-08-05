@@ -134,7 +134,7 @@ class PluginCommand {
       engineMatch.end,
       bootstrapMatch.start,
     );
-    final registerPattern = RegExp(r'\.\.register\([^)]+\)\n');
+    final registerPattern = RegExp(r'\.\.register\(.+?\)');
     final registerMatches = registerPattern.allMatches(engineBlock);
 
     if (registerMatches.isEmpty) {

@@ -5,6 +5,7 @@ import 'package:zuraffa/src/generator/code_generator.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/models/generator_result.dart';
 
+
 class RegressionWorkspace {
   final Directory directory;
   final String outputDir;
@@ -24,24 +25,18 @@ Future<void> disposeWorkspace(RegressionWorkspace workspace) async {
   }
 }
 
-Future<void> writePubspec(RegressionWorkspace workspace) async {
-  final repoRoot = Directory.current.path;
+Future<void> writePubspec(RegressionWorkspace workspace, {String? repoRoot}) async {
+  repoRoot ??= Directory.current.path;
   final content =
       '''
 name: zuraffa_test_app
 environment:
   sdk: ">=3.8.0 <4.0.0"
-  flutter: ">=3.10.0"
 dependencies:
-  flutter:
-    sdk: flutter
   zuraffa:
     path: ${path.normalize(repoRoot)}
   get_it: ^9.0.0
-  shadcn_ui: ^0.1.0
 dev_dependencies:
-  flutter_test:
-    sdk: flutter
   mocktail: ^1.0.4
 dependency_overrides:
   meta: ^1.18.0
@@ -98,7 +93,8 @@ void main() {}
 }
 
 Future<ProcessResult> runFlutterPubGet(RegressionWorkspace workspace) {
-  return Process.run('flutter', [
+  // Use 'dart pub get' since zuraffa is now a pure Dart package (no Flutter SDK).
+  return Process.run('dart', [
     'pub',
     'get',
   ], workingDirectory: workspace.directory.path);

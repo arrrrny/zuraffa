@@ -6,11 +6,30 @@ import 'package:path/path.dart' as p;
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/core/project/project_root.dart';
 
+/// CWD-safe project root, resolved at file-load time.
+final _zfaRoot = _resolveRoot();
+
+String _resolveRoot() {
+  var dir = Directory.current;
+  for (var i = 0; i < 10; i++) {
+    final ps = File('${dir.path}/pubspec.yaml');
+    if (ps.existsSync()) {
+      final c = ps.readAsStringSync();
+      if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true).hasMatch(c)) {
+        return dir.path;
+      }
+    }
+    final parent = dir.parent;
+    if (parent.path == dir.path) break;
+    dir = parent;
+  }
+  return Directory.current.path;
+}
+
 void main() {
   group('CLI command regression', () {
     late Directory workspace;
     late String outputDir;
-    late String previousCwd;
 
     Future<void> writeWorkspacePubspec() {
       return File(p.join(workspace.path, 'pubspec.yaml')).writeAsString('''
@@ -34,18 +53,20 @@ class Product {
 ''');
     }
 
+    late String _savedCwd;
+
     setUp(() async {
+      _savedCwd = Directory.current.path;
       workspace = await Directory.systemTemp.createTemp('zfa_cli_');
       outputDir = p.join(workspace.path, 'lib', 'src');
       await Directory(outputDir).create(recursive: true);
       await writeWorkspacePubspec();
       await writeProductEntity();
-      previousCwd = Directory.current.path;
       Directory.current = workspace.path;
     });
 
     tearDown(() async {
-      Directory.current = previousCwd;
+      Directory.current = _savedCwd;
       if (workspace.existsSync()) {
         await workspace.delete(recursive: true);
       }

@@ -354,7 +354,7 @@ class CacheGenerator {
     final kp = entry.keyPrefix ?? entry.methodName;
     final pNames = entry.parameters.map((p) => p.name).toList();
     final ttlMs = entry.ttl?.inMilliseconds;
-    final argsListStr = pNames.map((n) => '\${$n.toString()}').join(', ');
+    final argsListStr = pNames.map((n) => '$n.toString()').join(', ');
     final keyExpr = pNames.isEmpty
         ? "'$kp'"
         : "ZfaCacheStore.buildKey('$kp', [$argsListStr])";
