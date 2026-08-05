@@ -59,5 +59,34 @@ class \$Todo {
       expect(result, contains('done'));
       expect(result, contains('TodoHelper'));
     });
+
+    test('rethrows permission denied errors without overwriting', () async {
+      // Regression test for Finding 2: permission errors should propagate
+      final testFile = File('${tempDir.path}/readonly.dart');
+      const originalContent = 'class Original {}';
+      await testFile.writeAsString(originalContent);
+
+      // Make file read-only (Platform-dependent, but works on Linux/Mac)
+      if (!Platform.isWindows) {
+        await Process.run('chmod', ['444', testFile.path]);
+
+        expect(
+          () async => await SmartMergeWriter.writeMerged(
+            fileSystem: fs,
+            path: 'readonly.dart',
+            newContent: 'class Modified {}',
+          ),
+          throwsA(isA<FileSystemException>()),
+          reason: 'Permission errors should propagate, not be swallowed',
+        );
+
+        // Verify original file was not overwritten
+        final content = await testFile.readAsString();
+        expect(content, equals(originalContent));
+
+        // Restore permissions for cleanup
+        await Process.run('chmod', ['644', testFile.path]);
+      }
+    });
   });
 }

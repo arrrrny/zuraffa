@@ -1,15 +1,18 @@
+import 'package:path/path.dart' as path;
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
-import 'package:path/path.dart' as path;
 import 'package:zuraffa/src/cli/cli_runner.dart';
+
+/// Resolve at discovery time before CWD races.
+final _zfaRoot = Directory.current.path;
 
 void main() {
   group('FeatureCommand', () {
     late Directory workspace;
     late String outputDir;
-    late String previousCwd;
+
 
     setUp(() async {
       workspace = await Directory.systemTemp.createTemp('zfa_feature_command_');
@@ -31,12 +34,13 @@ class Product {
   const Product({required this.id});
 }
 ''');
-      previousCwd = Directory.current.path;
       Directory.current = workspace.path;
     });
 
     tearDown(() async {
-      Directory.current = previousCwd;
+      try {
+        Directory.current = _zfaRoot;
+      } catch (_) {}
       if (workspace.existsSync()) {
         await workspace.delete(recursive: true);
       }

@@ -166,6 +166,7 @@ class RouteGenerator {
         cb.Parameter(
           (p2) => p2
             ..name = p.name
+            ..named = true
             ..toThis = true
             ..required = true,
         ),
@@ -188,6 +189,7 @@ class RouteGenerator {
         cb.Parameter(
           (p) => p
             ..name = entry.key
+            ..named = true
             ..toThis = true
             ..required = true,
         ),
@@ -209,6 +211,7 @@ class RouteGenerator {
       cb.Parameter(
         (p) => p
           ..name = 'pathParameters'
+          ..named = true
           ..toThis = true
           ..required = true,
       ),
@@ -225,6 +228,7 @@ class RouteGenerator {
       cb.Parameter(
         (p) => p
           ..name = 'queryParameters'
+          ..named = true
           ..toThis = true
           ..required = true,
       ),
@@ -233,8 +237,8 @@ class RouteGenerator {
     factoryAssignments.add('pathParameters: state.pathParameters');
     factoryAssignments.add('queryParameters: state.uriQueryParameters');
 
-    // Build factory body
-    final factoryBody = 'return $className(${factoryAssignments.join(', ')});';
+    // Build factory body - call private named constructor
+    final factoryBody = 'return $className._(${factoryAssignments.join(', ')});';
 
     return cb.Class(
       (c) => c

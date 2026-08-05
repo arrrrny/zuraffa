@@ -262,9 +262,8 @@ class CacheGenerator {
 
   cb.Method _buildKeyMethod() {
     final body = _joinLines([
-      "if (args.isEmpty) return prefix;",
-      "final argsHash = args.join(':');",
-      "return '\$prefix:\$argsHash';",
+      "if (argsEncoded.isEmpty) return prefix;",
+      "return '\$prefix:\$argsEncoded';",
     ]);
     return cb.Method(
       (m) => m
@@ -279,8 +278,8 @@ class CacheGenerator {
           ),
           cb.Parameter(
             (p) => p
-              ..name = 'args'
-              ..type = cb.refer('List<String>'),
+              ..name = 'argsEncoded'
+              ..type = cb.refer('String'),
           ),
         ])
         ..body = cb.Code(body),
@@ -354,10 +353,13 @@ class CacheGenerator {
     final kp = entry.keyPrefix ?? entry.methodName;
     final pNames = entry.parameters.map((p) => p.name).toList();
     final ttlMs = entry.ttl?.inMilliseconds;
-    final argsListStr = pNames.map((n) => '\${$n.toString()}').join(', ');
+    // Generate canonical key: JSON-encode arguments list for unambiguous serialization
+    final argsListStr = pNames.isEmpty
+        ? ''
+        : pNames.map((n) => '$n.toString()').join(', ');
     final keyExpr = pNames.isEmpty
         ? "'$kp'"
-        : "ZfaCacheStore.buildKey('$kp', [$argsListStr])";
+        : "ZfaCacheStore.buildKey('$kp', jsonEncode([$argsListStr]))";
 
     final requiredParams = <cb.Parameter>[];
     final optionalParams = <cb.Parameter>[];

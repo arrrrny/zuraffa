@@ -134,10 +134,8 @@ class PluginCommand {
       engineMatch.end,
       bootstrapMatch.start,
     );
-    final registerPattern = RegExp(r'\.\.register\([^)]+\)\n');
-    final registerMatches = registerPattern.allMatches(engineBlock);
 
-    if (registerMatches.isEmpty) {
+    if (engineBlock.trim().isEmpty || !engineBlock.contains('..register')) {
       // No existing registrations; insert before bootstrap.
       final lineStart = content.lastIndexOf('\n', bootstrapMatch.start);
       final linePrefix = content.substring(lineStart + 1, lineStart + 5);
@@ -152,13 +150,9 @@ class PluginCommand {
           insertion +
           content.substring(bootstrapMatch.start);
     } else {
-      // Append to the last ..register call in the engine block.
-      final lastRegister = registerMatches.last;
-      final absolutePos = engineMatch.end + lastRegister.end;
-      final lineStart = content.lastIndexOf(
-        '\n',
-        engineMatch.end + lastRegister.start,
-      );
+      // Find the last complete ..register(...) cascade using balanced parenthesis scanner.
+      final absolutePos = _findLastRegisterEnd(content, engineMatch.end, bootstrapMatch.start);
+      final lineStart = content.lastIndexOf('\n', absolutePos);
       final lineContent = content.substring(lineStart + 1);
       final indentMatch = RegExp(r'^(\s+)\.\.register').firstMatch(lineContent);
       final indent = indentMatch?.group(1) ?? '    ';
@@ -175,6 +169,41 @@ class PluginCommand {
     print('  Registration: engine..register($pluginClass())');
     print('');
     print('Review the changes and ensure the plugin class is correctly named.');
+  }
+
+  /// Scans content from [start] to [end] for all ..register(...) cascades,
+  /// returns the position after the last complete register call's closing parenthesis.
+  int _findLastRegisterEnd(String content, int start, int end) {
+    final block = content.substring(start, end);
+    int lastEnd = -1;
+    int pos = 0;
+
+    while (pos < block.length) {
+      // Find next ..register
+      final registerIdx = block.indexOf('..register(', pos);
+      if (registerIdx == -1) break;
+
+      // Scan for matching closing parenthesis
+      int parenCount = 1;
+      int scanPos = registerIdx + '..register('.length;
+      while (scanPos < block.length && parenCount > 0) {
+        final ch = block[scanPos];
+        if (ch == '(') parenCount++;
+        else if (ch == ')') parenCount--;
+        scanPos++;
+      }
+
+      if (parenCount == 0) {
+        // Found complete register call
+        lastEnd = scanPos;
+        pos = scanPos;
+      } else {
+        // Unbalanced parentheses, stop
+        break;
+      }
+    }
+
+    return lastEnd == -1 ? end : (start + lastEnd);
   }
 
   String _capitalize(String s) {

@@ -19,7 +19,21 @@ class SmartMergeWriter {
     required String newContent,
   }) async {
     try {
-      final existingContent = await fileSystem.read(path);
+      String existingContent;
+      try {
+        existingContent = await fileSystem.read(path);
+      } on FileSystemException catch (e) {
+        // Only treat "file not found" as empty content.
+        // Rethrow permission, access, and other failures.
+        if (e.osError?.errorCode == 2 || // ENOENT (No such file or directory)
+            e.message.contains('Cannot open file') ||
+            e.message.contains('No such file')) {
+          existingContent = '';
+        } else {
+          // Permission denied, access error, or other failure - rethrow
+          rethrow;
+        }
+      }
       if (existingContent.isEmpty) {
         // File doesn't exist or is empty - safe to write directly
         await fileSystem.write(path, newContent);
@@ -50,10 +64,6 @@ class SmartMergeWriter {
         print('[merge error] $path: Failed to merge: $mergeError');
         rethrow;
       }
-    } on FileSystemException catch (fsError) {
-      // I/O error reading file
-      print('[file system error] $path: $fsError');
-      rethrow;
     } catch (error) {
       // Unexpected error
       print('[error] $path: $error');
