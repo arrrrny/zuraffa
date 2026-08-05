@@ -52,8 +52,9 @@ class OsBackgroundTaskSchedule {
   static const Duration androidMinInterval = Duration(minutes: 15);
 
   /// Recommended default schedule: 15 minutes, no constraints.
-  static const OsBackgroundTaskSchedule recommended =
-      OsBackgroundTaskSchedule(frequency: Duration(minutes: 15));
+  static const OsBackgroundTaskSchedule recommended = OsBackgroundTaskSchedule(
+    frequency: Duration(minutes: 15),
+  );
 
   const OsBackgroundTaskSchedule({
     required this.frequency,
@@ -65,8 +66,9 @@ class OsBackgroundTaskSchedule {
 
   /// Returns a clamped schedule for Android (enforces 15-minute minimum).
   OsBackgroundTaskSchedule clampedForAndroid() {
-    final clampedFreq =
-        frequency < androidMinInterval ? androidMinInterval : frequency;
+    final clampedFreq = frequency < androidMinInterval
+        ? androidMinInterval
+        : frequency;
     if (clampedFreq == frequency) return this;
     return OsBackgroundTaskSchedule(
       frequency: clampedFreq,
@@ -90,12 +92,12 @@ class OsBackgroundTaskSchedule {
 
   @override
   int get hashCode => Object.hash(
-        frequency,
-        initialDelay,
-        networkConstraint,
-        requiresCharging,
-        requiresDeviceIdle,
-      );
+    frequency,
+    initialDelay,
+    networkConstraint,
+    requiresCharging,
+    requiresDeviceIdle,
+  );
 }
 
 /// Descriptor for registering an [OsBackgroundTask] with the OS scheduler.
@@ -261,9 +263,7 @@ class OsBackgroundTask {
   /// should override this with actual workmanager calls.
   ///
   /// Returns `true` if registration succeeded.
-  static Future<bool> register(
-    OsBackgroundTaskDescriptor descriptor,
-  ) async {
+  static Future<bool> register(OsBackgroundTaskDescriptor descriptor) async {
     _registrations[descriptor.identifier] = descriptor;
     return true;
   }
@@ -284,12 +284,21 @@ class OsBackgroundTask {
       _registrations.containsKey(identifier);
 
   /// List all currently registered task identifiers.
-  static List<String> get registeredIdentifiers =>
-      _registrations.keys.toList();
+  static List<String> get registeredIdentifiers => _registrations.keys.toList();
 
   /// Get the descriptor for a registered task, or null if not registered.
   static OsBackgroundTaskDescriptor? getDescriptor(String identifier) =>
       _registrations[identifier];
+
+  /// Dispatch task execution based on a map of identifiers to handlers.
+  ///
+  /// Call this inside your top-level callback dispatcher on Android.
+  static Future<void> dispatch(
+    Map<String, Future<void> Function()> handlers,
+  ) async {
+    // This is a placeholder; real dispatch is handled by workmanager
+    // in the app-side dispatcher.
+  }
 
   /// Reset internal state. For testing purposes only.
   @visibleForTesting
