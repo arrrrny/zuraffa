@@ -82,20 +82,33 @@ String _findProjectRoot() {
     }
   } catch (_) {}
 
+  // Read Directory.current.path defensively to avoid masking the intended StateError.
+  String cwdForError;
+  try {
+    cwdForError = Directory.current.path;
+  } catch (_) {
+    cwdForError = '<unable to read CWD>';
+  }
   throw StateError(
     'Cannot determine zuraffa project root. '
-    'CWD=${Directory.current.path}',
+    'CWD=$cwdForError',
   );
 }
 
 /// Returns true if [path] looks like it is inside a temp directory.
 bool _isTempPath(String p) {
   final lower = p.toLowerCase();
-  return lower.contains('/tmp') ||
-      lower.contains(RegExp(r'/temp[/"]')) ||
+  final systemTempLower = Directory.systemTemp.path.toLowerCase();
+
+  // Check if path starts with /tmp/, equals /tmp, or contains /tmp/ as a segment
+  final isTmpSegment = lower == '/tmp' ||
+                       lower.startsWith('/tmp/') ||
+                       lower.contains('/tmp/');
+
+  return isTmpSegment ||
       lower.contains('/var/folders/') ||
-      lower.contains('/noSuchFile') ||
-      lower == Directory.systemTemp.path;
+      lower.contains('/nosuchfile') ||
+      lower == systemTempLower;
 }
 
 
