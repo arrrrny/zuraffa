@@ -8,6 +8,7 @@ import '../plugins/controller/controller_plugin.dart';
 import '../plugins/datasource/datasource_plugin.dart';
 import '../plugins/di/di_plugin.dart';
 import '../plugins/gql/gql_plugin.dart';
+import '../plugins/graphql/graphql_plugin.dart';
 import '../plugins/cache/cache_plugin.dart';
 import '../plugins/sync/sync_plugin.dart';
 import '../plugins/route/route_plugin.dart';
@@ -125,6 +126,7 @@ class PluginLoader {
       CachePlugin(outputDir: outputDir, options: options),
       SyncPlugin(outputDir: outputDir, options: options),
       GqlPlugin(outputDir: outputDir, options: options),
+      GraphqlPlugin(outputDir: outputDir, options: options),
       ShadcnPlugin(outputDir: outputDir, options: options),
       StrategyPlugin(outputDir: outputDir, options: options),
       MethodAppendPlugin(outputDir: outputDir, options: options),

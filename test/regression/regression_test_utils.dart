@@ -25,8 +25,8 @@ Future<void> disposeWorkspace(RegressionWorkspace workspace) async {
   }
 }
 
-Future<void> writePubspec(RegressionWorkspace workspace, {String? repoRoot}) async {
-  repoRoot ??= Directory.current.path;
+Future<void> writePubspec(RegressionWorkspace workspace, {String? repoRootOverride}) async {
+  final repoRoot = repoRootOverride ?? Directory.current.path;
   final content =
       '''
 name: zuraffa_test_app

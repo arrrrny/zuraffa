@@ -2,8 +2,47 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+/// CWD-safe project root resolution using Platform.script.
+String _findProjectRoot() {
+  // Strategy 1: Walk up from this test file's location via Platform.script.
+  try {
+    var dir = File(Platform.script.toFilePath()).parent;
+    for (var i = 0; i < 10; i++) {
+      final pubspec = File('${dir.path}/pubspec.yaml');
+      if (pubspec.existsSync()) {
+        final content = pubspec.readAsStringSync();
+        if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true).hasMatch(content)) {
+          return dir.path;
+        }
+      }
+      final parent = dir.parent;
+      if (parent.path == dir.path) break;
+      dir = parent;
+    }
+  } catch (_) {}
+
+  // Strategy 2: Walk up from Directory.current (fallback).
+  try {
+    var dir = Directory.current;
+    for (var i = 0; i < 15; i++) {
+      final pubspec = File('${dir.path}/pubspec.yaml');
+      if (pubspec.existsSync()) {
+        final content = pubspec.readAsStringSync();
+        if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true).hasMatch(content)) {
+          return dir.path;
+        }
+      }
+      final parent = dir.parent;
+      if (parent.path == dir.path) break;
+      dir = parent;
+    }
+  } catch (_) {}
+
+  return Directory.current.path;
+}
+
 void main() {
-  final projectRoot = Directory.current.path;
+  final projectRoot = _findProjectRoot();
 
   String readDoc(String relativePath) {
     final file = File('$projectRoot/$relativePath');
@@ -100,7 +139,6 @@ void main() {
     test('website/docs does NOT contain "zfa generate"', () {
       final docs = readWebsiteDocs();
       if (docs.isEmpty) {
-        // No website docs to check; pass by default.
         return;
       }
       for (var i = 0; i < docs.length; i++) {
