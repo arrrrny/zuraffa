@@ -86,9 +86,13 @@ String? _resolveProjectRoot() {
   if (s2 != null) return s2;
 
   // Strategy 3: Walk up from CWD (skip temp paths).
-  if (!_isTempPath(Directory.current.path)) {
-    final s3 = _walkToRoot(Directory.current.path);
-    if (s3 != null) return s3;
+  try {
+    if (!_isTempPath(Directory.current.path)) {
+      final s3 = _walkToRoot(Directory.current.path);
+      if (s3 != null) return s3;
+    }
+  } catch (e) {
+    _diag('S3: threw $e');
   }
 
   // Strategy 4: git rev-parse.
@@ -161,7 +165,10 @@ String? _tryFromScriptFilePath() {
 /// Walk up from [startPath] looking for pubspec.yaml with [name: zuraffa].
 String? _walkToRoot(String startPath) {
   try {
-    var dir = Directory(startPath).parent;
+    // If startPath is an existing directory, start from it; otherwise start from parent.
+    var dir = Directory(startPath).existsSync()
+        ? Directory(startPath)
+        : Directory(startPath).parent;
     for (var i = 0; i < 20; i++) {
       final pubspec = File('${dir.path}/pubspec.yaml');
       if (pubspec.existsSync()) {
