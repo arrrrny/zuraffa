@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:path/path.dart' as path;
+import '../helpers/project_root.dart';
 import 'package:zuraffa/src/generator/code_generator.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/models/generator_result.dart';
@@ -26,7 +27,7 @@ Future<void> disposeWorkspace(RegressionWorkspace workspace) async {
 }
 
 Future<void> writePubspec(RegressionWorkspace workspace, {String? repoRootOverride}) async {
-  final repoRoot = repoRootOverride ?? Directory.current.path;
+  final repoRoot = repoRootOverride ?? findProjectRoot();
   final content =
       '''
 name: zuraffa_test_app
