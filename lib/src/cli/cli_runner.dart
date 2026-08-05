@@ -12,6 +12,7 @@ import '../commands/plugin_command.dart' as plugincmd;
 import '../commands/make_command.dart';
 import '../commands/doctor_command.dart';
 import '../commands/migrate_command.dart';
+import '../commands/update_command.dart';
 import '../commands/build_command.dart';
 import '../commands/manifest_command.dart';
 import '../commands/apply_command.dart';
@@ -83,6 +84,7 @@ class CliRunner {
     _runner.addCommand(ApplyCommand(registry));
     _runner.addCommand(ModuleCommand());
     _runner.addCommand(XrayCommand());
+    _runner.addCommand(UpdateCommand());
   }
 
   /// Run CLI with arguments.
@@ -224,6 +226,7 @@ CORE COMMANDS:
   schema              Output JSON schema
   validate <file>     Validate JSON configuration
   migrate <target>     Migrate v5 artifacts to v6 (state, gql, di)
+  update              Check for updates and update the installed CLI
 
 MODULAR COMMANDS:
   module <Name>      Scaffold a new feature package with plugin orchestrator
