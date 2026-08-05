@@ -23,18 +23,20 @@ void main() {
   });
 
   tearDown(() async {
-    if (tempDir.existsSync()) {
-      await tempDir.delete(recursive: true);
-    }
-    // Restore CWD only if the saved path still exists.
+    // CRITICAL: Restore CWD BEFORE deleting tempDir.
+    // If CWD points to tempDir and we delete it, any access to
+    // Directory.current / Uri.base crashes the test runner itself.
     try {
       if (Directory(originalWd).existsSync()) {
-        Directory.current = Directory(originalWd);
+        Directory.current = originalWd;
       } else {
-        Directory.current = Directory.systemTemp;
+        Directory.current = Directory.systemTemp.path;
       }
     } catch (_) {
-      try { Directory.current = Directory.systemTemp; } catch (_) {}
+      try { Directory.current = Directory.systemTemp.path; } catch (_) {}
+    }
+    if (tempDir.existsSync()) {
+      await tempDir.delete(recursive: true);
     }
   });
 

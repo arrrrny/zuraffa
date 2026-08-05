@@ -6,25 +6,113 @@ import 'package:path/path.dart' as p;
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/core/project/project_root.dart';
 
-/// CWD-safe project root, resolved at file-load time.
-final _zfaRoot = _resolveRoot();
+/// CWD-safe project root resolution.
+/// Tries Platform.script (immune to CWD), then CWD walk (with temp guard),
+/// then git rev-parse. Throws [StateError] if the root cannot be found.
+String _findProjectRoot() {
+  // Strategy 1: Walk up from Platform.script (immune to CWD changes).
+  try {
+    var dir = File(Platform.script.toFilePath()).parent;
+    for (var i = 0; i < 10; i++) {
+      final pubspec = File('${dir.path}/pubspec.yaml');
+      if (pubspec.existsSync()) {
+        final c = pubspec.readAsStringSync();
+        if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true).hasMatch(c)) {
+          return dir.path;
+        }
+      }
+      final parent = dir.parent;
+      if (parent.path == dir.path) break;
+      dir = parent;
+    }
+  } catch (_) {
+    // Platform.script.toFilePath() may fail if CWD was deleted.
+    // Recover CWD to a known-good location and retry.
+    try { Directory.current = Directory.systemTemp.path; } catch (_) {}
+    try {
+      var dir = File(Platform.script.toFilePath()).parent;
+      for (var i = 0; i < 10; i++) {
+        final pubspec = File('${dir.path}/pubspec.yaml');
+        if (pubspec.existsSync()) {
+          final c = pubspec.readAsStringSync();
+          if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true).hasMatch(c)) {
+            return dir.path;
+          }
+        }
+        final parent = dir.parent;
+        if (parent.path == dir.path) break;
+        dir = parent;
+      }
+    } catch (_) {}
+  }
 
-String _resolveRoot() {
-  var dir = Directory.current;
-  for (var i = 0; i < 10; i++) {
-    final ps = File('${dir.path}/pubspec.yaml');
-    if (ps.existsSync()) {
-      final c = ps.readAsStringSync();
-      if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true).hasMatch(c)) {
-        return dir.path;
+  // Strategy 2: Walk up from CWD (may be poisoned, so guard against temp dirs).
+  try {
+    var dir = Directory.current;
+    for (var i = 0; i < 15; i++) {
+      final pubspec = File('${dir.path}/pubspec.yaml');
+      if (pubspec.existsSync()) {
+        final c = pubspec.readAsStringSync();
+        if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true).hasMatch(c)) {
+          final candidate = dir.path;
+          if (!_isTempPath(candidate)) {
+            return candidate;
+          }
+        }
+      }
+      final parent = dir.parent;
+      if (parent.path == dir.path) break;
+      dir = parent;
+    }
+  } catch (_) {}
+
+  // Strategy 3: git rev-parse as last resort.
+  try {
+    final result = Process.runSync('git', ['rev-parse', '--show-toplevel']);
+    if (result.exitCode == 0) {
+      final gitRoot = (result.stdout as String).trim();
+      if (!_isTempPath(gitRoot)) {
+        final pubspec = File('$gitRoot/pubspec.yaml');
+        if (pubspec.existsSync()) {
+          final c = pubspec.readAsStringSync();
+          if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true).hasMatch(c)) {
+            return gitRoot;
+          }
+        }
       }
     }
-    final parent = dir.parent;
-    if (parent.path == dir.path) break;
-    dir = parent;
+  } catch (_) {}
+
+  // Read Directory.current.path defensively to avoid masking the intended StateError.
+  String cwdForError;
+  try {
+    cwdForError = Directory.current.path;
+  } catch (_) {
+    cwdForError = '<unable to read CWD>';
   }
-  return Directory.current.path;
+  throw StateError(
+    'Cannot determine zuraffa project root. '
+    'CWD=$cwdForError',
+  );
 }
+
+/// Returns true if [path] looks like it is inside a temp directory.
+bool _isTempPath(String p) {
+  final lower = p.toLowerCase();
+  final systemTempLower = Directory.systemTemp.path.toLowerCase();
+
+  // Check if path starts with /tmp/, equals /tmp, or contains /tmp/ as a segment
+  final isTmpSegment = lower == '/tmp' ||
+                       lower.startsWith('/tmp/') ||
+                       lower.contains('/tmp/');
+
+  return isTmpSegment ||
+      lower.contains('/var/folders/') ||
+      lower.contains('/nosuchfile') ||
+      lower == systemTempLower;
+}
+
+final _zfaRoot = _findProjectRoot();
 
 void main() {
   group('CLI command regression', () {
@@ -66,8 +154,15 @@ class Product {
     });
 
     tearDown(() async {
-      try { Directory.current = _savedCwd; } catch (_) {
-        try { Directory.current = Directory.systemTemp; } catch (_) {}
+      // Restore CWD BEFORE deleting workspace to avoid cascading crashes.
+      try {
+        if (Directory(_savedCwd).existsSync()) {
+          Directory.current = _savedCwd;
+        } else {
+          Directory.current = Directory.systemTemp.path;
+        }
+      } catch (_) {
+        try { Directory.current = Directory.systemTemp.path; } catch (_) {}
       }
       if (workspace.existsSync()) {
         await workspace.delete(recursive: true);

@@ -24,7 +24,7 @@ String _safeRoot() {
   return Directory.systemTemp.path;
 }
 
-String _safeRoot = _safeRoot();
+String _resolvedRoot = _safeRoot();
 void main() {
   late Directory workspace;
   late String outputDir;
