@@ -32,7 +32,7 @@ class MigrationFinding {
   });
 
   @override
-  String toString() => '[$severity] $filePath:$line $ruleId: $message';
+  String toString() => '[${severity.name}] $filePath:$line $ruleId: $message';
 }
 
 /// Severity levels for migration findings.

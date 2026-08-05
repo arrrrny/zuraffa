@@ -5,6 +5,7 @@ import 'package:zuraffa/src/generator/code_generator.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/models/generator_result.dart';
 
+
 class RegressionWorkspace {
   final Directory directory;
   final String outputDir;
@@ -92,7 +93,8 @@ void main() {}
 }
 
 Future<ProcessResult> runFlutterPubGet(RegressionWorkspace workspace) {
-  return Process.run('flutter', [
+  // Use 'dart pub get' since zuraffa is now a pure Dart package (no Flutter SDK).
+  return Process.run('dart', [
     'pub',
     'get',
   ], workingDirectory: workspace.directory.path);

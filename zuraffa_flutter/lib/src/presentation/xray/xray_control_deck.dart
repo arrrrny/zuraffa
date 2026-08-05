@@ -128,7 +128,26 @@ class _XRayControlDeckState extends State<XRayControlDeck>
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        // Toggle button.
+        // Sliding panel - behind the toggle button so the button stays tappable.
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: AnimatedBuilder(
+            animation: _animationController,
+            builder: (context, child) {
+              if (_animationController.isDismissed) {
+                return const SizedBox.shrink();
+              }
+              return child!;
+            },
+            child: SlideTransition(
+              position: _slideAnimation,
+              child: _buildPanel(),
+            ),
+          ),
+        ),
+        // Toggle button (painted on top for hit testing).
         Positioned(
           right: 8,
           bottom: 8,
@@ -165,24 +184,6 @@ class _XRayControlDeckState extends State<XRayControlDeck>
               ),
             ),
           ),
-        ),
-        // Sliding panel - remains mounted during animation.
-        AnimatedBuilder(
-          animation: _animationController,
-          builder: (context, child) {
-            if (_animationController.isDismissed) {
-              return const SizedBox.shrink();
-            }
-            return Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: SlideTransition(
-                position: _slideAnimation,
-                child: _buildPanel(),
-              ),
-            );
-          },
         ),
       ],
     );
