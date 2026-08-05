@@ -3,152 +3,104 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 import 'regression_test_utils.dart';
-
-/// CWD-safe project root resolution.
-/// Tries Platform.script (immune to CWD), then CWD walk (with temp guard),
-/// then git rev-parse. Throws [StateError] if the root cannot be found.
-String _findProjectRoot() {
-  // Strategy 1: Walk up from Platform.script (immune to CWD changes).
-  try {
-    var dir = File(Platform.script.toFilePath()).parent;
-    for (var i = 0; i < 10; i++) {
-      final pubspec = File('${dir.path}/pubspec.yaml');
-      if (pubspec.existsSync()) {
-        final c = pubspec.readAsStringSync();
-        if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true).hasMatch(c)) {
-          return dir.path;
-        }
-      }
-      final parent = dir.parent;
-      if (parent.path == dir.path) break;
-      dir = parent;
-    }
-  } catch (_) {
-    // Platform.script.toFilePath() may fail if CWD was deleted.
-    // Recover CWD to a known-good location and retry.
-    try { Directory.current = Directory.systemTemp.path; } catch (_) {}
-    try {
-      var dir = File(Platform.script.toFilePath()).parent;
-      for (var i = 0; i < 10; i++) {
-        final pubspec = File('${dir.path}/pubspec.yaml');
-        if (pubspec.existsSync()) {
-          final c = pubspec.readAsStringSync();
-          if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true).hasMatch(c)) {
-            return dir.path;
-          }
-        }
-        final parent = dir.parent;
-        if (parent.path == dir.path) break;
-        dir = parent;
-      }
-    } catch (_) {}
-  }
-
-  // Strategy 2: Walk up from CWD (may be poisoned, so guard against temp dirs).
-  try {
-    var dir = Directory.current;
-    for (var i = 0; i < 15; i++) {
-      final pubspec = File('${dir.path}/pubspec.yaml');
-      if (pubspec.existsSync()) {
-        final c = pubspec.readAsStringSync();
-        if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true).hasMatch(c)) {
-          final candidate = dir.path;
-          if (!_isTempPath(candidate)) {
-            return candidate;
-          }
-        }
-      }
-      final parent = dir.parent;
-      if (parent.path == dir.path) break;
-      dir = parent;
-    }
-  } catch (_) {}
-
-  // Strategy 3: git rev-parse as last resort.
-  try {
-    final result = Process.runSync('git', ['rev-parse', '--show-toplevel']);
-    if (result.exitCode == 0) {
-      final gitRoot = (result.stdout as String).trim();
-      if (!_isTempPath(gitRoot)) {
-        final pubspec = File('$gitRoot/pubspec.yaml');
-        if (pubspec.existsSync()) {
-          final c = pubspec.readAsStringSync();
-          if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true).hasMatch(c)) {
-            return gitRoot;
-          }
-        }
-      }
-    }
-  } catch (_) {}
-
-  throw StateError(
-    'Cannot determine zuraffa project root. '
-    'CWD=${Directory.current.path}',
-  );
-}
-
-/// Returns true if [path] looks like it is inside a temp directory.
-bool _isTempPath(String p) {
-  final lower = p.toLowerCase();
-  return lower.contains('/tmp') ||
-      lower.contains(RegExp(r'/temp[/\"]')) ||
-      lower.contains('/var/folders/') ||
-      lower.contains('/noSuchFile') ||
-      lower == Directory.systemTemp.path;
-}
+import '../helpers/project_root.dart';
 
 void main() {
-  final zfaRoot = _findProjectRoot();
+
+  final zfaRoot = findProjectRoot();
 
   late RegressionWorkspace workspace;
+
   late List<String> generatedPaths;
 
   setUpAll(() async {
+
     workspace = await createWorkspace('zuraffa_output_quality_');
+
     await writePubspec(workspace, repoRootOverride: zfaRoot);
+
     final pubGet = await runFlutterPubGet(workspace);
+
     expect(pubGet.exitCode, equals(0), reason: pubGet.stderr.toString());
+
     await writeEntityStub(workspace, name: 'Product');
+
     final result = await generateFullFeature(workspace);
+
     await writeMainStub(workspace);
+
     generatedPaths = result.files
+
         .map((f) => f.path)
+
         .where((path) => !path.endsWith('_state.dart'))
+
         // After the package split, presentation-layer files depend on
+
         // zuraffa_flutter and cannot be analyzed in a pure-Dart workspace.
+
         .where((path) => !path.contains('/presentation/'))
+
         .where((path) => !path.contains('/routing/'))
+
         .toList();
+
   });
 
   tearDownAll(() async {
+
     await disposeWorkspace(workspace);
+
   });
 
   test(
+
     'generated output passes dart analyze',
+
     () async {
+
       final analyze = await runDartAnalyzePaths(workspace, generatedPaths);
+
       expect(analyze.exitCode, equals(0), reason: analyze.stdout.toString());
+
     },
+
     timeout: const Timeout(Duration(minutes: 2)),
+
   );
 
   test(
+
     'generated output is properly formatted',
+
     () async {
+
       // Run dart format in check mode to verify formatting without modifying files.
+
       final format = await Process.run(
+
         'dart',
+
         ['format', '--output=none', '--set-exit-if-changed', ...generatedPaths],
+
         workingDirectory: workspace.directory.path,
+
       );
+
       expect(
+
         format.exitCode,
+
         equals(0),
+
         reason: 'Generated files are not properly formatted:\n${format.stderr}',
+
       );
+
     },
+
     timeout: const Timeout(Duration(minutes: 2)),
+
   );
+
 }
