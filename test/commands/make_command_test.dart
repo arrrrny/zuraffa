@@ -70,8 +70,19 @@ class Product {
     });
 
     tearDown(() async {
-      if (Directory(previousCwd).existsSync()) {
-        Directory.current = previousCwd;
+      // Always restore CWD to a known-valid directory before deleting
+      // the workspace, to prevent poisoning CWD for subsequently loaded
+      // test files that call findProjectRoot() at the top of main().
+      try {
+        if (Directory(previousCwd).existsSync()) {
+          Directory.current = previousCwd;
+        } else {
+          Directory.current = Directory.systemTemp.path;
+        }
+      } catch (_) {
+        try {
+          Directory.current = Directory.systemTemp.path;
+        } catch (_) {}
       }
       if (workspace.existsSync()) {
         await workspace.delete(recursive: true);
