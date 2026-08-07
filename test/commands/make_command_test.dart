@@ -28,7 +28,7 @@ void main() {
       ], workingDirectory: workingDirectory);
     }
 
-    setUpAll(() {
+    setUpAll(() async {
       final homeDir = Platform.environment['HOME'] ?? '';
       final compiledBin = path.join(homeDir, '.local', 'bin', 'zfa');
       final compiledExists = File(compiledBin).existsSync();
@@ -39,7 +39,7 @@ void main() {
       } else {
         // Resolve bin/zfa.dart relative to the project root, NOT CWD.
         // CWD may be a temp dir from another test at setUpAll time.
-        final projectRoot = findProjectRoot();
+        final projectRoot = await findProjectRoot();
         zfaBin = path.join(projectRoot, 'bin', 'zfa.dart');
         useCompiledBinary = false;
       }

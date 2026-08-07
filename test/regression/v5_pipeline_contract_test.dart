@@ -5,8 +5,8 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/core/project/project_context_store.dart';
 import '../helpers/project_root.dart';
 
-void main() {
-  final projectRoot = findProjectRoot();
+Future<void> main() async {
+  final projectRoot = await findProjectRoot();
 
   File fileAt(String relativePath) => File('$projectRoot/$relativePath');
 

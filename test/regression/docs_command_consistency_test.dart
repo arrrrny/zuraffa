@@ -3,8 +3,8 @@ import 'dart:io';
 import 'package:test/test.dart';
 import '../helpers/project_root.dart';
 
-void main() {
-  final projectRoot = findProjectRoot();
+Future<void> main() async {
+  final projectRoot = await findProjectRoot();
 
   String readDoc(String relativePath) {
     final file = File('$projectRoot/$relativePath');

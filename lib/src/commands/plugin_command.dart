@@ -188,8 +188,11 @@ class PluginCommand {
       int scanPos = registerIdx + '..register('.length;
       while (scanPos < block.length && parenCount > 0) {
         final ch = block[scanPos];
-        if (ch == '(') parenCount++;
-        else if (ch == ')') parenCount--;
+        if (ch == '(') {
+          parenCount++;
+        } else if (ch == ')') {
+          parenCount--;
+        }
         scanPos++;
       }
 

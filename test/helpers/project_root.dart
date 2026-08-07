@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 /// Cached project root, resolved once and reused across all test files.
 String? _cachedProjectRoot;
@@ -9,6 +10,10 @@ String _diagnostics = '';
 /// Returns the absolute path to the zuraffa project root.
 ///
 /// Resolution strategies (tried in order):
+/// 0. [Isolate.resolvePackageUri] — resolves `package:zuraffa/zuraffa.dart`
+///    to its absolute file URI. This is CWD-independent and works under
+///    `dart test` (where [Platform.script] is a pre-compiled `.dill` in a
+///    temp dir and CWD may be contaminated by other test files).
 /// 1. Return cached value if already resolved.
 /// 2. [_ensureValidCwd] — recover CWD if deleted.
 /// 3. Parse [Platform.script] URI by pure string ops (zero CWD/IO).
@@ -18,13 +23,13 @@ String _diagnostics = '';
 /// 7. Read `.dart_tool/package_config.json` relative to Platform.script.
 ///
 /// Throws [StateError] if the root cannot be determined.
-String findProjectRoot() {
+Future<String> findProjectRoot() async {
   if (_cachedProjectRoot != null) return _cachedProjectRoot!;
 
   _diagnostics = '';
   _ensureValidCwd();
 
-  final root = _resolveProjectRoot();
+  final root = await _resolveProjectRoot();
   if (root == null) {
     String cwdForError;
     try {
@@ -76,7 +81,11 @@ void _ensureValidCwd() {
 // Resolution orchestrator
 // ----------------------------------------------------------------
 
-String? _resolveProjectRoot() {
+Future<String?> _resolveProjectRoot() async {
+  // Strategy 0: Isolate.resolvePackageUri (CWD / Platform.script independent).
+  final s0 = await _tryFromPackageResolution();
+  if (s0 != null) return s0;
+
   // Strategy 1: Pure string URI parsing (zero CWD / IO dependency).
   final s1 = _tryFromScriptString();
   if (s1 != null) return s1;
@@ -101,6 +110,36 @@ String? _resolveProjectRoot() {
 
   // Strategy 5: .dart_tool/package_config.json.
   return _tryFromPackageConfig();
+}
+
+// ----------------------------------------------------------------
+// Strategy 0 — Isolate.resolvePackageUri (CWD-independent)
+// ----------------------------------------------------------------
+
+/// Resolve `package:zuraffa/zuraffa.dart` via the isolate's package
+/// resolution table. This works under `dart test` (where Platform.script
+/// is a `.dill` temp file) and is immune to CWD contamination by other
+/// concurrently-running test files.
+Future<String?> _tryFromPackageResolution() async {
+  try {
+    final uri =
+        await Isolate.resolvePackageUri(Uri.parse('package:zuraffa/zuraffa.dart'));
+    if (uri == null) {
+      _diag('S0: resolvePackageUri returned null');
+      return null;
+    }
+    if (uri.scheme != 'file') {
+      _diag('S0: resolved URI is not a file URI ($uri)');
+      return null;
+    }
+    final filePath = uri.toFilePath();
+    _diag('S0: resolved package URI = $filePath');
+    // zuraffa.dart lives at <root>/lib/zuraffa.dart — walk up from lib/.
+    return _walkToRoot(File(filePath).parent.path);
+  } catch (e) {
+    _diag('S0: threw $e');
+    return null;
+  }
 }
 
 // ----------------------------------------------------------------

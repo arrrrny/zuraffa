@@ -6,7 +6,7 @@ import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
 import '../../../utils/file_utils.dart';
 
-/// Builds the <Feature>FeaturePlugin orchestrator file.
+/// Builds the `<Feature>FeaturePlugin` orchestrator file.
 class ModuleOrchestratorBuilder {
   final String outputDir;
   final GeneratorOptions options;

@@ -70,7 +70,7 @@ class \$Todo {
       if (!Platform.isWindows) {
         await Process.run('chmod', ['444', testFile.path]);
 
-        expect(
+        await expectLater(
           () async => await SmartMergeWriter.writeMerged(
             fileSystem: fs,
             path: 'readonly.dart',

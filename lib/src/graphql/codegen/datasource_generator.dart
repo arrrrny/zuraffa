@@ -570,7 +570,7 @@ class DatasourceGenerator {
   }
 
   String _documentVarName(String fieldName) {
-    return NamingUtils.documentVarName(fieldName) + 'Document';
+    return '${NamingUtils.documentVarName(fieldName)}Document';
   }
 
   String _camelCase(String name) {
