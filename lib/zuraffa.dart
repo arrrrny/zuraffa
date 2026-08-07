@@ -24,6 +24,7 @@ import 'src/core/zuraffa_bridge_facade.dart';
 /// - **StreamUseCase**: Reactive operations that emit multiple values over time
 /// - **SyncUseCase**: Synchronous operations that return immediately without async
 /// - **BackgroundUseCase**: CPU-intensive operations that run on a separate isolate
+/// - **OsBackgroundTask**: OS-scheduled periodic background tasks via workmanager
 /// - **Controller**: Manages UI state and coordinates with UseCases
 /// - **Presenter**: Optional orchestration layer for complex business flows
 /// - **Result**: Type-safe success/failure handling
@@ -206,7 +207,7 @@ export 'src/core/failure_reporter_registry.dart' show FailureReporterRegistry;
 export 'src/core/otel_failure_reporter.dart' show OtelFailureReporter;
 export 'src/core/otel_log_exporter.dart' show OtelLogExporter;
 export 'src/core/otel_tracer.dart' show OtelTracer;
-export 'package:opentelemetry/api.dart';
+export 'package:opentelemetry/api.dart' hide SpanStatus;
 export 'src/core/retry_policies.dart'
     show ExponentialBackoffRetryPolicy, FixedIntervalRetryPolicy, NoRetryPolicy;
 export 'src/core/retry_policy.dart' show ReportRetryPolicy;
@@ -293,6 +294,12 @@ export 'src/domain/sync_usecase.dart';
 /// BackgroundUseCase for isolate-based operations
 export 'src/domain/background_usecase.dart';
 
+/// OsBackgroundTask for OS-scheduled background tasks wrapping workmanager
+export 'src/domain/os_background_task.dart';
+
+/// OsBackgroundTaskUseCase abstract base for OS background task use cases
+export 'src/domain/os_background_task_usecase.dart';
+
 /// Observer for callback-based stream listening (optional)
 export 'src/domain/observer.dart';
 
@@ -349,6 +356,137 @@ export 'src/extensions/future_extensions.dart';
 
 /// Test utilities (matchers, observers)
 export 'src/utils/test_utils.dart';
+
+// ============================================================
+// V6 Reactive Signals
+// ============================================================
+
+/// Signal — zero-cost reactive primitive.
+export 'src/core/signals/signal.dart';
+
+/// SignalResult — reactive Result wrapper backed by Signal.
+export 'src/core/signals/signal_result.dart';
+
+/// ZuraffaUseCase — v6 UseCase contract with SignalResult return type.
+export 'src/core/usecase/zuraffa_usecase.dart';
+
+/// ZuraffaContext — lightweight correlation context carrier.
+export 'src/core/context/zuraffa_context.dart';
+
+/// TelemetryMesh — global trace/span coordinator and auto-instrumentation.
+export 'src/core/telemetry/telemetry_mesh.dart';
+
+// ============================================================
+// V6 DDA (Decorator-Driven Architecture) — Compiler Pipeline
+// ============================================================
+
+/// DecoratorAST — parsed decorator annotation model.
+export 'src/dda/models/decorator_ast.dart';
+
+/// ZorphyContext — code_builder-based injection context.
+export 'src/dda/models/zorphy_context.dart';
+
+/// ZorphyDecoratorPlugin — abstract plugin contract.
+export 'src/dda/compiler/zorphy_decorator_plugin.dart';
+
+/// ASTScanner — finds @DecoratorName() across the project.
+export 'src/dda/compiler/ast_scanner.dart';
+
+/// PluginDiscovery — loads plugins from pubspec.yaml.
+export 'src/dda/compiler/plugin_discovery.dart';
+
+/// DecoratorDispatcher — routes annotations to handlers.
+export 'src/dda/compiler/decorator_dispatcher.dart';
+
+/// BuildPipeline — 6-stage build orchestrator.
+export 'src/dda/compiler/build_pipeline.dart';
+
+// ============================================================
+// V6 DI — Auto-Dependency Injection
+// ============================================================
+
+/// DependencyScope — lifecycle scopes for DI.
+export 'src/core/di/dependency_scope.dart';
+
+/// @Datasource annotation.
+export 'src/core/di/datasource.dart';
+
+/// @Repository annotation.
+export 'src/core/di/repository.dart';
+
+/// ZuraffaContainer — lightweight DI container.
+export 'src/core/di/zuraffa_container.dart';
+
+/// DIPlugin — DDA plugin for @Datasource/@Repository processing.
+export 'src/dda/plugins/di/di_plugin.dart';
+
+/// DIGenerator — code_builder-based DI registration generation.
+export 'src/dda/plugins/di/di_generator.dart';
+
+// ============================================================
+// V6 State — Fragmented Signal Slices
+// ============================================================
+
+// SignalSlice — fine-grained reactive slice wrapping SignalResult.
+export 'src/state/slices/signal_slice.dart';
+
+// SlicePresenter — manages multiple slices with backward-compatible state.
+export 'src/state/presenter/slice_presenter.dart';
+
+// FragmentBuilder — widget subscribing to a single slice.
+export 'src/state/widgets/fragment_builder.dart';
+
+// StateMigrator — converts v5 .state.dart to v6 slice pattern.
+export 'src/state/migration/state_migrator.dart';
+
+// DomainState — auto-generated read-only slice container.
+export 'src/state/domain_state.dart';
+
+// ViewState — developer-editable transient UI state.
+export 'src/state/view_state.dart';
+
+// DualLayerPresenter — strict domain/view state separation.
+export 'src/state/presenter/dual_layer_presenter.dart';
+
+// StateGenerator — code_builder-based generation with preservation.
+export 'src/state/generator/state_generator.dart';
+
+// CacheObserver — observable cache for cross-view state sync.
+export 'src/state/cache/cache_observer.dart';
+
+// CacheBinding — binds SignalSlice to cache updates.
+export 'src/state/cache/cache_binding.dart';
+
+// CacheBindingPlugin — DDA plugin for @Cacheable processing.
+export 'src/state/generator/cache_binding_generator.dart';
+
+// ControlledWidget — base widget with typed controller and lifecycle hooks.
+export 'src/state/widgets/controlled_widget.dart';
+
+// SignalBuilder — rebuilds on pure UI Signal changes.
+export 'src/state/widgets/signal_builder.dart';
+
+// ViewTemplateGenerator — generates ControlledWidget-based views.
+export 'src/state/generator/view_template_generator.dart';
+
+// ============================================================
+// V6 GraphQL Core
+// ============================================================
+
+// GraphQLType — polymorphic GraphQL type hierarchy.
+export 'src/graphql/types/graphql_type.dart';
+
+// SchemaParser — two-pass introspection JSON parser.
+export 'src/graphql/schema/schema_parser.dart';
+
+// SchemaCache — load/save schema.json with HTTP fetch stub.
+export 'src/graphql/cache/schema_cache.dart';
+
+// TypeMapper — GraphQL type to Dart type mapping.
+export 'src/graphql/mapping/type_mapper.dart';
+
+// DocumentBuilder — query/mutation/subscription document generation.
+export 'src/graphql/document/document_builder.dart';
 
 // ============================================================
 // Framework Configuration

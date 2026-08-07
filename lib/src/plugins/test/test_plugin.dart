@@ -336,6 +336,9 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     if (content.contains('SyncUseCase')) {
       return 'sync';
     }
+    if (content.contains('OsBackgroundTaskUseCase')) {
+      return 'os_background';
+    }
     if (content.contains('BackgroundUseCase')) {
       return 'background';
     }
