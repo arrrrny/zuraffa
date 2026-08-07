@@ -17,6 +17,8 @@ import 'builders/view_class_builder.dart';
 import 'capabilities/create_view_capability.dart';
 import 'capabilities/custom_view_capability.dart';
 import 'capabilities/register_view_capability.dart';
+import '../../state/generator/state_generator.dart';
+import '../../state/generator/view_template_generator.dart';
 
 import 'package:code_builder/code_builder.dart';
 
@@ -78,6 +80,14 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         'description':
             'Adaptive layout targets, e.g. mobile,tablet,desktop,macos',
       },
+      'v6-state': {
+        'type': 'boolean',
+        'default': false,
+        'description':
+            'Generate v6 dual-layer state (DomainState + ViewState + '
+            'DualLayerPresenter) and ControlledWidget/FragmentBuilder-based '
+            'views instead of the legacy v5 monolithic state',
+      },
     },
   };
 
@@ -105,9 +115,149 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       generateState: context.data['state'] == true,
       generateDi: context.data['di'] == true,
       generateXRay: context.data['xray'] == true,
+      generateV6State: context.data['v6-state'] == true,
     );
 
     return generate(config, context: context);
+  }
+
+  /// Generates v6 dual-layer state files + ControlledWidget-based view.
+  ///
+  /// Emits:
+  /// - `{Name}DomainState` (regenerated every build, signal slices)
+  /// - `{Name}ViewState` (scaffolded once, preserved)
+  /// - `{Name}Presenter` (extends DualLayerPresenter, scaffolded once)
+  /// - `{Name}View` (extends ControlledWidget, uses FragmentBuilder)
+  Future<List<GeneratedFile>> _generateV6State(
+    GeneratorConfig config, {
+    PluginContext? context,
+  }) async {
+    final fs = context?.fileSystem ?? fileSystem;
+    final entityName = config.name;
+    final domainSnake = config.effectiveDomain;
+    final stateDirPath = path.join(
+      outputDir,
+      'presentation',
+      'pages',
+      domainSnake,
+    );
+
+    // Derive use-case bindings from requested methods. Each method (get,
+    // update, etc.) becomes one signal slice in the DomainState.
+    final methods = config.methods.isNotEmpty
+        ? config.methods
+        : ['get', 'update'];
+    final useCaseBindings = <UseCaseBinding>[];
+    final sliceKeys = <String>[];
+    for (final method in methods) {
+      final sliceKey = _sliceKeyForMethod(method);
+      final returnType = _returnTypeForMethod(method, entityName);
+      final useCaseFieldName = '_${sliceKey}UseCase';
+      final paramsConstructor = '${_pascalCase(method)}${entityName}Params';
+      useCaseBindings.add(
+        UseCaseBinding(
+          sliceKey: sliceKey,
+          useCaseFieldName: useCaseFieldName,
+          paramsConstructor: paramsConstructor,
+          returnType: returnType,
+          cacheable: config.enableCache,
+        ),
+      );
+      sliceKeys.add(sliceKey);
+    }
+
+    final cacheableSliceKeys =
+        config.enableCache ? <String>{...sliceKeys} : null;
+
+    final generatedFiles = <GeneratedFile>[];
+
+    // 1. DomainState (always regenerated)
+    final stateGen = StateGenerator(outputDir: stateDirPath);
+    final domainPath = stateGen.generateDomainState(
+      entityName,
+      useCases: useCaseBindings,
+      cacheableSliceKeys: cacheableSliceKeys,
+    );
+    generatedFiles.add(
+      GeneratedFile(
+        path: domainPath,
+        type: 'domain_state',
+        action: 'overwritten',
+        content: fs.readSync(domainPath),
+      ),
+    );
+
+    // 2. ViewState (scaffolded once, preserved)
+    final viewStatePath = stateGen.generateViewState(entityName);
+    final viewStateAction = stateGen.preservedFiles.contains(viewStatePath)
+        ? 'skipped'
+        : 'created';
+    generatedFiles.add(
+      GeneratedFile(
+        path: viewStatePath,
+        type: 'view_state',
+        action: viewStateAction,
+        content: fs.readSync(viewStatePath),
+      ),
+    );
+
+    // 3. Presenter (scaffolded once, preserved)
+    final viewGen = ViewTemplateGenerator(outputDir: stateDirPath);
+    final presenterPath = viewGen.generatePresenter(
+      entityName,
+      useCases: sliceKeys,
+    );
+    generatedFiles.add(
+      GeneratedFile(
+        path: presenterPath,
+        type: 'presenter',
+        action: 'created',
+        content: fs.readSync(presenterPath),
+      ),
+    );
+
+    // 4. View (ControlledWidget + FragmentBuilder + SignalBuilder)
+    final viewPath = viewGen.generateView(
+      entityName,
+      useCases: sliceKeys,
+    );
+    generatedFiles.add(
+      GeneratedFile(
+        path: viewPath,
+        type: 'view',
+        action: config.force ? 'overwritten' : 'created',
+        content: fs.readSync(viewPath),
+      ),
+    );
+
+    return generatedFiles;
+  }
+
+  /// Maps a CRUD method name to a semantic signal-slice key.
+  String _sliceKeyForMethod(String method) {
+    return switch (method) {
+      'get' || 'watch' => 'entity',
+      'getList' || 'watchList' || 'list' => 'entities',
+      'create' => 'created',
+      'update' => 'updated',
+      'delete' => 'deleted',
+      'toggle' => 'toggled',
+      _ => method,
+    };
+  }
+
+  /// Derives the slice return type for a method.
+  String _returnTypeForMethod(String method, String entityName) {
+    return switch (method) {
+      'getList' || 'watchList' || 'list' => 'List<$entityName>',
+      _ => entityName,
+    };
+  }
+
+  /// Converts a lowercase word to PascalCase.
+  String _pascalCase(String s) {
+    if (s.isEmpty) return s;
+    return s[0].toUpperCase() + s.substring(1);
   }
 
   @override
@@ -117,6 +267,12 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }) async {
     if (!config.generateView && !config.generateVpcs && !config.revert) {
       return [];
+    }
+
+    // v6 dual-layer state path: generate DomainState + ViewState +
+    // DualLayerPresenter + ControlledWidget/FragmentBuilder-based view.
+    if (config.generateV6State) {
+      return _generateV6State(config, context: context);
     }
 
     if (config.outputDir != outputDir ||

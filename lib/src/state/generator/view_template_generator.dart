@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:code_builder/code_builder.dart' as cb;
 import 'package:dart_style/dart_style.dart';
 import 'package:path/path.dart' as p;
@@ -34,7 +36,11 @@ class ViewTemplateGenerator {
 
     final library = cb.Library((b) {
       b.directives.add(cb.Directive.import('package:flutter/material.dart'));
-      b.directives.add(cb.Directive.import('package:zuraffa/zuraffa.dart'));
+      // zuraffa_flutter re-exports zuraffa core AND provides
+      // ControlledWidget, FragmentBuilder, and SignalBuilder.
+      b.directives.add(
+        cb.Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
+      );
       b.directives.add(
         cb.Directive.import('${snakeCase(name)}_presenter.dart'),
       );
@@ -191,5 +197,79 @@ class ViewTemplateGenerator {
       'activeTabIndex' => 'int',
       _ => 'dynamic',
     };
+  }
+
+  /// Generate a `{name}Presenter` that extends [DualLayerPresenter],
+  /// wiring the generated DomainState and scaffolded ViewState together.
+  ///
+  /// The presenter is scaffolded once (like ViewState) and is safe for the
+  /// developer to extend with orchestration logic. It is **not** regenerated
+  /// if it already exists.
+  String generatePresenter(
+    String name, {
+    List<String> useCases = const [],
+    bool preserveIfExists = true,
+  }) {
+    final className = '${name}Presenter';
+    final domainClassName = '${name}DomainState';
+    final viewClassName = '${name}ViewState';
+    final fileName = '${snakeCase(name)}_presenter.dart';
+    final filePath = p.join(outputDir, fileName);
+
+    if (preserveIfExists && File(filePath).existsSync()) {
+      return filePath;
+    }
+
+    final library = cb.Library((b) {
+      b.directives.add(cb.Directive.import('package:zuraffa/zuraffa.dart'));
+      b.directives.add(
+        cb.Directive.import('${snakeCase(name)}_domain_state.dart'),
+      );
+      b.directives.add(
+        cb.Directive.import('${snakeCase(name)}_view_state.dart'),
+      );
+
+      b.body.add(
+        cb.Class((c) {
+          c
+            ..name = className
+            ..extend = cb.refer('DualLayerPresenter')
+            ..constructors.add(
+              cb.Constructor((ctor) {
+                ctor
+                  ..name = null
+                  ..initializers.add(
+                    cb.Code(
+                      'super(domain: $domainClassName(presenter: '
+                      'SlicePresenter()), view: $viewClassName())',
+                    ),
+                  );
+              }),
+            );
+          // Expose a typed SlicePresenter for the DomainState to bind into.
+          c.fields.add(
+            cb.Field((f) {
+              f
+                ..name = 'slicePresenter'
+                ..modifier = cb.FieldModifier.final$
+                ..type = cb.refer('SlicePresenter')
+                ..assignment = cb.refer('SlicePresenter').call([]).code;
+            }),
+          );
+        }),
+      );
+    });
+
+    final emitter = cb.DartEmitter();
+    final raw = library.accept(emitter).toString();
+    var formatted = raw;
+    try {
+      formatted = _formatter.format(raw);
+    } on FormatterException {
+      // Fallback: unformatted code is better than a crash.
+    }
+
+    writeFile(filePath, formatted);
+    return filePath;
   }
 }

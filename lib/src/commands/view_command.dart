@@ -26,6 +26,12 @@ class ViewCommand extends PluginCommand {
       defaultsTo: false,
     );
     argParser.addFlag(
+      'v6-state',
+      help: 'Generate v6 dual-layer state (DomainState + ViewState + '
+          'DualLayerPresenter) and ControlledWidget/FragmentBuilder-based view',
+      defaultsTo: false,
+    );
+    argParser.addFlag(
       'route',
       help: 'Generate route definitions for this view',
       defaultsTo: false,
@@ -58,6 +64,7 @@ class ViewCommand extends PluginCommand {
         (argResults?['methods'] as String?)?.split(',') ?? ['get', 'update'];
     final generateDi = argResults?['di'] as bool? ?? false;
     final generateState = argResults?['state'] as bool? ?? false;
+    final generateV6State = argResults?['v6-state'] as bool? ?? false;
     final generateRoute = argResults?['route'] as bool? ?? false;
     final generateXRay = argResults?['xray'] as bool? ?? false;
 
@@ -93,6 +100,7 @@ class ViewCommand extends PluginCommand {
         'methods': methods,
         'di': generateDi,
         'state': generateState,
+        'v6-state': generateV6State,
         'route': false, // Don't generate route in view capability
         'xray': generateXRay,
         'dryRun': isDryRun,
@@ -119,6 +127,7 @@ class ViewCommand extends PluginCommand {
         'methods': methods,
         'di': generateDi,
         'state': generateState,
+        'v6-state': generateV6State,
         'route': false,
         'xray': generateXRay,
         'dryRun': isDryRun,
