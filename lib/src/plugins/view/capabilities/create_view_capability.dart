@@ -40,6 +40,13 @@ class CreateViewCapability implements ZuraffaCapability {
         'description': 'Generate with State integration',
         'default': false,
       },
+      'v6-state': {
+        'type': 'boolean',
+        'description':
+            'Generate v6 dual-layer state (DomainState + ViewState + '
+            'DualLayerPresenter) and ControlledWidget/FragmentBuilder-based view',
+        'default': false,
+      },
       'route': {
         'type': 'boolean',
         'description': 'Generate route definitions for this view',
@@ -111,6 +118,7 @@ class CreateViewCapability implements ZuraffaCapability {
         (args['methods'] as List?)?.cast<String>() ?? ['get', 'update'];
     final generateDi = args['di'] ?? false;
     final generateState = args['state'] ?? false;
+    final generateV6State = args['v6-state'] ?? false;
     final generateRoute = args['route'] ?? false;
     final generateXRay = args['xray'] ?? false;
     final force = args['force'] ?? false;
@@ -123,6 +131,7 @@ class CreateViewCapability implements ZuraffaCapability {
       generateRoute: generateRoute,
       methods: methods,
       generateDi: generateDi,
+      generateV6State: generateV6State,
       generateState: generateState,
       generateXRay: generateXRay,
       dryRun: dryRun,

@@ -43,6 +43,7 @@ class StateGenerator {
     String name, {
     required List<UseCaseBinding> useCases,
     String? presenterImport,
+    Set<String>? cacheableSliceKeys,
   }) {
     final className = '${name}DomainState';
     final fileName = snakeCase(name);
@@ -75,26 +76,36 @@ class StateGenerator {
               }),
             );
 
-          // Generate late final slice bindings
+          // Generate late final slice bindings. When a slice is cacheable
+          // (entity is @Cacheable), append a cascade `..bindCache()` so the
+          // field remains a SignalSlice<T> while still subscribing to the
+          // CacheObserver for cross-view sync.
           for (final binding in useCases) {
+            final isCacheable =
+                cacheableSliceKeys?.contains(binding.sliceKey) ?? false;
+            final baseCall = cb
+                .refer('bind')
+                .call(
+                  [
+                    cb.literalString(binding.sliceKey),
+                    cb.refer(binding.useCaseFieldName),
+                    cb.refer(binding.paramsConstructor).call([]),
+                  ],
+                  {},
+                  [cb.refer(binding.returnType)],
+                );
+            // code_builder has no first-class cascade; emit the cascade as a
+            // raw code string so the field type stays SignalSlice<T>.
+            final assignmentCode = isCacheable
+                ? cb.Code('${baseCall.accept(cb.DartEmitter())}..bindCache()')
+                : baseCall.code;
             c.fields.add(
               cb.Field((f) {
                 f
                   ..name = binding.sliceKey
                   ..modifier = cb.FieldModifier.final$
                   ..late = true
-                  ..assignment = cb
-                      .refer('bind')
-                      .call(
-                        [
-                          cb.literalString(binding.sliceKey),
-                          cb.refer(binding.useCaseFieldName),
-                          cb.refer(binding.paramsConstructor).call([]),
-                        ],
-                        {},
-                        [cb.refer(binding.returnType)],
-                      )
-                      .code;
+                  ..assignment = assignmentCode;
               }),
             );
           }
@@ -209,12 +220,18 @@ class UseCaseBinding {
     required this.useCaseFieldName,
     required this.paramsConstructor,
     required this.returnType,
+    this.cacheable = false,
   });
 
   final String sliceKey;
   final String useCaseFieldName;
   final String paramsConstructor;
   final String returnType;
+
+  /// Whether this slice should be bound to the [CacheObserver] for
+  /// automatic cross-view state synchronization. Set when the underlying
+  /// entity is `@Cacheable`.
+  final bool cacheable;
 }
 
 /// Metadata for a ViewState transient field.

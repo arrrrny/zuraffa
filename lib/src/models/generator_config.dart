@@ -72,6 +72,10 @@ class GeneratorConfig {
   final bool useMockInDi;
   final bool generateDi;
   final bool generateXRay;
+  /// When true, the view plugin generates v6 dual-layer state
+  /// (DomainState + ViewState + DualLayerPresenter) and ControlledWidget /
+  /// FragmentBuilder based views instead of the legacy v5 monolithic state.
+  final bool generateV6State;
   final String diFramework;
   final bool generateRoute;
   final bool generateGql;
@@ -148,6 +152,7 @@ class GeneratorConfig {
     this.useMockInDi = false,
     this.generateDi = false,
     this.generateXRay = false,
+    this.generateV6State = false,
     this.diFramework = 'get_it',
     this.generateRoute = false,
     this.generateGql = false,
@@ -225,6 +230,10 @@ class GeneratorConfig {
       useMockInDi: json['use_mock'] == true || json['use_mock_in_di'] == true,
       generateDi: json['di'] == true || json['generate_di'] == true,
       generateXRay: json['xray'] == true || json['generate_xray'] == true,
+      generateV6State:
+          json['v6_state'] == true ||
+          json['v6State'] == true ||
+          json['v6-state'] == true,
       diFramework: json['di_framework'] ?? 'get_it',
       generateRoute: json['route'] == true || json['generate_route'] == true,
       generateGql: json['gql'] == true || json['generate_gql'] == true,
@@ -318,6 +327,7 @@ class GeneratorConfig {
     bool? useMockInDi,
     bool? generateDi,
     bool? generateXRay,
+    bool? generateV6State,
     String? diFramework,
     bool? generateRoute,
     bool? generateGql,
@@ -389,6 +399,7 @@ class GeneratorConfig {
       useMockInDi: useMockInDi ?? this.useMockInDi,
       generateDi: generateDi ?? this.generateDi,
       generateXRay: generateXRay ?? this.generateXRay,
+      generateV6State: generateV6State ?? this.generateV6State,
       diFramework: diFramework ?? this.diFramework,
       generateRoute: generateRoute ?? this.generateRoute,
       generateGql: generateGql ?? this.generateGql,
