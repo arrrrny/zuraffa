@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'dart:io';
 import 'package:test/test.dart';
 import 'package:zuraffa/src/commands/update_command.dart';
 

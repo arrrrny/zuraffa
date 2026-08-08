@@ -27,11 +27,9 @@ String _safeRoot() {
 String _zfaRoot = _safeRoot();
 void main() {
   late Directory tmpDir;
-  late String originalPath;
 
   setUp(() {
     tmpDir = Directory.systemTemp.createTempSync('zfa_plugin_test_');
-    originalPath = Directory.current.path;
     Directory.current = tmpDir.path;
     Directory('${tmpDir.path}/lib').createSync();
   });

@@ -141,10 +141,10 @@ class Product {
 ''');
     }
 
-    late String _savedCwd;
+    late String savedCwd;
 
     setUp(() async {
-      _savedCwd = Directory.current.path;
+      savedCwd = Directory.current.path;
       workspace = await Directory.systemTemp.createTemp('zfa_cli_');
       outputDir = p.join(workspace.path, 'lib', 'src');
       await Directory(outputDir).create(recursive: true);
@@ -156,8 +156,8 @@ class Product {
     tearDown(() async {
       // Restore CWD BEFORE deleting workspace to avoid cascading crashes.
       try {
-        if (Directory(_savedCwd).existsSync()) {
-          Directory.current = _savedCwd;
+        if (Directory(savedCwd).existsSync()) {
+          Directory.current = savedCwd;
         } else {
           Directory.current = Directory.systemTemp.path;
         }

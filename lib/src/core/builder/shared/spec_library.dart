@@ -36,7 +36,7 @@ class SpecLibrary {
     // This allows the AST merge engine to identify and safely
     // replace generated code while preserving user edits.
     if (wrapWithGeneratedMarkers) {
-      raw = '// GENERATED - DO NOT EDIT\n$raw\n// END GENERATED';
+      raw = '// GENERATED - DO NOT EDIT\n$raw\n\n// END GENERATED';
     }
 
     if (!format) {

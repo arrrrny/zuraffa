@@ -5,8 +5,8 @@ import 'package:test/test.dart';
 import 'regression_test_utils.dart';
 import '../helpers/project_root.dart';
 
-void main() {
-  final zfaRoot = findProjectRoot();
+Future<void> main() async {
+  final zfaRoot = await findProjectRoot();
 
   late RegressionWorkspace workspace;
   late List<String> generatedPaths;

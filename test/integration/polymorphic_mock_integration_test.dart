@@ -12,7 +12,7 @@ void main() {
   late String zfaBin;
   late bool useCompiledBinary;
 
-  setUpAll(() {
+  setUpAll(() async {
     final homeDir = Platform.environment['HOME'] ?? '';
     final compiledBin = p.join(homeDir, '.local', 'bin', 'zfa');
     final compiledExists = File(compiledBin).existsSync();
@@ -22,7 +22,7 @@ void main() {
       useCompiledBinary = true;
     } else {
       // Use findProjectRoot() instead of relative path (CWD may be poisoned).
-      final projectRoot = findProjectRoot();
+      final projectRoot = await findProjectRoot();
       zfaBin = p.join(projectRoot, 'bin', 'zfa.dart');
       useCompiledBinary = false;
     }
@@ -57,8 +57,9 @@ void main() {
       reason: '${pubGet.stdout}\n${pubGet.stderr}',
     );
 
+    final resolvedRoot = await findProjectRoot();
     final fixturePath = p.join(
-      findProjectRoot(),
+      resolvedRoot,
       'test', 'fixtures', 'sealed_category_config.dart',
     );
     final fixtureContent = File(fixturePath).readAsStringSync();
