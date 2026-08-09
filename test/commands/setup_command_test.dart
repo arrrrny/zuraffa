@@ -157,7 +157,8 @@ dev_dependencies:
   mocktail: ^1.0.4
   flutter_lints: ^6.0.0
 dependency_overrides:
-  analyzer: 14.1.0
+  analyzer: ^13.1.0
+  meta: ^1.19.0
 ''';
       final missing = DependencyWirer.findMissing(fullPubspec, isFlutter: true);
       expect(missing, isEmpty);

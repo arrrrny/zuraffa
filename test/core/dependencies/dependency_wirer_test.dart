@@ -59,6 +59,12 @@ void main() {
         expect(zorphyAnn.isGit, isTrue);
         expect(zorphyAnn.gitUrl, DependencyWirer.zorphyGitUrl);
         expect(zorphyAnn.gitPath, 'zorphy_annotation');
+        // Must match the URL string used by the zuraffa root pubspec
+        // (https://github.com/arrrrny/zorphy.git): pub only unifies git
+        // sources when the URL matches verbatim, so a bare-zorphy variant
+        // breaks version solving once zuraffa_flutter pulls zuraffa
+        // transitively.
+        expect(zorphyAnn.gitUrl, 'https://github.com/arrrrny/zorphy.git');
       });
 
       test('build_runner and mocktail are dev dependencies', () {
@@ -72,13 +78,30 @@ void main() {
         expect(mocktail.isGit, isFalse);
       });
 
-      test('analyzer is an override with the pinned version', () {
+      test('flutter project overrides analyzer ^13.1.0 + meta ^1.19.0', () {
         final specs = DependencyWirer.standardSet(isFlutter: true);
+        final analyzer = specs.firstWhere((s) => s.name == 'analyzer');
+        final meta = specs.firstWhere((s) => s.name == 'meta');
+
+        expect(analyzer.kind, DependencyKind.override);
+        expect(analyzer.version, DependencyWirer.flutterAnalyzerOverrideVersion);
+        expect(analyzer.isOverride, isTrue);
+        // Flutter apps need the meta overlay too: the Flutter SDK pins
+        // meta 1.18.0 while analyzer >=13.1.0 requires meta ^1.18.3.
+        expect(meta.kind, DependencyKind.override);
+        expect(meta.version, DependencyWirer.flutterMetaOverrideVersion);
+        expect(meta.isOverride, isTrue);
+      });
+
+      test('dart project keeps the pinned analyzer 14.1.0 override only', () {
+        final specs = DependencyWirer.standardSet(isFlutter: false);
         final analyzer = specs.firstWhere((s) => s.name == 'analyzer');
 
         expect(analyzer.kind, DependencyKind.override);
         expect(analyzer.version, DependencyWirer.analyzerOverrideVersion);
         expect(analyzer.isOverride, isTrue);
+        // Pure Dart packages do not overlay meta.
+        expect(specs.map((s) => s.name), isNot(contains('meta')));
       });
     });
 
@@ -132,7 +155,8 @@ dev_dependencies:
   flutter_lints: ^6.0.0
 
 dependency_overrides:
-  analyzer: 14.1.0
+  analyzer: ^13.1.0
+  meta: ^1.19.0
 ''';
         final missing = DependencyWirer.findMissing(
           pubspec,
@@ -162,7 +186,8 @@ dev_dependencies:
   flutter_lints: ^6.0.0
 
 dependency_overrides:
-  analyzer: 14.1.0
+  analyzer: ^13.1.0
+  meta: ^1.19.0
 ''';
         final missing = DependencyWirer.findMissing(
           pubspec,
@@ -196,7 +221,8 @@ dev_dependencies:
   flutter_lints: ^6.0.0
 
 dependency_overrides:
-  analyzer: 14.1.0
+  analyzer: ^13.1.0
+  meta: ^1.19.0
 ''';
         final missing = DependencyWirer.findMissing(
           pubspec,
@@ -208,7 +234,7 @@ dependency_overrides:
         expect(missing.first.kind, DependencyKind.dev);
       });
 
-      test('detects missing analyzer override only', () {
+      test('detects missing analyzer + meta overrides only', () {
         final pubspec = '''
 name: my_app
 environment:
@@ -234,6 +260,38 @@ dev_dependencies:
         final missing = DependencyWirer.findMissing(
           pubspec,
           isFlutter: true,
+        );
+
+        expect(missing.length, 2);
+        expect(missing.map((s) => s.name), containsAll(['analyzer', 'meta']));
+        expect(
+          missing.every((s) => s.kind == DependencyKind.override),
+          isTrue,
+        );
+      });
+
+      test('dart project: missing analyzer override only', () {
+        final pubspec = '''
+name: my_pkg
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  zuraffa:
+    git:
+      url: https://github.com/arrrrny/zuraffa
+  zorphy_annotation:
+    git:
+      url: https://github.com/arrrrny/zorphy
+      path: zorphy_annotation
+
+dev_dependencies:
+  build_runner: ^2.15.2
+  mocktail: ^1.0.4
+''';
+        final missing = DependencyWirer.findMissing(
+          pubspec,
+          isFlutter: false,
         );
 
         expect(missing.length, 1);
@@ -269,6 +327,46 @@ dependency_overrides:
         );
 
         expect(missing, isEmpty);
+      });
+
+      test('flutter project: stale analyzer override version is detected as missing', () {
+        final pubspec = '''
+name: my_app
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  zuraffa_flutter:
+    git:
+      url: https://github.com/arrrrny/zuraffa
+      path: zuraffa_flutter
+  zorphy_annotation:
+    git:
+      url: https://github.com/arrrrny/zorphy
+      path: zorphy_annotation
+
+dev_dependencies:
+  build_runner: ^2.15.2
+  mocktail: ^1.0.4
+  flutter_lints: ^6.0.0
+
+dependency_overrides:
+  analyzer: 14.1.0
+  meta: ^1.19.0
+''';
+        final missing = DependencyWirer.findMissing(
+          pubspec,
+          isFlutter: true,
+        );
+
+        // Flutter projects expect analyzer: ^13.1.0, not 14.1.0, so analyzer
+        // should be detected as needing an update.
+        expect(missing.length, 1);
+        expect(missing.first.name, 'analyzer');
+        expect(missing.first.kind, DependencyKind.override);
+        expect(missing.first.version, DependencyWirer.flutterAnalyzerOverrideVersion);
       });
 
       test('returns all specs for unparseable pubspec', () {
@@ -359,14 +457,14 @@ dependencies:
         expect(analyzerIdx, lessThan(depsIdx));
       });
 
-      test('is idempotent when key already exists', () {
+      test('is idempotent when key already exists with matching value', () {
         final pubspec = '''
 name: my_app
 environment:
   sdk: ^3.11.0
 
 dependency_overrides:
-  analyzer: 13.0.0
+  analyzer: 14.1.0
 
 dependencies:
   http: ^1.6.0
@@ -377,8 +475,35 @@ dependencies:
           '14.1.0',
         );
 
-        // Should be unchanged — existing value preserved
+        // Should be unchanged — value already matches
         expect(result, equals(pubspec));
+      });
+
+      test('replaces existing value when it differs from new value', () {
+        final pubspec = '''
+name: my_app
+environment:
+  sdk: ^3.11.0
+
+dependency_overrides:
+  analyzer: 14.1.0
+
+dependencies:
+  http: ^1.6.0
+''';
+        final result = DependencyWirer.addOverrideToPubspec(
+          pubspec,
+          'analyzer',
+          '^13.1.0',
+        );
+
+        // Old value (14.1.0) should be replaced with new value (^13.1.0)
+        expect(result, contains('  analyzer: ^13.1.0'));
+        expect(result, isNot(contains('  analyzer: 14.1.0')));
+        // Other content should be preserved
+        expect(result, contains('name: my_app'));
+        expect(result, contains('dependencies:'));
+        expect(result, contains('http: ^1.6.0'));
       });
 
       test('handles pubspec with no trailing newline', () {
