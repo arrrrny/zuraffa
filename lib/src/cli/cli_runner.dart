@@ -18,6 +18,7 @@ import '../commands/manifest_command.dart';
 import '../commands/apply_command.dart';
 import '../commands/module_command.dart';
 import '../commands/xray_command.dart';
+import '../commands/setup_command.dart';
 import '../core/plugin_system/cli_aware_plugin.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/error/suggestion_engine.dart';
@@ -85,6 +86,7 @@ class CliRunner {
     _runner.addCommand(ModuleCommand());
     _runner.addCommand(XrayCommand());
     _runner.addCommand(UpdateCommand());
+    _runner.addCommand(SetupCommand());
   }
 
   /// Run CLI with arguments.
@@ -216,16 +218,21 @@ zfa - Zuraffa Code Generator v$version
 USAGE:
   zfa <command> [options]
 
+BOOTSTRAP:
+  setup <name>        Create a new Flutter/Dart app with zuraffa deps wired in
+  init                Wire zuraffa dependencies + scaffold a test entity
+
 CORE COMMANDS:
   make <Name>         Canonical architecture/code generation command
   feature <Name>      Wrapper over `make --preset=feature`
-  initialize          Initialize a test entity
+  initialize          Alias of init — wire deps + scaffold a test entity
   entity              Create and manage Zorphy entities
   config              Manage ZFA configuration
   doctor              Check your environment and v5 migration readiness
   schema              Output JSON schema
   validate <file>     Validate JSON configuration
   migrate <target>     Migrate v5 artifacts to v6 (state, gql, di)
+  build               Run build_runner to generate code from annotations
   update              Check for updates and update the installed CLI
 
 MODULAR COMMANDS:
@@ -294,11 +301,18 @@ class _InitializeCommand extends Command<void> {
   String get name => 'initialize';
 
   @override
-  String get description => 'Initialize a test entity';
+  List<String> get aliases => ['init'];
+
+  @override
+  String get description =>
+      'Wire zuraffa dependencies into pubspec.yaml + scaffold a test entity';
+
+  @override
+  ArgParser get argParser => ArgParser.allowAnything();
 
   @override
   Future<void> run() async {
-    await init.InitializeCommand().execute(argResults!.rest.toList());
+    await init.InitializeCommand().execute(argResults!.arguments);
   }
 }
 
