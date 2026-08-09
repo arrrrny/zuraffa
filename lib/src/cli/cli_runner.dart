@@ -220,12 +220,12 @@ USAGE:
 
 BOOTSTRAP:
   setup <name>        Create a new Flutter/Dart app with zuraffa deps wired in
-  init                Wire zuraffa dependencies + scaffold a test entity
+  init                Alias of initialize — wire deps + scaffold a test entity
 
 CORE COMMANDS:
   make <Name>         Canonical architecture/code generation command
   feature <Name>      Wrapper over `make --preset=feature`
-  initialize          Alias of init — wire deps + scaffold a test entity
+  initialize          Wire zuraffa dependencies + scaffold a test entity
   entity              Create and manage Zorphy entities
   config              Manage ZFA configuration
   doctor              Check your environment and v5 migration readiness

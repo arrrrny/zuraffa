@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:test/test.dart';
 import 'package:zuraffa/src/core/dependencies/dependency_wirer.dart';
 
@@ -516,6 +518,58 @@ dev_dependencies:
 
       test('includes data/repositories', () {
         expect(DependencyWirer.standardDirs, contains('lib/src/data/repositories'));
+      });
+    });
+
+    group('ensureProjectStructure', () {
+      late Directory tempDir;
+
+      setUp(() async {
+        tempDir = await Directory.systemTemp.createTemp('zfa_structure_');
+      });
+
+      tearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
+      test('creates build.yaml and every standard directory', () async {
+        await DependencyWirer.ensureProjectStructure(projectRoot: tempDir.path);
+
+        expect(File('${tempDir.path}/build.yaml').existsSync(), isTrue);
+        for (final dir in DependencyWirer.standardDirs) {
+          expect(
+            Directory('${tempDir.path}/$dir').existsSync(),
+            isTrue,
+            reason: 'expected $dir to be created',
+          );
+        }
+      });
+
+      test('does not overwrite an existing build.yaml', () async {
+        final buildYaml = File('${tempDir.path}/build.yaml');
+        await buildYaml.writeAsString('custom: true\n');
+
+        await DependencyWirer.ensureProjectStructure(projectRoot: tempDir.path);
+
+        expect(buildYaml.readAsStringSync(), 'custom: true\n');
+      });
+
+      test('dryRun creates nothing', () async {
+        await DependencyWirer.ensureProjectStructure(
+          projectRoot: tempDir.path,
+          dryRun: true,
+        );
+
+        expect(File('${tempDir.path}/build.yaml').existsSync(), isFalse);
+        for (final dir in DependencyWirer.standardDirs) {
+          expect(
+            Directory('${tempDir.path}/$dir').existsSync(),
+            isFalse,
+            reason: 'expected $dir NOT to be created in dry-run',
+          );
+        }
       });
     });
   });

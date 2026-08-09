@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:args/args.dart';
+import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as path;
 import '../config/zfa_config.dart';
 import '../core/dependencies/dependency_wirer.dart';
@@ -9,8 +10,10 @@ import '../utils/string_utils.dart';
 class InitializeCommand {
   static const String fixedEntityOutput = ZfaConfig.fixedEntityOutput;
 
-  Future<void> execute(List<String> args) async {
-    final parser = ArgParser()
+  /// The parser used by [execute]. Exposed so tests exercise the real parser
+  /// instead of a duplicated copy.
+  static ArgParser buildParser() {
+    return ArgParser()
       ..addOption(
         'entity',
         abbr: 'e',
@@ -54,6 +57,10 @@ class InitializeCommand {
         negatable: false,
       )
       ..addFlag('help', abbr: 'h', help: 'Show help', negatable: false);
+  }
+
+  Future<void> execute(List<String> args) async {
+    final parser = buildParser();
 
     final results = parser.parse(args);
 
@@ -70,8 +77,10 @@ class InitializeCommand {
     final noDeps = results['no-deps'] as bool;
 
     if (depsOnly && noDeps) {
-      print('❌ --deps-only and --no-deps are mutually exclusive.');
-      exit(1);
+      throw UsageException(
+        '--deps-only and --no-deps are mutually exclusive.',
+        parser.usage,
+      );
     }
 
     // --- Dependency wiring (issue #275) -----------------------------------
@@ -82,11 +91,11 @@ class InitializeCommand {
     if (!noDeps) {
       final pubspecFile = File('pubspec.yaml');
       if (!pubspecFile.existsSync()) {
-        print('❌ No pubspec.yaml found in current directory.');
-        print(
+        throw UsageException(
+          'No pubspec.yaml found in current directory.\n'
           '   Run `zfa setup <name>` to create a new app, or cd to a project root.',
+          parser.usage,
         );
-        exit(1);
       }
 
       final pubspecContent = pubspecFile.readAsStringSync();
@@ -106,6 +115,8 @@ class InitializeCommand {
           '${wireResult.failed.join(', ')}',
         );
         print('   Add them manually and re-run `zfa init`.');
+        // Non-zero exit so CI can distinguish a partial wiring.
+        throw StateError('Some dependencies could not be wired automatically.');
       }
 
       // Ensure build.yaml + domain directory structure exist.

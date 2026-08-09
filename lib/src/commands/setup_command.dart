@@ -46,7 +46,7 @@ class SetupCommand extends Command<void> {
     argParser.addOption(
       'org',
       valueHelp: 'com.example',
-      help: 'Organization name for `flutter create` (e.g. com.example).',
+      help: 'Organization name for `flutter create` (e.g. com.example; ignored with --dart).',
     );
     argParser.addFlag(
       'dry-run',
@@ -57,7 +57,8 @@ class SetupCommand extends Command<void> {
       'force',
       abbr: 'f',
       negatable: false,
-      help: 'Overwrite the target directory if it already exists.',
+      help: 'Delete and recreate the target directory if it already exists '
+          '(requires confirmation on a terminal).',
     );
     argParser.addFlag(
       'verbose',
@@ -111,6 +112,7 @@ class SetupCommand extends Command<void> {
 
     // 2. Wire the standard zuraffa dependency set (dart pub add + overrides).
     print('\n[2/5] Wiring zuraffa dependencies...');
+    WireResult? wireResult;
     if (dryRun) {
       final missing = DependencyWirer.findMissing(
         _dryRunPubspec(appName, isFlutter),
@@ -121,7 +123,7 @@ class SetupCommand extends Command<void> {
         print('     • $spec');
       }
     } else {
-      await DependencyWirer.wire(
+      wireResult = await DependencyWirer.wire(
         isFlutter: isFlutter,
         dryRun: false,
         projectRoot: appName,
@@ -153,6 +155,15 @@ class SetupCommand extends Command<void> {
 
     // 5. Summary.
     print('\n[5/5] Setup complete!');
+    if (wireResult != null && !wireResult.isSuccess) {
+      print(
+        '\n⚠️  Some dependencies could not be wired automatically: '
+        '${wireResult.failed.join(', ')}',
+      );
+      print('   Add them manually to pubspec.yaml and re-run `zfa init`.');
+      // Non-zero exit so CI can distinguish a partial bootstrap.
+      throw StateError('Some dependencies could not be wired automatically.');
+    }
 
     // Next steps.
     print('\n── Next steps ──');
@@ -187,6 +198,17 @@ class SetupCommand extends Command<void> {
         return false;
       }
       if (!dryRun) {
+        final absolutePath = targetDir.absolute.path;
+        final entryCount = _countEntries(targetDir);
+        print('   ⚠️  --force will DELETE: $absolutePath ($entryCount entries)');
+        if (stdin.hasTerminal) {
+          stdout.write('   Type "yes" to confirm deletion: ');
+          final answer = stdin.readLineSync()?.trim().toLowerCase();
+          if (answer != 'yes') {
+            print('   Aborted. Target directory was NOT deleted.');
+            return false;
+          }
+        }
         await targetDir.delete(recursive: true);
         print('   Removed existing $appName (--force)');
       } else {
@@ -230,6 +252,11 @@ class SetupCommand extends Command<void> {
     }
 
     // Pure Dart package.
+    if ((platforms != null && platforms.isNotEmpty) ||
+        (org != null && org.isNotEmpty)) {
+      print('   ⚠️  --platforms/--org are ignored with --dart '
+          '(dart create has no equivalent).');
+    }
     final args = <String>['create', '-t', 'package', appName];
     if (dryRun) {
       print('\n[1/5] Would run: dart ${args.join(" ")}');
@@ -248,6 +275,15 @@ class SetupCommand extends Command<void> {
     }
     print('   Created Dart package: $appName');
     return true;
+  }
+
+  /// Counts all files and directories under [dir] (recursively).
+  static int _countEntries(Directory dir) {
+    var count = 0;
+    for (final _ in dir.listSync(recursive: true)) {
+      count++;
+    }
+    return count;
   }
 
   /// Minimal pubspec for dry-run preview (so findMissing has something to parse).

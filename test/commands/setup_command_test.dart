@@ -1,6 +1,6 @@
 import 'package:test/test.dart';
-import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
+import 'package:zuraffa/src/commands/initialize_command.dart';
 import 'package:zuraffa/src/commands/setup_command.dart';
 import 'package:zuraffa/src/core/dependencies/dependency_wirer.dart';
 
@@ -58,37 +58,37 @@ void main() {
 
   group('InitializeCommand flags', () {
     test('accepts --deps-only flag', () {
-      final parser = _buildInitializeParser();
+      final parser = InitializeCommand.buildParser();
       final result = parser.parse(['--deps-only']);
       expect(result['deps-only'], isTrue);
     });
 
     test('accepts --no-deps flag', () {
-      final parser = _buildInitializeParser();
+      final parser = InitializeCommand.buildParser();
       final result = parser.parse(['--no-deps']);
       expect(result['no-deps'], isTrue);
     });
 
     test('--deps-only defaults to false', () {
-      final parser = _buildInitializeParser();
+      final parser = InitializeCommand.buildParser();
       final result = parser.parse([]);
       expect(result['deps-only'], isFalse);
     });
 
     test('--no-deps defaults to false', () {
-      final parser = _buildInitializeParser();
+      final parser = InitializeCommand.buildParser();
       final result = parser.parse([]);
       expect(result['no-deps'], isFalse);
     });
 
     test('still accepts legacy --entity option', () {
-      final parser = _buildInitializeParser();
+      final parser = InitializeCommand.buildParser();
       final result = parser.parse(['--entity=User']);
       expect(result['entity'], 'User');
     });
 
     test('still accepts --force flag', () {
-      final parser = _buildInitializeParser();
+      final parser = InitializeCommand.buildParser();
       final result = parser.parse(['--force']);
       expect(result['force'], isTrue);
     });
@@ -110,6 +110,15 @@ void main() {
       final result = cmd.argParser.parse(['--flutter', '--dart']);
       expect(result['flutter'], isTrue);
       expect(result['dart'], isTrue);
+    });
+
+    test('run() rejects both --flutter and --dart with UsageException', () async {
+      final runner = CommandRunner<void>('zfa', 'test')
+        ..addCommand(SetupCommand());
+      await expectLater(
+        runner.run(['setup', 'myapp', '--flutter', '--dart']),
+        throwsA(isA<UsageException>()),
+      );
     });
   });
 
@@ -215,17 +224,4 @@ dependency_overrides:
       expect(dartNames, isNot(contains('flutter_lints')));
     });
   });
-}
-
-/// Builds the same ArgParser that InitializeCommand.execute() uses.
-ArgParser _buildInitializeParser() {
-  return ArgParser()
-    ..addOption('entity', abbr: 'e', defaultsTo: 'Product')
-    ..addOption('output', abbr: 'o', defaultsTo: 'lib/src/domain/entities')
-    ..addFlag('force', abbr: 'f', negatable: false)
-    ..addFlag('dry-run', negatable: false)
-    ..addFlag('deps-only', negatable: false)
-    ..addFlag('no-deps', negatable: false)
-    ..addFlag('verbose', abbr: 'v', negatable: false)
-    ..addFlag('help', abbr: 'h', negatable: false);
 }
