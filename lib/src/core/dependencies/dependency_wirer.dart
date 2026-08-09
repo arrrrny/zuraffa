@@ -197,7 +197,14 @@ class DependencyWirer {
         case DependencyKind.dev:
           return !devDeps.containsKey(spec.name);
         case DependencyKind.override:
-          return !overrides.containsKey(spec.name);
+          if (!overrides.containsKey(spec.name)) {
+            return true; // missing entirely
+          }
+          // Key exists: check if the value matches the required version.
+          final existing = overrides[spec.name];
+          final existingStr = (existing is String ? existing : existing.toString()).trim();
+          final requiredStr = (spec.version ?? '').trim();
+          return existingStr != requiredStr; // stale if different
       }
     }).toList();
   }
@@ -218,7 +225,9 @@ class DependencyWirer {
   ///
   /// - If the `dependency_overrides:` section does not exist, it is appended.
   /// - If it exists but [key] is absent, the entry is inserted under it.
-  /// - If [key] already exists, the content is returned unchanged (idempotent).
+  /// - If [key] already exists with the same [value], the content is returned
+  ///   unchanged (idempotent). If the existing value differs, it is replaced
+  ///   in place.
   ///
   /// Pure function — does not perform I/O.
   static String addOverrideToPubspec(
@@ -253,7 +262,14 @@ class DependencyWirer {
         break;
       }
       if (line.startsWith(keyPrefix)) {
-        return content; // already present
+        // Key exists: check if the value matches.
+        final existingValue = line.substring(keyPrefix.length).trim();
+        if (existingValue == value) {
+          return content; // already has the correct value
+        }
+        // Value differs: replace the line.
+        lines[i] = '  $key: $value';
+        return lines.join('\n');
       }
     }
 
