@@ -95,22 +95,39 @@ class DependencyWirer {
   static const zuraffaGitUrl = 'https://github.com/arrrrny/zuraffa';
 
   /// Git source for the zorphy monorepo (contains `zorphy` and
-  /// `zorphy_annotation` sub-packages).
-  static const zorphyGitUrl = 'https://github.com/arrrrny/zorphy';
+  /// `zorphy_annotation` sub-packages). Must match the exact URL string used
+  /// by the zuraffa root pubspec (https://github.com/arrrrny/zorphy.git):
+  /// pub treats git sources as identical only when the URL string matches
+  /// verbatim, and a `.git`-vs-bare mismatch breaks version solving when
+  /// `zuraffa_flutter` pulls `zuraffa` transitively.
+  static const zorphyGitUrl = 'https://github.com/arrrrny/zorphy.git';
 
   /// Default git ref — tracks the development branch which is where active
   /// v6 work lands before merging to master.
   static const defaultGitRef = 'development';
 
-  /// The analyzer version zuraffa pins (see root pubspec.yaml). Overriding
-  /// analyzer in downstream apps prevents version-conflict failures when
-  /// `dart pub get` resolves the transitive graph.
+  /// The analyzer version zuraffa pins in pure-Dart packages (see root
+  /// pubspec.yaml). Overriding analyzer in downstream apps prevents
+  /// version-conflict failures when `dart pub get` resolves the transitive
+  /// graph.
   static const analyzerOverrideVersion = '14.1.0';
+
+  /// Flutter apps cannot use the [analyzerOverrideVersion] override: the
+  /// Flutter SDK pins `meta 1.18.0` while analyzer >=13.1.0 requires
+  /// `meta ^1.18.3`, so version solving always fails. These match
+  /// `zuraffa_flutter`'s own `dependency_overrides`
+  /// (zuraffa_flutter/pubspec.yaml): analyzer is capped at ^13.1.0 and meta
+  /// is overlaid with ^1.19.0 so the graph resolves under the Flutter SDK.
+  static const flutterAnalyzerOverrideVersion = '^13.1.0';
+  static const flutterMetaOverrideVersion = '^1.19.0';
 
   /// Returns the standard zuraffa dependency set for the given project type.
   ///
   /// [isFlutter] selects `zuraffa_flutter` + `flutter_lints` (Flutter apps)
-  /// versus `zuraffa` (pure Dart packages). All other entries are shared.
+  /// versus `zuraffa` (pure Dart packages), and picks the override set:
+  /// Flutter apps get the analyzer + meta overrides that match
+  /// `zuraffa_flutter`'s own pubspec, pure Dart packages pin analyzer
+  /// directly. All other entries are shared.
   static List<DependencySpec> standardSet({required bool isFlutter}) {
     return [
       DependencySpec(
@@ -131,11 +148,23 @@ class DependencyWirer {
       const DependencySpec(name: 'mocktail', kind: DependencyKind.dev),
       if (isFlutter)
         const DependencySpec(name: 'flutter_lints', kind: DependencyKind.dev),
-      const DependencySpec(
-        name: 'analyzer',
-        kind: DependencyKind.override,
-        version: analyzerOverrideVersion,
-      ),
+      if (isFlutter) ...[
+        const DependencySpec(
+          name: 'analyzer',
+          kind: DependencyKind.override,
+          version: flutterAnalyzerOverrideVersion,
+        ),
+        const DependencySpec(
+          name: 'meta',
+          kind: DependencyKind.override,
+          version: flutterMetaOverrideVersion,
+        ),
+      ] else
+        const DependencySpec(
+          name: 'analyzer',
+          kind: DependencyKind.override,
+          version: analyzerOverrideVersion,
+        ),
     ];
   }
 
@@ -293,6 +322,33 @@ class DependencyWirer {
         .where((s) => s.kind == DependencyKind.override)
         .toList();
 
+    // --- dependency_overrides via direct pubspec edit ---
+    // Written BEFORE `pub add` so the version resolution that command
+    // triggers already sees the overrides. In Flutter apps the analyzer +
+    // meta overrides are what make the transitive graph resolvable in the
+    // first place, so they must be in the pubspec before anything resolves.
+    if (overrideSpecs.isNotEmpty) {
+      var newContent = pubspecFile.readAsStringSync();
+      for (final spec in overrideSpecs) {
+        newContent = addOverrideToPubspec(
+          newContent,
+          spec.name,
+          spec.version ?? '',
+        );
+        print('   ✅ Added override:${spec.name}=${spec.version}');
+      }
+      try {
+        await pubspecFile.writeAsString(newContent);
+        // Record overrides as added only after the write succeeds.
+        added.addAll(overrideSpecs.map((s) => s.name));
+      } catch (e) {
+        print(
+          '   ⚠️  Failed to write dependency_overrides to pubspec.yaml: $e',
+        );
+        failed.addAll(overrideSpecs.map((s) => s.name));
+      }
+    }
+
     // --- regular / dev deps via `pub add` ---
     // Flutter projects must use `flutter pub add`/`flutter pub get`: the
     // standalone `dart` executable cannot resolve `sdk: flutter` deps.
@@ -320,28 +376,8 @@ class DependencyWirer {
       }
     }
 
-    // --- dependency_overrides via direct pubspec edit ---
+    // --- final re-resolve so the whole graph is consistent ---
     if (overrideSpecs.isNotEmpty) {
-      var newContent = pubspecFile.readAsStringSync();
-      for (final spec in overrideSpecs) {
-        newContent = addOverrideToPubspec(
-          newContent,
-          spec.name,
-          spec.version ?? '',
-        );
-        print('   ✅ Added override:${spec.name}=${spec.version}');
-      }
-      try {
-        await pubspecFile.writeAsString(newContent);
-        // Record overrides as added only after the write succeeds.
-        added.addAll(overrideSpecs.map((s) => s.name));
-      } catch (e) {
-        print(
-          '   ⚠️  Failed to write dependency_overrides to pubspec.yaml: $e',
-        );
-        failed.addAll(overrideSpecs.map((s) => s.name));
-      }
-      // Re-resolve so the override takes effect.
       try {
         final getResult = await Process.run(
           pubExecutable,
@@ -352,7 +388,8 @@ class DependencyWirer {
           final err = getResult.stderr.toString().trim();
           if (err.isNotEmpty) {
             print(
-              '   ⚠️  $pubExecutable pub get reported issues after override edit:',
+              '   ⚠️  $pubExecutable pub get reported issues after wiring '
+              'overrides ${overrideSpecs.map((s) => '${s.name}=${s.version}').join(', ')}:',
             );
             print('      ${err.split('\n').take(3).join('\n      ')}');
           }

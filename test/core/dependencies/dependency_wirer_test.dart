@@ -59,6 +59,12 @@ void main() {
         expect(zorphyAnn.isGit, isTrue);
         expect(zorphyAnn.gitUrl, DependencyWirer.zorphyGitUrl);
         expect(zorphyAnn.gitPath, 'zorphy_annotation');
+        // Must match the URL string used by the zuraffa root pubspec
+        // (https://github.com/arrrrny/zorphy.git): pub only unifies git
+        // sources when the URL matches verbatim, so a bare-zorphy variant
+        // breaks version solving once zuraffa_flutter pulls zuraffa
+        // transitively.
+        expect(zorphyAnn.gitUrl, 'https://github.com/arrrrny/zorphy.git');
       });
 
       test('build_runner and mocktail are dev dependencies', () {
@@ -72,13 +78,30 @@ void main() {
         expect(mocktail.isGit, isFalse);
       });
 
-      test('analyzer is an override with the pinned version', () {
+      test('flutter project overrides analyzer ^13.1.0 + meta ^1.19.0', () {
         final specs = DependencyWirer.standardSet(isFlutter: true);
+        final analyzer = specs.firstWhere((s) => s.name == 'analyzer');
+        final meta = specs.firstWhere((s) => s.name == 'meta');
+
+        expect(analyzer.kind, DependencyKind.override);
+        expect(analyzer.version, DependencyWirer.flutterAnalyzerOverrideVersion);
+        expect(analyzer.isOverride, isTrue);
+        // Flutter apps need the meta overlay too: the Flutter SDK pins
+        // meta 1.18.0 while analyzer >=13.1.0 requires meta ^1.18.3.
+        expect(meta.kind, DependencyKind.override);
+        expect(meta.version, DependencyWirer.flutterMetaOverrideVersion);
+        expect(meta.isOverride, isTrue);
+      });
+
+      test('dart project keeps the pinned analyzer 14.1.0 override only', () {
+        final specs = DependencyWirer.standardSet(isFlutter: false);
         final analyzer = specs.firstWhere((s) => s.name == 'analyzer');
 
         expect(analyzer.kind, DependencyKind.override);
         expect(analyzer.version, DependencyWirer.analyzerOverrideVersion);
         expect(analyzer.isOverride, isTrue);
+        // Pure Dart packages do not overlay meta.
+        expect(specs.map((s) => s.name), isNot(contains('meta')));
       });
     });
 
@@ -132,7 +155,8 @@ dev_dependencies:
   flutter_lints: ^6.0.0
 
 dependency_overrides:
-  analyzer: 14.1.0
+  analyzer: ^13.1.0
+  meta: ^1.19.0
 ''';
         final missing = DependencyWirer.findMissing(
           pubspec,
@@ -162,7 +186,8 @@ dev_dependencies:
   flutter_lints: ^6.0.0
 
 dependency_overrides:
-  analyzer: 14.1.0
+  analyzer: ^13.1.0
+  meta: ^1.19.0
 ''';
         final missing = DependencyWirer.findMissing(
           pubspec,
@@ -196,7 +221,8 @@ dev_dependencies:
   flutter_lints: ^6.0.0
 
 dependency_overrides:
-  analyzer: 14.1.0
+  analyzer: ^13.1.0
+  meta: ^1.19.0
 ''';
         final missing = DependencyWirer.findMissing(
           pubspec,
@@ -208,7 +234,7 @@ dependency_overrides:
         expect(missing.first.kind, DependencyKind.dev);
       });
 
-      test('detects missing analyzer override only', () {
+      test('detects missing analyzer + meta overrides only', () {
         final pubspec = '''
 name: my_app
 environment:
@@ -234,6 +260,38 @@ dev_dependencies:
         final missing = DependencyWirer.findMissing(
           pubspec,
           isFlutter: true,
+        );
+
+        expect(missing.length, 2);
+        expect(missing.map((s) => s.name), containsAll(['analyzer', 'meta']));
+        expect(
+          missing.every((s) => s.kind == DependencyKind.override),
+          isTrue,
+        );
+      });
+
+      test('dart project: missing analyzer override only', () {
+        final pubspec = '''
+name: my_pkg
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  zuraffa:
+    git:
+      url: https://github.com/arrrrny/zuraffa
+  zorphy_annotation:
+    git:
+      url: https://github.com/arrrrny/zorphy
+      path: zorphy_annotation
+
+dev_dependencies:
+  build_runner: ^2.15.2
+  mocktail: ^1.0.4
+''';
+        final missing = DependencyWirer.findMissing(
+          pubspec,
+          isFlutter: false,
         );
 
         expect(missing.length, 1);
