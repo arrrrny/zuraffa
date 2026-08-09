@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:path/path.dart' as path;
 import 'package:yaml/yaml.dart';
 
 /// Kind of dependency entry in pubspec.yaml.
@@ -210,10 +211,8 @@ class DependencyWirer {
       if (!result.endsWith('\n\n')) {
         result = '$result\n';
       }
-      return '$result dependency_overrides:\n  $key: $value\n'.replaceFirst(
-        ' dependency_overrides',
-        'dependency_overrides',
-      );
+      // Header is written at column zero; no leading-space workaround needed.
+      return '${result}dependency_overrides:\n  $key: $value\n';
     }
 
     // Walk the existing section looking for the key.
@@ -247,7 +246,7 @@ class DependencyWirer {
     String? projectRoot,
   }) async {
     final root = projectRoot ?? Directory.current.path;
-    final pubspecFile = File('$root/pubspec.yaml');
+    final pubspecFile = File(path.join(root, 'pubspec.yaml'));
 
     if (!pubspecFile.existsSync()) {
       print('❌ No pubspec.yaml found in $root');
@@ -259,10 +258,15 @@ class DependencyWirer {
 
     final content = pubspecFile.readAsStringSync();
     final missing = findMissing(content, isFlutter: isFlutter);
+    // Names already present before wiring — reported as skipped so
+    // `WireResult.didNothing` is accurate when everything was already wired.
+    final skippedNames = standardSet(
+      isFlutter: isFlutter,
+    ).where((s) => !missing.contains(s)).map((s) => s.name).toList();
 
     if (missing.isEmpty) {
       print('✅ All zuraffa dependencies are already present.');
-      return const WireResult();
+      return WireResult(skipped: skippedNames);
     }
 
     print('🔧 Wiring ${missing.length} missing dependenc${missing.length == 1 ? 'y' : 'ies'}:');
@@ -289,12 +293,15 @@ class DependencyWirer {
         .where((s) => s.kind == DependencyKind.override)
         .toList();
 
-    // --- regular / dev deps via `dart pub add` ---
+    // --- regular / dev deps via `pub add` ---
+    // Flutter projects must use `flutter pub add`/`flutter pub get`: the
+    // standalone `dart` executable cannot resolve `sdk: flutter` deps.
+    final pubExecutable = isFlutter ? 'flutter' : 'dart';
     for (final spec in pubAddSpecs) {
       final args = _buildPubAddArgs(spec);
       try {
         final result = await Process.run(
-          'dart',
+          pubExecutable,
           ['pub', 'add', ...args],
           workingDirectory: root,
         );
@@ -322,31 +329,43 @@ class DependencyWirer {
           spec.name,
           spec.version ?? '',
         );
-        added.add(spec.name);
         print('   ✅ Added override:${spec.name}=${spec.version}');
       }
-      await pubspecFile.writeAsString(newContent);
+      try {
+        await pubspecFile.writeAsString(newContent);
+        // Record overrides as added only after the write succeeds.
+        added.addAll(overrideSpecs.map((s) => s.name));
+      } catch (e) {
+        print(
+          '   ⚠️  Failed to write dependency_overrides to pubspec.yaml: $e',
+        );
+        failed.addAll(overrideSpecs.map((s) => s.name));
+      }
       // Re-resolve so the override takes effect.
       try {
         final getResult = await Process.run(
-          'dart',
+          pubExecutable,
           ['pub', 'get'],
           workingDirectory: root,
         );
         if (getResult.exitCode != 0) {
           final err = getResult.stderr.toString().trim();
           if (err.isNotEmpty) {
-            print('   ⚠️  dart pub get reported issues after override edit:');
+            print(
+              '   ⚠️  $pubExecutable pub get reported issues after override edit:',
+            );
             print('      ${err.split('\n').take(3).join('\n      ')}');
           }
         }
       } catch (e) {
         // Non-fatal: overrides are written; user can resolve later.
-        print('   ⚠️  Could not run dart pub get after override edit: $e');
+        print(
+          '   ⚠️  Could not run $pubExecutable pub get after override edit: $e',
+        );
       }
     }
 
-    return WireResult(added: added, failed: failed);
+    return WireResult(added: added, skipped: skippedNames, failed: failed);
   }
 
   /// Builds the argument list for `dart pub add` from a [DependencySpec].
@@ -414,10 +433,10 @@ targets:
     final root = projectRoot ?? Directory.current.path;
 
     // build.yaml
-    final buildYaml = File('$root/build.yaml');
+    final buildYaml = File(path.join(root, 'build.yaml'));
     if (!buildYaml.existsSync()) {
       if (dryRun) {
-        print('   Would create: $root/build.yaml');
+        print('   Would create: ${path.join(root, 'build.yaml')}');
       } else {
         await buildYaml.writeAsString(buildYamlContent);
         print('   Created: build.yaml');
@@ -426,7 +445,7 @@ targets:
 
     // Domain/data directories
     for (final dir in standardDirs) {
-      final full = '$root/$dir';
+      final full = path.join(root, dir);
       if (!Directory(full).existsSync()) {
         if (dryRun) {
           print('   Would create: $full');
