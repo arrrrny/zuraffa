@@ -25,6 +25,7 @@ zfa make Product \
   --with=vpc \
   --state \
   --di \
+  --data \
   --test
 
 zfa cache adapter Product   # optional: register Hive adapters if caching needed
