@@ -54,6 +54,19 @@ extension TestBuilderEntity on TestBuilder {
         className = 'Update${entityName}UseCase';
         returnTypeConstructor = 't$entityName';
         break;
+      case 'toggle':
+        // #289: PR #287 added 'toggle' to the entity-methods default used by
+        // the di/test plugins (['get', 'update', 'toggle']) so canonical
+        // `zfa make <Entity> --preset=crud --with=vpc,state,di,test` routes to
+        // per-method generation. Every other generator (usecase, controller,
+        // presenter, view, repository, datasource, di) has a `toggle` case —
+        // the per-method test builder must too, otherwise the test plugin
+        // crashes with `Unknown method: toggle` before any file is written.
+        // Mirrors the usecase generator: `Toggle${entityName}UseCase` returns
+        // the toggled entity (Future<Entity>), not a stream and not void.
+        className = 'Toggle${entityName}UseCase';
+        returnTypeConstructor = 't$entityName';
+        break;
       case 'delete':
         className = 'Delete${entityName}UseCase';
         returnTypeConstructor = 'null';
