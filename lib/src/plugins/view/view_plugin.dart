@@ -665,7 +665,10 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         !config.isOrchestrator;
 
     if (!isCustom) {
-      imports.add('package:zuraffa/zuraffa.dart');
+      // #284/#281: Presentation layer imports `zuraffa_flutter` (which
+      // re-exports `zuraffa` + Flutter-specific CleanView/CleanViewState/
+      // ControlledWidgetBuilder types) instead of `zuraffa` alone.
+      imports.add('package:zuraffa_flutter/zuraffa_flutter.dart');
 
       if (!useDi) {
         for (final repo in config.effectiveRepos) {

@@ -82,7 +82,15 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       verbose: context.core.verbose,
       revert: context.core.revert,
       generateTest: true,
-      methods: context.data['methods']?.cast<String>().toList() ?? [],
+      // #284: Apply the same entity-methods default the usecase/repository
+      // plugins use, so the test plugin routes to generateForMethod (per-method
+      // test files matching the per-method usecases) instead of generateCustom
+      // which looks for a non-existent `product_usecase.dart`.
+      methods:
+          context.data['methods']?.cast<String>().toList() ??
+          (context.get<bool>('no-entity') == true
+              ? []
+              : ['get', 'update', 'toggle']),
       usecases: context.data['usecases']?.cast<String>().toList() ?? [],
       variants: context.data['variants']?.cast<String>().toList() ?? [],
       noEntity: context.get<bool>('no-entity') ?? false,
