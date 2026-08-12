@@ -89,6 +89,22 @@ extension TestBuilderHelpers on TestBuilder {
             'UpdateParams<$idType, $dataType>',
           ).call([], {'id': idValue, 'data': dataValue}),
         ];
+      case 'toggle':
+        // #289: registerFallbackValue needs a concrete ToggleParams instance
+        // matching the usecase generator's signature (ToggleParams<I, F>
+        // with id/field/value). `${entityName}Fields` is the Field-class
+        // re-exported by the entity file; `config.queryField` (default 'id')
+        // resolves to a `Field<Entity, IdType>` constant the same way the
+        // `get` branch below does for its QueryParams filter.
+        return [
+          refer(
+            'ToggleParams<$idType, ${entityName}Fields>',
+          ).call([], {
+            'id': idValue,
+            'field': refer('${entityName}Fields').property(config.queryField),
+            'value': literalBool(true),
+          }),
+        ];
       case 'delete':
         return [
           refer('DeleteParams<$idType>').constInstance([], {'id': idValue}),
@@ -182,6 +198,25 @@ extension TestBuilderHelpers on TestBuilder {
       verifyCall = refer(
         mockVarName,
       ).property('update').call([refer('any').call([])]);
+    } else if (method == 'toggle') {
+      // #289: Mirror the usecase generator's toggle shape — ToggleParams<I, F>
+      // with id, field (a Field<Entity, IdType> from ${entityName}Fields), and
+      // a bool value. The mock repository call is `toggle(any())`, identical to
+      // update/create — the per-method test builder only needs the params
+      // expression and the mock call shape to match.
+      paramsExpr = refer(
+        'ToggleParams<$idType, ${entityName}Fields>',
+      ).call([], {
+        'id': idValue,
+        'field': refer('${entityName}Fields').property(config.queryField),
+        'value': literalBool(true),
+      });
+      arrangeCall = refer(
+        mockVarName,
+      ).property('toggle').call([refer('any').call([])]);
+      verifyCall = refer(
+        mockVarName,
+      ).property('toggle').call([refer('any').call([])]);
     } else if (method == 'delete') {
       paramsExpr = refer('DeleteParams<$idType>').call([], {'id': idValue});
       arrangeCall = refer(
