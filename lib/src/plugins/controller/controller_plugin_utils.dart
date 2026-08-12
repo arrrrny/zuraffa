@@ -74,7 +74,9 @@ extension ControllerPluginUtils on ControllerPlugin {
     // `withState && !noEntity` block, leaving entity-based controllers
     // without the entity import when withState was false.
     if (!config.noEntity) {
-      imports.add('../../../domain/entities/$domainSnake/$domainSnake.dart');
+      imports.add(
+        '../../../domain/entities/${config.nameSnake}/${config.nameSnake}.dart',
+      );
     }
 
     if (withState && !config.noEntity) {

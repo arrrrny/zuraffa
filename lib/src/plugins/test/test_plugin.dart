@@ -160,6 +160,7 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         'create',
         'update',
         'delete',
+        'toggle',
         'watch',
         'watchList',
       ];
