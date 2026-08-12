@@ -221,7 +221,9 @@ class ViewTemplateGenerator {
     }
 
     final library = cb.Library((b) {
-      b.directives.add(cb.Directive.import('package:zuraffa/zuraffa.dart'));
+      // #281: v6 Presenter imports 'package:zuraffa_flutter/zuraffa_flutter.dart'
+      // (re-exports zuraffa core: DualLayerPresenter/DomainState/ViewState).
+      b.directives.add(cb.Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'));
       b.directives.add(
         cb.Directive.import('${snakeCase(name)}_domain_state.dart'),
       );
@@ -254,6 +256,21 @@ class ViewTemplateGenerator {
                 ..modifier = cb.FieldModifier.final$
                 ..type = cb.refer('SlicePresenter')
                 ..assignment = cb.refer('SlicePresenter').call([]).code;
+            }),
+          );
+          // #281: Override `view` with a covariant return type so the generated
+          // view template's `controller.view.<signal>` resolves the concrete
+          // {Name}ViewState signals (e.g. isLoading) instead of the base
+          // ViewState. The super view is the $viewClassName instance passed to
+          // super above, so the cast is always safe.
+          c.methods.add(
+            cb.Method((m) {
+              m
+                ..name = 'view'
+                ..type = cb.MethodType.getter
+                ..returns = cb.refer(viewClassName)
+                ..annotations.add(cb.refer('override'))
+                ..body = cb.Code('=> super.view as $viewClassName;');
             }),
           );
         }),

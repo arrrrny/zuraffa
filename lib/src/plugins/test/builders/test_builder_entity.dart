@@ -113,7 +113,7 @@ extension TestBuilderEntity on TestBuilder {
     final directives = [
       Directive.import('package:flutter_test/flutter_test.dart'),
       Directive.import('package:mocktail/mocktail.dart'),
-      if (method != 'create') Directive.import('package:zuraffa/zuraffa.dart'),
+      if (method != 'create') Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
     ];
 
     String toPackageImport(String filePath) {
