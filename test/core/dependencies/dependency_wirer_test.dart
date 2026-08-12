@@ -14,6 +14,8 @@ void main() {
         expect(names, isNot(contains('zuraffa')));
         expect(names, contains('zorphy_annotation'));
         expect(names, contains('build_runner'));
+        expect(names, contains('json_annotation'));
+        expect(names, contains('json_serializable'));
         expect(names, contains('mocktail'));
         expect(names, contains('flutter_lints'));
         expect(names, contains('analyzer'));
@@ -27,6 +29,8 @@ void main() {
         expect(names, isNot(contains('zuraffa_flutter')));
         expect(names, contains('zorphy_annotation'));
         expect(names, contains('build_runner'));
+        expect(names, contains('json_annotation'));
+        expect(names, contains('json_serializable'));
         expect(names, contains('mocktail'));
         expect(names, isNot(contains('flutter_lints')));
         expect(names, contains('analyzer'));
@@ -122,7 +126,9 @@ environment:
         expect(names, containsAll([
           'zuraffa_flutter',
           'zorphy_annotation',
+          'json_annotation',
           'build_runner',
+          'json_serializable',
           'mocktail',
           'flutter_lints',
           'analyzer',
@@ -148,9 +154,11 @@ dependencies:
       url: https://github.com/arrrrny/zorphy
       path: zorphy_annotation
       ref: development
+  json_annotation: ^4.12.0
 
 dev_dependencies:
   build_runner: ^2.15.2
+  json_serializable: ^6.13.2
   mocktail: ^1.0.4
   flutter_lints: ^6.0.0
 
@@ -179,9 +187,11 @@ dependencies:
     git:
       url: https://github.com/arrrrny/zorphy
       path: zorphy_annotation
+  json_annotation: ^4.12.0
 
 dev_dependencies:
   build_runner: ^2.15.2
+  json_serializable: ^6.13.2
   mocktail: ^1.0.4
   flutter_lints: ^6.0.0
 
@@ -215,8 +225,10 @@ dependencies:
     git:
       url: https://github.com/arrrrny/zorphy
       path: zorphy_annotation
+  json_annotation: ^4.12.0
 
 dev_dependencies:
+  json_serializable: ^6.13.2
   mocktail: ^1.0.4
   flutter_lints: ^6.0.0
 
@@ -251,9 +263,11 @@ dependencies:
     git:
       url: https://github.com/arrrrny/zorphy
       path: zorphy_annotation
+  json_annotation: ^4.12.0
 
 dev_dependencies:
   build_runner: ^2.15.2
+  json_serializable: ^6.13.2
   mocktail: ^1.0.4
   flutter_lints: ^6.0.0
 ''';
@@ -284,9 +298,11 @@ dependencies:
     git:
       url: https://github.com/arrrrny/zorphy
       path: zorphy_annotation
+  json_annotation: ^4.12.0
 
 dev_dependencies:
   build_runner: ^2.15.2
+  json_serializable: ^6.13.2
   mocktail: ^1.0.4
 ''';
         final missing = DependencyWirer.findMissing(
@@ -313,9 +329,11 @@ dependencies:
     git:
       url: https://github.com/arrrrny/zorphy
       path: zorphy_annotation
+  json_annotation: ^4.12.0
 
 dev_dependencies:
   build_runner: ^2.15.2
+  json_serializable: ^6.13.2
   mocktail: ^1.0.4
 
 dependency_overrides:
@@ -346,9 +364,11 @@ dependencies:
     git:
       url: https://github.com/arrrrny/zorphy
       path: zorphy_annotation
+  json_annotation: ^4.12.0
 
 dev_dependencies:
   build_runner: ^2.15.2
+  json_serializable: ^6.13.2
   mocktail: ^1.0.4
   flutter_lints: ^6.0.0
 

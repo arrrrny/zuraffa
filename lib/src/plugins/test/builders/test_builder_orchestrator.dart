@@ -20,7 +20,7 @@ extension TestBuilderOrchestrator on TestBuilder {
     final directives = [
       Directive.import('package:flutter_test/flutter_test.dart'),
       Directive.import('package:mocktail/mocktail.dart'),
-      Directive.import('package:zuraffa/zuraffa.dart'),
+      Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
       Directive.import(
         'package:$packageName/src/domain/usecases/${config.effectiveDomain}/${config.nameSnake}_usecase.dart',
       ),

@@ -29,6 +29,9 @@ void main() {
       final content = file.readAsStringSync();
       expect(content.contains('class ProductDetailPresenter'), true);
       expect(content.contains('extends DualLayerPresenter'), true);
+      // #281: presenter overrides `view` with a covariant return type so the
+      // generated view's `controller.view.<signal>` resolves concrete signals.
+      expect(content.contains('ProductDetailViewState get view'), true);
       expect(content.contains('ProductDetailDomainState'), true);
       expect(content.contains('ProductDetailViewState'), true);
       expect(content.contains('SlicePresenter'), true);
@@ -62,7 +65,8 @@ void main() {
           .readAsStringSync();
       expect(content.contains("import 'order_detail_domain_state.dart'"), true);
       expect(content.contains("import 'order_detail_view_state.dart'"), true);
-      expect(content.contains("import 'package:zuraffa/zuraffa.dart'"), true);
+      expect(content.contains("import 'package:zuraffa_flutter/zuraffa_flutter.dart'"),
+          true);
     });
   });
 
