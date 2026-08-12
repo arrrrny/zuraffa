@@ -58,9 +58,26 @@ extension ControllerPluginUtils on ControllerPlugin {
     bool withState,
   ) async {
     final imports = <String>[
-      'package:zuraffa/zuraffa.dart',
+      // #284/#281: Presentation layer (controller/presenter/view) must import
+      // `zuraffa_flutter` (which re-exports `zuraffa` + Flutter-specific types
+      // like Controller/Presenter/CleanView) instead of `zuraffa` alone —
+      // generated Flutter apps depend on `zuraffa_flutter`, not `zuraffa`,
+      // and `Controller` only exists in the Flutter package.
+      'package:zuraffa_flutter/zuraffa_flutter.dart',
       '${config.nameSnake}_presenter.dart',
     ];
+
+    // #284: Always import the entity so ProductPatch/ProductFields and other
+    // generated entity types are in scope for the controller's method
+    // signatures (updateProduct takes ProductPatch, toggleProduct takes
+    // ProductFields).  Previously this was only added inside the
+    // `withState && !noEntity` block, leaving entity-based controllers
+    // without the entity import when withState was false.
+    if (!config.noEntity) {
+      imports.add(
+        '../../../domain/entities/${config.nameSnake}/${config.nameSnake}.dart',
+      );
+    }
 
     if (withState && !config.noEntity) {
       if (config.generateState) {

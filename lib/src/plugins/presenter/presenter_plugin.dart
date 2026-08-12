@@ -838,7 +838,10 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     bool useDi,
     FileSystem fs,
   ) async {
-    final imports = <String>['package:zuraffa/zuraffa.dart'];
+    // #284/#281: Presentation layer imports `zuraffa_flutter` (which
+    // re-exports `zuraffa` + Flutter-specific Presenter type) instead of
+    // `zuraffa` alone — generated Flutter apps depend on `zuraffa_flutter`.
+    final imports = <String>['package:zuraffa_flutter/zuraffa_flutter.dart'];
 
     if (config.isCustomUseCase || config.isOrchestrator) {
       final types = <String>[];

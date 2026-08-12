@@ -187,7 +187,18 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         (config.appendToExisting && config.repo != null)) {
       files.add(await interfaceGen.generate(targetConfig));
     }
-    if ((config.generateData ||
+    // #284: Always emit the data repository implementation alongside the
+    // interface for entity-based configs.  Previously this was gated on
+    // generateData || generateDataSource || appendToExisting, but those flags
+    // are not reliably set when the make invocation activates the datasource
+    // plugin via a preset (the schema default of false wins over the
+    // plugin-activation sync in PluginManager.buildContext).  The DI plugin
+    // unconditionally emits `product_repository_di.dart` referencing
+    // `DataProductRepository` whenever generateRepository || generateData
+    // is true, so the impl must be produced for every entity-based config to
+    // keep the generated app compiling.
+    if ((config.isEntityBased ||
+            config.generateData ||
             config.generateDataSource ||
             config.appendToExisting) &&
         !config.hasService) {

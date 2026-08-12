@@ -101,7 +101,19 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       force: context.core.force,
       verbose: context.core.verbose,
       revert: context.core.revert,
-      methods: context.data['methods']?.cast<String>().toList() ?? [],
+      // #284: Apply the same entity-methods default the usecase/repository
+      // plugins use, so DI sees `isEntityBased=true` for canonical
+      // `zfa make Product --preset=crud` invocations and routes to
+      // _generateEntityUseCaseDIFiles (per-method DI files matching the
+      // per-method usecases the usecase plugin emits).  Without this default,
+      // DI falls into the _generateCustomUseCaseDI branch and emits
+      // `product_usecase_di.dart` referencing a `ProductUseCase`
+      // class that is never generated, breaking the build.
+      methods:
+          context.data['methods']?.cast<String>().toList() ??
+          (context.get<bool>('no-entity') == true
+              ? []
+              : ['get', 'update', 'toggle']),
       domain: context.data['domain'],
       repo: context.data['repo'],
       service: context.data['service'],
@@ -930,6 +942,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       'create',
       'update',
       'delete',
+      'toggle',
       'watch',
       'watchList',
     ];
