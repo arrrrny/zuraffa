@@ -21,7 +21,13 @@ class KnownTypes {
   static const dartCollections = ['List', 'Map', 'Set'];
 
   /// Common Dart types that don't need imports
-  static const dartTypes = ['Duration', 'DateTime'];
+  static const dartTypes = [
+    'Duration',
+    'DateTime',
+    'Uri',
+    'BigInt',
+    'Uint8List',
+  ];
 
   /// Zuraffa parameter types
   static const zuraffaParams = [

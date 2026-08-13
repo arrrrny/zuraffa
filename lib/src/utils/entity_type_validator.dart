@@ -24,6 +24,7 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:zorphy/zorphy.dart' show FieldDefinition;
+import '../core/constants/known_types.dart';
 import 'entity_utils.dart';
 import 'string_utils.dart';
 
@@ -108,22 +109,26 @@ class EntityTypeValidator {
         final entityDir = Directory(p.join(outputDir, typeSnake));
         final enumFile = File(p.join(outputDir, 'enums', '$typeSnake.dart'));
 
-        final entityExists = entityDir.existsSync() &&
+        final entityExists =
+            entityDir.existsSync() &&
             File(p.join(entityDir.path, '$typeSnake.dart')).existsSync();
         final enumExists = enumFile.existsSync();
 
         if (!entityExists && !enumExists) {
-          errors.add(UnresolvedTypeError(
-            fieldName: field.name,
-            typeName: cleanType,
-            message:
-                'Unknown type "$cleanType" for field "${field.name}" — no '
-                'matching entity directory or enum file found under '
-                '$outputDir.\n'
-                '   Create the enum/entity first, for example:\n'
-                '     zfa entity enum -n $cleanType --value <values>\n'
-                '   or check the spelling.',
-          ));
+          errors.add(
+            UnresolvedTypeError(
+              fieldName: field.name,
+              typeName: cleanType,
+              message: KnownTypes.isExcluded(cleanType)
+                  ? _unsupportedTypeMessage(cleanType, field.name)
+                  : 'Unknown type "$cleanType" for field "${field.name}" — no '
+                        'matching entity directory or enum file found under '
+                        '$outputDir.\n'
+                        '   Create the enum/entity first, for example:\n'
+                        '     zfa entity enum -n $cleanType --value <values>\n'
+                        '   or check the spelling.',
+            ),
+          );
         }
       }
     }
@@ -143,5 +148,20 @@ class EntityTypeValidator {
       outputDir: outputDir,
       selfEntityName: selfEntityName,
     ).isEmpty;
+  }
+
+  /// Error message for a type that is known to be a Dart/framework type but
+  /// that zorphy cannot generate as a field type (e.g. `Duration`, `Uri`,
+  /// `BigInt`, `Uint8List`). zorphy's `FieldNormalizer` does not treat these
+  /// as primitives, so it would `$`-prefix them (`$Duration`) and the build
+  /// would fail with `InvalidType` — the exact symptom of issue #296.
+  /// Rejecting here with a clear message is strictly better than writing a
+  /// broken entity.
+  static String _unsupportedTypeMessage(String type, String fieldName) {
+    return 'Type "$type" for field "$fieldName" is not supported as a field '
+        'type by zorphy — it is neither a Dart primitive, an existing '
+        'entity, nor an existing enum.\n'
+        '   Use a primitive (e.g. String, int, double, bool, DateTime) or '
+        'an entity/enum instead.';
   }
 }
