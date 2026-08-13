@@ -738,6 +738,15 @@ CREATE COMMAND:
     --allow-forward-refs    Skip on-disk type validation (batch generation of
                             cyclic schemas — referenced entity is created later)
 
+ADD-FIELD COMMAND:
+  zfa entity add-field -n <Name> [options]
+  Options:
+    -n, --name              Entity name (required)
+    --field                 Add field "name:type"
+    -F, --fields            Add multiple fields "name:type,name:type"
+    --allow-forward-refs    Skip on-disk type validation (batch generation of
+                            cyclic schemas — referenced entity is created later)
+
 EXAMPLES:
   zfa entity create -n User --field id:String --field name:String
   zfa entity create -n Product --field name:String --field price:double --filter

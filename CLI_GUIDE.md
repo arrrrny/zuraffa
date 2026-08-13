@@ -106,6 +106,43 @@ zfa entity add-field -n Product --field stock:int
 - The domain root is fixed to `lib/src/domain`.
 - Legacy `--output` values are accepted by some commands for compatibility but are not the public v5 contract.
 
+### Forward references & cyclic entity graphs (`--allow-forward-refs`)
+
+By default, `entity create` and `entity add-field` validate that every
+non-primitive field type resolves to either an existing entity directory or
+an existing enum file on disk (added by #296 — prevents silently writing
+`$InvalidType` placeholders). This guard rejects forward references to
+entities that have not been generated yet.
+
+Real-world GraphQL schemas (Vendure, Shopify, etc.) often contain genuine
+mutual-reference cycles — `Order ↔ Customer`, `Facet ↔ FacetValue`,
+`Fulfillment ↔ FulfillmentLine` — so a schema-driven batch cannot satisfy
+"every referenced entity must already exist" in any ordering.
+
+Pass `--allow-forward-refs` to opt out of the on-disk check for a single
+invocation. The `ImportResolver` already emits correct `$`-prefixed entity
+imports for forward references (e.g. `import '../order/order.dart';` even
+when `order/order.dart` does not exist yet), so the build resolves cleanly
+once every entity in the batch has been generated.
+
+```bash
+# Step 1: Customer references Order (which does not exist yet)
+zfa entity create -n Customer \
+  --field id:String? \
+  --field orders:List<Order> \
+  --allow-forward-refs
+
+# Step 2: Order references Customer back — cycle closed
+zfa entity create -n Order \
+  --field id:String? \
+  --field customer:Customer? \
+  --allow-forward-refs
+```
+
+`--allow-forward-refs` is **opt-in**. The default behaviour (reject unknown
+types) is unchanged — it still guards against typos and genuinely missing
+enums/entities when you are generating a single entity outside a batch.
+
 ---
 
 ## `zfa make`
