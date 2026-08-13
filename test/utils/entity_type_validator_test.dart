@@ -67,6 +67,36 @@ void main() {
       );
       expect(errors, isEmpty, reason: 'Primitives must always resolve');
     });
+
+    test('accepts Duration, Uri, BigInt, Uint8List as built-in types', () {
+      final fields = [
+        FieldDefinition(name: 'timeout', type: 'Duration'),
+        FieldDefinition(name: 'link', type: 'Uri', nullable: true),
+        FieldDefinition(name: 'largeNumber', type: 'BigInt'),
+        FieldDefinition(name: 'bytes', type: 'Uint8List'),
+      ];
+      final errors = EntityTypeValidator.validate(
+        fields: fields,
+        outputDir: outputDir,
+      );
+      expect(errors, isEmpty,
+          reason: 'Duration, Uri, BigInt, Uint8List are built-in Dart types');
+    });
+
+    test('accepts List<Duration> and other collections of built-in types', () {
+      final fields = [
+        FieldDefinition(name: 'durations', type: 'List<Duration>'),
+        FieldDefinition(name: 'uris', type: 'List<Uri>'),
+        FieldDefinition(name: 'numbers', type: 'List<BigInt>'),
+        FieldDefinition(name: 'byteArrays', type: 'Map<String, Uint8List>'),
+      ];
+      final errors = EntityTypeValidator.validate(
+        fields: fields,
+        outputDir: outputDir,
+      );
+      expect(errors, isEmpty,
+          reason: 'Collections of built-in types must resolve');
+    });
   });
 
   group('EntityTypeValidator.validate — existing entity', () {
@@ -110,6 +140,57 @@ void main() {
       await writeEntity('Product');
       final fields = [
         FieldDefinition(name: 'byKey', type: 'Map<String, Product>'),
+      ];
+      final errors = EntityTypeValidator.validate(
+        fields: fields,
+        outputDir: outputDir,
+      );
+      expect(errors, isEmpty);
+    });
+
+    test('accepts nested List<List<EntityType>> when the entity exists', () async {
+      await writeEntity('Product');
+      final fields = [
+        FieldDefinition(name: 'matrix', type: 'List<List<Product>>'),
+      ];
+      final errors = EntityTypeValidator.validate(
+        fields: fields,
+        outputDir: outputDir,
+      );
+      expect(errors, isEmpty,
+          reason: 'Nested generics should recursively extract the entity type');
+    });
+
+    test('accepts Map<String, List<EntityType>> when the entity exists', () async {
+      await writeEntity('Product');
+      final fields = [
+        FieldDefinition(name: 'grouped', type: 'Map<String, List<Product>>'),
+      ];
+      final errors = EntityTypeValidator.validate(
+        fields: fields,
+        outputDir: outputDir,
+      );
+      expect(errors, isEmpty,
+          reason: 'Nested Map-List combinations should extract the entity type');
+    });
+
+    test('accepts List<Map<String, EntityType>> when the entity exists', () async {
+      await writeEntity('Product');
+      final fields = [
+        FieldDefinition(name: 'items', type: 'List<Map<String, Product>>'),
+      ];
+      final errors = EntityTypeValidator.validate(
+        fields: fields,
+        outputDir: outputDir,
+      );
+      expect(errors, isEmpty,
+          reason: 'Nested List-Map combinations should extract the entity type');
+    });
+
+    test('accepts Set<EntityType> when the entity exists', () async {
+      await writeEntity('Product');
+      final fields = [
+        FieldDefinition(name: 'uniqueItems', type: 'Set<Product>'),
       ];
       final errors = EntityTypeValidator.validate(
         fields: fields,
@@ -209,6 +290,31 @@ void main() {
     test('rejects Map<String, Unresolvable>', () {
       final fields = [
         FieldDefinition(name: 'byKey', type: 'Map<String, Unresolvable>'),
+      ];
+      final errors = EntityTypeValidator.validate(
+        fields: fields,
+        outputDir: outputDir,
+      );
+      expect(errors, hasLength(1));
+      expect(errors.first.typeName, 'Unresolvable');
+    });
+
+    test('rejects nested List<List<Unresolvable>>', () {
+      final fields = [
+        FieldDefinition(name: 'matrix', type: 'List<List<Unresolvable>>'),
+      ];
+      final errors = EntityTypeValidator.validate(
+        fields: fields,
+        outputDir: outputDir,
+      );
+      expect(errors, hasLength(1));
+      expect(errors.first.typeName, 'Unresolvable',
+          reason: 'Nested generics should recursively detect unresolvable types');
+    });
+
+    test('rejects nested Map<String, List<Unresolvable>>', () {
+      final fields = [
+        FieldDefinition(name: 'grouped', type: 'Map<String, List<Unresolvable>>'),
       ];
       final errors = EntityTypeValidator.validate(
         fields: fields,
