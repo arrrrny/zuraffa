@@ -21,14 +21,29 @@
 // discovery engine, which forces it to skip active discovery and the
 // directory scan and fall straight into the prefix-stripping branch.
 
+import 'dart:io';
+
 import 'package:test/test.dart';
 import 'package:zuraffa/zuraffa.dart';
 
 void main() {
-  // A path that definitely has no `domain/usecases/` folder, so the
-  // filesystem-scan branch is skipped and we land in the prefix-stripping
-  // fallback — the exact branch that contained the bug.
-  const emptyOutputDir = '/tmp/zuraffa_issue_299_nonexistent_output_dir';
+  late Directory emptyOutputDir;
+
+  setUp(() async {
+    // A unique temp dir that definitely has no `domain/usecases/` folder,
+    // so the filesystem-scan branch is skipped and we land in the
+    // prefix-stripping fallback — the exact branch that contained the bug.
+    // A hardcoded `/tmp` path could collide with a stale directory left by
+    // an earlier run and is not portable to Windows.
+    emptyOutputDir =
+        await Directory.systemTemp.createTemp('zuraffa_issue_299_');
+  });
+
+  tearDown(() async {
+    if (await emptyOutputDir.exists()) {
+      await emptyOutputDir.delete(recursive: true);
+    }
+  });
 
   group('#299 findUseCaseDomain — _list substring stripping', () {
     group('entities whose snake name CONTAINS `_list` mid-name', () {
@@ -37,7 +52,7 @@ void main() {
         final domain = await CommonPatterns.findUseCaseDomain(
           'get_url_listing',
           'fallback',
-          emptyOutputDir,
+          emptyOutputDir.path,
         );
         expect(domain, 'url_listing');
       });
@@ -46,7 +61,7 @@ void main() {
         final domain = await CommonPatterns.findUseCaseDomain(
           'get_text_listing',
           'fallback',
-          emptyOutputDir,
+          emptyOutputDir.path,
         );
         expect(domain, 'text_listing');
       });
@@ -56,7 +71,7 @@ void main() {
         final domain = await CommonPatterns.findUseCaseDomain(
           'get_barcode_listing',
           'fallback',
-          emptyOutputDir,
+          emptyOutputDir.path,
         );
         expect(domain, 'barcode_listing');
       });
@@ -65,7 +80,7 @@ void main() {
         final domain = await CommonPatterns.findUseCaseDomain(
           'update_url_listing',
           'fallback',
-          emptyOutputDir,
+          emptyOutputDir.path,
         );
         expect(domain, 'url_listing');
       });
@@ -74,7 +89,7 @@ void main() {
         final domain = await CommonPatterns.findUseCaseDomain(
           'create_text_listing',
           'fallback',
-          emptyOutputDir,
+          emptyOutputDir.path,
         );
         expect(domain, 'text_listing');
       });
@@ -84,7 +99,7 @@ void main() {
         final domain = await CommonPatterns.findUseCaseDomain(
           'delete_barcode_listing',
           'fallback',
-          emptyOutputDir,
+          emptyOutputDir.path,
         );
         expect(domain, 'barcode_listing');
       });
@@ -93,7 +108,7 @@ void main() {
         final domain = await CommonPatterns.findUseCaseDomain(
           'watch_url_listing',
           'fallback',
-          emptyOutputDir,
+          emptyOutputDir.path,
         );
         expect(domain, 'url_listing');
       });
@@ -105,7 +120,7 @@ void main() {
         final domain = await CommonPatterns.findUseCaseDomain(
           'get_product_list',
           'fallback',
-          emptyOutputDir,
+          emptyOutputDir.path,
         );
         expect(domain, 'product');
       });
@@ -114,7 +129,7 @@ void main() {
         final domain = await CommonPatterns.findUseCaseDomain(
           'watch_order_list',
           'fallback',
-          emptyOutputDir,
+          emptyOutputDir.path,
         );
         expect(domain, 'order');
       });
@@ -123,7 +138,7 @@ void main() {
         final domain = await CommonPatterns.findUseCaseDomain(
           'create_cart_list',
           'fallback',
-          emptyOutputDir,
+          emptyOutputDir.path,
         );
         expect(domain, 'cart');
       });
@@ -134,7 +149,7 @@ void main() {
         final domain = await CommonPatterns.findUseCaseDomain(
           'get_user',
           'fallback',
-          emptyOutputDir,
+          emptyOutputDir.path,
         );
         expect(domain, 'user');
       });
@@ -143,7 +158,7 @@ void main() {
         final domain = await CommonPatterns.findUseCaseDomain(
           'update_store',
           'fallback',
-          emptyOutputDir,
+          emptyOutputDir.path,
         );
         expect(domain, 'store');
       });
@@ -158,7 +173,7 @@ void main() {
         final domain = await CommonPatterns.findUseCaseDomain(
           'toggle_url_listing',
           'fallback_domain',
-          emptyOutputDir,
+          emptyOutputDir.path,
         );
         expect(domain, 'fallback_domain');
       });
