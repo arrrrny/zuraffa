@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:zorphy/zorphy.dart';
 import '../config/zfa_config.dart';
+import '../utils/entity_type_validator.dart';
 import '../utils/entity_utils.dart';
 import '../utils/string_utils.dart';
 
@@ -146,6 +147,27 @@ ${missing.map((d) => '   • $d').join('\n')}
       ..._asStringList(parsed['field']),
       ..._asStringList(parsed['fields']),
     ]);
+
+    // Validate field types BEFORE writing anything (issue #296):
+    // if a referenced type is neither a primitive, an existing entity,
+    // nor an existing enum, abort with a clear error so the entity is
+    // never written with a bogus `$`-prefixed `InvalidType`.
+    final typeErrors = EntityTypeValidator.validate(
+      fields: fields,
+      outputDir: outputDir,
+      selfEntityName: name,
+    );
+    if (typeErrors.isNotEmpty) {
+      print('❌ Cannot create entity "$name": field type(s) could not be resolved.');
+      print('');
+      for (final err in typeErrors) {
+        print('  • ${err.message}');
+      }
+      print('');
+      print('No files were written. Resolve the above and re-run.');
+      exit(1);
+    }
+
     final useFilter =
         parsed['filter'] == true || (config?.filterByDefault ?? false);
 
@@ -243,6 +265,26 @@ ${missing.map((d) => '   • $d').join('\n')}
     }
 
     final fields = _parseFields(fieldStrings);
+
+    // Validate field types BEFORE writing anything (issue #296):
+    // same guard as `entity create` — refuse to add fields whose types
+    // cannot be resolved against the on-disk entity/enum layout.
+    final typeErrors = EntityTypeValidator.validate(
+      fields: fields,
+      outputDir: fixedEntityOutput,
+      selfEntityName: name,
+    );
+    if (typeErrors.isNotEmpty) {
+      print('❌ Cannot add field(s) to "$name": field type(s) could not be resolved.');
+      print('');
+      for (final err in typeErrors) {
+        print('  • ${err.message}');
+      }
+      print('');
+      print('No files were modified. Resolve the above and re-run.');
+      exit(1);
+    }
+
     final creator = EntityCreator(baseOutputDir: fixedEntityOutput);
     final result = await creator.addFields(
       name,
