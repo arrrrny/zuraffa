@@ -26,7 +26,10 @@ dependencies:
     git:
       url: https://github.com/arrrrny/zorphy.git
       path: zorphy
-      ref: "development"
+      # Issue #304: temporarily point to the fix branch until
+      # https://github.com/arrrrny/zorphy/pull/83 is merged into
+      # zorphy/development. Revert to "development" after merge.
+      ref: "fix/304-propagate-implements-clause"
   zorphy_annotation:
     git:
       url: https://github.com/arrrrny/zorphy.git
