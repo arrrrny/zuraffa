@@ -1,19 +1,49 @@
 class EntityUtils {
-  /// Known Dart built-in and framework types that don't require entity/enum
-  /// resolution or imports beyond dart:core/dart:typed_data.
-  static const Set<String> knownTypes = {
+  /// Extracts entity type references from a field type string, recursing
+  /// through generic type arguments.
+  ///
+  /// Examples:
+  ///   `Product`                    -> [Product]
+  ///   `List<Product>`              -> [Product]
+  ///   `Map<String, Product>`       -> [Product]
+  ///   `List<Map<String, Product>>` -> [Product]
+  ///   `Set<String>`                -> []
+  ///   `List<Map<String, dynamic>>` -> []
+  ///   `Iterable<Product>`          -> [Product]
+  static List<String> extractEntityTypes(String fieldType) {
+    final types = <String>[];
+    _collectTypes(fieldType.replaceAll('?', ''), types);
+    return types;
+  }
+
+  /// Container/collection wrappers — only their type arguments can
+  /// reference entities; the wrapper name itself is never an entity.
+  static const _containerTypes = {
+    'List',
+    'Set',
+    'Map',
+    'Iterable',
+    'Future',
+    'Stream',
+  };
+
+  /// Primitive / framework types that never resolve to an entity. Note this
+  /// intentionally does NOT include `Duration`, `Uri`, `BigInt`, `Uint8List`:
+  /// zorphy's `FieldNormalizer` does not treat them as primitives, so it
+  /// `$`-prefixes them (`$Duration`) and the build fails with `InvalidType`.
+  /// They must stay candidates so `EntityTypeValidator` rejects them with a
+  /// clear error instead of writing a broken entity (issue #296).
+  static const _nonEntityTypes = {
     'String',
     'int',
     'double',
     'bool',
     'DateTime',
-    'Duration',
-    'Uri',
-    'BigInt',
-    'Uint8List',
     'Object',
     'dynamic',
     'void',
+    'Null',
+    'num',
     'NoParams',
     'Params',
     'QueryParams',
@@ -23,76 +53,67 @@ class EntityUtils {
     'InitializationParams',
   };
 
-  /// Extracts entity types from a field type string (e.g. List Product -> [Product])
-  /// Recursively unwraps generic type arguments (List<T>, Map<K,V>, Set<T>, nested).
-  static List<String> extractEntityTypes(String fieldType) {
-    final types = <String>[];
-    _extractEntityTypesRecursive(fieldType, types);
-    return types;
-  }
+  static void _collectTypes(String type, List<String> out) {
+    final trimmed = type.trim();
+    if (trimmed.isEmpty) return;
 
-  static void _extractEntityTypesRecursive(String fieldType, List<String> accumulator) {
-    var baseType = fieldType.trim().replaceAll('?', '');
+    final genericMatch = RegExp(r'^([^<]+?)(?:<(.+)>)?$').firstMatch(trimmed);
+    if (genericMatch == null) return;
 
-    // Strip leading $ (Zorphy entity prefix)
-    if (baseType.startsWith('\$')) {
-      baseType = baseType.substring(1);
-    }
+    final baseType = genericMatch.group(1)!.trim();
+    final generics = genericMatch.group(2);
 
-    // Recursively unwrap generic wrappers: List<T>, Set<T>, Map<K,V>
-    if (baseType.startsWith('List<') && baseType.endsWith('>')) {
-      final inner = baseType.substring(5, baseType.length - 1);
-      _extractEntityTypesRecursive(inner, accumulator);
-      return;
-    } else if (baseType.startsWith('Set<') && baseType.endsWith('>')) {
-      final inner = baseType.substring(4, baseType.length - 1);
-      _extractEntityTypesRecursive(inner, accumulator);
-      return;
-    } else if (baseType.startsWith('Map<') && baseType.endsWith('>')) {
-      final inner = baseType.substring(4, baseType.length - 1);
-      // For Map<K,V>, parse both K and V recursively
-      final typeParts = _splitTopLevelComma(inner);
-      for (final part in typeParts) {
-        _extractEntityTypesRecursive(part, accumulator);
+    if (_containerTypes.contains(baseType)) {
+      if (generics != null) {
+        for (final arg in _splitGenericArgs(generics)) {
+          _collectTypes(arg, out);
+        }
       }
       return;
     }
 
-    // At this point, baseType is not a generic wrapper — check if it's an entity type
-    baseType = baseType.trim();
-    if (baseType.isNotEmpty &&
-        !knownTypes.contains(baseType) &&
-        baseType[0].toUpperCase() == baseType[0]) {
-      accumulator.add(baseType);
+    final isExplicitEntity = baseType.startsWith(r'$');
+    final cleanType = isExplicitEntity
+        ? baseType.replaceAll(RegExp(r'^\$+'), '')
+        : baseType;
+
+    if (cleanType.isNotEmpty &&
+        !_nonEntityTypes.contains(cleanType) &&
+        cleanType[0].toUpperCase() == cleanType[0]) {
+      out.add(cleanType);
+    }
+
+    // Recurse into type arguments of non-container generics too, e.g.
+    // `SomeWrapper<Product>` references both `SomeWrapper` and `Product`.
+    if (generics != null) {
+      for (final arg in _splitGenericArgs(generics)) {
+        _collectTypes(arg, out);
+      }
     }
   }
 
-  /// Splits a comma-separated type list at the top level (ignoring commas inside <>).
-  /// E.g. "String, List<Product>" -> ["String", "List<Product>"]
-  static List<String> _splitTopLevelComma(String input) {
+  /// Splits a generic argument list on top-level commas, respecting nesting
+  /// (e.g. `String, List<Product>` -> ['String', 'List<Product>']).
+  static List<String> _splitGenericArgs(String inner) {
     final parts = <String>[];
     var depth = 0;
-    var current = StringBuffer();
-
-    for (final char in input.split('')) {
+    final current = StringBuffer();
+    for (final char in inner.split('')) {
       if (char == '<') {
         depth++;
-        current.write(char);
       } else if (char == '>') {
         depth--;
-        current.write(char);
-      } else if (char == ',' && depth == 0) {
-        if (current.toString().trim().isNotEmpty) {
-          parts.add(current.toString().trim());
-        }
-        current = StringBuffer();
-      } else {
-        current.write(char);
       }
+      if (char == ',' && depth == 0) {
+        final part = current.toString().trim();
+        if (part.isNotEmpty) parts.add(part);
+        current.clear();
+        continue;
+      }
+      current.write(char);
     }
-    if (current.toString().trim().isNotEmpty) {
-      parts.add(current.toString().trim());
-    }
+    final last = current.toString().trim();
+    if (last.isNotEmpty) parts.add(last);
     return parts;
   }
 }
