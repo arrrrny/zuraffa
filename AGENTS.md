@@ -40,6 +40,32 @@ zfa build
 - **Do not call `build_runner` directly in normal agent flows.** Use `zfa build`.
 - **Do not invent alternate folder structures.** Zuraffa v5 assumes a fixed domain root.
 
+## STOP-ON-ROADBLOCK RULE (HARD, NON-NEGOTIABLE)
+
+**The first time a `zfa` command errors, or succeeds but produces output other than
+expected (non-compiling generated code, missing files the generated code references,
+silent 0-output builds, crashes), the agent MUST STOP IMMEDIATELY.**
+
+- **Never continue** the generation/build task after a roadblock — do NOT work around it
+  with different flags, `--force` re-runs, explicit `--methods`, hand-written patches,
+  or "trying the next entity" to keep making progress. The smoke-test goal is to **find
+  and fix zuraffa gaps**, not to produce a working mock by skirting them.
+- **Never hand-write code** to route around a zfa misfire.
+- **Document** in the tracking file (`apps/zikzak_demo/PROGRESS.md`) exactly:
+  1. the command that was run,
+  2. what was expected,
+  3. what was actually output,
+  4. the root cause (trace it in zuraffa source if possible).
+- **File a GitHub issue** on `arrrrny/zuraffa` with that same detail (repro, expected,
+  actual, root cause, suggested fix).
+- **End the goal / stop the run.** Wait for the issue to be fixed and merged before
+  resuming. The resume marker in `PROGRESS.md` records the exact stopping step so a
+  future run picks up from there.
+
+This rule takes precedence over any desire to keep making incremental progress. A
+single un-fixed zfa gap invalidates the entire "zfa-only" contract, so one roadblock
+stops the whole workflow until zuraffa itself is repaired.
+
 ## Fixed layout assumptions
 
 Zuraffa v5 public docs assume:
