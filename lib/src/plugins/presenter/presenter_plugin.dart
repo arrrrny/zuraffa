@@ -638,7 +638,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     ParsedUseCaseInfo info,
     String entityName,
   ) {
-    final fieldEnum = '${entityName}Fields';
+    final fieldEnum = 'Field<$entityName, dynamic>';
     final toggleParams =
         refer('ToggleParams<${config.idFieldType}, $fieldEnum>').call([], {
           'id': refer(config.idField),

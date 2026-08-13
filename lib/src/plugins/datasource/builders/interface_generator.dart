@@ -187,7 +187,7 @@ class DataSourceInterfaceBuilder {
           );
           break;
         case 'toggle':
-          final fieldEnum = '${config.name}Fields';
+          final fieldEnum = 'Field<${config.name}, dynamic>';
           methods.add(
             Method(
               (m) => m

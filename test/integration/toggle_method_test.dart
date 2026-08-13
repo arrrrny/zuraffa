@@ -51,7 +51,7 @@ void main() {
     final repoContent = repoFile.readAsStringSync();
     expect(
       repoContent.contains(
-        'Future<Todo> toggle(ToggleParams<String, TodoFields> params)',
+        'Future<Todo> toggle(ToggleParams<String, Field<Todo, dynamic>> params)',
       ),
       isTrue,
     );
@@ -64,7 +64,7 @@ void main() {
     final useCaseContent = useCaseFile.readAsStringSync();
     expect(
       useCaseContent.contains(
-        'extends UseCase<Todo, ToggleParams<String, TodoFields>>',
+        'extends UseCase<Todo, ToggleParams<String, Field<Todo, dynamic>>>',
       ),
       isTrue,
     );
@@ -77,7 +77,7 @@ void main() {
     final dataRepoContent = dataRepoFile.readAsStringSync();
     expect(
       dataRepoContent.contains(
-        'Future<Todo> toggle(ToggleParams<String, TodoFields> params)',
+        'Future<Todo> toggle(ToggleParams<String, Field<Todo, dynamic>> params)',
       ),
       isTrue,
     );
@@ -91,7 +91,7 @@ void main() {
     final dataSourceContent = dataSourceFile.readAsStringSync();
     expect(
       dataSourceContent.contains(
-        'Future<Todo> toggle(ToggleParams<String, TodoFields> params)',
+        'Future<Todo> toggle(ToggleParams<String, Field<Todo, dynamic>> params)',
       ),
       isTrue,
     );
@@ -104,7 +104,7 @@ void main() {
     final remoteContent = remoteFile.readAsStringSync();
     expect(
       remoteContent.contains(
-        'Future<Todo> toggle(ToggleParams<String, TodoFields> params) async',
+        'Future<Todo> toggle(ToggleParams<String, Field<Todo, dynamic>> params) async',
       ),
       isTrue,
     );
@@ -123,7 +123,7 @@ void main() {
     final localContent = localFile.readAsStringSync();
     expect(
       localContent.contains(
-        'Future<Todo> toggle(ToggleParams<String, TodoFields> params) async',
+        'Future<Todo> toggle(ToggleParams<String, Field<Todo, dynamic>> params) async',
       ),
       isTrue,
     );
@@ -222,7 +222,7 @@ void main() {
       // The mock repository must be exercised via its toggle method.
       expect(content, contains('mockRepository.toggle('));
       // The params constructor must match the usecase generator's signature.
-      expect(content, contains('ToggleParams<String, TodoFields>'));
+      expect(content, contains('ToggleParams<String, Field<Todo, dynamic>>'));
       // The Field constant must come from the entity's Fields class
       // (config.queryField defaults to 'id').
       expect(content, contains('TodoFields.id'));
