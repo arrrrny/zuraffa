@@ -40,6 +40,20 @@ class KnownTypes {
   /// Zuraffa result and failure types
   static const zuraffaResults = ['Result', 'AppFailure'];
 
+  /// Zorphy query/framework types (re-exported by zuraffa.dart via
+  /// zorphy_annotation). These are NOT entities and must not trigger entity
+  /// imports — e.g. `Field<Entity, dynamic>` appears as a type argument in
+  /// `ToggleParams` and would otherwise produce a spurious
+  /// `domain/entities/field/field.dart` import. (#292)
+  static const zorphyTypes = [
+    'Field',
+    'Eq',
+    'Filter',
+    'Sort',
+    'SortOrder',
+    'FilterOperator',
+  ];
+
   /// All types that should be excluded from entity import generation
   static const allExcluded = [
     ...dartPrimitives,
@@ -47,6 +61,7 @@ class KnownTypes {
     ...dartTypes,
     ...zuraffaParams,
     ...zuraffaResults,
+    ...zorphyTypes,
   ];
 
   /// Check if a type name should be excluded from entity imports

@@ -87,7 +87,7 @@ extension RepositoryImplementationGeneratorSynced
             ..body = _buildSyncedUpdateBody(),
         );
       case 'toggle':
-        final fieldEnum = '${config.name}Fields';
+        final fieldEnum = 'Field<${config.name}, dynamic>';
         return Method(
           (m) => m
             ..name = 'toggle'

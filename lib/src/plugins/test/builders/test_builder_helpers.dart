@@ -97,9 +97,7 @@ extension TestBuilderHelpers on TestBuilder {
         // resolves to a `Field<Entity, IdType>` constant the same way the
         // `get` branch below does for its QueryParams filter.
         return [
-          refer(
-            'ToggleParams<$idType, ${entityName}Fields>',
-          ).call([], {
+          refer('ToggleParams<$idType, Field<$entityName, dynamic>>').call([], {
             'id': idValue,
             'field': refer('${entityName}Fields').property(config.queryField),
             'value': literalBool(true),
@@ -204,13 +202,12 @@ extension TestBuilderHelpers on TestBuilder {
       // a bool value. The mock repository call is `toggle(any())`, identical to
       // update/create — the per-method test builder only needs the params
       // expression and the mock call shape to match.
-      paramsExpr = refer(
-        'ToggleParams<$idType, ${entityName}Fields>',
-      ).call([], {
-        'id': idValue,
-        'field': refer('${entityName}Fields').property(config.queryField),
-        'value': literalBool(true),
-      });
+      paramsExpr = refer('ToggleParams<$idType, Field<$entityName, dynamic>>')
+          .call([], {
+            'id': idValue,
+            'field': refer('${entityName}Fields').property(config.queryField),
+            'value': literalBool(true),
+          });
       arrangeCall = refer(
         mockVarName,
       ).property('toggle').call([refer('any').call([])]);
