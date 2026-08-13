@@ -37,9 +37,7 @@ class GqlPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   String? get configKey => 'gqlByDefault';
 
   @override
-  List<ZuraffaCapability> get capabilities => [
-    CreateGqlCapability(this),
-  ];
+  List<ZuraffaCapability> get capabilities => [CreateGqlCapability(this)];
 
   @override
   Command createCommand() => GqlCommand(this);

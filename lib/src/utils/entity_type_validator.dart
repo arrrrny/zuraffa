@@ -108,22 +108,25 @@ class EntityTypeValidator {
         final entityDir = Directory(p.join(outputDir, typeSnake));
         final enumFile = File(p.join(outputDir, 'enums', '$typeSnake.dart'));
 
-        final entityExists = entityDir.existsSync() &&
+        final entityExists =
+            entityDir.existsSync() &&
             File(p.join(entityDir.path, '$typeSnake.dart')).existsSync();
         final enumExists = enumFile.existsSync();
 
         if (!entityExists && !enumExists) {
-          errors.add(UnresolvedTypeError(
-            fieldName: field.name,
-            typeName: cleanType,
-            message:
-                'Unknown type "$cleanType" for field "${field.name}" — no '
-                'matching entity directory or enum file found under '
-                '$outputDir.\n'
-                '   Create the enum/entity first, for example:\n'
-                '     zfa entity enum -n $cleanType --value <values>\n'
-                '   or check the spelling.',
-          ));
+          errors.add(
+            UnresolvedTypeError(
+              fieldName: field.name,
+              typeName: cleanType,
+              message:
+                  'Unknown type "$cleanType" for field "${field.name}" — no '
+                  'matching entity directory or enum file found under '
+                  '$outputDir.\n'
+                  '   Create the enum/entity first, for example:\n'
+                  '     zfa entity enum -n $cleanType --value <values>\n'
+                  '   or check the spelling.',
+            ),
+          );
         }
       }
     }

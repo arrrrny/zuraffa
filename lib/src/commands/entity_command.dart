@@ -158,7 +158,9 @@ ${missing.map((d) => '   • $d').join('\n')}
       selfEntityName: name,
     );
     if (typeErrors.isNotEmpty) {
-      print('❌ Cannot create entity "$name": field type(s) could not be resolved.');
+      print(
+        '❌ Cannot create entity "$name": field type(s) could not be resolved.',
+      );
       print('');
       for (final err in typeErrors) {
         print('  • ${err.message}');
@@ -275,7 +277,9 @@ ${missing.map((d) => '   • $d').join('\n')}
       selfEntityName: name,
     );
     if (typeErrors.isNotEmpty) {
-      print('❌ Cannot add field(s) to "$name": field type(s) could not be resolved.');
+      print(
+        '❌ Cannot add field(s) to "$name": field type(s) could not be resolved.',
+      );
       print('');
       for (final err in typeErrors) {
         print('  • ${err.message}');

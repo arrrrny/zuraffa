@@ -223,7 +223,9 @@ class ViewTemplateGenerator {
     final library = cb.Library((b) {
       // #281: v6 Presenter imports 'package:zuraffa_flutter/zuraffa_flutter.dart'
       // (re-exports zuraffa core: DualLayerPresenter/DomainState/ViewState).
-      b.directives.add(cb.Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'));
+      b.directives.add(
+        cb.Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
+      );
       b.directives.add(
         cb.Directive.import('${snakeCase(name)}_domain_state.dart'),
       );

@@ -36,8 +36,11 @@ void main() {
 
       // The generated field must use a cascade so the field type stays
       // SignalSlice<T> while still subscribing to the CacheObserver.
-      expect(content.contains("..bindCache()"), true,
-          reason: 'cacheable slice should emit ..bindCache() cascade');
+      expect(
+        content.contains("..bindCache()"),
+        true,
+        reason: 'cacheable slice should emit ..bindCache() cascade',
+      );
       expect(content.contains('bind<Product>'), true);
     });
 
@@ -73,8 +76,11 @@ void main() {
 
       // Count occurrences of ..bindCache()
       final count = '..bindCache()'.allMatches(content).length;
-      expect(count, 2,
-          reason: 'exactly 2 cacheable slices should emit ..bindCache()');
+      expect(
+        count,
+        2,
+        reason: 'exactly 2 cacheable slices should emit ..bindCache()',
+      );
     });
 
     test('non-cacheable slices do NOT emit ..bindCache()', () {
@@ -95,8 +101,11 @@ void main() {
         '${tempDir.path}/review_list_domain_state.dart',
       ).readAsStringSync();
 
-      expect(content.contains('..bindCache()'), false,
-          reason: 'non-cacheable slice must NOT emit ..bindCache()');
+      expect(
+        content.contains('..bindCache()'),
+        false,
+        reason: 'non-cacheable slice must NOT emit ..bindCache()',
+      );
       expect(content.contains('bind<List<Review>>'), true);
     });
 
@@ -125,8 +134,11 @@ void main() {
       ).readAsStringSync();
 
       final count = '..bindCache()'.allMatches(content).length;
-      expect(count, 1,
-          reason: 'only the cacheable slice should emit ..bindCache()');
+      expect(
+        count,
+        1,
+        reason: 'only the cacheable slice should emit ..bindCache()',
+      );
     });
 
     test('UseCaseBinding.cacheable flag is set correctly', () {

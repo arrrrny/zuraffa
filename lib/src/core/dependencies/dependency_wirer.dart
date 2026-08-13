@@ -56,8 +56,7 @@ class DependencySpec {
           version == other.version;
 
   @override
-  int get hashCode =>
-      Object.hash(name, kind, gitUrl, gitPath, gitRef, version);
+  int get hashCode => Object.hash(name, kind, gitUrl, gitPath, gitRef, version);
 }
 
 /// Result of wiring dependencies into a project.
@@ -147,7 +146,10 @@ class DependencyWirer {
       // #281: Wire json_annotation as a direct regular dep so generated entity
       // files (which use @JsonSerializable / JsonKey) satisfy
       // depend_on_referenced_packages and json_serializable stops warning.
-      const DependencySpec(name: 'json_annotation', kind: DependencyKind.regular),
+      const DependencySpec(
+        name: 'json_annotation',
+        kind: DependencyKind.regular,
+      ),
       const DependencySpec(name: 'build_runner', kind: DependencyKind.dev),
       // #281: json_serializable is registered as a builder in build.yaml; it
       // must also be a direct dev dep so build_runner resolves the builder and
@@ -210,7 +212,8 @@ class DependencyWirer {
           }
           // Key exists: check if the value matches the required version.
           final existing = overrides[spec.name];
-          final existingStr = (existing is String ? existing : existing.toString()).trim();
+          final existingStr =
+              (existing is String ? existing : existing.toString()).trim();
           final requiredStr = (spec.version ?? '').trim();
           return existingStr != requiredStr; // stale if different
       }
@@ -238,11 +241,7 @@ class DependencyWirer {
   ///   in place.
   ///
   /// Pure function — does not perform I/O.
-  static String addOverrideToPubspec(
-    String content,
-    String key,
-    String value,
-  ) {
+  static String addOverrideToPubspec(String content, String key, String value) {
     final lines = content.split('\n');
     final overrideRegex = RegExp(r'^dependency_overrides:\s*$');
     final overrideIdx = lines.indexWhere((l) => overrideRegex.hasMatch(l));
@@ -322,13 +321,17 @@ class DependencyWirer {
       return WireResult(skipped: skippedNames);
     }
 
-    print('🔧 Wiring ${missing.length} missing dependenc${missing.length == 1 ? 'y' : 'ies'}:');
+    print(
+      '🔧 Wiring ${missing.length} missing dependenc${missing.length == 1 ? 'y' : 'ies'}:',
+    );
     for (final spec in missing) {
       print('   • $spec');
     }
 
     if (dryRun) {
-      print('\n🔍 Dry-run: no changes written. Re-run without --dry-run to apply.');
+      print(
+        '\n🔍 Dry-run: no changes written. Re-run without --dry-run to apply.',
+      );
       return WireResult(
         added: missing.map((s) => s.name).toList(),
         dryRun: true,
@@ -380,11 +383,11 @@ class DependencyWirer {
     for (final spec in pubAddSpecs) {
       final args = _buildPubAddArgs(spec);
       try {
-        final result = await Process.run(
-          pubExecutable,
-          ['pub', 'add', ...args],
-          workingDirectory: root,
-        );
+        final result = await Process.run(pubExecutable, [
+          'pub',
+          'add',
+          ...args,
+        ], workingDirectory: root);
         if (result.exitCode == 0) {
           added.add(spec.name);
           print('   ✅ Added $spec');
@@ -403,11 +406,10 @@ class DependencyWirer {
     // --- final re-resolve so the whole graph is consistent ---
     if (overrideSpecs.isNotEmpty) {
       try {
-        final getResult = await Process.run(
-          pubExecutable,
-          ['pub', 'get'],
-          workingDirectory: root,
-        );
+        final getResult = await Process.run(pubExecutable, [
+          'pub',
+          'get',
+        ], workingDirectory: root);
         if (getResult.exitCode != 0) {
           final err = getResult.stderr.toString().trim();
           if (err.isNotEmpty) {

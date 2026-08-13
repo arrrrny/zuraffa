@@ -166,8 +166,9 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       sliceKeys.add(sliceKey);
     }
 
-    final cacheableSliceKeys =
-        config.enableCache ? <String>{...sliceKeys} : null;
+    final cacheableSliceKeys = config.enableCache
+        ? <String>{...sliceKeys}
+        : null;
 
     final generatedFiles = <GeneratedFile>[];
 
@@ -217,10 +218,7 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     );
 
     // 4. View (ControlledWidget + FragmentBuilder + SignalBuilder)
-    final viewPath = viewGen.generateView(
-      entityName,
-      useCases: sliceKeys,
-    );
+    final viewPath = viewGen.generateView(entityName, useCases: sliceKeys);
     generatedFiles.add(
       GeneratedFile(
         path: viewPath,

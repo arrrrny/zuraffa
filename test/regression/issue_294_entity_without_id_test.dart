@@ -63,147 +63,157 @@ void main() {
           projectRoot: workspace.directory.path,
         );
 
-        expect(resolved, isNotNull,
-            reason: 'Resolver should find depotId for StorePrice');
+        expect(
+          resolved,
+          isNotNull,
+          reason: 'Resolver should find depotId for StorePrice',
+        );
         expect(resolved!.name, 'depotId');
         expect(resolved.type, 'String');
       },
     );
 
-    test(
-      'generated presenter + test reference `StorePriceFields.depotId`, '
-      'NOT `StorePriceFields.id`',
-      () async {
-        await writeEntityStubWithoutId(
-          workspace,
+    test('generated presenter + test reference `StorePriceFields.depotId`, '
+        'NOT `StorePriceFields.id`', () async {
+      await writeEntityStubWithoutId(
+        workspace,
+        name: 'StorePrice',
+        fields: const [
+          (name: 'depotId', type: 'String'),
+          (name: 'storeName', type: 'String'),
+          (name: 'price', type: 'double'),
+        ],
+      );
+
+      // Simulate what MakeCommand.run() does after the resolver
+      // resolves `depotId`: feed the resolved name into GeneratorConfig.
+      // This is exactly the shape the MakeCommand now produces.
+      final generator = CodeGenerator(
+        config: GeneratorConfig(
           name: 'StorePrice',
-          fields: const [
-            (name: 'depotId', type: 'String'),
-            (name: 'storeName', type: 'String'),
-            (name: 'price', type: 'double'),
-          ],
-        );
-
-        // Simulate what MakeCommand.run() does after the resolver
-        // resolves `depotId`: feed the resolved name into GeneratorConfig.
-        // This is exactly the shape the MakeCommand now produces.
-        final generator = CodeGenerator(
-          config: GeneratorConfig(
-            name: 'StorePrice',
-            methods: const ['get', 'update', 'toggle'],
-            idField: 'depotId',
-            idFieldType: 'String',
-            queryField: 'depotId',
-            generateData: true,
-            generateLocal: true,
-            generateUseCase: true,
-            generateVpcs: true,
-            generateState: true,
-            generateDi: true,
-            generateTest: true,
-            outputDir: outputDir,
-          ),
+          methods: const ['get', 'update', 'toggle'],
+          idField: 'depotId',
+          idFieldType: 'String',
+          queryField: 'depotId',
+          generateData: true,
+          generateLocal: true,
+          generateUseCase: true,
+          generateVpcs: true,
+          generateState: true,
+          generateDi: true,
+          generateTest: true,
           outputDir: outputDir,
-          options: const GeneratorOptions(
-            dryRun: false,
-            force: true,
-            verbose: false,
-          ),
-        );
+        ),
+        outputDir: outputDir,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
+      );
 
-        final result = await generator.generate();
-        expect(result.success, isTrue,
-            reason: 'Generation failed: ${result.errors.join('; ')}');
+      final result = await generator.generate();
+      expect(
+        result.success,
+        isTrue,
+        reason: 'Generation failed: ${result.errors.join('; ')}',
+      );
 
-        // The presenter's toggle method must reference the actual id field.
-        final presenterFile = File(
-          '$outputDir/presentation/pages/store_price/store_price_presenter.dart',
-        );
-        expect(presenterFile.existsSync(), isTrue,
-            reason: 'store_price_presenter.dart should be generated');
-        final presenterContent = presenterFile.readAsStringSync();
+      // The presenter's toggle method must reference the actual id field.
+      final presenterFile = File(
+        '$outputDir/presentation/pages/store_price/store_price_presenter.dart',
+      );
+      expect(
+        presenterFile.existsSync(),
+        isTrue,
+        reason: 'store_price_presenter.dart should be generated',
+      );
+      final presenterContent = presenterFile.readAsStringSync();
 
-        // Positive: the generated toggle code must use `StorePriceFields.depotId`
-        expect(
-          presenterContent,
-          contains('StorePriceFields.depotId'),
-          reason: 'Presenter should reference StorePriceFields.depotId',
-        );
+      // Positive: the generated toggle code must use `StorePriceFields.depotId`
+      expect(
+        presenterContent,
+        contains('StorePriceFields.depotId'),
+        reason: 'Presenter should reference StorePriceFields.depotId',
+      );
 
-        // Negative: the generated code must NOT reference `StorePriceFields.id`
-        // (which would be an undefined getter on the StorePriceFields class).
-        expect(
-          presenterContent,
-          isNot(contains('StorePriceFields.id')),
-          reason: 'Presenter should NOT reference StorePriceFields.id '
-              '(undefined getter on an entity without `id`)',
-        );
+      // Negative: the generated code must NOT reference `StorePriceFields.id`
+      // (which would be an undefined getter on the StorePriceFields class).
+      expect(
+        presenterContent,
+        isNot(contains('StorePriceFields.id')),
+        reason:
+            'Presenter should NOT reference StorePriceFields.id '
+            '(undefined getter on an entity without `id`)',
+      );
 
-        // Same check for the toggle usecase test file.
-        final toggleTestFile = File(
-          '${workspace.directory.path}/test/domain/usecases/store_price/'
-          'toggle_store_price_usecase_test.dart',
-        );
-        expect(toggleTestFile.existsSync(), isTrue,
-            reason: 'toggle_store_price_usecase_test.dart should be generated');
-        final testContent = toggleTestFile.readAsStringSync();
+      // Same check for the toggle usecase test file.
+      final toggleTestFile = File(
+        '${workspace.directory.path}/test/domain/usecases/store_price/'
+        'toggle_store_price_usecase_test.dart',
+      );
+      expect(
+        toggleTestFile.existsSync(),
+        isTrue,
+        reason: 'toggle_store_price_usecase_test.dart should be generated',
+      );
+      final testContent = toggleTestFile.readAsStringSync();
 
-        expect(
-          testContent,
-          contains('StorePriceFields.depotId'),
-          reason: 'Toggle test should reference StorePriceFields.depotId',
-        );
-        expect(
-          testContent,
-          isNot(contains('StorePriceFields.id')),
-          reason: 'Toggle test should NOT reference StorePriceFields.id',
-        );
+      expect(
+        testContent,
+        contains('StorePriceFields.depotId'),
+        reason: 'Toggle test should reference StorePriceFields.depotId',
+      );
+      expect(
+        testContent,
+        isNot(contains('StorePriceFields.id')),
+        reason: 'Toggle test should NOT reference StorePriceFields.id',
+      );
 
-        // Same check for the get usecase test file.
-        final getTestFile = File(
-          '${workspace.directory.path}/test/domain/usecases/store_price/'
-          'get_store_price_usecase_test.dart',
-        );
-        expect(getTestFile.existsSync(), isTrue,
-            reason: 'get_store_price_usecase_test.dart should be generated');
-        final getContent = getTestFile.readAsStringSync();
+      // Same check for the get usecase test file.
+      final getTestFile = File(
+        '${workspace.directory.path}/test/domain/usecases/store_price/'
+        'get_store_price_usecase_test.dart',
+      );
+      expect(
+        getTestFile.existsSync(),
+        isTrue,
+        reason: 'get_store_price_usecase_test.dart should be generated',
+      );
+      final getContent = getTestFile.readAsStringSync();
 
-        expect(
-          getContent,
-          contains('StorePriceFields.depotId'),
-          reason: 'Get test should reference StorePriceFields.depotId',
-        );
-        expect(
-          getContent,
-          isNot(contains('StorePriceFields.id')),
-          reason: 'Get test should NOT reference StorePriceFields.id',
-        );
-      },
-    );
+      expect(
+        getContent,
+        contains('StorePriceFields.depotId'),
+        reason: 'Get test should reference StorePriceFields.depotId',
+      );
+      expect(
+        getContent,
+        isNot(contains('StorePriceFields.id')),
+        reason: 'Get test should NOT reference StorePriceFields.id',
+      );
+    });
 
-    test(
-      'resolver picks the first `*Id` field when multiple exist '
-      '(GroceryPriceResult has storeId + itemName — storeId wins)',
-      () async {
-        await writeEntityStubWithoutId(
-          workspace,
-          name: 'GroceryPriceResult',
-          fields: const [
-            (name: 'storeId', type: 'String'),
-            (name: 'itemName', type: 'String'),
-            (name: 'price', type: 'double'),
-          ],
-        );
+    test('resolver picks the first `*Id` field when multiple exist '
+        '(GroceryPriceResult has storeId + itemName — storeId wins)', () async {
+      await writeEntityStubWithoutId(
+        workspace,
+        name: 'GroceryPriceResult',
+        fields: const [
+          (name: 'storeId', type: 'String'),
+          (name: 'itemName', type: 'String'),
+          (name: 'price', type: 'double'),
+        ],
+      );
 
-        final resolved = EntityFieldResolver.resolveIdField(
-          entityName: 'GroceryPriceResult',
-          projectRoot: workspace.directory.path,
-        );
+      final resolved = EntityFieldResolver.resolveIdField(
+        entityName: 'GroceryPriceResult',
+        projectRoot: workspace.directory.path,
+      );
 
-        expect(resolved, isNotNull);
-        expect(resolved!.name, 'storeId');
-      },
-    );
+      expect(resolved, isNotNull);
+      expect(resolved!.name, 'storeId');
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -211,109 +221,103 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('#294 Gap 2 — mock plugin default methods', () {
-    test(
-      "mock_plugin.generateWithContext emits get/update/toggle methods when "
-      "the user does NOT pass --methods (so the generated mock datasource "
-      "is not an empty class)",
-      () async {
-        // Set up a Product entity file so the workspace looks like a
-        // real `zfa make` invocation. The mock plugin itself does not
-        // read the entity file, but the test is more realistic this way.
-        await writeEntityStub(workspace, name: 'Product');
+    test("mock_plugin.generateWithContext emits get/update/toggle methods when "
+        "the user does NOT pass --methods (so the generated mock datasource "
+        "is not an empty class)", () async {
+      // Set up a Product entity file so the workspace looks like a
+      // real `zfa make` invocation. The mock plugin itself does not
+      // read the entity file, but the test is more realistic this way.
+      await writeEntityStub(workspace, name: 'Product');
 
-        // Build a plugin context with NO `methods` entry in `data`,
-        // simulating `zfa make Product --preset=crud --with=mock` without
-        // an explicit `--methods` flag.
-        final context = _buildMockContext(
-          workspace: workspace,
-          entityName: 'Product',
-          methods: null, // simulate "user did not pass --methods"
-        );
+      // Build a plugin context with NO `methods` entry in `data`,
+      // simulating `zfa make Product --preset=crud --with=mock` without
+      // an explicit `--methods` flag.
+      final context = _buildMockContext(
+        workspace: workspace,
+        entityName: 'Product',
+        methods: null, // simulate "user did not pass --methods"
+      );
 
-        final plugin = MockPlugin(
-          outputDir: workspace.outputDir,
-          options: const GeneratorOptions(
-            dryRun: false,
-            force: true,
-            verbose: false,
-          ),
-        );
-        final files = await plugin.generateWithContext(context);
+      final plugin = MockPlugin(
+        outputDir: workspace.outputDir,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
+      );
+      final files = await plugin.generateWithContext(context);
 
-        // The mock datasource file must be emitted.
-        final mockDataSourceFile = files.firstWhere(
-          (f) => f.path.contains('product_mock_datasource.dart'),
-          orElse: () => throw StateError(
-            'mock datasource file not generated; '
-            'emitted files: ${files.map((f) => f.path).join(', ')}',
-          ),
-        );
+      // The mock datasource file must be emitted.
+      final mockDataSourceFile = files.firstWhere(
+        (f) => f.path.contains('product_mock_datasource.dart'),
+        orElse: () => throw StateError(
+          'mock datasource file not generated; '
+          'emitted files: ${files.map((f) => f.path).join(', ')}',
+        ),
+      );
 
-        final content = mockDataSourceFile.content;
+      final content = mockDataSourceFile.content;
 
-        // Positive: the class must implement get, update, AND toggle.
-        // The mock datasource builder emits these as `Future<...> get(...)`,
-        // `Future<...> update(...)`, `Future<...> toggle(...)`.
-        expect(
-          content,
-          matches(RegExp(r'Future<\w+>\s+get\s*\(')),
-          reason: 'Mock datasource must implement the `get` method',
-        );
-        expect(
-          content,
-          matches(RegExp(r'Future<\w+>\s+update\s*\(')),
-          reason: 'Mock datasource must implement the `update` method',
-        );
-        expect(
-          content,
-          matches(RegExp(r'Future<\w+>\s+toggle\s*\(')),
-          reason: 'Mock datasource must implement the `toggle` method',
-        );
-      },
-    );
+      // Positive: the class must implement get, update, AND toggle.
+      // The mock datasource builder emits these as `Future<...> get(...)`,
+      // `Future<...> update(...)`, `Future<...> toggle(...)`.
+      expect(
+        content,
+        matches(RegExp(r'Future<\w+>\s+get\s*\(')),
+        reason: 'Mock datasource must implement the `get` method',
+      );
+      expect(
+        content,
+        matches(RegExp(r'Future<\w+>\s+update\s*\(')),
+        reason: 'Mock datasource must implement the `update` method',
+      );
+      expect(
+        content,
+        matches(RegExp(r'Future<\w+>\s+toggle\s*\(')),
+        reason: 'Mock datasource must implement the `toggle` method',
+      );
+    });
 
-    test(
-      'mock_plugin still respects an explicit `--methods` override '
-      '(backwards compatibility)',
-      () async {
-        await writeEntityStub(workspace, name: 'Order');
+    test('mock_plugin still respects an explicit `--methods` override '
+        '(backwards compatibility)', () async {
+      await writeEntityStub(workspace, name: 'Order');
 
-        final context = _buildMockContext(
-          workspace: workspace,
-          entityName: 'Order',
-          methods: ['get', 'getList'],
-        );
+      final context = _buildMockContext(
+        workspace: workspace,
+        entityName: 'Order',
+        methods: ['get', 'getList'],
+      );
 
-        final plugin = MockPlugin(
-          outputDir: workspace.outputDir,
-          options: const GeneratorOptions(
-            dryRun: false,
-            force: true,
-            verbose: false,
-          ),
-        );
-        final files = await plugin.generateWithContext(context);
+      final plugin = MockPlugin(
+        outputDir: workspace.outputDir,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
+      );
+      final files = await plugin.generateWithContext(context);
 
-        final mockDataSourceFile = files.firstWhere(
-          (f) => f.path.contains('order_mock_datasource.dart'),
-        );
+      final mockDataSourceFile = files.firstWhere(
+        (f) => f.path.contains('order_mock_datasource.dart'),
+      );
 
-        final content = mockDataSourceFile.content;
+      final content = mockDataSourceFile.content;
 
-        // Positive: explicitly-requested methods must be present.
-        expect(content, matches(RegExp(r'Future<\w+>\s+get\s*\(')));
-        expect(content, matches(RegExp(r'Future<.+>\s+getList\s*\(')));
+      // Positive: explicitly-requested methods must be present.
+      expect(content, matches(RegExp(r'Future<\w+>\s+get\s*\(')));
+      expect(content, matches(RegExp(r'Future<.+>\s+getList\s*\(')));
 
-        // Negative: `toggle` was NOT in the explicit methods list, so the
-        // mock datasource must NOT implement it (else `implements` would
-        // require it to be present and we'd be back to the original bug).
-        expect(
-          content,
-          isNot(matches(RegExp(r'Future<\w+>\s+toggle\s*\('))),
-          reason: 'toggle should not be emitted when not requested',
-        );
-      },
-    );
+      // Negative: `toggle` was NOT in the explicit methods list, so the
+      // mock datasource must NOT implement it (else `implements` would
+      // require it to be present and we'd be back to the original bug).
+      expect(
+        content,
+        isNot(matches(RegExp(r'Future<\w+>\s+toggle\s*\('))),
+        reason: 'toggle should not be emitted when not requested',
+      );
+    });
   });
 }
 
@@ -398,9 +402,7 @@ PluginContext _buildMockContext({
       revert: false,
     ),
     data: data,
-    discovery: DiscoveryEngine(
-      projectRoot: workspace.directory.path,
-    ),
+    discovery: DiscoveryEngine(projectRoot: workspace.directory.path),
   );
 }
 

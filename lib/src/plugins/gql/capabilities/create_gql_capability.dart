@@ -27,10 +27,7 @@ class CreateGqlCapability implements ZuraffaCapability {
         'description': 'GraphQL operation type (query, mutation)',
         'default': 'query',
       },
-      'returns': {
-        'type': 'string',
-        'description': 'GraphQL return fields',
-      },
+      'returns': {'type': 'string', 'description': 'GraphQL return fields'},
       'dryRun': {
         'type': 'boolean',
         'description': 'Run without writing files',

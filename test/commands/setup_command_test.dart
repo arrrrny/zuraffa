@@ -112,20 +112,26 @@ void main() {
       expect(result['dart'], isTrue);
     });
 
-    test('run() rejects both --flutter and --dart with UsageException', () async {
-      final runner = CommandRunner<void>('zfa', 'test')
-        ..addCommand(SetupCommand());
-      await expectLater(
-        runner.run(['setup', 'myapp', '--flutter', '--dart']),
-        throwsA(isA<UsageException>()),
-      );
-    });
+    test(
+      'run() rejects both --flutter and --dart with UsageException',
+      () async {
+        final runner = CommandRunner<void>('zfa', 'test')
+          ..addCommand(SetupCommand());
+        await expectLater(
+          runner.run(['setup', 'myapp', '--flutter', '--dart']),
+          throwsA(isA<UsageException>()),
+        );
+      },
+    );
   });
 
   group('DependencyWirer', () {
     test('findMissing detects all missing deps in empty pubspec', () {
       const emptyPubspec = 'name: test\nenvironment:\n  sdk: ^3.11.0\n';
-      final missing = DependencyWirer.findMissing(emptyPubspec, isFlutter: true);
+      final missing = DependencyWirer.findMissing(
+        emptyPubspec,
+        isFlutter: true,
+      );
       final names = missing.map((s) => s.name).toList();
       expect(names, contains('zuraffa_flutter'));
       expect(names, contains('zorphy_annotation'));
@@ -139,7 +145,10 @@ void main() {
 
     test('findMissing detects missing deps for dart project', () {
       const emptyPubspec = 'name: test\nenvironment:\n  sdk: ^3.11.0\n';
-      final missing = DependencyWirer.findMissing(emptyPubspec, isFlutter: false);
+      final missing = DependencyWirer.findMissing(
+        emptyPubspec,
+        isFlutter: false,
+      );
       final names = missing.map((s) => s.name).toList();
       expect(names, contains('zuraffa'));
       expect(names, isNot(contains('zuraffa_flutter')));
@@ -187,7 +196,11 @@ dependencies:
 
     test('addOverrideToPubspec adds new section when missing', () {
       const pubspec = 'name: test\nenvironment:\n  sdk: ^3.11.0\n';
-      final result = DependencyWirer.addOverrideToPubspec(pubspec, 'analyzer', '14.1.0');
+      final result = DependencyWirer.addOverrideToPubspec(
+        pubspec,
+        'analyzer',
+        '14.1.0',
+      );
       expect(result, contains('dependency_overrides:'));
       expect(result, contains('analyzer: 14.1.0'));
     });
@@ -198,7 +211,11 @@ name: test
 dependency_overrides:
   analyzer: 14.1.0
 ''';
-      final result = DependencyWirer.addOverrideToPubspec(pubspec, 'analyzer', '14.1.0');
+      final result = DependencyWirer.addOverrideToPubspec(
+        pubspec,
+        'analyzer',
+        '14.1.0',
+      );
       expect(result, equals(pubspec));
     });
 
@@ -208,7 +225,11 @@ name: test
 dependency_overrides:
   meta: ^1.19.0
 ''';
-      final result = DependencyWirer.addOverrideToPubspec(pubspec, 'analyzer', '14.1.0');
+      final result = DependencyWirer.addOverrideToPubspec(
+        pubspec,
+        'analyzer',
+        '14.1.0',
+      );
       expect(result, contains('analyzer: 14.1.0'));
       expect(result, contains('meta: ^1.19.0'));
     });

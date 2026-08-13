@@ -8,8 +8,12 @@ void _safeSetCwd(Directory dir) {
   try {
     Directory.current = dir;
   } catch (_) {
-    try { Directory.current = Directory.systemTemp; } catch (_) {}
-    try { Directory.current = dir; } catch (_) {}
+    try {
+      Directory.current = Directory.systemTemp;
+    } catch (_) {}
+    try {
+      Directory.current = dir;
+    } catch (_) {}
   }
 }
 
@@ -33,7 +37,9 @@ void main() {
         Directory.current = Directory.systemTemp.path;
       }
     } catch (_) {
-      try { Directory.current = Directory.systemTemp.path; } catch (_) {}
+      try {
+        Directory.current = Directory.systemTemp.path;
+      } catch (_) {}
     }
     if (tempDir.existsSync()) {
       await tempDir.delete(recursive: true);

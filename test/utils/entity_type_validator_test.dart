@@ -34,9 +34,9 @@ void main() {
     final snake = _toSnake(name);
     final dir = Directory(p.join(outputDir, snake));
     await dir.create(recursive: true);
-    await File(p.join(dir.path, '$snake.dart')).writeAsString(
-      'abstract class \$$name {}\n',
-    );
+    await File(
+      p.join(dir.path, '$snake.dart'),
+    ).writeAsString('abstract class \$$name {}\n');
   }
 
   /// Creates an enum file under `enums/` so the validator recognises the type.
@@ -44,9 +44,9 @@ void main() {
     final snake = _toSnake(name);
     final enumsDir = Directory(p.join(outputDir, 'enums'));
     await enumsDir.create(recursive: true);
-    await File(p.join(enumsDir.path, '$snake.dart')).writeAsString(
-      'enum $name { a, b, c }\n',
-    );
+    await File(
+      p.join(enumsDir.path, '$snake.dart'),
+    ).writeAsString('enum $name { a, b, c }\n');
   }
 
   group('EntityTypeValidator.validate — primitives', () {
@@ -72,9 +72,7 @@ void main() {
   group('EntityTypeValidator.validate — existing entity', () {
     test('accepts a field type whose entity directory exists', () async {
       await writeEntity('Product');
-      final fields = [
-        FieldDefinition(name: 'product', type: 'Product'),
-      ];
+      final fields = [FieldDefinition(name: 'product', type: 'Product')];
       final errors = EntityTypeValidator.validate(
         fields: fields,
         outputDir: outputDir,
@@ -96,9 +94,7 @@ void main() {
 
     test('accepts List<EntityType> when the entity exists', () async {
       await writeEntity('Product');
-      final fields = [
-        FieldDefinition(name: 'items', type: 'List<Product>'),
-      ];
+      final fields = [FieldDefinition(name: 'items', type: 'List<Product>')];
       final errors = EntityTypeValidator.validate(
         fields: fields,
         outputDir: outputDir,
@@ -122,9 +118,7 @@ void main() {
   group('EntityTypeValidator.validate — existing enum', () {
     test('accepts a field type whose enum file exists', () async {
       await writeEnum('FeedbackType');
-      final fields = [
-        FieldDefinition(name: 'type', type: 'FeedbackType'),
-      ];
+      final fields = [FieldDefinition(name: 'type', type: 'FeedbackType')];
       final errors = EntityTypeValidator.validate(
         fields: fields,
         outputDir: outputDir,
@@ -147,9 +141,7 @@ void main() {
 
   group('EntityTypeValidator.validate — unresolvable types (#296)', () {
     test('rejects a field type when neither entity nor enum exists', () {
-      final fields = [
-        FieldDefinition(name: 'type', type: 'FeedbackType'),
-      ];
+      final fields = [FieldDefinition(name: 'type', type: 'FeedbackType')];
       final errors = EntityTypeValidator.validate(
         fields: fields,
         outputDir: outputDir,
@@ -181,9 +173,7 @@ void main() {
     });
 
     test('rejects a dollar-prefixed unresolvable type (user wrote \$Foo)', () {
-      final fields = [
-        FieldDefinition(name: 'ref', type: r'$Foo'),
-      ];
+      final fields = [FieldDefinition(name: 'ref', type: r'$Foo')];
       final errors = EntityTypeValidator.validate(
         fields: fields,
         outputDir: outputDir,
@@ -248,9 +238,7 @@ void main() {
     });
 
     test('the error message names the outputDir and the field', () {
-      final fields = [
-        FieldDefinition(name: 'status', type: 'StatusEnum'),
-      ];
+      final fields = [FieldDefinition(name: 'status', type: 'StatusEnum')];
       final errors = EntityTypeValidator.validate(
         fields: fields,
         outputDir: outputDir,
@@ -270,15 +258,17 @@ void main() {
         outputDir: outputDir,
         selfEntityName: 'Node',
       );
-      expect(errors, isEmpty,
-          reason: 'Self-reference is allowed even when the entity dir '
-              'does not exist yet');
+      expect(
+        errors,
+        isEmpty,
+        reason:
+            'Self-reference is allowed even when the entity dir '
+            'does not exist yet',
+      );
     });
 
     test('allows List<Self> for the entity being created', () {
-      final fields = [
-        FieldDefinition(name: 'children', type: 'List<Node>'),
-      ];
+      final fields = [FieldDefinition(name: 'children', type: 'List<Node>')];
       final errors = EntityTypeValidator.validate(
         fields: fields,
         outputDir: outputDir,
@@ -321,22 +311,31 @@ void main() {
     });
   });
 
-  group('EntityTypeValidator.validate — entity dir exists but file missing', () {
-    test('rejects when the entity directory exists but the .dart file is absent',
+  group(
+    'EntityTypeValidator.validate — entity dir exists but file missing',
+    () {
+      test(
+        'rejects when the entity directory exists but the .dart file is absent',
         () async {
-      // Simulate a half-written entity (dir created, file not yet).
-      final dir = Directory(p.join(outputDir, 'ghost'));
-      await dir.create(recursive: true);
-      final fields = [FieldDefinition(name: 'g', type: 'Ghost')];
-      final errors = EntityTypeValidator.validate(
-        fields: fields,
-        outputDir: outputDir,
+          // Simulate a half-written entity (dir created, file not yet).
+          final dir = Directory(p.join(outputDir, 'ghost'));
+          await dir.create(recursive: true);
+          final fields = [FieldDefinition(name: 'g', type: 'Ghost')];
+          final errors = EntityTypeValidator.validate(
+            fields: fields,
+            outputDir: outputDir,
+          );
+          expect(
+            errors,
+            hasLength(1),
+            reason:
+                'An entity directory without the .dart file is not a '
+                'validatable entity — treat as unresolvable.',
+          );
+        },
       );
-      expect(errors, hasLength(1),
-          reason: 'An entity directory without the .dart file is not a '
-              'validatable entity — treat as unresolvable.');
-    });
-  });
+    },
+  );
 }
 
 /// Minimal PascalCase -> snake_case (mirrors StringUtils.camelToSnake for

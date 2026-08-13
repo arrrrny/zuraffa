@@ -53,7 +53,9 @@ class StateGenerator {
       // #281: v6 dual-layer state files import 'package:zuraffa_flutter/zuraffa_flutter.dart'
       // (re-exports zuraffa core: DomainState/ViewState/Signal/SignalSlice) so
       // generated Flutter apps compile against the same direct dep setup wires.
-      b.directives.add(cb.Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'));
+      b.directives.add(
+        cb.Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
+      );
       if (presenterImport != null) {
         b.directives.add(cb.Directive.import(presenterImport));
       }
@@ -160,7 +162,9 @@ class StateGenerator {
 
     final library = cb.Library((b) {
       // #281: ViewState imports 'package:zuraffa_flutter/zuraffa_flutter.dart' (re-exports zuraffa core).
-      b.directives.add(cb.Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'));
+      b.directives.add(
+        cb.Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
+      );
 
       b.body.add(
         cb.Class((c) {

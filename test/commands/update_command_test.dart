@@ -26,17 +26,32 @@ void main() {
 
       test('handles pre-release suffixes', () {
         // Per SemVer: pre-release versions have lower precedence than stable
-        expect(UpdateCommand.compareVersions('1.0.0-alpha', '1.0.0'), isNegative);
-        expect(UpdateCommand.compareVersions('1.0.0-beta', '1.0.0'), isNegative);
-        expect(UpdateCommand.compareVersions('1.0.0', '1.0.0-alpha'), isPositive);
+        expect(
+          UpdateCommand.compareVersions('1.0.0-alpha', '1.0.0'),
+          isNegative,
+        );
+        expect(
+          UpdateCommand.compareVersions('1.0.0-beta', '1.0.0'),
+          isNegative,
+        );
+        expect(
+          UpdateCommand.compareVersions('1.0.0', '1.0.0-alpha'),
+          isPositive,
+        );
         // Build metadata is ignored
         expect(UpdateCommand.compareVersions('1.0.0+build', '1.0.0'), 0);
       });
 
       test('pre-release ordering', () {
         // Pre-release versions with same numeric part are compared lexically
-        expect(UpdateCommand.compareVersions('1.0.0-alpha', '1.0.0-beta'), isNegative);
-        expect(UpdateCommand.compareVersions('1.0.0-beta', '1.0.0-alpha'), isPositive);
+        expect(
+          UpdateCommand.compareVersions('1.0.0-alpha', '1.0.0-beta'),
+          isNegative,
+        );
+        expect(
+          UpdateCommand.compareVersions('1.0.0-beta', '1.0.0-alpha'),
+          isPositive,
+        );
         expect(UpdateCommand.compareVersions('1.0.0-alpha', '1.0.0-alpha'), 0);
       });
 
@@ -50,7 +65,7 @@ void main() {
         expect(UpdateCommand.compareVersions('unknown', '0.0.0'), 0);
         expect(UpdateCommand.compareVersions('1.0.0', 'unknown'), isPositive);
       });
-      
+
       test('complex comparison chain', () {
         expect(UpdateCommand.compareVersions('5.1.0', '6.0.0'), isNegative);
         expect(UpdateCommand.compareVersions('6.0.0', '5.1.0'), isPositive);

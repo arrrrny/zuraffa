@@ -31,19 +31,14 @@ void main() {
     late String zfaBin;
 
     Future<ProcessResult> runZfa(List<String> args) {
-      return Process.run(
-        'dart',
-        [zfaBin, ...args],
-        workingDirectory: workspace.path,
-      );
+      return Process.run('dart', [
+        zfaBin,
+        ...args,
+      ], workingDirectory: workspace.path);
     }
 
     Future<ProcessResult> runZfaInRepo(List<String> args) {
-      return Process.run(
-        'dart',
-        [zfaBin, ...args],
-        workingDirectory: _zfaRoot,
-      );
+      return Process.run('dart', [zfaBin, ...args], workingDirectory: _zfaRoot);
     }
 
     setUp(() async {
@@ -91,8 +86,11 @@ dev_dependencies:
         ]);
 
         // MUST exit non-zero — the silent exit 0 was the original bug.
-        expect(result.exitCode, equals(1),
-            reason: 'Unresolvable field type must abort with exit 1');
+        expect(
+          result.exitCode,
+          equals(1),
+          reason: 'Unresolvable field type must abort with exit 1',
+        );
 
         final output = result.stdout.toString() + result.stderr.toString();
 
@@ -107,17 +105,22 @@ dev_dependencies:
         // CRITICAL: no entity file may have been written. The silent
         // `$`-prefixed `InvalidType` emission happened because the file was
         // written despite the unresolvable type.
-        final entityFile = File(p.join(
-          workspace.path,
-          'lib',
-          'src',
-          'domain',
-          'entities',
-          'feedback',
-          'feedback.dart',
-        ));
-        expect(entityFile.existsSync(), isFalse,
-            reason: 'No entity file may be written when validation fails');
+        final entityFile = File(
+          p.join(
+            workspace.path,
+            'lib',
+            'src',
+            'domain',
+            'entities',
+            'feedback',
+            'feedback.dart',
+          ),
+        );
+        expect(
+          entityFile.existsSync(),
+          isFalse,
+          reason: 'No entity file may be written when validation fails',
+        );
       },
     );
 
@@ -134,18 +137,23 @@ dev_dependencies:
           '--value',
           'error,suggestion,thanks',
         ]);
-        expect(enumResult.exitCode, equals(0),
-            reason: 'Enum creation must succeed');
+        expect(
+          enumResult.exitCode,
+          equals(0),
+          reason: 'Enum creation must succeed',
+        );
 
-        final enumFile = File(p.join(
-          workspace.path,
-          'lib',
-          'src',
-          'domain',
-          'entities',
-          'enums',
-          'feedback_type.dart',
-        ));
+        final enumFile = File(
+          p.join(
+            workspace.path,
+            'lib',
+            'src',
+            'domain',
+            'entities',
+            'enums',
+            'feedback_type.dart',
+          ),
+        );
         expect(enumFile.existsSync(), isTrue);
 
         // Step 2: NOW create the entity that references the enum.
@@ -166,26 +174,34 @@ dev_dependencies:
           'createdAt:DateTime?',
         ]);
 
-        expect(result.exitCode, equals(0),
-            reason: 'Entity creation must succeed once the enum exists');
+        expect(
+          result.exitCode,
+          equals(0),
+          reason: 'Entity creation must succeed once the enum exists',
+        );
 
-        final entityFile = File(p.join(
-          workspace.path,
-          'lib',
-          'src',
-          'domain',
-          'entities',
-          'feedback',
-          'feedback.dart',
-        ));
+        final entityFile = File(
+          p.join(
+            workspace.path,
+            'lib',
+            'src',
+            'domain',
+            'entities',
+            'feedback',
+            'feedback.dart',
+          ),
+        );
         expect(entityFile.existsSync(), isTrue);
         final content = await entityFile.readAsString();
 
         // The field type must be the clean `FeedbackType`, NOT the
         // `$`-prefixed `$FeedbackType` that produced `InvalidType`.
         expect(content, contains('FeedbackType get type;'));
-        expect(content, isNot(contains(r'$FeedbackType')),
-            reason: 'The dollar prefix caused InvalidType — must not appear');
+        expect(
+          content,
+          isNot(contains(r'$FeedbackType')),
+          reason: 'The dollar prefix caused InvalidType — must not appear',
+        );
 
         // The enum barrel import is expected; the BOGUS entity-style import
         // `import '../feedback_type/feedback_type.dart';` must NOT appear
@@ -195,7 +211,8 @@ dev_dependencies:
         expect(
           content,
           isNot(contains("import '../feedback_type/feedback_type.dart';")),
-          reason: 'The bogus entity-style import for a non-existent '
+          reason:
+              'The bogus entity-style import for a non-existent '
               'entity directory was the second symptom of #296',
         );
       },
@@ -219,15 +236,17 @@ dev_dependencies:
         ]);
         expect(createResult.exitCode, equals(0));
 
-        final entityFile = File(p.join(
-          workspace.path,
-          'lib',
-          'src',
-          'domain',
-          'entities',
-          'note',
-          'note.dart',
-        ));
+        final entityFile = File(
+          p.join(
+            workspace.path,
+            'lib',
+            'src',
+            'domain',
+            'entities',
+            'note',
+            'note.dart',
+          ),
+        );
         expect(entityFile.existsSync(), isTrue);
         final originalContent = await entityFile.readAsString();
 
@@ -241,17 +260,24 @@ dev_dependencies:
           'category:NoteCategory', // unresolvable
         ]);
 
-        expect(addResult.exitCode, equals(1),
-            reason: 'add-field must also validate field types');
+        expect(
+          addResult.exitCode,
+          equals(1),
+          reason: 'add-field must also validate field types',
+        );
 
-        final output = addResult.stdout.toString() + addResult.stderr.toString();
+        final output =
+            addResult.stdout.toString() + addResult.stderr.toString();
         expect(output, contains('NoteCategory'));
         expect(output, contains('Unknown type'));
 
         // The entity file must be unchanged.
         final afterContent = await entityFile.readAsString();
-        expect(afterContent, equals(originalContent),
-            reason: 'No file modifications when validation fails');
+        expect(
+          afterContent,
+          equals(originalContent),
+          reason: 'No file modifications when validation fails',
+        );
       },
     );
 
@@ -277,18 +303,23 @@ dev_dependencies:
           'children:List<TreeNode>',
         ]);
 
-        expect(result.exitCode, equals(0),
-            reason: 'Self-reference must be allowed');
+        expect(
+          result.exitCode,
+          equals(0),
+          reason: 'Self-reference must be allowed',
+        );
 
-        final entityFile = File(p.join(
-          workspace.path,
-          'lib',
-          'src',
-          'domain',
-          'entities',
-          'tree_node',
-          'tree_node.dart',
-        ));
+        final entityFile = File(
+          p.join(
+            workspace.path,
+            'lib',
+            'src',
+            'domain',
+            'entities',
+            'tree_node',
+            'tree_node.dart',
+          ),
+        );
         expect(entityFile.existsSync(), isTrue);
       },
     );

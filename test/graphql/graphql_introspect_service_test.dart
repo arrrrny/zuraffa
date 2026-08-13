@@ -100,7 +100,10 @@ void main() {
         (f) => f.name == 'variants',
       );
       expect(variantsField.type.isList, isTrue);
-      expect(variantsField.type.listElementType?.namedType.name, equals('ProductVariant'));
+      expect(
+        variantsField.type.listElementType?.namedType.name,
+        equals('ProductVariant'),
+      );
     });
 
     test('enum values are parsed correctly', () {

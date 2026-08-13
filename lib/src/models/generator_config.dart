@@ -72,6 +72,7 @@ class GeneratorConfig {
   final bool useMockInDi;
   final bool generateDi;
   final bool generateXRay;
+
   /// When true, the view plugin generates v6 dual-layer state
   /// (DomainState + ViewState + DualLayerPresenter) and ControlledWidget /
   /// FragmentBuilder based views instead of the legacy v5 monolithic state.

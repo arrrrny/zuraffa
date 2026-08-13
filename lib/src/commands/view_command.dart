@@ -27,7 +27,8 @@ class ViewCommand extends PluginCommand {
     );
     argParser.addFlag(
       'v6-state',
-      help: 'Generate v6 dual-layer state (DomainState + ViewState + '
+      help:
+          'Generate v6 dual-layer state (DomainState + ViewState + '
           'DualLayerPresenter) and ControlledWidget/FragmentBuilder-based view',
       defaultsTo: false,
     );

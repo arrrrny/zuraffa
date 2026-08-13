@@ -102,10 +102,7 @@ class EntityFieldResolver {
 
     // Strip /* block comments */ so the regex does not match field-like
     // text inside them.
-    final cleaned = content.replaceAll(
-      RegExp(r'/\*[\s\S]*?\*/'),
-      '',
-    );
+    final cleaned = content.replaceAll(RegExp(r'/\*[\s\S]*?\*/'), '');
 
     // Match a single line of the form `  Type get fieldName;` OR
     // `  final Type fieldName;` OR `  Type fieldName;`.

@@ -46,11 +46,12 @@ Future<void> main() async {
     'generated output is properly formatted',
     () async {
       // Run dart format in check mode to verify formatting without modifying files.
-      final format = await Process.run(
-        'dart',
-        ['format', '--output=none', '--set-exit-if-changed', ...generatedPaths],
-        workingDirectory: workspace.directory.path,
-      );
+      final format = await Process.run('dart', [
+        'format',
+        '--output=none',
+        '--set-exit-if-changed',
+        ...generatedPaths,
+      ], workingDirectory: workspace.directory.path);
       expect(
         format.exitCode,
         equals(0),

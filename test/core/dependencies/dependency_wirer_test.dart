@@ -21,24 +21,29 @@ void main() {
         expect(names, contains('analyzer'));
       });
 
-      test('dart project includes zuraffa (not zuraffa_flutter) and no flutter_lints', () {
-        final specs = DependencyWirer.standardSet(isFlutter: false);
-        final names = specs.map((s) => s.name).toList();
+      test(
+        'dart project includes zuraffa (not zuraffa_flutter) and no flutter_lints',
+        () {
+          final specs = DependencyWirer.standardSet(isFlutter: false);
+          final names = specs.map((s) => s.name).toList();
 
-        expect(names, contains('zuraffa'));
-        expect(names, isNot(contains('zuraffa_flutter')));
-        expect(names, contains('zorphy_annotation'));
-        expect(names, contains('build_runner'));
-        expect(names, contains('json_annotation'));
-        expect(names, contains('json_serializable'));
-        expect(names, contains('mocktail'));
-        expect(names, isNot(contains('flutter_lints')));
-        expect(names, contains('analyzer'));
-      });
+          expect(names, contains('zuraffa'));
+          expect(names, isNot(contains('zuraffa_flutter')));
+          expect(names, contains('zorphy_annotation'));
+          expect(names, contains('build_runner'));
+          expect(names, contains('json_annotation'));
+          expect(names, contains('json_serializable'));
+          expect(names, contains('mocktail'));
+          expect(names, isNot(contains('flutter_lints')));
+          expect(names, contains('analyzer'));
+        },
+      );
 
       test('zuraffa_flutter is a git dependency with path zuraffa_flutter', () {
         final specs = DependencyWirer.standardSet(isFlutter: true);
-        final zuraffaFlutter = specs.firstWhere((s) => s.name == 'zuraffa_flutter');
+        final zuraffaFlutter = specs.firstWhere(
+          (s) => s.name == 'zuraffa_flutter',
+        );
 
         expect(zuraffaFlutter.kind, DependencyKind.regular);
         expect(zuraffaFlutter.isGit, isTrue);
@@ -47,18 +52,23 @@ void main() {
         expect(zuraffaFlutter.gitRef, DependencyWirer.defaultGitRef);
       });
 
-      test('zuraffa (dart) is a git dependency with no git-path (repo root)', () {
-        final specs = DependencyWirer.standardSet(isFlutter: false);
-        final zuraffa = specs.firstWhere((s) => s.name == 'zuraffa');
+      test(
+        'zuraffa (dart) is a git dependency with no git-path (repo root)',
+        () {
+          final specs = DependencyWirer.standardSet(isFlutter: false);
+          final zuraffa = specs.firstWhere((s) => s.name == 'zuraffa');
 
-        expect(zuraffa.isGit, isTrue);
-        expect(zuraffa.gitUrl, DependencyWirer.zuraffaGitUrl);
-        expect(zuraffa.gitPath, isNull);
-      });
+          expect(zuraffa.isGit, isTrue);
+          expect(zuraffa.gitUrl, DependencyWirer.zuraffaGitUrl);
+          expect(zuraffa.gitPath, isNull);
+        },
+      );
 
       test('zorphy_annotation is a git dependency from the zorphy repo', () {
         final specs = DependencyWirer.standardSet(isFlutter: true);
-        final zorphyAnn = specs.firstWhere((s) => s.name == 'zorphy_annotation');
+        final zorphyAnn = specs.firstWhere(
+          (s) => s.name == 'zorphy_annotation',
+        );
 
         expect(zorphyAnn.isGit, isTrue);
         expect(zorphyAnn.gitUrl, DependencyWirer.zorphyGitUrl);
@@ -88,7 +98,10 @@ void main() {
         final meta = specs.firstWhere((s) => s.name == 'meta');
 
         expect(analyzer.kind, DependencyKind.override);
-        expect(analyzer.version, DependencyWirer.flutterAnalyzerOverrideVersion);
+        expect(
+          analyzer.version,
+          DependencyWirer.flutterAnalyzerOverrideVersion,
+        );
         expect(analyzer.isOverride, isTrue);
         // Flutter apps need the meta overlay too: the Flutter SDK pins
         // meta 1.18.0 while analyzer >=13.1.0 requires meta ^1.18.3.
@@ -117,22 +130,22 @@ description: A new app
 environment:
   sdk: ^3.11.0
 ''';
-        final missing = DependencyWirer.findMissing(
-          pubspec,
-          isFlutter: true,
-        );
+        final missing = DependencyWirer.findMissing(pubspec, isFlutter: true);
 
         final names = missing.map((s) => s.name).toSet();
-        expect(names, containsAll([
-          'zuraffa_flutter',
-          'zorphy_annotation',
-          'json_annotation',
-          'build_runner',
-          'json_serializable',
-          'mocktail',
-          'flutter_lints',
-          'analyzer',
-        ]));
+        expect(
+          names,
+          containsAll([
+            'zuraffa_flutter',
+            'zorphy_annotation',
+            'json_annotation',
+            'build_runner',
+            'json_serializable',
+            'mocktail',
+            'flutter_lints',
+            'analyzer',
+          ]),
+        );
       });
 
       test('returns empty when all deps are present', () {
@@ -166,10 +179,7 @@ dependency_overrides:
   analyzer: ^13.1.0
   meta: ^1.19.0
 ''';
-        final missing = DependencyWirer.findMissing(
-          pubspec,
-          isFlutter: true,
-        );
+        final missing = DependencyWirer.findMissing(pubspec, isFlutter: true);
 
         expect(missing, isEmpty);
       });
@@ -199,10 +209,7 @@ dependency_overrides:
   analyzer: ^13.1.0
   meta: ^1.19.0
 ''';
-        final missing = DependencyWirer.findMissing(
-          pubspec,
-          isFlutter: true,
-        );
+        final missing = DependencyWirer.findMissing(pubspec, isFlutter: true);
 
         expect(missing.length, 1);
         expect(missing.first.name, 'zuraffa_flutter');
@@ -236,10 +243,7 @@ dependency_overrides:
   analyzer: ^13.1.0
   meta: ^1.19.0
 ''';
-        final missing = DependencyWirer.findMissing(
-          pubspec,
-          isFlutter: true,
-        );
+        final missing = DependencyWirer.findMissing(pubspec, isFlutter: true);
 
         expect(missing.length, 1);
         expect(missing.first.name, 'build_runner');
@@ -271,17 +275,11 @@ dev_dependencies:
   mocktail: ^1.0.4
   flutter_lints: ^6.0.0
 ''';
-        final missing = DependencyWirer.findMissing(
-          pubspec,
-          isFlutter: true,
-        );
+        final missing = DependencyWirer.findMissing(pubspec, isFlutter: true);
 
         expect(missing.length, 2);
         expect(missing.map((s) => s.name), containsAll(['analyzer', 'meta']));
-        expect(
-          missing.every((s) => s.kind == DependencyKind.override),
-          isTrue,
-        );
+        expect(missing.every((s) => s.kind == DependencyKind.override), isTrue);
       });
 
       test('dart project: missing analyzer override only', () {
@@ -305,10 +303,7 @@ dev_dependencies:
   json_serializable: ^6.13.2
   mocktail: ^1.0.4
 ''';
-        final missing = DependencyWirer.findMissing(
-          pubspec,
-          isFlutter: false,
-        );
+        final missing = DependencyWirer.findMissing(pubspec, isFlutter: false);
 
         expect(missing.length, 1);
         expect(missing.first.name, 'analyzer');
@@ -339,16 +334,15 @@ dev_dependencies:
 dependency_overrides:
   analyzer: 14.1.0
 ''';
-        final missing = DependencyWirer.findMissing(
-          pubspec,
-          isFlutter: false,
-        );
+        final missing = DependencyWirer.findMissing(pubspec, isFlutter: false);
 
         expect(missing, isEmpty);
       });
 
-      test('flutter project: stale analyzer override version is detected as missing', () {
-        final pubspec = '''
+      test(
+        'flutter project: stale analyzer override version is detected as missing',
+        () {
+          final pubspec = '''
 name: my_app
 environment:
   sdk: ^3.11.0
@@ -376,25 +370,23 @@ dependency_overrides:
   analyzer: 14.1.0
   meta: ^1.19.0
 ''';
-        final missing = DependencyWirer.findMissing(
-          pubspec,
-          isFlutter: true,
-        );
+          final missing = DependencyWirer.findMissing(pubspec, isFlutter: true);
 
-        // Flutter projects expect analyzer: ^13.1.0, not 14.1.0, so analyzer
-        // should be detected as needing an update.
-        expect(missing.length, 1);
-        expect(missing.first.name, 'analyzer');
-        expect(missing.first.kind, DependencyKind.override);
-        expect(missing.first.version, DependencyWirer.flutterAnalyzerOverrideVersion);
-      });
+          // Flutter projects expect analyzer: ^13.1.0, not 14.1.0, so analyzer
+          // should be detected as needing an update.
+          expect(missing.length, 1);
+          expect(missing.first.name, 'analyzer');
+          expect(missing.first.kind, DependencyKind.override);
+          expect(
+            missing.first.version,
+            DependencyWirer.flutterAnalyzerOverrideVersion,
+          );
+        },
+      );
 
       test('returns all specs for unparseable pubspec', () {
         final pubspec = 'this is not ::: valid yaml {{{';
-        final missing = DependencyWirer.findMissing(
-          pubspec,
-          isFlutter: true,
-        );
+        final missing = DependencyWirer.findMissing(pubspec, isFlutter: true);
 
         expect(missing.length, greaterThan(0));
       });
@@ -564,7 +556,10 @@ dev_dependencies:
 
     group('DependencySpec', () {
       test('toString renders dev deps with dev: prefix', () {
-        const spec = DependencySpec(name: 'build_runner', kind: DependencyKind.dev);
+        const spec = DependencySpec(
+          name: 'build_runner',
+          kind: DependencyKind.dev,
+        );
         expect(spec.toString(), 'dev:build_runner');
       });
 
@@ -635,7 +630,10 @@ dev_dependencies:
       });
 
       test('contains source_gen combining_builder', () {
-        expect(DependencyWirer.buildYamlContent, contains('source_gen:combining_builder'));
+        expect(
+          DependencyWirer.buildYamlContent,
+          contains('source_gen:combining_builder'),
+        );
       });
 
       test('targets lib/src/** and test/**', () {
@@ -646,23 +644,38 @@ dev_dependencies:
 
     group('standardDirs', () {
       test('includes domain/entities', () {
-        expect(DependencyWirer.standardDirs, contains('lib/src/domain/entities'));
+        expect(
+          DependencyWirer.standardDirs,
+          contains('lib/src/domain/entities'),
+        );
       });
 
       test('includes domain/repositories', () {
-        expect(DependencyWirer.standardDirs, contains('lib/src/domain/repositories'));
+        expect(
+          DependencyWirer.standardDirs,
+          contains('lib/src/domain/repositories'),
+        );
       });
 
       test('includes domain/usecases', () {
-        expect(DependencyWirer.standardDirs, contains('lib/src/domain/usecases'));
+        expect(
+          DependencyWirer.standardDirs,
+          contains('lib/src/domain/usecases'),
+        );
       });
 
       test('includes data/datasources', () {
-        expect(DependencyWirer.standardDirs, contains('lib/src/data/datasources'));
+        expect(
+          DependencyWirer.standardDirs,
+          contains('lib/src/data/datasources'),
+        );
       });
 
       test('includes data/repositories', () {
-        expect(DependencyWirer.standardDirs, contains('lib/src/data/repositories'));
+        expect(
+          DependencyWirer.standardDirs,
+          contains('lib/src/data/repositories'),
+        );
       });
     });
 

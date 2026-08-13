@@ -31,7 +31,8 @@ class SetupCommand extends Command<void> {
     argParser.addFlag(
       'flutter',
       negatable: false,
-      help: 'Create a Flutter app (default). Passes --platforms through to flutter create.',
+      help:
+          'Create a Flutter app (default). Passes --platforms through to flutter create.',
     );
     argParser.addFlag(
       'dart',
@@ -41,12 +42,14 @@ class SetupCommand extends Command<void> {
     argParser.addOption(
       'platforms',
       valueHelp: 'ios,macos',
-      help: 'Comma-separated platforms for `flutter create` (ignored with --dart).',
+      help:
+          'Comma-separated platforms for `flutter create` (ignored with --dart).',
     );
     argParser.addOption(
       'org',
       valueHelp: 'com.example',
-      help: 'Organization name for `flutter create` (e.g. com.example; ignored with --dart).',
+      help:
+          'Organization name for `flutter create` (e.g. com.example; ignored with --dart).',
     );
     argParser.addFlag(
       'dry-run',
@@ -57,7 +60,8 @@ class SetupCommand extends Command<void> {
       'force',
       abbr: 'f',
       negatable: false,
-      help: 'Delete and recreate the target directory if it already exists '
+      help:
+          'Delete and recreate the target directory if it already exists '
           '(requires confirmation on a terminal).',
     );
     argParser.addFlag(
@@ -168,7 +172,9 @@ class SetupCommand extends Command<void> {
     // Next steps.
     print('\n── Next steps ──');
     print('   cd $appName');
-    print('   zfa entity create -n Product --field id:String --field name:String');
+    print(
+      '   zfa entity create -n Product --field id:String --field name:String',
+    );
     print('   zfa make Product --preset=crud --with=vpc,state,di,test');
     print('   zfa build');
     print('');
@@ -200,7 +206,9 @@ class SetupCommand extends Command<void> {
       if (!dryRun) {
         final absolutePath = targetDir.absolute.path;
         final entryCount = _countEntries(targetDir);
-        print('   ⚠️  --force will DELETE: $absolutePath ($entryCount entries)');
+        print(
+          '   ⚠️  --force will DELETE: $absolutePath ($entryCount entries)',
+        );
         if (stdin.hasTerminal) {
           stdout.write('   Type "yes" to confirm deletion: ');
           final answer = stdin.readLineSync()?.trim().toLowerCase();
@@ -233,9 +241,11 @@ class SetupCommand extends Command<void> {
         print('\n[1/5] Would run: flutter ${args.join(" ")}');
         return true;
       }
-      print('\n[1/5] Creating Flutter app: $appName'
-          '${platforms != null ? ' (platforms: $platforms)' : ''}'
-          '${org != null ? ' (org: $org)' : ''}');
+      print(
+        '\n[1/5] Creating Flutter app: $appName'
+        '${platforms != null ? ' (platforms: $platforms)' : ''}'
+        '${org != null ? ' (org: $org)' : ''}',
+      );
       if (verbose) print('   Running: flutter ${args.join(" ")}');
       final result = await Process.run('flutter', args);
       if (result.exitCode != 0) {
@@ -244,7 +254,9 @@ class SetupCommand extends Command<void> {
         print('❌ flutter create failed (exit ${result.exitCode}).');
         if (err.isNotEmpty) print('   $err');
         if (out.isNotEmpty) print('   $out');
-        print('   Make sure Flutter is installed: https://docs.flutter.dev/get-started/install');
+        print(
+          '   Make sure Flutter is installed: https://docs.flutter.dev/get-started/install',
+        );
         return false;
       }
       print('   Created Flutter app: $appName');
@@ -254,8 +266,10 @@ class SetupCommand extends Command<void> {
     // Pure Dart package.
     if ((platforms != null && platforms.isNotEmpty) ||
         (org != null && org.isNotEmpty)) {
-      print('   ⚠️  --platforms/--org are ignored with --dart '
-          '(dart create has no equivalent).');
+      print(
+        '   ⚠️  --platforms/--org are ignored with --dart '
+        '(dart create has no equivalent).',
+      );
     }
     final args = <String>['create', '-t', 'package', appName];
     if (dryRun) {
@@ -288,11 +302,13 @@ class SetupCommand extends Command<void> {
 
   /// Minimal pubspec for dry-run preview (so findMissing has something to parse).
   String _dryRunPubspec(String name, bool isFlutter) {
-    final flutterDep = isFlutter ? '''
+    final flutterDep = isFlutter
+        ? '''
 dependencies:
   flutter:
     sdk: flutter
-''' : '''
+'''
+        : '''
 dependencies:
 ''';
     return '''
