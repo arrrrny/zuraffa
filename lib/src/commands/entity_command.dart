@@ -152,11 +152,16 @@ ${missing.map((d) => '   • $d').join('\n')}
     // if a referenced type is neither a primitive, an existing entity,
     // nor an existing enum, abort with a clear error so the entity is
     // never written with a bogus `$`-prefixed `InvalidType`.
-    final typeErrors = EntityTypeValidator.validate(
-      fields: fields,
-      outputDir: outputDir,
-      selfEntityName: name,
-    );
+    // `--allow-forward-refs` opts out for batch generation of cyclic schemas
+    // (issue #308): the referenced entity will exist by build time.
+    final allowForwardRefs = parsed['allow_forward_refs'] == true;
+    final typeErrors = allowForwardRefs
+        ? const <UnresolvedTypeError>[]
+        : EntityTypeValidator.validate(
+            fields: fields,
+            outputDir: outputDir,
+            selfEntityName: name,
+          );
     if (typeErrors.isNotEmpty) {
       print(
         '❌ Cannot create entity "$name": field type(s) could not be resolved.',
@@ -271,11 +276,15 @@ ${missing.map((d) => '   • $d').join('\n')}
     // Validate field types BEFORE writing anything (issue #296):
     // same guard as `entity create` — refuse to add fields whose types
     // cannot be resolved against the on-disk entity/enum layout.
-    final typeErrors = EntityTypeValidator.validate(
-      fields: fields,
-      outputDir: fixedEntityOutput,
-      selfEntityName: name,
-    );
+    // `--allow-forward-refs` opts out (issue #308), same as `entity create`.
+    final allowForwardRefs = parsed['allow_forward_refs'] == true;
+    final typeErrors = allowForwardRefs
+        ? const <UnresolvedTypeError>[]
+        : EntityTypeValidator.validate(
+            fields: fields,
+            outputDir: fixedEntityOutput,
+            selfEntityName: name,
+          );
     if (typeErrors.isNotEmpty) {
       print(
         '❌ Cannot add field(s) to "$name": field type(s) could not be resolved.',
@@ -726,6 +735,8 @@ CREATE COMMAND:
     --extends               Interface to extend
     --subtypes              Explicit subtypes
     --generate-subs         Generate subtype files
+    --allow-forward-refs    Skip on-disk type validation (batch generation of
+                            cyclic schemas — referenced entity is created later)
 
 EXAMPLES:
   zfa entity create -n User --field id:String --field name:String
