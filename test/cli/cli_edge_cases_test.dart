@@ -7,7 +7,6 @@ import 'package:path/path.dart' as p;
 /// This is safe because dart test loads all files before running any test.
 final _zfaRoot = Directory.current.path;
 
-
 void main() {
   group('CLI Edge Cases', () {
     late Directory workspace;

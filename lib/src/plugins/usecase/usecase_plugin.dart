@@ -71,7 +71,13 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       },
       'type': {
         'type': 'string',
-        'enum': ['usecase', 'stream', 'background', 'os_background', 'completable'],
+        'enum': [
+          'usecase',
+          'stream',
+          'background',
+          'os_background',
+          'completable',
+        ],
         'default': 'usecase',
       },
       'domain': {'type': 'string', 'description': 'Domain folder name'},

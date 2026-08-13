@@ -6,7 +6,6 @@ import 'package:zuraffa/src/generator/code_generator.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/models/generator_result.dart';
 
-
 class RegressionWorkspace {
   final Directory directory;
   final String outputDir;
@@ -26,7 +25,10 @@ Future<void> disposeWorkspace(RegressionWorkspace workspace) async {
   }
 }
 
-Future<void> writePubspec(RegressionWorkspace workspace, {String? repoRootOverride}) async {
+Future<void> writePubspec(
+  RegressionWorkspace workspace, {
+  String? repoRootOverride,
+}) async {
   final repoRoot = repoRootOverride ?? await findProjectRoot();
   final content =
       '''

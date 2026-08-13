@@ -51,26 +51,23 @@ void main() {
       expect(resolved, isNull);
     });
 
-    test(
-      'branch 1 — picks the literal `id` field when present',
-      () async {
-        await writeEntity('Product', '''
+    test('branch 1 — picks the literal `id` field when present', () async {
+      await writeEntity('Product', '''
 abstract class \$Product {
   String get id;
   String get name;
   double get price;
 }
 ''');
-        final resolved = EntityFieldResolver.resolveIdField(
-          entityName: 'Product',
-          projectRoot: tempRoot.path,
-        );
-        expect(resolved, isNotNull);
-        expect(resolved!.name, 'id');
-        expect(resolved.type, 'String');
-        expect(resolved.nonNullableType, 'String');
-      },
-    );
+      final resolved = EntityFieldResolver.resolveIdField(
+        entityName: 'Product',
+        projectRoot: tempRoot.path,
+      );
+      expect(resolved, isNotNull);
+      expect(resolved!.name, 'id');
+      expect(resolved.type, 'String');
+      expect(resolved.nonNullableType, 'String');
+    });
 
     test(
       'branch 2 — picks the first field ending in `Id` when there is no `id` '
@@ -93,25 +90,22 @@ abstract class \$StorePrice {
       },
     );
 
-    test(
-      'branch 3 — falls back to the first declared field when there is no '
-      '`id` and no `*Id` field',
-      () async {
-        await writeEntity('GroceryPriceResult', '''
+    test('branch 3 — falls back to the first declared field when there is no '
+        '`id` and no `*Id` field', () async {
+      await writeEntity('GroceryPriceResult', '''
 abstract class \$GroceryPriceResult {
   String get storeName;
   double get price;
 }
 ''');
-        final resolved = EntityFieldResolver.resolveIdField(
-          entityName: 'GroceryPriceResult',
-          projectRoot: tempRoot.path,
-        );
-        expect(resolved, isNotNull);
-        expect(resolved!.name, 'storeName');
-        expect(resolved.type, 'String');
-      },
-    );
+      final resolved = EntityFieldResolver.resolveIdField(
+        entityName: 'GroceryPriceResult',
+        projectRoot: tempRoot.path,
+      );
+      expect(resolved, isNotNull);
+      expect(resolved!.name, 'storeName');
+      expect(resolved.type, 'String');
+    });
 
     test(
       'prefers literal `id` over an earlier `*Id` field when both exist',
@@ -213,24 +207,21 @@ class Handwritten {
       expect(resolved.type, 'String');
     });
 
-    test(
-      'ignores field-like text inside block comments',
-      () async {
-        await writeEntity('Commented', '''
+    test('ignores field-like text inside block comments', () async {
+      await writeEntity('Commented', '''
 abstract class \$Commented {
   /* was: String get id; */
   String get realId;
   String get name;
 }
 ''');
-        final resolved = EntityFieldResolver.resolveIdField(
-          entityName: 'Commented',
-          projectRoot: tempRoot.path,
-        );
-        expect(resolved, isNotNull);
-        expect(resolved!.name, 'realId');
-      },
-    );
+      final resolved = EntityFieldResolver.resolveIdField(
+        entityName: 'Commented',
+        projectRoot: tempRoot.path,
+      );
+      expect(resolved, isNotNull);
+      expect(resolved!.name, 'realId');
+    });
 
     test('respects an explicit `Id` suffix (not just `Id` literal)', () async {
       // `Id` itself (length 2) should NOT match branch 2 — too ambiguous.
@@ -256,15 +247,13 @@ abstract class \$Ambiguous {
     });
 
     test('returns fields in declaration order', () {
-      final fields = EntityFieldResolver.parseEntityFields(
-        '''
+      final fields = EntityFieldResolver.parseEntityFields('''
 abstract class \$Order {
   String get id;
   DateTime get placedAt;
   double get total;
 }
-''',
-      );
+''');
       expect(fields.map((f) => f.name).toList(), ['id', 'placedAt', 'total']);
       expect(fields[0].type, 'String');
       expect(fields[1].type, 'DateTime');

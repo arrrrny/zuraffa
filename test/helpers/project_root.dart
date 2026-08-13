@@ -122,8 +122,9 @@ Future<String?> _resolveProjectRoot() async {
 /// concurrently-running test files.
 Future<String?> _tryFromPackageResolution() async {
   try {
-    final uri =
-        await Isolate.resolvePackageUri(Uri.parse('package:zuraffa/zuraffa.dart'));
+    final uri = await Isolate.resolvePackageUri(
+      Uri.parse('package:zuraffa/zuraffa.dart'),
+    );
     if (uri == null) {
       _diag('S0: resolvePackageUri returned null');
       return null;
@@ -212,8 +213,10 @@ String? _walkToRoot(String startPath) {
       final pubspec = File('${dir.path}/pubspec.yaml');
       if (pubspec.existsSync()) {
         final content = pubspec.readAsStringSync();
-        if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true)
-            .hasMatch(content)) {
+        if (RegExp(
+          r'^name:\s*zuraffa\s*$',
+          multiLine: true,
+        ).hasMatch(content)) {
           return dir.path;
         }
       }
@@ -234,16 +237,17 @@ String? _walkToRoot(String startPath) {
 
 String? _tryFromGit() {
   try {
-    final result =
-        Process.runSync('git', ['rev-parse', '--show-toplevel']);
+    final result = Process.runSync('git', ['rev-parse', '--show-toplevel']);
     if (result.exitCode == 0) {
       final gitRoot = (result.stdout as String).trim();
       if (!_isTempPath(gitRoot)) {
         final pubspec = File('$gitRoot/pubspec.yaml');
         if (pubspec.existsSync()) {
           final content = pubspec.readAsStringSync();
-          if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true)
-              .hasMatch(content)) {
+          if (RegExp(
+            r'^name:\s*zuraffa\s*$',
+            multiLine: true,
+          ).hasMatch(content)) {
             return gitRoot;
           }
         }
@@ -270,8 +274,7 @@ String? _tryFromPackageConfig() {
     // Walk up from script dir looking for .dart_tool/package_config.json
     var dir = Directory(filePath).parent;
     for (var i = 0; i < 20; i++) {
-      final configFile =
-          File('${dir.path}/.dart_tool/package_config.json');
+      final configFile = File('${dir.path}/.dart_tool/package_config.json');
       if (configFile.existsSync()) {
         final content = configFile.readAsStringSync();
         // Find "zuraffa" package entry and extract its root path.

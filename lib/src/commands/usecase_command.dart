@@ -18,7 +18,14 @@ class UseCaseCommand extends PluginCommand {
     argParser.addOption(
       'type',
       abbr: 't',
-      allowed: ['future', 'stream', 'completable', 'sync', 'background', 'os_background'],
+      allowed: [
+        'future',
+        'stream',
+        'completable',
+        'sync',
+        'background',
+        'os_background',
+      ],
       defaultsTo: 'future',
       help: 'Execution strategy (default: future/fetch)',
     );

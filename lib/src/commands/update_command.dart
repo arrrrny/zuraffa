@@ -12,7 +12,8 @@ class UpdateCommand extends Command<void> {
   String get name => 'update';
 
   @override
-  String get description => 'Check for updates and update the installed zfa CLI.';
+  String get description =>
+      'Check for updates and update the installed zfa CLI.';
 
   UpdateCommand() {
     argParser.addFlag(
@@ -68,10 +69,12 @@ class UpdateCommand extends Command<void> {
       print('Updating zuraffa $current -> $latest...');
     }
 
-    final result = await Process.run(
-      'dart',
-      ['pub', 'global', 'activate', 'zuraffa'],
-    ).timeout(_timeout * 4);
+    final result = await Process.run('dart', [
+      'pub',
+      'global',
+      'activate',
+      'zuraffa',
+    ]).timeout(_timeout * 4);
 
     if (result.exitCode == 0) {
       print(result.stdout.toString().trim());
@@ -94,8 +97,7 @@ class UpdateCommand extends Command<void> {
 
   /// Fetch the latest version string from the pub.dev API.
   Future<String> _fetchLatestVersion() async {
-    final client = HttpClient()
-      ..connectionTimeout = _timeout;
+    final client = HttpClient()..connectionTimeout = _timeout;
     try {
       final request = await client.getUrl(Uri.parse(_pubDevUrl));
       request.headers.set('User-Agent', 'zfa update');

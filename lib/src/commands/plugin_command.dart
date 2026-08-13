@@ -151,7 +151,11 @@ class PluginCommand {
           content.substring(bootstrapMatch.start);
     } else {
       // Find the last complete ..register(...) cascade using balanced parenthesis scanner.
-      final absolutePos = _findLastRegisterEnd(content, engineMatch.end, bootstrapMatch.start);
+      final absolutePos = _findLastRegisterEnd(
+        content,
+        engineMatch.end,
+        bootstrapMatch.start,
+      );
       final lineStart = content.lastIndexOf('\n', absolutePos);
       final lineContent = content.substring(lineStart + 1);
       final indentMatch = RegExp(r'^(\s+)\.\.register').firstMatch(lineContent);

@@ -48,7 +48,9 @@ void main() {
 
     // Must have descriptor getter
     expect(
-        content.contains('OsBackgroundTaskDescriptor get descriptor'), isTrue);
+      content.contains('OsBackgroundTaskDescriptor get descriptor'),
+      isTrue,
+    );
     expect(content.contains('com.zuraffa.sync_data_task'), isTrue);
 
     // Must have execute method
@@ -88,11 +90,13 @@ void main() {
     expect(content.contains('OsBackgroundTaskUseCase<void>'), isTrue);
     expect(content.contains('final CacheRepository _cacheRepository;'), isTrue);
     expect(
-        content.contains('PeriodicCleanupUseCase(this._cacheRepository);'),
-        isTrue);
+      content.contains('PeriodicCleanupUseCase(this._cacheRepository);'),
+      isTrue,
+    );
     expect(
-        content.contains('await _cacheRepository.periodicCleanup(params);'),
-        isTrue);
+      content.contains('await _cacheRepository.periodicCleanup(params);'),
+      isTrue,
+    );
   });
 
   test('generates os_background usecase without dependency', () async {
@@ -121,7 +125,10 @@ void main() {
     expect(content.contains('Repository'), isFalse);
     expect(content.contains('Service'), isFalse);
     // Has TODO placeholder
-    expect(content.contains('TODO: Implement OS background task logic'), isTrue);
+    expect(
+      content.contains('TODO: Implement OS background task logic'),
+      isTrue,
+    );
   });
 
   test('generates os_background usecase with typed returns', () async {

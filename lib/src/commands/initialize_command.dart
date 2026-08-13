@@ -101,8 +101,10 @@ class InitializeCommand {
       final pubspecContent = pubspecFile.readAsStringSync();
       final isFlutter = DependencyWirer.isFlutterProject(pubspecContent);
 
-      print('🔧 Wiring zuraffa dependencies'
-          '${isFlutter ? ' (Flutter project)' : ' (Dart project)'}...\n');
+      print(
+        '🔧 Wiring zuraffa dependencies'
+        '${isFlutter ? ' (Flutter project)' : ' (Dart project)'}...\n',
+      );
       final wireResult = await DependencyWirer.wire(
         isFlutter: isFlutter,
         dryRun: dryRun,
@@ -140,11 +142,17 @@ class InitializeCommand {
       if (dryRun) {
         print('🔍 Dry-run: would skip entity scaffolding (--deps-only).');
       } else {
-        print('✅ Dependencies wired. Skipping entity scaffolding (--deps-only).');
+        print(
+          '✅ Dependencies wired. Skipping entity scaffolding (--deps-only).',
+        );
       }
       print('\n📝 Next steps:');
-      print('   • Create an entity:  zfa entity create -n Product --field id:String');
-      print('   • Generate feature:  zfa make Product --preset=crud --with=vpc,state,di,test');
+      print(
+        '   • Create an entity:  zfa entity create -n Product --field id:String',
+      );
+      print(
+        '   • Generate feature:  zfa make Product --preset=crud --with=vpc,state,di,test',
+      );
       return;
     }
 

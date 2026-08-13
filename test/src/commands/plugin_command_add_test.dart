@@ -39,7 +39,9 @@ void main() {
     try {
       Directory.current = Directory(_zfaRoot);
     } catch (_) {
-      try { Directory.current = Directory.systemTemp; } catch (_) {}
+      try {
+        Directory.current = Directory.systemTemp;
+      } catch (_) {}
     }
     if (tmpDir.existsSync()) {
       tmpDir.deleteSync(recursive: true);

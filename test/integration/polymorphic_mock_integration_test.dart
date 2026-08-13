@@ -60,7 +60,9 @@ void main() {
     final resolvedRoot = await findProjectRoot();
     final fixturePath = p.join(
       resolvedRoot,
-      'test', 'fixtures', 'sealed_category_config.dart',
+      'test',
+      'fixtures',
+      'sealed_category_config.dart',
     );
     final fixtureContent = File(fixturePath).readAsStringSync();
     final entityDir = Directory(
@@ -143,8 +145,8 @@ void main() {
 void _cleanStaleGitLocks() {
   try {
     final home = Platform.environment['HOME'] ?? '';
-    final pubCache = Platform.environment['PUB_CACHE'] ??
-        p.join(home, '.pub-cache');
+    final pubCache =
+        Platform.environment['PUB_CACHE'] ?? p.join(home, '.pub-cache');
     final gitDir = Directory(p.join(pubCache, 'git'));
     if (!gitDir.existsSync()) return;
 

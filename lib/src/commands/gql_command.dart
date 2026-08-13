@@ -8,10 +8,7 @@ class GqlCommand extends PluginCommand {
   final GqlPlugin plugin;
 
   GqlCommand(this.plugin) : super(plugin) {
-    argParser.addOption(
-      'returns',
-      help: 'GraphQL return fields',
-    );
+    argParser.addOption('returns', help: 'GraphQL return fields');
     argParser.addOption(
       'type',
       abbr: 't',

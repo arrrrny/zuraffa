@@ -39,9 +39,7 @@ class GraphqlPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   String get version => '1.0.0';
 
   @override
-  List<ZuraffaCapability> get capabilities => [
-    CreateGraphqlCapability(this),
-  ];
+  List<ZuraffaCapability> get capabilities => [CreateGraphqlCapability(this)];
 
   @override
   Command createCommand() => GraphqlCommand(this);
@@ -58,22 +56,10 @@ class GraphqlPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         'type': 'string',
         'description': 'GraphQL operation type (query, mutation, subscription)',
       },
-      'returns': {
-        'type': 'string',
-        'description': 'GraphQL return fields',
-      },
-      'input-type': {
-        'type': 'string',
-        'description': 'Input type name',
-      },
-      'input-name': {
-        'type': 'string',
-        'description': 'Input variable name',
-      },
-      'op-name': {
-        'type': 'string',
-        'description': 'Operation name',
-      },
+      'returns': {'type': 'string', 'description': 'GraphQL return fields'},
+      'input-type': {'type': 'string', 'description': 'Input type name'},
+      'input-name': {'type': 'string', 'description': 'Input variable name'},
+      'op-name': {'type': 'string', 'description': 'Operation name'},
     },
   };
 

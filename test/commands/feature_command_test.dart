@@ -11,7 +11,6 @@ void main() {
     late Directory workspace;
     late String outputDir;
 
-
     setUp(() async {
       workspace = await Directory.systemTemp.createTemp('zfa_feature_command_');
       outputDir = path.join(workspace.path, 'lib', 'src');

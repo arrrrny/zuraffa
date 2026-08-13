@@ -42,7 +42,8 @@ class IntrospectCommand extends Command<void> {
     );
     argParser.addOption(
       'headers',
-      help: 'JSON object of additional HTTP headers to send with the introspection request',
+      help:
+          'JSON object of additional HTTP headers to send with the introspection request',
     );
   }
 
@@ -186,12 +187,11 @@ class IntrospectCommand extends Command<void> {
           for (final field in spec.fields) {
             final nullability = field.isNullable ? '?' : '';
             final listMarker = field.isList ? '[]' : '';
-            final ref =
-                field.referencedEntity != null
-                    ? ' → ${field.referencedEntity}'
-                    : field.referencedEnum != null
-                    ? ' → ${field.referencedEnum}'
-                    : '';
+            final ref = field.referencedEntity != null
+                ? ' → ${field.referencedEntity}'
+                : field.referencedEnum != null
+                ? ' → ${field.referencedEnum}'
+                : '';
             print(
               '    ${field.dartType}$nullability$listMarker ${field.name}$ref',
             );
@@ -227,7 +227,9 @@ class IntrospectCommand extends Command<void> {
     }
 
     for (final spec in enumSpecs) {
-      print('  (enum ${spec.name} would be generated as part of entity generation)');
+      print(
+        '  (enum ${spec.name} would be generated as part of entity generation)',
+      );
     }
 
     if (dryRun) {
@@ -235,9 +237,7 @@ class IntrospectCommand extends Command<void> {
       print('(dry-run: no files written)');
     } else {
       print('');
-      print(
-        'To generate entities, run the commands above or use:',
-      );
+      print('To generate entities, run the commands above or use:');
       print('  zfa make <EntityName> --domain graphql');
     }
   }

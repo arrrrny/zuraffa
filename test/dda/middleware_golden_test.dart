@@ -282,7 +282,6 @@ void main() {
       expect(output, isNot(contains('Stopwatch')));
       // Note: base class ZfaEventTracker.trackEnd always has durationMs param
       // as part of its API, even if the adapter doesn't pass it.
-
     });
   });
 

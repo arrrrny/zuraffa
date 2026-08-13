@@ -93,6 +93,7 @@ void main() {
         order.add('tail');
         return SignalResult.success(99);
       }
+
       final chained = registry.chain<String, int>(tail);
       chained('x');
       expect(order, ['first', 'second', 'tail']);
@@ -114,6 +115,7 @@ void main() {
         tailCalled = true;
         return SignalResult.success(42);
       }
+
       final chained = registry.chain<String, int>(tail);
       final result = chained('x');
       expect(tailCalled, false);

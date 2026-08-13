@@ -275,11 +275,7 @@ class BuildCommand extends Command {
     // emits a "These options have been removed" warning on every invocation.
     // build_runner now resolves conflicting outputs via the build cache, so
     // the flag is no longer needed.
-    final args = <String>[
-      'run',
-      'build_runner',
-      'build',
-    ];
+    final args = <String>['run', 'build_runner', 'build'];
 
     final process = await Process.start(
       'dart',
