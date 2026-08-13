@@ -639,11 +639,17 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     String entityName,
   ) {
     final fieldEnum = 'Field<$entityName, dynamic>';
+    // #302: forward `toggleValue` (not `value`) into the ToggleParams.value
+    // field. The toggle-value parameter is renamed to `toggleValue` below so
+    // it can never collide with `config.idField` (which resolves to `value`
+    // for entities like Barcode whose first declared field is `value`).
+    // The ToggleParams constructor's `value:` named field is unaffected — it
+    // is a class field name, not a parameter name.
     final toggleParams =
         refer('ToggleParams<${config.idFieldType}, $fieldEnum>').call([], {
           'id': refer(config.idField),
           'field': refer('field'),
-          'value': refer('value'),
+          'value': refer('toggleValue'),
         });
 
     final callExpression = refer('_${info.fieldName}')
@@ -667,7 +673,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           ),
           Parameter(
             (p) => p
-              ..name = 'value'
+              ..name = 'toggleValue'
               ..type = refer('bool'),
           ),
         ])
