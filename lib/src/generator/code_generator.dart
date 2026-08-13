@@ -125,7 +125,22 @@ class CodeGenerator {
   Future<GeneratorResult> generate() async {
     try {
       // Resolve the same normalized plan contract used by the CLI.
-      final data = Map<String, dynamic>.from(config.toJson());
+      // #294: GeneratorConfig.toJson() emits snake_case keys (id_field,
+      // query_field, ...) but plugins read kebab-case keys (id-field,
+      // query-field, ...) — exactly what MakeCommand's arg-parser
+      // produces. Mirror MakeCommand._normalizedOptions() here so the
+      // CodeGenerator path (used by tests + programmatic callers) honors
+      // the caller's `GeneratorConfig.idField` / `queryField` instead of
+      // silently falling through to the plugins' hardcoded `'id'`
+      // default.
+      final data = <String, dynamic>{};
+      config.toJson().forEach((key, value) {
+        data[key] = value;
+        final kebab = key.replaceAll('_', '-');
+        if (kebab != key) {
+          data[kebab] = value;
+        }
+      });
       if (data['methods'] is List) {
         data['methods'] = List<String>.from(data['methods'] as List);
       }

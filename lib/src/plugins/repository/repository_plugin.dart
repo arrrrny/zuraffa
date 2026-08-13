@@ -116,6 +116,13 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       syncDirection: context.get<String>('sync-direction') ?? 'push',
       generateLocal: context.get<bool>('local') ?? false,
       noEntity: context.get<bool>('no-entity') ?? false,
+      // #294: read id-field / query-field from the CLI/MakeCommand-resolved
+      // context so generators don't hardcode `EntityFields.id` for
+      // entities whose id field is e.g. `depotId`.
+      idField: context.data['id-field'] ?? 'id',
+      idFieldType: context.data['id-field-type'] ?? 'String',
+      queryField: context.data['query-field'] ?? 'id',
+      queryFieldType: context.data['query-field-type'],
       useService: useService,
       generateRepository: true,
       appendToExisting:

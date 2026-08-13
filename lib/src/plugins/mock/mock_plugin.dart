@@ -100,7 +100,16 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       force: context.core.force,
       verbose: context.core.verbose,
       revert: context.core.revert,
-      methods: context.data['methods']?.cast<String>().toList() ?? [],
+      // #294: default to the canonical CRUD method set used by the
+      // di/usecase/test/state/controller/datasource/repository plugins
+      // (['get', 'update', 'toggle']) so `--preset=crud --with=mock`
+      // generates a fully-implemented mock datasource instead of an
+      // empty class that fails `implements` with `non_abstract_class_inherits_abstract_member`.
+      methods:
+          context.data['methods']?.cast<String>().toList() ??
+          (context.get<bool>('no-entity') == true
+              ? []
+              : ['get', 'update', 'toggle']),
       domain: context.data['domain'],
       repo: context.data['repo'],
       generateMock: true,
@@ -108,6 +117,13 @@ class MockPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       generateMockJson: context.get<bool>('mock-json') ?? false,
       mockJsonDomain: context.data['mock-json-domain'],
       noEntity: context.data['no-entity'] == true,
+      // #294: read id-field / query-field from the CLI/MakeCommand-resolved
+      // context so generators don't hardcode `EntityFields.id` for
+      // entities whose id field is e.g. `depotId`.
+      idField: context.data['id-field'] ?? 'id',
+      idFieldType: context.data['id-field-type'] ?? 'String',
+      queryField: context.data['query-field'] ?? 'id',
+      queryFieldType: context.data['query-field-type'],
       generateData: context.data['data'] == true,
       generateDataSource: context.data['datasource'] == true,
       generateRepository: context.data['repository'] == true,
