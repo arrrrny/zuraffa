@@ -94,6 +94,13 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       usecases: context.data['usecases']?.cast<String>().toList() ?? [],
       variants: context.data['variants']?.cast<String>().toList() ?? [],
       noEntity: context.get<bool>('no-entity') ?? false,
+      // #294: read id-field / query-field from the CLI/MakeCommand-resolved
+      // context so generators don't hardcode `EntityFields.id` for
+      // entities whose id field is e.g. `depotId`.
+      idField: context.data['id-field'] ?? 'id',
+      idFieldType: context.data['id-field-type'] ?? 'String',
+      queryField: context.data['query-field'] ?? 'id',
+      queryFieldType: context.data['query-field-type'],
       domain: context.get<String>('domain'),
       repo: context.get<String>('repo'),
       service: context.get<String>('service'),

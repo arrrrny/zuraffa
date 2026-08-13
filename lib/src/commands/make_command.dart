@@ -7,6 +7,7 @@ import '../cli/plugin_loader.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/plugin_system/plugin_manager.dart';
 import '../models/generated_file.dart';
+import '../utils/entity_field_resolver.dart';
 
 /// Command to run multiple plugins explicitly.
 /// Usage: `zfa make <Name> <plugin1> <plugin2> ... [flags]`
@@ -338,6 +339,40 @@ class MakeCommand extends Command<void> {
       overrideOutputDir: fixedOutputDir,
     );
     context.data.addAll(normalizedOptions);
+
+    // #294: auto-resolve the entity's actual id-like field from the
+    // entity source file so the generated presenter/test/datasource
+    // code references a Field constant that exists on the entity's
+    // Fields class. Without this, generators hardcode `EntityFields.id`
+    // and produce broken code for entities whose id is e.g. `depotId`.
+    // User-provided --id-field / --query-field always wins.
+    if (context.data['no-entity'] != true) {
+      final resolvedIdField = EntityFieldResolver.resolveIdField(
+        entityName: entityName,
+        projectRoot: manager.projectRoot,
+      );
+      if (resolvedIdField != null) {
+        if (!argResults!.wasParsed('id-field') &&
+            (context.data['id-field'] == null ||
+                context.data['id-field'] == 'id')) {
+          context.data['id-field'] = resolvedIdField.name;
+          context.data['id-field-type'] = resolvedIdField.nonNullableType;
+          if (context.core.verbose) {
+            print(
+              '🔍 Resolved id field for "$entityName": '
+              '${resolvedIdField.name} (${resolvedIdField.nonNullableType})',
+            );
+          }
+        }
+        if (!argResults!.wasParsed('query-field') &&
+            (context.data['query-field'] == null ||
+                context.data['query-field'] == 'id')) {
+          context.data['query-field'] = resolvedIdField.name;
+          // query-field-type falls back to id-field-type inside
+          // GeneratorConfig's constructor (see generator_config.dart).
+        }
+      }
+    }
 
     if (context.core.verbose) {
       print(
