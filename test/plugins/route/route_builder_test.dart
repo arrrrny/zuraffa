@@ -45,9 +45,14 @@ void main() {
     final entityRoutes = File('$outputDir/routing/product_routes.dart');
     expect(appRoutes.existsSync(), isTrue);
     expect(entityRoutes.existsSync(), isTrue);
+    // Regression #325: app_routes.dart must import go_router
+    final appContent = appRoutes.readAsStringSync();
+    expect(appContent.contains('package:go_router/go_router.dart'), isTrue);
     final content = entityRoutes.readAsStringSync();
     expect(content.contains('/product'), isTrue);
     expect(content.contains('/product/create'), isTrue);
+    // Regression #325: go_router import must be present
+    expect(content.contains('package:go_router/go_router.dart'), isTrue);
   });
 
   test('generates routes for custom usecase with domain', () async {
@@ -289,6 +294,8 @@ void main() {
     // Verify it doesn't contain getListingRoutes() or getProductRoutes()
     expect(content.contains("getListingRoutes()"), isFalse);
     expect(content.contains("getProductRoutes()"), isFalse);
+    // Regression #325: index.dart must import go_router (for List<GoRoute>)
+    expect(content.contains('package:go_router/go_router.dart'), isTrue);
   });
 
   test('generates extension methods with leading slash', () async {

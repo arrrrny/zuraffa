@@ -486,6 +486,7 @@ class RouteBuilder {
     ];
 
     final imports = [
+      'package:go_router/go_router.dart',
       'package:zuraffa/zuraffa.dart',
       '../presentation/pages/$domainSnake/${entitySnake}_view.dart',
       if (hasListView && hasDetailView)
@@ -850,6 +851,7 @@ class RouteBuilder {
 
     final exports = <Directive>[Directive.export('app_routes.dart')];
     final imports = <Directive>[
+      Directive.import('package:go_router/go_router.dart'),
       Directive.import('package:zuraffa/zuraffa.dart'),
     ];
     final routeElements = <Expression>[];
@@ -1063,6 +1065,9 @@ class RouteBuilder {
 
   String _ensureAppRoutesImports(String source) {
     var content = source;
+    if (!content.contains("import 'package:go_router/go_router.dart';")) {
+      content = "import 'package:go_router/go_router.dart';\n$content";
+    }
     if (!content.contains("import 'package:flutter/material.dart';")) {
       content = "import 'package:flutter/material.dart';\n$content";
     }
