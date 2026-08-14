@@ -341,6 +341,51 @@ class AstModifier {
     return source;
   }
 
+  /// Removes every element of the function's returned list literal for which
+  /// [matches] returns true. Unlike [removeElementFromReturnListInFunction],
+  /// elements do not have to match a full source string exactly — this allows
+  /// replacing stale elements identified by a stable partial identity.
+  static String removeElementsFromReturnListInFunctionWhere({
+    required String source,
+    required FunctionDeclaration functionNode,
+    required bool Function(String elementSource) matches,
+    bool format = true,
+  }) {
+    final body = functionNode.functionExpression.body;
+    if (body is! BlockFunctionBody) {
+      return source;
+    }
+
+    final returnStatement = body.block.statements
+        .whereType<ReturnStatement>()
+        .firstOrNull;
+    if (returnStatement == null) {
+      return source;
+    }
+
+    final expression = returnStatement.expression;
+    if (expression is! ListLiteral) {
+      return source;
+    }
+
+    final toRemove =
+        expression.elements
+            .where((element) => matches(element.toSource()))
+            .toList()
+          // Remove from the end so earlier offsets stay valid.
+          ..sort((a, b) => b.offset.compareTo(a.offset));
+    if (toRemove.isEmpty) {
+      return source;
+    }
+
+    var result = source;
+    for (final element in toRemove) {
+      result =
+          result.substring(0, element.offset) + result.substring(element.end);
+    }
+    return format ? _formatSafe(result) : result;
+  }
+
   static String removeStatement({
     required String source,
     required List<Statement> statements,

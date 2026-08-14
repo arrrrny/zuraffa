@@ -205,6 +205,8 @@ class RouteBuilder {
     required Map<String, String> newRouteConstants,
     required List<Expression> newGoRoutes,
     required List<String> imports,
+    required String detailViewImport,
+    required bool hasDetailView,
     bool force = false,
   }) {
     var content = existingContent;
@@ -224,6 +226,17 @@ class RouteBuilder {
       if (!content.contains("import '$import';")) {
         content = "import '$import';\n$content";
       }
+    }
+
+    // Synchronize the optional detail-view import: when the detail-view
+    // file no longer exists, drop its now-stale import instead of keeping
+    // a reference to a deleted file (which analyze flags as
+    // uri_does_not_exist).
+    if (!hasDetailView) {
+      content = content.replaceAll(
+        RegExp("import\\s+'${RegExp.escape(detailViewImport)}';"),
+        '',
+      );
     }
 
     final helper = const AstHelper();
@@ -266,6 +279,24 @@ class RouteBuilder {
 
       if (normalizedContent.contains(normalizedRouteSource)) {
         continue;
+      }
+
+      // The route source changed (e.g. the view class flipped between
+      // <Entity>View and <Entity>DetailView when the detail-view file
+      // appeared or disappeared). Replace the existing route by its
+      // stable `name:` identity instead of appending a second route for
+      // the same path and name.
+      final nameMatch = RegExp(r"name:\s*'([^']+)'").firstMatch(routeSource);
+      final nameIdentity = nameMatch?.group(1);
+      if (nameIdentity != null) {
+        final identityPattern = RegExp(
+          "name:\\s*'${RegExp.escape(nameIdentity)}'",
+        );
+        content = helper.removeElementsFromReturnListInFunctionWhere(
+          source: content,
+          functionName: routesGetterName,
+          matches: (elementSource) => identityPattern.hasMatch(elementSource),
+        );
       }
 
       content = helper.addElementToReturnListInFunction(
@@ -431,8 +462,9 @@ class RouteBuilder {
       domainSnake,
       '${entitySnake}_detail_view.dart',
     );
-    final hasDetailView =
-        !isCustom && await fileSystem.exists(detailViewPath);
+    final hasDetailView = !isCustom && await fileSystem.exists(detailViewPath);
+    final detailViewImport =
+        '../presentation/pages/$domainSnake/${entitySnake}_detail_view.dart';
 
     final goRoutes = <Expression>[
       if (isCustom)
@@ -501,8 +533,7 @@ class RouteBuilder {
       'package:go_router/go_router.dart',
       'package:zuraffa/zuraffa.dart',
       '../presentation/pages/$domainSnake/${entitySnake}_view.dart',
-      if (hasDetailView)
-        '../presentation/pages/$domainSnake/${entitySnake}_detail_view.dart',
+      if (hasDetailView) detailViewImport,
       if (!config.noEntity) '../domain/entities/$entitySnake/$entitySnake.dart',
       if (dependencyInfo.importPath.isNotEmpty) dependencyInfo.importPath,
     ];
@@ -573,6 +604,8 @@ class RouteBuilder {
             newRouteConstants: routeConstants,
             newGoRoutes: goRoutes,
             imports: imports,
+            detailViewImport: detailViewImport,
+            hasDetailView: hasDetailView,
             force: config.force,
           )
         : entityRoutesBuilder.buildFile(

@@ -528,4 +528,95 @@ void main() {
       },
     );
   });
+
+  // ─────────────────────────────────────────────────────────────────
+  // Regeneration: existing route files must stay synchronized when the
+  // detail-view file appears or disappears between runs.
+  // ─────────────────────────────────────────────────────────────────
+
+  group('issue #328 — detail-view availability sync on regeneration', () {
+    GeneratorConfig makeConfig() => GeneratorConfig(
+      name: 'Product',
+      methods: const ['get', 'getList'],
+      generateVpcs: true,
+      generateRoute: true,
+      outputDir: outputDir,
+    );
+
+    int routeCount(String content, String routeName) => RegExp(
+      "name:\\s*'$routeName'",
+    ).allMatches(content).length;
+
+    test(
+      'rerun after the detail-view file is deleted removes the stale '
+      'import and replaces (not duplicates) the detail route',
+      () async {
+        final builder = RouteBuilder(
+          outputDir: outputDir,
+          options: const GeneratorOptions(
+            dryRun: false,
+            force: true,
+            verbose: false,
+          ),
+        );
+
+        // Run 1: detail view file exists → route uses ProductDetailView.
+        final viewDir = Directory('$outputDir/presentation/pages/product');
+        await viewDir.create(recursive: true);
+        await File('${viewDir.path}/product_view.dart').writeAsString(
+          '// stub view file\n',
+        );
+        final detailFile = File('${viewDir.path}/product_detail_view.dart');
+        await detailFile.writeAsString('// stub detail view file\n');
+
+        await builder.generate(makeConfig());
+        final routesFile = File('$outputDir/routing/product_routes.dart');
+        var content = routesFile.readAsStringSync();
+        expect(content.contains('product_detail_view.dart'), isTrue);
+        expect(content.contains('ProductDetailView'), isTrue);
+        expect(routeCount(content, 'product_detail'), 1);
+
+        // Run 2: detail view file deleted → the existing route file must
+        // be synchronized, not appended to.
+        await detailFile.delete();
+        await builder.generate(makeConfig());
+
+        content = routesFile.readAsStringSync();
+        expect(
+          content.contains('product_detail_view.dart'),
+          isFalse,
+          reason:
+              'stale detail-view import must be removed when the file no '
+              'longer exists (uri_does_not_exist).',
+        );
+        expect(
+          content.contains('ProductDetailView'),
+          isFalse,
+          reason: 'stale DetailView reference must be removed.',
+        );
+        expect(
+          content.contains('ProductView'),
+          isTrue,
+          reason: 'detail route must fall back to the main view.',
+        );
+        expect(
+          routeCount(content, 'product_detail'),
+          1,
+          reason:
+              'the detail route must be replaced by stable identity, not '
+              'duplicated when its source changes.',
+        );
+
+        // Run 3: detail view file reappears → import and DetailView come
+        // back, still without duplicating the route.
+        await detailFile.writeAsString('// stub detail view file\n');
+        await builder.generate(makeConfig());
+
+        content = routesFile.readAsStringSync();
+        expect(content.contains('product_detail_view.dart'), isTrue);
+        expect(content.contains('ProductDetailView'), isTrue);
+        expect(routeCount(content, 'product_detail'), 1);
+      },
+    );
+  });
 }
