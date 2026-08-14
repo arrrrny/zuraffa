@@ -11,6 +11,7 @@ import '../../core/context/file_system.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/file_utils.dart';
+import '../../utils/flutter_symbols.dart';
 import '../../utils/string_utils.dart';
 import 'builders/adaptive_layout_scaffold_builder.dart';
 import 'builders/view_class_builder.dart';
@@ -669,6 +670,22 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         !config.generatePresenter &&
         !config.isEntityBased &&
         !config.isOrchestrator;
+
+    // #337: The entity file is imported below, so an entity named after a
+    // Flutter material symbol (e.g. `Feedback`) would be ambiguous with the
+    // unqualified symbol from material.dart. Hide the colliding symbol from
+    // the material import so the entity wins.
+    final hideSymbol = collidesWithFlutterSymbol(config.name) &&
+        !isCustom &&
+        !config.noEntity &&
+        (config.generateState ||
+            config.customStateName != null ||
+            config.isEntityBased)
+        ? config.name
+        : null;
+    if (hideSymbol != null) {
+      imports[0] = 'package:flutter/material.dart hide $hideSymbol';
+    }
 
     if (!isCustom) {
       // #284/#281: Presentation layer imports `zuraffa_flutter` (which
