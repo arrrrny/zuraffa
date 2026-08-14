@@ -68,8 +68,8 @@ void main() {
           isNotNull,
           reason: 'Resolver should find depotId for StorePrice',
         );
-        expect(resolved!.name, 'depotId');
-        expect(resolved.type, 'String');
+        expect(resolved!.idField!.name, 'depotId');
+        expect(resolved.idField!.type, 'String');
       },
     );
 
@@ -212,7 +212,7 @@ void main() {
       );
 
       expect(resolved, isNotNull);
-      expect(resolved!.name, 'storeId');
+      expect(resolved!.idField!.name, 'storeId');
     });
   });
 

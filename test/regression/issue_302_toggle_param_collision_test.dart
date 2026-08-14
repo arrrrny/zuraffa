@@ -65,34 +65,37 @@ void main() {
   });
 
   group('#302 — toggle param name collision when entity field is `value`', () {
-    test(
-      'EntityFieldResolver resolves `value` as the id field for Barcode',
-      () async {
-        await writeEntityStubWithoutId(
-          workspace,
-          name: 'Barcode',
-          fields: const [
-            (name: 'value', type: 'String'),
-            (name: 'format', type: 'String'),
-          ],
-        );
+    test('#307 contract — an id-less Barcode resolves no id (no silent '
+        'first-field fallback to `value`)', () async {
+      await writeEntityStubWithoutId(
+        workspace,
+        name: 'Barcode',
+        fields: const [
+          (name: 'value', type: 'String'),
+          (name: 'format', type: 'String'),
+        ],
+      );
 
-        final resolved = EntityFieldResolver.resolveIdField(
-          entityName: 'Barcode',
-          projectRoot: workspace.directory.path,
-        );
+      final resolved = EntityFieldResolver.resolveIdField(
+        entityName: 'Barcode',
+        projectRoot: workspace.directory.path,
+      );
 
-        expect(
-          resolved,
-          isNotNull,
-          reason:
-              'Resolver should fall back to the first declared field '
-              '(`value`) when no `id`/`*Id` field exists',
-        );
-        expect(resolved!.name, 'value');
-        expect(resolved.type, 'String');
-      },
-    );
+      expect(
+        resolved,
+        isNotNull,
+        reason:
+            'Resolver should resolve the id-less Barcode contract without '
+            'silently falling back to the first field',
+      );
+      // #307: no `id` / `*Id` / `autoId` → id-less entity (zfa make fails
+      // loudly). The `value`-as-id toggle-collision scenario (#302) now
+      // requires an explicit `--id-field=value` on `zfa make`.
+      expect(resolved!.kind, EntitySourceKind.entity);
+      expect(resolved.autoId, isFalse);
+      expect(resolved.idField, isNull);
+      expect(resolved.hasId, isFalse);
+    });
 
     test('generated controller + presenter use `toggleValue` for the bool param '
         'and forward it into ToggleParams (no duplicate `value`)', () async {

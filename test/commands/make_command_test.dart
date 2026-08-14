@@ -231,4 +231,181 @@ class Product {
       },
     );
   });
+
+  group('MakeCommand #307 identity contract', () {
+    late Directory workspace;
+    late String outputDir;
+    late String zfaSourceBin;
+
+    // Runs zfa from SOURCE (never the stale compiled ~/.local/bin/zfa) as a
+    // subprocess with an explicit workingDirectory — no process-global
+    // `Directory.current` mutation, so this group cannot race with other
+    // test files that capture the cwd at load time (see #296 test).
+    Future<ProcessResult> runZfaSource(List<String> args) {
+      return Process.run('dart', [
+        zfaSourceBin,
+        ...args,
+      ], workingDirectory: workspace.path);
+    }
+
+    setUpAll(() async {
+      final projectRoot = await findProjectRoot();
+      zfaSourceBin = path.join(projectRoot, 'bin', 'zfa.dart');
+    });
+
+    setUp(() async {
+      workspace = await Directory.systemTemp.createTemp('zfa_make_identity_');
+      outputDir = path.join(workspace.path, 'lib', 'src');
+      await Directory(outputDir).create(recursive: true);
+      await File(path.join(workspace.path, 'pubspec.yaml')).writeAsString('''
+name: zuraffa_make_identity_test
+environment:
+  sdk: ^3.11.0
+dependencies:
+  uuid: ^4.6.0
+''');
+    });
+
+    tearDown(() async {
+      if (workspace.existsSync()) {
+        await workspace.delete(recursive: true);
+      }
+    });
+
+    Future<void> writeEntity(String name, String content) async {
+      final snake = name.replaceAllMapped(
+        RegExp(r'[A-Z]'),
+        (m) => (m.start == 0 ? '' : '_') + m.group(0)!.toLowerCase(),
+      );
+      final dir = Directory(path.join(outputDir, 'domain', 'entities', snake));
+      await dir.create(recursive: true);
+      await File(path.join(dir.path, '$snake.dart')).writeAsString(content);
+    }
+
+    test(
+      '#307 — an id-less entity fails loudly instead of falling back to its '
+      'first (enum) field',
+      timeout: const Timeout(Duration(minutes: 2)),
+      () async {
+        await writeEntity('ChatMessage', '''
+import 'package:zorphy_annotation/zorphy_annotation.dart';
+
+@Zorphy(generateJson: true, generateCompareTo: true)
+abstract class \$ChatMessage {
+  ChatMessageRole get role;
+  String get content;
+  DateTime get timestamp;
+}
+''');
+
+        final result = await runZfaSource([
+          'make',
+          'ChatMessage',
+          '--preset=crud',
+          '--with=vpc,state,di,test,mock',
+          '--output',
+          outputDir,
+        ]);
+
+        expect(result.exitCode, isNot(0));
+        expect(
+          result.stdout as String,
+          contains('has no id field'),
+          reason: 'stdout: ${result.stdout}',
+        );
+        // The enum-typed-id fallback must never happen.
+        expect(result.stdout as String, isNot(contains('Resolved id field')));
+      },
+    );
+
+    test(
+      '#307 — autoId: true resolves the identity to a String id even without '
+      'an id getter in the source',
+      timeout: const Timeout(Duration(minutes: 2)),
+      () async {
+        await writeEntity('TelemetryEvent', '''
+import 'package:zorphy_annotation/zorphy_annotation.dart';
+
+@Zorphy(generateJson: true, autoId: true)
+abstract class \$TelemetryEvent {
+  TelemetryEventType get type;
+  String get value;
+}
+''');
+
+        final result = await runZfaSource([
+          'make',
+          'TelemetryEvent',
+          '--preset=crud',
+          '--with=vpc',
+          '--verbose',
+          '--output',
+          outputDir,
+        ]);
+
+        expect(result.exitCode, 0, reason: 'stderr: ${result.stderr}');
+        expect(
+          result.stdout as String,
+          contains('Resolved id field for "TelemetryEvent": id (String)'),
+          reason: 'stdout: ${result.stdout}',
+        );
+      },
+    );
+
+    test(
+      'value object — make skips the root plugins and does not generate '
+      'repository/usecase/controller/presenter',
+      timeout: const Timeout(Duration(minutes: 2)),
+      () async {
+        await writeEntity('ParserConfig', '''
+import 'package:zorphy_annotation/zorphy_annotation.dart';
+
+@ZValueObject
+abstract class \$ParserConfig {
+  String get separator;
+  bool get trimWhitespace;
+}
+''');
+
+        final result = await runZfaSource([
+          'make',
+          'ParserConfig',
+          '--preset=crud',
+          '--with=vpc,state,di,test,mock',
+          '--output',
+          outputDir,
+        ]);
+
+        expect(result.exitCode, 0, reason: 'stderr: ${result.stderr}');
+        final stdout = result.stdout as String;
+        expect(stdout, contains('is a value object — skipping root plugins'));
+        expect(stdout, contains('usecase'));
+        expect(stdout, contains('presenter'));
+
+        // No persisted/root surface is generated...
+        final domainUsecases = Directory(
+          path.join(outputDir, 'domain', 'usecases'),
+        );
+        expect(domainUsecases.existsSync(), isFalse);
+        final domainRepos = Directory(
+          path.join(outputDir, 'domain', 'repositories'),
+        );
+        expect(domainRepos.existsSync(), isFalse);
+        // ...but embedded-type tooling (mock data) still runs.
+        final dataDir = Directory(path.join(outputDir, 'data'));
+        expect(
+          dataDir.existsSync() &&
+              dataDir
+                  .listSync(recursive: true)
+                  .any(
+                    (f) =>
+                        f.path.endsWith('parser_config_mock_data.dart') ||
+                        f.path.endsWith('parser_config_mock_entity.dart'),
+                  ),
+          isTrue,
+          reason: 'expected mock data under ${dataDir.path}',
+        );
+      },
+    );
+  });
 }

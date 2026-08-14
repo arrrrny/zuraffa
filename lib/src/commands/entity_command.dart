@@ -192,6 +192,8 @@ ${missing.map((d) => '   • $d').join('\n')}
       explicitSubtypes: _asStringList(parsed['subtypes']),
       generateSubtypes: parsed['generate_subs'] as bool? ?? false,
       dryRun: parsed['dry_run'] as bool? ?? false,
+      autoId: parsed['auto_id'] == true,
+      kind: _parseKind(parsed['kind'] as String?),
     );
 
     final creator = EntityCreator(baseOutputDir: outputDir);
@@ -204,6 +206,10 @@ ${missing.map((d) => '   • $d').join('\n')}
       print('  1. Run: zfa build');
       print('  2. Import and use your ${entityConfig.className} class');
 
+      if (entityConfig.autoId) {
+        _warnIfUuidMissing();
+      }
+
       if (fields.isNotEmpty) {
         print('\n✨ Generated ${fields.length} fields:');
         for (final field in fields) {
@@ -213,6 +219,40 @@ ${missing.map((d) => '   • $d').join('\n')}
     } else {
       print('❌ ${result.error}');
       exit(1);
+    }
+  }
+
+  /// autoId entities reference `package:uuid/uuid.dart` in the generated
+  /// code — warn when the app does not depend on it yet.
+  void _warnIfUuidMissing() {
+    final pubspecFile = File('pubspec.yaml');
+    if (!pubspecFile.existsSync()) return;
+    try {
+      final content = pubspecFile.readAsStringSync();
+      if (content.contains(RegExp(r'^\s*uuid\s*:', multiLine: true))) return;
+      print(
+        '⚠️  Generated id uses package:uuid — add it with: dart pub add uuid',
+      );
+    } catch (_) {
+      // Best-effort hint only.
+    }
+  }
+
+  /// Parses the `--kind` flag: `entity` (default) or
+  /// `value_object` / `valueObject`. Anything else aborts with a clear
+  /// message.
+  ZorphyKind _parseKind(String? kind) {
+    switch (kind) {
+      case null:
+      case 'entity':
+        return ZorphyKind.entity;
+      case 'value_object':
+      case 'valueObject':
+      case 'value-object':
+        return ZorphyKind.valueObject;
+      default:
+        print('❌ Unknown kind "$kind". Expected: entity | value_object.');
+        exit(1);
     }
   }
 
@@ -735,6 +775,14 @@ CREATE COMMAND:
     --extends               Interface to extend
     --subtypes              Explicit subtypes
     --generate-subs         Generate subtype files
+    --auto-id               Auto-generate a String id (uuid v4). The id
+                            field is optional at construction and defaults
+                            to a fresh uuid (adds uuid to your pubspec).
+    --kind=<entity|value_object>
+                            Semantic kind. value_object marks an immutable
+                            composition type: no id required and `zfa make`
+                            generates no repository/usecase/controller/
+                            presenter for it.
     --allow-forward-refs    Skip on-disk type validation (batch generation of
                             cyclic schemas — referenced entity is created later)
 
@@ -750,6 +798,10 @@ ADD-FIELD COMMAND:
 EXAMPLES:
   zfa entity create -n User --field id:String --field name:String
   zfa entity create -n Product --field name:String --field price:double --filter
+  zfa entity create -n ChatMessage --auto-id --field role:ChatMessageRole
+    --field content:String --field timestamp:DateTime
+  zfa entity create -n ParserConfig --kind=value_object
+    --field separator:String --field trimWhitespace:bool
   zfa entity enum -n Status --value pending,active,completed
   zfa entity add-field -n User --field email:String?
   zfa entity list

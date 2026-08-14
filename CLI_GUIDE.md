@@ -139,6 +139,50 @@ zfa entity create -n Order \
   --allow-forward-refs
 ```
 
+### Auto-generated ids (`--auto-id`)
+
+`zfa make` requires every entity to have a real identity (issue #307 — the
+old silent first-field fallback produced enum-typed ids for id-less entities
+like `ChatMessage` / `TelemetryEvent`). Pass `--auto-id` to have zfa declare
+a `String id` field that the generated constructor defaults to a fresh
+`Uuid().v4()` — callers construct the entity without supplying an id:
+
+```bash
+zfa entity create -n ChatMessage --auto-id \
+  --field role:ChatMessageRole \
+  --field content:String \
+  --field timestamp:DateTime
+```
+
+The generated entity imports `package:uuid/uuid.dart`; add `uuid` to the
+app's pubspec (`dart pub add uuid`) — zfa warns if it is missing.
+
+### Value objects (`--kind=value_object`)
+
+Entities are aggregate/event roots with identity. Immutable composition
+types (parser options, transformation mappings, embedded value records)
+have no identity of their own — model them as **value objects**:
+
+```bash
+zfa entity create -n ParserConfig --kind=value_object \
+  --field separator:String \
+  --field trimWhitespace:bool
+```
+
+A value object's annotation carries `kind: ZorphyKind.valueObject` (the
+`@ZValueObject` alias is equivalent). Codegen is identical to an entity
+(equality, copyWith, JSON), but `zfa make` treats it as an embedded type:
+repository/usecase/controller/presenter (and the other persisted-root
+plugins) are skipped with a notice — no id is required and the loud
+no-id error never fires for it.
+
+### Id-less entities fail loudly
+
+An entity with no `id` / `*Id` field and no `--auto-id` / value-object
+marker makes `zfa make` fail with a clear diagnostic (instead of silently
+falling back to the first field). The message lists the three fixes: add an
+id field, recreate with `--auto-id`, or model it as a value object.
+
 `--allow-forward-refs` is **opt-in**. The default behaviour (reject unknown
 types) is unchanged — it still guards against typos and genuinely missing
 enums/entities when you are generating a single entity outside a batch.

@@ -10,17 +10,33 @@
 // like `StorePrice` (whose id field is `depotId`) produced broken
 // generated code that referenced `StorePriceFields.id` (undefined getter).
 //
+// Background (issue #307): the old resolution order fell back to the FIRST
+// declared field when no id-like field existed. For id-less entities whose
+// first field is an enum (`ChatMessage.role`, `TelemetryEvent.type`) that
+// produced enum-typed ids in generated update/toggle signatures plus
+// missing enum imports. The first-field fallback is now REMOVED: an
+// entity without a real identity must either declare an id-like field,
+// opt into `@Zorphy(autoId: true)`, or be a value object
+// (`@ZValueObject` / `kind: ZorphyKind.valueObject`) — anything else is
+// reported as an id-less entity and `zfa make` fails loudly.
+//
 // Resolution order:
 //   1. a field literally named `id`
 //   2. the first field whose name ends with `Id` (e.g. `depotId`, `userId`)
-//   3. the first declared field
+//   3. the synthetic `id: String` when the annotation has `autoId: true`
 //
-// The resolver returns null when the entity file cannot be located or
-// contains no parseable field declarations; in that case the caller
-// keeps its existing default (`'id'`).
+// [resolveIdField] returns null only when the entity file cannot be
+// located or contains no parseable field declarations; in that case the
+// caller keeps its existing default (`'id'`).
 
 import 'dart:io';
 import 'package:path/path.dart' as p;
+
+/// The semantic kind of a Zorphy class, read from its annotation.
+///
+/// Mirrors `ZorphyKind` from the annotation package using source-text
+/// detection so the resolver stays dependency-light.
+enum EntitySourceKind { entity, valueObject }
 
 /// A single parsed field declaration: a Dart type string and a field name.
 class EntityFieldInfo {
@@ -48,6 +64,37 @@ class EntityFieldInfo {
   String toString() => 'EntityFieldInfo(name: $name, type: $type)';
 }
 
+/// The result of resolving an entity's identity: its kind, whether it
+/// opts into `autoId`, and the resolved id-like field (if any).
+///
+/// [idField] is null for value objects (no identity required) and for
+/// entities that declare neither an id-like field nor `autoId` — callers
+/// must treat the latter as a loud error (see `zfa make`).
+class EntityIdResolution {
+  /// The semantic kind of the entity.
+  final EntitySourceKind kind;
+
+  /// Whether the annotation carries `autoId: true`.
+  final bool autoId;
+
+  /// The resolved id-like field, or null when the entity has no identity
+  /// (value objects) or none could be resolved (id-less entity).
+  final EntityFieldInfo? idField;
+
+  const EntityIdResolution({
+    required this.kind,
+    required this.autoId,
+    this.idField,
+  });
+
+  /// True when this is a value object (no id needed, no CRUD surface).
+  bool get isValueObject => kind == EntitySourceKind.valueObject;
+
+  /// True when an identity field is available — either a real source field
+  /// or the synthetic `id: String` promised by `autoId: true`.
+  bool get hasId => idField != null || autoId;
+}
+
 /// Reads a Zorphy entity source file and resolves the entity's id-like
 /// field. See the file doc comment for the resolution order.
 class EntityFieldResolver {
@@ -62,7 +109,7 @@ class EntityFieldResolver {
   ///
   /// [entityOutputDir] defaults to [defaultEntityOutputDir] but can be
   /// overridden (e.g. in tests).
-  static EntityFieldInfo? resolveIdField({
+  static EntityIdResolution? resolveIdField({
     required String entityName,
     required String projectRoot,
     String entityOutputDir = defaultEntityOutputDir,
@@ -73,20 +120,73 @@ class EntityFieldResolver {
     );
     if (!entityFile.existsSync()) return null;
 
-    final fields = parseEntityFields(entityFile.readAsStringSync());
+    final content = entityFile.readAsStringSync();
+    final fields = parseEntityFields(content);
     if (fields.isEmpty) return null;
+
+    final autoId = detectsAutoId(content);
+    final kind = detectsValueObject(content)
+        ? EntitySourceKind.valueObject
+        : EntitySourceKind.entity;
+
+    // Value objects have no identity — never resolve (or invent) an id.
+    if (kind == EntitySourceKind.valueObject) {
+      return EntityIdResolution(kind: kind, autoId: autoId);
+    }
 
     // 1. literal `id`
     for (final f in fields) {
-      if (f.name == 'id') return f;
+      if (f.name == 'id') {
+        return EntityIdResolution(kind: kind, autoId: autoId, idField: f);
+      }
     }
     // 2. first ending in `Id` (camelCase, length > 2 to avoid matching `Id`)
     for (final f in fields) {
-      if (f.name.length > 2 && f.name.endsWith('Id')) return f;
+      if (f.name.length > 2 && f.name.endsWith('Id')) {
+        return EntityIdResolution(kind: kind, autoId: autoId, idField: f);
+      }
     }
-    // 3. first declared field
-    return fields.first;
+    // 3. synthetic `id: String` promised by `autoId: true` (issue #307 —
+    //    the generator defaults the concrete constructor's id to a uuid).
+    if (autoId) {
+      return EntityIdResolution(
+        kind: kind,
+        autoId: autoId,
+        idField: const EntityFieldInfo(name: 'id', type: 'String'),
+      );
+    }
+
+    // No identity: id-less entity. `zfa make` must fail loudly.
+    return EntityIdResolution(kind: kind, autoId: autoId);
   }
+
+  /// Detects `autoId: true` inside a `@Zorphy(...)`/`@Zorphy2(...)`
+  /// annotation in [content].
+  static bool detectsAutoId(String content) {
+    final match = _zorphyAnnotationPattern.firstMatch(content);
+    final args = match?.group(1);
+    if (args == null) return false;
+    return RegExp(r'\bautoId\s*:\s*true\b').hasMatch(args);
+  }
+
+  /// Detects a value-object kind in [content]: either the `@ZValueObject`
+  /// annotation alias or `kind: ZorphyKind.valueObject` inside
+  /// `@Zorphy(...)`.
+  static bool detectsValueObject(String content) {
+    if (RegExp(r'@\s*ZValueObject\b').hasMatch(content)) return true;
+    final match = _zorphyAnnotationPattern.firstMatch(content);
+    final args = match?.group(1);
+    if (args == null) return false;
+    return RegExp(
+      r'\bkind\s*:\s*(?:ZorphyKind\.)?valueObject\b',
+    ).hasMatch(args);
+  }
+
+  /// Matches `@Zorphy(...)` / `@zorphy(...)` / `@Zorphy2(...)` annotation
+  /// invocations (with or without an argument list).
+  static final RegExp _zorphyAnnotationPattern = RegExp(
+    r'@\s*(?:Zorphy|zorphy|Zorphy2)\s*(\(([^)]*)\))?',
+  );
 
   /// Parses `<entity>.dart` source content for field declarations.
   ///
