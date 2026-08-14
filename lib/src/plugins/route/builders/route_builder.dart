@@ -832,9 +832,18 @@ class RouteBuilder {
     }
 
     if (withId) {
-      viewArgs['id'] = refer(
-        'state',
-      ).property('pathParameters').index(literalString('id')).nullChecked;
+      // #336: go_router path parameters are always String; convert to
+      // the view's id type (typed after the entity's actual id field).
+      final idValue = refer('state')
+          .property('pathParameters')
+          .index(literalString('id'))
+          .nullChecked;
+      viewArgs['id'] = switch (config.idFieldType) {
+        'int' => refer('int').property('parse').call([idValue]),
+        'double' => refer('double').property('parse').call([idValue]),
+        'num' => refer('num').property('parse').call([idValue]),
+        _ => idValue,
+      };
     }
 
     if (!config.noEntity && !config.isCustomUseCase) {

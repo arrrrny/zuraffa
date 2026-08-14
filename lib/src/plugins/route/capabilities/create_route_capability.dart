@@ -2,6 +2,7 @@ import '../../../core/plugin_system/capability.dart';
 import '../route_plugin.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
+import '../../../utils/entity_id_type.dart';
 
 class CreateRouteCapability implements ZuraffaCapability {
   final RoutePlugin plugin;
@@ -97,12 +98,21 @@ class CreateRouteCapability implements ZuraffaCapability {
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;
 
+    // #336: keep route id path params consistent with the view's id
+    // field type (probe the entity source / last make plan) so int-id
+    // entities get `int.parse(state.pathParameters['id']!)` instead of
+    // assigning a String into an int-typed view param.
+    final idFieldType =
+        args['id-field-type'] as String? ??
+        await resolveEntityIdFieldType(entityName: name);
+
     final config = GeneratorConfig(
       name: name,
       outputDir: outputDir,
       methods: methods,
       generateRoute: true,
       generateDi: false, // Prevent repository injections in views
+      idFieldType: idFieldType ?? 'String',
       dryRun: dryRun,
       force: force,
       verbose: verbose,
