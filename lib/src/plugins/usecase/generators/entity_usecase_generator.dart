@@ -355,19 +355,32 @@ class EntityUseCaseGenerator {
     final filePath = path.join(usecaseDirPath, fileName);
 
     final imports = <String>['package:zuraffa/zuraffa.dart'];
+    // #321: always run the import resolver with at least the id/query
+    // field types so an enum-typed id (e.g. DeleteParams<SomeEnum>,
+    // ToggleParams<SomeEnum, Field>, UpdateParams<SomeEnum, Patch>) gets
+    // the enum barrel import emitted. Previously the `delete` usecase
+    // (needsEntityImport = false) skipped this block entirely, leaving
+    // `DeleteParams<ChatMessageRole>` without the enum import.
+    //
+    // When needsEntityImport is true (get/getList/create/update/toggle/
+    // watch/watchList), also include the paramsType and returnType so
+    // entity/patch types referenced in the signature get imported too.
+    final sigTypes = <String>[
+      config.idFieldType,
+      config.queryFieldType,
+    ];
     if (needsEntityImport) {
-      final entityImports = CommonPatterns.entityImports(
-        [
-          paramsType.accept(DartEmitter()).toString(),
-          returnType.accept(DartEmitter()).toString(),
-        ],
-        config,
-        depth: 3,
-        includeDomain: false,
-        fileSystem: fileSystem,
-      );
-      imports.addAll(entityImports);
+      sigTypes.add(paramsType.accept(DartEmitter()).toString());
+      sigTypes.add(returnType.accept(DartEmitter()).toString());
     }
+    final entityImports = CommonPatterns.entityImports(
+      sigTypes,
+      config,
+      depth: 3,
+      includeDomain: false,
+      fileSystem: fileSystem,
+    );
+    imports.addAll(entityImports);
 
     if (hasService) {
       final serviceSnake = StringUtils.camelToSnake(

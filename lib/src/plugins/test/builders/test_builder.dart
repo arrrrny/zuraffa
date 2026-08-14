@@ -1,6 +1,7 @@
 import 'package:code_builder/code_builder.dart';
 import 'package:path/path.dart' as path;
 
+import '../../../core/builder/patterns/common_patterns.dart';
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../../../core/constants/known_types.dart';

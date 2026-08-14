@@ -66,7 +66,8 @@ void main() {
 
   group('#302 — toggle param name collision when entity field is `value`', () {
     test(
-      'EntityFieldResolver resolves `value` as the id field for Barcode',
+      'EntityFieldResolver returns null for Barcode (no id-like field, no '
+      'autoId — #321 removed the first-field fallback)',
       () async {
         await writeEntityStubWithoutId(
           workspace,
@@ -82,15 +83,23 @@ void main() {
           projectRoot: workspace.directory.path,
         );
 
+        // #321: the resolver NO LONGER silently falls back to the first
+        // declared field when no `id`/`*Id` field exists. `Barcode` has
+        // fields `value` and `format` — neither is id-like, and there's
+        // no `@Zorphy(autoId: true)` marker — so the resolver returns
+        // null. The caller (MakeCommand) errors loudly with a diagnostic
+        // pointing at the three valid resolutions. The toggle-param-name
+        // collision behavior itself (the actual #302 fix) is preserved
+        // and is exercised by the next test, which passes `idField`
+        // explicitly to bypass the resolver.
         expect(
           resolved,
-          isNotNull,
+          isNull,
           reason:
-              'Resolver should fall back to the first declared field '
-              '(`value`) when no `id`/`*Id` field exists',
+              '#321: resolver must NOT fall back to the first declared '
+              'field (`value`) when no `id`/`*Id` field exists — that '
+              'fallback is what produced enum-typed ids in #307.',
         );
-        expect(resolved!.name, 'value');
-        expect(resolved.type, 'String');
       },
     );
 
