@@ -555,7 +555,15 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final fields = <Field>[];
 
     final withState = config.generateState || config.customStateName != null;
-    if (withState && !config.noEntity) {
+    // #328: Always accept the entity named-param when the entity is
+    // CRUD-backed (`isEntityBased`), so the route generator's
+    // `View(entityCamel: state.extra as Entity?)` call compiles even without
+    // --state. Previously this field was only emitted under --state, so the
+    // route's named-arg had no matching constructor parameter and analyze
+    // flagged `extra_positional_arguments` / undefined named-param. The
+    // field stays optional (not `required`), so non-route call sites that
+    // construct the view without the entity still compile.
+    if (!config.noEntity && (withState || config.isEntityBased)) {
       fields.add(
         Field(
           (f) => f
@@ -690,7 +698,11 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       imports.add('${presenterSnake}_presenter.dart');
 
       final withState = config.generateState || config.customStateName != null;
-      if (withState && !config.noEntity) {
+      // #328: Import the entity whenever the view's constructor accepts it
+      // (CRUD-backed or --state). Must match the field condition in
+      // _buildRouteFieldsForView, otherwise the field's type
+      // (`${config.name}?`) references an unimported symbol.
+      if (!config.noEntity && (withState || config.isEntityBased)) {
         final entitySnake = config.nameSnake;
         imports.add(
           '$relativePath../domain/entities/$entitySnake/$entitySnake.dart',

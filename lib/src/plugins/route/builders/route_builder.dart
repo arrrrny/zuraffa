@@ -205,6 +205,8 @@ class RouteBuilder {
     required Map<String, String> newRouteConstants,
     required List<Expression> newGoRoutes,
     required List<String> imports,
+    required String detailViewImport,
+    required bool hasDetailView,
     bool force = false,
   }) {
     var content = existingContent;
@@ -224,6 +226,17 @@ class RouteBuilder {
       if (!content.contains("import '$import';")) {
         content = "import '$import';\n$content";
       }
+    }
+
+    // Synchronize the optional detail-view import: when the detail-view
+    // file no longer exists, drop its now-stale import instead of keeping
+    // a reference to a deleted file (which analyze flags as
+    // uri_does_not_exist).
+    if (!hasDetailView) {
+      content = content.replaceAll(
+        RegExp("import\\s+'${RegExp.escape(detailViewImport)}';"),
+        '',
+      );
     }
 
     final helper = const AstHelper();
@@ -266,6 +279,24 @@ class RouteBuilder {
 
       if (normalizedContent.contains(normalizedRouteSource)) {
         continue;
+      }
+
+      // The route source changed (e.g. the view class flipped between
+      // <Entity>View and <Entity>DetailView when the detail-view file
+      // appeared or disappeared). Replace the existing route by its
+      // stable `name:` identity instead of appending a second route for
+      // the same path and name.
+      final nameMatch = RegExp(r"name:\s*'([^']+)'").firstMatch(routeSource);
+      final nameIdentity = nameMatch?.group(1);
+      if (nameIdentity != null) {
+        final identityPattern = RegExp(
+          "name:\\s*'${RegExp.escape(nameIdentity)}'",
+        );
+        content = helper.removeElementsFromReturnListInFunctionWhere(
+          source: content,
+          functionName: routesGetterName,
+          matches: (elementSource) => identityPattern.hasMatch(elementSource),
+        );
       }
 
       content = helper.addElementToReturnListInFunction(
@@ -414,13 +445,26 @@ class RouteBuilder {
         (config.methods.contains('getList') ||
             config.methods.contains('watchList'));
 
-    final hasDetailView =
-        !isCustom &&
-        (config.methods.contains('get') || config.methods.contains('watch'));
-    final hasListView =
-        !isCustom &&
-        (config.methods.contains('getList') ||
-            config.methods.contains('watchList'));
+    // #328: Probe the actual view file on disk instead of deriving from the
+    // route's own methods list. `zfa view create` only emits a separate
+    // `<entity>_detail_view.dart` when the view was generated with BOTH a
+    // list method (getList/watchList) AND a detail method (get/watch). When
+    // the view was created with different methods than the route (the common
+    // smoke-test case: `zfa view create` defaults to `get,update`, then
+    // `zfa route create --methods=get,getList` is run later), the detail view
+    // file does not exist, and the route must not reference it. Reading the
+    // filesystem aligns the route generator with the view generator's actual
+    // output and eliminates the `uri_does_not_exist` analyze errors.
+    final detailViewPath = path.join(
+      outputDir,
+      'presentation',
+      'pages',
+      domainSnake,
+      '${entitySnake}_detail_view.dart',
+    );
+    final hasDetailView = !isCustom && await fileSystem.exists(detailViewPath);
+    final detailViewImport =
+        '../presentation/pages/$domainSnake/${entitySnake}_detail_view.dart';
 
     final goRoutes = <Expression>[
       if (isCustom)
@@ -458,7 +502,7 @@ class RouteBuilder {
           routeNameBase: routeNameBase,
           viewParam: dependencyInfo.viewParam,
           config: config,
-          viewName: (hasListView && hasDetailView)
+          viewName: hasDetailView
               ? '${entityName}DetailView'
               : '${entityName}View',
         ),
@@ -479,7 +523,7 @@ class RouteBuilder {
           routeNameBase: routeNameBase,
           viewParam: dependencyInfo.viewParam,
           config: config,
-          viewName: (hasListView && hasDetailView)
+          viewName: hasDetailView
               ? '${entityName}DetailView'
               : '${entityName}View',
         ),
@@ -489,8 +533,7 @@ class RouteBuilder {
       'package:go_router/go_router.dart',
       'package:zuraffa/zuraffa.dart',
       '../presentation/pages/$domainSnake/${entitySnake}_view.dart',
-      if (hasListView && hasDetailView)
-        '../presentation/pages/$domainSnake/${entitySnake}_detail_view.dart',
+      if (hasDetailView) detailViewImport,
       if (!config.noEntity) '../domain/entities/$entitySnake/$entitySnake.dart',
       if (dependencyInfo.importPath.isNotEmpty) dependencyInfo.importPath,
     ];
@@ -561,6 +604,8 @@ class RouteBuilder {
             newRouteConstants: routeConstants,
             newGoRoutes: goRoutes,
             imports: imports,
+            detailViewImport: detailViewImport,
+            hasDetailView: hasDetailView,
             force: config.force,
           )
         : entityRoutesBuilder.buildFile(
