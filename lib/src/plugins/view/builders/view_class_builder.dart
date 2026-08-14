@@ -56,13 +56,31 @@ class ViewClassBuilder {
 
   static const _ignoreComment = '// ignore_for_file: no_logic_in_create_state';
 
+  /// Parses an import string, honoring an optional trailing
+  /// `hide Symbol1, Symbol2` combinator so callers can disambiguate entity
+  /// names that collide with Flutter symbols (#337).
+  static Directive _parseImport(String import) {
+    final match = RegExp('^(.*)\\s+hide\\s+(.+)\$').firstMatch(import);
+    if (match == null) {
+      return Directive.import(import);
+    }
+    return Directive(
+      (d) => d
+        ..type = DirectiveType.import
+        ..url = match.group(1)!.trim()
+        ..hide.addAll(
+          match.group(2)!.split(',').map((s) => s.trim()),
+        ),
+    );
+  }
+
   String build(ViewClassSpec spec, {String? leadingComment}) {
     if (spec.isCustom) {
       return _buildCustomView(spec, leadingComment: leadingComment);
     }
     final viewClass = _buildViewClass(spec);
     final stateClass = _buildStateClass(spec);
-    final directives = spec.imports.toSet().map(Directive.import).toList();
+    final directives = spec.imports.toSet().map(_parseImport).toList();
 
     final library = specLibrary.library(
       specs: [viewClass, stateClass],
@@ -179,7 +197,7 @@ class ViewClassBuilder {
         ),
     );
 
-    final directives = spec.imports.toSet().map(Directive.import).toList();
+    final directives = spec.imports.toSet().map(_parseImport).toList();
     final library = specLibrary.library(
       specs: [viewClass],
       directives: directives,
@@ -298,7 +316,7 @@ class ViewClassBuilder {
         ),
     );
 
-    final directives = spec.imports.toSet().map(Directive.import).toList();
+    final directives = spec.imports.toSet().map(_parseImport).toList();
     final library = specLibrary.library(
       specs: [viewClass, stateClass],
       directives: directives,
