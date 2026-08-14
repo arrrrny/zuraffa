@@ -414,13 +414,25 @@ class RouteBuilder {
         (config.methods.contains('getList') ||
             config.methods.contains('watchList'));
 
+    // #328: Probe the actual view file on disk instead of deriving from the
+    // route's own methods list. `zfa view create` only emits a separate
+    // `<entity>_detail_view.dart` when the view was generated with BOTH a
+    // list method (getList/watchList) AND a detail method (get/watch). When
+    // the view was created with different methods than the route (the common
+    // smoke-test case: `zfa view create` defaults to `get,update`, then
+    // `zfa route create --methods=get,getList` is run later), the detail view
+    // file does not exist, and the route must not reference it. Reading the
+    // filesystem aligns the route generator with the view generator's actual
+    // output and eliminates the `uri_does_not_exist` analyze errors.
+    final detailViewPath = path.join(
+      outputDir,
+      'presentation',
+      'pages',
+      domainSnake,
+      '${entitySnake}_detail_view.dart',
+    );
     final hasDetailView =
-        !isCustom &&
-        (config.methods.contains('get') || config.methods.contains('watch'));
-    final hasListView =
-        !isCustom &&
-        (config.methods.contains('getList') ||
-            config.methods.contains('watchList'));
+        !isCustom && await fileSystem.exists(detailViewPath);
 
     final goRoutes = <Expression>[
       if (isCustom)
@@ -458,7 +470,7 @@ class RouteBuilder {
           routeNameBase: routeNameBase,
           viewParam: dependencyInfo.viewParam,
           config: config,
-          viewName: (hasListView && hasDetailView)
+          viewName: hasDetailView
               ? '${entityName}DetailView'
               : '${entityName}View',
         ),
@@ -479,7 +491,7 @@ class RouteBuilder {
           routeNameBase: routeNameBase,
           viewParam: dependencyInfo.viewParam,
           config: config,
-          viewName: (hasListView && hasDetailView)
+          viewName: hasDetailView
               ? '${entityName}DetailView'
               : '${entityName}View',
         ),
@@ -489,7 +501,7 @@ class RouteBuilder {
       'package:go_router/go_router.dart',
       'package:zuraffa/zuraffa.dart',
       '../presentation/pages/$domainSnake/${entitySnake}_view.dart',
-      if (hasListView && hasDetailView)
+      if (hasDetailView)
         '../presentation/pages/$domainSnake/${entitySnake}_detail_view.dart',
       if (!config.noEntity) '../domain/entities/$entitySnake/$entitySnake.dart',
       if (dependencyInfo.importPath.isNotEmpty) dependencyInfo.importPath,
