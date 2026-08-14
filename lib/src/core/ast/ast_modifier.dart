@@ -332,8 +332,12 @@ class AstModifier {
     final elements = expression.elements;
     for (final element in elements) {
       if (element.toSource() == elementSource) {
-        final result =
-            source.substring(0, element.offset) + source.substring(element.end);
+        // #333: extend the removal end past any trailing whitespace +
+        // comma so the surrounding list literal doesn't end up with a
+        // stray `,` (which would make _formatSafe throw and leave the
+        // file with mangled raw emitter output).
+        final end = _listElementRemovalEnd(source, element.end);
+        final result = source.substring(0, element.offset) + source.substring(end);
         return format ? _formatSafe(result) : result;
       }
     }
@@ -380,10 +384,41 @@ class AstModifier {
 
     var result = source;
     for (final element in toRemove) {
-      result =
-          result.substring(0, element.offset) + result.substring(element.end);
+      // #333: extend the removal end past any trailing whitespace + comma
+      // (computed on the current `result` string; offsets for elements
+      // sorted by descending offset stay valid because we only removed
+      // text after their positions).
+      final end = _listElementRemovalEnd(result, element.end);
+      result = result.substring(0, element.offset) + result.substring(end);
     }
     return format ? _formatSafe(result) : result;
+  }
+
+  /// Returns the end offset to use when removing a list-literal element
+  /// starting at [elementEnd] from [source]. Extends past any trailing
+  /// whitespace + comma so the surrounding list literal doesn't end up
+  /// with a stray `,` (which would make [DartFormatter] throw and cause
+  /// [_formatSafe] to return the raw, unformatted source — see issue
+  /// #333 for the resulting mangled detail-route stub).
+  ///
+  /// When the element is the last in the list with no trailing comma
+  /// (the next non-whitespace character is `]`), the original
+  /// [elementEnd] is returned unchanged — the formatter will collapse
+  /// any leftover `[ ,]` / `[ ]` shape on its own.
+  static int _listElementRemovalEnd(String source, int elementEnd) {
+    var i = elementEnd;
+    while (i < source.length) {
+      final ch = source[i];
+      if (ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r') {
+        i++;
+        continue;
+      }
+      break;
+    }
+    if (i < source.length && source[i] == ',') {
+      return i + 1;
+    }
+    return elementEnd;
   }
 
   static String removeStatement({

@@ -106,11 +106,22 @@ void main() {
               'route must not reference <Entity>DetailView when the '
               'detail view file does not exist on disk.',
         );
-        // The detail route should fall back to the main View.
+        // #333: when no detail view file exists, the detail GoRoute must
+        // be omitted entirely (no stub) — the route file should contain
+        // only the list route.
+        expect(
+          content.contains("name: 'zik_zak_score_detail'"),
+          isFalse,
+          reason:
+              'route must NOT emit a detail GoRoute stub when the '
+              'detail view file does not exist on disk (#333 — was the '
+              'cause of 108 malformed detail-route stubs).',
+        );
+        // The list route still uses the main <Entity>View.
         expect(
           content.contains('ZikZakScoreView'),
           isTrue,
-          reason: 'detail route should use the main <Entity>View.',
+          reason: 'list route should use the main <Entity>View.',
         );
         // The list view import must still be present.
         expect(
@@ -186,8 +197,8 @@ void main() {
     );
 
     test(
-      'route falls back to main View for detail route when only the '
-      'list view exists (no detail file)',
+      'route omits detail GoRoute entirely when only the list view '
+      'exists (no detail file)',
       () async {
         // Only the list view file exists, not the detail view.
         final viewDir = Directory(
@@ -232,10 +243,20 @@ void main() {
           isFalse,
           reason: 'detail view class does not exist; must not be referenced.',
         );
-        // The detail route should use ProductView (the main view).
+        // #333: when no detail view file exists, the detail GoRoute must
+        // be omitted entirely (no stub).
+        expect(
+          content.contains("name: 'product_detail'"),
+          isFalse,
+          reason:
+              'route must NOT emit a detail GoRoute stub when the detail '
+              'view file does not exist on disk (#333).',
+        );
+        // The list + create routes still use ProductView (the main view).
         expect(
           content.contains('ProductView'),
           isTrue,
+          reason: 'list/create routes should use the main <Entity>View.',
         );
       },
     );
@@ -549,7 +570,7 @@ void main() {
 
     test(
       'rerun after the detail-view file is deleted removes the stale '
-      'import and replaces (not duplicates) the detail route',
+      'import AND the stale detail route (no stub emitted — #333)',
       () async {
         final builder = RouteBuilder(
           outputDir: outputDir,
@@ -576,8 +597,10 @@ void main() {
         expect(content.contains('ProductDetailView'), isTrue);
         expect(routeCount(content, 'product_detail'), 1);
 
-        // Run 2: detail view file deleted → the existing route file must
-        // be synchronized, not appended to.
+        // Run 2: detail view file deleted → #333 says the detail GoRoute
+        // must be omitted entirely (no stub pointing to the main view).
+        // The stale detail-view import and the stale detail route must
+        // both be removed.
         await detailFile.delete();
         await builder.generate(makeConfig());
 
@@ -595,16 +618,18 @@ void main() {
           reason: 'stale DetailView reference must be removed.',
         );
         expect(
-          content.contains('ProductView'),
-          isTrue,
-          reason: 'detail route must fall back to the main view.',
+          routeCount(content, 'product_detail'),
+          0,
+          reason:
+              '#333: the detail GoRoute must be omitted entirely (not '
+              'replaced with a stub) when no detail_view file exists on '
+              'disk — the previous "fall back to main View" stub was '
+              'the cause of 108 malformed detail-route stubs.',
         );
         expect(
-          routeCount(content, 'product_detail'),
-          1,
-          reason:
-              'the detail route must be replaced by stable identity, not '
-              'duplicated when its source changes.',
+          content.contains('ProductView'),
+          isTrue,
+          reason: 'list route must still use the main <Entity>View.',
         );
 
         // Run 3: detail view file reappears → import and DetailView come
