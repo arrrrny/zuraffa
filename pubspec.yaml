@@ -26,10 +26,17 @@ dependencies:
     git:
       url: https://github.com/arrrrny/zorphy.git
       path: zorphy
-      # Issue #304: temporarily point to the fix branch until
-      # https://github.com/arrrrny/zorphy/pull/83 is merged into
-      # zorphy/development. Revert to "development" after merge.
-      ref: "fix/304-propagate-implements-clause"
+      # Issue #310: points to the fix branch carrying BOTH the original
+      # #82/#310 plain-type fix (5ef9dc3 + faf94de, already on
+      # zorphy/development) AND the comment-safety hardening that strips
+      # `//` and `/* */` comments before the `abstract class $X` regex
+      # match. Without the comment strip, a doc comment in a hand-written
+      # class file mentioning `abstract class $X` would falsely match and
+      # re-emit the `$` prefix -> InvalidType in the concrete class.
+      # Revert to "development" once
+      # https://github.com/arrrrny/zorphy/pull/85 (the comment-safety
+      # hardening) is merged into zorphy/development.
+      ref: "fix/310-determine-prefix-comment-safe"
   zorphy_annotation:
     git:
       url: https://github.com/arrrrny/zorphy.git
