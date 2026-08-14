@@ -10,14 +10,19 @@
 // errors (issue #307). Control case: `Authentication` (has real
 // `id: String`) compiles clean.
 //
-// The fix (issue #321, supersedes #307):
+// The fix (issue #321, supersedes #307; merged with #322's identity
+// contract — EntityIdResolution + value objects, already in development):
 //   1. Kill the silent first-field fallback in `EntityFieldResolver`.
-//      Resolution order: literal `id` → first `*Id` → `@Zorphy(autoId:
-//      true)` marker (synthetic `id: String`, forward-compatible with
-//      #320's autoId framework) → null.
-//   2. `MakeCommand` errors loudly when the entity file exists and has
-//      fields but none is id-like and no autoId marker — never silently
-//      falls back to the first field.
+//      The resolver returns an `EntityIdResolution` (entity kind, autoId
+//      flag, resolved id-like field). Resolution order: value object →
+//      no identity; literal `id` → found; first `*Id` → found;
+//      `@Zorphy(autoId: true)` → synthetic `id: String`; otherwise the
+//      entity is id-less (`hasId == false`) and `zfa make` fails loudly
+//      (throws MakeCommandException → exit 1).
+//   2. `MakeCommand` never silently falls back to the first field: an
+//      id-less entity (no id-like field, no autoId marker, not a value
+//      object) errors loudly with a diagnostic naming the three valid
+//      resolutions.
 //   3. Emit enum imports for method-signature types: when a generated
 //      method signature references an enum type (id, params, returns),
 //      the enum barrel import (`enums/index.dart`) is emitted in every
@@ -220,16 +225,21 @@ abstract final class AuthenticationFields {
     // -----------------------------------------------------------------------
 
     group('Part A — loud error (no silent first-field fallback)', () {
-      test('resolver returns null for ChatMessage (no id, no *Id, no autoId)',
-          () async {
+      test('resolver reports an id-less ChatMessage (no id, no *Id, no '
+          'autoId) without inventing an id', () async {
         await writeChatMessageEntityWithoutId();
         final resolved = EntityFieldResolver.resolveIdField(
           entityName: 'ChatMessage',
           projectRoot: workspace.path,
         );
-        expect(resolved, isNull,
-            reason: '#321: resolver must NOT silently pick `role` (enum) '
-                'as the id — that is the #307 bug.');
+        expect(resolved, isNotNull);
+        final resolution = resolved!;
+        expect(resolution.hasId, isFalse,
+            reason: '#321/#307: the resolver must NOT silently pick `role` '
+                '(enum) as the id.');
+        expect(resolution.idField, isNull,
+            reason: '#321/#307: an id-less entity must not get a synthetic '
+                'id — that is the #307 bug.');
       });
 
       test('`zfa make ChatMessage` (no id, no autoId) fails loudly with a '
@@ -269,9 +279,11 @@ abstract final class AuthenticationFields {
             contains('autoId'),
             contains('autoid'),
             contains('--id-field'),
+            contains('--auto-id'),
+            contains('--kind=value_object'),
           ]),
-          reason: 'diagnostic must point at one of the three fixes '
-              '(add id, add autoId marker, pass --id-field)',
+          reason: 'diagnostic must point at one of the valid resolutions '
+              '(add id, --auto-id, --id-field, or value object)',
         );
         // Negative: no presenter file should be generated when the
         // command exits 1 before plugin execution.
@@ -286,8 +298,8 @@ abstract final class AuthenticationFields {
             reason: 'no files should be generated when the loud error fires');
       });
 
-      test('loud-error diagnostic lists the resolved fields so the user can '
-          'see what the entity actually has', () async {
+      test('loud-error diagnostic names the entity and the id requirement '
+          '(merged #307/#322 diagnostic)', () async {
         await writeChatMessageEntityWithoutId();
         final result = await runZfa([
           'make',
@@ -299,17 +311,24 @@ abstract final class AuthenticationFields {
         expect(result.exitCode, equals(1));
         final combined =
             '${result.stderr}\n${result.stdout}';
-        expect(combined, contains('role'));
-        expect(combined, contains('content'));
-        expect(combined, contains('timestamp'));
+        expect(combined, contains('ChatMessage'),
+            reason: 'diagnostic must name the entity');
+        expect(combined, contains('has no id field'),
+            reason: 'diagnostic must state the id requirement');
+        expect(combined, contains('--auto-id'),
+            reason: 'diagnostic must point at the autoId resolution');
       });
 
-      test('`--id-field` override bypasses the loud error (user takes '
-          'responsibility for the id choice)', () async {
+      test('`--id-field` does not resurrect an identity for a truly '
+          'id-less entity — the loud error still fires (merged #307/#322 '
+          'contract)', () async {
         await writeChatMessageEntityWithoutId();
-        // The user explicitly passes --id-field=content (a String scalar)
-        // — the loud error must NOT fire because the user has overridden
-        // the resolution. The generator proceeds with the user's choice.
+        // The merged identity contract (issue #307/#322, already in
+        // development) is strict: an entity with no id-like field, no
+        // autoId marker and no value-object kind is an id-less entity,
+        // and `zfa make` fails loudly regardless of --id-field. The
+        // explicit flag overrides the *default* id choice when the entity
+        // HAS an id — it does not create an identity out of nothing.
         final result = await runZfa([
           'make',
           'ChatMessage',
@@ -321,17 +340,14 @@ abstract final class AuthenticationFields {
           '--output',
           outputDir,
         ]);
-        // Either succeeds (0) or fails for an unrelated reason — but
-        // NOT the #321 loud error.
-        if (result.exitCode != 0) {
-          final combined =
-              '${result.stderr}\n${result.stdout}';
-          expect(
-            combined,
-            isNot(contains('has no id-like field')),
-            reason: 'explicit --id-field must bypass the #321 loud error',
-          );
-        }
+        expect(result.exitCode, equals(1),
+            reason: 'an id-less entity must fail loudly even with '
+                '--id-field (no first-field fallback, no invented id)');
+        final combined = '${result.stderr}\n${result.stdout}';
+        expect(combined, contains('has no id field'),
+            reason: 'the loud id-less diagnostic must still fire');
+        expect(combined, isNot(contains('Resolved id field')),
+            reason: 'the enum-typed-id fallback must never happen');
       });
 
       test('`--no-entity` skips the resolver entirely (no loud error for '
@@ -370,8 +386,11 @@ abstract final class AuthenticationFields {
           projectRoot: workspace.path,
         );
         expect(resolved, isNotNull);
-        expect(resolved!.name, 'id');
-        expect(resolved.type, 'String');
+        final resolution = resolved!;
+        expect(resolution.hasId, isTrue,
+            reason: 'autoId resolves the identity even without an id getter');
+        expect(resolution.idField!.name, 'id');
+        expect(resolution.idField!.type, 'String');
       });
 
       test('`zfa make ChatMessage` with @Zorphy(autoId: true) succeeds and '
@@ -428,8 +447,11 @@ abstract final class AuthenticationFields {
           projectRoot: workspace.path,
         );
         expect(resolved, isNotNull);
-        expect(resolved!.name, 'messageTypeId');
-        expect(resolved.nonNullableType, 'MessageType');
+        final resolution = resolved!;
+        expect(resolution.hasId, isTrue,
+            reason: 'a *Id field is a valid identity');
+        expect(resolution.idField!.name, 'messageTypeId');
+        expect(resolution.idField!.nonNullableType, 'MessageType');
       });
 
       test('generated presenter references `UpdateParams<MessageType, ...>` '
@@ -642,8 +664,11 @@ abstract final class AuthenticationFields {
           projectRoot: workspace.path,
         );
         expect(resolved, isNotNull);
-        expect(resolved!.name, 'id');
-        expect(resolved.type, 'String');
+        final resolution = resolved!;
+        expect(resolution.hasId, isTrue,
+            reason: 'a literal `id` field is a valid identity');
+        expect(resolution.idField!.name, 'id');
+        expect(resolution.idField!.type, 'String');
       });
 
       test('`zfa make Authentication` generates clean (String-typed ids, no '

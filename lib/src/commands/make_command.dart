@@ -14,6 +14,33 @@ import '../utils/entity_field_resolver.dart';
 /// Example: `zfa make User route di --force`
 class MakeCommand extends Command<void> {
   static const String fixedOutputDir = 'lib/src';
+
+  /// Plugins that build a persisted/root CRUD surface around an entity.
+  /// Value objects (zuraffa#307) are immutable composition types — none of
+  /// these apply to them, so `zfa make` drops them with a notice instead of
+  /// generating dead repository/usecase/controller/presenter code.
+  static const Set<String> _valueObjectRootPlugins = {
+    'repository',
+    'datasource',
+    'usecase',
+    'controller',
+    'presenter',
+    'view',
+    'route',
+    'state',
+    'provider',
+    'observer',
+    'cache',
+    'gql',
+    'graphql',
+    'di',
+    'service',
+    'api',
+    'sync',
+    'shadcn',
+    'test', // entity tests reference the usecases value objects don't get
+  };
+
   static const Set<String> _ignoredJsonOptionKeys = {
     'domainRoot',
     'domain-root',
@@ -340,109 +367,102 @@ class MakeCommand extends Command<void> {
     );
     context.data.addAll(normalizedOptions);
 
-    // #294: auto-resolve the entity's actual id-like field from the
+    // #294/#307: auto-resolve the entity's actual id-like field from the
     // entity source file so the generated presenter/test/datasource
     // code references a Field constant that exists on the entity's
     // Fields class. Without this, generators hardcode `EntityFields.id`
     // and produce broken code for entities whose id is e.g. `depotId`.
     // User-provided --id-field / --query-field always wins.
     //
-    // #321: when the entity file exists and has fields but none of them
-    // is id-like (no `id`, no `*Id`) AND the entity has no
-    // `@Zorphy(autoId: true)` marker, the resolver returns null. The
-    // previous behavior silently fell back to the default `'id'` /
-    // `'String'`, which let enum-typed first fields (e.g.
-    // ChatMessage.role: ChatMessageRole) leak into generated signatures
-    // as `UpdateParams<ChatMessageRole, ...>` without the enum import →
-    // 48 analyze errors. The fix errors loudly with a diagnostic that
-    // points at the three valid resolutions; the user must pick one
-    // explicitly. The autoId marker is the forward-compatible hook for
-    // #320's auto-generated uuid id framework — when #320 lands, an
-    // entity annotated with `@Zorphy(autoId: true)` resolves to a
-    // synthetic `id: String` field and never reaches this error path.
+    // #307: the old resolver fell back to the FIRST field as the id —
+    // for id-less entities whose first field is an enum (ChatMessage.role,
+    // TelemetryEvent.type) that produced enum-typed ids and missing enum
+    // imports. The fallback is gone: id-less entities must opt into
+    // `autoId`, and value objects are treated as embedded types (their
+    // root plugins are dropped below).
     if (context.data['no-entity'] != true) {
-      // #321: when the user explicitly passes --id-field, the resolver
-      // AND the loud-error path are both skipped — the user has taken
-      // responsibility for the id choice. The loud error fires only when
-      // the user did NOT pass --id-field AND the entity has no id-like
-      // field and no @Zorphy(autoId: true) marker.
-      final userProvidedIdField = argResults!.wasParsed('id-field');
-      final resolvedIdField = userProvidedIdField
-          ? null
-          : EntityFieldResolver.resolveIdField(
-              entityName: entityName,
-              projectRoot: manager.projectRoot,
-            );
-      if (resolvedIdField != null) {
-        if (!userProvidedIdField &&
-            (context.data['id-field'] == null ||
-                context.data['id-field'] == 'id')) {
-          context.data['id-field'] = resolvedIdField.name;
-          context.data['id-field-type'] = resolvedIdField.nonNullableType;
-          if (context.core.verbose) {
+      final resolution = EntityFieldResolver.resolveIdField(
+        entityName: entityName,
+        projectRoot: manager.projectRoot,
+      );
+      if (resolution != null) {
+        if (resolution.isValueObject) {
+          final dropped =
+              activePlugins
+                  .where((p) => _valueObjectRootPlugins.contains(p.id))
+                  .map((p) => p.id)
+                  .toList()
+                ..sort();
+          if (dropped.isNotEmpty) {
             print(
-              '🔍 Resolved id field for "$entityName": '
-              '${resolvedIdField.name} (${resolvedIdField.nonNullableType})',
+              'ℹ️  "$entityName" is a value object — skipping root plugins '
+              '(no repository/usecase/controller/presenter for embedded '
+              'types): ${dropped.join(', ')}',
+            );
+            activePlugins.removeWhere(
+              (p) => _valueObjectRootPlugins.contains(p.id),
             );
           }
-        }
-        if (!argResults!.wasParsed('query-field') &&
-            (context.data['query-field'] == null ||
-                context.data['query-field'] == 'id')) {
-          context.data['query-field'] = resolvedIdField.name;
-          // query-field-type falls back to id-field-type inside
-          // GeneratorConfig's constructor (see generator_config.dart).
-        }
-      } else if (!userProvidedIdField) {
-        // Resolver returned null AND the user did NOT pass --id-field.
-        // Distinguish "entity file not found" (backwards-compat: keep
-        // defaults) from "entity file found, has fields, but no id-like
-        // field and no autoId marker" (loud error). When the user passed
-        // --id-field explicitly, this entire branch is skipped — the
-        // user has taken responsibility for the id choice.
-        final parsedFields = EntityFieldResolver.parseEntityFieldsForEntity(
-          entityName: entityName,
-          projectRoot: manager.projectRoot,
-        );
-        if (parsedFields != null && parsedFields.isNotEmpty) {
-          // Entity file exists and has fields, but no id-like field and no
-          // autoId marker. Per #321, this MUST fail loudly — never silently
-          // fall back to the first field (which is what produced enum-typed
-          // ids in #307). The diagnostic points the user at the three valid
-          // resolutions.
-          final fieldList = parsedFields
-              .map((f) => '${f.name}: ${f.type}')
-              .join(', ');
+        } else if (resolution.hasId) {
+          if (!argResults!.wasParsed('id-field') &&
+              (context.data['id-field'] == null ||
+                  context.data['id-field'] == 'id')) {
+            context.data['id-field'] = resolution.idField!.name;
+            context.data['id-field-type'] = resolution.idField!.nonNullableType;
+            if (context.core.verbose) {
+              print(
+                '🔍 Resolved id field for "$entityName": '
+                '${resolution.idField!.name} '
+                '(${resolution.idField!.nonNullableType})',
+              );
+            }
+          }
+          if (!argResults!.wasParsed('query-field') &&
+              (context.data['query-field'] == null ||
+                  context.data['query-field'] == 'id')) {
+            context.data['query-field'] = resolution.idField!.name;
+            // query-field-type falls back to id-field-type inside
+            // GeneratorConfig's constructor (see generator_config.dart).
+          }
+        } else {
+          // Loud failure (issue #307): an entity with no id-like field and
+          // no autoId marker would silently produce enum-typed ids /
+          // broken signatures if we fell back to the first field.
           print(
-            '❌ Entity "$entityName" has no id-like field and no '
-            '@Zorphy(autoId: true) marker.\n'
-            '   Resolved fields: $fieldList\n'
-            '   The generator refuses to silently pick the first field as '
-            'the id (issue #321):\n'
-            '     • an enum/complex first field would leak into generated '
-            'signatures as\n'
-            '       UpdateParams<EnumType, ...> / ToggleParams<EnumType, '
-            '...> without the\n'
-            '       enum import, producing 48+ analyze errors (issue #307 '
-            'repro).\n'
-            '   To fix, pick ONE:\n'
-            '     1. Add an `id` field (or a field ending in `Id`) to the '
-            'entity, e.g.\n'
-            '        `String get id;` or `String get '
-            '<entityName>Id;`\n'
-            '     2. Annotate the entity with `@Zorphy(autoId: true)` to '
-            'auto-generate a\n'
-            '        uuid id (zorphy framework feature, see issue #320).\n'
-            '     3. Pass --id-field=<fieldName> --id-field-type=<Type> '
-            'explicitly to\n'
-            '        `zfa make` to override the resolution.',
+            '❌ Cannot generate architecture for "$entityName": the entity '
+            'has no id field.',
           );
-          exit(1);
+          print('');
+          print('Entities need a real identity. Choose one of:');
+          print(
+            '  1. Add an id field:    zfa entity add-field -n '
+            '$entityName --field id:String',
+          );
+          print(
+            '  2. Auto-generate one:  recreate with '
+            'zfa entity create -n $entityName --auto-id <fields...>',
+          );
+          print(
+            '  3. Mark it as a value object if it is an immutable '
+            'composition type (no identity, no CRUD surface):',
+          );
+          print(
+            '       zfa entity create -n $entityName --kind=value_object '
+            '<fields...>',
+          );
+          print(
+            '     or add @ZValueObject / kind: ZorphyKind.valueObject '
+            'to its annotation.',
+          );
+          print('');
+          // Thrown (not `exit(1)`) so the CLI runner's catch-all prints the
+          // diagnostic and exits 1 — while `runCapturing` tests can assert
+          // on the message without killing the test isolate.
+          throw MakeCommandException(
+            'Cannot generate architecture for "$entityName": the entity '
+            'has no id field.',
+          );
         }
-        // Else: entity file not found (or has no parseable fields) — keep
-        // the default 'id' / 'String'. This preserves backwards compat
-        // for non-entity `zfa make` flows (custom usecases, orchestrators
-        // without an entity, etc.).
       }
     }
 
@@ -578,4 +598,18 @@ class MakeCommand extends Command<void> {
       }
     }
   }
+}
+
+/// Thrown when `zfa make` cannot proceed because of an entity-contract
+/// violation (e.g. an id-less entity without `autoId` — issue #307).
+///
+/// The CLI runner's catch-all prints the message and exits 1; tests using
+/// `runCapturing` catch it without terminating the isolate.
+class MakeCommandException implements Exception {
+  final String message;
+
+  const MakeCommandException(this.message);
+
+  @override
+  String toString() => message;
 }

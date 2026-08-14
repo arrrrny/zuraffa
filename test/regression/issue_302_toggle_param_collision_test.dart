@@ -65,43 +65,37 @@ void main() {
   });
 
   group('#302 — toggle param name collision when entity field is `value`', () {
-    test(
-      'EntityFieldResolver returns null for Barcode (no id-like field, no '
-      'autoId — #321 removed the first-field fallback)',
-      () async {
-        await writeEntityStubWithoutId(
-          workspace,
-          name: 'Barcode',
-          fields: const [
-            (name: 'value', type: 'String'),
-            (name: 'format', type: 'String'),
-          ],
-        );
+    test('#307 contract — an id-less Barcode resolves no id (no silent '
+        'first-field fallback to `value`)', () async {
+      await writeEntityStubWithoutId(
+        workspace,
+        name: 'Barcode',
+        fields: const [
+          (name: 'value', type: 'String'),
+          (name: 'format', type: 'String'),
+        ],
+      );
 
-        final resolved = EntityFieldResolver.resolveIdField(
-          entityName: 'Barcode',
-          projectRoot: workspace.directory.path,
-        );
+      final resolved = EntityFieldResolver.resolveIdField(
+        entityName: 'Barcode',
+        projectRoot: workspace.directory.path,
+      );
 
-        // #321: the resolver NO LONGER silently falls back to the first
-        // declared field when no `id`/`*Id` field exists. `Barcode` has
-        // fields `value` and `format` — neither is id-like, and there's
-        // no `@Zorphy(autoId: true)` marker — so the resolver returns
-        // null. The caller (MakeCommand) errors loudly with a diagnostic
-        // pointing at the three valid resolutions. The toggle-param-name
-        // collision behavior itself (the actual #302 fix) is preserved
-        // and is exercised by the next test, which passes `idField`
-        // explicitly to bypass the resolver.
-        expect(
-          resolved,
-          isNull,
-          reason:
-              '#321: resolver must NOT fall back to the first declared '
-              'field (`value`) when no `id`/`*Id` field exists — that '
-              'fallback is what produced enum-typed ids in #307.',
-        );
-      },
-    );
+      expect(
+        resolved,
+        isNotNull,
+        reason:
+            'Resolver should resolve the id-less Barcode contract without '
+            'silently falling back to the first field',
+      );
+      // #307: no `id` / `*Id` / `autoId` → id-less entity (zfa make fails
+      // loudly). The `value`-as-id toggle-collision scenario (#302) now
+      // requires an explicit `--id-field=value` on `zfa make`.
+      expect(resolved!.kind, EntitySourceKind.entity);
+      expect(resolved.autoId, isFalse);
+      expect(resolved.idField, isNull);
+      expect(resolved.hasId, isFalse);
+    });
 
     test('generated controller + presenter use `toggleValue` for the bool param '
         'and forward it into ToggleParams (no duplicate `value`)', () async {

@@ -10,39 +10,33 @@
 // like `StorePrice` (whose id field is `depotId`) produced broken
 // generated code that referenced `StorePriceFields.id` (undefined getter).
 //
-// Background (issue #321, supersedes #307): the previous resolution
-// order's step 3 ("first declared field") silently picked an enum-typed
-// field as the id (e.g. ChatMessage.role: ChatMessageRole), producing
-// enum-typed ids (UpdateParams<ChatMessageRole, ...>) that required
-// enum imports the generators never emitted → 48 analyze errors. The
-// fix removes the silent first-field fallback entirely: when no `id` /
-// `*Id` field exists and no `@Zorphy(autoId: true)` marker is present,
-// the resolver returns null and `MakeCommand` errors loudly with a
-// clear diagnostic (issue #321).
-//
-// Coordination with #320 (autoId framework): the resolver recognises
-// `@Zorphy(autoId: true)` — the marker #320 will use to auto-generate a
-// uuid id — and returns a synthetic `EntityFieldInfo(name: 'id', type:
-// 'String')`. When #320 lands and entities get the marker, this branch
-// already produces the correct id field; the loud-error path is never
-// reached for autoId entities, so the behavior stays forward-compatible.
+// Background (issue #307): the old resolution order fell back to the FIRST
+// declared field when no id-like field existed. For id-less entities whose
+// first field is an enum (`ChatMessage.role`, `TelemetryEvent.type`) that
+// produced enum-typed ids in generated update/toggle signatures plus
+// missing enum imports. The first-field fallback is now REMOVED: an
+// entity without a real identity must either declare an id-like field,
+// opt into `@Zorphy(autoId: true)`, or be a value object
+// (`@ZValueObject` / `kind: ZorphyKind.valueObject`) — anything else is
+// reported as an id-less entity and `zfa make` fails loudly.
 //
 // Resolution order:
 //   1. a field literally named `id`
 //   2. the first field whose name ends with `Id` (e.g. `depotId`, `userId`)
-//   3. `@Zorphy(autoId: true)` marker on the entity class — returns a
-//      synthetic `id: String` field (the autoId framework will populate
-//      it; #320 coordinates the runtime side).
-//   4. null — no suitable id-like field found; the caller (MakeCommand)
-//      errors loudly with a diagnostic, never silently falls back.
+//   3. the synthetic `id: String` when the annotation has `autoId: true`
 //
-// The resolver also returns null when the entity file cannot be located
-// or contains no parseable field declarations; in that case the caller
-// keeps its existing default (`'id'`) for backwards compatibility with
-// non-entity `zfa make` flows (e.g. custom usecases without an entity).
+// [resolveIdField] returns null only when the entity file cannot be
+// located or contains no parseable field declarations; in that case the
+// caller keeps its existing default (`'id'`).
 
 import 'dart:io';
 import 'package:path/path.dart' as p;
+
+/// The semantic kind of a Zorphy class, read from its annotation.
+///
+/// Mirrors `ZorphyKind` from the annotation package using source-text
+/// detection so the resolver stays dependency-light.
+enum EntitySourceKind { entity, valueObject }
 
 /// A single parsed field declaration: a Dart type string and a field name.
 class EntityFieldInfo {
@@ -70,36 +64,52 @@ class EntityFieldInfo {
   String toString() => 'EntityFieldInfo(name: $name, type: $type)';
 }
 
+/// The result of resolving an entity's identity: its kind, whether it
+/// opts into `autoId`, and the resolved id-like field (if any).
+///
+/// [idField] is null for value objects (no identity required) and for
+/// entities that declare neither an id-like field nor `autoId` — callers
+/// must treat the latter as a loud error (see `zfa make`).
+class EntityIdResolution {
+  /// The semantic kind of the entity.
+  final EntitySourceKind kind;
+
+  /// Whether the annotation carries `autoId: true`.
+  final bool autoId;
+
+  /// The resolved id-like field, or null when the entity has no identity
+  /// (value objects) or none could be resolved (id-less entity).
+  final EntityFieldInfo? idField;
+
+  const EntityIdResolution({
+    required this.kind,
+    required this.autoId,
+    this.idField,
+  });
+
+  /// True when this is a value object (no id needed, no CRUD surface).
+  bool get isValueObject => kind == EntitySourceKind.valueObject;
+
+  /// True when an identity field is available — either a real source field
+  /// or the synthetic `id: String` promised by `autoId: true`.
+  bool get hasId => idField != null || autoId;
+}
+
 /// Reads a Zorphy entity source file and resolves the entity's id-like
 /// field. See the file doc comment for the resolution order.
 class EntityFieldResolver {
   /// Default location of entity source files relative to the project root.
   static const String defaultEntityOutputDir = 'lib/src/domain/entities';
 
-  /// Synthetic id field returned when an entity has the
-  /// `@Zorphy(autoId: true)` marker but no explicit `id` / `*Id` field.
-  /// The autoId framework (#320) will populate this field at runtime;
-  /// for code-generation purposes it is a plain `String` id, so the
-  /// generated signatures use `String` as the id type (no enum imports
-  /// needed, no first-field fallback).
-  static const EntityFieldInfo autoIdField = EntityFieldInfo(
-    name: 'id',
-    type: 'String',
-  );
-
   /// Resolves the id field for [entityName] inside [projectRoot].
   ///
   /// Looks up `<projectRoot>/<entityOutputDir>/<snake(entityName)>/<snake(entityName)>.dart`.
-  /// Returns `null` when the entity file does not exist, contains no
-  /// parseable field declarations, OR contains fields but none of them
-  /// is id-like (no `id`, no `*Id`) AND the entity has no
-  /// `@Zorphy(autoId: true)` marker. In the last case the caller
-  /// (`MakeCommand`) must error loudly — never silently fall back to the
-  /// first field (issue #321).
+  /// Returns `null` when the entity file does not exist or contains no
+  /// parseable field declarations.
   ///
   /// [entityOutputDir] defaults to [defaultEntityOutputDir] but can be
   /// overridden (e.g. in tests).
-  static EntityFieldInfo? resolveIdField({
+  static EntityIdResolution? resolveIdField({
     required String entityName,
     required String projectRoot,
     String entityOutputDir = defaultEntityOutputDir,
@@ -110,84 +120,73 @@ class EntityFieldResolver {
     );
     if (!entityFile.existsSync()) return null;
 
-    final source = entityFile.readAsStringSync();
-    final fields = parseEntityFields(source);
+    final content = entityFile.readAsStringSync();
+    final fields = parseEntityFields(content);
     if (fields.isEmpty) return null;
+
+    final autoId = detectsAutoId(content);
+    final kind = detectsValueObject(content)
+        ? EntitySourceKind.valueObject
+        : EntitySourceKind.entity;
+
+    // Value objects have no identity — never resolve (or invent) an id.
+    if (kind == EntitySourceKind.valueObject) {
+      return EntityIdResolution(kind: kind, autoId: autoId);
+    }
 
     // 1. literal `id`
     for (final f in fields) {
-      if (f.name == 'id') return f;
+      if (f.name == 'id') {
+        return EntityIdResolution(kind: kind, autoId: autoId, idField: f);
+      }
     }
     // 2. first ending in `Id` (camelCase, length > 2 to avoid matching `Id`)
     for (final f in fields) {
-      if (f.name.length > 2 && f.name.endsWith('Id')) return f;
+      if (f.name.length > 2 && f.name.endsWith('Id')) {
+        return EntityIdResolution(kind: kind, autoId: autoId, idField: f);
+      }
     }
-    // 3. `@Zorphy(autoId: true)` marker — synthetic `id: String` field.
-    //    Coordinates with #320: when the autoId framework lands, entities
-    //    annotated with `@Zorphy(autoId: true)` get a uuid-populated `id`
-    //    field at runtime. For code generation, treat it as a plain
-    //    `String` id so no enum imports are emitted and no first-field
-    //    fallback fires.
-    if (_hasAutoIdMarker(source)) {
-      return autoIdField;
+    // 3. synthetic `id: String` promised by `autoId: true` (issue #307 —
+    //    the generator defaults the concrete constructor's id to a uuid).
+    if (autoId) {
+      return EntityIdResolution(
+        kind: kind,
+        autoId: autoId,
+        idField: const EntityFieldInfo(name: 'id', type: 'String'),
+      );
     }
-    // 4. No suitable id-like field and no autoId marker — return null.
-    //    The caller (MakeCommand) errors loudly with a diagnostic that
-    //    points the user at the three valid resolutions (add `id`, add
-    //    `autoId: true`, pass `--id-field` explicitly). Never silently
-    //    fall back to the first field (issue #321).
-    return null;
+
+    // No identity: id-less entity. `zfa make` must fail loudly.
+    return EntityIdResolution(kind: kind, autoId: autoId);
   }
 
-  /// Returns the parsed fields of [entityName] inside [projectRoot], or
-  /// `null` when the entity file does not exist.
-  ///
-  /// Used by `MakeCommand` to distinguish two null-return cases from
-  /// [resolveIdField]:
-  ///   - entity file not found (this method returns `null`) → keep the
-  ///     default `'id'` (backwards compat with non-entity flows)
-  ///   - entity file found, has fields, but no id-like field and no
-  ///     autoId marker (this method returns a non-empty list) → error
-  ///     loudly with a diagnostic (issue #321)
-  ///
-  /// An empty list means the file was found but had no parseable field
-  /// declarations — treat the same as "file not found" (keep defaults).
-  static List<EntityFieldInfo>? parseEntityFieldsForEntity({
-    required String entityName,
-    required String projectRoot,
-    String entityOutputDir = defaultEntityOutputDir,
-  }) {
-    final snake = _toSnake(entityName);
-    final entityFile = File(
-      p.join(projectRoot, entityOutputDir, snake, '$snake.dart'),
-    );
-    if (!entityFile.existsSync()) return null;
-    return parseEntityFields(entityFile.readAsStringSync());
+  /// Detects `autoId: true` inside a `@Zorphy(...)`/`@Zorphy2(...)`
+  /// annotation in [content].
+  static bool detectsAutoId(String content) {
+    final match = _zorphyAnnotationPattern.firstMatch(content);
+    final args = match?.group(1);
+    if (args == null) return false;
+    return RegExp(r'\bautoId\s*:\s*true\b').hasMatch(args);
   }
 
-  /// Detects the `@Zorphy(autoId: true)` marker in the entity source.
-  ///
-  /// Matches `@Zorphy(... autoId: true ...)` with any other named args
-  /// before/after, single-line or multi-line (dotAll). The marker is the
-  /// forward-compatible hook for #320's auto-generated uuid id framework:
-  /// when #320 lands and entities get `@Zorphy(autoId: true)`, this
-  /// resolver already returns a synthetic `id: String` field for them,
-  /// so the loud-error path is never reached for autoId entities.
-  static bool _hasAutoIdMarker(String source) {
-    // Strip /* block comments */ so a commented-out `@Zorphy(autoId: true)`
-    // does not match.
-    final cleaned = source.replaceAll(RegExp(r'/\*[\s\S]*?\*/'), '');
-    // Also strip // line comments to be safe.
-    final withoutLineComments = cleaned.replaceAll(
-      RegExp(r'//[^\n]*'),
-      '',
-    );
-    final re = RegExp(
-      r'@Zorphy\s*\([^)]*\bautoId\s*:\s*true\b[^)]*\)',
-      dotAll: true,
-    );
-    return re.hasMatch(withoutLineComments);
+  /// Detects a value-object kind in [content]: either the `@ZValueObject`
+  /// annotation alias or `kind: ZorphyKind.valueObject` inside
+  /// `@Zorphy(...)`.
+  static bool detectsValueObject(String content) {
+    if (RegExp(r'@\s*ZValueObject\b').hasMatch(content)) return true;
+    final match = _zorphyAnnotationPattern.firstMatch(content);
+    final args = match?.group(1);
+    if (args == null) return false;
+    return RegExp(
+      r'\bkind\s*:\s*(?:ZorphyKind\.)?valueObject\b',
+    ).hasMatch(args);
   }
+
+  /// Matches `@Zorphy(...)` / `@zorphy(...)` / `@Zorphy2(...)` annotation
+  /// invocations (with or without an argument list).
+  static final RegExp _zorphyAnnotationPattern = RegExp(
+    r'@\s*(?:Zorphy|zorphy|Zorphy2)\s*(\(([^)]*)\))?',
+  );
 
   /// Parses `<entity>.dart` source content for field declarations.
   ///
