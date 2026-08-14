@@ -160,6 +160,35 @@ extension TestBuilderEntity on TestBuilder {
 
     directives.add(Directive.import(toPackageImport(useCaseFile.path)));
 
+    // #321: the test file's `main()` body constructs params that reference
+    // the id field type directly (UpdateParams<IdType, Patch>,
+    // ToggleParams<IdType, Field>, DeleteParams<IdType>, ...). When the
+    // id field is an enum (e.g. messageTypeId: SomeEnum), the enum barrel
+    // import must be emitted here — the entity file's own
+    // `import '../enums/index.dart'` is private and not re-exported, so
+    // the test file references the enum symbol directly without it being
+    // in scope. Primitive types are filtered out by KnownTypes.isExcluded,
+    // so a plain `String` id adds nothing. Resolve the enum barrel path
+    // via CommonPatterns.entityImports (handles same-domain + standard +
+    // legacy flat + enums/ directory lookups).
+    final sigTypeImports = CommonPatterns.entityImports(
+      [config.idFieldType, config.queryFieldType],
+      config,
+      depth: 3,
+      fileSystem: fileSystem,
+    );
+    for (final importPath in sigTypeImports) {
+      // Convert the relative `../../../domain/...` path (depth=3 from
+      // `test/domain/usecases/<snake>/`) into a package: import that
+      // matches the other test directives above.
+      final packagePath = importPath.startsWith('../')
+          ? importPath.substring('../'.length * 3) // strip `../../../`
+          : importPath;
+      directives.add(
+        Directive.import('package:$packageName/src/$packagePath'),
+      );
+    }
+
     final mockRepoClass = 'Mock$targetName';
     final mockEntityClass = 'Mock$entityName';
 
