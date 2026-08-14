@@ -148,6 +148,32 @@ ${missing.map((d) => '   • $d').join('\n')}
       ..._asStringList(parsed['fields']),
     ]);
 
+    // Issue #303: refuse raw Dart-keyword field names (e.g. `in:String`)
+    // up front — without this guard the CLI emits `String get in;`, which
+    // is invalid Dart and only fails later at `zfa build` with a misleading
+    // analyzer error. The user must remap the wire name with
+    // `:json=<wire>` (e.g. `in_:String:json=in`).
+    final bareKeywords = _findBareKeywordFields(fields);
+    if (bareKeywords.isNotEmpty) {
+      print(
+        '❌ Cannot create entity "$name": field name(s) are Dart keywords.',
+      );
+      print('');
+      for (final field in bareKeywords) {
+        print(
+          '  • ${field.name} — reserved word; cannot be used as a Dart '
+          'identifier.',
+        );
+        print(
+          '    Remap with the \'name:type:json=<wire>\' syntax, e.g. '
+          "'${field.name}_:${field.type}:json=${field.name}'",
+        );
+      }
+      print('');
+      print('No files were written. See \'zfa entity --help\' for details.');
+      exit(1);
+    }
+
     // Validate field types BEFORE writing anything (issue #296):
     // if a referenced type is neither a primitive, an existing entity,
     // nor an existing enum, abort with a clear error so the entity is
@@ -213,7 +239,7 @@ ${missing.map((d) => '   • $d').join('\n')}
       if (fields.isNotEmpty) {
         print('\n✨ Generated ${fields.length} fields:');
         for (final field in fields) {
-          print('  - ${field.name}: ${field.fullType}');
+          print('  - ${_formatFieldDisplay(field)}');
         }
       }
     } else {
@@ -313,6 +339,30 @@ ${missing.map((d) => '   • $d').join('\n')}
 
     final fields = _parseFields(fieldStrings);
 
+    // Issue #303: same raw-keyword guard as `entity create` — refuse to
+    // add a field whose Dart name is a reserved word without an explicit
+    // `:json=<wire>` remap.
+    final bareKeywords = _findBareKeywordFields(fields);
+    if (bareKeywords.isNotEmpty) {
+      print(
+        '❌ Cannot add field(s) to "$name": field name(s) are Dart keywords.',
+      );
+      print('');
+      for (final field in bareKeywords) {
+        print(
+          '  • ${field.name} — reserved word; cannot be used as a Dart '
+          'identifier.',
+        );
+        print(
+          '    Remap with the \'name:type:json=<wire>\' syntax, e.g. '
+          "'${field.name}_:${field.type}:json=${field.name}'",
+        );
+      }
+      print('');
+      print('No files were modified. See \'zfa entity --help\' for details.');
+      exit(1);
+    }
+
     // Validate field types BEFORE writing anything (issue #296):
     // same guard as `entity create` — refuse to add fields whose types
     // cannot be resolved against the on-disk entity/enum layout.
@@ -350,7 +400,7 @@ ${missing.map((d) => '   • $d').join('\n')}
       await _fixEntityImports(result.filePath, fields, fixedEntityOutput);
       print('✓ Added ${fields.length} field(s) to ${result.className}');
       for (final field in fields) {
-        print('  + ${field.name}: ${field.fullType}');
+        print('  + ${_formatFieldDisplay(field)}');
       }
     } else {
       print('❌ ${result.error}');
@@ -537,6 +587,12 @@ ${missing.map((d) => '   • $d').join('\n')}
 
     if (result.isSuccess) {
       print('✓ Created entity: ${result.filePath}');
+      if (fields.isNotEmpty) {
+        print('\n✨ Generated ${fields.length} fields:');
+        for (final field in fields) {
+          print('  - ${_formatFieldDisplay(field)}');
+        }
+      }
     } else {
       print('❌ ${result.error}');
       exit(1);
@@ -632,6 +688,80 @@ ${missing.map((d) => '   • $d').join('\n')}
     return fields;
   }
 
+  /// Dart reserved words (contextual + built-in) that cannot be used as a
+  /// field identifier in generated entity source. Issue #303: when a user
+  /// writes `--field in:String` the CLI used to emit `String get in;` —
+  /// invalid Dart — and `zfa build` later failed with
+  /// `'in' can't be used as an identifier because it's a keyword.`
+  ///
+  /// The intended workflow for a Dart-keyword JSON wire name is to pick a
+  /// Dart-safe field name and remap the wire name via `:json=<wire>`
+  /// (e.g. `in_:String:json=in`). [_findBareKeywordFields] refuses the
+  /// bare-keyword form up front with an actionable error.
+  static const Set<String> _dartKeywords = {
+    // Built-in reserved words.
+    'abstract', 'as', 'assert', 'async', 'await', 'break', 'case', 'catch',
+    'class', 'const', 'continue', 'covariant', 'default', 'deferred', 'do',
+    'dynamic', 'else', 'enum', 'export', 'extends', 'extension', 'external',
+    'factory', 'false', 'final', 'finally', 'for', 'function', 'get', 'hide',
+    'if', 'implements', 'import', 'in', 'interface', 'is', 'library',
+    'late', 'mixin', 'new', 'null', 'on', 'operator', 'part', 'rethrow',
+    'return', 'set', 'show', 'static', 'super', 'switch', 'sync', 'this',
+    'throw', 'true', 'try', 'typedef', 'var', 'void', 'while', 'with', 'yield',
+    // Contextual keywords / reserved-for-future-use that would also break
+    // generated source identifiers.
+    'required', 'base', 'sealed', 'when', 'record', 'view',
+  };
+
+  bool _isDartKeyword(String name) => _dartKeywords.contains(name);
+
+  /// Maps a raw JSON wire key to a Dart-safe (name, jsonName) pair.
+  ///
+  /// Rules (issue #303):
+  /// - Dart keyword (`in`, `required`, ...): Dart name = `<key>_`, jsonName
+  ///   = `<key>` (preserves the wire contract while keeping the Dart source
+  ///   compilable). Example: `in` -> (`in_`, `in`).
+  /// - Leading underscore (`_and`, `_or`): Dart name = `<key>` without the
+  ///   leading underscore (a leading `_` would mark the member private),
+  ///   jsonName = `<key>`. Example: `_and` -> (`and`, `_and`).
+  /// - Anything else: returned as-is with a null jsonName (no `@JsonKey`
+  ///   needed — the Dart name already matches the wire name).
+  ///
+  /// Used by `zfa entity from-json` (which has no field-string syntax to
+  /// lean on) so that JSON payloads carrying Dart-keyword or `_`-prefixed
+  /// keys produce compilable entities with the correct wire names.
+  ({String dartName, String? jsonName}) _resolveFieldName(String jsonKey) {
+    if (_isDartKeyword(jsonKey)) {
+      return (dartName: '${jsonKey}_', jsonName: jsonKey);
+    }
+    if (jsonKey.startsWith('_') && jsonKey.length > 1) {
+      return (dartName: jsonKey.substring(1), jsonName: jsonKey);
+    }
+    return (dartName: jsonKey, jsonName: null);
+  }
+
+  /// Issue #303 guard: refuses field definitions whose Dart name is a raw
+  /// Dart keyword AND that do not carry an explicit `jsonName`. The user
+  /// must use the `name:type:json=<wire>` syntax (e.g. `in_:String:json=in`)
+  /// so the generated source stays compilable and the wire name is
+  /// preserved. Returns the list of offending field definitions.
+  List<FieldDefinition> _findBareKeywordFields(List<FieldDefinition> fields) {
+    return fields
+        .where((f) => f.jsonName == null && _isDartKeyword(f.name))
+        .toList();
+  }
+
+  /// Pretty-prints a single field for success messages, appending
+  /// `(json: '<wire>')` when the field carries an explicit json wire name
+  /// (issue #303 — makes the remap visible to the caller).
+  String _formatFieldDisplay(FieldDefinition field) {
+    final base = '${field.name}: ${field.fullType}';
+    if (field.jsonName != null && field.jsonName != field.name) {
+      return "$base (json: '${field.jsonName}')";
+    }
+    return base;
+  }
+
   List<String> _asStringList(dynamic value) {
     if (value == null) return [];
     final List<String> result = [];
@@ -681,7 +811,15 @@ ${missing.map((d) => '   • $d').join('\n')}
       final key = entry.key;
       final value = entry.value;
       final isNullable = key.endsWith('?');
-      final fieldName = isNullable ? key.substring(0, key.length - 1) : key;
+      final rawKey = isNullable ? key.substring(0, key.length - 1) : key;
+
+      // Issue #303: a JSON key may be a Dart keyword (`in`, `required`) or
+      // carry a leading underscore (`_and`, `_or`) — neither is a valid
+      // Dart identifier. Resolve to a Dart-safe (name, jsonName) pair so
+      // the generated source compiles AND the wire contract is preserved.
+      final resolved = _resolveFieldName(rawKey);
+      final fieldName = resolved.dartName;
+      final jsonName = resolved.jsonName;
 
       String type;
       if (value is Map<String, dynamic>) {
@@ -699,6 +837,7 @@ ${missing.map((d) => '   • $d').join('\n')}
           name: fieldName,
           type: type,
           nullable: isNullable || value == null,
+          jsonName: jsonName,
         ),
       );
     }
@@ -795,6 +934,24 @@ ADD-FIELD COMMAND:
     --allow-forward-refs    Skip on-disk type validation (batch generation of
                             cyclic schemas — referenced entity is created later)
 
+FIELD SYNTAX:
+  name:type                 Basic field, Dart name = JSON wire name
+                            (e.g. `id:String`, `note:String?`)
+  name:type:json=<wire>     Dart name differs from the JSON wire name.
+                            Required when the wire name is a Dart keyword
+                            (`in`, `required`) or starts with `_`
+                            (Vendure `_and` / `_or`). Emits
+                            `@JsonKey(name: '<wire>')` on the getter so
+                            json_serializable serializes with the wire name.
+                            Examples:
+                              in_:String:json=in            # `in` wire key
+                              and:ProductFilterParameter:json=_and
+                              required:ConfigArgDef:json=required
+
+  The same syntax is accepted by `--field` (single) and `-F/--fields`
+  (comma-separated). `zfa entity from-json` resolves Dart-keyword and
+  `_`-prefixed JSON keys automatically (no manual `:json=` needed).
+
 EXAMPLES:
   zfa entity create -n User --field id:String --field name:String
   zfa entity create -n Product --field name:String --field price:double --filter
@@ -802,6 +959,12 @@ EXAMPLES:
     --field content:String --field timestamp:DateTime
   zfa entity create -n ParserConfig --kind=value_object
     --field separator:String --field trimWhitespace:bool
+  # Vendure-style filter parameter with nested _and/_or composition:
+  zfa entity create -n ProductFilterParameter --allow-forward-refs
+    --field and:ProductFilterParameter:json=_and
+    --field or:ProductFilterParameter:json=_or
+  # IdOperators with `in` (Dart keyword) remapped to `in_`:
+  zfa entity create -n IdOperators --field in_:String:json=in --field eq:String
   zfa entity enum -n Status --value pending,active,completed
   zfa entity add-field -n User --field email:String?
   zfa entity list
@@ -809,6 +972,8 @@ EXAMPLES:
 NOTES:
   - Entities always live under lib/src/domain/entities in Zuraffa v5.
   - Legacy --output values are accepted for compatibility but ignored.
+  - Raw Dart-keyword field names (e.g. `--field in:String`) are rejected;
+    remap with `:json=<wire>` so the generated source compiles.
 
 For more information, visit: https://github.com/arrrrny/zorphy
 ''');
