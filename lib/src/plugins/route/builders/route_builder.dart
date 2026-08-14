@@ -207,6 +207,7 @@ class RouteBuilder {
     required List<String> imports,
     required String detailViewImport,
     required bool hasDetailView,
+    required String routeBase,
     bool force = false,
   }) {
     var content = existingContent;
@@ -240,6 +241,26 @@ class RouteBuilder {
     }
 
     final helper = const AstHelper();
+
+    // #333: When the new run does NOT emit a detail GoRoute (because no
+    // `<entity>_detail_view.dart` exists on disk), remove any stale
+    // detail route from the existing file. Without this cleanup,
+    // re-running with --force over a pre-fix routes file (which
+    // referenced <Entity>DetailView) would leave the broken stub in
+    // place. The route's stable identity is its `name:` field —
+    // `'${routeBase}_detail'`.
+    if (!hasDetailView) {
+      final detailRouteName = '${routeBase}_detail';
+      final detailNamePattern = RegExp(
+        "name:\\s*'${RegExp.escape(detailRouteName)}'",
+      );
+      content = helper.removeElementsFromReturnListInFunctionWhere(
+        source: content,
+        functionName: routesGetterName,
+        matches: (elementSource) =>
+            detailNamePattern.hasMatch(elementSource),
+      );
+    }
 
     // Add route constants
     for (final entry in newRouteConstants.entries) {
@@ -494,7 +515,14 @@ class RouteBuilder {
           viewParam: dependencyInfo.viewParam,
           config: config,
         ),
-      if (needsIdRoute)
+      // #333: only emit the detail GoRoute when the corresponding
+      // `<entity>_detail_view.dart` actually exists on disk. When the
+      // detail-view file is absent, omit the detail route entirely
+      // instead of emitting a "stub" pointing to the main View. The
+      // previous behavior (always emit + flip viewName) produced
+      // malformed stubs when re-running with --force over a pre-existing
+      // routes file — see issue #333.
+      if (needsIdRoute && hasDetailView)
         _buildDetailRouteExpr(
           entityName: entityName,
           entityCamel: entityCamel,
@@ -502,9 +530,7 @@ class RouteBuilder {
           routeNameBase: routeNameBase,
           viewParam: dependencyInfo.viewParam,
           config: config,
-          viewName: hasDetailView
-              ? '${entityName}DetailView'
-              : '${entityName}View',
+          viewName: '${entityName}DetailView',
         ),
       if (hasCreate)
         _buildCreateRouteExpr(
@@ -606,6 +632,7 @@ class RouteBuilder {
             imports: imports,
             detailViewImport: detailViewImport,
             hasDetailView: hasDetailView,
+            routeBase: routeBase,
             force: config.force,
           )
         : entityRoutesBuilder.buildFile(
