@@ -27,7 +27,8 @@
 // (Process.run on `bin/zfa.dart`), covering:
 //
 //   1. The exact reproduction from the issue (LanguageCode with `as`/`is`).
-//   2. The full Vendure LanguageCode value set (358 values, 2 keywords).
+//   2. A representative subset of the Vendure LanguageCode value set
+//      (both keyword values included) — not the full 358-value set.
 //   3. Explicit `member:wire` pairs for fine-grained wire-name control.
 //   4. Plain enums with no keyword values stay `@JsonValue`-free.
 //   5. The generated source actually parses (sanity: no raw `as`/`is`
@@ -91,6 +92,25 @@ dev_dependencies:
       );
     }
 
+    /// Asserts the generated file parses as valid Dart. `dart format` exits
+    /// non-zero on any syntax error, so a trailing raw reserved-word member
+    /// (e.g. `is,` or `in,` — unlike `as`, a built-in identifier the
+    /// formatter accepts) or any other break in the emitted source cannot be
+    /// missed by the regex spot-checks above.
+    Future<void> expectFormats(File file) async {
+      final result = await Process.run(
+        'dart',
+        ['format', '--output=none', file.path],
+        workingDirectory: workspace.path,
+      );
+      expect(
+        result.exitCode,
+        equals(0),
+        reason: 'generated ${file.path} must parse as valid Dart '
+            '(exit ${result.exitCode}): ${result.stdout}${result.stderr}',
+      );
+    }
+
     test(
       'keyword values `as` and `is` are auto-escaped with @JsonValue '
       '(exact repro from the issue)',
@@ -116,6 +136,9 @@ dev_dependencies:
         final file = enumFile('language_code');
         expect(file.existsSync(), isTrue, reason: 'enum file must be written');
         final src = await file.readAsString();
+
+        // The generated file must parse as valid Dart (see helper above).
+        await expectFormats(file);
 
         // The fix: escaped identifiers (`as_`, `is_`), not raw keywords.
         expect(
@@ -182,6 +205,8 @@ dev_dependencies:
         expect(file.existsSync(), isTrue);
         final src = await file.readAsString();
 
+        await expectFormats(file);
+
         // Explicit member:wire pair — wire name preserved via @JsonValue.
         expect(src, contains("@JsonValue('AED')"));
         expect(src, contains('aed,'));
@@ -219,6 +244,8 @@ dev_dependencies:
         expect(file.existsSync(), isTrue);
         final src = await file.readAsString();
 
+        await expectFormats(file);
+
         expect(src, contains('enum SortOrder {'));
         expect(src, contains('asc'));
         expect(src, contains('desc'));
@@ -232,7 +259,7 @@ dev_dependencies:
     );
 
     test(
-      'full Vendure LanguageCode value set (subset incl. both keywords) '
+      'representative Vendure LanguageCode value subset (incl. both keywords) '
       'generates valid Dart',
       timeout: const Timeout(Duration(minutes: 2)),
       () async {
@@ -269,6 +296,8 @@ dev_dependencies:
         final file = enumFile('language_code');
         expect(file.existsSync(), isTrue);
         final src = await file.readAsString();
+
+        await expectFormats(file);
 
         // Both keyword members must be escaped.
         expect(src, contains('as_'));
