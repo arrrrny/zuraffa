@@ -389,11 +389,10 @@ class AstModifier {
     required bool Function(CollectionElement element) remove,
     bool format = true,
   }) {
-    final kept =
-        list.elements
-            .where((element) => element.end > element.offset)
-            .where((element) => !remove(element))
-            .toList();
+    final kept = list.elements
+        .where((element) => element.end > element.offset)
+        .where((element) => !remove(element))
+        .toList();
 
     final keptSource = kept.map((element) => element.toSource()).join(',\n');
     final inner = keptSource.isEmpty ? '' : '$keptSource,';

@@ -164,105 +164,99 @@ void main() {
   }
 
   group('issue #335 — dangling separator comma when detail route omitted', () {
-    test(
-      'FRESH list-only generation (no detail_view) parses with zero syntax '
-      'errors',
-      () async {
-        final content = await generateRoutes();
+    test('FRESH list-only generation (no detail_view) parses with zero syntax '
+        'errors', () async {
+      final content = await generateRoutes();
 
-        expect(content.contains("name: 'error_log_list'"), isTrue);
-        expect(content.contains("name: 'error_log_detail'"), isFalse);
+      expect(content.contains("name: 'error_log_list'"), isTrue);
+      expect(content.contains("name: 'error_log_detail'"), isFalse);
 
-        final errors = syntaxErrors(content);
-        expect(
-          errors,
-          isEmpty,
-          reason: 'list-only routes file must parse cleanly; got: '
-              '${errors.map((e) => e.message).join(', ')}',
-        );
-        expect(
-          RegExp(r',\s*\n\s*,').hasMatch(content),
-          isFalse,
-          reason: 'stray separator comma detected',
-        );
-      },
-    );
+      final errors = syntaxErrors(content);
+      expect(
+        errors,
+        isEmpty,
+        reason:
+            'list-only routes file must parse cleanly; got: '
+            '${errors.map((e) => e.message).join(', ')}',
+      );
+      expect(
+        RegExp(r',\s*\n\s*,').hasMatch(content),
+        isFalse,
+        reason: 'stray separator comma detected',
+      );
+    });
 
-    test(
-      'RE-RUN with --force over the #335 broken file (stray trailing comma) '
-      'parses with zero syntax errors',
-      () async {
-        final routesDir = Directory('$outputDir/routing');
-        await routesDir.create(recursive: true);
-        await File('${routesDir.path}/error_log_routes.dart').writeAsString(
-          _issue335RoutesFile,
-        );
-        await File('${routesDir.path}/index.dart').writeAsString(
-          "import 'error_log_routes.dart';\n",
-        );
-        await File('${routesDir.path}/app_routes.dart').writeAsString(
-          "import './index.dart';\n"
-          "class AppRoutes {}\n"
-          "extension RouterExtension on AppRoutes {}\n",
-        );
+    test('RE-RUN with --force over the #335 broken file (stray trailing comma) '
+        'parses with zero syntax errors', () async {
+      final routesDir = Directory('$outputDir/routing');
+      await routesDir.create(recursive: true);
+      await File(
+        '${routesDir.path}/error_log_routes.dart',
+      ).writeAsString(_issue335RoutesFile);
+      await File(
+        '${routesDir.path}/index.dart',
+      ).writeAsString("import 'error_log_routes.dart';\n");
+      await File('${routesDir.path}/app_routes.dart').writeAsString(
+        "import './index.dart';\n"
+        "class AppRoutes {}\n"
+        "extension RouterExtension on AppRoutes {}\n",
+      );
 
-        final content = await generateRoutes();
+      final content = await generateRoutes();
 
-        expect(content.contains("name: 'error_log_list'"), isTrue);
-        expect(content.contains("name: 'error_log_detail'"), isFalse);
+      expect(content.contains("name: 'error_log_list'"), isTrue);
+      expect(content.contains("name: 'error_log_detail'"), isFalse);
 
-        final errors = syntaxErrors(content);
-        expect(
-          errors,
-          isEmpty,
-          reason: 'repaired routes file must parse cleanly; got: '
-              '${errors.map((e) => e.message).join(', ')}',
-        );
-        expect(
-          RegExp(r',\s*\n\s*,').hasMatch(content),
-          isFalse,
-          reason: 'stray separator comma detected',
-        );
-      },
-    );
+      final errors = syntaxErrors(content);
+      expect(
+        errors,
+        isEmpty,
+        reason:
+            'repaired routes file must parse cleanly; got: '
+            '${errors.map((e) => e.message).join(', ')}',
+      );
+      expect(
+        RegExp(r',\s*\n\s*,').hasMatch(content),
+        isFalse,
+        reason: 'stray separator comma detected',
+      );
+    });
 
-    test(
-      'RE-RUN with --force over the #333 malformed file removes the detail '
-      'stub AND its preceding stray comma',
-      () async {
-        final routesDir = Directory('$outputDir/routing');
-        await routesDir.create(recursive: true);
-        await File('${routesDir.path}/error_log_routes.dart').writeAsString(
-          _issue333RoutesFile,
-        );
-        await File('${routesDir.path}/index.dart').writeAsString(
-          "import 'error_log_routes.dart';\n",
-        );
-        await File('${routesDir.path}/app_routes.dart').writeAsString(
-          "import './index.dart';\n"
-          "class AppRoutes {}\n"
-          "extension RouterExtension on AppRoutes {}\n",
-        );
+    test('RE-RUN with --force over the #333 malformed file removes the detail '
+        'stub AND its preceding stray comma', () async {
+      final routesDir = Directory('$outputDir/routing');
+      await routesDir.create(recursive: true);
+      await File(
+        '${routesDir.path}/error_log_routes.dart',
+      ).writeAsString(_issue333RoutesFile);
+      await File(
+        '${routesDir.path}/index.dart',
+      ).writeAsString("import 'error_log_routes.dart';\n");
+      await File('${routesDir.path}/app_routes.dart').writeAsString(
+        "import './index.dart';\n"
+        "class AppRoutes {}\n"
+        "extension RouterExtension on AppRoutes {}\n",
+      );
 
-        final content = await generateRoutes();
+      final content = await generateRoutes();
 
-        expect(content.contains('ErrorLogDetailView'), isFalse);
-        expect(content.contains("name: 'error_log_detail'"), isFalse);
+      expect(content.contains('ErrorLogDetailView'), isFalse);
+      expect(content.contains("name: 'error_log_detail'"), isFalse);
 
-        final errors = syntaxErrors(content);
-        expect(
-          errors,
-          isEmpty,
-          reason: 'repaired routes file must parse cleanly; got: '
-              '${errors.map((e) => e.message).join(', ')}',
-        );
-        expect(
-          RegExp(r',\s*\n\s*,').hasMatch(content),
-          isFalse,
-          reason: 'stray separator comma detected',
-        );
-      },
-    );
+      final errors = syntaxErrors(content);
+      expect(
+        errors,
+        isEmpty,
+        reason:
+            'repaired routes file must parse cleanly; got: '
+            '${errors.map((e) => e.message).join(', ')}',
+      );
+      expect(
+        RegExp(r',\s*\n\s*,').hasMatch(content),
+        isFalse,
+        reason: 'stray separator comma detected',
+      );
+    });
 
     test(
       'RE-RUN is idempotent — second run parses identically to the first',
