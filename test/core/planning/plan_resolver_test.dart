@@ -43,16 +43,22 @@ void main() {
       );
 
       expect(plan.preset, 'crud');
+      // #348: `crud` now bundles `di` (lib/src/core/planning/preset_registry.dart),
+      // so `di` is requested by the preset itself and surfaces in plan.pluginIds
+      // immediately after the data layer (usecase/repository/datasource),
+      // before the presentation layer added via `--with=vpc`. Previously `di`
+      // appeared at the tail because it was only contributed by
+      // `ZfaConfig(diByDefault: true)` after the preset+with expansion.
       expect(
         plan.pluginIds,
         equals([
           'usecase',
           'repository',
           'datasource',
+          'di',
           'view',
           'presenter',
           'controller',
-          'di',
         ]),
       );
       expect(plan.executionOrder, plan.pluginIds);
