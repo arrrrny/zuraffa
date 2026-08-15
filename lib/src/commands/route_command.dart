@@ -24,11 +24,22 @@ class RouteCommand extends PluginCommand {
 
   @override
   Future<void> run() async {
+    // When invoked WITHOUT a subcommand (`zfa route <Entity>` rather than
+    // `zfa route create <Entity>` / `zfa route deep-link <Name>` etc.),
+    // behave as `zfa route create <Entity>` for backward compatibility.
+    //
+    // All capability-specific flags (--path, --scheme, --host, --view,
+    // --auto-verify for deep-link; --scheme, --host, --auto-verify for
+    // create) are auto-registered on the corresponding CapabilityCommand
+    // subcommands (PluginCommand auto-registers each capability as a
+    // subcommand, deriving flags from the capability's inputSchema).
     if (argResults!.rest.isEmpty) {
       print('❌ Usage: zfa route <EntityName> [options]');
       print('   Or use a subcommand:');
       print('   zfa route create <EntityName> [options]');
       print('   zfa route custom <Name> [options]');
+      print('   zfa route deep-link <Name> --path <path> --scheme <scheme>');
+      print('                  [--host <host>] [--auto-verify] [--view <View>]');
       return;
     }
 
@@ -37,7 +48,7 @@ class RouteCommand extends PluginCommand {
 
     if (argResults!.rest.length > 1) {
       final first = argResults!.rest.first;
-      if (first == 'create' || first == 'custom') {
+      if (first == 'create' || first == 'custom' || first == 'deep-link') {
         capabilityName = first;
         entityName = argResults!.rest[1];
       }
