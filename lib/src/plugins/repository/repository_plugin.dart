@@ -194,16 +194,20 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         (config.appendToExisting && config.repo != null)) {
       files.add(await interfaceGen.generate(targetConfig));
     }
-    // #284: Always emit the data repository implementation alongside the
-    // interface for entity-based configs.  Previously this was gated on
-    // generateData || generateDataSource || appendToExisting, but those flags
-    // are not reliably set when the make invocation activates the datasource
-    // plugin via a preset (the schema default of false wins over the
-    // plugin-activation sync in PluginManager.buildContext).  The DI plugin
-    // unconditionally emits `product_repository_di.dart` referencing
+    // #284 / #348: Always emit the data repository implementation alongside
+    // the interface for entity-based configs.  Historically this was gated
+    // on generateData || generateDataSource || appendToExisting, but those
+    // flags are not reliably set for `--append` runs that don't activate the
+    // datasource plugin (the repository schema property `datasource` defaults
+    // to false and only the active-plugin sync flips it to true).  #347 made
+    // the plugin-activation sync run BEFORE the schema-default merge in
+    // PluginManager.buildContext, so `data['datasource'] == true` now holds
+    // whenever the datasource plugin is active (preset or explicit) and the
+    // DI plugin emits `product_repository_di.dart` referencing
     // `DataProductRepository` whenever generateRepository || generateData
-    // is true, so the impl must be produced for every entity-based config to
-    // keep the generated app compiling.
+    // is true.  The impl is still produced unconditionally for every
+    // entity-based config to keep `--append` and `--repo` flows compiling
+    // even when no datasource plugin is active (custom-usecase scenarios).
     if ((config.isEntityBased ||
             config.generateData ||
             config.generateDataSource ||
