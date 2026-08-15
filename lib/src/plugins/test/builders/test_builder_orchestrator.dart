@@ -17,10 +17,12 @@ extension TestBuilderOrchestrator on TestBuilder {
 
     final packageName = await _resolvePackageName(projectRoot);
 
+    // #354: detect Flutter vs pure-Dart from pubspec.yaml (see entity builder).
+    final isFlutter = await _isFlutterProject(projectRoot);
     final directives = [
-      Directive.import('package:flutter_test/flutter_test.dart'),
+      _testFrameworkImport(isFlutter),
       Directive.import('package:mocktail/mocktail.dart'),
-      Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
+      _zuraffaCoreImport(isFlutter),
       Directive.import(
         'package:$packageName/src/domain/usecases/${config.effectiveDomain}/${config.nameSnake}_usecase.dart',
       ),

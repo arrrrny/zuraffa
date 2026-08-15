@@ -22,10 +22,12 @@ extension TestBuilderPolymorphic on TestBuilder {
       final fileName = '${classSnake}_usecase_test.dart';
       final filePath = path.join(testDirPath, fileName);
 
+      // #354: detect Flutter vs pure-Dart from pubspec.yaml (see entity builder).
+      final isFlutter = await _isFlutterProject(projectRoot);
       final directives = [
-        Directive.import('package:flutter_test/flutter_test.dart'),
+        _testFrameworkImport(isFlutter),
         Directive.import('package:mocktail/mocktail.dart'),
-        Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
+        _zuraffaCoreImport(isFlutter),
         Directive.import(
           'package:$packageName/src/domain/usecases/${config.effectiveDomain}/${classSnake}_usecase.dart',
         ),

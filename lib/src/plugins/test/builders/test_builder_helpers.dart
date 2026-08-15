@@ -566,6 +566,53 @@ extension TestBuilderHelpers on TestBuilder {
       _ => refer('t$type'),
     };
   }
+
+  // #354: detect whether the projectRoot's pubspec.yaml declares a Flutter
+  // dependency (`flutter: sdk: flutter`). Pure-Dart apps (`zfa setup --dart`)
+  // cannot import `package:flutter_test/flutter_test.dart` or
+  // `package:zuraffa_flutter/zuraffa_flutter.dart` — they only wire
+  // `test` + `mocktail` + `zuraffa`. Falls back to false when pubspec.yaml
+  // is missing or unreadable, matching DependencyWirer.isFlutterProject's
+  // conservative default. Result is cached per TestBuilder instance.
+  Future<bool> _isFlutterProject(String projectRoot) async {
+    if (_cachedIsFlutterProject != null) {
+      return _cachedIsFlutterProject!;
+    }
+    bool isFlutter = false;
+    try {
+      final pubspecPath = path.join(projectRoot, 'pubspec.yaml');
+      if (await fileSystem.exists(pubspecPath)) {
+        final content = await fileSystem.read(pubspecPath);
+        isFlutter = DependencyWirer.isFlutterProject(content);
+      }
+    } catch (_) {
+      // Mirror DependencyWirer: unreadable pubspec -> not Flutter.
+    }
+    _cachedIsFlutterProject = isFlutter;
+    return isFlutter;
+  }
+
+  /// Test framework import: `flutter_test` for Flutter apps, `test` for pure
+  /// Dart apps. `zfa setup --dart` only wires `test` + `mocktail` (no
+  /// `flutter_test`), so a pure-Dart app cannot resolve `flutter_test`.
+  Directive _testFrameworkImport(bool isFlutter) => Directive.import(
+    isFlutter
+        ? 'package:flutter_test/flutter_test.dart'
+        : 'package:test/test.dart',
+  );
+
+  /// Zuraffa core import: `zuraffa_flutter` (which re-exports `zuraffa`) for
+  /// Flutter apps, plain `zuraffa` for pure-Dart apps. The params classes
+  /// (UpdateParams, ListQueryParams, DeleteParams, QueryParams, ToggleParams,
+  /// NoParams, Eq, Success, Failure) are all exported from
+  /// `package:zuraffa/zuraffa.dart` (lib/zuraffa.dart → src/core/params/index.dart).
+  /// A pure-Dart app cannot import `package:zuraffa_flutter/zuraffa_flutter.dart`
+  /// (which transitively pulls in `flutter`).
+  Directive _zuraffaCoreImport(bool isFlutter) => Directive.import(
+    isFlutter
+        ? 'package:zuraffa_flutter/zuraffa_flutter.dart'
+        : 'package:zuraffa/zuraffa.dart',
+  );
 }
 
 extension ExpressionClosure on Expression {
