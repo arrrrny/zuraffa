@@ -423,6 +423,12 @@ ${missing.map((d) => '   • $d').join('\n')}
     // Process field types
     for (final field in fields) {
       // External types (issue #349) are never entity/enum - skip import resolution.
+      // External types (marked with ! prefix, e.g. url:!WebUri?) reference types
+      // from external libraries (plugin wrappers, SDK classes, etc). The type name
+      // is kept as-is (no $ prefix), and NO import is automatically emitted because
+      // the CLI doesn't know which library defines the type. The user must manually
+      // add the required import (e.g. import 'package:webview_flutter/webview_flutter.dart';)
+      // to the generated entity file after generation, or include it in a custom template.
       if (field.isExternal) continue;
       final types = EntityUtils.extractEntityTypes(field.fullType);
       for (final type in types) {

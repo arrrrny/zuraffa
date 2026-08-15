@@ -227,6 +227,100 @@ dev_dependencies:
     );
 
     test(
+      'external type compiles when user manually adds required import',
+      timeout: const Timeout(Duration(minutes: 2)),
+      () async {
+        // Create entity with external WebUri type
+        final createResult = await runZfa([
+          'entity',
+          'create',
+          '-n',
+          'JsAlertRequest',
+          '--kind=value_object',
+          '--field',
+          'url:!WebUri?',
+          '--field',
+          'message:String?',
+        ]);
+
+        expect(createResult.exitCode, equals(0));
+
+        final entityFile = File(
+          p.join(
+            workspace.path,
+            'lib',
+            'src',
+            'domain',
+            'entities',
+            'js_alert_request',
+            'js_alert_request.dart',
+          ),
+        );
+        expect(entityFile.existsSync(), isTrue);
+
+        var content = await entityFile.readAsString();
+
+        // Verify external type is present without $ prefix
+        expect(content, contains('WebUri? get url'));
+        expect(content, isNot(contains('\$WebUri')));
+
+        // Manually add the required import for WebUri (simulating what user must do)
+        // Since we don't actually have webview_flutter package, we'll create a
+        // mock WebUri class in the workspace to make the code analyzable
+        final mockWebUriDir = Directory(
+          p.join(workspace.path, 'lib', 'src', 'external'),
+        );
+        await mockWebUriDir.create(recursive: true);
+
+        final mockWebUriFile = File(
+          p.join(mockWebUriDir.path, 'web_uri.dart'),
+        );
+        await mockWebUriFile.writeAsString('''
+/// Mock WebUri class for testing external type references
+class WebUri {
+  final String uri;
+  const WebUri(this.uri);
+
+  @override
+  String toString() => uri;
+}
+''');
+
+        // Add the import to the generated entity file
+        final lastImportMatch = RegExp(
+          r'^import .*;',
+          multiLine: true,
+        ).allMatches(content).toList();
+
+        if (lastImportMatch.isEmpty) {
+          content = "import '../../external/web_uri.dart';\n\n$content";
+        } else {
+          final insertPos = lastImportMatch.last.end;
+          content =
+              "${content.substring(0, insertPos)}\nimport '../../external/web_uri.dart';${content.substring(insertPos)}";
+        }
+
+        await entityFile.writeAsString(content);
+
+        // Run dart analyze to verify the generated code compiles
+        final analyzeResult = await Process.run(
+          'dart',
+          ['analyze', '--fatal-infos', entityFile.path],
+          workingDirectory: workspace.path,
+        );
+
+        expect(
+          analyzeResult.exitCode,
+          equals(0),
+          reason:
+              'Generated code with external type should compile when import is added.\n'
+              'stdout: ${analyzeResult.stdout}\n'
+              'stderr: ${analyzeResult.stderr}',
+        );
+      },
+    );
+
+    test(
       'zfa binary is runnable (smoke)',
       timeout: const Timeout(Duration(minutes: 2)),
       () async {
