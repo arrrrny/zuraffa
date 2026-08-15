@@ -91,6 +91,22 @@ class PluginManager {
 
     final data = <String, dynamic>{};
 
+    // #346: Sync plugin activation flags into data FIRST, before merging
+    // schema defaults below. Some schema properties share their name with a
+    // plugin id (e.g. RepositoryPlugin's `datasource` option, DataSourcePlugin's
+    // `cache` option) and default to false — when the schema-default merge ran
+    // first it wrote `data['datasource'] = false` and the activation sync's
+    // `!data.containsKey(id)` guard then skipped marking the datasource plugin
+    // active. Downstream plugins (DI) read `data['datasource']` to decide
+    // whether to emit datasource registrations, so the app compiled but
+    // crashed at runtime with `GetIt: DataSource is not registered`.
+    final activePluginIds = activePlugins.map((p) => p.id).toSet();
+    for (final id in activePluginIds) {
+      if (!data.containsKey(id)) {
+        data[id] = true;
+      }
+    }
+
     // Merge plugin-specific data from ArgResults
     if (argResults != null) {
       for (final plugin in activePlugins) {
@@ -138,7 +154,11 @@ class PluginManager {
               } else {
                 data[key] = val;
               }
-            } else if (propertyConfig.containsKey('default')) {
+            } else if (propertyConfig.containsKey('default') &&
+                // #346: never let a schema default overwrite a plugin
+                // activation flag (e.g. `datasource`, `cache` are both
+                // plugin ids and schema properties of other plugins).
+                !data.containsKey(key)) {
               final def = propertyConfig['default'];
               if (def is String && propertyConfig['type'] == 'array') {
                 data[key] = def
@@ -216,14 +236,6 @@ class PluginManager {
     // Add positional arguments and other common fields to data for backward compat
     data['name'] = name;
     data['output_dir'] = core.outputDir;
-
-    // Sync plugin activation flags into data so plugins can inspect each other
-    final activePluginIds = activePlugins.map((p) => p.id).toSet();
-    for (final id in activePluginIds) {
-      if (!data.containsKey(id)) {
-        data[id] = true;
-      }
-    }
 
     final baseFileSystem = FileSystem.create(root: projectRoot);
     final transactionalFileSystem = TransactionalFileSystem(baseFileSystem);

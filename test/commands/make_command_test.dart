@@ -407,5 +407,119 @@ abstract class \$ParserConfig {
         );
       },
     );
+
+    // #346: `zfa make --with=di` must generate datasource DI registrations.
+    // PluginManager.buildContext used to fill schema defaults (e.g.
+    // RepositoryPlugin's `datasource: false`) BEFORE syncing plugin
+    // activation flags, so `data['datasource']` was clobbered to false and
+    // the DI plugin never emitted lib/src/di/datasources/ — the app compiled
+    // but crashed at runtime with
+    // `GetIt: ProductRemoteDataSource is not registered`.
+    test(
+      '#346 — with di generates and wires datasource DI registrations',
+      timeout: const Timeout(Duration(minutes: 2)),
+      () async {
+        await writeEntity('Product', '''
+class Product {
+  final String id;
+
+  const Product({required this.id});
+}
+''');
+
+        final result = await runZfaSource([
+          'make',
+          'Product',
+          '--preset=crud',
+          '--with=di',
+          '--methods=get,getList',
+        ]);
+        expect(result.exitCode, 0, reason: result.stderr.toString());
+
+        final diPath = path.join(outputDir, 'di');
+
+        // 1. Datasource DI registration file exists and registers the
+        //    datasource in GetIt.
+        final dsDi = File(
+          path.join(diPath, 'datasources', 'product_remote_datasource_di.dart'),
+        );
+        expect(dsDi.existsSync(), isTrue, reason: 'datasource DI file missing');
+        final dsContent = dsDi.readAsStringSync();
+        expect(dsContent, contains('void registerProductRemoteDataSource('));
+        expect(
+          dsContent,
+          contains(
+            'getIt.registerLazySingleton<ProductRemoteDataSource>(',
+          ),
+        );
+
+        // 2. Datasource barrel exists and is called by setupDependencies
+        //    BEFORE repositories (repositories resolve datasources from GetIt).
+        final dsIndex = File(path.join(diPath, 'datasources', 'index.dart'));
+        expect(dsIndex.existsSync(), isTrue);
+        expect(
+          dsIndex.readAsStringSync(),
+          contains('registerAllDataSources(GetIt getIt)'),
+        );
+
+        final mainContent = File(
+          path.join(diPath, 'index.dart'),
+        ).readAsStringSync();
+        expect(mainContent, contains('registerAllDataSources(getIt);'));
+        expect(
+          mainContent.indexOf('registerAllDataSources(getIt);'),
+          lessThan(mainContent.indexOf('registerAllRepositories(getIt);')),
+          reason: 'datasources must be registered before repositories',
+        );
+      },
+    );
+
+    // #346 (mock variant): `--use-mock` must register the mock datasource
+    // instead of the remote one.
+    test(
+      '#346 — with di --use-mock registers the mock datasource',
+      timeout: const Timeout(Duration(minutes: 2)),
+      () async {
+        await writeEntity('Product', '''
+class Product {
+  final String id;
+
+  const Product({required this.id});
+}
+''');
+
+        final result = await runZfaSource([
+          'make',
+          'Product',
+          '--preset=crud',
+          '--with=di',
+          '--use-mock',
+          '--methods=get',
+        ]);
+        expect(result.exitCode, 0, reason: result.stderr.toString());
+
+        final mockDi = File(
+          path.join(
+            outputDir,
+            'di',
+            'datasources',
+            'product_mock_datasource_di.dart',
+          ),
+        );
+        expect(mockDi.existsSync(), isTrue, reason: 'mock datasource DI missing');
+        expect(
+          mockDi.readAsStringSync(),
+          contains('registerProductMockDataSource('),
+        );
+
+        final dsIndex = File(
+          path.join(outputDir, 'di', 'datasources', 'index.dart'),
+        );
+        expect(
+          dsIndex.readAsStringSync(),
+          contains('registerProductMockDataSource(getIt);'),
+        );
+      },
+    );
   });
 }
