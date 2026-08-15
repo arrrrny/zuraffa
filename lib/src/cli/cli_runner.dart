@@ -19,6 +19,7 @@ import '../commands/apply_command.dart';
 import '../commands/module_command.dart';
 import '../commands/xray_command.dart';
 import '../commands/setup_command.dart';
+import '../commands/app_shell_command.dart';
 import '../core/plugin_system/cli_aware_plugin.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/error/suggestion_engine.dart';
@@ -87,6 +88,7 @@ class CliRunner {
     _runner.addCommand(XrayCommand());
     _runner.addCommand(UpdateCommand());
     _runner.addCommand(SetupCommand());
+    _runner.addCommand(AppCommand());
   }
 
   /// Run CLI with arguments.
@@ -242,6 +244,7 @@ MODULAR COMMANDS:
   view <Name>         Generate View/Presenter/Controller
   di <Name>           Generate dependency injection
   test <Name>         Generate unit tests
+  app shell           Generate app shell (main.dart + MyApp + app_router.dart)
 
 OPTIONS:
   -v, --version       Print version
