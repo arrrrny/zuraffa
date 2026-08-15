@@ -1132,7 +1132,7 @@ class RouteBuilder {
     final existingFiles = <String>[];
     for (final f in dirs) {
       if (!await fileSystem.isDirectory(f)) {
-        if (f.endsWith('_routes.dart') &&
+        if ((f.endsWith('_routes.dart') || f.endsWith('_shell.dart')) &&
             !f.endsWith('index.dart') &&
             !f.endsWith('app_routes.dart')) {
           existingFiles.add(f);
@@ -1143,7 +1143,8 @@ class RouteBuilder {
     final pendingPaths = pendingFiles
         .where(
           (f) =>
-              f.path.endsWith('_routes.dart') &&
+              (f.path.endsWith('_routes.dart') ||
+                  f.path.endsWith('_shell.dart')) &&
               !f.path.endsWith('index.dart') &&
               !f.path.endsWith('app_routes.dart') &&
               f.action != 'deleted',
@@ -1191,22 +1192,35 @@ class RouteBuilder {
 
     for (final filePath in allPaths) {
       final fileName = path.basename(filePath);
-      final entitySnake = fileName.replaceAll('_routes.dart', '');
-      final entityPascal = StringUtils.convertToPascalCase(entitySnake);
+      // #359: the routing index now aggregates two module kinds:
+      //   - <name>_routes.dart -> exports `<camel>Routes()` (List<GoRoute>)
+      //   - <name>_shell.dart  -> exports `<camel>ShellRoute()` (List<RouteBase>)
+      // The shell module contains a `StatefulShellRoute.indexedStack`
+      // (a `RouteBase`, not a `GoRoute`), so `getAllRoutes()` returns
+      // `List<RouteBase>` - Dart list covariance keeps the existing
+      // `...entityRoutes()` spreads type-checking against the wider type.
+      final String getterName;
+      if (fileName.endsWith('_shell.dart')) {
+        final entitySnake = fileName.replaceAll('_shell.dart', '');
+        final entityPascal = StringUtils.convertToPascalCase(entitySnake);
+        getterName = '${StringUtils.pascalToCamel(entityPascal)}ShellRoute';
+      } else {
+        final entitySnake = fileName.replaceAll('_routes.dart', '');
+        final entityPascal = StringUtils.convertToPascalCase(entitySnake);
+        getterName = '${StringUtils.pascalToCamel(entityPascal)}Routes';
+      }
 
       exports.add(Directive.export(fileName));
       imports.add(Directive.import(fileName));
       routeElements.add(
-        refer(
-          '${StringUtils.pascalToCamel(entityPascal)}Routes',
-        ).call([]).spread,
+        refer(getterName).call([]).spread,
       );
     }
 
     final getAllRoutes = Method(
       (m) => m
         ..name = 'getAllRoutes'
-        ..returns = refer('List<GoRoute>')
+        ..returns = refer('List<RouteBase>')
         ..body = literalList(routeElements).returned.statement,
     );
 

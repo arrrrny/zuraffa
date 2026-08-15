@@ -14,6 +14,7 @@ import 'builders/route_builder.dart';
 import 'capabilities/create_route_capability.dart';
 import 'capabilities/custom_route_capability.dart';
 import 'capabilities/deep_link_route_capability.dart';
+import 'capabilities/shell_route_capability.dart';
 
 /// Manages navigation route generation for Flutter applications.
 ///
@@ -55,6 +56,7 @@ class RoutePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     CreateRouteCapability(this),
     CustomRouteCapability(this),
     DeepLinkRouteCapability(this),
+    ShellRouteCapability(this),
   ];
 
   @override

@@ -39,6 +39,7 @@ class RouteCommand extends PluginCommand {
       print('   zfa route create <EntityName> [options]');
       print('   zfa route custom <Name> [options]');
       print('   zfa route deep-link <Name> --path <path> --scheme <scheme>');
+      print('   zfa route shell <Name> --branch <Label>:<path> [--branch ...] [--bottom-nav] [--adaptive]');
       print('                  [--host <host>] [--auto-verify] [--view <View>]');
       return;
     }
@@ -48,7 +49,7 @@ class RouteCommand extends PluginCommand {
 
     if (argResults!.rest.length > 1) {
       final first = argResults!.rest.first;
-      if (first == 'create' || first == 'custom' || first == 'deep-link') {
+      if (first == 'create' || first == 'custom' || first == 'deep-link' || first == 'shell') {
         capabilityName = first;
         entityName = argResults!.rest[1];
       }
