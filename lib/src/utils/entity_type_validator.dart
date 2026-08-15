@@ -91,6 +91,8 @@ class EntityTypeValidator {
     final seen = <String>{};
 
     for (final field in fields) {
+      // External types (issue #349) bypass on-disk validation entirely.
+      if (field.isExternal) continue;
       final referencedTypes = EntityUtils.extractEntityTypes(field.fullType);
       for (final type in referencedTypes) {
         // Strip a leading `$` (Zorphy entity prefix) — the user may write

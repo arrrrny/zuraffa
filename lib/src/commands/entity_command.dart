@@ -422,6 +422,14 @@ ${missing.map((d) => '   • $d').join('\n')}
 
     // Process field types
     for (final field in fields) {
+      // External types (issue #349) are never entity/enum - skip import resolution.
+      // External types (marked with ! prefix, e.g. url:!WebUri?) reference types
+      // from external libraries (plugin wrappers, SDK classes, etc). The type name
+      // is kept as-is (no $ prefix), and NO import is automatically emitted because
+      // the CLI doesn't know which library defines the type. The user must manually
+      // add the required import (e.g. import 'package:webview_flutter/webview_flutter.dart';)
+      // to the generated entity file after generation, or include it in a custom template.
+      if (field.isExternal) continue;
       final types = EntityUtils.extractEntityTypes(field.fullType);
       for (final type in types) {
         final typeSnake = StringUtils.camelToSnake(type);
@@ -923,7 +931,10 @@ CREATE COMMAND:
                             generates no repository/usecase/controller/
                             presenter for it.
     --allow-forward-refs    Skip on-disk type validation (batch generation of
-                            cyclic schemas — referenced entity is created later)
+                            cyclic schemas — referenced entity is created later).
+                            For types that are NEVER entities (external classes
+                            like plugin wrappers), use the `!Type` prefix
+                            instead (see FIELD SYNTAX below).
 
 ADD-FIELD COMMAND:
   zfa entity add-field -n <Name> [options]
@@ -932,11 +943,22 @@ ADD-FIELD COMMAND:
     --field                 Add field "name:type"
     -F, --fields            Add multiple fields "name:type,name:type"
     --allow-forward-refs    Skip on-disk type validation (batch generation of
-                            cyclic schemas — referenced entity is created later)
+                            cyclic schemas — referenced entity is created later).
+                            For types that are NEVER entities (external classes
+                            like plugin wrappers), use the `!Type` prefix
+                            instead (see FIELD SYNTAX below).
 
 FIELD SYNTAX:
   name:type                 Basic field, Dart name = JSON wire name
                             (e.g. `id:String`, `note:String?`)
+  name:!type                External type - the `!` prefix marks a type as
+                            external (non-entity, non-enum). The type name is
+                            kept as-is (no `\$` prefix), on-disk validation is
+                            skipped, and no entity/enum import is emitted.
+                            Use for types that live outside the entity tree,
+                            e.g. plugin wrappers (`WebUri`), SDK classes, etc.
+                            Example:
+                              url:!WebUri?              # external WebUri type
   name:type:json=<wire>     Dart name differs from the JSON wire name.
                             Required when the wire name is a Dart keyword
                             (`in`, `required`) or starts with `_`
@@ -963,6 +985,9 @@ EXAMPLES:
   zfa entity create -n ProductFilterParameter --allow-forward-refs
     --field and:ProductFilterParameter:json=_and
     --field or:ProductFilterParameter:json=_or
+  # External (non-entity) type - no \$ prefix, no import, no validation:
+  zfa entity create -n JsAlertRequest --kind=value_object
+    --field url:!WebUri? --field message:String?
   # IdOperators with `in` (Dart keyword) remapped to `in_`:
   zfa entity create -n IdOperators --field in_:String:json=in --field eq:String
   zfa entity enum -n Status --value pending,active,completed
