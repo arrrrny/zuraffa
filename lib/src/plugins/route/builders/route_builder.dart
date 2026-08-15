@@ -10,6 +10,7 @@ import '../../../core/context/file_system.dart';
 import '../../../core/plugin_system/discovery_engine.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
+import '../../../utils/entity_field_resolver.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import 'app_routes_builder.dart';
@@ -56,6 +57,17 @@ class RouteBuilder {
       return files;
     }
 
+    // #341: value objects are embedded composition types — no view, no
+    // CRUD surface. Never emit routes for them. If a previous run (from
+    // before the entity was re-modeled as a value object) left routes
+    // behind, clean them up instead of regenerating references to a
+    // `<Entity>View` value objects do not have.
+    if (!config.noEntity &&
+        !config.isCustomUseCase &&
+        await _isValueObject(config)) {
+      return _cleanupRoutesForValueObject(config);
+    }
+
     files.add(await _generateRouteConstants(config));
     files.add(await _generateEntityRoutes(config));
     final indexFile = await _regenerateIndexFile(pendingFiles: files);
@@ -63,6 +75,108 @@ class RouteBuilder {
       files.add(indexFile);
     }
 
+    return files;
+  }
+
+  /// Whether the entity backing [config] is a Zorphy value object
+  /// (`@ZValueObject` / `kind: ZorphyKind.valueObject`).
+  Future<bool> _isValueObject(GeneratorConfig config) async {
+    final entityPath = path.join(
+      outputDir,
+      'domain',
+      'entities',
+      config.nameSnake,
+      '${config.nameSnake}.dart',
+    );
+    if (!await fileSystem.exists(entityPath)) return false;
+    return EntityFieldResolver.detectsValueObject(await fileSystem.read(
+      entityPath,
+    ));
+  }
+
+  /// Removes stale route artifacts for an entity that has since been
+  /// re-modeled as a value object: the `<entity>_routes.dart` file, its
+  /// constants/extension methods in `app_routes.dart`, and its export in
+  /// the regenerated `index.dart`. No-op when nothing stale exists.
+  Future<List<GeneratedFile>> _cleanupRoutesForValueObject(
+    GeneratorConfig config,
+  ) async {
+    print(
+      'ℹ️  "${config.name}" is a value object — skipping route generation '
+      '(no view/CRUD surface for embedded types).',
+    );
+
+    final files = <GeneratedFile>[];
+    final routesPath = path.join(
+      outputDir,
+      'routing',
+      '${config.nameSnake}_routes.dart',
+    );
+    if (!await fileSystem.exists(routesPath)) {
+      return files;
+    }
+
+    final appRoutesPath = path.join(outputDir, 'routing', 'app_routes.dart');
+    if (await fileSystem.exists(appRoutesPath)) {
+      var content = await fileSystem.read(appRoutesPath);
+      final helper = const AstHelper();
+      final entityPascal = config.name;
+
+      // Method-agnostic cleanup: remove every AppRoutes constant whose
+      // value references `<Entity>Routes.` and every goTo<Entity>* Router
+      // extension method, regardless of which methods the original run
+      // used (the plain revert path needs the same --methods).
+      final fieldPattern = RegExp(
+        'static\\s+const\\s+String\\s+(\\w+)\\s*=\\s*'
+        '${RegExp.escape(entityPascal)}Routes\\.',
+        dotAll: true,
+      );
+      for (final match in fieldPattern.allMatches(content)) {
+        content = helper.removeFieldFromClass(
+          source: content,
+          className: 'AppRoutes',
+          fieldName: match.group(1)!,
+        );
+      }
+      final methodPattern = RegExp(
+        'void\\s+(goTo${RegExp.escape(entityPascal)}\\w*)\\s*\\(',
+      );
+      for (final match in methodPattern.allMatches(content)) {
+        content = helper.removeMethodFromExtension(
+          source: content,
+          extensionName: 'RouterExtension',
+          methodName: match.group(1)!,
+        );
+      }
+
+      files.add(
+        await FileUtils.writeFile(
+          appRoutesPath,
+          content,
+          'route_constants',
+          force: true,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+          revert: false,
+          fileSystem: fileSystem,
+        ),
+      );
+    }
+
+    files.add(
+      await FileUtils.deleteFile(
+        routesPath,
+        'entity_routes',
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+        fileSystem: fileSystem,
+      ),
+    );
+
+    final indexFile = await _regenerateIndexFile(pendingFiles: files);
+    if (indexFile != null) {
+      files.add(indexFile);
+    }
     return files;
   }
 
@@ -207,6 +321,8 @@ class RouteBuilder {
     required List<String> imports,
     required String detailViewImport,
     required bool hasDetailView,
+    required String entityImport,
+    required bool referencesEntity,
     required String routeBase,
     bool force = false,
   }) {
@@ -236,6 +352,17 @@ class RouteBuilder {
     if (!hasDetailView) {
       content = content.replaceAll(
         RegExp("import\\s+'${RegExp.escape(detailViewImport)}';"),
+        '',
+      );
+    }
+
+    // #341: same sync for the entity import — when no emitted route
+    // passes the entity named-param anymore, the entity import would be
+    // dead code (unused_import) after the route replacement below. Drop
+    // it eagerly; the loop below re-adds imports that are still needed.
+    if (!referencesEntity) {
+      content = content.replaceAll(
+        RegExp("import\\s+'${RegExp.escape(entityImport)}';"),
         '',
       );
     }
@@ -487,6 +614,33 @@ class RouteBuilder {
     final detailViewImport =
         '../presentation/pages/$domainSnake/${entitySnake}_detail_view.dart';
 
+    // #341: shared route/view contract — probe the view files on disk for
+    // the named params their constructors actually accept (`this.<param>`),
+    // and only pass those from the route builders. This keeps routes
+    // aligned with regenerated views regardless of which methods each
+    // generator run saw (e.g. `zfa make` regenerates views with an empty
+    // methods list, which drops the entity named-param).
+    final mainViewPath = path.join(
+      outputDir,
+      'presentation',
+      'pages',
+      domainSnake,
+      '${entitySnake}_view.dart',
+    );
+    final mainViewParams = await _viewAcceptedParams(mainViewPath);
+    final detailViewParams = hasDetailView
+        ? await _viewAcceptedParams(detailViewPath)
+        : null;
+
+    bool acceptsEntityParam(Set<String>? viewParams) {
+      if (config.noEntity || config.isCustomUseCase) return false;
+      return viewParams == null || viewParams.contains(config.nameCamel);
+    }
+
+    final referencesEntity =
+        acceptsEntityParam(mainViewParams) ||
+        (hasDetailView && acceptsEntityParam(detailViewParams));
+
     final goRoutes = <Expression>[
       if (isCustom)
         _buildCustomRouteExpr(
@@ -505,6 +659,7 @@ class RouteBuilder {
           routeNameBase: routeNameBase,
           viewParam: dependencyInfo.viewParam,
           config: config,
+          viewParams: mainViewParams,
         ),
       if (!isCustom && !needsListRoute)
         _buildBaseRouteExpr(
@@ -514,6 +669,7 @@ class RouteBuilder {
           routeNameBase: routeNameBase,
           viewParam: dependencyInfo.viewParam,
           config: config,
+          viewParams: mainViewParams,
         ),
       // #333: only emit the detail GoRoute when the corresponding
       // `<entity>_detail_view.dart` actually exists on disk. When the
@@ -531,6 +687,7 @@ class RouteBuilder {
           viewParam: dependencyInfo.viewParam,
           config: config,
           viewName: '${entityName}DetailView',
+          viewParams: detailViewParams,
         ),
       if (hasCreate)
         _buildCreateRouteExpr(
@@ -540,6 +697,7 @@ class RouteBuilder {
           routeNameBase: routeNameBase,
           viewParam: dependencyInfo.viewParam,
           config: config,
+          viewParams: mainViewParams,
         ),
       if (hasUpdate && allowIdRoutes)
         _buildUpdateRouteExpr(
@@ -552,15 +710,21 @@ class RouteBuilder {
           viewName: hasDetailView
               ? '${entityName}DetailView'
               : '${entityName}View',
+          viewParams: hasDetailView ? detailViewParams : mainViewParams,
         ),
     ];
 
+    final entityImport =
+        '../domain/entities/$entitySnake/$entitySnake.dart';
     final imports = [
       'package:go_router/go_router.dart',
       'package:zuraffa/zuraffa.dart',
       '../presentation/pages/$domainSnake/${entitySnake}_view.dart',
       if (hasDetailView) detailViewImport,
-      if (!config.noEntity) '../domain/entities/$entitySnake/$entitySnake.dart',
+      // #341: only import the entity when some emitted route actually
+      // references it (the entity named-param). Otherwise the import is
+      // dead code and analyze flags it as unused.
+      if (!config.noEntity && referencesEntity) entityImport,
       if (dependencyInfo.importPath.isNotEmpty) dependencyInfo.importPath,
     ];
 
@@ -632,6 +796,8 @@ class RouteBuilder {
             imports: imports,
             detailViewImport: detailViewImport,
             hasDetailView: hasDetailView,
+            entityImport: entityImport,
+            referencesEntity: referencesEntity,
             routeBase: routeBase,
             force: config.force,
           )
@@ -665,6 +831,26 @@ class RouteBuilder {
     return const _DependencyInfo.empty();
   }
 
+  /// Extracts the constructor named-params a generated view class on disk
+  /// actually accepts, i.e. `this.<param>` occurrences in its constructor
+  /// (`super.key`/`super.routeObserver` are excluded — routes never pass
+  /// them). Returns `null` when the view file does not exist or contains
+  /// no class declaration (a stub file carries no signal) — callers then
+  /// fall back to the historical contract: pass the entity param and the
+  /// id param.
+  Future<Set<String>?> _viewAcceptedParams(String viewPath) async {
+    if (!await fileSystem.exists(viewPath)) return null;
+    final source = await fileSystem.read(viewPath);
+    if (!RegExp(r'\bclass\s+\w+').hasMatch(source)) return null;
+    final params = <String>{};
+    for (final match in RegExp(
+      r'this\.\s*([a-zA-Z_][a-zA-Z0-9_]*)',
+    ).allMatches(source)) {
+      params.add(match.group(1)!);
+    }
+    return params;
+  }
+
   Expression _buildCustomRouteExpr({
     required String className,
     required String entityName,
@@ -695,6 +881,7 @@ class RouteBuilder {
     required String routeNameBase,
     required String viewParam,
     required GeneratorConfig config,
+    Set<String>? viewParams,
   }) {
     final pathExpr = refer('${entityName}Routes').property(routeNameBase);
     final nameExpr = literalString(routeBase);
@@ -704,6 +891,7 @@ class RouteBuilder {
       viewParam: viewParam,
       withId: false,
       config: config,
+      viewParams: viewParams,
     );
 
     return refer(
@@ -718,6 +906,7 @@ class RouteBuilder {
     required String routeNameBase,
     required String viewParam,
     required GeneratorConfig config,
+    Set<String>? viewParams,
   }) {
     final pathExpr = refer(
       '${entityName}Routes',
@@ -729,6 +918,7 @@ class RouteBuilder {
       viewParam: viewParam,
       withId: false,
       config: config,
+      viewParams: viewParams,
     );
 
     return refer(
@@ -744,6 +934,7 @@ class RouteBuilder {
     required String viewParam,
     required GeneratorConfig config,
     String? viewName,
+    Set<String>? viewParams,
   }) {
     final pathExpr = refer(
       '${entityName}Routes',
@@ -756,6 +947,7 @@ class RouteBuilder {
       withId: config.idFieldType != 'NoParams',
       config: config,
       viewName: viewName,
+      viewParams: viewParams,
     );
 
     return refer(
@@ -770,6 +962,7 @@ class RouteBuilder {
     required String routeNameBase,
     required String viewParam,
     required GeneratorConfig config,
+    Set<String>? viewParams,
   }) {
     final pathExpr = refer(
       '${entityName}Routes',
@@ -781,6 +974,7 @@ class RouteBuilder {
       viewParam: viewParam,
       withId: false,
       config: config,
+      viewParams: viewParams,
     );
 
     return refer(
@@ -796,6 +990,7 @@ class RouteBuilder {
     required String viewParam,
     required GeneratorConfig config,
     String? viewName,
+    Set<String>? viewParams,
   }) {
     final pathExpr = refer(
       '${entityName}Routes',
@@ -808,6 +1003,7 @@ class RouteBuilder {
       withId: config.idFieldType != 'NoParams',
       config: config,
       viewName: viewName,
+      viewParams: viewParams,
     );
 
     return refer(
@@ -821,6 +1017,7 @@ class RouteBuilder {
     required bool withId,
     required GeneratorConfig config,
     String? viewName,
+    Set<String>? viewParams,
   }) {
     final viewArgs = <String, Expression>{};
     final effectiveViewName = viewName ?? '${entityName}View';
@@ -846,7 +1043,26 @@ class RouteBuilder {
       };
     }
 
-    if (!config.noEntity && !config.isCustomUseCase) {
+    // #341: shared route/view contract — only pass named-params the view
+    // on disk actually accepts (entity and id alike). When the view file
+    // exists and contains a real class, its constructor is authoritative:
+    // params it dropped (e.g. after `zfa make` regenerated the view with
+    // an empty methods list) must not be passed by the route. When there
+    // is no view file yet (or only a signal-less stub), fall back to the
+    // historical contract of passing both.
+    if (viewParams != null) {
+      final entityCamel = StringUtils.pascalToCamel(entityName);
+      if (!config.noEntity &&
+          !config.isCustomUseCase &&
+          viewParams.contains(entityCamel)) {
+        viewArgs[entityCamel] = refer(
+          'state',
+        ).property('extra').asA(refer('$entityName?'));
+      }
+      if (withId && !viewParams.contains('id')) {
+        viewArgs.remove('id');
+      }
+    } else if (!config.noEntity && !config.isCustomUseCase) {
       final entityCamel = StringUtils.pascalToCamel(entityName);
       viewArgs[entityCamel] = refer(
         'state',
