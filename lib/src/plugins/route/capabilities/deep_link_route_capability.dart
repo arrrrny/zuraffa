@@ -2,14 +2,12 @@ import 'dart:io';
 
 import 'package:path/path.dart' as path;
 
-import '../../../core/generator_options.dart';
 import '../../../core/plugin_system/capability.dart';
 import '../../../models/generated_file.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/manifest_writer.dart';
 import '../../../utils/string_utils.dart';
 import '../builders/deep_link_routes_builder.dart';
-import '../builders/route_builder.dart';
 import '../route_plugin.dart';
 
 /// `zfa route deep-link <Name> --path <path> --scheme <scheme> [--host <host>]`
@@ -189,16 +187,12 @@ class DeepLinkRouteCapability implements ZuraffaCapability {
     );
 
     // Trigger the routing index regeneration so `getAllRoutes()`
-    // aggregates the new module. We construct a fresh RouteBuilder
-    // with the runtime dryRun/verbose flags so the index writer
-    // honors them (the plugin's late-final routeBuilder was built
-    // with default options).
-    final indexBuilder = RouteBuilder(
-      outputDir: plugin.outputDir,
-      options: GeneratorOptions(dryRun: dryRun, verbose: verbose),
-      fileSystem: plugin.fileSystem,
+    // aggregates the new module. regenerateIndex honors the runtime
+    // dryRun/verbose flags on the plugin's own route builder.
+    final indexFile = await plugin.routeBuilder.regenerateIndex(
+      dryRun: dryRun,
+      verbose: verbose,
     );
-    final indexFile = await indexBuilder.regenerateIndex();
 
     // Platform manifest updates — best-effort, never block on missing
     // platform files (the route file is the primary deliverable).

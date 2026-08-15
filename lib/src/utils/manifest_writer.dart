@@ -127,13 +127,10 @@ class ManifestWriter {
     // Idempotency: the scheme is already declared as a URL scheme
     // string somewhere in the plist. Skip.
     //
-    // We deliberately do NOT require the scheme to live specifically
-    // under a `CFBundleURLSchemes` array — checking for the string
-    // occurrence is sufficient for the standard Flutter plist layout
-    // (where the only `<string>scheme</string>` entries are inside
-    // `CFBundleURLTypes`). Strict structural matching would require
-    // either a full XML parser or a fragile regex that mishandles
-    // nested `<array>` elements (the previous attempt).
+    // We match the exact `<string>scheme</string>` element — a bare
+    // `content.contains(scheme)` would false-positive when the scheme
+    // is a substring of another plist value (e.g. scheme "go" inside
+    // "google" or "gozuzu-app") and wrongly skip the registration.
     if (content.contains('<string>$scheme</string>')) {
       if (verbose) {
         print('  ⏭ iOS CFBundleURLSchemes for "$scheme" already present; '
@@ -225,26 +222,43 @@ class ManifestWriter {
 
   /// Appends a new `<dict>` entry to an existing
   /// `CFBundleURLTypes</key><array>...</array>` block.
+  ///
+  /// The insertion point (the `</array>` closing the CFBundleURLTypes
+  /// array) is found by counting nested `<array>`/`</array>` tags — a
+  /// regex cannot do this reliably because each entry's
+  /// `CFBundleURLSchemes` introduces its own nested `<array>`.
   String _appendToExistingUrlTypes(String content, String scheme) {
-    final urlTypesRegex = RegExp(
-      r'(<key>CFBundleURLTypes</key>\s*<array>)([\s\S]*?)(</array>)',
-    );
-    final match = urlTypesRegex.firstMatch(content);
+    final startRegex = RegExp(r'<key>CFBundleURLTypes</key>\s*<array>');
+    final match = startRegex.firstMatch(content);
     if (match == null) return content;
 
-    final open = match.group(1)!;
-    final body = match.group(2)!;
-    final close = match.group(3)!;
+    var depth = 1;
+    var pos = match.end;
+    while (depth > 0 && pos < content.length) {
+      final openIdx = content.indexOf('<array>', pos);
+      final closeIdx = content.indexOf('</array>', pos);
 
-    final newEntry = '          <dict>\n'
-        '            <key>CFBundleURLSchemes</key>\n'
-        '            <array>\n'
-        '              <string>$scheme</string>\n'
-        '            </array>\n'
-        '          </dict>\n';
-
-    final injected = '$open\n$newEntry$body$close';
-    return content.replaceRange(match.start, match.end, injected);
+      if (closeIdx == -1) return content;
+      if (openIdx != -1 && openIdx < closeIdx) {
+        depth++;
+        pos = openIdx + '<array>'.length;
+      } else {
+        depth--;
+        if (depth == 0) {
+          final newEntry = '          <dict>\n'
+              '            <key>CFBundleURLSchemes</key>\n'
+              '            <array>\n'
+              '              <string>$scheme</string>\n'
+              '            </array>\n'
+              '          </dict>\n';
+          return content.substring(0, closeIdx) +
+              newEntry +
+              content.substring(closeIdx);
+        }
+        pos = closeIdx + '</array>'.length;
+      }
+    }
+    return content;
   }
 
   /// Inserts a fresh `CFBundleURLTypes` block before the closing

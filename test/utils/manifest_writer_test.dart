@@ -241,6 +241,31 @@ void main() {
       );
     });
 
+    test('does not falsely skip when scheme is a substring of another value',
+        () async {
+      // CFBundleName containing the scheme as a substring must NOT make
+      // the idempotency check skip the registration.
+      final withSubstring = _iosPlistTemplate.replaceFirst(
+        '    <key>CFBundleName</key>\n'
+        '    <string>zuraffa_smoke</string>',
+        '    <key>CFBundleName</key>\n'
+        '    <string>gozuzu-app</string>',
+      );
+      await File(plistPath).writeAsString(withSubstring);
+
+      final result = await writer.ensureIosUrlScheme(
+        plistPath: plistPath,
+        scheme: 'gozuzu',
+      );
+
+      expect(result, isNotNull,
+          reason: 'scheme should be added despite being a substring');
+      final content = await File(plistPath).readAsString();
+      expect(content.contains('<string>gozuzu</string>'), isTrue);
+      expect(content.contains('<string>gozuzu-app</string>'), isTrue,
+          reason: 'the unrelated CFBundleName value must be preserved');
+    });
+
     test('multiple distinct schemes coexist in CFBundleURLTypes', () async {
       await writer.ensureIosUrlScheme(plistPath: plistPath, scheme: 'gozuzu');
       await writer.ensureIosUrlScheme(plistPath: plistPath, scheme: 'https');
@@ -284,6 +309,25 @@ void main() {
       expect(content.contains('<string>existing</string>'), isTrue);
       expect(content.contains('<string>gozuzu</string>'), isTrue);
       // Exactly one CFBundleURLTypes block must exist (no duplicate).
+      expect(
+        content.contains('<key>CFBundleURLTypes</key>\n  <array>'),
+        isTrue,
+        reason: 'CFBundleURLTypes array opening must remain intact; '
+            'regression test for plist-structure corruption',
+      );
+      // The nested <array> tags (CFBundleURLSchemes) must stay balanced —
+      // the insertion has to land inside the OUTER CFBundleURLTypes array,
+      // not mid-way through an existing entry.
+      expect(
+        '<array>'.allMatches(content).length,
+        equals('</array>'.allMatches(content).length),
+        reason: 'unbalanced <array> tags would corrupt the plist',
+      );
+      expect(
+        '<dict>'.allMatches(content).length,
+        equals('</dict>'.allMatches(content).length),
+        reason: 'unbalanced <dict> tags would corrupt the plist',
+      );
       final typesKeys =
           '<key>CFBundleURLTypes</key>'.allMatches(content).length;
       expect(typesKeys, equals(1));

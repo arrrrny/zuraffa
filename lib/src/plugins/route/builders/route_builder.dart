@@ -1102,20 +1102,21 @@ class RouteBuilder {
   /// regenerator already scans the routing directory for all
   /// `*_routes.dart` files on disk, so the newly written module is
   /// discovered automatically.
+  ///
+  /// The [dryRun] and [verbose] parameters are honored by delegating
+  /// to a fresh [RouteBuilder] constructed with those options (the
+  /// index regenerator reads `options.dryRun` / `options.verbose`
+  /// directly, so they must be set on the builder that runs it).
   Future<GeneratedFile?> regenerateIndex({
     bool dryRun = false,
     bool verbose = false,
   }) async {
-    // Apply dry-run / verbose to this call by re-creating the options
-    // (the index regenerator reads `options.dryRun` / `options.verbose`
-    // directly).
-    if (dryRun || verbose) {
-      // No-op: the index regenerator uses the RouteBuilder's options,
-      // which were set at construction time. The deep-link capability
-      // passes a fresh RouteBuilder (via `plugin.routeBuilder`) that
-      // already has the correct options from the plugin instance.
-    }
-    return _regenerateIndexFile(pendingFiles: const []);
+    final builder = RouteBuilder(
+      outputDir: outputDir,
+      options: GeneratorOptions(dryRun: dryRun, verbose: verbose),
+      fileSystem: fileSystem,
+    );
+    return builder._regenerateIndexFile(pendingFiles: const []);
   }
 
   Future<GeneratedFile?> _regenerateIndexFile({
