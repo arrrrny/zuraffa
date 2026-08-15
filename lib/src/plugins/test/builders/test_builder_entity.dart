@@ -123,11 +123,15 @@ extension TestBuilderEntity on TestBuilder {
       return GeneratedFile(path: filePath, type: 'test', action: 'skipped');
     }
 
+    // #354: detect Flutter vs pure-Dart from pubspec.yaml so the test
+    // framework + zuraffa core imports resolve. `zfa setup --dart` only
+    // wires `test` + `mocktail` + `zuraffa` (no `flutter_test`, no
+    // `zuraffa_flutter`).
+    final isFlutter = await _isFlutterProject(projectRoot);
     final directives = [
-      Directive.import('package:flutter_test/flutter_test.dart'),
+      _testFrameworkImport(isFlutter),
       Directive.import('package:mocktail/mocktail.dart'),
-      if (method != 'create')
-        Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
+      if (method != 'create') _zuraffaCoreImport(isFlutter),
     ];
 
     String toPackageImport(String filePath) {
