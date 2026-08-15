@@ -26,8 +26,8 @@ dependencies:
     git:
       url: https://github.com/arrrrny/zorphy.git
       path: zorphy
-      # Issues #310 + #351: points to the fix branch carrying THREE fixes
-      # not yet on zorphy/development:
+      # Issues #310 + #351 + #349: points to the fix branch carrying FOUR
+      # fixes not yet on zorphy/development:
       #   1. #82/#310 plain-type fix (5ef9dc3 + faf94de, already on development)
       #   2. #310 comment-safety hardening (2d093f1) — strips `//` and
       #      `/* */` comments before the `abstract class $X` regex match.
@@ -42,10 +42,14 @@ dependencies:
       #      The fix recovers the type from source. Also drops
       #      `required` on `dynamic` ctor params (no more
       #      `required dynamic this.x`).
-      # Revert to "development" once both
-      # https://github.com/arrrrny/zorphy/pull/85 (#310 hardening) and
-      # the #351 PR are merged into zorphy/development.
-      ref: "fix/351-cross-entity-reference-invalid-type"
+      #   4. #349 external-type `!Type` marker (fix/349-external-type-
+      #      no-dollar-prefix-cli) — `FieldDefinition.isExternal` that
+      #      this package's #349 fix (def7d5f) depends on.
+      # Revert to "development" once all of
+      # https://github.com/arrrrny/zorphy/pull/85 (#310 hardening),
+      # the #351 PR, and zorphy PR #84 (#349 marker) are merged into
+      # zorphy/development.
+      ref: "fix/349-external-type-no-dollar-prefix-cli"
   zorphy_annotation:
     git:
       url: https://github.com/arrrrny/zorphy.git
