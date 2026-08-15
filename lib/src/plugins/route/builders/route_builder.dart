@@ -1091,6 +1091,33 @@ class RouteBuilder {
     return builderMethod.closure;
   }
 
+  /// Public entry point for the index regeneration logic.
+  ///
+  /// Used by the deep-link route capability to refresh `routing/index.dart`
+  /// (the `getAllRoutes()` aggregator) after writing a new
+  /// `<name>_routes.dart` module so the module is picked up without
+  /// requiring a full entity-routes run.
+  ///
+  /// Mirrors [_regenerateIndexFile] with empty `pendingFiles` — the
+  /// regenerator already scans the routing directory for all
+  /// `*_routes.dart` files on disk, so the newly written module is
+  /// discovered automatically.
+  Future<GeneratedFile?> regenerateIndex({
+    bool dryRun = false,
+    bool verbose = false,
+  }) async {
+    // Apply dry-run / verbose to this call by re-creating the options
+    // (the index regenerator reads `options.dryRun` / `options.verbose`
+    // directly).
+    if (dryRun || verbose) {
+      // No-op: the index regenerator uses the RouteBuilder's options,
+      // which were set at construction time. The deep-link capability
+      // passes a fresh RouteBuilder (via `plugin.routeBuilder`) that
+      // already has the correct options from the plugin instance.
+    }
+    return _regenerateIndexFile(pendingFiles: const []);
+  }
+
   Future<GeneratedFile?> _regenerateIndexFile({
     List<GeneratedFile> pendingFiles = const [],
   }) async {

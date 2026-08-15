@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 
 import '../config/zfa_config.dart';
 import '../core/dependencies/dependency_wirer.dart';
+import '../utils/manifest_writer.dart';
 
 /// `zfa setup <name>` — Bootstrap a new Flutter/Dart app with the standard
 /// zuraffa dependency set wired in.
@@ -70,6 +71,26 @@ class SetupCommand extends Command<void> {
       negatable: false,
       help: 'Enable verbose output.',
     );
+    // #358: pre-seed a URL scheme in the platform manifest files so
+    // later `zfa route` commands only need to add paths.
+    argParser.addOption(
+      'deep-link-scheme',
+      valueHelp: 'gozuzu',
+      help: 'Pre-seed a URL scheme in AndroidManifest.xml + Info.plist. '
+          'Flutter-only (ignored with --dart).',
+    );
+    argParser.addOption(
+      'deep-link-host',
+      valueHelp: 'go.zuzu.dev',
+      help: 'Optional host for App Links (paired with '
+          '--deep-link-scheme + --auto-verify).',
+    );
+    argParser.addFlag(
+      'auto-verify',
+      negatable: false,
+      help: 'Set android:autoVerify="true" on the intent-filter '
+          '(App Links). Paired with --deep-link-scheme.',
+    );
   }
 
   @override
@@ -92,6 +113,9 @@ class SetupCommand extends Command<void> {
     final dryRun = argResults!['dry-run'] as bool;
     final force = argResults!['force'] as bool;
     final verbose = argResults!['verbose'] as bool;
+    final deepLinkScheme = argResults!['deep-link-scheme'] as String?;
+    final deepLinkHost = argResults!['deep-link-host'] as String?;
+    final autoVerify = argResults!['auto-verify'] as bool;
 
     if (_isInvalidAppName(appName)) {
       usageException(
@@ -157,8 +181,26 @@ class SetupCommand extends Command<void> {
       await ZfaConfig.init(projectRoot: appName);
     }
 
-    // 5. Summary.
-    print('\n[5/5] Setup complete!');
+    // 5. Pre-seed the deep-link URL scheme in the platform files
+    //    (Flutter only — pure Dart packages have no manifest to write).
+    if (isFlutter &&
+        deepLinkScheme != null &&
+        deepLinkScheme.isNotEmpty) {
+      print('\n[5/6] Pre-seeding deep-link scheme: $deepLinkScheme');
+      await _seedDeepLinkScheme(
+        projectRoot: appName,
+        scheme: deepLinkScheme,
+        host: deepLinkHost,
+        autoVerify: autoVerify,
+        dryRun: dryRun,
+        verbose: verbose,
+      );
+    } else {
+      print('\n[5/6] Skipping deep-link pre-seed (no --deep-link-scheme).');
+    }
+
+    // 6. Summary.
+    print('\n[6/6] Setup complete!');
     if (wireResult != null && !wireResult.isSuccess) {
       print(
         '\n⚠️  Some dependencies could not be wired automatically: '
@@ -182,6 +224,60 @@ class SetupCommand extends Command<void> {
       print('   Run the app:  flutter run');
     } else {
       print('   Run tests:    dart test');
+    }
+  }
+
+  /// Writes the deep-link URL scheme registration to the newly created
+  /// Flutter project's `AndroidManifest.xml` and `Info.plist` using the
+  /// idempotent [ManifestWriter]. Safe to call multiple times — the
+  /// writer skips schemes that are already declared.
+  Future<void> _seedDeepLinkScheme({
+    required String projectRoot,
+    required String scheme,
+    String? host,
+    required bool autoVerify,
+    required bool dryRun,
+    required bool verbose,
+  }) async {
+    // Imported lazily so the `--dart` path (which never reaches here)
+    // does not pay the import cost on pure-Dart setups. The route
+    // plugin's ManifestWriter is a pure-Dart utility (no Flutter deps).
+    // ignore: avoid_relative_lib_imports
+    final writer = ManifestWriter();
+    final androidPath = '$projectRoot/android/app/src/main/AndroidManifest.xml';
+    final iosPath = '$projectRoot/ios/Runner/Info.plist';
+
+    if (dryRun) {
+      print('   Would write Android intent-filter for "$scheme://" '
+          'to $androidPath');
+      print('   Would write iOS CFBundleURLSchemes "$scheme" to $iosPath');
+      return;
+    }
+
+    final androidFile = await writer.ensureAndroidIntentFilter(
+      manifestPath: androidPath,
+      scheme: scheme,
+      host: host,
+      autoVerify: autoVerify,
+      verbose: verbose,
+    );
+    final iosFile = await writer.ensureIosUrlScheme(
+      plistPath: iosPath,
+      scheme: scheme,
+      verbose: verbose,
+    );
+
+    if (androidFile != null) {
+      print('   Android intent-filter for "$scheme://" registered.');
+    } else {
+      print('   ⚠️  AndroidManifest.xml not modified '
+          '(scheme already present, or file missing).');
+    }
+    if (iosFile != null) {
+      print('   iOS CFBundleURLSchemes for "$scheme" registered.');
+    } else {
+      print('   ⚠️  Info.plist not modified '
+          '(scheme already present, or file missing).');
     }
   }
 

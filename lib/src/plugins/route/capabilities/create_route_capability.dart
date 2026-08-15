@@ -1,8 +1,10 @@
+import 'package:path/path.dart' as path;
+
 import '../../../core/plugin_system/capability.dart';
+import '../../../utils/entity_id_type.dart';
 import '../route_plugin.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
-import '../../../utils/entity_id_type.dart';
 
 class CreateRouteCapability implements ZuraffaCapability {
   final RoutePlugin plugin;
@@ -23,13 +25,46 @@ class CreateRouteCapability implements ZuraffaCapability {
         'type': 'string',
         'description': 'Name of the entity (e.g. Product)',
       },
-
       'methods': {
         'type': 'array',
         'items': {'type': 'string'},
         'description':
             'List of methods (get,create,update,delete,list,watch,getList,watchList)',
         'default': ['get', 'update'],
+      },
+      // #358: `--deep-link` is an explicit opt-in flag that pairs with
+      // `--scheme` to register the entity's routes for deep links. The
+      // manifest hook fires whenever `scheme` is set, so this flag is
+      // technically a no-op — it exists for UX clarity (the user
+      // explicitly states intent: `zfa route create Product --deep-link
+      // --scheme gozuzu`).
+      'deepLink': {
+        'type': 'boolean',
+        'description': 'Explicit opt-in for deep-link registration '
+            '(no-op; the manifest hook fires whenever --scheme is set).',
+        'default': false,
+      },
+      // #358: when `scheme` is set, the route plugin writes the
+      // platform deep-link registration (Android intent-filter + iOS
+      // CFBundleURLSchemes) so external `<scheme>://<entity-path>`
+      // links open the entity's routes. Idempotent — re-runs with the
+      // same scheme are a no-op.
+      'scheme': {
+        'type': 'string',
+        'description': 'URL scheme to register for the entity routes '
+            '(e.g. gozuzu). When set, writes the Android intent-filter '
+            '+ iOS CFBundleURLSchemes entry.',
+      },
+      'host': {
+        'type': 'string',
+        'description': 'Optional host for App Links (e.g. go.zuzu.dev). '
+            'Paired with --scheme + --auto-verify.',
+      },
+      'autoVerify': {
+        'type': 'boolean',
+        'description': 'Emit android:autoVerify="true" on the intent-filter '
+            '(App Links). Paired with --scheme.',
+        'default': false,
       },
       'dryRun': {
         'type': 'boolean',
@@ -71,6 +106,7 @@ class CreateRouteCapability implements ZuraffaCapability {
       capabilityName: name,
       args: args,
       changes: files
+          .whereType<GeneratedFile>()
           .map((f) => Effect(file: f.path, action: f.action, diff: null))
           .toList(),
     );
@@ -118,6 +154,48 @@ class CreateRouteCapability implements ZuraffaCapability {
       verbose: verbose,
     );
 
-    return await plugin.generate(config);
+    final files = <GeneratedFile>[
+      ...(await plugin.generate(config)),
+    ];
+
+    // #358: post-generation manifest hook. When `scheme` is set, also
+    // register the URL scheme in the platform manifest files so
+    // external `<scheme>://<entity-path>` links open the entity's
+    // routes. This is a no-op when the platform files don't exist
+    // (pure-Dart packages, tests on temp dirs).
+    final scheme = args['scheme'] as String?;
+    if (scheme != null && scheme.isNotEmpty) {
+      final host = args['host'] as String?;
+      final autoVerify = (args['autoVerify'] as bool?) ?? false;
+      final manifestWriter = plugin.manifestWriter;
+      final projectRoot = plugin.projectRoot;
+
+      final androidFile = await manifestWriter.ensureAndroidIntentFilter(
+        manifestPath: path.join(
+          projectRoot,
+          'android',
+          'app',
+          'src',
+          'main',
+          'AndroidManifest.xml',
+        ),
+        scheme: scheme,
+        host: host,
+        autoVerify: autoVerify,
+        dryRun: dryRun,
+        verbose: verbose,
+      );
+      final iosFile = await manifestWriter.ensureIosUrlScheme(
+        plistPath: path.join(projectRoot, 'ios', 'Runner', 'Info.plist'),
+        scheme: scheme,
+        dryRun: dryRun,
+        verbose: verbose,
+      );
+
+      if (androidFile != null) files.add(androidFile);
+      if (iosFile != null) files.add(iosFile);
+    }
+
+    return files;
   }
 }

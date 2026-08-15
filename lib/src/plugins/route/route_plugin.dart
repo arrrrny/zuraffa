@@ -1,5 +1,7 @@
 import 'package:args/command_runner.dart';
+
 import '../../commands/route_command.dart';
+import '../../core/context/file_system.dart';
 import '../../core/generator_options.dart';
 import '../../core/plugin_system/capability.dart';
 import '../../core/plugin_system/cli_aware_plugin.dart';
@@ -7,9 +9,11 @@ import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/plugin_context.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import '../../utils/manifest_writer.dart';
 import 'builders/route_builder.dart';
 import 'capabilities/create_route_capability.dart';
 import 'capabilities/custom_route_capability.dart';
+import 'capabilities/deep_link_route_capability.dart';
 
 /// Manages navigation route generation for Flutter applications.
 ///
@@ -26,20 +30,31 @@ import 'capabilities/custom_route_capability.dart';
 /// ```
 class RoutePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
+  final String projectRoot;
   final GeneratorOptions options;
+  final FileSystem fileSystem;
   late final RouteBuilder routeBuilder;
+  late final ManifestWriter manifestWriter;
 
   RoutePlugin({
     required this.outputDir,
+    this.projectRoot = '.',
     this.options = const GeneratorOptions(),
-  }) {
-    routeBuilder = RouteBuilder(outputDir: outputDir, options: options);
+    FileSystem? fileSystem,
+  }) : fileSystem = fileSystem ?? const DefaultFileSystem() {
+    routeBuilder = RouteBuilder(
+      outputDir: outputDir,
+      options: options,
+      fileSystem: this.fileSystem,
+    );
+    manifestWriter = ManifestWriter(fileSystem: this.fileSystem);
   }
 
   @override
   List<ZuraffaCapability> get capabilities => [
     CreateRouteCapability(this),
     CustomRouteCapability(this),
+    DeepLinkRouteCapability(this),
   ];
 
   @override
@@ -97,7 +112,7 @@ class RoutePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         verbose: config.verbose,
         revert: config.revert,
       ),
-      fileSystem: context?.fileSystem,
+      fileSystem: context?.fileSystem ?? fileSystem,
       discovery: context?.discovery,
     );
     return builder.generate(config);
