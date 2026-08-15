@@ -145,14 +145,10 @@ class ViewClassBuilder {
                     ..toSuper = true,
                 ),
               )
-              ..optionalParameters.add(
-                Parameter(
-                  (p) => p
-                    ..name = 'routeObserver'
-                    ..named = true
-                    ..toSuper = true,
-                ),
-              )
+              // #343: plain StatefulWidget/StatelessWidget have no
+              // routeObserver constructor param; forwarding it produced
+              // super_formal_parameter_without_associated_named. Only
+              // entity-backed CleanView views accept routeObserver.
               ..optionalParameters.addAll(
                 spec.customParameters.map(
                   (p) => p.rebuild((b) => b..toThis = true),
@@ -247,14 +243,10 @@ class ViewClassBuilder {
                     ..toSuper = true,
                 ),
               )
-              ..optionalParameters.add(
-                Parameter(
-                  (p) => p
-                    ..name = 'routeObserver'
-                    ..named = true
-                    ..toSuper = true,
-                ),
-              )
+              // #343: plain StatefulWidget/StatelessWidget have no
+              // routeObserver constructor param; forwarding it produced
+              // super_formal_parameter_without_associated_named. Only
+              // entity-backed CleanView views accept routeObserver.
               ..optionalParameters.addAll(
                 spec.customParameters.map(
                   (p) => p.rebuild((b) => b..toThis = true),
