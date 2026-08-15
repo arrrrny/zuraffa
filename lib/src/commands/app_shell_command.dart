@@ -16,10 +16,14 @@ import '../utils/file_utils.dart';
 ///
 ///  * `lib/main.dart` — `void main()` → `await setupDependencies()` →
 ///    `runApp(const MyApp())`.
-///  * `lib/src/app/my_app.dart` — `MyApp` widget (`MaterialApp.router`
+///  * `<outputDir>/app/my_app.dart` — `MyApp` widget (`MaterialApp.router`
 ///    bound to [appRouter]).
-///  * `lib/src/routing/app_router.dart` —
+///  * `<outputDir>/routing/app_router.dart` —
 ///    `final GoRouter appRouter = GoRouter(routes: getAllRoutes());`.
+///
+/// The `app/` and `routing/` glue files land under `--output` (default
+/// `lib/src`, and it must be under `lib/` so `main.dart`'s `package:`
+/// imports resolve).
 ///
 /// This closes the last hand-written gap in the zfa-only workflow:
 /// after `zfa setup` + `zfa entity create` + `zfa make` + `zfa build`
@@ -60,8 +64,9 @@ class AppShellCommand extends Command<void> {
         'output',
         abbr: 'o',
         help:
-            'Output directory for src/ glue files (default: lib/src; the '
-            'main.dart entrypoint always lands at lib/main.dart).',
+            'Output directory (project-root-relative, must be under lib/) '
+            'for the src/ glue files (default: lib/src; the main.dart '
+            'entrypoint always lands at lib/main.dart).',
         defaultsTo: 'lib/src',
       );
   }
@@ -87,6 +92,21 @@ class AppShellCommand extends Command<void> {
     final mock = argResults!['mock'] as bool;
     final title = argResults!['title'] as String?;
     final outputDir = argResults!['output'] as String;
+
+    // --output must live under lib/: main.dart (always at lib/main.dart)
+    // imports the glue files via package: URIs, which only resolve inside
+    // lib/. Reject anything else instead of silently emitting a main.dart
+    // whose imports point at files that were never written.
+    final normalizedOutput = p.normalize(outputDir);
+    final insideLib =
+        normalizedOutput == 'lib' || p.isWithin('lib', normalizedOutput);
+    if (!insideLib) {
+      throw AppShellException(
+        'Invalid --output "$outputDir": the src/ glue files must live '
+        'under lib/ so main.dart can import them via package: URIs.\n'
+        '   Use a path like "lib/src" (default) or "lib/custom".',
+      );
+    }
 
     final projectRoot = Directory.current.path;
     final pubspecPath = p.join(projectRoot, 'pubspec.yaml');
@@ -174,7 +194,11 @@ class AppShellCommand extends Command<void> {
     //    file but print a clearer message when skipping.
     final mainPath = p.join(projectRoot, 'lib', 'main.dart');
     final mainExists = await _fileSystem.exists(mainPath);
-    final mainContent = _builder.buildMain(appName: appName, mockHint: mock);
+    final mainContent = _builder.buildMain(
+      appName: appName,
+      mockHint: mock,
+      outputDir: outputDir,
+    );
     files.add(
       await FileUtils.writeFile(
         mainPath,

@@ -38,6 +38,27 @@ void main() {
         );
       });
 
+      test('derives imports from a custom output dir', () {
+        final src =
+            builder.buildMain(appName: 'my_app', outputDir: 'lib/custom');
+        expect(
+          src,
+          contains("import 'package:my_app/custom/app/my_app.dart';"),
+        );
+        expect(
+          src,
+          contains("import 'package:my_app/custom/di/index.dart';"),
+        );
+        // No hardcoded src/ imports should leak through.
+        expect(src, isNot(contains('package:my_app/src/')));
+      });
+
+      test('maps output dir lib/ to package-root imports', () {
+        final src = builder.buildMain(appName: 'my_app', outputDir: 'lib');
+        expect(src, contains("import 'package:my_app/app/my_app.dart';"));
+        expect(src, contains("import 'package:my_app/di/index.dart';"));
+      });
+
       test('imports flutter widgets for runApp', () {
         final src = builder.buildMain(appName: 'my_app', mockHint: false);
         expect(src, contains("import 'package:flutter/widgets.dart';"));
@@ -76,6 +97,17 @@ void main() {
       test('has a const constructor', () {
         final src = builder.buildMyApp();
         expect(src, contains('const MyApp'));
+      });
+
+      test('emits a super parameter, not a broken super.key initializer', () {
+        final src = builder.buildMyApp();
+        // Regression guard: the previous implementation emitted
+        // `const MyApp() : super.key();`, which does not compile —
+        // StatelessWidget has no constructor named `key`. code_builder
+        // emits a typed super parameter instead (`{Key? super.key}`),
+        // which is valid Dart.
+        expect(src, contains('const MyApp({Key? super.key});'));
+        expect(src, isNot(contains(': super.key();')));
       });
 
       test('returns MaterialApp.router', () {
