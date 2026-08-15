@@ -32,6 +32,7 @@ void main() {
   group('#349 — !Type prefix for external (non-entity) types', () {
     late Directory workspace;
     late String zfaBin;
+    late bool zorphyAvailable;
 
     Future<ProcessResult> runZfa(List<String> args) {
       return Process.run(
@@ -44,14 +45,62 @@ void main() {
     setUp(() async {
       zfaBin = p.join(_zfaRoot, 'bin', 'zfa.dart');
       workspace = await Directory.systemTemp.createTemp('issue_349_');
+      // Local zorphy checkouts via path deps (mirrors zuraffa's own
+      // dependency_overrides and the #351 regression test). When the
+      // sibling zorphy repo is absent (CI), the codegen test below skips
+      // and the pubspec falls back to the same git refs zuraffa's own
+      // pubspec.yaml uses instead of emitting unresolvable path deps; the
+      // CLI-level assertions still run.
+      final repoRoot = p.normalize(p.join(_zfaRoot, '..'));
+      final zorphyPath = p.normalize(p.join(repoRoot, 'zorphy', 'zorphy'));
+      final zorphyAnnotationPath =
+          p.normalize(p.join(repoRoot, 'zorphy', 'zorphy_annotation'));
+      zorphyAvailable = Directory(zorphyPath).existsSync() &&
+          Directory(zorphyAnnotationPath).existsSync();
+      final zorphyDeps = zorphyAvailable
+          ? '''
+  zorphy:
+    path: $zorphyPath
+  zorphy_annotation:
+    path: $zorphyAnnotationPath'''
+          : '''
+  zorphy:
+    git:
+      url: https://github.com/arrrrny/zorphy.git
+      path: zorphy
+      ref: "fix/349-external-type-no-dollar-prefix-cli"
+  zorphy_annotation:
+    git:
+      url: https://github.com/arrrrny/zorphy.git
+      path: zorphy_annotation
+      ref: "development"''';
       await File(p.join(workspace.path, 'pubspec.yaml')).writeAsString('''
 name: issue_349_test_app
 environment:
   sdk: '>=3.12.0 <4.0.0'
 dependencies:
-  zorphy_annotation:
+$zorphyDeps
+  json_annotation: ^4.12.0
 dev_dependencies:
-  build_runner:
+  build_runner: ^2.4.0
+  json_serializable: ^6.13.0
+  analyzer: '14.1.0'
+dependency_overrides:
+$zorphyDeps
+  analyzer: '14.1.0'
+''');
+      await File(p.join(workspace.path, 'build.yaml')).writeAsString('''
+targets:
+  \$default:
+    builders:
+      zorphy:zorphy:
+        enabled: true
+        generate_for:
+          - lib/**
+      json_serializable:json_serializable:
+        enabled: true
+        generate_for:
+          - lib/**
 ''');
     });
 
@@ -230,6 +279,16 @@ dev_dependencies:
       'external type compiles when user manually adds required import',
       timeout: const Timeout(Duration(minutes: 2)),
       () async {
+        // Codegen test: `dart pub get` below needs the local zorphy
+        // checkouts behind the path deps to exist. Skip when they are
+        // absent (CI without a sibling zorphy repo) — same pattern as the
+        // #351 regression test; the CLI-level assertions still run.
+        if (!zorphyAvailable) {
+          print('Skipping: local zorphy checkout not found at ../zorphy '
+              '(CI without a sibling zorphy repo).');
+          return;
+        }
+
         // Create entity with external WebUri type
         final createResult = await runZfa([
           'entity',
@@ -264,9 +323,14 @@ dev_dependencies:
         expect(content, contains('WebUri? get url'));
         expect(content, isNot(contains('\$WebUri')));
 
-        // Manually add the required import for WebUri (simulating what user must do)
-        // Since we don't actually have webview_flutter package, we'll create a
-        // mock WebUri class in the workspace to make the code analyzable
+        // Manually add the required import for WebUri (simulating what user
+        // must do — the documented workflow). Since we don't actually have
+        // webview_flutter package, we'll create a mock WebUri class in the
+        // workspace to make the code analyzable. Also add the standard
+        // @JsonKey fromJson/toJson glue that the migration recipe applies to
+        // non-JSON-native field types (WebUri is a custom class — plain
+        // json_serializable semantics require the glue; the #349 contract is
+        // that the TYPE resolves at build time instead of InvalidType).
         final mockWebUriDir = Directory(
           p.join(workspace.path, 'lib', 'src', 'external'),
         );
@@ -286,21 +350,65 @@ class WebUri {
 }
 ''');
 
-        // Add the import to the generated entity file
+        // Add the import to the generated entity file (correct relative path:
+        // entity is at lib/src/domain/entities/<snake>/, mock at
+        // lib/src/external/ -> three levels up).
         final lastImportMatch = RegExp(
           r'^import .*;',
           multiLine: true,
         ).allMatches(content).toList();
 
         if (lastImportMatch.isEmpty) {
-          content = "import '../../external/web_uri.dart';\n\n$content";
+          content = "import '../../../external/web_uri.dart';\n\n$content";
         } else {
           final insertPos = lastImportMatch.last.end;
           content =
-              "${content.substring(0, insertPos)}\nimport '../../external/web_uri.dart';${content.substring(insertPos)}";
+              "${content.substring(0, insertPos)}\nimport '../../../external/web_uri.dart';${content.substring(insertPos)}";
         }
 
+        // Add the standard @JsonKey glue for the custom (non-JSON-native)
+        // WebUri type — the documented migration recipe. Before the #349
+        // fix, the type did not even resolve (`InvalidType`); now it does,
+        // and json_serializable only needs the normal glue.
+        content = content.replaceFirst(
+          'WebUri? get url;',
+          '@JsonKey(fromJson: _webUriFromJson, toJson: _webUriToJson)\n'
+          '  WebUri? get url;',
+        );
+        content += '''
+WebUri? _webUriFromJson(Object? value) =>
+    value == null ? null : WebUri(value as String);
+
+Object? _webUriToJson(WebUri? value) => value?.toString();
+''';
+
         await entityFile.writeAsString(content);
+
+        // Resolve deps + run build_runner so the `.zorphy.dart`/`.g.dart`
+        // parts exist (same pattern as the #351 regression test).
+        final pubGet = await Process.run(
+          'dart',
+          ['pub', 'get'],
+          workingDirectory: workspace.path,
+        );
+        expect(
+          pubGet.exitCode,
+          equals(0),
+          reason: 'dart pub get failed: ${pubGet.stdout}${pubGet.stderr}',
+        );
+
+        final build = await Process.run(
+          'dart',
+          ['run', 'build_runner', 'build', '--delete-conflicting-outputs'],
+          workingDirectory: workspace.path,
+        );
+        expect(
+          build.exitCode,
+          equals(0),
+          reason:
+              'build_runner failed for entity with external type:\n'
+              '${build.stdout}${build.stderr}',
+        );
 
         // Run dart analyze to verify the generated code compiles
         final analyzeResult = await Process.run(
