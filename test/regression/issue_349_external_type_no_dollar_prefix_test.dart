@@ -32,8 +32,6 @@ void main() {
   group('#349 — !Type prefix for external (non-entity) types', () {
     late Directory workspace;
     late String zfaBin;
-    late String _zorphyPath;
-    late String _zorphyAnnotationPath;
 
     Future<ProcessResult> runZfa(List<String> args) {
       return Process.run(
@@ -54,8 +52,6 @@ void main() {
       final zorphyPath = p.normalize(p.join(repoRoot, 'zorphy', 'zorphy'));
       final zorphyAnnotationPath =
           p.normalize(p.join(repoRoot, 'zorphy', 'zorphy_annotation'));
-      _zorphyPath = zorphyPath;
-      _zorphyAnnotationPath = zorphyAnnotationPath;
       await File(p.join(workspace.path, 'pubspec.yaml')).writeAsString('''
 name: issue_349_test_app
 environment:
