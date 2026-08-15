@@ -1153,6 +1153,15 @@ class RouteBuilder {
     ];
     final routeElements = <Expression>[];
 
+    // #350: a zfa-only app boots at `/` — when no route module claims the
+    // root location, emit a root GoRoute that redirects to the app entry
+    // (splash if present, else the first generated route) so GoRouter
+    // never throws `no routes for location: /`.
+    final rootRoute = await _buildRootRouteExpr(allPaths);
+    if (rootRoute != null) {
+      routeElements.add(rootRoute);
+    }
+
     for (final filePath in allPaths) {
       final fileName = path.basename(filePath);
       final entitySnake = fileName.replaceAll('_routes.dart', '');
@@ -1192,6 +1201,90 @@ class RouteBuilder {
       verbose: options.verbose,
       fileSystem: fileSystem,
     );
+  }
+
+  /// #350: builds the root `/` GoRoute for the routing index so the app
+  /// never boots into `GoException: no routes for location: /`.
+  ///
+  /// Returns `null` when a route module already claims `/` (the app owns
+  /// its root) or when no redirect target can be resolved (nothing was
+  /// parsed from the route modules — keep the previous behavior).
+  ///
+  /// Redirect target priority:
+  /// 1. a constant named `splash` in any route module,
+  /// 2. the first constant of `splash_routes.dart`,
+  /// 3. the first constant of the alphabetically first route module.
+  Future<Expression?> _buildRootRouteExpr(List<String> allPaths) async {
+    var rootClaimed = false;
+    String? splashTarget;
+    String? firstSplashFileTarget;
+    String? firstTarget;
+
+    final sortedPaths = allPaths.toList()..sort();
+
+    for (final filePath in sortedPaths) {
+      if (!await fileSystem.exists(filePath)) continue;
+      final fileName = path.basename(filePath);
+      final entitySnake = fileName.replaceAll('_routes.dart', '');
+      final entityPascal = StringUtils.convertToPascalCase(entitySnake);
+      final className = '${entityPascal}Routes';
+
+      final constants = _parseRouteConstants(
+        await fileSystem.read(filePath),
+      );
+      if (constants.isEmpty) continue;
+
+      for (final value in constants.values) {
+        if (value == '/') {
+          rootClaimed = true;
+        }
+      }
+
+      final firstConstant = constants.keys.first;
+      if (splashTarget == null && constants.containsKey('splash')) {
+        splashTarget = '$className.splash';
+      }
+      firstSplashFileTarget ??= fileName == 'splash_routes.dart'
+          ? '$className.$firstConstant'
+          : null;
+      firstTarget ??= '$className.$firstConstant';
+    }
+
+    if (rootClaimed) return null;
+
+    final target = splashTarget ?? firstSplashFileTarget ?? firstTarget;
+    if (target == null) return null;
+
+    final targetClass = target.split('.').first;
+    final targetConstant = target.split('.').last;
+
+    return refer('GoRoute').call([], {
+      'path': literalString('/'),
+      'name': literalString('root'),
+      'redirect': Method(
+        (m) => m
+          ..requiredParameters.addAll([
+            Parameter((p) => p..name = '_'),
+            Parameter((p) => p..name = '__'),
+          ])
+          ..lambda = true
+          ..body = refer(targetClass).property(targetConstant).code,
+      ).closure,
+    });
+  }
+
+  /// Parses the `static const String <name> = '<value>';` route path
+  /// constants from a generated `<...>_routes.dart` source, in
+  /// declaration order.
+  Map<String, String> _parseRouteConstants(String source) {
+    final constants = <String, String>{};
+    final pattern = RegExp(
+      r"static\s+const\s+String\s+([A-Za-z_]\w*)\s*=\s*'([^']*)'\s*;",
+    );
+    for (final match in pattern.allMatches(source)) {
+      constants[match.group(1)!] = match.group(2)!;
+    }
+    return constants;
   }
 
   Map<String, String> _buildAppRouteConstants({
