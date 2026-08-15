@@ -12,6 +12,7 @@ import '../../../models/generator_config.dart';
 import '../../../utils/entity_utils.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
+import '../../../core/dependencies/dependency_wirer.dart';
 
 part 'test_builder_custom.dart';
 part 'test_builder_entity.dart';
@@ -26,6 +27,12 @@ class TestBuilder {
   final SpecLibrary specLibrary;
   final DiscoveryEngine discovery;
   final FileSystem fileSystem;
+
+  // #354: cached Flutter-vs-pure-Dart detection for the test framework +
+  // zuraffa core imports. `null` = not yet resolved. Computed lazily by
+  // `_isFlutterProject` in TestBuilderHelpers. Reset by re-creating the
+  // TestBuilder (each TestBuilder instance targets one projectRoot).
+  bool? _cachedIsFlutterProject;
 
   /// Creates a [TestBuilder].
   TestBuilder({
