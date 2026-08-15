@@ -26,17 +26,26 @@ dependencies:
     git:
       url: https://github.com/arrrrny/zorphy.git
       path: zorphy
-      # Issue #310: points to the fix branch carrying BOTH the original
-      # #82/#310 plain-type fix (5ef9dc3 + faf94de, already on
-      # zorphy/development) AND the comment-safety hardening that strips
-      # `//` and `/* */` comments before the `abstract class $X` regex
-      # match. Without the comment strip, a doc comment in a hand-written
-      # class file mentioning `abstract class $X` would falsely match and
-      # re-emit the `$` prefix -> InvalidType in the concrete class.
-      # Revert to "development" once
-      # https://github.com/arrrrny/zorphy/pull/85 (the comment-safety
-      # hardening) is merged into zorphy/development.
-      ref: "fix/310-determine-prefix-comment-safe"
+      # Issues #310 + #351: points to the fix branch carrying THREE fixes
+      # not yet on zorphy/development:
+      #   1. #82/#310 plain-type fix (5ef9dc3 + faf94de, already on development)
+      #   2. #310 comment-safety hardening (2d093f1) — strips `//` and
+      #      `/* */` comments before the `abstract class $X` regex match.
+      #      Without it, a doc comment mentioning `abstract class $X`
+      #      would falsely match and re-emit the `$` prefix.
+      #   3. #351 cross-entity concrete reference recovery (c09d966) —
+      #      when a Zorphy entity has a field whose type is the CONCRETE
+      #      form of another Zorphy entity (e.g. `ParentThing? get parent`
+      #      with no `$` prefix), the analyzer cannot resolve the type
+      #      during build_runner and `typeToString` fell back to
+      #      `InvalidType`, breaking json_serializable and `zfa build`.
+      #      The fix recovers the type from source. Also drops
+      #      `required` on `dynamic` ctor params (no more
+      #      `required dynamic this.x`).
+      # Revert to "development" once both
+      # https://github.com/arrrrny/zorphy/pull/85 (#310 hardening) and
+      # the #351 PR are merged into zorphy/development.
+      ref: "fix/351-cross-entity-reference-invalid-type"
   zorphy_annotation:
     git:
       url: https://github.com/arrrrny/zorphy.git
