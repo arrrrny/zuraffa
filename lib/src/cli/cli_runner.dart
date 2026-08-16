@@ -327,8 +327,13 @@ class _PluginCommand extends Command<void> {
   String get description => 'Manage plugins';
 
   @override
+  ArgParser get argParser => ArgParser.allowAnything();
+
+  @override
   Future<void> run() async {
-    await plugincmd.PluginCommand().execute(argResults!.rest.toList());
+    // Use .arguments (not .rest) so flags like `--force` pass through
+    // to PluginCommand.execute() — required by `zfa plugin mcp --force`.
+    await plugincmd.PluginCommand().execute(argResults!.arguments.toList());
   }
 }
 

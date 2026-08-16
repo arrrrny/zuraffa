@@ -1,0 +1,13 @@
+name: mcp_demo
+description: Example Zuraffa app exposing fetch/printPdf/takeScreenshot as MCP tools (issue #369).
+publish_to: none
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  zuraffa:
+    path: ../../
+
+dev_dependencies:
+  test: ^1.25.0
