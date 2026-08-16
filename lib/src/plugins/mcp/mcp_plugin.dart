@@ -82,7 +82,8 @@ class McpPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }) async {
     final capability = capabilities.first as ScaffoldMcpServerCapability;
     final result = await capability.execute({
-      'name': config.name.isEmpty ? 'mcp' : config.name,
+      // Don't forward config.name — let the capability read pubspec.yaml.
+      // Pass outputDir so the configured output location is honored.
       'dryRun': config.dryRun,
       'force': config.force,
       'verbose': config.verbose,

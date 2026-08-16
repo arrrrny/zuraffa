@@ -32,6 +32,11 @@ Future<void> main(List<String> args) async {
   }
 
   if (useSse) {
+    if (authToken == null || authToken.isEmpty) {
+      stderr.writeln('❌ SSE mode requires a nonempty --token for authentication.');
+      stderr.writeln('   Usage: dart run bin/mcp_server.dart --sse --token <token>');
+      exit(1);
+    }
     await mcp.serveSse(port: ssePort, authToken: authToken);
   } else {
     await mcp.serveStdio();

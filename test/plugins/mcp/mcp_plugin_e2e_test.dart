@@ -2,13 +2,18 @@
 //   "an agent connects, calls takeScreenshot(url: ...), gets the result"
 //
 // Spins up an in-process McpStdioServer wired to a McpServerPlugin
-// holding the three flagship MCP demo tools (fetch, printPdf,
-// takeScreenshot), pipes a JSON-RPC `tools/call` request through
+// holding the three flagship MCP demo tools (fetch, print_pdf,
+// take_screenshot), pipes a JSON-RPC `tools/call` request through
 // stdin, and asserts the response shape. This is the canonical
 // "handler dispatch through the DI tree" test — the tool resolves
 // via the registry populated by McpServerPlugin.registerDependencies
 // (which would in a real app be called by the ZuraffaEngine
 // bootstrap with the populated DI tree).
+//
+// NOTE: This test uses local tool copies rather than importing from
+// examples/mcp_demo. A future refactor should move this test into the
+// demo package or use a shared fixture package to ensure the demo
+// tool list and plugin registration are covered by the same test suite.
 import 'dart:async';
 import 'dart:convert';
 
@@ -60,7 +65,7 @@ void main() {
       });
       final tools = (resp['result'] as Map)['tools'] as List;
       final names = tools.map((t) => (t as Map)['name']).toSet();
-      expect(names, containsAll(['fetch', 'printPdf', 'takeScreenshot']));
+      expect(names, containsAll(['fetch', 'print_pdf', 'take_screenshot']));
     });
 
     test('each flagship tool takes a `url` parameter (required)', () async {
@@ -72,7 +77,7 @@ void main() {
       final tools = (resp['result'] as Map)['tools'] as List;
       for (final t in tools) {
         final name = (t as Map)['name'] as String;
-        if (['fetch', 'printPdf', 'takeScreenshot'].contains(name)) {
+        if (['fetch', 'print_pdf', 'take_screenshot'].contains(name)) {
           final schema = t['inputSchema'] as Map<String, dynamic>;
           final props = schema['properties'] as Map<String, dynamic>;
           final urlProp = props['url'] as Map<String, dynamic>;
@@ -88,7 +93,7 @@ void main() {
         'id': 3,
         'method': 'tools/call',
         'params': {
-          'name': 'takeScreenshot',
+          'name': 'take_screenshot',
           'arguments': {
             'url': 'https://example.com',
             'width': 1920,
@@ -131,7 +136,7 @@ void main() {
         'id': 5,
         'method': 'tools/call',
         'params': {
-          'name': 'printPdf',
+          'name': 'print_pdf',
           'arguments': {
             'url': 'https://example.com/report',
             'format': 'letter',
@@ -180,7 +185,7 @@ void main() {
           'id': 12,
           'method': 'tools/call',
           'params': {
-            'name': 'takeScreenshot',
+            'name': 'take_screenshot',
             'arguments': {'url': 'https://example.com'},
           },
         }),
@@ -247,7 +252,7 @@ class _FetchUrlTool implements McpTool {
 
 class _PrintPdfTool implements McpTool {
   @override
-  String get name => 'printPdf';
+  String get name => 'print_pdf';
   @override
   String get description =>
       'Render the given URL to a PDF document and return its path.';
@@ -280,7 +285,7 @@ class _PrintPdfTool implements McpTool {
 
 class _TakeScreenshotTool implements McpTool {
   @override
-  String get name => 'takeScreenshot';
+  String get name => 'take_screenshot';
   @override
   String get description =>
       'Take a screenshot of the given URL and return the image path.';

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'mcp_tool.dart';
+import 'mcp_dispatcher.dart';
 import 'mcp_tool_registry.dart';
 
 /// stdio JSON-RPC 2.0 server that dispatches to a [McpToolRegistry].
@@ -36,7 +36,10 @@ class McpStdioServer {
 
   /// MCP protocol version advertised in the `initialize` response.
   /// Matches the codegen server's `2024-11-05` for client-compat.
-  static const String defaultProtocolVersion = '2024-11-05';
+  static const String defaultProtocolVersion = McpDispatcher.protocolVersion;
+
+  /// Shared dispatcher for JSON-RPC method routing.
+  late final McpDispatcher _dispatcher;
 
   /// Optional input stream — defaults to [stdin]. Tests inject a
   /// custom stream to drive the server without spawning a process.
@@ -57,7 +60,13 @@ class McpStdioServer {
     this.inputStream,
     this.outputSink,
     this.errorSink,
-  });
+  }) {
+    _dispatcher = McpDispatcher(
+      registry: registry,
+      serverName: serverName,
+      serverVersion: serverVersion,
+    );
+  }
 
   /// Runs the stdio loop until the input stream closes.
   ///
@@ -85,8 +94,10 @@ class McpStdioServer {
   /// Dispatches a single JSON-RPC line.
   Future<void> _handleLine(String line) async {
     Map<String, dynamic>? request;
+    dynamic requestId;
     try {
       request = jsonDecode(line) as Map<String, dynamic>;
+      requestId = request['id'];
     } catch (e) {
       _emit({
         'jsonrpc': '2.0',
@@ -96,75 +107,33 @@ class McpStdioServer {
       return;
     }
 
-    final response = await handleRequest(request);
-    if (response != null) {
-      _emit(response);
+    try {
+      final response = await handleRequest(request);
+      if (response != null) {
+        _emit(response);
+      }
+    } catch (e, st) {
+      // Catch per-request failures (invalid params, argument type errors,
+      // etc.) and emit a JSON-RPC error response. Preserve request ID
+      // when available so the client can match the error to its request.
+      _err('handleRequest error: $e\n$st');
+      _emit({
+        'jsonrpc': '2.0',
+        'error': {'code': -32602, 'message': 'Invalid params: $e'},
+        'id': requestId,
+      });
     }
   }
 
   /// Routes a parsed JSON-RPC [request] to its handler.
   /// Returns the JSON-RPC response map, or `null` for notifications
   /// (requests with `id == null` that should not get a response).
+  ///
+  /// Delegates to the shared [McpDispatcher] for method routing.
   Future<Map<String, dynamic>?> handleRequest(
     Map<String, dynamic> request,
   ) async {
-    final method = request['method'] as String?;
-    final id = request['id'];
-
-    switch (method) {
-      case 'initialize':
-        return _result(id, {
-          'protocolVersion': defaultProtocolVersion,
-          'capabilities': {
-            'tools': {'listChanged': false},
-          },
-          'serverInfo': {'name': serverName, 'version': serverVersion},
-        });
-      case 'tools/list':
-        return _result(id, {'tools': registry.toolDefinitions()});
-      case 'tools/call':
-        return await _callTool(
-          id,
-          (request['params'] as Map<String, dynamic>?) ?? {},
-        );
-      case 'ping':
-        return _result(id, {'pong': true});
-      case 'shutdown':
-        return _result(id, {});
-      default:
-        if (id == null) return null;
-        return _error(id, -32601, 'Method not found: $method');
-    }
-  }
-
-  /// Handles a `tools/call` request: looks up the tool by name and
-  /// invokes it with the supplied arguments. Tool-level errors are
-  /// returned as `isError: true` results (so the model can react to
-  /// them); transport-level errors (unknown tool, bad params shape)
-  /// are returned as JSON-RPC errors.
-  Future<Map<String, dynamic>> _callTool(
-    dynamic id,
-    Map<String, dynamic> params,
-  ) async {
-    final name = params['name'];
-    if (name is! String) {
-      return _error(id, -32602, 'Invalid params: missing "name"');
-    }
-    final args = (params['arguments'] as Map<String, dynamic>?) ?? {};
-
-    final tool = registry.find(name);
-    if (tool == null) {
-      return _error(id, -32602, 'Unknown tool: $name');
-    }
-
-    try {
-      final result = await tool.call(args);
-      return _result(id, result.toJson());
-    } catch (e, st) {
-      // Tool threw — surface as a tool-level error result (not a
-      // transport error) so the model can reason about it.
-      return _result(id, McpToolResult.error('$e\n$st').toJson());
-    }
+    return _dispatcher.dispatch(request);
   }
 
   void _emit(Map<String, dynamic> response) {
@@ -183,16 +152,4 @@ class McpStdioServer {
       stderr.writeln(message);
     }
   }
-
-  Map<String, dynamic> _result(dynamic id, Map<String, dynamic> result) => {
-    'jsonrpc': '2.0',
-    'result': result,
-    'id': id,
-  };
-
-  Map<String, dynamic> _error(dynamic id, int code, String message) => {
-    'jsonrpc': '2.0',
-    'error': {'code': code, 'message': message},
-    'id': id,
-  };
 }

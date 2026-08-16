@@ -142,6 +142,13 @@ class _ListToolsCommand extends Command<void> {
     final result = await Process.run(
       'dart',
       ['run', binPath, '--list-tools'],
+      stdoutEncoding: utf8,
+    ).timeout(
+      const Duration(seconds: 30),
+      onTimeout: () {
+        stderr.writeln('❌ bin/mcp_server.dart --list-tools timed out after 30 seconds.');
+        exit(1);
+      },
     );
     if (result.exitCode != 0) {
       stderr.writeln('❌ bin/mcp_server.dart --list-tools failed:');
@@ -156,9 +163,16 @@ class _ListToolsCommand extends Command<void> {
     }
 
     if (argResults!['pretty'] == true) {
-      final parsed = jsonDecode(stdoutText);
-      const encoder = JsonEncoder.withIndent('  ');
-      print(encoder.convert(parsed));
+      try {
+        final parsed = jsonDecode(stdoutText);
+        const encoder = JsonEncoder.withIndent('  ');
+        print(encoder.convert(parsed));
+      } on FormatException catch (e) {
+        stderr.writeln('❌ Failed to parse JSON output: $e');
+        stderr.writeln('Raw output:');
+        stderr.writeln(stdoutText);
+        exit(1);
+      }
     } else {
       print(stdoutText);
     }

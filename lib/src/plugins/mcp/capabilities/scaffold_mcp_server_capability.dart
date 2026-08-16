@@ -73,7 +73,14 @@ class ScaffoldMcpServerCapability implements ZuraffaCapability {
     'properties': {
       'generatedFiles': {
         'type': 'array',
-        'items': {'type': 'string'},
+        'items': {
+          'type': 'object',
+          'properties': {
+            'path': {'type': 'string'},
+            'type': {'type': 'string'},
+            'action': {'type': 'string'},
+          },
+        },
       },
     },
   };
@@ -111,12 +118,12 @@ class ScaffoldMcpServerCapability implements ZuraffaCapability {
     final verbose = (args['verbose'] as bool?) ?? false;
     final revert = (args['revert'] as bool?) ?? false;
 
-    final appName = await _resolveAppName(args);
+    final packageName = await _resolvePackageName(args);
     final builder = McpScaffoldBuilder();
 
-    final toolsContent = builder.buildToolsFile(appName: appName);
+    final toolsContent = builder.buildToolsFile(appName: packageName);
     final binContent = builder.buildBinServer(
-      appName: appName,
+      appName: packageName,
       outputDir: plugin.outputDir,
     );
 
@@ -149,14 +156,16 @@ class ScaffoldMcpServerCapability implements ZuraffaCapability {
 
   /// Resolves the Dart package name from pubspec.yaml (looking for
   /// `name: <name>`), falling back to `'my_app'` when no pubspec
-  /// is found (e.g. in tests on a temp directory).
-  Future<String> _resolveAppName(Map<String, dynamic> args) async {
+  /// is found (e.g. in tests on a temp directory). Reads pubspec.yaml
+  /// through plugin.fileSystem so the lookup shares the generated
+  /// files' root.
+  Future<String> _resolvePackageName(Map<String, dynamic> args) async {
     final explicit = args['name'] as String?;
     if (explicit != null && explicit.isNotEmpty) return explicit;
 
-    final pubspec = File('pubspec.yaml');
-    if (await pubspec.exists()) {
-      final content = await pubspec.readAsString();
+    final pubspecPath = 'pubspec.yaml';
+    if (await plugin.fileSystem.exists(pubspecPath)) {
+      final content = await plugin.fileSystem.readAsString(pubspecPath);
       final match = RegExp(
         r'^name:\s*([A-Za-z][A-Za-z0-9_]*)',
         multiLine: true,

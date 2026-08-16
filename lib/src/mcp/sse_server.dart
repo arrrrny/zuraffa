@@ -17,7 +17,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
+import '../core/module/mcp_dispatcher.dart';
 import '../core/module/mcp_tool.dart';
 import '../core/module/mcp_tool_registry.dart';
 import 'auth.dart' show McpAuth;
@@ -46,13 +48,20 @@ class McpSseServer {
 
   HttpServer? _server;
   final Map<String, _SseSession> _sessions = {};
+  late final McpDispatcher _dispatcher;
 
   McpSseServer({
     required this.registry,
     this.serverName = 'zuraffa-app-mcp',
     this.serverVersion = '1.0.0',
     this.authToken,
-  });
+  }) {
+    _dispatcher = McpDispatcher(
+      registry: registry,
+      serverName: serverName,
+      serverVersion: serverVersion,
+    );
+  }
 
   /// Whether the server is currently listening.
   bool get isRunning => _server != null;
@@ -76,9 +85,11 @@ class McpSseServer {
     );
 
     _server!.listen((request) async {
-      // Auth gate for remote clients.
+      // Auth gate for remote clients. Treat null connectionInfo as
+      // non-loopback (requiring Authorization when auth is enabled).
       final connInfo = request.connectionInfo;
-      if (auth.isEnabled && connInfo != null && !connInfo.remoteAddress.isLoopback) {
+      final isLoopback = connInfo?.remoteAddress.isLoopback ?? false;
+      if (auth.isEnabled && !isLoopback) {
         final header = request.headers.value('Authorization');
         if (!auth.validateHeader(header)) {
           request.response
@@ -135,6 +146,15 @@ class McpSseServer {
   // ----------------------------------------------------------------
 
   Future<void> _handleSseStream(HttpRequest request) async {
+    // Validate Origin and Host to prevent DNS rebinding attacks.
+    if (!_isValidRequest(request)) {
+      request.response
+        ..statusCode = HttpStatus.forbidden
+        ..write('Forbidden')
+        ..close();
+      return;
+    }
+
     final sessionId = _newSessionId();
     final controller = StreamController<String>();
     final session = _SseSession(sessionId, controller, request);
@@ -145,8 +165,7 @@ class McpSseServer {
       ..statusCode = HttpStatus.ok
       ..headers.contentType = ContentType.parse('text/event-stream')
       ..headers.set('Cache-Control', 'no-cache')
-      ..headers.set('Connection', 'keep-alive')
-      ..headers.set('Access-Control-Allow-Origin', '*');
+      ..headers.set('Connection', 'keep-alive');
 
     // The first event tells the client where to POST messages.
     final endpointEvent = _formatSseEvent(
@@ -162,8 +181,12 @@ class McpSseServer {
       request.response.flush();
     });
 
-    // Keep the connection open until the client disconnects.
-    await request.response.done.whenComplete(() {
+    // Keep the connection open until the client disconnects. Consume
+    // peer-disconnect errors rather than letting them propagate as
+    // unhandled async errors.
+    await request.response.done.catchError((e) {
+      // Peer disconnected — this is expected, not an error.
+    }).whenComplete(() {
       subscription.cancel();
       _sessions.remove(sessionId);
     });
@@ -174,6 +197,15 @@ class McpSseServer {
   // ----------------------------------------------------------------
 
   Future<void> _handleMessagePost(HttpRequest request) async {
+    // Validate Origin and Host to prevent DNS rebinding attacks.
+    if (!_isValidRequest(request)) {
+      request.response
+        ..statusCode = HttpStatus.forbidden
+        ..write('Forbidden')
+        ..close();
+      return;
+    }
+
     final sessionId = request.uri.queryParameters['sessionId'];
     if (sessionId == null || !_sessions.containsKey(sessionId)) {
       request.response
@@ -195,6 +227,17 @@ class McpSseServer {
       return;
     }
 
+    // Re-read _sessions after the await — the session may have been
+    // removed while we were reading the body.
+    final session = _sessions[sessionId];
+    if (session == null) {
+      request.response
+        ..statusCode = HttpStatus.gone
+        ..write('Session no longer exists')
+        ..close();
+      return;
+    }
+
     // Acknowledge receipt immediately (the response goes over SSE).
     request.response
       ..statusCode = HttpStatus.accepted
@@ -202,9 +245,8 @@ class McpSseServer {
       ..close();
 
     // Dispatch in the background and stream the result back over SSE.
-    final session = _sessions[sessionId]!;
     try {
-      final response = await _dispatch(rpc);
+      final response = await _dispatcher.dispatch(rpc);
       if (response != null) {
         final event = _formatSseEvent(
           'message',
@@ -224,82 +266,46 @@ class McpSseServer {
   }
 
   // ----------------------------------------------------------------
-  // JSON-RPC dispatcher — mirrors McpStdioServer.handleRequest
-  // ----------------------------------------------------------------
-
-  Future<Map<String, dynamic>?> _dispatch(Map<String, dynamic> request) async {
-    final method = request['method'] as String?;
-    final id = request['id'];
-
-    switch (method) {
-      case 'initialize':
-        return {
-          'jsonrpc': '2.0',
-          'result': {
-            'protocolVersion': '2024-11-05',
-            'capabilities': {
-              'tools': {'listChanged': false},
-            },
-            'serverInfo': {'name': serverName, 'version': serverVersion},
-          },
-          'id': id,
-        };
-      case 'tools/list':
-        return {
-          'jsonrpc': '2.0',
-          'result': {'tools': registry.toolDefinitions()},
-          'id': id,
-        };
-      case 'tools/call':
-        final params = (request['params'] as Map<String, dynamic>?) ?? {};
-        final name = params['name'];
-        if (name is! String) {
-          return {
-            'jsonrpc': '2.0',
-            'error': {'code': -32602, 'message': 'Invalid params: missing "name"'},
-            'id': id,
-          };
-        }
-        final args = (params['arguments'] as Map<String, dynamic>?) ?? {};
-        final tool = registry.find(name);
-        if (tool == null) {
-          return {
-            'jsonrpc': '2.0',
-            'error': {'code': -32602, 'message': 'Unknown tool: $name'},
-            'id': id,
-          };
-        }
-        try {
-          final result = await tool.call(args);
-          return {'jsonrpc': '2.0', 'result': result.toJson(), 'id': id};
-        } catch (e, st) {
-          return {
-            'jsonrpc': '2.0',
-            'result': McpToolResult.error('$e\n$st').toJson(),
-            'id': id,
-          };
-        }
-      case 'ping':
-        return {'jsonrpc': '2.0', 'result': {'pong': true}, 'id': id};
-      case 'shutdown':
-        return {'jsonrpc': '2.0', 'result': {}, 'id': id};
-      default:
-        if (id == null) return null;
-        return {
-          'jsonrpc': '2.0',
-          'error': {'code': -32601, 'message': 'Method not found: $method'},
-          'id': id,
-        };
-    }
-  }
-
-  // ----------------------------------------------------------------
   // Helpers
   // ----------------------------------------------------------------
 
+  /// Validates that the request Origin and Host are safe for local servers.
+  /// Returns false if Origin is present but not localhost/127.0.0.1, or if
+  /// Host is non-loopback (DNS rebinding protection).
+  bool _isValidRequest(HttpRequest request) {
+    // Check Origin header against allowlist.
+    final origin = request.headers.value('origin');
+    if (origin != null) {
+      final uri = Uri.tryParse(origin);
+      if (uri == null) return false;
+      final host = uri.host.toLowerCase();
+      if (host != 'localhost' &&
+          host != '127.0.0.1' &&
+          host != '[::1]') {
+        return false;
+      }
+    }
+
+    // Check Host header to prevent DNS rebinding.
+    final host = request.headers.value('host');
+    if (host != null) {
+      final hostOnly = host.split(':').first.toLowerCase();
+      if (hostOnly != 'localhost' &&
+          hostOnly != '127.0.0.1' &&
+          hostOnly != '[::1]') {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   String _newSessionId() {
-    final now = DateTime.now().toUtc().toIso8601String();
-    final rand = (Object().hashCode ^ now.hashCode).abs().toRadixString(36);
+    // Use Random.secure() for session ID entropy, matching McpAuth.generateToken.
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    final rand = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    final now = DateTime.now().millisecondsSinceEpoch;
     return 'sse-$now-$rand';
   }
 
@@ -312,10 +318,19 @@ class McpSseServer {
   }
 
   Future<String> _readBody(HttpRequest request) async {
-    final bytes = await request.fold<List<int>>(
-      <int>[],
-      (acc, chunk) => acc..addAll(chunk as List<int>),
-    );
+    const maxBodyLength = 1024 * 1024; // 1 MiB
+    final bytes = <int>[];
+    await for (final chunk in request) {
+      bytes.addAll(chunk as List<int>);
+      if (bytes.length > maxBodyLength) {
+        // Abort oversized requests with HTTP 413.
+        request.response
+          ..statusCode = HttpStatus.requestEntityTooLarge
+          ..write('Request body too large')
+          ..close();
+        throw StateError('Request body exceeds maximum length');
+      }
+    }
     return utf8.decode(bytes);
   }
 }

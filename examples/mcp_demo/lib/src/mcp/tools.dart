@@ -49,9 +49,12 @@ class FetchUrlTool implements McpTool {
 
   @override
   Future<McpToolResult> call(Map<String, dynamic> arguments) async {
-    final url = arguments['url'] as String?;
-    if (url == null || url.isEmpty) {
+    final url = arguments['url'];
+    if (url is! String || url.isEmpty) {
       return McpToolResult.error('Missing required argument: url');
+    }
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      return McpToolResult.error('Invalid url: must be HTTP or HTTPS');
     }
     // Stub: in production this would actually fetch the URL.
     return McpToolResult.ok(
@@ -64,7 +67,7 @@ class FetchUrlTool implements McpTool {
 /// Renders a URL to a PDF (stubbed — returns the would-be PDF path).
 class PrintPdfTool implements McpTool {
   @override
-  String get name => 'printPdf';
+  String get name => 'print_pdf';
 
   @override
   String get description =>
@@ -92,17 +95,27 @@ class PrintPdfTool implements McpTool {
 
   @override
   Future<McpToolResult> call(Map<String, dynamic> arguments) async {
-    final url = arguments['url'] as String?;
-    if (url == null || url.isEmpty) {
+    final url = arguments['url'];
+    if (url is! String || url.isEmpty) {
       return McpToolResult.error('Missing required argument: url');
     }
-    final format = (arguments['format'] as String?) ?? 'a4';
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      return McpToolResult.error('Invalid url: must be HTTP or HTTPS');
+    }
+    final format = arguments['format'];
+    if (format != null && format is! String) {
+      return McpToolResult.error('Invalid format: must be a string');
+    }
+    final formatStr = (format as String?) ?? 'a4';
+    if (formatStr != 'a4' && formatStr != 'letter') {
+      return McpToolResult.error('Invalid format: must be "a4" or "letter"');
+    }
     // Stub: in production this would render the URL to a PDF via
     // a headless browser or a print-to-PDF engine.
     final path = '/tmp/mcp_demo_${DateTime.now().millisecondsSinceEpoch}.pdf';
     return McpToolResult.ok(
-      'printPdf(url: $url, format: $format) -> $path (stubbed)',
-      data: {'url': url, 'format': format, 'path': path},
+      'printPdf(url: $url, format: $formatStr) -> $path (stubbed)',
+      data: {'url': url, 'format': formatStr, 'path': path},
     );
   }
 }
@@ -110,7 +123,7 @@ class PrintPdfTool implements McpTool {
 /// Takes a screenshot of a URL (stubbed — returns the would-be PNG path).
 class TakeScreenshotTool implements McpTool {
   @override
-  String get name => 'takeScreenshot';
+  String get name => 'take_screenshot';
 
   @override
   String get description =>
@@ -147,22 +160,45 @@ class TakeScreenshotTool implements McpTool {
 
   @override
   Future<McpToolResult> call(Map<String, dynamic> arguments) async {
-    final url = arguments['url'] as String?;
-    if (url == null || url.isEmpty) {
+    final url = arguments['url'];
+    if (url is! String || url.isEmpty) {
       return McpToolResult.error('Missing required argument: url');
     }
-    final width = (arguments['width'] as num?)?.toInt() ?? 1280;
-    final height = (arguments['height'] as num?)?.toInt() ?? 800;
-    final fullPage = (arguments['fullPage'] as bool?) ?? false;
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      return McpToolResult.error('Invalid url: must be HTTP or HTTPS');
+    }
+    final width = arguments['width'];
+    if (width != null && width is! num) {
+      return McpToolResult.error('Invalid width: must be a number');
+    }
+    final widthNum = (width as num?) ?? 1280;
+    if (widthNum != widthNum.toInt()) {
+      return McpToolResult.error('Invalid width: must be an integer');
+    }
+    final height = arguments['height'];
+    if (height != null && height is! num) {
+      return McpToolResult.error('Invalid height: must be a number');
+    }
+    final heightNum = (height as num?) ?? 800;
+    if (heightNum != heightNum.toInt()) {
+      return McpToolResult.error('Invalid height: must be an integer');
+    }
+    final fullPage = arguments['fullPage'];
+    if (fullPage != null && fullPage is! bool) {
+      return McpToolResult.error('Invalid fullPage: must be a boolean');
+    }
+    final fullPageBool = (fullPage as bool?) ?? false;
+    final widthInt = widthNum.toInt();
+    final heightInt = heightNum.toInt();
     // Stub: in production this would invoke a headless browser.
     final path = '/tmp/mcp_demo_${DateTime.now().millisecondsSinceEpoch}.png';
     return McpToolResult.ok(
-      'takeScreenshot(url: $url, ${width}x$height, fullPage: $fullPage) -> $path (stubbed)',
+      'takeScreenshot(url: $url, ${widthInt}x$heightInt, fullPage: $fullPageBool) -> $path (stubbed)',
       data: {
         'url': url,
-        'width': width,
-        'height': height,
-        'fullPage': fullPage,
+        'width': widthInt,
+        'height': heightInt,
+        'fullPage': fullPageBool,
         'path': path,
       },
     );

@@ -103,7 +103,12 @@ class McpServerPlugin extends ZuraffaPlugin {
   Future<void> onInit(ZuraffaDIContainer di) async {
     _di = di;
     if (autoStartStdio) {
-      await serveStdio();
+      // Start stdio server without awaiting — serveStdio() blocks forever
+      // in production, so we capture the future for error reporting but
+      // don't block engine bootstrap. SSE startup remains awaited.
+      serveStdio().catchError((e, st) {
+        stderr.writeln('[mcp] serveStdio error: $e\n$st');
+      });
     } else if (autoStartSsePort != null) {
       await serveSse(
         port: autoStartSsePort!,

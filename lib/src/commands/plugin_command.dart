@@ -2,6 +2,7 @@ import 'dart:io';
 
 import '../cli/plugin_loader.dart';
 import '../core/plugin_system/plugin_registry.dart';
+import '../models/generated_file.dart';
 import '../plugins/mcp/capabilities/scaffold_mcp_server_capability.dart';
 
 class PluginCommand {
@@ -114,10 +115,10 @@ class PluginCommand {
 
     if (result.success) {
       final files = result.data?['generatedFiles'];
-      if (files is List && files.isNotEmpty) {
+      if (files is List<GeneratedFile> && files.isNotEmpty) {
         print('✅ MCP server scaffolded:');
         for (final f in files) {
-          print('  ✨ ${(f as dynamic).path}');
+          print('  ✨ ${f.path}');
         }
       } else {
         print('✅ MCP server scaffold complete (no file changes).');
