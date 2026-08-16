@@ -9,8 +9,11 @@ import '../../../core/builder/shared/spec_library.dart';
 /// (`setupDependencies`) and the generated routing tree (`getAllRoutes`)
 /// into a runnable Flutter app:
 ///
-///  * `lib/main.dart` — `void main()` → `await setupDependencies()` →
-///    `runApp(const MyApp())`.
+///  * `lib/main.dart` — `void main()` → `await setupDependencies(...)` →
+///    `runApp(const MyApp())`. The call mirrors the generated DI's
+///    `setupDependencies` signature: `setupDependencies(GetIt instance)`
+///    for the canonical GetIt-based DI emitted by `zfa di`, or
+///    `setupDependencies()` for a no-arg custom entrypoint. See issue #370.
 ///  * `<outputDir>/app/my_app.dart` — `MyApp` widget that builds a
 ///    `MaterialApp.router` configured with [appRouter].
 ///  * `<outputDir>/routing/app_router.dart` — `final GoRouter appRouter =
@@ -47,11 +50,30 @@ class AppShellBuilder {
   /// [mockHint] controls whether a `// Mock DI mode` hint comment is
   /// emitted (purely informational — the mock-vs-real decision is made
   /// at DI-generation time via `zfa di <Entity> --use-mock`, and
-  /// `setupDependencies()` already wires whatever was generated).
+  /// `setupDependencies(...)` already wires whatever was generated).
+  ///
+  /// [diTakesGetIt] selects the call signature emitted in `main.dart`.
+  /// When `true` (the canonical `zfa di` / `zfa make --with=di` case,
+  /// whose DI declares `void setupDependencies(GetIt getIt)`), main.dart
+  /// imports `package:zuraffa/zuraffa.dart` — which re-exports `GetIt` —
+  /// and passes `GetIt.instance` into `setupDependencies`. When `false`
+  /// (a no-arg custom DI entrypoint), it calls `setupDependencies()`.
+  ///
+  /// [diIsAsync] selects whether main.dart `await`s the call. The canonical
+  /// zfa DI declares `void setupDependencies(GetIt getIt)` (synchronous), so
+  /// awaiting it is a `use_of_void_result` error; main.dart must call it
+  /// synchronously (`void main() { setupDependencies(GetIt.instance); ... }`).
+  /// A custom async DI (`Future<void> ... async`) gets an `async` main that
+  /// `await`s it so runApp never runs before DI completes. The command
+  /// derives both flags from the emitted declaration via
+  /// [setupDependenciesTakesGetIt] / [setupDependenciesIsAsync] so the two
+  /// generators can never disagree again. See issue #370.
   String buildMain({
     required String appName,
     bool mockHint = false,
     String outputDir = 'lib/src',
+    bool diTakesGetIt = false,
+    bool diIsAsync = false,
   }) {
     // main.dart lives at lib/main.dart, so package: imports must resolve
     // relative to lib/. Map the output dir ("lib/src" -> "src",
@@ -69,26 +91,59 @@ class AppShellBuilder {
       Directive.import(myAppImport),
       Directive.import(diImport),
     ];
+    if (diTakesGetIt) {
+      // `GetIt` is re-exported by `package:zuraffa/zuraffa.dart` (the same
+      // import the DI `service_locator.dart` uses), so generated apps —
+      // which already depend on `zuraffa` for their DI tree — can resolve
+      // it without adding `get_it` as a direct dependency. main.dart needs
+      // `GetIt` only to pass `GetIt.instance` into `setupDependencies`.
+      directives.add(Directive.import('package:zuraffa/zuraffa.dart'));
+    }
 
+    // Mirror the generated DI's `setupDependencies` signature: pass
+    // `GetIt.instance` for the canonical GetIt-based DI, or no args for a
+    // no-arg custom entrypoint. `await` ONLY when the DI is async —
+    // awaiting the canonical `void setupDependencies(GetIt getIt)` is a
+    // `use_of_void_result` error. With both flags derived from the emitted
+    // declaration, the call always matches the signature, so the mismatch
+    // that caused issue #370 is structurally impossible.
+    final setupArgs = diTakesGetIt
+        ? [refer('GetIt.instance')]
+        : <Expression>[];
+    final setupCall = refer('setupDependencies').call(setupArgs);
+    final setupStatement = diIsAsync
+        ? setupCall.awaited.statement
+        : setupCall.statement;
+
+    // `MethodModifier` has no `sync` value, so only switch to `async` when
+    // the DI is actually async — leaving the modifier unset emits a plain
+    // `void main() { ... }`, which is correct for the canonical synchronous
+    // DI. The modifier must be set inside the builder closure (Method is an
+    // immutable built_value, so `main.modifier = ...` after construction is
+    // not allowed).
     final main = Method(
-      (m) => m
-        ..name = 'main'
-        ..returns = refer('void')
-        ..modifier = MethodModifier.async
-        ..body = Block(
-          (b) => b.statements.addAll([
-            refer('setupDependencies').call([]).awaited.statement,
-            refer(
-              'runApp',
-            ).call([CodeExpression(Code('const MyApp()'))]).statement,
-          ]),
-        ),
+      (m) {
+        m
+          ..name = 'main'
+          ..returns = refer('void')
+          ..body = Block(
+            (b) => b.statements.addAll([
+              setupStatement,
+              refer(
+                'runApp',
+              ).call([CodeExpression(Code('const MyApp()'))]).statement,
+            ]),
+          );
+        if (diIsAsync) {
+          m.modifier = MethodModifier.async;
+        }
+      },
     );
 
     final library = specLibrary.library(specs: [main], directives: directives);
 
     final leading = mockHint
-        ? '// Generated by zfa\n// Mock DI mode: setupDependencies() wires mock datasources\n// generated via `zfa di <Entity> --use-mock`.'
+        ? '// Generated by zfa\n// Mock DI mode: setupDependencies(...) wires mock datasources\n// generated via `zfa di <Entity> --use-mock`.'
         : '// Generated by zfa';
 
     return specLibrary.emitLibrary(
@@ -202,6 +257,89 @@ class AppShellBuilder {
       leadingComment: '// Generated by zfa',
       wrapWithGeneratedMarkers: false,
     );
+  }
+
+  /// Returns `true` if [diIndexContent] declares a `setupDependencies`
+  /// function (i.e. contains a real `setupDependencies(...)` declaration,
+  /// not just a mention in a comment or string).
+  ///
+  /// Used by the app-shell pre-flight check to fail loudly when the DI
+  /// barrel is missing the entrypoint — issue #370 showed the old
+  /// substring check accepted a file that only mentioned the name in a
+  /// comment, then emitted a non-compiling main.dart. Stripping comments
+  /// first means a `// TODO: setupDependencies()` no longer passes the
+  /// check. See issue #370.
+  static bool hasSetupDependenciesDeclaration(String diIndexContent) {
+    return RegExp(r'setupDependencies\s*\(').hasMatch(
+      _stripComments(diIndexContent),
+    );
+  }
+
+  /// Returns `true` if the `setupDependencies` declaration in
+  /// [diIndexContent] declares a `GetIt` parameter — the canonical
+  /// signature emitted by `zfa di` / `zfa make --with=di`
+  /// (`void setupDependencies(GetIt getIt)`).
+  ///
+  /// The app-shell command uses this to decide whether `main.dart` must
+  /// call `setupDependencies(GetIt.instance)` (canonical GetIt-based DI)
+  /// or `setupDependencies()` (a no-arg custom DI entrypoint). Detecting
+  /// the actual signature — instead of assuming one — keeps the shell
+  /// robust to both signatures and makes a signature mismatch fail loudly
+  /// at generation time rather than at `flutter analyze` time. The
+  /// pre-flight check in `AppShellCommand` treats an unparseable
+  /// declaration as a hard error. See issue #370.
+  static bool setupDependenciesTakesGetIt(String diIndexContent) {
+    final src = _stripComments(diIndexContent);
+    // Match the first `setupDependencies(...)` occurrence. The DI barrel
+    // declares the function at top level, so the first match is the
+    // declaration (a call site like `setupDependencies(getIt)` inside a
+    // body would only appear after the declaration and is never matched).
+    // `[^)]*` is sufficient because DI declarations are single-line.
+    final match = RegExp(
+      r'setupDependencies\s*\(([^)]*)\)',
+    ).firstMatch(src);
+    if (match == null) return false;
+    final params = match.group(1)!.trim();
+    if (params.isEmpty) return false; // no-arg: setupDependencies()
+    // The canonical DI declares `GetIt getIt`; accept any parameter list
+    // referencing `GetIt` (positional or named) so custom DI variants
+    // that accept extra options still route to the GetIt.instance call.
+    return RegExp(r'\bGetIt\b').hasMatch(params);
+  }
+
+  /// Returns `true` if the `setupDependencies` declaration in
+  /// [diIndexContent] is asynchronous — i.e. its return type mentions
+  /// `Future` or it carries the `async` modifier.
+  ///
+  /// The canonical zfa DI declares `void setupDependencies(GetIt getIt)`
+  /// (synchronous), so main.dart must NOT `await` it (that would be a
+  /// `use_of_void_result` error). A custom async DI
+  /// (`Future<void> setupDependencies(...) async`) gets an `async` main
+  /// that `await`s it so runApp never races the DI setup. See issue #370.
+  static bool setupDependenciesIsAsync(String diIndexContent) {
+    final src = _stripComments(diIndexContent);
+    // Match `<retType> setupDependencies(<params>) [async]` — the top-level
+    // DI declaration. `retType` is a single type token (word chars + generic
+    // brackets, e.g. `void`, `Future<void>`, `Future`).
+    final m = RegExp(
+      r'([A-Za-z_][\w<>]*)\s+setupDependencies\s*\(([^)]*)\)\s*(async)?',
+    ).firstMatch(src);
+    if (m == null) return false;
+    final retType = m.group(1) ?? '';
+    final asyncKw = m.group(3);
+    return asyncKw != null || RegExp(r'\bFuture\b').hasMatch(retType);
+  }
+
+  /// Strips Dart `//` line comments and `/* */` block comments from [src]
+  /// so signature detection looks at real code, not doc/TODO text. A
+  /// `// TODO: call setupDependencies()` no longer counts as a declaration.
+  /// String literals containing the name are an unlikely edge case in a DI
+  /// barrel and intentionally not handled (parsing Dart string escapes
+  /// here would add far more risk than value).
+  static String _stripComments(String src) {
+    src = src.replaceAll(RegExp(r'/\*[\s\S]*?\*/'), ''); // block comments
+    src = src.replaceAll(RegExp(r'//[^\n]*'), ''); // line comments
+    return src;
   }
 
   /// Returns the Dart package name declared in [pubspecContent] or `null`

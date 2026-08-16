@@ -6,16 +6,84 @@ void main() {
     const builder = AppShellBuilder();
 
     group('buildMain', () {
-      test('emits a `void main()` async entrypoint', () {
+      // The default (no flags) models a no-arg, synchronous custom DI
+      // entrypoint: `void main() { setupDependencies(); runApp(...); }`.
+      test('emits a synchronous `void main()` entrypoint by default', () {
         final src = builder.buildMain(appName: 'my_app', mockHint: false);
-        // MethodModifier.async produces `void main() async { ... }`.
-        expect(src, contains('void main() async'));
+        // Default DI is synchronous (void return), so main must NOT be
+        // async — `await` on a void is use_of_void_result. See issue #370.
+        expect(src, contains('void main() {'));
+        expect(src, isNot(contains('void main() async')));
       });
 
-      test('awaits setupDependencies()', () {
+      test('calls setupDependencies() with no args by default', () {
         final src = builder.buildMain(appName: 'my_app', mockHint: false);
-        expect(src, contains('await setupDependencies()'));
+        expect(src, contains('setupDependencies();'));
+        // Must NOT await a synchronous void call.
+        expect(src, isNot(contains('await setupDependencies')));
       });
+
+      test('does NOT import zuraffa when DI takes no GetIt', () {
+        final src = builder.buildMain(appName: 'my_app', mockHint: false);
+        expect(src, isNot(contains('package:zuraffa/zuraffa.dart')));
+      });
+
+      // The canonical `zfa di` / `zfa make --with=di` case: the DI barrel
+      // declares `void setupDependencies(GetIt getIt)` (synchronous, GetIt).
+      test(
+        'passes GetIt.instance when diTakesGetIt is true (canonical DI)',
+        () {
+          final src = builder.buildMain(
+            appName: 'my_app',
+            diTakesGetIt: true,
+          );
+          expect(src, contains('setupDependencies(GetIt.instance);'));
+          // Canonical DI is synchronous void — still no await.
+          expect(src, isNot(contains('await setupDependencies')));
+          expect(src, contains('void main() {'));
+          expect(src, isNot(contains('void main() async')));
+        },
+      );
+
+      test(
+        'imports package:zuraffa/zuraffa.dart for GetIt when diTakesGetIt',
+        () {
+          final src = builder.buildMain(
+            appName: 'my_app',
+            diTakesGetIt: true,
+          );
+          // zuraffa re-exports get_it (lib/zuraffa.dart: export 'package:get_it/get_it.dart';)
+          // so generated apps — which already depend on zuraffa for DI —
+          // resolve GetIt without adding get_it as a direct dependency.
+          expect(src, contains("import 'package:zuraffa/zuraffa.dart';"));
+        },
+      );
+
+      test(
+        'awaits setupDependencies() when diIsAsync is true (async no-arg DI)',
+        () {
+          final src = builder.buildMain(
+            appName: 'my_app',
+            diIsAsync: true,
+          );
+          expect(src, contains('void main() async'));
+          expect(src, contains('await setupDependencies();'));
+        },
+      );
+
+      test(
+        'awaits setupDependencies(GetIt.instance) when GetIt + async',
+        () {
+          final src = builder.buildMain(
+            appName: 'my_app',
+            diTakesGetIt: true,
+            diIsAsync: true,
+          );
+          expect(src, contains('void main() async'));
+          expect(src, contains('await setupDependencies(GetIt.instance);'));
+          expect(src, contains("import 'package:zuraffa/zuraffa.dart';"));
+        },
+      );
 
       test('runs MyApp', () {
         final src = builder.buildMain(appName: 'my_app', mockHint: false);
@@ -78,6 +146,107 @@ void main() {
         // main.dart is user-editable glue — it should not be auto-replaced
         // by the AST merge engine on every `zfa build`.
         expect(src.contains('GENERATED - DO NOT EDIT'), isFalse);
+      });
+    });
+
+    group('setupDependenciesTakesGetIt', () {
+      test('returns true for the canonical GetIt signature', () {
+        // Emitted by registration_builder.dart (zfa di / zfa make --with=di).
+        const di = '''
+import 'package:get_it/get_it.dart';
+void setupDependencies(GetIt getIt) {
+  registerAllUseCases(getIt);
+}
+''';
+        expect(
+          AppShellBuilder.setupDependenciesTakesGetIt(di),
+          isTrue,
+          reason: 'canonical `void setupDependencies(GetIt getIt)`',
+        );
+      });
+
+      test('returns false for a no-arg signature', () {
+        const di = 'Future<void> setupDependencies() async {}';
+        expect(
+          AppShellBuilder.setupDependenciesTakesGetIt(di),
+          isFalse,
+          reason: 'no-arg `setupDependencies()`',
+        );
+      });
+
+      test('returns false when setupDependencies is absent', () {
+        const di = '// no DI here\nvoid unrelated() {}';
+        expect(AppShellBuilder.setupDependenciesTakesGetIt(di), isFalse);
+      });
+
+      test('returns true for a GetIt param among several params', () {
+        const di =
+            'void setupDependencies(GetIt getIt, {bool useMock = false}) {}';
+        expect(AppShellBuilder.setupDependenciesTakesGetIt(di), isTrue);
+      });
+    });
+
+    group('setupDependenciesIsAsync', () {
+      test('returns false for the canonical synchronous void DI', () {
+        const di =
+            'void setupDependencies(GetIt getIt) { registerAllUseCases(getIt); }';
+        expect(
+          AppShellBuilder.setupDependenciesIsAsync(di),
+          isFalse,
+          reason: 'canonical `void setupDependencies(GetIt getIt)` is sync',
+        );
+      });
+
+      test('returns true for a Future return type', () {
+        const di = 'Future<void> setupDependencies(GetIt getIt) async {}';
+        expect(AppShellBuilder.setupDependenciesIsAsync(di), isTrue);
+      });
+
+      test('returns true for an async modifier even without Future', () {
+        const di = 'void setupDependencies() async {}';
+        expect(AppShellBuilder.setupDependenciesIsAsync(di), isTrue);
+      });
+
+      test('returns true for a bare Future return (no async keyword)', () {
+        const di = 'Future setupDependencies(GetIt getIt) { return Future.value(); }';
+        expect(AppShellBuilder.setupDependenciesIsAsync(di), isTrue);
+      });
+
+      test('returns false when setupDependencies is absent', () {
+        const di = '// no DI here';
+        expect(AppShellBuilder.setupDependenciesIsAsync(di), isFalse);
+      });
+    });
+
+    group('hasSetupDependenciesDeclaration', () {
+      test('returns true for the canonical GetIt declaration', () {
+        const di = "import 'package:get_it/get_it.dart';\n"
+            'void setupDependencies(GetIt getIt) {}';
+        expect(AppShellBuilder.hasSetupDependenciesDeclaration(di), isTrue);
+      });
+
+      test('returns true for a no-arg declaration', () {
+        const di = 'void setupDependencies() {}';
+        expect(AppShellBuilder.hasSetupDependenciesDeclaration(di), isTrue);
+      });
+
+      test('returns false when the name appears only in a line comment', () {
+        // Regression for issue #370: the old substring check accepted this
+        // and then emitted a non-compiling main.dart.
+        const di = '// TODO: call setupDependencies() once DI is generated\n'
+            'void unrelated() {}';
+        expect(AppShellBuilder.hasSetupDependenciesDeclaration(di), isFalse);
+      });
+
+      test('returns false when the name appears only in a block comment', () {
+        const di = '/* setupDependencies() is not implemented yet */\n'
+            'void unrelated() {}';
+        expect(AppShellBuilder.hasSetupDependenciesDeclaration(di), isFalse);
+      });
+
+      test('returns false when setupDependencies is absent', () {
+        const di = 'void unrelated() {}';
+        expect(AppShellBuilder.hasSetupDependenciesDeclaration(di), isFalse);
       });
     });
 
