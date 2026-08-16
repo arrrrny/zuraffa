@@ -9,11 +9,13 @@ import '../../../core/builder/shared/spec_library.dart';
 /// (`setupDependencies`) and the generated routing tree (`getAllRoutes`)
 /// into a runnable Flutter app:
 ///
-///  * `lib/main.dart` — `void main()` → `await setupDependencies(...)` →
+///  * `lib/main.dart` — `void main()` → `setupDependencies(...)` →
 ///    `runApp(const MyApp())`. The call mirrors the generated DI's
 ///    `setupDependencies` signature: `setupDependencies(GetIt instance)`
 ///    for the canonical GetIt-based DI emitted by `zfa di`, or
-///    `setupDependencies()` for a no-arg custom entrypoint. See issue #370.
+///    `setupDependencies()` for a no-arg custom entrypoint. When the DI is
+///    asynchronous, main becomes `async` and `await`s the call; the canonical
+///    synchronous DI is called without `await`. See issue #370.
 ///  * `<outputDir>/app/my_app.dart` — `MyApp` widget that builds a
 ///    `MaterialApp.router` configured with [appRouter].
 ///  * `<outputDir>/routing/app_router.dart` — `final GoRouter appRouter =
