@@ -227,8 +227,9 @@ class XRayMockScaffolder {
     String newContent;
     if (hasXRayMock && force) {
       // Remove existing @XRayMock(...) line(s).
+      // Match the complete annotation including nested parentheses.
       final xrayLinePattern = RegExp(
-        r'^\s*@XRayMock\s*\([^)]*\)\s*\n',
+        r'^\s*@XRayMock\s*\([^\n]*\)\s*\n',
         multiLine: true,
       );
       newContent = content.replaceAll(xrayLinePattern, '');

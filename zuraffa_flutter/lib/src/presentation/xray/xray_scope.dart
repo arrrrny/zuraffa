@@ -109,7 +109,7 @@ class XRayScopeState extends State<XRayScope> {
   @override
   void dispose() {
     XRayMode.notifier.removeListener(_onXRayModeChanged);
-    XRayBridgeScopeHolder.clearScope();
+    XRayBridgeScopeHolder.clearScope(this);
     super.dispose();
   }
 

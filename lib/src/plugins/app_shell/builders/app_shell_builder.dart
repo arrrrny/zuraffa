@@ -86,9 +86,6 @@ class AppShellBuilder {
       Directive.import(diImport),
       if (xray) ...[
         Directive.import('package:flutter/foundation.dart'),
-        Directive.import(
-          'package:zuraffa_flutter/src/presentation/xray/xray_bridge_server.dart',
-        ),
         Directive.import(xrayDecksImport),
       ],
     ];
@@ -99,13 +96,13 @@ class AppShellBuilder {
     if (xray) {
       // Emit:
       //   if (kDebugMode) {
-      //     await XRayBridgeServer().start();
+      //     await _startXRayBridge();
       //     registerAllXRayDecks();
       //   }
       bodyStatements.add(
         Code(
           'if (kDebugMode) {\n'
-          '  await XRayBridgeServer().start();\n'
+          '  await _startXRayBridge();\n'
           '  registerAllXRayDecks();\n'
           '}',
         ),
@@ -125,8 +122,10 @@ class AppShellBuilder {
         ..body = Block((b) => b.statements.addAll(bodyStatements)),
     );
 
+    final specs = <Spec>[main];
+
     final library = specLibrary.library(
-      specs: [main],
+      specs: specs,
       directives: directives,
     );
 
@@ -147,11 +146,40 @@ class AppShellBuilder {
     }
     final leading = leadingParts.join('\n');
 
-    return specLibrary.emitLibrary(
+    var emittedCode = specLibrary.emitLibrary(
       library,
       leadingComment: leading,
       wrapWithGeneratedMarkers: false,
     );
+
+    // Add platform-safe bridge launcher when xray is enabled
+    if (xray) {
+      // Add conditional import for XRayBridgeServer
+      emittedCode = emittedCode.replaceFirst(
+        "import 'package:flutter/foundation.dart';",
+        "import 'package:flutter/foundation.dart';\n"
+        "import 'xray_bridge_launcher_stub.dart'\n"
+        "    if (dart.library.io) 'package:zuraffa_flutter/src/presentation/xray/xray_bridge_server.dart';",
+      );
+
+      final bridgeLauncher = '''
+
+/// Platform-safe X-Ray bridge launcher.
+/// On web: no-op (dart:io unavailable).
+/// On other platforms: starts XRayBridgeServer if available.
+Future<void> _startXRayBridge() async {
+  const hasDartIo = bool.fromEnvironment('dart.library.io', defaultValue: true);
+  if (hasDartIo) {
+    // Import XRayBridgeServer conditionally (only on non-web platforms)
+    await XRayBridgeServer().start();
+  }
+  // Web: no-op (this function returns immediately)
+}
+''';
+      emittedCode = emittedCode + bridgeLauncher;
+    }
+
+    return emittedCode;
   }
 
   /// Builds `lib/src/app/my_app.dart`.
