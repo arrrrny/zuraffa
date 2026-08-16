@@ -159,6 +159,25 @@ class GetOrderUseCase extends UseCase<Order, String> {}
         output,
         contains('lib/src/domain/usecases/order/get_order_usecase.dart'),
       );
+
+      // Execute the hinted deck command verbatim — it must generate the
+      // deck + barrel without further flags.
+      final deckOutput = await runner.runCapturing([
+        'xray',
+        'deck',
+        '--entity',
+        'Order',
+        '--source',
+        'lib/src/domain/usecases/order/get_order_usecase.dart',
+      ]);
+      expect(deckOutput, contains('Generated'));
+      expect(deckOutput, isNot(contains('provide --source')));
+      expect(
+        File(
+          p.join(tempDir.path, 'lib', 'src', 'xray', 'order_xray_deck.dart'),
+        ).existsSync(),
+        isTrue,
+      );
     });
   });
 }

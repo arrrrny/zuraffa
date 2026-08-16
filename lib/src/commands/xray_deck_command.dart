@@ -52,7 +52,7 @@ class XrayDeckCommand extends Command<void> {
 
   @override
   Future<void> run() async {
-    final sourcePath = argResults?["source"] as String?;
+    var sourcePath = argResults?["source"] as String?;
     final yamlPath = argResults?["yaml"] as String?;
     var outputPath = argResults?["output"] as String?;
     var useCaseName = argResults?["usecase-name"] as String?;
