@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:test/test.dart';
 import 'package:args/command_runner.dart';
 import 'package:zuraffa/src/commands/initialize_command.dart';
@@ -123,6 +125,60 @@ void main() {
         );
       },
     );
+
+    // #364: a malformed deep-link scheme must be rejected BEFORE any
+    // file is created — writing it raw into AndroidManifest.xml /
+    // Info.plist would corrupt the platform build.
+    test('run() rejects a malformed --deep-link-scheme with '
+        'UsageException before creating anything', () async {
+      final runner = CommandRunner<void>('zfa', 'test')
+        ..addCommand(SetupCommand());
+      await expectLater(
+        runner.run(['setup', 'myapp', '--deep-link-scheme', 'go zuzu']),
+        throwsA(isA<UsageException>()),
+      );
+    });
+
+    test('run() rejects a malformed --deep-link-host with UsageException',
+        () async {
+      final runner = CommandRunner<void>('zfa', 'test')
+        ..addCommand(SetupCommand());
+      await expectLater(
+        runner.run([
+          'setup',
+          'myapp',
+          '--deep-link-scheme',
+          'gozuzu',
+          '--deep-link-host',
+          'go"zuzu.dev',
+        ]),
+        throwsA(isA<UsageException>()),
+      );
+    });
+
+    test('run() warns when --deep-link-host is passed without '
+        '--deep-link-scheme', () async {
+      final runner = CommandRunner<void>('zfa', 'test')
+        ..addCommand(SetupCommand());
+      final printed = <String>[];
+      await runZoned(
+        () => runner.run([
+          'setup',
+          'myapp',
+          '--deep-link-host',
+          'go.zuzu.dev',
+          '--dry-run',
+        ]),
+        zoneSpecification: ZoneSpecification(
+          print: (self, parent, zone, line) => printed.add(line),
+        ),
+      );
+      expect(
+        printed.any((l) => l.contains('ignored without --deep-link-scheme')),
+        isTrue,
+        reason: 'host is silently dropped without a scheme — warn the user',
+      );
+    });
   });
 
   group('DependencyWirer', () {

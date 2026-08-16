@@ -270,6 +270,25 @@ void main() {
         throwsA(isA<ArgumentError>()),
       );
     });
+
+    test('rejects a scheme with whitespace/quotes via the shared '
+        'ManifestWriter validator without writing the manifest', () async {
+      await _seedFakeFlutterProject(projectRoot);
+
+      expect(
+        () => runCapability(
+          name: 'ScanBarcode',
+          path: '/scan/barcode/:barcode',
+          scheme: 'go zuzu',
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+
+      final manifest = await File(
+        '$projectRoot/android/app/src/main/AndroidManifest.xml',
+      ).readAsString();
+      expect(manifest.contains('android:scheme="go zuzu"'), isFalse);
+    });
   });
 }
 

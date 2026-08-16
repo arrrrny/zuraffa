@@ -166,9 +166,17 @@ class CreateRouteCapability implements ZuraffaCapability {
     // routes. This is a no-op when the platform files don't exist
     // (pure-Dart packages, tests on temp dirs).
     final scheme = args['scheme'] as String?;
+    final host = args['host'] as String?;
+    final autoVerify = (args['autoVerify'] as bool?) ?? false;
+
+    // #364: warn when App-Links options are passed without a scheme —
+    // they are silently ignored by the manifest hook below.
+    if ((scheme == null || scheme.isEmpty) &&
+        ((host != null && host.isNotEmpty) || autoVerify)) {
+      print('⚠️  --host / --auto-verify are ignored without --scheme.');
+    }
+
     if (scheme != null && scheme.isNotEmpty) {
-      final host = args['host'] as String?;
-      final autoVerify = (args['autoVerify'] as bool?) ?? false;
       final manifestWriter = plugin.manifestWriter;
       final projectRoot = plugin.projectRoot;
 

@@ -21,6 +21,13 @@ import 'file_utils.dart';
 /// to call from `zfa setup` AND from `zfa route deep-link` AND from
 /// `zfa route create --deep-link` without producing duplicate entries.
 ///
+/// Both registration methods validate the incoming [scheme] (and, on
+/// Android, the [host]) via [validateScheme]/[validateHost] BEFORE any
+/// write. A malformed value would otherwise be embedded verbatim into
+/// the XML/plist — corrupting the attribute and breaking the platform
+/// build. Validation lives here, in the single shared write path, so
+/// every caller (setup, deep-link, route create) is covered.
+///
 /// When the target platform file does not exist (e.g. during tests on a
 /// temp directory, or in a pure-Dart package), the writer silently skips
 /// the update and returns `null` — deep-link code generation is never
@@ -31,6 +38,54 @@ class ManifestWriter {
 
   ManifestWriter({FileSystem? fileSystem})
     : fileSystem = fileSystem ?? const DefaultFileSystem();
+
+  /// A valid URL scheme: a lowercase ASCII letter followed by lowercase
+  /// letters, digits, `+`, `.` or `-` (RFC 3986 `scheme` restricted to
+  /// lowercase, as Android/Apple require for deep-link schemes).
+  static final RegExp _schemePattern = RegExp(r'^[a-z][a-z0-9+.\-]*$');
+
+  /// A valid hostname for the Android `android:host` attribute: dot-
+  /// separated labels of letters/digits/hyphens/underscores, with an
+  /// optional leading `*.` wildcard label (App Links wildcard hosts
+  /// such as `*.example.com`). Rejects whitespace, quotes and angle
+  /// brackets that would corrupt the XML attribute.
+  static final RegExp _hostPattern = RegExp(
+    r'^(\*\.)?[a-zA-Z0-9]([a-zA-Z0-9\-_]*[a-zA-Z0-9])?'
+    r'(\.([a-zA-Z0-9]([a-zA-Z0-9\-_]*[a-zA-Z0-9])?))*$',
+  );
+
+  /// Validates [scheme] before it is embedded into `AndroidManifest.xml`
+  /// or `Info.plist`.
+  ///
+  /// Throws [ArgumentError] when the scheme is malformed (uppercase,
+  /// spaces, quotes, angle brackets, ...) — writing such a value raw
+  /// would corrupt the platform file and break the Android/iOS build.
+  static void validateScheme(String scheme) {
+    if (!_schemePattern.hasMatch(scheme)) {
+      throw ArgumentError.value(
+        scheme,
+        'scheme',
+        'must be a lowercase URL scheme (e.g. gozuzu, https, my-app)',
+      );
+    }
+  }
+
+  /// Validates [host] before it is embedded into the Android
+  /// `android:host` attribute. A null or empty host is allowed (host is
+  /// optional); a non-empty host must be a valid hostname.
+  ///
+  /// Throws [ArgumentError] when the host is malformed (whitespace,
+  /// quotes, angle brackets, empty labels, ...).
+  static void validateHost(String? host) {
+    if (host == null || host.isEmpty) return;
+    if (!_hostPattern.hasMatch(host)) {
+      throw ArgumentError.value(
+        host,
+        'host',
+        'must be a valid hostname (e.g. go.zuzu.dev, *.example.com)',
+      );
+    }
+  }
 
   /// Ensures an `<intent-filter>` block declaring [scheme] exists on the
   /// `MainActivity` element of the Android manifest at [manifestPath].
@@ -47,6 +102,9 @@ class ManifestWriter {
   /// (and `null` is returned — the caller treats that as "no change").
   ///
   /// No-op when [manifestPath] does not exist on the file system.
+  ///
+  /// Throws [ArgumentError] (via [validateScheme]/[validateHost]) when
+  /// [scheme] or [host] is malformed — before any file is touched.
   Future<GeneratedFile?> ensureAndroidIntentFilter({
     required String manifestPath,
     required String scheme,
@@ -55,6 +113,9 @@ class ManifestWriter {
     bool dryRun = false,
     bool verbose = false,
   }) async {
+    validateScheme(scheme);
+    validateHost(host);
+
     if (!await fileSystem.exists(manifestPath)) {
       if (verbose) {
         print(
@@ -114,12 +175,17 @@ class ManifestWriter {
   /// a `CFBundleURLSchemes` array, the file is left untouched.
   ///
   /// No-op when [plistPath] does not exist on the file system.
+  ///
+  /// Throws [ArgumentError] (via [validateScheme]) when [scheme] is
+  /// malformed — before any file is touched.
   Future<GeneratedFile?> ensureIosUrlScheme({
     required String plistPath,
     required String scheme,
     bool dryRun = false,
     bool verbose = false,
   }) async {
+    validateScheme(scheme);
+
     if (!await fileSystem.exists(plistPath)) {
       if (verbose) {
         print(

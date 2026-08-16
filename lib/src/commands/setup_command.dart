@@ -126,6 +126,26 @@ class SetupCommand extends Command<void> {
       );
     }
 
+    // #364: validate the deep-link scheme/host before any files are
+    // created. A malformed scheme would otherwise be written verbatim
+    // into AndroidManifest.xml / Info.plist, corrupting the platform
+    // build (ManifestWriter re-validates on every write path as the
+    // final safety net, but fail fast here with a clean usage error).
+    if (deepLinkScheme != null && deepLinkScheme.isNotEmpty) {
+      try {
+        ManifestWriter.validateScheme(deepLinkScheme);
+        ManifestWriter.validateHost(deepLinkHost);
+      } on ArgumentError catch (e) {
+        usageException('Invalid deep-link scheme/host: ${e.message}');
+      }
+    } else if ((deepLinkHost != null && deepLinkHost.isNotEmpty) ||
+        autoVerify) {
+      print(
+        '⚠️  --deep-link-host / --auto-verify are ignored without '
+        '--deep-link-scheme.',
+      );
+    }
+
     print('\nBootstrap: $appName (${isFlutter ? "Flutter" : "Dart"})');
     print('=' * 40);
 

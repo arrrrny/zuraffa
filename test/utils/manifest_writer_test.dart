@@ -298,4 +298,136 @@ void main() {
       expect(typesKeys, equals(1));
     });
   });
+
+  group('ManifestWriter validation (issue #364)', () {
+    test('validateScheme accepts valid schemes', () {
+      for (final valid in ['gozuzu', 'https', 'my-app', 'a+b', 'x.y', 'z0']) {
+        expect(
+          () => ManifestWriter.validateScheme(valid),
+          returnsNormally,
+          reason: '"$valid" is a valid URL scheme',
+        );
+      }
+    });
+
+    test('validateScheme rejects malformed schemes', () {
+      for (final invalid in [
+        'go zuzu', // space would corrupt the XML attribute
+        'go"zuzu', // quote would break out of the attribute
+        'go<zuzu', // angle bracket would corrupt the XML
+        'go>zuzu', // angle bracket would corrupt the XML
+        'GoZuzu', // uppercase — Android/Apple schemes are lowercase
+        '1gozuzu', // leading digit — must start with a letter
+        'gozuzu/', // slash is not a scheme character
+      ]) {
+        expect(
+          () => ManifestWriter.validateScheme(invalid),
+          throwsArgumentError,
+          reason: '"$invalid" must be rejected',
+        );
+      }
+    });
+
+    test('validateHost accepts valid hosts', () {
+      for (final valid in [
+        'go.zuzu.dev',
+        '*.example.com', // App Links wildcard host
+        'localhost',
+        '127.0.0.1',
+        'my_host',
+        'example.com',
+      ]) {
+        expect(
+          () => ManifestWriter.validateHost(valid),
+          returnsNormally,
+          reason: '"$valid" is a valid host',
+        );
+      }
+    });
+
+    test('validateHost rejects malformed hosts', () {
+      for (final invalid in [
+        'go zuzu.dev', // space
+        '"evil"', // quote
+        'go<zuzu.dev', // angle bracket
+        'a..b', // empty label
+        '-foo', // leading hyphen
+        'foo-', // trailing hyphen
+        'foo/bar', // slash
+      ]) {
+        expect(
+          () => ManifestWriter.validateHost(invalid),
+          throwsArgumentError,
+          reason: '"$invalid" must be rejected',
+        );
+      }
+    });
+
+    test('validateHost allows null and empty (host is optional)', () {
+      expect(() => ManifestWriter.validateHost(null), returnsNormally);
+      expect(() => ManifestWriter.validateHost(''), returnsNormally);
+    });
+
+    test('ensureAndroidIntentFilter rejects a malformed scheme and leaves '
+        'the manifest untouched', () async {
+      final before = await File(manifestPath).readAsString();
+      await expectLater(
+        writer.ensureAndroidIntentFilter(
+          manifestPath: manifestPath,
+          scheme: 'go zuzu',
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+      expect(await File(manifestPath).readAsString(), equals(before));
+    });
+
+    test('ensureAndroidIntentFilter rejects a malformed host and leaves '
+        'the manifest untouched', () async {
+      final before = await File(manifestPath).readAsString();
+      await expectLater(
+        writer.ensureAndroidIntentFilter(
+          manifestPath: manifestPath,
+          scheme: 'https',
+          host: 'go"zuzu.dev',
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+      expect(await File(manifestPath).readAsString(), equals(before));
+    });
+
+    test('ensureAndroidIntentFilter validates even when the manifest does '
+        'not exist (fail fast before the no-op check)', () async {
+      await expectLater(
+        writer.ensureAndroidIntentFilter(
+          manifestPath: '${tempDir.path}/missing.xml',
+          scheme: 'bad scheme',
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
+    test('ensureAndroidIntentFilter accepts a valid scheme + wildcard host '
+        'end to end', () async {
+      final result = await writer.ensureAndroidIntentFilter(
+        manifestPath: manifestPath,
+        scheme: 'https',
+        host: '*.example.com',
+        autoVerify: true,
+      );
+      expect(result, isNotNull);
+      final content = await File(manifestPath).readAsString();
+      expect(content.contains('android:scheme="https"'), isTrue);
+      expect(content.contains('android:host="*.example.com"'), isTrue);
+    });
+
+    test('ensureIosUrlScheme rejects a malformed scheme and leaves the '
+        'plist untouched', () async {
+      final before = await File(plistPath).readAsString();
+      await expectLater(
+        writer.ensureIosUrlScheme(plistPath: plistPath, scheme: 'go zuzu'),
+        throwsA(isA<ArgumentError>()),
+      );
+      expect(await File(plistPath).readAsString(), equals(before));
+    });
+  });
 }
