@@ -2,6 +2,7 @@ import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import '../plugins/view/view_plugin.dart';
 import '../plugins/route/route_plugin.dart';
+import '../config/zfa_config.dart';
 
 class ViewCommand extends PluginCommand {
   @override
@@ -67,7 +68,9 @@ class ViewCommand extends PluginCommand {
     final generateState = argResults?['state'] as bool? ?? false;
     final generateV6State = argResults?['v6-state'] as bool? ?? false;
     final generateRoute = argResults?['route'] as bool? ?? false;
-    final generateXRay = argResults?['xray'] as bool? ?? false;
+    final xrayFlag = argResults?['xray'] as bool?;
+    final config = ZfaConfig.load();
+    final generateXRay = xrayFlag ?? config?.xrayByDefault ?? false;
 
     final capability = plugin.capabilities.firstWhere(
       (c) => c.name == capabilityName,

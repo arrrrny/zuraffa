@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import 'xray_mode.dart';
 import 'xray_scope_overlay.dart';
+import 'xray_bridge_holder.dart';
 
 /// Information about a registered X-Ray node.
 class XRayNodeInfo {
@@ -100,11 +101,15 @@ class XRayScopeState extends State<XRayScope> {
     super.initState();
     _active = XRayMode.isEnabled;
     XRayMode.notifier.addListener(_onXRayModeChanged);
+    // Self-register with the bridge so the HTTP/WS server can
+    // serialize this scope's tree. No-op in release mode.
+    XRayBridgeScopeHolder.setScope(this);
   }
 
   @override
   void dispose() {
     XRayMode.notifier.removeListener(_onXRayModeChanged);
+    XRayBridgeScopeHolder.clearScope();
     super.dispose();
   }
 

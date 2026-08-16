@@ -21,43 +21,7 @@ import 'package:flutter/foundation.dart';
 
 import 'xray_bridge.dart';
 import 'xray_scope.dart';
-
-// ------------------------------------------------------------------
-// Scope holder — allows registering the active scope with the bridge.
-// ------------------------------------------------------------------
-
-/// Holds a reference to the currently active [XRayScopeState].
-///
-/// Set this in your app's widget tree (e.g. in a State's initState)
-/// so the bridge can serialize the tree.
-class XRayBridgeScopeHolder {
-  XRayBridgeScopeHolder._();
-
-  static XRayScopeState? _activeScope;
-
-  /// Register the active scope.
-  static void setScope(XRayScopeState scope) {
-    if (kReleaseMode) return;
-    _activeScope = scope;
-  }
-
-  /// Clear the active scope (e.g. on dispose).
-  static void clearScope() {
-    _activeScope = null;
-  }
-
-  /// Get the current active scope, if any.
-  static XRayScopeState? get activeScope {
-    if (kReleaseMode) return null;
-    return _activeScope;
-  }
-
-  /// Clear for testing.
-  @visibleForTesting
-  static void reset() {
-    _activeScope = null;
-  }
-}
+import 'xray_bridge_holder.dart';
 
 // ------------------------------------------------------------------
 // Bridge server

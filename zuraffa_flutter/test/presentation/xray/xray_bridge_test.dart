@@ -6,6 +6,7 @@ import 'package:zuraffa_flutter/src/presentation/xray/xray_bridge.dart';
 import 'package:zuraffa_flutter/src/presentation/xray/xray_bridge_server.dart';
 import 'package:zuraffa_flutter/src/presentation/xray/xray_node_metadata.dart';
 import 'package:zuraffa_flutter/src/presentation/xray/xray_scope.dart';
+import 'package:zuraffa_flutter/src/presentation/xray/xray_bridge_holder.dart';
 
 // ------------------------------------------------------------------
 // Test helper — creates a Fake scope with the minimal interface
