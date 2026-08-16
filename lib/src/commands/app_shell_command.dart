@@ -140,16 +140,33 @@ class AppShellCommand extends Command<void> {
     final diIndexPath = p.join(outputDir, 'di', 'index.dart');
     final routingIndexPath = p.join(outputDir, 'routing', 'index.dart');
 
-    final diMissing =
-        !await _fileSystem.exists(diIndexPath) ||
-        !(await _fileSystem.read(diIndexPath)).contains('setupDependencies');
-    if (diMissing) {
+    // Read the DI barrel once and verify it actually *declares*
+    // `setupDependencies` (not just mentions the name in a comment or
+    // re-export). Issue #370: the old check only asserted the file
+    // contained the substring `setupDependencies`, so a signature
+    // mismatch between the shell's no-arg call and the DI's
+    // `setupDependencies(GetIt getIt)` declaration slipped through to
+    // `flutter analyze`. Detecting the real declaration here lets us
+    // mirror its signature in main.dart and fail loudly at generation
+    // time when the declaration is missing or unparseable.
+    final diExists = await _fileSystem.exists(diIndexPath);
+    final diIndexContent = diExists ? await _fileSystem.read(diIndexPath) : '';
+    final diHasDeclaration = AppShellBuilder.hasSetupDependenciesDeclaration(
+      diIndexContent,
+    );
+    if (!diExists || !diHasDeclaration) {
       throw AppShellException(
-        '$diIndexPath does not export setupDependencies().\n'
+        '$diIndexPath does not declare setupDependencies(...).\n'
         '   Generate DI first:  zfa di <Entity>   (or `zfa make <Entity> '
         '--with=di`).',
       );
     }
+    final diTakesGetIt = AppShellBuilder.setupDependenciesTakesGetIt(
+      diIndexContent,
+    );
+    final diIsAsync = AppShellBuilder.setupDependenciesIsAsync(
+      diIndexContent,
+    );
 
     final routingMissing =
         !await _fileSystem.exists(routingIndexPath) ||
@@ -167,6 +184,12 @@ class AppShellCommand extends Command<void> {
       print('   output:  $outputDir');
       print('   title:   ${title ?? "Zuraffa App"}');
       print('   mock:    $mock');
+      print(
+        '   di:      setupDependencies(${diTakesGetIt ? 'GetIt getIt' : ''})'
+        '${diIsAsync ? ' async' : ''} -> main.dart calls '
+        '${diIsAsync ? 'await ' : ''}'
+        'setupDependencies(${diTakesGetIt ? 'GetIt.instance' : ''})',
+      );
     }
 
     final files = <GeneratedFile>[];
@@ -234,7 +257,8 @@ class AppShellCommand extends Command<void> {
       appName: appName,
       mockHint: mock,
       outputDir: outputDir,
-      xray: xray,
+      diTakesGetIt: diTakesGetIt,
+      diIsAsync: diIsAsync,
     );
     files.add(
       await FileUtils.writeFile(
