@@ -24,6 +24,7 @@ export 'xray_mock_entry.dart';
 export 'xray_mock_parser.dart';
 export 'xray_control_deck.dart';
 export 'xray_bridge.dart';
+export 'xray_bridge_holder.dart';
 
 // NOTE: xray_bridge_server.dart is NOT exported (dart:io dependency, web-incompatible)
 // Import directly if needed on native platforms:
