@@ -139,22 +139,24 @@ void main() {
       );
     });
 
-    test('run() rejects a malformed --deep-link-host with UsageException',
-        () async {
-      final runner = CommandRunner<void>('zfa', 'test')
-        ..addCommand(SetupCommand());
-      await expectLater(
-        runner.run([
-          'setup',
-          'myapp',
-          '--deep-link-scheme',
-          'gozuzu',
-          '--deep-link-host',
-          'go"zuzu.dev',
-        ]),
-        throwsA(isA<UsageException>()),
-      );
-    });
+    test(
+      'run() rejects a malformed --deep-link-host with UsageException',
+      () async {
+        final runner = CommandRunner<void>('zfa', 'test')
+          ..addCommand(SetupCommand());
+        await expectLater(
+          runner.run([
+            'setup',
+            'myapp',
+            '--deep-link-scheme',
+            'gozuzu',
+            '--deep-link-host',
+            'go"zuzu.dev',
+          ]),
+          throwsA(isA<UsageException>()),
+        );
+      },
+    );
 
     test('run() warns when --deep-link-host is passed without '
         '--deep-link-scheme', () async {
