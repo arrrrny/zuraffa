@@ -65,6 +65,12 @@ class McpStdioServer {
       registry: registry,
       serverName: serverName,
       serverVersion: serverVersion,
+      onToolError: (e, st) {
+        // Log the full stack to the diagnostic sink; the tools/call
+        // wire response carries only the exception message.
+        final sink = errorSink ?? stderr;
+        sink.writeln('tools/call error: $e\n$st');
+      },
     );
   }
 

@@ -583,7 +583,8 @@ export 'src/core/module/zuraffa_plugin.dart';
 // ============================================================
 
 /// Runtime MCP tool contracts: [McpTool], [McpToolResult],
-/// [McpToolRegistry], [McpServerPlugin], and [McpStdioServer].
+/// [McpToolRegistry], [McpServerPlugin], [McpStdioServer], and
+/// [McpSseServer].
 /// Together they let a Zuraffa app expose its features as
 /// Model Context Protocol tools callable by AI agents.
 export 'src/core/module/mcp_tool.dart';

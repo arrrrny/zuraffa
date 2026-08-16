@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import '../cli/plugin_loader.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import 'base_plugin_command.dart';
 
@@ -83,14 +84,34 @@ class _ServeCommand extends Command<void> {
     }
 
     final args = <String>['run', binPath];
-    if (argResults!['sse'] == true) args.add('--sse');
-    final port = argResults!['port'] as String?;
-    if (port != null && port.isNotEmpty) {
-      args.addAll(['--port', port]);
+    final sse = argResults!['sse'] == true;
+    if (sse) args.add('--sse');
+
+    // Validate the port before forwarding it: a non-integer --port must
+    // fail loudly rather than silently fall back to the server's 8372.
+    final portRaw = argResults!['port'] as String?;
+    final port = int.tryParse(portRaw ?? '');
+    if (port == null) {
+      stderr.writeln(
+        '❌ Invalid --port value "$portRaw": expected an integer port number.',
+      );
+      exit(1);
     }
+    if (portRaw != null && portRaw.isNotEmpty) {
+      args.addAll(['--port', portRaw]);
+    }
+
     final token = argResults!['token'] as String?;
     if (token != null && token.isNotEmpty) {
       args.addAll(['--token', token]);
+    } else if (sse) {
+      stderr.writeln(
+        '⚠ WARNING: serving SSE without --token — the endpoint is '
+        'unauthenticated/open to any client that can reach it.',
+      );
+      stderr.writeln(
+        '  Pass --token <token> to require Bearer auth for remote clients.',
+      );
     }
 
     stderr.writeln('[zfa mcp serve] dart ${args.join(' ')}');
@@ -139,17 +160,20 @@ class _ListToolsCommand extends Command<void> {
       return;
     }
 
-    final result = await Process.run(
-      'dart',
-      ['run', binPath, '--list-tools'],
-      stdoutEncoding: utf8,
-    ).timeout(
-      const Duration(seconds: 30),
-      onTimeout: () {
-        stderr.writeln('❌ bin/mcp_server.dart --list-tools timed out after 30 seconds.');
-        exit(1);
-      },
-    );
+    final result =
+        await Process.run('dart', [
+          'run',
+          binPath,
+          '--list-tools',
+        ], stdoutEncoding: utf8).timeout(
+          const Duration(seconds: 30),
+          onTimeout: () {
+            stderr.writeln(
+              '❌ bin/mcp_server.dart --list-tools timed out after 30 seconds.',
+            );
+            exit(1);
+          },
+        );
     if (result.exitCode != 0) {
       stderr.writeln('❌ bin/mcp_server.dart --list-tools failed:');
       stderr.write(result.stderr);
@@ -182,8 +206,28 @@ class _ListToolsCommand extends Command<void> {
   /// shape `zuraffa_mcp_server` would serve — the runtime server isn't
   /// scaffolded, so we list the codegen-only tools as a fallback.
   Future<void> _printCodegenTools() async {
+    // Ensure the PluginRegistry is bootstrapped before iterating its
+    // plugins, mirroring _scaffoldMcp's registry-loading behavior when
+    // invoked outside the normal CliRunner._ensureInitialized() path.
+    final registry = PluginRegistry.instance;
+    if (registry.plugins.isEmpty) {
+      final loader = PluginLoader(
+        outputDir: 'lib/src',
+        dryRun: false,
+        force: false,
+        verbose: false,
+        config: PluginConfig.load(),
+      );
+      final loaded = loader.buildRegistry();
+      for (final plugin in loaded.plugins) {
+        if (!registry.plugins.any((p) => p.id == plugin.id)) {
+          registry.register(plugin);
+        }
+      }
+    }
+
     final tools = <Map<String, dynamic>>[];
-    for (final plugin in PluginRegistry.instance.plugins) {
+    for (final plugin in registry.plugins) {
       for (final capability in plugin.capabilities) {
         tools.add({
           'name': 'zuraffa_${plugin.id}_${capability.name}',

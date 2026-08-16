@@ -33,10 +33,7 @@ void main() {
 
     test('register() throws on duplicate name (override=false)', () {
       registry.register(_EchoTool());
-      expect(
-        () => registry.register(_EchoTool()),
-        throwsA(isA<StateError>()),
-      );
+      expect(() => registry.register(_EchoTool()), throwsA(isA<StateError>()));
     });
 
     test('register(override: true) replaces existing tool', () {
@@ -111,7 +108,10 @@ void main() {
       expect(json['content'], [
         {'type': 'text', 'text': 'hello'},
       ]);
-      expect(json['data'], {'k': 1});
+      // data is an in-process field and must not leak onto the wire.
+      expect(json.containsKey('data'), isFalse);
+      // ... but remains available on the object itself for runtime use.
+      expect(r.data, {'k': 1});
     });
 
     test('.toJson on an error includes isError: true', () {

@@ -1,5 +1,10 @@
+import 'dart:io';
+
 import 'package:test/test.dart';
 import 'package:zuraffa/src/commands/mcp_command.dart';
+import 'package:zuraffa/src/core/context/file_system.dart';
+import 'package:zuraffa/src/core/plugin_system/discovery_engine.dart';
+import 'package:zuraffa/src/core/plugin_system/plugin_context.dart';
 import 'package:zuraffa/src/plugins/mcp/mcp_plugin.dart';
 import 'package:zuraffa/src/plugins/mcp/capabilities/scaffold_mcp_server_capability.dart';
 
@@ -43,5 +48,41 @@ void main() {
       // The capability subcommand is also auto-registered by PluginCommand.
       expect(subcommandNames, contains('scaffold'));
     });
+
+    test(
+      'generateWithContext forwards name + outputDir through the FileGeneratorPlugin path',
+      () async {
+        // Exercises McpPlugin.generateWithContext with an injected
+        // FileSystem: the generated bin/mcp_server.dart import path
+        // proves the plugin name (from core.name) and outputDir were
+        // forwarded correctly into the scaffold.
+        final tmpDir = await Directory.systemTemp.createTemp(
+          'zuraffa_mcp_gen_',
+        );
+        try {
+          final fs = DefaultFileSystem(root: tmpDir.path);
+          final plugin = McpPlugin(outputDir: 'lib/src', fileSystem: fs);
+          final context = PluginContext(
+            core: const CoreConfig(
+              name: 'my_app',
+              projectRoot: '',
+              outputDir: 'lib/src',
+            ),
+            discovery: const DiscoveryEngine(projectRoot: ''),
+            fileSystem: fs,
+          );
+          final files = await plugin.generateWithContext(context);
+          expect(files.length, 2);
+
+          final binContent = await fs.read('bin/mcp_server.dart');
+          expect(
+            binContent,
+            contains("import 'package:my_app/src/mcp/tools.dart';"),
+          );
+        } finally {
+          if (tmpDir.existsSync()) await tmpDir.delete(recursive: true);
+        }
+      },
+    );
   });
 }

@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:args/args.dart';
+
 import '../cli/plugin_loader.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../models/generated_file.dart';
@@ -74,18 +76,55 @@ class PluginCommand {
 
   /// Scaffolds a runtime MCP server into the host app via the
   /// McpPlugin's ScaffoldMcpServerCapability. Accepts the same flags
-  /// as `zfa mcp scaffold`: --force, --dry-run, --verbose, --revert.
+  /// as `zfa mcp scaffold`: --force, --dry-run, --verbose, --revert,
+  /// plus --name.
   Future<void> _scaffoldMcp(List<String> rest) async {
+    // Parse rest with the same ArgParser convention as the zfa mcp
+    // scaffold entrypoint, so equivalent short/long/boolean-value and
+    // name-value forms are all accepted.
+    final parser = ArgParser()
+      ..addFlag(
+        'force',
+        abbr: 'f',
+        negatable: false,
+        help: 'Overwrite existing files',
+      )
+      ..addFlag(
+        'dry-run',
+        negatable: false,
+        help: 'Preview without writing files',
+      )
+      ..addFlag(
+        'verbose',
+        abbr: 'v',
+        negatable: false,
+        help: 'Enable detailed logging',
+      )
+      ..addFlag('revert', negatable: false, help: 'Delete the scaffolded files')
+      ..addOption('name', help: 'Optional name for the MCP server');
+    ArgResults parsed;
+    try {
+      parsed = parser.parse(rest);
+    } on FormatException catch (e) {
+      print('❌ Invalid mcp scaffold arguments: ${e.message}');
+      exit(1);
+    }
+    final dryRun = parsed['dry-run'] == true;
+    final force = parsed['force'] == true;
+    final verbose = parsed['verbose'] == true;
+
     // Ensure the McpPlugin is registered in the singleton registry.
     final registry = PluginRegistry.instance;
     if (!registry.plugins.any((p) => p.id == 'mcp')) {
       // Bootstrap the registry if it's empty (e.g. when invoked outside
-      // the normal CliRunner._ensureInitialized() path).
+      // the normal CliRunner._ensureInitialized() path), forwarding the
+      // caller's parsed flags so the registered McpPlugin's
+      // GeneratorOptions and output path match the invocation.
       final loader = PluginLoader(
         outputDir: 'lib/src',
-        dryRun: false,
-        force: false,
-        verbose: false,
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
         config: PluginConfig.load(),
       );
       final loaded = loader.buildRegistry();
@@ -99,6 +138,13 @@ class PluginCommand {
     final mcpPlugin = registry.plugins.firstWhere(
       (p) => p.id == 'mcp',
       orElse: () {
+        if (PluginConfig.load().disabled.contains('mcp')) {
+          print(
+            '❌ The mcp plugin is disabled. Run `zfa plugin enable mcp` '
+            'to enable it.',
+          );
+          exit(1);
+        }
         print('❌ McpPlugin is not registered.');
         exit(1);
       },
@@ -107,16 +153,23 @@ class PluginCommand {
         .whereType<ScaffoldMcpServerCapability>()
         .first;
     final result = await capability.execute({
-      if (rest.contains('--force')) 'force': true,
-      if (rest.contains('--dry-run')) 'dryRun': true,
-      if (rest.contains('--verbose')) 'verbose': true,
-      if (rest.contains('--revert')) 'revert': true,
+      if (force) 'force': true,
+      if (dryRun) 'dryRun': true,
+      if (verbose) 'verbose': true,
+      if (parsed['revert'] == true) 'revert': true,
+      if (parsed['name'] != null) 'name': parsed['name'] as String,
     });
 
     if (result.success) {
-      final files = result.data?['generatedFiles'];
-      if (files is List<GeneratedFile> && files.isNotEmpty) {
-        print('✅ MCP server scaffolded:');
+      final files =
+          (result.data?['generatedFiles'] as List<GeneratedFile>?) ??
+          const <GeneratedFile>[];
+      if (files.isNotEmpty) {
+        if (dryRun) {
+          print('✅ MCP server plan (dry run) — would scaffold:');
+        } else {
+          print('✅ MCP server scaffolded:');
+        }
         for (final f in files) {
           print('  ✨ ${f.path}');
         }
@@ -297,7 +350,9 @@ class PluginCommand {
     print('  enable <id>        Enable a plugin');
     print('  disable <id>       Disable a plugin');
     print('  add <package>      Wire a plugin package into main.dart');
-    print('  mcp [--force]      Scaffold a runtime MCP server into the host app');
+    print(
+      '  mcp [--force]      Scaffold a runtime MCP server into the host app',
+    );
     print('                     (alias for `zfa mcp scaffold`; issue #369)');
   }
 }

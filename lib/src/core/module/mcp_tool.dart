@@ -42,11 +42,7 @@ class McpToolResult {
   /// debugging output.
   final Map<String, dynamic>? data;
 
-  const McpToolResult({
-    this.isError = false,
-    required this.text,
-    this.data,
-  });
+  const McpToolResult({this.isError = false, required this.text, this.data});
 
   /// Convenience constructor for an error result.
   factory McpToolResult.error(String message, {Map<String, dynamic>? data}) =>
@@ -64,12 +60,15 @@ class McpToolResult {
   ///   "content": [{"type": "text", "text": "..."}]
   /// }
   /// ```
+  ///
+  /// Note: [data] is deliberately NOT serialised — it exists for
+  /// in-process runtime and test use only. The wire response emits
+  /// exactly the MCP 2024-11-05 result fields.
   Map<String, dynamic> toJson() => {
     if (isError) 'isError': true,
     'content': [
       {'type': 'text', 'text': text},
     ],
-    if (data != null) 'data': data,
   };
 
   @override

@@ -53,20 +53,23 @@ environment:
       }
     });
 
-    test('mcp alias with --dry-run previews scaffold without writing files', () async {
-      final cmd = PluginCommand();
-      await cmd.execute(['mcp', '--dry-run']);
+    test(
+      'mcp alias with --dry-run previews scaffold without writing files',
+      () async {
+        final cmd = PluginCommand();
+        await cmd.execute(['mcp', '--dry-run']);
 
-      // No files should have been written because --dry-run was forwarded.
-      expect(
-        File('${tmpDir.path}/lib/src/mcp/tools.dart').existsSync(),
-        isFalse,
-      );
-      expect(
-        File('${tmpDir.path}/bin/mcp_server.dart').existsSync(),
-        isFalse,
-      );
-    });
+        // No files should have been written because --dry-run was forwarded.
+        expect(
+          File('${tmpDir.path}/lib/src/mcp/tools.dart').existsSync(),
+          isFalse,
+        );
+        expect(
+          File('${tmpDir.path}/bin/mcp_server.dart').existsSync(),
+          isFalse,
+        );
+      },
+    );
 
     test('mcp alias with --force writes the scaffolded files', () async {
       final cmd = PluginCommand();
@@ -76,10 +79,7 @@ environment:
         File('${tmpDir.path}/lib/src/mcp/tools.dart').existsSync(),
         isTrue,
       );
-      expect(
-        File('${tmpDir.path}/bin/mcp_server.dart').existsSync(),
-        isTrue,
-      );
+      expect(File('${tmpDir.path}/bin/mcp_server.dart').existsSync(), isTrue);
     });
   });
 }

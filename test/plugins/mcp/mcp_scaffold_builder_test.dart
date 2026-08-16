@@ -1,3 +1,4 @@
+import 'package:dart_style/dart_style.dart';
 import 'package:test/test.dart';
 import 'package:zuraffa/src/plugins/mcp/builders/mcp_scaffold_builder.dart';
 
@@ -34,11 +35,14 @@ void main() {
         expect(src, contains("return 'echo';"));
       });
 
-      test('the placeholder tool inputSchema declares the message property', () {
-        final src = builder.buildToolsFile(appName: 'mcp_demo');
-        expect(src, contains("'message'"));
-        expect(src, contains("'required': ['message']"));
-      });
+      test(
+        'the placeholder tool inputSchema declares the message property',
+        () {
+          final src = builder.buildToolsFile(appName: 'mcp_demo');
+          expect(src, contains("'message'"));
+          expect(src, contains("'required': ['message']"));
+        },
+      );
     });
 
     group('buildBinServer()', () {
@@ -52,15 +56,16 @@ void main() {
         expect(src, contains("import 'package:zuraffa/zuraffa.dart';"));
       });
 
-      test('imports the app\'s tools.dart via package:<app>/src/mcp/tools.dart', () {
-        final src = builder.buildBinServer(appName: 'mcp_demo');
-        expect(
-          src,
-          contains(
-            "import 'package:mcp_demo/src/mcp/tools.dart';",
-          ),
-        );
-      });
+      test(
+        'imports the app\'s tools.dart via package:<app>/src/mcp/tools.dart',
+        () {
+          final src = builder.buildBinServer(appName: 'mcp_demo');
+          expect(
+            src,
+            contains("import 'package:mcp_demo/src/mcp/tools.dart';"),
+          );
+        },
+      );
 
       test('registers McpServerPlugin with the mcpTools list', () {
         final src = builder.buildBinServer(appName: 'mcp_demo');
@@ -87,25 +92,50 @@ void main() {
       });
 
       test('outputDir=lib maps to package:<app>/mcp/tools.dart import', () {
-        final src = builder.buildBinServer(
-          appName: 'my_app',
-          outputDir: 'lib',
-        );
-        expect(
-          src,
-          contains("import 'package:my_app/mcp/tools.dart';"),
-        );
+        final src = builder.buildBinServer(appName: 'my_app', outputDir: 'lib');
+        expect(src, contains("import 'package:my_app/mcp/tools.dart';"));
       });
 
-      test('outputDir=lib/src maps to package:<app>/src/mcp/tools.dart import', () {
-        final src = builder.buildBinServer(
-          appName: 'my_app',
-          outputDir: 'lib/src',
-        );
-        expect(
-          src,
-          contains("import 'package:my_app/src/mcp/tools.dart';"),
-        );
+      test(
+        'outputDir=lib/src maps to package:<app>/src/mcp/tools.dart import',
+        () {
+          final src = builder.buildBinServer(
+            appName: 'my_app',
+            outputDir: 'lib/src',
+          );
+          expect(src, contains("import 'package:my_app/src/mcp/tools.dart';"));
+        },
+      );
+
+      test(
+        'outputDir with a trailing slash still yields a single separator',
+        () {
+          final src = builder.buildBinServer(
+            appName: 'my_app',
+            outputDir: 'lib/src/',
+          );
+          expect(src, contains("import 'package:my_app/src/mcp/tools.dart';"));
+          expect(src, isNot(contains('src//mcp/tools.dart')));
+        },
+      );
+
+      test('buildBinServer output formats cleanly (valid Dart syntax)', () {
+        // buildBinServer() suppresses formatter errors internally, so
+        // explicitly format its returned string rather than relying on
+        // the builder's internal handling.
+        final src = builder.buildBinServer(appName: 'mcp_demo');
+        final formatted = DartFormatter(
+          languageVersion: DartFormatter.latestLanguageVersion,
+        ).format(src);
+        expect(formatted, isNotEmpty);
+      });
+
+      test('buildToolsFile output formats cleanly (valid Dart syntax)', () {
+        final src = builder.buildToolsFile(appName: 'mcp_demo');
+        final formatted = DartFormatter(
+          languageVersion: DartFormatter.latestLanguageVersion,
+        ).format(src);
+        expect(formatted, isNotEmpty);
       });
     });
   });

@@ -1,41 +1,31 @@
 // End-to-end test for issue #369 acceptance criterion:
 //   "an agent connects, calls takeScreenshot(url: ...), gets the result"
 //
-// Spins up an in-process McpStdioServer wired to a McpServerPlugin
-// holding the three flagship MCP demo tools (fetch, print_pdf,
-// take_screenshot), pipes a JSON-RPC `tools/call` request through
-// stdin, and asserts the response shape. This is the canonical
-// "handler dispatch through the DI tree" test — the tool resolves
-// via the registry populated by McpServerPlugin.registerDependencies
-// (which would in a real app be called by the ZuraffaEngine
-// bootstrap with the populated DI tree).
-//
-// NOTE: This test uses local tool copies rather than importing from
-// examples/mcp_demo. A future refactor should move this test into the
-// demo package or use a shared fixture package to ensure the demo
-// tool list and plugin registration are covered by the same test suite.
+// Exercises the REAL demo registration path: `mcpTools` from
+// lib/src/mcp/tools.dart are registered via McpServerPlugin
+// (registerDependencies) and bootstrapped through ZuraffaEngine's
+// dependency-injection path. The stdio server then dispatches
+// JSON-RPC requests against the live registry resolved from DI —
+// so a broken demo tool list, plugin registration, or DI wiring
+// fails this test.
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:mcp_demo/src/mcp/tools.dart';
 import 'package:test/test.dart';
-import 'package:zuraffa/src/core/module/mcp_stdio_server.dart';
-import 'package:zuraffa/src/core/module/mcp_tool.dart';
-import 'package:zuraffa/src/core/module/mcp_tool_registry.dart';
+import 'package:zuraffa/zuraffa.dart';
 
 void main() {
-  group('MCP plugin end-to-end (issue #369)', () {
+  group('MCP plugin end-to-end (issue #369, demo registration path)', () {
+    late McpServerPlugin mcp;
     late McpToolRegistry registry;
-    late StringBuffer errors;
 
-    setUp(() {
-      registry = McpToolRegistry();
-      // Register the three flagship tools — mirroring the
-      // examples/mcp_demo/lib/src/mcp/tools.dart list.
-      registry.register(_FetchUrlTool());
-      registry.register(_PrintPdfTool());
-      registry.register(_TakeScreenshotTool());
-
-      errors = StringBuffer();
+    setUp(() async {
+      final engine = ZuraffaEngine()
+        ..register(McpServerPlugin(tools: mcpTools));
+      await engine.bootstrap();
+      mcp = engine['mcp'] as McpServerPlugin;
+      registry = mcp.registry;
     });
 
     Future<Map<String, dynamic>> send(Map<String, dynamic> req) async {
@@ -47,15 +37,22 @@ void main() {
         registry: registry,
         inputStream: input,
         outputSink: localOut,
-        errorSink: errors,
       );
       await localServer.run();
       final lines = localOut.toString().trim().split('\n');
       if (lines.isEmpty || lines.first.isEmpty) {
-        throw StateError('No response from server. stderr: $errors');
+        throw StateError('No response from server.');
       }
       return jsonDecode(lines.first) as Map<String, dynamic>;
     }
+
+    test('plugin registers the three flagship demo tools', () {
+      final names = mcp.listTools().map((t) => t.name).toSet();
+      expect(
+        names,
+        containsAll(['fetch', 'print_pdf', 'take_screenshot']),
+      );
+    });
 
     test('tools/list exposes all three flagship tools', () async {
       final resp = await send({
@@ -175,7 +172,8 @@ void main() {
       expect(err['code'], -32602);
     });
 
-    test('full initialize -> tools/list -> tools/call -> shutdown handshake', () async {
+    test('full initialize -> tools/list -> tools/call -> shutdown handshake',
+        () async {
       // Drive a full agent handshake: init, list, call, shutdown.
       final lines = [
         jsonEncode({'jsonrpc': '2.0', 'id': 10, 'method': 'initialize'}),
@@ -199,7 +197,6 @@ void main() {
         registry: registry,
         inputStream: input,
         outputSink: localOut,
-        errorSink: errors,
       );
       await localServer.run();
       final responses = localOut
@@ -222,101 +219,4 @@ void main() {
       expect(responses[3]['result'], {});
     });
   });
-}
-
-// --- Flagship demo tools (mirrors examples/mcp_demo/lib/src/mcp/tools.dart) ---
-
-class _FetchUrlTool implements McpTool {
-  @override
-  String get name => 'fetch';
-  @override
-  String get description =>
-      'Fetch the content at the given URL and return it as text.';
-  @override
-  Map<String, dynamic> get inputSchema => const {
-    'type': 'object',
-    'properties': {
-      'url': {'type': 'string', 'description': 'HTTP(S) URL to fetch.'},
-    },
-    'required': ['url'],
-  };
-  @override
-  Future<McpToolResult> call(Map<String, dynamic> arguments) async {
-    final url = arguments['url'] as String?;
-    if (url == null || url.isEmpty) {
-      return McpToolResult.error('Missing required argument: url');
-    }
-    return McpToolResult.ok('fetch(url: $url) — stubbed body', data: {'url': url});
-  }
-}
-
-class _PrintPdfTool implements McpTool {
-  @override
-  String get name => 'print_pdf';
-  @override
-  String get description =>
-      'Render the given URL to a PDF document and return its path.';
-  @override
-  Map<String, dynamic> get inputSchema => const {
-    'type': 'object',
-    'properties': {
-      'url': {'type': 'string'},
-      'format': {
-        'type': 'string',
-        'enum': ['a4', 'letter'],
-        'default': 'a4',
-      },
-    },
-    'required': ['url'],
-  };
-  @override
-  Future<McpToolResult> call(Map<String, dynamic> arguments) async {
-    final url = arguments['url'] as String?;
-    if (url == null || url.isEmpty) {
-      return McpToolResult.error('Missing required argument: url');
-    }
-    final format = (arguments['format'] as String?) ?? 'a4';
-    return McpToolResult.ok(
-      'printPdf(url: $url, format: $format)',
-      data: {'url': url, 'format': format},
-    );
-  }
-}
-
-class _TakeScreenshotTool implements McpTool {
-  @override
-  String get name => 'take_screenshot';
-  @override
-  String get description =>
-      'Take a screenshot of the given URL and return the image path.';
-  @override
-  Map<String, dynamic> get inputSchema => const {
-    'type': 'object',
-    'properties': {
-      'url': {'type': 'string'},
-      'width': {'type': 'integer', 'default': 1280},
-      'height': {'type': 'integer', 'default': 800},
-      'fullPage': {'type': 'boolean', 'default': false},
-    },
-    'required': ['url'],
-  };
-  @override
-  Future<McpToolResult> call(Map<String, dynamic> arguments) async {
-    final url = arguments['url'] as String?;
-    if (url == null || url.isEmpty) {
-      return McpToolResult.error('Missing required argument: url');
-    }
-    final width = (arguments['width'] as num?)?.toInt() ?? 1280;
-    final height = (arguments['height'] as num?)?.toInt() ?? 800;
-    final fullPage = (arguments['fullPage'] as bool?) ?? false;
-    return McpToolResult.ok(
-      'takeScreenshot(url: $url, ${width}x$height, fullPage: $fullPage)',
-      data: {
-        'url': url,
-        'width': width,
-        'height': height,
-        'fullPage': fullPage,
-      },
-    );
-  }
 }

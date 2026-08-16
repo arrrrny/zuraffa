@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import '../../../core/plugin_system/capability.dart';
 import '../../../models/generated_file.dart';
 import '../../../utils/file_utils.dart';
@@ -101,12 +99,16 @@ class ScaffoldMcpServerCapability implements ZuraffaCapability {
 
   @override
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
-    final files = await _generateFiles(args, dryRun: args['dryRun'] ?? false);
-    return ExecutionResult(
-      success: true,
-      files: files.map((f) => f.path).toList(),
-      data: {'generatedFiles': files},
-    );
+    try {
+      final files = await _generateFiles(args, dryRun: args['dryRun'] ?? false);
+      return ExecutionResult(
+        success: true,
+        files: files.map((f) => f.path).toList(),
+        data: {'generatedFiles': files},
+      );
+    } catch (e) {
+      return ExecutionResult(success: false, message: e.toString());
+    }
   }
 
   /// Generates the two scaffolded files using [McpScaffoldBuilder].
@@ -175,8 +177,8 @@ class ScaffoldMcpServerCapability implements ZuraffaCapability {
     return 'my_app';
   }
 
-  /// Platform-agnostic path joiner. Uses `path` package semantics
-  /// without importing it (the capability is pure Dart and the
-  /// project convention is forward slashes in lib/ and bin/).
+  /// Joins three path segments by direct forward-slash concatenation.
+  /// Deliberately simple — the scaffolded paths always use forward
+  /// slashes, so no `path` package semantics are involved.
   String _joinPath(String a, String b, String c) => '$a/$b/$c';
 }

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 import 'package:zuraffa/src/core/context/file_system.dart';
+import 'package:zuraffa/src/models/generated_file.dart';
 import 'package:zuraffa/src/plugins/mcp/mcp_plugin.dart';
 import 'package:zuraffa/src/plugins/mcp/capabilities/scaffold_mcp_server_capability.dart';
 
@@ -74,6 +75,37 @@ void main() {
       expect(await File(binPath).exists(), isTrue);
     });
 
+    test(
+      'execute() without a name resolves the app name from pubspec.yaml',
+      () async {
+        // No explicit name — _resolveAppName must read pubspec.yaml
+        // through the injected plugin.fileSystem.
+        await fs.write('pubspec.yaml', 'name: zikzak_demo\nversion: 1.0.0\n');
+        final c = plugin.capabilities.first;
+        final result = await c.execute({});
+        expect(result.success, isTrue);
+        final binContent = await fs.read('bin/mcp_server.dart');
+        expect(
+          binContent,
+          contains("import 'package:zikzak_demo/src/mcp/tools.dart';"),
+        );
+      },
+    );
+
+    test(
+      'execute() without a name falls back to my_app when no pubspec.yaml exists',
+      () async {
+        final c = plugin.capabilities.first;
+        final result = await c.execute({});
+        expect(result.success, isTrue);
+        final binContent = await fs.read('bin/mcp_server.dart');
+        expect(
+          binContent,
+          contains("import 'package:my_app/src/mcp/tools.dart';"),
+        );
+      },
+    );
+
     test('execute() with dryRun=true does not write files', () async {
       final c = plugin.capabilities.first;
       await c.execute({'name': 'my_app', 'dryRun': true});
@@ -119,7 +151,7 @@ void main() {
       final result = await c.execute({'name': 'my_app'});
       expect(result.success, isTrue);
       // Every generated file should report action == 'skipped'.
-      final files = result.data?['generatedFiles'] as List;
+      final files = result.data?['generatedFiles'] as List<GeneratedFile>;
       for (final f in files) {
         expect(f.action, 'skipped');
       }

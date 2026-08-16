@@ -20,7 +20,6 @@ import 'dart:io';
 import 'dart:math';
 
 import '../core/module/mcp_dispatcher.dart';
-import '../core/module/mcp_tool.dart';
 import '../core/module/mcp_tool_registry.dart';
 import 'auth.dart' show McpAuth;
 
@@ -60,6 +59,11 @@ class McpSseServer {
       registry: registry,
       serverName: serverName,
       serverVersion: serverVersion,
+      onToolError: (e, st) {
+        // Log the full stack to the diagnostic sink; the tools/call
+        // wire response carries only the exception message.
+        stderr.writeln('[mcp-sse] tools/call error: $e\n$st');
+      },
     );
   }
 
@@ -161,7 +165,8 @@ class McpSseServer {
     _sessions[sessionId] = session;
 
     request.response
-      ..bufferOutput = false // critical for SSE — flush writes immediately
+      ..bufferOutput =
+          false // critical for SSE — flush writes immediately
       ..statusCode = HttpStatus.ok
       ..headers.contentType = ContentType.parse('text/event-stream')
       ..headers.set('Cache-Control', 'no-cache')
@@ -187,12 +192,14 @@ class McpSseServer {
     // Keep the connection open until the client disconnects. Consume
     // peer-disconnect errors rather than letting them propagate as
     // unhandled async errors.
-    await request.response.done.catchError((e) {
-      // Peer disconnected — this is expected, not an error.
-    }).whenComplete(() {
-      subscription.cancel();
-      _sessions.remove(sessionId);
-    });
+    await request.response.done
+        .catchError((e) {
+          // Peer disconnected — this is expected, not an error.
+        })
+        .whenComplete(() {
+          subscription.cancel();
+          _sessions.remove(sessionId);
+        });
   }
 
   // ----------------------------------------------------------------
@@ -251,10 +258,7 @@ class McpSseServer {
     try {
       final response = await _dispatcher.dispatch(rpc);
       if (response != null) {
-        final event = _formatSseEvent(
-          'message',
-          jsonEncode(response),
-        );
+        final event = _formatSseEvent('message', jsonEncode(response));
         session.controller.add(event);
       }
     } catch (e, st) {
@@ -263,7 +267,9 @@ class McpSseServer {
         'error': {'code': -32603, 'message': 'Internal error: $e'},
         'id': rpc['id'],
       };
-      session.controller.add(_formatSseEvent('message', jsonEncode(errorResponse)));
+      session.controller.add(
+        _formatSseEvent('message', jsonEncode(errorResponse)),
+      );
       stderr.writeln('[mcp-sse] dispatch error: $e\n$st');
     }
   }
@@ -282,9 +288,7 @@ class McpSseServer {
       final uri = Uri.tryParse(origin);
       if (uri == null) return false;
       final host = uri.host.toLowerCase();
-      if (host != 'localhost' &&
-          host != '127.0.0.1' &&
-          host != '[::1]') {
+      if (host != 'localhost' && host != '127.0.0.1' && host != '[::1]') {
         return false;
       }
     }

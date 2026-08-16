@@ -46,15 +46,18 @@ void main() {
       expect(tools.first.name, 'echo');
     });
 
-    test('registerDependencies populates the DI container with McpToolRegistry', () {
-      final di = freshDi();
-      final p = McpServerPlugin(tools: [_EchoTool(), _PingTool()]);
-      p.registerDependencies(di);
-      final registry = di.get<McpToolRegistry>();
-      expect(registry.length, 2);
-      expect(registry.find('echo'), isNotNull);
-      expect(registry.find('ping'), isNotNull);
-    });
+    test(
+      'registerDependencies populates the DI container with McpToolRegistry',
+      () {
+        final di = freshDi();
+        final p = McpServerPlugin(tools: [_EchoTool(), _PingTool()]);
+        p.registerDependencies(di);
+        final registry = di.get<McpToolRegistry>();
+        expect(registry.length, 2);
+        expect(registry.find('echo'), isNotNull);
+        expect(registry.find('ping'), isNotNull);
+      },
+    );
 
     test('bootstrap + lookup via engine yields the McpServerPlugin', () async {
       final di = freshDi();
@@ -73,47 +76,86 @@ void main() {
 
     test('serveStdio() throws StateError pre-bootstrap', () async {
       final p = McpServerPlugin(tools: const []);
-      expect(
-        () => p.serveStdio(),
-        throwsA(isA<StateError>()),
-      );
+      expect(() => p.serveStdio(), throwsA(isA<StateError>()));
     });
 
-    test('the registry persists across engine bootstrap (DI singleton)', () async {
+    test(
+      'the registry persists across engine bootstrap (DI singleton)',
+      () async {
+        final di = freshDi();
+        final engine = ZuraffaEngine(di: di)
+          ..register(McpServerPlugin(tools: [_EchoTool()]));
+        await engine.bootstrap();
+        final r1 = di.get<McpToolRegistry>();
+        final r2 = di.get<McpToolRegistry>();
+        expect(identical(r1, r2), isTrue);
+      },
+    );
+
+    test(
+      'a second McpServerPlugin replaces the prior McpToolRegistry registration',
+      () async {
+        // Verify that re-registering McpToolRegistry in the same GetIt
+        // doesn't blow up on "already registered" — registerDependencies
+        // removes the prior registration synchronously before re-registering,
+        // so the second plugin's registry replaces the first (not a GetIt
+        // override flag). This is the test-isolation path (tests share
+        // GetIt.instance unless they pass GetIt.asNewInstance()).
+        final di = freshDi();
+        final p1 = McpServerPlugin(tools: [_EchoTool()]);
+        final p2 = McpServerPlugin(tools: [_PingTool()]);
+        p1.registerDependencies(di);
+        // The second registration should succeed synchronously.
+        p2.registerDependencies(di);
+        final registry = di.get<McpToolRegistry>();
+        expect(registry.find('ping'), isNotNull);
+        expect(registry.find('echo'), isNull);
+      },
+    );
+
+    test('autoStartStdio does not block engine bootstrap', () async {
+      // serveStdio() blocks forever in production, so onInit must start
+      // the loop without awaiting it — otherwise engine.bootstrap() would
+      // never return and plugins initialized afterwards never run.
       final di = freshDi();
       final engine = ZuraffaEngine(di: di)
-        ..register(McpServerPlugin(tools: [_EchoTool()]));
-      await engine.bootstrap();
-      final r1 = di.get<McpToolRegistry>();
-      final r2 = di.get<McpToolRegistry>();
-      expect(identical(r1, r2), isTrue);
+        ..register(McpServerPlugin(autoStartStdio: true, tools: [_EchoTool()]));
+      await engine.bootstrap().timeout(const Duration(seconds: 5));
+      final mcp = engine['mcp'] as McpServerPlugin;
+      expect(mcp.listTools().length, 1);
     });
 
-    test('a second McpServerPlugin can override the registry (override=true)', () async {
-      // Verify that re-registering McpToolRegistry in the same GetIt
-      // doesn't blow up on "already registered" — registerDependencies
-      // removes the prior registration synchronously before re-registering.
-      // This is the test-isolation path (tests share GetIt.instance
-      // unless they pass GetIt.asNewInstance()).
-      final di = freshDi();
-      final p1 = McpServerPlugin(tools: [_EchoTool()]);
-      final p2 = McpServerPlugin(tools: [_PingTool()]);
-      p1.registerDependencies(di);
-      // The second registration should succeed synchronously.
-      p2.registerDependencies(di);
-      final registry = di.get<McpToolRegistry>();
-      expect(registry.find('ping'), isNotNull);
-      expect(registry.find('echo'), isNull);
-    });
+    test(
+      'autoStartSsePort starts the SSE server without blocking bootstrap',
+      () async {
+        // SSE startup is awaited, but serveSse returns once the server is
+        // bound, so bootstrap still completes. The started server is
+        // retained and can be stopped via the sseServer accessor.
+        final di = freshDi();
+        final engine = ZuraffaEngine(
+          di: di,
+        )..register(McpServerPlugin(autoStartSsePort: 0, tools: [_EchoTool()]));
+        await engine.bootstrap().timeout(const Duration(seconds: 5));
+        final mcp = engine['mcp'] as McpServerPlugin;
+        final sse = mcp.sseServer;
+        expect(sse, isNotNull);
+        expect(sse!.isRunning, isTrue);
+        await sse.stop();
+        expect(sse.isRunning, isFalse);
+      },
+    );
 
-    test('registerDependencies only unregisters McpToolRegistry, not other types', () {
-      final di = freshDi();
-      di.getIt.registerSingleton<String>('unrelated');
-      final p = McpServerPlugin(tools: [_EchoTool()]);
-      p.registerDependencies(di);
-      expect(di.getIt.isRegistered<String>(), isTrue);
-      expect(di.get<McpToolRegistry>().length, 1);
-    });
+    test(
+      'registerDependencies only unregisters McpToolRegistry, not other types',
+      () {
+        final di = freshDi();
+        di.getIt.registerSingleton<String>('unrelated');
+        final p = McpServerPlugin(tools: [_EchoTool()]);
+        p.registerDependencies(di);
+        expect(di.getIt.isRegistered<String>(), isTrue);
+        expect(di.get<McpToolRegistry>().length, 1);
+      },
+    );
   });
 }
 

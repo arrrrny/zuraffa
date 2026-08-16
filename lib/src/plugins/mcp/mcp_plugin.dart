@@ -24,9 +24,6 @@ import 'capabilities/scaffold_mcp_server_capability.dart';
 ///  * `bin/mcp_server.dart` — standalone entrypoint that boots
 ///    the engine + `McpServerPlugin` and serves stdio.
 ///
-/// Plus it appends the plugin registration to `lib/main.dart`
-/// (mirroring the `zfa plugin add` mutation logic).
-///
 /// This is the codegen-side counterpart to the runtime
 /// `McpServerPlugin` (lib/src/core/module/mcp_server_plugin.dart).
 /// Together they satisfy issue #369's acceptance criteria:
@@ -53,8 +50,11 @@ class McpPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   @override
   String get version => '1.0.0';
 
+  /// The single capability list for this plugin. Cached — the getter
+  /// returns the same [ScaffoldMcpServerCapability] instance rather
+  /// than allocating a new list on every access.
   @override
-  List<ZuraffaCapability> get capabilities => [
+  late final List<ZuraffaCapability> capabilities = [
     ScaffoldMcpServerCapability(this),
   ];
 

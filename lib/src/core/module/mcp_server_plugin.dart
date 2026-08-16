@@ -73,6 +73,11 @@ class McpServerPlugin extends ZuraffaPlugin {
   /// [serveSse] / [listTools]. `null` before bootstrap completes.
   ZuraffaDIContainer? _di;
 
+  /// The [McpSseServer] started by [serveSse], or `null` before a
+  /// start (or after it has been stopped). Retained so callers and
+  /// tests can invoke `stop()` after `await plugin.serveSse(...)`.
+  McpSseServer? _sseServer;
+
   McpServerPlugin({
     this.pluginId = 'mcp',
     List<McpTool>? tools,
@@ -112,10 +117,7 @@ class McpServerPlugin extends ZuraffaPlugin {
         stderr.writeln('[mcp] serveStdio error: $e\n$st');
       });
     } else if (autoStartSsePort != null) {
-      await serveSse(
-        port: autoStartSsePort!,
-        authToken: sseAuthToken,
-      );
+      await serveSse(port: autoStartSsePort!, authToken: sseAuthToken);
     }
   }
 
@@ -166,8 +168,13 @@ class McpServerPlugin extends ZuraffaPlugin {
     await server.run();
   }
 
+  /// The [McpSseServer] started by [serveSse], or `null` if none is
+  /// running. Callers and tests can use it to invoke `stop()` after
+  /// `await plugin.serveSse(...)` returns.
+  McpSseServer? get sseServer => _sseServer;
+
   /// Starts an SSE MCP server on [port]. Returns when the server
-  /// is shut down (typically never).
+  /// is bound (not when it shuts down).
   ///
   /// [authToken] gates remote connections; loopback connections
   /// are always allowed. When `null`, any client can connect.
@@ -187,6 +194,7 @@ class McpServerPlugin extends ZuraffaPlugin {
       serverVersion: serverVersion,
       authToken: authToken,
     );
+    _sseServer = sse;
     await sse.start(port: port);
   }
 

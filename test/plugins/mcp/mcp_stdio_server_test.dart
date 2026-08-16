@@ -39,25 +39,21 @@ void main() {
       return runSessionWithRegistry(registry, lines);
     }
 
-    test('initialize returns protocolVersion 2024-11-05 + serverInfo', () async {
-      registry.register(_EchoTool());
-      final out = await runSession([
-        jsonEncode({
-          'jsonrpc': '2.0',
-          'id': 1,
-          'method': 'initialize',
-        }),
-      ]);
-      final resp = jsonDecode(out.trim()) as Map<String, dynamic>;
-      expect(resp['jsonrpc'], '2.0');
-      expect(resp['id'], 1);
-      final result = resp['result'] as Map<String, dynamic>;
-      expect(result['protocolVersion'], '2024-11-05');
-      expect(
-        (result['serverInfo'] as Map)['name'],
-        'zuraffa-app-mcp',
-      );
-    });
+    test(
+      'initialize returns protocolVersion 2024-11-05 + serverInfo',
+      () async {
+        registry.register(_EchoTool());
+        final out = await runSession([
+          jsonEncode({'jsonrpc': '2.0', 'id': 1, 'method': 'initialize'}),
+        ]);
+        final resp = jsonDecode(out.trim()) as Map<String, dynamic>;
+        expect(resp['jsonrpc'], '2.0');
+        expect(resp['id'], 1);
+        final result = resp['result'] as Map<String, dynamic>;
+        expect(result['protocolVersion'], '2024-11-05');
+        expect((result['serverInfo'] as Map)['name'], 'zuraffa-app-mcp');
+      },
+    );
 
     test('tools/list derives inputSchema from registered tools', () async {
       registry.register(_EchoTool());
@@ -75,26 +71,29 @@ void main() {
       expect(schema['required'], ['message']);
     });
 
-    test('tools/call dispatches to the named tool and returns its result', () async {
-      registry.register(_EchoTool());
-      final out = await runSession([
-        jsonEncode({
-          'jsonrpc': '2.0',
-          'id': 3,
-          'method': 'tools/call',
-          'params': {
-            'name': 'echo',
-            'arguments': {'message': 'hi'},
-          },
-        }),
-      ]);
-      final resp = jsonDecode(out.trim()) as Map<String, dynamic>;
-      expect(resp['id'], 3);
-      final result = resp['result'] as Map<String, dynamic>;
-      final content = result['content'] as List;
-      expect((content.single as Map)['text'], 'echo: hi');
-      expect(result.containsKey('isError'), isFalse);
-    });
+    test(
+      'tools/call dispatches to the named tool and returns its result',
+      () async {
+        registry.register(_EchoTool());
+        final out = await runSession([
+          jsonEncode({
+            'jsonrpc': '2.0',
+            'id': 3,
+            'method': 'tools/call',
+            'params': {
+              'name': 'echo',
+              'arguments': {'message': 'hi'},
+            },
+          }),
+        ]);
+        final resp = jsonDecode(out.trim()) as Map<String, dynamic>;
+        expect(resp['id'], 3);
+        final result = resp['result'] as Map<String, dynamic>;
+        final content = result['content'] as List;
+        expect((content.single as Map)['text'], 'echo: hi');
+        expect(result.containsKey('isError'), isFalse);
+      },
+    );
 
     test('tools/call for an unknown tool returns -32602 error', () async {
       registry.register(_EchoTool());
@@ -127,26 +126,29 @@ void main() {
       expect(err['code'], -32602);
     });
 
-    test('tool that throws is surfaced as isError: true (not transport error)', () async {
-      registry.register(_ThrowingTool());
-      final out = await runSession([
-        jsonEncode({
-          'jsonrpc': '2.0',
-          'id': 6,
-          'method': 'tools/call',
-          'params': {'name': 'boom', 'arguments': {}},
-        }),
-      ]);
-      final resp = jsonDecode(out.trim()) as Map<String, dynamic>;
-      final result = resp['result'] as Map<String, dynamic>;
-      expect(result['isError'], isTrue);
-      expect(
-        (result['content'] as List).single,
-        isA<Map>()
-            .having((m) => m['type'], 'type', 'text')
-            .having((m) => m['text'], 'text', contains('boom')),
-      );
-    });
+    test(
+      'tool that throws is surfaced as isError: true (not transport error)',
+      () async {
+        registry.register(_ThrowingTool());
+        final out = await runSession([
+          jsonEncode({
+            'jsonrpc': '2.0',
+            'id': 6,
+            'method': 'tools/call',
+            'params': {'name': 'boom', 'arguments': {}},
+          }),
+        ]);
+        final resp = jsonDecode(out.trim()) as Map<String, dynamic>;
+        final result = resp['result'] as Map<String, dynamic>;
+        expect(result['isError'], isTrue);
+        expect(
+          (result['content'] as List).single,
+          isA<Map>()
+              .having((m) => m['type'], 'type', 'text')
+              .having((m) => m['text'], 'text', contains('boom')),
+        );
+      },
+    );
 
     test('ping returns { pong: true }', () async {
       final out = await runSession([
@@ -227,16 +229,67 @@ void main() {
       );
     });
 
-    test('unexpected dispatcher failure returns -32603 internal error', () async {
-      final throwingRegistry = _ThrowingRegistry();
-      final out = await runSessionWithRegistry(throwingRegistry, [
-        jsonEncode({'jsonrpc': '2.0', 'id': 20, 'method': 'tools/list'}),
-      ]);
-      final resp = jsonDecode(out.trim()) as Map<String, dynamic>;
-      final err = resp['error'] as Map<String, dynamic>;
-      expect(err['code'], -32603);
-      expect(err['message'], contains('Internal error'));
-    });
+    test(
+      'tools/call with non-object params (array) returns -32602 and session continues',
+      () async {
+        registry.register(_EchoTool());
+        final out = await runSession([
+          jsonEncode({
+            'jsonrpc': '2.0',
+            'id': 30,
+            'method': 'tools/call',
+            'params': ['name'],
+          }),
+          jsonEncode({'jsonrpc': '2.0', 'id': 31, 'method': 'ping'}),
+        ]);
+        final responses = out
+            .trim()
+            .split('\n')
+            .map((l) => jsonDecode(l) as Map<String, dynamic>)
+            .toList();
+        expect(responses.length, 2);
+        expect((responses[0]['error'] as Map)['code'], -32602);
+        expect((responses[1]['result'] as Map)['pong'], isTrue);
+      },
+    );
+
+    test(
+      'tools/call with non-object arguments (number) returns -32602 and session continues',
+      () async {
+        registry.register(_EchoTool());
+        final out = await runSession([
+          jsonEncode({
+            'jsonrpc': '2.0',
+            'id': 32,
+            'method': 'tools/call',
+            'params': {'name': 'echo', 'arguments': 5},
+          }),
+          jsonEncode({'jsonrpc': '2.0', 'id': 33, 'method': 'ping'}),
+        ]);
+        final responses = out
+            .trim()
+            .split('\n')
+            .map((l) => jsonDecode(l) as Map<String, dynamic>)
+            .toList();
+        expect(responses.length, 2);
+        expect((responses[0]['error'] as Map)['code'], -32602);
+        expect((responses[1]['result'] as Map)['pong'], isTrue);
+      },
+    );
+
+    test(
+      'unexpected dispatcher failure returns -32603 internal error',
+      () async {
+        final throwingRegistry = _ThrowingRegistry();
+        final out = await runSessionWithRegistry(throwingRegistry, [
+          jsonEncode({'jsonrpc': '2.0', 'id': 20, 'method': 'tools/list'}),
+        ]);
+        final resp = jsonDecode(out.trim()) as Map<String, dynamic>;
+        final err = resp['error'] as Map<String, dynamic>;
+        expect(err['code'], -32603);
+        expect(err['message'], contains('Internal error'));
+      },
+    );
   });
 }
 
