@@ -374,9 +374,12 @@ class MakeCommand extends Command<void> {
     context.data.addAll(normalizedOptions);
 
     // #360: honor .zfa.json xray default for the view plugin.
-    // --xray flag always wins; otherwise fall back to config.
+    // --xray flag always wins; otherwise fall back to config. An explicit
+    // `false` already present in context.data (e.g. set by a plugin or
+    // via --from-json) is preserved — the config fallback only fires when
+    // the key is absent.
     final xrayFlag = argResults!['xray'] as bool? ?? false;
-    if (xrayFlag || context.data['xray'] != true) {
+    if (xrayFlag || !context.data.containsKey('xray')) {
       final xrayConfig = ZfaConfig.load(projectRoot: manager.projectRoot);
       context.data['xray'] = xrayFlag || (xrayConfig?.xrayByDefault ?? false);
     }
