@@ -35,8 +35,9 @@ void main() {
     // prefix-stripping fallback — the exact branch that contained the bug.
     // A hardcoded `/tmp` path could collide with a stale directory left by
     // an earlier run and is not portable to Windows.
-    emptyOutputDir =
-        await Directory.systemTemp.createTemp('zuraffa_issue_299_');
+    emptyOutputDir = await Directory.systemTemp.createTemp(
+      'zuraffa_issue_299_',
+    );
   });
 
   tearDown(() async {
@@ -66,8 +67,7 @@ void main() {
         expect(domain, 'text_listing');
       });
 
-      test('get_barcode_listing -> barcode_listing (NOT barcoding)',
-          () async {
+      test('get_barcode_listing -> barcode_listing (NOT barcoding)', () async {
         final domain = await CommonPatterns.findUseCaseDomain(
           'get_barcode_listing',
           'fallback',
@@ -94,15 +94,17 @@ void main() {
         expect(domain, 'text_listing');
       });
 
-      test('delete_barcode_listing -> barcode_listing (NOT barcoding)',
-          () async {
-        final domain = await CommonPatterns.findUseCaseDomain(
-          'delete_barcode_listing',
-          'fallback',
-          emptyOutputDir.path,
-        );
-        expect(domain, 'barcode_listing');
-      });
+      test(
+        'delete_barcode_listing -> barcode_listing (NOT barcoding)',
+        () async {
+          final domain = await CommonPatterns.findUseCaseDomain(
+            'delete_barcode_listing',
+            'fallback',
+            emptyOutputDir.path,
+          );
+          expect(domain, 'barcode_listing');
+        },
+      );
 
       test('watch_url_listing -> url_listing (NOT urling)', () async {
         final domain = await CommonPatterns.findUseCaseDomain(
@@ -165,18 +167,20 @@ void main() {
     });
 
     group('unknown prefix falls back to default domain', () {
-      test('toggle_url_listing -> default domain (toggle not in prefixes)',
-          () async {
-        // `toggle_*` is intentionally not in the prefix list — it should
-        // fall through to the default domain. (Real `toggle_*` resolution
-        // happens via active discovery, which is bypassed here.)
-        final domain = await CommonPatterns.findUseCaseDomain(
-          'toggle_url_listing',
-          'fallback_domain',
-          emptyOutputDir.path,
-        );
-        expect(domain, 'fallback_domain');
-      });
+      test(
+        'toggle_url_listing -> default domain (toggle not in prefixes)',
+        () async {
+          // `toggle_*` is intentionally not in the prefix list — it should
+          // fall through to the default domain. (Real `toggle_*` resolution
+          // happens via active discovery, which is bypassed here.)
+          final domain = await CommonPatterns.findUseCaseDomain(
+            'toggle_url_listing',
+            'fallback_domain',
+            emptyOutputDir.path,
+          );
+          expect(domain, 'fallback_domain');
+        },
+      );
     });
   });
 }

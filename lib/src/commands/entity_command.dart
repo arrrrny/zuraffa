@@ -155,9 +155,7 @@ ${missing.map((d) => '   • $d').join('\n')}
     // `:json=<wire>` (e.g. `in_:String:json=in`).
     final bareKeywords = _findBareKeywordFields(fields);
     if (bareKeywords.isNotEmpty) {
-      print(
-        '❌ Cannot create entity "$name": field name(s) are Dart keywords.',
-      );
+      print('❌ Cannot create entity "$name": field name(s) are Dart keywords.');
       print('');
       for (final field in bareKeywords) {
         print(

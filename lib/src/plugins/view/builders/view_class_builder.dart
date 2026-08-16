@@ -75,9 +75,7 @@ class ViewClassBuilder {
       (d) => d
         ..type = DirectiveType.import
         ..url = match.group(1)!.trim()
-        ..hide.addAll(
-          match.group(2)!.split(',').map((s) => s.trim()),
-        ),
+        ..hide.addAll(match.group(2)!.split(',').map((s) => s.trim())),
     );
   }
 
@@ -490,7 +488,8 @@ class ViewClassBuilder {
     // visibly functional out of the box. The presenter/controller are
     // still wired (the user can swap the mock list for
     // controller.viewState once the state contract is shaped).
-    final mockAvailable = spec.mockDataImportPath != null &&
+    final mockAvailable =
+        spec.mockDataImportPath != null &&
         spec.entityName != null &&
         !spec.isCustom;
 
@@ -557,9 +556,7 @@ class ViewClassBuilder {
       return refer('Center').call([], {
         'child': refer('Card').call([], {
           'child': refer('ListTile').call([], {
-            'title': refer('Text').call([
-              literalString('$entity detail'),
-            ]),
+            'title': refer('Text').call([literalString('$entity detail')]),
             'subtitle': refer('Text').call([
               mockRef.property(sampleGetter).property('toString').call([]),
             ]),
@@ -583,9 +580,9 @@ class ViewClassBuilder {
             'title': refer('Text').call([
               sampleList.index(refer('index')).property('toString').call([]),
             ]),
-            'subtitle': refer('Text').call([
-              CodeExpression(Code(r"'Mock #${index + 1}'")),
-            ]),
+            'subtitle': refer(
+              'Text',
+            ).call([CodeExpression(Code(r"'Mock #${index + 1}'"))]),
           }).code,
       ).closure,
     });

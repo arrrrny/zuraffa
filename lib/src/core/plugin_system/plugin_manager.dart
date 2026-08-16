@@ -402,18 +402,15 @@ class PluginManager {
           await fs.delete(entry);
         }
         deleted.add(
-          GeneratedFile(
-            path: entry,
-            type: 'deep_revert',
-            action: 'deleted',
-          ),
+          GeneratedFile(path: entry, type: 'deep_revert', action: 'deleted'),
         );
         if (verbose) print('    🗑 Deleted file: $entry');
       }
       // Prune the directory if it is now empty (or only keeps markers).
       if (!dryRun) {
         final remaining = await fs.list(dir);
-        final onlyMarkers = remaining.isEmpty ||
+        final onlyMarkers =
+            remaining.isEmpty ||
             remaining.every((e) {
               final b = path.basename(e);
               return b == '.gitkeep' || b == '.keep';
@@ -430,35 +427,72 @@ class PluginManager {
     // other entities' files, so we never delete the parent directory.
     final entityKeyedFiles = <String>[
       // data layer
-      path.join('lib', 'src', 'data', 'repositories',
-          'data_${snake}_repository.dart'),
+      path.join(
+        'lib',
+        'src',
+        'data',
+        'repositories',
+        'data_${snake}_repository.dart',
+      ),
       path.join('lib', 'src', 'data', 'mock', '${snake}_mock_data.dart'),
       path.join('lib', 'src', 'data', 'cache', '${snake}_cache.dart'),
       path.join('lib', 'src', 'data', 'sync', '${snake}_sync.dart'),
       path.join('lib', 'src', 'data', 'providers', '${snake}_provider.dart'),
       // domain layer (excluding the entity source directory — never touch)
-      path.join('lib', 'src', 'domain', 'repositories',
-          '${snake}_repository.dart'),
+      path.join(
+        'lib',
+        'src',
+        'domain',
+        'repositories',
+        '${snake}_repository.dart',
+      ),
       path.join('lib', 'src', 'domain', 'services', '${snake}_service.dart'),
       // di layer
-      path.join('lib', 'src', 'di', 'repositories',
-          '${snake}_repository_di.dart'),
-      path.join('lib', 'src', 'di', 'datasources',
-          '${snake}_datasource_di.dart'),
+      path.join(
+        'lib',
+        'src',
+        'di',
+        'repositories',
+        '${snake}_repository_di.dart',
+      ),
+      path.join(
+        'lib',
+        'src',
+        'di',
+        'datasources',
+        '${snake}_datasource_di.dart',
+      ),
       path.join('lib', 'src', 'di', 'services', '${snake}_service_di.dart'),
       path.join('lib', 'src', 'di', 'providers', '${snake}_provider_di.dart'),
       // presentation layer
-      path.join('lib', 'src', 'presentation', 'routes',
-          '${snake}_route.dart'),
-      path.join('lib', 'src', 'presentation', 'observers',
-          '${snake}_observer.dart'),
-      path.join('lib', 'src', 'presentation', 'providers',
-          '${snake}_provider.dart'),
+      path.join('lib', 'src', 'presentation', 'routes', '${snake}_route.dart'),
+      path.join(
+        'lib',
+        'src',
+        'presentation',
+        'observers',
+        '${snake}_observer.dart',
+      ),
+      path.join(
+        'lib',
+        'src',
+        'presentation',
+        'providers',
+        '${snake}_provider.dart',
+      ),
       // shared-directory tests (entity-scoped test dirs handled above)
-      path.join('test', 'data', 'repositories',
-          'data_${snake}_repository_test.dart'),
-      path.join('test', 'domain', 'repositories',
-          '${snake}_repository_test.dart'),
+      path.join(
+        'test',
+        'data',
+        'repositories',
+        'data_${snake}_repository_test.dart',
+      ),
+      path.join(
+        'test',
+        'domain',
+        'repositories',
+        '${snake}_repository_test.dart',
+      ),
     ];
 
     for (final file in entityKeyedFiles) {
@@ -482,8 +516,7 @@ class PluginManager {
     // suffix. The shared directory itself is never deleted.
     final diUsecasesDir = path.join('lib', 'src', 'di', 'usecases');
     final usecaseDiSuffix = '_${snake}_usecase_di.dart';
-    if (await fs.exists(diUsecasesDir) &&
-        await fs.isDirectory(diUsecasesDir)) {
+    if (await fs.exists(diUsecasesDir) && await fs.isDirectory(diUsecasesDir)) {
       final entries = await fs.list(diUsecasesDir);
       for (final entry in entries) {
         if (!entry.endsWith('.dart')) continue;
@@ -492,11 +525,7 @@ class PluginManager {
           await fs.delete(entry);
         }
         deleted.add(
-          GeneratedFile(
-            path: entry,
-            type: 'deep_revert',
-            action: 'deleted',
-          ),
+          GeneratedFile(path: entry, type: 'deep_revert', action: 'deleted'),
         );
         if (verbose) print('    🗑 Deleted file: $entry');
       }
@@ -505,8 +534,10 @@ class PluginManager {
     if (verbose && deleted.isNotEmpty) {
       print('  🧹 Deep revert: removed ${deleted.length} file(s).');
     } else if (verbose) {
-      print('  🧹 Deep revert: no generated architecture found for '
-          '"$entityName".');
+      print(
+        '  🧹 Deep revert: no generated architecture found for '
+        '"$entityName".',
+      );
     }
 
     return deleted;

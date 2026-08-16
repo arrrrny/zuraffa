@@ -41,9 +41,7 @@ void main() {
 
       // Entity file (so DiscoveryEngine.findFile resolves).
       await File(
-        path.join(
-          outputDir, 'domain', 'entities', 'product', 'product.dart',
-        ),
+        path.join(outputDir, 'domain', 'entities', 'product', 'product.dart'),
       ).writeAsString(
         'class Product { final String id; const Product({required this.id}); }',
       );
@@ -98,13 +96,9 @@ void main() {
       }
     });
 
-    test(
-      'pure-Dart pubspec generates test + zuraffa imports',
-      () async {
-        // Write a pure-Dart pubspec.yaml (no flutter SDK dependency).
-        await File(
-          path.join(projectRoot, 'pubspec.yaml'),
-        ).writeAsString('''
+    test('pure-Dart pubspec generates test + zuraffa imports', () async {
+      // Write a pure-Dart pubspec.yaml (no flutter SDK dependency).
+      await File(path.join(projectRoot, 'pubspec.yaml')).writeAsString('''
 name: my_pure_dart_app
 environment:
   sdk: ">=3.11.0 <4.0.0"
@@ -117,73 +111,67 @@ dev_dependencies:
   mocktail: ^1.0.4
 ''');
 
-        final fs = FileSystem.create(root: projectRoot);
-        final builder = TestBuilder(
+      final fs = FileSystem.create(root: projectRoot);
+      final builder = TestBuilder(
+        outputDir: outputDir,
+        options: const GeneratorOptions(force: true),
+        fileSystem: fs,
+        discovery: DiscoveryEngine(projectRoot: projectRoot, fileSystem: fs),
+      );
+
+      // Generate a test for get (uses test framework import only).
+      final getFile = await builder.generateForMethod(
+        GeneratorConfig(
+          name: 'Product',
+          methods: const ['get'],
           outputDir: outputDir,
-          options: const GeneratorOptions(force: true),
-          fileSystem: fs,
-          discovery: DiscoveryEngine(
-            projectRoot: projectRoot,
-            fileSystem: fs,
-          ),
-        );
+        ),
+        'get',
+      );
 
-        // Generate a test for get (uses test framework import only).
-        final getFile = await builder.generateForMethod(
-          GeneratorConfig(
-            name: 'Product',
-            methods: const ['get'],
-            outputDir: outputDir,
-          ),
-          'get',
-        );
+      expect(
+        getFile.action,
+        isNot(equals('skipped')),
+        reason: 'get test should be generated, not skipped',
+      );
+      expect(getFile.content, isNotNull);
+      // Must NOT import flutter_test.
+      expect(getFile.content!, isNot(contains('flutter_test')));
+      // Must NOT import zuraffa_flutter.
+      expect(getFile.content!, isNot(contains('zuraffa_flutter')));
+      // Must import package:test/test.dart.
+      expect(getFile.content!, contains('package:test/test.dart'));
+      // Must import mocktail.
+      expect(getFile.content!, contains('package:mocktail/mocktail.dart'));
 
-        expect(
-          getFile.action,
-          isNot(equals('skipped')),
-          reason: 'get test should be generated, not skipped',
-        );
-        expect(getFile.content, isNotNull);
-        // Must NOT import flutter_test.
-        expect(getFile.content!, isNot(contains('flutter_test')));
-        // Must NOT import zuraffa_flutter.
-        expect(getFile.content!, isNot(contains('zuraffa_flutter')));
-        // Must import package:test/test.dart.
-        expect(getFile.content!, contains('package:test/test.dart'));
-        // Must import mocktail.
-        expect(getFile.content!, contains('package:mocktail/mocktail.dart'));
+      // Generate a test for update (uses zuraffa core import too).
+      final updateFile = await builder.generateForMethod(
+        GeneratorConfig(
+          name: 'Product',
+          methods: const ['update'],
+          outputDir: outputDir,
+        ),
+        'update',
+      );
 
-        // Generate a test for update (uses zuraffa core import too).
-        final updateFile = await builder.generateForMethod(
-          GeneratorConfig(
-            name: 'Product',
-            methods: const ['update'],
-            outputDir: outputDir,
-          ),
-          'update',
-        );
-
-        expect(
-          updateFile.action,
-          isNot(equals('skipped')),
-          reason: 'update test should be generated',
-        );
-        expect(updateFile.content, isNotNull);
-        expect(updateFile.content!, isNot(contains('flutter_test')));
-        expect(updateFile.content!, isNot(contains('zuraffa_flutter')));
-        expect(updateFile.content!, contains('package:test/test.dart'));
-        // update needs zuraffa core import - must be zuraffa, not zuraffa_flutter.
-        expect(updateFile.content!, contains('package:zuraffa/zuraffa.dart'));
-      },
-    );
+      expect(
+        updateFile.action,
+        isNot(equals('skipped')),
+        reason: 'update test should be generated',
+      );
+      expect(updateFile.content, isNotNull);
+      expect(updateFile.content!, isNot(contains('flutter_test')));
+      expect(updateFile.content!, isNot(contains('zuraffa_flutter')));
+      expect(updateFile.content!, contains('package:test/test.dart'));
+      // update needs zuraffa core import - must be zuraffa, not zuraffa_flutter.
+      expect(updateFile.content!, contains('package:zuraffa/zuraffa.dart'));
+    });
 
     test(
       'Flutter pubspec generates flutter_test + zuraffa_flutter imports',
       () async {
         // Write a Flutter pubspec.yaml (has flutter SDK dependency).
-        await File(
-          path.join(projectRoot, 'pubspec.yaml'),
-        ).writeAsString('''
+        await File(path.join(projectRoot, 'pubspec.yaml')).writeAsString('''
 name: my_flutter_app
 environment:
   sdk: ">=3.11.0 <4.0.0"
@@ -205,10 +193,7 @@ dev_dependencies:
           outputDir: outputDir,
           options: const GeneratorOptions(force: true),
           fileSystem: fs,
-          discovery: DiscoveryEngine(
-            projectRoot: projectRoot,
-            fileSystem: fs,
-          ),
+          discovery: DiscoveryEngine(projectRoot: projectRoot, fileSystem: fs),
         );
 
         // Generate a test for get.
@@ -265,10 +250,7 @@ dev_dependencies:
           outputDir: outputDir,
           options: const GeneratorOptions(force: true),
           fileSystem: fs,
-          discovery: DiscoveryEngine(
-            projectRoot: projectRoot,
-            fileSystem: fs,
-          ),
+          discovery: DiscoveryEngine(projectRoot: projectRoot, fileSystem: fs),
         );
 
         final getFile = await builder.generateForMethod(
@@ -289,9 +271,7 @@ dev_dependencies:
 
     test('custom test builder respects pure-Dart imports', () async {
       // Write a pure-Dart pubspec.yaml.
-      await File(
-        path.join(projectRoot, 'pubspec.yaml'),
-      ).writeAsString('''
+      await File(path.join(projectRoot, 'pubspec.yaml')).writeAsString('''
 name: my_pure_dart_app
 environment:
   sdk: ">=3.11.0 <4.0.0"
@@ -306,10 +286,7 @@ dependencies:
         outputDir: outputDir,
         options: const GeneratorOptions(force: true),
         fileSystem: fs,
-        discovery: DiscoveryEngine(
-          projectRoot: projectRoot,
-          fileSystem: fs,
-        ),
+        discovery: DiscoveryEngine(projectRoot: projectRoot, fileSystem: fs),
       );
 
       final file = await builder.generateCustom(
@@ -329,9 +306,7 @@ dependencies:
 
     test('orchestrator test builder respects pure-Dart imports', () async {
       // Write a pure-Dart pubspec.yaml.
-      await File(
-        path.join(projectRoot, 'pubspec.yaml'),
-      ).writeAsString('''
+      await File(path.join(projectRoot, 'pubspec.yaml')).writeAsString('''
 name: my_pure_dart_app
 environment:
   sdk: ">=3.11.0 <4.0.0"
@@ -346,10 +321,7 @@ dependencies:
         outputDir: outputDir,
         options: const GeneratorOptions(force: true),
         fileSystem: fs,
-        discovery: DiscoveryEngine(
-          projectRoot: projectRoot,
-          fileSystem: fs,
-        ),
+        discovery: DiscoveryEngine(projectRoot: projectRoot, fileSystem: fs),
       );
 
       final file = await builder.generateOrchestrator(
@@ -369,9 +341,7 @@ dependencies:
 
     test('polymorphic test builder respects pure-Dart imports', () async {
       // Write a pure-Dart pubspec.yaml.
-      await File(
-        path.join(projectRoot, 'pubspec.yaml'),
-      ).writeAsString('''
+      await File(path.join(projectRoot, 'pubspec.yaml')).writeAsString('''
 name: my_pure_dart_app
 environment:
   sdk: ">=3.11.0 <4.0.0"
@@ -386,10 +356,7 @@ dependencies:
         outputDir: outputDir,
         options: const GeneratorOptions(force: true),
         fileSystem: fs,
-        discovery: DiscoveryEngine(
-          projectRoot: projectRoot,
-          fileSystem: fs,
-        ),
+        discovery: DiscoveryEngine(projectRoot: projectRoot, fileSystem: fs),
       );
 
       final files = await builder.generatePolymorphic(
@@ -409,25 +376,25 @@ dependencies:
           file.content!,
           isNot(contains('flutter_test')),
           reason:
-            'polymorphic test should not import flutter_test in pure-Dart',
+              'polymorphic test should not import flutter_test in pure-Dart',
         );
         expect(
           file.content!,
           isNot(contains('zuraffa_flutter')),
           reason:
-            'polymorphic test should not import zuraffa_flutter in pure-Dart',
+              'polymorphic test should not import zuraffa_flutter in pure-Dart',
         );
         expect(
           file.content!,
           contains('package:test/test.dart'),
           reason:
-            'polymorphic test must import package:test/test.dart in pure-Dart',
+              'polymorphic test must import package:test/test.dart in pure-Dart',
         );
         expect(
           file.content!,
           contains('package:zuraffa/zuraffa.dart'),
           reason:
-            'polymorphic test must import package:zuraffa/zuraffa.dart in pure-Dart',
+              'polymorphic test must import package:zuraffa/zuraffa.dart in pure-Dart',
         );
       }
     });

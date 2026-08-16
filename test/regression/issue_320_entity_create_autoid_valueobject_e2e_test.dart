@@ -43,11 +43,10 @@ void main() {
     // make_command_test #307 group so these tests cannot race with other
     // test files that capture Directory.current at load time (#296).
     Future<ProcessResult> runZfaSource(List<String> args) {
-      return Process.run(
-        'dart',
-        [zfaSourceBin, ...args],
-        workingDirectory: workspace.path,
-      );
+      return Process.run('dart', [
+        zfaSourceBin,
+        ...args,
+      ], workingDirectory: workspace.path);
     }
 
     setUpAll(() async {
@@ -56,7 +55,9 @@ void main() {
     });
 
     setUp(() async {
-      workspace = await Directory.systemTemp.createTemp('zfa_entity_create_320_');
+      workspace = await Directory.systemTemp.createTemp(
+        'zfa_entity_create_320_',
+      );
       outputDir = path.join(workspace.path, 'lib', 'src', 'domain', 'entities');
       await Directory(outputDir).create(recursive: true);
       // `zfa entity create` runs a pubspec dependency check that greps for
@@ -89,12 +90,17 @@ dev_dependencies:
       timeout: const Timeout(Duration(minutes: 2)),
       () async {
         final result = await runZfaSource([
-          'entity', 'create',
-          '-n', 'ParserConfig',
+          'entity',
+          'create',
+          '-n',
+          'ParserConfig',
           '--kind=value_object',
-          '--field', 'separator:String',
-          '--field', 'trimWhitespace:bool',
-          '--output', outputDir,
+          '--field',
+          'separator:String',
+          '--field',
+          'trimWhitespace:bool',
+          '--output',
+          outputDir,
         ]);
 
         expect(result.exitCode, 0, reason: 'stderr: ${result.stderr}');
@@ -144,12 +150,17 @@ dev_dependencies:
       timeout: const Timeout(Duration(minutes: 2)),
       () async {
         final result = await runZfaSource([
-          'entity', 'create',
-          '-n', 'ChatMessage',
+          'entity',
+          'create',
+          '-n',
+          'ChatMessage',
           '--auto-id',
-          '--field', 'content:String',
-          '--field', 'timestamp:DateTime',
-          '--output', outputDir,
+          '--field',
+          'content:String',
+          '--field',
+          'timestamp:DateTime',
+          '--output',
+          outputDir,
         ]);
 
         expect(result.exitCode, 0, reason: 'stderr: ${result.stderr}');
@@ -205,10 +216,14 @@ dev_dependencies:
         // not resolve identity. The loud no-id error fires in `zfa make`
         // (covered by make_command_test #307 identity-contract group).
         final result = await runZfaSource([
-          'entity', 'create',
-          '-n', 'Note',
-          '--field', 'body:String',
-          '--output', outputDir,
+          'entity',
+          'create',
+          '-n',
+          'Note',
+          '--field',
+          'body:String',
+          '--output',
+          outputDir,
         ]);
 
         expect(result.exitCode, 0, reason: 'stderr: ${result.stderr}');

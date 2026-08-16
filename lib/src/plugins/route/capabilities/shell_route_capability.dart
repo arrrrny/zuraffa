@@ -60,7 +60,8 @@ class ShellRouteCapability implements ZuraffaCapability {
       'branch': {
         'type': 'array',
         'items': {'type': 'string'},
-        'description': 'One entry per bottom-nav tab, formatted as '
+        'description':
+            'One entry per bottom-nav tab, formatted as '
             '"<Label>:<path>" (e.g. "Home:/home"). An optional third '
             'colon-separated segment specifies the Material icon '
             '(e.g. "Home:/home:Icons.home"). Repeat the flag once per '
@@ -68,13 +69,15 @@ class ShellRouteCapability implements ZuraffaCapability {
       },
       'bottomNav': {
         'type': 'boolean',
-        'description': 'Emit a Material 3 NavigationBar bound to '
+        'description':
+            'Emit a Material 3 NavigationBar bound to '
             'navigationShell.currentIndex + goBranch (default: true).',
         'default': true,
       },
       'adaptive': {
         'type': 'boolean',
-        'description': 'Also emit a <Name>ShellDesktop variant with a '
+        'description':
+            'Also emit a <Name>ShellDesktop variant with a '
             'NavigationRail for wide layouts; the shell builder picks '
             'between them via LayoutBuilder.',
         'default': false,
@@ -184,9 +187,6 @@ class ShellRouteCapability implements ZuraffaCapability {
     );
     final indexFile = await indexBuilder.regenerateIndex();
 
-    return [
-      routeFile,
-      if (indexFile != null) indexFile,
-    ];
+    return [routeFile, if (indexFile != null) indexFile];
   }
 }

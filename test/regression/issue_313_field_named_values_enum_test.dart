@@ -65,8 +65,10 @@ void main() {
     late String zfaBin;
 
     Future<ProcessResult> runZfa(List<String> args) {
-      return Process.run('dart', [zfaBin, ...args],
-          workingDirectory: workspace.path);
+      return Process.run('dart', [
+        zfaBin,
+        ...args,
+      ], workingDirectory: workspace.path);
     }
 
     Future<ProcessResult> runDart(List<String> args) {
@@ -202,11 +204,7 @@ targets:
 
         // Step 3: run build_runner to generate the .zorphy.dart file.
         // This is the step that would fail (analyzer error) without the fix.
-        final build = await runDart([
-          'run',
-          'build_runner',
-          'build',
-        ]);
+        final build = await runDart(['run', 'build_runner', 'build']);
         expect(
           build.exitCode,
           equals(0),
@@ -342,8 +340,11 @@ targets:
         // The fix's _reservedEnumMemberNames set includes `index` and `name`
         // alongside `values` — this test verifies that coverage.
         final pubGet = await runDart(['pub', 'get']);
-        expect(pubGet.exitCode, equals(0),
-            reason: 'dart pub get failed: ${pubGet.stderr}');
+        expect(
+          pubGet.exitCode,
+          equals(0),
+          reason: 'dart pub get failed: ${pubGet.stderr}',
+        );
 
         final create = await runZfa([
           'entity',
@@ -355,8 +356,11 @@ targets:
           '--field',
           'index:int',
         ]);
-        expect(create.exitCode, equals(0),
-            reason: 'zfa entity create failed: ${create.stderr}');
+        expect(
+          create.exitCode,
+          equals(0),
+          reason: 'zfa entity create failed: ${create.stderr}',
+        );
 
         final build = await runDart(['run', 'build_runner', 'build']);
         expect(
@@ -396,7 +400,8 @@ targets:
         expect(
           analyze.exitCode,
           equals(0),
-          reason: 'dart analyze must pass on the generated `index` field.\n'
+          reason:
+              'dart analyze must pass on the generated `index` field.\n'
               'stdout: ${analyze.stdout}\nstderr: ${analyze.stderr}',
         );
       },
