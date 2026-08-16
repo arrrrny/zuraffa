@@ -92,10 +92,10 @@ void main() {
       // json_serializable are pulled in transitively. We also list
       // `zorphy_annotation` directly because `EntityCommand`'s dependency
       // check scans pubspec.yaml for the literal string `zorphy_annotation:`
-      // before doing any work. The zorphy refs mirror zuraffa's own
-      // pubspec (git deps, no sibling-checkout paths — CI has no `../zorphy`
-      // and this is what carries the fixed zorphy that generates the
-      // escaped `.zorphy.dart` file).
+      // before doing any work. Since zuraffa now depends on the published
+      // `zorphy_annotation: ^2.0.0` (hosted, carries the #313 fix), the
+      // fixture mirrors that versioned constraint — no git refs, no sibling
+      // checkout needed.
       await File(p.join(workspace.path, 'pubspec.yaml')).writeAsString('''
 name: issue_313_test_app
 environment:
@@ -103,11 +103,7 @@ environment:
 dependencies:
   zuraffa:
     path: $_zfaRoot
-  zorphy_annotation:
-    git:
-      url: https://github.com/arrrrny/zorphy.git
-      path: zorphy_annotation
-      ref: development
+  zorphy_annotation: ^2.0.0
   json_annotation: ^4.12.0
 dev_dependencies:
   build_runner: ^2.4.0
