@@ -214,7 +214,8 @@ class GetAccountUseCase extends UseCase<Account, String> {
       final content = file.readAsStringSync();
       // Only one import line.
       expect(
-        'package:zuraffa_flutter/zuraffa_flutter.dart'.allMatches(content)
+        'package:zuraffa_flutter/zuraffa_flutter.dart'
+            .allMatches(content)
             .length,
         equals(1),
       );

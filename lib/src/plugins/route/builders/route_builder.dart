@@ -89,9 +89,9 @@ class RouteBuilder {
       '${config.nameSnake}.dart',
     );
     if (!await fileSystem.exists(entityPath)) return false;
-    return EntityFieldResolver.detectsValueObject(await fileSystem.read(
-      entityPath,
-    ));
+    return EntityFieldResolver.detectsValueObject(
+      await fileSystem.read(entityPath),
+    );
   }
 
   /// Removes stale route artifacts for an entity that has since been
@@ -384,8 +384,7 @@ class RouteBuilder {
       content = helper.removeElementsFromReturnListInFunctionWhere(
         source: content,
         functionName: routesGetterName,
-        matches: (elementSource) =>
-            detailNamePattern.hasMatch(elementSource),
+        matches: (elementSource) => detailNamePattern.hasMatch(elementSource),
       );
     }
 
@@ -714,8 +713,7 @@ class RouteBuilder {
         ),
     ];
 
-    final entityImport =
-        '../domain/entities/$entitySnake/$entitySnake.dart';
+    final entityImport = '../domain/entities/$entitySnake/$entitySnake.dart';
     final imports = [
       'package:go_router/go_router.dart',
       'package:zuraffa/zuraffa.dart',
@@ -1031,10 +1029,9 @@ class RouteBuilder {
     if (withId) {
       // #336: go_router path parameters are always String; convert to
       // the view's id type (typed after the entity's actual id field).
-      final idValue = refer('state')
-          .property('pathParameters')
-          .index(literalString('id'))
-          .nullChecked;
+      final idValue = refer(
+        'state',
+      ).property('pathParameters').index(literalString('id')).nullChecked;
       viewArgs['id'] = switch (config.idFieldType) {
         'int' => refer('int').property('parse').call([idValue]),
         'double' => refer('double').property('parse').call([idValue]),
@@ -1132,7 +1129,7 @@ class RouteBuilder {
     final existingFiles = <String>[];
     for (final f in dirs) {
       if (!await fileSystem.isDirectory(f)) {
-        if (f.endsWith('_routes.dart') &&
+        if ((f.endsWith('_routes.dart') || f.endsWith('_shell.dart')) &&
             !f.endsWith('index.dart') &&
             !f.endsWith('app_routes.dart')) {
           existingFiles.add(f);
@@ -1143,7 +1140,8 @@ class RouteBuilder {
     final pendingPaths = pendingFiles
         .where(
           (f) =>
-              f.path.endsWith('_routes.dart') &&
+              (f.path.endsWith('_routes.dart') ||
+                  f.path.endsWith('_shell.dart')) &&
               !f.path.endsWith('index.dart') &&
               !f.path.endsWith('app_routes.dart') &&
               f.action != 'deleted',
@@ -1161,6 +1159,20 @@ class RouteBuilder {
         .toSet()
         .where((p) => !deletedPaths.contains(p))
         .toList();
+
+    // #359: deterministic aggregation order — `<name>_routes.dart` modules
+    // first, `<name>_shell.dart` modules last (alphabetical within each
+    // kind). go_router resolves a location by first match, so a real
+    // entity GoRoute at a branch root must come before the shell's
+    // placeholder GoRoute for the documented "entity route shadows shell
+    // placeholder" contract to hold regardless of filesystem listing
+    // order (Directory.list order is unspecified).
+    allPaths.sort((a, b) {
+      final aShell = a.endsWith('_shell.dart') ? 1 : 0;
+      final bShell = b.endsWith('_shell.dart') ? 1 : 0;
+      if (aShell != bShell) return aShell - bShell;
+      return a.compareTo(b);
+    });
 
     if (allPaths.isEmpty) {
       if (await fileSystem.exists(indexPath)) {
@@ -1191,22 +1203,33 @@ class RouteBuilder {
 
     for (final filePath in allPaths) {
       final fileName = path.basename(filePath);
-      final entitySnake = fileName.replaceAll('_routes.dart', '');
-      final entityPascal = StringUtils.convertToPascalCase(entitySnake);
+      // #359: the routing index now aggregates two module kinds:
+      //   - <name>_routes.dart -> exports `<camel>Routes()` (List<GoRoute>)
+      //   - <name>_shell.dart  -> exports `<camel>ShellRoute()` (List<RouteBase>)
+      // The shell module contains a `StatefulShellRoute.indexedStack`
+      // (a `RouteBase`, not a `GoRoute`), so `getAllRoutes()` returns
+      // `List<RouteBase>` - Dart list covariance keeps the existing
+      // `...entityRoutes()` spreads type-checking against the wider type.
+      final String getterName;
+      if (fileName.endsWith('_shell.dart')) {
+        final entitySnake = fileName.replaceAll('_shell.dart', '');
+        final entityPascal = StringUtils.convertToPascalCase(entitySnake);
+        getterName = '${StringUtils.pascalToCamel(entityPascal)}ShellRoute';
+      } else {
+        final entitySnake = fileName.replaceAll('_routes.dart', '');
+        final entityPascal = StringUtils.convertToPascalCase(entitySnake);
+        getterName = '${StringUtils.pascalToCamel(entityPascal)}Routes';
+      }
 
       exports.add(Directive.export(fileName));
       imports.add(Directive.import(fileName));
-      routeElements.add(
-        refer(
-          '${StringUtils.pascalToCamel(entityPascal)}Routes',
-        ).call([]).spread,
-      );
+      routeElements.add(refer(getterName).call([]).spread);
     }
 
     final getAllRoutes = Method(
       (m) => m
         ..name = 'getAllRoutes'
-        ..returns = refer('List<GoRoute>')
+        ..returns = refer('List<RouteBase>')
         ..body = literalList(routeElements).returned.statement,
     );
 
@@ -1240,25 +1263,42 @@ class RouteBuilder {
   /// Redirect target priority:
   /// 1. a constant named `splash` in any route module,
   /// 2. the first constant of `splash_routes.dart`,
-  /// 3. the first constant of the alphabetically first route module.
+  /// 3. the first constant of the alphabetically first route module,
+  /// 4. the first branch root path of the alphabetically first shell
+  ///    module (#359 — shell-only apps have no `*_routes.dart` constants,
+  ///    but still need a root `/` route so GoRouter boots).
   Future<Expression?> _buildRootRouteExpr(List<String> allPaths) async {
     var rootClaimed = false;
     String? splashTarget;
     String? firstSplashFileTarget;
     String? firstTarget;
+    String? firstShellBranchPath;
 
     final sortedPaths = allPaths.toList()..sort();
 
     for (final filePath in sortedPaths) {
       if (!await fileSystem.exists(filePath)) continue;
       final fileName = path.basename(filePath);
+      if (fileName.endsWith('_shell.dart')) {
+        // #359: shell modules carry their branch roots as GoRoute `path:`
+        // literals (no `<Pascal>Routes` constants), so they cannot
+        // contribute a class.constant redirect target — remember the
+        // first branch root as a literal fallback instead.
+        final shellSource = await fileSystem.read(filePath);
+        final allShellPaths = _parseAllGoRoutePaths(shellSource);
+        if (allShellPaths.isNotEmpty) {
+          firstShellBranchPath ??= allShellPaths.first;
+          if (allShellPaths.contains('/')) {
+            rootClaimed = true;
+          }
+        }
+        continue;
+      }
       final entitySnake = fileName.replaceAll('_routes.dart', '');
       final entityPascal = StringUtils.convertToPascalCase(entitySnake);
       final className = '${entityPascal}Routes';
 
-      final constants = _parseRouteConstants(
-        await fileSystem.read(filePath),
-      );
+      final constants = _parseRouteConstants(await fileSystem.read(filePath));
       if (constants.isEmpty) continue;
 
       for (final value in constants.values) {
@@ -1280,24 +1320,66 @@ class RouteBuilder {
     if (rootClaimed) return null;
 
     final target = splashTarget ?? firstSplashFileTarget ?? firstTarget;
-    if (target == null) return null;
+    if (target != null) {
+      final targetClass = target.split('.').first;
+      final targetConstant = target.split('.').last;
 
-    final targetClass = target.split('.').first;
-    final targetConstant = target.split('.').last;
+      return refer('GoRoute').call([], {
+        'path': literalString('/'),
+        'name': literalString('root'),
+        'redirect': Method(
+          (m) => m
+            ..requiredParameters.addAll([
+              Parameter((p) => p..name = '_'),
+              Parameter((p) => p..name = '__'),
+            ])
+            ..lambda = true
+            ..body = refer(targetClass).property(targetConstant).code,
+        ).closure,
+      });
+    }
 
-    return refer('GoRoute').call([], {
-      'path': literalString('/'),
-      'name': literalString('root'),
-      'redirect': Method(
-        (m) => m
-          ..requiredParameters.addAll([
-            Parameter((p) => p..name = '_'),
-            Parameter((p) => p..name = '__'),
-          ])
-          ..lambda = true
-          ..body = refer(targetClass).property(targetConstant).code,
-      ).closure,
-    });
+    // #359: shell-only app — no `<Pascal>Routes` constants exist, but the
+    // generated app boots at `/` (GoRouter's default initialLocation), so
+    // emit a root route redirecting to the shell's first branch root.
+    if (firstShellBranchPath != null && firstShellBranchPath != '/') {
+      final shellTarget = firstShellBranchPath;
+      return refer('GoRoute').call([], {
+        'path': literalString('/'),
+        'name': literalString('root'),
+        'redirect': Method(
+          (m) => m
+            ..requiredParameters.addAll([
+              Parameter((p) => p..name = '_'),
+              Parameter((p) => p..name = '__'),
+            ])
+            ..lambda = true
+            ..body = literalString(shellTarget).code,
+        ).closure,
+      });
+    }
+
+    return null;
+  }
+
+  /// #359: Returns the first branch root (`path: '/...'`) from a generated
+  /// `<name>_shell.dart` source — the first GoRoute `path:` literal in the
+  /// file is the first `StatefulShellBranch`'s root. Returns null when the
+  /// file contains no GoRoute path (e.g. still a stub).
+  String? _parseFirstGoRoutePath(String source) {
+    final match = RegExp(r"path:\s*'([^']*)'").firstMatch(source);
+    return match?.group(1);
+  }
+
+  /// Returns all branch root paths from a generated `<name>_shell.dart` source.
+  /// Each GoRoute `path:` literal corresponds to one StatefulShellBranch root.
+  List<String> _parseAllGoRoutePaths(String source) {
+    final paths = <String>[];
+    final pattern = RegExp(r"path:\s*'([^']*)'");
+    for (final match in pattern.allMatches(source)) {
+      paths.add(match.group(1)!);
+    }
+    return paths;
   }
 
   /// Parses the `static const String <name> = '<value>';` route path

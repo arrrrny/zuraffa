@@ -66,13 +66,7 @@ class XrayMockCommand extends Command<void> {
     final verbose = argResults?['verbose'] as bool? ?? false;
 
     final projectRoot = Directory.current.path;
-    final usecasesDir = p.join(
-      projectRoot,
-      'lib',
-      'src',
-      'domain',
-      'usecases',
-    );
+    final usecasesDir = p.join(projectRoot, 'lib', 'src', 'domain', 'usecases');
     if (!Directory(usecasesDir).existsSync()) {
       print(
         'No usecases directory found at $usecasesDir.\n'
@@ -110,7 +104,9 @@ class XrayMockCommand extends Command<void> {
     var injected = 0;
     var skipped = 0;
     for (final r in results) {
-      final prefix = r.injected ? (dryRun ? '[dry-run]' : 'injected') : 'skipped';
+      final prefix = r.injected
+          ? (dryRun ? '[dry-run]' : 'injected')
+          : 'skipped';
       print('  $prefix  ${p.relative(r.path, from: projectRoot)}');
       if (r.importAdded && r.injected) {
         print('           + import zuraffa_flutter');

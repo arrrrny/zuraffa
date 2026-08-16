@@ -60,8 +60,10 @@ void main() {
     late String outputDir;
 
     Future<ProcessResult> runZfa(List<String> args) {
-      return Process.run('dart', [zfaBin, ...args],
-          workingDirectory: workspace.path);
+      return Process.run('dart', [
+        zfaBin,
+        ...args,
+      ], workingDirectory: workspace.path);
     }
 
     setUp(() async {
@@ -92,8 +94,9 @@ dependencies:
         path.join(outputDir, 'domain', 'entities', 'enums'),
       );
       await enumDir.create(recursive: true);
-      await File(path.join(enumDir.path, 'chat_message_role.dart'))
-          .writeAsString('''
+      await File(
+        path.join(enumDir.path, 'chat_message_role.dart'),
+      ).writeAsString('''
 enum ChatMessageRole { user, assistant, system }
 ''');
       await File(path.join(enumDir.path, 'index.dart')).writeAsString('''
@@ -108,8 +111,8 @@ export 'chat_message_role.dart';
         path.join(outputDir, 'domain', 'entities', 'chat_message'),
       );
       await entityDir.create(recursive: true);
-      await File(path.join(entityDir.path, 'chat_message.dart'))
-          .writeAsString('''
+      await File(path.join(entityDir.path, 'chat_message.dart')).writeAsString(
+        '''
 import '../enums/index.dart';
 
 abstract class \$ChatMessage {
@@ -126,7 +129,8 @@ abstract final class ChatMessageFields {
   static const Field<ChatMessage, DateTime> timestamp =
       Field<ChatMessage, DateTime>(name: 'timestamp');
 }
-''');
+''',
+      );
     }
 
     /// Writes a ChatMessage entity annotated with `@Zorphy(autoId: true)`.
@@ -136,8 +140,8 @@ abstract final class ChatMessageFields {
         path.join(outputDir, 'domain', 'entities', 'chat_message'),
       );
       await entityDir.create(recursive: true);
-      await File(path.join(entityDir.path, 'chat_message.dart'))
-          .writeAsString('''
+      await File(path.join(entityDir.path, 'chat_message.dart')).writeAsString(
+        '''
 import '../enums/index.dart';
 
 @Zorphy(autoId: true)
@@ -157,7 +161,8 @@ abstract final class ChatMessageFields {
   static const Field<ChatMessage, DateTime> timestamp =
       Field<ChatMessage, DateTime>(name: 'timestamp');
 }
-''');
+''',
+      );
     }
 
     /// Writes an entity with a real `*Id` field whose type is an enum —
@@ -177,8 +182,8 @@ export 'message_type.dart';
         path.join(outputDir, 'domain', 'entities', 'message_log'),
       );
       await entityDir.create(recursive: true);
-      await File(path.join(entityDir.path, 'message_log.dart'))
-          .writeAsString('''
+      await File(path.join(entityDir.path, 'message_log.dart')).writeAsString(
+        '''
 import '../enums/index.dart';
 
 abstract class \$MessageLog {
@@ -195,7 +200,8 @@ abstract final class MessageLogFields {
   static const Field<MessageLog, DateTime> timestamp =
       Field<MessageLog, DateTime>(name: 'timestamp');
 }
-''');
+''',
+      );
     }
 
     /// Writes the Authentication control-case entity (real `id: String`).
@@ -204,8 +210,9 @@ abstract final class MessageLogFields {
         path.join(outputDir, 'domain', 'entities', 'authentication'),
       );
       await entityDir.create(recursive: true);
-      await File(path.join(entityDir.path, 'authentication.dart'))
-          .writeAsString('''
+      await File(
+        path.join(entityDir.path, 'authentication.dart'),
+      ).writeAsString('''
 abstract class \$Authentication {
   String get id;
   String get provider;
@@ -234,12 +241,20 @@ abstract final class AuthenticationFields {
         );
         expect(resolved, isNotNull);
         final resolution = resolved!;
-        expect(resolution.hasId, isFalse,
-            reason: '#321/#307: the resolver must NOT silently pick `role` '
-                '(enum) as the id.');
-        expect(resolution.idField, isNull,
-            reason: '#321/#307: an id-less entity must not get a synthetic '
-                'id — that is the #307 bug.');
+        expect(
+          resolution.hasId,
+          isFalse,
+          reason:
+              '#321/#307: the resolver must NOT silently pick `role` '
+              '(enum) as the id.',
+        );
+        expect(
+          resolution.idField,
+          isNull,
+          reason:
+              '#321/#307: an id-less entity must not get a synthetic '
+              'id — that is the #307 bug.',
+        );
       });
 
       test('`zfa make ChatMessage` (no id, no autoId) fails loudly with a '
@@ -257,9 +272,13 @@ abstract final class AuthenticationFields {
           outputDir,
         ]);
 
-        expect(result.exitCode, equals(1),
-            reason: 'zfa make must exit 1 when the entity has no id-like '
-                'field and no autoId marker (#321).');
+        expect(
+          result.exitCode,
+          equals(1),
+          reason:
+              'zfa make must exit 1 when the entity has no id-like '
+              'field and no autoId marker (#321).',
+        );
         final stderr = result.stderr.toString();
         final stdout = result.stdout.toString();
         final combined = '$stderr\n$stdout';
@@ -282,20 +301,26 @@ abstract final class AuthenticationFields {
             contains('--auto-id'),
             contains('--kind=value_object'),
           ]),
-          reason: 'diagnostic must point at one of the valid resolutions '
+          reason:
+              'diagnostic must point at one of the valid resolutions '
               '(add id, --auto-id, --id-field, or value object)',
         );
         // Negative: no presenter file should be generated when the
         // command exits 1 before plugin execution.
-        final presenterFile = File(path.join(
-          outputDir,
-          'presentation',
-          'pages',
-          'chat_message',
-          'chat_message_presenter.dart',
-        ));
-        expect(presenterFile.existsSync(), isFalse,
-            reason: 'no files should be generated when the loud error fires');
+        final presenterFile = File(
+          path.join(
+            outputDir,
+            'presentation',
+            'pages',
+            'chat_message',
+            'chat_message_presenter.dart',
+          ),
+        );
+        expect(
+          presenterFile.existsSync(),
+          isFalse,
+          reason: 'no files should be generated when the loud error fires',
+        );
       });
 
       test('loud-error diagnostic names the entity and the id requirement '
@@ -309,14 +334,22 @@ abstract final class AuthenticationFields {
           outputDir,
         ]);
         expect(result.exitCode, equals(1));
-        final combined =
-            '${result.stderr}\n${result.stdout}';
-        expect(combined, contains('ChatMessage'),
-            reason: 'diagnostic must name the entity');
-        expect(combined, contains('has no id field'),
-            reason: 'diagnostic must state the id requirement');
-        expect(combined, contains('--auto-id'),
-            reason: 'diagnostic must point at the autoId resolution');
+        final combined = '${result.stderr}\n${result.stdout}';
+        expect(
+          combined,
+          contains('ChatMessage'),
+          reason: 'diagnostic must name the entity',
+        );
+        expect(
+          combined,
+          contains('has no id field'),
+          reason: 'diagnostic must state the id requirement',
+        );
+        expect(
+          combined,
+          contains('--auto-id'),
+          reason: 'diagnostic must point at the autoId resolution',
+        );
       });
 
       test('`--id-field` does not resurrect an identity for a truly '
@@ -340,14 +373,24 @@ abstract final class AuthenticationFields {
           '--output',
           outputDir,
         ]);
-        expect(result.exitCode, equals(1),
-            reason: 'an id-less entity must fail loudly even with '
-                '--id-field (no first-field fallback, no invented id)');
+        expect(
+          result.exitCode,
+          equals(1),
+          reason:
+              'an id-less entity must fail loudly even with '
+              '--id-field (no first-field fallback, no invented id)',
+        );
         final combined = '${result.stderr}\n${result.stdout}';
-        expect(combined, contains('has no id field'),
-            reason: 'the loud id-less diagnostic must still fire');
-        expect(combined, isNot(contains('Resolved id field')),
-            reason: 'the enum-typed-id fallback must never happen');
+        expect(
+          combined,
+          contains('has no id field'),
+          reason: 'the loud id-less diagnostic must still fire',
+        );
+        expect(
+          combined,
+          isNot(contains('Resolved id field')),
+          reason: 'the enum-typed-id fallback must never happen',
+        );
       });
 
       test('`--no-entity` skips the resolver entirely (no loud error for '
@@ -364,8 +407,7 @@ abstract final class AuthenticationFields {
         ]);
         // Whatever exit code, the #321 loud error must NOT fire because
         // --no-entity was passed.
-        final combined =
-            '${result.stderr}\n${result.stdout}';
+        final combined = '${result.stderr}\n${result.stdout}';
         expect(
           combined,
           isNot(contains('has no id-like field')),
@@ -387,51 +429,62 @@ abstract final class AuthenticationFields {
         );
         expect(resolved, isNotNull);
         final resolution = resolved!;
-        expect(resolution.hasId, isTrue,
-            reason: 'autoId resolves the identity even without an id getter');
+        expect(
+          resolution.hasId,
+          isTrue,
+          reason: 'autoId resolves the identity even without an id getter',
+        );
         expect(resolution.idField!.name, 'id');
         expect(resolution.idField!.type, 'String');
       });
 
-      test('`zfa make ChatMessage` with @Zorphy(autoId: true) succeeds and '
-          'generates String-typed ids (no enum-typed ids, no loud error)',
-          () async {
-        await writeChatMessageEntityWithAutoId();
-        final result = await runZfa([
-          'make',
-          'ChatMessage',
-          '--preset=crud',
-          '--with=vpc,state,di',
-          '--methods=get,update,delete,toggle',
-          '--output',
-          outputDir,
-        ]);
-        expect(result.exitCode, equals(0),
-            reason: 'autoId entity must generate cleanly — stderr: '
-                '${result.stderr}');
-        // The generated presenter must use String-typed ids (not enum).
-        final presenterFile = File(path.join(
-          outputDir,
-          'presentation',
-          'pages',
-          'chat_message',
-          'chat_message_presenter.dart',
-        ));
-        expect(presenterFile.existsSync(), isTrue);
-        final presenter = presenterFile.readAsStringSync();
-        // Positive: String-typed id in the UpdateParams signature.
-        expect(
-          presenter,
-          contains('UpdateParams<String,'),
-          reason: 'autoId entity must use String as the id type',
-        );
-        // Negative: NO enum-typed id (the #307 bug shape).
-        expect(
-          presenter,
-          isNot(contains('UpdateParams<ChatMessageRole')),
-          reason: 'autoId entity must NOT produce enum-typed ids',
-        );
-      });
+      test(
+        '`zfa make ChatMessage` with @Zorphy(autoId: true) succeeds and '
+        'generates String-typed ids (no enum-typed ids, no loud error)',
+        () async {
+          await writeChatMessageEntityWithAutoId();
+          final result = await runZfa([
+            'make',
+            'ChatMessage',
+            '--preset=crud',
+            '--with=vpc,state,di',
+            '--methods=get,update,delete,toggle',
+            '--output',
+            outputDir,
+          ]);
+          expect(
+            result.exitCode,
+            equals(0),
+            reason:
+                'autoId entity must generate cleanly — stderr: '
+                '${result.stderr}',
+          );
+          // The generated presenter must use String-typed ids (not enum).
+          final presenterFile = File(
+            path.join(
+              outputDir,
+              'presentation',
+              'pages',
+              'chat_message',
+              'chat_message_presenter.dart',
+            ),
+          );
+          expect(presenterFile.existsSync(), isTrue);
+          final presenter = presenterFile.readAsStringSync();
+          // Positive: String-typed id in the UpdateParams signature.
+          expect(
+            presenter,
+            contains('UpdateParams<String,'),
+            reason: 'autoId entity must use String as the id type',
+          );
+          // Negative: NO enum-typed id (the #307 bug shape).
+          expect(
+            presenter,
+            isNot(contains('UpdateParams<ChatMessageRole')),
+            reason: 'autoId entity must NOT produce enum-typed ids',
+          );
+        },
+      );
     });
 
     // -----------------------------------------------------------------------
@@ -448,8 +501,11 @@ abstract final class AuthenticationFields {
         );
         expect(resolved, isNotNull);
         final resolution = resolved!;
-        expect(resolution.hasId, isTrue,
-            reason: 'a *Id field is a valid identity');
+        expect(
+          resolution.hasId,
+          isTrue,
+          reason: 'a *Id field is a valid identity',
+        );
         expect(resolution.idField!.name, 'messageTypeId');
         expect(resolution.idField!.nonNullableType, 'MessageType');
       });
@@ -466,18 +522,26 @@ abstract final class AuthenticationFields {
           '--output',
           outputDir,
         ]);
-        expect(result.exitCode, equals(0),
-            reason: 'generation must succeed — stderr: ${result.stderr}');
+        expect(
+          result.exitCode,
+          equals(0),
+          reason: 'generation must succeed — stderr: ${result.stderr}',
+        );
 
-        final presenterFile = File(path.join(
-          outputDir,
-          'presentation',
-          'pages',
-          'message_log',
-          'message_log_presenter.dart',
-        ));
-        expect(presenterFile.existsSync(), isTrue,
-            reason: 'presenter must be generated');
+        final presenterFile = File(
+          path.join(
+            outputDir,
+            'presentation',
+            'pages',
+            'message_log',
+            'message_log_presenter.dart',
+          ),
+        );
+        expect(
+          presenterFile.existsSync(),
+          isTrue,
+          reason: 'presenter must be generated',
+        );
         final presenter = presenterFile.readAsStringSync();
         // The signature references the enum-typed id.
         expect(
@@ -494,7 +558,8 @@ abstract final class AuthenticationFields {
         expect(
           presenter,
           contains('domain/entities/enums/index.dart'),
-          reason: '#321: presenter must import the enum barrel when the id '
+          reason:
+              '#321: presenter must import the enum barrel when the id '
               'field is an enum (the #307 root cause was this import missing)',
         );
       });
@@ -511,22 +576,27 @@ abstract final class AuthenticationFields {
           '--output',
           outputDir,
         ]);
-        expect(result.exitCode, equals(0),
-            reason: 'stderr: ${result.stderr}');
-        final controllerFile = File(path.join(
-          outputDir,
-          'presentation',
-          'pages',
-          'message_log',
-          'message_log_controller.dart',
-        ));
-        expect(controllerFile.existsSync(), isTrue,
-            reason: 'controller must be generated');
+        expect(result.exitCode, equals(0), reason: 'stderr: ${result.stderr}');
+        final controllerFile = File(
+          path.join(
+            outputDir,
+            'presentation',
+            'pages',
+            'message_log',
+            'message_log_controller.dart',
+          ),
+        );
+        expect(
+          controllerFile.existsSync(),
+          isTrue,
+          reason: 'controller must be generated',
+        );
         final controller = controllerFile.readAsStringSync();
         expect(
           controller,
           contains('domain/entities/enums/index.dart'),
-          reason: '#321: controller must import the enum barrel when the id '
+          reason:
+              '#321: controller must import the enum barrel when the id '
               'field is an enum',
         );
       });
@@ -544,20 +614,24 @@ abstract final class AuthenticationFields {
           '--output',
           outputDir,
         ]);
-        expect(result.exitCode, equals(0),
-            reason: 'stderr: ${result.stderr}');
+        expect(result.exitCode, equals(0), reason: 'stderr: ${result.stderr}');
 
         // delete usecase: DeleteParams<MessageType> — previously the
         // enum import was NOT emitted because needsEntityImport=false.
-        final deleteUseCaseFile = File(path.join(
-          outputDir,
-          'domain',
-          'usecases',
-          'message_log',
-          'delete_message_log_usecase.dart',
-        ));
-        expect(deleteUseCaseFile.existsSync(), isTrue,
-            reason: 'delete usecase must be generated');
+        final deleteUseCaseFile = File(
+          path.join(
+            outputDir,
+            'domain',
+            'usecases',
+            'message_log',
+            'delete_message_log_usecase.dart',
+          ),
+        );
+        expect(
+          deleteUseCaseFile.existsSync(),
+          isTrue,
+          reason: 'delete usecase must be generated',
+        );
         final deleteUseCase = deleteUseCaseFile.readAsStringSync();
         expect(
           deleteUseCase,
@@ -567,20 +641,23 @@ abstract final class AuthenticationFields {
         expect(
           deleteUseCase,
           contains('domain/entities/enums/index.dart'),
-          reason: '#321: delete usecase must import the enum barrel — '
+          reason:
+              '#321: delete usecase must import the enum barrel — '
               'previously missing because needsEntityImport=false skipped '
               'the entityImports call entirely',
         );
 
         // update usecase: UpdateParams<MessageType, MessageLogPatch> —
         // the enum import must also be present.
-        final updateUseCaseFile = File(path.join(
-          outputDir,
-          'domain',
-          'usecases',
-          'message_log',
-          'update_message_log_usecase.dart',
-        ));
+        final updateUseCaseFile = File(
+          path.join(
+            outputDir,
+            'domain',
+            'usecases',
+            'message_log',
+            'update_message_log_usecase.dart',
+          ),
+        );
         expect(updateUseCaseFile.existsSync(), isTrue);
         final updateUseCase = updateUseCaseFile.readAsStringSync();
         expect(
@@ -602,20 +679,24 @@ abstract final class AuthenticationFields {
           '--output',
           outputDir,
         ]);
-        expect(result.exitCode, equals(0),
-            reason: 'stderr: ${result.stderr}');
+        expect(result.exitCode, equals(0), reason: 'stderr: ${result.stderr}');
 
         // The test files live under the workspace's test/ directory.
-        final toggleTestFile = File(path.join(
-          workspace.path,
-          'test',
-          'domain',
-          'usecases',
-          'message_log',
-          'toggle_message_log_usecase_test.dart',
-        ));
-        expect(toggleTestFile.existsSync(), isTrue,
-            reason: 'toggle usecase test must be generated');
+        final toggleTestFile = File(
+          path.join(
+            workspace.path,
+            'test',
+            'domain',
+            'usecases',
+            'message_log',
+            'toggle_message_log_usecase_test.dart',
+          ),
+        );
+        expect(
+          toggleTestFile.existsSync(),
+          isTrue,
+          reason: 'toggle usecase test must be generated',
+        );
         final toggleTest = toggleTestFile.readAsStringSync();
         expect(
           toggleTest,
@@ -628,16 +709,21 @@ abstract final class AuthenticationFields {
           reason: '#321: toggle test must import the enum barrel',
         );
 
-        final deleteTestFile = File(path.join(
-          workspace.path,
-          'test',
-          'domain',
-          'usecases',
-          'message_log',
-          'delete_message_log_usecase_test.dart',
-        ));
-        expect(deleteTestFile.existsSync(), isTrue,
-            reason: 'delete usecase test must be generated');
+        final deleteTestFile = File(
+          path.join(
+            workspace.path,
+            'test',
+            'domain',
+            'usecases',
+            'message_log',
+            'delete_message_log_usecase_test.dart',
+          ),
+        );
+        expect(
+          deleteTestFile.existsSync(),
+          isTrue,
+          reason: 'delete usecase test must be generated',
+        );
         final deleteTest = deleteTestFile.readAsStringSync();
         expect(
           deleteTest,
@@ -665,8 +751,11 @@ abstract final class AuthenticationFields {
         );
         expect(resolved, isNotNull);
         final resolution = resolved!;
-        expect(resolution.hasId, isTrue,
-            reason: 'a literal `id` field is a valid identity');
+        expect(
+          resolution.hasId,
+          isTrue,
+          reason: 'a literal `id` field is a valid identity',
+        );
         expect(resolution.idField!.name, 'id');
         expect(resolution.idField!.type, 'String');
       });
@@ -683,16 +772,22 @@ abstract final class AuthenticationFields {
           '--output',
           outputDir,
         ]);
-        expect(result.exitCode, equals(0),
-            reason: 'control case must generate cleanly — stderr: '
-                '${result.stderr}');
-        final presenterFile = File(path.join(
-          outputDir,
-          'presentation',
-          'pages',
-          'authentication',
-          'authentication_presenter.dart',
-        ));
+        expect(
+          result.exitCode,
+          equals(0),
+          reason:
+              'control case must generate cleanly — stderr: '
+              '${result.stderr}',
+        );
+        final presenterFile = File(
+          path.join(
+            outputDir,
+            'presentation',
+            'pages',
+            'authentication',
+            'authentication_presenter.dart',
+          ),
+        );
         expect(presenterFile.existsSync(), isTrue);
         final presenter = presenterFile.readAsStringSync();
         expect(
@@ -707,8 +802,7 @@ abstract final class AuthenticationFields {
           reason: 'control case has no enum-typed signature — no enum import',
         );
         // Negative: no loud error.
-        final combined =
-            '${result.stderr}\n${result.stdout}';
+        final combined = '${result.stderr}\n${result.stdout}';
         expect(
           combined,
           isNot(contains('has no id-like field')),

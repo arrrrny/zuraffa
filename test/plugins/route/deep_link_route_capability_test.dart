@@ -42,7 +42,9 @@ void main() {
     bool force = true,
     bool verbose = false,
   }) async {
-    final capability = plugin.capabilities.firstWhere((c) => c.name == 'deep-link');
+    final capability = plugin.capabilities.firstWhere(
+      (c) => c.name == 'deep-link',
+    );
     final result = await capability.execute({
       'name': name,
       'path': path,
@@ -75,8 +77,7 @@ void main() {
         reason: 'deep-link route file must be emitted',
       );
 
-      final routesFile =
-          File('$outputDir/routing/scan_barcode_routes.dart');
+      final routesFile = File('$outputDir/routing/scan_barcode_routes.dart');
       expect(routesFile.existsSync(), isTrue);
 
       final content = routesFile.readAsStringSync();
@@ -92,7 +93,8 @@ void main() {
       expect(
         errors,
         isEmpty,
-        reason: 'generated routes file must parse cleanly; got: '
+        reason:
+            'generated routes file must parse cleanly; got: '
             '${errors.map((e) => e.message).join(', ')}',
       );
     });
@@ -105,12 +107,17 @@ void main() {
         view: 'ScanBarcodeView',
       );
 
-      final content =
-          File('$outputDir/routing/scan_barcode_routes.dart').readAsStringSync();
+      final content = File(
+        '$outputDir/routing/scan_barcode_routes.dart',
+      ).readAsStringSync();
       expect(content.contains('ScanBarcodeView'), isTrue);
-      expect(content.contains('SizedBox'), isFalse,
-          reason: 'placeholder builder must not be emitted when a view is '
-              'specified');
+      expect(
+        content.contains('SizedBox'),
+        isFalse,
+        reason:
+            'placeholder builder must not be emitted when a view is '
+            'specified',
+      );
     });
 
     test('regenerates routing/index.dart aggregating the new module '
@@ -122,13 +129,22 @@ void main() {
       );
 
       final indexFile = File('$outputDir/routing/index.dart');
-      expect(indexFile.existsSync(), isTrue,
-          reason: 'index.dart must be regenerated');
+      expect(
+        indexFile.existsSync(),
+        isTrue,
+        reason: 'index.dart must be regenerated',
+      );
       final indexContent = indexFile.readAsStringSync();
-      expect(indexContent.contains("scan_barcode_routes.dart"), isTrue,
-          reason: 'index must export the new module');
-      expect(indexContent.contains('scanBarcodeRoutes'), isTrue,
-          reason: 'getAllRoutes() must spread the new routes getter');
+      expect(
+        indexContent.contains("scan_barcode_routes.dart"),
+        isTrue,
+        reason: 'index must export the new module',
+      );
+      expect(
+        indexContent.contains('scanBarcodeRoutes'),
+        isTrue,
+        reason: 'getAllRoutes() must spread the new routes getter',
+      );
       expect(indexContent.contains('getAllRoutes'), isTrue);
     });
 
@@ -152,8 +168,9 @@ void main() {
       expect(manifest.contains('android:host="go.zuzu.dev"'), isTrue);
       expect(manifest.contains('android:autoVerify="true"'), isTrue);
 
-      final plist = await File('$projectRoot/ios/Runner/Info.plist')
-          .readAsString();
+      final plist = await File(
+        '$projectRoot/ios/Runner/Info.plist',
+      ).readAsString();
       expect(plist.contains('<string>gozuzu</string>'), isTrue);
       expect(plist.contains('<key>CFBundleURLTypes</key>'), isTrue);
     });
@@ -182,8 +199,9 @@ void main() {
         reason: 'intent-filter must appear exactly once after re-run',
       );
 
-      final plist = await File('$projectRoot/ios/Runner/Info.plist')
-          .readAsString();
+      final plist = await File(
+        '$projectRoot/ios/Runner/Info.plist',
+      ).readAsString();
       expect(
         '<string>gozuzu</string>'.allMatches(plist).length,
         equals(1),
@@ -262,15 +280,16 @@ void main() {
 Future<void> _seedFakeFlutterProject(String projectRoot) async {
   final manifestDir = Directory('$projectRoot/android/app/src/main');
   await manifestDir.create(recursive: true);
-  await File('${manifestDir.path}/AndroidManifest.xml').writeAsString(
-    _fakeAndroidManifest,
-  );
+  await File(
+    '${manifestDir.path}/AndroidManifest.xml',
+  ).writeAsString(_fakeAndroidManifest);
   final iosDir = Directory('$projectRoot/ios/Runner');
   await iosDir.create(recursive: true);
   await File('${iosDir.path}/Info.plist').writeAsString(_fakeIosPlist);
 }
 
-const _fakeAndroidManifest = r'''<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+const _fakeAndroidManifest =
+    r'''<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:label="zuraffa_smoke"
         android:name="${applicationName}"

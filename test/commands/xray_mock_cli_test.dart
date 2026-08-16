@@ -39,8 +39,9 @@ void main() {
 
       // Create the usecases directory so the command proceeds past
       // the directory-exists check, but leave it empty.
-      Directory(p.join(tempDir.path, 'lib', 'src', 'domain', 'usecases'))
-          .createSync(recursive: true);
+      Directory(
+        p.join(tempDir.path, 'lib', 'src', 'domain', 'usecases'),
+      ).createSync(recursive: true);
 
       // Scaffold a usecase file.
       final usecaseDir = p.join(
@@ -84,8 +85,9 @@ class GetUserUseCase extends UseCase<User, String> {
 
       // Create the usecases directory so the command proceeds past
       // the directory-exists check, but leave it empty.
-      Directory(p.join(tempDir.path, 'lib', 'src', 'domain', 'usecases'))
-          .createSync(recursive: true);
+      Directory(
+        p.join(tempDir.path, 'lib', 'src', 'domain', 'usecases'),
+      ).createSync(recursive: true);
 
       final runner = CliRunner(exitOnCompletion: false);
       final output = await runner.runCapturing(['xray', 'mock', 'Nonexistent']);
@@ -98,8 +100,9 @@ class GetUserUseCase extends UseCase<User, String> {
 
       // Create the usecases directory so the command proceeds past
       // the directory-exists check, but leave it empty.
-      Directory(p.join(tempDir.path, 'lib', 'src', 'domain', 'usecases'))
-          .createSync(recursive: true);
+      Directory(
+        p.join(tempDir.path, 'lib', 'src', 'domain', 'usecases'),
+      ).createSync(recursive: true);
 
       final usecaseDir = p.join(
         tempDir.path,
@@ -131,8 +134,9 @@ class GetProductUseCase extends UseCase<Product, String> {}
     test('next-step deck hint includes the required --source', () async {
       Directory.current = tempDir.path;
 
-      Directory(p.join(tempDir.path, 'lib', 'src', 'domain', 'usecases'))
-          .createSync(recursive: true);
+      Directory(
+        p.join(tempDir.path, 'lib', 'src', 'domain', 'usecases'),
+      ).createSync(recursive: true);
 
       final usecaseDir = p.join(
         tempDir.path,

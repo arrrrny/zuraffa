@@ -40,7 +40,8 @@ class CreateRouteCapability implements ZuraffaCapability {
       // --scheme gozuzu`).
       'deepLink': {
         'type': 'boolean',
-        'description': 'Explicit opt-in for deep-link registration '
+        'description':
+            'Explicit opt-in for deep-link registration '
             '(no-op; the manifest hook fires whenever --scheme is set).',
         'default': false,
       },
@@ -51,18 +52,21 @@ class CreateRouteCapability implements ZuraffaCapability {
       // same scheme are a no-op.
       'scheme': {
         'type': 'string',
-        'description': 'URL scheme to register for the entity routes '
+        'description':
+            'URL scheme to register for the entity routes '
             '(e.g. gozuzu). When set, writes the Android intent-filter '
             '+ iOS CFBundleURLSchemes entry.',
       },
       'host': {
         'type': 'string',
-        'description': 'Optional host for App Links (e.g. go.zuzu.dev). '
+        'description':
+            'Optional host for App Links (e.g. go.zuzu.dev). '
             'Paired with --scheme + --auto-verify.',
       },
       'autoVerify': {
         'type': 'boolean',
-        'description': 'Emit android:autoVerify="true" on the intent-filter '
+        'description':
+            'Emit android:autoVerify="true" on the intent-filter '
             '(App Links). Paired with --scheme.',
         'default': false,
       },
@@ -154,9 +158,7 @@ class CreateRouteCapability implements ZuraffaCapability {
       verbose: verbose,
     );
 
-    final files = <GeneratedFile>[
-      ...(await plugin.generate(config)),
-    ];
+    final files = <GeneratedFile>[...(await plugin.generate(config))];
 
     // #358: post-generation manifest hook. When `scheme` is set, also
     // register the URL scheme in the platform manifest files so

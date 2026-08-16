@@ -246,7 +246,8 @@ void main() {
     );
   });
 
-  test('regenerates routes index with correct getter names', () async {    final builder = RouteBuilder(
+  test('regenerates routes index with correct getter names', () async {
+    final builder = RouteBuilder(
       outputDir: outputDir,
       options: const GeneratorOptions(
         dryRun: false,

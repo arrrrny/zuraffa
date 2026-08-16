@@ -43,7 +43,8 @@ class XrayDeckCommand extends Command<void> {
     );
     argParser.addOption(
       'entity',
-      help: 'Entity name (PascalCase). When set, defaults --output '
+      help:
+          'Entity name (PascalCase). When set, defaults --output '
           'to lib/src/xray/<entity_snake>_xray_deck.dart, '
           '--usecase-name to <Entity>, and updates the barrel at '
           'lib/src/xray/xray_decks.dart (issue #360).',
@@ -63,7 +64,12 @@ class XrayDeckCommand extends Command<void> {
     String? entitySnake;
     if (entityName != null) {
       entitySnake = _toSnakeCase(entityName);
-      outputPath ??= p.join("lib", "src", "xray", "${entitySnake}_xray_deck.dart");
+      outputPath ??= p.join(
+        "lib",
+        "src",
+        "xray",
+        "${entitySnake}_xray_deck.dart",
+      );
       useCaseName ??= entityName;
 
       // When --entity is provided without --source or --yaml, auto-discover
@@ -153,7 +159,9 @@ class XrayDeckCommand extends Command<void> {
       );
       print('  Barrel: ${result.message}');
       if (result.created) {
-        print('    (run `zfa app shell --xray --force` to wire into main.dart)');
+        print(
+          '    (run `zfa app shell --xray --force` to wire into main.dart)',
+        );
       }
     }
   }

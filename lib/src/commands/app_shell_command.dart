@@ -60,12 +60,10 @@ class AppShellCommand extends Command<void> {
       ..addFlag(
         'xray',
         negatable: false,
-        help: 'Wire the X-Ray bridge server into main.dart (debug mode) and wrap MyApp in XRayScope. Defaults to the xray key in .zfa.json plugins.defaults. Emits the <outputDir>/xray/xray_decks.dart barrel so the import in main.dart always resolves.',
+        help:
+            'Wire the X-Ray bridge server into main.dart (debug mode) and wrap MyApp in XRayScope. Defaults to the xray key in .zfa.json plugins.defaults. Emits the <outputDir>/xray/xray_decks.dart barrel so the import in main.dart always resolves.',
       )
-      ..addOption(
-        'title',
-        help: 'Application title (default: "Zuraffa App")',
-      )
+      ..addOption('title', help: 'Application title (default: "Zuraffa App")')
       ..addOption(
         'output',
         abbr: 'o',
@@ -142,7 +140,8 @@ class AppShellCommand extends Command<void> {
     final diIndexPath = p.join(outputDir, 'di', 'index.dart');
     final routingIndexPath = p.join(outputDir, 'routing', 'index.dart');
 
-    final diMissing = !await _fileSystem.exists(diIndexPath) ||
+    final diMissing =
+        !await _fileSystem.exists(diIndexPath) ||
         !(await _fileSystem.read(diIndexPath)).contains('setupDependencies');
     if (diMissing) {
       throw AppShellException(
@@ -152,7 +151,8 @@ class AppShellCommand extends Command<void> {
       );
     }
 
-    final routingMissing = !await _fileSystem.exists(routingIndexPath) ||
+    final routingMissing =
+        !await _fileSystem.exists(routingIndexPath) ||
         !(await _fileSystem.read(routingIndexPath)).contains('getAllRoutes');
     if (routingMissing) {
       throw AppShellException(
@@ -220,7 +220,9 @@ class AppShellCommand extends Command<void> {
           ),
         );
       } else if (verbose) {
-        print('  skipped: $xrayDecksPath already exists (use --force to overwrite).');
+        print(
+          '  skipped: $xrayDecksPath already exists (use --force to overwrite).',
+        );
       }
     }
 
@@ -258,8 +260,12 @@ class AppShellCommand extends Command<void> {
     if (!dryRun) {
       print('\n\u2705 App shell generated.');
       if (xray) {
-        print('   \u{1FA7B} X-Ray bridge wired: server starts in debug mode, MyApp wrapped in XRayScope.');
-        print('   Run `zfa xray deck --entity <Entity>` to populate the Control Deck barrel.');
+        print(
+          '   \u{1FA7B} X-Ray bridge wired: server starts in debug mode, MyApp wrapped in XRayScope.',
+        );
+        print(
+          '   Run `zfa xray deck --entity <Entity>` to populate the Control Deck barrel.',
+        );
       }
       print('\n\u2500\u2500 Next steps \u2500\u2500');
       print('   flutter run   # or `flutter build apk` / `dart run`');

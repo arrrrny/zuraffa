@@ -1,3 +1,13 @@
+// Each test spawns `dart bin/zfa.dart` sub-processes (JIT start-up is
+// several seconds each) and runs multiple `zfa make` invocations. The
+// package:test default (30s) is too tight: when a test times out, its
+// tearDown deletes the workspace while the sub-process is still running,
+// and the next `Directory.current` throws PathNotFoundException. Give the
+// suite a generous per-test budget instead. (Library-level annotation —
+// `Timeout` targets the library, not `main`.)
+@Timeout(Duration(minutes: 6))
+library;
+
 // Regression tests for issue #323.
 //
 // `zfa make: re-modeling entity as value_object orphans previously
@@ -59,11 +69,10 @@ void main() {
     late String outputDir;
 
     Future<ProcessResult> runZfa(List<String> args) {
-      return Process.run(
-        'dart',
-        [zfaBin, ...args],
-        workingDirectory: workspace.path,
-      );
+      return Process.run('dart', [
+        zfaBin,
+        ...args,
+      ], workingDirectory: workspace.path);
     }
 
     setUp(() async {
@@ -146,8 +155,11 @@ abstract class \$$name {
     }
 
     /// Reverts the generated architecture for [name].
-    Future<ProcessResult> revertEntity(String name,
-        {bool dryRun = false, bool verbose = false}) {
+    Future<ProcessResult> revertEntity(
+      String name, {
+      bool dryRun = false,
+      bool verbose = false,
+    }) {
       final args = <String>[
         'make',
         name,
@@ -168,51 +180,105 @@ abstract class \$$name {
       final snake = _toSnake(name);
       return <String>[
         // data layer
-        path.join(outputDir, 'data', 'datasources', snake,
-            '${snake}_datasource.dart'),
-        path.join(outputDir, 'data', 'datasources', snake,
-            '${snake}_mock_datasource.dart'),
-        path.join(outputDir, 'data', 'datasources', snake,
-            '${snake}_remote_datasource.dart'),
-        path.join(outputDir, 'data', 'repositories',
-            'data_${snake}_repository.dart'),
+        path.join(
+          outputDir,
+          'data',
+          'datasources',
+          snake,
+          '${snake}_datasource.dart',
+        ),
+        path.join(
+          outputDir,
+          'data',
+          'datasources',
+          snake,
+          '${snake}_mock_datasource.dart',
+        ),
+        path.join(
+          outputDir,
+          'data',
+          'datasources',
+          snake,
+          '${snake}_remote_datasource.dart',
+        ),
+        path.join(
+          outputDir,
+          'data',
+          'repositories',
+          'data_${snake}_repository.dart',
+        ),
         path.join(outputDir, 'data', 'mock', '${snake}_mock_data.dart'),
         // domain layer
-        path.join(outputDir, 'domain', 'repositories',
-            '${snake}_repository.dart'),
-        path.join(outputDir, 'domain', 'usecases', snake,
-            'get_${snake}_usecase.dart'),
-        path.join(outputDir, 'domain', 'usecases', snake,
-            'update_${snake}_usecase.dart'),
+        path.join(
+          outputDir,
+          'domain',
+          'repositories',
+          '${snake}_repository.dart',
+        ),
+        path.join(
+          outputDir,
+          'domain',
+          'usecases',
+          snake,
+          'get_${snake}_usecase.dart',
+        ),
+        path.join(
+          outputDir,
+          'domain',
+          'usecases',
+          snake,
+          'update_${snake}_usecase.dart',
+        ),
         // di layer
-        path.join(outputDir, 'di', 'repositories',
-            '${snake}_repository_di.dart'),
-        path.join(outputDir, 'di', 'usecases',
-            'get_${snake}_usecase_di.dart'),
-        path.join(outputDir, 'di', 'usecases',
-            'update_${snake}_usecase_di.dart'),
+        path.join(
+          outputDir,
+          'di',
+          'repositories',
+          '${snake}_repository_di.dart',
+        ),
+        path.join(outputDir, 'di', 'usecases', 'get_${snake}_usecase_di.dart'),
+        path.join(
+          outputDir,
+          'di',
+          'usecases',
+          'update_${snake}_usecase_di.dart',
+        ),
         // presentation layer
-        path.join(outputDir, 'presentation', 'pages', snake,
-            '${snake}_presenter.dart'),
-        path.join(outputDir, 'presentation', 'pages', snake,
-            '${snake}_controller.dart'),
-        path.join(outputDir, 'presentation', 'pages', snake,
-            '${snake}_state.dart'),
-        path.join(outputDir, 'presentation', 'pages', snake,
-            '${snake}_view.dart'),
+        path.join(
+          outputDir,
+          'presentation',
+          'pages',
+          snake,
+          '${snake}_presenter.dart',
+        ),
+        path.join(
+          outputDir,
+          'presentation',
+          'pages',
+          snake,
+          '${snake}_controller.dart',
+        ),
+        path.join(
+          outputDir,
+          'presentation',
+          'pages',
+          snake,
+          '${snake}_state.dart',
+        ),
+        path.join(
+          outputDir,
+          'presentation',
+          'pages',
+          snake,
+          '${snake}_view.dart',
+        ),
       ];
     }
 
     /// The entity source path — must NEVER be deleted by `--revert`.
     String entitySourcePath(String name) {
       final snake = _toSnake(name);
-      return path.join(
-        outputDir,
-        'domain',
-        'entities',
-        snake,
-        '$snake.dart',
-      );
+      return path.join(outputDir, 'domain', 'entities', snake, '$snake.dart');
     }
 
     // ---------------------------------------------------------------------
@@ -224,9 +290,13 @@ abstract class \$$name {
           'architecture files for the entity', () async {
         await writeEntityWithId('Product');
         final gen = await generateCrud('Product');
-        expect(gen.exitCode, equals(0),
-            reason: 'precondition: CRUD generation must succeed\n'
-                'stdout: ${gen.stdout}\nstderr: ${gen.stderr}');
+        expect(
+          gen.exitCode,
+          equals(0),
+          reason:
+              'precondition: CRUD generation must succeed\n'
+              'stdout: ${gen.stdout}\nstderr: ${gen.stderr}',
+        );
 
         // Sanity check: at least the presenter + repository + a usecase
         // were generated (so we know revert has something to delete).
@@ -235,23 +305,30 @@ abstract class \$$name {
         expect(
           presentBefore.isNotEmpty,
           isTrue,
-          reason: 'precondition: some architecture files must exist before '
+          reason:
+              'precondition: some architecture files must exist before '
               'revert. Looked for:\n${archPaths.join("\n")}',
         );
 
         // Revert.
         final rev = await revertEntity('Product');
-        expect(rev.exitCode, equals(0),
-            reason: 'revert must exit 0\nstdout: ${rev.stdout}\nstderr: '
-                '${rev.stderr}');
+        expect(
+          rev.exitCode,
+          equals(0),
+          reason:
+              'revert must exit 0\nstdout: ${rev.stdout}\nstderr: '
+              '${rev.stderr}',
+        );
 
         // Assert every canonical architecture path is gone.
-        final stillPresent =
-            archPaths.where((p) => File(p).existsSync()).toList();
+        final stillPresent = archPaths
+            .where((p) => File(p).existsSync())
+            .toList();
         expect(
           stillPresent,
           isEmpty,
-          reason: 'after --revert, no canonical architecture files should '
+          reason:
+              'after --revert, no canonical architecture files should '
               'remain. Still present:\n${stillPresent.join("\n")}',
         );
 
@@ -272,7 +349,8 @@ abstract class \$$name {
             expect(
               dartFiles,
               isEmpty,
-              reason: 'after --revert, entity-scoped directory $dir should '
+              reason:
+                  'after --revert, entity-scoped directory $dir should '
                   'have no .dart files. Still contains:\n'
                   '${dartFiles.map((f) => f.path).join("\n")}',
             );
@@ -291,17 +369,23 @@ abstract class \$$name {
         // 1. Originally: ChatMessage is a plain entity with an id.
         await writeEntityWithId('ChatMessage');
         final gen = await generateCrud('ChatMessage');
-        expect(gen.exitCode, equals(0),
-            reason: 'precondition: original CRUD generation must succeed\n'
-                'stdout: ${gen.stdout}\nstderr: ${gen.stderr}');
+        expect(
+          gen.exitCode,
+          equals(0),
+          reason:
+              'precondition: original CRUD generation must succeed\n'
+              'stdout: ${gen.stdout}\nstderr: ${gen.stderr}',
+        );
 
         final archPaths = expectedArchitecturePaths('ChatMessage');
-        final presentAfterGen =
-            archPaths.where((p) => File(p).existsSync()).toList();
+        final presentAfterGen = archPaths
+            .where((p) => File(p).existsSync())
+            .toList();
         expect(
           presentAfterGen.isNotEmpty,
           isTrue,
-          reason: 'precondition: CRUD generation must produce architecture '
+          reason:
+              'precondition: CRUD generation must produce architecture '
               'files. None of these were found:\n${archPaths.join("\n")}',
         );
 
@@ -310,9 +394,13 @@ abstract class \$$name {
         //    CRUD architecture on disk as orphans (#323).
         await rewriteEntityAsValueObject('ChatMessage');
         final voGen = await generateCrud('ChatMessage');
-        expect(voGen.exitCode, equals(0),
-            reason: 'VO make must exit 0 (skips root plugins cleanly)\n'
-                'stdout: ${voGen.stdout}\nstderr: ${voGen.stderr}');
+        expect(
+          voGen.exitCode,
+          equals(0),
+          reason:
+              'VO make must exit 0 (skips root plugins cleanly)\n'
+              'stdout: ${voGen.stdout}\nstderr: ${voGen.stderr}',
+        );
         expect(
           (voGen.stdout as String).contains('is a value object'),
           isTrue,
@@ -322,29 +410,37 @@ abstract class \$$name {
         // The orphans are STILL there — that is the bug. We don't assert
         // on this for the fix (the fix is in revert, not in VO make), but
         // we log it for diagnostic clarity.
-        final orphansBeforeRevert =
-            archPaths.where((p) => File(p).existsSync()).toList();
+        final orphansBeforeRevert = archPaths
+            .where((p) => File(p).existsSync())
+            .toList();
         expect(
           orphansBeforeRevert.isNotEmpty,
           isTrue,
-          reason: 'precondition for #323: the VO re-model must leave the '
+          reason:
+              'precondition for #323: the VO re-model must leave the '
               'previous CRUD architecture on disk as orphans. None found:\n'
               '${archPaths.join("\n")}',
         );
 
         // 3. `zfa make <Entity> --revert` must now clean up the orphans.
         final rev = await revertEntity('ChatMessage', verbose: true);
-        expect(rev.exitCode, equals(0),
-            reason: 'revert must exit 0 even when the saved plan is empty '
-                '(the deep-revert path handles orphans)\n'
-                'stdout: ${rev.stdout}\nstderr: ${rev.stderr}');
+        expect(
+          rev.exitCode,
+          equals(0),
+          reason:
+              'revert must exit 0 even when the saved plan is empty '
+              '(the deep-revert path handles orphans)\n'
+              'stdout: ${rev.stdout}\nstderr: ${rev.stderr}',
+        );
 
-        final stillPresent =
-            archPaths.where((p) => File(p).existsSync()).toList();
+        final stillPresent = archPaths
+            .where((p) => File(p).existsSync())
+            .toList();
         expect(
           stillPresent,
           isEmpty,
-          reason: 'after --revert on a re-modeled entity, all orphan CRUD '
+          reason:
+              'after --revert on a re-modeled entity, all orphan CRUD '
               'architecture must be gone. Still present:\n'
               '${stillPresent.join("\n")}\n'
               'revert stdout was:\n${rev.stdout}',
@@ -361,28 +457,43 @@ abstract class \$$name {
           'files on disk', () async {
         await writeEntityWithId('Order');
         final gen = await generateCrud('Order');
-        expect(gen.exitCode, equals(0),
-            reason: 'precondition: CRUD generation must succeed\n'
-                'stdout: ${gen.stdout}\nstderr: ${gen.stderr}');
+        expect(
+          gen.exitCode,
+          equals(0),
+          reason:
+              'precondition: CRUD generation must succeed\n'
+              'stdout: ${gen.stdout}\nstderr: ${gen.stderr}',
+        );
 
         final archPaths = expectedArchitecturePaths('Order');
-        final presentBefore =
-            archPaths.where((p) => File(p).existsSync()).toList();
-        expect(presentBefore.isNotEmpty, isTrue,
-            reason: 'precondition: architecture files must exist before '
-                'the dry-run revert');
+        final presentBefore = archPaths
+            .where((p) => File(p).existsSync())
+            .toList();
+        expect(
+          presentBefore.isNotEmpty,
+          isTrue,
+          reason:
+              'precondition: architecture files must exist before '
+              'the dry-run revert',
+        );
 
         final rev = await revertEntity('Order', dryRun: true);
-        expect(rev.exitCode, equals(0),
-            reason: 'dry-run revert must exit 0\nstdout: ${rev.stdout}\n'
-                'stderr: ${rev.stderr}');
+        expect(
+          rev.exitCode,
+          equals(0),
+          reason:
+              'dry-run revert must exit 0\nstdout: ${rev.stdout}\n'
+              'stderr: ${rev.stderr}',
+        );
 
-        final stillPresent =
-            archPaths.where((p) => File(p).existsSync()).toList();
+        final stillPresent = archPaths
+            .where((p) => File(p).existsSync())
+            .toList();
         expect(
           stillPresent,
           equals(presentBefore),
-          reason: 'dry-run must not delete any files. Files missing after '
+          reason:
+              'dry-run must not delete any files. Files missing after '
               'dry-run (should still be there):\n'
               '${presentBefore.where((p) => !stillPresent.contains(p)).join("\n")}',
         );
@@ -399,18 +510,26 @@ abstract class \$$name {
         await writeEntityWithId('Inventory');
         await generateCrud('Inventory');
         final entityFile = File(entitySourcePath('Inventory'));
-        expect(entityFile.existsSync(), isTrue,
-            reason: 'precondition: entity source must exist before revert');
+        expect(
+          entityFile.existsSync(),
+          isTrue,
+          reason: 'precondition: entity source must exist before revert',
+        );
 
         final rev = await revertEntity('Inventory');
-        expect(rev.exitCode, equals(0),
-            reason: 'revert must exit 0\nstdout: ${rev.stdout}\nstderr: '
-                '${rev.stderr}');
+        expect(
+          rev.exitCode,
+          equals(0),
+          reason:
+              'revert must exit 0\nstdout: ${rev.stdout}\nstderr: '
+              '${rev.stderr}',
+        );
 
         expect(
           entityFile.existsSync(),
           isTrue,
-          reason: 'the entity source file is the source of truth, not '
+          reason:
+              'the entity source file is the source of truth, not '
               'generated architecture — `--revert` must never delete it. '
               'Missing after revert: ${entityFile.path}',
         );
@@ -420,8 +539,11 @@ abstract class \$$name {
         final entityDir = Directory(
           path.join(outputDir, 'domain', 'entities', snake),
         );
-        expect(entityDir.existsSync(), isTrue,
-            reason: 'entity directory must survive revert');
+        expect(
+          entityDir.existsSync(),
+          isTrue,
+          reason: 'entity directory must survive revert',
+        );
       });
 
       test('`zfa make <Entity> --revert` preserves the entity source even '
@@ -432,18 +554,26 @@ abstract class \$$name {
         await generateCrud('TelemetryEvent'); // VO make — generates nothing
 
         final entityFile = File(entitySourcePath('TelemetryEvent'));
-        expect(entityFile.existsSync(), isTrue,
-            reason: 'precondition: VO entity source must exist');
+        expect(
+          entityFile.existsSync(),
+          isTrue,
+          reason: 'precondition: VO entity source must exist',
+        );
 
         final rev = await revertEntity('TelemetryEvent');
-        expect(rev.exitCode, equals(0),
-            reason: 'revert must exit 0\nstdout: ${rev.stdout}\nstderr: '
-                '${rev.stderr}');
+        expect(
+          rev.exitCode,
+          equals(0),
+          reason:
+              'revert must exit 0\nstdout: ${rev.stdout}\nstderr: '
+              '${rev.stderr}',
+        );
 
         expect(
           entityFile.existsSync(),
           isTrue,
-          reason: 'the (re-modeled) entity source file must survive revert. '
+          reason:
+              'the (re-modeled) entity source file must survive revert. '
               'Missing: ${entityFile.path}',
         );
         // And the entity file should still contain the @ZValueObject
@@ -462,34 +592,40 @@ abstract class \$$name {
     // ---------------------------------------------------------------------
 
     group('Part E — graceful no-op', () {
-      test('`zfa make <Entity> --revert` on an entity with no generated '
-          'architecture exits 0 and does not delete the entity source',
-          () async {
-        await writeEntityWithId('BrandNew');
-        // No generateCrud call — no architecture exists.
+      test(
+        '`zfa make <Entity> --revert` on an entity with no generated '
+        'architecture exits 0 and does not delete the entity source',
+        () async {
+          await writeEntityWithId('BrandNew');
+          // No generateCrud call — no architecture exists.
 
-        final rev = await revertEntity('BrandNew');
-        expect(rev.exitCode, equals(0),
-            reason: 'revert on a fresh entity must exit 0\nstdout: '
-                '${rev.stdout}\nstderr: ${rev.stderr}');
+          final rev = await revertEntity('BrandNew');
+          expect(
+            rev.exitCode,
+            equals(0),
+            reason:
+                'revert on a fresh entity must exit 0\nstdout: '
+                '${rev.stdout}\nstderr: ${rev.stderr}',
+          );
 
-        // Entity source untouched.
-        expect(
-          File(entitySourcePath('BrandNew')).existsSync(),
-          isTrue,
-          reason: 'fresh entity source must survive a no-op revert',
-        );
-        // No architecture magically created.
-        final archPaths = expectedArchitecturePaths('BrandNew');
-        final present =
-            archPaths.where((p) => File(p).existsSync()).toList();
-        expect(
-          present,
-          isEmpty,
-          reason: 'revert must not create files. Found:\n'
-              '${present.join("\n")}',
-        );
-      });
+          // Entity source untouched.
+          expect(
+            File(entitySourcePath('BrandNew')).existsSync(),
+            isTrue,
+            reason: 'fresh entity source must survive a no-op revert',
+          );
+          // No architecture magically created.
+          final archPaths = expectedArchitecturePaths('BrandNew');
+          final present = archPaths.where((p) => File(p).existsSync()).toList();
+          expect(
+            present,
+            isEmpty,
+            reason:
+                'revert must not create files. Found:\n'
+                '${present.join("\n")}',
+          );
+        },
+      );
     });
 
     // ---------------------------------------------------------------------
@@ -502,45 +638,64 @@ abstract class \$$name {
         await writeEntityWithId('Alpha');
         await writeEntityWithId('Beta');
         final genA = await generateCrud('Alpha');
-        expect(genA.exitCode, equals(0),
-            reason: 'precondition: Alpha generation must succeed\n'
-                'stdout: ${genA.stdout}\nstderr: ${genA.stderr}');
+        expect(
+          genA.exitCode,
+          equals(0),
+          reason:
+              'precondition: Alpha generation must succeed\n'
+              'stdout: ${genA.stdout}\nstderr: ${genA.stderr}',
+        );
         final genB = await generateCrud('Beta');
-        expect(genB.exitCode, equals(0),
-            reason: 'precondition: Beta generation must succeed\n'
-                'stdout: ${genB.stdout}\nstderr: ${genB.stderr}');
+        expect(
+          genB.exitCode,
+          equals(0),
+          reason:
+              'precondition: Beta generation must succeed\n'
+              'stdout: ${genB.stdout}\nstderr: ${genB.stderr}',
+        );
 
-        final betaArchBefore =
-            expectedArchitecturePaths('Beta').where((p) => File(p).existsSync()).toList();
-        expect(betaArchBefore.isNotEmpty, isTrue,
-            reason: 'precondition: Beta architecture must exist before '
-                'Alpha revert');
+        final betaArchBefore = expectedArchitecturePaths(
+          'Beta',
+        ).where((p) => File(p).existsSync()).toList();
+        expect(
+          betaArchBefore.isNotEmpty,
+          isTrue,
+          reason:
+              'precondition: Beta architecture must exist before '
+              'Alpha revert',
+        );
 
         // Revert ONLY Alpha.
         final rev = await revertEntity('Alpha');
-        expect(rev.exitCode, equals(0),
-            reason: 'Alpha revert must exit 0\nstdout: ${rev.stdout}\n'
-                'stderr: ${rev.stderr}');
+        expect(
+          rev.exitCode,
+          equals(0),
+          reason:
+              'Alpha revert must exit 0\nstdout: ${rev.stdout}\n'
+              'stderr: ${rev.stderr}',
+        );
 
         // Alpha architecture is gone.
-        final alphaStillPresent = expectedArchitecturePaths('Alpha')
-            .where((p) => File(p).existsSync())
-            .toList();
+        final alphaStillPresent = expectedArchitecturePaths(
+          'Alpha',
+        ).where((p) => File(p).existsSync()).toList();
         expect(
           alphaStillPresent,
           isEmpty,
-          reason: 'Alpha architecture must be gone after Alpha revert. '
+          reason:
+              'Alpha architecture must be gone after Alpha revert. '
               'Still present:\n${alphaStillPresent.join("\n")}',
         );
 
         // Beta architecture is intact.
-        final betaStillPresent = expectedArchitecturePaths('Beta')
-            .where((p) => File(p).existsSync())
-            .toList();
+        final betaStillPresent = expectedArchitecturePaths(
+          'Beta',
+        ).where((p) => File(p).existsSync()).toList();
         expect(
           betaStillPresent,
           equals(betaArchBefore),
-          reason: 'Beta architecture must be untouched by Alpha revert. '
+          reason:
+              'Beta architecture must be untouched by Alpha revert. '
               'Missing (should still be there):\n'
               '${betaArchBefore.where((p) => !betaStillPresent.contains(p)).join("\n")}',
         );

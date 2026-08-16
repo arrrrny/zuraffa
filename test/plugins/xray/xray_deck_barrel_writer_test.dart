@@ -121,10 +121,7 @@ void main() {
         "import 'order_xray_deck.dart';".allMatches(content).length,
         equals(1),
       );
-      expect(
-        'registerOrderXRayDeck();'.allMatches(content).length,
-        equals(1),
-      );
+      expect('registerOrderXRayDeck();'.allMatches(content).length, equals(1));
     });
 
     test('dry-run does not create the barrel', () {
@@ -156,7 +153,9 @@ void main() {
       );
       expect(
         writer.barrelPath,
-        equals(p.join(tempDir.path, 'lib', 'custom', 'xray', 'xray_decks.dart')),
+        equals(
+          p.join(tempDir.path, 'lib', 'custom', 'xray', 'xray_decks.dart'),
+        ),
       );
     });
   });

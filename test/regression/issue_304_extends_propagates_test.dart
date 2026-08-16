@@ -44,11 +44,10 @@ void main() {
     late String zfaBin;
 
     Future<ProcessResult> runZfa(List<String> args) {
-      return Process.run(
-        'dart',
-        [zfaBin, ...args],
-        workingDirectory: workspace.path,
-      );
+      return Process.run('dart', [
+        zfaBin,
+        ...args,
+      ], workingDirectory: workspace.path);
     }
 
     setUp(() async {

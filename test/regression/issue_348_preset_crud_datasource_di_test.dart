@@ -96,144 +96,200 @@ class Product {
       }
     });
 
-    test('--preset=crud --with=di generates datasource DI (regression for #346/#347)',
-        () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      await runner.run([
-        'make',
-        'Product',
-        '--preset=crud',
-        '--with=di',
-        '--output',
-        outputDir,
-        '--force',
-      ]);
+    test(
+      '--preset=crud --with=di generates datasource DI (regression for #346/#347)',
+      () async {
+        final runner = CliRunner(exitOnCompletion: false);
+        await runner.run([
+          'make',
+          'Product',
+          '--preset=crud',
+          '--with=di',
+          '--output',
+          outputDir,
+          '--force',
+        ]);
 
-      final datasourceDi = File(
-        p.join(outputDir, 'di', 'datasources', 'product_remote_datasource_di.dart'),
-      );
-      final repositoryDi = File(
-        p.join(outputDir, 'di', 'repositories', 'product_repository_di.dart'),
-      );
-      final diIndex = File(p.join(outputDir, 'di', 'index.dart'));
+        final datasourceDi = File(
+          p.join(
+            outputDir,
+            'di',
+            'datasources',
+            'product_remote_datasource_di.dart',
+          ),
+        );
+        final repositoryDi = File(
+          p.join(outputDir, 'di', 'repositories', 'product_repository_di.dart'),
+        );
+        final diIndex = File(p.join(outputDir, 'di', 'index.dart'));
 
-      expect(datasourceDi.existsSync(), isTrue,
-          reason: 'datasource DI file must exist for --preset=crud --with=di');
-      expect(repositoryDi.existsSync(), isTrue,
-          reason: 'repository DI file must exist for --preset=crud --with=di');
-      expect(diIndex.existsSync(), isTrue,
-          reason: 'di/index.dart must exist for --preset=crud --with=di');
+        expect(
+          datasourceDi.existsSync(),
+          isTrue,
+          reason: 'datasource DI file must exist for --preset=crud --with=di',
+        );
+        expect(
+          repositoryDi.existsSync(),
+          isTrue,
+          reason: 'repository DI file must exist for --preset=crud --with=di',
+        );
+        expect(
+          diIndex.existsSync(),
+          isTrue,
+          reason: 'di/index.dart must exist for --preset=crud --with=di',
+        );
 
-      final datasourceContent = datasourceDi.readAsStringSync();
-      expect(
-        datasourceContent,
-        contains('registerLazySingleton<ProductRemoteDataSource>'),
-        reason: 'datasource DI must register ProductRemoteDataSource',
-      );
+        final datasourceContent = datasourceDi.readAsStringSync();
+        expect(
+          datasourceContent,
+          contains('registerLazySingleton<ProductRemoteDataSource>'),
+          reason: 'datasource DI must register ProductRemoteDataSource',
+        );
 
-      final repositoryContent = repositoryDi.readAsStringSync();
-      expect(
-        repositoryContent,
-        contains('getIt<ProductRemoteDataSource>()'),
-        reason: 'repository DI must resolve the datasource via getIt — '
-            'this is the exact #346 runtime-crash pattern when missing',
-      );
-      expect(
-        repositoryContent,
-        contains('DataProductRepository'),
-        reason: 'repository DI must construct DataProductRepository',
-      );
+        final repositoryContent = repositoryDi.readAsStringSync();
+        expect(
+          repositoryContent,
+          contains('getIt<ProductRemoteDataSource>()'),
+          reason:
+              'repository DI must resolve the datasource via getIt — '
+              'this is the exact #346 runtime-crash pattern when missing',
+        );
+        expect(
+          repositoryContent,
+          contains('DataProductRepository'),
+          reason: 'repository DI must construct DataProductRepository',
+        );
 
-      final indexContent = diIndex.readAsStringSync();
-      expect(
-        indexContent,
-        contains('registerAllDataSources(getIt)'),
-        reason: 'setupDependencies must wire up registerAllDataSources',
-      );
-      expect(
-        indexContent,
-        contains('registerAllRepositories(getIt)'),
-        reason: 'setupDependencies must wire up registerAllRepositories',
-      );
-      // Datasources must be registered BEFORE repositories so the repository
-      // can resolve its datasource dependency at registration time.
-      final dsPos = indexContent.indexOf('registerAllDataSources(getIt)');
-      final repoPos = indexContent.indexOf('registerAllRepositories(getIt)');
-      expect(dsPos, lessThan(repoPos),
-          reason: 'registerAllDataSources must come before '
-              'registerAllRepositories in setupDependencies');
-    });
+        final indexContent = diIndex.readAsStringSync();
+        expect(
+          indexContent,
+          contains('registerAllDataSources(getIt)'),
+          reason: 'setupDependencies must wire up registerAllDataSources',
+        );
+        expect(
+          indexContent,
+          contains('registerAllRepositories(getIt)'),
+          reason: 'setupDependencies must wire up registerAllRepositories',
+        );
+        // Datasources must be registered BEFORE repositories so the repository
+        // can resolve its datasource dependency at registration time.
+        final dsPos = indexContent.indexOf('registerAllDataSources(getIt)');
+        final repoPos = indexContent.indexOf('registerAllRepositories(getIt)');
+        expect(
+          dsPos,
+          lessThan(repoPos),
+          reason:
+              'registerAllDataSources must come before '
+              'registerAllRepositories in setupDependencies',
+        );
+      },
+    );
 
-    test('--preset=crud ALONE generates datasource DI (the #348 preset-consistency fix)',
-        () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      await runner.run([
-        'make',
-        'Product',
-        '--preset=crud',
-        '--output',
-        outputDir,
-        '--force',
-      ]);
+    test(
+      '--preset=crud ALONE generates datasource DI (the #348 preset-consistency fix)',
+      () async {
+        final runner = CliRunner(exitOnCompletion: false);
+        await runner.run([
+          'make',
+          'Product',
+          '--preset=crud',
+          '--output',
+          outputDir,
+          '--force',
+        ]);
 
-      final datasourceDi = File(
-        p.join(outputDir, 'di', 'datasources', 'product_remote_datasource_di.dart'),
-      );
-      final repositoryDi = File(
-        p.join(outputDir, 'di', 'repositories', 'product_repository_di.dart'),
-      );
-      final diIndex = File(p.join(outputDir, 'di', 'index.dart'));
+        final datasourceDi = File(
+          p.join(
+            outputDir,
+            'di',
+            'datasources',
+            'product_remote_datasource_di.dart',
+          ),
+        );
+        final repositoryDi = File(
+          p.join(outputDir, 'di', 'repositories', 'product_repository_di.dart'),
+        );
+        final diIndex = File(p.join(outputDir, 'di', 'index.dart'));
 
-      expect(datasourceDi.existsSync(), isTrue,
-          reason: 'the canonical `zfa make X --preset=crud` (no --with=di) '
-              'must now produce the datasource DI file — this is the #348 fix');
-      expect(repositoryDi.existsSync(), isTrue,
-          reason: 'the canonical `zfa make X --preset=crud` (no --with=di) '
-              'must now produce the repository DI file');
-      expect(diIndex.existsSync(), isTrue,
-          reason: 'the canonical `zfa make X --preset=crud` (no --with=di) '
-              'must now produce di/index.dart');
+        expect(
+          datasourceDi.existsSync(),
+          isTrue,
+          reason:
+              'the canonical `zfa make X --preset=crud` (no --with=di) '
+              'must now produce the datasource DI file — this is the #348 fix',
+        );
+        expect(
+          repositoryDi.existsSync(),
+          isTrue,
+          reason:
+              'the canonical `zfa make X --preset=crud` (no --with=di) '
+              'must now produce the repository DI file',
+        );
+        expect(
+          diIndex.existsSync(),
+          isTrue,
+          reason:
+              'the canonical `zfa make X --preset=crud` (no --with=di) '
+              'must now produce di/index.dart',
+        );
 
-      final repositoryContent = repositoryDi.readAsStringSync();
-      expect(
-        repositoryContent,
-        contains('getIt<ProductRemoteDataSource>()'),
-        reason: 'repository DI must resolve the datasource via getIt — '
-            'the canonical one-flag flow must be runnable',
-      );
-    });
+        final repositoryContent = repositoryDi.readAsStringSync();
+        expect(
+          repositoryContent,
+          contains('getIt<ProductRemoteDataSource>()'),
+          reason:
+              'repository DI must resolve the datasource via getIt — '
+              'the canonical one-flag flow must be runnable',
+        );
+      },
+    );
 
-    test('--preset=read-only ALONE generates datasource DI (read-only parity with crud)',
-        () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      await runner.run([
-        'make',
-        'Product',
-        '--preset=read-only',
-        '--output',
-        outputDir,
-        '--force',
-      ]);
+    test(
+      '--preset=read-only ALONE generates datasource DI (read-only parity with crud)',
+      () async {
+        final runner = CliRunner(exitOnCompletion: false);
+        await runner.run([
+          'make',
+          'Product',
+          '--preset=read-only',
+          '--output',
+          outputDir,
+          '--force',
+        ]);
 
-      final datasourceDi = File(
-        p.join(outputDir, 'di', 'datasources', 'product_remote_datasource_di.dart'),
-      );
-      final repositoryDi = File(
-        p.join(outputDir, 'di', 'repositories', 'product_repository_di.dart'),
-      );
+        final datasourceDi = File(
+          p.join(
+            outputDir,
+            'di',
+            'datasources',
+            'product_remote_datasource_di.dart',
+          ),
+        );
+        final repositoryDi = File(
+          p.join(outputDir, 'di', 'repositories', 'product_repository_di.dart'),
+        );
 
-      expect(datasourceDi.existsSync(), isTrue,
-          reason: 'read-only preset must include di and produce the '
-              'datasource DI file (same #348 fix as crud)');
-      expect(repositoryDi.existsSync(), isTrue,
-          reason: 'read-only preset must produce the repository DI file');
+        expect(
+          datasourceDi.existsSync(),
+          isTrue,
+          reason:
+              'read-only preset must include di and produce the '
+              'datasource DI file (same #348 fix as crud)',
+        );
+        expect(
+          repositoryDi.existsSync(),
+          isTrue,
+          reason: 'read-only preset must produce the repository DI file',
+        );
 
-      final repositoryContent = repositoryDi.readAsStringSync();
-      expect(
-        repositoryContent,
-        contains('getIt<ProductRemoteDataSource>()'),
-        reason: 'read-only repository DI must resolve the datasource via getIt',
-      );
-    });
+        final repositoryContent = repositoryDi.readAsStringSync();
+        expect(
+          repositoryContent,
+          contains('getIt<ProductRemoteDataSource>()'),
+          reason:
+              'read-only repository DI must resolve the datasource via getIt',
+        );
+      },
+    );
   });
 }

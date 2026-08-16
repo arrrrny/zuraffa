@@ -24,31 +24,24 @@ void main() {
 
       test('imports the generated DI barrel via the app package name', () {
         final src = builder.buildMain(appName: 'my_app', mockHint: false);
-        expect(
-          src,
-          contains("import 'package:my_app/src/di/index.dart';"),
-        );
+        expect(src, contains("import 'package:my_app/src/di/index.dart';"));
       });
 
       test('imports MyApp from the app package', () {
         final src = builder.buildMain(appName: 'my_app', mockHint: false);
-        expect(
-          src,
-          contains("import 'package:my_app/src/app/my_app.dart';"),
-        );
+        expect(src, contains("import 'package:my_app/src/app/my_app.dart';"));
       });
 
       test('derives imports from a custom output dir', () {
-        final src =
-            builder.buildMain(appName: 'my_app', outputDir: 'lib/custom');
+        final src = builder.buildMain(
+          appName: 'my_app',
+          outputDir: 'lib/custom',
+        );
         expect(
           src,
           contains("import 'package:my_app/custom/app/my_app.dart';"),
         );
-        expect(
-          src,
-          contains("import 'package:my_app/custom/di/index.dart';"),
-        );
+        expect(src, contains("import 'package:my_app/custom/di/index.dart';"));
         // No hardcoded src/ imports should leak through.
         expect(src, isNot(contains('package:my_app/src/')));
       });

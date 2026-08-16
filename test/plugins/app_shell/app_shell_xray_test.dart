@@ -18,19 +18,13 @@ void main() {
       expect(src, isNot(contains('XRayBridgeServer')));
       expect(src, isNot(contains('registerAllXRayDecks')));
       expect(src, isNot(contains('kDebugMode')));
-      expect(
-        src,
-        isNot(contains('xray_bridge_server.dart')),
-      );
+      expect(src, isNot(contains('xray_bridge_server.dart')));
     });
 
     test('emits platform-safe bridge imports when xray is true', () {
       final src = builder.buildMain(appName: 'my_app', xray: true);
       // Should use conditional import for platform safety
-      expect(
-        src,
-        contains("if (dart.library.io)"),
-      );
+      expect(src, contains("if (dart.library.io)"));
     });
 
     test('emits foundation import for kDebugMode when xray is true', () {
@@ -89,10 +83,7 @@ void main() {
     test('does NOT wrap in XRayScope when xray is false (default)', () {
       final src = builder.buildMyApp();
       expect(src, isNot(contains('XRayScope')));
-      expect(
-        src,
-        isNot(contains('zuraffa_flutter')),
-      );
+      expect(src, isNot(contains('zuraffa_flutter')));
     });
 
     test('imports zuraffa_flutter when xray is true', () {

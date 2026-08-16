@@ -35,12 +35,11 @@ void main() {
     late bool zorphyAvailable;
 
     Future<ProcessResult> runZfa(List<String> args) {
-      return Process.run(
-        'dart',
-        [zfaBin, ...args],
-        workingDirectory: workspace.path,
-      );
-  }
+      return Process.run('dart', [
+        zfaBin,
+        ...args,
+      ], workingDirectory: workspace.path);
+    }
 
     setUp(() async {
       zfaBin = p.join(_zfaRoot, 'bin', 'zfa.dart');
@@ -53,9 +52,11 @@ void main() {
       // CLI-level assertions still run.
       final repoRoot = p.normalize(p.join(_zfaRoot, '..'));
       final zorphyPath = p.normalize(p.join(repoRoot, 'zorphy', 'zorphy'));
-      final zorphyAnnotationPath =
-          p.normalize(p.join(repoRoot, 'zorphy', 'zorphy_annotation'));
-      zorphyAvailable = Directory(zorphyPath).existsSync() &&
+      final zorphyAnnotationPath = p.normalize(
+        p.join(repoRoot, 'zorphy', 'zorphy_annotation'),
+      );
+      zorphyAvailable =
+          Directory(zorphyPath).existsSync() &&
           Directory(zorphyAnnotationPath).existsSync();
       final zorphyDeps = zorphyAvailable
           ? '''
@@ -152,8 +153,7 @@ targets:
         expect(
           content,
           contains('WebUri? get url'),
-          reason:
-              '! prefix must keep the type name as-is without \$ prefix',
+          reason: '! prefix must keep the type name as-is without \$ prefix',
         );
         expect(
           content,
@@ -284,8 +284,10 @@ targets:
         // absent (CI without a sibling zorphy repo) — same pattern as the
         // #351 regression test; the CLI-level assertions still run.
         if (!zorphyAvailable) {
-          print('Skipping: local zorphy checkout not found at ../zorphy '
-              '(CI without a sibling zorphy repo).');
+          print(
+            'Skipping: local zorphy checkout not found at ../zorphy '
+            '(CI without a sibling zorphy repo).',
+          );
           return;
         }
 
@@ -336,9 +338,7 @@ targets:
         );
         await mockWebUriDir.create(recursive: true);
 
-        final mockWebUriFile = File(
-          p.join(mockWebUriDir.path, 'web_uri.dart'),
-        );
+        final mockWebUriFile = File(p.join(mockWebUriDir.path, 'web_uri.dart'));
         await mockWebUriFile.writeAsString('''
 /// Mock WebUri class for testing external type references
 class WebUri {
@@ -373,7 +373,7 @@ class WebUri {
         content = content.replaceFirst(
           'WebUri? get url;',
           '@JsonKey(fromJson: _webUriFromJson, toJson: _webUriToJson)\n'
-          '  WebUri? get url;',
+              '  WebUri? get url;',
         );
         content += '''
 WebUri? _webUriFromJson(Object? value) =>
@@ -386,22 +386,22 @@ Object? _webUriToJson(WebUri? value) => value?.toString();
 
         // Resolve deps + run build_runner so the `.zorphy.dart`/`.g.dart`
         // parts exist (same pattern as the #351 regression test).
-        final pubGet = await Process.run(
-          'dart',
-          ['pub', 'get'],
-          workingDirectory: workspace.path,
-        );
+        final pubGet = await Process.run('dart', [
+          'pub',
+          'get',
+        ], workingDirectory: workspace.path);
         expect(
           pubGet.exitCode,
           equals(0),
           reason: 'dart pub get failed: ${pubGet.stdout}${pubGet.stderr}',
         );
 
-        final build = await Process.run(
-          'dart',
-          ['run', 'build_runner', 'build', '--delete-conflicting-outputs'],
-          workingDirectory: workspace.path,
-        );
+        final build = await Process.run('dart', [
+          'run',
+          'build_runner',
+          'build',
+          '--delete-conflicting-outputs',
+        ], workingDirectory: workspace.path);
         expect(
           build.exitCode,
           equals(0),
@@ -411,11 +411,11 @@ Object? _webUriToJson(WebUri? value) => value?.toString();
         );
 
         // Run dart analyze to verify the generated code compiles
-        final analyzeResult = await Process.run(
-          'dart',
-          ['analyze', '--fatal-infos', entityFile.path],
-          workingDirectory: workspace.path,
-        );
+        final analyzeResult = await Process.run('dart', [
+          'analyze',
+          '--fatal-infos',
+          entityFile.path,
+        ], workingDirectory: workspace.path);
 
         expect(
           analyzeResult.exitCode,
@@ -432,11 +432,10 @@ Object? _webUriToJson(WebUri? value) => value?.toString();
       'zfa binary is runnable (smoke)',
       timeout: const Timeout(Duration(minutes: 2)),
       () async {
-        final result = await Process.run(
-          'dart',
-          [zfaBin, '--help'],
-          workingDirectory: _zfaRoot,
-        );
+        final result = await Process.run('dart', [
+          zfaBin,
+          '--help',
+        ], workingDirectory: _zfaRoot);
         expect(result.exitCode, equals(0));
       },
     );

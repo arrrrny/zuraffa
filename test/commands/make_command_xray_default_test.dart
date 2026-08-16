@@ -50,9 +50,7 @@ class Product {
     }
   });
 
-  Future<void> writeConfig({
-    required bool xrayByDefault,
-  }) async {
+  Future<void> writeConfig({required bool xrayByDefault}) async {
     await File(path.join(workspace.path, '.zfa.json')).writeAsString(
       jsonEncode({
         'plugins': {
@@ -63,11 +61,10 @@ class Product {
   }
 
   Future<ProcessResult> runZfa(List<String> args) {
-    return Process.run(
-      'dart',
-      [zfaBin, ...args],
-      workingDirectory: workspace.path,
-    );
+    return Process.run('dart', [
+      zfaBin,
+      ...args,
+    ], workingDirectory: workspace.path);
   }
 
   // Finds every generated `*_view.dart` under the temp project.
@@ -88,9 +85,7 @@ class Product {
       // Config says xray defaults ON — but the caller explicitly opts out.
       await writeConfig(xrayByDefault: true);
 
-      final configFile = File(
-        path.join(workspace.path, 'make_config.json'),
-      );
+      final configFile = File(path.join(workspace.path, 'make_config.json'));
       await configFile.writeAsString(
         jsonEncode({
           'name': 'Product',

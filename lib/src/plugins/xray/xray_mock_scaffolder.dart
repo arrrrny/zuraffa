@@ -93,11 +93,7 @@ class XRayMockScaffolder {
       'payload': 'sample-id',
       'type': 'valid',
     },
-    'watch': {
-      'name': 'Watch sample',
-      'payload': 'sample-id',
-      'type': 'valid',
-    },
+    'watch': {'name': 'Watch sample', 'payload': 'sample-id', 'type': 'valid'},
   };
 
   /// Default payload used when the method prefix is not in
@@ -139,28 +135,22 @@ class XRayMockScaffolder {
       final domainDir = Directory(p.join(usecasesDir, domain));
       if (domainDir.existsSync()) {
         files.addAll(
-          domainDir
-              .listSync()
-              .whereType<File>()
-              .where(
-                (f) =>
-                    p.basename(f.path).contains('_${snake}_usecase.dart') ||
-                    p.basename(f.path).contains('_${snake}_list_usecase.dart'),
-              ),
+          domainDir.listSync().whereType<File>().where(
+            (f) =>
+                p.basename(f.path).contains('_${snake}_usecase.dart') ||
+                p.basename(f.path).contains('_${snake}_list_usecase.dart'),
+          ),
         );
       }
     } else {
       // Scan all domain subdirectories.
       for (final subDir in dir.listSync().whereType<Directory>()) {
         files.addAll(
-          subDir
-              .listSync()
-              .whereType<File>()
-              .where(
-                (f) =>
-                    p.basename(f.path).contains('_${snake}_usecase.dart') ||
-                    p.basename(f.path).contains('_${snake}_list_usecase.dart'),
-              ),
+          subDir.listSync().whereType<File>().where(
+            (f) =>
+                p.basename(f.path).contains('_${snake}_usecase.dart') ||
+                p.basename(f.path).contains('_${snake}_list_usecase.dart'),
+          ),
         );
       }
     }
@@ -276,10 +266,7 @@ class XRayMockScaffolder {
     var importAdded = false;
     if (!newContent.contains(xrayImportLine)) {
       // Insert after the last import line.
-      final importPattern = RegExp(
-        r'^(import\s+[^\n]+\n)+',
-        multiLine: true,
-      );
+      final importPattern = RegExp(r'^(import\s+[^\n]+\n)+', multiLine: true);
       final importMatch = importPattern.firstMatch(newContent);
       if (importMatch != null) {
         final insertAt = importMatch.end;

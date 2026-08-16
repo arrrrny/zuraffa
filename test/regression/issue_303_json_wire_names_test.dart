@@ -55,8 +55,10 @@ void main() {
     Future<ProcessResult> runDart(List<String> args) =>
         Process.run('dart', args, workingDirectory: workspace.path);
 
-    Future<ProcessResult> runZfa(List<String> args) =>
-        Process.run('dart', [zfaBin, ...args], workingDirectory: workspace.path);
+    Future<ProcessResult> runZfa(List<String> args) => Process.run('dart', [
+      zfaBin,
+      ...args,
+    ], workingDirectory: workspace.path);
 
     setUp(() async {
       repoRoot = await findProjectRoot();
@@ -107,15 +109,16 @@ dev_dependencies:
     /// non-zero on any syntax error, so a raw keyword getter (`String get in;`)
     /// or any other break in the emitted source cannot slip through.
     Future<void> expectFormats(File file) async {
-      final result = await Process.run(
-        'dart',
-        ['format', '--output=none', file.path],
-        workingDirectory: workspace.path,
-      );
+      final result = await Process.run('dart', [
+        'format',
+        '--output=none',
+        file.path,
+      ], workingDirectory: workspace.path);
       expect(
         result.exitCode,
         equals(0),
-        reason: 'generated ${file.path} must parse as valid Dart '
+        reason:
+            'generated ${file.path} must parse as valid Dart '
             '(exit ${result.exitCode}): ${result.stdout}${result.stderr}',
       );
     }
@@ -138,12 +141,17 @@ dev_dependencies:
         expect(
           result.exitCode,
           equals(0),
-          reason: 'zfa entity create must accept the :json= wire syntax. '
-          'stderr: ${result.stderr}',
+          reason:
+              'zfa entity create must accept the :json= wire syntax. '
+              'stderr: ${result.stderr}',
         );
 
         final file = entityFile('id_operators');
-        expect(file.existsSync(), isTrue, reason: 'entity file must be written');
+        expect(
+          file.existsSync(),
+          isTrue,
+          reason: 'entity file must be written',
+        );
         final src = await file.readAsString();
 
         // The fix: the getter is named `in_` (Dart-safe) and carries
@@ -283,7 +291,8 @@ dev_dependencies:
         expect(
           goodAdd.exitCode,
           equals(0),
-          reason: 'add-field with :json= must succeed. stderr: ${goodAdd.stderr}',
+          reason:
+              'add-field with :json= must succeed. stderr: ${goodAdd.stderr}',
         );
 
         final file = entityFile('config_arg_definition');
@@ -291,7 +300,8 @@ dev_dependencies:
         expect(
           src,
           contains("@JsonKey(name: 'required')"),
-          reason: '@JsonKey(name: \'required\') must annotate the required_ getter',
+          reason:
+              '@JsonKey(name: \'required\') must annotate the required_ getter',
         );
         expect(
           src,
@@ -331,8 +341,9 @@ dev_dependencies:
         expect(
           result.exitCode,
           equals(0),
-          reason: 'entity create with _and/_or wire names must succeed. '
-          'stderr: ${result.stderr}',
+          reason:
+              'entity create with _and/_or wire names must succeed. '
+              'stderr: ${result.stderr}',
         );
 
         final file = entityFile('product_filter_parameter');
@@ -400,8 +411,9 @@ dev_dependencies:
         expect(
           result.exitCode,
           equals(0),
-          reason: 'from-json must accept Dart-keyword and _-prefixed keys. '
-          'stderr: ${result.stderr}',
+          reason:
+              'from-json must accept Dart-keyword and _-prefixed keys. '
+              'stderr: ${result.stderr}',
         );
 
         final file = entityFile('id_operators_from_json');
@@ -420,10 +432,7 @@ dev_dependencies:
 
         // Plain `eq` key: no @JsonKey needed.
         expect(src, contains('get eq;'));
-        expect(
-          src,
-          isNot(contains("@JsonKey(name: 'eq')")),
-        );
+        expect(src, isNot(contains("@JsonKey(name: 'eq')")));
 
         // No raw keyword / private identifiers.
         expect(
@@ -553,7 +562,8 @@ targets:
         expect(
           generated,
           contains("'in':"),
-          reason: "generated .g.dart must use the 'in' wire key "
+          reason:
+              "generated .g.dart must use the 'in' wire key "
               '(the whole point of #303)',
         );
 
@@ -563,7 +573,8 @@ targets:
         expect(
           generated,
           contains("'in': instance.in_"),
-          reason: "generated .g.dart toJson must map wire key 'in' to "
+          reason:
+              "generated .g.dart toJson must map wire key 'in' to "
               '`instance.in_` (Dart name) — that is the #303 contract',
         );
 
@@ -577,7 +588,8 @@ targets:
         expect(
           generated,
           isNot(contains("'in_': instance.in_")),
-          reason: "generated .g.dart toJson must NOT use 'in_' as the wire "
+          reason:
+              "generated .g.dart toJson must NOT use 'in_' as the wire "
               'key (that is the #303 bug — wire contract broken). The fix '
               "uses 'in' as the wire key with instance.in_ as the accessor.",
         );
@@ -590,8 +602,9 @@ targets:
         expect(
           analyze.exitCode,
           equals(0),
-          reason: 'dart analyze reported issues:\n'
-          '${analyze.stdout}${analyze.stderr}',
+          reason:
+              'dart analyze reported issues:\n'
+              '${analyze.stdout}${analyze.stderr}',
         );
       },
     );

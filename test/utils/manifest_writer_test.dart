@@ -8,7 +8,8 @@ import 'package:zuraffa/src/utils/manifest_writer.dart';
 /// matching what `flutter create` produces (with the `MainActivity`
 /// registration). Tests inject deep-link intent-filters into this
 /// template and assert the result is idempotent + structurally valid.
-const _androidManifestTemplate = r'''<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+const _androidManifestTemplate =
+    r'''<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:label="zuraffa_smoke"
         android:name="${applicationName}"
@@ -146,29 +147,32 @@ void main() {
       );
     });
 
-    test('is idempotent — second call returns null and does not duplicate',
-        () async {
-      final first = await writer.ensureAndroidIntentFilter(
-        manifestPath: manifestPath,
-        scheme: 'gozuzu',
-      );
-      expect(first, isNotNull);
+    test(
+      'is idempotent — second call returns null and does not duplicate',
+      () async {
+        final first = await writer.ensureAndroidIntentFilter(
+          manifestPath: manifestPath,
+          scheme: 'gozuzu',
+        );
+        expect(first, isNotNull);
 
-      final second = await writer.ensureAndroidIntentFilter(
-        manifestPath: manifestPath,
-        scheme: 'gozuzu',
-      );
-      expect(second, isNull, reason: 'second call must be a no-op');
+        final second = await writer.ensureAndroidIntentFilter(
+          manifestPath: manifestPath,
+          scheme: 'gozuzu',
+        );
+        expect(second, isNull, reason: 'second call must be a no-op');
 
-      final content = await File(manifestPath).readAsString();
-      final schemeOccurrences =
-          'android:scheme="gozuzu"'.allMatches(content).length;
-      expect(
-        schemeOccurrences,
-        equals(1),
-        reason: 'scheme must appear exactly once after re-run',
-      );
-    });
+        final content = await File(manifestPath).readAsString();
+        final schemeOccurrences = 'android:scheme="gozuzu"'
+            .allMatches(content)
+            .length;
+        expect(
+          schemeOccurrences,
+          equals(1),
+          reason: 'scheme must appear exactly once after re-run',
+        );
+      },
+    );
 
     test('returns null when AndroidManifest.xml does not exist '
         '(test env / pure-Dart package)', () async {
@@ -218,28 +222,32 @@ void main() {
       );
     });
 
-    test('is idempotent — second call returns null and does not duplicate',
-        () async {
-      final first = await writer.ensureIosUrlScheme(
-        plistPath: plistPath,
-        scheme: 'gozuzu',
-      );
-      expect(first, isNotNull);
+    test(
+      'is idempotent — second call returns null and does not duplicate',
+      () async {
+        final first = await writer.ensureIosUrlScheme(
+          plistPath: plistPath,
+          scheme: 'gozuzu',
+        );
+        expect(first, isNotNull);
 
-      final second = await writer.ensureIosUrlScheme(
-        plistPath: plistPath,
-        scheme: 'gozuzu',
-      );
-      expect(second, isNull, reason: 'second call must be a no-op');
+        final second = await writer.ensureIosUrlScheme(
+          plistPath: plistPath,
+          scheme: 'gozuzu',
+        );
+        expect(second, isNull, reason: 'second call must be a no-op');
 
-      final content = await File(plistPath).readAsString();
-      final occurrences = '<string>gozuzu</string>'.allMatches(content).length;
-      expect(
-        occurrences,
-        equals(1),
-        reason: 'scheme must appear exactly once after re-run',
-      );
-    });
+        final content = await File(plistPath).readAsString();
+        final occurrences = '<string>gozuzu</string>'
+            .allMatches(content)
+            .length;
+        expect(
+          occurrences,
+          equals(1),
+          reason: 'scheme must appear exactly once after re-run',
+        );
+      },
+    );
 
     test('multiple distinct schemes coexist in CFBundleURLTypes', () async {
       await writer.ensureIosUrlScheme(plistPath: plistPath, scheme: 'gozuzu');
@@ -266,15 +274,15 @@ void main() {
       final withExisting = _iosPlistTemplate.replaceFirst(
         '</dict>',
         '  <key>CFBundleURLTypes</key>\n'
-        '  <array>\n'
-        '    <dict>\n'
-        '      <key>CFBundleURLSchemes</key>\n'
-        '      <array>\n'
-        '        <string>existing</string>\n'
-        '      </array>\n'
-        '    </dict>\n'
-        '  </array>\n'
-        '</dict>',
+            '  <array>\n'
+            '    <dict>\n'
+            '      <key>CFBundleURLSchemes</key>\n'
+            '      <array>\n'
+            '        <string>existing</string>\n'
+            '      </array>\n'
+            '    </dict>\n'
+            '  </array>\n'
+            '</dict>',
       );
       await File(plistPath).writeAsString(withExisting);
 
@@ -284,8 +292,9 @@ void main() {
       expect(content.contains('<string>existing</string>'), isTrue);
       expect(content.contains('<string>gozuzu</string>'), isTrue);
       // Exactly one CFBundleURLTypes block must exist (no duplicate).
-      final typesKeys =
-          '<key>CFBundleURLTypes</key>'.allMatches(content).length;
+      final typesKeys = '<key>CFBundleURLTypes</key>'
+          .allMatches(content)
+          .length;
       expect(typesKeys, equals(1));
     });
   });

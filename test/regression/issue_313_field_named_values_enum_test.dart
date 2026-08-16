@@ -1,3 +1,13 @@
+// Each test runs the full `zfa entity create` -> `dart pub get` ->
+// `dart run build_runner build` -> `dart analyze` pipeline in a temp
+// workspace. The build_runner step alone takes ~2.5 min on CI-class
+// hardware (AOT-compiles its builder graph before generating) and
+// `dart bin/zfa.dart` sub-processes take ~15s each in JIT start-up, so
+// the package:test default (30s) is far too tight. Must be a library
+// annotation — `Timeout` targets the library, not `main`.
+@Timeout(Duration(minutes: 12))
+library;
+
 // Regression test for issue #313.
 //
 // `zfa entity create -n Facet --field values:List<FacetValue>?` generated
@@ -52,21 +62,16 @@ import '../helpers/project_root.dart';
 /// Resolve package root at discovery time, before any test changes CWD.
 late final String _zfaRoot;
 
-/// Zorphy checkout path, computed from the zuraffa root
-/// (`<zfaRoot>/../zorphy`). Zuraffa's own `pubspec.yaml` has a path
-/// override pointing at `../zorphy/zorphy`, so the zorphy checkout is
-/// expected to live alongside the zuraffa checkout. This matches the
-/// layout in CI and in agent sandboxes.
-String get _zorphyRoot => p.normalize(p.join(_zfaRoot, '..', 'zorphy'));
-
 void main() {
   group('#313 — zfa entity create with field named `values`', () {
     late Directory workspace;
     late String zfaBin;
 
     Future<ProcessResult> runZfa(List<String> args) {
-      return Process.run('dart', [zfaBin, ...args],
-          workingDirectory: workspace.path);
+      return Process.run('dart', [
+        zfaBin,
+        ...args,
+      ], workingDirectory: workspace.path);
     }
 
     Future<ProcessResult> runDart(List<String> args) {
@@ -87,28 +92,26 @@ void main() {
       // json_serializable are pulled in transitively. We also list
       // `zorphy_annotation` directly because `EntityCommand`'s dependency
       // check scans pubspec.yaml for the literal string `zorphy_annotation:`
-      // before doing any work. The `dependency_overrides` section pins
-      // both `zorphy` and `zorphy_annotation` to the local checkout
-      // (mirroring zuraffa's own pubspec) so the fixed zorphy is what
-      // actually generates the .zorphy.dart file.
+      // before doing any work. The zorphy refs mirror zuraffa's own
+      // pubspec (git deps, no sibling-checkout paths — CI has no `../zorphy`
+      // and this is what carries the fixed zorphy that generates the
+      // escaped `.zorphy.dart` file).
       await File(p.join(workspace.path, 'pubspec.yaml')).writeAsString('''
 name: issue_313_test_app
 environment:
-  sdk: '>=3.12.0 <4.0.0'
+  sdk: '>=3.11.0 <4.0.0'
 dependencies:
   zuraffa:
     path: $_zfaRoot
   zorphy_annotation:
-    path: ${p.join(_zorphyRoot, 'zorphy_annotation')}
+    git:
+      url: https://github.com/arrrrny/zorphy.git
+      path: zorphy_annotation
+      ref: development
   json_annotation: ^4.12.0
 dev_dependencies:
   build_runner: ^2.4.0
   json_serializable: ^6.9.0
-dependency_overrides:
-  zorphy:
-    path: ${p.join(_zorphyRoot, 'zorphy')}
-  zorphy_annotation:
-    path: ${p.join(_zorphyRoot, 'zorphy_annotation')}
 ''');
 
       // build.yaml: enable the zorphy builder for lib/src/**. This mirrors
@@ -165,7 +168,7 @@ targets:
     test(
       'field named `values` generates a valid escaped enum member + '
       'consistent patchMap references (exact repro from the issue)',
-      timeout: const Timeout(Duration(minutes: 5)),
+      timeout: const Timeout(Duration(minutes: 12)),
       () async {
         // Step 1: resolve dependencies. Must happen BEFORE zfa entity create
         // so build_runner can find the zorphy builder when invoked.
@@ -202,11 +205,7 @@ targets:
 
         // Step 3: run build_runner to generate the .zorphy.dart file.
         // This is the step that would fail (analyzer error) without the fix.
-        final build = await runDart([
-          'run',
-          'build_runner',
-          'build',
-        ]);
+        final build = await runDart(['run', 'build_runner', 'build']);
         expect(
           build.exitCode,
           equals(0),
@@ -336,14 +335,17 @@ targets:
     test(
       'field named `index` is also escaped (defense-in-depth for the '
       'Enum.index reserved member)',
-      timeout: const Timeout(Duration(minutes: 5)),
+      timeout: const Timeout(Duration(minutes: 12)),
       () async {
         // `index` is another implicit Enum member that must be escaped.
         // The fix's _reservedEnumMemberNames set includes `index` and `name`
         // alongside `values` — this test verifies that coverage.
         final pubGet = await runDart(['pub', 'get']);
-        expect(pubGet.exitCode, equals(0),
-            reason: 'dart pub get failed: ${pubGet.stderr}');
+        expect(
+          pubGet.exitCode,
+          equals(0),
+          reason: 'dart pub get failed: ${pubGet.stderr}',
+        );
 
         final create = await runZfa([
           'entity',
@@ -355,8 +357,11 @@ targets:
           '--field',
           'index:int',
         ]);
-        expect(create.exitCode, equals(0),
-            reason: 'zfa entity create failed: ${create.stderr}');
+        expect(
+          create.exitCode,
+          equals(0),
+          reason: 'zfa entity create failed: ${create.stderr}',
+        );
 
         final build = await runDart(['run', 'build_runner', 'build']);
         expect(
@@ -396,7 +401,8 @@ targets:
         expect(
           analyze.exitCode,
           equals(0),
-          reason: 'dart analyze must pass on the generated `index` field.\n'
+          reason:
+              'dart analyze must pass on the generated `index` field.\n'
               'stdout: ${analyze.stdout}\nstderr: ${analyze.stderr}',
         );
       },

@@ -113,9 +113,7 @@ dependencies:
   flutter:
     path: stub_flutter
 ''');
-    final stubLib = Directory(
-      p.join(workspace.path, 'stub_flutter', 'lib'),
-    );
+    final stubLib = Directory(p.join(workspace.path, 'stub_flutter', 'lib'));
     await stubLib.create(recursive: true);
     await File(
       p.join(workspace.path, 'stub_flutter', 'pubspec.yaml'),
@@ -136,138 +134,151 @@ environment:
     }
   });
 
-  group('issue #343 — custom view constructor must not forward routeObserver', () {
-    test(
-      '`zfa view custom` (stateful) generates a compiling view',
-      timeout: const Timeout(Duration(minutes: 3)),
-      () async {
-        final result = await Process.run(
-          'dart',
-          [p.join(_zfaRoot, 'bin', 'zfa.dart'), 'view', 'custom', 'Splash'],
-          workingDirectory: workspace.path,
-        );
-        expect(
-          result.exitCode,
-          equals(0),
-          reason:
-              'zfa view custom must succeed:\n'
-              '${result.stdout}\n${result.stderr}',
-        );
+  group(
+    'issue #343 — custom view constructor must not forward routeObserver',
+    () {
+      test(
+        '`zfa view custom` (stateful) generates a compiling view',
+        timeout: const Timeout(Duration(minutes: 3)),
+        () async {
+          final result = await Process.run('dart', [
+            p.join(_zfaRoot, 'bin', 'zfa.dart'),
+            'view',
+            'custom',
+            'Splash',
+          ], workingDirectory: workspace.path);
+          expect(
+            result.exitCode,
+            equals(0),
+            reason:
+                'zfa view custom must succeed:\n'
+                '${result.stdout}\n${result.stderr}',
+          );
 
-        final viewFile = File(
-          p.join(libSrc, 'presentation', 'pages', 'general', 'splash_view.dart'),
-        );
-        expect(viewFile.existsSync(), isTrue);
-        final content = viewFile.readAsStringSync();
+          final viewFile = File(
+            p.join(
+              libSrc,
+              'presentation',
+              'pages',
+              'general',
+              'splash_view.dart',
+            ),
+          );
+          expect(viewFile.existsSync(), isTrue);
+          final content = viewFile.readAsStringSync();
 
-        // The exact #343 symptom: super.routeObserver forwarded to plain
-        // StatefulWidget → super_formal_parameter_without_associated_named.
-        expect(
-          content,
-          isNot(contains('super.routeObserver')),
-          reason:
-              'custom views extend plain StatefulWidget, whose constructor '
-              'has no routeObserver parameter — forwarding it produced '
-              'super_formal_parameter_without_associated_named (#343).',
-        );
-        // The expected constructor shape from the issue.
-        expect(content, contains('const SplashView({super.key})'));
-        expect(content, contains('extends StatefulWidget'));
+          // The exact #343 symptom: super.routeObserver forwarded to plain
+          // StatefulWidget → super_formal_parameter_without_associated_named.
+          expect(
+            content,
+            isNot(contains('super.routeObserver')),
+            reason:
+                'custom views extend plain StatefulWidget, whose constructor '
+                'has no routeObserver parameter — forwarding it produced '
+                'super_formal_parameter_without_associated_named (#343).',
+          );
+          // The expected constructor shape from the issue.
+          expect(content, contains('const SplashView({super.key})'));
+          expect(content, contains('extends StatefulWidget'));
 
-        // Compile check: dart analyze against the stub material library.
-        await _assertAnalyzesClean(workspace);
-      },
-    );
+          // Compile check: dart analyze against the stub material library.
+          await _assertAnalyzesClean(workspace);
+        },
+      );
 
-    test(
-      'custom capability with stateless:true generates a compiling '
-      'StatelessWidget view',
-      timeout: const Timeout(Duration(minutes: 3)),
-      () async {
-        final plugin = ViewPlugin(
-          outputDir: libSrc,
-          options: const GeneratorOptions(force: true),
-        );
-        final capability = CustomViewCapability(plugin);
-        final result = await capability.execute({
-          'name': 'Login',
-          'domain': 'general',
-          'stateless': true,
-        });
-        expect(result.success, isTrue);
-
-        final viewFile = File(
-          p.join(libSrc, 'presentation', 'pages', 'general', 'login_view.dart'),
-        );
-        expect(viewFile.existsSync(), isTrue);
-        final content = viewFile.readAsStringSync();
-
-        expect(
-          content,
-          isNot(contains('super.routeObserver')),
-          reason:
-              'stateless custom views extend plain StatelessWidget, whose '
-              'constructor has no routeObserver parameter (#343).',
-        );
-        expect(content, contains('const LoginView({super.key})'));
-        expect(content, contains('extends StatelessWidget'));
-
-        await _assertAnalyzesClean(workspace);
-      },
-    );
-
-    test(
-      'entity-backed CleanView templates KEEP super.routeObserver',
-      () async {
-        final plugin = ViewPlugin(
-          outputDir: libSrc,
-          options: const GeneratorOptions(force: true),
-        );
-
-        final files = await plugin.generate(
-          GeneratorConfig(
-            name: 'Product',
-            methods: const ['get', 'update'],
-            generateView: true,
+      test(
+        'custom capability with stateless:true generates a compiling '
+        'StatelessWidget view',
+        timeout: const Timeout(Duration(minutes: 3)),
+        () async {
+          final plugin = ViewPlugin(
             outputDir: libSrc,
-          ),
-        );
-        expect(files, isNotEmpty);
-        final content = files.first.content ?? '';
-        expect(content, contains('extends CleanView'));
-        expect(
-          content,
-          contains('super.routeObserver'),
-          reason:
-              'entity-backed views extend CleanView, whose constructor '
-              'legitimately accepts routeObserver — the #343 fix must NOT '
-              'touch the CleanView template.',
-        );
-      },
-    );
-  });
+            options: const GeneratorOptions(force: true),
+          );
+          final capability = CustomViewCapability(plugin);
+          final result = await capability.execute({
+            'name': 'Login',
+            'domain': 'general',
+            'stateless': true,
+          });
+          expect(result.success, isTrue);
+
+          final viewFile = File(
+            p.join(
+              libSrc,
+              'presentation',
+              'pages',
+              'general',
+              'login_view.dart',
+            ),
+          );
+          expect(viewFile.existsSync(), isTrue);
+          final content = viewFile.readAsStringSync();
+
+          expect(
+            content,
+            isNot(contains('super.routeObserver')),
+            reason:
+                'stateless custom views extend plain StatelessWidget, whose '
+                'constructor has no routeObserver parameter (#343).',
+          );
+          expect(content, contains('const LoginView({super.key})'));
+          expect(content, contains('extends StatelessWidget'));
+
+          await _assertAnalyzesClean(workspace);
+        },
+      );
+
+      test(
+        'entity-backed CleanView templates KEEP super.routeObserver',
+        () async {
+          final plugin = ViewPlugin(
+            outputDir: libSrc,
+            options: const GeneratorOptions(force: true),
+          );
+
+          final files = await plugin.generate(
+            GeneratorConfig(
+              name: 'Product',
+              methods: const ['get', 'update'],
+              generateView: true,
+              outputDir: libSrc,
+            ),
+          );
+          expect(files, isNotEmpty);
+          final content = files.first.content ?? '';
+          expect(content, contains('extends CleanView'));
+          expect(
+            content,
+            contains('super.routeObserver'),
+            reason:
+                'entity-backed views extend CleanView, whose constructor '
+                'legitimately accepts routeObserver — the #343 fix must NOT '
+                'touch the CleanView template.',
+          );
+        },
+      );
+    },
+  );
 }
 
 /// Runs `dart pub get` + `dart analyze` in [workspace] and asserts the
 /// compile is clean — in particular that no
 /// super_formal_parameter_without_associated_named error appears.
 Future<void> _assertAnalyzesClean(Directory workspace) async {
-  final pubGet = await Process.run(
-    'dart',
-    ['pub', 'get'],
-    workingDirectory: workspace.path,
-  );
+  final pubGet = await Process.run('dart', [
+    'pub',
+    'get',
+  ], workingDirectory: workspace.path);
   expect(
     pubGet.exitCode,
     equals(0),
     reason: 'dart pub get failed:\n${pubGet.stdout}\n${pubGet.stderr}',
   );
 
-  final analyze = await Process.run(
-    'dart',
-    ['analyze'],
-    workingDirectory: workspace.path,
-  );
+  final analyze = await Process.run('dart', [
+    'analyze',
+  ], workingDirectory: workspace.path);
   final output = analyze.stdout.toString() + analyze.stderr.toString();
 
   expect(

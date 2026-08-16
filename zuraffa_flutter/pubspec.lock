@@ -697,20 +697,20 @@ packages:
     dependency: transitive
     description:
       path: zorphy
-      ref: development
-      resolved-ref: ad28a308c1b22ef0d0c873ef45b17d5025c72632
+      ref: "fix/349-external-type-no-dollar-prefix-cli"
+      resolved-ref: e75c30b60030f03f7dca54f4c46e10a07c1acdc7
       url: "https://github.com/arrrrny/zorphy.git"
     source: git
-    version: "2.1.0"
+    version: "2.2.0"
   zorphy_annotation:
     dependency: transitive
     description:
       path: zorphy_annotation
       ref: development
-      resolved-ref: ad28a308c1b22ef0d0c873ef45b17d5025c72632
+      resolved-ref: "7e372469f7c1f0fd6dbad770b78969bd89f5000a"
       url: "https://github.com/arrrrny/zorphy.git"
     source: git
-    version: "2.1.0"
+    version: "2.2.0"
   zuraffa:
     dependency: "direct main"
     description:

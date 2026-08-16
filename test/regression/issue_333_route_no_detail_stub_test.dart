@@ -135,7 +135,8 @@ void main() {
         expect(
           content.contains("name: 'error_log_detail'"),
           isFalse,
-          reason: 'detail GoRoute stub must NOT be emitted when no '
+          reason:
+              'detail GoRoute stub must NOT be emitted when no '
               'detail_view file exists on disk.',
         );
         // No stray comma + blank line.
@@ -159,167 +160,152 @@ void main() {
           reason: 'trailing comma in closure params',
         );
         // The list route + import are still present.
-        expect(
-          content.contains("name: 'error_log_list'"),
-          isTrue,
-        );
-        expect(
-          content.contains('error_log_view.dart'),
-          isTrue,
-        );
+        expect(content.contains("name: 'error_log_list'"), isTrue);
+        expect(content.contains('error_log_view.dart'), isTrue);
       },
     );
 
-    test(
-      'RE-RUN with --force over a pre-fix routes file cleans up the stale '
-      'detail route and produces a syntactically valid file',
-      () async {
-        // Pre-create the routes file with the pre-#331 broken content
-        // (referencing <Entity>DetailView unconditionally).
-        final routesDir = Directory('$outputDir/routing');
-        await routesDir.create(recursive: true);
-        await File('${routesDir.path}/error_log_routes.dart').writeAsString(
-          _preFixRoutesFile,
-        );
-        // Pre-create supporting files so _regenerateIndexFile doesn't choke.
-        await File('${routesDir.path}/index.dart').writeAsString(
-          "import 'error_log_routes.dart';\n",
-        );
-        await File('${routesDir.path}/app_routes.dart').writeAsString(
-          "import './index.dart';\n"
-          "class AppRoutes {}\n"
-          "extension RouterExtension on AppRoutes {}\n",
-        );
+    test('RE-RUN with --force over a pre-fix routes file cleans up the stale '
+        'detail route and produces a syntactically valid file', () async {
+      // Pre-create the routes file with the pre-#331 broken content
+      // (referencing <Entity>DetailView unconditionally).
+      final routesDir = Directory('$outputDir/routing');
+      await routesDir.create(recursive: true);
+      await File(
+        '${routesDir.path}/error_log_routes.dart',
+      ).writeAsString(_preFixRoutesFile);
+      // Pre-create supporting files so _regenerateIndexFile doesn't choke.
+      await File(
+        '${routesDir.path}/index.dart',
+      ).writeAsString("import 'error_log_routes.dart';\n");
+      await File('${routesDir.path}/app_routes.dart').writeAsString(
+        "import './index.dart';\n"
+        "class AppRoutes {}\n"
+        "extension RouterExtension on AppRoutes {}\n",
+      );
 
-        final builder = RouteBuilder(
+      final builder = RouteBuilder(
+        outputDir: outputDir,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
+      );
+
+      await builder.generate(
+        GeneratorConfig(
+          name: 'ErrorLog',
+          methods: const ['get', 'getList'],
+          generateVpcs: true,
+          generateRoute: true,
           outputDir: outputDir,
-          options: const GeneratorOptions(
-            dryRun: false,
-            force: true,
-            verbose: false,
-          ),
-        );
+        ),
+      );
 
-        await builder.generate(
-          GeneratorConfig(
-            name: 'ErrorLog',
-            methods: const ['get', 'getList'],
-            generateVpcs: true,
-            generateRoute: true,
-            outputDir: outputDir,
-          ),
-        );
+      final routesFile = File('$outputDir/routing/error_log_routes.dart');
+      final content = routesFile.readAsStringSync();
 
-        final routesFile = File('$outputDir/routing/error_log_routes.dart');
-        final content = routesFile.readAsStringSync();
+      // The stale detail GoRoute (referencing ErrorLogDetailView) must
+      // be removed.
+      expect(
+        content.contains('ErrorLogDetailView'),
+        isFalse,
+        reason:
+            'stale detail route referencing <Entity>DetailView '
+            'must be removed on re-run.',
+      );
+      expect(
+        content.contains("name: 'error_log_detail'"),
+        isFalse,
+        reason:
+            'no detail GoRoute stub must be emitted when no '
+            'detail_view file exists on disk.',
+      );
+      // No stray comma + blank line.
+      expect(
+        RegExp(r',\s*\n\s*,').hasMatch(content),
+        isFalse,
+        reason: 'stray comma + blank line detected',
+      );
+      // No mangled pathParameters access.
+      expect(
+        content.contains('pathParameters  [') ||
+            content.contains('pathParameters [\n') ||
+            content.contains("pathParameters [ 'id'"),
+        isFalse,
+        reason: 'mangled state.pathParameters access detected',
+      );
+      // No trailing comma in closure params.
+      expect(
+        content.contains('(context, state, )'),
+        isFalse,
+        reason: 'trailing comma in closure params',
+      );
+      // The stale detail_view import must be dropped.
+      expect(
+        content.contains('error_log_detail_view.dart'),
+        isFalse,
+        reason:
+            'stale detail_view import must be dropped when no '
+            'detail_view file exists.',
+      );
+      // The list route + main view import must still be present.
+      expect(content.contains("name: 'error_log_list'"), isTrue);
+      expect(content.contains('error_log_view.dart'), isTrue);
 
-        // The stale detail GoRoute (referencing ErrorLogDetailView) must
-        // be removed.
-        expect(
-          content.contains('ErrorLogDetailView'),
-          isFalse,
-          reason: 'stale detail route referencing <Entity>DetailView '
-              'must be removed on re-run.',
-        );
-        expect(
-          content.contains("name: 'error_log_detail'"),
-          isFalse,
-          reason: 'no detail GoRoute stub must be emitted when no '
-              'detail_view file exists on disk.',
-        );
-        // No stray comma + blank line.
-        expect(
-          RegExp(r',\s*\n\s*,').hasMatch(content),
-          isFalse,
-          reason: 'stray comma + blank line detected',
-        );
-        // No mangled pathParameters access.
-        expect(
-          content.contains('pathParameters  [') ||
-              content.contains('pathParameters [\n') ||
-              content.contains("pathParameters [ 'id'"),
-          isFalse,
-          reason: 'mangled state.pathParameters access detected',
-        );
-        // No trailing comma in closure params.
-        expect(
-          content.contains('(context, state, )'),
-          isFalse,
-          reason: 'trailing comma in closure params',
-        );
-        // The stale detail_view import must be dropped.
-        expect(
-          content.contains('error_log_detail_view.dart'),
-          isFalse,
-          reason: 'stale detail_view import must be dropped when no '
-              'detail_view file exists.',
-        );
-        // The list route + main view import must still be present.
-        expect(
-          content.contains("name: 'error_log_list'"),
-          isTrue,
-        );
-        expect(
-          content.contains('error_log_view.dart'),
-          isTrue,
-        );
+      // The file must parse cleanly — verify by running the Dart
+      // formatter on it (throws on invalid syntax).
+      final formatted = _format(content);
+      expect(
+        formatted,
+        isNotNull,
+        reason: 'routes file must be parseable by DartFormatter',
+      );
+    });
 
-        // The file must parse cleanly — verify by running the Dart
-        // formatter on it (throws on invalid syntax).
-        final formatted = _format(content);
-        expect(
-          formatted,
-          isNotNull,
-          reason: 'routes file must be parseable by DartFormatter',
-        );
-      },
-    );
+    test('RE-RUN with --force is idempotent — second run produces the same '
+        'file as the first', () async {
+      final builder = RouteBuilder(
+        outputDir: outputDir,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
+      );
 
-    test(
-      'RE-RUN with --force is idempotent — second run produces the same '
-      'file as the first',
-      () async {
-        final builder = RouteBuilder(
+      // First run.
+      await builder.generate(
+        GeneratorConfig(
+          name: 'ErrorLog',
+          methods: const ['get', 'getList'],
+          generateVpcs: true,
+          generateRoute: true,
           outputDir: outputDir,
-          options: const GeneratorOptions(
-            dryRun: false,
-            force: true,
-            verbose: false,
-          ),
-        );
+        ),
+      );
+      final routesFile = File('$outputDir/routing/error_log_routes.dart');
+      final firstRun = routesFile.readAsStringSync();
 
-        // First run.
-        await builder.generate(
-          GeneratorConfig(
-            name: 'ErrorLog',
-            methods: const ['get', 'getList'],
-            generateVpcs: true,
-            generateRoute: true,
-            outputDir: outputDir,
-          ),
-        );
-        final routesFile = File('$outputDir/routing/error_log_routes.dart');
-        final firstRun = routesFile.readAsStringSync();
+      // Second run.
+      await builder.generate(
+        GeneratorConfig(
+          name: 'ErrorLog',
+          methods: const ['get', 'getList'],
+          generateVpcs: true,
+          generateRoute: true,
+          outputDir: outputDir,
+        ),
+      );
+      final secondRun = routesFile.readAsStringSync();
 
-        // Second run.
-        await builder.generate(
-          GeneratorConfig(
-            name: 'ErrorLog',
-            methods: const ['get', 'getList'],
-            generateVpcs: true,
-            generateRoute: true,
-            outputDir: outputDir,
-          ),
-        );
-        final secondRun = routesFile.readAsStringSync();
-
-        expect(
-          secondRun,
-          equals(firstRun),
-          reason: 're-running with --force must be idempotent',
-        );
-      },
-    );
+      expect(
+        secondRun,
+        equals(firstRun),
+        reason: 're-running with --force must be idempotent',
+      );
+    });
   });
 }
 
