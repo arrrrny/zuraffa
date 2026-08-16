@@ -134,10 +134,13 @@ class XrayMockCommand extends Command<void> {
     if (injected > 0 && !dryRun) {
       print('');
       print('── Next steps ──');
-      print(
-        '   zfa xray deck --entity $entityName   '
-        '# generate the Control Deck from these annotations',
-      );
+      for (final r in results.where((r) => r.injected)) {
+        final rel = p.relative(r.path, from: projectRoot);
+        print(
+          '   zfa xray deck --entity $entityName --source $rel   '
+          '# generate the Control Deck from these annotations',
+        );
+      }
       print(
         '   zfa app shell --xray                '
         '# wire the bridge server into main.dart',

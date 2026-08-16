@@ -127,5 +127,38 @@ class GetProductUseCase extends UseCase<Product, String> {}
       final help = await runner.runCapturing(['xray', '--help']);
       expect(help, contains('mock'));
     });
+
+    test('next-step deck hint includes the required --source', () async {
+      Directory.current = tempDir.path;
+
+      Directory(p.join(tempDir.path, 'lib', 'src', 'domain', 'usecases'))
+          .createSync(recursive: true);
+
+      final usecaseDir = p.join(
+        tempDir.path,
+        'lib',
+        'src',
+        'domain',
+        'usecases',
+        'order',
+      );
+      final usecaseFile = File(p.join(usecaseDir, 'get_order_usecase.dart'));
+      usecaseFile.parent.createSync(recursive: true);
+      usecaseFile.writeAsStringSync('''
+class GetOrderUseCase extends UseCase<Order, String> {}
+''');
+
+      final runner = CliRunner(exitOnCompletion: false);
+      final output = await runner.runCapturing(['xray', 'mock', 'Order']);
+
+      // The printed deck command must be runnable as-is: `zfa xray deck`
+      // errors out with "provide --source and/or --yaml" when --source is
+      // missing (issue #360 review finding).
+      expect(output, contains('zfa xray deck --entity Order --source'));
+      expect(
+        output,
+        contains('lib/src/domain/usecases/order/get_order_usecase.dart'),
+      );
+    });
   });
 }

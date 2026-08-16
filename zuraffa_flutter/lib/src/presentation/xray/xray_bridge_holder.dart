@@ -25,28 +25,38 @@ import 'xray_scope.dart';
 class XRayBridgeScopeHolder {
   XRayBridgeScopeHolder._();
 
-  static XRayScopeState? _activeScope;
+  /// Registration stack of live scopes. The most recently mounted scope is
+  /// the active one; disposing a nested/sibling scope pops only that entry
+  /// so an outer scope stays registered for tree serialization (#360).
+  static final List<XRayScopeState> _scopeStack = [];
 
   /// Register the active scope.
   static void setScope(XRayScopeState scope) {
     if (kReleaseMode) return;
-    _activeScope = scope;
+    _scopeStack
+      ..remove(scope)
+      ..add(scope);
   }
 
-  /// Clear the active scope (e.g. on dispose).
-  static void clearScope() {
-    _activeScope = null;
+  /// Remove a disposing scope from the registration stack.
+  ///
+  /// Only [scope] itself is removed — sibling/parent scopes stay
+  /// registered, so `activeScope` falls back to the enclosing scope
+  /// instead of going null (#360).
+  static void clearScope(XRayScopeState scope) {
+    if (kReleaseMode) return;
+    _scopeStack.remove(scope);
   }
 
   /// Get the current active scope, if any.
   static XRayScopeState? get activeScope {
     if (kReleaseMode) return null;
-    return _activeScope;
+    return _scopeStack.isEmpty ? null : _scopeStack.last;
   }
 
   /// Clear for testing.
   @visibleForTesting
   static void reset() {
-    _activeScope = null;
+    _scopeStack.clear();
   }
 }
