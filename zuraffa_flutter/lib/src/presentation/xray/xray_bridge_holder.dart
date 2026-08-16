@@ -22,33 +22,33 @@ import 'xray_scope.dart';
 /// Set this in your app's widget tree (e.g. in [XRayScopeState]'s
 /// initState — which [XRayScope] does automatically as of issue #360)
 /// so the bridge can serialize the tree.
+///
+/// Supports nested scopes: when a child scope disposes, the parent scope
+/// is restored as the active scope.
 class XRayBridgeScopeHolder {
   XRayBridgeScopeHolder._();
 
-  /// Registration stack of live scopes. The most recently mounted scope is
-  /// the active one; disposing a nested/sibling scope pops only that entry
-  /// so an outer scope stays registered for tree serialization (#360).
   static final List<XRayScopeState> _scopeStack = [];
 
   /// Register the active scope.
+  /// If a scope is already active, the new scope becomes active and the
+  /// previous scope is preserved in a stack.
   static void setScope(XRayScopeState scope) {
     if (kReleaseMode) return;
-    _scopeStack
-      ..remove(scope)
-      ..add(scope);
+    _scopeStack.add(scope);
   }
 
-  /// Remove a disposing scope from the registration stack.
-  ///
-  /// Only [scope] itself is removed — sibling/parent scopes stay
-  /// registered, so `activeScope` falls back to the enclosing scope
-  /// instead of going null (#360).
+  /// Clear the specified scope (e.g. on dispose).
+  /// If this scope is the active scope, restore the previous scope.
+  /// If it's a parent scope being disposed while a child is active,
+  /// remove it from the stack but keep the child active.
   static void clearScope(XRayScopeState scope) {
     if (kReleaseMode) return;
     _scopeStack.remove(scope);
   }
 
   /// Get the current active scope, if any.
+  /// Returns the most recently registered scope that hasn't been cleared.
   static XRayScopeState? get activeScope {
     if (kReleaseMode) return null;
     return _scopeStack.isEmpty ? null : _scopeStack.last;

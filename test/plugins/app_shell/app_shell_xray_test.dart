@@ -24,13 +24,12 @@ void main() {
       );
     });
 
-    test('emits XRayBridgeServer import when xray is true', () {
+    test('emits platform-safe bridge imports when xray is true', () {
       final src = builder.buildMain(appName: 'my_app', xray: true);
+      // Should use conditional import for platform safety
       expect(
         src,
-        contains(
-          "import 'package:zuraffa_flutter/src/presentation/xray/xray_bridge_server.dart';",
-        ),
+        contains("if (dart.library.io)"),
       );
     });
 
@@ -50,14 +49,14 @@ void main() {
     test('emits kDebugMode guard with bridge start when xray is true', () {
       final src = builder.buildMain(appName: 'my_app', xray: true);
       expect(src, contains('if (kDebugMode)'));
-      expect(src, contains('await XRayBridgeServer().start();'));
+      expect(src, contains('await _startXRayBridge();'));
       expect(src, contains('registerAllXRayDecks();'));
     });
 
     test('emits the bridge start AFTER setupDependencies', () {
       final src = builder.buildMain(appName: 'my_app', xray: true);
       final setupIdx = src.indexOf('await setupDependencies()');
-      final bridgeIdx = src.indexOf('XRayBridgeServer');
+      final bridgeIdx = src.indexOf('await _startXRayBridge();');
       expect(setupIdx, greaterThanOrEqualTo(0));
       expect(bridgeIdx, greaterThan(setupIdx));
     });
@@ -77,6 +76,12 @@ void main() {
     test('stamps the file with the X-Ray wiring header when xray is true', () {
       final src = builder.buildMain(appName: 'my_app', xray: true);
       expect(src, contains('X-Ray wiring (issue #360)'));
+    });
+
+    test('emits platform-safe _startXRayBridge helper when xray is true', () {
+      final src = builder.buildMain(appName: 'my_app', xray: true);
+      expect(src, contains('Future<void> _startXRayBridge()'));
+      expect(src, contains('Platform-safe X-Ray bridge launcher'));
     });
   });
 

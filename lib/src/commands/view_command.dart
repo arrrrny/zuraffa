@@ -38,6 +38,11 @@ class ViewCommand extends PluginCommand {
       help: 'Generate route definitions for this view',
       defaultsTo: false,
     );
+    argParser.addFlag(
+      'xray',
+      help: 'Generate with X-Ray integration',
+      defaultsTo: false,
+    );
   }
 
   @override
@@ -68,9 +73,10 @@ class ViewCommand extends PluginCommand {
     final generateState = argResults?['state'] as bool? ?? false;
     final generateV6State = argResults?['v6-state'] as bool? ?? false;
     final generateRoute = argResults?['route'] as bool? ?? false;
-    final xrayFlag = argResults?['xray'] as bool?;
     final config = ZfaConfig.load();
-    final generateXRay = xrayFlag ?? config?.xrayByDefault ?? false;
+    final generateXRay = argResults!.wasParsed('xray')
+        ? (argResults?['xray'] as bool? ?? false)
+        : (config?.xrayByDefault ?? false);
 
     final capability = plugin.capabilities.firstWhere(
       (c) => c.name == capabilityName,

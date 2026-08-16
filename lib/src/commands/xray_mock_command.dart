@@ -126,9 +126,9 @@ class XrayMockCommand extends Command<void> {
     }
 
     print('');
+    final dryRunText = dryRun ? 'would be ' : '';
     print(
-      '$injected file(s) ${dryRun ? "would be" : ""} '
-      'scaffolded${skipped > 0 ? ", $skipped skipped" : ""}.',
+      '$injected file(s) ${dryRunText}scaffolded${skipped > 0 ? ", $skipped skipped" : ""}.',
     );
 
     if (injected > 0 && !dryRun) {

@@ -207,7 +207,7 @@ class AppShellCommand extends Command<void> {
     if (xray) {
       final xrayDecksPath = p.join(outputDir, 'xray', 'xray_decks.dart');
       final xrayDecksExists = await _fileSystem.exists(xrayDecksPath);
-      if (!xrayDecksExists || force) {
+      if (!xrayDecksExists) {
         files.add(
           await FileUtils.writeFile(
             xrayDecksPath,
@@ -263,7 +263,8 @@ class AppShellCommand extends Command<void> {
       }
       print('\n\u2500\u2500 Next steps \u2500\u2500');
       print('   flutter run   # or `flutter build apk` / `dart run`');
-    }  }
+    }
+  }
 
   void _logSummary(
     List<GeneratedFile> files, {

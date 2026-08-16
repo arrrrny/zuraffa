@@ -65,6 +65,34 @@ class XrayDeckCommand extends Command<void> {
       entitySnake = _toSnakeCase(entityName);
       outputPath ??= p.join("lib", "src", "xray", "${entitySnake}_xray_deck.dart");
       useCaseName ??= entityName;
+
+      // When --entity is provided without --source or --yaml, auto-discover
+      // matching usecase files.
+      if (sourcePath == null && yamlPath == null) {
+        final usecasesDir = p.join(
+          Directory.current.path,
+          'lib',
+          'src',
+          'domain',
+          'usecases',
+        );
+        final dir = Directory(usecasesDir);
+        if (dir.existsSync()) {
+          final matchingFiles = <String>[];
+          for (final subDir in dir.listSync().whereType<Directory>()) {
+            for (final file in subDir.listSync().whereType<File>()) {
+              final fileName = p.basename(file.path);
+              if (fileName.contains('_${entitySnake}_usecase.dart')) {
+                matchingFiles.add(file.path);
+              }
+            }
+          }
+          if (matchingFiles.isNotEmpty) {
+            // Use the first matching file as the default source.
+            sourcePath = matchingFiles.first;
+          }
+        }
+      }
     }
 
     if (sourcePath == null && yamlPath == null) {
