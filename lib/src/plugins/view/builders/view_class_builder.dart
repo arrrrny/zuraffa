@@ -494,11 +494,12 @@ class ViewClassBuilder {
         spec.entityName != null &&
         !spec.isCustom;
 
-    if (spec.withState) {
-      // Declare viewState variable (still useful for the user's future
-      // state-driven rendering; we don't reference it here to avoid an
-      // unused warning, but the declaration stays so swapping the body
-      // is a one-line change).
+    // #359: when mock data is rendered the body never references
+    // viewState, so skip the declaration — an unreferenced local would
+    // trigger an `unused_local_variable` analyzer warning in generated
+    // code. The state-backed fallback below still consumes viewState via
+    // the Container ValueKey.
+    if (spec.withState && !mockAvailable) {
       stateDeclarations.add(
         declareFinal(
           'viewState',

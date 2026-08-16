@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:path/path.dart' as path;
 
 import '../../../core/generator_options.dart';
@@ -159,9 +157,11 @@ class ShellRouteCapability implements ZuraffaCapability {
     );
 
     // Ensure the routing directory exists (mirrors DeepLinkRouteCapability).
+    // Go through plugin.fileSystem (not dart:io Directory) so the
+    // capability honors injected/transactional file systems.
     final routingDir = path.join(plugin.outputDir, 'routing');
     if (!await plugin.fileSystem.exists(routingDir)) {
-      await _ensureDir(routingDir);
+      await plugin.fileSystem.createDir(routingDir, recursive: true);
     }
 
     final routeFile = await FileUtils.writeFile(
@@ -188,14 +188,5 @@ class ShellRouteCapability implements ZuraffaCapability {
       routeFile,
       if (indexFile != null) indexFile,
     ];
-  }
-
-  Future<void> _ensureDir(String dirPath) async {
-    try {
-      await Directory(dirPath).create(recursive: true);
-    } catch (_) {
-      // Swallow — the route file write below will surface any real
-      // permission issue. Test FS pre-creates the routing dir.
-    }
   }
 }

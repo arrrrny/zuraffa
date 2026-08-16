@@ -1163,6 +1163,20 @@ class RouteBuilder {
         .where((p) => !deletedPaths.contains(p))
         .toList();
 
+    // #359: deterministic aggregation order — `<name>_routes.dart` modules
+    // first, `<name>_shell.dart` modules last (alphabetical within each
+    // kind). go_router resolves a location by first match, so a real
+    // entity GoRoute at a branch root must come before the shell's
+    // placeholder GoRoute for the documented "entity route shadows shell
+    // placeholder" contract to hold regardless of filesystem listing
+    // order (Directory.list order is unspecified).
+    allPaths.sort((a, b) {
+      final aShell = a.endsWith('_shell.dart') ? 1 : 0;
+      final bShell = b.endsWith('_shell.dart') ? 1 : 0;
+      if (aShell != bShell) return aShell - bShell;
+      return a.compareTo(b);
+    });
+
     if (allPaths.isEmpty) {
       if (await fileSystem.exists(indexPath)) {
         if (options.dryRun) {
@@ -1254,18 +1268,31 @@ class RouteBuilder {
   /// Redirect target priority:
   /// 1. a constant named `splash` in any route module,
   /// 2. the first constant of `splash_routes.dart`,
-  /// 3. the first constant of the alphabetically first route module.
+  /// 3. the first constant of the alphabetically first route module,
+  /// 4. the first branch root path of the alphabetically first shell
+  ///    module (#359 — shell-only apps have no `*_routes.dart` constants,
+  ///    but still need a root `/` route so GoRouter boots).
   Future<Expression?> _buildRootRouteExpr(List<String> allPaths) async {
     var rootClaimed = false;
     String? splashTarget;
     String? firstSplashFileTarget;
     String? firstTarget;
+    String? firstShellBranchPath;
 
     final sortedPaths = allPaths.toList()..sort();
 
     for (final filePath in sortedPaths) {
       if (!await fileSystem.exists(filePath)) continue;
       final fileName = path.basename(filePath);
+      if (fileName.endsWith('_shell.dart')) {
+        // #359: shell modules carry their branch roots as GoRoute `path:`
+        // literals (no `<Pascal>Routes` constants), so they cannot
+        // contribute a class.constant redirect target — remember the
+        // first branch root as a literal fallback instead.
+        firstShellBranchPath ??=
+            _parseFirstGoRoutePath(await fileSystem.read(filePath));
+        continue;
+      }
       final entitySnake = fileName.replaceAll('_routes.dart', '');
       final entityPascal = StringUtils.convertToPascalCase(entitySnake);
       final className = '${entityPascal}Routes';
@@ -1294,24 +1321,55 @@ class RouteBuilder {
     if (rootClaimed) return null;
 
     final target = splashTarget ?? firstSplashFileTarget ?? firstTarget;
-    if (target == null) return null;
+    if (target != null) {
+      final targetClass = target.split('.').first;
+      final targetConstant = target.split('.').last;
 
-    final targetClass = target.split('.').first;
-    final targetConstant = target.split('.').last;
+      return refer('GoRoute').call([], {
+        'path': literalString('/'),
+        'name': literalString('root'),
+        'redirect': Method(
+          (m) => m
+            ..requiredParameters.addAll([
+              Parameter((p) => p..name = '_'),
+              Parameter((p) => p..name = '__'),
+            ])
+            ..lambda = true
+            ..body = refer(targetClass).property(targetConstant).code,
+        ).closure,
+      });
+    }
 
-    return refer('GoRoute').call([], {
-      'path': literalString('/'),
-      'name': literalString('root'),
-      'redirect': Method(
-        (m) => m
-          ..requiredParameters.addAll([
-            Parameter((p) => p..name = '_'),
-            Parameter((p) => p..name = '__'),
-          ])
-          ..lambda = true
-          ..body = refer(targetClass).property(targetConstant).code,
-      ).closure,
-    });
+    // #359: shell-only app — no `<Pascal>Routes` constants exist, but the
+    // generated app boots at `/` (GoRouter's default initialLocation), so
+    // emit a root route redirecting to the shell's first branch root.
+    if (firstShellBranchPath != null) {
+      final shellTarget = firstShellBranchPath;
+      return refer('GoRoute').call([], {
+        'path': literalString('/'),
+        'name': literalString('root'),
+        'redirect': Method(
+          (m) => m
+            ..requiredParameters.addAll([
+              Parameter((p) => p..name = '_'),
+              Parameter((p) => p..name = '__'),
+            ])
+            ..lambda = true
+            ..body = literalString(shellTarget).code,
+        ).closure,
+      });
+    }
+
+    return null;
+  }
+
+  /// #359: Returns the first branch root (`path: '/...'`) from a generated
+  /// `<name>_shell.dart` source — the first GoRoute `path:` literal in the
+  /// file is the first `StatefulShellBranch`'s root. Returns null when the
+  /// file contains no GoRoute path (e.g. still a stub).
+  String? _parseFirstGoRoutePath(String source) {
+    final match = RegExp(r"path:\s*'([^']*)'").firstMatch(source);
+    return match?.group(1);
   }
 
   /// Parses the `static const String <name> = '<value>';` route path

@@ -105,6 +105,16 @@ void main() {
           reason: 'getAllRoutes() return type must be List<RouteBase>');
       expect(indexContent.contains('...mainShellRoute()'), isTrue,
           reason: 'shell getter must be spread into getAllRoutes()');
+      // Regression #350 + #359: a shell-only app boots at GoRouter's
+      // default initialLocation `/` — the index must emit a root route
+      // redirecting to the shell's first branch, otherwise GoRouter
+      // throws `no routes for location: /` at the first frame.
+      expect(indexContent.contains("path: '/', name: 'root'"), isTrue,
+          reason: 'shell-only index must emit a root / route so the '
+              'generated app boots');
+      expect(indexContent.contains("redirect: (_, __) => '/home'"), isTrue,
+          reason: 'root route must redirect to the shell first branch '
+              '(Home:/home)');
 
       final indexErrors = syntaxErrors(indexContent);
       expect(indexErrors, isEmpty,
@@ -181,6 +191,17 @@ List<GoRoute> productRoutes() {
       expect(indexContent.contains('...mainShellRoute()'), isTrue,
           reason: 'shell route getter must be spread too');
       expect(indexContent.contains('List<RouteBase>'), isTrue);
+      // #359: go_router resolves a location by first match, so the real
+      // entity GoRoute must be emitted BEFORE the shell's placeholder
+      // GoRoute for "entity route shadows shell placeholder" to hold —
+      // regardless of directory listing order.
+      final routesIdx = indexContent.indexOf('...productRoutes()');
+      final shellIdx = indexContent.indexOf('...mainShellRoute()');
+      expect(routesIdx, isNot(-1));
+      expect(shellIdx, isNot(-1));
+      expect(routesIdx < shellIdx, isTrue,
+          reason: 'entity routes must precede the shell module in '
+              'getAllRoutes() so the real route shadows the placeholder');
 
       final errors = syntaxErrors(indexContent);
       expect(errors, isEmpty,

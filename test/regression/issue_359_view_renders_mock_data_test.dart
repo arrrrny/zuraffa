@@ -160,8 +160,8 @@ class ${entityName}MockData {
               '${errors.map((e) => e.message).join(', ')}');
     });
 
-    test('view with --state renders mock data and still declares viewState',
-        () async {
+    test('view with --state renders mock data without an unused viewState '
+        'declaration', () async {
       await seedMockData('Cart', 'cart');
 
       final plugin = ViewPlugin(
@@ -180,13 +180,15 @@ class ${entityName}MockData {
       final content = files
           .firstWhere((f) => f.path.contains('cart_view.dart'))
           .content!;
-      // state-aware path still declares viewState for future use.
-      expect(content.contains('viewState'), isTrue,
-          reason: 'state-aware view must still declare viewState');
       // mock data is rendered in the body.
       expect(content.contains('CartMockData'), isTrue);
       expect(content.contains('ListView.builder'), isTrue);
       expect(content.contains('Container()'), isFalse);
+      // The mock body never references viewState, so the declaration must
+      // not be emitted — an unreferenced local would fail analysis with
+      // `unused_local_variable`.
+      expect(content.contains('viewState'), isFalse,
+          reason: 'no unused viewState declaration when mock data renders');
 
       final errors = syntaxErrors(content);
       expect(errors, isEmpty,
