@@ -60,6 +60,15 @@ class XRayMockScaffolder {
   static const String xrayImportLine =
       "import 'package:zuraffa_flutter/zuraffa_flutter.dart';";
 
+  /// Escapes a value for safe insertion into a single-quoted Dart string.
+  ///
+  /// Backslashes are escaped FIRST — otherwise a following quote escape
+  /// would be doubled (`\'` would become `\\'`), corrupting the output.
+  static String escapeDartString(String input) => input
+      .replaceAll(r'\', r'\\')
+      .replaceAll("'", r"\'")
+      .replaceAll(r'$', r'\$');
+
   /// Sample payloads per usecase method prefix. The key is the method
   /// prefix in the filename (e.g. `get`, `create`, `update`, `delete`,
   /// `watch`). The value is a map of `name` / `payload` / `type` fields
@@ -198,8 +207,11 @@ class XRayMockScaffolder {
 
     // Find the class declaration to inject above.
     // Pattern: optional leading annotations/keywords, then `class <Name>UseCase`.
+    // The annotation group supports one level of nested parens, e.g.
+    // `@Config(foo: bar(baz: true))`, so existing annotations don't break
+    // the match.
     final classPattern = RegExp(
-      r'^(\s*)((?:@\w+(?:\([^)]*\))?\s*)*)class\s+(\w+UseCase)\s+extends',
+      r'^(\s*)((?:@\w+(?:\((?:[^()]*|\([^()]*\))*\))?\s*)*)class\s+(\w+UseCase)\s+extends',
       multiLine: true,
     );
     final match = classPattern.firstMatch(content);
@@ -216,9 +228,9 @@ class XRayMockScaffolder {
     final className = match.group(3)!;
 
     // Build the @XRayMock annotation line.
-    final escapedName = payload['name']!.replaceAll("'", r"\'");
-    final escapedPayload = payload['payload']!.replaceAll("'", r"\'");
-    final escapedType = payload['type']!.replaceAll("'", r"\'");
+    final escapedName = escapeDartString(payload['name']!);
+    final escapedPayload = escapeDartString(payload['payload']!);
+    final escapedType = escapeDartString(payload['type']!);
     final annotationLine =
         '$indent@XRayMock(name: \'$escapedName\', '
         'payload: \'$escapedPayload\', type: \'$escapedType\')';
@@ -235,7 +247,7 @@ class XRayMockScaffolder {
       newContent = content.replaceAll(xrayLinePattern, '');
       // Re-find the class declaration (offsets shifted after removal).
       final newMatch = RegExp(
-        r'^(\s*)((?:@\w+(?:\([^)]*\))?\s*)*)class\s+(\w+UseCase)\s+extends',
+        r'^(\s*)((?:@\w+(?:\((?:[^()]*|\([^()]*\))*\))?\s*)*)class\s+(\w+UseCase)\s+extends',
         multiLine: true,
       ).firstMatch(newContent);
       if (newMatch == null) {
