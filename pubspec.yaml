@@ -75,10 +75,6 @@ dependencies:
 
 dependency_overrides:
   analyzer: 14.1.0
-  zorphy:
-    path: ../zorphy/zorphy
-  zorphy_annotation:
-    path: ../zorphy/zorphy_annotation
 
 executables:
   zuraffa:
