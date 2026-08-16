@@ -1289,8 +1289,14 @@ class RouteBuilder {
         // literals (no `<Pascal>Routes` constants), so they cannot
         // contribute a class.constant redirect target — remember the
         // first branch root as a literal fallback instead.
-        firstShellBranchPath ??=
-            _parseFirstGoRoutePath(await fileSystem.read(filePath));
+        final shellSource = await fileSystem.read(filePath);
+        final allShellPaths = _parseAllGoRoutePaths(shellSource);
+        if (allShellPaths.isNotEmpty) {
+          firstShellBranchPath ??= allShellPaths.first;
+          if (allShellPaths.contains('/')) {
+            rootClaimed = true;
+          }
+        }
         continue;
       }
       final entitySnake = fileName.replaceAll('_routes.dart', '');
@@ -1343,7 +1349,7 @@ class RouteBuilder {
     // #359: shell-only app — no `<Pascal>Routes` constants exist, but the
     // generated app boots at `/` (GoRouter's default initialLocation), so
     // emit a root route redirecting to the shell's first branch root.
-    if (firstShellBranchPath != null) {
+    if (firstShellBranchPath != null && firstShellBranchPath != '/') {
       final shellTarget = firstShellBranchPath;
       return refer('GoRoute').call([], {
         'path': literalString('/'),
@@ -1370,6 +1376,17 @@ class RouteBuilder {
   String? _parseFirstGoRoutePath(String source) {
     final match = RegExp(r"path:\s*'([^']*)'").firstMatch(source);
     return match?.group(1);
+  }
+
+  /// Returns all branch root paths from a generated `<name>_shell.dart` source.
+  /// Each GoRoute `path:` literal corresponds to one StatefulShellBranch root.
+  List<String> _parseAllGoRoutePaths(String source) {
+    final paths = <String>[];
+    final pattern = RegExp(r"path:\s*'([^']*)'");
+    for (final match in pattern.allMatches(source)) {
+      paths.add(match.group(1)!);
+    }
+    return paths;
   }
 
   /// Parses the `static const String <name> = '<value>';` route path

@@ -160,7 +160,7 @@ class ShellRouteCapability implements ZuraffaCapability {
     // Go through plugin.fileSystem (not dart:io Directory) so the
     // capability honors injected/transactional file systems.
     final routingDir = path.join(plugin.outputDir, 'routing');
-    if (!await plugin.fileSystem.exists(routingDir)) {
+    if (!dryRun && !await plugin.fileSystem.exists(routingDir)) {
       await plugin.fileSystem.createDir(routingDir, recursive: true);
     }
 

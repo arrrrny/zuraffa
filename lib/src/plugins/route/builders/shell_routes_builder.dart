@@ -446,6 +446,8 @@ class ShellRoutesBuilder {
   /// - [branches] must be non-empty.
   /// - Each branch's [path] must start with `/`.
   /// - Each branch's [label] must be a non-empty string.
+  /// - Branch labels must be unique.
+  /// - Branch paths must be unique.
   static void validate({
     required String namePascal,
     required List<ShellBranchSpec> branches,
@@ -464,6 +466,8 @@ class ShellRoutesBuilder {
         'at least one --branch <Label>:<path> is required',
       );
     }
+    final seenLabels = <String>{};
+    final seenPaths = <String>{};
     for (var i = 0; i < branches.length; i++) {
       final b = branches[i];
       if (b.label.isEmpty) {
@@ -480,6 +484,22 @@ class ShellRoutesBuilder {
           'must start with "/"',
         );
       }
+      if (seenLabels.contains(b.label)) {
+        throw ArgumentError.value(
+          b.label,
+          'branches[$i].label',
+          'duplicate label "${b.label}" - each branch must have a unique label',
+        );
+      }
+      if (seenPaths.contains(b.path)) {
+        throw ArgumentError.value(
+          b.path,
+          'branches[$i].path',
+          'duplicate path "${b.path}" - each branch must have a unique path',
+        );
+      }
+      seenLabels.add(b.label);
+      seenPaths.add(b.path);
     }
   }
 
@@ -487,18 +507,53 @@ class ShellRoutesBuilder {
   /// Accepts an optional third colon-separated segment as the icon name:
   /// `Home:/home:Icons.home`.
   static ShellBranchSpec parseBranchArg(String raw) {
-    final parts = raw.split(':');
-    if (parts.length < 2 || parts[0].isEmpty || parts[1].isEmpty) {
+    final firstColon = raw.indexOf(':');
+    if (firstColon == -1 || firstColon == 0) {
       throw ArgumentError.value(
         raw,
         'branch',
         'must be <Label>:<path> (e.g. Home:/home)',
       );
     }
+
+    final label = raw.substring(0, firstColon);
+    final remainder = raw.substring(firstColon + 1);
+
+    if (remainder.isEmpty) {
+      throw ArgumentError.value(
+        raw,
+        'branch',
+        'must be <Label>:<path> (e.g. Home:/home)',
+      );
+    }
+
+    // Look for the icon separator (second colon) - but only after the path
+    // The path starts with / so we look for the pattern :<identifier> after the path
+    String path;
+    String? icon;
+
+    // Find the last colon that could separate path from icon
+    // Icon must be a valid Dart identifier chain (e.g., Icons.home, MaterialIcons.add)
+    final lastColon = remainder.lastIndexOf(':');
+    if (lastColon != -1 && lastColon < remainder.length - 1) {
+      final potentialIcon = remainder.substring(lastColon + 1);
+      // Check if it's a valid Dart identifier chain (alphanumeric, underscore, dots)
+      if (RegExp(r'^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$').hasMatch(potentialIcon)) {
+        path = remainder.substring(0, lastColon);
+        icon = potentialIcon;
+      } else {
+        path = remainder;
+        icon = null;
+      }
+    } else {
+      path = remainder;
+      icon = null;
+    }
+
     return ShellBranchSpec(
-      label: parts[0],
-      path: parts[1],
-      icon: parts.length >= 3 && parts[2].isNotEmpty ? parts[2] : null,
+      label: label,
+      path: path,
+      icon: icon,
     );
   }
 }
