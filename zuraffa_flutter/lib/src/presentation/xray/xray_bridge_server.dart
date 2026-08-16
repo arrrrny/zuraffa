@@ -20,7 +20,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import 'xray_bridge.dart';
-import 'xray_scope.dart';
 import 'xray_bridge_holder.dart';
 
 // ------------------------------------------------------------------
