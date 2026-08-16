@@ -39,8 +39,10 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import '../helpers/project_root.dart';
+
 /// Resolve package root at discovery time, before any test changes CWD.
-final _zfaRoot = Directory.current.path;
+late final String _zfaRoot;
 
 void main() {
   group('#306 — zfa entity enum keyword values generate valid Dart', () {
@@ -54,8 +56,12 @@ void main() {
       ], workingDirectory: workspace.path);
     }
 
-    setUp(() async {
+    setUpAll(() async {
+      _zfaRoot = await findProjectRoot();
       zfaBin = p.join(_zfaRoot, 'bin', 'zfa.dart');
+    });
+
+    setUp(() async {
       workspace = await Directory.systemTemp.createTemp('issue_306_');
       // The entity command's dependency check scans pubspec.yaml for the
       // strings `zorphy_annotation:` and `build_runner:`. The strings are
