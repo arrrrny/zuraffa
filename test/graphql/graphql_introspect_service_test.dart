@@ -1,22 +1,29 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/zuraffa.dart';
 
-/// Reads a fixture file. When running from the project root, this resolves
-/// relative to test/fixtures/. Falls back to an absolute lookup.
-String _fixture(String name) {
-  // Dart test sets CWD to the package root when invoked as `dart test`.
-  final relative = 'test/fixtures/$name';
-  if (File(relative).existsSync()) {
-    return File(relative).readAsStringSync();
-  }
-  // Absolute fallback for sandboxed environments.
-  return File('/workspace/zuraffa/test/fixtures/$name').readAsStringSync();
-}
+import '../helpers/project_root.dart';
+
+/// Project-root-resolved `test/fixtures` directory. Resolved via
+/// [findProjectRoot] (CWD-independent) because the test runner may set
+/// CWD to the target directory when invoked as `dart test test` — the
+/// old relative `test/fixtures/...` lookup broke under that invocation
+/// and fell back to a hardcoded `/workspace/zuraffa/...` path that only
+/// exists in the sandbox, not on GitHub Actions.
+late String _fixturesDir;
+
+/// Reads a fixture file from the project root's test/fixtures/ directory.
+String _fixture(String name) =>
+    File(p.join(_fixturesDir, name)).readAsStringSync();
 
 void main() {
+  setUpAll(() async {
+    _fixturesDir = p.join(await findProjectRoot(), 'test', 'fixtures');
+  });
+
   group('GraphQLIntrospectionService', () {
     test('introspect returns null for invalid URL', () async {
       final result = await GraphQLIntrospectionService.introspect(
