@@ -105,6 +105,15 @@ void main() {
       expect(registry.find('ping'), isNotNull);
       expect(registry.find('echo'), isNull);
     });
+
+    test('registerDependencies only unregisters McpToolRegistry, not other types', () {
+      final di = freshDi();
+      di.getIt.registerSingleton<String>('unrelated');
+      final p = McpServerPlugin(tools: [_EchoTool()]);
+      p.registerDependencies(di);
+      expect(di.getIt.isRegistered<String>(), isTrue);
+      expect(di.get<McpToolRegistry>().length, 1);
+    });
   });
 }
 

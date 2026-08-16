@@ -113,13 +113,14 @@ class McpStdioServer {
         _emit(response);
       }
     } catch (e, st) {
-      // Catch per-request failures (invalid params, argument type errors,
-      // etc.) and emit a JSON-RPC error response. Preserve request ID
-      // when available so the client can match the error to its request.
+      // Catch unexpected internal failures from the dispatcher and emit a
+      // JSON-RPC error response. Per JSON-RPC 2.0 these are -32603 Internal
+      // errors; the dispatcher already returns -32602 for invalid params.
+      // Preserve request ID so the client can match the error to its request.
       _err('handleRequest error: $e\n$st');
       _emit({
         'jsonrpc': '2.0',
-        'error': {'code': -32602, 'message': 'Invalid params: $e'},
+        'error': {'code': -32603, 'message': 'Internal error: $e'},
         'id': requestId,
       });
     }

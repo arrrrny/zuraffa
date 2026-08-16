@@ -178,7 +178,10 @@ class McpSseServer {
     // Pump subsequent events to the response stream.
     final subscription = controller.stream.listen((event) {
       request.response.write(event);
-      request.response.flush();
+      request.response.flush().catchError((_) {
+        // Client disconnected — ignore flush errors; the done future
+        // below will clean up the session.
+      });
     });
 
     // Keep the connection open until the client disconnects. Consume
@@ -310,10 +313,13 @@ class McpSseServer {
   }
 
   String _formatSseEvent(String event, String data) {
-    final buf = StringBuffer()
-      ..writeln('event: $event')
-      ..writeln('data: $data')
-      ..writeln();
+    final buf = StringBuffer()..writeln('event: $event');
+    // Per the SSE spec, every line of a multi-line data payload must
+    // be prefixed with `data: `. A blank line terminates the event.
+    for (final line in data.split('\n')) {
+      buf.writeln('data: $line');
+    }
+    buf.writeln();
     return buf.toString();
   }
 

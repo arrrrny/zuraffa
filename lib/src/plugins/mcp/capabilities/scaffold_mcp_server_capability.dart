@@ -165,7 +165,7 @@ class ScaffoldMcpServerCapability implements ZuraffaCapability {
 
     final pubspecPath = 'pubspec.yaml';
     if (await plugin.fileSystem.exists(pubspecPath)) {
-      final content = await plugin.fileSystem.readAsString(pubspecPath);
+      final content = await plugin.fileSystem.read(pubspecPath);
       final match = RegExp(
         r'^name:\s*([A-Za-z][A-Za-z0-9_]*)',
         multiLine: true,

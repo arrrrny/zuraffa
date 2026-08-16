@@ -18,18 +18,25 @@ void main() {
       errors = StringBuffer();
     });
 
-    Future<String> runSession(List<String> lines) async {
+    Future<String> runSessionWithRegistry(
+      McpToolRegistry useRegistry,
+      List<String> lines,
+    ) async {
       final input = Stream<List<int>>.fromIterable(
         lines.map((l) => utf8.encode('$l\n')),
       );
       final server = McpStdioServer(
-        registry: registry,
+        registry: useRegistry,
         inputStream: input,
         outputSink: output,
         errorSink: errors,
       );
       await server.run();
       return output.toString();
+    }
+
+    Future<String> runSession(List<String> lines) async {
+      return runSessionWithRegistry(registry, lines);
     }
 
     test('initialize returns protocolVersion 2024-11-05 + serverInfo', () async {
@@ -219,7 +226,25 @@ void main() {
         isA<Map>().having((m) => m['text'], 'text', 'echo: one'),
       );
     });
+
+    test('unexpected dispatcher failure returns -32603 internal error', () async {
+      final throwingRegistry = _ThrowingRegistry();
+      final out = await runSessionWithRegistry(throwingRegistry, [
+        jsonEncode({'jsonrpc': '2.0', 'id': 20, 'method': 'tools/list'}),
+      ]);
+      final resp = jsonDecode(out.trim()) as Map<String, dynamic>;
+      final err = resp['error'] as Map<String, dynamic>;
+      expect(err['code'], -32603);
+      expect(err['message'], contains('Internal error'));
+    });
   });
+}
+
+class _ThrowingRegistry extends McpToolRegistry {
+  @override
+  List<Map<String, dynamic>> toolDefinitions() {
+    throw StateError('registry blew up');
+  }
 }
 
 class _EchoTool implements McpTool {
