@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 
 import '../core/xray_config.dart';
 import 'xray_deck_command.dart';
+import 'xray_mock_command.dart';
 
 /// CLI command for X-Ray mode management.
 ///
@@ -26,15 +27,17 @@ class XrayCommand extends Command<void> {
     addSubcommand(_XrayDisableCommand());
     addSubcommand(_XrayStatusCommand());
     addSubcommand(XrayDeckCommand());
+    addSubcommand(XrayMockCommand());
   }
 
   @override
   Future<void> run() async {
-    print('Usage: zfa xray <enable|disable|status|deck>');
+    print('Usage: zfa xray <enable|disable|status|deck|mock>');
     print('  enable   Activate X-Ray overlay (debug/profile mode)');
     print('  disable  Deactivate X-Ray overlay');
     print('  status   Show current X-Ray configuration status');
     print('  deck     Generate Control Deck from annotations/YAML');
+    print('  mock     Scaffold @XRayMock annotations on usecases');
     print('');
     print('X-Ray bridge: the bridge server now runs inside the Flutter app');
     print('  process via zuraffa_flutter (XRayBridgeServer.start()). The');

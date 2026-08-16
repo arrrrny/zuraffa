@@ -206,6 +206,11 @@ class MakeCommand extends Command<void> {
       negatable: false,
       help: 'Append to existing repo/service',
     );
+    argParser.addFlag(
+      'xray',
+      negatable: false,
+      help: 'Generate views with X-Ray scope/node decoration (issue #360)',
+    );
   }
 
   void _addPluginOptions() {
@@ -248,6 +253,7 @@ class MakeCommand extends Command<void> {
       'mock',
       'test',
       'append',
+      'xray',
     };
 
     for (final plugin in registry.plugins) {
@@ -366,6 +372,17 @@ class MakeCommand extends Command<void> {
       overrideOutputDir: fixedOutputDir,
     );
     context.data.addAll(normalizedOptions);
+
+    // #360: honor .zfa.json xray default for the view plugin.
+    // --xray flag always wins; otherwise fall back to config. An explicit
+    // `false` already present in context.data (e.g. set by a plugin or
+    // via --from-json) is preserved — the config fallback only fires when
+    // the key is absent.
+    final xrayFlag = argResults!['xray'] as bool? ?? false;
+    if (xrayFlag || !context.data.containsKey('xray')) {
+      final xrayConfig = ZfaConfig.load(projectRoot: manager.projectRoot);
+      context.data['xray'] = xrayFlag || (xrayConfig?.xrayByDefault ?? false);
+    }
 
     // #294/#307: auto-resolve the entity's actual id-like field from the
     // entity source file so the generated presenter/test/datasource

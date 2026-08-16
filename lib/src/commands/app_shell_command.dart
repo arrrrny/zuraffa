@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import '../config/zfa_config.dart';
 
 import '../core/context/file_system.dart';
 import '../models/generated_file.dart';
@@ -56,6 +57,12 @@ class AppShellCommand extends Command<void> {
             'is made at DI-generation time via `zfa di <Entity> --use-mock`; '
             'this flag only adds a documenting comment).',
       )
+      ..addFlag(
+        'xray',
+        negatable: false,
+        help:
+            'Wire the X-Ray bridge server into main.dart (debug mode) and wrap MyApp in XRayScope. Defaults to the xray key in .zfa.json plugins.defaults. Emits the <outputDir>/xray/xray_decks.dart barrel so the import in main.dart always resolves.',
+      )
       ..addOption('title', help: 'Application title (default: "Zuraffa App")')
       ..addOption(
         'output',
@@ -89,6 +96,7 @@ class AppShellCommand extends Command<void> {
     final mock = argResults!['mock'] as bool;
     final title = argResults!['title'] as String?;
     final outputDir = argResults!['output'] as String;
+    final xrayFlag = argResults!['xray'] as bool? ?? false;
 
     // --output must live under lib/: main.dart (always at lib/main.dart)
     // imports the glue files via package: URIs, which only resolve inside
@@ -106,6 +114,8 @@ class AppShellCommand extends Command<void> {
     }
 
     final projectRoot = Directory.current.path;
+    final config = ZfaConfig.load(projectRoot: projectRoot);
+    final xray = xrayFlag || (config?.xrayByDefault ?? false);
     final pubspecPath = p.join(projectRoot, 'pubspec.yaml');
     final pubspecFile = File(pubspecPath);
     if (!await _fileSystem.exists(pubspecPath) && !pubspecFile.existsSync()) {
@@ -203,7 +213,7 @@ class AppShellCommand extends Command<void> {
     files.add(
       await FileUtils.writeFile(
         myAppPath,
-        _builder.buildMyApp(title: title),
+        _builder.buildMyApp(title: title, xray: xray),
         'my_app',
         force: true,
         dryRun: dryRun,
@@ -211,6 +221,33 @@ class AppShellCommand extends Command<void> {
         fileSystem: _fileSystem,
       ),
     );
+
+    // 2b. <outputDir>/xray/xray_decks.dart - X-Ray Control Deck
+    // registration barrel. Only emitted when --xray is set so the
+    // import in main.dart resolves. Existing barrels are preserved
+    // unless --force is passed (zfa xray deck appends to it over
+    // time and we must not clobber those registrations).
+    if (xray) {
+      final xrayDecksPath = p.join(outputDir, 'xray', 'xray_decks.dart');
+      final xrayDecksExists = await _fileSystem.exists(xrayDecksPath);
+      if (!xrayDecksExists) {
+        files.add(
+          await FileUtils.writeFile(
+            xrayDecksPath,
+            _builder.buildXRayDecksBarrel(),
+            'xray_decks',
+            force: true,
+            dryRun: dryRun,
+            verbose: verbose,
+            fileSystem: _fileSystem,
+          ),
+        );
+      } else if (verbose) {
+        print(
+          '  skipped: $xrayDecksPath already exists (use --force to overwrite).',
+        );
+      }
+    }
 
     // 3. lib/main.dart — entrypoint; respect --force like every other glue
     //    file but print a clearer message when skipping.
@@ -245,8 +282,16 @@ class AppShellCommand extends Command<void> {
     }
 
     if (!dryRun) {
-      print('\n✅ App shell generated.');
-      print('\n── Next steps ──');
+      print('\n\u2705 App shell generated.');
+      if (xray) {
+        print(
+          '   \u{1FA7B} X-Ray bridge wired: server starts in debug mode, MyApp wrapped in XRayScope.',
+        );
+        print(
+          '   Run `zfa xray deck --entity <Entity>` to populate the Control Deck barrel.',
+        );
+      }
+      print('\n\u2500\u2500 Next steps \u2500\u2500');
       print('   flutter run   # or `flutter build apk` / `dart run`');
     }
   }

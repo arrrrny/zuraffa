@@ -37,6 +37,7 @@ class ZfaConfig {
     'graphql': false,
     'shadcn': false,
     'method_append': false,
+    'xray': false,
   };
 
   final Map<String, bool> pluginDefaults;
@@ -102,6 +103,7 @@ class ZfaConfig {
   bool get gqlByDefault => isPluginEnabledByDefault('gql');
   bool get graphqlByDefault => isPluginEnabledByDefault('graphql');
   bool get appendByDefault => isPluginEnabledByDefault('method_append');
+  bool get xrayByDefault => isPluginEnabledByDefault('xray');
   bool get cacheByDefault => isPluginEnabledByDefault('cache');
   bool get adaptiveLayoutsByDefault =>
       uiDefaults['adaptiveLayouts'] == true ||
