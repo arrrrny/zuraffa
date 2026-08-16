@@ -757,19 +757,19 @@ packages:
     dependency: "direct main"
     description:
       path: zorphy
-      ref: "fix/349-external-type-no-dollar-prefix-cli"
-      resolved-ref: e75c30b60030f03f7dca54f4c46e10a07c1acdc7
+      ref: master
+      resolved-ref: ea95773f4f17e074a96b30f6c4d390ea9f58a790
       url: "https://github.com/arrrrny/zorphy.git"
     source: git
-    version: "2.2.0"
+    version: "2.0.0"
   zorphy_annotation:
     dependency: "direct main"
     description:
       path: zorphy_annotation
-      ref: development
-      resolved-ref: "7e372469f7c1f0fd6dbad770b78969bd89f5000a"
+      ref: master
+      resolved-ref: ea95773f4f17e074a96b30f6c4d390ea9f58a790
       url: "https://github.com/arrrrny/zorphy.git"
     source: git
-    version: "2.2.0"
+    version: "2.0.0"
 sdks:
   dart: ">=3.11.0 <4.0.0"

@@ -22,39 +22,8 @@ dependencies:
   path: ^1.9.1
   yaml: ^3.1.0
   uuid: ^4.6.0
-  zorphy:
-    git:
-      url: https://github.com/arrrrny/zorphy.git
-      path: zorphy
-      # Issues #310 + #351 + #349: points to the fix branch carrying FOUR
-      # fixes not yet on zorphy/development:
-      #   1. #82/#310 plain-type fix (5ef9dc3 + faf94de, already on development)
-      #   2. #310 comment-safety hardening (2d093f1) — strips `//` and
-      #      `/* */` comments before the `abstract class $X` regex match.
-      #      Without it, a doc comment mentioning `abstract class $X`
-      #      would falsely match and re-emit the `$` prefix.
-      #   3. #351 cross-entity concrete reference recovery (c09d966) —
-      #      when a Zorphy entity has a field whose type is the CONCRETE
-      #      form of another Zorphy entity (e.g. `ParentThing? get parent`
-      #      with no `$` prefix), the analyzer cannot resolve the type
-      #      during build_runner and `typeToString` fell back to
-      #      `InvalidType`, breaking json_serializable and `zfa build`.
-      #      The fix recovers the type from source. Also drops
-      #      `required` on `dynamic` ctor params (no more
-      #      `required dynamic this.x`).
-      #   4. #349 external-type `!Type` marker (fix/349-external-type-
-      #      no-dollar-prefix-cli) — `FieldDefinition.isExternal` that
-      #      this package's #349 fix (def7d5f) depends on.
-      # Revert to "development" once all of
-      # https://github.com/arrrrny/zorphy/pull/85 (#310 hardening),
-      # the #351 PR, and zorphy PR #84 (#349 marker) are merged into
-      # zorphy/development.
-      ref: "fix/349-external-type-no-dollar-prefix-cli"
-  zorphy_annotation:
-    git:
-      url: https://github.com/arrrrny/zorphy.git
-      path: zorphy_annotation
-      ref: "development"
+  zorphy: ^2.0.0
+  zorphy_annotation: ^2.0.0
 
   json_annotation: ^4.12.0
 
@@ -75,6 +44,22 @@ dependencies:
 
 dependency_overrides:
   analyzer: 14.1.0
+  # Track the latest zorphy fixes locally/CI without hard-pinning to a commit
+  # or feature ref. 2.0.0 on pub.dev carries the #310/#351/#349 fixes, so the
+  # versioned deps above are the published contract; these git overrides
+  # resolve WITHOUT a sibling ../zorphy checkout. Note: zorphy's former
+  # `development` branch was merged into `master` (PR #93), so the override
+  # points at `master` — the continuation of that line.
+  zorphy:
+    git:
+      url: https://github.com/arrrrny/zorphy.git
+      path: zorphy
+      ref: master
+  zorphy_annotation:
+    git:
+      url: https://github.com/arrrrny/zorphy.git
+      path: zorphy_annotation
+      ref: master
 
 executables:
   zuraffa:
