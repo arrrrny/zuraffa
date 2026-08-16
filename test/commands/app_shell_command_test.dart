@@ -311,6 +311,44 @@ List<GoRoute> getAllRoutes() => [];
       expect(mainFile.readAsStringSync().contains('Mock DI mode'), isFalse);
     });
 
+    test('--xray writes the xray_bridge_launcher_stub.dart file', () async {
+      final runner = CliRunner(exitOnCompletion: false);
+      await runner.runCapturing(['app', 'shell', '--xray']);
+
+      final stubFile = File(
+        p.join(workspace.path, 'lib', 'xray_bridge_launcher_stub.dart'),
+      );
+      expect(stubFile.existsSync(), isTrue);
+      final stubSrc = stubFile.readAsStringSync();
+      expect(stubSrc, contains('class XRayBridgeServer'));
+      expect(stubSrc, contains('Future<int> start()'));
+      // The stub is the web-safe default target of main.dart's conditional
+      // import — it must not import dart:io (a comment mention of the
+      // scheme is fine; an import would break web compilation).
+      expect(stubSrc, isNot(contains("import 'dart:io'")));
+
+      // main.dart references the stub as the default (non-io) branch.
+      final mainSrc = File(
+        p.join(workspace.path, 'lib', 'main.dart'),
+      ).readAsStringSync();
+      expect(mainSrc, contains("import 'xray_bridge_launcher_stub.dart'"));
+      expect(mainSrc, contains('if (dart.library.io)'));
+      // The bogus bool.fromEnvironment guard must not be emitted.
+      expect(mainSrc, isNot(contains('bool.fromEnvironment')));
+    });
+
+    test('does NOT write the launcher stub when --xray is omitted', () async {
+      final runner = CliRunner(exitOnCompletion: false);
+      await runner.runCapturing(['app', 'shell']);
+
+      expect(
+        File(
+          p.join(workspace.path, 'lib', 'xray_bridge_launcher_stub.dart'),
+        ).existsSync(),
+        isFalse,
+      );
+    });
+
     test('skips an existing lib/main.dart without --force', () async {
       // Pre-create a user-written main.dart.
       final mainFile = File(p.join(workspace.path, 'lib', 'main.dart'));

@@ -226,6 +226,27 @@ class AppShellCommand extends Command<void> {
       }
     }
 
+    // 2c. lib/xray_bridge_launcher_stub.dart - web-safe default target of
+    // the conditional import main.dart emits for XRayBridgeServer. A
+    // conditional import's default (non-io) branch must exist for the
+    // file to analyze/compile — on web (where dart:io is unavailable)
+    // this stub is the ONLY implementation. Pure glue: always written
+    // when --xray is set so the emitted main.dart never dangles.
+    if (xray) {
+      final xrayStubPath = p.join(projectRoot, 'lib', 'xray_bridge_launcher_stub.dart');
+      files.add(
+        await FileUtils.writeFile(
+          xrayStubPath,
+          _builder.buildXRayBridgeLauncherStub(),
+          'xray_bridge_launcher_stub',
+          force: true,
+          dryRun: dryRun,
+          verbose: verbose,
+          fileSystem: _fileSystem,
+        ),
+      );
+    }
+
     // 3. lib/main.dart — entrypoint; respect --force like every other glue
     //    file but print a clearer message when skipping.
     final mainPath = p.join(projectRoot, 'lib', 'main.dart');
