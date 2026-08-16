@@ -44,8 +44,7 @@ void main() {
     final mockDir = Directory('$outputDir/data/mock');
     await mockDir.create(recursive: true);
     final mockFile = File('${mockDir.path}/${entitySnake}_mock_data.dart');
-    final entityCamel =
-        entityName[0].toLowerCase() + entityName.substring(1);
+    final entityCamel = entityName[0].toLowerCase() + entityName.substring(1);
     await mockFile.writeAsString('''
 import '../../domain/entities/$entitySnake/${entitySnake}.dart';
 
@@ -77,23 +76,42 @@ class ${entityName}MockData {
       final listView = files
           .firstWhere((f) => f.path.contains('product_view.dart'))
           .content!;
-      expect(listView.contains('ProductMockData'), isTrue,
-          reason: 'view body must reference ProductMockData');
-      expect(listView.contains('sampleList'), isTrue,
-          reason: 'list view must use sampleList');
-      expect(listView.contains('ListView.builder'), isTrue,
-          reason: 'list view must render a ListView.builder');
+      expect(
+        listView.contains('ProductMockData'),
+        isTrue,
+        reason: 'view body must reference ProductMockData',
+      );
+      expect(
+        listView.contains('sampleList'),
+        isTrue,
+        reason: 'list view must use sampleList',
+      );
+      expect(
+        listView.contains('ListView.builder'),
+        isTrue,
+        reason: 'list view must render a ListView.builder',
+      );
       expect(listView.contains('ListTile'), isTrue);
       expect(listView.contains('itemCount'), isTrue);
-      expect(listView.contains("data/mock/product_mock_data.dart"), isTrue,
-          reason: 'view must import the mock_data file');
-      expect(listView.contains('Container()'), isFalse,
-          reason: 'no empty Container when mock data is available');
+      expect(
+        listView.contains("data/mock/product_mock_data.dart"),
+        isTrue,
+        reason: 'view must import the mock_data file',
+      );
+      expect(
+        listView.contains('Container()'),
+        isFalse,
+        reason: 'no empty Container when mock data is available',
+      );
 
       final errors = syntaxErrors(listView);
-      expect(errors, isEmpty,
-          reason: 'list view must parse cleanly; got: '
-              '${errors.map((e) => e.message).join(', ')}');
+      expect(
+        errors,
+        isEmpty,
+        reason:
+            'list view must parse cleanly; got: '
+            '${errors.map((e) => e.message).join(', ')}',
+      );
     });
 
     test('detail view body renders Card + ListTile with '
@@ -116,17 +134,27 @@ class ${entityName}MockData {
           .firstWhere((f) => f.path.contains('product_detail_view.dart'))
           .content!;
       expect(detailView.contains('ProductMockData'), isTrue);
-      expect(detailView.contains('sampleProduct'), isTrue,
-          reason: 'detail view must use sample<Entity> getter');
+      expect(
+        detailView.contains('sampleProduct'),
+        isTrue,
+        reason: 'detail view must use sample<Entity> getter',
+      );
       expect(detailView.contains('Card'), isTrue);
       expect(detailView.contains('ListTile'), isTrue);
-      expect(detailView.contains('Container()'), isFalse,
-          reason: 'no empty Container when mock data is available');
+      expect(
+        detailView.contains('Container()'),
+        isFalse,
+        reason: 'no empty Container when mock data is available',
+      );
 
       final errors = syntaxErrors(detailView);
-      expect(errors, isEmpty,
-          reason: 'detail view must parse cleanly; got: '
-              '${errors.map((e) => e.message).join(', ')}');
+      expect(
+        errors,
+        isEmpty,
+        reason:
+            'detail view must parse cleanly; got: '
+            '${errors.map((e) => e.message).join(', ')}',
+      );
     });
 
     test('view falls back to Container() when no mock data file exists '
@@ -147,17 +175,30 @@ class ${entityName}MockData {
       final content = files
           .firstWhere((f) => f.path.contains('order_view.dart'))
           .content!;
-      expect(content.contains('Container()'), isTrue,
-          reason: 'fallback to Container when mock data absent');
-      expect(content.contains('OrderMockData'), isFalse,
-          reason: 'no mock reference when mock file absent');
-      expect(content.contains('data/mock/'), isFalse,
-          reason: 'no mock import when mock file absent');
+      expect(
+        content.contains('Container()'),
+        isTrue,
+        reason: 'fallback to Container when mock data absent',
+      );
+      expect(
+        content.contains('OrderMockData'),
+        isFalse,
+        reason: 'no mock reference when mock file absent',
+      );
+      expect(
+        content.contains('data/mock/'),
+        isFalse,
+        reason: 'no mock import when mock file absent',
+      );
 
       final errors = syntaxErrors(content);
-      expect(errors, isEmpty,
-          reason: 'fallback view must parse cleanly; got: '
-              '${errors.map((e) => e.message).join(', ')}');
+      expect(
+        errors,
+        isEmpty,
+        reason:
+            'fallback view must parse cleanly; got: '
+            '${errors.map((e) => e.message).join(', ')}',
+      );
     });
 
     test('view with --state renders mock data without an unused viewState '
@@ -187,13 +228,20 @@ class ${entityName}MockData {
       // The mock body never references viewState, so the declaration must
       // not be emitted — an unreferenced local would fail analysis with
       // `unused_local_variable`.
-      expect(content.contains('viewState'), isFalse,
-          reason: 'no unused viewState declaration when mock data renders');
+      expect(
+        content.contains('viewState'),
+        isFalse,
+        reason: 'no unused viewState declaration when mock data renders',
+      );
 
       final errors = syntaxErrors(content);
-      expect(errors, isEmpty,
-          reason: 'state-aware view must parse cleanly; got: '
-              '${errors.map((e) => e.message).join(', ')}');
+      expect(
+        errors,
+        isEmpty,
+        reason:
+            'state-aware view must parse cleanly; got: '
+            '${errors.map((e) => e.message).join(', ')}',
+      );
     });
 
     test('custom (non-entity) view is unaffected — keeps the "is working" '
@@ -215,10 +263,16 @@ class ${entityName}MockData {
       final files = await plugin.generate(config);
 
       final content = files.first.content!;
-      expect(content.contains('is working!'), isTrue,
-          reason: 'custom view keeps its placeholder body');
-      expect(content.contains('MockData'), isFalse,
-          reason: 'custom view must not reference mock data');
+      expect(
+        content.contains('is working!'),
+        isTrue,
+        reason: 'custom view keeps its placeholder body',
+      );
+      expect(
+        content.contains('MockData'),
+        isFalse,
+        reason: 'custom view must not reference mock data',
+      );
     });
   });
 }

@@ -43,13 +43,16 @@ void main() {
       );
       final files = await plugin.generate(config);
       final content =
-          files.firstWhere((f) => f.path.contains('feedback_view.dart'))
+          files
+              .firstWhere((f) => f.path.contains('feedback_view.dart'))
               .content ??
           '';
 
       // The entity symbol must resolve to the entity, never be ambiguous.
       expect(
-        content.contains("import 'package:flutter/material.dart' hide Feedback;"),
+        content.contains(
+          "import 'package:flutter/material.dart' hide Feedback;",
+        ),
         isTrue,
         reason: 'material import must hide the colliding entity symbol',
       );
@@ -86,11 +89,14 @@ void main() {
       );
       final files = await plugin.generate(config);
       final detail =
-          files.firstWhere((f) => f.path.contains('feedback_detail_view.dart'))
+          files
+              .firstWhere((f) => f.path.contains('feedback_detail_view.dart'))
               .content ??
           '';
       expect(
-        detail.contains("import 'package:flutter/material.dart' hide Feedback;"),
+        detail.contains(
+          "import 'package:flutter/material.dart' hide Feedback;",
+        ),
         isTrue,
       );
     });
@@ -113,10 +119,14 @@ void main() {
       );
       final files = await plugin.generate(config);
       final content =
-          files.firstWhere((f) => f.path.contains('product_view.dart'))
+          files
+              .firstWhere((f) => f.path.contains('product_view.dart'))
               .content ??
           '';
-      expect(content.contains("import 'package:flutter/material.dart';"), isTrue);
+      expect(
+        content.contains("import 'package:flutter/material.dart';"),
+        isTrue,
+      );
       expect(content.contains(' hide '), isFalse);
     });
 
@@ -142,7 +152,11 @@ void main() {
       );
       expect(viewFile.existsSync(), isTrue);
 
-      final result = await Process.run('dart', ['format', '--output=none', viewFile.path]);
+      final result = await Process.run('dart', [
+        'format',
+        '--output=none',
+        viewFile.path,
+      ]);
       expect(result.exitCode, 0, reason: result.stderr.toString());
     });
   });

@@ -98,15 +98,16 @@ dev_dependencies:
     /// formatter accepts) or any other break in the emitted source cannot be
     /// missed by the regex spot-checks above.
     Future<void> expectFormats(File file) async {
-      final result = await Process.run(
-        'dart',
-        ['format', '--output=none', file.path],
-        workingDirectory: workspace.path,
-      );
+      final result = await Process.run('dart', [
+        'format',
+        '--output=none',
+        file.path,
+      ], workingDirectory: workspace.path);
       expect(
         result.exitCode,
         equals(0),
-        reason: 'generated ${file.path} must parse as valid Dart '
+        reason:
+            'generated ${file.path} must parse as valid Dart '
             '(exit ${result.exitCode}): ${result.stdout}${result.stderr}',
       );
     }

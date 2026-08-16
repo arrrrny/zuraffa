@@ -80,8 +80,11 @@ void main() {
       ]);
 
       final shellFile = File('$outputDir/routing/main_shell.dart');
-      expect(shellFile.existsSync(), isTrue,
-          reason: 'main_shell.dart must be emitted');
+      expect(
+        shellFile.existsSync(),
+        isTrue,
+        reason: 'main_shell.dart must be emitted',
+      );
 
       final content = shellFile.readAsStringSync();
       expect(content.contains('StatefulShellRoute.indexedStack'), isTrue);
@@ -94,32 +97,54 @@ void main() {
       expect(content.contains("path: '/profile'"), isTrue);
 
       final errors = syntaxErrors(content);
-      expect(errors, isEmpty,
-          reason: 'generated shell file must parse cleanly; got: '
-              '${errors.map((e) => e.message).join(', ')}');
+      expect(
+        errors,
+        isEmpty,
+        reason:
+            'generated shell file must parse cleanly; got: '
+            '${errors.map((e) => e.message).join(', ')}',
+      );
 
       final indexFile = File('$outputDir/routing/index.dart');
       expect(indexFile.existsSync(), isTrue);
       final indexContent = indexFile.readAsStringSync();
-      expect(indexContent.contains('List<RouteBase> getAllRoutes()'), isTrue,
-          reason: 'getAllRoutes() return type must be List<RouteBase>');
-      expect(indexContent.contains('...mainShellRoute()'), isTrue,
-          reason: 'shell getter must be spread into getAllRoutes()');
+      expect(
+        indexContent.contains('List<RouteBase> getAllRoutes()'),
+        isTrue,
+        reason: 'getAllRoutes() return type must be List<RouteBase>',
+      );
+      expect(
+        indexContent.contains('...mainShellRoute()'),
+        isTrue,
+        reason: 'shell getter must be spread into getAllRoutes()',
+      );
       // Regression #350 + #359: a shell-only app boots at GoRouter's
       // default initialLocation `/` — the index must emit a root route
       // redirecting to the shell's first branch, otherwise GoRouter
       // throws `no routes for location: /` at the first frame.
-      expect(indexContent.contains("path: '/', name: 'root'"), isTrue,
-          reason: 'shell-only index must emit a root / route so the '
-              'generated app boots');
-      expect(indexContent.contains("redirect: (_, __) => '/home'"), isTrue,
-          reason: 'root route must redirect to the shell first branch '
-              '(Home:/home)');
+      expect(
+        indexContent.contains("path: '/', name: 'root'"),
+        isTrue,
+        reason:
+            'shell-only index must emit a root / route so the '
+            'generated app boots',
+      );
+      expect(
+        indexContent.contains("redirect: (_, __) => '/home'"),
+        isTrue,
+        reason:
+            'root route must redirect to the shell first branch '
+            '(Home:/home)',
+      );
 
       final indexErrors = syntaxErrors(indexContent);
-      expect(indexErrors, isEmpty,
-          reason: 'index must parse cleanly; got: '
-              '${indexErrors.map((e) => e.message).join(', ')}');
+      expect(
+        indexErrors,
+        isEmpty,
+        reason:
+            'index must parse cleanly; got: '
+            '${indexErrors.map((e) => e.message).join(', ')}',
+      );
     });
 
     test('`zfa route shell App --branch ... --adaptive` emits both '
@@ -136,8 +161,9 @@ void main() {
         '--force',
       ]);
 
-      final content =
-          File('$outputDir/routing/app_shell.dart').readAsStringSync();
+      final content = File(
+        '$outputDir/routing/app_shell.dart',
+      ).readAsStringSync();
       expect(content.contains('class AppShell'), isTrue);
       expect(content.contains('class AppShellDesktop'), isTrue);
       expect(content.contains('NavigationRail'), isTrue);
@@ -146,9 +172,13 @@ void main() {
       expect(content.contains('Icons.settings'), isTrue);
 
       final errors = syntaxErrors(content);
-      expect(errors, isEmpty,
-          reason: 'adaptive shell must parse cleanly; got: '
-              '${errors.map((e) => e.message).join(', ')}');
+      expect(
+        errors,
+        isEmpty,
+        reason:
+            'adaptive shell must parse cleanly; got: '
+            '${errors.map((e) => e.message).join(', ')}',
+      );
     });
 
     test('shell + entity routes coexist in getAllRoutes() (mixed '
@@ -184,12 +214,19 @@ List<GoRoute> productRoutes() {
         '--force',
       ]);
 
-      final indexContent =
-          File('$outputDir/routing/index.dart').readAsStringSync();
-      expect(indexContent.contains('...productRoutes()'), isTrue,
-          reason: 'existing entity route getter must still be spread');
-      expect(indexContent.contains('...mainShellRoute()'), isTrue,
-          reason: 'shell route getter must be spread too');
+      final indexContent = File(
+        '$outputDir/routing/index.dart',
+      ).readAsStringSync();
+      expect(
+        indexContent.contains('...productRoutes()'),
+        isTrue,
+        reason: 'existing entity route getter must still be spread',
+      );
+      expect(
+        indexContent.contains('...mainShellRoute()'),
+        isTrue,
+        reason: 'shell route getter must be spread too',
+      );
       expect(indexContent.contains('List<RouteBase>'), isTrue);
       // #359: go_router resolves a location by first match, so the real
       // entity GoRoute must be emitted BEFORE the shell's placeholder
@@ -199,14 +236,22 @@ List<GoRoute> productRoutes() {
       final shellIdx = indexContent.indexOf('...mainShellRoute()');
       expect(routesIdx, isNot(-1));
       expect(shellIdx, isNot(-1));
-      expect(routesIdx < shellIdx, isTrue,
-          reason: 'entity routes must precede the shell module in '
-              'getAllRoutes() so the real route shadows the placeholder');
+      expect(
+        routesIdx < shellIdx,
+        isTrue,
+        reason:
+            'entity routes must precede the shell module in '
+            'getAllRoutes() so the real route shadows the placeholder',
+      );
 
       final errors = syntaxErrors(indexContent);
-      expect(errors, isEmpty,
-          reason: 'mixed aggregator must parse cleanly; got: '
-              '${errors.map((e) => e.message).join(', ')}');
+      expect(
+        errors,
+        isEmpty,
+        reason:
+            'mixed aggregator must parse cleanly; got: '
+            '${errors.map((e) => e.message).join(', ')}',
+      );
     });
 
     test('RouteCommand registers the `shell` subcommand (capability is '
@@ -215,10 +260,12 @@ List<GoRoute> productRoutes() {
       // subcommand. Verifying `shell` is in the subcommand map proves the
       // capability is wired (the CLI surface and the usage banner both
       // derive from this map).
-      expect(command.subcommands.containsKey('shell'), isTrue,
-          reason: 'shell subcommand must be registered on RouteCommand');
+      expect(
+        command.subcommands.containsKey('shell'),
+        isTrue,
+        reason: 'shell subcommand must be registered on RouteCommand',
+      );
     });
-
   });
 }
 

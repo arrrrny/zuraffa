@@ -76,19 +76,22 @@ class SetupCommand extends Command<void> {
     argParser.addOption(
       'deep-link-scheme',
       valueHelp: 'gozuzu',
-      help: 'Pre-seed a URL scheme in AndroidManifest.xml + Info.plist. '
+      help:
+          'Pre-seed a URL scheme in AndroidManifest.xml + Info.plist. '
           'Flutter-only (ignored with --dart).',
     );
     argParser.addOption(
       'deep-link-host',
       valueHelp: 'go.zuzu.dev',
-      help: 'Optional host for App Links (paired with '
+      help:
+          'Optional host for App Links (paired with '
           '--deep-link-scheme + --auto-verify).',
     );
     argParser.addFlag(
       'auto-verify',
       negatable: false,
-      help: 'Set android:autoVerify="true" on the intent-filter '
+      help:
+          'Set android:autoVerify="true" on the intent-filter '
           '(App Links). Paired with --deep-link-scheme.',
     );
   }
@@ -183,9 +186,7 @@ class SetupCommand extends Command<void> {
 
     // 5. Pre-seed the deep-link URL scheme in the platform files
     //    (Flutter only — pure Dart packages have no manifest to write).
-    if (isFlutter &&
-        deepLinkScheme != null &&
-        deepLinkScheme.isNotEmpty) {
+    if (isFlutter && deepLinkScheme != null && deepLinkScheme.isNotEmpty) {
       print('\n[5/6] Pre-seeding deep-link scheme: $deepLinkScheme');
       await _seedDeepLinkScheme(
         projectRoot: appName,
@@ -248,8 +249,10 @@ class SetupCommand extends Command<void> {
     final iosPath = '$projectRoot/ios/Runner/Info.plist';
 
     if (dryRun) {
-      print('   Would write Android intent-filter for "$scheme://" '
-          'to $androidPath');
+      print(
+        '   Would write Android intent-filter for "$scheme://" '
+        'to $androidPath',
+      );
       print('   Would write iOS CFBundleURLSchemes "$scheme" to $iosPath');
       return;
     }
@@ -270,14 +273,18 @@ class SetupCommand extends Command<void> {
     if (androidFile != null) {
       print('   Android intent-filter for "$scheme://" registered.');
     } else {
-      print('   ⚠️  AndroidManifest.xml not modified '
-          '(scheme already present, or file missing).');
+      print(
+        '   ⚠️  AndroidManifest.xml not modified '
+        '(scheme already present, or file missing).',
+      );
     }
     if (iosFile != null) {
       print('   iOS CFBundleURLSchemes for "$scheme" registered.');
     } else {
-      print('   ⚠️  Info.plist not modified '
-          '(scheme already present, or file missing).');
+      print(
+        '   ⚠️  Info.plist not modified '
+        '(scheme already present, or file missing).',
+      );
     }
   }
 

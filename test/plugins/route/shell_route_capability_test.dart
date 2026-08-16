@@ -94,27 +94,29 @@ void main() {
       expect(
         errors,
         isEmpty,
-        reason: 'generated shell file must parse cleanly; got: '
+        reason:
+            'generated shell file must parse cleanly; got: '
             '${errors.map((e) => e.message).join(', ')}',
       );
     });
 
-    test('returns List<RouteBase> from <nameCamel>ShellRoute() getter',
-        () async {
-      await runCapability(
-        name: 'Main',
-        branches: ['Home:/home'],
-      );
+    test(
+      'returns List<RouteBase> from <nameCamel>ShellRoute() getter',
+      () async {
+        await runCapability(name: 'Main', branches: ['Home:/home']);
 
-      final content =
-          File('$outputDir/routing/main_shell.dart').readAsStringSync();
-      expect(
-        content.contains('List<RouteBase> mainShellRoute()'),
-        isTrue,
-        reason: 'getter must return List<RouteBase> so the index '
-            'aggregator can include the StatefulShellRoute',
-      );
-    });
+        final content = File(
+          '$outputDir/routing/main_shell.dart',
+        ).readAsStringSync();
+        expect(
+          content.contains('List<RouteBase> mainShellRoute()'),
+          isTrue,
+          reason:
+              'getter must return List<RouteBase> so the index '
+              'aggregator can include the StatefulShellRoute',
+        );
+      },
+    );
 
     test('regenerates routing/index.dart aggregating the shell module '
         'in getAllRoutes() with List<RouteBase> return type', () async {
@@ -124,31 +126,46 @@ void main() {
       );
 
       final indexFile = File('$outputDir/routing/index.dart');
-      expect(indexFile.existsSync(), isTrue,
-          reason: 'index.dart must be regenerated');
+      expect(
+        indexFile.existsSync(),
+        isTrue,
+        reason: 'index.dart must be regenerated',
+      );
       final indexContent = indexFile.readAsStringSync();
-      expect(indexContent.contains('main_shell.dart'), isTrue,
-          reason: 'index must export the new shell module');
-      expect(indexContent.contains('mainShellRoute'), isTrue,
-          reason: 'getAllRoutes() must spread mainShellRoute()');
-      expect(indexContent.contains('List<RouteBase> getAllRoutes()'), isTrue,
-          reason: 'getAllRoutes() return type must be List<RouteBase> '
-              'so StatefulShellRoute is acceptable');
+      expect(
+        indexContent.contains('main_shell.dart'),
+        isTrue,
+        reason: 'index must export the new shell module',
+      );
+      expect(
+        indexContent.contains('mainShellRoute'),
+        isTrue,
+        reason: 'getAllRoutes() must spread mainShellRoute()',
+      );
+      expect(
+        indexContent.contains('List<RouteBase> getAllRoutes()'),
+        isTrue,
+        reason:
+            'getAllRoutes() return type must be List<RouteBase> '
+            'so StatefulShellRoute is acceptable',
+      );
       expect(indexContent.contains('getAllRoutes'), isTrue);
 
       final errors = syntaxErrors(indexContent);
       expect(
         errors,
         isEmpty,
-        reason: 'index file must parse cleanly; got: '
+        reason:
+            'index file must parse cleanly; got: '
             '${errors.map((e) => e.message).join(', ')}',
       );
     });
 
-    test('aggregates shell + entity routes together in getAllRoutes()',
-        () async {
-      // First seed an entity route module so the index has both kinds.
-      await File('$outputDir/routing/product_routes.dart').writeAsString('''
+    test(
+      'aggregates shell + entity routes together in getAllRoutes()',
+      () async {
+        // First seed an entity route module so the index has both kinds.
+        await File('$outputDir/routing/product_routes.dart').writeAsString('''
 import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'package:zuraffa/zuraffa.dart';
@@ -168,27 +185,33 @@ List<GoRoute> productRoutes() {
 }
 ''');
 
-      await runCapability(
-        name: 'Main',
-        branches: ['Home:/home'],
-      );
+        await runCapability(name: 'Main', branches: ['Home:/home']);
 
-      final indexContent =
-          File('$outputDir/routing/index.dart').readAsStringSync();
-      expect(indexContent.contains('...productRoutes()'), isTrue,
-          reason: 'entity routes getter must still be spread');
-      expect(indexContent.contains('...mainShellRoute()'), isTrue,
-          reason: 'shell route getter must be spread too');
-      expect(indexContent.contains('List<RouteBase>'), isTrue);
+        final indexContent = File(
+          '$outputDir/routing/index.dart',
+        ).readAsStringSync();
+        expect(
+          indexContent.contains('...productRoutes()'),
+          isTrue,
+          reason: 'entity routes getter must still be spread',
+        );
+        expect(
+          indexContent.contains('...mainShellRoute()'),
+          isTrue,
+          reason: 'shell route getter must be spread too',
+        );
+        expect(indexContent.contains('List<RouteBase>'), isTrue);
 
-      final errors = syntaxErrors(indexContent);
-      expect(
-        errors,
-        isEmpty,
-        reason: 'mixed routes+shell index must parse cleanly; got: '
-            '${errors.map((e) => e.message).join(', ')}',
-      );
-    });
+        final errors = syntaxErrors(indexContent);
+        expect(
+          errors,
+          isEmpty,
+          reason:
+              'mixed routes+shell index must parse cleanly; got: '
+              '${errors.map((e) => e.message).join(', ')}',
+        );
+      },
+    );
 
     test('emits MainShellDesktop + NavigationRail when --adaptive', () async {
       await runCapability(
@@ -200,16 +223,24 @@ List<GoRoute> productRoutes() {
         adaptive: true,
       );
 
-      final content =
-          File('$outputDir/routing/app_shell.dart').readAsStringSync();
+      final content = File(
+        '$outputDir/routing/app_shell.dart',
+      ).readAsStringSync();
       expect(content.contains('class AppShell'), isTrue);
-      expect(content.contains('class AppShellDesktop'), isTrue,
-          reason: 'adaptive variant must emit AppShellDesktop');
+      expect(
+        content.contains('class AppShellDesktop'),
+        isTrue,
+        reason: 'adaptive variant must emit AppShellDesktop',
+      );
       expect(content.contains('NavigationRail'), isTrue);
       expect(content.contains('NavigationRailDestination'), isTrue);
-      expect(content.contains('LayoutBuilder'), isTrue,
-          reason: 'adaptive shell must pick between mobile/desktop via '
-              'LayoutBuilder');
+      expect(
+        content.contains('LayoutBuilder'),
+        isTrue,
+        reason:
+            'adaptive shell must pick between mobile/desktop via '
+            'LayoutBuilder',
+      );
       expect(content.contains('Icons.home'), isTrue);
       expect(content.contains('Icons.settings'), isTrue);
       // Mobile variant still has NavigationBar by default.
@@ -219,7 +250,8 @@ List<GoRoute> productRoutes() {
       expect(
         errors,
         isEmpty,
-        reason: 'adaptive shell file must parse cleanly; got: '
+        reason:
+            'adaptive shell file must parse cleanly; got: '
             '${errors.map((e) => e.message).join(', ')}',
       );
     });
@@ -231,19 +263,33 @@ List<GoRoute> productRoutes() {
         bottomNav: false,
       );
 
-      final content =
-          File('$outputDir/routing/plain_shell.dart').readAsStringSync();
-      expect(content.contains('NavigationBar'), isFalse,
-          reason: 'no NavigationBar when --bottom-nav=false');
-      expect(content.contains('StatefulShellRoute.indexedStack'), isTrue,
-          reason: 'shell route must still be emitted');
-      expect(content.contains('Scaffold'), isTrue,
-          reason: 'Scaffold wrapping navigationShell must still be emitted');
+      final content = File(
+        '$outputDir/routing/plain_shell.dart',
+      ).readAsStringSync();
+      expect(
+        content.contains('NavigationBar'),
+        isFalse,
+        reason: 'no NavigationBar when --bottom-nav=false',
+      );
+      expect(
+        content.contains('StatefulShellRoute.indexedStack'),
+        isTrue,
+        reason: 'shell route must still be emitted',
+      );
+      expect(
+        content.contains('Scaffold'),
+        isTrue,
+        reason: 'Scaffold wrapping navigationShell must still be emitted',
+      );
 
       final errors = syntaxErrors(content);
-      expect(errors, isEmpty,
-          reason: 'no-nav shell must parse cleanly; got: '
-              '${errors.map((e) => e.message).join(', ')}');
+      expect(
+        errors,
+        isEmpty,
+        reason:
+            'no-nav shell must parse cleanly; got: '
+            '${errors.map((e) => e.message).join(', ')}',
+      );
     });
 
     test('is idempotent — re-running with the same args produces the same '
@@ -257,12 +303,14 @@ List<GoRoute> productRoutes() {
         branches: ['Home:/home', 'Profile:/profile'],
       );
 
-      final indexContent =
-          File('$outputDir/routing/index.dart').readAsStringSync();
+      final indexContent = File(
+        '$outputDir/routing/index.dart',
+      ).readAsStringSync();
       expect(
         'mainShellRoute()'.allMatches(indexContent).length,
         equals(1),
-        reason: 'shell getter must appear exactly once in getAllRoutes() '
+        reason:
+            'shell getter must appear exactly once in getAllRoutes() '
             'after re-run',
       );
       expect(
@@ -274,20 +322,14 @@ List<GoRoute> productRoutes() {
 
     test('rejects non-PascalCase name with ArgumentError', () async {
       expect(
-        () => runCapability(
-          name: 'main-shell',
-          branches: ['Home:/home'],
-        ),
+        () => runCapability(name: 'main-shell', branches: ['Home:/home']),
         throwsA(isA<ArgumentError>()),
       );
     });
 
     test('rejects empty branches list with ArgumentError', () async {
       expect(
-        () => runCapability(
-          name: 'Main',
-          branches: const [],
-        ),
+        () => runCapability(name: 'Main', branches: const []),
         throwsA(isA<ArgumentError>()),
       );
     });
@@ -304,10 +346,7 @@ List<GoRoute> productRoutes() {
 
     test('rejects malformed --branch argument', () async {
       expect(
-        () => runCapability(
-          name: 'Main',
-          branches: ['no-colon-here'],
-        ),
+        () => runCapability(name: 'Main', branches: ['no-colon-here']),
         throwsA(isA<ArgumentError>()),
       );
     });

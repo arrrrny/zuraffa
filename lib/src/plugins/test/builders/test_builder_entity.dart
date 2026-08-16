@@ -188,9 +188,7 @@ extension TestBuilderEntity on TestBuilder {
       final packagePath = importPath.startsWith('../')
           ? importPath.substring('../'.length * 3) // strip `../../../`
           : importPath;
-      directives.add(
-        Directive.import('package:$packageName/src/$packagePath'),
-      );
+      directives.add(Directive.import('package:$packageName/src/$packagePath'));
     }
 
     final mockRepoClass = 'Mock$targetName';

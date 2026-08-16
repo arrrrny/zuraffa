@@ -57,8 +57,10 @@ class ManifestWriter {
   }) async {
     if (!await fileSystem.exists(manifestPath)) {
       if (verbose) {
-        print('  ⏭ AndroidManifest.xml not found at $manifestPath; '
-            'skipping platform registration.');
+        print(
+          '  ⏭ AndroidManifest.xml not found at $manifestPath; '
+          'skipping platform registration.',
+        );
       }
       return null;
     }
@@ -69,8 +71,10 @@ class ManifestWriter {
     // entirely so re-runs never duplicate the intent-filter.
     if (content.contains('android:scheme="$scheme"')) {
       if (verbose) {
-        print('  ⏭ Android intent-filter for scheme "$scheme" already '
-            'present; skipping.');
+        print(
+          '  ⏭ Android intent-filter for scheme "$scheme" already '
+          'present; skipping.',
+        );
       }
       return null;
     }
@@ -84,8 +88,10 @@ class ManifestWriter {
     final updated = _injectIntoMainActivity(content, intentFilter);
     if (updated == null) {
       if (verbose) {
-        print('  ⚠️ No <activity android:name=".MainActivity"> found in '
-            '$manifestPath; skipping intent-filter injection.');
+        print(
+          '  ⚠️ No <activity android:name=".MainActivity"> found in '
+          '$manifestPath; skipping intent-filter injection.',
+        );
       }
       return null;
     }
@@ -116,8 +122,10 @@ class ManifestWriter {
   }) async {
     if (!await fileSystem.exists(plistPath)) {
       if (verbose) {
-        print('  ⏭ Info.plist not found at $plistPath; skipping platform '
-            'registration.');
+        print(
+          '  ⏭ Info.plist not found at $plistPath; skipping platform '
+          'registration.',
+        );
       }
       return null;
     }
@@ -136,8 +144,10 @@ class ManifestWriter {
     // nested `<array>` elements (the previous attempt).
     if (content.contains('<string>$scheme</string>')) {
       if (verbose) {
-        print('  ⏭ iOS CFBundleURLSchemes for "$scheme" already present; '
-            'skipping.');
+        print(
+          '  ⏭ iOS CFBundleURLSchemes for "$scheme" already present; '
+          'skipping.',
+        );
       }
       return null;
     }
@@ -151,8 +161,10 @@ class ManifestWriter {
 
     if (updated == content) {
       if (verbose) {
-        print('  ⚠️ Could not locate insertion point for CFBundleURLTypes '
-            'in $plistPath; skipping.');
+        print(
+          '  ⚠️ Could not locate insertion point for CFBundleURLTypes '
+          'in $plistPath; skipping.',
+        );
       }
       return null;
     }
@@ -186,9 +198,15 @@ class ManifestWriter {
     } else {
       buffer.writeln('            <intent-filter>');
     }
-    buffer.writeln('              <action android:name="android.intent.action.VIEW" />');
-    buffer.writeln('              <category android:name="android.intent.category.DEFAULT" />');
-    buffer.writeln('              <category android:name="android.intent.category.BROWSABLE" />');
+    buffer.writeln(
+      '              <action android:name="android.intent.action.VIEW" />',
+    );
+    buffer.writeln(
+      '              <category android:name="android.intent.category.DEFAULT" />',
+    );
+    buffer.writeln(
+      '              <category android:name="android.intent.category.BROWSABLE" />',
+    );
     buffer.writeln('              <data android:scheme="$scheme" />');
     if (host != null && host.isNotEmpty) {
       buffer.writeln('              <data android:host="$host" />');
@@ -236,7 +254,8 @@ class ManifestWriter {
     final body = match.group(2)!;
     final close = match.group(3)!;
 
-    final newEntry = '          <dict>\n'
+    final newEntry =
+        '          <dict>\n'
         '            <key>CFBundleURLSchemes</key>\n'
         '            <array>\n'
         '              <string>$scheme</string>\n'
@@ -250,7 +269,8 @@ class ManifestWriter {
   /// Inserts a fresh `CFBundleURLTypes` block before the closing
   /// `</dict>` of the top-level plist dict.
   String _injectNewUrlTypes(String content, String scheme) {
-    final entry = '  <key>CFBundleURLTypes</key>\n'
+    final entry =
+        '  <key>CFBundleURLTypes</key>\n'
         '  <array>\n'
         '    <dict>\n'
         '      <key>CFBundleURLSchemes</key>\n'

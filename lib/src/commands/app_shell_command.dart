@@ -56,10 +56,7 @@ class AppShellCommand extends Command<void> {
             'is made at DI-generation time via `zfa di <Entity> --use-mock`; '
             'this flag only adds a documenting comment).',
       )
-      ..addOption(
-        'title',
-        help: 'Application title (default: "Zuraffa App")',
-      )
+      ..addOption('title', help: 'Application title (default: "Zuraffa App")')
       ..addOption(
         'output',
         abbr: 'o',
@@ -133,7 +130,8 @@ class AppShellCommand extends Command<void> {
     final diIndexPath = p.join(outputDir, 'di', 'index.dart');
     final routingIndexPath = p.join(outputDir, 'routing', 'index.dart');
 
-    final diMissing = !await _fileSystem.exists(diIndexPath) ||
+    final diMissing =
+        !await _fileSystem.exists(diIndexPath) ||
         !(await _fileSystem.read(diIndexPath)).contains('setupDependencies');
     if (diMissing) {
       throw AppShellException(
@@ -143,7 +141,8 @@ class AppShellCommand extends Command<void> {
       );
     }
 
-    final routingMissing = !await _fileSystem.exists(routingIndexPath) ||
+    final routingMissing =
+        !await _fileSystem.exists(routingIndexPath) ||
         !(await _fileSystem.read(routingIndexPath)).contains('getAllRoutes');
     if (routingMissing) {
       throw AppShellException(

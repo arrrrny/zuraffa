@@ -413,9 +413,8 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       'mock',
       '${entitySnake}_mock_data.dart',
     );
-    final mockDataImportPath = (!config.noEntity &&
-            !isCustom &&
-            await fileSystem.exists(mockDataFile))
+    final mockDataImportPath =
+        (!config.noEntity && !isCustom && await fileSystem.exists(mockDataFile))
         ? '../../../data/mock/${entitySnake}_mock_data.dart'
         : null;
     // Add the mock_data import alongside the other imports so the body
@@ -552,7 +551,8 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       'mock',
       '${entitySnake}_mock_data.dart',
     );
-    final mockDataImportPath = (!config.noEntity &&
+    final mockDataImportPath =
+        (!config.noEntity &&
             config.methods.isNotEmpty &&
             await fs.exists(mockDataFile))
         ? '../../../data/mock/${entitySnake}_mock_data.dart'
@@ -722,12 +722,13 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     // Flutter material symbol (e.g. `Feedback`) would be ambiguous with the
     // unqualified symbol from material.dart. Hide the colliding symbol from
     // the material import so the entity wins.
-    final hideSymbol = collidesWithFlutterSymbol(config.name) &&
-        !isCustom &&
-        !config.noEntity &&
-        (config.generateState ||
-            config.customStateName != null ||
-            config.isEntityBased)
+    final hideSymbol =
+        collidesWithFlutterSymbol(config.name) &&
+            !isCustom &&
+            !config.noEntity &&
+            (config.generateState ||
+                config.customStateName != null ||
+                config.isEntityBased)
         ? config.name
         : null;
     if (hideSymbol != null) {

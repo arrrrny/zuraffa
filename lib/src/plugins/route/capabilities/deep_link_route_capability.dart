@@ -74,7 +74,8 @@ class DeepLinkRouteCapability implements ZuraffaCapability {
       },
       'view': {
         'type': 'string',
-        'description': 'Optional view class to render (default: '
+        'description':
+            'Optional view class to render (default: '
             'SizedBox.shrink placeholder)',
       },
       'dryRun': {'type': 'boolean', 'default': false},
@@ -219,12 +220,7 @@ class DeepLinkRouteCapability implements ZuraffaCapability {
       verbose: verbose,
     );
     final iosFile = await manifestWriter.ensureIosUrlScheme(
-      plistPath: path.join(
-        plugin.projectRoot,
-        'ios',
-        'Runner',
-        'Info.plist',
-      ),
+      plistPath: path.join(plugin.projectRoot, 'ios', 'Runner', 'Info.plist'),
       scheme: scheme,
       dryRun: dryRun,
       verbose: verbose,

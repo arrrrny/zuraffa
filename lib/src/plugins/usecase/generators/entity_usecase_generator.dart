@@ -365,10 +365,7 @@ class EntityUseCaseGenerator {
     // When needsEntityImport is true (get/getList/create/update/toggle/
     // watch/watchList), also include the paramsType and returnType so
     // entity/patch types referenced in the signature get imported too.
-    final sigTypes = <String>[
-      config.idFieldType,
-      config.queryFieldType,
-    ];
+    final sigTypes = <String>[config.idFieldType, config.queryFieldType];
     if (needsEntityImport) {
       sigTypes.add(paramsType.accept(DartEmitter()).toString());
       sigTypes.add(returnType.accept(DartEmitter()).toString());

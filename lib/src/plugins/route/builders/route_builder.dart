@@ -89,9 +89,9 @@ class RouteBuilder {
       '${config.nameSnake}.dart',
     );
     if (!await fileSystem.exists(entityPath)) return false;
-    return EntityFieldResolver.detectsValueObject(await fileSystem.read(
-      entityPath,
-    ));
+    return EntityFieldResolver.detectsValueObject(
+      await fileSystem.read(entityPath),
+    );
   }
 
   /// Removes stale route artifacts for an entity that has since been
@@ -384,8 +384,7 @@ class RouteBuilder {
       content = helper.removeElementsFromReturnListInFunctionWhere(
         source: content,
         functionName: routesGetterName,
-        matches: (elementSource) =>
-            detailNamePattern.hasMatch(elementSource),
+        matches: (elementSource) => detailNamePattern.hasMatch(elementSource),
       );
     }
 
@@ -714,8 +713,7 @@ class RouteBuilder {
         ),
     ];
 
-    final entityImport =
-        '../domain/entities/$entitySnake/$entitySnake.dart';
+    final entityImport = '../domain/entities/$entitySnake/$entitySnake.dart';
     final imports = [
       'package:go_router/go_router.dart',
       'package:zuraffa/zuraffa.dart',
@@ -1031,10 +1029,9 @@ class RouteBuilder {
     if (withId) {
       // #336: go_router path parameters are always String; convert to
       // the view's id type (typed after the entity's actual id field).
-      final idValue = refer('state')
-          .property('pathParameters')
-          .index(literalString('id'))
-          .nullChecked;
+      final idValue = refer(
+        'state',
+      ).property('pathParameters').index(literalString('id')).nullChecked;
       viewArgs['id'] = switch (config.idFieldType) {
         'int' => refer('int').property('parse').call([idValue]),
         'double' => refer('double').property('parse').call([idValue]),
@@ -1226,9 +1223,7 @@ class RouteBuilder {
 
       exports.add(Directive.export(fileName));
       imports.add(Directive.import(fileName));
-      routeElements.add(
-        refer(getterName).call([]).spread,
-      );
+      routeElements.add(refer(getterName).call([]).spread);
     }
 
     final getAllRoutes = Method(
@@ -1303,9 +1298,7 @@ class RouteBuilder {
       final entityPascal = StringUtils.convertToPascalCase(entitySnake);
       final className = '${entityPascal}Routes';
 
-      final constants = _parseRouteConstants(
-        await fileSystem.read(filePath),
-      );
+      final constants = _parseRouteConstants(await fileSystem.read(filePath));
       if (constants.isEmpty) continue;
 
       for (final value in constants.values) {

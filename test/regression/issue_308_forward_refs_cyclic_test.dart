@@ -51,11 +51,10 @@ void main() {
     late String zfaBin;
 
     Future<ProcessResult> runZfa(List<String> args) {
-      return Process.run(
-        'dart',
-        [zfaBin, ...args],
-        workingDirectory: workspace.path,
-      );
+      return Process.run('dart', [
+        zfaBin,
+        ...args,
+      ], workingDirectory: workspace.path);
     }
 
     setUp(() async {
@@ -345,7 +344,8 @@ dev_dependencies:
         expect(
           add.exitCode,
           equals(0),
-          reason: '--allow-forward-refs must skip the on-disk check for add-field',
+          reason:
+              '--allow-forward-refs must skip the on-disk check for add-field',
         );
 
         final noteFile = File(
@@ -377,11 +377,10 @@ dev_dependencies:
       'zfa binary is runnable (smoke)',
       timeout: const Timeout(Duration(minutes: 2)),
       () async {
-        final result = await Process.run(
-          'dart',
-          [zfaBin, '--help'],
-          workingDirectory: _zfaRoot,
-        );
+        final result = await Process.run('dart', [
+          zfaBin,
+          '--help',
+        ], workingDirectory: _zfaRoot);
         expect(result.exitCode, equals(0));
       },
     );

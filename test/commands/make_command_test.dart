@@ -448,9 +448,7 @@ class Product {
         expect(dsContent, contains('void registerProductRemoteDataSource('));
         expect(
           dsContent,
-          contains(
-            'getIt.registerLazySingleton<ProductRemoteDataSource>(',
-          ),
+          contains('getIt.registerLazySingleton<ProductRemoteDataSource>('),
         );
 
         // 2. Datasource barrel exists and is called by setupDependencies
@@ -506,7 +504,11 @@ class Product {
             'product_mock_datasource_di.dart',
           ),
         );
-        expect(mockDi.existsSync(), isTrue, reason: 'mock datasource DI missing');
+        expect(
+          mockDi.existsSync(),
+          isTrue,
+          reason: 'mock datasource DI missing',
+        );
         expect(
           mockDi.readAsStringSync(),
           contains('registerProductMockDataSource('),

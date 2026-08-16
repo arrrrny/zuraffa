@@ -64,9 +64,9 @@ void main() {
   Future<void> seedFakeFlutterProject() async {
     final manifestDir = Directory('$projectRoot/android/app/src/main');
     await manifestDir.create(recursive: true);
-    await File('${manifestDir.path}/AndroidManifest.xml').writeAsString(
-      _fakeAndroidManifest,
-    );
+    await File(
+      '${manifestDir.path}/AndroidManifest.xml',
+    ).writeAsString(_fakeAndroidManifest);
     final iosDir = Directory('$projectRoot/ios/Runner');
     await iosDir.create(recursive: true);
     await File('${iosDir.path}/Info.plist').writeAsString(_fakeIosPlist);
@@ -91,8 +91,7 @@ void main() {
         '--force',
       ]);
 
-      final routesFile =
-          File('$outputDir/routing/scan_barcode_routes.dart');
+      final routesFile = File('$outputDir/routing/scan_barcode_routes.dart');
       expect(routesFile.existsSync(), isTrue);
       final content = routesFile.readAsStringSync();
 
@@ -120,8 +119,9 @@ void main() {
       expect(manifest.contains('android:autoVerify="true"'), isTrue);
 
       // iOS plist entry registered.
-      final plist = await File('$projectRoot/ios/Runner/Info.plist')
-          .readAsString();
+      final plist = await File(
+        '$projectRoot/ios/Runner/Info.plist',
+      ).readAsString();
       expect(plist.contains('<string>gozuzu</string>'), isTrue);
     });
 
@@ -146,8 +146,9 @@ void main() {
       ).readAsString();
       expect('android:scheme="gozuzu"'.allMatches(manifest).length, equals(1));
 
-      final plist = await File('$projectRoot/ios/Runner/Info.plist')
-          .readAsString();
+      final plist = await File(
+        '$projectRoot/ios/Runner/Info.plist',
+      ).readAsString();
       expect('<string>gozuzu</string>'.allMatches(plist).length, equals(1));
 
       // Re-running with --force overwrites the routes file cleanly;
@@ -176,8 +177,9 @@ void main() {
         '--force',
       ]);
 
-      final content = File('$outputDir/routing/scan_barcode_routes.dart')
-          .readAsStringSync();
+      final content = File(
+        '$outputDir/routing/scan_barcode_routes.dart',
+      ).readAsStringSync();
       expect(content.contains('ScanBarcodeView'), isTrue);
       expect(content.contains('SizedBox'), isFalse);
     });
@@ -261,8 +263,9 @@ void main() {
       ).readAsString();
       expect(manifest.contains('android:scheme="gozuzu"'), isTrue);
 
-      final plist = await File('$projectRoot/ios/Runner/Info.plist')
-          .readAsString();
+      final plist = await File(
+        '$projectRoot/ios/Runner/Info.plist',
+      ).readAsString();
       expect(plist.contains('<string>gozuzu</string>'), isTrue);
     });
 
@@ -281,7 +284,8 @@ List<Diagnostic> syntaxErrors(String source) {
   return result.errors.cast<Diagnostic>();
 }
 
-const _fakeAndroidManifest = r'''<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+const _fakeAndroidManifest =
+    r'''<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:label="zuraffa_smoke"
         android:name="${applicationName}"

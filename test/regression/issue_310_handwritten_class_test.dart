@@ -111,8 +111,9 @@ void main() {
           ),
         );
         await srpDir.create(recursive: true);
-        await File(p.join(srpDir.path, 'search_result_price.dart'))
-            .writeAsString(_searchResultPriceSource);
+        await File(
+          p.join(srpDir.path, 'search_result_price.dart'),
+        ).writeAsString(_searchResultPriceSource);
 
         // 3. Create the SearchResult entity referencing the hand-written
         //    class. `--allow-forward-refs` opts out of the type validator

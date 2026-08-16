@@ -131,21 +131,17 @@ targets:
         // 3. Create the entity. `internal:bool?` is the field that used
         //    to collide with `meta.internal`. `id:String` is a required
         //    non-null field so the entity is well-formed.
-        final createResult = await Process.run(
-          'dart',
-          [
-            zfaBin,
-            'entity',
-            'create',
-            '-n',
-            'BooleanCustomFieldConfig',
-            '--field',
-            'id:String',
-            '--field',
-            'internal:bool?',
-          ],
-          workingDirectory: workspace.path,
-        );
+        final createResult = await Process.run('dart', [
+          zfaBin,
+          'entity',
+          'create',
+          '-n',
+          'BooleanCustomFieldConfig',
+          '--field',
+          'id:String',
+          '--field',
+          'internal:bool?',
+        ], workingDirectory: workspace.path);
         expect(
           createResult.exitCode,
           0,
@@ -250,9 +246,9 @@ targets:
         // appear anywhere in the generated helpers. `return this.internal`
         // is fine; `return internalRequired` is fine (no word boundary
         // after `internal`); a bare `return internal != null` is the bug.
-        final bareInternal = RegExp(r'return\s+internal\b').firstMatch(
-          generated,
-        );
+        final bareInternal = RegExp(
+          r'return\s+internal\b',
+        ).firstMatch(generated);
         expect(
           bareInternal,
           isNull,

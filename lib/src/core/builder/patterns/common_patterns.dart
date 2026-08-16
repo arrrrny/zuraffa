@@ -292,10 +292,7 @@ class CommonPatterns {
         // (e.g. `url_listing` -> `urling`, `barcode_listing` -> `barcoding`).
         // See issue #299.
         if (entitySnake.endsWith('_list')) {
-          return entitySnake.substring(
-            0,
-            entitySnake.length - '_list'.length,
-          );
+          return entitySnake.substring(0, entitySnake.length - '_list'.length);
         }
         return entitySnake;
       }
