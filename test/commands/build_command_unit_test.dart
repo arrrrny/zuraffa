@@ -487,6 +487,19 @@ void main() {
         );
       });
 
+      test('matches double-quoted part declarations too', () async {
+        await Directory(
+          p.join(sandbox.path, 'lib/src'),
+        ).create(recursive: true);
+        await File(
+          p.join(sandbox.path, 'lib/src/foo.dart'),
+        ).writeAsString('part "foo.zorphy.dart";\n');
+        expect(
+          command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
+          isFalse,
+        );
+      });
+
       test('does not re-check the generated part files themselves', () async {
         await Directory(
           p.join(sandbox.path, 'lib/src'),
