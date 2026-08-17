@@ -59,6 +59,15 @@ class EntityCommand {
         case 'from-json':
           await _handleFromJson(subArgs, config);
           break;
+        case 'build':
+          await _handleBuild(subArgs);
+          break;
+        case 'watch':
+          await _handleWatch();
+          break;
+        case 'validate':
+          await _handleValidate(subArgs);
+          break;
         default:
           print('Unknown subcommand: $subCommand');
           _printHelp();
@@ -926,6 +935,66 @@ ${missing.map((d) => '   • $d').join('\n')}
       '.',
     ], mode: ProcessStartMode.inheritStdio);
     await process.exitCode;
+  }
+
+  Future<void> _handleBuild(List<String> subArgs) async {
+    final args = ['run', 'build_runner', 'build'];
+    if (subArgs.contains('--clean') || subArgs.contains('-c')) {
+      args.insert(2, '--delete-conflicting-outputs');
+    }
+    if (subArgs.contains('--force')) {
+      args.addAll(['--build-filter=**']);
+    }
+    final process = await Process.start('dart', args,
+        mode: ProcessStartMode.inheritStdio);
+    final exitCode = await process.exitCode;
+    if (exitCode != 0) {
+      print('Build failed with exit code $exitCode');
+    }
+  }
+
+  Future<void> _handleWatch() async {
+    await Process.start(
+      'dart',
+      ['run', 'build_runner', 'watch', '--delete-conflicting-outputs'],
+      mode: ProcessStartMode.inheritStdio,
+    );
+  }
+
+  Future<void> _handleValidate(List<String> subArgs) async {
+    // Scan entity dirs for missing generated files
+    final dir = Directory(fixedEntityOutput);
+    if (!await dir.exists()) {
+      print('No entities found at $fixedEntityOutput');
+      return;
+    }
+    int issues = 0;
+    await for (final entity in dir.list()) {
+      if (entity is! Directory) continue;
+      final name = p.basename(entity.path);
+      final mainFile = File(p.join(entity.path, '$name.dart'));
+      if (!await mainFile.exists()) continue;
+      final content = await mainFile.readAsString();
+      if (content.contains("part '$name.zorphy.dart'")) {
+        final zorphy = File(p.join(entity.path, '$name.zorphy.dart'));
+        if (!await zorphy.exists()) {
+          print('  MISSING: $name.zorphy.dart');
+          issues++;
+        }
+      }
+      if (content.contains("part '$name.g.dart'")) {
+        final g = File(p.join(entity.path, '$name.g.dart'));
+        if (!await g.exists()) {
+          print('  MISSING: $name.g.dart');
+          issues++;
+        }
+      }
+    }
+    if (issues == 0) {
+      print('✅ All entity files valid');
+    } else {
+      print('❌ $issues issue(s) found — run zfa build');
+    }
   }
 
   void _printHelp() {
