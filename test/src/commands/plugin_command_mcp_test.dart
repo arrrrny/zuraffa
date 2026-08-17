@@ -29,8 +29,11 @@ final _zfaRoot = _safeRoot();
 void main() {
   group('PluginCommand.execute mcp', () {
     late Directory tmpDir;
+    late String originalDir;
 
     setUp(() {
+      // Capture the original directory BEFORE changing it.
+      originalDir = Directory.current.path;
       tmpDir = Directory.systemTemp.createTempSync('zfa_plugin_mcp_test_');
       Directory.current = tmpDir.path;
       File('${tmpDir.path}/pubspec.yaml').writeAsStringSync('''
@@ -42,7 +45,8 @@ environment:
 
     tearDown(() {
       try {
-        Directory.current = Directory(_zfaRoot);
+        // Restore the captured original directory instead of hardcoded _zfaRoot.
+        Directory.current = Directory(originalDir);
       } catch (_) {
         try {
           Directory.current = Directory.systemTemp;

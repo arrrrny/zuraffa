@@ -76,7 +76,7 @@ void main() {
 
     test('serveStdio() throws StateError pre-bootstrap', () async {
       final p = McpServerPlugin(tools: const []);
-      expect(() => p.serveStdio(), throwsA(isA<StateError>()));
+      await expectLater(() => p.serveStdio(), throwsA(isA<StateError>()));
     });
 
     test(

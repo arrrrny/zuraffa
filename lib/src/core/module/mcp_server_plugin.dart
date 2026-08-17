@@ -168,9 +168,12 @@ class McpServerPlugin extends ZuraffaPlugin {
     await server.run();
   }
 
-  /// The [McpSseServer] started by [serveSse], or `null` if none is
-  /// running. Callers and tests can use it to invoke `stop()` after
-  /// `await plugin.serveSse(...)` returns.
+  /// The [McpSseServer] started by [serveSse], or `null` if none has
+  /// been started. This reference is retained even after the server is
+  /// stopped or if [serveSse] fails during startup. Use
+  /// [McpSseServer.isRunning] to check whether the server is currently
+  /// running. Callers and tests can invoke `stop()` on the returned
+  /// instance after `await plugin.serveSse(...)` returns.
   McpSseServer? get sseServer => _sseServer;
 
   /// Starts an SSE MCP server on [port]. Returns when the server

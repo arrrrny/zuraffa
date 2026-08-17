@@ -55,18 +55,21 @@ void main() {
         // Exercises McpPlugin.generateWithContext with an injected
         // FileSystem: the generated bin/mcp_server.dart import path
         // proves the plugin name (from core.name) and outputDir were
-        // forwarded correctly into the scaffold.
+        // forwarded correctly into the scaffold. Uses a distinct
+        // CoreConfig.outputDir ('lib/custom') to meaningfully test
+        // forwarding (rather than coincidentally matching the plugin's
+        // constructor default).
         final tmpDir = await Directory.systemTemp.createTemp(
           'zuraffa_mcp_gen_',
         );
         try {
           final fs = DefaultFileSystem(root: tmpDir.path);
-          final plugin = McpPlugin(outputDir: 'lib/src', fileSystem: fs);
+          final plugin = McpPlugin(outputDir: 'lib/custom', fileSystem: fs);
           final context = PluginContext(
             core: const CoreConfig(
               name: 'my_app',
               projectRoot: '',
-              outputDir: 'lib/src',
+              outputDir: 'lib/custom',
             ),
             discovery: const DiscoveryEngine(projectRoot: ''),
             fileSystem: fs,
@@ -77,7 +80,7 @@ void main() {
           final binContent = await fs.read('bin/mcp_server.dart');
           expect(
             binContent,
-            contains("import 'package:my_app/src/mcp/tools.dart';"),
+            contains("import 'package:my_app/custom/mcp/tools.dart';"),
           );
         } finally {
           if (tmpDir.existsSync()) await tmpDir.delete(recursive: true);

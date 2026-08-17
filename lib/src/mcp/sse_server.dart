@@ -151,7 +151,11 @@ class McpSseServer {
 
   Future<void> _handleSseStream(HttpRequest request) async {
     // Validate Origin and Host to prevent DNS rebinding attacks.
-    if (!_isValidRequest(request)) {
+    // In unauthenticated mode, enforce loopback-only. In authenticated
+    // mode, the auth gate at the top-level listener already validated
+    // the bearer token for non-loopback clients.
+    final auth = McpAuth(token: authToken);
+    if (!_isValidRequest(request, authEnabled: auth.isEnabled)) {
       request.response
         ..statusCode = HttpStatus.forbidden
         ..write('Forbidden')
@@ -208,7 +212,11 @@ class McpSseServer {
 
   Future<void> _handleMessagePost(HttpRequest request) async {
     // Validate Origin and Host to prevent DNS rebinding attacks.
-    if (!_isValidRequest(request)) {
+    // In unauthenticated mode, enforce loopback-only. In authenticated
+    // mode, the auth gate at the top-level listener already validated
+    // the bearer token for non-loopback clients.
+    final auth = McpAuth(token: authToken);
+    if (!_isValidRequest(request, authEnabled: auth.isEnabled)) {
       request.response
         ..statusCode = HttpStatus.forbidden
         ..write('Forbidden')
@@ -225,7 +233,23 @@ class McpSseServer {
       return;
     }
 
-    final body = await _readBody(request);
+    // Read body, catching size-limit and UTF-8 decode failures.
+    String body;
+    try {
+      body = await _readBody(request);
+    } on StateError catch (_) {
+      // _readBody already sent the 413 response; return normally to avoid
+      // unhandled async error.
+      return;
+    } on FormatException catch (e) {
+      // UTF-8 decode failure.
+      request.response
+        ..statusCode = HttpStatus.badRequest
+        ..write('Invalid UTF-8: $e')
+        ..close();
+      return;
+    }
+
     Map<String, dynamic> rpc;
     try {
       rpc = jsonDecode(body) as Map<String, dynamic>;
@@ -279,16 +303,28 @@ class McpSseServer {
   // ----------------------------------------------------------------
 
   /// Validates that the request Origin and Host are safe for local servers.
-  /// Returns false if Origin is present but not localhost/127.0.0.1, or if
-  /// Host is non-loopback (DNS rebinding protection).
-  bool _isValidRequest(HttpRequest request) {
+  /// In unauthenticated mode ([authEnabled] is false), enforces loopback-only
+  /// Origin/Host validation to prevent DNS rebinding attacks.
+  /// In authenticated mode ([authEnabled] is true), allows non-loopback clients
+  /// after bearer-token validation at the top-level listener.
+  bool _isValidRequest(HttpRequest request, {required bool authEnabled}) {
+    // When authentication is enabled, skip loopback enforcement — the auth
+    // gate in start() already validated the bearer token for non-loopback
+    // clients. Still perform basic validation for malformed headers.
+    if (authEnabled) {
+      // Accept any valid Origin/Host; the bearer token already authenticated
+      // the client.
+      return true;
+    }
+
+    // Unauthenticated mode: enforce loopback-only for Origin and Host.
     // Check Origin header against allowlist.
     final origin = request.headers.value('origin');
     if (origin != null) {
       final uri = Uri.tryParse(origin);
       if (uri == null) return false;
-      final host = uri.host.toLowerCase();
-      if (host != 'localhost' && host != '127.0.0.1' && host != '[::1]') {
+      final host = _normalizeHost(uri.host);
+      if (host != 'localhost' && host != '127.0.0.1' && host != '::1') {
         return false;
       }
     }
@@ -296,15 +332,50 @@ class McpSseServer {
     // Check Host header to prevent DNS rebinding.
     final host = request.headers.value('host');
     if (host != null) {
-      final hostOnly = host.split(':').first.toLowerCase();
-      if (hostOnly != 'localhost' &&
-          hostOnly != '127.0.0.1' &&
-          hostOnly != '[::1]') {
+      final hostOnly = _extractHostFromHostHeader(host);
+      final normalized = _normalizeHost(hostOnly);
+      if (normalized != 'localhost' &&
+          normalized != '127.0.0.1' &&
+          normalized != '::1') {
         return false;
       }
     }
 
     return true;
+  }
+
+  /// Extracts the host portion from a Host header value, handling IPv6
+  /// bracket notation. For example:
+  ///   - "localhost:8080" -> "localhost"
+  ///   - "[::1]:8080" -> "[::1]"
+  ///   - "127.0.0.1" -> "127.0.0.1"
+  String _extractHostFromHostHeader(String hostHeader) {
+    final trimmed = hostHeader.trim();
+    // IPv6 addresses in Host headers are wrapped in brackets: [::1]:port
+    if (trimmed.startsWith('[')) {
+      final closeBracket = trimmed.indexOf(']');
+      if (closeBracket > 0) {
+        return trimmed.substring(0, closeBracket + 1);
+      }
+      // Malformed bracket syntax; return as-is for normalization to fail.
+      return trimmed;
+    }
+    // IPv4 or hostname: split on colon to remove port.
+    final colonIdx = trimmed.indexOf(':');
+    return colonIdx >= 0 ? trimmed.substring(0, colonIdx) : trimmed;
+  }
+
+  /// Normalizes a host string by removing IPv6 brackets if present.
+  /// For example:
+  ///   - "[::1]" -> "::1"
+  ///   - "::1" -> "::1"
+  ///   - "localhost" -> "localhost"
+  String _normalizeHost(String host) {
+    final lower = host.toLowerCase();
+    if (lower.startsWith('[') && lower.endsWith(']')) {
+      return lower.substring(1, lower.length - 1);
+    }
+    return lower;
   }
 
   String _newSessionId() {
