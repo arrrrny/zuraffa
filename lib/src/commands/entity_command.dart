@@ -218,6 +218,8 @@ ${missing.map((d) => '   • $d').join('\n')}
       dryRun: parsed['dry_run'] as bool? ?? false,
       autoId: parsed['auto_id'] == true,
       kind: _parseKind(parsed['kind'] as String?),
+      typeKey: parsed['type_key'] as String?,
+      subtypeWireValue: parsed['subtype_wire_value'] as String?,
     );
 
     final creator = EntityCreator(baseOutputDir: outputDir);
@@ -225,6 +227,13 @@ ${missing.map((d) => '   • $d').join('\n')}
 
     if (result.isSuccess) {
       await _fixEntityImports(result.filePath, fields, outputDir);
+
+      // Add imports for explicit subtypes so the zorphy builder can resolve
+      // them for polymorphic dispatch (fromJson/toJson with typeKey).
+      if (entityConfig.explicitSubtypes.isNotEmpty) {
+        await _addSubtypeImports(result.filePath, entityConfig.explicitSubtypes, outputDir);
+      }
+
       print('✓ Created entity: ${result.filePath}');
       print('\n📋 Next steps:');
       print('  1. Run: zfa build');
@@ -406,6 +415,32 @@ ${missing.map((d) => '   • $d').join('\n')}
     }
   }
 
+  Future<void> _addSubtypeImports(
+    String entityPath,
+    List<String> explicitSubtypes,
+    String outputDir,
+  ) async {
+    final file = File(entityPath);
+    var content = await file.readAsString();
+
+    for (final subtype in explicitSubtypes) {
+      final stName = subtype.split(':').first.replaceAll(r'$', '').trim();
+      if (stName.isEmpty) continue;
+      final stSnake = StringUtils.camelToSnake(stName);
+      final imp = "import '../$stSnake/$stSnake.dart';";
+      if (!content.contains(imp)) {
+        // Insert after the last import line
+        final lastImportIdx = content.lastIndexOf('import ');
+        final eolIdx = content.indexOf('\n', lastImportIdx);
+        if (eolIdx != -1) {
+          content = '${content.substring(0, eolIdx + 1)}$imp\n${content.substring(eolIdx + 1)}';
+        }
+      }
+    }
+
+    await file.writeAsString(content);
+  }
+
   Future<void> _fixEntityImports(
     String filePath,
     List<FieldDefinition> fields,
@@ -500,6 +535,10 @@ ${missing.map((d) => '   • $d').join('\n')}
     if (hasEnums) {
       imports.add("import '../enums/index.dart';");
     }
+
+    // Import explicit subtypes so the zorphy builder can resolve them
+    // for polymorphic dispatch (fromJson/toJson with typeKey).
+    // This is handled by the entity creation flow, not here.
 
     if (imports.isEmpty) return;
 
@@ -915,6 +954,8 @@ CREATE COMMAND:
     --compare               Enable compareTo (default: true)
     --sealed                Create sealed class
     --non-sealed            Create non-sealed class
+    --type-key <key>        Custom JSON key for polymorphic dispatch (default: __typename)
+    --subtype-wire-value    Custom wire value for this subtype in polymorphic JSON
     --field                 Add field "name:type"
     -F, --fields            Add multiple fields "name:type,name:type"
     --extends               Interface to extend
