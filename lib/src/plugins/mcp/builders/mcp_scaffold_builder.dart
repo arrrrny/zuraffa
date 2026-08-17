@@ -165,6 +165,7 @@ class McpScaffoldBuilder {
       ..writeln('library;')
       ..writeln()
       ..writeln("import 'dart:convert';")
+      ..writeln("import 'dart:io';")
       ..writeln("import 'package:zuraffa/zuraffa.dart';")
       ..writeln("import '$toolsImport';")
       ..writeln()
@@ -229,11 +230,15 @@ class McpScaffoldBuilder {
   /// [outputDir] (e.g. `lib/src/`) is stripped first so the joined
   /// path never contains a double separator.
   String _packageImport(String app, String outputDir, String relative) {
+    // Package names in pubspec.yaml may contain hyphens, but `package:`
+    // URIs require underscores — normalize so hyphenated app names
+    // scaffold into compilable imports.
+    final normalizedApp = app.replaceAll('-', '_');
     final clean = outputDir.endsWith('/')
         ? outputDir.substring(0, outputDir.length - 1)
         : outputDir;
     final base = clean == 'lib' ? '' : clean.replaceFirst('lib/', '');
     final path = base.isEmpty ? relative : '$base/$relative';
-    return 'package:$app/$path';
+    return 'package:$normalizedApp/$path';
   }
 }

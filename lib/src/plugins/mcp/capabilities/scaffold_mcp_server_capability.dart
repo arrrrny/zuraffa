@@ -169,7 +169,7 @@ class ScaffoldMcpServerCapability implements ZuraffaCapability {
     if (await plugin.fileSystem.exists(pubspecPath)) {
       final content = await plugin.fileSystem.read(pubspecPath);
       final match = RegExp(
-        r'^name:\s*([A-Za-z][A-Za-z0-9_]*)',
+        r'^name:\s*([A-Za-z][A-Za-z0-9_-]*)',
         multiLine: true,
       ).firstMatch(content);
       if (match != null) return match.group(1)!;

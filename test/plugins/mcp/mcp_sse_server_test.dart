@@ -200,6 +200,28 @@ void main() {
       expect(res.statusCode, 400);
     });
 
+    test('SSE with auth token accepts non-loopback Origin', () async {
+      final authRegistry = McpToolRegistry();
+      authRegistry.register(_EchoTool());
+      final authServer = McpSseServer(
+        registry: authRegistry,
+        authToken: 'secret',
+      );
+      await authServer.start(port: 0);
+      final authPort = authServer.boundPort!;
+
+      final req = await client.getUrl(
+        Uri.parse('http://127.0.0.1:$authPort/sse'),
+      );
+      req.headers.set('Origin', 'http://example.com');
+      final res = await req.close();
+
+      expect(res.statusCode, 200);
+      expect(res.headers.contentType?.mimeType, 'text/event-stream');
+
+      await authServer.stop();
+    });
+
     test(
       'remote requests get 401 when Authorization is missing or invalid',
       () async {

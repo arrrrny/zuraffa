@@ -7,6 +7,7 @@
 library;
 
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:zuraffa/zuraffa.dart';
 import 'package:mcp_demo/src/mcp/tools.dart';
