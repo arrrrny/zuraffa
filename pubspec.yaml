@@ -44,14 +44,6 @@ dependencies:
 
 dependency_overrides:
   analyzer: 14.1.0
-  # DEV-MODE PATH OVERRIDES (local zorphy checkout = the authoritative dev
-  # source; instant iteration on zorphy fixes without waiting for pub.dev
-  # releases or git ref resolution). Ship/prepare flows must switch back to
-  # the hosted ^2.0.0 constraint (no overrides) — see PUBLISH.md.
-  zorphy:
-    path: /workspace/zorphy/zorphy
-  zorphy_annotation:
-    path: /workspace/zorphy/zorphy_annotation
 
 executables:
   zuraffa:

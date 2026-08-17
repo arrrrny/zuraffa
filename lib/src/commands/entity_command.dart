@@ -952,16 +952,20 @@ ${missing.map((d) => '   • $d').join('\n')}
         mode: ProcessStartMode.inheritStdio);
     final exitCode = await process.exitCode;
     if (exitCode != 0) {
-      print('Build failed with exit code $exitCode');
+      throw Exception('Build failed with exit code $exitCode');
     }
   }
 
   Future<void> _handleWatch() async {
-    await Process.start(
+    final process = await Process.start(
       'dart',
       ['run', 'build_runner', 'watch', '--delete-conflicting-outputs'],
       mode: ProcessStartMode.inheritStdio,
     );
+    final exitCode = await process.exitCode;
+    if (exitCode != 0) {
+      throw Exception('Watch failed with exit code $exitCode');
+    }
   }
 
   Future<void> _handleValidate(List<String> subArgs) async {
@@ -997,6 +1001,7 @@ ${missing.map((d) => '   • $d').join('\n')}
       print('✅ All entity files valid');
     } else {
       print('❌ $issues issue(s) found — run zfa build');
+      throw Exception('Validation failed with $issues issue(s)');
     }
   }
 
@@ -1014,6 +1019,9 @@ SUBCOMMANDS:
   add-field   Add field(s) to an existing entity
   from-json   Create entity from JSON file
   list        List all Zorphy entities
+  build       Run build_runner build (with optional --clean, --force)
+  watch       Run build_runner watch (live rebuild on changes)
+  validate    Check entity dirs for missing generated files
 
 CREATE COMMAND:
   zfa entity create -n <Name> [options]
@@ -1031,7 +1039,9 @@ CREATE COMMAND:
     --field                 Add field "name:type"
     -F, --fields            Add multiple fields "name:type,name:type"
     --extends               Interface to extend
-    --subtypes              Explicit subtypes
+    --subtypes              Explicit subtypes, e.g. "Admin:1,Guest:2"
+                            Each entry is name:wireValue. Used with
+                            --type-key for polymorphic dispatch.
     --generate-subs         Generate subtype files
     --auto-id               Auto-generate a String id (uuid v4). The id
                             field is optional at construction and defaults
