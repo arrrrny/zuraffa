@@ -393,5 +393,115 @@ void main() {
         expect(await command.countDartFiles(projectRoot: sandbox.path), 3);
       });
     });
+
+    group('verifyDeclaredPartsOrFail (#379)', () {
+      test('true when no lib/ or test/ dir exists', () {
+        expect(
+          command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
+          isTrue,
+        );
+      });
+
+      test('true when sources declare no generated parts', () async {
+        await Directory(
+          p.join(sandbox.path, 'lib/src'),
+        ).create(recursive: true);
+        await File(
+          p.join(sandbox.path, 'lib/src/foo.dart'),
+        ).writeAsString('class Foo {}');
+        expect(
+          command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
+          isTrue,
+        );
+      });
+
+      test('false when a source declares a missing .g.dart part (#379)', () async {
+        await Directory(
+          p.join(sandbox.path, 'lib/src/domain/entities/foo'),
+        ).create(recursive: true);
+        await File(
+          p.join(sandbox.path, 'lib/src/domain/entities/foo/foo.dart'),
+        ).writeAsString(
+          "part 'foo.zorphy.dart';\npart 'foo.g.dart';\n",
+        );
+        // .zorphy.dart exists but .g.dart is missing — exactly the
+        // json_serializable-failure-on-one-entity case from #379.
+        await File(
+          p.join(sandbox.path, 'lib/src/domain/entities/foo/foo.zorphy.dart'),
+        ).writeAsString('// generated');
+        final output = capturePrintSync(
+          () => command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
+        );
+        expect(output, contains('foo.g.dart'));
+        expect(
+          command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
+          isFalse,
+        );
+      });
+
+      test('false when a declared .zorphy.dart part is missing', () async {
+        await Directory(
+          p.join(sandbox.path, 'lib/src'),
+        ).create(recursive: true);
+        await File(
+          p.join(sandbox.path, 'lib/src/foo.dart'),
+        ).writeAsString("part 'foo.zorphy.dart';\n");
+        expect(
+          command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
+          isFalse,
+        );
+      });
+
+      test('true when all declared generated parts exist', () async {
+        await Directory(
+          p.join(sandbox.path, 'lib/src'),
+        ).create(recursive: true);
+        await File(
+          p.join(sandbox.path, 'lib/src/foo.dart'),
+        ).writeAsString("part 'foo.zorphy.dart';\npart 'foo.g.dart';\n");
+        await File(
+          p.join(sandbox.path, 'lib/src/foo.zorphy.dart'),
+        ).writeAsString('// generated');
+        await File(
+          p.join(sandbox.path, 'lib/src/foo.g.dart'),
+        ).writeAsString('// generated');
+        expect(
+          command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
+          isTrue,
+        );
+      });
+
+      test('ignores hand-written multi-part libraries (non-generated parts)',
+          () async {
+        await Directory(
+          p.join(sandbox.path, 'lib/src'),
+        ).create(recursive: true);
+        // A hand-written library with a missing helper part must NOT trip the
+        // check — only .zorphy.dart / .g.dart parts are verified.
+        await File(
+          p.join(sandbox.path, 'lib/src/lib.dart'),
+        ).writeAsString("part 'helper.dart';\n");
+        expect(
+          command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
+          isTrue,
+        );
+      });
+
+      test('does not re-check the generated part files themselves', () async {
+        await Directory(
+          p.join(sandbox.path, 'lib/src'),
+        ).create(recursive: true);
+        await File(
+          p.join(sandbox.path, 'lib/src/foo.dart'),
+        ).writeAsString("part 'foo.zorphy.dart';\n");
+        await File(
+          p.join(sandbox.path, 'lib/src/foo.zorphy.dart'),
+        ).writeAsString("part of 'foo.dart';\n");
+        expect(
+          command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
+          isTrue,
+        );
+      });
+    });
   });
 }

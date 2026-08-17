@@ -85,7 +85,7 @@ class BuildCommand extends Command {
       // `generate_for` glob doesn't match the annotated sources still
       // produces 0 outputs — this catches that residual class of misconfig.
       if (!dryRun) {
-        if (!verifyOutputsOrFail()) {
+        if (!verifyOutputsOrFail() || !verifyDeclaredPartsOrFail()) {
           exit(1);
         }
       }
@@ -97,7 +97,7 @@ class BuildCommand extends Command {
       final retryCode = await _runBuild();
       if (retryCode == 0) {
         print('\n✅ Build completed successfully after cache clean');
-        if (!verifyOutputsOrFail()) {
+        if (!verifyOutputsOrFail() || !verifyDeclaredPartsOrFail()) {
           exit(1);
         }
       } else {
@@ -186,6 +186,67 @@ class BuildCommand extends Command {
     } catch (_) {
       // Best-effort safety net — never fail the build from an unexpected error
       // in the detection path itself.
+    }
+    return true;
+  }
+
+  /// Returns `true` when every generated part declared by a source file under
+  /// `lib/`/`test/` (`.zorphy.dart` / `.g.dart`) actually exists on disk.
+  ///
+  /// This is the residual case zuraffa#379: build_runner (AOT) can exit 0 —
+  /// or its clean-cache retry can — while a single generator (e.g.
+  /// json_serializable failing on a `Function` field) leaves ONE entity's
+  /// part file unwritten. `verifyOutputsOrFail` only catches the total-zero
+  /// case; this catches the per-file partial case so the build fails loudly
+  /// instead of leaving a broken package that references a missing part.
+  ///
+  /// Only sources that declare a `.zorphy.dart` / `.g.dart` part are checked,
+  /// so hand-written multi-part libraries are not inspected.
+  @visibleForTesting
+  bool verifyDeclaredPartsOrFail({String? projectRoot}) {
+    final missing = <String>[];
+    for (final root in ['lib', 'test']) {
+      final rootPath = projectRoot != null ? p.join(projectRoot, root) : root;
+      final dir = Directory(rootPath);
+      if (!dir.existsSync()) continue;
+      for (final entity in dir.listSync(recursive: true)) {
+        if (entity is! File || !entity.path.endsWith('.dart')) continue;
+        final name = p.basename(entity.path);
+        if (name.endsWith('.zorphy.dart') || name.endsWith('.g.dart')) {
+          continue;
+        }
+        String src;
+        try {
+          src = entity.readAsStringSync();
+        } catch (_) {
+          // Ignore unreadable files.
+          continue;
+        }
+        final partRe = RegExp(r"""^\s*part\s+'([^']+)'\s*;""", multiLine: true);
+        for (final m in partRe.allMatches(src)) {
+          final partName = m.group(1)!;
+          if (!partName.endsWith('.zorphy.dart') &&
+              !partName.endsWith('.g.dart')) {
+            continue;
+          }
+          final resolved = p.join(p.dirname(entity.path), partName);
+          if (!File(resolved).existsSync()) {
+            missing.add('${p.relative(entity.path)} -> $partName');
+          }
+        }
+      }
+    }
+    if (missing.isNotEmpty) {
+      print(
+        '\n❌ Build exited 0 but ${missing.length} declared generated part(s) are '
+        'missing — the build output is incomplete.\n'
+        '   Missing:\n'
+        '${missing.map((m) => '     - $m').join('\n')}\n'
+        '   This usually means a generator (e.g. json_serializable) failed on one\n'
+        '   source while the rest of the build succeeded. Fix the reported source\n'
+        '   and re-run `zfa build`.',
+      );
+      return false;
     }
     return true;
   }
