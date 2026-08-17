@@ -752,19 +752,22 @@ ${missing.map((d) => '   • $d').join('\n')}
   /// Dart-safe field name and remap the wire name via `:json=<wire>`
   /// (e.g. `in_:String:json=in`). [_findBareKeywordFields] refuses the
   /// bare-keyword form up front with an actionable error.
+  /// Dart reserved words that CANNOT be used as a field identifier.
+  /// Built-in identifiers (async, get, set, etc.) and contextual keywords
+  /// (yield, required, etc.) are legal field names — only hard reserved words
+  /// and true reserved-for-future-use words are rejected.
+  /// See: https://dart.dev/language/keywords
   static const Set<String> _dartKeywords = {
-    // Built-in reserved words.
-    'abstract', 'as', 'assert', 'async', 'await', 'break', 'case', 'catch',
-    'class', 'const', 'continue', 'covariant', 'default', 'deferred', 'do',
-    'dynamic', 'else', 'enum', 'export', 'extends', 'extension', 'external',
-    'factory', 'false', 'final', 'finally', 'for', 'function', 'get', 'hide',
-    'if', 'implements', 'import', 'in', 'interface', 'is', 'library',
-    'late', 'mixin', 'new', 'null', 'on', 'operator', 'part', 'rethrow',
-    'return', 'set', 'show', 'static', 'super', 'switch', 'sync', 'this',
-    'throw', 'true', 'try', 'typedef', 'var', 'void', 'while', 'with', 'yield',
-    // Contextual keywords / reserved-for-future-use that would also break
-    // generated source identifiers.
-    'required', 'base', 'sealed', 'when', 'record', 'view',
+    // Hard reserved words — cannot be identifiers.
+    'abstract', 'as', 'assert', 'break', 'case', 'catch', 'class', 'const',
+    'continue', 'covariant', 'default', 'deferred', 'do', 'dynamic', 'else',
+    'enum', 'export', 'extends', 'external', 'false', 'final', 'finally',
+    'for', 'if', 'implements', 'import', 'in', 'interface', 'is', 'late',
+    'library', 'mixin', 'new', 'null', 'part', 'rethrow', 'return', 'static',
+    'super', 'switch', 'this', 'throw', 'true', 'try', 'var', 'void',
+    'while', 'with',
+    // Reserved for future use — may become reserved words in later Dart versions.
+    'base', 'sealed', 'when', 'record', 'view',
   };
 
   bool _isDartKeyword(String name) => _dartKeywords.contains(name);
