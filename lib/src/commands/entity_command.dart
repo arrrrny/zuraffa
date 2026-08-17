@@ -229,6 +229,7 @@ ${missing.map((d) => '   • $d').join('\n')}
       kind: _parseKind(parsed['kind'] as String?),
       typeKey: parsed['type_key'] as String?,
       subtypeWireValue: parsed['subtype_wire_value'] as String?,
+      staticMembers: _asStringList(parsed['static']),
     );
 
     final creator = EntityCreator(baseOutputDir: outputDir);
@@ -1041,6 +1042,8 @@ CREATE COMMAND:
                             composition type: no id required and `zfa make`
                             generates no repository/usecase/controller/
                             presenter for it.
+    --static                Add static member "name:type:value" (e.g.
+                            'DEFAULT_CLIENT:MyClass:MyClass(name: "default")')
     --allow-forward-refs    Skip on-disk type validation (batch generation of
                             cyclic schemas — referenced entity is created later).
                             For types that are NEVER entities (external classes
