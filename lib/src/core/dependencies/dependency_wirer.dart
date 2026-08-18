@@ -136,12 +136,14 @@ class DependencyWirer {
         gitPath: isFlutter ? 'zuraffa_flutter' : null,
         gitRef: defaultGitRef,
       ),
-      DependencySpec(
+      // Hosted, not git: zuraffa itself depends on zorphy_annotation from
+      // hosted (^2.0.0). A root-level git pin creates a source conflict pub
+      // cannot solve ("zorphy_annotation from hosted is required"), so the
+      // wired declaration must match zuraffa's own hosted source.
+      const DependencySpec(
         name: 'zorphy_annotation',
         kind: DependencyKind.regular,
-        gitUrl: zorphyGitUrl,
-        gitPath: 'zorphy_annotation',
-        gitRef: defaultGitRef,
+        version: '^2.0.0',
       ),
       // #281: Wire json_annotation as a direct regular dep so generated entity
       // files (which use @JsonSerializable / JsonKey) satisfy
