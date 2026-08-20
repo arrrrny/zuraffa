@@ -114,6 +114,11 @@ class InitializeCommand {
     if (!noDeps) {
       final pubspecFile = File('pubspec.yaml');
       var isFlutter = flutterMode;
+      // dry-run + no pubspec: preview the in-place bootstrap without writing
+      // anything, then skip the wirer call (which needs pubspec on disk) and
+      // continue to the entity scaffolding preview when --deps-only is NOT
+      // set (CodeRabbit follow-up on issue #393).
+      var skipWiring = false;
 
       if (!pubspecFile.existsSync()) {
         if (!dartMode) {
@@ -128,22 +133,28 @@ class InitializeCommand {
         // pubspec.yaml from the directory name so an existing repository can
         // be initialized without creating an out-of-place subdirectory.
         if (dryRun) {
-          print('🔍 Would create: pubspec.yaml '
-              '(minimal pure-Dart package, name: '
-              '${_validPackageName(path.basename(Directory.current.absolute.path)) ?? 'zuraffa_package'})');
-          print('🔍 Would wire the pure-Dart dependency set '
-              '(zuraffa, zorphy_annotation, json_annotation, build_runner …)');
-          print('🔍 Dry-run: skipping dependency wiring '
-              '(pubspec.yaml does not exist yet).');
-          if (depsOnly) {
-            print('🔍 Dry-run: would skip entity scaffolding (--deps-only).');
-          }
-          return;
+          print(
+            '🔍 Would create: pubspec.yaml '
+            '(minimal pure-Dart package, name: '
+            '${_validPackageNameStatic(path.basename(Directory.current.absolute.path)) ?? 'zuraffa_package'})',
+          );
+          print(
+            '🔍 Would wire the pure-Dart dependency set '
+            '(zuraffa, zorphy_annotation, json_annotation, build_runner …)',
+          );
+          print(
+            '🔍 Dry-run: skipping dependency wiring '
+            '(pubspec.yaml does not exist yet).',
+          );
+          skipWiring = true;
+        } else {
+          pubspecFile.writeAsStringSync(
+            synthesizeMinimalPubspec(
+              path.basename(Directory.current.absolute.path),
+            ),
+          );
+          print('✅ Bootstrapped pure-Dart package in-place: pubspec.yaml');
         }
-        pubspecFile.writeAsStringSync(synthesizeMinimalPubspec(
-          path.basename(Directory.current.absolute.path),
-        ));
-        print('✅ Bootstrapped pure-Dart package in-place: pubspec.yaml');
         // A synthesized pubspec is never a Flutter project.
         isFlutter = false;
       } else if (!flutterMode && !dartMode) {
@@ -155,31 +166,35 @@ class InitializeCommand {
         isFlutter = false;
       }
 
-      print(
-        '🔧 Wiring zuraffa dependencies'
-        '${isFlutter ? ' (Flutter project)' : ' (Dart project)'}...\n',
-      );
-      final wireResult = await DependencyWirer.wire(
-        isFlutter: isFlutter,
-        dryRun: dryRun,
-        projectRoot: '.',
-      );
-
-      if (!wireResult.isSuccess) {
+      if (!skipWiring) {
         print(
-          '\n⚠️  Some dependencies could not be wired automatically: '
-          '${wireResult.failed.join(', ')}',
+          '🔧 Wiring zuraffa dependencies'
+          '${isFlutter ? ' (Flutter project)' : ' (Dart project)'}...\n',
         );
-        print('   Add them manually and re-run `zfa init`.');
-        // Non-zero exit so CI can distinguish a partial wiring.
-        throw StateError('Some dependencies could not be wired automatically.');
+        final wireResult = await DependencyWirer.wire(
+          isFlutter: isFlutter,
+          dryRun: dryRun,
+          projectRoot: '.',
+        );
+
+        if (!wireResult.isSuccess) {
+          print(
+            '\n⚠️  Some dependencies could not be wired automatically: '
+            '${wireResult.failed.join(', ')}',
+          );
+          print('   Add them manually and re-run `zfa init`.');
+          // Non-zero exit so CI can distinguish a partial wiring.
+          throw StateError(
+            'Some dependencies could not be wired automatically.',
+          );
+        }
+
+        // Ensure build.yaml + domain directory structure exist.
+        print('');
+        await DependencyWirer.ensureProjectStructure(dryRun: dryRun);
       }
 
-      // Ensure build.yaml + domain directory structure exist.
-      print('');
-      await DependencyWirer.ensureProjectStructure(dryRun: dryRun);
-
-      // Ensure .zfa.json exists.
+      // Ensure .zfa.json exists (independent of pubspec — always checked).
       final config = ZfaConfig.load();
       if (config == null) {
         print('');
@@ -317,14 +332,6 @@ class $entityName with _\$$entityName {
 ''';
   }
 
-  /// Returns [dirName] if it is a valid Dart package name (lowercase
-  /// snake_case, digits, underscores; not starting with a digit), else null.
-  String? _validPackageName(String dirName) {
-    final name = dirName.trim().toLowerCase().replaceAll('-', '_');
-    final valid = RegExp(r'^[a-z][a-z0-9_]*$').hasMatch(name);
-    return valid ? name : null;
-  }
-
   /// Minimal pure-Dart pubspec.yaml content for an in-place bootstrap
   /// (issue #393). The package name is derived from [dirName]; invalid
   /// names fall back to `zuraffa_package`.
@@ -339,8 +346,11 @@ class $entityName with _\$$entityName {
   }
 
   static String? _validPackageNameStatic(String dirName) {
-    final name =
-        dirName.trim().toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
+    final name = dirName
+        .trim()
+        .toLowerCase()
+        .replaceAll('-', '_')
+        .replaceAll(' ', '_');
     final valid = RegExp(r'^[a-z][a-z0-9_]*$').hasMatch(name);
     return valid ? name : null;
   }
