@@ -242,7 +242,6 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     }
 
     var source = await fileSystem.read(filePath);
-    source = await _addMissingImports(config, source, filePath);
 
     final request = AppendRequest.method(
       source: source,
@@ -251,6 +250,10 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
     );
     final result = appendExecutor.execute(request);
     source = result.source;
+    // Add missing imports AFTER the method is appended so the
+    // `content.contains(entityName)` guard sees the newly-referenced
+    // --params / --returns types (issue #395 Bug B).
+    source = await _addMissingImports(config, source, filePath);
 
     await FileUtils.writeFile(
       filePath,
@@ -367,14 +370,13 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
       );
     }
 
-    source = await _addMissingImports(config, source, filePath);
-
     final request = AppendRequest.method(
       source: source,
       className: className,
       memberSource: methodSource,
     );
     source = appendExecutor.execute(request).source;
+    source = await _addMissingImports(config, source, filePath);
 
     await FileUtils.writeFile(
       filePath,
@@ -543,14 +545,13 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
 
     var source = await fileSystem.read(filePath);
 
-    source = await _addMissingImports(config, source, filePath, isMock: true);
-
     final request = AppendRequest.method(
       source: source,
       className: className,
       memberSource: methodSource,
     );
     source = appendExecutor.execute(request).source;
+    source = await _addMissingImports(config, source, filePath, isMock: true);
 
     await FileUtils.writeFile(
       filePath,
@@ -677,14 +678,13 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
 
     var source = await fileSystem.read(filePath);
 
-    source = await _addMissingImports(config, source, filePath, isMock: isMock);
-
     final request = AppendRequest.method(
       source: source,
       className: className,
       memberSource: methodSource,
     );
     source = appendExecutor.execute(request).source;
+    source = await _addMissingImports(config, source, filePath, isMock: isMock);
 
     await FileUtils.writeFile(
       filePath,
@@ -873,14 +873,13 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
 
     var source = await fileSystem.read(filePath);
 
-    source = await _addMissingImports(config, source, filePath, isMock: true);
-
     final request = AppendRequest.method(
       source: source,
       className: className,
       memberSource: methodSource,
     );
     source = appendExecutor.execute(request).source;
+    source = await _addMissingImports(config, source, filePath, isMock: true);
 
     await FileUtils.writeFile(
       filePath,

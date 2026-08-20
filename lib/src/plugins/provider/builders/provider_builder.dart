@@ -193,7 +193,11 @@ class ProviderBuilder {
     final entityImports = CommonPatterns.entityImports(
       entityTypes.toList(),
       config,
-      depth: 2,
+      // Providers live at lib/src/data/providers/<domain>/, so entity imports
+      // need ../../../ (depth 3) to reach lib/src/domain/entities/... — matching
+      // the service import depth emitted above for the same file. depth: 2
+      // produced ../../ which is one level too shallow (issue #395 Bug A).
+      depth: 3,
       includeDomain: false,
       fileSystem: fileSystem,
     );

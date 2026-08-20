@@ -519,5 +519,49 @@ void main() {
         );
       });
     });
+
+    group('analyzeReportsError (post-build guard — #395)', () {
+      test('returns false for clean analyze output', () {
+        const out = 'Analyzing lib/...\nNo issues found!';
+        expect(BuildCommand.analyzeReportsError(out), isFalse);
+      });
+
+      test('returns false when only warnings/info are reported', () {
+        const out = '''
+Analyzing lib/...
+   info - lib/src/foo.dart:10:3 - Some lint. - lint_code
+   warning - lib/src/bar.dart:5:1 - Another lint. - warn_code
+No issues found (2)''';
+        expect(BuildCommand.analyzeReportsError(out), isFalse);
+      });
+
+      test('returns true when an error-severity line is present', () {
+        const out = '''
+Analyzing lib/...
+   error - lib/src/services/artifact_service.dart:12:3 - Target of URI doesn't exist: 'package:zuraffa/...'. - uri_does_not_exist
+   info - lib/src/foo.dart:1:1 - Some lint. - lint_code''';
+        expect(BuildCommand.analyzeReportsError(out), isTrue);
+      });
+
+      test('returns true for the exact #395 import-depth symptom', () {
+        // Reproduces the kind of analyze output the issue describes: an
+        // undefined type caused by a missing/wrong-depth entity import.
+        const out = '''
+Analyzing lib/...
+   error - lib/src/data/providers/artifact/artifact_provider.dart:14:5 - Undefined name 'StoreParams'. - undefined_identifier
+   error - lib/src/data/providers/artifact/artifact_provider.dart:15:5 - Undefined name 'ArtifactStoreResult'. - undefined_identifier''';
+        expect(BuildCommand.analyzeReportsError(out), isTrue);
+      });
+
+      test('does not match "error" inside a path or message', () {
+        // The word "error" appears in a file path and a message, but not as
+        // a severity marker at line start.
+        const out = '''
+Analyzing lib/...
+   info - lib/src/error_handler.dart:1:1 - Handles error cases. - lint_code
+   warning - lib/src/utils.dart:5:1 - Error path configured. - warn_code''';
+        expect(BuildCommand.analyzeReportsError(out), isFalse);
+      });
+    });
   });
 }

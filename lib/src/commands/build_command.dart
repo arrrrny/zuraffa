@@ -30,6 +30,15 @@ class BuildCommand extends Command {
       negatable: false,
       help: 'Bypass AST merge and regenerate all files from scratch',
     );
+    argParser.addFlag(
+      'analyze',
+      abbr: 'a',
+      help:
+          'Run `dart analyze` after build and fail on errors '
+          '(default: on; use --no-analyze to skip). Catches non-compiling '
+          'generated code immediately (issue #395).',
+      defaultsTo: true,
+    );
   }
 
   @override
@@ -39,6 +48,7 @@ class BuildCommand extends Command {
     final clean = argResults!['clean'] as bool;
     final dryRun = argResults!['dry-run'] as bool;
     final force = argResults!['force'] as bool;
+    final analyze = argResults!['analyze'] as bool;
 
     if (clean) {
       await _cleanBuildCache();
@@ -88,6 +98,9 @@ class BuildCommand extends Command {
         if (!verifyOutputsOrFail() || !verifyDeclaredPartsOrFail()) {
           exit(1);
         }
+        if (analyze && !await verifyAnalyzeOrFail()) {
+          exit(1);
+        }
       }
     } else if (!clean) {
       print(
@@ -98,6 +111,9 @@ class BuildCommand extends Command {
       if (retryCode == 0) {
         print('\n✅ Build completed successfully after cache clean');
         if (!verifyOutputsOrFail() || !verifyDeclaredPartsOrFail()) {
+          exit(1);
+        }
+        if (analyze && !await verifyAnalyzeOrFail()) {
           exit(1);
         }
       } else {
@@ -332,6 +348,60 @@ class BuildCommand extends Command {
       }
     }
     return line;
+  }
+
+  /// Post-build guard (issue #395): runs `dart analyze` and returns `false`
+  /// when it reports any ERROR-severity issue. Only ERRORS fail the build;
+  /// warnings and info-level lints are surfaced but do not cause a non-zero
+  /// exit. Pass `--no-analyze` to skip this check entirely.
+  ///
+  /// This catches non-compiling generated code (e.g. missing imports, wrong
+  /// relative import depth) immediately after `zfa build` instead of letting
+  /// it surface downstream at `dart run` / CI time.
+  @visibleForTesting
+  Future<bool> verifyAnalyzeOrFail({String? projectRoot}) async {
+    final root = projectRoot ?? Directory.current.path;
+    print('\n🔎 Running dart analyze on lib/...');
+    final result = await Process.run('dart', [
+      'analyze',
+      '--fatal-infos=false',
+      'lib',
+    ], workingDirectory: root);
+    final stdout = result.stdout as String;
+    final stderr = result.stderr as String;
+    if (stdout.trim().isNotEmpty) {
+      print(stdout.trim());
+    }
+    if (stderr.trim().isNotEmpty) {
+      print(stderr.trim());
+    }
+    // `dart analyze` exit 0 = no issues; 1 = issues found; 2 = fatal error.
+    // We only fail on actual errors (lines whose severity is "error").
+    // Warnings/info surface above but don't flip the exit code when
+    // --fatal-infos=false is honored; still, parse defensively for "error".
+    final hasErrors = analyzeReportsError(stdout);
+    if (hasErrors) {
+      print(
+        '\n❌ dart analyze reported errors — generated code does not compile.\n'
+        '   Fix the generator or run with --no-analyze to skip this check.',
+      );
+      return false;
+    }
+    print('   ✅ dart analyze: no errors');
+    return true;
+  }
+
+  /// Returns true when [analyzeOutput] contains at least one line whose
+  /// severity marker is `error`. `dart analyze` formats lines as:
+  ///   `   error - path:line:col - message - code`
+  /// We look for ` - error - ` at the start of a line (after whitespace).
+  /// Returns true when [analyzeOutput] contains at least one line whose
+  /// severity marker is `error`. Exposed for unit testing so the parser can
+  /// be verified without spawning `dart analyze` (which needs a full package).
+  @visibleForTesting
+  static bool analyzeReportsError(String analyzeOutput) {
+    final errorLine = RegExp(r'^\s*error\s*-\s', multiLine: true);
+    return errorLine.hasMatch(analyzeOutput);
   }
 
   Future<int> _runBuild() async {
