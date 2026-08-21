@@ -1,5 +1,0 @@
-dependency_overrides:
-  zorphy:
-    path: /workspace/zorphy/zorphy
-  zorphy_annotation:
-    path: /workspace/zorphy/zorphy_annotation

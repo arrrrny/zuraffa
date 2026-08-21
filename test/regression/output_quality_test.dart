@@ -33,31 +33,23 @@ Future<void> main() async {
     await disposeWorkspace(workspace);
   });
 
-  test(
-    'generated output passes dart analyze',
-    () async {
-      final analyze = await runDartAnalyzePaths(workspace, generatedPaths);
-      expect(analyze.exitCode, equals(0), reason: analyze.stdout.toString());
-    },
-    timeout: const Timeout(Duration(minutes: 2)),
-  );
+  test('generated output passes dart analyze', () async {
+    final analyze = await runDartAnalyzePaths(workspace, generatedPaths);
+    expect(analyze.exitCode, equals(0), reason: analyze.stdout.toString());
+  }, timeout: const Timeout(Duration(minutes: 2)));
 
-  test(
-    'generated output is properly formatted',
-    () async {
-      // Run dart format in check mode to verify formatting without modifying files.
-      final format = await Process.run('dart', [
-        'format',
-        '--output=none',
-        '--set-exit-if-changed',
-        ...generatedPaths,
-      ], workingDirectory: workspace.directory.path);
-      expect(
-        format.exitCode,
-        equals(0),
-        reason: 'Generated files are not properly formatted:\n${format.stderr}',
-      );
-    },
-    timeout: const Timeout(Duration(minutes: 2)),
-  );
+  test('generated output is properly formatted', () async {
+    // Run dart format in check mode to verify formatting without modifying files.
+    final format = await Process.run('dart', [
+      'format',
+      '--output=none',
+      '--set-exit-if-changed',
+      ...generatedPaths,
+    ], workingDirectory: workspace.directory.path);
+    expect(
+      format.exitCode,
+      equals(0),
+      reason: 'Generated files are not properly formatted:\n${format.stderr}',
+    );
+  }, timeout: const Timeout(Duration(minutes: 2)));
 }
