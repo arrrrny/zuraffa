@@ -257,6 +257,7 @@ class AppShellCommand extends Command<void> {
       outputDir: outputDir,
       diTakesGetIt: diTakesGetIt,
       diIsAsync: diIsAsync,
+      xray: xray,
     );
     files.add(
       await FileUtils.writeFile(
