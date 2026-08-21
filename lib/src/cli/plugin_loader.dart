@@ -16,6 +16,7 @@ import '../plugins/provider/provider_plugin.dart';
 import '../plugins/state/state_plugin.dart';
 import '../plugins/observer/observer_plugin.dart';
 import '../plugins/test/test_plugin.dart';
+import '../plugins/gym/gym_plugin.dart';
 import '../plugins/mock/mock_plugin.dart';
 import '../plugins/api/api_plugin.dart';
 import '../plugins/method_append/method_append_plugin.dart';
@@ -117,6 +118,7 @@ class PluginLoader {
       StatePlugin(outputDir: outputDir, options: options),
       ObserverPlugin(outputDir: outputDir, options: options),
       TestPlugin(outputDir: outputDir, options: options),
+      GymPlugin(outputDir: outputDir, options: options),
       MockPlugin(outputDir: outputDir, options: options),
       ApiPlugin(outputDir: outputDir, options: options),
       DiPlugin(outputDir: outputDir, options: options),
