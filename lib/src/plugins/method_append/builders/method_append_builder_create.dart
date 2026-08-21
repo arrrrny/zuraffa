@@ -126,6 +126,7 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
     GeneratorConfig config,
     String filePath,
     String serviceName,
+    String providerName,
     String methodName,
     Reference returnType,
     Object params,
@@ -133,10 +134,21 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
     final file = File(filePath);
     await file.parent.create(recursive: true);
 
+    final serviceSnake = config.serviceSnake;
+    final serviceImport = config.isEntityBased
+        ? '../../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
+        : '../../../domain/services/${serviceSnake}_service.dart';
+
+    final directives = <Directive>[
+      Directive.import('package:zuraffa/zuraffa.dart'),
+      Directive.import(serviceImport),
+    ];
+
     final providerClass = Class(
       (c) => c
-        ..name = '${serviceName}Provider'
-        ..extend = refer('BaseProvider')
+        ..name = providerName
+        ..mixins.addAll([refer('Loggable'), refer('FailureHandler')])
+        ..implements.add(refer(serviceName))
         ..docs.add('/// Provider implementation for $serviceName')
         ..methods.add(
           Method(
@@ -165,10 +177,25 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
               ..body = Block(
                 (b) => b
                   ..statements.add(
+                    declareFinal('error')
+                        .assign(
+                          refer('UnimplementedError').call([
+                            literalString('$methodName not implemented'),
+                          ]),
+                        )
+                        .statement,
+                  )
+                  ..statements.add(
+                    declareFinal(
+                      'stack',
+                    ).assign(refer('StackTrace').property('current')).statement,
+                  )
+                  ..statements.add(
                     refer(
-                      'throw',
-                    ).call([refer('UnimplementedError').call([])]).statement,
-                  ),
+                      'logAndHandleError',
+                    ).call([refer('error'), refer('stack')]).statement,
+                  )
+                  ..statements.add(refer('error').thrown.statement),
               ),
           ),
         ),
@@ -176,7 +203,7 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
 
     final library = specLibrary.library(
       specs: [providerClass],
-      directives: [Directive.import('package:zuraffa/zuraffa.dart')],
+      directives: directives,
     );
 
     var content = specLibrary.emitLibrary(library);
