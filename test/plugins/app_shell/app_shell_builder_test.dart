@@ -33,10 +33,7 @@ void main() {
       test(
         'passes GetIt.instance when diTakesGetIt is true (canonical DI)',
         () {
-          final src = builder.buildMain(
-            appName: 'my_app',
-            diTakesGetIt: true,
-          );
+          final src = builder.buildMain(appName: 'my_app', diTakesGetIt: true);
           expect(src, contains('setupDependencies(GetIt.instance);'));
           // Canonical DI is synchronous void — still no await.
           expect(src, isNot(contains('await setupDependencies')));
@@ -48,10 +45,7 @@ void main() {
       test(
         'imports package:zuraffa/zuraffa.dart for GetIt when diTakesGetIt',
         () {
-          final src = builder.buildMain(
-            appName: 'my_app',
-            diTakesGetIt: true,
-          );
+          final src = builder.buildMain(appName: 'my_app', diTakesGetIt: true);
           // zuraffa re-exports get_it (lib/zuraffa.dart: export 'package:get_it/get_it.dart';)
           // so generated apps — which already depend on zuraffa for DI —
           // resolve GetIt without adding get_it as a direct dependency.
@@ -62,28 +56,22 @@ void main() {
       test(
         'awaits setupDependencies() when diIsAsync is true (async no-arg DI)',
         () {
-          final src = builder.buildMain(
-            appName: 'my_app',
-            diIsAsync: true,
-          );
+          final src = builder.buildMain(appName: 'my_app', diIsAsync: true);
           expect(src, contains('void main() async'));
           expect(src, contains('await setupDependencies();'));
         },
       );
 
-      test(
-        'awaits setupDependencies(GetIt.instance) when GetIt + async',
-        () {
-          final src = builder.buildMain(
-            appName: 'my_app',
-            diTakesGetIt: true,
-            diIsAsync: true,
-          );
-          expect(src, contains('void main() async'));
-          expect(src, contains('await setupDependencies(GetIt.instance);'));
-          expect(src, contains("import 'package:zuraffa/zuraffa.dart';"));
-        },
-      );
+      test('awaits setupDependencies(GetIt.instance) when GetIt + async', () {
+        final src = builder.buildMain(
+          appName: 'my_app',
+          diTakesGetIt: true,
+          diIsAsync: true,
+        );
+        expect(src, contains('void main() async'));
+        expect(src, contains('await setupDependencies(GetIt.instance);'));
+        expect(src, contains("import 'package:zuraffa/zuraffa.dart';"));
+      });
 
       test('runs MyApp', () {
         final src = builder.buildMain(appName: 'my_app', mockHint: false);
@@ -208,7 +196,8 @@ void setupDependencies(GetIt getIt) {
       });
 
       test('returns true for a bare Future return (no async keyword)', () {
-        const di = 'Future setupDependencies(GetIt getIt) { return Future.value(); }';
+        const di =
+            'Future setupDependencies(GetIt getIt) { return Future.value(); }';
         expect(AppShellBuilder.setupDependenciesIsAsync(di), isTrue);
       });
 
@@ -220,7 +209,8 @@ void setupDependencies(GetIt getIt) {
 
     group('hasSetupDependenciesDeclaration', () {
       test('returns true for the canonical GetIt declaration', () {
-        const di = "import 'package:get_it/get_it.dart';\n"
+        const di =
+            "import 'package:get_it/get_it.dart';\n"
             'void setupDependencies(GetIt getIt) {}';
         expect(AppShellBuilder.hasSetupDependenciesDeclaration(di), isTrue);
       });
@@ -233,13 +223,15 @@ void setupDependencies(GetIt getIt) {
       test('returns false when the name appears only in a line comment', () {
         // Regression for issue #370: the old substring check accepted this
         // and then emitted a non-compiling main.dart.
-        const di = '// TODO: call setupDependencies() once DI is generated\n'
+        const di =
+            '// TODO: call setupDependencies() once DI is generated\n'
             'void unrelated() {}';
         expect(AppShellBuilder.hasSetupDependenciesDeclaration(di), isFalse);
       });
 
       test('returns false when the name appears only in a block comment', () {
-        const di = '/* setupDependencies() is not implemented yet */\n'
+        const di =
+            '/* setupDependencies() is not implemented yet */\n'
             'void unrelated() {}';
         expect(AppShellBuilder.hasSetupDependenciesDeclaration(di), isFalse);
       });

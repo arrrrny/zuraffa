@@ -228,24 +228,32 @@ class Product {
       expect(output, contains('usecase'));
     });
 
-    test('cli plugin mcp --dry-run passes flags through without writing files', () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing(['plugin', 'mcp', '--dry-run']);
+    test(
+      'cli plugin mcp --dry-run passes flags through without writing files',
+      () async {
+        final runner = CliRunner(exitOnCompletion: false);
+        final output = await runner.runCapturing([
+          'plugin',
+          'mcp',
+          '--dry-run',
+        ]);
 
-      // The pass-through relies on ArgParser.allowAnything() + .arguments.
-      // If the parser rejected --dry-run, we would see a UsageException here.
-      expect(output, isNot(contains('Could not find an option named')));
-      expect(output, isNot(contains('Usage: zfa plugin')));
-      expect(
-        File(p.join(workspace.path, 'lib', 'src', 'mcp', 'tools.dart'))
-            .existsSync(),
-        isFalse,
-      );
-      expect(
-        File(p.join(workspace.path, 'bin', 'mcp_server.dart')).existsSync(),
-        isFalse,
-      );
-    });
+        // The pass-through relies on ArgParser.allowAnything() + .arguments.
+        // If the parser rejected --dry-run, we would see a UsageException here.
+        expect(output, isNot(contains('Could not find an option named')));
+        expect(output, isNot(contains('Usage: zfa plugin')));
+        expect(
+          File(
+            p.join(workspace.path, 'lib', 'src', 'mcp', 'tools.dart'),
+          ).existsSync(),
+          isFalse,
+        );
+        expect(
+          File(p.join(workspace.path, 'bin', 'mcp_server.dart')).existsSync(),
+          isFalse,
+        );
+      },
+    );
 
     test('removed generate command prints migration guidance', () async {
       final runner = CliRunner(exitOnCompletion: false);

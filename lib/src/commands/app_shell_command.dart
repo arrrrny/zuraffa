@@ -164,9 +164,7 @@ class AppShellCommand extends Command<void> {
     final diTakesGetIt = AppShellBuilder.setupDependenciesTakesGetIt(
       diIndexContent,
     );
-    final diIsAsync = AppShellBuilder.setupDependenciesIsAsync(
-      diIndexContent,
-    );
+    final diIsAsync = AppShellBuilder.setupDependenciesIsAsync(diIndexContent);
 
     final routingMissing =
         !await _fileSystem.exists(routingIndexPath) ||
@@ -259,6 +257,7 @@ class AppShellCommand extends Command<void> {
       outputDir: outputDir,
       diTakesGetIt: diTakesGetIt,
       diIsAsync: diIsAsync,
+      xray: xray,
     );
     files.add(
       await FileUtils.writeFile(

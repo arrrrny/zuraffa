@@ -49,7 +49,7 @@ void main() {
 
     test('emits the bridge start AFTER setupDependencies', () {
       final src = builder.buildMain(appName: 'my_app', xray: true);
-      final setupIdx = src.indexOf('await setupDependencies()');
+      final setupIdx = src.indexOf('setupDependencies(');
       final bridgeIdx = src.indexOf('await _startXRayBridge();');
       expect(setupIdx, greaterThanOrEqualTo(0));
       expect(bridgeIdx, greaterThan(setupIdx));

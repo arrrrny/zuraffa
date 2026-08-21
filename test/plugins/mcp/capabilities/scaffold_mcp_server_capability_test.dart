@@ -178,7 +178,9 @@ void main() {
     test(
       'execute() resolves hyphenated package names from pubspec.yaml',
       () async {
-        await File('${tmpDir.path}/pubspec.yaml').writeAsString('name: my-app\n');
+        await File(
+          '${tmpDir.path}/pubspec.yaml',
+        ).writeAsString('name: my-app\n');
         final c = plugin.capabilities.first;
         final result = await c.execute({});
         expect(result.success, isTrue);
