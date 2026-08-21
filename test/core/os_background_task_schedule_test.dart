@@ -1,5 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
-import 'package:workmanager/workmanager.dart';
+import 'package:test/test.dart';
 import 'package:zuraffa/zuraffa.dart';
 
 void main() {
@@ -14,25 +13,19 @@ void main() {
     });
 
     test('clampedForAndroid enforces 15-minute minimum', () {
-      const short = OsBackgroundTaskSchedule(
-        frequency: Duration(minutes: 5),
-      );
+      const short = OsBackgroundTaskSchedule(frequency: Duration(minutes: 5));
       final clamped = short.clampedForAndroid();
       expect(clamped.frequency, equals(const Duration(minutes: 15)));
     });
 
     test('clampedForAndroid leaves 15+ minute schedules unchanged', () {
-      const normal = OsBackgroundTaskSchedule(
-        frequency: Duration(minutes: 30),
-      );
+      const normal = OsBackgroundTaskSchedule(frequency: Duration(minutes: 30));
       final clamped = normal.clampedForAndroid();
       expect(clamped, same(normal));
     });
 
     test('clampedForAndroid clamps to exactly 15 minutes at boundary', () {
-      const exact = OsBackgroundTaskSchedule(
-        frequency: Duration(minutes: 15),
-      );
+      const exact = OsBackgroundTaskSchedule(frequency: Duration(minutes: 15));
       final clamped = exact.clampedForAndroid();
       expect(clamped, same(exact));
     });
@@ -49,52 +42,6 @@ void main() {
       expect(clamped.requiresDeviceIdle, isTrue);
     });
 
-    group('toWorkmanagerConstraints', () {
-      test('none constraint maps to not_required', () {
-        const schedule = OsBackgroundTaskSchedule(
-          frequency: Duration(minutes: 15),
-        );
-        final constraints = schedule.toWorkmanagerConstraints();
-        expect(constraints.networkType, equals(NetworkType.not_required));
-      });
-
-      test('connected constraint maps to NetworkType.connected', () {
-        const schedule = OsBackgroundTaskSchedule(
-          frequency: Duration(minutes: 15),
-          networkConstraint: OsNetworkConstraint.connected,
-        );
-        final constraints = schedule.toWorkmanagerConstraints();
-        expect(constraints.networkType, equals(NetworkType.connected));
-      });
-
-      test('unmetered constraint maps to NetworkType.unmetered', () {
-        const schedule = OsBackgroundTaskSchedule(
-          frequency: Duration(minutes: 15),
-          networkConstraint: OsNetworkConstraint.unmetered,
-        );
-        final constraints = schedule.toWorkmanagerConstraints();
-        expect(constraints.networkType, equals(NetworkType.unmetered));
-      });
-
-      test('requiresDeviceIdle is propagated', () {
-        const schedule = OsBackgroundTaskSchedule(
-          frequency: Duration(minutes: 15),
-          requiresDeviceIdle: true,
-        );
-        final constraints = schedule.toWorkmanagerConstraints();
-        expect(constraints.requiresDeviceIdle, isTrue);
-      });
-
-      test('requiresCharging is propagated', () {
-        const schedule = OsBackgroundTaskSchedule(
-          frequency: Duration(minutes: 15),
-          requiresCharging: true,
-        );
-        final constraints = schedule.toWorkmanagerConstraints();
-        expect(constraints.requiresCharging, isTrue);
-      });
-    });
-
     test('equality works correctly', () {
       const a = OsBackgroundTaskSchedule(
         frequency: Duration(minutes: 15),
@@ -104,12 +51,38 @@ void main() {
         frequency: Duration(minutes: 15),
         networkConstraint: OsNetworkConstraint.connected,
       );
-      const c = OsBackgroundTaskSchedule(
-        frequency: Duration(minutes: 30),
-      );
+      const c = OsBackgroundTaskSchedule(frequency: Duration(minutes: 30));
 
       expect(a, equals(b));
       expect(a, isNot(equals(c)));
+    });
+
+    test('hashCode is consistent with equality', () {
+      const a = OsBackgroundTaskSchedule(
+        frequency: Duration(minutes: 15),
+        networkConstraint: OsNetworkConstraint.connected,
+        requiresCharging: true,
+      );
+      const b = OsBackgroundTaskSchedule(
+        frequency: Duration(minutes: 15),
+        networkConstraint: OsNetworkConstraint.connected,
+        requiresCharging: true,
+      );
+
+      expect(a.hashCode, equals(b.hashCode));
+    });
+
+    test('different constraints produce different hashCodes', () {
+      const a = OsBackgroundTaskSchedule(
+        frequency: Duration(minutes: 15),
+        networkConstraint: OsNetworkConstraint.none,
+      );
+      const b = OsBackgroundTaskSchedule(
+        frequency: Duration(minutes: 15),
+        networkConstraint: OsNetworkConstraint.connected,
+      );
+
+      expect(a.hashCode, isNot(equals(b.hashCode)));
     });
   });
 
@@ -139,6 +112,64 @@ void main() {
       expect(
         descriptor.schedule.networkConstraint,
         equals(OsNetworkConstraint.connected),
+      );
+    });
+
+    test('default schedule has correct defaults', () {
+      const descriptor = OsBackgroundTaskDescriptor(
+        identifier: 'com.app.task',
+        taskName: 'Task',
+      );
+      expect(
+        descriptor.schedule.frequency,
+        equals(const Duration(minutes: 15)),
+      );
+      expect(descriptor.schedule.initialDelay, isFalse);
+      expect(descriptor.schedule.requiresCharging, isFalse);
+      expect(descriptor.schedule.requiresDeviceIdle, isFalse);
+      expect(descriptor.schedule.networkConstraint, OsNetworkConstraint.none);
+    });
+
+    test('all fields can be customized', () {
+      const schedule = OsBackgroundTaskSchedule(
+        frequency: Duration(minutes: 30),
+        initialDelay: true,
+        networkConstraint: OsNetworkConstraint.unmetered,
+        requiresCharging: true,
+        requiresDeviceIdle: true,
+      );
+      const descriptor = OsBackgroundTaskDescriptor(
+        identifier: 'com.app.custom',
+        taskName: 'CustomTask',
+        schedule: schedule,
+        runWhenAppTerminated: false,
+      );
+      expect(
+        descriptor.schedule.frequency,
+        equals(const Duration(minutes: 30)),
+      );
+      expect(descriptor.schedule.initialDelay, isTrue);
+      expect(
+        descriptor.schedule.networkConstraint,
+        OsNetworkConstraint.unmetered,
+      );
+      expect(descriptor.schedule.requiresCharging, isTrue);
+      expect(descriptor.schedule.requiresDeviceIdle, isTrue);
+      expect(descriptor.runWhenAppTerminated, isFalse);
+    });
+  });
+
+  group('OsNetworkConstraint', () {
+    test('has exactly three values', () {
+      expect(OsNetworkConstraint.values.length, equals(3));
+      expect(OsNetworkConstraint.values, contains(OsNetworkConstraint.none));
+      expect(
+        OsNetworkConstraint.values,
+        contains(OsNetworkConstraint.connected),
+      );
+      expect(
+        OsNetworkConstraint.values,
+        contains(OsNetworkConstraint.unmetered),
       );
     });
   });

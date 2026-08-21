@@ -11,8 +11,14 @@ class PresetRegistry {
       'di',
       'test',
     ],
-    'crud': ['usecase', 'repository', 'datasource'],
-    'read-only': ['usecase', 'repository', 'datasource'],
+    // #348: `di` is bundled with the data presets so the canonical
+    // `zfa make X --preset=crud` (or `--preset=read-only`) produces a
+    // runnable app without the `--with=di` crutch. Every other preset
+    // already includes di; crud/read-only were the only two that didn't,
+    // and the resulting app compiled but crashed at runtime with
+    // `GetIt: DataSource is not registered` (issue #346).
+    'crud': ['usecase', 'repository', 'datasource', 'di'],
+    'read-only': ['usecase', 'repository', 'datasource', 'di'],
     'service-feature': [
       'service',
       'provider',

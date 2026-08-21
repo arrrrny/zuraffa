@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:zuraffa/src/graphql/graphql_schema.dart';
 import 'package:zuraffa/src/graphql/graphql_schema_translator.dart';
 

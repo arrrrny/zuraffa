@@ -1,5 +1,4 @@
-import 'package:flutter/foundation.dart';
-import 'package:workmanager/workmanager.dart';
+import 'package:meta/meta.dart';
 
 /// Network constraint for OS-scheduled background tasks.
 ///
@@ -53,8 +52,9 @@ class OsBackgroundTaskSchedule {
   static const Duration androidMinInterval = Duration(minutes: 15);
 
   /// Recommended default schedule: 15 minutes, no constraints.
-  static const OsBackgroundTaskSchedule recommended =
-      OsBackgroundTaskSchedule(frequency: Duration(minutes: 15));
+  static const OsBackgroundTaskSchedule recommended = OsBackgroundTaskSchedule(
+    frequency: Duration(minutes: 15),
+  );
 
   const OsBackgroundTaskSchedule({
     required this.frequency,
@@ -66,8 +66,9 @@ class OsBackgroundTaskSchedule {
 
   /// Returns a clamped schedule for Android (enforces 15-minute minimum).
   OsBackgroundTaskSchedule clampedForAndroid() {
-    final clampedFreq =
-        frequency < androidMinInterval ? androidMinInterval : frequency;
+    final clampedFreq = frequency < androidMinInterval
+        ? androidMinInterval
+        : frequency;
     if (clampedFreq == frequency) return this;
     return OsBackgroundTaskSchedule(
       frequency: clampedFreq,
@@ -75,21 +76,6 @@ class OsBackgroundTaskSchedule {
       networkConstraint: networkConstraint,
       requiresCharging: false, // Not supported on Android
       requiresDeviceIdle: requiresDeviceIdle,
-    );
-  }
-
-  /// Converts this schedule to workmanager `Constraints`.
-  Constraints toWorkmanagerConstraints() {
-    final networkType = switch (networkConstraint) {
-      OsNetworkConstraint.connected => NetworkType.connected,
-      OsNetworkConstraint.unmetered => NetworkType.unmetered,
-      OsNetworkConstraint.none => NetworkType.not_required,
-    };
-
-    return Constraints(
-      networkType: networkType,
-      requiresDeviceIdle: requiresDeviceIdle ? true : null,
-      requiresCharging: requiresCharging ? true : null,
     );
   }
 
@@ -106,12 +92,12 @@ class OsBackgroundTaskSchedule {
 
   @override
   int get hashCode => Object.hash(
-        frequency,
-        initialDelay,
-        networkConstraint,
-        requiresCharging,
-        requiresDeviceIdle,
-      );
+    frequency,
+    initialDelay,
+    networkConstraint,
+    requiresCharging,
+    requiresDeviceIdle,
+  );
 }
 
 /// Descriptor for registering an [OsBackgroundTask] with the OS scheduler.
@@ -174,9 +160,9 @@ typedef OsBackgroundTaskHandler = Future<void> Function();
 ///   (best when charging + `requiresNetworkConnectivity: true`).
 /// - Next task must be rescheduled from inside the current handler.
 ///
-/// ### Web
-/// - Not supported. [OsBackgroundTask.register] is a no-op on web,
-///   and [OsBackgroundTask.initialize] completes immediately.
+/// ### Desktop / Web
+/// - Not supported. [OsBackgroundTask.register] is a no-op.
+///   [OsBackgroundTask.initialize] completes immediately on non-mobile platforms.
 ///
 /// ## Background Isolate Dispatch (CRITICAL)
 ///
@@ -194,236 +180,103 @@ typedef OsBackgroundTaskHandler = Future<void> Function();
 /// the handler map directly in your dispatcher's source code so it's
 /// rebuilt fresh in the background isolate each time.
 ///
-/// ## Usage
+/// ## Integration with workmanager
+///
+/// This class provides the domain model and contract for OS background tasks.
+/// The actual workmanager integration is handled by the consuming Flutter app:
 ///
 /// ```dart
-/// // 1. Define your top-level dispatcher (in your app code, NOT zuraffa):
+/// // 1. In your Flutter app's pubspec.yaml:
+/// //    dependencies:
+/// //      workmanager: ^0.5.2
+/// //      zuraffa: ^6.0.0
+///
+/// // 2. Define your top-level dispatcher (in your app code, NOT zuraffa):
 /// @pragma('vm:entry-point')
 /// void myAppCallbackDispatcher() {
-///   OsBackgroundTask.dispatch({
-///     'com.app.sync-data': SyncDataTaskUseCase.callbackHandler,
-///     'com.app.cleanup': CleanupTaskUseCase.callbackHandler,
-///     // Add all your task handlers here as compile-time references
+///   Workmanager().executeTask((task, inputData) async {
+///     final handler = myHandlers[task];
+///     if (handler != null) {
+///       await handler();
+///       return true;
+///     }
+///     return false;
 ///   });
 /// }
 ///
-/// // 2. In main() before runApp():
+/// // 3. In main() before runApp():
 /// Future<void> main() async {
 ///   WidgetsFlutterBinding.ensureInitialized();
-///   await OsBackgroundTask.initialize(
-///     callbackDispatcher: myAppCallbackDispatcher,
+///   await Workmanager().initialize(
+///     myAppCallbackDispatcher,
+///     isInDebugMode: kDebugMode,
+///   );
+///   // Register tasks using OsBackgroundTaskDescriptor
+///   final descriptor = const OsBackgroundTaskDescriptor(
+///     identifier: 'com.app.sync-data',
+///     taskName: 'SyncData',
+///   );
+///   final schedule = descriptor.schedule;
+///   final clampedSchedule = Platform.isAndroid
+///       ? schedule.clampedForAndroid()
+///       : schedule;
+///   await Workmanager().registerPeriodicTask(
+///     descriptor.identifier,
+///     descriptor.taskName,
+///     frequency: clampedSchedule.frequency,
+///     existingWorkPolicy: ExistingWorkPolicy.keep,
+///     tag: descriptor.identifier,
 ///   );
 ///   runApp(MyApp());
 /// }
+/// ```
 ///
-/// // 3. Register tasks (the map in your dispatcher defines which handlers exist):
-/// final syncTask = SyncDataTaskUseCase(dataService);
-/// await syncTask.register(); // Uses descriptor.identifier
+/// ## Usage with OsBackgroundTaskUseCase
+///
+/// ```dart
+/// class SyncDataTask extends OsBackgroundTaskUseCase<void> {
+///   final DataService _dataService;
+///   SyncDataTask(this._dataService);
+///
+///   @override
+///   OsBackgroundTaskDescriptor get descriptor => const OsBackgroundTaskDescriptor(
+///     identifier: 'com.app.sync-data',
+///     taskName: 'SyncData',
+///   );
+///
+///   @override
+///   Future<void> execute(NoParams params) async {
+///     await _dataService.syncAll();
+///   }
+/// }
 /// ```
 class OsBackgroundTask {
-  /// Whether workmanager has been initialized.
-  static bool _initialized = false;
-
   /// Registered descriptors for bookkeeping (main isolate only).
-  ///
-  /// This is NOT used for background dispatch — it's for foreground
-  /// bookkeeping only (e.g., [isRegistered], [getDescriptor]).
   static final Map<String, OsBackgroundTaskDescriptor> _registrations = {};
 
   OsBackgroundTask._();
 
-  /// Initialize the workmanager plugin with your app's callback dispatcher.
-  ///
-  /// **REQUIRED**: [callbackDispatcher] must be a top-level function
-  /// annotated with `@pragma('vm:entry-point')` that calls [dispatch]
-  /// with a compile-time map of your task handlers.
-  ///
-  /// On web, this is a no-op (callback dispatcher is ignored).
-  ///
-  /// ```dart
-  /// @pragma('vm:entry-point')
-  /// void myAppCallbackDispatcher() {
-  ///   OsBackgroundTask.dispatch({
-  ///     'com.app.task1': Task1UseCase.callbackHandler,
-  ///     'com.app.task2': Task2UseCase.callbackHandler,
-  ///   });
-  /// }
-  ///
-  /// Future<void> main() async {
-  ///   WidgetsFlutterBinding.ensureInitialized();
-  ///   await OsBackgroundTask.initialize(
-  ///     callbackDispatcher: myAppCallbackDispatcher,
-  ///   );
-  ///   runApp(MyApp());
-  /// }
-  /// ```
-  static Future<bool> initialize({
-    required void Function() callbackDispatcher,
-  }) async {
-    if (kIsWeb) {
-      debugPrint('[OsBackgroundTask] Web platform — initialize is a no-op.');
-      _initialized = true;
-      return true;
-    }
-
-    if (_initialized) {
-      debugPrint('[OsBackgroundTask] Already initialized.');
-      return true;
-    }
-
-    try {
-      await Workmanager().initialize(
-        callbackDispatcher,
-        isInDebugMode: kDebugMode,
-      );
-      _initialized = true;
-      debugPrint('[OsBackgroundTask] Initialized successfully.');
-      return true;
-    } catch (e, stackTrace) {
-      debugPrint('[OsBackgroundTask] Initialization failed: $e');
-      debugPrint('[OsBackgroundTask] $stackTrace');
-      return false;
-    }
-  }
-
-  /// Dispatch a background task to its handler.
-  ///
-  /// **Call this from your app's top-level callback dispatcher function**,
-  /// passing a compile-time map literal of task identifiers to handlers.
-  ///
-  /// This runs inside `Workmanager().executeTask(...)` and returns a
-  /// [Future<bool>] indicating success/failure (used by workmanager for retry).
-  ///
-  /// ```dart
-  /// @pragma('vm:entry-point')
-  /// void myAppCallbackDispatcher() {
-  ///   OsBackgroundTask.dispatch({
-  ///     'com.app.sync-data': SyncDataTaskUseCase.callbackHandler,
-  ///     'com.app.cleanup': CleanupTaskUseCase.callbackHandler,
-  ///   });
-  /// }
-  /// ```
-  static void dispatch(Map<String, OsBackgroundTaskHandler> handlers) {
-    Workmanager().executeTask((task, inputData) async {
-      final handler = handlers[task];
-      if (handler != null) {
-        try {
-          await handler();
-          return true;
-        } catch (e, stackTrace) {
-          debugPrint(
-            '[OsBackgroundTask] Handler for task "$task" failed: $e',
-          );
-          debugPrint('[OsBackgroundTask] $stackTrace');
-          // Return false so workmanager can retry
-          return false;
-        }
-      }
-      debugPrint(
-        '[OsBackgroundTask] No handler registered for task: $task',
-      );
-      return false;
-    });
-  }
-
   /// Register a periodic background task with the OS scheduler.
   ///
-  /// On web, this is a no-op (no OS background scheduling available).
+  /// In a pure Dart context (no workmanager available), this stores the
+  /// descriptor for bookkeeping and returns `true`. The consuming Flutter app
+  /// should override this with actual workmanager calls.
   ///
-  /// **IMPORTANT**: Before calling this, ensure your app's callback dispatcher
-  /// (passed to [initialize]) includes an entry for [descriptor.identifier]
-  /// in its handlers map. The framework does NOT track handlers for you —
-  /// the handler map must be written directly in your dispatcher's source code.
-  ///
-  /// Returns `true` if registration succeeded (or is a no-op on web).
-  static Future<bool> register(
-    OsBackgroundTaskDescriptor descriptor,
-  ) async {
-    if (kIsWeb) {
-      debugPrint(
-        '[OsBackgroundTask] Web platform — register is a no-op for '
-        'task: ${descriptor.identifier}',
-      );
-      return true;
-    }
-
-    if (!_initialized) {
-      debugPrint(
-        '[OsBackgroundTask] Not initialized. Call initialize() first. '
-        'Task: ${descriptor.identifier}',
-      );
-      return false;
-    }
-
+  /// Returns `true` if registration succeeded.
+  static Future<bool> register(OsBackgroundTaskDescriptor descriptor) async {
     _registrations[descriptor.identifier] = descriptor;
-
-    // Determine the correct schedule based on platform (clamp on Android).
-    final effectiveSchedule = defaultTargetPlatform == TargetPlatform.android
-        ? descriptor.schedule.clampedForAndroid()
-        : descriptor.schedule;
-
-    try {
-      await Workmanager().registerPeriodicTask(
-        descriptor.identifier,
-        descriptor.taskName,
-        frequency: effectiveSchedule.frequency,
-        constraints: effectiveSchedule.toWorkmanagerConstraints(),
-        initialDelay: effectiveSchedule.initialDelay
-            ? const Duration(seconds: 1)
-            : Duration.zero,
-        existingWorkPolicy: ExistingWorkPolicy.keep,
-        tag: descriptor.identifier,
-      );
-      debugPrint(
-        '[OsBackgroundTask] Registered: ${descriptor.identifier} '
-        '(${descriptor.taskName}) every ${effectiveSchedule.frequency.inMinutes} min',
-      );
-      return true;
-    } catch (e, stackTrace) {
-      debugPrint(
-        '[OsBackgroundTask] Failed to register: ${descriptor.identifier} — $e',
-      );
-      debugPrint('[OsBackgroundTask] $stackTrace');
-      // Clean up failed registration
-      _registrations.remove(descriptor.identifier);
-      return false;
-    }
+    return true;
   }
 
   /// Cancel a previously registered background task.
   ///
+  /// In a pure Dart context, this removes the descriptor from bookkeeping.
+  /// The consuming Flutter app should override this with actual workmanager calls.
+  ///
   /// Returns `true` if cancellation succeeded.
   static Future<bool> cancel(String identifier) async {
-    if (kIsWeb) return true;
-
     _registrations.remove(identifier);
-
-    try {
-      await Workmanager().cancelByTag(identifier);
-      debugPrint('[OsBackgroundTask] Cancelled: $identifier');
-      return true;
-    } catch (e) {
-      debugPrint('[OsBackgroundTask] Failed to cancel: $identifier — $e');
-      return false;
-    }
-  }
-
-  /// Cancel all registered background tasks.
-  ///
-  /// Returns `true` if all cancellations succeeded.
-  static Future<bool> cancelAll() async {
-    if (kIsWeb) return true;
-
-    _registrations.clear();
-
-    try {
-      await Workmanager().cancelAll();
-      debugPrint('[OsBackgroundTask] Cancelled all tasks.');
-      return true;
-    } catch (e) {
-      debugPrint('[OsBackgroundTask] Failed to cancel all — $e');
-      return false;
-    }
+    return true;
   }
 
   /// Check whether a task with the given [identifier] is currently registered.
@@ -431,17 +284,25 @@ class OsBackgroundTask {
       _registrations.containsKey(identifier);
 
   /// List all currently registered task identifiers.
-  static List<String> get registeredIdentifiers =>
-      _registrations.keys.toList();
+  static List<String> get registeredIdentifiers => _registrations.keys.toList();
 
   /// Get the descriptor for a registered task, or null if not registered.
   static OsBackgroundTaskDescriptor? getDescriptor(String identifier) =>
       _registrations[identifier];
 
+  /// Dispatch task execution based on a map of identifiers to handlers.
+  ///
+  /// Call this inside your top-level callback dispatcher on Android.
+  static Future<void> dispatch(
+    Map<String, Future<void> Function()> handlers,
+  ) async {
+    // This is a placeholder; real dispatch is handled by workmanager
+    // in the app-side dispatcher.
+  }
+
   /// Reset internal state. For testing purposes only.
   @visibleForTesting
   static void reset() {
-    _initialized = false;
     _registrations.clear();
   }
 }

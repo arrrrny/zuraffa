@@ -10,10 +10,13 @@ part of 'credentials.dart';
 
 @JsonSerializable(explicitToJson: true, checked: true)
 class Credentials extends Params {
+  const Credentials({Map<String, dynamic>? this.params}) : super();
+
+  factory Credentials.fromJson(Map<String, dynamic> json) =>
+      _$CredentialsFromJson(json);
+
   @override
   final Map<String, dynamic>? params;
-
-  const Credentials({this.params}) : super();
 
   Credentials copyWith({Map<String, dynamic>? params}) {
     return Credentials(params: params ?? this.params);
@@ -23,16 +26,17 @@ class Credentials extends Params {
     return copyWith(params: params);
   }
 
-  Credentials patchWithCredentials({CredentialsPatch? patchInput}) {
+  Credentials patchWithCredentials([CredentialsPatch? patchInput]) {
     final _patcher = patchInput ?? CredentialsPatch();
     final _patchMap = _patcher.patchMap;
     return Credentials(
       params: _patchMap.containsKey(Credentials$.params)
-          ? (_patchMap[Credentials$.params] is Function)
-                ? _patchMap[Credentials$.params](this.params)
-                : (_patchMap[Credentials$.params] is Patch)
-                ? _patchMap[Credentials$.params].applyTo(this.params)
-                : _patchMap[Credentials$.params]
+          ? ((_patchMap[Credentials$.params] is Function)
+                    ? _patchMap[Credentials$.params](this.params)
+                    : (_patchMap[Credentials$.params] is Patch)
+                    ? _patchMap[Credentials$.params].applyTo(this.params)
+                    : _patchMap[Credentials$.params])
+                as Map<String, dynamic>?
           : this.params,
     );
   }
@@ -53,13 +57,10 @@ class Credentials extends Params {
     return 'Credentials(' + 'params: ${params})';
   }
 
-  /// Creates a [Credentials] instance from JSON
-  factory Credentials.fromJson(Map<String, dynamic> json) =>
-      _$CredentialsFromJson(json);
-
   Map<String, dynamic> toJsonLean() {
     final Map<String, dynamic> data = _$CredentialsToJson(this);
-    return _sanitizeJson(data);
+    _sanitizeJson(data);
+    return data;
   }
 
   dynamic _sanitizeJson(dynamic json) {
@@ -76,22 +77,8 @@ class Credentials extends Params {
 }
 
 extension CredentialsSerialization on Credentials {
-  Map<String, dynamic> toJson() => _$CredentialsToJson(this);
-  Map<String, dynamic> toJsonLean() {
-    final Map<String, dynamic> data = _$CredentialsToJson(this);
-    return _sanitizeJson(data);
-  }
-
-  dynamic _sanitizeJson(dynamic json) {
-    if (json is Map<String, dynamic>) {
-      json.remove('__typename');
-      return json..forEach((key, value) {
-        json[key] = _sanitizeJson(value);
-      });
-    } else if (json is List) {
-      return json.map((e) => _sanitizeJson(e)).toList();
-    }
-    return json;
+  Map<String, dynamic> toJson() {
+    return _$CredentialsToJson(this);
   }
 }
 
@@ -99,7 +86,7 @@ enum Credentials$ { params }
 
 class CredentialsPatch extends PatchBase<Credentials, Credentials$> {
   Credentials applyTo(Credentials entity) {
-    return entity.patchWithCredentials(patchInput: this);
+    return entity.patchWithCredentials(this);
   }
 
   CredentialsPatch withParams(Map<String, dynamic>? value) {
@@ -110,11 +97,14 @@ class CredentialsPatch extends PatchBase<Credentials, Credentials$> {
 
 /// Field descriptors for [Credentials] query construction
 abstract final class CredentialsFields {
-  static Map<String, dynamic>? _$getparams(Credentials e) => e.params;
   static const params = Field<Credentials, Map<String, dynamic>?>(
     'params',
-    _$getparams,
+    _$params,
   );
+
+  static Map<String, dynamic>? _$params(Credentials e) {
+    return e.params;
+  }
 }
 
 extension CredentialsCompareE on Credentials {

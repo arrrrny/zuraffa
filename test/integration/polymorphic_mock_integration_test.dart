@@ -1,9 +1,10 @@
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:path/path.dart' as p;
 
 import '../regression/regression_test_utils.dart';
+import '../helpers/project_root.dart';
 
 void main() {
   late RegressionWorkspace workspace;
@@ -11,7 +12,7 @@ void main() {
   late String zfaBin;
   late bool useCompiledBinary;
 
-  setUpAll(() {
+  setUpAll(() async {
     final homeDir = Platform.environment['HOME'] ?? '';
     final compiledBin = p.join(homeDir, '.local', 'bin', 'zfa');
     final compiledExists = File(compiledBin).existsSync();
@@ -20,7 +21,9 @@ void main() {
       zfaBin = compiledBin;
       useCompiledBinary = true;
     } else {
-      zfaBin = File('bin/zfa.dart').absolute.path;
+      // Use findProjectRoot() instead of relative path (CWD may be poisoned).
+      final projectRoot = await findProjectRoot();
+      zfaBin = p.join(projectRoot, 'bin', 'zfa.dart');
       useCompiledBinary = false;
     }
   });
@@ -42,6 +45,11 @@ void main() {
     outputDir = workspace.outputDir;
 
     await writePubspec(workspace);
+
+    // Clean up stale git index.lock files in pub-cache that can block
+    // dependency resolution (e.g. git-based packages like zorphy).
+    _cleanStaleGitLocks();
+
     final pubGet = await runFlutterPubGet(workspace);
     expect(
       pubGet.exitCode,
@@ -49,9 +57,14 @@ void main() {
       reason: '${pubGet.stdout}\n${pubGet.stderr}',
     );
 
-    final fixtureContent = File(
-      'test/fixtures/sealed_category_config.dart',
-    ).readAsStringSync();
+    final resolvedRoot = await findProjectRoot();
+    final fixturePath = p.join(
+      resolvedRoot,
+      'test',
+      'fixtures',
+      'sealed_category_config.dart',
+    );
+    final fixtureContent = File(fixturePath).readAsStringSync();
     final entityDir = Directory(
       p.join(outputDir, 'domain', 'entities', 'category_config'),
     );
@@ -122,4 +135,29 @@ void main() {
       );
     },
   );
+}
+
+/// Remove stale `.git/index.lock` files from the pub-cache git directory.
+///
+/// These can be left behind by interrupted `dart pub get` / `git checkout`
+/// operations and will block any subsequent dependency resolution for the
+/// affected git package.
+void _cleanStaleGitLocks() {
+  try {
+    final home = Platform.environment['HOME'] ?? '';
+    final pubCache =
+        Platform.environment['PUB_CACHE'] ?? p.join(home, '.pub-cache');
+    final gitDir = Directory(p.join(pubCache, 'git'));
+    if (!gitDir.existsSync()) return;
+
+    for (final entry in gitDir.listSync()) {
+      if (entry is! Directory) continue;
+      final lock = File(p.join(entry.path, '.git', 'index.lock'));
+      if (lock.existsSync()) {
+        lock.deleteSync();
+      }
+    }
+  } catch (_) {
+    // Best-effort cleanup - never block the test.
+  }
 }

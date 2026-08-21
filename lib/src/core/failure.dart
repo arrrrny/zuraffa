@@ -37,13 +37,21 @@ sealed class AppFailure implements Exception {
   /// Human-readable error message
   final String message;
 
+  /// Machine-readable error code (e.g. a GraphQL error type name such as
+  /// `InsufficientStockError`). Optional; most failures are identified by
+  /// [message] alone.
+  final String? code;
+
   /// Stack trace from where the failure originated
   final StackTrace? stackTrace;
 
   /// The original error/exception that caused this failure
   final Object? cause;
 
-  const AppFailure(this.message, {this.stackTrace, this.cause});
+  const AppFailure(this.message, {this.code, this.stackTrace, this.cause});
+
+  /// Create a generic failure with a default message.
+  factory AppFailure.create() => const UnknownFailure.create();
 
   /// Create an [AppFailure] from any error
   ///
@@ -199,9 +207,13 @@ final class ServerFailure extends AppFailure {
   const ServerFailure(
     super.message, {
     this.statusCode,
+    super.code,
     super.stackTrace,
     super.cause,
   });
+
+  /// Create a server failure with a default message.
+  const ServerFailure.create() : statusCode = null, super('Server error');
 
   /// Factory that creates a ServerFailure if the error matches,
   /// otherwise returns null
@@ -238,7 +250,15 @@ final class ServerFailure extends AppFailure {
 /// Use when there are connection issues, DNS failures,
 /// or the device is offline.
 final class NetworkFailure extends AppFailure {
-  const NetworkFailure(super.message, {super.stackTrace, super.cause});
+  const NetworkFailure(
+    super.message, {
+    super.code,
+    super.stackTrace,
+    super.cause,
+  });
+
+  /// Create a network failure with a default message.
+  const NetworkFailure.create() : super('Network error');
 
   /// Factory that creates a NetworkFailure if the error matches,
   /// otherwise returns null
@@ -274,7 +294,12 @@ final class NetworkFailure extends AppFailure {
 /// Use when there are issues reading from or writing to local storage,
 /// or when cached data is corrupted or expired.
 final class CacheFailure extends AppFailure {
-  const CacheFailure(super.message, {super.stackTrace, super.cause});
+  const CacheFailure(
+    super.message, {
+    super.code,
+    super.stackTrace,
+    super.cause,
+  });
 
   /// Factory that creates a CacheFailure if the error matches,
   /// otherwise returns null
@@ -306,6 +331,7 @@ final class ValidationFailure extends AppFailure {
   const ValidationFailure(
     super.message, {
     this.fieldErrors,
+    super.code,
     super.stackTrace,
     super.cause,
   });
@@ -362,6 +388,7 @@ final class NotFoundFailure extends AppFailure {
     super.message, {
     this.resourceId,
     this.resourceType,
+    super.code,
     super.stackTrace,
     super.cause,
   });
@@ -400,7 +427,12 @@ final class NotFoundFailure extends AppFailure {
 /// Use when authentication is required but missing or invalid.
 /// The user needs to login or refresh their credentials.
 final class UnauthorizedFailure extends AppFailure {
-  const UnauthorizedFailure(super.message, {super.stackTrace, super.cause});
+  const UnauthorizedFailure(
+    super.message, {
+    super.code,
+    super.stackTrace,
+    super.cause,
+  });
 
   /// Factory that creates an UnauthorizedFailure if the error matches,
   /// otherwise returns null
@@ -436,6 +468,7 @@ final class ForbiddenFailure extends AppFailure {
   const ForbiddenFailure(
     super.message, {
     this.requiredPermission,
+    super.code,
     super.stackTrace,
     super.cause,
   });
@@ -470,6 +503,7 @@ final class ConflictFailure extends AppFailure {
   const ConflictFailure(
     super.message, {
     this.conflictType,
+    super.code,
     super.stackTrace,
     super.cause,
   });
@@ -506,6 +540,7 @@ final class TimeoutFailure extends AppFailure {
   const TimeoutFailure(
     super.message, {
     this.timeout,
+    super.code,
     super.stackTrace,
     super.cause,
   });
@@ -549,12 +584,11 @@ final class CancellationFailure extends AppFailure {
 ///
 /// Use when a platform-specific error occurs (e.g. Flutter PlatformException).
 final class PlatformFailure extends AppFailure {
-  final String? code;
   final dynamic details;
 
   const PlatformFailure(
     super.message, {
-    this.code,
+    super.code,
     this.details,
     super.stackTrace,
     super.cause,
@@ -569,7 +603,15 @@ final class PlatformFailure extends AppFailure {
 /// Use as a fallback when the error type cannot be determined.
 /// Prefer using more specific failure types when possible.
 final class UnknownFailure extends AppFailure {
-  const UnknownFailure(super.message, {super.stackTrace, super.cause});
+  const UnknownFailure(
+    super.message, {
+    super.code,
+    super.stackTrace,
+    super.cause,
+  });
+
+  /// Create an unknown failure with a default message.
+  const UnknownFailure.create() : super('Unexpected error');
 
   /// Factory that always creates an UnknownFailure
   /// This is the fallback when no other failure type matches
@@ -586,28 +628,43 @@ final class UnknownFailure extends AppFailure {
 ///
 /// Use when the application is in an invalid state for the requested operation.
 final class StateFailure extends AppFailure {
-  const StateFailure(super.message, {super.stackTrace, super.cause});
+  const StateFailure(
+    super.message, {
+    super.code,
+    super.stackTrace,
+    super.cause,
+  });
 }
 
 /// Type failures
 ///
 /// Use when a value has an unexpected type.
 final class TypeFailure extends AppFailure {
-  const TypeFailure(super.message, {super.stackTrace, super.cause});
+  const TypeFailure(super.message, {super.code, super.stackTrace, super.cause});
 }
 
 /// Unimplemented failures
 ///
 /// Use when a requested feature or method is not yet implemented.
 final class UnimplementedFailure extends AppFailure {
-  const UnimplementedFailure(super.message, {super.stackTrace, super.cause});
+  const UnimplementedFailure(
+    super.message, {
+    super.code,
+    super.stackTrace,
+    super.cause,
+  });
 }
 
 /// Unsupported failures
 ///
 /// Use when an operation is not supported by the current platform or configuration.
 final class UnsupportedFailure extends AppFailure {
-  const UnsupportedFailure(super.message, {super.stackTrace, super.cause});
+  const UnsupportedFailure(
+    super.message, {
+    super.code,
+    super.stackTrace,
+    super.cause,
+  });
 }
 
 /// Extension to convert exceptions to failures

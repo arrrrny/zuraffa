@@ -10,6 +10,12 @@ ios/Flutter/Generated.xcconfig
 ios/Runner/GeneratedPluginRegistrant.*
 .vscode/
 example/coverage/
+# Generated Flutter platform artifacts (example app)
+example/**/Flutter/ephemeral/
+example/android/local.properties
+example/ios/Flutter/Generated.xcconfig
+example/ios/Runner/GeneratedPluginRegistrant.*
+example/macos/Flutter/ephemeral/
 CUSTOM_DOMAIN_SETUP.md
 DOCUSAURUS_SETUP.md*
 .tmp_integration_*
@@ -21,8 +27,15 @@ DOCUSAURUS_SETUP.md*
 .claude
 .specify
 .memsearch
+handoffs/
 .zfa/
 coverage/
 *.log
 .env*
 codedb*
+patches
+contracts
+extensions/
+.contracts
+apps/
+pubspec_overrides.yaml

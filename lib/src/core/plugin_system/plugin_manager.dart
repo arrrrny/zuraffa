@@ -1,6 +1,7 @@
 import 'package:args/args.dart';
 import 'package:path/path.dart' as path;
 import '../../config/zfa_config.dart';
+import '../../utils/string_utils.dart';
 import '../../cli/plugin_loader.dart';
 import '../context/file_system.dart';
 import '../context/progress_reporter.dart';
@@ -90,6 +91,22 @@ class PluginManager {
 
     final data = <String, dynamic>{};
 
+    // #346: Sync plugin activation flags into data FIRST, before merging
+    // schema defaults below. Some schema properties share their name with a
+    // plugin id (e.g. RepositoryPlugin's `datasource` option, DataSourcePlugin's
+    // `cache` option) and default to false — when the schema-default merge ran
+    // first it wrote `data['datasource'] = false` and the activation sync's
+    // `!data.containsKey(id)` guard then skipped marking the datasource plugin
+    // active. Downstream plugins (DI) read `data['datasource']` to decide
+    // whether to emit datasource registrations, so the app compiled but
+    // crashed at runtime with `GetIt: DataSource is not registered`.
+    final activePluginIds = activePlugins.map((p) => p.id).toSet();
+    for (final id in activePluginIds) {
+      if (!data.containsKey(id)) {
+        data[id] = true;
+      }
+    }
+
     // Merge plugin-specific data from ArgResults
     if (argResults != null) {
       for (final plugin in activePlugins) {
@@ -137,7 +154,11 @@ class PluginManager {
               } else {
                 data[key] = val;
               }
-            } else if (propertyConfig.containsKey('default')) {
+            } else if (propertyConfig.containsKey('default') &&
+                // #346: never let a schema default overwrite a plugin
+                // activation flag (e.g. `datasource`, `cache` are both
+                // plugin ids and schema properties of other plugins).
+                !data.containsKey(key)) {
               final def = propertyConfig['default'];
               if (def is String && propertyConfig['type'] == 'array') {
                 data[key] = def
@@ -216,14 +237,6 @@ class PluginManager {
     data['name'] = name;
     data['output_dir'] = core.outputDir;
 
-    // Sync plugin activation flags into data so plugins can inspect each other
-    final activePluginIds = activePlugins.map((p) => p.id).toSet();
-    for (final id in activePluginIds) {
-      if (!data.containsKey(id)) {
-        data[id] = true;
-      }
-    }
-
     final baseFileSystem = FileSystem.create(root: projectRoot);
     final transactionalFileSystem = TransactionalFileSystem(baseFileSystem);
 
@@ -239,6 +252,23 @@ class PluginManager {
   }
 
   Future<List<GeneratedFile>> _handleRevert(PluginContext context) async {
+    final files = <GeneratedFile>[];
+
+    // 1. Deep revert (issue #323): delete the canonical entity-snake-keyed
+    //    architecture files for this entity, regardless of what the current
+    //    or last run produced. This handles the re-modeled-as-value_object
+    //    case where the saved plan was overwritten by an empty run and the
+    //    historical CRUD orphans remain on disk. It also makes
+    //    `zfa make <Entity> --revert` mean "remove the entity's generated
+    //    architecture" uniformly — whether the entity is currently an
+    //    entity, a value object, or anything else.
+    files.addAll(await _deepRevertEntityArchitecture(context));
+
+    // 2. Plan-based revert: restore shared files (route registrations, DI
+    //    aggregators) to their previous content. This complements the deep
+    //    revert, which only deletes entity-keyed files. For `create`
+    //    actions on entity-keyed files, the deep revert has already removed
+    //    them — the existence check below naturally skips those.
     final planId = 'last_run_${context.core.name}';
     final report = await PlanStore.instance.loadPlan(
       planId,
@@ -248,16 +278,18 @@ class PluginManager {
     if (report == null) {
       if (context.core.verbose) {
         print(
-          '  ⚠️ No saved plan found for ${context.core.name} in $projectRoot. Falling back to heuristic revert.',
+          '  ⚠️ No saved plan found for ${context.core.name} in $projectRoot. '
+          'Relying on deep revert only.',
         );
       }
-      return []; // Return empty to let legacy revert handle it or just fail gracefully
+      // Still return the deep-revert deletions (previously this returned
+      // `[]`, which silently swallowed the orphan-architecture case).
+      return files;
     }
 
-    final files = <GeneratedFile>[];
     if (context.core.verbose) {
       print(
-        '  🔄 Reverting ${report.changes.length} changes from plan in $projectRoot...',
+        '  🔄 Reverting ${report.changes.length} tracked changes from plan in $projectRoot...',
       );
     }
 
@@ -305,6 +337,210 @@ class PluginManager {
 
     await PlanStore.instance.deletePlan(planId, baseDir: projectRoot);
     return files;
+  }
+
+  /// Deletes all canonical generated-architecture files for the entity
+  /// named [context.core.name], regardless of whether the current run
+  /// generated them.
+  ///
+  /// This is the "deep revert" path (issue #323): when an entity is
+  /// re-modeled as a value object, the previously generated CRUD
+  /// architecture stays on disk as orphans because `zfa make` for a
+  /// value object generates nothing and overwrites the saved plan with
+  /// an empty one. Deep revert walks the canonical entity-snake-keyed
+  /// paths the generators would produce and deletes those that exist,
+  /// so `zfa make <Entity> --revert` cleans up the entity's generated
+  /// architecture uniformly.
+  ///
+  /// The entity source file itself
+  /// (`lib/src/domain/entities/<snake>/<snake>.dart`) is NEVER touched —
+  /// the entity is the source of truth, not generated architecture.
+  /// Re-modeling the entity (entity ↔ value_object, field changes) is
+  /// the user's job; `--revert` only removes generated architecture.
+  ///
+  /// Dry-run mode lists files that would be deleted without touching
+  /// the filesystem, mirroring the plan-based revert's dry-run behavior.
+  Future<List<GeneratedFile>> _deepRevertEntityArchitecture(
+    PluginContext context,
+  ) async {
+    final entityName = context.core.name;
+    final snake = StringUtils.camelToSnake(entityName);
+    final fs = context.fileSystem;
+    final dryRun = context.core.dryRun;
+    final verbose = context.core.verbose;
+    final deleted = <GeneratedFile>[];
+
+    if (verbose) {
+      print(
+        '  🧹 Deep revert: removing generated architecture for '
+        '"$entityName" (snake: $snake)...',
+      );
+    }
+
+    // Directories fully owned by this entity's generation: every .dart
+    // file under them was produced by the generator for THIS entity (the
+    // directory itself is snake-named after the entity). Delete every
+    // .dart file inside, then prune the directory if it becomes empty.
+    final entityScopedDirs = <String>[
+      path.join('lib', 'src', 'data', 'datasources', snake),
+      path.join('lib', 'src', 'domain', 'usecases', snake),
+      path.join('lib', 'src', 'presentation', 'pages', snake),
+      path.join('test', 'domain', 'usecases', snake),
+      path.join('test', 'presentation', 'pages', snake),
+    ];
+
+    for (final dir in entityScopedDirs) {
+      if (!await fs.exists(dir)) continue;
+      if (!await fs.isDirectory(dir)) continue;
+      final entries = await fs.list(dir, recursive: true);
+      for (final entry in entries) {
+        if (!entry.endsWith('.dart')) continue;
+        final base = path.basename(entry);
+        // Skip keep-file markers — they're not Dart source.
+        if (base == '.gitkeep' || base == '.keep') continue;
+        if (!dryRun) {
+          await fs.delete(entry);
+        }
+        deleted.add(
+          GeneratedFile(path: entry, type: 'deep_revert', action: 'deleted'),
+        );
+        if (verbose) print('    🗑 Deleted file: $entry');
+      }
+      // Prune the directory if it is now empty (or only keeps markers).
+      if (!dryRun) {
+        final remaining = await fs.list(dir);
+        final onlyMarkers =
+            remaining.isEmpty ||
+            remaining.every((e) {
+              final b = path.basename(e);
+              return b == '.gitkeep' || b == '.keep';
+            });
+        if (onlyMarkers) {
+          await fs.delete(dir);
+          if (verbose) print('    🗑 Pruned empty directory: $dir');
+        }
+      }
+    }
+
+    // Entity-keyed files in shared directories: exact paths the generators
+    // write for this entity. Delete those that exist. These live alongside
+    // other entities' files, so we never delete the parent directory.
+    final entityKeyedFiles = <String>[
+      // data layer
+      path.join(
+        'lib',
+        'src',
+        'data',
+        'repositories',
+        'data_${snake}_repository.dart',
+      ),
+      path.join('lib', 'src', 'data', 'mock', '${snake}_mock_data.dart'),
+      path.join('lib', 'src', 'data', 'cache', '${snake}_cache.dart'),
+      path.join('lib', 'src', 'data', 'sync', '${snake}_sync.dart'),
+      path.join('lib', 'src', 'data', 'providers', '${snake}_provider.dart'),
+      // domain layer (excluding the entity source directory — never touch)
+      path.join(
+        'lib',
+        'src',
+        'domain',
+        'repositories',
+        '${snake}_repository.dart',
+      ),
+      path.join('lib', 'src', 'domain', 'services', '${snake}_service.dart'),
+      // di layer
+      path.join(
+        'lib',
+        'src',
+        'di',
+        'repositories',
+        '${snake}_repository_di.dart',
+      ),
+      path.join(
+        'lib',
+        'src',
+        'di',
+        'datasources',
+        '${snake}_datasource_di.dart',
+      ),
+      path.join('lib', 'src', 'di', 'services', '${snake}_service_di.dart'),
+      path.join('lib', 'src', 'di', 'providers', '${snake}_provider_di.dart'),
+      // presentation layer
+      path.join('lib', 'src', 'presentation', 'routes', '${snake}_route.dart'),
+      path.join(
+        'lib',
+        'src',
+        'presentation',
+        'observers',
+        '${snake}_observer.dart',
+      ),
+      path.join(
+        'lib',
+        'src',
+        'presentation',
+        'providers',
+        '${snake}_provider.dart',
+      ),
+      // shared-directory tests (entity-scoped test dirs handled above)
+      path.join(
+        'test',
+        'data',
+        'repositories',
+        'data_${snake}_repository_test.dart',
+      ),
+      path.join(
+        'test',
+        'domain',
+        'repositories',
+        '${snake}_repository_test.dart',
+      ),
+    ];
+
+    for (final file in entityKeyedFiles) {
+      if (!await fs.exists(file)) continue;
+      // Safety: never recursively delete a path that turned out to be a
+      // directory (shouldn't happen for these canonical file paths, but
+      // guard against name collisions anyway).
+      if (await fs.isDirectory(file)) continue;
+      if (!dryRun) {
+        await fs.delete(file);
+      }
+      deleted.add(
+        GeneratedFile(path: file, type: 'deep_revert', action: 'deleted'),
+      );
+      if (verbose) print('    🗑 Deleted file: $file');
+    }
+
+    // Glob-keyed files in shared directories: per-method DI registrations
+    // (`<op>_<snake>_usecase_di.dart`). The method prefix varies
+    // (get_/create_/update_/delete_/toggle_/watch_/...), so we glob by
+    // suffix. The shared directory itself is never deleted.
+    final diUsecasesDir = path.join('lib', 'src', 'di', 'usecases');
+    final usecaseDiSuffix = '_${snake}_usecase_di.dart';
+    if (await fs.exists(diUsecasesDir) && await fs.isDirectory(diUsecasesDir)) {
+      final entries = await fs.list(diUsecasesDir);
+      for (final entry in entries) {
+        if (!entry.endsWith('.dart')) continue;
+        if (!path.basename(entry).endsWith(usecaseDiSuffix)) continue;
+        if (!dryRun) {
+          await fs.delete(entry);
+        }
+        deleted.add(
+          GeneratedFile(path: entry, type: 'deep_revert', action: 'deleted'),
+        );
+        if (verbose) print('    🗑 Deleted file: $entry');
+      }
+    }
+
+    if (verbose && deleted.isNotEmpty) {
+      print('  🧹 Deep revert: removed ${deleted.length} file(s).');
+    } else if (verbose) {
+      print(
+        '  🧹 Deep revert: no generated architecture found for '
+        '"$entityName".',
+      );
+    }
+
+    return deleted;
   }
 
   /// Executes the full generation lifecycle for the active plugins.

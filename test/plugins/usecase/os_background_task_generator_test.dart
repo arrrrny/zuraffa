@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/usecase/usecase_plugin.dart';
@@ -43,15 +43,14 @@ void main() {
     final content = files.first.content ?? '';
 
     // Must extend OsBackgroundTaskUseCase
-    expect(
-      content.contains('OsBackgroundTaskUseCase<void>'),
-      isTrue,
-    );
+    expect(content.contains('OsBackgroundTaskUseCase<void>'), isTrue);
     expect(content.contains('class SyncDataUseCase'), isTrue);
 
     // Must have descriptor getter
-    expect(content.contains('OsBackgroundTaskDescriptor get descriptor'),
-        isTrue);
+    expect(
+      content.contains('OsBackgroundTaskDescriptor get descriptor'),
+      isTrue,
+    );
     expect(content.contains('com.zuraffa.sync_data_task'), isTrue);
 
     // Must have execute method
@@ -63,10 +62,7 @@ void main() {
 
     // Must inject service dependency
     expect(content.contains('final DataService _dataService;'), isTrue);
-    expect(
-      content.contains('SyncDataUseCase(this._dataService);'),
-      isTrue,
-    );
+    expect(content.contains('SyncDataUseCase(this._dataService);'), isTrue);
   });
 
   test('generates os_background usecase with repo dependency', () async {
@@ -91,17 +87,16 @@ void main() {
     final content = files.first.content ?? '';
 
     expect(content.contains('class PeriodicCleanupUseCase'), isTrue);
-    expect(
-      content.contains('OsBackgroundTaskUseCase<void>'),
-      isTrue,
-    );
+    expect(content.contains('OsBackgroundTaskUseCase<void>'), isTrue);
     expect(content.contains('final CacheRepository _cacheRepository;'), isTrue);
     expect(
       content.contains('PeriodicCleanupUseCase(this._cacheRepository);'),
       isTrue,
     );
-    expect(content.contains('await _cacheRepository.periodicCleanup(params);'),
-        isTrue);
+    expect(
+      content.contains('await _cacheRepository.periodicCleanup(params);'),
+      isTrue,
+    );
   });
 
   test('generates os_background usecase without dependency', () async {
@@ -125,10 +120,7 @@ void main() {
     final content = files.first.content ?? '';
 
     expect(content.contains('class HeartbeatPingUseCase'), isTrue);
-    expect(
-      content.contains('OsBackgroundTaskUseCase<void>'),
-      isTrue,
-    );
+    expect(content.contains('OsBackgroundTaskUseCase<void>'), isTrue);
     // No service/repo dependency fields
     expect(content.contains('Repository'), isFalse);
     expect(content.contains('Service'), isFalse);
@@ -160,10 +152,7 @@ void main() {
     final files = await plugin.generate(config);
     final content = files.first.content ?? '';
 
-    expect(
-      content.contains('OsBackgroundTaskUseCase<WeatherData>'),
-      isTrue,
-    );
+    expect(content.contains('OsBackgroundTaskUseCase<WeatherData>'), isTrue);
     expect(content.contains('Future<WeatherData> execute'), isTrue);
   });
 

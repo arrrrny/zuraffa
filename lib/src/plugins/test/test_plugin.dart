@@ -82,10 +82,25 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       verbose: context.core.verbose,
       revert: context.core.revert,
       generateTest: true,
-      methods: context.data['methods']?.cast<String>().toList() ?? [],
+      // #284: Apply the same entity-methods default the usecase/repository
+      // plugins use, so the test plugin routes to generateForMethod (per-method
+      // test files matching the per-method usecases) instead of generateCustom
+      // which looks for a non-existent `product_usecase.dart`.
+      methods:
+          context.data['methods']?.cast<String>().toList() ??
+          (context.get<bool>('no-entity') == true
+              ? []
+              : ['get', 'update', 'toggle']),
       usecases: context.data['usecases']?.cast<String>().toList() ?? [],
       variants: context.data['variants']?.cast<String>().toList() ?? [],
       noEntity: context.get<bool>('no-entity') ?? false,
+      // #294: read id-field / query-field from the CLI/MakeCommand-resolved
+      // context so generators don't hardcode `EntityFields.id` for
+      // entities whose id field is e.g. `depotId`.
+      idField: context.data['id-field'] ?? 'id',
+      idFieldType: context.data['id-field-type'] ?? 'String',
+      queryField: context.data['query-field'] ?? 'id',
+      queryFieldType: context.data['query-field-type'],
       domain: context.get<String>('domain'),
       repo: context.get<String>('repo'),
       service: context.get<String>('service'),
@@ -152,6 +167,7 @@ class TestPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         'create',
         'update',
         'delete',
+        'toggle',
         'watch',
         'watchList',
       ];

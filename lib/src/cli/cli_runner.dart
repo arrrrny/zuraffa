@@ -11,9 +11,15 @@ import '../commands/entity_command.dart';
 import '../commands/plugin_command.dart' as plugincmd;
 import '../commands/make_command.dart';
 import '../commands/doctor_command.dart';
+import '../commands/migrate_command.dart';
+import '../commands/update_command.dart';
 import '../commands/build_command.dart';
 import '../commands/manifest_command.dart';
 import '../commands/apply_command.dart';
+import '../commands/module_command.dart';
+import '../commands/xray_command.dart';
+import '../commands/setup_command.dart';
+import '../commands/app_shell_command.dart';
 import '../core/plugin_system/cli_aware_plugin.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/error/suggestion_engine.dart';
@@ -74,9 +80,15 @@ class CliRunner {
     _runner.addCommand(_PluginCommand());
     _runner.addCommand(MakeCommand(registry));
     _runner.addCommand(DoctorCommand());
+    _runner.addCommand(MigrateCommand());
     _runner.addCommand(BuildCommand());
     _runner.addCommand(ManifestCommand(registry));
     _runner.addCommand(ApplyCommand(registry));
+    _runner.addCommand(ModuleCommand());
+    _runner.addCommand(XrayCommand());
+    _runner.addCommand(UpdateCommand());
+    _runner.addCommand(SetupCommand());
+    _runner.addCommand(AppCommand());
   }
 
   /// Run CLI with arguments.
@@ -123,22 +135,22 @@ class CliRunner {
   Future<String> runCapturing(List<String> args) async {
     _ensureInitialized();
 
-    final output = StringBuffer();
+    final output = <String>[];
 
     if (args.isEmpty) {
-      _printHelpTo(output.writeln);
-      return output.toString();
+      _printHelpTo(output.add);
+      return '${output.join('\n')}\n';
     }
 
     if (_isVersionCommand(args)) {
-      output.writeln('zfa v$version');
-      output.writeln('Zuraffa Code Generator');
-      return output.toString();
+      output.add('zfa v$version');
+      output.add('Zuraffa Code Generator');
+      return '${output.join('\n')}\n';
     }
 
     if (_isRemovedGenerateCommand(args)) {
-      _printRemovedGenerateMessageTo(output.writeln);
-      return output.toString();
+      _printRemovedGenerateMessageTo(output.add);
+      return '${output.join('\n')}\n';
     }
 
     await runZoned(
@@ -146,24 +158,24 @@ class CliRunner {
         try {
           await _runner.run(args);
         } on UsageException catch (e) {
-          output.writeln('❌ ${e.message}');
-          output.writeln(e.usage);
+          output.add('❌ ${e.message}');
+          output.add(e.usage);
         } catch (e, stack) {
-          output.writeln('❌ Error: $e');
-          _addSuggestionsTo(output.writeln, e.toString());
+          output.add('❌ Error: $e');
+          _addSuggestionsTo(output.add, e.toString());
           if (args.contains('--verbose') || args.contains('-v')) {
-            output.writeln('\nStack trace:\n$stack');
+            output.add('\nStack trace:\n$stack');
           }
         }
       },
       zoneSpecification: ZoneSpecification(
         print: (self, parent, zone, line) {
-          output.writeln(line);
+          output.add(line);
         },
       ),
     );
 
-    return output.toString();
+    return output.isEmpty ? '' : '${output.join('\n')}\n';
   }
 
   bool _isVersionCommand(List<String> args) {
@@ -208,21 +220,31 @@ zfa - Zuraffa Code Generator v$version
 USAGE:
   zfa <command> [options]
 
+BOOTSTRAP:
+  setup <name>        Create a new Flutter/Dart app with zuraffa deps wired in
+  init                Alias of initialize — wire deps + scaffold a test entity
+
 CORE COMMANDS:
   make <Name>         Canonical architecture/code generation command
   feature <Name>      Wrapper over `make --preset=feature`
-  initialize          Initialize a test entity
+  initialize          Wire zuraffa dependencies + scaffold a test entity
   entity              Create and manage Zorphy entities
   config              Manage ZFA configuration
-  doctor              Check your environment
+  doctor              Check your environment and v5 migration readiness
   schema              Output JSON schema
   validate <file>     Validate JSON configuration
+  migrate <target>     Migrate v5 artifacts to v6 (state, gql, di)
+  build               Run build_runner to generate code from annotations
+  update              Check for updates and update the installed CLI
 
 MODULAR COMMANDS:
+  module <Name>      Scaffold a new feature package with plugin orchestrator
+  feature <Name>      Wrapper over `make --preset=feature`
   route <Name>        Generate route definitions
   view <Name>         Generate View/Presenter/Controller
   di <Name>           Generate dependency injection
   test <Name>         Generate unit tests
+  app shell           Generate app shell (main.dart + MyApp + app_router.dart)
 
 OPTIONS:
   -v, --version       Print version
@@ -282,11 +304,18 @@ class _InitializeCommand extends Command<void> {
   String get name => 'initialize';
 
   @override
-  String get description => 'Initialize a test entity';
+  List<String> get aliases => ['init'];
+
+  @override
+  String get description =>
+      'Wire zuraffa dependencies into pubspec.yaml + scaffold a test entity';
+
+  @override
+  ArgParser get argParser => ArgParser.allowAnything();
 
   @override
   Future<void> run() async {
-    await init.InitializeCommand().execute(argResults!.rest.toList());
+    await init.InitializeCommand().execute(argResults!.arguments);
   }
 }
 
@@ -298,8 +327,13 @@ class _PluginCommand extends Command<void> {
   String get description => 'Manage plugins';
 
   @override
+  ArgParser get argParser => ArgParser.allowAnything();
+
+  @override
   Future<void> run() async {
-    await plugincmd.PluginCommand().execute(argResults!.rest.toList());
+    // Use .arguments (not .rest) so flags like `--force` pass through
+    // to PluginCommand.execute() — required by `zfa plugin mcp --force`.
+    await plugincmd.PluginCommand().execute(argResults!.arguments.toList());
   }
 }
 

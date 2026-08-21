@@ -9,27 +9,35 @@ part of 'params.dart';
 // **************************************************************************
 
 abstract class Params {
-  Map<String, dynamic>? get params;
-
   const Params();
+
+  Map<String, dynamic>? get params;
 }
 
 extension ParamsPropertyHelpers on Params {
-  Map<String, dynamic> get paramsRequired =>
-      params ?? (throw StateError('params is required but was null'));
-  bool get hasParams => params?.isNotEmpty ?? false;
-  bool get noParams => params?.isEmpty ?? true;
-}
+  Map<String, dynamic> get paramsRequired {
+    return this.params ?? (throw StateError('params is required but was null'));
+  }
 
-enum Params$ { params }
+  bool get hasParams {
+    return this.params?.isNotEmpty ?? false;
+  }
+
+  bool get noParams {
+    return this.params?.isEmpty ?? true;
+  }
+}
 
 /// Field descriptors for [Params] query construction
 abstract final class ParamsFields {
-  static Map<String, dynamic>? _$getparams(Params e) => e.params;
   static const params = Field<Params, Map<String, dynamic>?>(
     'params',
-    _$getparams,
+    _$params,
   );
+
+  static Map<String, dynamic>? _$params(Params e) {
+    return e.params;
+  }
 }
 
 extension ParamsCompareE on Params {

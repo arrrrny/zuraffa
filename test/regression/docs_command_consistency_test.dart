@@ -1,9 +1,10 @@
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
+import '../helpers/project_root.dart';
 
-void main() {
-  final projectRoot = Directory.current.path;
+Future<void> main() async {
+  final projectRoot = await findProjectRoot();
 
   String readDoc(String relativePath) {
     final file = File('$projectRoot/$relativePath');
@@ -100,7 +101,6 @@ void main() {
     test('website/docs does NOT contain "zfa generate"', () {
       final docs = readWebsiteDocs();
       if (docs.isEmpty) {
-        // No website docs to check; pass by default.
         return;
       }
       for (var i = 0; i < docs.length; i++) {

@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:zuraffa/src/core/sync_config.dart';
 import 'package:zuraffa/src/core/sync_metadata.dart';

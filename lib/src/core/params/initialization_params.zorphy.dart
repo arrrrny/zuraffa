@@ -10,26 +10,33 @@ part of 'initialization_params.dart';
 
 @JsonSerializable(explicitToJson: true, checked: true)
 class InitializationParams extends Params {
+  const InitializationParams({
+    Map<String, dynamic>? this.params,
+    required Duration this.timeout,
+    bool? forceRefresh,
+    Credentials? this.credentials,
+    Settings? this.settings,
+  }) : this.forceRefresh = forceRefresh ?? false,
+       super();
+
+  factory InitializationParams.fromJson(Map<String, dynamic> json) =>
+      _$InitializationParamsFromJson(json);
+
   @override
   final Map<String, dynamic>? params;
+
   @JsonKey(
     toJson: DurationConverter.durationToJson,
     fromJson: DurationConverter.durationFromJson,
   )
   final Duration timeout;
+
   @JsonKey(defaultValue: false)
   final bool? forceRefresh;
-  final Credentials? credentials;
-  final Settings? settings;
 
-  const InitializationParams({
-    this.params,
-    required this.timeout,
-    bool? forceRefresh,
-    this.credentials,
-    this.settings,
-  }) : this.forceRefresh = forceRefresh ?? false,
-       super();
+  final Credentials? credentials;
+
+  final Settings? settings;
 
   InitializationParams copyWith({
     Map<String, dynamic>? params,
@@ -63,54 +70,65 @@ class InitializationParams extends Params {
     );
   }
 
-  InitializationParams patchWithInitializationParams({
+  InitializationParams patchWithInitializationParams([
     InitializationParamsPatch? patchInput,
-  }) {
+  ]) {
     final _patcher = patchInput ?? InitializationParamsPatch();
     final _patchMap = _patcher.patchMap;
     return InitializationParams(
       params: _patchMap.containsKey(InitializationParams$.params)
-          ? (_patchMap[InitializationParams$.params] is Function)
-                ? _patchMap[InitializationParams$.params](this.params)
-                : (_patchMap[InitializationParams$.params] is Patch)
-                ? _patchMap[InitializationParams$.params].applyTo(this.params)
-                : _patchMap[InitializationParams$.params]
+          ? ((_patchMap[InitializationParams$.params] is Function)
+                    ? _patchMap[InitializationParams$.params](this.params)
+                    : (_patchMap[InitializationParams$.params] is Patch)
+                    ? _patchMap[InitializationParams$.params].applyTo(
+                        this.params,
+                      )
+                    : _patchMap[InitializationParams$.params])
+                as Map<String, dynamic>?
           : this.params,
       timeout: _patchMap.containsKey(InitializationParams$.timeout)
-          ? (_patchMap[InitializationParams$.timeout] is Function)
-                ? _patchMap[InitializationParams$.timeout](this.timeout)
-                : (_patchMap[InitializationParams$.timeout] is Patch)
-                ? _patchMap[InitializationParams$.timeout].applyTo(this.timeout)
-                : _patchMap[InitializationParams$.timeout]
+          ? ((_patchMap[InitializationParams$.timeout] is Function)
+                    ? _patchMap[InitializationParams$.timeout](this.timeout)
+                    : (_patchMap[InitializationParams$.timeout] is Patch)
+                    ? _patchMap[InitializationParams$.timeout].applyTo(
+                        this.timeout,
+                      )
+                    : _patchMap[InitializationParams$.timeout])
+                as Duration
           : this.timeout,
       forceRefresh: _patchMap.containsKey(InitializationParams$.forceRefresh)
-          ? (_patchMap[InitializationParams$.forceRefresh] is Function)
-                ? _patchMap[InitializationParams$.forceRefresh](
-                    this.forceRefresh,
-                  )
-                : (_patchMap[InitializationParams$.forceRefresh] is Patch)
-                ? _patchMap[InitializationParams$.forceRefresh].applyTo(
-                    this.forceRefresh,
-                  )
-                : _patchMap[InitializationParams$.forceRefresh]
+          ? ((_patchMap[InitializationParams$.forceRefresh] is Function)
+                    ? _patchMap[InitializationParams$.forceRefresh](
+                        this.forceRefresh,
+                      )
+                    : (_patchMap[InitializationParams$.forceRefresh] is Patch)
+                    ? _patchMap[InitializationParams$.forceRefresh].applyTo(
+                        this.forceRefresh,
+                      )
+                    : _patchMap[InitializationParams$.forceRefresh])
+                as bool?
           : this.forceRefresh,
       credentials: _patchMap.containsKey(InitializationParams$.credentials)
-          ? (_patchMap[InitializationParams$.credentials] is Function)
-                ? _patchMap[InitializationParams$.credentials](this.credentials)
-                : (_patchMap[InitializationParams$.credentials] is Patch)
-                ? _patchMap[InitializationParams$.credentials].applyTo(
-                    this.credentials,
-                  )
-                : _patchMap[InitializationParams$.credentials]
+          ? ((_patchMap[InitializationParams$.credentials] is Function)
+                    ? _patchMap[InitializationParams$.credentials](
+                        this.credentials,
+                      )
+                    : (_patchMap[InitializationParams$.credentials] is Patch)
+                    ? _patchMap[InitializationParams$.credentials].applyTo(
+                        this.credentials,
+                      )
+                    : _patchMap[InitializationParams$.credentials])
+                as Credentials?
           : this.credentials,
       settings: _patchMap.containsKey(InitializationParams$.settings)
-          ? (_patchMap[InitializationParams$.settings] is Function)
-                ? _patchMap[InitializationParams$.settings](this.settings)
-                : (_patchMap[InitializationParams$.settings] is Patch)
-                ? _patchMap[InitializationParams$.settings].applyTo(
-                    this.settings,
-                  )
-                : _patchMap[InitializationParams$.settings]
+          ? ((_patchMap[InitializationParams$.settings] is Function)
+                    ? _patchMap[InitializationParams$.settings](this.settings)
+                    : (_patchMap[InitializationParams$.settings] is Patch)
+                    ? _patchMap[InitializationParams$.settings].applyTo(
+                        this.settings,
+                      )
+                    : _patchMap[InitializationParams$.settings])
+                as Settings?
           : this.settings,
     );
   }
@@ -151,13 +169,10 @@ class InitializationParams extends Params {
         'settings: ${settings})';
   }
 
-  /// Creates a [InitializationParams] instance from JSON
-  factory InitializationParams.fromJson(Map<String, dynamic> json) =>
-      _$InitializationParamsFromJson(json);
-
   Map<String, dynamic> toJsonLean() {
     final Map<String, dynamic> data = _$InitializationParamsToJson(this);
-    return _sanitizeJson(data);
+    _sanitizeJson(data);
+    return data;
   }
 
   dynamic _sanitizeJson(dynamic json) {
@@ -174,38 +189,49 @@ class InitializationParams extends Params {
 }
 
 extension InitializationParamsPropertyHelpers on InitializationParams {
-  bool get hasForceRefresh => forceRefresh != null;
-  bool get noForceRefresh => forceRefresh == null;
-  bool get forceRefreshRequired =>
-      forceRefresh ??
-      (throw StateError('forceRefresh is required but was null'));
-  bool get hasCredentials => credentials != null;
-  bool get noCredentials => credentials == null;
-  Credentials get credentialsRequired =>
-      credentials ?? (throw StateError('credentials is required but was null'));
-  bool get hasSettings => settings != null;
-  bool get noSettings => settings == null;
-  Settings get settingsRequired =>
-      settings ?? (throw StateError('settings is required but was null'));
+  bool get hasForceRefresh {
+    return this.forceRefresh != null;
+  }
+
+  bool get noForceRefresh {
+    return this.forceRefresh == null;
+  }
+
+  bool get forceRefreshRequired {
+    return this.forceRefresh ??
+        (throw StateError('forceRefresh is required but was null'));
+  }
+
+  bool get hasCredentials {
+    return this.credentials != null;
+  }
+
+  bool get noCredentials {
+    return this.credentials == null;
+  }
+
+  Credentials get credentialsRequired {
+    return this.credentials ??
+        (throw StateError('credentials is required but was null'));
+  }
+
+  bool get hasSettings {
+    return this.settings != null;
+  }
+
+  bool get noSettings {
+    return this.settings == null;
+  }
+
+  Settings get settingsRequired {
+    return this.settings ??
+        (throw StateError('settings is required but was null'));
+  }
 }
 
 extension InitializationParamsSerialization on InitializationParams {
-  Map<String, dynamic> toJson() => _$InitializationParamsToJson(this);
-  Map<String, dynamic> toJsonLean() {
-    final Map<String, dynamic> data = _$InitializationParamsToJson(this);
-    return _sanitizeJson(data);
-  }
-
-  dynamic _sanitizeJson(dynamic json) {
-    if (json is Map<String, dynamic>) {
-      json.remove('__typename');
-      return json..forEach((key, value) {
-        json[key] = _sanitizeJson(value);
-      });
-    } else if (json is List) {
-      return json.map((e) => _sanitizeJson(e)).toList();
-    }
-    return json;
+  Map<String, dynamic> toJson() {
+    return _$InitializationParamsToJson(this);
   }
 }
 
@@ -220,7 +246,7 @@ enum InitializationParams$ {
 class InitializationParamsPatch
     extends PatchBase<InitializationParams, InitializationParams$> {
   InitializationParams applyTo(InitializationParams entity) {
-    return entity.patchWithInitializationParams(patchInput: this);
+    return entity.patchWithInitializationParams(this);
   }
 
   InitializationParamsPatch withParams(Map<String, dynamic>? value) {
@@ -262,35 +288,69 @@ class InitializationParamsPatch
     patchMap[InitializationParams$.settings] = value;
     return this;
   }
+
+  InitializationParamsPatch withSettingsPatch(SettingsPatch patch) {
+    patchMap[InitializationParams$.settings] = patch;
+    return this;
+  }
+
+  InitializationParamsPatch withSettingsPatchFunc(
+    SettingsPatch Function(SettingsPatch) patch,
+  ) {
+    patchMap[InitializationParams$.settings] = (dynamic current) {
+      var currentPatch = SettingsPatch();
+      return patch(currentPatch).applyTo(current as Settings);
+    };
+    return this;
+  }
 }
 
 /// Field descriptors for [InitializationParams] query construction
 abstract final class InitializationParamsFields {
-  static Map<String, dynamic>? _$getparams(InitializationParams e) => e.params;
   static const params = Field<InitializationParams, Map<String, dynamic>?>(
     'params',
-    _$getparams,
+    _$params,
   );
-  static Duration _$gettimeout(InitializationParams e) => e.timeout;
+
   static const timeout = Field<InitializationParams, Duration>(
     'timeout',
-    _$gettimeout,
+    _$timeout,
   );
-  static bool? _$getforceRefresh(InitializationParams e) => e.forceRefresh;
+
   static const forceRefresh = Field<InitializationParams, bool?>(
     'forceRefresh',
-    _$getforceRefresh,
+    _$forceRefresh,
   );
-  static Credentials? _$getcredentials(InitializationParams e) => e.credentials;
+
   static const credentials = Field<InitializationParams, Credentials?>(
     'credentials',
-    _$getcredentials,
+    _$credentials,
   );
-  static Settings? _$getsettings(InitializationParams e) => e.settings;
+
   static const settings = Field<InitializationParams, Settings?>(
     'settings',
-    _$getsettings,
+    _$settings,
   );
+
+  static Map<String, dynamic>? _$params(InitializationParams e) {
+    return e.params;
+  }
+
+  static Duration _$timeout(InitializationParams e) {
+    return e.timeout;
+  }
+
+  static bool? _$forceRefresh(InitializationParams e) {
+    return e.forceRefresh;
+  }
+
+  static Credentials? _$credentials(InitializationParams e) {
+    return e.credentials;
+  }
+
+  static Settings? _$settings(InitializationParams e) {
+    return e.settings;
+  }
 }
 
 extension InitializationParamsCompareE on InitializationParams {
@@ -302,15 +362,19 @@ extension InitializationParamsCompareE on InitializationParams {
     if (params != other.params) {
       diff['params'] = () => other.params;
     }
+
     if (timeout != other.timeout) {
       diff['timeout'] = () => other.timeout;
     }
+
     if (forceRefresh != other.forceRefresh) {
       diff['forceRefresh'] = () => other.forceRefresh;
     }
+
     if (credentials != other.credentials) {
       diff['credentials'] = () => other.credentials;
     }
+
     if (settings != other.settings) {
       diff['settings'] = () => other.settings;
     }

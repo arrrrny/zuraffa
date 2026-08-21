@@ -105,7 +105,13 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
       directives: [Directive.import('package:zuraffa/zuraffa.dart')],
     );
 
-    final content = specLibrary.emitLibrary(library);
+    var content = specLibrary.emitLibrary(library);
+    // Emit imports for non-builtin --params / --returns entity types that live
+    // under domain/entities/** (skip NoParams, void, primitives). Without this,
+    // a freshly-created service interface references undefined types (issue #395 Bug B).
+    // Reuse _addMissingImports so the relative path matches the file's actual
+    // location (../entities/... for services, ../../../domain/entities/... for providers).
+    content = await _addMissingImports(config, content, filePath);
     await FileUtils.writeFile(
       filePath,
       content,
@@ -173,7 +179,13 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
       directives: [Directive.import('package:zuraffa/zuraffa.dart')],
     );
 
-    final content = specLibrary.emitLibrary(library);
+    var content = specLibrary.emitLibrary(library);
+    // Emit imports for non-builtin --params / --returns entity types that live
+    // under domain/entities/** (skip NoParams, void, primitives). Without this,
+    // a freshly-created provider references undefined types (issue #395 Bug B).
+    // Reuse _addMissingImports so the relative path matches the provider's
+    // actual location (../../../domain/entities/...).
+    content = await _addMissingImports(config, content, filePath);
     await FileUtils.writeFile(
       filePath,
       content,

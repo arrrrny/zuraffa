@@ -60,7 +60,32 @@ class GenerationPreset {
     plugins: ['repository', 'datasource'],
   );
 
-  static const all = [entityCrud, vpc, vpcWithState, fullStack, dataLayer];
+  static const module = GenerationPreset(
+    name: 'module',
+    description: 'Feature package orchestrator with plugin contract',
+    plugins: [
+      'usecase',
+      'repository',
+      'datasource',
+      'view',
+      'presenter',
+      'controller',
+      'state',
+      'di',
+      'route',
+      'test',
+      'module',
+    ],
+  );
+
+  static const all = [
+    entityCrud,
+    vpc,
+    vpcWithState,
+    fullStack,
+    dataLayer,
+    module,
+  ];
 
   static GenerationPreset? byName(String name) {
     for (final preset in all) {

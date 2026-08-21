@@ -1,16 +1,124 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:path/path.dart' as p;
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/core/project/project_root.dart';
+
+/// CWD-safe project root resolution.
+/// Tries Platform.script (immune to CWD), then CWD walk (with temp guard),
+/// then git rev-parse. Throws [StateError] if the root cannot be found.
+String _findProjectRoot() {
+  // Strategy 1: Walk up from Platform.script (immune to CWD changes).
+  try {
+    var dir = File(Platform.script.toFilePath()).parent;
+    for (var i = 0; i < 10; i++) {
+      final pubspec = File('${dir.path}/pubspec.yaml');
+      if (pubspec.existsSync()) {
+        final c = pubspec.readAsStringSync();
+        if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true).hasMatch(c)) {
+          return dir.path;
+        }
+      }
+      final parent = dir.parent;
+      if (parent.path == dir.path) break;
+      dir = parent;
+    }
+  } catch (_) {
+    // Platform.script.toFilePath() may fail if CWD was deleted.
+    // Recover CWD to a known-good location and retry.
+    try {
+      Directory.current = Directory.systemTemp.path;
+    } catch (_) {}
+    try {
+      var dir = File(Platform.script.toFilePath()).parent;
+      for (var i = 0; i < 10; i++) {
+        final pubspec = File('${dir.path}/pubspec.yaml');
+        if (pubspec.existsSync()) {
+          final c = pubspec.readAsStringSync();
+          if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true).hasMatch(c)) {
+            return dir.path;
+          }
+        }
+        final parent = dir.parent;
+        if (parent.path == dir.path) break;
+        dir = parent;
+      }
+    } catch (_) {}
+  }
+
+  // Strategy 2: Walk up from CWD (may be poisoned, so guard against temp dirs).
+  try {
+    var dir = Directory.current;
+    for (var i = 0; i < 15; i++) {
+      final pubspec = File('${dir.path}/pubspec.yaml');
+      if (pubspec.existsSync()) {
+        final c = pubspec.readAsStringSync();
+        if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true).hasMatch(c)) {
+          final candidate = dir.path;
+          if (!_isTempPath(candidate)) {
+            return candidate;
+          }
+        }
+      }
+      final parent = dir.parent;
+      if (parent.path == dir.path) break;
+      dir = parent;
+    }
+  } catch (_) {}
+
+  // Strategy 3: git rev-parse as last resort.
+  try {
+    final result = Process.runSync('git', ['rev-parse', '--show-toplevel']);
+    if (result.exitCode == 0) {
+      final gitRoot = (result.stdout as String).trim();
+      if (!_isTempPath(gitRoot)) {
+        final pubspec = File('$gitRoot/pubspec.yaml');
+        if (pubspec.existsSync()) {
+          final c = pubspec.readAsStringSync();
+          if (RegExp(r'^name:\s*zuraffa\s*$', multiLine: true).hasMatch(c)) {
+            return gitRoot;
+          }
+        }
+      }
+    }
+  } catch (_) {}
+
+  // Read Directory.current.path defensively to avoid masking the intended StateError.
+  String cwdForError;
+  try {
+    cwdForError = Directory.current.path;
+  } catch (_) {
+    cwdForError = '<unable to read CWD>';
+  }
+  throw StateError(
+    'Cannot determine zuraffa project root. '
+    'CWD=$cwdForError',
+  );
+}
+
+/// Returns true if [path] looks like it is inside a temp directory.
+bool _isTempPath(String p) {
+  final lower = p.toLowerCase();
+  final systemTempLower = Directory.systemTemp.path.toLowerCase();
+
+  // Check if path starts with /tmp/, equals /tmp, or contains /tmp/ as a segment
+  final isTmpSegment =
+      lower == '/tmp' || lower.startsWith('/tmp/') || lower.contains('/tmp/');
+
+  return isTmpSegment ||
+      lower.contains('/var/folders/') ||
+      lower.contains('/nosuchfile') ||
+      lower == systemTempLower;
+}
+
+final _zfaRoot = _findProjectRoot();
 
 void main() {
   group('CLI command regression', () {
     late Directory workspace;
     late String outputDir;
-    late String previousCwd;
 
     Future<void> writeWorkspacePubspec() {
       return File(p.join(workspace.path, 'pubspec.yaml')).writeAsString('''
@@ -34,18 +142,31 @@ class Product {
 ''');
     }
 
+    late String savedCwd;
+
     setUp(() async {
+      savedCwd = Directory.current.path;
       workspace = await Directory.systemTemp.createTemp('zfa_cli_');
       outputDir = p.join(workspace.path, 'lib', 'src');
       await Directory(outputDir).create(recursive: true);
       await writeWorkspacePubspec();
       await writeProductEntity();
-      previousCwd = Directory.current.path;
       Directory.current = workspace.path;
     });
 
     tearDown(() async {
-      Directory.current = previousCwd;
+      // Restore CWD BEFORE deleting workspace to avoid cascading crashes.
+      try {
+        if (Directory(savedCwd).existsSync()) {
+          Directory.current = savedCwd;
+        } else {
+          Directory.current = Directory.systemTemp.path;
+        }
+      } catch (_) {
+        try {
+          Directory.current = Directory.systemTemp.path;
+        } catch (_) {}
+      }
       if (workspace.existsSync()) {
         await workspace.delete(recursive: true);
       }
@@ -106,6 +227,33 @@ class Product {
       expect(output, contains('repository'));
       expect(output, contains('usecase'));
     });
+
+    test(
+      'cli plugin mcp --dry-run passes flags through without writing files',
+      () async {
+        final runner = CliRunner(exitOnCompletion: false);
+        final output = await runner.runCapturing([
+          'plugin',
+          'mcp',
+          '--dry-run',
+        ]);
+
+        // The pass-through relies on ArgParser.allowAnything() + .arguments.
+        // If the parser rejected --dry-run, we would see a UsageException here.
+        expect(output, isNot(contains('Could not find an option named')));
+        expect(output, isNot(contains('Usage: zfa plugin')));
+        expect(
+          File(
+            p.join(workspace.path, 'lib', 'src', 'mcp', 'tools.dart'),
+          ).existsSync(),
+          isFalse,
+        );
+        expect(
+          File(p.join(workspace.path, 'bin', 'mcp_server.dart')).existsSync(),
+          isFalse,
+        );
+      },
+    );
 
     test('removed generate command prints migration guidance', () async {
       final runner = CliRunner(exitOnCompletion: false);
@@ -180,7 +328,13 @@ environment:
         ).resolveSymbolicLinks();
         expect(result, equals(resolvedWorkspace));
       } finally {
-        Directory.current = savedCwd;
+        try {
+          Directory.current = savedCwd;
+        } catch (_) {
+          try {
+            Directory.current = Directory.systemTemp;
+          } catch (_) {}
+        }
         if (workspace.existsSync()) {
           await workspace.delete(recursive: true);
         }
@@ -227,7 +381,13 @@ environment:
         // ProjectRoot.find() accesses Directory.current before it can recover.
         expect(() => ProjectRoot.find(), throwsA(isA<PathNotFoundException>()));
       } finally {
-        Directory.current = savedCwd;
+        try {
+          Directory.current = savedCwd;
+        } catch (_) {
+          try {
+            Directory.current = Directory.systemTemp;
+          } catch (_) {}
+        }
       }
     });
   });

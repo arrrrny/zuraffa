@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/generator/code_generator.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
@@ -20,7 +20,7 @@ void main() {
     await disposeWorkspace(workspace);
   });
 
-  test('full generation completes under 5 seconds', () async {
+  test('full generation completes under 10 seconds', () async {
     final config = GeneratorConfig(
       name: 'Profile',
       methods: const ['get', 'getList', 'create', 'update', 'delete'],
@@ -46,5 +46,8 @@ void main() {
 
     expect(result.success, isTrue);
     expect(stopwatch.elapsedMilliseconds < 10000, isTrue);
+    if (stopwatch.elapsedMilliseconds > 10000) {
+      print(stopwatch.elapsedMilliseconds);
+    }
   });
 }

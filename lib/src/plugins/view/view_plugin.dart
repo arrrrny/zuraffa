@@ -11,12 +11,15 @@ import '../../core/context/file_system.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
 import '../../utils/file_utils.dart';
+import '../../utils/flutter_symbols.dart';
 import '../../utils/string_utils.dart';
 import 'builders/adaptive_layout_scaffold_builder.dart';
 import 'builders/view_class_builder.dart';
 import 'capabilities/create_view_capability.dart';
 import 'capabilities/custom_view_capability.dart';
 import 'capabilities/register_view_capability.dart';
+import '../../state/generator/state_generator.dart';
+import '../../state/generator/view_template_generator.dart';
 
 import 'package:code_builder/code_builder.dart';
 
@@ -78,6 +81,14 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         'description':
             'Adaptive layout targets, e.g. mobile,tablet,desktop,macos',
       },
+      'v6-state': {
+        'type': 'boolean',
+        'default': false,
+        'description':
+            'Generate v6 dual-layer state (DomainState + ViewState + '
+            'DualLayerPresenter) and ControlledWidget/FragmentBuilder-based '
+            'views instead of the legacy v5 monolithic state',
+      },
     },
   };
 
@@ -104,9 +115,148 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       noEntity: context.data['no-entity'] == true,
       generateState: context.data['state'] == true,
       generateDi: context.data['di'] == true,
+      generateXRay: context.data['xray'] == true,
+      generateV6State: context.data['v6-state'] == true,
     );
 
     return generate(config, context: context);
+  }
+
+  /// Generates v6 dual-layer state files + ControlledWidget-based view.
+  ///
+  /// Emits:
+  /// - `{Name}DomainState` (regenerated every build, signal slices)
+  /// - `{Name}ViewState` (scaffolded once, preserved)
+  /// - `{Name}Presenter` (extends DualLayerPresenter, scaffolded once)
+  /// - `{Name}View` (extends ControlledWidget, uses FragmentBuilder)
+  Future<List<GeneratedFile>> _generateV6State(
+    GeneratorConfig config, {
+    PluginContext? context,
+  }) async {
+    final fs = context?.fileSystem ?? fileSystem;
+    final entityName = config.name;
+    final domainSnake = config.effectiveDomain;
+    final stateDirPath = path.join(
+      outputDir,
+      'presentation',
+      'pages',
+      domainSnake,
+    );
+
+    // Derive use-case bindings from requested methods. Each method (get,
+    // update, etc.) becomes one signal slice in the DomainState.
+    final methods = config.methods.isNotEmpty
+        ? config.methods
+        : ['get', 'update'];
+    final useCaseBindings = <UseCaseBinding>[];
+    final sliceKeys = <String>[];
+    for (final method in methods) {
+      final sliceKey = _sliceKeyForMethod(method);
+      final returnType = _returnTypeForMethod(method, entityName);
+      final useCaseFieldName = '_${sliceKey}UseCase';
+      final paramsConstructor = '${_pascalCase(method)}${entityName}Params';
+      useCaseBindings.add(
+        UseCaseBinding(
+          sliceKey: sliceKey,
+          useCaseFieldName: useCaseFieldName,
+          paramsConstructor: paramsConstructor,
+          returnType: returnType,
+          cacheable: config.enableCache,
+        ),
+      );
+      sliceKeys.add(sliceKey);
+    }
+
+    final cacheableSliceKeys = config.enableCache
+        ? <String>{...sliceKeys}
+        : null;
+
+    final generatedFiles = <GeneratedFile>[];
+
+    // 1. DomainState (always regenerated)
+    final stateGen = StateGenerator(outputDir: stateDirPath);
+    final domainPath = stateGen.generateDomainState(
+      entityName,
+      useCases: useCaseBindings,
+      cacheableSliceKeys: cacheableSliceKeys,
+    );
+    generatedFiles.add(
+      GeneratedFile(
+        path: domainPath,
+        type: 'domain_state',
+        action: 'overwritten',
+        content: fs.readSync(domainPath),
+      ),
+    );
+
+    // 2. ViewState (scaffolded once, preserved)
+    final viewStatePath = stateGen.generateViewState(entityName);
+    final viewStateAction = stateGen.preservedFiles.contains(viewStatePath)
+        ? 'skipped'
+        : 'created';
+    generatedFiles.add(
+      GeneratedFile(
+        path: viewStatePath,
+        type: 'view_state',
+        action: viewStateAction,
+        content: fs.readSync(viewStatePath),
+      ),
+    );
+
+    // 3. Presenter (scaffolded once, preserved)
+    final viewGen = ViewTemplateGenerator(outputDir: stateDirPath);
+    final presenterPath = viewGen.generatePresenter(
+      entityName,
+      useCases: sliceKeys,
+    );
+    generatedFiles.add(
+      GeneratedFile(
+        path: presenterPath,
+        type: 'presenter',
+        action: 'created',
+        content: fs.readSync(presenterPath),
+      ),
+    );
+
+    // 4. View (ControlledWidget + FragmentBuilder + SignalBuilder)
+    final viewPath = viewGen.generateView(entityName, useCases: sliceKeys);
+    generatedFiles.add(
+      GeneratedFile(
+        path: viewPath,
+        type: 'view',
+        action: config.force ? 'overwritten' : 'created',
+        content: fs.readSync(viewPath),
+      ),
+    );
+
+    return generatedFiles;
+  }
+
+  /// Maps a CRUD method name to a semantic signal-slice key.
+  String _sliceKeyForMethod(String method) {
+    return switch (method) {
+      'get' || 'watch' => 'entity',
+      'getList' || 'watchList' || 'list' => 'entities',
+      'create' => 'created',
+      'update' => 'updated',
+      'delete' => 'deleted',
+      'toggle' => 'toggled',
+      _ => method,
+    };
+  }
+
+  /// Derives the slice return type for a method.
+  String _returnTypeForMethod(String method, String entityName) {
+    return switch (method) {
+      'getList' || 'watchList' || 'list' => 'List<$entityName>',
+      _ => entityName,
+    };
+  }
+
+  /// Converts a lowercase word to PascalCase.
+  String _pascalCase(String s) {
+    if (s.isEmpty) return s;
+    return s[0].toUpperCase() + s.substring(1);
   }
 
   @override
@@ -116,6 +266,12 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   }) async {
     if (!config.generateView && !config.generateVpcs && !config.revert) {
       return [];
+    }
+
+    // v6 dual-layer state path: generate DomainState + ViewState +
+    // DualLayerPresenter + ControlledWidget/FragmentBuilder-based view.
+    if (config.generateV6State) {
+      return _generateV6State(config, context: context);
     }
 
     if (config.outputDir != outputDir ||
@@ -242,6 +398,31 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         !config.isOrchestrator;
 
     final withState = config.generateState || config.customStateName != null;
+
+    // #359: probe for the entity's mock_data file on disk. When present,
+    // pass the import path into the view spec so the view body renders a
+    // real ListView over <Entity>MockData.sampleList (or a Card with
+    // sample<Entity> for detail views) instead of the empty Container().
+    // The mock file lives at lib/src/data/mock/<entity>_mock_data.dart;
+    // from the view file at lib/src/presentation/pages/<entity>/, the
+    // relative path is ../../../data/mock/<entity>_mock_data.dart.
+    final entitySnake = config.nameSnake;
+    final mockDataFile = path.join(
+      outputDir,
+      'data',
+      'mock',
+      '${entitySnake}_mock_data.dart',
+    );
+    final mockDataImportPath =
+        (!config.noEntity && !isCustom && await fileSystem.exists(mockDataFile))
+        ? '../../../data/mock/${entitySnake}_mock_data.dart'
+        : null;
+    // Add the mock_data import alongside the other imports so the body
+    // can reference <Entity>MockData.
+    final viewImports = mockDataImportPath != null
+        ? <String>[...imports, mockDataImportPath]
+        : imports;
+
     final content = classBuilder.build(
       ViewClassSpec(
         viewName: viewName,
@@ -253,11 +434,13 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         routeFields: routeFields,
         repoPresenterArgs: repoPresenterArgs,
         initialMethodCall: initialMethodCall,
-        imports: imports,
+        imports: viewImports,
         withState: withState,
         isCustom: isCustom,
         isStateful: isCustom && config.generateState,
         stateClassName: config.effectiveStateName,
+        withXRay: config.generateXRay,
+        mockDataImportPath: mockDataImportPath,
       ),
       leadingComment: '// Generated by zfa for: ${config.name}',
     );
@@ -358,6 +541,26 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             (await fs.exists(filePath) &&
                 (await fs.read(filePath)).contains('StatefulWidget')));
 
+    // #359: probe for the entity's mock_data file on disk (same as _generateViewFile).
+    // When present and the view has methods (entity-based), pass the import path
+    // so the view body can render mock-backed content.
+    final entitySnake = config.nameSnake;
+    final mockDataFile = path.join(
+      outputDir,
+      'data',
+      'mock',
+      '${entitySnake}_mock_data.dart',
+    );
+    final mockDataImportPath =
+        (!config.noEntity &&
+            config.methods.isNotEmpty &&
+            await fs.exists(mockDataFile))
+        ? '../../../data/mock/${entitySnake}_mock_data.dart'
+        : null;
+    final viewImports = mockDataImportPath != null
+        ? <String>[...imports, mockDataImportPath]
+        : imports;
+
     final content = classBuilder.build(
       ViewClassSpec(
         viewName: viewName,
@@ -370,11 +573,13 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         customParameters: customParameters,
         repoPresenterArgs: repoPresenterArgs,
         initialMethodCall: initialMethodCall,
-        imports: imports,
+        imports: viewImports,
         withState: config.generateState || config.customStateName != null,
         isCustom: isCustom,
         isStateful: isStateful,
         stateClassName: config.effectiveStateName,
+        withXRay: config.generateXRay,
+        mockDataImportPath: mockDataImportPath,
       ),
       leadingComment: '// Generated by zfa for: ${config.name}',
     );
@@ -398,7 +603,15 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     final fields = <Field>[];
 
     final withState = config.generateState || config.customStateName != null;
-    if (withState && !config.noEntity) {
+    // #328: Always accept the entity named-param when the entity is
+    // CRUD-backed (`isEntityBased`), so the route generator's
+    // `View(entityCamel: state.extra as Entity?)` call compiles even without
+    // --state. Previously this field was only emitted under --state, so the
+    // route's named-arg had no matching constructor parameter and analyze
+    // flagged `extra_positional_arguments` / undefined named-param. The
+    // field stays optional (not `required`), so non-route call sites that
+    // construct the view without the entity still compile.
+    if (!config.noEntity && (withState || config.isEntityBased)) {
       fields.add(
         Field(
           (f) => f
@@ -505,8 +718,28 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         !config.isEntityBased &&
         !config.isOrchestrator;
 
+    // #337: The entity file is imported below, so an entity named after a
+    // Flutter material symbol (e.g. `Feedback`) would be ambiguous with the
+    // unqualified symbol from material.dart. Hide the colliding symbol from
+    // the material import so the entity wins.
+    final hideSymbol =
+        collidesWithFlutterSymbol(config.name) &&
+            !isCustom &&
+            !config.noEntity &&
+            (config.generateState ||
+                config.customStateName != null ||
+                config.isEntityBased)
+        ? config.name
+        : null;
+    if (hideSymbol != null) {
+      imports[0] = 'package:flutter/material.dart hide $hideSymbol';
+    }
+
     if (!isCustom) {
-      imports.add('package:zuraffa/zuraffa.dart');
+      // #284/#281: Presentation layer imports `zuraffa_flutter` (which
+      // re-exports `zuraffa` + Flutter-specific CleanView/CleanViewState/
+      // ControlledWidgetBuilder types) instead of `zuraffa` alone.
+      imports.add('package:zuraffa_flutter/zuraffa_flutter.dart');
 
       if (!useDi) {
         for (final repo in config.effectiveRepos) {
@@ -530,7 +763,11 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       imports.add('${presenterSnake}_presenter.dart');
 
       final withState = config.generateState || config.customStateName != null;
-      if (withState && !config.noEntity) {
+      // #328: Import the entity whenever the view's constructor accepts it
+      // (CRUD-backed or --state). Must match the field condition in
+      // _buildRouteFieldsForView, otherwise the field's type
+      // (`${config.name}?`) references an unimported symbol.
+      if (!config.noEntity && (withState || config.isEntityBased)) {
         final entitySnake = config.nameSnake;
         imports.add(
           '$relativePath../domain/entities/$entitySnake/$entitySnake.dart',

@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/provider/provider_plugin.dart';
@@ -53,7 +53,9 @@ void main() {
       isTrue,
     );
     expect(
-      content1.contains("import '../../domain/entities/listing/listing.dart';"),
+      content1.contains(
+        "import '../../../domain/entities/listing/listing.dart';",
+      ),
       isTrue,
     );
     expect(content1.contains('listing_?'), isFalse);

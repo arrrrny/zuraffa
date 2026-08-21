@@ -75,30 +75,27 @@ Future<void> _writeLargeEntity(
   await entityDir.create(recursive: true);
   final file = File(path.join(entityDir.path, '$snake.dart'));
 
-  final buffer = StringBuffer();
-  buffer.writeln('class $entityName {');
-  for (var i = 0; i < fieldCount; i++) {
-    buffer.writeln('  final int field$i;');
-  }
-  buffer.writeln('  const $entityName({');
-  for (var i = 0; i < fieldCount; i++) {
-    buffer.writeln('    required this.field$i,');
-  }
-  buffer.writeln('  });');
-  buffer.writeln('}');
-  await file.writeAsString(buffer.toString());
+  final lines = <String>[
+    'class $entityName {',
+    ...List.generate(fieldCount, (i) => '  final int field$i;'),
+    '  const $entityName({',
+    ...List.generate(fieldCount, (i) => '    required this.field$i,'),
+    '  });',
+    '}',
+  ];
+  await file.writeAsString('${lines.join('\n')}\n');
 }
 
 String _camelToSnake(String input) {
-  final buffer = StringBuffer();
+  final result = <String>[];
   for (var i = 0; i < input.length; i++) {
     final char = input[i];
     if (i > 0 && char.toUpperCase() == char) {
-      buffer.write('_');
+      result.add('_');
     }
-    buffer.write(char.toLowerCase());
+    result.add(char.toLowerCase());
   }
-  return buffer.toString();
+  return result.join();
 }
 
 String _toMb(int bytes) => (bytes / (1024 * 1024)).toStringAsFixed(1);

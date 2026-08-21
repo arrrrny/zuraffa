@@ -4,14 +4,16 @@
 
 ## Package Manager
 
-- **Type**: `pub.dev` (Dart/Flutter package)
-- **Packages**: 1 (mono-package)
-- **Public packages**: `zuraffa` — published to pub.dev
+- **Type**: `pub.dev` (Dart/Flutter packages)
+- **Packages**: 2, published in dependency order
+- **Public packages**:
+  - `zuraffa` (root `pubspec.yaml`) — pure-Dart core/CLI, published first
+  - `zuraffa_flutter` (`zuraffa_flutter/pubspec.yaml`) — Flutter UI layer, depends on `zuraffa: ^<version>`, published second
 - **Private packages**: None
 
 ## Scripts
 
-- **Publish**: `./scripts/publish.sh <version>` — updates versions, commits, tags, pushes, updates Zed extension submodule, rebuilds WASM, and publishes to pub.dev
+- **Publish**: `./scripts/publish.sh <version>` — multi-step: updates versions (root + `zuraffa_flutter`, guards optional `example/`), commits, tags, pushes, updates Zed extension submodule, rebuilds WASM, then publishes `zuraffa` followed by `zuraffa_flutter` (with pub.dev propagation retry)
 - **Release**: `./scripts/release.sh <version>` — builds CLI + MCP binaries and creates GitHub release with assets
 
 ## Workflow
@@ -19,17 +21,21 @@
 1. Update changelogs (changelog-manager skill)
 2. Stage all changes: `git add -A`
 3. `./scripts/publish.sh <version>`
-   - Updates version in `pubspec.yaml`, `lib/src/zfa_cli.dart`, `example/pubspec.yaml`
+   - Updates version in `pubspec.yaml`, `zuraffa_flutter/pubspec.yaml`, optional `example/pubspec.yaml` (skipped if absent)
    - Commits with `chore: release <version>`
    - Tags with `v<version>`
    - Pushes branch and tag
    - Updates `extensions/zed` submodule (version, WASM rebuild, commit, push, tag)
-   - Publishes to pub.dev via `dart pub publish --force`
+   - **Step 4**: publishes `zuraffa` to pub.dev via `dart pub publish --force`
+   - **Step 5**: publishes `zuraffa_flutter` to pub.dev (`flutter pub get` + `flutter analyze` + `dart pub publish --force`), retrying with backoff until `zuraffa@<version>` is resolvable on pub.dev
 4. `./scripts/release.sh <version>` — builds CLI + MCP binaries and creates GitHub release with assets
 
 ## Notes
 
+- `zuraffa_flutter` depends on `zuraffa: ^<version>` — the publish script waits for pub.dev to index the new `zuraffa` before publishing the Flutter package (mirrors the `zikzak_inappwebview` multi-package flow)
+- `example/` is optional in this repo layout; the script only touches it when present
 - The publish script auto-detects the CHANGELOG entry — skip it if already updated
-- Zed extension submodule is at `extensions/zed/` — pushes to `zuraffa-zed` repo master
+- Zed extension is maintained in a separate repo (`arrrrny/zuraffa-zed`) — the publish script clones it, updates version/WASM, and pushes
 - WASM binary is rebuilt during publish for the zuraffa Zed extension
 - GitHub Actions handles binary builds for all platforms after tag push
+- The release workflow (`release.yml`) also updates the extension in `arrrrny/extensions` (fork of `zed-industries/extensions`) via `huacnlee/zed-extension-action`

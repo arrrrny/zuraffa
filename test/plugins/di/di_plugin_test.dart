@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:code_builder/code_builder.dart';
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/di/builders/registration_builder.dart';

@@ -21,6 +21,13 @@ class ViewClassSpec {
   final bool withState;
   final bool isCustom;
   final bool isStateful;
+  final bool withXRay;
+  // #359: when non-null, the view body renders the entity's mock data
+  // (a ListView over <Entity>MockData.sampleList for list views, a Card
+  // with <Entity>MockData.sample<Entity> for detail views) instead of
+  // the empty Container(). Null means the mock data file is not (yet)
+  // present on disk — the view falls back to Container() with a TODO.
+  final String? mockDataImportPath;
 
   const ViewClassSpec({
     required this.viewName,
@@ -37,7 +44,9 @@ class ViewClassSpec {
     this.entityCamel,
     this.isCustom = false,
     this.isStateful = false,
+    this.withXRay = false,
     this.stateClassName,
+    this.mockDataImportPath,
   });
 }
 
@@ -54,13 +63,29 @@ class ViewClassBuilder {
 
   static const _ignoreComment = '// ignore_for_file: no_logic_in_create_state';
 
+  /// Parses an import string, honoring an optional trailing
+  /// `hide Symbol1, Symbol2` combinator so callers can disambiguate entity
+  /// names that collide with Flutter symbols (#337).
+  static Directive _parseImport(String import) {
+    final match = RegExp('^(.*)\\s+hide\\s+(.+)\$').firstMatch(import);
+    if (match == null) {
+      return Directive.import(import);
+    }
+    return Directive(
+      (d) => d
+        ..type = DirectiveType.import
+        ..url = match.group(1)!.trim()
+        ..hide.addAll(match.group(2)!.split(',').map((s) => s.trim())),
+    );
+  }
+
   String build(ViewClassSpec spec, {String? leadingComment}) {
     if (spec.isCustom) {
       return _buildCustomView(spec, leadingComment: leadingComment);
     }
     final viewClass = _buildViewClass(spec);
     final stateClass = _buildStateClass(spec);
-    final directives = spec.imports.toSet().map(Directive.import).toList();
+    final directives = spec.imports.toSet().map(_parseImport).toList();
 
     final library = specLibrary.library(
       specs: [viewClass, stateClass],
@@ -80,9 +105,19 @@ class ViewClassBuilder {
       raw = '$comment\n$raw';
     }
 
-    return DartFormatter(
+    var formatted = DartFormatter(
       languageVersion: DartFormatter.latestLanguageVersion,
     ).format(raw);
+
+    if (spec.withXRay) {
+      final enumRaw = 'enum ${spec.viewName}Node { body }';
+      final enumFormatted = DartFormatter(
+        languageVersion: DartFormatter.latestLanguageVersion,
+      ).format(enumRaw);
+      formatted = '$formatted\n$enumFormatted';
+    }
+
+    return formatted;
   }
 
   String _buildCustomView(ViewClassSpec spec, {String? leadingComment}) {
@@ -115,14 +150,10 @@ class ViewClassBuilder {
                     ..toSuper = true,
                 ),
               )
-              ..optionalParameters.add(
-                Parameter(
-                  (p) => p
-                    ..name = 'routeObserver'
-                    ..named = true
-                    ..toSuper = true,
-                ),
-              )
+              // #343: plain StatefulWidget/StatelessWidget have no
+              // routeObserver constructor param; forwarding it produced
+              // super_formal_parameter_without_associated_named. Only
+              // entity-backed CleanView views accept routeObserver.
               ..optionalParameters.addAll(
                 spec.customParameters.map(
                   (p) => p.rebuild((b) => b..toThis = true),
@@ -167,7 +198,7 @@ class ViewClassBuilder {
         ),
     );
 
-    final directives = spec.imports.toSet().map(Directive.import).toList();
+    final directives = spec.imports.toSet().map(_parseImport).toList();
     final library = specLibrary.library(
       specs: [viewClass],
       directives: directives,
@@ -217,14 +248,10 @@ class ViewClassBuilder {
                     ..toSuper = true,
                 ),
               )
-              ..optionalParameters.add(
-                Parameter(
-                  (p) => p
-                    ..name = 'routeObserver'
-                    ..named = true
-                    ..toSuper = true,
-                ),
-              )
+              // #343: plain StatefulWidget/StatelessWidget have no
+              // routeObserver constructor param; forwarding it produced
+              // super_formal_parameter_without_associated_named. Only
+              // entity-backed CleanView views accept routeObserver.
               ..optionalParameters.addAll(
                 spec.customParameters.map(
                   (p) => p.rebuild((b) => b..toThis = true),
@@ -286,7 +313,7 @@ class ViewClassBuilder {
         ),
     );
 
-    final directives = spec.imports.toSet().map(Directive.import).toList();
+    final directives = spec.imports.toSet().map(_parseImport).toList();
     final library = specLibrary.library(
       specs: [viewClass, stateClass],
       directives: directives,
@@ -388,6 +415,18 @@ class ViewClassBuilder {
         ..body = builderBody,
     ).closure;
 
+    final scaffoldWidget = refer('Scaffold').call([], {
+      'key': refer('globalKey'),
+      'appBar': refer('AppBar').call([], {
+        'title': refer(
+          'Text',
+        ).constInstance([literalString(spec.entityName ?? spec.viewName)]),
+      }),
+      'body': refer(
+        'ControlledWidgetBuilder<${spec.controllerName}>',
+      ).call([], {'builder': builderClosure}),
+    });
+
     final viewGetter = Method(
       (m) => m
         ..name = 'view'
@@ -397,18 +436,12 @@ class ViewClassBuilder {
         ..body = Block(
           (b) => b
             ..statements.add(
-              refer('Scaffold')
-                  .call([], {
-                    'key': refer('globalKey'),
-                    'appBar': refer('AppBar').call([], {
-                      'title': refer('Text').constInstance([
-                        literalString(spec.entityName ?? spec.viewName),
-                      ]),
-                    }),
-                    'body': refer(
-                      'ControlledWidgetBuilder<${spec.controllerName}>',
-                    ).call([], {'builder': builderClosure}),
-                  })
+              (spec.withXRay
+                      ? refer('XRayScope').call([], {
+                          'viewId': literalString(spec.viewName),
+                          'child': scaffoldWidget,
+                        })
+                      : scaffoldWidget)
                   .returned
                   .statement,
             ),
@@ -444,31 +477,114 @@ class ViewClassBuilder {
   }
 
   Block _buildBuilderBody(ViewClassSpec spec) {
-    if (spec.withState) {
-      return Block(
-        (b) => b
-          ..statements.add(
-            declareFinal(
-              'viewState',
-              type: spec.stateClassName != null
-                  ? refer(spec.stateClassName!)
-                  : null,
-            ).assign(refer('controller').property('viewState')).statement,
-          )
-          ..statements.add(
-            refer('Container')
-                .call([], {
-                  'key': refer(
-                    'ValueKey',
-                  ).call([refer('viewState').property('hashCode')]),
-                })
-                .returned
-                .statement,
-          ),
+    // Build the inner widget expression based on withState
+    final Expression innerWidget;
+    final List<Code> stateDeclarations = [];
+
+    // #359: when mock data is available, render a real list/detail of
+    // entities instead of the empty Container(). The body consumes
+    // <Entity>MockData.sampleList (list views) or <Entity>MockData
+    // .sample<Entity> (detail views) — so a freshly generated app is
+    // visibly functional out of the box. The presenter/controller are
+    // still wired (the user can swap the mock list for
+    // controller.viewState once the state contract is shaped).
+    final mockAvailable =
+        spec.mockDataImportPath != null &&
+        spec.entityName != null &&
+        !spec.isCustom;
+
+    // #359: when mock data is rendered the body never references
+    // viewState, so skip the declaration — an unreferenced local would
+    // trigger an `unused_local_variable` analyzer warning in generated
+    // code. The state-backed fallback below still consumes viewState via
+    // the Container ValueKey.
+    if (spec.withState && !mockAvailable) {
+      stateDeclarations.add(
+        declareFinal(
+          'viewState',
+          type: spec.stateClassName != null
+              ? refer(spec.stateClassName!)
+              : null,
+        ).assign(refer('controller').property('viewState')).statement,
       );
     }
+
+    if (mockAvailable) {
+      innerWidget = _buildMockDataWidget(spec);
+    } else if (spec.withState) {
+      // State-aware Container with ValueKey
+      innerWidget = refer('Container').call([], {
+        'key': refer(
+          'ValueKey',
+        ).call([refer('viewState').property('hashCode')]),
+      });
+    } else {
+      // Plain Container (mock data not generated yet — fallback).
+      innerWidget = refer('Container').call([]);
+    }
+
+    // Wrap in XRayNode if enabled
+    final Expression returnedWidget = spec.withXRay
+        ? refer('XRayNode<${spec.viewName}Node>').call([], {
+            'nodeId': refer('${spec.viewName}Node.body'),
+            'child': innerWidget,
+          })
+        : innerWidget;
+
     return Block(
-      (b) => b..statements.add(refer('Container').call([]).returned.statement),
+      (b) => b
+        ..statements.addAll(stateDeclarations)
+        ..statements.add(returnedWidget.returned.statement),
     );
+  }
+
+  /// #359: Builds the mock-data-backed widget for the view body.
+  ///
+  /// - List views (view name does NOT end with `DetailView`):
+  ///   `ListView.builder(itemCount: <Entity>MockData.sampleList.length,
+  ///    itemBuilder: (ctx, i) => ListTile(title: Text(item.toString()),
+  ///    subtitle: Text('Mock #...')))`
+  /// - Detail views (view name ends with `DetailView`):
+  ///   `Center(child: Card(child: ListTile(title: Text('<Entity> detail'),
+  ///    subtitle: Text(<Entity>MockData.sample<Entity>.toString()))))`
+  Expression _buildMockDataWidget(ViewClassSpec spec) {
+    final entity = spec.entityName!;
+    final mockRef = refer('${entity}MockData');
+
+    if (spec.viewName.endsWith('DetailView')) {
+      final sampleGetter = 'sample$entity';
+      return refer('Center').call([], {
+        'child': refer('Card').call([], {
+          'child': refer('ListTile').call([], {
+            'title': refer('Text').call([literalString('$entity detail')]),
+            'subtitle': refer('Text').call([
+              mockRef.property(sampleGetter).property('toString').call([]),
+            ]),
+          }),
+        }),
+      });
+    }
+
+    // List view
+    final sampleList = mockRef.property('sampleList');
+    return refer('ListView').property('builder').call([], {
+      'itemCount': sampleList.property('length'),
+      'itemBuilder': Method(
+        (m) => m
+          ..requiredParameters.addAll([
+            Parameter((p) => p..name = 'context'),
+            Parameter((p) => p..name = 'index'),
+          ])
+          ..lambda = true
+          ..body = refer('ListTile').call([], {
+            'title': refer('Text').call([
+              sampleList.index(refer('index')).property('toString').call([]),
+            ]),
+            'subtitle': refer(
+              'Text',
+            ).call([CodeExpression(Code(r"'Mock #${index + 1}'"))]),
+          }).code,
+      ).closure,
+    });
   }
 }

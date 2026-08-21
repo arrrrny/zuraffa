@@ -13,7 +13,7 @@ import '../builders/usecase_class_builder.dart';
 
 /// Generates OS background task-based use cases for the domain layer.
 ///
-/// These use cases extend [OsBackgroundTask] and generate a static
+/// These use cases extend [OsBackgroundTaskUseCase] and generate a static
 /// `callbackHandler` suitable for workmanager registration, along
 /// with a `register()` convenience method.
 class OsBackgroundTaskGenerator {
@@ -127,12 +127,15 @@ class OsBackgroundTaskGenerator {
     );
 
     // 2. The `execute` method: business logic to be called from handler
-    final depField = dependencyFields.isNotEmpty ? dependencyFields.first.name : '';
+    final depField = dependencyFields.isNotEmpty
+        ? dependencyFields.first.name
+        : '';
     final executeBody = depField.isEmpty
         ? Block(
             (b) => b
-              ..statements
-                  .add(Code('// TODO: Implement OS background task logic'))
+              ..statements.add(
+                Code('// TODO: Implement OS background task logic'),
+              )
               ..statements.add(
                 refer('UnimplementedError')
                     .call([literalString('Implement OS background task logic')])
@@ -144,9 +147,11 @@ class OsBackgroundTaskGenerator {
             (b) => b
               ..statements.add(
                 refer(depField)
-                    .property(config.hasService
-                        ? config.getServiceMethodName()
-                        : config.getRepoMethodName())
+                    .property(
+                      config.hasService
+                          ? config.getServiceMethodName()
+                          : config.getRepoMethodName(),
+                    )
                     .call([refer('params')])
                     .awaited
                     .returned
@@ -171,7 +176,6 @@ class OsBackgroundTaskGenerator {
     );
 
     // 3. The `callbackHandler` static method (background isolate entry point)
-    // This must be referenced in your app's top-level callback dispatcher
     final handlerBody = depField.isEmpty
         ? Block(
             (b) => b
@@ -214,16 +218,16 @@ class OsBackgroundTaskGenerator {
               )
               ..statements.add(
                 Code(
-                  '// Instance dependencies ($_depField) from the main isolate are NOT available.',
+                  '// Instance dependencies ($depField) from the main isolate are NOT available.',
                 ),
               )
               ..statements.add(
-                Code(
-                  '// TODO: Reconstruct dependencies here. For example:',
-                ),
+                Code('// TODO: Reconstruct dependencies here. For example:'),
               )
               ..statements.add(Code('// final getIt = GetIt.instance;'))
-              ..statements.add(Code('// // Re-register services in background isolate'))
+              ..statements.add(
+                Code('// // Re-register services in background isolate'),
+              )
               ..statements.add(Code('// getIt.registerSingleton(...);'))
               ..statements.add(Code('// final service = getIt<...>();'))
               ..statements.add(Code('// await service.doBackgroundWork();'))

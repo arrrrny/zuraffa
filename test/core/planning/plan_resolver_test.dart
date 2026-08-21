@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:zuraffa/src/config/zfa_config.dart';
 import 'package:zuraffa/src/core/planning/plan_resolver.dart';
 import 'package:zuraffa/src/core/plugin_system/plugin_interface.dart';
@@ -24,41 +24,44 @@ void main() {
     ]);
   });
 
-  test(
-    'resolves preset, aliases, defaults, exclusions, and dependency order',
-    () {
-      final resolver = PlanResolver(
-        registry: registry,
-        config: ZfaConfig(diByDefault: true, routeByDefault: true),
-        pluginConfig: PluginConfig(disabled: {'test'}),
-      );
+  test('resolves preset, aliases, defaults, exclusions, and dependency order', () {
+    final resolver = PlanResolver(
+      registry: registry,
+      config: ZfaConfig(diByDefault: true, routeByDefault: true),
+      pluginConfig: PluginConfig(disabled: {'test'}),
+    );
 
-      final plan = resolver.resolve(
-        name: 'Product',
-        options: {
-          'preset': 'crud',
-          'with': ['vpc'],
-          'without': ['route'],
-        },
-      );
+    final plan = resolver.resolve(
+      name: 'Product',
+      options: {
+        'preset': 'crud',
+        'with': ['vpc'],
+        'without': ['route'],
+      },
+    );
 
-      expect(plan.preset, 'crud');
-      expect(
-        plan.pluginIds,
-        equals([
-          'usecase',
-          'repository',
-          'datasource',
-          'view',
-          'presenter',
-          'controller',
-          'di',
-        ]),
-      );
-      expect(plan.executionOrder, plan.pluginIds);
-      expect(plan.warnings, isEmpty);
-    },
-  );
+    expect(plan.preset, 'crud');
+    // #348: `crud` now bundles `di` (lib/src/core/planning/preset_registry.dart),
+    // so `di` is requested by the preset itself and surfaces in plan.pluginIds
+    // immediately after the data layer (usecase/repository/datasource),
+    // before the presentation layer added via `--with=vpc`. Previously `di`
+    // appeared at the tail because it was only contributed by
+    // `ZfaConfig(diByDefault: true)` after the preset+with expansion.
+    expect(
+      plan.pluginIds,
+      equals([
+        'usecase',
+        'repository',
+        'datasource',
+        'di',
+        'view',
+        'presenter',
+        'controller',
+      ]),
+    );
+    expect(plan.executionOrder, plan.pluginIds);
+    expect(plan.warnings, isEmpty);
+  });
 
   test('warns when unknown preset or plugin is requested', () {
     final resolver = PlanResolver(registry: registry);

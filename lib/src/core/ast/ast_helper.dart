@@ -420,6 +420,29 @@ class AstHelper {
     );
   }
 
+  String removeElementsFromReturnListInFunctionWhere({
+    required String source,
+    required String functionName,
+    required bool Function(String elementSource) matches,
+    bool format = true,
+  }) {
+    final parseResult = parseSource(source);
+    final unit = parseResult.unit;
+    if (unit == null) {
+      return source;
+    }
+    final functionNode = findFunction(unit, functionName);
+    if (functionNode == null) {
+      return source;
+    }
+    return AstModifier.removeElementsFromReturnListInFunctionWhere(
+      source: source,
+      functionNode: functionNode,
+      matches: matches,
+      format: format,
+    );
+  }
+
   String removeStatementFromFunction({
     required String source,
     required String functionName,

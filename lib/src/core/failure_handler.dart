@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/services.dart';
+// Pure-Dart: PlatformException replaced with ZuraffaPlatformException (see below).
 
 import 'package:zuraffa/zuraffa.dart';
 
@@ -60,13 +60,13 @@ mixin FailureHandler on Loggable {
       CancelledException e => cancellationFailure(e.message),
 
       // Platform Failures
-      PlatformException e => platformFailure(
+      ZuraffaPlatformException e => platformFailure(
         e.message ?? 'Platform error occurred',
         code: e.code,
         details: e.details,
         cause: error,
       ),
-      MissingPluginException e => unsupportedFailure(
+      ZuraffaMissingPluginException e => unsupportedFailure(
         e.message ?? 'Plugin not found',
         cause: error,
       ),
@@ -329,4 +329,32 @@ mixin FailureHandler on Loggable {
     );
     return failure;
   }
+}
+
+// ── Pure-Dart platform exception replacements ──────────────────────────
+// These mirror the Flutter services.dart exceptions so that failure_handler
+// works without any Flutter SDK dependency.
+
+/// Platform-native exception replacement (mirrors flutter/services.dart).
+class ZuraffaPlatformException implements Exception {
+  final String code;
+  final String? message;
+  final dynamic details;
+  const ZuraffaPlatformException({
+    required this.code,
+    this.message,
+    this.details,
+  });
+  @override
+  String toString() =>
+      'ZuraffaPlatformException($code, $message: ${details ?? ''})';
+}
+
+/// Missing-plugin exception replacement (mirrors flutter/services.dart).
+class ZuraffaMissingPluginException implements Exception {
+  final String? message;
+  const ZuraffaMissingPluginException([this.message]);
+  @override
+  String toString() =>
+      'ZuraffaMissingPluginException(${message ?? 'plugin not found'})';
 }

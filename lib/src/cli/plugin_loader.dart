@@ -8,6 +8,7 @@ import '../plugins/controller/controller_plugin.dart';
 import '../plugins/datasource/datasource_plugin.dart';
 import '../plugins/di/di_plugin.dart';
 import '../plugins/gql/gql_plugin.dart';
+import '../plugins/graphql/graphql_plugin.dart';
 import '../plugins/cache/cache_plugin.dart';
 import '../plugins/sync/sync_plugin.dart';
 import '../plugins/route/route_plugin.dart';
@@ -15,6 +16,7 @@ import '../plugins/provider/provider_plugin.dart';
 import '../plugins/state/state_plugin.dart';
 import '../plugins/observer/observer_plugin.dart';
 import '../plugins/test/test_plugin.dart';
+import '../plugins/gym/gym_plugin.dart';
 import '../plugins/mock/mock_plugin.dart';
 import '../plugins/api/api_plugin.dart';
 import '../plugins/method_append/method_append_plugin.dart';
@@ -26,6 +28,8 @@ import '../plugins/view/view_plugin.dart';
 import '../plugins/feature/feature_plugin.dart';
 import '../plugins/shadcn/shadcn_plugin.dart';
 import '../plugins/strategy/strategy_plugin.dart';
+import '../plugins/module/module_plugin.dart';
+import '../plugins/mcp/mcp_plugin.dart';
 
 class PluginConfig {
   final Set<String> disabled;
@@ -115,6 +119,7 @@ class PluginLoader {
       StatePlugin(outputDir: outputDir, options: options),
       ObserverPlugin(outputDir: outputDir, options: options),
       TestPlugin(outputDir: outputDir, options: options),
+      GymPlugin(outputDir: outputDir, options: options),
       MockPlugin(outputDir: outputDir, options: options),
       ApiPlugin(outputDir: outputDir, options: options),
       DiPlugin(outputDir: outputDir, options: options),
@@ -124,9 +129,12 @@ class PluginLoader {
       CachePlugin(outputDir: outputDir, options: options),
       SyncPlugin(outputDir: outputDir, options: options),
       GqlPlugin(outputDir: outputDir, options: options),
+      GraphqlPlugin(outputDir: outputDir, options: options),
       ShadcnPlugin(outputDir: outputDir, options: options),
       StrategyPlugin(outputDir: outputDir, options: options),
       MethodAppendPlugin(outputDir: outputDir, options: options),
+      ModuleGeneratorPlugin(outputDir: outputDir, options: options),
+      McpPlugin(outputDir: outputDir, options: options),
     ];
   }
 }

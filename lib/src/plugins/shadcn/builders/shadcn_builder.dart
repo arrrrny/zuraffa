@@ -108,83 +108,80 @@ class ShadcnBuilder {
     final hasFilter = data['filter'] == true;
     final hasSort = data['sort'] == true;
 
-    final buffer = StringBuffer();
-    buffer.writeln("import 'package:flutter/material.dart';");
-    buffer.writeln("import 'package:shadcn_ui/shadcn_ui.dart';");
-    buffer.writeln(entityImport);
-    buffer.writeln();
-    buffer.writeln("class ${entityName}ListWidget extends StatelessWidget {");
-    buffer.writeln("  final List<$entityName> items;");
-    if (hasFilter) buffer.writeln("  final Function(String)? onFilterChanged;");
-    if (hasSort) buffer.writeln("  final Function(String)? onSortChanged;");
-    buffer.writeln();
-    buffer.writeln("  const ${entityName}ListWidget({");
-    buffer.writeln("    super.key,");
-    buffer.writeln("    required this.items,");
-    if (hasFilter) buffer.writeln("    this.onFilterChanged,");
-    if (hasSort) buffer.writeln("    this.onSortChanged,");
-    buffer.writeln("  });");
-    buffer.writeln();
-    buffer.writeln("  @override");
-    buffer.writeln("  Widget build(BuildContext context) {");
-    buffer.writeln("    return Column(");
-    buffer.writeln("      children: [");
+    final lines = <String>[
+      "import 'package:flutter/material.dart';",
+      "import 'package:shadcn_ui/shadcn_ui.dart';",
+      entityImport,
+      '',
+      'class ${entityName}ListWidget extends StatelessWidget {',
+      '  final List<$entityName> items;',
+      if (hasFilter) '  final Function(String)? onFilterChanged;',
+      if (hasSort) '  final Function(String)? onSortChanged;',
+      '',
+      '  const ${entityName}ListWidget({',
+      '    super.key,',
+      '    required this.items,',
+      if (hasFilter) '    this.onFilterChanged,',
+      if (hasSort) '    this.onSortChanged,',
+      '  });',
+      '',
+      '  @override',
+      '  Widget build(BuildContext context) {',
+      '    return Column(',
+      '      children: [',
+    ];
 
     if (hasFilter || hasSort) {
-      buffer.writeln("        Padding(");
-      buffer.writeln("          padding: const EdgeInsets.all(8.0),");
-      buffer.writeln("          child: Row(");
-      buffer.writeln("            children: [");
-      if (hasFilter) {
-        buffer.writeln("              Expanded(");
-        buffer.writeln("                child: ShadInput(");
-        buffer.writeln(
+      lines.addAll([
+        '        Padding(',
+        '          padding: const EdgeInsets.all(8.0),',
+        '          child: Row(',
+        '            children: [',
+        if (hasFilter) ...[
+          '              Expanded(',
+          '                child: ShadInput(',
           "                  placeholder: const Text('Filter $entityName...'),",
-        );
-        buffer.writeln("                  onChanged: onFilterChanged,");
-        buffer.writeln("                ),");
-        buffer.writeln("              ),");
-      }
-      if (hasSort) {
-        buffer.writeln("              const SizedBox(width: 8),");
-        buffer.writeln("              ShadButton.outline(");
-        buffer.writeln("                child: const Text('Sort'),");
-        buffer.writeln(
+          '                  onChanged: onFilterChanged,',
+          '                ),',
+          '              ),',
+        ],
+        if (hasSort) ...[
+          '              const SizedBox(width: 8),',
+          '              ShadButton.outline(',
+          "                child: const Text('Sort'),",
           "                onPressed: () => onSortChanged?.call('name'),",
-        );
-        buffer.writeln("              ),");
-      }
-      buffer.writeln("            ],");
-      buffer.writeln("          ),");
-      buffer.writeln("        ),");
+          '              ),',
+        ],
+        '            ],',
+        '          ),',
+        '        ),',
+      ]);
     }
 
-    buffer.writeln("        Expanded(");
-    buffer.writeln("          child: ListView.builder(");
-    buffer.writeln("            itemCount: items.length,");
-    buffer.writeln("            itemBuilder: (context, index) {");
-    buffer.writeln("              final item = items[index];");
-    buffer.writeln("              return ShadCard(");
-    if (fields.isNotEmpty) {
-      buffer.writeln("                title: Text(item.${fields.keys.first}),");
-      if (fields.length > 1) {
-        buffer.writeln(
-          "                description: Text(item.${fields.keys.elementAt(1)}.toString()),",
-        );
-      }
-    } else {
-      buffer.writeln("                title: Text(item.toString()),");
-    }
-    buffer.writeln("              );");
-    buffer.writeln("            },");
-    buffer.writeln("          ),");
-    buffer.writeln("        ),");
-    buffer.writeln("      ],");
-    buffer.writeln("    );");
-    buffer.writeln("  }");
-    buffer.writeln("}");
+    lines.addAll([
+      '        Expanded(',
+      '          child: ListView.builder(',
+      '            itemCount: items.length,',
+      '            itemBuilder: (context, index) {',
+      '              final item = items[index];',
+      '              return ShadCard(',
+      if (fields.isNotEmpty) ...[
+        '                title: Text(item.${fields.keys.first}),',
+        if (fields.length > 1)
+          '                description: Text(item.${fields.keys.elementAt(1)}.toString()),',
+      ] else
+        '                title: Text(item.toString()),',
+      '              );',
+      '            },',
+      '          ),',
+      '        ),',
+      '      ],',
+      '    );',
+      '  }',
+      '}',
+    ]);
 
-    return buffer.toString();
+    return '${lines.join('\n')}\n';
   }
 
   String _generateForm(
@@ -192,75 +189,66 @@ class ShadcnBuilder {
     Map<String, String> fields,
     String entityImport,
   ) {
-    final buffer = StringBuffer();
-    buffer.writeln("import 'package:flutter/material.dart';");
-    buffer.writeln("import 'package:shadcn_ui/shadcn_ui.dart';");
-    buffer.writeln(entityImport);
-    buffer.writeln();
-    buffer.writeln("class ${entityName}FormWidget extends StatefulWidget {");
-    buffer.writeln("  final Function(Map<String, dynamic>) onSubmit;");
-    buffer.writeln();
-    buffer.writeln(
-      "  const ${entityName}FormWidget({super.key, required this.onSubmit});",
-    );
-    buffer.writeln();
-    buffer.writeln("  @override");
-    buffer.writeln(
-      "  State<${entityName}FormWidget> createState() => _${entityName}FormWidgetState();",
-    );
-    buffer.writeln("}");
-    buffer.writeln();
-    buffer.writeln(
-      "class _${entityName}FormWidgetState extends State<${entityName}FormWidget> {",
-    );
-    buffer.writeln("  final formKey = GlobalKey<ShadFormState>();");
-    buffer.writeln();
-    buffer.writeln("  @override");
-    buffer.writeln("  Widget build(BuildContext context) {");
-    buffer.writeln("    return ShadForm(");
-    buffer.writeln("      key: formKey,");
-    buffer.writeln("      child: Column(");
-    buffer.writeln("        children: [");
+    final lines = <String>[
+      "import 'package:flutter/material.dart';",
+      "import 'package:shadcn_ui/shadcn_ui.dart';",
+      entityImport,
+      '',
+      'class ${entityName}FormWidget extends StatefulWidget {',
+      '  final Function(Map<String, dynamic>) onSubmit;',
+      '',
+      '  const ${entityName}FormWidget({super.key, required this.onSubmit});',
+      '',
+      '  @override',
+      '  State<${entityName}FormWidget> createState() => _${entityName}FormWidgetState();',
+      '}',
+      '',
+      'class _${entityName}FormWidgetState extends State<${entityName}FormWidget> {',
+      '  final formKey = GlobalKey<ShadFormState>();',
+      '',
+      '  @override',
+      '  Widget build(BuildContext context) {',
+      '    return ShadForm(',
+      '      key: formKey,',
+      '      child: Column(',
+      '        children: [',
+    ];
 
     if (fields.isEmpty) {
-      buffer.writeln(
-        "          const Text('No fields found for $entityName'),",
-      );
+      lines.add("          const Text('No fields found for $entityName'),");
     } else {
       for (final entry in fields.entries) {
         final name = entry.key;
         final type = entry.value;
-        buffer.writeln("          ShadInputFormField(");
-        buffer.writeln("            id: '$name',");
-        buffer.writeln(
+        lines.add('          ShadInputFormField(');
+        lines.add("            id: '$name',");
+        lines.add(
           "            label: const Text('${StringUtils.capitalize(name)}'),",
         );
         if (type.contains('int') || type.contains('double')) {
-          buffer.writeln("            keyboardType: TextInputType.number,");
+          lines.add('            keyboardType: TextInputType.number,');
         }
-        buffer.writeln("          ),");
+        lines.add('          ),');
       }
     }
 
-    buffer.writeln("          const SizedBox(height: 16),");
-    buffer.writeln("          ShadButton(");
-    buffer.writeln("            child: const Text('Submit'),");
-    buffer.writeln("            onPressed: () {");
-    buffer.writeln(
-      "              if (formKey.currentState!.saveAndValidate()) {",
-    );
-    buffer.writeln(
-      "                widget.onSubmit(formKey.currentState!.value);",
-    );
-    buffer.writeln("              }");
-    buffer.writeln("            },");
-    buffer.writeln("          ),");
-    buffer.writeln("        ],");
-    buffer.writeln("      ),");
-    buffer.writeln("    );");
-    buffer.writeln("  }");
-    buffer.writeln("}");
+    lines.addAll([
+      '          const SizedBox(height: 16),',
+      '          ShadButton(',
+      "            child: const Text('Submit'),",
+      '            onPressed: () {',
+      '              if (formKey.currentState!.saveAndValidate()) {',
+      '                widget.onSubmit(formKey.currentState!.value);',
+      '              }',
+      '            },',
+      '          ),',
+      '        ],',
+      '      ),',
+      '    );',
+      '  }',
+      '}',
+    ]);
 
-    return buffer.toString();
+    return '${lines.join('\n')}\n';
   }
 }

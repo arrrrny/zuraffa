@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:zuraffa/src/core/api_bridge.dart';
 import 'package:zuraffa/src/core/api_endpoint.dart';
 import 'package:zuraffa/src/core/failure.dart';

@@ -1,10 +1,11 @@
 # zuraffa Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-04-17
+Auto-generated from all feature plans. Last updated: 2026-08-05
 
 ## Active Technologies
 
-- Dart 3.11+ / Flutter 3.41+ + Zuraffa framework, Zorphy entity generation, GetIt DI, GoRouter navigation, Hive local storage for mock data persistence (001-hotel-booking-system)
+- Dart 3.11+ (pure Dart) / Flutter 3.41+ / Zuraffa framework, Zorphy entity generation, GetIt DI, GoRouter navigation, Hive local storage for mock data persistence (001-hotel-booking-system)
+- **Two-package architecture**: `zuraffa` (pure Dart core) + `zuraffa_flutter` (Flutter UI layer). Pure Dart apps depend on zuraffa only.
 
 ## Code Search
 
@@ -22,9 +23,9 @@ Dart 3.11+ / Flutter 3.41+: Follow standard conventions
 
 ## Recent Changes
 
-- 004-fix-zuraffa-gen: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
+- 014-pure-dart-core-split: Split zuraffa into pure-Dart core (no Flutter SDK dependency) + zuraffa_flutter UI package with ZuraffaFlutterPlugin. CLI, MCP server, and code generators remain pure Dart. See specs/014-pure-dart-core-split/spec.md.
 
-- 001-hotel-booking-system: Added Dart 3.11+ / Flutter 3.41+ + Zuraffa framework, Zorphy entity generation, GetIt DI, GoRouter navigation, Hive local storage for mock data persistence
+- 013-plugin-usecase-abstraction: Added DI override support (`override: true` on ZuraffaDIContainer), UseCase interceptor pipeline (InterceptorRegistry, InterceptableUseCase), UseCase contract codegen (UseCaseContractFactory), and `zfa plugin add` CLI action.
 
 <!-- MANUAL ADDITIONS START -->
 ## OpenWiki

@@ -9,10 +9,11 @@ import 'src/core/otel_failure_reporter.dart';
 import 'src/core/otel_log_exporter.dart';
 import 'src/core/retry_policy.dart';
 import 'src/core/zuraffa_bridge_facade.dart';
+import 'src/core/module/contracts.dart';
 
 /// Zuraffa
 ///
-/// A comprehensive Clean Architecture framework for Flutter applications
+/// A comprehensive Clean Architecture framework for Dart and Flutter applications
 /// with Result-based error handling, dependency injection, and minimal boilerplate.
 ///
 /// ## Overview
@@ -119,21 +120,15 @@ import 'src/core/zuraffa_bridge_facade.dart';
 /// }
 /// ```
 
-import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
-import 'package:provider/provider.dart';
-
-import 'src/presentation/controller.dart';
 
 // ============================================================
 // Core - Error Handling & Utilities
 // ============================================================
 
 /// Re-exported essential packages so users don't need separate dependencies
-export 'package:go_router/go_router.dart';
 export 'package:get_it/get_it.dart';
 export 'package:hive_ce/hive_ce.dart';
-export 'package:hive_ce_flutter/hive_ce_flutter.dart';
 
 /// Result type for type-safe success/failure handling
 export 'src/core/result.dart';
@@ -258,7 +253,10 @@ export 'src/core/builder/patterns/usecase_patterns.dart';
 export 'src/core/builder/patterns/repository_patterns.dart';
 export 'src/core/builder/patterns/vpc_patterns.dart';
 export 'src/core/builder/shared/spec_library.dart';
-export 'src/core/plugin_system/plugin_interface.dart';
+// Hide the code-generation plugin interface to avoid naming collision with
+// the micro-frontend runtime contract (src/core/module/zuraffa_plugin.dart).
+// CLI commands and internal code can still import plugin_interface.dart directly.
+export 'src/core/plugin_system/plugin_interface.dart' hide ZuraffaPlugin;
 export 'src/core/plugin_system/plugin_lifecycle.dart';
 export 'src/core/plugin_system/plugin_registry.dart';
 export 'src/core/transaction/file_operation.dart';
@@ -308,40 +306,24 @@ export 'src/domain/observer.dart';
 // ============================================================
 
 /// Controller for state management
-export 'src/presentation/controller.dart';
 
 /// Presenter for complex orchestration (optional)
-export 'src/presentation/presenter.dart';
 
 /// CleanView and CleanViewState base classes
-export 'src/presentation/view.dart';
 
 /// ResponsiveViewState for responsive layouts
-export 'src/presentation/responsive_view.dart';
 
 /// AdaptiveViewState for platform/device-aware layouts
-export 'src/presentation/adaptive_view.dart';
 
 /// ControlledWidgetBuilder and variants
-export 'src/presentation/controlled_widget.dart';
 
 // ============================================================
 // Platform-Aware Presentation
 // ============================================================
 
 /// Device and platform classification for adaptive layouts
-export 'src/presentation/platform/device_class.dart';
-export 'src/presentation/platform/platform_class.dart';
-export 'src/presentation/platform/platform_context.dart';
-export 'src/presentation/platform/platform_layout_resolver.dart';
 
 /// Adaptive application shells
-export 'src/presentation/shells/app_shell.dart';
-export 'src/presentation/shells/app_shell_resolver.dart';
-export 'src/presentation/shells/mobile_app_shell.dart';
-export 'src/presentation/shells/tablet_app_shell.dart';
-export 'src/presentation/shells/desktop_app_shell.dart';
-export 'src/presentation/shells/macos_app_shell.dart';
 
 // ============================================================
 // Extensions
@@ -420,6 +402,31 @@ export 'src/core/di/zuraffa_container.dart';
 /// DIPlugin — DDA plugin for @Datasource/@Repository processing.
 export 'src/dda/plugins/di/di_plugin.dart';
 
+/// Route annotation — @ZfaRoute, ZuraffaRouteGuard, RouteParams base classes.
+export 'src/dda/plugins/route/route_annotation.dart';
+
+/// RouteDDAPlugin — DDA plugin for @Route annotation processing.
+export 'src/dda/plugins/route/route_plugin.dart';
+
+/// RouteGenerator — GoRouter configuration generation from @Route metadata.
+export 'src/dda/plugins/route/route_generator.dart';
+
+/// CacheStrategy enum, @Cacheable and @CacheInvalidate annotations.
+export 'src/dda/plugins/cache/cache_annotation.dart';
+
+/// CacheDDAPlugin — DDA plugin for @Cacheable/@CacheInvalidate processing.
+export 'src/dda/plugins/cache/cache_plugin.dart';
+
+/// CacheGenerator — generates zfa_cache.g.dart from @Cacheable metadata.
+export 'src/dda/plugins/cache/cache_generator.dart';
+export 'src/dda/plugins/middleware/middleware_annotation.dart';
+export 'src/dda/plugins/middleware/auth_plugin.dart';
+export 'src/dda/plugins/middleware/auth_generator.dart';
+export 'src/dda/plugins/middleware/retry_plugin.dart';
+export 'src/dda/plugins/middleware/retry_generator.dart';
+export 'src/dda/plugins/middleware/track_event_plugin.dart';
+export 'src/dda/plugins/middleware/track_event_generator.dart';
+
 /// DIGenerator — code_builder-based DI registration generation.
 export 'src/dda/plugins/di/di_generator.dart';
 
@@ -434,10 +441,14 @@ export 'src/state/slices/signal_slice.dart';
 export 'src/state/presenter/slice_presenter.dart';
 
 // FragmentBuilder — widget subscribing to a single slice.
-export 'src/state/widgets/fragment_builder.dart';
 
 // StateMigrator — converts v5 .state.dart to v6 slice pattern.
-export 'src/state/migration/state_migrator.dart';
+// The StateMigrator class is hidden from public API but remains accessible
+// to migration and doctor commands via direct import.
+export 'src/state/migration/state_migrator.dart' hide StateMigrator;
+
+// v5 -> v6 migration tooling
+export 'src/migration/migration.dart';
 
 // DomainState — auto-generated read-only slice container.
 export 'src/state/domain_state.dart';
@@ -461,10 +472,8 @@ export 'src/state/cache/cache_binding.dart';
 export 'src/state/generator/cache_binding_generator.dart';
 
 // ControlledWidget — base widget with typed controller and lifecycle hooks.
-export 'src/state/widgets/controlled_widget.dart';
 
 // SignalBuilder — rebuilds on pure UI Signal changes.
-export 'src/state/widgets/signal_builder.dart';
 
 // ViewTemplateGenerator — generates ControlledWidget-based views.
 export 'src/state/generator/view_template_generator.dart';
@@ -487,6 +496,102 @@ export 'src/graphql/mapping/type_mapper.dart';
 
 // DocumentBuilder — query/mutation/subscription document generation.
 export 'src/graphql/document/document_builder.dart';
+
+// GraphQLDocumentBuilder — AST-based .graphql file generation via package:gql.
+export 'src/graphql/gql/graphql_document_builder.dart';
+
+// DocumentsDartGenerator — documents.dart with DocumentNode constants.
+export 'src/graphql/gql/documents_dart_generator.dart';
+
+// NamingUtils — shared naming utilities for consistent variable naming.
+export 'src/graphql/gql/naming_utils.dart';
+
+// GraphQLValidator — validates documents against the cached schema.
+export 'src/graphql/validators/graphql_validator.dart';
+
+// GqlFilePreserver — preserves valid user-edited .graphql files.
+export 'src/graphql/preservers/gql_file_preserver.dart';
+
+// ============================================================
+// V6 GraphQL Client Runtime & Subscriptions
+// ============================================================
+
+// GraphQLClientFactory — assembles GraphQLClient from .zfa.json config.
+export 'src/graphql/client/graphql_client_factory.dart';
+
+// GraphQLClientProvider — singleton lazily-built client provider.
+export 'src/graphql/client/graphql_client_provider.dart';
+
+// SubscriptionStream — GraphQL subscription -> SignalResult streams.
+export 'src/graphql/client/subscription_stream.dart';
+
+// ============================================================
+// V6 GraphQL Codegen — Schema-to-Full-Stack Generation
+// ============================================================
+
+// EntityGenerator — GraphQL OBJECT types -> zorphy $Entity classes.
+export 'src/graphql/codegen/entity_generator.dart';
+
+// DtoGenerator — GraphQL INPUT types -> DTO classes.
+export 'src/graphql/codegen/dto_generator.dart';
+
+// UnionGenerator — GraphQL UNION types -> sealed class hierarchies.
+export 'src/graphql/codegen/union_generator.dart';
+
+// DatasourceGenerator — package:graphql remote datasource.
+export 'src/graphql/codegen/datasource_generator.dart';
+
+// RepositoryGenerator — interface + impl delegating to datasource.
+export 'src/graphql/codegen/repository_generator.dart';
+
+// DiGenerator — ZuraffaContainer registrations.
+export 'src/graphql/codegen/di_generator.dart';
+
+// SliceOrchestrator — orchestrates all generators for a schema slice.
+export 'src/graphql/codegen/slice_orchestrator.dart';
+
+// ErrorMappingConfig — .zfa.json graphql.errorMapping -> AppFailure mapping.
+export 'src/graphql/codegen/error_mapping_config.dart';
+
+// UnionResultHandler — union result -> AppFailure/SignalResult codegen.
+export 'src/graphql/codegen/union_result_handler.dart';
+
+// GraphqlGenerateCommand — `zfa graphql generate` command class.
+export 'src/graphql/codegen/graphql_generate_command.dart';
+
+// GraphQL introspection — fetch and parse remote schemas.
+export 'src/graphql/graphql_introspection_service.dart';
+export 'src/graphql/graphql_schema.dart';
+export 'src/graphql/graphql_schema_translator.dart';
+export 'src/graphql/graphql_entity_emitter.dart';
+
+// ============================================================
+// Micro-Frontend Module System (v6)
+// ============================================================
+
+/// Runtime contracts for the micro-frontend plugin architecture (Dart-only parts).
+/// [ZuraffaPlugin], [ZuraffaEngine], [ZuraffaDIContainer], and
+/// [ZuraffaRouteHandler] ship here.
+/// [ZuraffaRouteBuilder] (Widget-returning) and [ZuraffaAppRunner] are in zuraffa_flutter.
+export 'src/core/module/route_builder.dart';
+export 'src/core/module/di_container.dart';
+export 'src/core/module/engine.dart';
+export 'src/core/module/zuraffa_plugin.dart';
+
+// ============================================================
+// MCP Plugin (issue #369) — runtime tool exposure
+// ============================================================
+
+/// Runtime MCP tool contracts: [McpTool], [McpToolResult],
+/// [McpToolRegistry], [McpServerPlugin], [McpStdioServer], and
+/// [McpSseServer].
+/// Together they let a Zuraffa app expose its features as
+/// Model Context Protocol tools callable by AI agents.
+export 'src/core/module/mcp_tool.dart';
+export 'src/core/module/mcp_tool_registry.dart';
+export 'src/core/module/mcp_server_plugin.dart';
+export 'src/core/module/mcp_stdio_server.dart';
+export 'src/mcp/sse_server.dart' show McpSseServer;
 
 // ============================================================
 // Framework Configuration
@@ -608,36 +713,6 @@ class Zuraffa {
       case ZuraffaLogLevel.off:
         return Level.OFF;
     }
-  }
-
-  /// Retrieve a [Controller] from the widget tree.
-  ///
-  /// Use this to access a Controller from widgets that are children
-  /// of a [CleanViewState].
-  ///
-  /// Set [listen] to `false` if you don't need to rebuild when the
-  /// Controller changes (e.g., for event handlers).
-  ///
-  /// ## Example
-  /// ```dart
-  /// // In a child widget
-  /// final controller = Zuraffa.getController<MyController>(context);
-  /// controller.doSomething();
-  ///
-  /// // Without listening (for callbacks)
-  /// onPressed: () {
-  ///   final controller = Zuraffa.getController<MyController>(
-  ///     context,
-  ///     listen: false,
-  ///   );
-  ///   controller.handleButtonPress();
-  /// }
-  /// ```
-  static Con getController<Con extends Controller>(
-    BuildContext context, {
-    bool listen = true,
-  }) {
-    return Provider.of<Con>(context, listen: listen);
   }
 
   /// Enable debug logging for the framework.
@@ -1009,6 +1084,44 @@ class Zuraffa {
   /// debug mode, performance profiling).
   static set hooksEnabled(bool value) {
     HookRegistry.instance.isEnabled = value;
+  }
+
+  // ============================================================
+  // Interceptors (UseCase pipeline)
+  // ============================================================
+
+  /// Global interceptor registry for UseCase pipelines.
+  ///
+  /// Use [registerInterceptor] to add interceptors. The registry
+  /// is keyed by UseCase input type.
+  static final interceptorRegistry = InterceptorRegistry();
+
+  /// Register a UseCase interceptor for input type [In] and output
+  /// type [Out].
+  ///
+  /// Interceptors run in registration order. Each receives the
+  /// original request and a `next` function to continue the chain.
+  ///
+  /// ## Example
+  /// ```dart
+  /// Zuraffa.registerInterceptor<String, User>(
+  ///   InterceptorEntry(
+  ///     name: 'cache',
+  ///     handler: (request, next) {
+  ///       final cached = cache.get(request);
+  ///       if (cached != null) return SignalResult.success(cached);
+  ///       return next(request);
+  ///     },
+  ///   ),
+  /// );
+  /// ```
+  static void registerInterceptor<In, Out>(InterceptorEntry<In, Out> entry) {
+    interceptorRegistry.register<In, Out>(entry);
+  }
+
+  /// Clear all registered interceptors.
+  static void clearInterceptors() {
+    interceptorRegistry.clear();
   }
 
   // ============================================================

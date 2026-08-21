@@ -287,3 +287,69 @@ extension FutureResultExtensions<S, F> on Future<Result<S, F>> {
     return (await this).fold(onSuccess, onFailure);
   }
 }
+
+/// A loading/ pending result state.
+///
+/// [LoadingResult] is neither a [Success] nor a [Failure] — it represents an
+/// in-progress async operation. Use it with [SignalResult] to model loading
+/// states without nullable workaround.
+///
+/// Equality is based on the idle/loading distinction so that [Signal] can
+/// deduplicate redundant emissions.
+class LoadingResult<S, F> extends Result<S, F> {
+  const LoadingResult.loading() : _idle = false;
+  const LoadingResult.idle() : _idle = true;
+
+  final bool _idle;
+
+  /// Whether this is an idle (not yet started) loading state.
+  bool get isIdle => _idle;
+
+  @override
+  T fold<T>(T Function(S value) onSuccess, T Function(F error) onFailure) {
+    throw StateError('Cannot fold a LoadingResult');
+  }
+
+  @override
+  Result<T, F> map<T>(T Function(S value) transform) =>
+      _idle ? LoadingResult<T, F>.idle() : LoadingResult<T, F>.loading();
+
+  @override
+  Result<S, T> mapFailure<T>(T Function(F error) transform) =>
+      _idle ? LoadingResult<S, T>.idle() : LoadingResult<S, T>.loading();
+
+  @override
+  Result<T, F> flatMap<T>(Result<T, F> Function(S value) transform) =>
+      _idle ? LoadingResult<T, F>.idle() : LoadingResult<T, F>.loading();
+
+  @override
+  S getOrElse(S Function() defaultValue) => defaultValue();
+
+  @override
+  S? getOrNull() => null;
+
+  @override
+  S getOrThrow() => throw StateError('Cannot call getOrThrow on LoadingResult');
+
+  @override
+  F? getFailureOrNull() => null;
+
+  @override
+  Result<S, F> onSuccess(void Function(S value) action) => this;
+
+  @override
+  Result<S, F> onFailure(void Function(F error) action) => this;
+
+  @override
+  String toString() => _idle ? 'LoadingResult.idle' : 'LoadingResult.loading';
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LoadingResult<S, F> &&
+          runtimeType == other.runtimeType &&
+          _idle == other._idle);
+
+  @override
+  int get hashCode => _idle.hashCode;
+}

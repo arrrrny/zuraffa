@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:zuraffa/zuraffa.dart';
 import 'package:code_builder/code_builder.dart' as cb;
 

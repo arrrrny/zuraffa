@@ -14,11 +14,18 @@ part of 'create_params.dart';
   genericArgumentFactories: true,
 )
 class CreateParams<T> extends Params {
+  const CreateParams({Map<String, dynamic>? this.params, required T this.data})
+    : super();
+
+  factory CreateParams.fromJson(
+    Map<String, dynamic> json,
+    T Function(Object? json) fromJsonT,
+  ) => _$CreateParamsFromJson(json, fromJsonT);
+
   @override
   final Map<String, dynamic>? params;
-  final T data;
 
-  const CreateParams({this.params, required this.data}) : super();
+  final T data;
 
   CreateParams copyWith({Map<String, dynamic>? params, T? data}) {
     return CreateParams(params: params ?? this.params, data: data ?? this.data);
@@ -28,23 +35,25 @@ class CreateParams<T> extends Params {
     return copyWith(params: params, data: data);
   }
 
-  CreateParams patchWithCreateParams({CreateParamsPatch? patchInput}) {
+  CreateParams patchWithCreateParams([CreateParamsPatch? patchInput]) {
     final _patcher = patchInput ?? CreateParamsPatch();
     final _patchMap = _patcher.patchMap;
     return CreateParams(
       params: _patchMap.containsKey(CreateParams$.params)
-          ? (_patchMap[CreateParams$.params] is Function)
-                ? _patchMap[CreateParams$.params](this.params)
-                : (_patchMap[CreateParams$.params] is Patch)
-                ? _patchMap[CreateParams$.params].applyTo(this.params)
-                : _patchMap[CreateParams$.params]
+          ? ((_patchMap[CreateParams$.params] is Function)
+                    ? _patchMap[CreateParams$.params](this.params)
+                    : (_patchMap[CreateParams$.params] is Patch)
+                    ? _patchMap[CreateParams$.params].applyTo(this.params)
+                    : _patchMap[CreateParams$.params])
+                as Map<String, dynamic>?
           : this.params,
       data: _patchMap.containsKey(CreateParams$.data)
-          ? (_patchMap[CreateParams$.data] is Function)
-                ? _patchMap[CreateParams$.data](this.data)
-                : (_patchMap[CreateParams$.data] is Patch)
-                ? _patchMap[CreateParams$.data].applyTo(this.data)
-                : _patchMap[CreateParams$.data]
+          ? ((_patchMap[CreateParams$.data] is Function)
+                    ? _patchMap[CreateParams$.data](this.data)
+                    : (_patchMap[CreateParams$.data] is Patch)
+                    ? _patchMap[CreateParams$.data].applyTo(this.data)
+                    : _patchMap[CreateParams$.data])
+                as T
           : this.data,
     );
   }
@@ -66,12 +75,6 @@ class CreateParams<T> extends Params {
   String toString() {
     return 'CreateParams(' + 'params: ${params}' + ', ' + 'data: ${data})';
   }
-
-  /// Creates a [CreateParams] instance from JSON
-  factory CreateParams.fromJson(
-    Map<String, dynamic> json,
-    T Function(Object? json) fromJsonT,
-  ) => _$CreateParamsFromJson(json, fromJsonT);
 }
 
 extension CreateParamsPropertyHelpers<T> on CreateParams<T> {}
@@ -79,29 +82,13 @@ extension CreateParamsPropertyHelpers<T> on CreateParams<T> {}
 extension CreateParamsSerialization<T> on CreateParams<T> {
   Map<String, dynamic> toJson(Object? Function(T value) toJsonT) =>
       _$CreateParamsToJson(this, toJsonT);
-  Map<String, dynamic> toJsonLean(Object? Function(T value) toJsonT) {
-    final Map<String, dynamic> data = _$CreateParamsToJson(this, toJsonT);
-    return _sanitizeJson(data);
-  }
-
-  dynamic _sanitizeJson(dynamic json) {
-    if (json is Map<String, dynamic>) {
-      json.remove('__typename');
-      return json..forEach((key, value) {
-        json[key] = _sanitizeJson(value);
-      });
-    } else if (json is List) {
-      return json.map((e) => _sanitizeJson(e)).toList();
-    }
-    return json;
-  }
 }
 
 enum CreateParams$ { params, data }
 
 class CreateParamsPatch extends PatchBase<CreateParams, CreateParams$> {
   CreateParams applyTo(CreateParams entity) {
-    return entity.patchWithCreateParams(patchInput: this);
+    return entity.patchWithCreateParams(this);
   }
 
   CreateParamsPatch withParams(Map<String, dynamic>? value) {
@@ -116,13 +103,22 @@ class CreateParamsPatch extends PatchBase<CreateParams, CreateParams$> {
 }
 
 /// Field descriptors for [CreateParams] query construction
-abstract final class CreateParamsFields {
-  static Map<String, dynamic>? _$getparams<T>(CreateParams<T> e) => e.params;
-  static Field<CreateParams<T>, Map<String, dynamic>?> params<T>() =>
-      Field<CreateParams<T>, Map<String, dynamic>?>('params', _$getparams<T>);
-  static T _$getdata<T>(CreateParams<T> e) => e.data;
-  static Field<CreateParams<T>, T> data<T>() =>
-      Field<CreateParams<T>, T>('data', _$getdata<T>);
+abstract final class CreateParamsFields<T> {
+  static Map<String, dynamic>? _$params<T>(CreateParams<T> e) {
+    return e.params;
+  }
+
+  static Field<CreateParams<T>, Map<String, dynamic>?> params<T>() {
+    return Field<CreateParams<T>, Map<String, dynamic>?>('params', _$params<T>);
+  }
+
+  static T _$data<T>(CreateParams<T> e) {
+    return e.data;
+  }
+
+  static Field<CreateParams<T>, T> data<T>() {
+    return Field<CreateParams<T>, T>('data', _$data<T>);
+  }
 }
 
 extension CreateParamsCompareE on CreateParams {
@@ -132,6 +128,7 @@ extension CreateParamsCompareE on CreateParams {
     if (params != other.params) {
       diff['params'] = () => other.params;
     }
+
     if (data != other.data) {
       diff['data'] = () => other.data;
     }

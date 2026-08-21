@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 
-import 'package:flutter/foundation.dart' show kProfileMode, kReleaseMode;
+// Pure-Dart replacement: no Flutter dependency needed.
 import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
 
@@ -46,7 +46,7 @@ class _StreamRecord {
 /// ## Release mode safety
 ///
 /// `init()` and all generated `register*ApiBridge()` functions guard with
-/// `if (kReleaseMode) return;` as their very first statement.  No extension
+/// `if (const bool.fromEnvironment('dart.vm.product')) return;` as their very first statement.  No extension
 /// is ever registered in release builds.
 ///
 /// ## Profile mode opt-in
@@ -73,10 +73,13 @@ class ZuraffaApiBridge {
   /// No-op in release mode or if already called.
   static void init() {
     // Release builds never expose extensions — non-negotiable.
-    if (kReleaseMode) return;
+    if (const bool.fromEnvironment('dart.vm.product')) return;
 
     // Profile mode is opt-in via Zuraffa.enableApiInProfile.
-    if (kProfileMode && !ZuraffaBridgeFacade.enableApiInProfile) return;
+    if (const bool.fromEnvironment('dart.vm.profile') &&
+        !ZuraffaBridgeFacade.enableApiInProfile) {
+      return;
+    }
 
     // Idempotent — calling init() twice must be harmless.
     if (_initialized) return;

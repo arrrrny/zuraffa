@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import '../core/loggable.dart';
 import '../core/params/no_params.dart';
 import 'os_background_task.dart';
@@ -17,7 +15,7 @@ import 'os_background_task.dart';
 ///   APIs), or any main-isolate-only resources.
 /// - **iOS/macOS**: Runs in the app's background handler with a limited
 ///   time budget (~30 s for refresh, minutes for BGProcessingTask).
-/// - **Web**: Not supported; calling [register] is a no-op.
+/// - **Desktop / Web**: Not supported; calling [register] is a no-op.
 ///
 /// ## CRITICAL: Background Isolate Dispatch
 ///
@@ -123,5 +121,3 @@ abstract class OsBackgroundTaskUseCase<T> with Loggable {
     return OsBackgroundTask.cancel(descriptor.identifier);
   }
 }
-
-
