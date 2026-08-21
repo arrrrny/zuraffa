@@ -71,19 +71,27 @@ void main() {
       }
     });
 
-    test('--help still works and documents the build command', () async {
-      final proc = await startZfa([
-        'build',
-        '--help',
-      ], workingDirectory: workspace.path);
-      final stdout = await proc.stdout.transform(systemEncoding.decoder).join();
-      final stderr = await proc.stderr.transform(systemEncoding.decoder).join();
-      final code = await proc.exitCode;
-      expect(code, 0, reason: stderr);
-      expect(stdout, contains('Run zuraffa_build'));
-      // build.yaml scaffolding is automatic; no flag for it.
-      expect(stdout, isNot(contains('--build-yaml')));
-    }, timeout: const Timeout(Duration(minutes: 1)));
+    test(
+      '--help still works and documents the build command',
+      () async {
+        final proc = await startZfa([
+          'build',
+          '--help',
+        ], workingDirectory: workspace.path);
+        final stdout = await proc.stdout
+            .transform(systemEncoding.decoder)
+            .join();
+        final stderr = await proc.stderr
+            .transform(systemEncoding.decoder)
+            .join();
+        final code = await proc.exitCode;
+        expect(code, 0, reason: stderr);
+        expect(stdout, contains('Run zuraffa_build'));
+        // build.yaml scaffolding is automatic; no flag for it.
+        expect(stdout, isNot(contains('--build-yaml')));
+      },
+      timeout: const Timeout(Duration(minutes: 1)),
+    );
 
     test(
       'dry-run reports it would scaffold build.yaml when missing (#276)',
