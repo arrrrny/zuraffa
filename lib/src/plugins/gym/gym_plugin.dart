@@ -144,11 +144,7 @@ class GymPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
 
     final fs = context?.fileSystem ?? fileSystem;
     final builder = context != null
-        ? GymBuilder(
-            outputDir: outputDir,
-            options: options,
-            fileSystem: fs,
-          )
+        ? GymBuilder(outputDir: outputDir, options: options, fileSystem: fs)
         : gymBuilder;
 
     return builder.generateArtifact(config);
@@ -251,9 +247,7 @@ class GymPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         .map((m) {
           final cn = m.group(1);
           if (cn == null) return null;
-          return cn.endsWith('UseCase')
-              ? cn.substring(0, cn.length - 7)
-              : cn;
+          return cn.endsWith('UseCase') ? cn.substring(0, cn.length - 7) : cn;
         })
         .whereType<String>()
         .toList();

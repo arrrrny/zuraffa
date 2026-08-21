@@ -50,10 +50,7 @@ void main() {
     test('configSchema is an empty object for v1', () {
       final plugin = GymPlugin(outputDir: outputDir);
       expect(plugin.configSchema['type'], equals('object'));
-      expect(
-        (plugin.configSchema['properties'] as Map).isEmpty,
-        isTrue,
-      );
+      expect((plugin.configSchema['properties'] as Map).isEmpty, isTrue);
     });
 
     test('extends FileGeneratorPlugin and implements CliAwarePlugin', () {
@@ -92,46 +89,54 @@ void main() {
   });
 
   group('GymPlugin.generateWithContext', () {
-    test('emits the gym/ artifact per entity (warmup + exercise + yaml)',
-        () async {
-      final plugin = GymPlugin(
-        outputDir: outputDir,
-        options: const GeneratorOptions(dryRun: false, force: true),
-      );
-
-      final context = PluginContext(
-        core: CoreConfig(
-          name: 'Product',
-          projectRoot: tempDir.path,
+    test(
+      'emits the gym/ artifact per entity (warmup + exercise + yaml)',
+      () async {
+        final plugin = GymPlugin(
           outputDir: outputDir,
-        ),
-        discovery: DiscoveryEngine(projectRoot: outputDir),
-      );
+          options: const GeneratorOptions(dryRun: false, force: true),
+        );
 
-      final results = await plugin.generateWithContext(context);
+        final context = PluginContext(
+          core: CoreConfig(
+            name: 'Product',
+            projectRoot: tempDir.path,
+            outputDir: outputDir,
+          ),
+          discovery: DiscoveryEngine(projectRoot: outputDir),
+        );
 
-      // 4 files: 2 warmup reps + 1 exercise + 1 gym.yaml
-      expect(results, hasLength(4));
+        final results = await plugin.generateWithContext(context);
 
-      final paths = results.map((f) => f.path).toList();
-      expect(
-        paths,
-        containsAll([
-          p.join(tempDir.path, 'gym', 'warmup', '01-smoke.dart'),
-          p.join(tempDir.path, 'gym', 'warmup', '02-build.dart'),
-          p.join(tempDir.path, 'gym', 'exercise-implement-feature.dart'),
-          p.join(tempDir.path, 'gym', 'gym.yaml'),
-        ]),
-      );
+        // 4 files: 2 warmup reps + 1 exercise + 1 gym.yaml
+        expect(results, hasLength(4));
 
-      // Every file was actually written to disk.
-      for (final file in results) {
-        expect(File(file.path).existsSync(), isTrue,
-            reason: '${file.path} should exist on disk');
-        expect(file.action, equals('created'),
-            reason: '${file.path} should be created (force=true)');
-      }
-    });
+        final paths = results.map((f) => f.path).toList();
+        expect(
+          paths,
+          containsAll([
+            p.join(tempDir.path, 'gym', 'warmup', '01-smoke.dart'),
+            p.join(tempDir.path, 'gym', 'warmup', '02-build.dart'),
+            p.join(tempDir.path, 'gym', 'exercise-implement-feature.dart'),
+            p.join(tempDir.path, 'gym', 'gym.yaml'),
+          ]),
+        );
+
+        // Every file was actually written to disk.
+        for (final file in results) {
+          expect(
+            File(file.path).existsSync(),
+            isTrue,
+            reason: '${file.path} should exist on disk',
+          );
+          expect(
+            file.action,
+            equals('created'),
+            reason: '${file.path} should be created (force=true)',
+          );
+        }
+      },
+    );
 
     test('warmup smoke rep references the entity and its UseCase', () async {
       final plugin = GymPlugin(
@@ -160,38 +165,40 @@ void main() {
       expect(content, contains('dart run gym/warmup/01-smoke.dart'));
     });
 
-    test('gym.yaml is a machine-readable spec the runner can consume',
-        () async {
-      final plugin = GymPlugin(
-        outputDir: outputDir,
-        options: const GeneratorOptions(dryRun: false, force: true),
-      );
-
-      final context = PluginContext(
-        core: CoreConfig(
-          name: 'Product',
-          projectRoot: tempDir.path,
+    test(
+      'gym.yaml is a machine-readable spec the runner can consume',
+      () async {
+        final plugin = GymPlugin(
           outputDir: outputDir,
-        ),
-        discovery: DiscoveryEngine(projectRoot: outputDir),
-      );
+          options: const GeneratorOptions(dryRun: false, force: true),
+        );
 
-      final results = await plugin.generateWithContext(context);
-      final yaml = results.firstWhere((f) => f.path.endsWith('gym.yaml'));
-      final content = yaml.content ?? '';
+        final context = PluginContext(
+          core: CoreConfig(
+            name: 'Product',
+            projectRoot: tempDir.path,
+            outputDir: outputDir,
+          ),
+          discovery: DiscoveryEngine(projectRoot: outputDir),
+        );
 
-      // The miki GYM runner (gym.mjs) consumes these top-level keys.
-      expect(content, contains('name: product'));
-      expect(content, contains('version: 1.0.0'));
-      expect(content, contains('warmup:'));
-      expect(content, contains('exercises:'));
-      expect(content, contains('id: 01-smoke'));
-      expect(content, contains('id: 02-build'));
-      expect(content, contains('id: implement-feature'));
-      expect(content, contains('verifyCommand:'));
-      expect(content, contains('evaluate:'));
-      expect(content, contains('flutter test test/product/'));
-    });
+        final results = await plugin.generateWithContext(context);
+        final yaml = results.firstWhere((f) => f.path.endsWith('gym.yaml'));
+        final content = yaml.content ?? '';
+
+        // The miki GYM runner (gym.mjs) consumes these top-level keys.
+        expect(content, contains('name: product'));
+        expect(content, contains('version: 1.0.0'));
+        expect(content, contains('warmup:'));
+        expect(content, contains('exercises:'));
+        expect(content, contains('id: 01-smoke'));
+        expect(content, contains('id: 02-build'));
+        expect(content, contains('id: implement-feature'));
+        expect(content, contains('verifyCommand:'));
+        expect(content, contains('evaluate:'));
+        expect(content, contains('flutter test test/product/'));
+      },
+    );
 
     test('returns no files when generateGym is false', () async {
       final plugin = GymPlugin(
@@ -234,8 +241,11 @@ void main() {
       // Now revert: should delete the files.
       final revertPlugin = GymPlugin(
         outputDir: outputDir,
-        options:
-            const GeneratorOptions(dryRun: false, force: true, revert: true),
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          revert: true,
+        ),
       );
       final revertConfig = GeneratorConfig(
         name: 'Product',
@@ -245,8 +255,11 @@ void main() {
       );
       await revertPlugin.generate(revertConfig);
 
-      expect(gymYaml.existsSync(), isFalse,
-          reason: 'gym.yaml should be deleted on revert');
+      expect(
+        gymYaml.existsSync(),
+        isFalse,
+        reason: 'gym.yaml should be deleted on revert',
+      );
     });
   });
 
