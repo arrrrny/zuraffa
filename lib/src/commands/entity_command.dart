@@ -227,6 +227,8 @@ ${missing.map((d) => '   • $d').join('\n')}
       dryRun: parsed['dry_run'] as bool? ?? false,
       autoId: parsed['auto_id'] == true,
       kind: _parseKind(parsed['kind'] as String?),
+      typeKey: parsed['type_key'] as String?,
+      subtypeWireValue: parsed['subtype_wire_value'] as String?,
     );
 
     final creator = EntityCreator(baseOutputDir: outputDir);
