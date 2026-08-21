@@ -12,7 +12,6 @@ import 'generators/custom_usecase_generator.dart';
 import 'generators/entity_usecase_generator.dart';
 import 'generators/os_background_task_generator.dart';
 import 'generators/stream_usecase_generator.dart';
-import 'generators/os_background_task_generator.dart';
 
 /// Manages use case generation for the domain layer.
 class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
