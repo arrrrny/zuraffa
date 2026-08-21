@@ -59,6 +59,15 @@ class EntityCommand {
         case 'from-json':
           await _handleFromJson(subArgs, config);
           break;
+        case 'build':
+          await _handleBuild(subArgs);
+          break;
+        case 'watch':
+          await _handleWatch();
+          break;
+        case 'validate':
+          await _handleValidate(subArgs);
+          break;
         default:
           print('Unknown subcommand: $subCommand');
           _printHelp();
@@ -225,6 +234,17 @@ ${missing.map((d) => '   • $d').join('\n')}
 
     if (result.isSuccess) {
       await _fixEntityImports(result.filePath, fields, outputDir);
+
+      // Add imports for explicit subtypes so the zorphy builder can resolve
+      // them for polymorphic dispatch (fromJson/toJson with typeKey).
+      if (entityConfig.explicitSubtypes.isNotEmpty) {
+        await _addSubtypeImports(
+          result.filePath,
+          entityConfig.explicitSubtypes,
+          outputDir,
+        );
+      }
+
       print('✓ Created entity: ${result.filePath}');
       print('\n📋 Next steps:');
       print('  1. Run: zfa build');
@@ -406,6 +426,33 @@ ${missing.map((d) => '   • $d').join('\n')}
     }
   }
 
+  Future<void> _addSubtypeImports(
+    String entityPath,
+    List<String> explicitSubtypes,
+    String outputDir,
+  ) async {
+    final file = File(entityPath);
+    var content = await file.readAsString();
+
+    for (final subtype in explicitSubtypes) {
+      final stName = subtype.split(':').first.replaceAll(r'$', '').trim();
+      if (stName.isEmpty) continue;
+      final stSnake = StringUtils.camelToSnake(stName);
+      final imp = "import '../$stSnake/$stSnake.dart';";
+      if (!content.contains(imp)) {
+        // Insert after the last import line
+        final lastImportIdx = content.lastIndexOf('import ');
+        final eolIdx = content.indexOf('\n', lastImportIdx);
+        if (eolIdx != -1) {
+          content =
+              '${content.substring(0, eolIdx + 1)}$imp\n${content.substring(eolIdx + 1)}';
+        }
+      }
+    }
+
+    await file.writeAsString(content);
+  }
+
   Future<void> _fixEntityImports(
     String filePath,
     List<FieldDefinition> fields,
@@ -500,6 +547,10 @@ ${missing.map((d) => '   • $d').join('\n')}
     if (hasEnums) {
       imports.add("import '../enums/index.dart';");
     }
+
+    // Import explicit subtypes so the zorphy builder can resolve them
+    // for polymorphic dispatch (fromJson/toJson with typeKey).
+    // This is handled by the entity creation flow, not here.
 
     if (imports.isEmpty) return;
 
@@ -704,19 +755,20 @@ ${missing.map((d) => '   • $d').join('\n')}
   /// Dart-safe field name and remap the wire name via `:json=<wire>`
   /// (e.g. `in_:String:json=in`). [_findBareKeywordFields] refuses the
   /// bare-keyword form up front with an actionable error.
+  /// Dart hard-reserved words that CANNOT be used as a field identifier.
+  /// Built-in identifiers (dynamic, deferred, external, etc.) and contextual
+  /// keywords/modifiers (base, sealed, when, record, view, etc.) are legal
+  /// field names — only hard reserved words are rejected.
+  /// See: https://dart.dev/language/keywords
   static const Set<String> _dartKeywords = {
-    // Built-in reserved words.
-    'abstract', 'as', 'assert', 'async', 'await', 'break', 'case', 'catch',
-    'class', 'const', 'continue', 'covariant', 'default', 'deferred', 'do',
-    'dynamic', 'else', 'enum', 'export', 'extends', 'extension', 'external',
-    'factory', 'false', 'final', 'finally', 'for', 'function', 'get', 'hide',
-    'if', 'implements', 'import', 'in', 'interface', 'is', 'library',
-    'late', 'mixin', 'new', 'null', 'on', 'operator', 'part', 'rethrow',
-    'return', 'set', 'show', 'static', 'super', 'switch', 'sync', 'this',
-    'throw', 'true', 'try', 'typedef', 'var', 'void', 'while', 'with', 'yield',
-    // Contextual keywords / reserved-for-future-use that would also break
-    // generated source identifiers.
-    'required', 'base', 'sealed', 'when', 'record', 'view',
+    // Hard reserved words — cannot be identifiers.
+    'abstract', 'as', 'assert', 'break', 'case', 'catch', 'class', 'const',
+    'continue', 'covariant', 'default', 'do', 'else',
+    'enum', 'export', 'extends', 'false', 'final', 'finally',
+    'for', 'if', 'implements', 'import', 'in', 'interface', 'is', 'late',
+    'library', 'mixin', 'new', 'null', 'part', 'rethrow', 'return', 'static',
+    'super', 'switch', 'this', 'throw', 'true', 'try', 'var', 'void',
+    'while', 'with',
   };
 
   bool _isDartKeyword(String name) => _dartKeywords.contains(name);
@@ -889,6 +941,75 @@ ${missing.map((d) => '   • $d').join('\n')}
     await process.exitCode;
   }
 
+  Future<void> _handleBuild(List<String> subArgs) async {
+    final args = ['run', 'build_runner', 'build'];
+    if (subArgs.contains('--clean') || subArgs.contains('-c')) {
+      args.insert(2, '--delete-conflicting-outputs');
+    }
+    if (subArgs.contains('--force')) {
+      args.addAll(['--build-filter=**']);
+    }
+    final process = await Process.start(
+      'dart',
+      args,
+      mode: ProcessStartMode.inheritStdio,
+    );
+    final exitCode = await process.exitCode;
+    if (exitCode != 0) {
+      throw Exception('Build failed with exit code $exitCode');
+    }
+  }
+
+  Future<void> _handleWatch() async {
+    final process = await Process.start('dart', [
+      'run',
+      'build_runner',
+      'watch',
+      '--delete-conflicting-outputs',
+    ], mode: ProcessStartMode.inheritStdio);
+    final exitCode = await process.exitCode;
+    if (exitCode != 0) {
+      throw Exception('Watch failed with exit code $exitCode');
+    }
+  }
+
+  Future<void> _handleValidate(List<String> subArgs) async {
+    // Scan entity dirs for missing generated files
+    final dir = Directory(fixedEntityOutput);
+    if (!await dir.exists()) {
+      print('No entities found at $fixedEntityOutput');
+      return;
+    }
+    int issues = 0;
+    await for (final entity in dir.list()) {
+      if (entity is! Directory) continue;
+      final name = p.basename(entity.path);
+      final mainFile = File(p.join(entity.path, '$name.dart'));
+      if (!await mainFile.exists()) continue;
+      final content = await mainFile.readAsString();
+      if (content.contains("part '$name.zorphy.dart'")) {
+        final zorphy = File(p.join(entity.path, '$name.zorphy.dart'));
+        if (!await zorphy.exists()) {
+          print('  MISSING: $name.zorphy.dart');
+          issues++;
+        }
+      }
+      if (content.contains("part '$name.g.dart'")) {
+        final g = File(p.join(entity.path, '$name.g.dart'));
+        if (!await g.exists()) {
+          print('  MISSING: $name.g.dart');
+          issues++;
+        }
+      }
+    }
+    if (issues == 0) {
+      print('✅ All entity files valid');
+    } else {
+      print('❌ $issues issue(s) found — run zfa build');
+      throw Exception('Validation failed with $issues issue(s)');
+    }
+  }
+
   void _printHelp() {
     print('''
 zfa entity - Zorphy Entity Generation Commands
@@ -903,6 +1024,9 @@ SUBCOMMANDS:
   add-field   Add field(s) to an existing entity
   from-json   Create entity from JSON file
   list        List all Zorphy entities
+  build       Run build_runner build (with optional --clean, --force)
+  watch       Run build_runner watch (live rebuild on changes)
+  validate    Check entity dirs for missing generated files
 
 CREATE COMMAND:
   zfa entity create -n <Name> [options]
@@ -915,10 +1039,14 @@ CREATE COMMAND:
     --compare               Enable compareTo (default: true)
     --sealed                Create sealed class
     --non-sealed            Create non-sealed class
+    --type-key <key>        Custom JSON key for polymorphic dispatch (default: __typename)
+    --subtype-wire-value    Custom wire value for this subtype in polymorphic JSON
     --field                 Add field "name:type"
     -F, --fields            Add multiple fields "name:type,name:type"
     --extends               Interface to extend
-    --subtypes              Explicit subtypes
+    --subtypes              Explicit subtypes, e.g. "Admin:1,Guest:2"
+                            Each entry is name:wireValue. Used with
+                            --type-key for polymorphic dispatch.
     --generate-subs         Generate subtype files
     --auto-id               Auto-generate a String id (uuid v4). The id
                             field is optional at construction and defaults

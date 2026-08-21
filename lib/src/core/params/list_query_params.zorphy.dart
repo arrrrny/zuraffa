@@ -110,46 +110,52 @@ class ListQueryParams<T> extends Params {
     final _patchMap = _patcher.patchMap;
     return ListQueryParams(
       params: _patchMap.containsKey(ListQueryParams$.params)
-          ? (_patchMap[ListQueryParams$.params] is Function)
-                ? _patchMap[ListQueryParams$.params](this.params)
-                : (_patchMap[ListQueryParams$.params] is Patch)
-                ? _patchMap[ListQueryParams$.params].applyTo(this.params)
-                : _patchMap[ListQueryParams$.params]
+          ? ((_patchMap[ListQueryParams$.params] is Function)
+                    ? _patchMap[ListQueryParams$.params](this.params)
+                    : (_patchMap[ListQueryParams$.params] is Patch)
+                    ? _patchMap[ListQueryParams$.params].applyTo(this.params)
+                    : _patchMap[ListQueryParams$.params])
+                as Map<String, dynamic>?
           : this.params,
       search: _patchMap.containsKey(ListQueryParams$.search)
-          ? (_patchMap[ListQueryParams$.search] is Function)
-                ? _patchMap[ListQueryParams$.search](this.search)
-                : (_patchMap[ListQueryParams$.search] is Patch)
-                ? _patchMap[ListQueryParams$.search].applyTo(this.search)
-                : _patchMap[ListQueryParams$.search]
+          ? ((_patchMap[ListQueryParams$.search] is Function)
+                    ? _patchMap[ListQueryParams$.search](this.search)
+                    : (_patchMap[ListQueryParams$.search] is Patch)
+                    ? _patchMap[ListQueryParams$.search].applyTo(this.search)
+                    : _patchMap[ListQueryParams$.search])
+                as String?
           : this.search,
       filter: _patchMap.containsKey(ListQueryParams$.filter)
-          ? (_patchMap[ListQueryParams$.filter] is Function)
-                ? _patchMap[ListQueryParams$.filter](this.filter)
-                : (_patchMap[ListQueryParams$.filter] is Patch)
-                ? _patchMap[ListQueryParams$.filter].applyTo(this.filter)
-                : _patchMap[ListQueryParams$.filter]
+          ? ((_patchMap[ListQueryParams$.filter] is Function)
+                    ? _patchMap[ListQueryParams$.filter](this.filter)
+                    : (_patchMap[ListQueryParams$.filter] is Patch)
+                    ? _patchMap[ListQueryParams$.filter].applyTo(this.filter)
+                    : _patchMap[ListQueryParams$.filter])
+                as Filter<T>?
           : this.filter,
       sort: _patchMap.containsKey(ListQueryParams$.sort)
-          ? (_patchMap[ListQueryParams$.sort] is Function)
-                ? _patchMap[ListQueryParams$.sort](this.sort)
-                : (_patchMap[ListQueryParams$.sort] is Patch)
-                ? _patchMap[ListQueryParams$.sort].applyTo(this.sort)
-                : _patchMap[ListQueryParams$.sort]
+          ? ((_patchMap[ListQueryParams$.sort] is Function)
+                    ? _patchMap[ListQueryParams$.sort](this.sort)
+                    : (_patchMap[ListQueryParams$.sort] is Patch)
+                    ? _patchMap[ListQueryParams$.sort].applyTo(this.sort)
+                    : _patchMap[ListQueryParams$.sort])
+                as Sort<T>?
           : this.sort,
       limit: _patchMap.containsKey(ListQueryParams$.limit)
-          ? (_patchMap[ListQueryParams$.limit] is Function)
-                ? _patchMap[ListQueryParams$.limit](this.limit)
-                : (_patchMap[ListQueryParams$.limit] is Patch)
-                ? _patchMap[ListQueryParams$.limit].applyTo(this.limit)
-                : _patchMap[ListQueryParams$.limit]
+          ? ((_patchMap[ListQueryParams$.limit] is Function)
+                    ? _patchMap[ListQueryParams$.limit](this.limit)
+                    : (_patchMap[ListQueryParams$.limit] is Patch)
+                    ? _patchMap[ListQueryParams$.limit].applyTo(this.limit)
+                    : _patchMap[ListQueryParams$.limit])
+                as int?
           : this.limit,
       offset: _patchMap.containsKey(ListQueryParams$.offset)
-          ? (_patchMap[ListQueryParams$.offset] is Function)
-                ? _patchMap[ListQueryParams$.offset](this.offset)
-                : (_patchMap[ListQueryParams$.offset] is Patch)
-                ? _patchMap[ListQueryParams$.offset].applyTo(this.offset)
-                : _patchMap[ListQueryParams$.offset]
+          ? ((_patchMap[ListQueryParams$.offset] is Function)
+                    ? _patchMap[ListQueryParams$.offset](this.offset)
+                    : (_patchMap[ListQueryParams$.offset] is Patch)
+                    ? _patchMap[ListQueryParams$.offset].applyTo(this.offset)
+                    : _patchMap[ListQueryParams$.offset])
+                as int?
           : this.offset,
     );
   }
@@ -197,63 +203,63 @@ class ListQueryParams<T> extends Params {
 
 extension ListQueryParamsPropertyHelpers<T> on ListQueryParams<T> {
   bool get hasSearch {
-    return search?.isNotEmpty == true;
+    return this.search?.isNotEmpty == true;
   }
 
   bool get noSearch {
-    return search?.isEmpty ?? true;
+    return this.search?.isEmpty ?? true;
   }
 
   String get searchRequired {
-    return search ?? (throw StateError('search is required but was null'));
+    return this.search ?? (throw StateError('search is required but was null'));
   }
 
   bool get hasFilter {
-    return filter != null;
+    return this.filter != null;
   }
 
   bool get noFilter {
-    return filter == null;
+    return this.filter == null;
   }
 
   Filter<T> get filterRequired {
-    return filter ?? (throw StateError('filter is required but was null'));
+    return this.filter ?? (throw StateError('filter is required but was null'));
   }
 
   bool get hasSort {
-    return sort != null;
+    return this.sort != null;
   }
 
   bool get noSort {
-    return sort == null;
+    return this.sort == null;
   }
 
   Sort<T> get sortRequired {
-    return sort ?? (throw StateError('sort is required but was null'));
+    return this.sort ?? (throw StateError('sort is required but was null'));
   }
 
   bool get hasLimit {
-    return limit != null;
+    return this.limit != null;
   }
 
   bool get noLimit {
-    return limit == null;
+    return this.limit == null;
   }
 
   int get limitRequired {
-    return limit ?? (throw StateError('limit is required but was null'));
+    return this.limit ?? (throw StateError('limit is required but was null'));
   }
 
   bool get hasOffset {
-    return offset != null;
+    return this.offset != null;
   }
 
   bool get noOffset {
-    return offset == null;
+    return this.offset == null;
   }
 
   int get offsetRequired {
-    return offset ?? (throw StateError('offset is required but was null'));
+    return this.offset ?? (throw StateError('offset is required but was null'));
   }
 }
 

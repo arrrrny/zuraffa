@@ -40,18 +40,20 @@ class CreateParams<T> extends Params {
     final _patchMap = _patcher.patchMap;
     return CreateParams(
       params: _patchMap.containsKey(CreateParams$.params)
-          ? (_patchMap[CreateParams$.params] is Function)
-                ? _patchMap[CreateParams$.params](this.params)
-                : (_patchMap[CreateParams$.params] is Patch)
-                ? _patchMap[CreateParams$.params].applyTo(this.params)
-                : _patchMap[CreateParams$.params]
+          ? ((_patchMap[CreateParams$.params] is Function)
+                    ? _patchMap[CreateParams$.params](this.params)
+                    : (_patchMap[CreateParams$.params] is Patch)
+                    ? _patchMap[CreateParams$.params].applyTo(this.params)
+                    : _patchMap[CreateParams$.params])
+                as Map<String, dynamic>?
           : this.params,
       data: _patchMap.containsKey(CreateParams$.data)
-          ? (_patchMap[CreateParams$.data] is Function)
-                ? _patchMap[CreateParams$.data](this.data)
-                : (_patchMap[CreateParams$.data] is Patch)
-                ? _patchMap[CreateParams$.data].applyTo(this.data)
-                : _patchMap[CreateParams$.data]
+          ? ((_patchMap[CreateParams$.data] is Function)
+                    ? _patchMap[CreateParams$.data](this.data)
+                    : (_patchMap[CreateParams$.data] is Patch)
+                    ? _patchMap[CreateParams$.data].applyTo(this.data)
+                    : _patchMap[CreateParams$.data])
+                as T
           : this.data,
     );
   }

@@ -367,10 +367,9 @@ Future<void> _startXRayBridge() async {
   /// call `setupDependencies(GetIt.instance)` (canonical GetIt-based DI)
   /// or `setupDependencies()` (a no-arg custom DI entrypoint). Detecting
   /// the actual signature — instead of assuming one — keeps the shell
-  /// robust to both signatures and makes a signature mismatch fail loudly
-  /// at generation time rather than at `flutter analyze` time. The
-  /// pre-flight check in `AppShellCommand` treats an unparseable
-  /// declaration as a hard error. See issue #370.
+  /// robust to both signatures. An unrecognized signature falls back to
+  /// `setupDependencies()` and may fail during compilation rather than
+  /// being rejected as a hard error. See issue #370.
   static bool setupDependenciesTakesGetIt(String diIndexContent) {
     final src = _stripComments(diIndexContent);
     // Match the first `setupDependencies(...)` occurrence. The DI barrel
@@ -408,7 +407,8 @@ Future<void> _startXRayBridge() async {
     if (m == null) return false;
     final retType = m.group(1) ?? '';
     final asyncKw = m.group(3);
-    return asyncKw != null || RegExp(r'\bFuture\b').hasMatch(retType);
+    return asyncKw != null ||
+        RegExp(r'\b(Future|FutureOr)\b').hasMatch(retType);
   }
 
   /// Strips Dart `//` line comments and `/* */` block comments from [src]

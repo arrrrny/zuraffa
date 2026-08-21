@@ -16,15 +16,15 @@ abstract class Params {
 
 extension ParamsPropertyHelpers on Params {
   Map<String, dynamic> get paramsRequired {
-    return params ?? (throw StateError('params is required but was null'));
+    return this.params ?? (throw StateError('params is required but was null'));
   }
 
   bool get hasParams {
-    return params?.isNotEmpty ?? false;
+    return this.params?.isNotEmpty ?? false;
   }
 
   bool get noParams {
-    return params?.isEmpty ?? true;
+    return this.params?.isEmpty ?? true;
   }
 }
 

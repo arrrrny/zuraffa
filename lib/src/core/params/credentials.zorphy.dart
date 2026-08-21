@@ -31,11 +31,12 @@ class Credentials extends Params {
     final _patchMap = _patcher.patchMap;
     return Credentials(
       params: _patchMap.containsKey(Credentials$.params)
-          ? (_patchMap[Credentials$.params] is Function)
-                ? _patchMap[Credentials$.params](this.params)
-                : (_patchMap[Credentials$.params] is Patch)
-                ? _patchMap[Credentials$.params].applyTo(this.params)
-                : _patchMap[Credentials$.params]
+          ? ((_patchMap[Credentials$.params] is Function)
+                    ? _patchMap[Credentials$.params](this.params)
+                    : (_patchMap[Credentials$.params] is Patch)
+                    ? _patchMap[Credentials$.params].applyTo(this.params)
+                    : _patchMap[Credentials$.params])
+                as Map<String, dynamic>?
           : this.params,
     );
   }
@@ -58,7 +59,8 @@ class Credentials extends Params {
 
   Map<String, dynamic> toJsonLean() {
     final Map<String, dynamic> data = _$CredentialsToJson(this);
-    return _sanitizeJson(data);
+    _sanitizeJson(data);
+    return data;
   }
 
   dynamic _sanitizeJson(dynamic json) {
