@@ -758,10 +758,10 @@ packages:
     description:
       path: zorphy
       ref: master
-      resolved-ref: ea95773f4f17e074a96b30f6c4d390ea9f58a790
+      resolved-ref: "23c1d8237508837bc41136e2a617b06f394910fd"
       url: "https://github.com/arrrrny/zorphy.git"
     source: git
-    version: "2.0.0"
+    version: "2.2.0"
   zorphy_annotation:
     dependency: "direct main"
     description:
