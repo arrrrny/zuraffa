@@ -31,11 +31,12 @@ class Settings extends Params {
     final _patchMap = _patcher.patchMap;
     return Settings(
       params: _patchMap.containsKey(Settings$.params)
-          ? (_patchMap[Settings$.params] is Function)
-                ? _patchMap[Settings$.params](this.params)
-                : (_patchMap[Settings$.params] is Patch)
-                ? _patchMap[Settings$.params].applyTo(this.params)
-                : _patchMap[Settings$.params]
+          ? ((_patchMap[Settings$.params] is Function)
+                    ? _patchMap[Settings$.params](this.params)
+                    : (_patchMap[Settings$.params] is Patch)
+                    ? _patchMap[Settings$.params].applyTo(this.params)
+                    : _patchMap[Settings$.params])
+                as Map<String, dynamic>?
           : this.params,
     );
   }
@@ -58,7 +59,8 @@ class Settings extends Params {
 
   Map<String, dynamic> toJsonLean() {
     final Map<String, dynamic> data = _$SettingsToJson(this);
-    return _sanitizeJson(data);
+    _sanitizeJson(data);
+    return data;
   }
 
   dynamic _sanitizeJson(dynamic json) {

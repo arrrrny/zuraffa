@@ -111,7 +111,7 @@ class MockDataSourceBuilder {
                   refer('logger').property('info').call([
                     literalString('Initializing ${entityName}MockDataSource'),
                   ]).statement,
-                  refer('Future')
+                  refer('Future<void>')
                       .property('delayed')
                       .call([
                         refer(
@@ -305,7 +305,7 @@ class MockDataSourceBuilder {
                     refer('Stream')
                         .property('fromFuture')
                         .call([
-                          refer('Future').property('delayed').call([
+                          refer('Future<void>').property('delayed').call([
                             refer('_delay'),
                             Method(
                               (mm) => mm
@@ -327,7 +327,7 @@ class MockDataSourceBuilder {
                         .returned
                         .statement,
                   ] else ...[
-                    refer('Future')
+                    refer('Future<void>')
                         .property('delayed')
                         .call([refer('_delay')])
                         .awaited
@@ -378,7 +378,7 @@ class MockDataSourceBuilder {
                           'Getting $entityName with params: \$params',
                         ),
                       ]).statement,
-                      refer('Future')
+                      refer('Future<void>')
                           .property('delayed')
                           .call([refer('_delay')])
                           .awaited
@@ -434,7 +434,7 @@ class MockDataSourceBuilder {
                           'Getting $entityName list with params: \$params',
                         ),
                       ]).statement,
-                      refer('Future')
+                      refer('Future<void>')
                           .property('delayed')
                           .call([refer('_delay')])
                           .awaited
@@ -490,7 +490,7 @@ class MockDataSourceBuilder {
                                 'Creating $entityName: \${item.id}',
                               ),
                       ]).statement,
-                      refer('Future')
+                      refer('Future<void>')
                           .property('delayed')
                           .call([refer('_delay')])
                           .awaited
@@ -523,7 +523,7 @@ class MockDataSourceBuilder {
                   : literalString('Updating $entityName: \${params.id}'),
             ]).statement,
             refer(
-              'Future',
+              'Future<void>',
             ).property('delayed').call([refer('_delay')]).awaited.statement,
           ];
 
@@ -633,7 +633,7 @@ class MockDataSourceBuilder {
                     ),
             ]).statement,
             refer(
-              'Future',
+              'Future<void>',
             ).property('delayed').call([refer('_delay')]).awaited.statement,
           ];
 
@@ -736,7 +736,7 @@ class MockDataSourceBuilder {
                   : literalString('Deleting $entityName: \${params.id}'),
             ]).statement,
             refer(
-              'Future',
+              'Future<void>',
             ).property('delayed').call([refer('_delay')]).awaited.statement,
           ];
 

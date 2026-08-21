@@ -64,32 +64,36 @@ class ToggleParams<I, F> extends Params {
     final _patchMap = _patcher.patchMap;
     return ToggleParams(
       params: _patchMap.containsKey(ToggleParams$.params)
-          ? (_patchMap[ToggleParams$.params] is Function)
-                ? _patchMap[ToggleParams$.params](this.params)
-                : (_patchMap[ToggleParams$.params] is Patch)
-                ? _patchMap[ToggleParams$.params].applyTo(this.params)
-                : _patchMap[ToggleParams$.params]
+          ? ((_patchMap[ToggleParams$.params] is Function)
+                    ? _patchMap[ToggleParams$.params](this.params)
+                    : (_patchMap[ToggleParams$.params] is Patch)
+                    ? _patchMap[ToggleParams$.params].applyTo(this.params)
+                    : _patchMap[ToggleParams$.params])
+                as Map<String, dynamic>?
           : this.params,
       id: _patchMap.containsKey(ToggleParams$.id)
-          ? (_patchMap[ToggleParams$.id] is Function)
-                ? _patchMap[ToggleParams$.id](this.id)
-                : (_patchMap[ToggleParams$.id] is Patch)
-                ? _patchMap[ToggleParams$.id].applyTo(this.id)
-                : _patchMap[ToggleParams$.id]
+          ? ((_patchMap[ToggleParams$.id] is Function)
+                    ? _patchMap[ToggleParams$.id](this.id)
+                    : (_patchMap[ToggleParams$.id] is Patch)
+                    ? _patchMap[ToggleParams$.id].applyTo(this.id)
+                    : _patchMap[ToggleParams$.id])
+                as I
           : this.id,
       field: _patchMap.containsKey(ToggleParams$.field)
-          ? (_patchMap[ToggleParams$.field] is Function)
-                ? _patchMap[ToggleParams$.field](this.field)
-                : (_patchMap[ToggleParams$.field] is Patch)
-                ? _patchMap[ToggleParams$.field].applyTo(this.field)
-                : _patchMap[ToggleParams$.field]
+          ? ((_patchMap[ToggleParams$.field] is Function)
+                    ? _patchMap[ToggleParams$.field](this.field)
+                    : (_patchMap[ToggleParams$.field] is Patch)
+                    ? _patchMap[ToggleParams$.field].applyTo(this.field)
+                    : _patchMap[ToggleParams$.field])
+                as F
           : this.field,
       value: _patchMap.containsKey(ToggleParams$.value)
-          ? (_patchMap[ToggleParams$.value] is Function)
-                ? _patchMap[ToggleParams$.value](this.value)
-                : (_patchMap[ToggleParams$.value] is Patch)
-                ? _patchMap[ToggleParams$.value].applyTo(this.value)
-                : _patchMap[ToggleParams$.value]
+          ? ((_patchMap[ToggleParams$.value] is Function)
+                    ? _patchMap[ToggleParams$.value](this.value)
+                    : (_patchMap[ToggleParams$.value] is Patch)
+                    ? _patchMap[ToggleParams$.value].applyTo(this.value)
+                    : _patchMap[ToggleParams$.value])
+                as bool
           : this.value,
     );
   }
