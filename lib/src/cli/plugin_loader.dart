@@ -29,6 +29,7 @@ import '../plugins/feature/feature_plugin.dart';
 import '../plugins/shadcn/shadcn_plugin.dart';
 import '../plugins/strategy/strategy_plugin.dart';
 import '../plugins/module/module_plugin.dart';
+import '../plugins/mcp/mcp_plugin.dart';
 
 class PluginConfig {
   final Set<String> disabled;
@@ -133,6 +134,7 @@ class PluginLoader {
       StrategyPlugin(outputDir: outputDir, options: options),
       MethodAppendPlugin(outputDir: outputDir, options: options),
       ModuleGeneratorPlugin(outputDir: outputDir, options: options),
+      McpPlugin(outputDir: outputDir, options: options),
     ];
   }
 }
