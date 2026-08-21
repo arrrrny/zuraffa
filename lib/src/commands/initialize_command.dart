@@ -51,6 +51,21 @@ class InitializeCommand {
             'Skip dependency wiring; only scaffold the test entity (legacy behavior).',
       )
       ..addFlag(
+        'dart',
+        negatable: false,
+        help:
+            'Bootstrap a pure-Dart package in-place: if pubspec.yaml is missing, '
+            'synthesize a minimal one, then wire the pure-Dart dependency set. '
+            'Cannot be combined with --flutter.',
+      )
+      ..addFlag(
+        'flutter',
+        negatable: false,
+        help:
+            'Force the Flutter dependency set (default is auto-detect from '
+            'pubspec.yaml). Cannot be combined with --dart.',
+      )
+      ..addFlag(
         'verbose',
         abbr: 'v',
         help: 'Enable verbose output',
@@ -75,10 +90,18 @@ class InitializeCommand {
     final verbose = results['verbose'] as bool;
     final depsOnly = results['deps-only'] as bool;
     final noDeps = results['no-deps'] as bool;
+    final dartMode = results['dart'] as bool;
+    final flutterMode = results['flutter'] as bool;
 
     if (depsOnly && noDeps) {
       throw UsageException(
         '--deps-only and --no-deps are mutually exclusive.',
+        parser.usage,
+      );
+    }
+    if (dartMode && flutterMode) {
+      throw UsageException(
+        '--dart and --flutter are mutually exclusive.',
         parser.usage,
       );
     }
@@ -90,42 +113,88 @@ class InitializeCommand {
     // makes the "only zfa commands" contract viable on a fresh project.
     if (!noDeps) {
       final pubspecFile = File('pubspec.yaml');
+      var isFlutter = flutterMode;
+      // dry-run + no pubspec: preview the in-place bootstrap without writing
+      // anything, then skip the wirer call (which needs pubspec on disk) and
+      // continue to the entity scaffolding preview when --deps-only is NOT
+      // set (CodeRabbit follow-up on issue #393).
+      var skipWiring = false;
+
       if (!pubspecFile.existsSync()) {
-        throw UsageException(
-          'No pubspec.yaml found in current directory.\n'
-          '   Run `zfa setup <name>` to create a new app, or cd to a project root.',
-          parser.usage,
+        if (!dartMode) {
+          throw UsageException(
+            'No pubspec.yaml found in current directory.\n'
+            '   Run `zfa setup <name>` to create a new app, or re-run with '
+            '`zfa init --dart` to bootstrap a pure-Dart package in-place.',
+            parser.usage,
+          );
+        }
+        // In-place pure-Dart bootstrap (issue #393): synthesize a minimal
+        // pubspec.yaml from the directory name so an existing repository can
+        // be initialized without creating an out-of-place subdirectory.
+        if (dryRun) {
+          print(
+            '🔍 Would create: pubspec.yaml '
+            '(minimal pure-Dart package, name: '
+            '${_validPackageNameStatic(path.basename(Directory.current.absolute.path)) ?? 'zuraffa_package'})',
+          );
+          print(
+            '🔍 Would wire the pure-Dart dependency set '
+            '(zuraffa, zorphy_annotation, json_annotation, build_runner …)',
+          );
+          print(
+            '🔍 Dry-run: skipping dependency wiring '
+            '(pubspec.yaml does not exist yet).',
+          );
+          skipWiring = true;
+        } else {
+          pubspecFile.writeAsStringSync(
+            synthesizeMinimalPubspec(
+              path.basename(Directory.current.absolute.path),
+            ),
+          );
+          print('✅ Bootstrapped pure-Dart package in-place: pubspec.yaml');
+        }
+        // A synthesized pubspec is never a Flutter project.
+        isFlutter = false;
+      } else if (!flutterMode && !dartMode) {
+        isFlutter = DependencyWirer.isFlutterProject(
+          pubspecFile.readAsStringSync(),
         );
+      } else if (dartMode) {
+        // Explicit --dart on an existing pubspec still forces the Dart set.
+        isFlutter = false;
       }
 
-      final pubspecContent = pubspecFile.readAsStringSync();
-      final isFlutter = DependencyWirer.isFlutterProject(pubspecContent);
-
-      print(
-        '🔧 Wiring zuraffa dependencies'
-        '${isFlutter ? ' (Flutter project)' : ' (Dart project)'}...\n',
-      );
-      final wireResult = await DependencyWirer.wire(
-        isFlutter: isFlutter,
-        dryRun: dryRun,
-        projectRoot: '.',
-      );
-
-      if (!wireResult.isSuccess) {
+      if (!skipWiring) {
         print(
-          '\n⚠️  Some dependencies could not be wired automatically: '
-          '${wireResult.failed.join(', ')}',
+          '🔧 Wiring zuraffa dependencies'
+          '${isFlutter ? ' (Flutter project)' : ' (Dart project)'}...\n',
         );
-        print('   Add them manually and re-run `zfa init`.');
-        // Non-zero exit so CI can distinguish a partial wiring.
-        throw StateError('Some dependencies could not be wired automatically.');
+        final wireResult = await DependencyWirer.wire(
+          isFlutter: isFlutter,
+          dryRun: dryRun,
+          projectRoot: '.',
+        );
+
+        if (!wireResult.isSuccess) {
+          print(
+            '\n⚠️  Some dependencies could not be wired automatically: '
+            '${wireResult.failed.join(', ')}',
+          );
+          print('   Add them manually and re-run `zfa init`.');
+          // Non-zero exit so CI can distinguish a partial wiring.
+          throw StateError(
+            'Some dependencies could not be wired automatically.',
+          );
+        }
+
+        // Ensure build.yaml + domain directory structure exist.
+        print('');
+        await DependencyWirer.ensureProjectStructure(dryRun: dryRun);
       }
 
-      // Ensure build.yaml + domain directory structure exist.
-      print('');
-      await DependencyWirer.ensureProjectStructure(dryRun: dryRun);
-
-      // Ensure .zfa.json exists.
+      // Ensure .zfa.json exists (independent of pubspec — always checked).
       final config = ZfaConfig.load();
       if (config == null) {
         print('');
@@ -212,6 +281,8 @@ EXAMPLES:
   zfa initialize --entity=User             # Wire deps + generate User entity
   zfa init --deps-only                     # Wire deps only, skip entity
   zfa init --no-deps -e Order              # Skip deps, only scaffold entity
+  zfa initialize --dart                    # Bootstrap pure-Dart package in-place
+  zfa init --dart --deps-only              # In-place bootstrap, no test entity
   zfa initialize --dry-run                 # Preview without writing files
 
 DESCRIPTION:
@@ -221,7 +292,9 @@ DESCRIPTION:
   entity with common fields under lib/src/domain/entities.
 
   For a brand-new app, prefer `zfa setup <name>` which runs flutter/dart create
-  AND wires dependencies in one step.
+  AND wires dependencies in one step. To initialize an EXISTING pure-Dart
+  repository that has no pubspec.yaml yet, use `zfa init --dart` (synthesizes a
+  minimal pubspec.yaml in-place from the directory name).
 
   Use --deps-only to wire dependencies without scaffolding an entity.
   Use --no-deps to scaffold only the entity (legacy behavior).
@@ -257,5 +330,28 @@ class $entityName with _\$$entityName {
       _\$${entityName}FromJson(json);
 }
 ''';
+  }
+
+  /// Minimal pure-Dart pubspec.yaml content for an in-place bootstrap
+  /// (issue #393). The package name is derived from [dirName]; invalid
+  /// names fall back to `zuraffa_package`.
+  static String synthesizeMinimalPubspec(String dirName) {
+    final packageName = _validPackageNameStatic(dirName) ?? 'zuraffa_package';
+    return 'name: $packageName\n'
+        'description: A Zuraffa package (bootstrapped by zfa init --dart).\n'
+        'publish_to: none\n'
+        '\n'
+        'environment:\n'
+        '  sdk: ^3.0.0\n';
+  }
+
+  static String? _validPackageNameStatic(String dirName) {
+    final name = dirName
+        .trim()
+        .toLowerCase()
+        .replaceAll('-', '_')
+        .replaceAll(' ', '_');
+    final valid = RegExp(r'^[a-z][a-z0-9_]*$').hasMatch(name);
+    return valid ? name : null;
   }
 }
