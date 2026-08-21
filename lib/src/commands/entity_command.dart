@@ -240,7 +240,11 @@ ${missing.map((d) => '   • $d').join('\n')}
       // Add imports for explicit subtypes so the zorphy builder can resolve
       // them for polymorphic dispatch (fromJson/toJson with typeKey).
       if (entityConfig.explicitSubtypes.isNotEmpty) {
-        await _addSubtypeImports(result.filePath, entityConfig.explicitSubtypes, outputDir);
+        await _addSubtypeImports(
+          result.filePath,
+          entityConfig.explicitSubtypes,
+          outputDir,
+        );
       }
 
       print('✓ Created entity: ${result.filePath}');
@@ -442,7 +446,8 @@ ${missing.map((d) => '   • $d').join('\n')}
         final lastImportIdx = content.lastIndexOf('import ');
         final eolIdx = content.indexOf('\n', lastImportIdx);
         if (eolIdx != -1) {
-          content = '${content.substring(0, eolIdx + 1)}$imp\n${content.substring(eolIdx + 1)}';
+          content =
+              '${content.substring(0, eolIdx + 1)}$imp\n${content.substring(eolIdx + 1)}';
         }
       }
     }
@@ -946,8 +951,11 @@ ${missing.map((d) => '   • $d').join('\n')}
     if (subArgs.contains('--force')) {
       args.addAll(['--build-filter=**']);
     }
-    final process = await Process.start('dart', args,
-        mode: ProcessStartMode.inheritStdio);
+    final process = await Process.start(
+      'dart',
+      args,
+      mode: ProcessStartMode.inheritStdio,
+    );
     final exitCode = await process.exitCode;
     if (exitCode != 0) {
       throw Exception('Build failed with exit code $exitCode');
@@ -955,11 +963,12 @@ ${missing.map((d) => '   • $d').join('\n')}
   }
 
   Future<void> _handleWatch() async {
-    final process = await Process.start(
-      'dart',
-      ['run', 'build_runner', 'watch', '--delete-conflicting-outputs'],
-      mode: ProcessStartMode.inheritStdio,
-    );
+    final process = await Process.start('dart', [
+      'run',
+      'build_runner',
+      'watch',
+      '--delete-conflicting-outputs',
+    ], mode: ProcessStartMode.inheritStdio);
     final exitCode = await process.exitCode;
     if (exitCode != 0) {
       throw Exception('Watch failed with exit code $exitCode');
