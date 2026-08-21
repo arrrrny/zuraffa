@@ -7,6 +7,7 @@ import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/plugin_context.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import '../datasource/builders/interface_generator.dart';
 import '../method_append/builders/method_append_builder.dart';
 import '../method_append/capabilities/method_capability.dart';
 import 'capabilities/create_repository_capability.dart';
@@ -214,6 +215,36 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
             config.appendToExisting) &&
         !config.hasService) {
       files.add(await implementationGen.generate(targetConfig));
+    }
+    // #406: emit the data-source interface the implementation imports when
+    // `--datasource` is requested. Previously `zfa repository create
+    // --datasource` (default true) set `generateDataSource` but the
+    // repository plugin never wrote the file, so the impl's
+    // `import '../datasources/<entity>/<entity>_datasource.dart'` and its
+    // `<Entity>DataSource _dataSource` field were unresolvable
+    // (uri_does_not_exist + undefined_class). The DataSourcePlugin handles
+    // this in the `zfa make` orchestrated flow (PluginManager activates it
+    // and sets `data['datasource'] = true`); this covers the direct
+    // `zfa repository create` path. We SKIP generation when the datasource
+    // plugin is already active to avoid a "Multiple operations" conflict
+    // on the same file. Generating only the interface (not local/remote)
+    // matches exactly what the impl imports in the default (non-cache,
+    // non-sync) branch of `_buildImportPaths`.
+    final datasourcePluginActive =
+        context != null &&
+        (context.data['datasource'] == true ||
+            context.get<bool>('datasource') == true);
+    if (config.generateDataSource &&
+        !config.hasService &&
+        !datasourcePluginActive) {
+      final datasourceInterfaceGen = context != null
+          ? DataSourceInterfaceBuilder(
+              outputDir: outputDir,
+              options: options,
+              fileSystem: context.fileSystem,
+            )
+          : DataSourceInterfaceBuilder(outputDir: outputDir, options: options);
+      files.add(await datasourceInterfaceGen.generate(targetConfig));
     }
     return files;
   }

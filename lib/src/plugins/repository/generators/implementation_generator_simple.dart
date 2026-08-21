@@ -55,6 +55,32 @@ extension RepositoryImplementationGeneratorSimple
                 ),
             ),
         );
+      // #406: `list` must mirror the interface method set. Previously
+      // `list` fell through to the `default` branch which emitted
+      // `Future<void> list(NoParams params)` with `@override` — but the
+      // interface dropped `list`, so the override was invalid.
+      case 'list':
+        return Method(
+          (m) => m
+            ..name = 'list'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Future<List<$entityName>>')
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('NoParams'),
+              ),
+            )
+            ..body = Block(
+              (b) => b
+                ..statements.add(
+                  refer(
+                    '_dataSource',
+                  ).property('list').call([refer('params')]).returned.statement,
+                ),
+            ),
+        );
       case 'create':
         return Method(
           (m) => m

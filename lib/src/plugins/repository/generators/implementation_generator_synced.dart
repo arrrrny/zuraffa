@@ -51,6 +51,25 @@ extension RepositoryImplementationGeneratorSynced
             )
             ..body = _buildSyncedGetListBody(),
         );
+      // #406: `list` mirrors the interface method set so sync mode stays
+      // analyzable (otherwise DataXRepository is abstract — missing
+      // concrete implementation of XRepository.list).
+      case 'list':
+        return Method(
+          (m) => m
+            ..name = 'list'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Future<List<$entityName>>')
+            ..modifier = MethodModifier.async
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('NoParams'),
+              ),
+            )
+            ..body = _buildSyncedGetListBody(methodName: 'list'),
+        );
       case 'create':
         return Method(
           (m) => m
@@ -169,12 +188,12 @@ extension RepositoryImplementationGeneratorSynced
   }
 
   /// `getList()` — reads from local only, no network call.
-  Block _buildSyncedGetListBody() {
+  Block _buildSyncedGetListBody({String methodName = 'getList'}) {
     return Block(
       (b) => b
         ..statements.add(
           refer('_localDataSource')
-              .property('getList')
+              .property(methodName)
               .call([refer('params')])
               .awaited
               .returned
