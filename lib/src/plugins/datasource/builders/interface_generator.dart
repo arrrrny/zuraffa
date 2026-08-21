@@ -150,6 +150,26 @@ class DataSourceInterfaceBuilder {
             ),
           );
           break;
+        // #406: `list` mirrors the repository interface so the generated
+        // `DataXRepository.list(NoParams)` delegation to `_dataSource.list`
+        // resolves against a real abstract member (otherwise
+        // undefined_class / method_not_found on the data source).
+        case 'list':
+          methods.add(
+            Method(
+              (m) => m
+                ..name = 'list'
+                ..returns = refer('Future<List<$entityName>>')
+                ..requiredParameters.add(
+                  Parameter(
+                    (p) => p
+                      ..name = 'params'
+                      ..type = refer('NoParams'),
+                  ),
+                ),
+            ),
+          );
+          break;
         case 'create':
           methods.add(
             Method(
