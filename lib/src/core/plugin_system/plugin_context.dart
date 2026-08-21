@@ -76,7 +76,39 @@ class PluginContext {
        fileSystem = fileSystem ?? FileSystem.create(root: core.projectRoot);
 
   /// Gets a value from the plugin-specific data.
-  T? get<T>(String key) => data[key] as T?;
+  ///
+  /// Defensive against type collisions: returns `null` when the stored
+  /// value isn't an instance of [T] instead of throwing a cast error.
+  ///
+  /// Some plugin ids share their name with a string-typed schema property
+  /// of another plugin (notably `service` — `ServicePlugin.id == 'service'`
+  /// collides with its own `configSchema.properties.service = {type:'string'}`
+  /// and with `UseCasePlugin`'s same-named string property). The
+  /// `PluginManager.buildContext` activation sync writes `data[id] = true`
+  /// (bool) for active plugins so that downstream `data[id] == true`
+  /// activation checks work — which poisons those string-typed slots.
+  /// Hard-casting `data['service'] as String?` then throws
+  /// `type 'bool' is not a subtype of type 'String?' in type cast`
+  /// (issue #412). The defensive `is T` check returns `null` instead,
+  /// letting the consumer fall back to its entity-derived default. The
+  /// activation signal is still available via [isActive].
+  T? get<T>(String key) {
+    final value = data[key];
+    return value is T ? value : null;
+  }
+
+  /// Returns `true` when [pluginId] is in the active-plugins set for this
+  /// context.
+  ///
+  /// The activation sync in `PluginManager.buildContext` records active
+  /// plugin ids under two keys: `data[pluginId] = true` for ids whose own
+  /// schema doesn't claim the slot for a non-boolean type, and
+  /// `data['__active_<pluginId>'] = true` for ids that DO collide (issue
+  /// #412 — e.g. `service`). This helper checks both, so callers can query
+  /// activation uniformly without knowing which bucket a given plugin id
+  /// landed in.
+  bool isActive(String pluginId) =>
+      data[pluginId] == true || data['__active_$pluginId'] == true;
 
   /// Sets a value in the shared data.
   void setShared(String key, dynamic value) {
@@ -84,5 +116,10 @@ class PluginContext {
   }
 
   /// Gets a value from the shared data.
-  T? getShared<T>(String key) => sharedData[key] as T?;
+  ///
+  /// Defensive against type collisions — see [get] for the rationale.
+  T? getShared<T>(String key) {
+    final value = sharedData[key];
+    return value is T ? value : null;
+  }
 }

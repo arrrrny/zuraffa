@@ -133,7 +133,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       generateData:
           context.data['data'] == true || context.data['generateData'] == true,
       generateService:
-          context.data['service'] == true ||
+          context.isActive('service') ||
           context.data['generateService'] == true,
       useService:
           context.data['use-service'] == true ||
