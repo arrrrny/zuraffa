@@ -124,9 +124,7 @@ class AppShellBuilder {
     // `use_of_void_result` error. With both flags derived from the emitted
     // declaration, the call always matches the signature, so the mismatch
     // that caused issue #370 is structurally impossible.
-    final setupArgs = diTakesGetIt
-        ? [refer('GetIt.instance')]
-        : <Expression>[];
+    final setupArgs = diTakesGetIt ? [refer('GetIt.instance')] : <Expression>[];
     final setupCall = refer('setupDependencies').call(setupArgs);
     final setupStatement = diIsAsync
         ? setupCall.awaited.statement
@@ -138,24 +136,22 @@ class AppShellBuilder {
     // DI. The modifier must be set inside the builder closure (Method is an
     // immutable built_value, so `main.modifier = ...` after construction is
     // not allowed).
-    final main = Method(
-      (m) {
-        m
-          ..name = 'main'
-          ..returns = refer('void')
-          ..body = Block(
-            (b) => b.statements.addAll([
-              setupStatement,
-              refer(
-                'runApp',
-              ).call([CodeExpression(Code('const MyApp()'))]).statement,
-            ]),
-          );
-        if (diIsAsync) {
-          m.modifier = MethodModifier.async;
-        }
-      },
-    );
+    final main = Method((m) {
+      m
+        ..name = 'main'
+        ..returns = refer('void')
+        ..body = Block(
+          (b) => b.statements.addAll([
+            setupStatement,
+            refer(
+              'runApp',
+            ).call([CodeExpression(Code('const MyApp()'))]).statement,
+          ]),
+        );
+      if (diIsAsync) {
+        m.modifier = MethodModifier.async;
+      }
+    });
 
     final specs = <Spec>[main];
 
@@ -344,9 +340,9 @@ Future<void> _startXRayBridge() async {
   /// first means a `// TODO: setupDependencies()` no longer passes the
   /// check. See issue #370.
   static bool hasSetupDependenciesDeclaration(String diIndexContent) {
-    return RegExp(r'setupDependencies\s*\(').hasMatch(
-      _stripComments(diIndexContent),
-    );
+    return RegExp(
+      r'setupDependencies\s*\(',
+    ).hasMatch(_stripComments(diIndexContent));
   }
 
   /// Returns `true` if the `setupDependencies` declaration in
@@ -369,9 +365,7 @@ Future<void> _startXRayBridge() async {
     // declaration (a call site like `setupDependencies(getIt)` inside a
     // body would only appear after the declaration and is never matched).
     // `[^)]*` is sufficient because DI declarations are single-line.
-    final match = RegExp(
-      r'setupDependencies\s*\(([^)]*)\)',
-    ).firstMatch(src);
+    final match = RegExp(r'setupDependencies\s*\(([^)]*)\)').firstMatch(src);
     if (match == null) return false;
     final params = match.group(1)!.trim();
     if (params.isEmpty) return false; // no-arg: setupDependencies()

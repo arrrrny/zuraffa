@@ -61,11 +61,13 @@ class McpToolRegistry {
   /// registered tool with `name`, `description`, `inputSchema`.
   List<Map<String, dynamic>> toolDefinitions() {
     return _tools.values
-        .map((t) => {
-          'name': t.name,
-          'description': t.description,
-          'inputSchema': t.inputSchema,
-        })
+        .map(
+          (t) => {
+            'name': t.name,
+            'description': t.description,
+            'inputSchema': t.inputSchema,
+          },
+        )
         .toList(growable: false);
   }
 
