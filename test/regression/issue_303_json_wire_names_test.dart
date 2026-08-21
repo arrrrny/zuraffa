@@ -259,23 +259,26 @@ dev_dependencies:
         expect(create.exitCode, equals(0), reason: 'stderr: ${create.stderr}');
 
         // Adding a raw-keyword field must be refused with the same error.
+        // `class` is a hard reserved word (still rejected); built-in
+        // identifiers such as `required` are intentionally allowed since
+        // #381 and are exercised via the `:json=` remap below.
         final badAdd = await runZfa([
           'entity',
           'add-field',
           '-n',
           'ConfigArgDefinition',
           '--field',
-          'required:bool',
+          'class:bool',
         ]);
         expect(
           badAdd.exitCode,
           isNot(equals(0)),
-          reason: 'add-field must reject raw Dart keyword `required`',
+          reason: 'add-field must reject raw Dart keyword `class`',
         );
         expect(
           badAdd.stdout + badAdd.stderr,
-          contains('json=required'),
-          reason: 'error must suggest the `:json=required` remap',
+          contains('json=class'),
+          reason: 'error must suggest the `:json=class` remap',
         );
 
         // Adding with the explicit `:json=` remap succeeds and emits the
