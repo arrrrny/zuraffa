@@ -49,6 +49,7 @@ class GeneratorConfig {
   final bool useZorphy;
   final bool noEntity;
   final bool generateTest;
+  final bool generateGym;
   final bool enableCache;
   final String cachePolicy;
   final String? cacheStorage;
@@ -134,6 +135,7 @@ class GeneratorConfig {
     this.useZorphy = true,
     this.noEntity = false,
     this.generateTest = false,
+    this.generateGym = false,
     this.enableCache = false,
     this.cachePolicy = 'daily',
     this.cacheStorage,
@@ -215,6 +217,7 @@ class GeneratorConfig {
       useZorphy: true,
       noEntity: json['no_entity'] == true || json['noEntity'] == true,
       generateTest: json['test'] == true,
+      generateGym: json['gym'] == true,
       enableCache: json['cache'] == true || json['enable_cache'] == true,
       cachePolicy: json['cache_policy'] ?? 'daily',
       cacheStorage: json['cache_storage'],
@@ -309,6 +312,7 @@ class GeneratorConfig {
     bool? useZorphy,
     bool? noEntity,
     bool? generateTest,
+    bool? generateGym,
     bool? enableCache,
     String? cachePolicy,
     String? cacheStorage,
@@ -381,6 +385,7 @@ class GeneratorConfig {
       useZorphy: useZorphy ?? this.useZorphy,
       noEntity: noEntity ?? this.noEntity,
       generateTest: generateTest ?? this.generateTest,
+      generateGym: generateGym ?? this.generateGym,
       enableCache: enableCache ?? this.enableCache,
       cachePolicy: cachePolicy ?? this.cachePolicy,
       cacheStorage: cacheStorage ?? this.cacheStorage,
@@ -652,6 +657,7 @@ class GeneratorConfig {
     'query_field': queryField,
     'query_field_type': queryFieldType,
     'test': generateTest,
+    'gym': generateGym,
     'cache': enableCache,
     'cache_policy': cachePolicy,
     'cache_storage': cacheStorage,

@@ -11,6 +11,7 @@ import '../plugins/provider/provider_plugin.dart';
 import '../plugins/state/state_plugin.dart';
 import '../plugins/observer/observer_plugin.dart';
 import '../plugins/test/test_plugin.dart';
+import '../plugins/gym/gym_plugin.dart';
 import '../plugins/mock/mock_plugin.dart';
 import '../plugins/gql/gql_plugin.dart';
 import '../plugins/cache/cache_plugin.dart';
@@ -94,6 +95,7 @@ class CodeGenerator {
     _registerPlugin(StatePlugin(outputDir: outputDir, options: options));
     _registerPlugin(ObserverPlugin(outputDir: outputDir, options: options));
     _registerPlugin(TestPlugin(outputDir: outputDir, options: options));
+    _registerPlugin(GymPlugin(outputDir: outputDir, options: options));
     _registerPlugin(MockPlugin(outputDir: outputDir, options: options));
     _registerPlugin(GqlPlugin(outputDir: outputDir, options: options));
     _registerPlugin(CachePlugin(outputDir: outputDir, options: options));
