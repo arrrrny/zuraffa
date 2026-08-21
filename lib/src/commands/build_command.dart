@@ -222,8 +222,10 @@ class BuildCommand extends Command {
           // Ignore unreadable files.
           continue;
         }
-        final partRe =
-            RegExp(r"""^\s*part\s+['"]([^'"]+)['"]\s*;""", multiLine: true);
+        final partRe = RegExp(
+          r"""^\s*part\s+['"]([^'"]+)['"]\s*;""",
+          multiLine: true,
+        );
         for (final m in partRe.allMatches(src)) {
           final partName = m.group(1)!;
           if (!partName.endsWith('.zorphy.dart') &&
