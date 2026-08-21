@@ -1,6 +1,7 @@
 import 'package:code_builder/code_builder.dart';
 
 import '../../../core/builder/shared/spec_library.dart';
+import '../../../utils/manifest_writer.dart';
 import '../../../utils/string_utils.dart';
 
 /// Builds the route module file for a deep link
@@ -129,7 +130,9 @@ class DeepLinkRoutesBuilder {
   }
 
   /// Validates that [namePascal] is a non-empty Dart identifier and
-  /// that [path] starts with `/`. Throws [ArgumentError] otherwise.
+  /// that [path] starts with `/`. The [scheme] check is delegated to
+  /// [ManifestWriter.validateScheme] — the single shared validator used
+  /// by every manifest write path. Throws [ArgumentError] otherwise.
   static void validate({
     required String namePascal,
     required String path,
@@ -145,13 +148,7 @@ class DeepLinkRoutesBuilder {
     if (!path.startsWith('/')) {
       throw ArgumentError.value(path, 'path', 'must start with "/"');
     }
-    if (!RegExp(r'^[a-z][a-z0-9+.\-]*$').hasMatch(scheme)) {
-      throw ArgumentError.value(
-        scheme,
-        'scheme',
-        'must be a lowercase URL scheme (e.g. gozuzu, https, my-app)',
-      );
-    }
+    ManifestWriter.validateScheme(scheme);
   }
 
   /// Returns the camelCase route constant name derived from a

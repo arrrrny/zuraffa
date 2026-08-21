@@ -276,6 +276,122 @@ void main() {
       expect(cmd.argParser.options, contains('deep-link-host'));
       expect(cmd.argParser.options, contains('auto-verify'));
     });
+
+    test('`zfa route create` with invalid --scheme throws BEFORE '
+        'generating any route files', () async {
+      await seedFakeFlutterProject();
+
+      // Seed a minimal entity so route create does not skip.
+      final entityDir = Directory('$outputDir/domain/entities/product');
+      await entityDir.create(recursive: true);
+      await File('${entityDir.path}/product.dart').writeAsString(
+        "class Product {\n"
+        "  final String id;\n"
+        "  Product({required this.id});\n"
+        "}\n",
+      );
+      final viewDir = Directory('$outputDir/presentation/pages/general');
+      await viewDir.create(recursive: true);
+      await File('${viewDir.path}/product_view.dart').writeAsString(
+        "import 'package:flutter/material.dart';\n"
+        "class ProductView extends StatelessWidget {\n"
+        "  const ProductView({super.key});\n"
+        "  @override\n"
+        "  Widget build(BuildContext context) => const SizedBox.shrink();\n"
+        "}\n",
+      );
+
+      // Invalid scheme with uppercase characters should throw ArgumentError
+      // BEFORE any route files are generated.
+      expect(
+        () => runner.run([
+          'route',
+          'create',
+          'Product',
+          '--scheme',
+          'GoZuzu',
+          '--force',
+        ]),
+        throwsA(isA<ArgumentError>()),
+      );
+
+      // Verify no route files were generated.
+      final routesFile = File('$outputDir/routing/product_routes.dart');
+      expect(
+        routesFile.existsSync(),
+        isFalse,
+        reason: 'route files must NOT be generated when --scheme is invalid',
+      );
+
+      // Verify manifest files were not modified.
+      final manifest = await File(
+        '$projectRoot/android/app/src/main/AndroidManifest.xml',
+      ).readAsString();
+      expect(
+        manifest.contains('android:scheme="GoZuzu"'),
+        isFalse,
+        reason: 'invalid scheme must not be written to manifest',
+      );
+    });
+
+    test('`zfa route create` with invalid --host throws BEFORE '
+        'generating any route files', () async {
+      await seedFakeFlutterProject();
+
+      // Seed a minimal entity so route create does not skip.
+      final entityDir = Directory('$outputDir/domain/entities/product');
+      await entityDir.create(recursive: true);
+      await File('${entityDir.path}/product.dart').writeAsString(
+        "class Product {\n"
+        "  final String id;\n"
+        "  Product({required this.id});\n"
+        "}\n",
+      );
+      final viewDir = Directory('$outputDir/presentation/pages/general');
+      await viewDir.create(recursive: true);
+      await File('${viewDir.path}/product_view.dart').writeAsString(
+        "import 'package:flutter/material.dart';\n"
+        "class ProductView extends StatelessWidget {\n"
+        "  const ProductView({super.key});\n"
+        "  @override\n"
+        "  Widget build(BuildContext context) => const SizedBox.shrink();\n"
+        "}\n",
+      );
+
+      // Invalid host with whitespace should throw ArgumentError
+      // BEFORE any route files are generated.
+      expect(
+        () => runner.run([
+          'route',
+          'create',
+          'Product',
+          '--scheme',
+          'gozuzu',
+          '--host',
+          'invalid host',
+          '--force',
+        ]),
+        throwsA(isA<ArgumentError>()),
+      );
+
+      // Verify no route files were generated.
+      final routesFile = File('$outputDir/routing/product_routes.dart');
+      expect(
+        routesFile.existsSync(),
+        isFalse,
+        reason: 'route files must NOT be generated when --host is invalid',
+      );
+
+      // Verify manifest files were not modified.
+      final manifest = await File(
+        '$projectRoot/android/app/src/main/AndroidManifest.xml',
+      ).readAsString();
+      expect(
+        manifest.contains('android:host="invalid host"'),
+        isFalse,
+        reason: 'invalid host must not be written to manifest',
+      );
+    });
   });
 }
 

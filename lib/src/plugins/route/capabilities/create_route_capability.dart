@@ -2,6 +2,7 @@ import 'package:path/path.dart' as path;
 
 import '../../../core/plugin_system/capability.dart';
 import '../../../utils/entity_id_type.dart';
+import '../../../utils/manifest_writer.dart';
 import '../route_plugin.dart';
 import '../../../models/generator_config.dart';
 import '../../../models/generated_file.dart';
@@ -146,6 +147,26 @@ class CreateRouteCapability implements ZuraffaCapability {
         args['id-field-type'] as String? ??
         await resolveEntityIdFieldType(entityName: name);
 
+    // #358: extract scheme/host/autoVerify args early for validation.
+    final scheme = args['scheme'] as String?;
+    final host = args['host'] as String?;
+    final autoVerify = (args['autoVerify'] as bool?) ?? false;
+
+    // #364: warn when App-Links options are passed without a scheme —
+    // they are silently ignored by the manifest hook below.
+    if ((scheme == null || scheme.isEmpty) &&
+        ((host != null && host.isNotEmpty) || autoVerify)) {
+      print('⚠️  --host / --auto-verify are ignored without --scheme.');
+    }
+
+    // Validate scheme/host BEFORE generating any files. ManifestWriter's
+    // static validators throw ArgumentError on malformed input, preventing
+    // route files from being written when deep-link args are invalid.
+    if (scheme != null && scheme.isNotEmpty) {
+      ManifestWriter.validateScheme(scheme);
+      ManifestWriter.validateHost(host);
+    }
+
     final config = GeneratorConfig(
       name: name,
       outputDir: outputDir,
@@ -165,10 +186,7 @@ class CreateRouteCapability implements ZuraffaCapability {
     // external `<scheme>://<entity-path>` links open the entity's
     // routes. This is a no-op when the platform files don't exist
     // (pure-Dart packages, tests on temp dirs).
-    final scheme = args['scheme'] as String?;
     if (scheme != null && scheme.isNotEmpty) {
-      final host = args['host'] as String?;
-      final autoVerify = (args['autoVerify'] as bool?) ?? false;
       final manifestWriter = plugin.manifestWriter;
       final projectRoot = plugin.projectRoot;
 
