@@ -415,29 +415,30 @@ void main() {
         );
       });
 
-      test('false when a source declares a missing .g.dart part (#379)', () async {
-        await Directory(
-          p.join(sandbox.path, 'lib/src/domain/entities/foo'),
-        ).create(recursive: true);
-        await File(
-          p.join(sandbox.path, 'lib/src/domain/entities/foo/foo.dart'),
-        ).writeAsString(
-          "part 'foo.zorphy.dart';\npart 'foo.g.dart';\n",
-        );
-        // .zorphy.dart exists but .g.dart is missing — exactly the
-        // json_serializable-failure-on-one-entity case from #379.
-        await File(
-          p.join(sandbox.path, 'lib/src/domain/entities/foo/foo.zorphy.dart'),
-        ).writeAsString('// generated');
-        final output = capturePrintSync(
-          () => command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
-        );
-        expect(output, contains('foo.g.dart'));
-        expect(
-          command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
-          isFalse,
-        );
-      });
+      test(
+        'false when a source declares a missing .g.dart part (#379)',
+        () async {
+          await Directory(
+            p.join(sandbox.path, 'lib/src/domain/entities/foo'),
+          ).create(recursive: true);
+          await File(
+            p.join(sandbox.path, 'lib/src/domain/entities/foo/foo.dart'),
+          ).writeAsString("part 'foo.zorphy.dart';\npart 'foo.g.dart';\n");
+          // .zorphy.dart exists but .g.dart is missing — exactly the
+          // json_serializable-failure-on-one-entity case from #379.
+          await File(
+            p.join(sandbox.path, 'lib/src/domain/entities/foo/foo.zorphy.dart'),
+          ).writeAsString('// generated');
+          final output = capturePrintSync(
+            () => command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
+          );
+          expect(output, contains('foo.g.dart'));
+          expect(
+            command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
+            isFalse,
+          );
+        },
+      );
 
       test('false when a declared .zorphy.dart part is missing', () async {
         await Directory(
@@ -471,21 +472,23 @@ void main() {
         );
       });
 
-      test('ignores hand-written multi-part libraries (non-generated parts)',
-          () async {
-        await Directory(
-          p.join(sandbox.path, 'lib/src'),
-        ).create(recursive: true);
-        // A hand-written library with a missing helper part must NOT trip the
-        // check — only .zorphy.dart / .g.dart parts are verified.
-        await File(
-          p.join(sandbox.path, 'lib/src/lib.dart'),
-        ).writeAsString("part 'helper.dart';\n");
-        expect(
-          command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
-          isTrue,
-        );
-      });
+      test(
+        'ignores hand-written multi-part libraries (non-generated parts)',
+        () async {
+          await Directory(
+            p.join(sandbox.path, 'lib/src'),
+          ).create(recursive: true);
+          // A hand-written library with a missing helper part must NOT trip the
+          // check — only .zorphy.dart / .g.dart parts are verified.
+          await File(
+            p.join(sandbox.path, 'lib/src/lib.dart'),
+          ).writeAsString("part 'helper.dart';\n");
+          expect(
+            command.verifyDeclaredPartsOrFail(projectRoot: sandbox.path),
+            isTrue,
+          );
+        },
+      );
 
       test('matches double-quoted part declarations too', () async {
         await Directory(

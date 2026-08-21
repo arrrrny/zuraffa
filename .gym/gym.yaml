@@ -1,0 +1,42 @@
+# GYM artifact — package-level exercises for zuraffa.
+# See github.com/arrrrny/gym for the paradigm,
+#     github.com/arrrrny/miki (gym.mjs) for the runner that consumes this file.
+#
+# A gym is a folder of exercises with two phases:
+#   WARMUP    — mandatory reps that build reflex. No reps, no phase 2.
+#   EXERCISES — graded work that proves the muscle under real load.
+# The gate only lets the proven through. A mis-fire is a DROP CARD.
+#
+# This file mirrors the per-entity gym.yaml the existing GymPlugin emits
+# (lib/src/plugins/gym/builders/gym_builder.dart) — same keys, same shape —
+# so the miki GYM runner can consume the package-level gym without code
+# changes.
+name: zuraffa
+version: 1.0.0
+warmup:
+  - id: 01-deps
+    name: Resolve package dependencies
+    command: dart run .gym/warmup/01-deps.dart
+  - id: 02-build
+    name: Build + run the pure-Dart example app under load
+    command: dart run .gym/warmup/02-build.dart
+  - id: 03-smoke
+    name: Authenticated smoke call into the zuraffa codegen API
+    command: dart run .gym/warmup/03-smoke.dart
+exercises:
+  - id: generate-feature
+    brief: |
+      Using zuraffa's codegen API, scaffold a `Product` feature end to end
+      in a temp sandbox. Drive `GymPlugin.generateWithContext()` (the same
+      path `zfa feature <Name>` walks), assert the four canonical files
+      landed on disk with the expected shape, and verify the produced
+      gym.yaml is consumable by the miki GYM runner. The exercise is
+      graded against the artifact you leave on disk, not against reading
+      source.
+    setup: |
+      Ensure `dart` is on PATH.
+      Run the warmup reps first (.gym/warmup/*).
+      The exercise writes its sandbox under .gym/.sandbox/ — it never
+      mutates the package source tree.
+    verifyCommand: dart run .gym/exercise-generate-feature.dart
+    evaluate: exit 0 => pass; exit !=0 => fail
