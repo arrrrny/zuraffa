@@ -9,6 +9,13 @@ linter:
     constant_identifier_names: false
     overridden_fields: false
 analyzer:
+  exclude:
+    # GYM scripts follow the issue's `<id>-<name>.dart` rep format
+    # (e.g. 01-deps.dart, 02-build.dart) — see issue #397. They are
+    # standalone `dart run` scripts graded by the miki GYM runner, not
+    # part of the package's compiled surface, so they live outside the
+    # package's strict lint regime.
+    - .gym/**
   errors:
     deprecated_member_use_from_same_package: ignore
     deprecated_member_use: ignore
