@@ -14,8 +14,9 @@ void main() {
       workspace = await Directory.systemTemp.createTemp('zfa_gym_command_');
       outputDir = '${workspace.path}/lib/src';
       await Directory(outputDir).create(recursive: true);
-      await File('${workspace.path}/pubspec.yaml')
-          .writeAsString('name: zuraffa_test');
+      await File(
+        '${workspace.path}/pubspec.yaml',
+      ).writeAsString('name: zuraffa_test');
     });
 
     tearDown(() async {
@@ -25,23 +26,24 @@ void main() {
     });
 
     test('generates gym artifact for a plain entity name', () async {
-      final result = await GymCommand(
-        GymPlugin(
-          outputDir: outputDir,
-          options: const GeneratorOptions(
-            dryRun: false,
-            force: false,
-            verbose: false,
-          ),
-        ),
-      ).execute([
-        'Product',
-        '--output',
-        outputDir,
-        '--domain',
-        'general',
-        '--dry-run',
-      ], exitOnCompletion: false);
+      final result =
+          await GymCommand(
+            GymPlugin(
+              outputDir: outputDir,
+              options: const GeneratorOptions(
+                dryRun: false,
+                force: false,
+                verbose: false,
+              ),
+            ),
+          ).execute([
+            'Product',
+            '--output',
+            outputDir,
+            '--domain',
+            'general',
+            '--dry-run',
+          ], exitOnCompletion: false);
 
       expect(result.success, isTrue);
       // 4 files: 2 warmup reps + 1 exercise + 1 gym.yaml
@@ -59,23 +61,23 @@ void main() {
       );
 
       // The gym.yaml must reference the entity (snake-cased).
-      final yaml = result.files.firstWhere(
-        (f) => f.path.endsWith('gym.yaml'),
-      );
+      final yaml = result.files.firstWhere((f) => f.path.endsWith('gym.yaml'));
       final content = yaml.content ?? '';
       expect(content, contains('name: product'));
       expect(content, contains('warmup:'));
       expect(content, contains('exercises:'));
     });
 
-    test('generates gym artifact referencing a real usecase when present',
-        () async {
-      // Drop a usecase file so buildConfigFromUseCase can infer the repo.
-      final useCaseDir =
-          Directory('${workspace.path}/lib/src/domain/usecases/account');
-      await useCaseDir.create(recursive: true);
-      await File('${useCaseDir.path}/fetch_user_usecase.dart')
-          .writeAsString('''
+    test(
+      'generates gym artifact referencing a real usecase when present',
+      () async {
+        // Drop a usecase file so buildConfigFromUseCase can infer the repo.
+        final useCaseDir = Directory(
+          '${workspace.path}/lib/src/domain/usecases/account',
+        );
+        await useCaseDir.create(recursive: true);
+        await File('${useCaseDir.path}/fetch_user_usecase.dart').writeAsString(
+          '''
 import 'package:zuraffa/zuraffa.dart';
 
 class FetchUserUseCase extends UseCase<User, NoParams> {
@@ -88,37 +90,40 @@ class FetchUserUseCase extends UseCase<User, NoParams> {
     throw UnimplementedError();
   }
 }
-''');
+''',
+        );
 
-      final result = await GymCommand(
-        GymPlugin(
-          outputDir: outputDir,
-          options: const GeneratorOptions(
-            dryRun: false,
-            force: false,
-            verbose: false,
-          ),
-        ),
-      ).execute([
-        'FetchUser',
-        '--output',
-        outputDir,
-        '--domain',
-        'account',
-        '--dry-run',
-      ], exitOnCompletion: false);
+        final result =
+            await GymCommand(
+              GymPlugin(
+                outputDir: outputDir,
+                options: const GeneratorOptions(
+                  dryRun: false,
+                  force: false,
+                  verbose: false,
+                ),
+              ),
+            ).execute([
+              'FetchUser',
+              '--output',
+              outputDir,
+              '--domain',
+              'account',
+              '--dry-run',
+            ], exitOnCompletion: false);
 
-      expect(result.success, isTrue);
-      expect(result.files.length, equals(4));
+        expect(result.success, isTrue);
+        expect(result.files.length, equals(4));
 
-      final smoke = result.files.firstWhere(
-        (f) => f.path.endsWith('01-smoke.dart'),
-      );
-      final content = smoke.content ?? '';
-      // The smoke rep must reference the inferred entity name.
-      expect(content, contains('FetchUser'));
-      expect(content, contains('FetchUserUseCase'));
-    });
+        final smoke = result.files.firstWhere(
+          (f) => f.path.endsWith('01-smoke.dart'),
+        );
+        final content = smoke.content ?? '';
+        // The smoke rep must reference the inferred entity name.
+        expect(content, contains('FetchUser'));
+        expect(content, contains('FetchUserUseCase'));
+      },
+    );
 
     test('prints usage and fails when no name is given', () async {
       final result = await GymCommand(
