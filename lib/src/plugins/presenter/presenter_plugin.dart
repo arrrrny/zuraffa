@@ -15,6 +15,7 @@ import '../../models/generator_config.dart';
 import '../../models/parsed_usecase_info.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
+import '../../utils/project_flavor.dart';
 import 'builders/presenter_class_builder.dart';
 import 'capabilities/create_presenter_capability.dart';
 
@@ -120,6 +121,21 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     }
 
     final fs = context?.fileSystem ?? fileSystem;
+
+    // #420: presenters reference `Presenter`/`CancelToken` from zuraffa_flutter
+    // and are meant for Flutter apps. In a pure-Dart target package (pubspec.yaml
+    // without a `flutter:` dependency) emitting this code violates Constitution
+    // VII (Engine Purity) and breaks `dart analyze`. Skip with a clear warning.
+    final flavor = await detectProjectFlavor(outputDir, fs);
+    if (flavor == ProjectFlavor.pureDart) {
+      print(
+        '⚠️ Skipping presenter generation: target project is a pure-Dart '
+        'package (no `flutter:` in pubspec.yaml). Presenters depend on '
+        'zuraffa_flutter (Constitution VII: Engine Purity). Run '
+        '`zfa presenter create` inside a Flutter project.',
+      );
+      return [];
+    }
 
     final entityName = config.name;
     final entitySnake = config.nameSnake;
