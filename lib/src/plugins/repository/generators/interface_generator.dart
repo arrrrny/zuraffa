@@ -223,7 +223,18 @@ class RepositoryInterfaceGenerator {
           );
           final relativePath = path.relative(entityFile.path, from: repoDir);
           imports.add(relativePath);
-        } else {
+        } else if (fileSystem.existsSync(
+          path.join(
+            outputDir,
+            'domain',
+            'entities',
+            entitySnake,
+            '$entitySnake.dart',
+          ),
+        )) {
+          // Only reference the entity file when it actually exists — skip the
+          // import for non-existent entities (e.g. an `Enums` entity that was
+          // never created) so generation does not emit dangling URIs.
           imports.add('../../domain/entities/$entitySnake/$entitySnake.dart');
         }
       }
