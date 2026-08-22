@@ -82,7 +82,7 @@ dev_dependencies:
     test(
       '--sealed --generate-subs inlines subtypes into the base library '
       '(no subtype files, no subtype imports, both part directives)',
-      timeout: const Timeout(Duration(minutes: 2)),
+      timeout: const Timeout(Duration(minutes: 5)),
       () async {
         final result = await runZfaSource([
           'entity',
@@ -187,6 +187,56 @@ dev_dependencies:
             contains("import '../steering_injected/steering_injected.dart';"),
           ),
           reason: 'no subtype import for SteeringInjected',
+        );
+
+        // End-to-end verification: run build_runner + analyzer to confirm the
+        // inlined code compiles cleanly without invalid_use_of_type_outside_library.
+        await _setupBuildEnvironment(workspace);
+
+        final pubGet = await Process.run(
+          'dart',
+          ['pub', 'get'],
+          workingDirectory: workspace.path,
+        );
+        expect(
+          pubGet.exitCode,
+          0,
+          reason: 'dart pub get failed: ${pubGet.stdout}${pubGet.stderr}',
+        );
+
+        final buildRunner = await Process.run(
+          'dart',
+          ['run', 'build_runner', 'build', '--delete-conflicting-outputs'],
+          workingDirectory: workspace.path,
+        );
+        expect(
+          buildRunner.exitCode,
+          0,
+          reason:
+              'build_runner build failed: '
+              '${buildRunner.stdout}${buildRunner.stderr}',
+        );
+
+        final analyze = await Process.run(
+          'dart',
+          ['analyze', 'lib'],
+          workingDirectory: workspace.path,
+        );
+        final analyzeOutput =
+            analyze.stdout.toString() + analyze.stderr.toString();
+
+        // CRITICAL: no `invalid_use_of_type_outside_library` diagnostic.
+        // Before the fix, the analyzer emitted 9 such errors (one per subtype)
+        // because each subtype was generated in its own library and tried to
+        // `implements Sealed` across library boundaries.
+        expect(
+          analyzeOutput,
+          isNot(contains('invalid_use_of_type_outside_library')),
+          reason:
+              'The analyzer must NOT report invalid_use_of_type_outside_library '
+              'for the inlined sealed subtypes. That diagnostic is the direct '
+              'symptom of #416 — subtypes in separate libraries cannot implement '
+              'a sealed class. Full analyzer output:\n$analyzeOutput',
         );
       },
     );
@@ -308,6 +358,78 @@ dev_dependencies:
       },
     );
   });
+}
+
+/// Sets up build.yaml + updates pubspec.yaml with the local zorphy path
+/// dependencies so build_runner can invoke the zorphy + json_serializable
+/// builders. Mirrors the pattern from issue_351_cross_entity_concrete_ref_test.
+Future<void> _setupBuildEnvironment(Directory workspace) async {
+  final projectRoot = await findProjectRoot();
+  final zorphyPath = path.normalize(
+    path.join(projectRoot, '..', 'zorphy', 'zorphy'),
+  );
+  final zorphyAnnotationPath = path.normalize(
+    path.join(projectRoot, '..', 'zorphy', 'zorphy_annotation'),
+  );
+
+  // Check if local zorphy is available; if not, rely on the git ref in the
+  // main pubspec. The CI environment may not have a sibling zorphy checkout.
+  final hasLocalZorphy = Directory(zorphyPath).existsSync() &&
+      Directory(zorphyAnnotationPath).existsSync();
+
+  // Update pubspec.yaml with zorphy + json_serializable builders.
+  final pubspecPath = path.join(workspace.path, 'pubspec.yaml');
+  var pubspec = File(pubspecPath).readAsStringSync();
+
+  if (hasLocalZorphy) {
+    // Add path dependency overrides for the local zorphy checkout.
+    pubspec += '''
+dependency_overrides:
+  zorphy:
+    path: $zorphyPath
+  zorphy_annotation:
+    path: $zorphyAnnotationPath
+''';
+  } else {
+    // Fall back to git dependencies (mirrors zuraffa's pubspec.yaml).
+    pubspec += '''
+dependency_overrides:
+  zorphy:
+    git:
+      url: https://github.com/Zuraffa/zorphy.git
+      path: zorphy
+  zorphy_annotation:
+    git:
+      url: https://github.com/Zuraffa/zorphy.git
+      path: zorphy_annotation
+''';
+  }
+
+  // Add json_serializable dev dependency.
+  pubspec = pubspec.replaceFirst(
+    'dev_dependencies:\n  build_runner: any',
+    'dev_dependencies:\n  build_runner: any\n  json_serializable: ^6.13.0',
+  );
+
+  await File(pubspecPath).writeAsString(pubspec);
+
+  // Write build.yaml to enable the zorphy + json_serializable builders.
+  await File(path.join(workspace.path, 'build.yaml')).writeAsString('''
+targets:
+  \$default:
+    builders:
+      zorphy:zorphy:
+        enabled: true
+        generate_for:
+          - lib/**
+      json_serializable:
+        enabled: true
+        generate_for:
+          - lib/**
+        options:
+          explicit_to_json: false
+          include_if_null: false
+''');
 }
 
 /// Mirror of `StringUtils.camelToSnake` to avoid pulling the helper into

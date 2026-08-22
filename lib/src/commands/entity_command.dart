@@ -543,7 +543,14 @@ ${missing.map((d) => '   • $d').join('\n')}
     }
 
     // 2. Extract each subtype's class declaration block + collect for append.
+    //    ALL subtypes must produce a non-empty block before we perform any
+    //    destructive operations (file deletions / base file writes). If any
+    //    subtype file is missing or extraction fails, abort the entire
+    //    inlining operation to avoid leaving an incomplete set.
     final inlinedBlocks = <String>[];
+    final subFilesToDelete = <File>[];
+    final subDirsToClean = <Directory>[];
+
     for (final subtype in explicitSubtypes) {
       final stName = subtype.split(':').first.replaceAll(r'$', '').trim();
       if (stName.isEmpty) continue;
@@ -551,21 +558,41 @@ ${missing.map((d) => '   • $d').join('\n')}
       final subDirPath = p.join(outputDir, stSnake);
       final subFilePath = p.join(subDirPath, '$stSnake.dart');
       final subFile = File(subFilePath);
-      if (!await subFile.exists()) continue;
+
+      // Abort if the subtype file is missing — the explicitSubtypes list
+      // declares this subtype should exist, so missing file = incomplete set.
+      if (!await subFile.exists()) {
+        // Don't proceed with partial inlining; the user likely needs to
+        // fix their entity definition or file system state first.
+        return 0;
+      }
 
       final subContent = await subFile.readAsString();
       final block = _extractSubtypeClassBlock(subContent);
-      if (block.isEmpty) continue;
-      inlinedBlocks.add(block);
 
-      // 3. Delete the subtype file; remove the directory only if empty.
+      // Abort if extraction failed — empty block = malformed subtype file.
+      if (block.isEmpty) {
+        return 0;
+      }
+
+      inlinedBlocks.add(block);
+      subFilesToDelete.add(subFile);
+      subDirsToClean.add(Directory(subDirPath));
+    }
+
+    if (inlinedBlocks.isEmpty) return 0;
+
+    // 3. Delete the subtype files AFTER all blocks have been collected.
+    //    Only perform cleanup when we have the complete set.
+    for (final subFile in subFilesToDelete) {
       try {
         await subFile.delete();
       } catch (_) {
         // Best-effort: the inlined content is what matters.
       }
+    }
+    for (final subDir in subDirsToClean) {
       try {
-        final subDir = Directory(subDirPath);
         if (await subDir.exists()) {
           final entries = await subDir.list().toList();
           if (entries.isEmpty) {
@@ -577,9 +604,8 @@ ${missing.map((d) => '   • $d').join('\n')}
       }
     }
 
-    if (inlinedBlocks.isEmpty) return 0;
-
-    // 4. The sealed base's template only emits `part '<base>.zorphy.dart';`
+    // 4. Add the `.g.dart` part directive if needed. The sealed base's
+    //    template only emits `part '<base>.zorphy.dart';`
     //    (no `.g.dart`) because the abstract base itself is not JSON-
     //    serializable. The inlined subtypes ARE concrete + JSON-serializable,
     //    so json_serializable needs a `.g.dart` part to host the
