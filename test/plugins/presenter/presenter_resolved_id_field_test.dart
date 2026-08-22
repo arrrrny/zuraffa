@@ -34,62 +34,67 @@ void main() {
     }
   });
 
-  test('presenter uses the resolved id field (depotId), not hardcoded `id`', () async {
-    final plugin = PresenterPlugin(
-      outputDir: outputDir,
-      options: const GeneratorOptions(
-        dryRun: false,
-        force: true,
-        verbose: false,
-      ),
-    );
-    final config = GeneratorConfig(
-      name: 'StorePrice',
-      methods: const ['get', 'update', 'toggle'],
-      idField: 'depotId',
-      idFieldType: 'String',
-      queryField: 'depotId',
-      generatePresenter: true,
-      outputDir: outputDir,
-    );
+  test(
+    'presenter uses the resolved id field (depotId), not hardcoded `id`',
+    () async {
+      final plugin = PresenterPlugin(
+        outputDir: outputDir,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
+      );
+      final config = GeneratorConfig(
+        name: 'StorePrice',
+        methods: const ['get', 'update', 'toggle'],
+        idField: 'depotId',
+        idFieldType: 'String',
+        queryField: 'depotId',
+        generatePresenter: true,
+        outputDir: outputDir,
+      );
 
-    final files = await plugin.generate(config);
-    final content = files.first.content ?? '';
+      final files = await plugin.generate(config);
+      final content = files.first.content ?? '';
 
-    // The id parameter is named after the resolved field.
-    expect(
-      content,
-      contains('String depotId'),
-      reason: 'toggle/get/update id parameter must use the resolved depotId',
-    );
-    // The query filter references the resolved field constant.
-    expect(
-      content,
-      contains('StorePriceFields.depotId'),
-      reason: 'get query filter must reference StorePriceFields.depotId',
-    );
-    // UpdateParams / ToggleParams ids use the resolved field.
-    expect(
-      content,
-      contains('UpdateParams<String, StorePricePatch>(id: depotId'),
-      reason: 'UpdateParams.id must be the resolved depotId',
-    );
-    expect(
-      content,
-      contains('ToggleParams<String, Field<StorePrice, dynamic>>(\n'
-          '        id: depotId,'),
-      reason: 'ToggleParams.id must be the resolved depotId',
-    );
-    // Negative: the hardcoded `id` must not appear as a field reference.
-    expect(
-      content,
-      isNot(contains('StorePriceFields.id')),
-      reason: 'presenter must NOT reference a hardcoded StorePriceFields.id',
-    );
-    expect(
-      content,
-      isNot(contains('String id,')),
-      reason: 'presenter must NOT declare a hardcoded `id` id-parameter',
-    );
-  });
+      // The id parameter is named after the resolved field.
+      expect(
+        content,
+        contains('String depotId'),
+        reason: 'toggle/get/update id parameter must use the resolved depotId',
+      );
+      // The query filter references the resolved field constant.
+      expect(
+        content,
+        contains('StorePriceFields.depotId'),
+        reason: 'get query filter must reference StorePriceFields.depotId',
+      );
+      // UpdateParams / ToggleParams ids use the resolved field.
+      expect(
+        content,
+        contains('UpdateParams<String, StorePricePatch>(id: depotId'),
+        reason: 'UpdateParams.id must be the resolved depotId',
+      );
+      expect(
+        content,
+        contains(
+          'ToggleParams<String, Field<StorePrice, dynamic>>(\n'
+          '        id: depotId,',
+        ),
+        reason: 'ToggleParams.id must be the resolved depotId',
+      );
+      // Negative: the hardcoded `id` must not appear as a field reference.
+      expect(
+        content,
+        isNot(contains('StorePriceFields.id')),
+        reason: 'presenter must NOT reference a hardcoded StorePriceFields.id',
+      );
+      expect(
+        content,
+        isNot(contains('String id,')),
+        reason: 'presenter must NOT declare a hardcoded `id` id-parameter',
+      );
+    },
+  );
 }
