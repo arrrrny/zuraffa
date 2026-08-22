@@ -29,10 +29,58 @@ void main() {
       expect(src, contains('void main() async'));
     });
 
-    test('buildMain xray=true emits kDebugMode guard + registerAllXRayDecks', () {
-      final src = builder.buildMain(appName: 'my_app', xray: true);
-      expect(src, contains('if (kDebugMode)'));
-      expect(src, contains('registerAllXRayDecks()'));
+    test(
+      'buildMain xray=true emits kDebugMode guard wrapping registerAllXRayDecks '
+      'and _startXRayBridge',
+      () {
+        final src = builder.buildMain(appName: 'my_app', xray: true);
+        // Structural check: the X-Ray calls must live *inside* the
+        // `if (kDebugMode) { ... }` block, not merely appear somewhere in the
+        // file. A substring/contains check alone would pass even if a bad merge
+        // hoisted these calls above the guard and ran debug instrumentation in
+        // release mode.
+        final guardOpen = src.indexOf('if (kDebugMode) {');
+        expect(guardOpen, greaterThan(-1), reason: 'kDebugMode guard missing');
+        // The guard body has no nested braces, so the first `}` after the
+        // guard opener is its closing brace — the structural boundary.
+        final guardClose = src.indexOf('}', guardOpen);
+        expect(guardClose, greaterThan(guardOpen),
+            reason: 'kDebugMode guard is not closed');
+
+        // registerAllXRayDecks() must be between the guard open and close.
+        // Match the *call* (trailing semicolon); the X-Ray header comment
+        // also mentions registerAllXRayDecks() in prose and must not match.
+        final registerCall = src.indexOf('registerAllXRayDecks();');
+        expect(
+          registerCall > guardOpen && registerCall < guardClose,
+          isTrue,
+          reason: 'registerAllXRayDecks() is not inside the kDebugMode guard',
+        );
+
+        // The `_startXRayBridge()` *call* (not the file-scope definition) must
+        // also be between the guard open and close.
+        final bridgeCall = src.indexOf('await _startXRayBridge();');
+        expect(
+          bridgeCall > guardOpen && bridgeCall < guardClose,
+          isTrue,
+          reason: 'await _startXRayBridge() is not inside the kDebugMode guard',
+        );
+      },
+    );
+
+    test('buildMain xray=false suppresses all X-Ray instrumentation', () {
+      final src = builder.buildMain(appName: 'my_app', xray: false);
+      // A regression that unconditionally emits X-Ray code (the kDebugMode
+      // guard, the registration call, the bridge launcher, or the header note)
+      // would not be caught by the xray=true assertions above.
+      expect(src, isNot(contains('if (kDebugMode)')),
+          reason: 'xray=false must not emit a kDebugMode guard');
+      expect(src, isNot(contains('registerAllXRayDecks()')),
+          reason: 'xray=false must not emit registerAllXRayDecks()');
+      expect(src, isNot(contains('_startXRayBridge')),
+          reason: 'xray=false must not emit the X-Ray bridge launcher');
+      expect(src, isNot(contains('X-Ray wiring')),
+          reason: 'xray=false must not emit the X-Ray header note');
     });
 
     test('buildMain emits exactly one leading comment block', () {
