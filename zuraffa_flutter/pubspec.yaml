@@ -34,3 +34,9 @@ dev_dependencies:
 dependency_overrides:
   analyzer: 14.1.0
   meta: ^1.19.0
+  # Local dev only: the 6.0.0 core is not yet on pub, so resolve it from the
+  # sibling package in this monorepo. Ignored for external consumers (overrides
+  # from non-root packages don't apply), and the published `zuraffa: ^6.0.0`
+  # constraint in `dependencies` is used there.
+  zuraffa:
+    path: ../
