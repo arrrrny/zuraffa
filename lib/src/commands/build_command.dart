@@ -372,11 +372,11 @@ class BuildCommand extends Command {
   Future<bool> verifyAnalyzeOrFail({String? projectRoot}) async {
     final root = projectRoot ?? Directory.current.path;
     print('\n🔎 Running dart analyze on lib/...');
-    final result = await Process.run(
-      'dart',
-      <String>['analyze', ...analyzeArgs, 'lib'],
-      workingDirectory: root,
-    );
+    final result = await Process.run('dart', <String>[
+      'analyze',
+      ...analyzeArgs,
+      'lib',
+    ], workingDirectory: root);
     final stdout = result.stdout as String;
     final stderr = result.stderr as String;
     if (stdout.trim().isNotEmpty) {

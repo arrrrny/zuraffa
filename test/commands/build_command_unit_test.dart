@@ -605,17 +605,17 @@ Analyzing lib/...
         }
       });
 
-      test('passes `--no-fatal-warnings` (warnings non-fatal, errors fatal)', () {
-        // Matches the documented contract: "Only ERRORS fail the build;
-        // warnings and info-level lints are surfaced but do not cause a
-        // non-zero exit." Info-level lints are non-fatal by default
-        // (`--fatal-infos` is off unless explicitly set), and
-        // `--no-fatal-warnings` makes warnings non-fatal too.
-        expect(
-          BuildCommand.analyzeArgs,
-          contains('--no-fatal-warnings'),
-        );
-      });
+      test(
+        'passes `--no-fatal-warnings` (warnings non-fatal, errors fatal)',
+        () {
+          // Matches the documented contract: "Only ERRORS fail the build;
+          // warnings and info-level lints are surfaced but do not cause a
+          // non-zero exit." Info-level lints are non-fatal by default
+          // (`--fatal-infos` is off unless explicitly set), and
+          // `--no-fatal-warnings` makes warnings non-fatal too.
+          expect(BuildCommand.analyzeArgs, contains('--no-fatal-warnings'));
+        },
+      );
     });
   });
 }
