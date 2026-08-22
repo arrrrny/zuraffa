@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:meta/meta.dart';
 import 'package:provider/provider.dart';
+import 'package:zuraffa/zuraffa.dart';
 
-import '../core/loggable.dart';
 import 'controller.dart';
 
 /// A Clean Architecture View.

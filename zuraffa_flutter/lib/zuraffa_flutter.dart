@@ -11,6 +11,11 @@ library;
 // ── Re-export everything from the pure-Dart core ─────────────────────
 export 'package:zuraffa/zuraffa.dart';
 
+// ── Common Flutter dependencies ───────────────────────────────────────
+
+/// go_router extensions (context.go, context.pop, context.canPop).
+export 'package:go_router/go_router.dart';
+
 // ── Presentation layer (Flutter widgets) ─────────────────────────────
 
 /// Controller for state management.

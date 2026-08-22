@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'package:zuraffa/zuraffa.dart';
 
-import 'route_builder.dart';
-
 /// Minimal widget that resolves routes from a [ZuraffaEngine]'s
 /// [ZuraffaEngine.masterRouteMap].
 ///
