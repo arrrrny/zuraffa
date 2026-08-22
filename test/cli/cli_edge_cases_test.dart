@@ -3,6 +3,10 @@ import 'dart:io';
 import 'package:test/test.dart';
 import 'package:path/path.dart' as p;
 
+/// Resolve package root at discovery time, before any test changes CWD.
+/// This is safe because dart test loads all files before running any test.
+final _zfaRoot = Directory.current.path;
+
 void main() {
   group('CLI Edge Cases', () {
     late Directory workspace;
@@ -15,7 +19,7 @@ void main() {
     }
 
     setUp(() async {
-      repoRoot = Directory.current.path;
+      repoRoot = _zfaRoot;
       zfaBin = p.join(repoRoot, 'bin', 'zfa.dart');
       workspace = await Directory.systemTemp.createTemp('zfa_edge_');
       outputDir = p.join(workspace.path, 'lib', 'src');

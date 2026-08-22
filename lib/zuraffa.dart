@@ -25,6 +25,7 @@ import 'src/core/module/contracts.dart';
 /// - **StreamUseCase**: Reactive operations that emit multiple values over time
 /// - **SyncUseCase**: Synchronous operations that return immediately without async
 /// - **BackgroundUseCase**: CPU-intensive operations that run on a separate isolate
+/// - **OsBackgroundTask**: OS-scheduled periodic background tasks via workmanager
 /// - **Controller**: Manages UI state and coordinates with UseCases
 /// - **Presenter**: Optional orchestration layer for complex business flows
 /// - **Result**: Type-safe success/failure handling
@@ -120,7 +121,6 @@ import 'src/core/module/contracts.dart';
 /// ```
 
 import 'package:logging/logging.dart';
-
 
 // ============================================================
 // Core - Error Handling & Utilities
@@ -292,6 +292,12 @@ export 'src/domain/sync_usecase.dart';
 /// BackgroundUseCase for isolate-based operations
 export 'src/domain/background_usecase.dart';
 
+/// OsBackgroundTask for OS-scheduled background tasks wrapping workmanager
+export 'src/domain/os_background_task.dart';
+
+/// OsBackgroundTaskUseCase abstract base for OS background task use cases
+export 'src/domain/os_background_task_usecase.dart';
+
 /// Observer for callback-based stream listening (optional)
 export 'src/domain/observer.dart';
 
@@ -404,6 +410,7 @@ export 'src/dda/plugins/route/route_plugin.dart';
 
 /// RouteGenerator — GoRouter configuration generation from @Route metadata.
 export 'src/dda/plugins/route/route_generator.dart';
+
 /// CacheStrategy enum, @Cacheable and @CacheInvalidate annotations.
 export 'src/dda/plugins/cache/cache_annotation.dart';
 
@@ -469,6 +476,7 @@ export 'src/state/generator/cache_binding_generator.dart';
 // SignalBuilder — rebuilds on pure UI Signal changes.
 
 // ViewTemplateGenerator — generates ControlledWidget-based views.
+export 'src/state/generator/view_template_generator.dart';
 
 // ============================================================
 // V6 GraphQL Core
@@ -551,20 +559,39 @@ export 'src/graphql/codegen/union_result_handler.dart';
 // GraphqlGenerateCommand — `zfa graphql generate` command class.
 export 'src/graphql/codegen/graphql_generate_command.dart';
 
+// GraphQL introspection — fetch and parse remote schemas.
+export 'src/graphql/graphql_introspection_service.dart';
+export 'src/graphql/graphql_schema.dart';
+export 'src/graphql/graphql_schema_translator.dart';
+export 'src/graphql/graphql_entity_emitter.dart';
+
 // ============================================================
 // Micro-Frontend Module System (v6)
 // ============================================================
 
-/// Runtime contracts for the micro-frontend plugin architecture.
-/// [ZuraffaPlugin], [ZuraffaEngine], [ZuraffaDIContainer],
-/// [ZuraffaRouteBuilder], and [ZuraffaAppRunner].
 /// Runtime contracts for the micro-frontend plugin architecture (Dart-only parts).
-/// [ZuraffaPlugin], [ZuraffaEngine], [ZuraffaDIContainer] ship here.
-/// [ZuraffaRouteBuilder] is a platform-agnostic typedef. [ZuraffaAppRunner] is in zuraffa_flutter.
+/// [ZuraffaPlugin], [ZuraffaEngine], [ZuraffaDIContainer], and
+/// [ZuraffaRouteHandler] ship here.
+/// [ZuraffaRouteBuilder] (Widget-returning) and [ZuraffaAppRunner] are in zuraffa_flutter.
 export 'src/core/module/route_builder.dart';
 export 'src/core/module/di_container.dart';
 export 'src/core/module/engine.dart';
 export 'src/core/module/zuraffa_plugin.dart';
+
+// ============================================================
+// MCP Plugin (issue #369) — runtime tool exposure
+// ============================================================
+
+/// Runtime MCP tool contracts: [McpTool], [McpToolResult],
+/// [McpToolRegistry], [McpServerPlugin], [McpStdioServer], and
+/// [McpSseServer].
+/// Together they let a Zuraffa app expose its features as
+/// Model Context Protocol tools callable by AI agents.
+export 'src/core/module/mcp_tool.dart';
+export 'src/core/module/mcp_tool_registry.dart';
+export 'src/core/module/mcp_server_plugin.dart';
+export 'src/core/module/mcp_stdio_server.dart';
+export 'src/mcp/sse_server.dart' show McpSseServer;
 
 // ============================================================
 // Framework Configuration
@@ -687,7 +714,6 @@ class Zuraffa {
         return Level.OFF;
     }
   }
-
 
   /// Enable debug logging for the framework.
   ///
@@ -1173,8 +1199,3 @@ class Zuraffa {
     return '⚫';
   }
 }
-
-
-
-
-

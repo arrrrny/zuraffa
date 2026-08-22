@@ -12,13 +12,16 @@ void main() {
   });
 
   group('override parameter', () {
-    test('registerLazySingleton throws when duplicate without override', () async {
-      await di.registerLazySingleton<String>(() => 'first');
-      await expectLater(
-        () => di.registerLazySingleton<String>(() => 'second'),
-        throwsStateError,
-      );
-    });
+    test(
+      'registerLazySingleton throws when duplicate without override',
+      () async {
+        await di.registerLazySingleton<String>(() => 'first');
+        await expectLater(
+          () => di.registerLazySingleton<String>(() => 'second'),
+          throwsStateError,
+        );
+      },
+    );
 
     test('registerLazySingleton replaces with override: true', () async {
       await di.registerLazySingleton<String>(() => 'first');
@@ -70,10 +73,7 @@ void main() {
 
     test('override with instanceName does not affect unnamed', () async {
       await di.registerLazySingleton<String>(() => 'unnamed');
-      await di.registerLazySingleton<String>(
-        () => 'named',
-        instanceName: 'v2',
-      );
+      await di.registerLazySingleton<String>(() => 'named', instanceName: 'v2');
       // Override the named one.
       await di.registerLazySingleton<String>(
         () => 'named_v2',

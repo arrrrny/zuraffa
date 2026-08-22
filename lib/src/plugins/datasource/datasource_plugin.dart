@@ -138,6 +138,13 @@ class DataSourcePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           context.data['use-service'] == true ||
           context.data['useService'] == true,
       noEntity: context.data['no-entity'] == true,
+      // #294: read id-field / query-field from the CLI/MakeCommand-resolved
+      // context so generators don't hardcode `EntityFields.id` for
+      // entities whose id field is e.g. `depotId`.
+      idField: context.data['id-field'] ?? 'id',
+      idFieldType: context.data['id-field-type'] ?? 'String',
+      queryField: context.data['query-field'] ?? 'id',
+      queryFieldType: context.data['query-field-type'],
       appendToExisting:
           context.data['append'] == true ||
           context.data['method_append'] == true ||

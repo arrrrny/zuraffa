@@ -49,6 +49,7 @@ class GeneratorConfig {
   final bool useZorphy;
   final bool noEntity;
   final bool generateTest;
+  final bool generateGym;
   final bool enableCache;
   final String cachePolicy;
   final String? cacheStorage;
@@ -72,6 +73,11 @@ class GeneratorConfig {
   final bool useMockInDi;
   final bool generateDi;
   final bool generateXRay;
+
+  /// When true, the view plugin generates v6 dual-layer state
+  /// (DomainState + ViewState + DualLayerPresenter) and ControlledWidget /
+  /// FragmentBuilder based views instead of the legacy v5 monolithic state.
+  final bool generateV6State;
   final String diFramework;
   final bool generateRoute;
   final bool generateGql;
@@ -129,6 +135,7 @@ class GeneratorConfig {
     this.useZorphy = true,
     this.noEntity = false,
     this.generateTest = false,
+    this.generateGym = false,
     this.enableCache = false,
     this.cachePolicy = 'daily',
     this.cacheStorage,
@@ -148,6 +155,7 @@ class GeneratorConfig {
     this.useMockInDi = false,
     this.generateDi = false,
     this.generateXRay = false,
+    this.generateV6State = false,
     this.diFramework = 'get_it',
     this.generateRoute = false,
     this.generateGql = false,
@@ -209,6 +217,7 @@ class GeneratorConfig {
       useZorphy: true,
       noEntity: json['no_entity'] == true || json['noEntity'] == true,
       generateTest: json['test'] == true,
+      generateGym: json['gym'] == true,
       enableCache: json['cache'] == true || json['enable_cache'] == true,
       cachePolicy: json['cache_policy'] ?? 'daily',
       cacheStorage: json['cache_storage'],
@@ -225,6 +234,10 @@ class GeneratorConfig {
       useMockInDi: json['use_mock'] == true || json['use_mock_in_di'] == true,
       generateDi: json['di'] == true || json['generate_di'] == true,
       generateXRay: json['xray'] == true || json['generate_xray'] == true,
+      generateV6State:
+          json['v6_state'] == true ||
+          json['v6State'] == true ||
+          json['v6-state'] == true,
       diFramework: json['di_framework'] ?? 'get_it',
       generateRoute: json['route'] == true || json['generate_route'] == true,
       generateGql: json['gql'] == true || json['generate_gql'] == true,
@@ -299,6 +312,7 @@ class GeneratorConfig {
     bool? useZorphy,
     bool? noEntity,
     bool? generateTest,
+    bool? generateGym,
     bool? enableCache,
     String? cachePolicy,
     String? cacheStorage,
@@ -318,6 +332,7 @@ class GeneratorConfig {
     bool? useMockInDi,
     bool? generateDi,
     bool? generateXRay,
+    bool? generateV6State,
     String? diFramework,
     bool? generateRoute,
     bool? generateGql,
@@ -370,6 +385,7 @@ class GeneratorConfig {
       useZorphy: useZorphy ?? this.useZorphy,
       noEntity: noEntity ?? this.noEntity,
       generateTest: generateTest ?? this.generateTest,
+      generateGym: generateGym ?? this.generateGym,
       enableCache: enableCache ?? this.enableCache,
       cachePolicy: cachePolicy ?? this.cachePolicy,
       cacheStorage: cacheStorage ?? this.cacheStorage,
@@ -389,6 +405,7 @@ class GeneratorConfig {
       useMockInDi: useMockInDi ?? this.useMockInDi,
       generateDi: generateDi ?? this.generateDi,
       generateXRay: generateXRay ?? this.generateXRay,
+      generateV6State: generateV6State ?? this.generateV6State,
       diFramework: diFramework ?? this.diFramework,
       generateRoute: generateRoute ?? this.generateRoute,
       generateGql: generateGql ?? this.generateGql,
@@ -640,6 +657,7 @@ class GeneratorConfig {
     'query_field': queryField,
     'query_field_type': queryFieldType,
     'test': generateTest,
+    'gym': generateGym,
     'cache': enableCache,
     'cache_policy': cachePolicy,
     'cache_storage': cacheStorage,

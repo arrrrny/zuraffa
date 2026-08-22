@@ -54,6 +54,19 @@ extension TestBuilderEntity on TestBuilder {
         className = 'Update${entityName}UseCase';
         returnTypeConstructor = 't$entityName';
         break;
+      case 'toggle':
+        // #289: PR #287 added 'toggle' to the entity-methods default used by
+        // the di/test plugins (['get', 'update', 'toggle']) so canonical
+        // `zfa make <Entity> --preset=crud --with=vpc,state,di,test` routes to
+        // per-method generation. Every other generator (usecase, controller,
+        // presenter, view, repository, datasource, di) has a `toggle` case —
+        // the per-method test builder must too, otherwise the test plugin
+        // crashes with `Unknown method: toggle` before any file is written.
+        // Mirrors the usecase generator: `Toggle${entityName}UseCase` returns
+        // the toggled entity (Future<Entity>), not a stream and not void.
+        className = 'Toggle${entityName}UseCase';
+        returnTypeConstructor = 't$entityName';
+        break;
       case 'delete':
         className = 'Delete${entityName}UseCase';
         returnTypeConstructor = 'null';
@@ -110,10 +123,15 @@ extension TestBuilderEntity on TestBuilder {
       return GeneratedFile(path: filePath, type: 'test', action: 'skipped');
     }
 
+    // #354: detect Flutter vs pure-Dart from pubspec.yaml so the test
+    // framework + zuraffa core imports resolve. `zfa setup --dart` only
+    // wires `test` + `mocktail` + `zuraffa` (no `flutter_test`, no
+    // `zuraffa_flutter`).
+    final isFlutter = await _isFlutterProject(projectRoot);
     final directives = [
-      Directive.import('package:flutter_test/flutter_test.dart'),
+      _testFrameworkImport(isFlutter),
       Directive.import('package:mocktail/mocktail.dart'),
-      if (method != 'create') Directive.import('package:zuraffa/zuraffa.dart'),
+      if (method != 'create') _zuraffaCoreImport(isFlutter),
     ];
 
     String toPackageImport(String filePath) {
@@ -145,6 +163,33 @@ extension TestBuilderEntity on TestBuilder {
     }
 
     directives.add(Directive.import(toPackageImport(useCaseFile.path)));
+
+    // #321: the test file's `main()` body constructs params that reference
+    // the id field type directly (UpdateParams<IdType, Patch>,
+    // ToggleParams<IdType, Field>, DeleteParams<IdType>, ...). When the
+    // id field is an enum (e.g. messageTypeId: SomeEnum), the enum barrel
+    // import must be emitted here — the entity file's own
+    // `import '../enums/index.dart'` is private and not re-exported, so
+    // the test file references the enum symbol directly without it being
+    // in scope. Primitive types are filtered out by KnownTypes.isExcluded,
+    // so a plain `String` id adds nothing. Resolve the enum barrel path
+    // via CommonPatterns.entityImports (handles same-domain + standard +
+    // legacy flat + enums/ directory lookups).
+    final sigTypeImports = CommonPatterns.entityImports(
+      [config.idFieldType, config.queryFieldType],
+      config,
+      depth: 3,
+      fileSystem: fileSystem,
+    );
+    for (final importPath in sigTypeImports) {
+      // Convert the relative `../../../domain/...` path (depth=3 from
+      // `test/domain/usecases/<snake>/`) into a package: import that
+      // matches the other test directives above.
+      final packagePath = importPath.startsWith('../')
+          ? importPath.substring('../'.length * 3) // strip `../../../`
+          : importPath;
+      directives.add(Directive.import('package:$packageName/src/$packagePath'));
+    }
 
     final mockRepoClass = 'Mock$targetName';
     final mockEntityClass = 'Mock$entityName';

@@ -28,10 +28,7 @@ class ModuleOrchestratorBuilder {
 
     final library = Library(
       (b) => b
-        ..directives.addAll([
-          Directive.import('package:flutter/widgets.dart'),
-          Directive.import('package:zuraffa/zuraffa.dart'),
-        ])
+        ..directives.add(Directive.import('package:zuraffa/zuraffa.dart'))
         ..body.add(
           Class(
             (c) => c
@@ -44,12 +41,13 @@ class ModuleOrchestratorBuilder {
                     ..name = 'pluginId'
                     ..type = MethodType.getter
                     ..returns = refer('String')
-                    ..body = Code("'${_snake(featureName)}'"),
+                    ..body = Code("return '${_snake(featureName)}';"),
                 ),
                 Method(
                   (m) => m
                     ..annotations.add(refer('override'))
                     ..name = 'registerDependencies'
+                    ..returns = refer('void')
                     ..requiredParameters.add(
                       Parameter(
                         (p) => p
@@ -57,12 +55,7 @@ class ModuleOrchestratorBuilder {
                           ..type = refer('ZuraffaDIContainer'),
                       ),
                     )
-                    ..body = Code(
-                      "// TODO: register this feature's dependencies.\n"
-                      '// di.registerLazySingleton<${_pascal(featureName)}Repository>(\n'
-                      '//   () => ${_pascal(featureName)}RepositoryImpl(di.get()),\n'
-                      '// );',
-                    ),
+                    ..body = Code('// TODO: register dependencies.\n'),
                 ),
                 Method(
                   (m) => m
@@ -70,19 +63,15 @@ class ModuleOrchestratorBuilder {
                     ..name = 'routes'
                     ..type = MethodType.getter
                     ..returns = refer('Map<String, ZuraffaRouteBuilder>')
-                    ..body = Code(
-                      "// TODO: expose this feature's routes.\n"
-                      "return {\n"
-                      "  '/${_snake(featureName)}': (context, args) => const SizedBox(),\n"
-                      "};",
-                    ),
+                    ..body = Code('return const {};'),
                 ),
               ]),
           ),
         ),
     );
 
-    final code = emitter.format(library.accept(DartEmitter()).toString());
+    final raw = library.accept(DartEmitter()).toString();
+    final code = emitter.format(raw);
 
     final file = await FileUtils.writeFile(
       filePath,
@@ -101,9 +90,6 @@ class ModuleOrchestratorBuilder {
       .join();
 
   String _snake(String name) => name
-      .replaceAllMapped(
-        RegExp(r'[A-Z]'),
-        (m) => '_${m[0]!.toLowerCase}',
-      )
+      .replaceAllMapped(RegExp(r'[A-Z]'), (m) => '_${m[0]!.toLowerCase()}')
       .replaceFirst(RegExp(r'^_'), '');
 }

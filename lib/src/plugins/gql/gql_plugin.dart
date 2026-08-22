@@ -1,13 +1,18 @@
+import 'package:args/command_runner.dart';
+
 import '../../core/generator_options.dart';
-import '../../core/plugin_system/plugin_interface.dart';
-import '../../core/plugin_system/plugin_context.dart';
 import '../../core/plugin_system/capability.dart';
+import '../../core/plugin_system/cli_aware_plugin.dart';
+import '../../core/plugin_system/plugin_context.dart';
+import '../../core/plugin_system/plugin_interface.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import '../../commands/gql_command.dart';
 import 'builders/gql_builder.dart';
+import 'capabilities/create_gql_capability.dart';
 
 /// Manages internal GraphQL string generation (internal data layer).
-class GqlPlugin extends FileGeneratorPlugin {
+class GqlPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   final String outputDir;
   final GeneratorOptions options;
   late final GqlBuilder gqlBuilder;
@@ -30,6 +35,12 @@ class GqlPlugin extends FileGeneratorPlugin {
 
   @override
   String? get configKey => 'gqlByDefault';
+
+  @override
+  List<ZuraffaCapability> get capabilities => [CreateGqlCapability(this)];
+
+  @override
+  Command createCommand() => GqlCommand(this);
 
   @override
   JsonSchema get configSchema => {

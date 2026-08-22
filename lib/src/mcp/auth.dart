@@ -51,7 +51,7 @@ class McpAuth {
     return null;
   }
 
-  /// Validates an Authorization header value ("Bearer <token>").
+  /// Validates an Authorization header value (`"Bearer <token>"`).
   bool validateHeader(String? authHeader) {
     if (!isEnabled) return true;
     if (authHeader == null) return false;

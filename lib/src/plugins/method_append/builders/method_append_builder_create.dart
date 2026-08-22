@@ -105,7 +105,13 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
       directives: [Directive.import('package:zuraffa/zuraffa.dart')],
     );
 
-    final content = specLibrary.emitLibrary(library);
+    var content = specLibrary.emitLibrary(library);
+    // Emit imports for non-builtin --params / --returns entity types that live
+    // under domain/entities/** (skip NoParams, void, primitives). Without this,
+    // a freshly-created service interface references undefined types (issue #395 Bug B).
+    // Reuse _addMissingImports so the relative path matches the file's actual
+    // location (../entities/... for services, ../../../domain/entities/... for providers).
+    content = await _addMissingImports(config, content, filePath);
     await FileUtils.writeFile(
       filePath,
       content,
@@ -120,6 +126,7 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
     GeneratorConfig config,
     String filePath,
     String serviceName,
+    String providerName,
     String methodName,
     Reference returnType,
     Object params,
@@ -127,10 +134,21 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
     final file = File(filePath);
     await file.parent.create(recursive: true);
 
+    final serviceSnake = config.serviceSnake;
+    final serviceImport = config.isEntityBased
+        ? '../../../domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
+        : '../../../domain/services/${serviceSnake}_service.dart';
+
+    final directives = <Directive>[
+      Directive.import('package:zuraffa/zuraffa.dart'),
+      Directive.import(serviceImport),
+    ];
+
     final providerClass = Class(
       (c) => c
-        ..name = '${serviceName}Provider'
-        ..extend = refer('BaseProvider')
+        ..name = providerName
+        ..mixins.addAll([refer('Loggable'), refer('FailureHandler')])
+        ..implements.add(refer(serviceName))
         ..docs.add('/// Provider implementation for $serviceName')
         ..methods.add(
           Method(
@@ -159,10 +177,25 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
               ..body = Block(
                 (b) => b
                   ..statements.add(
+                    declareFinal('error')
+                        .assign(
+                          refer('UnimplementedError').call([
+                            literalString('$methodName not implemented'),
+                          ]),
+                        )
+                        .statement,
+                  )
+                  ..statements.add(
+                    declareFinal(
+                      'stack',
+                    ).assign(refer('StackTrace').property('current')).statement,
+                  )
+                  ..statements.add(
                     refer(
-                      'throw',
-                    ).call([refer('UnimplementedError').call([])]).statement,
-                  ),
+                      'logAndHandleError',
+                    ).call([refer('error'), refer('stack')]).statement,
+                  )
+                  ..statements.add(refer('error').thrown.statement),
               ),
           ),
         ),
@@ -170,10 +203,16 @@ extension MethodAppendBuilderCreate on MethodAppendBuilder {
 
     final library = specLibrary.library(
       specs: [providerClass],
-      directives: [Directive.import('package:zuraffa/zuraffa.dart')],
+      directives: directives,
     );
 
-    final content = specLibrary.emitLibrary(library);
+    var content = specLibrary.emitLibrary(library);
+    // Emit imports for non-builtin --params / --returns entity types that live
+    // under domain/entities/** (skip NoParams, void, primitives). Without this,
+    // a freshly-created provider references undefined types (issue #395 Bug B).
+    // Reuse _addMissingImports so the relative path matches the provider's
+    // actual location (../../../domain/entities/...).
+    content = await _addMissingImports(config, content, filePath);
     await FileUtils.writeFile(
       filePath,
       content,

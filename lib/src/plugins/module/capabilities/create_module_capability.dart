@@ -18,26 +18,23 @@ class CreateModuleCapability implements ZuraffaCapability {
 
   @override
   JsonSchema get inputSchema => {
-        'type': 'object',
-        'properties': {
-          'name': {
-            'type': 'string',
-            'description': 'Name of the feature',
-          },
-        },
-        'required': ['name'],
-      };
+    'type': 'object',
+    'properties': {
+      'name': {'type': 'string', 'description': 'Name of the feature'},
+    },
+    'required': ['name'],
+  };
 
   @override
   JsonSchema get outputSchema => {
-        'type': 'object',
-        'properties': {
-          'files': {
-            'type': 'array',
-            'items': {'type': 'string'},
-          },
-        },
-      };
+    'type': 'object',
+    'properties': {
+      'files': {
+        'type': 'array',
+        'items': {'type': 'string'},
+      },
+    },
+  };
 
   @override
   Future<EffectReport> plan(Map<String, dynamic> args) async {
@@ -55,10 +52,7 @@ class CreateModuleCapability implements ZuraffaCapability {
 
   @override
   Future<ExecutionResult> execute(Map<String, dynamic> args) async {
-    final files = await _generateFiles(
-      args,
-      dryRun: args['dryRun'] ?? false,
-    );
+    final files = await _generateFiles(args, dryRun: args['dryRun'] ?? false);
     return ExecutionResult(
       success: true,
       files: files.map((f) => f.path).toList(),

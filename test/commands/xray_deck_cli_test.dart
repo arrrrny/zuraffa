@@ -3,6 +3,20 @@ import 'dart:io';
 import 'package:test/test.dart';
 import 'package:zuraffa/src/zfa_cli.dart';
 
+/// Safely set CWD, recovering if the current CWD was deleted by another test.
+void _safeSetCwd(Directory dir) {
+  try {
+    Directory.current = dir;
+  } catch (_) {
+    try {
+      Directory.current = Directory.systemTemp;
+    } catch (_) {}
+    try {
+      Directory.current = dir;
+    } catch (_) {}
+  }
+}
+
 void main() {
   late Directory tempDir;
   late String originalWd;
@@ -13,7 +27,20 @@ void main() {
   });
 
   tearDown(() async {
-    Directory.current = Directory(originalWd);
+    // CRITICAL: Restore CWD BEFORE deleting tempDir.
+    // If CWD points to tempDir and we delete it, any access to
+    // Directory.current / Uri.base crashes the test runner itself.
+    try {
+      if (Directory(originalWd).existsSync()) {
+        Directory.current = originalWd;
+      } else {
+        Directory.current = Directory.systemTemp.path;
+      }
+    } catch (_) {
+      try {
+        Directory.current = Directory.systemTemp.path;
+      } catch (_) {}
+    }
     if (tempDir.existsSync()) {
       await tempDir.delete(recursive: true);
     }
@@ -21,7 +48,7 @@ void main() {
 
   group('zfa xray deck CLI integration', () {
     test('generates registration from YAML source', () async {
-      Directory.current = tempDir;
+      _safeSetCwd(tempDir);
 
       // Create a YAML file.
       final yamlDir = Directory('${tempDir.path}/assets/mocks');
@@ -68,7 +95,7 @@ void main() {
     });
 
     test('generates registration from annotated source', () async {
-      Directory.current = tempDir;
+      _safeSetCwd(tempDir);
 
       // Create a source file with annotations.
       final sourceFile = File('${tempDir.path}/scan_barcode_usecase.dart');
@@ -99,7 +126,7 @@ class ScanBarcodeUseCase {}
     });
 
     test('combines annotations and YAML', () async {
-      Directory.current = tempDir;
+      _safeSetCwd(tempDir);
 
       final sourceFile = File('${tempDir.path}/process_usecase.dart');
       sourceFile.writeAsStringSync(
@@ -133,14 +160,14 @@ class ProcessUseCase {}
     });
 
     test('no source and no yaml shows error', () async {
-      Directory.current = tempDir;
+      _safeSetCwd(tempDir);
 
       final output = await runCapturing(['xray', 'deck']);
       expect(output, contains('provide --source and/or --yaml'));
     });
 
     test('re-running with updated YAML reflects changes', () async {
-      Directory.current = tempDir;
+      _safeSetCwd(tempDir);
 
       final yamlFile = File('${tempDir.path}/scenarios.yaml');
       yamlFile.writeAsStringSync('''- name: V1
@@ -192,7 +219,7 @@ class ProcessUseCase {}
     });
 
     test('auto-detected usecase name preserves UseCase casing', () async {
-      Directory.current = tempDir;
+      _safeSetCwd(tempDir);
 
       final sourceFile = File('${tempDir.path}/scan_barcode_usecase.dart');
       sourceFile.writeAsStringSync(

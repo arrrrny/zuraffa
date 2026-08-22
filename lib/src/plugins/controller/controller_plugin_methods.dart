@@ -283,7 +283,7 @@ extension ControllerPluginMethods on ControllerPlugin {
     String entityCamel,
     bool withState,
   ) {
-    final fieldEnum = '${entityName}Fields';
+    final fieldEnum = 'Field<$entityName, dynamic>';
     final hasListMethod =
         config.methods.contains('getList') ||
         config.methods.contains('watchList');
@@ -296,6 +296,15 @@ extension ControllerPluginMethods on ControllerPlugin {
           )
         : _buildToggleWithoutStateBody(config, entityName);
 
+    // #302: The toggle-value parameter must NOT be named after the entity's
+    // id field. Entities like `Barcode` declare a field literally named
+    // `value` (and `EntityFieldResolver.resolveIdField` then resolves the
+    // id field to `value` because it's the first declared field), which
+    // would make the id param `String value` collide with the toggle-value
+    // param `bool value` → duplicate_definition + argument_type_not_assignable.
+    // Use the fixed reserved name `toggleValue` for the bool toggle-value
+    // parameter so it can never collide with `config.idField`, `field`, or
+    // `cancelToken` regardless of the entity's field names.
     return Method(
       (m) => m
         ..name = 'toggle$entityName'
@@ -314,7 +323,7 @@ extension ControllerPluginMethods on ControllerPlugin {
           ),
           Parameter(
             (p) => p
-              ..name = 'value'
+              ..name = 'toggleValue'
               ..type = refer('bool'),
           ),
         ])

@@ -44,10 +44,10 @@ dependencies:
 
 dependency_overrides:
   analyzer: 14.1.0
-  zorphy:
-    path: ../zorphy/zorphy
-  zorphy_annotation:
-    path: ../zorphy/zorphy_annotation
+  # No zorphy overrides: zorphy/zorphy_annotation ^2.2.0 on pub.dev carry the
+  # #310/#351/#349 fixes, so the versioned deps above are the contract. Local
+  # `../zorphy` path overrides must never be committed — CI has no sibling
+  # checkout and every branch goes red when they are.
 
 executables:
   zuraffa:

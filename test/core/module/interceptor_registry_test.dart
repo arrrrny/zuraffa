@@ -44,7 +44,7 @@ void main() {
     });
 
     test('chain returns tail when no interceptors', () {
-      final tail = (String req) => SignalResult.success(42);
+      SignalResult<int> tail(String req) => SignalResult.success(42);
       final chained = registry.chain<String, int>(tail);
       expect(identical(chained, tail), true);
     });
@@ -61,7 +61,7 @@ void main() {
         ),
       );
 
-      final tail = (String req) => SignalResult.success(req.length);
+      SignalResult<int> tail(String req) => SignalResult.success(req.length);
       final chained = registry.chain<String, int>(tail);
       final result = chained('hello');
       expect(intercepted, true);
@@ -89,10 +89,11 @@ void main() {
         ),
       );
 
-      final tail = (String req) {
+      SignalResult<int> tail(String req) {
         order.add('tail');
         return SignalResult.success(99);
-      };
+      }
+
       final chained = registry.chain<String, int>(tail);
       chained('x');
       expect(order, ['first', 'second', 'tail']);
@@ -110,10 +111,11 @@ void main() {
         ),
       );
 
-      final tail = (String req) {
+      SignalResult<int> tail(String req) {
         tailCalled = true;
         return SignalResult.success(42);
-      };
+      }
+
       final chained = registry.chain<String, int>(tail);
       final result = chained('x');
       expect(tailCalled, false);
@@ -131,7 +133,7 @@ void main() {
         ),
       );
 
-      final tail = (String req) => SignalResult.success(10);
+      SignalResult<int> tail(String req) => SignalResult.success(10);
       final chained = registry.chain<String, int>(tail);
       final result = chained('x');
       expect(result.isSuccess, true);

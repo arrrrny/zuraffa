@@ -312,33 +312,93 @@ class AstModifier {
     required String elementSource,
     bool format = true,
   }) {
+    final list = _returnedListOf(functionNode);
+    if (list == null) {
+      return source;
+    }
+
+    return _removeListElements(
+      source: source,
+      list: list,
+      remove: (element) => element.toSource() == elementSource,
+      format: format,
+    );
+  }
+
+  /// Removes every element of the function's returned list literal for which
+  /// [matches] returns true. Unlike [removeElementFromReturnListInFunction],
+  /// elements do not have to match a full source string exactly — this allows
+  /// replacing stale elements identified by a stable partial identity.
+  static String removeElementsFromReturnListInFunctionWhere({
+    required String source,
+    required FunctionDeclaration functionNode,
+    required bool Function(String elementSource) matches,
+    bool format = true,
+  }) {
+    final list = _returnedListOf(functionNode);
+    if (list == null) {
+      return source;
+    }
+
+    return _removeListElements(
+      source: source,
+      list: list,
+      remove: (element) => matches(element.toSource()),
+      format: format,
+    );
+  }
+
+  /// Returns the list literal returned by [functionNode], or null when the
+  /// function has no `return [...];` shape we know how to edit.
+  static ListLiteral? _returnedListOf(FunctionDeclaration functionNode) {
     final body = functionNode.functionExpression.body;
     if (body is! BlockFunctionBody) {
-      return source;
+      return null;
     }
 
     final returnStatement = body.block.statements
         .whereType<ReturnStatement>()
         .firstOrNull;
     if (returnStatement == null) {
-      return source;
+      return null;
     }
 
     final expression = returnStatement.expression;
     if (expression is! ListLiteral) {
-      return source;
+      return null;
     }
+    return expression;
+  }
 
-    final elements = expression.elements;
-    for (final element in elements) {
-      if (element.toSource() == elementSource) {
-        final result =
-            source.substring(0, element.offset) + source.substring(element.end);
-        return format ? _formatSafe(result) : result;
-      }
-    }
+  /// #335: rebuilds [list] from its surviving elements instead of slicing
+  /// removed elements out of the raw source by offset. Offset slicing kept
+  /// leaving a dangling separator comma behind — once for the element's own
+  /// trailing comma (#333), then for the comma that *preceded* it (#335,
+  /// `[GoRoute(...), ,];` after the malformed detail stub was removed) —
+  /// which made the file uncompilable and DartFormatter bail in
+  /// [_formatSafe]. Reconstruction cannot leave a stray comma by
+  /// construction.
+  ///
+  /// Zero-length elements are parser-recovery artifacts of an already-broken
+  /// list (e.g. the missing identifier after a stray comma) and are dropped
+  /// alongside the removed elements, so re-running over a damaged file
+  /// repairs it.
+  static String _removeListElements({
+    required String source,
+    required ListLiteral list,
+    required bool Function(CollectionElement element) remove,
+    bool format = true,
+  }) {
+    final kept = list.elements
+        .where((element) => element.end > element.offset)
+        .where((element) => !remove(element))
+        .toList();
 
-    return source;
+    final keptSource = kept.map((element) => element.toSource()).join(',\n');
+    final inner = keptSource.isEmpty ? '' : '$keptSource,';
+    final result =
+        '${source.substring(0, list.offset)}[$inner]${source.substring(list.end)}';
+    return format ? _formatSafe(result) : result;
   }
 
   static String removeStatement({

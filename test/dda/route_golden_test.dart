@@ -225,5 +225,27 @@ void main() {
       expect(output, contains('String userId'));
       expect(output, contains('String orderId'));
     });
+
+    test('regression: fromGoRouterState calls private constructor', () {
+      // Regression test for Finding 4: factory should call ClassName._()
+      gen.addRoute(
+        path: '/products/:id',
+        name: 'productDetail',
+        className: 'ProductDetailView',
+        importUri: 'package:myapp/views/product_detail_view.dart',
+        queryParameters: {'source': 'String'},
+      );
+
+      final output = gen.generate();
+
+      // Verify private constructor exists
+      expect(output, contains('ProductDetailViewRouteParams._('));
+
+      // Verify factory calls the private constructor
+      expect(output, contains('return ProductDetailViewRouteParams._('));
+
+      // Should NOT call public default constructor
+      expect(output, isNot(contains('return ProductDetailViewRouteParams(')));
+    });
   });
 }

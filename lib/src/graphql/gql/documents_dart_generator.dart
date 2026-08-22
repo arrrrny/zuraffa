@@ -45,7 +45,7 @@ class DocumentsDartGenerator {
 
     for (final file in graphqlFiles) {
       final fileName = p.basenameWithoutExtension(file.path);
-      final varName = NamingUtils.documentVarName(fileName);
+      final varName = '${NamingUtils.documentVarName(fileName)}Document';
       final content = file.readAsStringSync();
 
       // Check for duplicate variable names (from different directories)

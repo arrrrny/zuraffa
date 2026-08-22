@@ -10,6 +10,7 @@ import '../../models/generator_config.dart';
 import 'capabilities/create_usecase_capability.dart';
 import 'generators/custom_usecase_generator.dart';
 import 'generators/entity_usecase_generator.dart';
+import 'generators/os_background_task_generator.dart';
 import 'generators/stream_usecase_generator.dart';
 
 /// Manages use case generation for the domain layer.
@@ -20,6 +21,7 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
   late final EntityUseCaseGenerator entityGenerator;
   late final CustomUseCaseGenerator customGenerator;
   late final StreamUseCaseGenerator streamGenerator;
+  late final OsBackgroundTaskGenerator osBackgroundGenerator;
 
   UseCasePlugin({
     required this.outputDir,
@@ -34,6 +36,10 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       options: options,
     );
     streamGenerator = StreamUseCaseGenerator(
+      outputDir: outputDir,
+      options: options,
+    );
+    osBackgroundGenerator = OsBackgroundTaskGenerator(
       outputDir: outputDir,
       options: options,
     );
@@ -65,7 +71,13 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       },
       'type': {
         'type': 'string',
-        'enum': ['usecase', 'stream', 'background', 'completable'],
+        'enum': [
+          'usecase',
+          'stream',
+          'background',
+          'os_background',
+          'completable',
+        ],
         'default': 'usecase',
       },
       'domain': {'type': 'string', 'description': 'Domain folder name'},
@@ -114,6 +126,13 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       usecases: context.data['usecases']?.cast<String>().toList() ?? [],
       variants: context.data['variants']?.cast<String>().toList() ?? [],
       noEntity: context.get<bool>('no-entity') ?? false,
+      // #294: read id-field / query-field from the CLI/MakeCommand-resolved
+      // context so generators don't hardcode `EntityFields.id` for
+      // entities whose id field is e.g. `depotId`.
+      idField: context.data['id-field'] ?? 'id',
+      idFieldType: context.data['id-field-type'] ?? 'String',
+      queryField: context.data['query-field'] ?? 'id',
+      queryFieldType: context.data['query-field-type'],
       generateUseCase: true,
       generateData: context.data['data'] == true,
       generateRepository: context.data['repository'] == true,
@@ -177,6 +196,14 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           )
         : streamGenerator;
 
+    final osBackgroundGen = context != null
+        ? OsBackgroundTaskGenerator(
+            outputDir: outputDir,
+            options: options,
+            fileSystem: context.fileSystem,
+          )
+        : osBackgroundGenerator;
+
     if (config.isEntityBased) {
       return entityGen.generate(config);
     }
@@ -188,6 +215,9 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     }
     if (config.useCaseType == 'stream') {
       return [await streamGen.generate(config)];
+    }
+    if (config.useCaseType == 'os_background') {
+      return [await osBackgroundGen.generate(config)];
     }
     if (config.isCustomUseCase) {
       return [await customGen.generate(config)];

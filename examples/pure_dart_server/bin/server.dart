@@ -4,6 +4,7 @@
 /// works without any Flutter SDK dependency.
 ///
 /// Run:  dart run bin/server.dart
+library;
 
 import 'package:logging/logging.dart';
 import 'package:zuraffa/zuraffa.dart';
@@ -55,7 +56,7 @@ class MyServicePlugin extends ZuraffaPlugin {
   }
 
   @override
-  Map<String, ZuraffaRouteBuilder> get routes => const {};
+  Map<String, ZuraffaRouteHandler> get routes => const {};
 }
 
 // ── Main ───────────────────────────────────────────────────────────
@@ -64,8 +65,7 @@ Future<void> main() async {
   Zuraffa.setEnvironment(Environment.development);
 
   // 1. Engine + plugin system (pure Dart, no Flutter)
-  final engine = ZuraffaEngine()
-    ..register(MyServicePlugin());
+  final engine = ZuraffaEngine()..register(MyServicePlugin());
   await engine.bootstrap();
 
   final greeting = engine.di.get<String>();

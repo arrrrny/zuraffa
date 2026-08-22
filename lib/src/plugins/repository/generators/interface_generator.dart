@@ -330,6 +330,21 @@ class RepositoryInterfaceGenerator {
             ),
           );
           break;
+        // #406: `list` is a documented --methods value
+        // (get,create,update,delete,list,watch,getList,watchList) but was
+        // silently dropped from the interface — the implementation
+        // generator's default branch still emitted `list(NoParams)` with
+        // `@override`, producing override_on_non_overriding_member.
+        case 'list':
+          methods.add(
+            _buildMethod(
+              name: 'list',
+              returnType: 'Future<List<${config.name}>>',
+              paramsType: 'NoParams',
+              paramsName: 'params',
+            ),
+          );
+          break;
         case 'create':
           methods.add(
             _buildMethod(
@@ -352,7 +367,7 @@ class RepositoryInterfaceGenerator {
           );
           break;
         case 'toggle':
-          final fieldEnum = '${config.name}Fields';
+          final fieldEnum = 'Field<${config.name}, dynamic>';
           methods.add(
             _buildMethod(
               name: 'toggle',

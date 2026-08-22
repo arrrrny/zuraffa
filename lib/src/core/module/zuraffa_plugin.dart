@@ -76,11 +76,11 @@ abstract class ZuraffaPlugin {
   /// Route table contributed by this plugin.
   ///
   /// Each key is a route name (e.g. `'/profile'`) and each value
-  /// is a [ZuraffaRouteBuilder] that produces the page widget.
+  /// is a [ZuraffaRouteHandler] that produces the page content.
   ///
   /// The engine collects all routes from all plugins and merges
   /// them into the host application's routing table.
-  Map<String, ZuraffaRouteBuilder> get routes;
+  Map<String, ZuraffaRouteHandler> get routes;
 
   /// Asynchronous initialisation hook called after **all** plugins
   /// have completed [registerDependencies].

@@ -4,8 +4,8 @@
 /// `zfa build` to auto-generate the complete GoRouter configuration.
 library;
 
-// Map<String, dynamic> /* GoRouterState */ is available in Flutter consumers via go_router package.
-// The annotation stores route metadata as plain strings.
+// The annotation stores route metadata as plain strings; guards receive a
+// pure-Dart [ZuraffaRouteState] (see below) instead of a Flutter type.
 
 /// Marks a View class as a route with the given [path].
 ///
@@ -102,6 +102,41 @@ class ZfaRoute {
 @Deprecated('Use ZfaRoute instead')
 typedef Route = ZfaRoute;
 
+/// Pure-Dart route state passed to [ZuraffaRouteGuard] callbacks.
+///
+/// This is the platform-agnostic counterpart to `GoRouterState` (from
+/// `go_router`), so route guards can be implemented in pure Dart code.
+/// The generated router code includes an adapter that constructs
+/// [ZuraffaRouteState] from `GoRouterState` for middleware evaluation.
+class ZuraffaRouteState {
+  /// The current route location, e.g. `'/products/42?page=2'`.
+  final String location;
+
+  /// The route template pattern, e.g. `'/products/:id'`.
+  final String path;
+
+  /// The matched URI location, e.g. `'/products/42'`.
+  final String matchedLocation;
+
+  /// Query parameters from the URI.
+  final Map<String, String> queryParameters;
+
+  /// Path parameters matched by the route pattern.
+  final Map<String, String> pathParameters;
+
+  /// Optional extra object forwarded with the navigation.
+  final Object? extra;
+
+  const ZuraffaRouteState({
+    required this.location,
+    required this.path,
+    required this.matchedLocation,
+    required this.queryParameters,
+    required this.pathParameters,
+    this.extra,
+  });
+}
+
 /// Base class for route guard / middleware implementations.
 ///
 /// Guards are evaluated before a route is activated. If [canActivate]
@@ -111,28 +146,28 @@ typedef Route = ZfaRoute;
 /// ```dart
 /// class AuthGuard extends ZuraffaRouteGuard {
 ///   @override
-///   Future<bool> canActivate(Map<String, dynamic> /* GoRouterState */ state) async {
+///   Future<bool> canActivate(ZuraffaRouteState state) async {
 ///     final isLoggedIn = await AuthService.instance.isAuthenticated;
 ///     return isLoggedIn;
 ///   }
 ///
 ///   @override
-///   String onRejected(Map<String, dynamic> /* GoRouterState */ state) => '/login';
+///   String onRejected(ZuraffaRouteState state) => '/login';
 /// }
 /// ```
 abstract class ZuraffaRouteGuard {
   /// Whether the route may be activated for the given [state].
-  Future<bool> canActivate(Map<String, dynamic> /* GoRouterState */ state);
+  Future<bool> canActivate(ZuraffaRouteState state);
 
   /// The path to redirect to when [canActivate] returns `false`.
-  String onRejected(Map<String, dynamic> /* GoRouterState */ state);
+  String onRejected(ZuraffaRouteState state);
 }
 
 /// Base class for generated route parameter classes.
 ///
 /// Each `@ZfaRoute(path: '/products/:id')` with path parameters gets a
 /// generated `ProductDetailRouteParams extends RouteParams` with
-/// typed fields and `fromMap<String, dynamic> /* GoRouterState */` factory.
+/// typed fields and a `fromGoRouterState` factory.
 abstract class RouteParams {
   const RouteParams();
 }

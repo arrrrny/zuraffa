@@ -62,7 +62,6 @@ import 'interceptor.dart';
 /// final service = di.get<MyService>();
 /// ```
 class ZuraffaDIContainer {
-
   /// The underlying [GetIt] instance that backs this container.
   ///
   /// Exposed for interoperability with generated DI helpers that
@@ -85,11 +84,9 @@ class ZuraffaDIContainer {
   /// ```dart
   /// final di = ZuraffaDIContainer(getIt: GetIt.asNewInstance());
   /// ```
-  ZuraffaDIContainer({
-    GetIt? getIt,
-    InterceptorRegistry? interceptorRegistry,
-  })  : getIt = getIt ?? GetIt.instance,
-        interceptorRegistry = interceptorRegistry ?? InterceptorRegistry();
+  ZuraffaDIContainer({GetIt? getIt, InterceptorRegistry? interceptorRegistry})
+    : getIt = getIt ?? GetIt.instance,
+      interceptorRegistry = interceptorRegistry ?? InterceptorRegistry();
 
   /// Registers a lazy singleton factory for type [T].
   ///
@@ -149,11 +146,11 @@ class ZuraffaDIContainer {
     if (override && getIt.isRegistered<T>(instanceName: instanceName)) {
       await getIt.unregister<T>(instanceName: instanceName);
     }
-    getIt.registerSingletonWithDependencies<T>(
-      factoryFunc,
-      instanceName: instanceName,
-      dependsOn: null,
-    );
+    // Eagerly invoke the factory and register the resulting instance.
+    // This avoids registerSingletonWithDependencies which can leave stale
+    // internal state after unregister+re-register cycles.
+    final instance = factoryFunc();
+    getIt.registerSingleton<T>(instance, instanceName: instanceName);
   }
 
   /// Binds an already-instantiated [instance] as a singleton for type [T].

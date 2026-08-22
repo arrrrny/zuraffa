@@ -44,5 +44,11 @@ class ZuraffaFlutterPlugin extends ZuraffaPlugin {
   }
 
   @override
-  Map<String, ZuraffaRouteBuilder> get routes => const {};
+  Future<void> onInit(ZuraffaDIContainer di) async {
+    // Future: initialize xray bridge server, platform layout resolver, etc.
+    // For now this is a hook point for when those services are ready.
+  }
+
+  @override
+  Map<String, ZuraffaRouteHandler> get routes => const {};
 }

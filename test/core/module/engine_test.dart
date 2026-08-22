@@ -9,10 +9,11 @@ class _AlphaPlugin extends ZuraffaPlugin {
   void registerDependencies(ZuraffaDIContainer di) {
     di.registerLazySingleton<String>(() => 'alpha_value');
   }
+
   @override
-  Map<String, ZuraffaRouteBuilder> get routes => {
-        '/alpha': (args) => 'alpha_route',
-      };
+  Map<String, ZuraffaRouteHandler> get routes => {
+    '/alpha': (args) => 'alpha_route',
+  };
 }
 
 class _BetaPlugin extends ZuraffaPlugin {
@@ -23,11 +24,12 @@ class _BetaPlugin extends ZuraffaPlugin {
   void registerDependencies(ZuraffaDIContainer di) {
     di.registerFactory<int>(() => 42);
   }
+
   @override
-  Map<String, ZuraffaRouteBuilder> get routes => {
-        '/beta': (args) => 'beta_route',
-        '/shared': (args) => 'shared_route',
-      };
+  Map<String, ZuraffaRouteHandler> get routes => {
+    '/beta': (args) => 'beta_route',
+    '/shared': (args) => 'shared_route',
+  };
   @override
   Future<void> onInit(ZuraffaDIContainer di) async {
     initCalled = true;
@@ -40,7 +42,7 @@ class _EmptyPlugin extends ZuraffaPlugin {
   @override
   void registerDependencies(ZuraffaDIContainer di) {}
   @override
-  Map<String, ZuraffaRouteBuilder> get routes => {};
+  Map<String, ZuraffaRouteHandler> get routes => {};
 }
 
 void main() {
@@ -95,27 +97,18 @@ void main() {
 
     test('rejects duplicate pluginId', () {
       final engine = ZuraffaEngine(di: di())..register(_AlphaPlugin());
-      expect(
-        () => engine.register(_AlphaPlugin()),
-        throwsArgumentError,
-      );
+      expect(() => engine.register(_AlphaPlugin()), throwsArgumentError);
     });
 
     test('rejects empty pluginId', () {
       final engine = ZuraffaEngine(di: di());
-      expect(
-        () => engine.register(_EmptyPlugin()),
-        throwsArgumentError,
-      );
+      expect(() => engine.register(_EmptyPlugin()), throwsArgumentError);
     });
 
     test('rejects register after bootstrap', () async {
       final engine = ZuraffaEngine(di: di())..register(_AlphaPlugin());
       await engine.bootstrap();
-      expect(
-        () => engine.register(_BetaPlugin()),
-        throwsStateError,
-      );
+      expect(() => engine.register(_BetaPlugin()), throwsStateError);
     });
 
     test('bootstrap throws on zero plugins', () async {

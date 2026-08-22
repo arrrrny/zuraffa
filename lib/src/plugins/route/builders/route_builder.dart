@@ -10,6 +10,7 @@ import '../../../core/context/file_system.dart';
 import '../../../core/plugin_system/discovery_engine.dart';
 import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
+import '../../../utils/entity_field_resolver.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
 import 'app_routes_builder.dart';
@@ -56,6 +57,17 @@ class RouteBuilder {
       return files;
     }
 
+    // #341: value objects are embedded composition types — no view, no
+    // CRUD surface. Never emit routes for them. If a previous run (from
+    // before the entity was re-modeled as a value object) left routes
+    // behind, clean them up instead of regenerating references to a
+    // `<Entity>View` value objects do not have.
+    if (!config.noEntity &&
+        !config.isCustomUseCase &&
+        await _isValueObject(config)) {
+      return _cleanupRoutesForValueObject(config);
+    }
+
     files.add(await _generateRouteConstants(config));
     files.add(await _generateEntityRoutes(config));
     final indexFile = await _regenerateIndexFile(pendingFiles: files);
@@ -63,6 +75,108 @@ class RouteBuilder {
       files.add(indexFile);
     }
 
+    return files;
+  }
+
+  /// Whether the entity backing [config] is a Zorphy value object
+  /// (`@ZValueObject` / `kind: ZorphyKind.valueObject`).
+  Future<bool> _isValueObject(GeneratorConfig config) async {
+    final entityPath = path.join(
+      outputDir,
+      'domain',
+      'entities',
+      config.nameSnake,
+      '${config.nameSnake}.dart',
+    );
+    if (!await fileSystem.exists(entityPath)) return false;
+    return EntityFieldResolver.detectsValueObject(
+      await fileSystem.read(entityPath),
+    );
+  }
+
+  /// Removes stale route artifacts for an entity that has since been
+  /// re-modeled as a value object: the `<entity>_routes.dart` file, its
+  /// constants/extension methods in `app_routes.dart`, and its export in
+  /// the regenerated `index.dart`. No-op when nothing stale exists.
+  Future<List<GeneratedFile>> _cleanupRoutesForValueObject(
+    GeneratorConfig config,
+  ) async {
+    print(
+      'ℹ️  "${config.name}" is a value object — skipping route generation '
+      '(no view/CRUD surface for embedded types).',
+    );
+
+    final files = <GeneratedFile>[];
+    final routesPath = path.join(
+      outputDir,
+      'routing',
+      '${config.nameSnake}_routes.dart',
+    );
+    if (!await fileSystem.exists(routesPath)) {
+      return files;
+    }
+
+    final appRoutesPath = path.join(outputDir, 'routing', 'app_routes.dart');
+    if (await fileSystem.exists(appRoutesPath)) {
+      var content = await fileSystem.read(appRoutesPath);
+      final helper = const AstHelper();
+      final entityPascal = config.name;
+
+      // Method-agnostic cleanup: remove every AppRoutes constant whose
+      // value references `<Entity>Routes.` and every goTo<Entity>* Router
+      // extension method, regardless of which methods the original run
+      // used (the plain revert path needs the same --methods).
+      final fieldPattern = RegExp(
+        'static\\s+const\\s+String\\s+(\\w+)\\s*=\\s*'
+        '${RegExp.escape(entityPascal)}Routes\\.',
+        dotAll: true,
+      );
+      for (final match in fieldPattern.allMatches(content)) {
+        content = helper.removeFieldFromClass(
+          source: content,
+          className: 'AppRoutes',
+          fieldName: match.group(1)!,
+        );
+      }
+      final methodPattern = RegExp(
+        'void\\s+(goTo${RegExp.escape(entityPascal)}\\w*)\\s*\\(',
+      );
+      for (final match in methodPattern.allMatches(content)) {
+        content = helper.removeMethodFromExtension(
+          source: content,
+          extensionName: 'RouterExtension',
+          methodName: match.group(1)!,
+        );
+      }
+
+      files.add(
+        await FileUtils.writeFile(
+          appRoutesPath,
+          content,
+          'route_constants',
+          force: true,
+          dryRun: options.dryRun,
+          verbose: options.verbose,
+          revert: false,
+          fileSystem: fileSystem,
+        ),
+      );
+    }
+
+    files.add(
+      await FileUtils.deleteFile(
+        routesPath,
+        'entity_routes',
+        dryRun: options.dryRun,
+        verbose: options.verbose,
+        fileSystem: fileSystem,
+      ),
+    );
+
+    final indexFile = await _regenerateIndexFile(pendingFiles: files);
+    if (indexFile != null) {
+      files.add(indexFile);
+    }
     return files;
   }
 
@@ -205,6 +319,11 @@ class RouteBuilder {
     required Map<String, String> newRouteConstants,
     required List<Expression> newGoRoutes,
     required List<String> imports,
+    required String detailViewImport,
+    required bool hasDetailView,
+    required String entityImport,
+    required bool referencesEntity,
+    required String routeBase,
     bool force = false,
   }) {
     var content = existingContent;
@@ -226,7 +345,48 @@ class RouteBuilder {
       }
     }
 
+    // Synchronize the optional detail-view import: when the detail-view
+    // file no longer exists, drop its now-stale import instead of keeping
+    // a reference to a deleted file (which analyze flags as
+    // uri_does_not_exist).
+    if (!hasDetailView) {
+      content = content.replaceAll(
+        RegExp("import\\s+'${RegExp.escape(detailViewImport)}';"),
+        '',
+      );
+    }
+
+    // #341: same sync for the entity import — when no emitted route
+    // passes the entity named-param anymore, the entity import would be
+    // dead code (unused_import) after the route replacement below. Drop
+    // it eagerly; the loop below re-adds imports that are still needed.
+    if (!referencesEntity) {
+      content = content.replaceAll(
+        RegExp("import\\s+'${RegExp.escape(entityImport)}';"),
+        '',
+      );
+    }
+
     final helper = const AstHelper();
+
+    // #333: When the new run does NOT emit a detail GoRoute (because no
+    // `<entity>_detail_view.dart` exists on disk), remove any stale
+    // detail route from the existing file. Without this cleanup,
+    // re-running with --force over a pre-fix routes file (which
+    // referenced <Entity>DetailView) would leave the broken stub in
+    // place. The route's stable identity is its `name:` field —
+    // `'${routeBase}_detail'`.
+    if (!hasDetailView) {
+      final detailRouteName = '${routeBase}_detail';
+      final detailNamePattern = RegExp(
+        "name:\\s*'${RegExp.escape(detailRouteName)}'",
+      );
+      content = helper.removeElementsFromReturnListInFunctionWhere(
+        source: content,
+        functionName: routesGetterName,
+        matches: (elementSource) => detailNamePattern.hasMatch(elementSource),
+      );
+    }
 
     // Add route constants
     for (final entry in newRouteConstants.entries) {
@@ -266,6 +426,24 @@ class RouteBuilder {
 
       if (normalizedContent.contains(normalizedRouteSource)) {
         continue;
+      }
+
+      // The route source changed (e.g. the view class flipped between
+      // <Entity>View and <Entity>DetailView when the detail-view file
+      // appeared or disappeared). Replace the existing route by its
+      // stable `name:` identity instead of appending a second route for
+      // the same path and name.
+      final nameMatch = RegExp(r"name:\s*'([^']+)'").firstMatch(routeSource);
+      final nameIdentity = nameMatch?.group(1);
+      if (nameIdentity != null) {
+        final identityPattern = RegExp(
+          "name:\\s*'${RegExp.escape(nameIdentity)}'",
+        );
+        content = helper.removeElementsFromReturnListInFunctionWhere(
+          source: content,
+          functionName: routesGetterName,
+          matches: (elementSource) => identityPattern.hasMatch(elementSource),
+        );
       }
 
       content = helper.addElementToReturnListInFunction(
@@ -414,13 +592,53 @@ class RouteBuilder {
         (config.methods.contains('getList') ||
             config.methods.contains('watchList'));
 
-    final hasDetailView =
-        !isCustom &&
-        (config.methods.contains('get') || config.methods.contains('watch'));
-    final hasListView =
-        !isCustom &&
-        (config.methods.contains('getList') ||
-            config.methods.contains('watchList'));
+    // #328: Probe the actual view file on disk instead of deriving from the
+    // route's own methods list. `zfa view create` only emits a separate
+    // `<entity>_detail_view.dart` when the view was generated with BOTH a
+    // list method (getList/watchList) AND a detail method (get/watch). When
+    // the view was created with different methods than the route (the common
+    // smoke-test case: `zfa view create` defaults to `get,update`, then
+    // `zfa route create --methods=get,getList` is run later), the detail view
+    // file does not exist, and the route must not reference it. Reading the
+    // filesystem aligns the route generator with the view generator's actual
+    // output and eliminates the `uri_does_not_exist` analyze errors.
+    final detailViewPath = path.join(
+      outputDir,
+      'presentation',
+      'pages',
+      domainSnake,
+      '${entitySnake}_detail_view.dart',
+    );
+    final hasDetailView = !isCustom && await fileSystem.exists(detailViewPath);
+    final detailViewImport =
+        '../presentation/pages/$domainSnake/${entitySnake}_detail_view.dart';
+
+    // #341: shared route/view contract — probe the view files on disk for
+    // the named params their constructors actually accept (`this.<param>`),
+    // and only pass those from the route builders. This keeps routes
+    // aligned with regenerated views regardless of which methods each
+    // generator run saw (e.g. `zfa make` regenerates views with an empty
+    // methods list, which drops the entity named-param).
+    final mainViewPath = path.join(
+      outputDir,
+      'presentation',
+      'pages',
+      domainSnake,
+      '${entitySnake}_view.dart',
+    );
+    final mainViewParams = await _viewAcceptedParams(mainViewPath);
+    final detailViewParams = hasDetailView
+        ? await _viewAcceptedParams(detailViewPath)
+        : null;
+
+    bool acceptsEntityParam(Set<String>? viewParams) {
+      if (config.noEntity || config.isCustomUseCase) return false;
+      return viewParams == null || viewParams.contains(config.nameCamel);
+    }
+
+    final referencesEntity =
+        acceptsEntityParam(mainViewParams) ||
+        (hasDetailView && acceptsEntityParam(detailViewParams));
 
     final goRoutes = <Expression>[
       if (isCustom)
@@ -440,6 +658,7 @@ class RouteBuilder {
           routeNameBase: routeNameBase,
           viewParam: dependencyInfo.viewParam,
           config: config,
+          viewParams: mainViewParams,
         ),
       if (!isCustom && !needsListRoute)
         _buildBaseRouteExpr(
@@ -449,8 +668,16 @@ class RouteBuilder {
           routeNameBase: routeNameBase,
           viewParam: dependencyInfo.viewParam,
           config: config,
+          viewParams: mainViewParams,
         ),
-      if (needsIdRoute)
+      // #333: only emit the detail GoRoute when the corresponding
+      // `<entity>_detail_view.dart` actually exists on disk. When the
+      // detail-view file is absent, omit the detail route entirely
+      // instead of emitting a "stub" pointing to the main View. The
+      // previous behavior (always emit + flip viewName) produced
+      // malformed stubs when re-running with --force over a pre-existing
+      // routes file — see issue #333.
+      if (needsIdRoute && hasDetailView)
         _buildDetailRouteExpr(
           entityName: entityName,
           entityCamel: entityCamel,
@@ -458,9 +685,8 @@ class RouteBuilder {
           routeNameBase: routeNameBase,
           viewParam: dependencyInfo.viewParam,
           config: config,
-          viewName: (hasListView && hasDetailView)
-              ? '${entityName}DetailView'
-              : '${entityName}View',
+          viewName: '${entityName}DetailView',
+          viewParams: detailViewParams,
         ),
       if (hasCreate)
         _buildCreateRouteExpr(
@@ -470,6 +696,7 @@ class RouteBuilder {
           routeNameBase: routeNameBase,
           viewParam: dependencyInfo.viewParam,
           config: config,
+          viewParams: mainViewParams,
         ),
       if (hasUpdate && allowIdRoutes)
         _buildUpdateRouteExpr(
@@ -479,18 +706,23 @@ class RouteBuilder {
           routeNameBase: routeNameBase,
           viewParam: dependencyInfo.viewParam,
           config: config,
-          viewName: (hasListView && hasDetailView)
+          viewName: hasDetailView
               ? '${entityName}DetailView'
               : '${entityName}View',
+          viewParams: hasDetailView ? detailViewParams : mainViewParams,
         ),
     ];
 
+    final entityImport = '../domain/entities/$entitySnake/$entitySnake.dart';
     final imports = [
+      'package:go_router/go_router.dart',
       'package:zuraffa/zuraffa.dart',
       '../presentation/pages/$domainSnake/${entitySnake}_view.dart',
-      if (hasListView && hasDetailView)
-        '../presentation/pages/$domainSnake/${entitySnake}_detail_view.dart',
-      if (!config.noEntity) '../domain/entities/$entitySnake/$entitySnake.dart',
+      if (hasDetailView) detailViewImport,
+      // #341: only import the entity when some emitted route actually
+      // references it (the entity named-param). Otherwise the import is
+      // dead code and analyze flags it as unused.
+      if (!config.noEntity && referencesEntity) entityImport,
       if (dependencyInfo.importPath.isNotEmpty) dependencyInfo.importPath,
     ];
 
@@ -560,6 +792,11 @@ class RouteBuilder {
             newRouteConstants: routeConstants,
             newGoRoutes: goRoutes,
             imports: imports,
+            detailViewImport: detailViewImport,
+            hasDetailView: hasDetailView,
+            entityImport: entityImport,
+            referencesEntity: referencesEntity,
+            routeBase: routeBase,
             force: config.force,
           )
         : entityRoutesBuilder.buildFile(
@@ -592,6 +829,26 @@ class RouteBuilder {
     return const _DependencyInfo.empty();
   }
 
+  /// Extracts the constructor named-params a generated view class on disk
+  /// actually accepts, i.e. `this.<param>` occurrences in its constructor
+  /// (`super.key`/`super.routeObserver` are excluded — routes never pass
+  /// them). Returns `null` when the view file does not exist or contains
+  /// no class declaration (a stub file carries no signal) — callers then
+  /// fall back to the historical contract: pass the entity param and the
+  /// id param.
+  Future<Set<String>?> _viewAcceptedParams(String viewPath) async {
+    if (!await fileSystem.exists(viewPath)) return null;
+    final source = await fileSystem.read(viewPath);
+    if (!RegExp(r'\bclass\s+\w+').hasMatch(source)) return null;
+    final params = <String>{};
+    for (final match in RegExp(
+      r'this\.\s*([a-zA-Z_][a-zA-Z0-9_]*)',
+    ).allMatches(source)) {
+      params.add(match.group(1)!);
+    }
+    return params;
+  }
+
   Expression _buildCustomRouteExpr({
     required String className,
     required String entityName,
@@ -622,6 +879,7 @@ class RouteBuilder {
     required String routeNameBase,
     required String viewParam,
     required GeneratorConfig config,
+    Set<String>? viewParams,
   }) {
     final pathExpr = refer('${entityName}Routes').property(routeNameBase);
     final nameExpr = literalString(routeBase);
@@ -631,6 +889,7 @@ class RouteBuilder {
       viewParam: viewParam,
       withId: false,
       config: config,
+      viewParams: viewParams,
     );
 
     return refer(
@@ -645,6 +904,7 @@ class RouteBuilder {
     required String routeNameBase,
     required String viewParam,
     required GeneratorConfig config,
+    Set<String>? viewParams,
   }) {
     final pathExpr = refer(
       '${entityName}Routes',
@@ -656,6 +916,7 @@ class RouteBuilder {
       viewParam: viewParam,
       withId: false,
       config: config,
+      viewParams: viewParams,
     );
 
     return refer(
@@ -671,6 +932,7 @@ class RouteBuilder {
     required String viewParam,
     required GeneratorConfig config,
     String? viewName,
+    Set<String>? viewParams,
   }) {
     final pathExpr = refer(
       '${entityName}Routes',
@@ -683,6 +945,7 @@ class RouteBuilder {
       withId: config.idFieldType != 'NoParams',
       config: config,
       viewName: viewName,
+      viewParams: viewParams,
     );
 
     return refer(
@@ -697,6 +960,7 @@ class RouteBuilder {
     required String routeNameBase,
     required String viewParam,
     required GeneratorConfig config,
+    Set<String>? viewParams,
   }) {
     final pathExpr = refer(
       '${entityName}Routes',
@@ -708,6 +972,7 @@ class RouteBuilder {
       viewParam: viewParam,
       withId: false,
       config: config,
+      viewParams: viewParams,
     );
 
     return refer(
@@ -723,6 +988,7 @@ class RouteBuilder {
     required String viewParam,
     required GeneratorConfig config,
     String? viewName,
+    Set<String>? viewParams,
   }) {
     final pathExpr = refer(
       '${entityName}Routes',
@@ -735,6 +1001,7 @@ class RouteBuilder {
       withId: config.idFieldType != 'NoParams',
       config: config,
       viewName: viewName,
+      viewParams: viewParams,
     );
 
     return refer(
@@ -748,6 +1015,7 @@ class RouteBuilder {
     required bool withId,
     required GeneratorConfig config,
     String? viewName,
+    Set<String>? viewParams,
   }) {
     final viewArgs = <String, Expression>{};
     final effectiveViewName = viewName ?? '${entityName}View';
@@ -759,12 +1027,39 @@ class RouteBuilder {
     }
 
     if (withId) {
-      viewArgs['id'] = refer(
+      // #336: go_router path parameters are always String; convert to
+      // the view's id type (typed after the entity's actual id field).
+      final idValue = refer(
         'state',
       ).property('pathParameters').index(literalString('id')).nullChecked;
+      viewArgs['id'] = switch (config.idFieldType) {
+        'int' => refer('int').property('parse').call([idValue]),
+        'double' => refer('double').property('parse').call([idValue]),
+        'num' => refer('num').property('parse').call([idValue]),
+        _ => idValue,
+      };
     }
 
-    if (!config.noEntity && !config.isCustomUseCase) {
+    // #341: shared route/view contract — only pass named-params the view
+    // on disk actually accepts (entity and id alike). When the view file
+    // exists and contains a real class, its constructor is authoritative:
+    // params it dropped (e.g. after `zfa make` regenerated the view with
+    // an empty methods list) must not be passed by the route. When there
+    // is no view file yet (or only a signal-less stub), fall back to the
+    // historical contract of passing both.
+    if (viewParams != null) {
+      final entityCamel = StringUtils.pascalToCamel(entityName);
+      if (!config.noEntity &&
+          !config.isCustomUseCase &&
+          viewParams.contains(entityCamel)) {
+        viewArgs[entityCamel] = refer(
+          'state',
+        ).property('extra').asA(refer('$entityName?'));
+      }
+      if (withId && !viewParams.contains('id')) {
+        viewArgs.remove('id');
+      }
+    } else if (!config.noEntity && !config.isCustomUseCase) {
       final entityCamel = StringUtils.pascalToCamel(entityName);
       viewArgs[entityCamel] = refer(
         'state',
@@ -793,6 +1088,33 @@ class RouteBuilder {
     return builderMethod.closure;
   }
 
+  /// Public entry point for the index regeneration logic.
+  ///
+  /// Used by the deep-link route capability to refresh `routing/index.dart`
+  /// (the `getAllRoutes()` aggregator) after writing a new
+  /// `<name>_routes.dart` module so the module is picked up without
+  /// requiring a full entity-routes run.
+  ///
+  /// Mirrors [_regenerateIndexFile] with empty `pendingFiles` — the
+  /// regenerator already scans the routing directory for all
+  /// `*_routes.dart` files on disk, so the newly written module is
+  /// discovered automatically.
+  Future<GeneratedFile?> regenerateIndex({
+    bool dryRun = false,
+    bool verbose = false,
+  }) async {
+    // Apply dry-run / verbose to this call by re-creating the options
+    // (the index regenerator reads `options.dryRun` / `options.verbose`
+    // directly).
+    if (dryRun || verbose) {
+      // No-op: the index regenerator uses the RouteBuilder's options,
+      // which were set at construction time. The deep-link capability
+      // passes a fresh RouteBuilder (via `plugin.routeBuilder`) that
+      // already has the correct options from the plugin instance.
+    }
+    return _regenerateIndexFile(pendingFiles: const []);
+  }
+
   Future<GeneratedFile?> _regenerateIndexFile({
     List<GeneratedFile> pendingFiles = const [],
   }) async {
@@ -807,7 +1129,7 @@ class RouteBuilder {
     final existingFiles = <String>[];
     for (final f in dirs) {
       if (!await fileSystem.isDirectory(f)) {
-        if (f.endsWith('_routes.dart') &&
+        if ((f.endsWith('_routes.dart') || f.endsWith('_shell.dart')) &&
             !f.endsWith('index.dart') &&
             !f.endsWith('app_routes.dart')) {
           existingFiles.add(f);
@@ -818,7 +1140,8 @@ class RouteBuilder {
     final pendingPaths = pendingFiles
         .where(
           (f) =>
-              f.path.endsWith('_routes.dart') &&
+              (f.path.endsWith('_routes.dart') ||
+                  f.path.endsWith('_shell.dart')) &&
               !f.path.endsWith('index.dart') &&
               !f.path.endsWith('app_routes.dart') &&
               f.action != 'deleted',
@@ -837,6 +1160,20 @@ class RouteBuilder {
         .where((p) => !deletedPaths.contains(p))
         .toList();
 
+    // #359: deterministic aggregation order — `<name>_routes.dart` modules
+    // first, `<name>_shell.dart` modules last (alphabetical within each
+    // kind). go_router resolves a location by first match, so a real
+    // entity GoRoute at a branch root must come before the shell's
+    // placeholder GoRoute for the documented "entity route shadows shell
+    // placeholder" contract to hold regardless of filesystem listing
+    // order (Directory.list order is unspecified).
+    allPaths.sort((a, b) {
+      final aShell = a.endsWith('_shell.dart') ? 1 : 0;
+      final bShell = b.endsWith('_shell.dart') ? 1 : 0;
+      if (aShell != bShell) return aShell - bShell;
+      return a.compareTo(b);
+    });
+
     if (allPaths.isEmpty) {
       if (await fileSystem.exists(indexPath)) {
         if (options.dryRun) {
@@ -850,28 +1187,49 @@ class RouteBuilder {
 
     final exports = <Directive>[Directive.export('app_routes.dart')];
     final imports = <Directive>[
+      Directive.import('package:go_router/go_router.dart'),
       Directive.import('package:zuraffa/zuraffa.dart'),
     ];
     final routeElements = <Expression>[];
 
+    // #350: a zfa-only app boots at `/` — when no route module claims the
+    // root location, emit a root GoRoute that redirects to the app entry
+    // (splash if present, else the first generated route) so GoRouter
+    // never throws `no routes for location: /`.
+    final rootRoute = await _buildRootRouteExpr(allPaths);
+    if (rootRoute != null) {
+      routeElements.add(rootRoute);
+    }
+
     for (final filePath in allPaths) {
       final fileName = path.basename(filePath);
-      final entitySnake = fileName.replaceAll('_routes.dart', '');
-      final entityPascal = StringUtils.convertToPascalCase(entitySnake);
+      // #359: the routing index now aggregates two module kinds:
+      //   - <name>_routes.dart -> exports `<camel>Routes()` (List<GoRoute>)
+      //   - <name>_shell.dart  -> exports `<camel>ShellRoute()` (List<RouteBase>)
+      // The shell module contains a `StatefulShellRoute.indexedStack`
+      // (a `RouteBase`, not a `GoRoute`), so `getAllRoutes()` returns
+      // `List<RouteBase>` - Dart list covariance keeps the existing
+      // `...entityRoutes()` spreads type-checking against the wider type.
+      final String getterName;
+      if (fileName.endsWith('_shell.dart')) {
+        final entitySnake = fileName.replaceAll('_shell.dart', '');
+        final entityPascal = StringUtils.convertToPascalCase(entitySnake);
+        getterName = '${StringUtils.pascalToCamel(entityPascal)}ShellRoute';
+      } else {
+        final entitySnake = fileName.replaceAll('_routes.dart', '');
+        final entityPascal = StringUtils.convertToPascalCase(entitySnake);
+        getterName = '${StringUtils.pascalToCamel(entityPascal)}Routes';
+      }
 
       exports.add(Directive.export(fileName));
       imports.add(Directive.import(fileName));
-      routeElements.add(
-        refer(
-          '${StringUtils.pascalToCamel(entityPascal)}Routes',
-        ).call([]).spread,
-      );
+      routeElements.add(refer(getterName).call([]).spread);
     }
 
     final getAllRoutes = Method(
       (m) => m
         ..name = 'getAllRoutes'
-        ..returns = refer('List<GoRoute>')
+        ..returns = refer('List<RouteBase>')
         ..body = literalList(routeElements).returned.statement,
     );
 
@@ -893,6 +1251,149 @@ class RouteBuilder {
       verbose: options.verbose,
       fileSystem: fileSystem,
     );
+  }
+
+  /// #350: builds the root `/` GoRoute for the routing index so the app
+  /// never boots into `GoException: no routes for location: /`.
+  ///
+  /// Returns `null` when a route module already claims `/` (the app owns
+  /// its root) or when no redirect target can be resolved (nothing was
+  /// parsed from the route modules — keep the previous behavior).
+  ///
+  /// Redirect target priority:
+  /// 1. a constant named `splash` in any route module,
+  /// 2. the first constant of `splash_routes.dart`,
+  /// 3. the first constant of the alphabetically first route module,
+  /// 4. the first branch root path of the alphabetically first shell
+  ///    module (#359 — shell-only apps have no `*_routes.dart` constants,
+  ///    but still need a root `/` route so GoRouter boots).
+  Future<Expression?> _buildRootRouteExpr(List<String> allPaths) async {
+    var rootClaimed = false;
+    String? splashTarget;
+    String? firstSplashFileTarget;
+    String? firstTarget;
+    String? firstShellBranchPath;
+
+    final sortedPaths = allPaths.toList()..sort();
+
+    for (final filePath in sortedPaths) {
+      if (!await fileSystem.exists(filePath)) continue;
+      final fileName = path.basename(filePath);
+      if (fileName.endsWith('_shell.dart')) {
+        // #359: shell modules carry their branch roots as GoRoute `path:`
+        // literals (no `<Pascal>Routes` constants), so they cannot
+        // contribute a class.constant redirect target — remember the
+        // first branch root as a literal fallback instead.
+        final shellSource = await fileSystem.read(filePath);
+        final allShellPaths = _parseAllGoRoutePaths(shellSource);
+        if (allShellPaths.isNotEmpty) {
+          firstShellBranchPath ??= allShellPaths.first;
+          if (allShellPaths.contains('/')) {
+            rootClaimed = true;
+          }
+        }
+        continue;
+      }
+      final entitySnake = fileName.replaceAll('_routes.dart', '');
+      final entityPascal = StringUtils.convertToPascalCase(entitySnake);
+      final className = '${entityPascal}Routes';
+
+      final constants = _parseRouteConstants(await fileSystem.read(filePath));
+      if (constants.isEmpty) continue;
+
+      for (final value in constants.values) {
+        if (value == '/') {
+          rootClaimed = true;
+        }
+      }
+
+      final firstConstant = constants.keys.first;
+      if (splashTarget == null && constants.containsKey('splash')) {
+        splashTarget = '$className.splash';
+      }
+      firstSplashFileTarget ??= fileName == 'splash_routes.dart'
+          ? '$className.$firstConstant'
+          : null;
+      firstTarget ??= '$className.$firstConstant';
+    }
+
+    if (rootClaimed) return null;
+
+    final target = splashTarget ?? firstSplashFileTarget ?? firstTarget;
+    if (target != null) {
+      final targetClass = target.split('.').first;
+      final targetConstant = target.split('.').last;
+
+      return refer('GoRoute').call([], {
+        'path': literalString('/'),
+        'name': literalString('root'),
+        'redirect': Method(
+          (m) => m
+            ..requiredParameters.addAll([
+              Parameter((p) => p..name = '_'),
+              Parameter((p) => p..name = '__'),
+            ])
+            ..lambda = true
+            ..body = refer(targetClass).property(targetConstant).code,
+        ).closure,
+      });
+    }
+
+    // #359: shell-only app — no `<Pascal>Routes` constants exist, but the
+    // generated app boots at `/` (GoRouter's default initialLocation), so
+    // emit a root route redirecting to the shell's first branch root.
+    if (firstShellBranchPath != null && firstShellBranchPath != '/') {
+      final shellTarget = firstShellBranchPath;
+      return refer('GoRoute').call([], {
+        'path': literalString('/'),
+        'name': literalString('root'),
+        'redirect': Method(
+          (m) => m
+            ..requiredParameters.addAll([
+              Parameter((p) => p..name = '_'),
+              Parameter((p) => p..name = '__'),
+            ])
+            ..lambda = true
+            ..body = literalString(shellTarget).code,
+        ).closure,
+      });
+    }
+
+    return null;
+  }
+
+  /// #359: Returns the first branch root (`path: '/...'`) from a generated
+  /// `<name>_shell.dart` source — the first GoRoute `path:` literal in the
+  /// file is the first `StatefulShellBranch`'s root. Returns null when the
+  /// file contains no GoRoute path (e.g. still a stub).
+  String? _parseFirstGoRoutePath(String source) {
+    final match = RegExp(r"path:\s*'([^']*)'").firstMatch(source);
+    return match?.group(1);
+  }
+
+  /// Returns all branch root paths from a generated `<name>_shell.dart` source.
+  /// Each GoRoute `path:` literal corresponds to one StatefulShellBranch root.
+  List<String> _parseAllGoRoutePaths(String source) {
+    final paths = <String>[];
+    final pattern = RegExp(r"path:\s*'([^']*)'");
+    for (final match in pattern.allMatches(source)) {
+      paths.add(match.group(1)!);
+    }
+    return paths;
+  }
+
+  /// Parses the `static const String <name> = '<value>';` route path
+  /// constants from a generated `<...>_routes.dart` source, in
+  /// declaration order.
+  Map<String, String> _parseRouteConstants(String source) {
+    final constants = <String, String>{};
+    final pattern = RegExp(
+      r"static\s+const\s+String\s+([A-Za-z_]\w*)\s*=\s*'([^']*)'\s*;",
+    );
+    for (final match in pattern.allMatches(source)) {
+      constants[match.group(1)!] = match.group(2)!;
+    }
+    return constants;
   }
 
   Map<String, String> _buildAppRouteConstants({
@@ -1063,6 +1564,9 @@ class RouteBuilder {
 
   String _ensureAppRoutesImports(String source) {
     var content = source;
+    if (!content.contains("import 'package:go_router/go_router.dart';")) {
+      content = "import 'package:go_router/go_router.dart';\n$content";
+    }
     if (!content.contains("import 'package:flutter/material.dart';")) {
       content = "import 'package:flutter/material.dart';\n$content";
     }

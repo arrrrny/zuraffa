@@ -15,6 +15,7 @@ import '../../models/generator_config.dart';
 import '../../models/parsed_usecase_info.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/string_utils.dart';
+import '../../utils/project_flavor.dart';
 import 'builders/presenter_class_builder.dart';
 import 'capabilities/create_presenter_capability.dart';
 
@@ -120,6 +121,21 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     }
 
     final fs = context?.fileSystem ?? fileSystem;
+
+    // #420: presenters reference `Presenter`/`CancelToken` from zuraffa_flutter
+    // and are meant for Flutter apps. In a pure-Dart target package (pubspec.yaml
+    // without a `flutter:` dependency) emitting this code violates Constitution
+    // VII (Engine Purity) and breaks `dart analyze`. Skip with a clear warning.
+    final flavor = await detectProjectFlavor(outputDir, fs);
+    if (flavor == ProjectFlavor.pureDart) {
+      print(
+        '⚠️ Skipping presenter generation: target project is a pure-Dart '
+        'package (no `flutter:` in pubspec.yaml). Presenters depend on '
+        'zuraffa_flutter (Constitution VII: Engine Purity). Run '
+        '`zfa presenter create` inside a Flutter project.',
+      );
+      return [];
+    }
 
     final entityName = config.name;
     final entitySnake = config.nameSnake;
@@ -638,12 +654,18 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     ParsedUseCaseInfo info,
     String entityName,
   ) {
-    final fieldEnum = '${entityName}Fields';
+    final fieldEnum = 'Field<$entityName, dynamic>';
+    // #302: forward `toggleValue` (not `value`) into the ToggleParams.value
+    // field. The toggle-value parameter is renamed to `toggleValue` below so
+    // it can never collide with `config.idField` (which resolves to `value`
+    // for entities like Barcode whose first declared field is `value`).
+    // The ToggleParams constructor's `value:` named field is unaffected — it
+    // is a class field name, not a parameter name.
     final toggleParams =
         refer('ToggleParams<${config.idFieldType}, $fieldEnum>').call([], {
           'id': refer(config.idField),
           'field': refer('field'),
-          'value': refer('value'),
+          'value': refer('toggleValue'),
         });
 
     final callExpression = refer('_${info.fieldName}')
@@ -667,7 +689,7 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           ),
           Parameter(
             (p) => p
-              ..name = 'value'
+              ..name = 'toggleValue'
               ..type = refer('bool'),
           ),
         ])
@@ -838,7 +860,10 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     bool useDi,
     FileSystem fs,
   ) async {
-    final imports = <String>['package:zuraffa/zuraffa.dart'];
+    // #284/#281: Presentation layer imports `zuraffa_flutter` (which
+    // re-exports `zuraffa` + Flutter-specific Presenter type) instead of
+    // `zuraffa` alone — generated Flutter apps depend on `zuraffa_flutter`.
+    final imports = <String>['package:zuraffa_flutter/zuraffa_flutter.dart'];
 
     if (config.isCustomUseCase || config.isOrchestrator) {
       final types = <String>[];
@@ -861,6 +886,12 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           types.addAll(CommonPatterns.extractBaseTypes(info.returnsType!));
         }
       }
+      // #321: include the id/query field types in the import resolution so
+      // enum-typed ids (e.g. messageTypeId: SomeEnum) get the enum barrel
+      // import emitted. Primitive types (String/int/double/...) are
+      // filtered out by KnownTypes.isExcluded inside CommonPatterns.
+      types.add(config.idFieldType);
+      types.add(config.queryFieldType);
 
       final entityImports = CommonPatterns.entityImports(
         types,
@@ -871,6 +902,22 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       imports.addAll(entityImports);
     } else {
       imports.add('../../../domain/entities/$domainSnake/$domainSnake.dart');
+      // #321: even in the standard entity-preset branch, the id/query
+      // field types appear in generated signatures (UpdateParams<IdType,
+      // Patch>, ToggleParams<IdType, Field>, DeleteParams<IdType>, ...).
+      // When the id field is an enum (e.g. messageTypeId: SomeEnum), the
+      // enum barrel import must be emitted here too — the entity file's
+      // own `import '../enums/index.dart'` is private and not re-exported,
+      // so the presenter file references the enum symbol directly without
+      // it being in scope. Primitive types are filtered out by
+      // KnownTypes.isExcluded, so a plain `String` id adds nothing.
+      final sigTypeImports = CommonPatterns.entityImports(
+        [config.idFieldType, config.queryFieldType],
+        config,
+        depth: 3,
+        fileSystem: fs,
+      );
+      imports.addAll(sigTypeImports);
     }
 
     if (useDi) {

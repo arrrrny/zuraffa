@@ -11,6 +11,8 @@ extension CustomUseCaseGeneratorCore on CustomUseCaseGenerator {
         return 'StreamUseCase<$returnsType, $paramsType>';
       case 'background':
         return 'BackgroundUseCase<$returnsType, $paramsType>';
+      case 'os_background':
+        return 'OsBackgroundTaskUseCase<$returnsType>';
       case 'completable':
         return 'CompletableUseCase<$paramsType>';
       case 'sync':
