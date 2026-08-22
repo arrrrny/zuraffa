@@ -43,13 +43,13 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-/// Resolve package root at discovery time, before any test changes CWD.
-final _zfaRoot = Directory.current.path;
+import '../helpers/project_root.dart';
 
 void main() {
   group('#308 — zfa entity create/add-field with --allow-forward-refs', () {
     late Directory workspace;
     late String zfaBin;
+    late String zfaRoot;
 
     Future<ProcessResult> runZfa(List<String> args) {
       return Process.run('dart', [
@@ -59,7 +59,13 @@ void main() {
     }
 
     setUp(() async {
-      zfaBin = p.join(_zfaRoot, 'bin', 'zfa.dart');
+      // Resolve the zfa binary lazily inside setUp (not at module load),
+      // so a shared-CWD `dart test` process that has its working directory
+      // polluted by other regression tests (which do
+      // `Directory.current = tempDir`) cannot poison the resolved path.
+      // See issue #442.
+      zfaRoot = await findProjectRoot();
+      zfaBin = p.join(zfaRoot, 'bin', 'zfa.dart');
       workspace = await Directory.systemTemp.createTemp('issue_308_');
       // The entity command's dependency check scans pubspec.yaml for the
       // strings `zorphy_annotation:` and `build_runner:`. The strings are
@@ -381,7 +387,7 @@ dev_dependencies:
         final result = await Process.run('dart', [
           zfaBin,
           '--help',
-        ], workingDirectory: _zfaRoot);
+        ], workingDirectory: zfaRoot);
         expect(result.exitCode, equals(0));
       },
     );
