@@ -52,8 +52,10 @@ void main() {
     /// Runs zfa from SOURCE (never a stale global install) so the test
     /// picks up the patched `entity_command.dart` / `entity_utils.dart`.
     Future<ProcessResult> runZfaSource(List<String> args) {
-      return Process.run('dart', [zfaSourceBin, ...args],
-          workingDirectory: workspace.path);
+      return Process.run('dart', [
+        zfaSourceBin,
+        ...args,
+      ], workingDirectory: workspace.path);
     }
 
     setUpAll(() async {
@@ -101,14 +103,18 @@ dev_dependencies:
           outputDir,
         ]);
 
-        expect(result.exitCode, equals(0),
-            reason: 'stdout: ${result.stdout}\nstderr: ${result.stderr}');
-
-        final file = File(
-          p.join(outputDir, 'stop_policy', 'stop_policy.dart'),
+        expect(
+          result.exitCode,
+          equals(0),
+          reason: 'stdout: ${result.stdout}\nstderr: ${result.stderr}',
         );
-        expect(file.existsSync(), isTrue,
-            reason: 'entity file must be written for a Duration field');
+
+        final file = File(p.join(outputDir, 'stop_policy', 'stop_policy.dart'));
+        expect(
+          file.existsSync(),
+          isTrue,
+          reason: 'entity file must be written for a Duration field',
+        );
         final src = file.readAsStringSync();
 
         // The field declaration must be `Duration get wallClockTimeout;`
@@ -151,12 +157,13 @@ dev_dependencies:
           outputDir,
         ]);
 
-        expect(result.exitCode, equals(0),
-            reason: 'stdout: ${result.stdout}\nstderr: ${result.stderr}');
-
-        final file = File(
-          p.join(outputDir, 'timeouts', 'timeouts.dart'),
+        expect(
+          result.exitCode,
+          equals(0),
+          reason: 'stdout: ${result.stdout}\nstderr: ${result.stderr}',
         );
+
+        final file = File(p.join(outputDir, 'timeouts', 'timeouts.dart'));
         expect(file.existsSync(), isTrue);
         final src = file.readAsStringSync();
 
@@ -180,8 +187,11 @@ dev_dependencies:
           outputDir,
         ]);
 
-        expect(result.exitCode, equals(0),
-            reason: 'stdout: ${result.stdout}\nstderr: ${result.stderr}');
+        expect(
+          result.exitCode,
+          equals(0),
+          reason: 'stdout: ${result.stdout}\nstderr: ${result.stderr}',
+        );
 
         final file = File(
           p.join(outputDir, 'scheduled_task', 'scheduled_task.dart'),
@@ -192,10 +202,7 @@ dev_dependencies:
         expect(src, contains('List<Duration> get tags;'));
         // The inner type must also stay Duration (not $Duration).
         expect(src, isNot(contains(r'$Duration')));
-        expect(
-          src,
-          isNot(contains("import '../duration/duration.dart';")),
-        );
+        expect(src, isNot(contains("import '../duration/duration.dart';")));
       },
     );
 
@@ -214,8 +221,11 @@ dev_dependencies:
           outputDir,
         ]);
 
-        expect(result.exitCode, equals(0),
-            reason: 'stdout: ${result.stdout}\nstderr: ${result.stderr}');
+        expect(
+          result.exitCode,
+          equals(0),
+          reason: 'stdout: ${result.stdout}\nstderr: ${result.stderr}',
+        );
 
         final file = File(
           p.join(outputDir, 'named_timeouts', 'named_timeouts.dart'),
@@ -245,12 +255,13 @@ dev_dependencies:
           outputDir,
         ]);
 
-        expect(result.exitCode, equals(0),
-            reason: 'stdout: ${result.stdout}\nstderr: ${result.stderr}');
-
-        final file = File(
-          p.join(outputDir, 'web_link', 'web_link.dart'),
+        expect(
+          result.exitCode,
+          equals(0),
+          reason: 'stdout: ${result.stdout}\nstderr: ${result.stderr}',
         );
+
+        final file = File(p.join(outputDir, 'web_link', 'web_link.dart'));
         expect(file.existsSync(), isTrue);
         final src = file.readAsStringSync();
 
@@ -276,8 +287,11 @@ dev_dependencies:
           '--output',
           outputDir,
         ]);
-        expect(productResult.exitCode, equals(0),
-            reason: 'precondition: Product must be created');
+        expect(
+          productResult.exitCode,
+          equals(0),
+          reason: 'precondition: Product must be created',
+        );
 
         // Then create the entity mixing Duration + String + Product.
         final result = await runZfaSource([
@@ -297,8 +311,11 @@ dev_dependencies:
           outputDir,
         ]);
 
-        expect(result.exitCode, equals(0),
-            reason: 'stdout: ${result.stdout}\nstderr: ${result.stderr}');
+        expect(
+          result.exitCode,
+          equals(0),
+          reason: 'stdout: ${result.stdout}\nstderr: ${result.stderr}',
+        );
 
         final file = File(p.join(outputDir, 'policy', 'policy.dart'));
         expect(file.existsSync(), isTrue);
@@ -314,10 +331,7 @@ dev_dependencies:
         // The Product import was resolved (entity-style import).
         expect(src, contains("import '../product/product.dart';"));
         // But NO bogus Duration import.
-        expect(
-          src,
-          isNot(contains("import '../duration/duration.dart';")),
-        );
+        expect(src, isNot(contains("import '../duration/duration.dart';")));
       },
     );
 
@@ -336,8 +350,11 @@ dev_dependencies:
           '--output',
           outputDir,
         ]);
-        expect(createResult.exitCode, equals(0),
-            reason: 'precondition: Job must be created');
+        expect(
+          createResult.exitCode,
+          equals(0),
+          reason: 'precondition: Job must be created',
+        );
 
         // 2. Add a Duration field.
         final addResult = await runZfaSource([
@@ -351,8 +368,11 @@ dev_dependencies:
           outputDir,
         ]);
 
-        expect(addResult.exitCode, equals(0),
-            reason: 'stdout: ${addResult.stdout}\nstderr: ${addResult.stderr}');
+        expect(
+          addResult.exitCode,
+          equals(0),
+          reason: 'stdout: ${addResult.stdout}\nstderr: ${addResult.stderr}',
+        );
 
         final file = File(p.join(outputDir, 'job', 'job.dart'));
         expect(file.existsSync(), isTrue);

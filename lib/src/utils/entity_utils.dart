@@ -31,11 +31,7 @@ import 'package:zorphy/zorphy.dart' show FieldDefinition;
 /// For types that DO need an import (e.g. `Offset` from `dart:ui`), users
 /// must keep using the explicit `!Type` external-marker syntax so the
 /// framework knows not to `$`-prefix and not to import-resolve.
-const Set<String> dartCoreTypes = <String>{
-  'Duration',
-  'Uri',
-  'BigInt',
-};
+const Set<String> dartCoreTypes = <String>{'Duration', 'Uri', 'BigInt'};
 
 class EntityUtils {
   /// The primitive / built-in Dart types that the zfa CLI treats as
@@ -81,7 +77,7 @@ class EntityUtils {
   }
 
   /// Recursively extracts entity types from [fieldType], collecting them
-  /// into [types]. Handles nested generics (List<List<T>>, Map<K, V>)
+  /// into [types]. Handles nested generics (`List<List<T>>`, `Map<K, V>`)
   /// and evaluates BOTH Map key and value types independently.
   static void _extractEntityTypesRecursive(
     String fieldType,

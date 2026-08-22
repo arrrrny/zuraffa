@@ -50,21 +50,12 @@ void main() {
     });
 
     test('unwraps Map<K, V> to V (the value type)', () {
-      expect(
-        EntityUtils.extractBaseType('Map<String, Duration>'),
-        'Duration',
-      );
-      expect(
-        EntityUtils.extractBaseType('Map<String, Product>'),
-        'Product',
-      );
+      expect(EntityUtils.extractBaseType('Map<String, Duration>'), 'Duration');
+      expect(EntityUtils.extractBaseType('Map<String, Product>'), 'Product');
     });
 
     test('unwraps Map<K, V>? to V', () {
-      expect(
-        EntityUtils.extractBaseType('Map<String, Duration>?'),
-        'Duration',
-      );
+      expect(EntityUtils.extractBaseType('Map<String, Duration>?'), 'Duration');
     });
 
     test('strips the Zorphy entity prefix (\$)', () {
@@ -78,10 +69,7 @@ void main() {
         EntityUtils.extractBaseType('Map<String, List<Duration>>'),
         'Duration',
       );
-      expect(
-        EntityUtils.extractBaseType('List<List<Duration>>'),
-        'Duration',
-      );
+      expect(EntityUtils.extractBaseType('List<List<Duration>>'), 'Duration');
       expect(
         EntityUtils.extractBaseType('Map<String, Map<String, Duration>>'),
         'Duration',
@@ -112,14 +100,8 @@ void main() {
     });
 
     test('true inside nested generics', () {
-      expect(
-        EntityUtils.isDartCoreType('Map<String, List<Duration>>'),
-        isTrue,
-      );
-      expect(
-        EntityUtils.isDartCoreType('List<List<Duration>>'),
-        isTrue,
-      );
+      expect(EntityUtils.isDartCoreType('Map<String, List<Duration>>'), isTrue);
+      expect(EntityUtils.isDartCoreType('List<List<Duration>>'), isTrue);
     });
 
     test('true with the Zorphy entity prefix (\$)', () {
@@ -137,10 +119,7 @@ void main() {
       expect(EntityUtils.isDartCoreType('Product'), isFalse);
       expect(EntityUtils.isDartCoreType('FeedbackType'), isFalse);
       expect(EntityUtils.isDartCoreType('List<Product>'), isFalse);
-      expect(
-        EntityUtils.isDartCoreType('Map<String, Product>'),
-        isFalse,
-      );
+      expect(EntityUtils.isDartCoreType('Map<String, Product>'), isFalse);
     });
 
     test('false for the special NoParams/Params family', () {
@@ -159,8 +138,11 @@ void main() {
       expect(result, hasLength(1));
       expect(result.first.name, 'wallClockTimeout');
       expect(result.first.type, 'Duration');
-      expect(result.first.isExternal, isTrue,
-          reason: 'Duration must be marked external');
+      expect(
+        result.first.isExternal,
+        isTrue,
+        reason: 'Duration must be marked external',
+      );
     });
 
     test('preserves the nullable flag', () {
@@ -174,12 +156,13 @@ void main() {
     });
 
     test('marks List<Duration> as external (base type is Duration)', () {
-      final fields = [
-        FieldDefinition(name: 'tags', type: 'List<Duration>'),
-      ];
+      final fields = [FieldDefinition(name: 'tags', type: 'List<Duration>')];
       final result = EntityUtils.markDartCoreTypesAsExternal(fields);
-      expect(result.first.isExternal, isTrue,
-          reason: 'List<Duration> base type is Duration');
+      expect(
+        result.first.isExternal,
+        isTrue,
+        reason: 'List<Duration> base type is Duration',
+      );
       expect(result.first.type, 'List<Duration>');
     });
 
@@ -192,12 +175,13 @@ void main() {
     });
 
     test('does NOT mark a plain entity field as external', () {
-      final fields = [
-        FieldDefinition(name: 'product', type: 'Product'),
-      ];
+      final fields = [FieldDefinition(name: 'product', type: 'Product')];
       final result = EntityUtils.markDartCoreTypesAsExternal(fields);
-      expect(result.first.isExternal, isFalse,
-          reason: 'Non-dart-core types must be left for normal resolution');
+      expect(
+        result.first.isExternal,
+        isFalse,
+        reason: 'Non-dart-core types must be left for normal resolution',
+      );
     });
 
     test('does NOT mark plain primitives (String, int, bool, ...)', () {
@@ -209,18 +193,17 @@ void main() {
       ];
       final result = EntityUtils.markDartCoreTypesAsExternal(fields);
       for (final f in result) {
-        expect(f.isExternal, isFalse,
-            reason: '${f.type} should not be marked external');
+        expect(
+          f.isExternal,
+          isFalse,
+          reason: '${f.type} should not be marked external',
+        );
       }
     });
 
     test('leaves already-external fields unchanged', () {
       final fields = [
-        FieldDefinition(
-          name: 'url',
-          type: 'WebUri',
-          isExternal: true,
-        ),
+        FieldDefinition(name: 'url', type: 'WebUri', isExternal: true),
       ];
       final result = EntityUtils.markDartCoreTypesAsExternal(fields);
       expect(result.first.isExternal, isTrue);
@@ -260,52 +243,54 @@ void main() {
     });
   });
 
-  group('EntityUtils.extractEntityTypes — issue #411 (Duration, Uri, BigInt)', () {
-    // Issue #411: `extractEntityTypes` is the gate for [EntityTypeValidator].
-    // Before the fix it returned `['Duration']` for a Duration field, which
-    // made the validator reject the field as an unresolvable entity/enum
-    // reference. Now Duration (and Uri, BigInt) are excluded — the helper
-    // returns an empty list for them so the validator never sees them as
-    // entity candidates in the first place.
-    test('returns [] for Duration (now treated as a built-in)', () {
-      expect(EntityUtils.extractEntityTypes('Duration'), isEmpty);
-    });
+  group(
+    'EntityUtils.extractEntityTypes — issue #411 (Duration, Uri, BigInt)',
+    () {
+      // Issue #411: `extractEntityTypes` is the gate for [EntityTypeValidator].
+      // Before the fix it returned `['Duration']` for a Duration field, which
+      // made the validator reject the field as an unresolvable entity/enum
+      // reference. Now Duration (and Uri, BigInt) are excluded — the helper
+      // returns an empty list for them so the validator never sees them as
+      // entity candidates in the first place.
+      test('returns [] for Duration (now treated as a built-in)', () {
+        expect(EntityUtils.extractEntityTypes('Duration'), isEmpty);
+      });
 
-    test('returns [] for Duration?', () {
-      expect(EntityUtils.extractEntityTypes('Duration?'), isEmpty);
-    });
+      test('returns [] for Duration?', () {
+        expect(EntityUtils.extractEntityTypes('Duration?'), isEmpty);
+      });
 
-    test('returns [] for List<Duration>', () {
-      expect(EntityUtils.extractEntityTypes('List<Duration>'), isEmpty);
-    });
+      test('returns [] for List<Duration>', () {
+        expect(EntityUtils.extractEntityTypes('List<Duration>'), isEmpty);
+      });
 
-    test('returns [] for Map<String, Duration>', () {
-      expect(EntityUtils.extractEntityTypes('Map<String, Duration>'), isEmpty);
-    });
+      test('returns [] for Map<String, Duration>', () {
+        expect(
+          EntityUtils.extractEntityTypes('Map<String, Duration>'),
+          isEmpty,
+        );
+      });
 
-    test('returns [] for Uri and BigInt', () {
-      expect(EntityUtils.extractEntityTypes('Uri'), isEmpty);
-      expect(EntityUtils.extractEntityTypes('BigInt'), isEmpty);
-    });
+      test('returns [] for Uri and BigInt', () {
+        expect(EntityUtils.extractEntityTypes('Uri'), isEmpty);
+        expect(EntityUtils.extractEntityTypes('BigInt'), isEmpty);
+      });
 
-    test('still returns the entity type for non-dart-core types', () {
-      expect(EntityUtils.extractEntityTypes('Product'), ['Product']);
-      expect(
-        EntityUtils.extractEntityTypes('List<Product>'),
-        ['Product'],
-      );
-      expect(
-        EntityUtils.extractEntityTypes('Map<String, Product>'),
-        ['Product'],
-      );
-    });
+      test('still returns the entity type for non-dart-core types', () {
+        expect(EntityUtils.extractEntityTypes('Product'), ['Product']);
+        expect(EntityUtils.extractEntityTypes('List<Product>'), ['Product']);
+        expect(EntityUtils.extractEntityTypes('Map<String, Product>'), [
+          'Product',
+        ]);
+      });
 
-    test('still returns [] for plain primitives', () {
-      expect(EntityUtils.extractEntityTypes('String'), isEmpty);
-      expect(EntityUtils.extractEntityTypes('int'), isEmpty);
-      expect(EntityUtils.extractEntityTypes('DateTime'), isEmpty);
-    });
-  });
+      test('still returns [] for plain primitives', () {
+        expect(EntityUtils.extractEntityTypes('String'), isEmpty);
+        expect(EntityUtils.extractEntityTypes('int'), isEmpty);
+        expect(EntityUtils.extractEntityTypes('DateTime'), isEmpty);
+      });
+    },
+  );
 
   group('dartCoreTypes', () {
     test('contains Duration, Uri, BigInt', () {
@@ -327,14 +312,25 @@ void main() {
   group('Regression tests for Bug A, B, C', () {
     // Bug A: extractEntityTypes with nested generics used to mangle
     // List<List<Duration>> into the literal string "ListDuration"
-    test('Bug A: extractEntityTypes handles doubly-nested List<List<Duration>>', () {
-      expect(EntityUtils.extractEntityTypes('List<List<Duration>>'), isEmpty,
-          reason: 'Duration is a dart-core type, should be excluded even when doubly nested');
-    });
+    test(
+      'Bug A: extractEntityTypes handles doubly-nested List<List<Duration>>',
+      () {
+        expect(
+          EntityUtils.extractEntityTypes('List<List<Duration>>'),
+          isEmpty,
+          reason:
+              'Duration is a dart-core type, should be excluded even when doubly nested',
+        );
+      },
+    );
 
     test('Bug A: extractEntityTypes handles Map<String, List<Duration>>', () {
-      expect(EntityUtils.extractEntityTypes('Map<String, List<Duration>>'), isEmpty,
-          reason: 'Duration is a dart-core type, should be excluded even inside nested generics');
+      expect(
+        EntityUtils.extractEntityTypes('Map<String, List<Duration>>'),
+        isEmpty,
+        reason:
+            'Duration is a dart-core type, should be excluded even inside nested generics',
+      );
     });
 
     // Bug B: extractBaseType used to infinitely recurse on unsupported
@@ -347,40 +343,70 @@ void main() {
       expect(result.trim(), result);
     });
 
-    test('Bug B: extractBaseType does not hang on invalid Map arity Map<String, int, Duration>', () {
-      final result = EntityUtils.extractBaseType('Map<String, int, Duration>');
-      // Should return some value promptly (not hang/stack-overflow)
-      expect(result, isNotEmpty);
-      expect(result.trim(), result);
-    });
+    test(
+      'Bug B: extractBaseType does not hang on invalid Map arity Map<String, int, Duration>',
+      () {
+        final result = EntityUtils.extractBaseType(
+          'Map<String, int, Duration>',
+        );
+        // Should return some value promptly (not hang/stack-overflow)
+        expect(result, isNotEmpty);
+        expect(result.trim(), result);
+      },
+    );
 
     // Bug C: Map KEY entity types were never checked
     test('Bug C: extractEntityTypes includes Map KEY types', () {
-      expect(EntityUtils.extractEntityTypes('Map<Product, Duration>'), contains('Product'),
-          reason: 'Map key Product must be validated even if value is a dart-core type');
+      expect(
+        EntityUtils.extractEntityTypes('Map<Product, Duration>'),
+        contains('Product'),
+        reason:
+            'Map key Product must be validated even if value is a dart-core type',
+      );
     });
 
-    test('Bug C: extractEntityTypes includes Map KEY when it is the value position', () {
-      expect(EntityUtils.extractEntityTypes('Map<Duration, Product>'), contains('Product'),
-          reason: 'Map value Product must be validated (this already worked, keep it working)');
-    });
+    test(
+      'Bug C: extractEntityTypes includes Map KEY when it is the value position',
+      () {
+        expect(
+          EntityUtils.extractEntityTypes('Map<Duration, Product>'),
+          contains('Product'),
+          reason:
+              'Map value Product must be validated (this already worked, keep it working)',
+        );
+      },
+    );
 
-    test('Bug C: markDartCoreTypesAsExternal does NOT mark Map<Product, Duration> as external', () {
-      final fields = [
-        FieldDefinition(name: 'byProduct', type: 'Map<Product, Duration>'),
-      ];
-      final result = EntityUtils.markDartCoreTypesAsExternal(fields);
-      expect(result.first.isExternal, isFalse,
-          reason: 'Mixed entity+dart-core field must NOT be marked external so Product gets normal validation');
-    });
+    test(
+      'Bug C: markDartCoreTypesAsExternal does NOT mark Map<Product, Duration> as external',
+      () {
+        final fields = [
+          FieldDefinition(name: 'byProduct', type: 'Map<Product, Duration>'),
+        ];
+        final result = EntityUtils.markDartCoreTypesAsExternal(fields);
+        expect(
+          result.first.isExternal,
+          isFalse,
+          reason:
+              'Mixed entity+dart-core field must NOT be marked external so Product gets normal validation',
+        );
+      },
+    );
 
-    test('Bug C: markDartCoreTypesAsExternal does NOT mark Map<Duration, Product> as external', () {
-      final fields = [
-        FieldDefinition(name: 'byDuration', type: 'Map<Duration, Product>'),
-      ];
-      final result = EntityUtils.markDartCoreTypesAsExternal(fields);
-      expect(result.first.isExternal, isFalse,
-          reason: 'Mixed entity+dart-core field must NOT be marked external so Product gets normal validation');
-    });
+    test(
+      'Bug C: markDartCoreTypesAsExternal does NOT mark Map<Duration, Product> as external',
+      () {
+        final fields = [
+          FieldDefinition(name: 'byDuration', type: 'Map<Duration, Product>'),
+        ];
+        final result = EntityUtils.markDartCoreTypesAsExternal(fields);
+        expect(
+          result.first.isExternal,
+          isFalse,
+          reason:
+              'Mixed entity+dart-core field must NOT be marked external so Product gets normal validation',
+        );
+      },
+    );
   });
 }

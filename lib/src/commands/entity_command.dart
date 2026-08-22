@@ -152,10 +152,12 @@ ${missing.map((d) => '   • $d').join('\n')}
     }
 
     final outputDir = fixedEntityOutput;
-    final fields = EntityUtils.markDartCoreTypesAsExternal(_parseFields([
-      ..._asStringList(parsed['field']),
-      ..._asStringList(parsed['fields']),
-    ]));
+    final fields = EntityUtils.markDartCoreTypesAsExternal(
+      _parseFields([
+        ..._asStringList(parsed['field']),
+        ..._asStringList(parsed['fields']),
+      ]),
+    );
 
     // Issue #303: refuse raw Dart-keyword field names (e.g. `in:String`)
     // up front — without this guard the CLI emits `String get in;`, which

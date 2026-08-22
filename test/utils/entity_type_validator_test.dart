@@ -76,7 +76,9 @@ void main() {
     // entity/enum references (the original misleading
     // "Unknown type 'Duration'" bug).
     test('accepts Duration with no entity/enum on disk', () {
-      final fields = [FieldDefinition(name: 'wallClockTimeout', type: 'Duration')];
+      final fields = [
+        FieldDefinition(name: 'wallClockTimeout', type: 'Duration'),
+      ];
       final errors = EntityTypeValidator.validate(
         fields: fields,
         outputDir: outputDir,
