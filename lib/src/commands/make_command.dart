@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:args/command_runner.dart';
 import '../config/zfa_config.dart';
 import '../cli/plugin_loader.dart';
+import '../core/project/project_root.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/plugin_system/plugin_manager.dart';
 import '../models/generated_file.dart';
@@ -74,14 +75,11 @@ class MakeCommand extends Command<void> {
   }
 
   String _findProjectRoot() {
-    var dir = Directory.current.path;
-    while (dir != Directory(dir).parent.path) {
-      if (File('$dir/pubspec.yaml').existsSync()) {
-        return dir;
-      }
-      dir = Directory(dir).parent.path;
-    }
-    return Directory.current.path;
+    // Route through ProjectRoot.find, which tolerates an invalid CWD
+    // (deleted temp dir under `dart test`, chdir into a gone path in
+    // CI/containers) instead of throwing PathNotFoundException.
+    // See issue #441.
+    return ProjectRoot.find();
   }
 
   void _addCoreOptions() {
