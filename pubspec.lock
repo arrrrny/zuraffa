@@ -756,16 +756,18 @@ packages:
   zorphy:
     dependency: "direct main"
     description:
-      path: "../zorphy/zorphy"
-      relative: true
-    source: path
+      name: zorphy
+      sha256: "07ee702caabe9d8511d268610daa32cc230df72a1cab7cd1e6fdc4ebbc185e27"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
     version: "2.2.0"
   zorphy_annotation:
     dependency: "direct main"
     description:
-      path: "../zorphy/zorphy_annotation"
-      relative: true
-    source: path
+      name: zorphy_annotation
+      sha256: f20e9b830538ce58c8b3730cf8c57616124acb3c5abc7b78f69c30c20eec9554
+      url: "https://pub.flutter-io.cn"
+    source: hosted
     version: "2.2.0"
 sdks:
   dart: ">=3.11.0 <4.0.0"
