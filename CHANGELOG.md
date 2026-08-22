@@ -20,6 +20,7 @@
 - Numerous `zfa` codegen/CLI correctness fixes (entity identity, field naming, route/view contract alignment).
 - Build verification hardening (fail loudly on missing parts / 0 outputs).
 - CWD-contamination test infrastructure hardening.
+- `zfa di create <Entity>` now emits per-method usecase DI (`GetXUseCase` / `UpdateXUseCase`) for entity-based flows instead of referencing the non-existent `<Entity>UseCase` (issue #410).
 
 ## [5.7.1] - 2026-07-30
 
