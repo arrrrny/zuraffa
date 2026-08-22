@@ -1,3 +1,4 @@
+@Tags(['regression', 'slow'])
 // Regression test for issue #349.
 //
 // `zfa entity create --allow-forward-refs --field url:WebUri?` emitted:

@@ -100,9 +100,33 @@ class PluginManager {
     // active. Downstream plugins (DI) read `data['datasource']` to decide
     // whether to emit datasource registrations, so the app compiled but
     // crashed at runtime with `GetIt: DataSource is not registered`.
-    final activePluginIds = activePlugins.map((p) => p.id).toSet();
-    for (final id in activePluginIds) {
-      if (!data.containsKey(id)) {
+    //
+    // #412: The activation sync also poisons slots whose own plugin schema
+    // declares the id as a NON-boolean type. `ServicePlugin.id == 'service'`
+    // and its own `configSchema.properties.service = {type:'string'}` — so
+    // writing `data['service'] = true` (bool) made every consumer that read
+    // `data['service'] as String?` (or `context.get<String>('service')`)
+    // crash with `type 'bool' is not a subtype of type 'String?' in type
+    // cast` whenever the user ran `zfa make <Entity> ... service ...`
+    // without an explicit `--service <Name>`. The same `service: {type:
+    // 'string'}` property is also declared by `UseCasePlugin`, so the
+    // collision spans multiple consumers.
+    //
+    // Fix: for active plugin ids whose OWN schema declares the id as a
+    // non-boolean type, record the activation under the dedicated
+    // `__active_<id>` key (queried via `PluginContext.isActive`) and leave
+    // `data[id]` for the typed value (String/int/...) — which the
+    // argResults / schema-default merge below fills in, or stays absent
+    // (null) when the user didn't pass an explicit value. For ids whose
+    // own schema is boolean-typed or absent, keep writing `data[id] =
+    // true` directly (preserves the #346 behavior for `datasource`,
+    // `cache`, `state`, etc. and all their downstream `== true` checks).
+    for (final plugin in activePlugins) {
+      final id = plugin.id;
+      if (data.containsKey(id)) continue;
+      if (_ownSchemaDeclaresNonBoolean(plugin)) {
+        data['__active_$id'] = true;
+      } else {
         data[id] = true;
       }
     }
@@ -705,6 +729,33 @@ class PluginManager {
     return path.isAbsolute(value)
         ? path.relative(value, from: projectRoot)
         : value;
+  }
+
+  /// Returns `true` when [plugin]'s own `configSchema` declares a property
+  /// named `plugin.id` with a non-boolean `type`.
+  ///
+  /// Used by the activation sync in [buildContext] to decide whether to
+  /// write `data[id] = true` (the #346 fast path — safe when the slot is
+  /// boolean-typed or unclaimed) or to record the activation under
+  /// `data['__active_<id>']` instead (issue #412 — required when the slot
+  /// is claimed by a string/integer/array schema property, so the bool
+  /// doesn't poison the typed value the schema-default merge below would
+  /// otherwise fill in).
+  ///
+  /// Schemas are JSON-shaped (`Map<String, dynamic>`), but pub cache
+  /// literals sometimes surface as `_Map<dynamic, dynamic>`; the
+  /// defensive `is Map` + `Map.from` casts keep this helper robust to
+  /// both shapes.
+  bool _ownSchemaDeclaresNonBoolean(ZuraffaPlugin plugin) {
+    final schema = plugin.configSchema;
+    final propsRaw = schema['properties'];
+    if (propsRaw is! Map) return false;
+    final props = Map<String, dynamic>.from(propsRaw);
+    final ownRaw = props[plugin.id];
+    if (ownRaw is! Map) return false;
+    final own = Map<String, dynamic>.from(ownRaw);
+    final type = own['type'];
+    return type != null && type != 'boolean';
   }
 
   Future<void> _validateEntityFirstPreconditions(

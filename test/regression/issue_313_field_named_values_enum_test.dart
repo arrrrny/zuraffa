@@ -1,3 +1,4 @@
+@Tags(['regression', 'slow'])
 // Each test runs the full `zfa entity create` -> `dart pub get` ->
 // `dart run build_runner build` -> `dart analyze` pipeline in a temp
 // workspace. The build_runner step alone takes ~2.5 min on CI-class

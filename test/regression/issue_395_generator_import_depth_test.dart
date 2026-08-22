@@ -1,3 +1,4 @@
+@Tags(['regression', 'slow'])
 // Regression test for issue #395:
 // "Generator emits wrong import depth / omits imports for referenced entities
 //  (provider + service plugins)"
