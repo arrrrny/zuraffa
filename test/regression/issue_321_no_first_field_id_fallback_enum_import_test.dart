@@ -1,3 +1,4 @@
+@Tags(['regression', 'slow'])
 // Regression tests for issue #321.
 //
 // `zfa make` on entities WITHOUT an id field (ChatMessage, TelemetryEvent —

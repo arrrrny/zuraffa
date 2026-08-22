@@ -1,3 +1,4 @@
+@Tags(['regression', 'slow'])
 // Regression test for issue #351.
 //
 // When a Zorphy entity has a field whose declared type is the CONCRETE form

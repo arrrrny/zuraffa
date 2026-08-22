@@ -1,1 +1,35 @@
-exclude_tags: integration
+# Zuraffa test tiers
+# ------------------
+# `dart test` runs only the FAST unit suite. The slow tiers are excluded by
+# default (tagged `slow`); every slow test also carries a tier tag:
+# `regression`, `integration`, `property`, `benchmark`.
+#
+# Run the full suite (CI / pre-commit):
+#   dart test --preset=all
+# Run a single slow tier:
+#   dart test --preset=regression
+#   dart test --preset=integration
+#   dart test --preset=property
+#   dart test --preset=benchmark
+# Run a semantic folder (fast feedback):
+#   dart test test/core
+#   dart test test/plugins/route
+#   dart test test/commands
+
+exclude_tags: slow
+
+presets:
+  all:
+    exclude_tags: "false"
+  regression:
+    include_tags: regression
+    exclude_tags: "false"
+  integration:
+    include_tags: integration
+    exclude_tags: "false"
+  property:
+    include_tags: property
+    exclude_tags: "false"
+  benchmark:
+    include_tags: benchmark
+    exclude_tags: "false"

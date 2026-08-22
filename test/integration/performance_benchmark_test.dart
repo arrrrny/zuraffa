@@ -1,3 +1,4 @@
+@Tags(['integration', 'slow'])
 import 'package:test/test.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/generator/code_generator.dart';
