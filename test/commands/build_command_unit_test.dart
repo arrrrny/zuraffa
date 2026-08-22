@@ -563,5 +563,59 @@ Analyzing lib/...
         expect(BuildCommand.analyzeReportsError(out), isFalse);
       });
     });
+
+    // Regression guard for issue #415: `zfa build` previously passed
+    // `--fatal-infos=false` to `dart analyze`, but `--fatal-infos` is a
+    // non-negatable boolean flag — `dart analyze` rejects the `=value`
+    // form with exit code 64 ("Flag option "--fatal-infos" should not
+    // be given a value."). The usage error went to stderr (no `error -`
+    // line on stdout) so the stdout-only parser reported
+    // `✅ dart analyze: no errors` and the analyzer never ran. These
+    // tests assert the args are well-formed so a future reintroduction
+    // of the broken flag form fails fast in unit tests instead of
+    // silently shipping a false-positive "no errors" result.
+    group('analyzeArgs (issue #415 regression guard)', () {
+      test('does not pass the invalid `--fatal-infos=<value>` form', () {
+        for (final arg in BuildCommand.analyzeArgs) {
+          expect(
+            arg,
+            isNot(startsWith('--fatal-infos=')),
+            reason:
+                '`dart analyze` treats `--fatal-infos` as a non-negatable '
+                'boolean flag and rejects `=value` with exit code 64. '
+                'Pass `--fatal-infos` (to enable) or omit it (default off); '
+                'never `--fatal-infos=<value>` (issue #415).',
+          );
+        }
+      });
+
+      test('does not pass `--fatal-infos=false` specifically', () {
+        expect(
+          BuildCommand.analyzeArgs,
+          isNot(contains('--fatal-infos=false')),
+          reason: 'the exact broken flag from issue #415',
+        );
+      });
+
+      test('every arg starts with `--` (flag form, not a value)', () {
+        // If anyone ever accidentally appends a bare value, the form
+        // `--flag=value` for a non-negatable flag would resurface #415.
+        for (final arg in BuildCommand.analyzeArgs) {
+          expect(arg.startsWith('--'), isTrue, reason: '$arg is not a flag');
+        }
+      });
+
+      test(
+        'passes `--no-fatal-warnings` (warnings non-fatal, errors fatal)',
+        () {
+          // Matches the documented contract: "Only ERRORS fail the build;
+          // warnings and info-level lints are surfaced but do not cause a
+          // non-zero exit." Info-level lints are non-fatal by default
+          // (`--fatal-infos` is off unless explicitly set), and
+          // `--no-fatal-warnings` makes warnings non-fatal too.
+          expect(BuildCommand.analyzeArgs, contains('--no-fatal-warnings'));
+        },
+      );
+    });
   });
 }

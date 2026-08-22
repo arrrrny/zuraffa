@@ -358,13 +358,23 @@ class BuildCommand extends Command {
   /// This catches non-compiling generated code (e.g. missing imports, wrong
   /// relative import depth) immediately after `zfa build` instead of letting
   /// it surface downstream at `dart run` / CI time.
+  ///
+  /// The args passed to `dart analyze` are exposed via [analyzeArgs] so they
+  /// can be unit-tested without spawning the analyzer (issue #415 regression
+  /// guard: a previous build passed `--fatal-infos=false` which `dart analyze`
+  /// rejects with `Flag option "--fatal-infos" should not be given a value.`,
+  /// exit code 64. The usage error went to stderr (no `error -` line on stdout)
+  /// so the stdout-only parser reported `✅ dart analyze: no errors` even
+  /// though the analyzer never ran. We now use the valid `--no-fatal-warnings`
+  /// form AND defensively fail on any non-issue exit code so a future flag
+  /// regression cannot silently swallow itself).
   @visibleForTesting
   Future<bool> verifyAnalyzeOrFail({String? projectRoot}) async {
     final root = projectRoot ?? Directory.current.path;
     print('\n🔎 Running dart analyze on lib/...');
-    final result = await Process.run('dart', [
+    final result = await Process.run('dart', <String>[
       'analyze',
-      '--fatal-infos=false',
+      ...analyzeArgs,
       'lib',
     ], workingDirectory: root);
     final stdout = result.stdout as String;
@@ -375,10 +385,39 @@ class BuildCommand extends Command {
     if (stderr.trim().isNotEmpty) {
       print(stderr.trim());
     }
-    // `dart analyze` exit 0 = no issues; 1 = issues found; 2 = fatal error.
-    // We only fail on actual errors (lines whose severity is "error").
-    // Warnings/info surface above but don't flip the exit code when
-    // --fatal-infos=false is honored; still, parse defensively for "error".
+    // `dart analyze` exit codes (Dart 3.x):
+    //   0 = no issues; 1 = issues at fatal severity; 2 = fatal analyzer error;
+    //   3 = issues found but none fatal; 64 = command-line usage error.
+    //
+    // Only ERRORS fail the build (lines whose severity is `error`). Warnings
+    // and info-level lints surface above but do not flip our exit — we pass
+    // `--no-fatal-warnings` so they don't even make `dart analyze` itself
+    // exit non-zero, and we further parse stdout for `error -` markers as the
+    // authoritative signal.
+    //
+    // Defensive guard (issue #415): if `dart analyze` itself fails to RUN
+    // (usage error 64, fatal error 2, or any other unexpected code), we MUST
+    // fail loudly instead of silently reporting "no errors". Previously a
+    // bad flag (`--fatal-infos=false`) made the analyzer exit 64 with the
+    // usage message on stderr — stdout had no `error -` line, so the parser
+    // falsely reported success and the real analyzer never ran. Treat any
+    // exit code other than 0 (clean) and 3 (issues found) as an analyzer
+    // invocation failure and surface stderr as the failure reason.
+    final exitCode = result.exitCode;
+    if (exitCode != 0 && exitCode != 3) {
+      print(
+        '\n❌ dart analyze failed to run (exit $exitCode) — cannot verify the '
+        'build.\n'
+        '   This is usually a flag/usage regression in `zfa build` itself; '
+        'the analyzer\n'
+        '   never got to scan the project. See stderr above for the '
+        'analyzer\'s message.\n'
+        '   Run `dart analyze ${analyzeArgs.join(' ')} lib` by hand to '
+        'reproduce, or use\n'
+        '   `--no-analyze` to skip this guard.',
+      );
+      return false;
+    }
     final hasErrors = analyzeReportsError(stdout);
     if (hasErrors) {
       print(
@@ -390,6 +429,22 @@ class BuildCommand extends Command {
     print('   ✅ dart analyze: no errors');
     return true;
   }
+
+  /// The `dart analyze` flag arguments used by [verifyAnalyzeOrFail]
+  /// (everything between `analyze` and the target path).
+  ///
+  /// - `--no-fatal-warnings`: do not exit non-zero on warning-severity
+  ///   issues (warnings are surfaced but do not fail the build; only
+  ///   errors do). Info-level lints are already non-fatal by default
+  ///   (`--fatal-infos` is off unless explicitly passed), so we don't pass
+  ///   it — and we MUST NOT pass `--fatal-infos=false` because `dart analyze`
+  ///   treats `--fatal-infos` as a non-negatable boolean flag and rejects
+  ///   the `=value` form with exit code 64 (issue #415).
+  ///
+  /// Exposed for unit testing so a future regression that reintroduces an
+  /// invalid flag form can be caught without spawning the analyzer.
+  @visibleForTesting
+  static const List<String> analyzeArgs = <String>['--no-fatal-warnings'];
 
   /// Returns true when [analyzeOutput] contains at least one line whose
   /// severity marker is `error`. `dart analyze` formats lines as:
