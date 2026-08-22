@@ -1,3 +1,4 @@
+@Tags(['regression', 'slow'])
 // Regression test for issue #312.
 //
 // `zfa entity create -n BooleanCustomFieldConfig --field internal:bool?`

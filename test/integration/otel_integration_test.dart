@@ -1,5 +1,5 @@
+@Tags(['integration', 'slow'])
 // ignore_for_file: avoid_print
-@Tags(['integration'])
 library;
 
 import 'package:test/test.dart';

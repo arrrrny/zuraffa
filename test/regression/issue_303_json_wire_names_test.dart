@@ -1,3 +1,4 @@
+@Tags(['regression', 'slow'])
 // Regression test for issue #303.
 //
 // `zfa entity create` had no way to express a Dart field name different
@@ -265,17 +266,17 @@ dev_dependencies:
           '-n',
           'ConfigArgDefinition',
           '--field',
-          'required:bool',
+          'in:bool',
         ]);
         expect(
           badAdd.exitCode,
           isNot(equals(0)),
-          reason: 'add-field must reject raw Dart keyword `required`',
+          reason: 'add-field must reject raw Dart keyword `in`',
         );
         expect(
           badAdd.stdout + badAdd.stderr,
-          contains('json=required'),
-          reason: 'error must suggest the `:json=required` remap',
+          contains('json=in'),
+          reason: 'error must suggest the `:json=in` remap',
         );
 
         // Adding with the explicit `:json=` remap succeeds and emits the

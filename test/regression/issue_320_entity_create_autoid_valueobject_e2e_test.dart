@@ -1,3 +1,4 @@
+@Tags(['regression', 'slow'])
 // Regression tests for issue #320 — zfa entity create: autoId + ValueObject
 // end-to-end (the CREATE step).
 //

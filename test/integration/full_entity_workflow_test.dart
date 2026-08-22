@@ -1,3 +1,4 @@
+@Tags(['integration', 'slow'])
 import 'dart:io';
 
 import 'package:test/test.dart';

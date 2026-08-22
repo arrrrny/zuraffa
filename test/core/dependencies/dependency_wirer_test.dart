@@ -39,46 +39,36 @@ void main() {
         },
       );
 
-      test('zuraffa_flutter is a git dependency with path zuraffa_flutter', () {
+      test('zuraffa_flutter is a hosted dependency', () {
         final specs = DependencyWirer.standardSet(isFlutter: true);
         final zuraffaFlutter = specs.firstWhere(
           (s) => s.name == 'zuraffa_flutter',
         );
 
         expect(zuraffaFlutter.kind, DependencyKind.regular);
-        expect(zuraffaFlutter.isGit, isTrue);
-        expect(zuraffaFlutter.gitUrl, DependencyWirer.zuraffaGitUrl);
-        expect(zuraffaFlutter.gitPath, 'zuraffa_flutter');
-        expect(zuraffaFlutter.gitRef, DependencyWirer.defaultGitRef);
+        expect(zuraffaFlutter.isGit, isFalse);
+        expect(zuraffaFlutter.version, '^6.0.0');
       });
 
       test(
-        'zuraffa (dart) is a git dependency with no git-path (repo root)',
+        'zuraffa (dart) is a hosted dependency',
         () {
           final specs = DependencyWirer.standardSet(isFlutter: false);
           final zuraffa = specs.firstWhere((s) => s.name == 'zuraffa');
 
-          expect(zuraffa.isGit, isTrue);
-          expect(zuraffa.gitUrl, DependencyWirer.zuraffaGitUrl);
-          expect(zuraffa.gitPath, isNull);
+          expect(zuraffa.isGit, isFalse);
+          expect(zuraffa.version, '^6.0.0');
         },
       );
 
-      test('zorphy_annotation is a git dependency from the zorphy repo', () {
+      test('zorphy_annotation is a hosted dependency', () {
         final specs = DependencyWirer.standardSet(isFlutter: true);
         final zorphyAnn = specs.firstWhere(
           (s) => s.name == 'zorphy_annotation',
         );
 
-        expect(zorphyAnn.isGit, isTrue);
-        expect(zorphyAnn.gitUrl, DependencyWirer.zorphyGitUrl);
-        expect(zorphyAnn.gitPath, 'zorphy_annotation');
-        // Must match the URL string used by the zuraffa root pubspec
-        // (https://github.com/arrrrny/zorphy.git): pub only unifies git
-        // sources when the URL matches verbatim, so a bare-zorphy variant
-        // breaks version solving once zuraffa_flutter pulls zuraffa
-        // transitively.
-        expect(zorphyAnn.gitUrl, 'https://github.com/arrrrny/zorphy.git');
+        expect(zorphyAnn.isGit, isFalse);
+        expect(zorphyAnn.version, '^2.0.0');
       });
 
       test('build_runner and mocktail are dev dependencies', () {

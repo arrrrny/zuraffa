@@ -1,3 +1,4 @@
+@Tags(['regression', 'slow'])
 // Regression test for issue #341 (4th route/view contract churn after
 // #328 → #331 → #333 → #335):
 // https://github.com/arrrrny/zuraffa/issues/341

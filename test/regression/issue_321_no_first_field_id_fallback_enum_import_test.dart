@@ -1,3 +1,4 @@
+@Tags(['regression', 'slow'])
 // Regression tests for issue #321.
 //
 // `zfa make` on entities WITHOUT an id field (ChatMessage, TelemetryEvent —
@@ -49,9 +50,7 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/utils/entity_field_resolver.dart';
-
-/// Resolve package root at discovery time, before any test changes CWD.
-final _zfaRoot = Directory.current.path;
+import '../helpers/project_root.dart';
 
 void main() {
   group('#321 — zfa make: no first-field id fallback + emit enum imports', () {
@@ -67,7 +66,12 @@ void main() {
     }
 
     setUp(() async {
-      zfaBin = path.join(_zfaRoot, 'bin', 'zfa.dart');
+      // Resolve the zuraffa root via the package URI, NOT Directory.current,
+      // which can be polluted by other test files sharing the same process
+      // CWD. This keeps the subprocess bin path and the pubspec `path:` root
+      // correct regardless of test ordering or parallelism.
+      final zfaRoot = await findProjectRoot();
+      zfaBin = path.join(zfaRoot, 'bin', 'zfa.dart');
       workspace = await Directory.systemTemp.createTemp('issue_321_');
       outputDir = path.join(workspace.path, 'lib', 'src');
       await Directory(outputDir).create(recursive: true);
@@ -78,7 +82,7 @@ environment:
   sdk: ^3.11.0
 dependencies:
   zuraffa:
-    path: ${path.normalize(_zfaRoot)}
+    path: ${path.normalize(zfaRoot)}
 ''');
     });
 
