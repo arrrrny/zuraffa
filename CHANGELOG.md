@@ -22,6 +22,7 @@
 - CWD-contamination test infrastructure hardening.
 - `zfa di create <Entity>` now emits per-method usecase DI (`GetXUseCase` / `UpdateXUseCase`) for entity-based flows instead of referencing the non-existent `<Entity>UseCase` (issue #410).
 - `zfa plugin add` now appends `..register(XPlugin())` to the existing `ZuraffaEngine()` cascade instead of emitting a dangling registration statement (issue #245).
+- Pre-existing failing test suites fixed: `route_golden` (RouteParams uses valid parameter syntax), `cache_golden` (@Cacheable/@CacheInvalidate generator output), `di_container_override` (`registerSingleton` override handling), and `zuraffa_flutter` `xray_control_deck` widget tests (issue #256).
 
 ## [5.7.1] - 2026-07-30
 
