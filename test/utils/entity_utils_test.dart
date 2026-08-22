@@ -323,4 +323,64 @@ void main() {
       expect(dartCoreTypes, isNot(contains('DateTime')));
     });
   });
+
+  group('Regression tests for Bug A, B, C', () {
+    // Bug A: extractEntityTypes with nested generics used to mangle
+    // List<List<Duration>> into the literal string "ListDuration"
+    test('Bug A: extractEntityTypes handles doubly-nested List<List<Duration>>', () {
+      expect(EntityUtils.extractEntityTypes('List<List<Duration>>'), isEmpty,
+          reason: 'Duration is a dart-core type, should be excluded even when doubly nested');
+    });
+
+    test('Bug A: extractEntityTypes handles Map<String, List<Duration>>', () {
+      expect(EntityUtils.extractEntityTypes('Map<String, List<Duration>>'), isEmpty,
+          reason: 'Duration is a dart-core type, should be excluded even inside nested generics');
+    });
+
+    // Bug B: extractBaseType used to infinitely recurse on unsupported
+    // generic shapes like Future<Duration> or invalid Map arity
+    test('Bug B: extractBaseType does not hang on Future<Duration>', () {
+      final result = EntityUtils.extractBaseType('Future<Duration>');
+      // Should return some value promptly (not hang/stack-overflow)
+      expect(result, isNotEmpty);
+      // Exact value is implementation-dependent, but it should be trimmed
+      expect(result.trim(), result);
+    });
+
+    test('Bug B: extractBaseType does not hang on invalid Map arity Map<String, int, Duration>', () {
+      final result = EntityUtils.extractBaseType('Map<String, int, Duration>');
+      // Should return some value promptly (not hang/stack-overflow)
+      expect(result, isNotEmpty);
+      expect(result.trim(), result);
+    });
+
+    // Bug C: Map KEY entity types were never checked
+    test('Bug C: extractEntityTypes includes Map KEY types', () {
+      expect(EntityUtils.extractEntityTypes('Map<Product, Duration>'), contains('Product'),
+          reason: 'Map key Product must be validated even if value is a dart-core type');
+    });
+
+    test('Bug C: extractEntityTypes includes Map KEY when it is the value position', () {
+      expect(EntityUtils.extractEntityTypes('Map<Duration, Product>'), contains('Product'),
+          reason: 'Map value Product must be validated (this already worked, keep it working)');
+    });
+
+    test('Bug C: markDartCoreTypesAsExternal does NOT mark Map<Product, Duration> as external', () {
+      final fields = [
+        FieldDefinition(name: 'byProduct', type: 'Map<Product, Duration>'),
+      ];
+      final result = EntityUtils.markDartCoreTypesAsExternal(fields);
+      expect(result.first.isExternal, isFalse,
+          reason: 'Mixed entity+dart-core field must NOT be marked external so Product gets normal validation');
+    });
+
+    test('Bug C: markDartCoreTypesAsExternal does NOT mark Map<Duration, Product> as external', () {
+      final fields = [
+        FieldDefinition(name: 'byDuration', type: 'Map<Duration, Product>'),
+      ];
+      final result = EntityUtils.markDartCoreTypesAsExternal(fields);
+      expect(result.first.isExternal, isFalse,
+          reason: 'Mixed entity+dart-core field must NOT be marked external so Product gets normal validation');
+    });
+  });
 }

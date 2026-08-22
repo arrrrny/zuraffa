@@ -75,39 +75,49 @@ class EntityUtils {
   /// returns an empty list for them so [EntityTypeValidator] does not
   /// reject the field as an unresolvable entity/enum reference.
   static List<String> extractEntityTypes(String fieldType) {
-    final types = <String>[];
-    var baseType = fieldType.replaceAll('?', '');
+    final types = <String>{};
+    _extractEntityTypesRecursive(fieldType, types);
+    return types.toList();
+  }
 
-    if (baseType.startsWith('List<') && baseType.endsWith('>')) {
-      baseType = baseType.substring(5, baseType.length - 1);
-    } else if (baseType.startsWith('Map<') && baseType.endsWith('>')) {
-      final innerTypes = baseType.substring(4, baseType.length - 1);
-      final typeParts = innerTypes.split(',').map((s) => s.trim()).toList();
+  /// Recursively extracts entity types from [fieldType], collecting them
+  /// into [types]. Handles nested generics (List<List<T>>, Map<K, V>)
+  /// and evaluates BOTH Map key and value types independently.
+  static void _extractEntityTypesRecursive(
+    String fieldType,
+    Set<String> types,
+  ) {
+    var cleaned = fieldType.replaceAll('?', '');
+    if (cleaned.startsWith('\$')) {
+      cleaned = cleaned.substring(1);
+    }
+
+    // Unwrap List<T>
+    if (cleaned.startsWith('List<') && cleaned.endsWith('>')) {
+      final inner = cleaned.substring(5, cleaned.length - 1);
+      _extractEntityTypesRecursive(inner, types);
+      return;
+    }
+
+    // Unwrap Map<K, V> and recurse into BOTH key and value
+    if (cleaned.startsWith('Map<') && cleaned.endsWith('>')) {
+      final innerTypes = cleaned.substring(4, cleaned.length - 1);
+      final typeParts = _smartSplitTopLevel(innerTypes);
       if (typeParts.length == 2) {
-        baseType = typeParts[1];
-      } else {
-        return types;
+        _extractEntityTypesRecursive(typeParts[0], types); // KEY
+        _extractEntityTypesRecursive(typeParts[1], types); // VALUE
       }
+      return;
     }
 
-    if (baseType.startsWith('\$')) {
-      baseType = baseType.substring(1);
-    }
-
-    baseType = baseType
-        .replaceAll('<', '')
-        .replaceAll('>', '')
-        .split(',')[0]
-        .trim();
-
+    // Base case: no more wrappers, check if it's an entity type
+    final baseType = cleaned.trim();
     if (baseType.isNotEmpty &&
         !_primitives.contains(baseType) &&
         !dartCoreTypes.contains(baseType) &&
         baseType[0].toUpperCase() == baseType[0]) {
       types.add(baseType);
     }
-
-    return types;
   }
 
   /// Returns the base type of [type] after stripping nullable (`?`) and
@@ -130,8 +140,10 @@ class EntityUtils {
   ///   - `int?` -> `int`
   static String extractBaseType(String type) {
     var baseType = type.replaceAll('?', '');
+    var unwrapped = false;
     if (baseType.startsWith('List<') && baseType.endsWith('>')) {
       baseType = baseType.substring(5, baseType.length - 1);
+      unwrapped = true;
     } else if (baseType.startsWith('Map<') && baseType.endsWith('>')) {
       final innerTypes = baseType.substring(4, baseType.length - 1);
       // Bracket-aware split so a Map<String, Map<String, Duration>> does
@@ -140,6 +152,7 @@ class EntityUtils {
       final typeParts = _smartSplitTopLevel(innerTypes);
       if (typeParts.length == 2) {
         baseType = typeParts[1];
+        unwrapped = true;
       }
     }
     if (baseType.startsWith('\$')) {
@@ -147,8 +160,11 @@ class EntityUtils {
     }
     // Strip any remaining generic parameters on the inner type (e.g.
     // `Map<String, List<Duration>>` -> Map-extract gives `List<Duration>`
-    // -> recurse so we end up with `Duration`).
-    if (baseType.contains('<') && baseType.endsWith('>')) {
+    // -> recurse so we end up with `Duration`). Only recurse if we
+    // actually unwrapped something above — otherwise we'd infinitely
+    // recurse on unsupported generics like `Future<Duration>` or invalid
+    // Map arity like `Map<A,B,C>`.
+    if (unwrapped && baseType.contains('<') && baseType.endsWith('>')) {
       return extractBaseType(baseType);
     }
     return baseType.trim();
@@ -187,7 +203,19 @@ class EntityUtils {
   /// — either directly (`Duration`), inside a List (`List<Duration>`), or
   /// as the value type of a Map (`Map<String, Duration>`). Recurses into
   /// nested generics.
+  ///
+  /// IMPORTANT: per constraint in Bug C fix, this returns `true` ONLY when
+  /// EVERY leaf type in [type] is a primitive or a member of [dartCoreTypes].
+  /// Mixed fields like `Map<Product, Duration>` return `false` so the
+  /// entity portion (`Product`) still gets normal validation/import resolution.
   static bool isDartCoreType(String type) {
+    // Collect all entity types referenced by this field
+    final entityTypes = extractEntityTypes(type);
+    // If ANY entity type is found (i.e., a non-primitive, non-dartCoreTypes
+    // leaf exists), the field is NOT purely a dart-core type.
+    if (entityTypes.isNotEmpty) return false;
+
+    // No entity types found — check if at least one leaf is a dartCoreTypes member
     final baseType = extractBaseType(type);
     return dartCoreTypes.contains(baseType);
   }
