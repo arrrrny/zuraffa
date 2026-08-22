@@ -10,8 +10,29 @@ class ProjectRoot {
   ///
   /// Returns the absolute path to the project root, or [startPath] if no
   /// `pubspec.yaml` is found in any parent directory.
+  /// Resolves the current working directory, tolerating an invalid CWD.
+  ///
+  /// `Directory.current.path` throws [PathNotFoundException] when the process
+  /// CWD is an already-removed or otherwise invalid directory (e.g. a deleted
+  /// temp dir under `dart test`, or a chdir into a gone path in CI/containers).
+  /// In that case we fall back to the `PWD` environment variable and then to
+  /// the running script's directory instead of crashing.
+  static String _safeCurrentDir() {
+    try {
+      return Directory.current.path;
+    } catch (_) {
+      final pwd = Platform.environment['PWD'];
+      if (pwd != null && pwd.isNotEmpty) return pwd;
+      try {
+        return File(Platform.script.toFilePath()).parent.path;
+      } catch (_) {
+        rethrow;
+      }
+    }
+  }
+
   static String find({String? startPath}) {
-    final start = startPath ?? Directory.current.path;
+    final start = startPath ?? _safeCurrentDir();
     var current = Directory(p.normalize(p.absolute(start)));
 
     // If the start path doesn't exist, try its parent
@@ -42,7 +63,7 @@ class ProjectRoot {
     final root = find(startPath: startPath);
     if (!Directory(root).existsSync()) {
       throw StateError(
-        'Project root does not exist: $root (resolved from ${startPath ?? Directory.current.path})',
+        'Project root does not exist: $root (resolved from ${startPath ?? _safeCurrentDir()})',
       );
     }
     return root;
