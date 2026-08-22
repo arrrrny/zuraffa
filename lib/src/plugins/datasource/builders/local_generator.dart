@@ -185,7 +185,16 @@ class LocalDataSourceBuilder {
 
     final directives = <Directive>[
       Directive.import('package:zuraffa/zuraffa.dart'),
-      if (config.isEntityBased)
+      if (config.isEntityBased &&
+          fileSystem.existsSync(
+            path.join(
+              outputDir,
+              'domain',
+              'entities',
+              entitySnake,
+              '$entitySnake.dart',
+            ),
+          ))
         Directive.import(
           '../../../domain/entities/$entitySnake/$entitySnake.dart',
         ),

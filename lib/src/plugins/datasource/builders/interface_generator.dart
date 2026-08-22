@@ -279,7 +279,16 @@ class DataSourceInterfaceBuilder {
 
     final directives = <Directive>[
       Directive.import('package:zuraffa/zuraffa.dart'),
-      if (config.repo == null)
+      if (config.repo == null &&
+          fileSystem.existsSync(
+            path.join(
+              outputDir,
+              'domain',
+              'entities',
+              entitySnake,
+              '$entitySnake.dart',
+            ),
+          ))
         Directive.import(
           '../../../domain/entities/$entitySnake/$entitySnake.dart',
         ),
