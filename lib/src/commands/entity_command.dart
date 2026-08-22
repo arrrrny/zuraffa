@@ -231,6 +231,21 @@ ${missing.map((d) => '   • $d').join('\n')}
       subtypeWireValue: parsed['subtype_wire_value'] as String?,
     );
 
+    // Sealed + --generate-subs requires the subtypes to live in the SAME
+    // library as the sealed base — Dart rejects `implements $Sealed` declared
+    // in a different library with `invalid_use_of_type_outside_library`
+    // (issue #416). Zorphy writes each subtype to its own library by default;
+    // for the sealed case we inline the subtype class declarations into the
+    // sealed base's file and remove the now-redundant subtype files +
+    // directories. The subtype's `@Zorphy(...)` annotation travels with the
+    // class declaration, so `zfa build` still generates per-subtype
+    // serialization code — it just lands in the sealed base's
+    // `.zorphy.dart`/`.g.dart` parts instead of separate files.
+    final isSealedWithSubtypes =
+        entityConfig.isSealed &&
+        entityConfig.generateSubtypes &&
+        entityConfig.explicitSubtypes.isNotEmpty;
+
     final creator = EntityCreator(baseOutputDir: outputDir);
     final result = await creator.create(entityConfig);
 
@@ -239,12 +254,32 @@ ${missing.map((d) => '   • $d').join('\n')}
 
       // Add imports for explicit subtypes so the zorphy builder can resolve
       // them for polymorphic dispatch (fromJson/toJson with typeKey).
-      if (entityConfig.explicitSubtypes.isNotEmpty) {
+      //
+      // SKIPPED for sealed + --generate-subs: the subtypes are inlined into
+      // the sealed base's own library (see _inlineSealedSubtypes below), so
+      // cross-library imports would be both redundant and illegal — the
+      // inlined subtypes `implements` the sealed base from the SAME library,
+      // not via an import.
+      if (entityConfig.explicitSubtypes.isNotEmpty && !isSealedWithSubtypes) {
         await _addSubtypeImports(
           result.filePath,
           entityConfig.explicitSubtypes,
           outputDir,
         );
+      }
+
+      if (isSealedWithSubtypes) {
+        final inlined = await _inlineSealedSubtypes(
+          entityPath: result.filePath,
+          explicitSubtypes: entityConfig.explicitSubtypes,
+          outputDir: outputDir,
+        );
+        if (inlined > 0) {
+          print(
+            '🔁 Inlined $inlined sealed subtype(s) into '
+            '${entityConfig.className} (same-library requirement, #416).',
+          );
+        }
       }
 
       print('✓ Created entity: ${result.filePath}');
@@ -453,6 +488,168 @@ ${missing.map((d) => '   • $d').join('\n')}
     }
 
     await file.writeAsString(content);
+  }
+
+  /// Inline sealed subtypes into the sealed base's library (issue #416).
+  ///
+  /// Dart requires every direct subtype of a `sealed` class to be declared
+  /// in the SAME library. Zorphy's `EntityCreator.create()` writes each
+  /// subtype to its own library by default (e.g.
+  /// `lib/src/domain/entities/mission_started/mission_started.dart`), which
+  /// is correct for `--non-sealed` bases but illegal for `--sealed` ones —
+  /// the analyzer emits `invalid_use_of_type_outside_library` for every
+  /// subtype file once `zfa build` generates the actual `sealed class X` +
+  /// `class Sub implements X` declarations.
+  ///
+  /// This post-processes the generated output:
+  ///   1. Drops the per-subtype `import '../<sub>/<sub>.dart';` lines that
+  ///      [_addSubtypeImports] would have emitted (we never call it for the
+  ///      sealed case, but [EntityCreator] itself can emit them too).
+  ///   2. Reads each subtype file, extracts its class declaration block
+  ///      (doc comment + `@Zorphy(...)` annotation + `abstract class $X
+  ///      implements $Y { ... }` body — everything from the first `///`
+  ///      line onward; the imports/parts above that are dropped).
+  ///   3. Appends every subtype class declaration to the sealed base file
+  ///      so they all live in one library.
+  ///   4. Deletes each subtype file; removes the subtype directory when it
+  ///      is left empty (never nukes a dir that still has unrelated files).
+  ///
+  /// Returns the number of subtype class blocks actually inlined.
+  Future<int> _inlineSealedSubtypes({
+    required String entityPath,
+    required List<String> explicitSubtypes,
+    required String outputDir,
+  }) async {
+    final baseFile = File(entityPath);
+    if (!await baseFile.exists()) return 0;
+    var baseContent = await baseFile.readAsString();
+
+    // 1. Drop any cross-library subtype imports from the base file. Both
+    //    `_addSubtypeImports` and `EntityCreator` itself may have written
+    //    them; either way they are illegal once the subtypes are inlined.
+    for (final subtype in explicitSubtypes) {
+      final stName = subtype.split(':').first.replaceAll(r'$', '').trim();
+      if (stName.isEmpty) continue;
+      final stSnake = StringUtils.camelToSnake(stName);
+      // Match the import line whether or not it carries a trailing newline.
+      final patterns = [
+        "import '../$stSnake/$stSnake.dart';\n",
+        "import '../$stSnake/$stSnake.dart';\r\n",
+        "import '../$stSnake/$stSnake.dart';",
+      ];
+      for (final pat in patterns) {
+        baseContent = baseContent.replaceAll(pat, '');
+      }
+    }
+
+    // 2. Extract each subtype's class declaration block + collect for append.
+    final inlinedBlocks = <String>[];
+    for (final subtype in explicitSubtypes) {
+      final stName = subtype.split(':').first.replaceAll(r'$', '').trim();
+      if (stName.isEmpty) continue;
+      final stSnake = StringUtils.camelToSnake(stName);
+      final subDirPath = p.join(outputDir, stSnake);
+      final subFilePath = p.join(subDirPath, '$stSnake.dart');
+      final subFile = File(subFilePath);
+      if (!await subFile.exists()) continue;
+
+      final subContent = await subFile.readAsString();
+      final block = _extractSubtypeClassBlock(subContent);
+      if (block.isEmpty) continue;
+      inlinedBlocks.add(block);
+
+      // 3. Delete the subtype file; remove the directory only if empty.
+      try {
+        await subFile.delete();
+      } catch (_) {
+        // Best-effort: the inlined content is what matters.
+      }
+      try {
+        final subDir = Directory(subDirPath);
+        if (await subDir.exists()) {
+          final entries = await subDir.list().toList();
+          if (entries.isEmpty) {
+            await subDir.delete(recursive: false);
+          }
+        }
+      } catch (_) {
+        // Best-effort cleanup.
+      }
+    }
+
+    if (inlinedBlocks.isEmpty) return 0;
+
+    // 4. The sealed base's template only emits `part '<base>.zorphy.dart';`
+    //    (no `.g.dart`) because the abstract base itself is not JSON-
+    //    serializable. The inlined subtypes ARE concrete + JSON-serializable,
+    //    so json_serializable needs a `.g.dart` part to host the
+    //    `_$SubtypeToJson` / `_$SubtypeFromJson` helpers — without it the
+    //    build emits `engine_event.g.dart must be included as a part
+    //    directive` and the generated `engine_event.zorphy.dart` references
+    //    undefined `_$XToJson` methods. Add the directive if any inlined
+    //    subtype carries `generateJson: true` and the directive is missing.
+    final joined = inlinedBlocks.map((b) => b.trimRight()).join('\n\n');
+    final needsGPart = joined.contains('generateJson: true');
+    if (needsGPart) {
+      final baseSnake = p.basename(entityPath).replaceAll('.dart', '');
+      final gDirective = "part '$baseSnake.g.dart';";
+      if (!baseContent.contains(gDirective)) {
+        final zorphyPart = "part '$baseSnake.zorphy.dart';";
+        final zorphyIdx = baseContent.indexOf(zorphyPart);
+        if (zorphyIdx >= 0) {
+          // Insert the .g.dart part directive immediately AFTER the
+          // .zorphy.dart one — keeps the part block in a deterministic order.
+          final insertPos = zorphyIdx + zorphyPart.length;
+          // Skip the trailing newline of the existing part directive.
+          final nlIdx = baseContent.indexOf('\n', insertPos);
+          final at = nlIdx >= 0 ? nlIdx + 1 : insertPos;
+          baseContent =
+              '${baseContent.substring(0, at)}$gDirective\n${baseContent.substring(at)}';
+        } else {
+          // Defensive: no .zorphy.dart directive either (shouldn't happen for
+          // a Zorphy entity) — append at the top of the file after imports.
+          final lastImportIdx = baseContent.lastIndexOf('import ');
+          final eolIdx = baseContent.indexOf('\n', lastImportIdx);
+          final at = eolIdx >= 0 ? eolIdx + 1 : 0;
+          baseContent =
+              '${baseContent.substring(0, at)}$gDirective\n${baseContent.substring(at)}';
+        }
+      }
+    }
+
+    // 5. Append the subtype class declarations to the sealed base file.
+    //    The block list is joined with blank-line separators so each class
+    //    declaration is visually distinct.
+    final newContent = '${baseContent.trimRight()}\n\n$joined\n';
+    await baseFile.writeAsString(newContent);
+
+    return inlinedBlocks.length;
+  }
+
+  /// Extract the subtype class declaration block from a generated subtype
+  /// file. The block starts at the FIRST doc-comment (`///`) line — or, if
+  /// there is no doc comment, at the FIRST `@Zorphy(` annotation line — and
+  /// extends to the end of the file. Everything above (auto-gen header
+  /// comments, imports, `part` directives) is dropped because it would be
+  /// either redundant or illegal once the class lives in the parent's
+  /// library.
+  ///
+  /// Returns an empty string when neither a doc comment nor an annotation
+  /// can be located (defensive — the zorphy template always emits both).
+  String _extractSubtypeClassBlock(String source) {
+    final docIdx = source.indexOf('///');
+    final annotIdx = source.indexOf('@Zorphy(');
+    int startIdx;
+    if (docIdx >= 0 && (annotIdx < 0 || docIdx <= annotIdx)) {
+      startIdx = docIdx;
+    } else if (annotIdx >= 0) {
+      // Start at the beginning of the line that carries the annotation.
+      startIdx = source.lastIndexOf('\n', annotIdx);
+      startIdx = startIdx < 0 ? 0 : startIdx + 1;
+    } else {
+      return '';
+    }
+    return source.substring(startIdx).trimRight();
   }
 
   Future<void> _fixEntityImports(
