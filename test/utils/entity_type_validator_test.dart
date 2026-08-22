@@ -69,6 +69,84 @@ void main() {
     });
   });
 
+  group('EntityTypeValidator.validate — Dart core types (#411)', () {
+    // Issue #411: Duration, Uri, BigInt (and types in dartCoreTypes) are
+    // dart:core types — they need NO on-disk entity/enum declaration and
+    // NO extra import. The validator must NOT reject them as unresolvable
+    // entity/enum references (the original misleading
+    // "Unknown type 'Duration'" bug).
+    test('accepts Duration with no entity/enum on disk', () {
+      final fields = [
+        FieldDefinition(name: 'wallClockTimeout', type: 'Duration'),
+      ];
+      final errors = EntityTypeValidator.validate(
+        fields: fields,
+        outputDir: outputDir,
+      );
+      expect(errors, isEmpty, reason: 'Duration is a dart:core type');
+    });
+
+    test('accepts nullable Duration?', () {
+      final fields = [
+        FieldDefinition(name: 'softTimeout', type: 'Duration', nullable: true),
+      ];
+      final errors = EntityTypeValidator.validate(
+        fields: fields,
+        outputDir: outputDir,
+      );
+      expect(errors, isEmpty);
+    });
+
+    test('accepts List<Duration>', () {
+      final fields = [
+        FieldDefinition(name: 'timeouts', type: 'List<Duration>'),
+      ];
+      final errors = EntityTypeValidator.validate(
+        fields: fields,
+        outputDir: outputDir,
+      );
+      expect(errors, isEmpty);
+    });
+
+    test('accepts Map<String, Duration>', () {
+      final fields = [
+        FieldDefinition(name: 'byKey', type: 'Map<String, Duration>'),
+      ];
+      final errors = EntityTypeValidator.validate(
+        fields: fields,
+        outputDir: outputDir,
+      );
+      expect(errors, isEmpty);
+    });
+
+    test('accepts Uri and BigInt', () {
+      final fields = [
+        FieldDefinition(name: 'endpoint', type: 'Uri'),
+        FieldDefinition(name: 'count', type: 'BigInt'),
+      ];
+      final errors = EntityTypeValidator.validate(
+        fields: fields,
+        outputDir: outputDir,
+      );
+      expect(errors, isEmpty);
+    });
+
+    test('mix: Duration + String + entity ref all accepted together', () async {
+      await writeEntity('Product');
+      final fields = [
+        FieldDefinition(name: 'name', type: 'String'),
+        FieldDefinition(name: 'wallClockTimeout', type: 'Duration'),
+        FieldDefinition(name: 'product', type: 'Product'),
+        FieldDefinition(name: 'tags', type: 'List<Duration>'),
+      ];
+      final errors = EntityTypeValidator.validate(
+        fields: fields,
+        outputDir: outputDir,
+      );
+      expect(errors, isEmpty);
+    });
+  });
+
   group('EntityTypeValidator.validate — existing entity', () {
     test('accepts a field type whose entity directory exists', () async {
       await writeEntity('Product');
