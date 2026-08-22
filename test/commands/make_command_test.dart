@@ -523,5 +523,126 @@ class Product {
         );
       },
     );
+
+    // #412: `zfa make <Entity> repository usecase di mock provider service
+    // datasource` used to crash with `type 'bool' is not a subtype of type
+    // 'String?' in type cast` because the activation sync in
+    // PluginManager.buildContext wrote `data['service'] = true` (bool) for
+    // the active `service` plugin, poisoning the string-typed `service`
+    // schema slot that ServicePlugin (and UseCasePlugin) declare. Every
+    // consumer that read `data['service'] as String?` — or
+    // `context.get<String>('service')` — then crashed at runtime, even
+    // though individual `zfa <plugin> create <Entity>` invocations worked
+    // (they don't go through MakeCommand's activation sync).
+    //
+    // The fix is two-pronged:
+    //   1. PluginContext.get<T> is now defensive — returns null when the
+    //      stored value isn't a T, instead of throwing a cast error.
+    //   2. The activation sync records the activation flag under
+    //      `data['__active_<id>']` (queried via `PluginContext.isActive`)
+    //      for plugin ids whose own schema declares them as a non-boolean
+    //      type, leaving `data[id]` for the typed value (String/int/...).
+    //
+    // This regression test exercises the FULL plugin bundle from the issue
+    // (repository + usecase + di + mock + provider + service + datasource)
+    // and asserts the make command exits 0 and emits the canonical
+    // service + DI registrations. It uses TestEntity (matching the issue's
+    // reproduction) so the field names in the generated code line up with
+    // the issue's repro.
+    test(
+      '#412 — full plugin bundle (repository usecase di mock provider '
+      'service datasource) does not crash with bool→String? cast',
+      timeout: const Timeout(Duration(minutes: 2)),
+      () async {
+        await writeEntity('TestEntity', '''
+class TestEntity {
+  final String id;
+  final String name;
+
+  const TestEntity({required this.id, required this.name});
+}
+''');
+
+        final result = await runZfaSource([
+          'make',
+          'TestEntity',
+          'repository',
+          'usecase',
+          'di',
+          'mock',
+          'provider',
+          'service',
+          'datasource',
+        ]);
+
+        // The crash used to happen mid-run (UseCasePlugin reading
+        // `data['service']` as String?), so a non-zero exit code is the
+        // primary regression signal. Stderr is the secondary signal — the
+        // CLI runner's catch-all prints `❌ Error: ...` to stderr.
+        expect(
+          result.exitCode,
+          0,
+          reason:
+              'zfa make full bundle crashed:\n'
+              'stdout: ${result.stdout}\n'
+              'stderr: ${result.stderr}',
+        );
+        expect(
+          result.stderr.toString(),
+          isNot(contains("type 'bool' is not a subtype of type 'String?'")),
+        );
+        expect(
+          result.stdout.toString(),
+          isNot(contains('❌ Generation failed')),
+        );
+
+        // The `service` plugin must have been treated as active — DI's
+        // `generateService` flag is driven by `context.isActive('service')`
+        // after the fix, so the canonical service DI registration should
+        // land. Without the `isActive` helper, DI would have silently
+        // skipped service registration (data['service'] was no longer the
+        // bool `true` the old check expected).
+        //
+        // We assert on the per-barrel index files (datasources/repositories/
+        // usecases) because they each reference the entity-keyed DI file
+        // that was generated for that layer — proving the corresponding
+        // plugin ran AND DI registered it. The top-level di/index.dart
+        // only re-exports the per-barrel indexes, so it's not a useful
+        // signal for "did plugin X run".
+        final dsIndex = File(
+          path.join(outputDir, 'di', 'datasources', 'index.dart'),
+        );
+        expect(
+          dsIndex.existsSync(),
+          isTrue,
+          reason: 'di/datasources/index.dart missing — DI plugin did not run',
+        );
+        expect(
+          dsIndex.readAsStringSync(),
+          contains('test_entity_remote_datasource_di.dart'),
+          reason:
+              'DI did not register the datasource DI barrel — '
+              'isActive("service") likely regressed',
+        );
+
+        final repoIndex = File(
+          path.join(outputDir, 'di', 'repositories', 'index.dart'),
+        );
+        expect(
+          repoIndex.readAsStringSync(),
+          contains('test_entity_repository_di.dart'),
+          reason: 'DI did not register the repository DI barrel',
+        );
+
+        final ucIndex = File(
+          path.join(outputDir, 'di', 'usecases', 'index.dart'),
+        );
+        expect(
+          ucIndex.readAsStringSync(),
+          contains('get_test_entity_usecase_di.dart'),
+          reason: 'DI did not register the usecase DI barrel',
+        );
+      },
+    );
   });
 }
