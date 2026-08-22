@@ -145,15 +145,13 @@ class ProviderBuilder {
               ..modifier = (type == 'sync' || type == 'stream')
                   ? null
                   : MethodModifier.async
-              ..requiredParameters.addAll(
-                [
-                        Parameter(
-                          (p) => p
-                            ..name = 'params'
-                            ..type = refer(params),
-                        ),
-                      ],
-              )
+              ..requiredParameters.addAll([
+                Parameter(
+                  (p) => p
+                    ..name = 'params'
+                    ..type = refer(params),
+                ),
+              ])
               ..body = _buildMethodBody(methodName),
           ),
         );
@@ -172,15 +170,13 @@ class ProviderBuilder {
                 (config.useCaseType == 'sync' || config.useCaseType == 'stream')
                 ? null
                 : MethodModifier.async
-            ..requiredParameters.addAll(
-              [
-                      Parameter(
-                        (p) => p
-                          ..name = 'params'
-                          ..type = refer(paramsType),
-                      ),
-                    ],
-            )
+            ..requiredParameters.addAll([
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer(paramsType),
+              ),
+            ])
             ..body = _buildMethodBody(methodName),
         ),
       );

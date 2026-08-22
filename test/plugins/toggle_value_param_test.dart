@@ -68,7 +68,8 @@ void main() {
       expect(
         content,
         contains('String value,'),
-        reason: 'id parameter must be named after the resolved id field (value)',
+        reason:
+            'id parameter must be named after the resolved id field (value)',
       );
       // The toggle-value parameter is the fixed reserved name `toggleValue`.
       expect(
@@ -85,81 +86,90 @@ void main() {
       // The bool is forwarded into ToggleParams.value (named field, not param).
       expect(
         content,
-        contains('ToggleParams<String, Field<Barcode, dynamic>>(\n'
-            '        id: value,\n'
-            '        field: field,\n'
-            '        value: toggleValue,'),
+        contains(
+          'ToggleParams<String, Field<Barcode, dynamic>>(\n'
+          '        id: value,\n'
+          '        field: field,\n'
+          '        value: toggleValue,',
+        ),
         reason: '#302: toggleValue must be forwarded into ToggleParams.value',
       );
     });
 
-    test('controller toggle uses `toggleValue`, no `value` collision', () async {
-      final plugin = ControllerPlugin(
-        outputDir: outputDir,
-        options: const GeneratorOptions(
-          dryRun: false,
-          force: true,
-          verbose: false,
-        ),
-      );
-      final config = GeneratorConfig(
-        name: 'Barcode',
-        methods: const ['get', 'update', 'toggle'],
-        idField: 'value',
-        idFieldType: 'String',
-        queryField: 'value',
-        generateController: true,
-        outputDir: outputDir,
-      );
+    test(
+      'controller toggle uses `toggleValue`, no `value` collision',
+      () async {
+        final plugin = ControllerPlugin(
+          outputDir: outputDir,
+          options: const GeneratorOptions(
+            dryRun: false,
+            force: true,
+            verbose: false,
+          ),
+        );
+        final config = GeneratorConfig(
+          name: 'Barcode',
+          methods: const ['get', 'update', 'toggle'],
+          idField: 'value',
+          idFieldType: 'String',
+          queryField: 'value',
+          generateController: true,
+          outputDir: outputDir,
+        );
 
-      final files = await plugin.generate(config);
-      final content = files.first.content ?? '';
+        final files = await plugin.generate(config);
+        final content = files.first.content ?? '';
 
-      expect(
-        content,
-        contains('String value,'),
-        reason: 'id parameter must be named after the resolved id field (value)',
-      );
-      expect(
-        content,
-        contains('bool toggleValue'),
-        reason: '#302: toggle value param must be `toggleValue`, not `value`',
-      );
-      expect(
-        content,
-        isNot(contains('bool value')),
-        reason: '#302: must NOT have a duplicate `bool value` parameter',
-      );
-    });
+        expect(
+          content,
+          contains('String value,'),
+          reason:
+              'id parameter must be named after the resolved id field (value)',
+        );
+        expect(
+          content,
+          contains('bool toggleValue'),
+          reason: '#302: toggle value param must be `toggleValue`, not `value`',
+        );
+        expect(
+          content,
+          isNot(contains('bool value')),
+          reason: '#302: must NOT have a duplicate `bool value` parameter',
+        );
+      },
+    );
 
-    test('canonical id field still uses `toggleValue` (no behavioural break)', () async {
-      final plugin = PresenterPlugin(
-        outputDir: outputDir,
-        options: const GeneratorOptions(
-          dryRun: false,
-          force: true,
-          verbose: false,
-        ),
-      );
-      final config = GeneratorConfig(
-        name: 'Todo',
-        methods: const ['toggle'],
-        idField: 'id',
-        idFieldType: 'String',
-        queryField: 'id',
-        generatePresenter: true,
-        outputDir: outputDir,
-      );
+    test(
+      'canonical id field still uses `toggleValue` (no behavioural break)',
+      () async {
+        final plugin = PresenterPlugin(
+          outputDir: outputDir,
+          options: const GeneratorOptions(
+            dryRun: false,
+            force: true,
+            verbose: false,
+          ),
+        );
+        final config = GeneratorConfig(
+          name: 'Todo',
+          methods: const ['toggle'],
+          idField: 'id',
+          idFieldType: 'String',
+          queryField: 'id',
+          generatePresenter: true,
+          outputDir: outputDir,
+        );
 
-      final files = await plugin.generate(config);
-      final content = files.first.content ?? '';
+        final files = await plugin.generate(config);
+        final content = files.first.content ?? '';
 
-      expect(content, contains('bool toggleValue'));
-      expect(
-        content,
-        isNot(contains('bool value')),
-        reason: 'canonical id-field case must also use toggleValue',
-      );
-    });
+        expect(content, contains('bool toggleValue'));
+        expect(
+          content,
+          isNot(contains('bool value')),
+          reason: 'canonical id-field case must also use toggleValue',
+        );
+      },
+    );
   });
 }

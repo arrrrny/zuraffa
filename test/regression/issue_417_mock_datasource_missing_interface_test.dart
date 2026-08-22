@@ -20,7 +20,6 @@
 // This makes the mock_datasource's import + implements resolve regardless
 // of which other plugins are active, and never conflicts with the
 // DataSourcePlugin when it does run (file-existence check skips).
-
 import 'dart:io';
 
 import 'package:path/path.dart' as p;

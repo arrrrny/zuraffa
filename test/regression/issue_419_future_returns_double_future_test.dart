@@ -21,84 +21,90 @@ void main() {
   });
 
   group('Issue #419: usecase create Future return handling', () {
-    test('future usecase with --returns Future<void> is not double-wrapped',
-        () async {
-      final plugin = UseCasePlugin(
-        outputDir: outputDir,
-        options: const GeneratorOptions(dryRun: false, force: true),
-      );
-      final config = GeneratorConfig(
-        name: 'EngineLoop',
-        service: 'EngineLoopService',
-        domain: 'engine',
-        paramsType: 'MissionConfig',
-        returnsType: 'Future<void>',
-        useCaseType: 'future',
-        outputDir: outputDir,
-        force: true,
-      );
+    test(
+      'future usecase with --returns Future<void> is not double-wrapped',
+      () async {
+        final plugin = UseCasePlugin(
+          outputDir: outputDir,
+          options: const GeneratorOptions(dryRun: false, force: true),
+        );
+        final config = GeneratorConfig(
+          name: 'EngineLoop',
+          service: 'EngineLoopService',
+          domain: 'engine',
+          paramsType: 'MissionConfig',
+          returnsType: 'Future<void>',
+          useCaseType: 'future',
+          outputDir: outputDir,
+          force: true,
+        );
 
-      final files = await plugin.generate(config);
-      final content = files.first.content ?? '';
+        final files = await plugin.generate(config);
+        final content = files.first.content ?? '';
 
-      expect(
-        content.contains('UseCase<void, MissionConfig>'),
-        isTrue,
-        reason: 'Base class generic should use the inner return type',
-      );
-      expect(
-        content.contains('Future<void> execute'),
-        isTrue,
-        reason: 'execute should return Future<void>, not Future<Future<void>>',
-      );
-      expect(
-        content.contains('Future<Future<void>>'),
-        isFalse,
-        reason: 'Returns type must not be wrapped twice in Future',
-      );
-      expect(
-        content.contains('entities/future/future.dart'),
-        isFalse,
-        reason: 'Future wrapper must not be treated as an entity import',
-      );
-    });
+        expect(
+          content.contains('UseCase<void, MissionConfig>'),
+          isTrue,
+          reason: 'Base class generic should use the inner return type',
+        );
+        expect(
+          content.contains('Future<void> execute'),
+          isTrue,
+          reason:
+              'execute should return Future<void>, not Future<Future<void>>',
+        );
+        expect(
+          content.contains('Future<Future<void>>'),
+          isFalse,
+          reason: 'Returns type must not be wrapped twice in Future',
+        );
+        expect(
+          content.contains('entities/future/future.dart'),
+          isFalse,
+          reason: 'Future wrapper must not be treated as an entity import',
+        );
+      },
+    );
 
-    test('future usecase with --returns Future<List<Item>> keeps the inner type',
-        () async {
-      final plugin = UseCasePlugin(
-        outputDir: outputDir,
-        options: const GeneratorOptions(dryRun: false, force: true),
-      );
-      final config = GeneratorConfig(
-        name: 'LoadItems',
-        service: 'ItemService',
-        domain: 'items',
-        paramsType: 'NoParams',
-        returnsType: 'Future<List<Item>>',
-        useCaseType: 'future',
-        outputDir: outputDir,
-        force: true,
-      );
+    test(
+      'future usecase with --returns Future<List<Item>> keeps the inner type',
+      () async {
+        final plugin = UseCasePlugin(
+          outputDir: outputDir,
+          options: const GeneratorOptions(dryRun: false, force: true),
+        );
+        final config = GeneratorConfig(
+          name: 'LoadItems',
+          service: 'ItemService',
+          domain: 'items',
+          paramsType: 'NoParams',
+          returnsType: 'Future<List<Item>>',
+          useCaseType: 'future',
+          outputDir: outputDir,
+          force: true,
+        );
 
-      final files = await plugin.generate(config);
-      final content = files.first.content ?? '';
+        final files = await plugin.generate(config);
+        final content = files.first.content ?? '';
 
-      expect(
-        content.contains('UseCase<List<Item>, NoParams>'),
-        isTrue,
-        reason: 'Base class generic should use the inner List<Item> type',
-      );
-      expect(
-        content.contains('Future<List<Item>> execute'),
-        isTrue,
-        reason: 'execute should return Future<List<Item>>, not a double Future',
-      );
-      expect(
-        content.contains('Future<Future<List<Item>>>'),
-        isFalse,
-        reason: 'Returns type must not be wrapped twice in Future',
-      );
-    });
+        expect(
+          content.contains('UseCase<List<Item>, NoParams>'),
+          isTrue,
+          reason: 'Base class generic should use the inner List<Item> type',
+        );
+        expect(
+          content.contains('Future<List<Item>> execute'),
+          isTrue,
+          reason:
+              'execute should return Future<List<Item>>, not a double Future',
+        );
+        expect(
+          content.contains('Future<Future<List<Item>>>'),
+          isFalse,
+          reason: 'Returns type must not be wrapped twice in Future',
+        );
+      },
+    );
 
     test('sync usecase with --returns bool has no async/await', () async {
       final plugin = UseCasePlugin(

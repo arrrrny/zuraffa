@@ -591,9 +591,13 @@ class MakeCommand extends Command<void> {
     }
 
     final created = files.where((f) => f.action == 'created').length;
-    final overwritten = files.where((f) => f.action == 'overwritten').length;
+    final overwritten = files
+        .where((f) => f.action == 'overwritten' || f.action == 'updated')
+        .length;
     final skipped = files.where((f) => f.action == 'skipped').length;
-    final deleted = files.where((f) => f.action == 'deleted').length;
+    final deleted = files
+        .where((f) => f.action == 'deleted' || f.action == 'reverted')
+        .length;
 
     print('\n✅ Generation complete:');
     if (created > 0) print('  ✨ Created: $created files');
@@ -606,7 +610,9 @@ class MakeCommand extends Command<void> {
         final prefix = switch (file.action) {
           'created' => '  ✨',
           'overwritten' => '  📝',
+          'updated' => '  📝',
           'deleted' => '  🗑',
+          'reverted' => '  🗑',
           _ => '  ⏭',
         };
         if (file.action != 'skipped') {

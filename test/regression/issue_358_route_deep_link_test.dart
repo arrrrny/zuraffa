@@ -21,7 +21,6 @@
 //   2. Re-running is idempotent (no duplicate manifest entries).
 //   3. `zfa setup --deep-link-scheme gozuzu` flag exists on the
 //       SetupCommand.
-
 import 'dart:io';
 
 import 'package:analyzer/dart/analysis/utilities.dart';

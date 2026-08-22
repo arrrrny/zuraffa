@@ -37,7 +37,6 @@
 //   4. `add-field` without --allow-forward-refs: forward reference rejected.
 //   5. `add-field` with --allow-forward-refs: forward reference accepted,
 //      the new field is written with the correct `$`-prefixed type.
-
 import 'dart:io';
 
 import 'package:path/path.dart' as p;

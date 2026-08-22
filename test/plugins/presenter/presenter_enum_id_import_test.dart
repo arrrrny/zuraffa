@@ -37,10 +37,12 @@ void main() {
       path.join(outputDir, 'domain', 'entities', 'enums'),
     );
     await enumDir.create(recursive: true);
-    await File(path.join(enumDir.path, 'message_type.dart'))
-        .writeAsString('enum MessageType { a, b, c }\n');
-    await File(path.join(enumDir.path, 'index.dart'))
-        .writeAsString("export 'message_type.dart';\n");
+    await File(
+      path.join(enumDir.path, 'message_type.dart'),
+    ).writeAsString('enum MessageType { a, b, c }\n');
+    await File(
+      path.join(enumDir.path, 'index.dart'),
+    ).writeAsString("export 'message_type.dart';\n");
   }
 
   group('#321 — emit enum imports for signature (id) types', () {
@@ -72,18 +74,21 @@ void main() {
       expect(
         content,
         contains('domain/entities/enums/index.dart'),
-        reason: '#321: presenter must import the enum barrel for an enum id type',
+        reason:
+            '#321: presenter must import the enum barrel for an enum id type',
       );
       // The signature must reference the enum-typed id.
       expect(
         content,
         contains('UpdateParams<MessageType,'),
-        reason: '#321: presenter must reference the enum id type in UpdateParams',
+        reason:
+            '#321: presenter must reference the enum id type in UpdateParams',
       );
       expect(
         content,
         contains('ToggleParams<MessageType,'),
-        reason: '#321: presenter must reference the enum id type in ToggleParams',
+        reason:
+            '#321: presenter must reference the enum id type in ToggleParams',
       );
       expect(
         content,
@@ -92,39 +97,42 @@ void main() {
       );
     });
 
-    test('does NOT emit an enum import for a primitive (String) id type', () async {
-      final plugin = PresenterPlugin(
-        outputDir: outputDir,
-        options: const GeneratorOptions(
-          dryRun: false,
-          force: true,
-          verbose: false,
-        ),
-      );
-      final config = GeneratorConfig(
-        name: 'Authentication',
-        methods: const ['update', 'toggle'],
-        idField: 'id',
-        idFieldType: 'String',
-        queryField: 'id',
-        generatePresenter: true,
-        outputDir: outputDir,
-      );
+    test(
+      'does NOT emit an enum import for a primitive (String) id type',
+      () async {
+        final plugin = PresenterPlugin(
+          outputDir: outputDir,
+          options: const GeneratorOptions(
+            dryRun: false,
+            force: true,
+            verbose: false,
+          ),
+        );
+        final config = GeneratorConfig(
+          name: 'Authentication',
+          methods: const ['update', 'toggle'],
+          idField: 'id',
+          idFieldType: 'String',
+          queryField: 'id',
+          generatePresenter: true,
+          outputDir: outputDir,
+        );
 
-      final files = await plugin.generate(config);
-      final content = files.first.content ?? '';
+        final files = await plugin.generate(config);
+        final content = files.first.content ?? '';
 
-      // Negative: no enum barrel import for a plain String id.
-      expect(
-        content,
-        isNot(contains('enums/index.dart')),
-        reason: '#321: primitive id type must not produce an enum import',
-      );
-      expect(
-        content,
-        contains('UpdateParams<String,'),
-        reason: 'control case uses String-typed ids',
-      );
-    });
+        // Negative: no enum barrel import for a plain String id.
+        expect(
+          content,
+          isNot(contains('enums/index.dart')),
+          reason: '#321: primitive id type must not produce an enum import',
+        );
+        expect(
+          content,
+          contains('UpdateParams<String,'),
+          reason: 'control case uses String-typed ids',
+        );
+      },
+    );
   });
 }

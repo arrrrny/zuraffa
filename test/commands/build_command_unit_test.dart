@@ -565,18 +565,20 @@ Analyzing lib/...
     });
 
     group('verifyAnalyzeOrFail (issue #415 — invalid --fatal-infos flag)', () {
-      test('runs `dart analyze lib` without the rejected --fatal-infos=value '
-          'flag and reports no errors on the current (warning/info-only) lib',
-          () async {
-        // Regression for #415: the guard previously invoked
-        // `dart analyze --fatal-infos=false lib`, which the analyzer rejects
-        // at flag-parse ("Flag option should not be given a value", exit 64)
-        // — producing empty stdout and a falsely-clean result. The fixed
-        // invocation drops the flag (info is non-fatal by default).
-        final command = BuildCommand();
-        final ok = await command.verifyAnalyzeOrFail();
-        expect(ok, isTrue);
-      });
+      test(
+        'runs `dart analyze lib` without the rejected --fatal-infos=value '
+        'flag and reports no errors on the current (warning/info-only) lib',
+        () async {
+          // Regression for #415: the guard previously invoked
+          // `dart analyze --fatal-infos=false lib`, which the analyzer rejects
+          // at flag-parse ("Flag option should not be given a value", exit 64)
+          // — producing empty stdout and a falsely-clean result. The fixed
+          // invocation drops the flag (info is non-fatal by default).
+          final command = BuildCommand();
+          final ok = await command.verifyAnalyzeOrFail();
+          expect(ok, isTrue);
+        },
+      );
     });
   });
 }

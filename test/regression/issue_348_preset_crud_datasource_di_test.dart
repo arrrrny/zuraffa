@@ -34,7 +34,6 @@
 //   4. The DI index `setupDependencies(getIt)` wires up
 //      `registerAllDataSources(getIt)` before `registerAllRepositories(getIt)`,
 //      so the datasource is registered before the repository tries to resolve it.
-
 import 'dart:io';
 
 import 'package:path/path.dart' as p;

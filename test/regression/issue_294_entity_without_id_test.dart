@@ -15,7 +15,6 @@
 //        list produced an empty mock datasource class that failed
 //        `implements` with `non_abstract_class_inherits_abstract_member`.
 //        The fix mirrors the other plugins' default.
-
 import 'dart:io';
 
 import 'package:path/path.dart' as path;
@@ -134,7 +133,8 @@ void main() {
       expect(
         presenterFile.existsSync(),
         isFalse,
-        reason: 'pure-Dart target must NOT generate a Flutter presenter '
+        reason:
+            'pure-Dart target must NOT generate a Flutter presenter '
             '(Constitution VII: Engine Purity)',
       );
 
