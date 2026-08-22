@@ -756,20 +756,16 @@ packages:
   zorphy:
     dependency: "direct main"
     description:
-      path: zorphy
-      ref: master
-      resolved-ref: "23c1d8237508837bc41136e2a617b06f394910fd"
-      url: "https://github.com/arrrrny/zorphy.git"
-    source: git
+      path: "../zorphy/zorphy"
+      relative: true
+    source: path
     version: "2.2.0"
   zorphy_annotation:
     dependency: "direct main"
     description:
-      path: zorphy_annotation
-      ref: master
-      resolved-ref: "23c1d8237508837bc41136e2a617b06f394910fd"
-      url: "https://github.com/arrrrny/zorphy.git"
-    source: git
+      path: "../zorphy/zorphy_annotation"
+      relative: true
+    source: path
     version: "2.2.0"
 sdks:
   dart: ">=3.11.0 <4.0.0"

@@ -4,7 +4,6 @@ version: 6.0.0
 homepage: https://zuraffa.com
 repository: https://github.com/arrrrny/zuraffa
 issue_tracker: https://github.com/arrrrny/zuraffa/issues
-publish_to: none
 
 topics:
   - clean-architecture
@@ -34,5 +33,5 @@ dev_dependencies:
   mocktail: ^1.0.4
 
 dependency_overrides:
-  analyzer: ^13.1.0
+  analyzer: 14.1.0
   meta: ^1.19.0

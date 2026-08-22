@@ -22,8 +22,8 @@ dependencies:
   path: ^1.9.1
   yaml: ^3.1.0
   uuid: ^4.6.0
-  zorphy: ^2.0.0
-  zorphy_annotation: ^2.0.0
+  zorphy: ^2.2.0
+  zorphy_annotation: ^2.2.0
 
   json_annotation: ^4.12.0
 
@@ -51,15 +51,9 @@ dependency_overrides:
   # `development` branch was merged into `master` (PR #93), so the override
   # points at `master` — the continuation of that line.
   zorphy:
-    git:
-      url: https://github.com/arrrrny/zorphy.git
-      path: zorphy
-      ref: master
+    path: ../zorphy/zorphy
   zorphy_annotation:
-    git:
-      url: https://github.com/arrrrny/zorphy.git
-      path: zorphy_annotation
-      ref: master
+    path: ../zorphy/zorphy_annotation
 
 executables:
   zuraffa:
