@@ -128,6 +128,7 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
           config,
           providerPath,
           serviceName,
+          providerName,
           methodName,
           returnRef,
           effectiveParams,
@@ -633,14 +634,38 @@ extension MethodAppendBuilderAppend on MethodAppendBuilder {
                   ),
                 ],
         )
-        ..body = Block(
-          (b) => b
-            ..statements.add(
-              refer(
-                'UnimplementedError',
-              ).call([literalString(errorMessage)]).thrown.statement,
-            ),
-        ),
+        ..body = type == 'provider'
+            ? Block(
+                (b) => b
+                  ..statements.add(
+                    declareFinal('error')
+                        .assign(
+                          refer('UnimplementedError').call([
+                            literalString('$methodName not implemented'),
+                          ]),
+                        )
+                        .statement,
+                  )
+                  ..statements.add(
+                    declareFinal(
+                      'stack',
+                    ).assign(refer('StackTrace').property('current')).statement,
+                  )
+                  ..statements.add(
+                    refer(
+                      'logAndHandleError',
+                    ).call([refer('error'), refer('stack')]).statement,
+                  )
+                  ..statements.add(refer('error').thrown.statement),
+              )
+            : Block(
+                (b) => b
+                  ..statements.add(
+                    refer(
+                      'UnimplementedError',
+                    ).call([literalString(errorMessage)]).thrown.statement,
+                  ),
+              ),
     );
 
     final methodSource = method.accept(emitter).toString();

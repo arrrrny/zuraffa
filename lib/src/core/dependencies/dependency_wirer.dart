@@ -89,22 +89,6 @@ class WireResult {
 /// Used by both `zfa setup` (new app bootstrap) and `zfa init` (existing
 /// project dependency wiring) so the two commands stay in sync.
 class DependencyWirer {
-  /// Git source for the zuraffa monorepo (contains both `zuraffa` at the root
-  /// and `zuraffa_flutter` as a sub-package).
-  static const zuraffaGitUrl = 'https://github.com/arrrrny/zuraffa';
-
-  /// Git source for the zorphy monorepo (contains `zorphy` and
-  /// `zorphy_annotation` sub-packages). Must match the exact URL string used
-  /// by the zuraffa root pubspec (https://github.com/arrrrny/zorphy.git):
-  /// pub treats git sources as identical only when the URL string matches
-  /// verbatim, and a `.git`-vs-bare mismatch breaks version solving when
-  /// `zuraffa_flutter` pulls `zuraffa` transitively.
-  static const zorphyGitUrl = 'https://github.com/arrrrny/zorphy.git';
-
-  /// Default git ref — tracks the development branch which is where active
-  /// v6 work lands before merging to master.
-  static const defaultGitRef = 'development';
-
   /// The analyzer version zuraffa pins in pure-Dart packages (see root
   /// pubspec.yaml). Overriding analyzer in downstream apps prevents
   /// version-conflict failures when `dart pub get` resolves the transitive
@@ -132,9 +116,7 @@ class DependencyWirer {
       DependencySpec(
         name: isFlutter ? 'zuraffa_flutter' : 'zuraffa',
         kind: DependencyKind.regular,
-        gitUrl: zuraffaGitUrl,
-        gitPath: isFlutter ? 'zuraffa_flutter' : null,
-        gitRef: defaultGitRef,
+        version: '^6.0.0',
       ),
       // Hosted, not git: zuraffa itself depends on zorphy_annotation from
       // hosted (^2.0.0). A root-level git pin creates a source conflict pub

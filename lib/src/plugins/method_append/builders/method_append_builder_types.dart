@@ -4,6 +4,11 @@ extension MethodAppendBuilderTypes on MethodAppendBuilder {
   Reference _returnType(String useCaseType, String returnsType) {
     switch (useCaseType) {
       case 'stream':
+        // Avoid double-wrapping when the caller already passes a Stream<...>
+        // (e.g. `--returns "Stream<int>" --type stream`); issue #413.
+        if (returnsType.startsWith('Stream<') || returnsType == 'Stream') {
+          return refer(returnsType);
+        }
         return TypeReference(
           (b) => b
             ..symbol = 'Stream'
@@ -18,6 +23,11 @@ extension MethodAppendBuilderTypes on MethodAppendBuilder {
       case 'sync':
         return refer(returnsType);
       default:
+        // Avoid double-wrapping when the caller already passes a Future<...>
+        // (e.g. `--returns "Future<void>" --type usecase`); issue #413.
+        if (returnsType.startsWith('Future<') || returnsType == 'Future') {
+          return refer(returnsType);
+        }
         return TypeReference(
           (b) => b
             ..symbol = 'Future'
