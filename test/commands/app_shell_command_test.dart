@@ -99,6 +99,7 @@ void main() {
 
   group('end-to-end generation', () {
     late Directory workspace;
+    late String previousCwd;
 
     setUp(() async {
       workspace = await Directory.systemTemp.createTemp('zfa_app_shell_');
@@ -130,13 +131,25 @@ import 'package:go_router/go_router.dart';
 List<GoRoute> getAllRoutes() => [];
 ''');
 
+      previousCwd = Directory.current.path;
       Directory.current = workspace.path;
     });
 
     tearDown(() async {
+      // Restore CWD to a valid directory BEFORE deleting the workspace, so the
+      // process CWD is never left pointing inside a deleted temp dir (which
+      // would poison subsequently loaded test files that read CWD).
       try {
-        Directory.current = await findProjectRoot();
-      } catch (_) {}
+        if (Directory(previousCwd).existsSync()) {
+          Directory.current = previousCwd;
+        } else {
+          Directory.current = Directory.systemTemp.path;
+        }
+      } catch (_) {
+        try {
+          Directory.current = Directory.systemTemp.path;
+        } catch (_) {}
+      }
       if (workspace.existsSync()) {
         await workspace.delete(recursive: true);
       }
