@@ -21,6 +21,7 @@
 - Build verification hardening (fail loudly on missing parts / 0 outputs).
 - CWD-contamination test infrastructure hardening.
 - `zfa di create <Entity>` now emits per-method usecase DI (`GetXUseCase` / `UpdateXUseCase`) for entity-based flows instead of referencing the non-existent `<Entity>UseCase` (issue #410).
+- `zfa plugin add` now appends `..register(XPlugin())` to the existing `ZuraffaEngine()` cascade instead of emitting a dangling registration statement (issue #245).
 
 ## [5.7.1] - 2026-07-30
 
