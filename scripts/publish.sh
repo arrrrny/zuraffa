@@ -21,12 +21,20 @@ echo "🚀 Publishing zuraffa version $VERSION on branch $CURRENT_BRANCH..."
 # ============================================================
 if [[ "$OSTYPE" == "darwin"* ]]; then
     sed -i '' "s/^version: .*/version: $VERSION/" pubspec.yaml
-    sed -i '' "s/^const version = '.*'/const version = '$VERSION'/" lib/src/zfa_cli.dart
-    sed -i '' "s/^version: .*/version: $VERSION/" example/pubspec.yaml
+    sed -i '' "s/^version: .*/version: $VERSION/" zuraffa_flutter/pubspec.yaml
+    # zfa_cli.dart may not carry a version const in every layout.
+    sed -i '' "s/^const version = '.*'/const version = '$VERSION'/" lib/src/zfa_cli.dart 2>/dev/null || true
+    # example/ is optional and may not exist in this repo layout.
+    if [ -f example/pubspec.yaml ]; then
+        sed -i '' "s/^version: .*/version: $VERSION/" example/pubspec.yaml
+    fi
 else
     sed -i "s/^version: .*/version: $VERSION/" pubspec.yaml
-    sed -i "s/^const version = '.*'/const version = '$VERSION'/" lib/src/zfa_cli.dart
-    sed -i "s/^version: .*/version: $VERSION/" example/pubspec.yaml
+    sed -i "s/^version: .*/version: $VERSION/" zuraffa_flutter/pubspec.yaml
+    sed -i "s/^const version = '.*'/const version = '$VERSION'/" lib/src/zfa_cli.dart 2>/dev/null || true
+    if [ -f example/pubspec.yaml ]; then
+        sed -i "s/^version: .*/version: $VERSION/" example/pubspec.yaml
+    fi
 fi
 
 # Update CHANGELOG (only if entry doesn't already exist)
@@ -102,7 +110,11 @@ echo "   zuraffa-zed pinned to: $ZED_NEW_SHA"
 # Step 3: Commit and push main repo (now includes correct submodule pointer)
 # ============================================================
 echo "🔨 Committing and tagging main repo..."
-git add pubspec.yaml CHANGELOG.md lib/src/zfa_cli.dart example/pubspec.yaml
+git add pubspec.yaml CHANGELOG.md lib/src/zfa_cli.dart zuraffa_flutter/pubspec.yaml
+# example/ is optional — only stage it if present (otherwise `git add` aborts under set -e).
+if [ -f example/pubspec.yaml ]; then
+    git add example/pubspec.yaml
+fi
 git commit -m "chore: release $VERSION" || true
 
 # Create and push tag for the main repo
@@ -116,8 +128,45 @@ git push origin "v$VERSION"
 
 echo "⚙️  GitHub Actions will now build and upload binaries for all platforms."
 
-# Finally, publish to pub.dev
-echo "📦 Publishing to pub.dev..."
+# ============================================================
+# Step 4: Publish zuraffa (core, pure-Dart) to pub.dev
+# ============================================================
+echo "📦 Publishing zuraffa to pub.dev..."
 dart pub publish --force
+echo "✅ zuraffa $VERSION published to pub.dev!"
 
-echo "✅ Published $VERSION successfully!"
+# ============================================================
+# Step 5: Publish zuraffa_flutter — it depends on zuraffa ^$VERSION,
+# so pub.dev must have indexed the new zuraffa before zuraffa_flutter's
+# `pub get` can resolve it. Validate the package once, then retry the
+# publish with backoff while propagation settles (mirrors the
+# zikzak_inappwebview multi-package flow).
+# ============================================================
+echo "📦 Verifying zuraffa_flutter (pub get + analyze)..."
+(
+  cd zuraffa_flutter
+  flutter pub get
+  flutter analyze
+)
+
+publish_zuraffa_flutter() {
+  local max_attempts=20 attempt=0 interval=30
+  while [ $attempt -lt $max_attempts ]; do
+    attempt=$((attempt + 1))
+    echo "📦 Publishing zuraffa_flutter (attempt $attempt/$max_attempts)..."
+    if ( cd zuraffa_flutter && dart pub publish --force ); then
+      echo "✅ zuraffa_flutter $VERSION published to pub.dev!"
+      return 0
+    fi
+    echo "⚠️  zuraffa_flutter publish failed (likely pub.dev propagation delay for zuraffa $VERSION). Retrying in ${interval}s..."
+    sleep $interval
+  done
+  return 1
+}
+
+publish_zuraffa_flutter || {
+  echo "❌ zuraffa_flutter publish failed after retries. zuraffa $VERSION is already live — publish zuraffa_flutter manually once propagation settles."
+  exit 1
+}
+
+echo "✅ Published $VERSION (zuraffa + zuraffa_flutter) successfully!"
