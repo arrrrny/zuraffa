@@ -1,3 +1,4 @@
+@Tags(['regression', 'slow'])
 // Regression test for issue #308.
 //
 // `zfa entity create` and `zfa entity add-field` rejected forward references

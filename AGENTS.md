@@ -187,11 +187,15 @@ During the migration period, some internals may still use older storage paths. U
 After editing generation-related docs or workflows, prefer focused validation such as:
 
 ```bash
-flutter test test/regression/docs_command_consistency_test.dart
-flutter test test/core/artifact_publisher_test.dart
+# fast unit checks (default run)
+dart test test/core/artifact_publisher_test.dart
+# slow regression tier (excluded by default — use the preset)
+dart test --preset=regression test/regression/docs_command_consistency_test.dart
 ```
 
-Use `dart analyze` or the editor analyzer on the files you touched.
+`dart test` runs the fast unit suite by default. Use `--preset=all` for the
+full suite, or `--preset=regression` / `integration` / `property` / `benchmark`
+for a single slow tier. See `test/README.md`. Use `dart analyze` on the files you touched.
 
 ## Migration shorthand for older projects
 

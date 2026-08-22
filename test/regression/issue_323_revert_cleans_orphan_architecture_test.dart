@@ -1,3 +1,4 @@
+@Tags(['regression', 'slow'])
 // Each test spawns `dart bin/zfa.dart` sub-processes (JIT start-up is
 // several seconds each) and runs multiple `zfa make` invocations. The
 // package:test default (30s) is too tight: when a test times out, its

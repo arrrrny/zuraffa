@@ -1,3 +1,4 @@
+@Tags(['regression', 'slow'])
 // Regression test for issue #315.
 //
 // `zfa entity create` (with or without `--allow-forward-refs`) must generate a

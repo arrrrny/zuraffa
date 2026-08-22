@@ -1,3 +1,4 @@
+@Tags(['benchmark', 'slow'])
 import 'package:test/test.dart';
 import 'package:zuraffa/src/core/ast/append_executor.dart';
 import 'package:zuraffa/src/core/ast/strategies/append_strategy.dart';
