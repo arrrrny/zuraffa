@@ -44,6 +44,16 @@ dependencies:
 
 dependency_overrides:
   analyzer: 14.1.0
+  # Track the latest zorphy fixes locally/CI without hard-pinning to a commit
+  # or feature ref. 2.0.0 on pub.dev carries the #310/#351/#349 fixes, so the
+  # versioned deps above are the published contract; these git overrides
+  # resolve WITHOUT a sibling ../zorphy checkout. Note: zorphy's former
+  # `development` branch was merged into `master` (PR #93), so the override
+  # points at `master` — the continuation of that line.
+  zorphy:
+    path: ../zorphy/zorphy
+  zorphy_annotation:
+    path: ../zorphy/zorphy_annotation
 
 executables:
   zuraffa:

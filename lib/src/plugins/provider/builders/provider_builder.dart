@@ -146,9 +146,7 @@ class ProviderBuilder {
                   ? null
                   : MethodModifier.async
               ..requiredParameters.addAll(
-                params == 'NoParams'
-                    ? const []
-                    : [
+                [
                         Parameter(
                           (p) => p
                             ..name = 'params'
@@ -175,9 +173,7 @@ class ProviderBuilder {
                 ? null
                 : MethodModifier.async
             ..requiredParameters.addAll(
-              paramsType == 'NoParams'
-                  ? const []
-                  : [
+              [
                       Parameter(
                         (p) => p
                           ..name = 'params'
