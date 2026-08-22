@@ -200,12 +200,21 @@ class CapabilityCommand extends Command<void> {
           return;
         }
 
+        // Issue #414: method_append emits `updated` for the append path and
+        // `reverted` for the --revert path. Normalize them into the existing
+        // `overwritten` / `deleted` buckets so success is reported instead of
+        // being silently swallowed by an unhandled action.
         final created = files.where((f) => f.action == 'created').toList();
         final overwritten = files
-            .where((f) => f.action == 'overwritten')
+            .where(
+              (f) =>
+                  f.action == 'overwritten' || f.action == 'updated',
+            )
             .toList();
         final skipped = files.where((f) => f.action == 'skipped').toList();
-        final deleted = files.where((f) => f.action == 'deleted').toList();
+        final deleted = files
+            .where((f) => f.action == 'deleted' || f.action == 'reverted')
+            .toList();
 
         if (created.isNotEmpty ||
             overwritten.isNotEmpty ||
