@@ -83,10 +83,19 @@ abstract class PluginCommand extends Command<void> {
       return;
     }
 
+    // Issue #414: method_append emits `updated` for the append path and
+    // `reverted` for the --revert path. Normalize them into the existing
+    // `overwritten` / `deleted` buckets so logSummary is consistent with
+    // CapabilityCommand.run() and never silently swallows a successful
+    // append/revert.
     final created = files.where((f) => f.action == 'created').length;
-    final overwritten = files.where((f) => f.action == 'overwritten').length;
+    final overwritten = files
+        .where((f) => f.action == 'overwritten' || f.action == 'updated')
+        .length;
     final skipped = files.where((f) => f.action == 'skipped').length;
-    final deleted = files.where((f) => f.action == 'deleted').length;
+    final deleted = files
+        .where((f) => f.action == 'deleted' || f.action == 'reverted')
+        .length;
 
     print('\n✅ Generation complete:');
     if (created > 0) print('  ✨ Created: $created files');
@@ -99,9 +108,9 @@ abstract class PluginCommand extends Command<void> {
       for (final file in files) {
         if (file.action == 'created') {
           print('  ✨ ${file.path}');
-        } else if (file.action == 'overwritten') {
+        } else if (file.action == 'overwritten' || file.action == 'updated') {
           print('  📝 ${file.path}');
-        } else if (file.action == 'deleted') {
+        } else if (file.action == 'deleted' || file.action == 'reverted') {
           print('  🗑 ${file.path}');
         }
       }
