@@ -1,3 +1,5 @@
+import 'package:path/path.dart' as path;
+
 import '../../../core/builder/shared/spec_library.dart';
 import '../../../core/generator_options.dart';
 import '../../../core/context/file_system.dart';
@@ -5,6 +7,8 @@ import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/entity_analyzer.dart';
 import '../../../utils/entity_utils.dart';
+import '../../../utils/string_utils.dart';
+import '../../datasource/builders/interface_generator.dart';
 import 'mock_data_builder.dart';
 import 'mock_datasource_builder.dart';
 import 'mock_provider_builder.dart';
@@ -18,6 +22,12 @@ class MockBuilder {
   final SpecLibrary specLibrary;
   final MockDataBuilder dataBuilder;
   final MockDataSourceBuilder dataSourceBuilder;
+  // #417: emits the `${entitySnake}_datasource.dart` interface file when
+  // MockBuilder runs without the datasource plugin active. The mock
+  // datasource file always imports + implements `${entityName}DataSource`;
+  // without the interface file the generated code is broken
+  // (uri_does_not_exist + implements_non_class).
+  final DataSourceInterfaceBuilder interfaceBuilder;
   final MockProviderBuilder providerBuilder;
   final MockEntityGraphBuilder entityGraphBuilder;
   final MockJsonBuilder jsonBuilder;
@@ -30,6 +40,7 @@ class MockBuilder {
     SpecLibrary? specLibrary,
     MockDataBuilder? dataBuilder,
     MockDataSourceBuilder? dataSourceBuilder,
+    DataSourceInterfaceBuilder? interfaceBuilder,
     MockProviderBuilder? providerBuilder,
     MockEntityGraphBuilder? entityGraphBuilder,
     MockJsonBuilder? jsonBuilder,
@@ -50,6 +61,13 @@ class MockBuilder {
              outputDir: outputDir,
              options: options,
              specLibrary: specLibrary ?? const SpecLibrary(),
+             fileSystem: fileSystem ?? FileSystem.create(),
+           ),
+       interfaceBuilder =
+           interfaceBuilder ??
+           DataSourceInterfaceBuilder(
+             outputDir: outputDir,
+             options: options,
              fileSystem: fileSystem ?? FileSystem.create(),
            ),
        providerBuilder =
@@ -145,6 +163,33 @@ class MockBuilder {
 
     if (!config.generateMockDataOnly) {
       if (!config.hasService) {
+        // #417: ensure the datasource interface file exists before emitting
+        // the mock_datasource that imports + implements
+        // `${entityName}DataSource`. Without the interface file the
+        // generated mock_datasource triggers uri_does_not_exist +
+        // implements_non_class when the datasource plugin is NOT active
+        // (e.g. `zfa make X mock repository` without `datasource`).
+        //
+        // The check is file-existence-based (not plugin-active-based) so it
+        // works regardless of plugin execution order:
+        //   * DataSourcePlugin ran first → file exists → skip (no conflict).
+        //   * RepositoryPlugin's #406 fallback ran first → file exists → skip.
+        //   * MockPlugin runs first / alone → file missing → MockBuilder
+        //     emits it here.
+        final interfaceEntityName = config.repo != null
+            ? config.repo!.replaceAll('Repository', '')
+            : config.name;
+        final interfaceSnake = StringUtils.camelToSnake(interfaceEntityName);
+        final interfacePath = path.join(
+          outputDir,
+          'data',
+          'datasources',
+          interfaceSnake,
+          '${interfaceSnake}_datasource.dart',
+        );
+        if (!await fileSystem.exists(interfacePath)) {
+          files.add(await interfaceBuilder.generate(config));
+        }
         files.add(await dataSourceBuilder.generateMockDataSource(config));
       }
       if (config.hasService) {
