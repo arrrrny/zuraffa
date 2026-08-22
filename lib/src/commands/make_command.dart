@@ -592,15 +592,11 @@ class MakeCommand extends Command<void> {
 
     final created = files.where((f) => f.action == 'created').length;
     final overwritten = files
-        .where(
-          (f) => f.action == 'overwritten' || f.action == 'updated',
-        )
+        .where((f) => f.action == 'overwritten' || f.action == 'updated')
         .length;
     final skipped = files.where((f) => f.action == 'skipped').length;
     final deleted = files
-        .where(
-          (f) => f.action == 'deleted' || f.action == 'reverted',
-        )
+        .where((f) => f.action == 'deleted' || f.action == 'reverted')
         .length;
 
     print('\n✅ Generation complete:');

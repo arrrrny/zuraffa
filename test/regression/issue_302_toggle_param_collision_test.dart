@@ -42,7 +42,6 @@
 //   - Assert no `duplicate_definition` exists in the generated code.
 //   - Re-test the canonical `Todo` (id=`id`) case to lock in that the
 //     rename doesn't break the standard id-field scenario.
-
 import 'dart:io';
 
 import 'package:path/path.dart' as path;
@@ -161,7 +160,8 @@ void main() {
       expect(
         controllerFile.existsSync(),
         isFalse,
-        reason: 'pure-Dart target must NOT generate a Flutter controller '
+        reason:
+            'pure-Dart target must NOT generate a Flutter controller '
             '(Constitution VII: Engine Purity)',
       );
 
@@ -178,7 +178,8 @@ void main() {
       expect(
         presenterFile.existsSync(),
         isFalse,
-        reason: 'pure-Dart target must NOT generate a Flutter presenter '
+        reason:
+            'pure-Dart target must NOT generate a Flutter presenter '
             '(Constitution VII: Engine Purity)',
       );
     });
@@ -236,7 +237,8 @@ void main() {
       expect(
         controllerFile.existsSync(),
         isFalse,
-        reason: 'pure-Dart target must NOT generate a Flutter controller '
+        reason:
+            'pure-Dart target must NOT generate a Flutter controller '
             '(Constitution VII: Engine Purity)',
       );
 
@@ -252,7 +254,8 @@ void main() {
       expect(
         presenterFile.existsSync(),
         isFalse,
-        reason: 'pure-Dart target must NOT generate a Flutter presenter '
+        reason:
+            'pure-Dart target must NOT generate a Flutter presenter '
             '(Constitution VII: Engine Purity)',
       );
     });

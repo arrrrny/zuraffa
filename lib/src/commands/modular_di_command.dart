@@ -38,7 +38,8 @@ class ModularDiCommand extends PluginCommand {
     argParser.addFlag(
       'no-entity',
       negatable: false,
-      help: 'Treat as a custom (non-entity) usecase — emit a single '
+      help:
+          'Treat as a custom (non-entity) usecase — emit a single '
           '<name>_usecase_di.dart referencing <Name>UseCase '
           '(for hand-written usecases)',
     );

@@ -17,7 +17,6 @@
 // now invoke `EntityTypeValidator.validate` BEFORE writing anything. If any
 // field type is unresolvable, the command prints a clear, actionable error
 // and exits 1 WITHOUT writing the entity file.
-
 import 'dart:io';
 
 import 'package:path/path.dart' as p;

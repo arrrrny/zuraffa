@@ -23,7 +23,6 @@
 //      passed.
 //   4. The capability is wired into the `route` command's subcommand
 //      dispatcher so `zfa route shell ...` works at the CLI.
-
 import 'dart:io';
 
 import 'package:analyzer/dart/analysis/utilities.dart';

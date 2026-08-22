@@ -13,7 +13,6 @@
 // Card with `<Entity>MockData.sample<Entity>` for detail views) instead
 // of the empty `Container()`. When the mock file is absent, the view
 // falls back to `Container()` so the contract stays backwards-compatible.
-
 import 'dart:io';
 
 import 'package:analyzer/dart/analysis/utilities.dart';

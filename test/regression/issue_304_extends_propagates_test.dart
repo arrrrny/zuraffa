@@ -30,7 +30,6 @@
 // package itself (see zorphy/test/generation/issue_304_extends_test.dart).
 //
 // See: https://github.com/arrrrny/zuraffa/issues/304
-
 import 'dart:io';
 
 import 'package:path/path.dart' as p;

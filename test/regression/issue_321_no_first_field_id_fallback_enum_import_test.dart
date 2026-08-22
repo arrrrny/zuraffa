@@ -44,7 +44,6 @@
 //     files WITH the enum barrel import emitted.
 //   - The control case: `Authentication` with real `id: String`
 //     generates clean (no enum imports, no loud error).
-
 import 'dart:io';
 
 import 'package:path/path.dart' as path;

@@ -20,7 +20,6 @@
 //
 // This test locks in the fix end-to-end by spawning the `zfa` CLI binary
 // against a temp workspace.
-
 import 'dart:io';
 
 import 'package:path/path.dart' as p;

@@ -21,7 +21,6 @@
 // pointing `findUseCaseDomain` at an empty/non-existent output dir with no
 // discovery engine, which forces it to skip active discovery and the
 // directory scan and fall straight into the prefix-stripping branch.
-
 import 'dart:io';
 
 import 'package:test/test.dart';

@@ -50,16 +50,13 @@ void main() {
         expect(zuraffaFlutter.version, '^6.0.0');
       });
 
-      test(
-        'zuraffa (dart) is a hosted dependency',
-        () {
-          final specs = DependencyWirer.standardSet(isFlutter: false);
-          final zuraffa = specs.firstWhere((s) => s.name == 'zuraffa');
+      test('zuraffa (dart) is a hosted dependency', () {
+        final specs = DependencyWirer.standardSet(isFlutter: false);
+        final zuraffa = specs.firstWhere((s) => s.name == 'zuraffa');
 
-          expect(zuraffa.isGit, isFalse);
-          expect(zuraffa.version, '^6.0.0');
-        },
-      );
+        expect(zuraffa.isGit, isFalse);
+        expect(zuraffa.version, '^6.0.0');
+      });
 
       test('zorphy_annotation is a hosted dependency', () {
         final specs = DependencyWirer.standardSet(isFlutter: true);

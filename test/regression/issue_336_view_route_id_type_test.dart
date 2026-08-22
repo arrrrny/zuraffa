@@ -18,7 +18,6 @@
 //     yearOfBirth:int, no id-like field on the entity itself).
 //   - `RouteBuilder` converts the String path parameter with
 //     int.parse/double.parse/num.parse when the id type is numeric.
-
 import 'dart:io';
 
 import 'package:test/test.dart';

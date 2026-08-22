@@ -39,7 +39,6 @@
 // malformed stub → dangling comma), so the test PARSES the generated
 // output with the analyzer and asserts zero syntax errors — not just
 // substring greps.
-
 import 'dart:io';
 
 import 'package:analyzer/dart/analysis/utilities.dart';

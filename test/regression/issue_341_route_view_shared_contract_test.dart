@@ -30,7 +30,6 @@
 // This is the SHARED contract test the issue asked for: it generates
 // views + routes together in one fixture and asserts every named-param
 // passed by a route's view constructor call is accepted by that view.
-
 import 'dart:io';
 
 import 'package:test/test.dart';

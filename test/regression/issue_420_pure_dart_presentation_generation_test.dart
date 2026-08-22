@@ -39,7 +39,7 @@ void main() {
       final deps = flutter
           ? 'dependencies:\n  flutter:\n    sdk: flutter\n'
           : 'dependencies:\n  zuraffa:\n    git:\n'
-              '      url: https://github.com/arrrrny/zuraffa\n';
+                '      url: https://github.com/arrrrny/zuraffa\n';
       await File(p.join(tempDir.path, 'pubspec.yaml')).writeAsString('''
 name: demo
 environment:
@@ -48,22 +48,25 @@ $deps''');
     }
 
     group('controller', () {
-      test('pure-Dart pubspec => skipped (no zuraffa_flutter emitted)', () async {
-        await writePubspec(flutter: false);
-        final plugin = ControllerPlugin(
-          outputDir: outputDir,
-          options: const GeneratorOptions(force: true),
-        );
-        final files = await plugin.generate(
-          GeneratorConfig(
-            name: 'Product',
-            methods: const ['get', 'update'],
-            generateController: true,
+      test(
+        'pure-Dart pubspec => skipped (no zuraffa_flutter emitted)',
+        () async {
+          await writePubspec(flutter: false);
+          final plugin = ControllerPlugin(
             outputDir: outputDir,
-          ),
-        );
-        expect(files, isEmpty);
-      });
+            options: const GeneratorOptions(force: true),
+          );
+          final files = await plugin.generate(
+            GeneratorConfig(
+              name: 'Product',
+              methods: const ['get', 'update'],
+              generateController: true,
+              outputDir: outputDir,
+            ),
+          );
+          expect(files, isEmpty);
+        },
+      );
 
       test('Flutter pubspec => generates Flutter controller', () async {
         await writePubspec(flutter: true);
@@ -90,22 +93,25 @@ $deps''');
     });
 
     group('presenter', () {
-      test('pure-Dart pubspec => skipped (no zuraffa_flutter emitted)', () async {
-        await writePubspec(flutter: false);
-        final plugin = PresenterPlugin(
-          outputDir: outputDir,
-          options: const GeneratorOptions(force: true),
-        );
-        final files = await plugin.generate(
-          GeneratorConfig(
-            name: 'Product',
-            methods: const ['get', 'getList'],
-            generatePresenter: true,
+      test(
+        'pure-Dart pubspec => skipped (no zuraffa_flutter emitted)',
+        () async {
+          await writePubspec(flutter: false);
+          final plugin = PresenterPlugin(
             outputDir: outputDir,
-          ),
-        );
-        expect(files, isEmpty);
-      });
+            options: const GeneratorOptions(force: true),
+          );
+          final files = await plugin.generate(
+            GeneratorConfig(
+              name: 'Product',
+              methods: const ['get', 'getList'],
+              generatePresenter: true,
+              outputDir: outputDir,
+            ),
+          );
+          expect(files, isEmpty);
+        },
+      );
 
       test('Flutter pubspec => generates Flutter presenter', () async {
         await writePubspec(flutter: true);
@@ -132,23 +138,26 @@ $deps''');
     });
 
     group('view', () {
-      test('pure-Dart pubspec => skipped (no flutter/material emitted)', () async {
-        await writePubspec(flutter: false);
-        final plugin = ViewPlugin(
-          outputDir: outputDir,
-          options: const GeneratorOptions(force: true),
-        );
-        final files = await plugin.generate(
-          GeneratorConfig(
-            name: 'Product',
-            methods: const ['get', 'update'],
-            generateDi: true,
-            generateView: true,
+      test(
+        'pure-Dart pubspec => skipped (no flutter/material emitted)',
+        () async {
+          await writePubspec(flutter: false);
+          final plugin = ViewPlugin(
             outputDir: outputDir,
-          ),
-        );
-        expect(files, isEmpty);
-      });
+            options: const GeneratorOptions(force: true),
+          );
+          final files = await plugin.generate(
+            GeneratorConfig(
+              name: 'Product',
+              methods: const ['get', 'update'],
+              generateDi: true,
+              generateView: true,
+              outputDir: outputDir,
+            ),
+          );
+          expect(files, isEmpty);
+        },
+      );
 
       test('Flutter pubspec => generates Flutter view', () async {
         await writePubspec(flutter: true);

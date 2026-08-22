@@ -34,7 +34,6 @@
 //   4. Plain enums with no keyword values stay `@JsonValue`-free.
 //   5. The generated source actually parses (sanity: no raw `as`/`is`
 //      tokens standing as enum identifiers).
-
 import 'dart:io';
 
 import 'package:path/path.dart' as p;

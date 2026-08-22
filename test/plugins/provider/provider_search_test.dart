@@ -67,7 +67,10 @@ class BarcodeProvider implements BarcodeService {
 
     final content = providerFile.readAsStringSync();
     expect(content.contains('Future<void> initialMethod()'), isTrue);
-    expect(content.contains('Future<void> scanBarcode(NoParams params)'), isTrue);
+    expect(
+      content.contains('Future<void> scanBarcode(NoParams params)'),
+      isTrue,
+    );
 
     // Verify no file was created in the 'scanner' domain
     final wrongFile = File(

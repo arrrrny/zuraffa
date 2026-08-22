@@ -27,7 +27,6 @@
 //   * The generated source analyzes cleanly inside a real Dart package
 //     that exports `NoParams`, `QueryParams`, etc. (no
 //     uri_does_not_exist / undefined_class / override_on_non_overriding_member).
-
 import 'dart:io';
 
 import 'package:path/path.dart' as p;

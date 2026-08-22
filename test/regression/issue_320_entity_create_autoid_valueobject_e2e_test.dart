@@ -26,7 +26,6 @@
 //     kind) still writes the entity file — the identity contract is enforced
 //     at `zfa make` time (loud error, covered by make_command_test), NOT at
 //     `zfa entity create` time. This documents the create-vs-make contract.
-
 import 'dart:io';
 
 import 'package:path/path.dart' as path;

@@ -38,7 +38,6 @@
 //      `removeElementFromReturnListInFunction` to also strip the
 //      trailing comma after the removed element — so removal never
 //      leaves a stray `,` that breaks DartFormatter.
-
 import 'dart:io';
 
 import 'package:dart_style/dart_style.dart' show DartFormatter;

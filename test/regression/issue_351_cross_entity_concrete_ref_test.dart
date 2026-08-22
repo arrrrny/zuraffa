@@ -41,7 +41,6 @@
 //      (NOT `required InvalidType this.parent`), and a `dynamic` field has
 //      `dynamic this.data` (NOT `required dynamic this.data`).
 //   6. `dart analyze` on the generated library reports no `InvalidType` error.
-
 import 'dart:io';
 
 import 'package:path/path.dart' as p;

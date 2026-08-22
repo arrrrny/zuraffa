@@ -26,7 +26,6 @@
 //      super_formal_parameter_without_associated_named),
 //   4. guards the entity-backed CleanView template: it must KEEP
 //      super.routeObserver.
-
 import 'dart:io';
 
 import 'package:path/path.dart' as p;

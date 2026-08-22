@@ -37,7 +37,6 @@
 // `bin/zfa.dart`. The full build_runner round-trip (`.g.dart` emitting
 // `'in': instance.in_`) is verified in a dedicated test that mirrors
 // zuraffa's `dependency_overrides` (local zorphy checkout).
-
 import 'dart:io';
 
 import 'package:path/path.dart' as p;

@@ -38,7 +38,8 @@ class CreateDiCapability implements ZuraffaCapability {
       'methods': {
         'type': 'array',
         'items': {'type': 'string'},
-        'description': 'List of entity methods to wire '
+        'description':
+            'List of entity methods to wire '
             '(get,create,update,delete,list,watch,getList,watchList). '
             'Defaults to ["get", "update"] for entity-based generation, '
             'matching `zfa usecase create <Entity>`.',
@@ -46,11 +47,13 @@ class CreateDiCapability implements ZuraffaCapability {
       'usecases': {
         'type': 'array',
         'items': {'type': 'string'},
-        'description': 'List of usecases to orchestrate (enables orchestrator DI)',
+        'description':
+            'List of usecases to orchestrate (enables orchestrator DI)',
       },
       'noEntity': {
         'type': 'boolean',
-        'description': 'Treat as a custom (non-entity) usecase — emits a single '
+        'description':
+            'Treat as a custom (non-entity) usecase — emits a single '
             '<name>_usecase_di.dart referencing <Name>UseCase '
             '(for hand-written usecases).',
         'default': false,

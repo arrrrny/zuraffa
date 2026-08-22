@@ -28,7 +28,6 @@
 //   - view_plugin.dart emits the `entityCamel` field (and entity import)
 //     whenever the entity is CRUD-backed (`isEntityBased`), not just
 //     under `--state`.
-
 import 'dart:io';
 
 import 'package:path/path.dart' as path;
