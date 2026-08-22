@@ -204,17 +204,22 @@ class CapabilityCommand extends Command<void> {
         final overwritten = files
             .where((f) => f.action == 'overwritten')
             .toList();
+        final updated = files.where((f) => f.action == 'updated').toList();
         final skipped = files.where((f) => f.action == 'skipped').toList();
         final deleted = files.where((f) => f.action == 'deleted').toList();
 
         if (created.isNotEmpty ||
             overwritten.isNotEmpty ||
+            updated.isNotEmpty ||
             deleted.isNotEmpty) {
           print('✅ Success! Created/Modified:');
           for (final file in created) {
             print('  ✨ ${file.path}');
           }
           for (final file in overwritten) {
+            print('  📝 ${file.path}');
+          }
+          for (final file in updated) {
             print('  📝 ${file.path}');
           }
           for (final file in deleted) {
