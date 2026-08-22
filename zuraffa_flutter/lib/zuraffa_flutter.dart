@@ -70,6 +70,15 @@ export 'package:zuraffa_flutter/src/module/route_builder.dart';
 /// Minimal widget that resolves routes from a ZuraffaEngine.
 export 'package:zuraffa_flutter/src/module/app_runner.dart';
 
+// ── Routing (go_router) ───────────────────────────────────────────────
+
+/// Re-export [go_router](https://pub.dev/packages/go_router) so Flutter apps
+/// can build `GoRouter` / `GoRoute` / `ShellRoute` route trees through the
+/// single `package:zuraffa_flutter/zuraffa_flutter.dart` entrypoint, without
+/// a direct `import 'package:go_router/go_router.dart';`. zuraffa_flutter
+/// already depends on go_router; this only surfaces its public API.
+export 'package:go_router/go_router.dart';
+
 // ── Flutter Plugin ────────────────────────────────────────────────────
 
 /// ZuraffaFlutterPlugin wires UI services into the ZuraffaEngine.
