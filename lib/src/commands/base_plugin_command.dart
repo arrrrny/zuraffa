@@ -90,9 +90,7 @@ abstract class PluginCommand extends Command<void> {
     // append/revert.
     final created = files.where((f) => f.action == 'created').length;
     final overwritten = files
-        .where(
-          (f) => f.action == 'overwritten' || f.action == 'updated',
-        )
+        .where((f) => f.action == 'overwritten' || f.action == 'updated')
         .length;
     final skipped = files.where((f) => f.action == 'skipped').length;
     final deleted = files
@@ -110,8 +108,7 @@ abstract class PluginCommand extends Command<void> {
       for (final file in files) {
         if (file.action == 'created') {
           print('  ✨ ${file.path}');
-        } else if (file.action == 'overwritten' ||
-            file.action == 'updated') {
+        } else if (file.action == 'overwritten' || file.action == 'updated') {
           print('  📝 ${file.path}');
         } else if (file.action == 'deleted' || file.action == 'reverted') {
           print('  🗑 ${file.path}');

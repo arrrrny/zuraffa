@@ -206,10 +206,7 @@ class CapabilityCommand extends Command<void> {
         // being silently swallowed by an unhandled action.
         final created = files.where((f) => f.action == 'created').toList();
         final overwritten = files
-            .where(
-              (f) =>
-                  f.action == 'overwritten' || f.action == 'updated',
-            )
+            .where((f) => f.action == 'overwritten' || f.action == 'updated')
             .toList();
         final skipped = files.where((f) => f.action == 'skipped').toList();
         final deleted = files
