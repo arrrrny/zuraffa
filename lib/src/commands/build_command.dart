@@ -364,7 +364,6 @@ class BuildCommand extends Command {
     print('\n🔎 Running dart analyze on lib/...');
     final result = await Process.run('dart', [
       'analyze',
-      '--fatal-infos=false',
       'lib',
     ], workingDirectory: root);
     final stdout = result.stdout as String;
@@ -377,8 +376,10 @@ class BuildCommand extends Command {
     }
     // `dart analyze` exit 0 = no issues; 1 = issues found; 2 = fatal error.
     // We only fail on actual errors (lines whose severity is "error").
-    // Warnings/info surface above but don't flip the exit code when
-    // --fatal-infos=false is honored; still, parse defensively for "error".
+    // Info-level lints are non-fatal by default (do NOT pass `--fatal-infos`,
+    // which is a boolean flag that rejects a `=false` value and would make the
+    // analyzer fail at flag-parse — see issue #415). We surface warnings/info
+    // above but only flip the exit code on real "error" severity lines.
     final hasErrors = analyzeReportsError(stdout);
     if (hasErrors) {
       print(
