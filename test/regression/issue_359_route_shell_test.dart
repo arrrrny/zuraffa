@@ -1,3 +1,4 @@
+@Tags(['regression', 'slow'])
 // https://github.com/arrrrny/zuraffa/issues/359
 //
 // Before this fix, the route plugin generated per-entity GoRoutes but had

@@ -1,3 +1,4 @@
+@Tags(['regression', 'slow'])
 // https://github.com/arrrrny/zuraffa/issues/359
 //
 // Before this fix, generated views rendered an empty `Container()` body
