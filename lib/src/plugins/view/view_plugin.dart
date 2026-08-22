@@ -13,6 +13,7 @@ import '../../models/generator_config.dart';
 import '../../utils/file_utils.dart';
 import '../../utils/flutter_symbols.dart';
 import '../../utils/string_utils.dart';
+import '../../utils/project_flavor.dart';
 import 'builders/adaptive_layout_scaffold_builder.dart';
 import 'builders/view_class_builder.dart';
 import 'capabilities/create_view_capability.dart';
@@ -268,6 +269,22 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return [];
     }
 
+    // #420: views are Flutter widgets (import `package:flutter/material.dart`
+    // and zuraffa_flutter). In a pure-Dart target package (pubspec.yaml without
+    // a `flutter:` dependency) emitting this code violates Constitution VII
+    // (Engine Purity) and breaks `dart analyze`. Skip with a clear warning.
+    final fs = context?.fileSystem ?? fileSystem;
+    final flavor = await detectProjectFlavor(outputDir, fs);
+    if (flavor == ProjectFlavor.pureDart) {
+      print(
+        '⚠️ Skipping view generation: target project is a pure-Dart package '
+        '(no `flutter:` in pubspec.yaml). Views are Flutter widgets that depend '
+        'on zuraffa_flutter (Constitution VII: Engine Purity). Run '
+        '`zfa view create` inside a Flutter project.',
+      );
+      return [];
+    }
+
     // v6 dual-layer state path: generate DomainState + ViewState +
     // DualLayerPresenter + ControlledWidget/FragmentBuilder-based view.
     if (config.generateV6State) {
@@ -292,8 +309,6 @@ class ViewPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       );
       return delegator.generate(config, context: context);
     }
-
-    final fs = context?.fileSystem ?? fileSystem;
 
     final generatedFiles = <GeneratedFile>[];
     final entityName = config.name;
