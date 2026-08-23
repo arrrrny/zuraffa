@@ -35,7 +35,7 @@ coverage/
 codedb*
 patches
 contracts
-extensions/
+/extensions/
 .contracts
 apps/
 pubspec_overrides.yaml
