@@ -87,6 +87,28 @@ List<RouteBase> getAllRoutes() => [];
     ).readAsString();
     expect(mainContent, contains('xray_bridge_launcher_stub.dart'));
     expect(mainContent, contains('if (dart.library.io)'));
+
+    // Follow-up regression: `flutter analyze` on a freshly generated
+    // --xray app must exit clean. my_app.dart never references a
+    // go_router symbol (MaterialApp.router comes from material.dart,
+    // appRouter via the routing glue), so a direct go_router import is
+    // an unused_import — previously the ONLY analyzer complaint left on
+    // generated output, fatal for `flutter analyze` (warnings exit 1).
+    final myAppContent = await File(
+      p.join(tempDir.path, 'lib', 'src', 'app', 'my_app.dart'),
+    ).readAsString();
+    expect(
+      myAppContent,
+      isNot(contains("import 'package:go_router/go_router.dart';")),
+      reason: 'my_app.dart must not import go_router directly — it is '
+          'unused there and makes generated apps fail flutter analyze',
+    );
+    expect(
+      myAppContent,
+      contains("import 'package:zuraffa_flutter/zuraffa_flutter.dart';"),
+      reason: 'xray mode wraps MaterialApp.router in XRayScope, which '
+          'comes from the zuraffa_flutter barrel',
+    );
   });
 
   test('re-running app shell --xray preserves an existing stub', () async {

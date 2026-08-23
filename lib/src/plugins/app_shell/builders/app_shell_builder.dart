@@ -238,9 +238,16 @@ Future<void> _startXRayBridge() async {
   /// server can serialize the widget tree. `XRayScope` is a no-op
   /// pass-through when X-Ray mode is disabled.
   String buildMyApp({String? title, bool xray = false}) {
+    // No direct go_router import: MyApp never references a go_router
+    // symbol (MaterialApp.router comes from material.dart; appRouter
+    // arrives via ../routing/app_router.dart, which imports go_router
+    // itself). A direct import here is an unused_import — the only
+    // analyzer complaint left on a freshly generated shell, and it made
+    // `flutter analyze` exit 1 on every generated app (issue #469
+    // follow-up). In xray mode the zuraffa_flutter barrel re-exports
+    // go_router anyway, so downstream symbols stay reachable.
     final directives = <Directive>[
       Directive.import('package:flutter/material.dart'),
-      Directive.import('package:go_router/go_router.dart'),
       Directive.import('../routing/app_router.dart'),
       if (xray)
         Directive.import('package:zuraffa_flutter/zuraffa_flutter.dart'),
