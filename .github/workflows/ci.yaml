@@ -3,7 +3,7 @@ name: Continuous Integration
 on:
   pull_request:
   push:
-    branches: [master, main, development]
+    branches: [master, main]
   workflow_dispatch:
 
 env:
