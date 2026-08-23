@@ -523,15 +523,16 @@ class CartState {
       expect(viewContent, contains("import 'package:zuraffa/zuraffa.dart';"));
     });
 
-    test('view state without AppFailure does not import zuraffa (no unused import)',
-        () async {
-      final stateDir = Directory(
-        p.join(tmpDir.path, 'lib', 'presentation', 'pages', 'profile'),
-      );
-      await stateDir.create(recursive: true);
+    test(
+      'view state without AppFailure does not import zuraffa (no unused import)',
+      () async {
+        final stateDir = Directory(
+          p.join(tmpDir.path, 'lib', 'presentation', 'pages', 'profile'),
+        );
+        await stateDir.create(recursive: true);
 
-      final stateFile = File(p.join(stateDir.path, 'profile_state.dart'));
-      await stateFile.writeAsString('''
+        final stateFile = File(p.join(stateDir.path, 'profile_state.dart'));
+        await stateFile.writeAsString('''
 class ProfileState {
   final bool isLoading;
   final String searchTerm;
@@ -540,32 +541,33 @@ class ProfileState {
 }
 ''');
 
-      final migrator = StateMigrator();
-      final result = await migrator.migrate(
-        findings: [
-          const MigrationFinding(
-            message: 'Mixed state',
-            filePath: 'lib/presentation/pages/profile/profile_state.dart',
-            line: 1,
-            ruleId: 'v5_mixed_state',
-            severity: MigrationSeverity.warning,
-          ),
-        ],
-        projectDir: tmpDir.path,
-        dryRun: false,
-      );
+        final migrator = StateMigrator();
+        final result = await migrator.migrate(
+          findings: [
+            const MigrationFinding(
+              message: 'Mixed state',
+              filePath: 'lib/presentation/pages/profile/profile_state.dart',
+              line: 1,
+              ruleId: 'v5_mixed_state',
+              severity: MigrationSeverity.warning,
+            ),
+          ],
+          projectDir: tmpDir.path,
+          dryRun: false,
+        );
 
-      expect(result.filesCreated, equals(2));
-      final viewContent = await File(
-        p.join(stateDir.path, 'profile_view_state.dart'),
-      ).readAsString();
-      expect(viewContent, contains('ProfileViewState'));
-      expect(viewContent, contains('ChangeNotifier'));
-      // Without an AppFailure field, the zuraffa import must be omitted
-      expect(
-        viewContent,
-        isNot(contains("import 'package:zuraffa/zuraffa.dart';")),
-      );
-    });
+        expect(result.filesCreated, equals(2));
+        final viewContent = await File(
+          p.join(stateDir.path, 'profile_view_state.dart'),
+        ).readAsString();
+        expect(viewContent, contains('ProfileViewState'));
+        expect(viewContent, contains('ChangeNotifier'));
+        // Without an AppFailure field, the zuraffa import must be omitted
+        expect(
+          viewContent,
+          isNot(contains("import 'package:zuraffa/zuraffa.dart';")),
+        );
+      },
+    );
   });
 }
