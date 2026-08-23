@@ -22,11 +22,12 @@ void main() {
   });
 
   group('Issue #409: provider must not drop NoParams from override', () {
-    test('provider from existing service keeps NoParams param (no invalid_override)',
-        () async {
-      final servicesDir = Directory('${outputDir}/domain/services')
-        ..createSync(recursive: true);
-      File('${servicesDir.path}/my_service.dart').writeAsStringSync(r'''
+    test(
+      'provider from existing service keeps NoParams param (no invalid_override)',
+      () async {
+        final servicesDir = Directory('${outputDir}/domain/services')
+          ..createSync(recursive: true);
+        File('${servicesDir.path}/my_service.dart').writeAsStringSync(r'''
 import 'package:zuraffa/zuraffa.dart';
 
 abstract class MyService {
@@ -34,36 +35,38 @@ abstract class MyService {
 }
 ''');
 
-      final plugin = ProviderPlugin(
-        outputDir: outputDir,
-        options: const GeneratorOptions(dryRun: false, force: true),
-      );
-      final config = GeneratorConfig(
-        name: 'MyService',
-        service: 'MyService',
-        domain: 'my_domain',
-        outputDir: outputDir,
-        generateData: true,
-        force: true,
-      );
+        final plugin = ProviderPlugin(
+          outputDir: outputDir,
+          options: const GeneratorOptions(dryRun: false, force: true),
+        );
+        final config = GeneratorConfig(
+          name: 'MyService',
+          service: 'MyService',
+          domain: 'my_domain',
+          outputDir: outputDir,
+          generateData: true,
+          force: true,
+        );
 
-      final files = await plugin.generate(config);
-      expect(files.length, equals(1));
-      final content = File(files.first.path).readAsStringSync();
+        final files = await plugin.generate(config);
+        expect(files.length, equals(1));
+        final content = File(files.first.path).readAsStringSync();
 
-      // Positive: the parameter must be present.
-      expect(
-        content.contains('Future<List<Item>> list(NoParams params)'),
-        isTrue,
-        reason: 'Provider override must include the NoParams params parameter',
-      );
-      // Negative: the bug produced a zero-arg signature that could not
-      // validly override the service interface (invalid_override).
-      expect(
-        content.contains('Future<List<Item>> list()'),
-        isFalse,
-        reason: 'Provider must not generate a zero-arg list() signature',
-      );
-    });
+        // Positive: the parameter must be present.
+        expect(
+          content.contains('Future<List<Item>> list(NoParams params)'),
+          isTrue,
+          reason:
+              'Provider override must include the NoParams params parameter',
+        );
+        // Negative: the bug produced a zero-arg signature that could not
+        // validly override the service interface (invalid_override).
+        expect(
+          content.contains('Future<List<Item>> list()'),
+          isFalse,
+          reason: 'Provider must not generate a zero-arg list() signature',
+        );
+      },
+    );
   });
 }
