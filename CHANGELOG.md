@@ -16,6 +16,7 @@
 - **CLI**: `zfa setup` + `zfa init` dependency wiring, `zfa graphql introspect`, `zfa self-update`; `zfa entity create` enhancements (`--type-key`, `--subtype-wire-value`, `--allow-forward-refs`), route/app-shell generators, deep-link + bottom-navigation support.
 - **Migration**: v5 → v6 upgrade path tooling.
 - **SQLite**: `zfa sqlite adapter <Entity>` generates a SQLite-backed DataSource (`package:sqlite3`, WAL journaling, schema_version marker, id-keyed SQL writes, patch updates, watch streams) — server/Dart-VM projects no longer hand-write the boilerplate (issue #464).
+- **Sessions**: built-in generic session plugin (`Session`, six zero-config presets, scoped `SessionContainer`, portable JSON envelopes, pluggable persistence) usable from pure-Dart and Flutter apps alike; new `zikzak_session` package layers portable browser sessions (cookies, headers, tokens) on top (spec #015).
 
 ### Fixes
 - Numerous `zfa` codegen/CLI correctness fixes (entity identity, field naming, route/view contract alignment).

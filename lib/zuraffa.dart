@@ -593,6 +593,16 @@ export 'src/core/module/mcp_server_plugin.dart';
 export 'src/core/module/mcp_stdio_server.dart';
 export 'src/mcp/sse_server.dart' show McpSseServer;
 
+// ── Generic session plugin (spec #015) ────────────────────────────────
+// Pure-Dart session foundation shared by zuraffa and zuraffa_flutter:
+// presets, scoped container, portable serialization, pluggable
+// persistence. No Flutter/UI dependencies (SC-004).
+export 'src/session/session.dart';
+export 'src/session/session_preset.dart';
+export 'src/session/session_container.dart';
+export 'src/session/session_persistence.dart';
+export 'src/session/session_exception.dart';
+
 // ============================================================
 // Framework Configuration
 // ============================================================
