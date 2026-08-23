@@ -629,6 +629,12 @@ export 'src/device/device.dart';
 export 'src/device/device_service.dart';
 export 'src/logging/structured_logging.dart';
 
+// ── i18n built-in (the final §4 recommendation) ──────────────────────
+// Locale negotiation, typed translation lookup with parameters and
+// CLDR pluralization, and live locale switching — pure Dart.
+export 'src/i18n/i18n.dart';
+export 'src/i18n/i18n_service.dart';
+
 // ============================================================
 // Framework Configuration
 // ============================================================
