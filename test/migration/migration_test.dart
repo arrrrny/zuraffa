@@ -569,5 +569,58 @@ class ProfileState {
         );
       },
     );
+
+    test(
+      'view state emits zuraffa import after the material import (issue #466)',
+      () async {
+        final stateDir = Directory(
+          p.join(tmpDir.path, 'lib', 'presentation', 'pages', 'app_config'),
+        );
+        await stateDir.create(recursive: true);
+
+        final stateFile = File(p.join(stateDir.path, 'app_config_state.dart'));
+        await stateFile.writeAsString('''
+class AppConfigState {
+  final AppFailure? error;
+  final bool isLoading;
+  final String? configJson;
+
+  const AppConfigState({this.error, this.isLoading = false, this.configJson});
+}
+''');
+
+        final migrator = StateMigrator();
+        final result = await migrator.migrate(
+          findings: [
+            const MigrationFinding(
+              message: 'Mixed state',
+              filePath:
+                  'lib/presentation/pages/app_config/app_config_state.dart',
+              line: 1,
+              ruleId: 'v5_mixed_state',
+              severity: MigrationSeverity.warning,
+            ),
+          ],
+          projectDir: tmpDir.path,
+          dryRun: false,
+        );
+
+        expect(result.filesCreated, equals(2));
+        final viewContent = await File(
+          p.join(stateDir.path, 'app_config_view_state.dart'),
+        ).readAsString();
+        // The error slice references AppFailure; the zuraffa import must be
+        // present (compile, issue #466) and ordered after the material import
+        // so the generated directives keep package-import ordering clean.
+        expect(viewContent, contains('AppFailure? _error'));
+        expect(viewContent, contains("import 'package:zuraffa/zuraffa.dart';"));
+        expect(
+          viewContent.indexOf("import 'package:flutter/material.dart';"),
+          lessThan(
+            viewContent.indexOf("import 'package:zuraffa/zuraffa.dart';"),
+          ),
+        );
+      },
+    );
   });
 }
