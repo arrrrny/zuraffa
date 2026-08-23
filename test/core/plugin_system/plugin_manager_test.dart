@@ -96,6 +96,49 @@ void main() {
       );
     },
   );
+
+  test(
+    'buildContext writes direct activation flag for boolean-typed plugin ids',
+    () {
+      final registry = PluginRegistry()..register(_BoolSchemaPlugin('cache'));
+      final manager = PluginManager(
+        registry: registry,
+        config: ZfaConfig(),
+        projectRoot: tempDir.path,
+      );
+
+      final context = manager.buildContext(
+        name: 'Product',
+        argResults: null,
+        activePlugins: [_BoolSchemaPlugin('cache')],
+      );
+
+      expect(context.data['cache'], isTrue);
+      expect(context.data.containsKey('__active_cache'), isFalse);
+    },
+  );
+
+  test(
+    'buildContext writes __active_ flag for non-boolean typed plugin ids',
+    () {
+      final registry = PluginRegistry()
+        ..register(_StringSchemaPlugin('service'));
+      final manager = PluginManager(
+        registry: registry,
+        config: ZfaConfig(),
+        projectRoot: tempDir.path,
+      );
+
+      final context = manager.buildContext(
+        name: 'Product',
+        argResults: null,
+        activePlugins: [_StringSchemaPlugin('service')],
+      );
+
+      expect(context.data['__active_service'], isTrue);
+      expect(context.data['service'], isNull);
+    },
+  );
 }
 
 class _FakePlugin extends ZuraffaPlugin {
@@ -131,4 +174,26 @@ class _NoopFilePlugin extends FileGeneratorPlugin {
   @override
   Future<List<GeneratedFile>> generate(GeneratorConfig config) async =>
       const [];
+}
+
+class _BoolSchemaPlugin extends _FakePlugin {
+  _BoolSchemaPlugin(super.id);
+
+  @override
+  Map<String, dynamic> get configSchema => {
+        'properties': {
+          id: {'type': 'boolean'},
+        },
+      };
+}
+
+class _StringSchemaPlugin extends _FakePlugin {
+  _StringSchemaPlugin(super.id);
+
+  @override
+  Map<String, dynamic> get configSchema => {
+        'properties': {
+          id: {'type': 'string'},
+        },
+      };
 }
