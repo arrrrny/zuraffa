@@ -611,6 +611,19 @@ export 'src/secure_storage/secure_storage.dart';
 export 'src/secure_storage/secure_storage_codec.dart';
 export 'src/secure_storage/secret_store.dart';
 
+// ── Built-in capability plugins (analysis §4) ─────────────────────────
+// Everyday device primitives the codegen plugins can assume: biometrics
+// (auth enabler), share/clipboard, and app update. Pure-Dart ports +
+// in-memory defaults; platform adapters implement them in apps.
+export 'src/biometrics/biometrics.dart';
+export 'src/biometrics/biometrics_service.dart';
+export 'src/share/share.dart';
+export 'src/share/share_service.dart';
+export 'src/clipboard/clipboard.dart';
+export 'src/clipboard/clipboard_service.dart';
+export 'src/app_update/app_update.dart';
+export 'src/app_update/app_update_service.dart';
+
 // ============================================================
 // Framework Configuration
 // ============================================================
