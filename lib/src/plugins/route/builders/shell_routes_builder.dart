@@ -160,16 +160,7 @@ class ShellRoutesBuilder {
               ..optionalParameters.add(
                 Parameter(
                   (p) => p
-                    ..name = 'key'
-                    ..named = true
-                    ..toSuper = true,
-                ),
-              )
-              ..optionalParameters.add(
-                Parameter(
-                  (p) => p
                     ..name = 'navigationShell'
-                    ..type = refer('StatefulNavigationShell')
                     ..named = true
                     ..required = true
                     ..toThis = true,
@@ -272,16 +263,7 @@ class ShellRoutesBuilder {
               ..optionalParameters.add(
                 Parameter(
                   (p) => p
-                    ..name = 'key'
-                    ..named = true
-                    ..toSuper = true,
-                ),
-              )
-              ..optionalParameters.add(
-                Parameter(
-                  (p) => p
                     ..name = 'navigationShell'
-                    ..type = refer('StatefulNavigationShell')
                     ..named = true
                     ..required = true
                     ..toThis = true,
