@@ -10,6 +10,7 @@ import '../plugins/di/di_plugin.dart';
 import '../plugins/gql/gql_plugin.dart';
 import '../plugins/graphql/graphql_plugin.dart';
 import '../plugins/cache/cache_plugin.dart';
+import '../plugins/sqlite/sqlite_plugin.dart';
 import '../plugins/sync/sync_plugin.dart';
 import '../plugins/route/route_plugin.dart';
 import '../plugins/provider/provider_plugin.dart';
@@ -127,6 +128,7 @@ class PluginLoader {
       ServicePlugin(outputDir: outputDir, options: options),
       RoutePlugin(outputDir: outputDir, options: options),
       CachePlugin(outputDir: outputDir, options: options),
+      SqlitePlugin(outputDir: outputDir, options: options),
       SyncPlugin(outputDir: outputDir, options: options),
       GqlPlugin(outputDir: outputDir, options: options),
       GraphqlPlugin(outputDir: outputDir, options: options),
