@@ -37,6 +37,8 @@
 - `zuraffa_flutter` depends on hosted `zuraffa: ^<version>`; locally it also carries a `dependency_overrides` `zuraffa: path: ..` for monorepo development. `publish.sh` removes that override only for the publish step and restores it afterwards
 - Publishing is ordered and idempotent: each package is skipped when its version is already on pub.dev, so a failed run can be re-run safely (mirrors the `zikzak_inappwebview` ordered multi-package flow, incl. the API-listed vs. actually-resolvable distinction)
 - `example/` is optional in this repo layout; the script only touches it when present
+- `zuraffa_flutter/` must keep its own `LICENSE`, `README.md`, and `CHANGELOG.md` — pub.dev **rejects** the package without a LICENSE in the package root (it does not inherit the repo root's)
+- The root package ships some gitignored-but-checked-in files (incl. `.env`, which holds only shell vars — no secrets). Add a `.pubignore` if that ever changes
 - The publish script auto-detects the CHANGELOG entry — skip it if already updated
 - Zed extension is maintained in a separate repo (`arrrrny/zuraffa-zed`) — the publish script clones it, updates version/WASM, and pushes
 - WASM binary is rebuilt during publish for the zuraffa Zed extension
