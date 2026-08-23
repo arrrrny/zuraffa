@@ -603,6 +603,14 @@ export 'src/session/session_container.dart';
 export 'src/session/session_persistence.dart';
 export 'src/session/session_exception.dart';
 
+// ── Secure storage (ecosystem gap #1) ─────────────────────────────────
+// Typed at-rest key/value seam for tokens, receipts, and secrets: port +
+// in-memory default + codec + SecretStore convenience. No platform
+// dependencies — Keychain/Keystore adapters implement SecureStoragePort.
+export 'src/secure_storage/secure_storage.dart';
+export 'src/secure_storage/secure_storage_codec.dart';
+export 'src/secure_storage/secret_store.dart';
+
 // ============================================================
 // Framework Configuration
 // ============================================================
