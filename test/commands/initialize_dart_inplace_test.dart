@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/commands/initialize_command.dart';
 
@@ -25,12 +26,11 @@ void main() {
       }
     });
 
+    /// Creates `<tempDir>/<name>` and returns it. The sandbox root is passed
+    /// to the command via `--root` so the test never mutates the process
+    /// working directory (shared across concurrently-running test files).
     Directory useDir(String name) {
-      final repoDir = Directory('${tempDir.path}/$name')..createSync();
-      final originalCwd = Directory.current;
-      Directory.current = repoDir;
-      addTearDown(() => Directory.current = originalCwd);
-      return repoDir;
+      return Directory(p.join(tempDir.path, name))..createSync();
     }
 
     test('exposes --dart and --flutter flags; both parse independently', () {
@@ -44,22 +44,28 @@ void main() {
     test('execute() rejects --dart together with --flutter', () async {
       final cmd = InitializeCommand();
       expect(
-        () => cmd.execute(['--dart', '--flutter', '--deps-only']),
+        () => cmd.execute(['--dart', '--flutter', '--deps-only', '--root', useDir('zuraffa_agent').path]),
         throwsA(isA<UsageException>()),
       );
     });
 
     test('--dart --deps-only --dry-run on repo without pubspec announces '
         'bootstrap and writes nothing', () async {
-      useDir('zuraffa_agent');
+      final repoDir = useDir('zuraffa_agent');
 
       final cmd = InitializeCommand();
-      await cmd.execute(['--dart', '--deps-only', '--dry-run']);
+      await cmd.execute([
+        '--dart',
+        '--deps-only',
+        '--dry-run',
+        '--root',
+        repoDir.path,
+      ]);
 
       // Regression: the old code threw UsageException (missing pubspec)
       // before any announcement. Now dry-run previews and writes nothing.
       expect(
-        File('pubspec.yaml').existsSync(),
+        File(p.join(repoDir.path, 'pubspec.yaml')).existsSync(),
         isFalse,
         reason: 'dry-run must not write',
       );
@@ -67,15 +73,20 @@ void main() {
 
     test('--dart --dry-run WITHOUT --deps-only previews entity scaffolding '
         '(CodeRabbit follow-up: must not return early)', () async {
-      useDir('zuraffa_agent');
+      final repoDir = useDir('zuraffa_agent');
 
       final cmd = InitializeCommand();
       // Dry-run must complete without throwing and must continue past the
       // dependency-wiring block to the entity scaffolding preview path.
-      await cmd.execute(['--dart', '--dry-run']);
+      await cmd.execute([
+        '--dart',
+        '--dry-run',
+        '--root',
+        repoDir.path,
+      ]);
 
       expect(
-        File('pubspec.yaml').existsSync(),
+        File(p.join(repoDir.path, 'pubspec.yaml')).existsSync(),
         isFalse,
         reason: 'dry-run must not write',
       );
@@ -101,19 +112,24 @@ void main() {
 
     test('--dart non-dry-run on repo without pubspec creates minimal '
         'pubspec in-place', () async {
-      useDir('zuraffa_agent');
+      final repoDir = useDir('zuraffa_agent');
 
       final cmd = InitializeCommand();
       // Wiring may fail hermetically (git deps need network); the bootstrap
       // itself is the regression under test — catch ANY wiring error so the
       // pubspec-existence assertion below still runs.
       try {
-        await cmd.execute(['--dart', '--deps-only']);
+        await cmd.execute([
+          '--dart',
+          '--deps-only',
+          '--root',
+          repoDir.path,
+        ]);
       } catch (_) {
         // Expected when the dependency wire cannot resolve offline.
       }
 
-      final pubspec = File('pubspec.yaml');
+      final pubspec = File(p.join(repoDir.path, 'pubspec.yaml'));
       expect(
         pubspec.existsSync(),
         isTrue,
@@ -127,11 +143,15 @@ void main() {
     test(
       'without --dart and no pubspec.yaml still refuses with guidance',
       () async {
-        useDir('some_repo');
+        final repoDir = useDir('some_repo');
 
         final cmd = InitializeCommand();
         expect(
-          () => cmd.execute(['--deps-only']),
+          () => cmd.execute([
+            '--deps-only',
+            '--root',
+            repoDir.path,
+          ]),
           throwsA(isA<UsageException>()),
         );
       },

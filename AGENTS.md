@@ -40,17 +40,26 @@ zfa build
 - **Do not call `build_runner` directly in normal agent flows.** Use `zfa build`.
 - **Do not invent alternate folder structures.** Zuraffa v5 assumes a fixed domain root.
 
-## STOP-ON-ROADBLOCK RULE (HARD, NON-NEGOTIABLE)
+## STOP-ON-ROADBLOCK RULE (HARD, NON-NEGOTIABLE — HARDCODED)
 
-**The first time a `zfa` command errors, or succeeds but produces output other than
+**The FIRST time a `zfa` command errors, OR succeeds but produces output other than
 expected (non-compiling generated code, missing files the generated code references,
-silent 0-output builds, crashes), the agent MUST STOP IMMEDIATELY.**
+missing symbols the generated code uses, silent 0-output builds, crashes), the agent
+MUST STOP IMMEDIATELY. This overrides any "keep going" instinct.**
 
-- **Never continue** the generation/build task after a roadblock — do NOT work around it
-  with different flags, `--force` re-runs, explicit `--methods`, hand-written patches,
-  or "trying the next entity" to keep making progress. The smoke-test goal is to **find
-  and fix zuraffa gaps**, not to produce a working mock by skirting them.
-- **Never hand-write code** to route around a zfa misfire.
+- **Your first instinct to STOP is the correct one. Trust it.** When something is off,
+  stop and report. Do not rationalize it away, do not "just try one more command," do
+  not assume it is a stale cache / wrong flag / your own mistake. Report it as a zuraffa
+  gap first; the maintainer decides if it is real.
+- **Never continue** the generation/build task after a roadblock. Do NOT work around it
+  with different flags, `--force` re-runs, explicit `--methods`, re-making only the
+  "id-having" entities, hand-written patches, or "trying the next entity." **Bounded or
+  partial progress is STILL a violation** — if a gap blocks one entity, it blocks the
+  whole workflow. The smoke-test goal is to build a seamless app *only* via zfa commands
+  so we can **find and fix zuraffa gaps**, not to produce a working mock by skirting them.
+- **Never hand-write code** to route around a zfa misfire. Every Dart file in
+  `apps/zikzak_demo` must come from a `zfa` command; if `zfa` cannot produce it, that
+  *is* the bug to report.
 - **Document** in the tracking file (`apps/zikzak_demo/PROGRESS.md`) exactly:
   1. the command that was run,
   2. what was expected,
@@ -58,9 +67,10 @@ silent 0-output builds, crashes), the agent MUST STOP IMMEDIATELY.**
   4. the root cause (trace it in zuraffa source if possible).
 - **File a GitHub issue** on `arrrrny/zuraffa` with that same detail (repro, expected,
   actual, root cause, suggested fix).
-- **End the goal / stop the run.** Wait for the issue to be fixed and merged before
-  resuming. The resume marker in `PROGRESS.md` records the exact stopping step so a
-  future run picks up from there.
+- **End the goal / stop the run.** Wait for the issue to be **MERGED** (not just opened
+  or PR'd) before resuming. Resume ONLY when a new goal is invoked that references
+  `apps/zikzak_demo/PROGRESS.md` — the resume marker records the exact stopping step so
+  the next run picks up from there.
 
 This rule takes precedence over any desire to keep making incremental progress. A
 single un-fixed zfa gap invalidates the entire "zfa-only" contract, so one roadblock

@@ -50,6 +50,13 @@ class XrayMockCommand extends Command<void> {
       negatable: false,
       help: 'Enable detailed logging',
     );
+    argParser.addOption(
+      'root',
+      help:
+          'Project root to scaffold mocks in (default: current directory). '
+          'Lets tests run against an explicit sandbox instead of relying on '
+          'the process working directory.',
+    );
   }
 
   @override
@@ -65,7 +72,8 @@ class XrayMockCommand extends Command<void> {
     final force = argResults?['force'] as bool? ?? false;
     final verbose = argResults?['verbose'] as bool? ?? false;
 
-    final projectRoot = Directory.current.path;
+    final projectRoot =
+        (argResults?['root'] as String?) ?? Directory.current.path;
     final usecasesDir = p.join(projectRoot, 'lib', 'src', 'domain', 'usecases');
     if (!Directory(usecasesDir).existsSync()) {
       print(

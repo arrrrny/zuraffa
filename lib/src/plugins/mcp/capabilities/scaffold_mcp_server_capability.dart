@@ -1,3 +1,5 @@
+import 'package:path/path.dart' as p;
+
 import '../../../core/plugin_system/capability.dart';
 import '../../../models/generated_file.dart';
 import '../../../utils/file_utils.dart';
@@ -120,6 +122,11 @@ class ScaffoldMcpServerCapability implements ZuraffaCapability {
     final verbose = (args['verbose'] as bool?) ?? false;
     final revert = (args['revert'] as bool?) ?? false;
 
+    // Explicit project root (passed by tests and advanced users) so the
+    // scaffold is hermetic and does not depend on the process working
+    // directory. Empty/absent = current directory (default behavior).
+    final root = (args['root'] as String?) ?? '';
+
     final packageName = await _resolvePackageName(args);
     final builder = McpScaffoldBuilder();
 
@@ -129,8 +136,12 @@ class ScaffoldMcpServerCapability implements ZuraffaCapability {
       outputDir: plugin.outputDir,
     );
 
-    final toolsPath = _joinPath(plugin.outputDir, 'mcp', 'tools.dart');
-    final binPath = 'bin/mcp_server.dart';
+    final toolsPath = root.isEmpty
+        ? _joinPath(plugin.outputDir, 'mcp', 'tools.dart')
+        : p.join(root, plugin.outputDir, 'mcp', 'tools.dart');
+    final binPath = root.isEmpty
+        ? 'bin/mcp_server.dart'
+        : p.join(root, 'bin', 'mcp_server.dart');
 
     final toolsFile = await FileUtils.writeFile(
       toolsPath,
@@ -165,7 +176,8 @@ class ScaffoldMcpServerCapability implements ZuraffaCapability {
     final explicit = args['name'] as String?;
     if (explicit != null && explicit.isNotEmpty) return explicit;
 
-    final pubspecPath = 'pubspec.yaml';
+    final root = (args['root'] as String?) ?? '';
+    final pubspecPath = root.isEmpty ? 'pubspec.yaml' : p.join(root, 'pubspec.yaml');
     if (await plugin.fileSystem.exists(pubspecPath)) {
       final content = await plugin.fileSystem.read(pubspecPath);
       final match = RegExp(

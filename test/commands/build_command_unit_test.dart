@@ -6,6 +6,8 @@ import 'package:test/test.dart';
 
 import 'package:zuraffa/src/commands/build_command.dart';
 
+import '../helpers/project_root.dart';
+
 /// In-process unit tests for `BuildCommand`'s `@visibleForTesting` helpers.
 ///
 /// The integration tests in `build_command_test.dart` spawn `zfa build` as a
@@ -575,7 +577,12 @@ Analyzing lib/...
           // — producing empty stdout and a falsely-clean result. The fixed
           // invocation drops the flag (info is non-fatal by default).
           final command = BuildCommand();
-          final ok = await command.verifyAnalyzeOrFail();
+          // Run analysis against the real package root explicitly so the check
+          // is hermetic and does not inherit a process-CWD that another
+          // parallel test file may have mutated (issue: non-hermetic CLI
+          // tests). findProjectRoot() is CWD-independent (Platform.script).
+          final repoRoot = await findProjectRoot();
+          final ok = await command.verifyAnalyzeOrFail(projectRoot: repoRoot);
           expect(ok, isTrue);
         },
       );

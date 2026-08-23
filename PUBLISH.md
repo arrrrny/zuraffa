@@ -13,26 +13,29 @@
 
 ## Scripts
 
-- **Publish**: `./scripts/publish.sh <version>` — multi-step: updates versions (root + `zuraffa_flutter`, guards optional `example/`), commits, tags, pushes, updates Zed extension submodule, rebuilds WASM, then publishes `zuraffa` followed by `zuraffa_flutter` (with pub.dev propagation retry)
+- **Publish**: `./scripts/publish.sh <version>` — multi-step: guards against dev-mode path overrides, updates versions (root + `zuraffa_flutter`, guards optional `example/`), commits, tags, pushes, updates the Zed extension, rebuilds WASM, then publishes `zuraffa` and — once it is actually resolvable on pub.dev — `zuraffa_flutter`
 - **Release**: `./scripts/release.sh <version>` — builds CLI + MCP binaries and creates GitHub release with assets
+- **Restore dev**: `./scripts/restore_dev.sh` — rewrites `dependency_overrides` to local path dependencies (`zorphy` + `zorphy_annotation` from `../zorphy/*`; `zuraffa` from `..` for `zuraffa_flutter`; both for `apps/*` and `examples/*` that depend on them), runs `pub get`, and verifies. Packages without a local checkout keep hosted versions. Override the zorphy location with `ZORPHY_ROOT=/path ./scripts/restore_dev.sh`.
 
 ## Workflow
 
 1. Update changelogs (changelog-manager skill)
-2. Stage all changes: `git add -A`
-3. `./scripts/publish.sh <version>`
+2. Ensure dev-mode path overrides are reverted: `git checkout -- pubspec.yaml zuraffa_flutter/pubspec.yaml`
+3. Stage all changes: `git add -A`
+4. `./scripts/publish.sh <version>`
+   - **Step 0**: aborts if the root pubspec still carries `../zorphy` path overrides
    - Updates version in `pubspec.yaml`, `zuraffa_flutter/pubspec.yaml`, optional `example/pubspec.yaml` (skipped if absent)
-   - Commits with `chore: release <version>`
-   - Tags with `v<version>`
-   - Pushes branch and tag
-   - Updates `extensions/zed` submodule (version, WASM rebuild, commit, push, tag)
-   - **Step 4**: publishes `zuraffa` to pub.dev via `dart pub publish --force`
-   - **Step 5**: publishes `zuraffa_flutter` to pub.dev (`flutter pub get` + `flutter analyze` + `dart pub publish --force`), retrying with backoff until `zuraffa@<version>` is resolvable on pub.dev
-4. `./scripts/release.sh <version>` — builds CLI + MCP binaries and creates GitHub release with assets
+   - Commits with `chore: release <version>`, tags `v<version>`, pushes branch + tag
+   - Updates the `zuraffa-zed` extension repo (version, WASM rebuild, commit, push, tag)
+   - **Step 4**: publishes `zuraffa` via `dart pub publish --force` (skipped if that version is already on pub.dev)
+   - **Step 5**: verifies `zuraffa_flutter` locally (`flutter pub get` + `flutter analyze`), then waits until `zuraffa@<version>` is both listed by the pub.dev API **and** resolvable by a throwaway `dart pub get` probe (30 attempts × 30s), strips the local `zuraffa: path: ..` override, publishes, and restores the override
+5. `./scripts/release.sh <version>` — builds CLI + MCP binaries and creates GitHub release with assets
+6. `./scripts/restore_dev.sh` — back to local path dependencies for development
 
 ## Notes
 
-- `zuraffa_flutter` depends on `zuraffa: ^<version>` — the publish script waits for pub.dev to index the new `zuraffa` before publishing the Flutter package (mirrors the `zikzak_inappwebview` multi-package flow)
+- `zuraffa_flutter` depends on hosted `zuraffa: ^<version>`; locally it also carries a `dependency_overrides` `zuraffa: path: ..` for monorepo development. `publish.sh` removes that override only for the publish step and restores it afterwards
+- Publishing is ordered and idempotent: each package is skipped when its version is already on pub.dev, so a failed run can be re-run safely (mirrors the `zikzak_inappwebview` ordered multi-package flow, incl. the API-listed vs. actually-resolvable distinction)
 - `example/` is optional in this repo layout; the script only touches it when present
 - The publish script auto-detects the CHANGELOG entry — skip it if already updated
 - Zed extension is maintained in a separate repo (`arrrrny/zuraffa-zed`) — the publish script clones it, updates version/WASM, and pushes

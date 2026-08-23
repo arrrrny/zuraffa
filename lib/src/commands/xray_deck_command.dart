@@ -49,16 +49,33 @@ class XrayDeckCommand extends Command<void> {
           '--usecase-name to <Entity>, and updates the barrel at '
           'lib/src/xray/xray_decks.dart (issue #360).',
     );
+    argParser.addOption(
+      'root',
+      help:
+          'Project root to generate the deck in (default: current directory). '
+          'Lets tests run against an explicit sandbox instead of relying on '
+          'the process working directory.',
+    );
   }
 
   @override
   Future<void> run() async {
     var sourcePath = argResults?["source"] as String?;
-    final yamlPath = argResults?["yaml"] as String?;
+    var yamlPath = argResults?["yaml"] as String?;
     var outputPath = argResults?["output"] as String?;
     var useCaseName = argResults?["usecase-name"] as String?;
     final force = argResults?["force"] as bool? ?? false;
     final entityName = argResults?["entity"] as String?;
+    final projectRoot =
+        (argResults?["root"] as String?) ?? Directory.current.path;
+    // Resolve relative source/yaml paths against the project root so the
+    // command works hermetically (e.g. from an explicit --root sandbox).
+    if (sourcePath != null && !p.isAbsolute(sourcePath)) {
+      sourcePath = p.join(projectRoot, sourcePath);
+    }
+    if (yamlPath != null && !p.isAbsolute(yamlPath)) {
+      yamlPath = p.join(projectRoot, yamlPath);
+    }
 
     // #360: --entity adjusts defaults + triggers barrel update.
     String? entitySnake;
@@ -76,7 +93,7 @@ class XrayDeckCommand extends Command<void> {
       // matching usecase files.
       if (sourcePath == null && yamlPath == null) {
         final usecasesDir = p.join(
-          Directory.current.path,
+          projectRoot,
           'lib',
           'src',
           'domain',
@@ -106,8 +123,10 @@ class XrayDeckCommand extends Command<void> {
       return;
     }
 
-    final effectiveOutput =
-        outputPath ?? _defaultOutputPath(sourcePath, yamlPath);
+    final effectiveOutput = p.join(
+      projectRoot,
+      outputPath ?? _defaultOutputPath(sourcePath, yamlPath),
+    );
     final effectiveName = useCaseName ?? _detectUseCaseName(sourcePath);
 
     if (effectiveName == null) {
@@ -148,9 +167,8 @@ class XrayDeckCommand extends Command<void> {
     // #360: update the registration barrel so main.dart's
     // `registerAllXRayDecks()` call wires this deck.
     if (entityName != null) {
-      final projectRoot = Directory.current.path;
       final writer = XRayDeckBarrelWriter(projectRoot: projectRoot);
-      final deckAbsPath = p.join(projectRoot, effectiveOutput);
+      final deckAbsPath = effectiveOutput;
       final registerFn = 'register${effectiveName}XRayDeck';
       final result = writer.update(
         entityName: entityName,

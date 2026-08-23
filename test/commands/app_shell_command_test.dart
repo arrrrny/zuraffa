@@ -99,7 +99,6 @@ void main() {
 
   group('end-to-end generation', () {
     late Directory workspace;
-    late String previousCwd;
 
     setUp(() async {
       workspace = await Directory.systemTemp.createTemp('zfa_app_shell_');
@@ -130,26 +129,9 @@ void setupDependencies(GetIt getIt) {}
 import 'package:go_router/go_router.dart';
 List<GoRoute> getAllRoutes() => [];
 ''');
-
-      previousCwd = Directory.current.path;
-      Directory.current = workspace.path;
     });
 
     tearDown(() async {
-      // Restore CWD to a valid directory BEFORE deleting the workspace, so the
-      // process CWD is never left pointing inside a deleted temp dir (which
-      // would poison subsequently loaded test files that read CWD).
-      try {
-        if (Directory(previousCwd).existsSync()) {
-          Directory.current = previousCwd;
-        } else {
-          Directory.current = Directory.systemTemp.path;
-        }
-      } catch (_) {
-        try {
-          Directory.current = Directory.systemTemp.path;
-        } catch (_) {}
-      }
       if (workspace.existsSync()) {
         await workspace.delete(recursive: true);
       }
@@ -157,7 +139,12 @@ List<GoRoute> getAllRoutes() => [];
 
     test('writes all three glue files when run from a project root', () async {
       final runner = CliRunner(exitOnCompletion: false);
-      await runner.runCapturing(['app', 'shell']);
+      await runner.runCapturing([
+        'app',
+        'shell',
+        '--root',
+        workspace.path,
+      ]);
 
       final mainFile = File(p.join(workspace.path, 'lib', 'main.dart'));
       final myAppFile = File(
@@ -226,7 +213,14 @@ List<GoRoute> getAllRoutes() => [];
 ''');
 
         final runner = CliRunner(exitOnCompletion: false);
-        await runner.runCapturing(['app', 'shell', '--output', 'lib/custom']);
+        await runner.runCapturing([
+          'app',
+          'shell',
+          '--root',
+          workspace.path,
+          '--output',
+          'lib/custom',
+        ]);
 
         // Glue files land under lib/custom, not lib/src.
         expect(
@@ -279,6 +273,8 @@ List<GoRoute> getAllRoutes() => [];
       final output = await runner.runCapturing([
         'app',
         'shell',
+        '--root',
+        workspace.path,
         '--output',
         'src',
       ]);
@@ -305,7 +301,14 @@ List<GoRoute> getAllRoutes() => [];
 
     test('respects the --title flag', () async {
       final runner = CliRunner(exitOnCompletion: false);
-      await runner.runCapturing(['app', 'shell', '--title', 'Hello World']);
+      await runner.runCapturing([
+        'app',
+        'shell',
+        '--root',
+        workspace.path,
+        '--title',
+        'Hello World',
+      ]);
 
       final myAppFile = File(
         p.join(workspace.path, 'lib', 'src', 'app', 'my_app.dart'),
@@ -316,7 +319,13 @@ List<GoRoute> getAllRoutes() => [];
 
     test('adds the mock hint when --mock is passed', () async {
       final runner = CliRunner(exitOnCompletion: false);
-      await runner.runCapturing(['app', 'shell', '--mock']);
+      await runner.runCapturing([
+        'app',
+        'shell',
+        '--root',
+        workspace.path,
+        '--mock',
+      ]);
 
       final mainFile = File(p.join(workspace.path, 'lib', 'main.dart'));
       expect(mainFile.existsSync(), isTrue);
@@ -326,7 +335,12 @@ List<GoRoute> getAllRoutes() => [];
 
     test('does NOT add the mock hint by default', () async {
       final runner = CliRunner(exitOnCompletion: false);
-      await runner.runCapturing(['app', 'shell']);
+      await runner.runCapturing([
+        'app',
+        'shell',
+        '--root',
+        workspace.path,
+      ]);
 
       final mainFile = File(p.join(workspace.path, 'lib', 'main.dart'));
       expect(mainFile.existsSync(), isTrue);
@@ -340,7 +354,12 @@ List<GoRoute> getAllRoutes() => [];
       await mainFile.writeAsString('void main() {} // user-written\n');
 
       final runner = CliRunner(exitOnCompletion: false);
-      await runner.runCapturing(['app', 'shell']);
+      await runner.runCapturing([
+        'app',
+        'shell',
+        '--root',
+        workspace.path,
+      ]);
 
       // The user-written file should be preserved (not overwritten).
       expect(mainFile.readAsStringSync(), contains('user-written'));
@@ -367,7 +386,13 @@ List<GoRoute> getAllRoutes() => [];
         await mainFile.writeAsString('void main() {} // user-written\n');
 
         final runner = CliRunner(exitOnCompletion: false);
-        await runner.runCapturing(['app', 'shell', '--force']);
+        await runner.runCapturing([
+          'app',
+          'shell',
+          '--root',
+          workspace.path,
+          '--force',
+        ]);
 
         final src = mainFile.readAsStringSync();
         expect(src.contains('user-written'), isFalse);
@@ -377,7 +402,13 @@ List<GoRoute> getAllRoutes() => [];
 
     test('--dry-run writes nothing', () async {
       final runner = CliRunner(exitOnCompletion: false);
-      await runner.runCapturing(['app', 'shell', '--dry-run']);
+      await runner.runCapturing([
+        'app',
+        'shell',
+        '--root',
+        workspace.path,
+        '--dry-run',
+      ]);
 
       expect(
         File(p.join(workspace.path, 'lib', 'main.dart')).existsSync(),
@@ -406,7 +437,12 @@ List<GoRoute> getAllRoutes() => [];
         ).delete();
 
         final runner = CliRunner(exitOnCompletion: false);
-        final output = await runner.runCapturing(['app', 'shell']);
+        final output = await runner.runCapturing([
+          'app',
+          'shell',
+          '--root',
+          workspace.path,
+        ]);
 
         expect(output, contains('setupDependencies'));
         expect(output, contains('zfa di'));
@@ -434,7 +470,12 @@ void unrelated() {}
 ''');
 
         final runner = CliRunner(exitOnCompletion: false);
-        final output = await runner.runCapturing(['app', 'shell']);
+        final output = await runner.runCapturing([
+          'app',
+          'shell',
+          '--root',
+          workspace.path,
+        ]);
 
         expect(output, contains('does not declare setupDependencies'));
         expect(
@@ -459,7 +500,13 @@ void setupDependencies() {}
 ''');
 
         final runner = CliRunner(exitOnCompletion: false);
-        await runner.runCapturing(['app', 'shell', '--force']);
+        await runner.runCapturing([
+          'app',
+          'shell',
+          '--root',
+          workspace.path,
+          '--force',
+        ]);
 
         final src = File(
           p.join(workspace.path, 'lib', 'main.dart'),
@@ -484,7 +531,13 @@ void setupDependencies() {}
         // The setUp scaffold already writes the canonical GetIt signature,
         // so just run the shell and assert the generated main.dart.
         final runner = CliRunner(exitOnCompletion: false);
-        await runner.runCapturing(['app', 'shell', '--force']);
+        await runner.runCapturing([
+          'app',
+          'shell',
+          '--root',
+          workspace.path,
+          '--force',
+        ]);
 
         final src = File(
           p.join(workspace.path, 'lib', 'main.dart'),
@@ -511,7 +564,13 @@ Future<void> setupDependencies(GetIt getIt) async {}
 ''');
 
         final runner = CliRunner(exitOnCompletion: false);
-        await runner.runCapturing(['app', 'shell', '--force']);
+        await runner.runCapturing([
+          'app',
+          'shell',
+          '--root',
+          workspace.path,
+          '--force',
+        ]);
 
         final src = File(
           p.join(workspace.path, 'lib', 'main.dart'),
@@ -531,7 +590,12 @@ Future<void> setupDependencies(GetIt getIt) async {}
         ).delete();
 
         final runner = CliRunner(exitOnCompletion: false);
-        final output = await runner.runCapturing(['app', 'shell']);
+        final output = await runner.runCapturing([
+          'app',
+          'shell',
+          '--root',
+          workspace.path,
+        ]);
 
         expect(output, contains('getAllRoutes'));
         expect(output, contains('zfa route'));
@@ -545,14 +609,18 @@ Future<void> setupDependencies(GetIt getIt) async {}
     test(
       'fails with an actionable error when pubspec.yaml is missing',
       () async {
-        // Move to an empty dir.
+        // Run against an empty dir via --root (no CWD mutation).
         final empty = await Directory.systemTemp.createTemp(
           'zfa_app_shell_empty_',
         );
-        Directory.current = empty.path;
         try {
           final runner = CliRunner(exitOnCompletion: false);
-          final output = await runner.runCapturing(['app', 'shell']);
+          final output = await runner.runCapturing([
+            'app',
+            'shell',
+            '--root',
+            empty.path,
+          ]);
 
           expect(output, contains('pubspec.yaml'));
           expect(

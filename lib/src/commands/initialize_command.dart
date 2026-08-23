@@ -71,7 +71,14 @@ class InitializeCommand {
         help: 'Enable verbose output',
         negatable: false,
       )
-      ..addFlag('help', abbr: 'h', help: 'Show help', negatable: false);
+      ..addFlag('help', abbr: 'h', help: 'Show help', negatable: false)
+      ..addOption(
+        'root',
+        help:
+            'Project root to initialize in (default: current directory). Lets '
+            'tests run against an explicit sandbox instead of relying on the '
+            'process working directory.',
+      );
   }
 
   Future<void> execute(List<String> args) async {
@@ -92,6 +99,7 @@ class InitializeCommand {
     final noDeps = results['no-deps'] as bool;
     final dartMode = results['dart'] as bool;
     final flutterMode = results['flutter'] as bool;
+    final root = (results['root'] as String?) ?? Directory.current.path;
 
     if (depsOnly && noDeps) {
       throw UsageException(
@@ -112,7 +120,7 @@ class InitializeCommand {
     // override) into pubspec.yaml before scaffolding the test entity. This
     // makes the "only zfa commands" contract viable on a fresh project.
     if (!noDeps) {
-      final pubspecFile = File('pubspec.yaml');
+      final pubspecFile = File(path.join(root, 'pubspec.yaml'));
       var isFlutter = flutterMode;
       // dry-run + no pubspec: preview the in-place bootstrap without writing
       // anything, then skip the wirer call (which needs pubspec on disk) and
@@ -136,7 +144,7 @@ class InitializeCommand {
           print(
             '🔍 Would create: pubspec.yaml '
             '(minimal pure-Dart package, name: '
-            '${_validPackageNameStatic(path.basename(Directory.current.absolute.path)) ?? 'zuraffa_package'})',
+            '${_validPackageNameStatic(path.basename(root)) ?? 'zuraffa_package'})',
           );
           print(
             '🔍 Would wire the pure-Dart dependency set '
@@ -149,9 +157,7 @@ class InitializeCommand {
           skipWiring = true;
         } else {
           pubspecFile.writeAsStringSync(
-            synthesizeMinimalPubspec(
-              path.basename(Directory.current.absolute.path),
-            ),
+            synthesizeMinimalPubspec(path.basename(root)),
           );
           print('✅ Bootstrapped pure-Dart package in-place: pubspec.yaml');
         }
@@ -174,7 +180,7 @@ class InitializeCommand {
         final wireResult = await DependencyWirer.wire(
           isFlutter: isFlutter,
           dryRun: dryRun,
-          projectRoot: '.',
+          projectRoot: root,
         );
 
         if (!wireResult.isSuccess) {
@@ -191,17 +197,20 @@ class InitializeCommand {
 
         // Ensure build.yaml + domain directory structure exist.
         print('');
-        await DependencyWirer.ensureProjectStructure(dryRun: dryRun);
+        await DependencyWirer.ensureProjectStructure(
+          projectRoot: root,
+          dryRun: dryRun,
+        );
       }
 
       // Ensure .zfa.json exists (independent of pubspec — always checked).
-      final config = ZfaConfig.load();
+      final config = ZfaConfig.load(projectRoot: root);
       if (config == null) {
         print('');
         if (dryRun) {
           print('🔍 Would create: .zfa.json (default configuration)');
         } else {
-          await ZfaConfig.init();
+          await ZfaConfig.init(projectRoot: root);
         }
       }
       print('');
@@ -229,7 +238,7 @@ class InitializeCommand {
     final entitySnake = StringUtils.camelToSnake(entityName);
 
     // Create entity directory path
-    final entityDir = path.join(fixedEntityOutput, entitySnake);
+    final entityDir = path.join(root, fixedEntityOutput, entitySnake);
     final entityFile = path.join(entityDir, '$entitySnake.dart');
 
     // Generate entity content

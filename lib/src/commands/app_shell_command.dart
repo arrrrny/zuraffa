@@ -72,6 +72,13 @@ class AppShellCommand extends Command<void> {
             'for the src/ glue files (default: lib/src; the main.dart '
             'entrypoint always lands at lib/main.dart).',
         defaultsTo: 'lib/src',
+      )
+      ..addOption(
+        'root',
+        help:
+            'Project root to generate the app shell in (default: current '
+            'directory). Lets tests run against an explicit sandbox instead '
+            'of relying on the process working directory.',
       );
   }
 
@@ -113,7 +120,8 @@ class AppShellCommand extends Command<void> {
       );
     }
 
-    final projectRoot = Directory.current.path;
+    final projectRoot =
+        (argResults!['root'] as String?) ?? Directory.current.path;
     final config = ZfaConfig.load(projectRoot: projectRoot);
     final xray = xrayFlag || (config?.xrayByDefault ?? false);
     final pubspecPath = p.join(projectRoot, 'pubspec.yaml');
@@ -137,8 +145,13 @@ class AppShellCommand extends Command<void> {
     // Validate the generated DI + routing barrels exist. The shell cannot
     // compile without setupDependencies() and getAllRoutes(); pointing the
     // user at the right `zfa` command is the actionable error.
-    final diIndexPath = p.join(outputDir, 'di', 'index.dart');
-    final routingIndexPath = p.join(outputDir, 'routing', 'index.dart');
+    final diIndexPath = p.join(projectRoot, outputDir, 'di', 'index.dart');
+    final routingIndexPath = p.join(
+      projectRoot,
+      outputDir,
+      'routing',
+      'index.dart',
+    );
 
     // Read the DI barrel once and verify it actually *declares*
     // `setupDependencies` (not just mentions the name in a comment or
@@ -193,7 +206,12 @@ class AppShellCommand extends Command<void> {
     final files = <GeneratedFile>[];
 
     // 1. lib/src/routing/app_router.dart — pure glue, always overwritten.
-    final appRouterPath = p.join(outputDir, 'routing', 'app_router.dart');
+    final appRouterPath = p.join(
+      projectRoot,
+      outputDir,
+      'routing',
+      'app_router.dart',
+    );
     files.add(
       await FileUtils.writeFile(
         appRouterPath,
@@ -207,7 +225,7 @@ class AppShellCommand extends Command<void> {
     );
 
     // 2. lib/src/app/my_app.dart — pure glue, always overwritten.
-    final myAppPath = p.join(outputDir, 'app', 'my_app.dart');
+    final myAppPath = p.join(projectRoot, outputDir, 'app', 'my_app.dart');
     files.add(
       await FileUtils.writeFile(
         myAppPath,
@@ -226,7 +244,12 @@ class AppShellCommand extends Command<void> {
     // unless --force is passed (zfa xray deck appends to it over
     // time and we must not clobber those registrations).
     if (xray) {
-      final xrayDecksPath = p.join(outputDir, 'xray', 'xray_decks.dart');
+      final xrayDecksPath = p.join(
+        projectRoot,
+        outputDir,
+        'xray',
+        'xray_decks.dart',
+      );
       final xrayDecksExists = await _fileSystem.exists(xrayDecksPath);
       if (!xrayDecksExists) {
         files.add(

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:args/args.dart';
+import 'package:path/path.dart' as p;
 
 import '../cli/plugin_loader.dart';
 import '../core/plugin_system/plugin_registry.dart';
@@ -60,7 +61,25 @@ class PluginCommand {
           _printHelp();
           exit(1);
         }
-        _addPlugin(args[1]);
+        // Extract an optional --root so tests (and advanced users) can target
+        // an explicit project root instead of relying on the process working
+        // directory (issue: non-hermetic CLI tests under `dart test`).
+        String? root;
+        final rest = <String>[];
+        for (var i = 1; i < args.length; i++) {
+          if (args[i] == '--root' && i + 1 < args.length) {
+            root = args[i + 1];
+            i++;
+          } else {
+            rest.add(args[i]);
+          }
+        }
+        if (rest.isEmpty) {
+          print('Missing package name');
+          _printHelp();
+          exit(1);
+        }
+        _addPlugin(rest.first, root: root);
         return;
       case 'mcp':
         // `zfa plugin mcp` is an alias for `zfa mcp scaffold` (issue #369).
@@ -101,7 +120,14 @@ class PluginCommand {
         help: 'Enable detailed logging',
       )
       ..addFlag('revert', negatable: false, help: 'Delete the scaffolded files')
-      ..addOption('name', help: 'Optional name for the MCP server');
+      ..addOption('name', help: 'Optional name for the MCP server')
+      ..addOption(
+        'root',
+        help:
+            'Project root to scaffold the MCP server in (default: current '
+            'directory). Lets tests run against an explicit sandbox instead of '
+            'relying on the process working directory.',
+      );
     ArgResults parsed;
     try {
       parsed = parser.parse(rest);
@@ -112,6 +138,7 @@ class PluginCommand {
     final dryRun = parsed['dry-run'] == true;
     final force = parsed['force'] == true;
     final verbose = parsed['verbose'] == true;
+    final root = parsed['root'] as String?;
 
     // Ensure the McpPlugin is registered in the singleton registry.
     final registry = PluginRegistry.instance;
@@ -156,6 +183,7 @@ class PluginCommand {
       if (force) 'force': true,
       if (dryRun) 'dryRun': true,
       if (verbose) 'verbose': true,
+      'root': root,
       if (parsed['revert'] == true) 'revert': true,
       if (parsed['name'] != null) 'name': parsed['name'] as String,
     });
@@ -183,8 +211,12 @@ class PluginCommand {
   }
 
   /// Wires a plugin package into main.dart.
-  void _addPlugin(String packageName) {
-    final mainFile = File('lib/main.dart');
+  ///
+  /// [root] is the project root to operate in (defaults to the current
+  /// directory). Tests and advanced users pass it explicitly so the command
+  /// is hermetic and does not depend on the process working directory.
+  void _addPlugin(String packageName, {String? root}) {
+    final mainFile = File(p.join(root ?? Directory.current.path, 'lib', 'main.dart'));
     if (!mainFile.existsSync()) {
       print(
         'Error: lib/main.dart not found. Run from your Flutter project root.',
