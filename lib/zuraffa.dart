@@ -624,6 +624,11 @@ export 'src/clipboard/clipboard_service.dart';
 export 'src/app_update/app_update.dart';
 export 'src/app_update/app_update_service.dart';
 
+// ── Device + logging built-ins (analysis §4, completing the set) ──────
+export 'src/device/device.dart';
+export 'src/device/device_service.dart';
+export 'src/logging/structured_logging.dart';
+
 // ============================================================
 // Framework Configuration
 // ============================================================
