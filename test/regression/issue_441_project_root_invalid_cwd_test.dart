@@ -59,10 +59,7 @@ void main() {
       Directory.current = removed.path;
       removed.deleteSync();
 
-      expect(
-        () => ProjectRoot.find(startPath: tempDir.path),
-        returnsNormally,
-      );
+      expect(() => ProjectRoot.find(startPath: tempDir.path), returnsNormally);
       expect(ProjectRoot.find(startPath: tempDir.path), equals(tempDir.path));
     } finally {
       Directory.current = previous;

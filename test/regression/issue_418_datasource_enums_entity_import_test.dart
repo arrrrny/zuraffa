@@ -57,8 +57,11 @@ void main() {
         );
 
         final files = await plugin.generate(config);
-        expect(files, isNotEmpty,
-            reason: 'datasource files should still be generated');
+        expect(
+          files,
+          isNotEmpty,
+          reason: 'datasource files should still be generated',
+        );
 
         for (final file in files) {
           final generated = File(file.path);
@@ -67,7 +70,8 @@ void main() {
           expect(
             content.contains('domain/entities/enums/enums.dart'),
             isFalse,
-            reason: 'generated ${file.path} must not reference a '
+            reason:
+                'generated ${file.path} must not reference a '
                 'non-existent enums/enums.dart entity',
           );
         }
@@ -78,10 +82,11 @@ void main() {
       'entity import is still emitted when the entity file exists',
       () async {
         // Scaffold the real entity file so the import should resolve.
-        final entityDir =
-            Directory('$outputDir/domain/entities/enums')..createSync(recursive: true);
-        File('${entityDir.path}/enums.dart')
-            .writeAsStringSync('class Enums {}');
+        final entityDir = Directory('$outputDir/domain/entities/enums')
+          ..createSync(recursive: true);
+        File(
+          '${entityDir.path}/enums.dart',
+        ).writeAsStringSync('class Enums {}');
 
         final plugin = DataSourcePlugin(
           outputDir: outputDir,
@@ -104,8 +109,11 @@ void main() {
           final content = File(file.path).readAsStringSync();
           return content.contains('domain/entities/enums/enums.dart');
         });
-        expect(anyHasImport, isTrue,
-            reason: 'when the entity exists, the import should be emitted');
+        expect(
+          anyHasImport,
+          isTrue,
+          reason: 'when the entity exists, the import should be emitted',
+        );
       },
     );
   });

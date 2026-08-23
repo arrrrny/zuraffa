@@ -34,9 +34,7 @@ void main() {
     workspace = await Directory.systemTemp.createTemp('zuraffa_vpc_records_');
     outputDir = path.join(workspace.path, 'lib', 'src');
     await Directory(outputDir).create(recursive: true);
-    await File(
-      path.join(workspace.path, 'pubspec.yaml'),
-    ).writeAsString('''
+    await File(path.join(workspace.path, 'pubspec.yaml')).writeAsString('''
 name: zuraffa_test
 dependencies:
   flutter:
