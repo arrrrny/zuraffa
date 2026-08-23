@@ -1,0 +1,32 @@
+name: zikzak_session
+description: Portable browser sessions (cookies, headers, tokens) built on the Zuraffa generic session plugin.
+version: 0.1.0
+homepage: https://zuraffa.com
+repository: https://github.com/arrrrny/zuraffa
+issue_tracker: https://github.com/arrrrny/zuraffa/issues
+documentation: https://github.com/arrrrny/zuraffa#readme
+
+# Not publishable while on the monorepo path dep; flip to hosted zuraffa
+# (and drop this line) when zuraffa publishes the session plugin.
+publish_to: none
+
+topics:
+  - sessions
+  - browser
+  - cookies
+  - clean-architecture
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  # Path dep while the session plugin awaits its first zuraffa release:
+  # zikzak_session lives inside this monorepo, so the sibling always
+  # resolves in CI. Flip to hosted `zuraffa: ^6.1.0` (mirroring
+  # zuraffa_flutter) when zuraffa publishes the session plugin.
+  zuraffa:
+    path: ..
+  meta: ^1.17.0
+
+dev_dependencies:
+  test: ^1.25.0
