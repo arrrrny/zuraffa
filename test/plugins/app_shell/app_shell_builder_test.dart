@@ -289,10 +289,24 @@ void setupDependencies(GetIt getIt) {
         expect(src, contains('debugShowCheckedModeBanner: false'));
       });
 
-      test('imports go_router and the app_router glue', () {
+      test('imports the app_router glue but NOT go_router (analyze-clean)', () {
         final src = builder.buildMyApp();
-        expect(src, contains("import 'package:go_router/go_router.dart';"));
+        // Regression guard (issue #469 follow-up): my_app.dart never
+        // references a go_router symbol — MaterialApp.router comes from
+        // material.dart and appRouter arrives via the app_router glue —
+        // so a direct go_router import is an unused_import that made
+        // `flutter analyze` exit 1 on every freshly generated shell.
+        expect(src, isNot(contains("import 'package:go_router/go_router.dart';")));
         expect(src, contains("import '../routing/app_router.dart';"));
+      });
+
+      test('xray mode also omits the direct go_router import', () {
+        final src = builder.buildMyApp(xray: true);
+        // go_router symbols remain reachable through the zuraffa_flutter
+        // barrel (it re-exports go_router), so xray mode must stay
+        // analyze-clean without the direct import too.
+        expect(src, isNot(contains("import 'package:go_router/go_router.dart';")));
+        expect(src, contains("import 'package:zuraffa_flutter/zuraffa_flutter.dart';"));
       });
 
       test('imports flutter material', () {
