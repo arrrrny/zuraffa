@@ -5,8 +5,6 @@ import 'package:test/test.dart';
 import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/commands/app_shell_command.dart';
 
-import '../helpers/project_root.dart';
-
 void main() {
   group('AppShellCommand', () {
     test('has name "shell"', () {
