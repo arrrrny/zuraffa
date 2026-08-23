@@ -30,6 +30,9 @@ void main() {
 name: zuraffa_make_xray_test
 environment:
   sdk: ^3.11.0
+dependencies:
+  flutter:
+    sdk: flutter
 ''');
     final entityDir = Directory(
       path.join(workspace.path, 'lib', 'src', 'domain', 'entities', 'product'),
