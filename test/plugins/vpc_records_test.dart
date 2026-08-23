@@ -36,7 +36,12 @@ void main() {
     await Directory(outputDir).create(recursive: true);
     await File(
       path.join(workspace.path, 'pubspec.yaml'),
-    ).writeAsString('name: zuraffa_test');
+    ).writeAsString('''
+name: zuraffa_test
+dependencies:
+  flutter:
+    sdk: flutter
+''');
     previousCwd = Directory.current.path;
     Directory.current = workspace.path;
   });
