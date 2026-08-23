@@ -267,9 +267,6 @@ class MockDataSourceBuilder {
         : config.name;
     final entityCamel = StringUtils.pascalToCamel(entityName);
     final methods = <Method>[];
-    final hasListMethods = config.methods.any(
-      (m) => m == 'getList' || m == 'watchList',
-    );
 
     if (config.isCustomUseCase &&
         (config.paramsType != null || config.returnsType != null)) {
@@ -466,6 +463,35 @@ class MockDataSourceBuilder {
 
         case 'create':
           final isNoParamsCreate = config.idFieldType == 'NoParams';
+          // #463: the mock store must be a genuine in-memory implementation —
+          // create appends the item to the backing collection so a follow-up
+          // get/getList can retrieve it (the submit→get lifecycle).
+          final createStatements = <Code>[
+            refer('logger').property('info').call([
+              isNoParamsCreate
+                  ? literalString('Creating $entityName')
+                  : literalString(
+                      'Creating $entityName: \${item.id}',
+                    ),
+            ]).statement,
+            refer('Future<void>')
+                .property('delayed')
+                .call([refer('_delay')])
+                .awaited
+                .statement,
+            refer('${entityName}MockData')
+                .property('${entityCamel}s')
+                .property('add')
+                .call([refer('item')])
+                .statement,
+            refer('logger').property('info').call([
+              isNoParamsCreate
+                  ? literalString('Successfully created $entityName')
+                  : literalString(
+                      'Successfully created $entityName: \${item.id}',
+                    ),
+            ]).statement,
+          ];
           methods.add(
             Method(
               (m) => m
@@ -483,25 +509,7 @@ class MockDataSourceBuilder {
                 ..body = Block(
                   (b) => b
                     ..statements.addAll([
-                      refer('logger').property('info').call([
-                        isNoParamsCreate
-                            ? literalString('Creating $entityName')
-                            : literalString(
-                                'Creating $entityName: \${item.id}',
-                              ),
-                      ]).statement,
-                      refer('Future<void>')
-                          .property('delayed')
-                          .call([refer('_delay')])
-                          .awaited
-                          .statement,
-                      refer('logger').property('info').call([
-                        isNoParamsCreate
-                            ? literalString('Successfully created $entityName')
-                            : literalString(
-                                'Successfully created $entityName: \${item.id}',
-                              ),
-                      ]).statement,
+                      ...createStatements,
                       refer('item').returned.statement,
                     ]),
                 ),
@@ -513,8 +521,6 @@ class MockDataSourceBuilder {
           final dataType = '${entityName}Patch';
           final updateParamsType =
               'UpdateParams<${config.idFieldType}, $dataType>';
-          final hasList = config.methods.contains('getList');
-          final hasWatch = config.methods.contains('watch');
           final isNoParams = config.idFieldType == 'NoParams';
           final bodyStatements = <Code>[
             refer('logger').property('info').call([
@@ -528,6 +534,9 @@ class MockDataSourceBuilder {
           ];
 
           if (isNoParams) {
+            // #463: persist singleton updates — apply the patch to the
+            // current sample and store the result back at the head of the
+            // collection.
             bodyStatements.addAll([
               declareFinal('existing')
                   .assign(
@@ -536,12 +545,25 @@ class MockDataSourceBuilder {
                     ).property('sample$entityName'),
                   )
                   .statement,
+              declareFinal('updated')
+                  .assign(
+                    refer('params')
+                        .property('data')
+                        .property('applyTo')
+                        .call([refer('existing')]),
+                  )
+                  .statement,
+              Code(
+                '${entityName}MockData.${entityCamel}s[0] = updated;',
+              ),
               refer('logger').property('info').call([
                 literalString('Successfully updated $entityName'),
               ]).statement,
-              refer('existing').returned.statement,
+              refer('updated').returned.statement,
             ]);
-          } else if (hasList || hasWatch) {
+          } else {
+            // #463: persist updates — locate by id, apply the patch, and
+            // replace the entry in the backing collection.
             final orElse = Method(
               (m) => m
                 ..lambda = true
@@ -574,24 +596,29 @@ class MockDataSourceBuilder {
                         ),
                   )
                   .statement,
-              refer('logger').property('info').call([
-                literalString('Successfully updated $entityName'),
-              ]).statement,
-              refer('existing').returned.statement,
-            ]);
-          } else {
-            bodyStatements.addAll([
-              declareFinal('existing')
+              declareFinal('updated')
                   .assign(
-                    refer(
-                      '${entityName}MockData',
-                    ).property('sample$entityName'),
+                    refer('params')
+                        .property('data')
+                        .property('applyTo')
+                        .call([refer('existing')]),
                   )
                   .statement,
+              declareFinal('index')
+                  .assign(
+                    refer('${entityName}MockData')
+                        .property('${entityCamel}s')
+                        .property('indexOf')
+                        .call([refer('existing')]),
+                  )
+                  .statement,
+              Code(
+                '${entityName}MockData.${entityCamel}s[index] = updated;',
+              ),
               refer('logger').property('info').call([
                 literalString('Successfully updated $entityName'),
               ]).statement,
-              refer('existing').returned.statement,
+              refer('updated').returned.statement,
             ]);
           }
 
@@ -646,12 +673,25 @@ class MockDataSourceBuilder {
                     ).property('sample$entityName'),
                   )
                   .statement,
+              declareFinal('updated')
+                  .assign(
+                    refer('existing').property('copyWithField').call([
+                      refer('params').property('field'),
+                      refer('params').property('value'),
+                    ]),
+                  )
+                  .statement,
+              Code(
+                '${entityName}MockData.${entityCamel}s[0] = updated;',
+              ),
               refer('logger').property('info').call([
                 literalString('Successfully toggled $entityName'),
               ]).statement,
-              refer('existing').returned.statement,
+              refer('updated').returned.statement,
             ]);
-          } else if (hasListMethods) {
+          } else {
+            // #463: persist toggles — locate by id, apply the field flip via
+            // copyWithField, and replace the entry in the backing collection.
             final orElse = Method(
               (m) => m
                 ..lambda = true
@@ -684,24 +724,29 @@ class MockDataSourceBuilder {
                         ),
                   )
                   .statement,
-              refer('logger').property('info').call([
-                literalString('Successfully toggled $entityName'),
-              ]).statement,
-              refer('existing').returned.statement,
-            ]);
-          } else {
-            toggleBodyStatements.addAll([
-              declareFinal('existing')
+              declareFinal('updated')
                   .assign(
-                    refer(
-                      '${entityName}MockData',
-                    ).property('sample$entityName'),
+                    refer('existing').property('copyWithField').call([
+                      refer('params').property('field'),
+                      refer('params').property('value'),
+                    ]),
                   )
                   .statement,
+              declareFinal('index')
+                  .assign(
+                    refer('${entityName}MockData')
+                        .property('${entityCamel}s')
+                        .property('indexOf')
+                        .call([refer('existing')]),
+                  )
+                  .statement,
+              Code(
+                '${entityName}MockData.${entityCamel}s[index] = updated;',
+              ),
               refer('logger').property('info').call([
                 literalString('Successfully toggled $entityName'),
               ]).statement,
-              refer('existing').returned.statement,
+              refer('updated').returned.statement,
             ]);
           }
 
@@ -746,7 +791,9 @@ class MockDataSourceBuilder {
                 literalString('Successfully deleted $entityName'),
               ]).statement,
             ]);
-          } else if (hasListMethods) {
+          } else {
+            // #463: persist deletes — locate by id (throws notFoundFailure
+            // when absent) and remove the entry from the backing collection.
             final orElse = Method(
               (m) => m
                 ..lambda = true
@@ -756,32 +803,34 @@ class MockDataSourceBuilder {
                     .code,
             ).closure;
             bodyStatements.addAll([
-              refer('${entityName}MockData')
-                  .property('${entityCamel}s')
-                  .property('firstWhere')
-                  .call(
-                    [
-                      Method(
-                        (m) => m
-                          ..requiredParameters.add(
-                            Parameter((p) => p..name = 'item'),
-                          )
-                          ..lambda = true
-                          ..body = refer('item')
-                              .property(config.idField)
-                              .equalTo(refer('params').property('id'))
-                              .code,
-                      ).closure,
-                    ],
-                    {'orElse': orElse},
+              declareFinal('existing')
+                  .assign(
+                    refer('${entityName}MockData')
+                        .property('${entityCamel}s')
+                        .property('firstWhere')
+                        .call(
+                          [
+                            Method(
+                              (m) => m
+                                ..requiredParameters.add(
+                                  Parameter((p) => p..name = 'item'),
+                                )
+                                ..lambda = true
+                                ..body = refer('item')
+                                    .property(config.idField)
+                                    .equalTo(refer('params').property('id'))
+                                    .code,
+                            ).closure,
+                          ],
+                          {'orElse': orElse},
+                        ),
                   )
                   .statement,
-              refer('logger').property('info').call([
-                literalString('Successfully deleted $entityName'),
-              ]).statement,
-            ]);
-          } else {
-            bodyStatements.addAll([
+              refer('${entityName}MockData')
+                  .property('${entityCamel}s')
+                  .property('remove')
+                  .call([refer('existing')])
+                  .statement,
               refer('logger').property('info').call([
                 literalString('Successfully deleted $entityName'),
               ]).statement,
