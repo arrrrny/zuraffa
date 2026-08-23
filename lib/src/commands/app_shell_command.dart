@@ -268,6 +268,37 @@ class AppShellCommand extends Command<void> {
           '  skipped: $xrayDecksPath already exists (use --force to overwrite).',
         );
       }
+
+      // 2c. lib/xray_bridge_launcher_stub.dart — the web-safe default
+      //     branch of the conditional import in main.dart (issue #469).
+      //     Without this file the emitted `import 'xray_bridge_launcher_
+      //     stub.dart'` never resolves and the generated app cannot
+      //     analyze/build on any platform. Existing stubs are preserved
+      //     (idempotent leaf file; `--force` regenerates main.dart but
+      //     never needs a different stub).
+      final stubPath = p.join(
+        projectRoot,
+        'lib',
+        'xray_bridge_launcher_stub.dart',
+      );
+      final stubExists = await _fileSystem.exists(stubPath);
+      if (!stubExists) {
+        files.add(
+          await FileUtils.writeFile(
+            stubPath,
+            _builder.buildXRayBridgeLauncherStub(),
+            'xray_bridge_launcher_stub',
+            force: true,
+            dryRun: dryRun,
+            verbose: verbose,
+            fileSystem: _fileSystem,
+          ),
+        );
+      } else if (verbose) {
+        print(
+          '  skipped: $stubPath already exists (use --force to overwrite).',
+        );
+      }
     }
 
     // 3. lib/main.dart — entrypoint; respect --force like every other glue
