@@ -50,7 +50,7 @@ final _zfaRoot = _resolveZfaRoot();
 /// workspace, the dart VM walks up from the SCRIPT location looking for a
 /// package_config.json and silently fails to resolve package:zuraffa.
 /// We therefore resolve the package_config.json explicitly here (it lives
-/// in zuraffa_flutter/.dart_tool/) and pass it via --packages=<path>.
+/// in zuraffa_flutter/.dart_tool/) and pass it via --packages=path.
 final _packageConfigPath = _resolvePackageConfigPath();
 
 String _resolveZfaRoot() {
@@ -80,14 +80,14 @@ String _resolvePackageConfigPath() {
   return '';
 }
 
-/// Build the dart invocation for bin/zfa.dart, passing --packages=<path>
+/// Build the dart invocation for bin/zfa.dart, passing --packages=path
 /// when we resolved a package_config.json so that package:zuraffa is
 /// resolvable from the temp workspace (whose own package_config knows
 /// nothing about zuraffa, only the stub_flutter dep).
 List<String> _dartZfaArgs(List<String> rest) {
   final args = <String>[];
   if (_packageConfigPath.isNotEmpty) {
-    args.add('--packages=' + _packageConfigPath);
+    args.add('--packages=$_packageConfigPath');
   }
   args.add(p.join(_zfaRoot, 'bin', 'zfa.dart'));
   args.addAll(rest);
