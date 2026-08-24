@@ -17,9 +17,9 @@ void main() {
     outputDir = workspace.outputDir;
   });
 
-  // tearDown(() async {
-  //   await disposeWorkspace(workspace);
-  // });
+  tearDown(() async {
+    await disposeWorkspace(workspace);
+  });
 
   test('toggle method is generated across all layers', () async {
     final generator = CodeGenerator(
@@ -145,26 +145,10 @@ void main() {
     expect(stateContent, contains('this.isToggling = false'));
     expect(stateContent, contains('bool? isToggling'));
 
-    // 8. Check Presenter
-    final presenterFile = File(
-      '$outputDir/presentation/pages/todo/todo_presenter.dart',
-    );
-    expect(presenterFile.existsSync(), isTrue);
-    final presenterContent = presenterFile.readAsStringSync();
-    expect(
-      presenterContent,
-      contains('Future<Result<Todo, AppFailure>> toggleTodo'),
-    );
-
-    // 9. Check Controller
-    final controllerFile = File(
-      '$outputDir/presentation/pages/todo/todo_controller.dart',
-    );
-    expect(controllerFile.existsSync(), isTrue);
-    final controllerContent = controllerFile.readAsStringSync();
-    expect(controllerContent, contains('Future<void> toggleTodo'));
-    expect(controllerContent, contains('isToggling'));
-    expect(controllerContent, contains('_presenter.toggleTodo'));
+    // 8/9. The presenter/controller (VPC) checks live in
+    // zuraffa_flutter/test/vpc/regression/issue_302_vpc_output_test.dart —
+    // this pure-Dart workspace correctly skips VPC generation
+    // (Constitution VII; issues #431 / #435).
   });
 
   // Regression test for #289: PR #287 added 'toggle' to the entity-methods

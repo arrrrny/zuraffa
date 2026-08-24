@@ -1,4 +1,6 @@
 @Tags(['regression', 'slow'])
+library;
+
 // Regression test for issue #343:
 // https://github.com/arrrrny/zuraffa/issues/343
 //
@@ -29,14 +31,30 @@
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/view/capabilities/custom_view_capability.dart';
 import 'package:zuraffa/src/plugins/view/view_plugin.dart';
 
-/// Resolve package root at discovery time, before any test changes CWD.
-final _zfaRoot = Directory.current.path;
+/// Resolve the monorepo root (the checkout owning bin/zfa.dart) at
+/// discovery time, before any test changes CWD. Under flutter test
+/// the CWD is the zuraffa_flutter package dir, so walk up to the
+/// repo root that owns the zfa CLI.
+final _zfaRoot = _resolveZfaRoot();
+
+String _resolveZfaRoot() {
+  var dir = Directory.current;
+  for (var i = 0; i < 12; i += 1) {
+    if (File(p.join(dir.path, 'bin', 'zfa.dart')).existsSync()) {
+      return dir.path;
+    }
+    final parent = dir.parent;
+    if (parent.path == dir.path) break;
+    dir = parent;
+  }
+  return Directory.current.path;
+}
 
 /// Minimal stand-in for `package:flutter/material.dart`. Only the symbols
 /// the custom view template references are defined. Crucially,

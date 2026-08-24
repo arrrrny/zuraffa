@@ -1,6 +1,8 @@
 import 'dart:io';
 
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import '../helpers/vpc_test_utils.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/view/view_plugin.dart';
@@ -12,6 +14,10 @@ void main() {
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('zuraffa_xray_');
     outputDir = Directory('${tempDir.path}/lib/src').path;
+    // Declare a Flutter pubspec so the VPC generators run on their
+    // intended target instead of relying on the no-pubspec
+    // (unknown flavour) fallback — issues #431 / #435.
+    await writeFlutterPubspecAt(tempDir.path);
   });
 
   tearDown(() async {

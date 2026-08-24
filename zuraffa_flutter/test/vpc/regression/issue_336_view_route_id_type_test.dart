@@ -1,4 +1,5 @@
 @Tags(['regression', 'slow'])
+library;
 // Regression test for issue #336:
 // https://github.com/arrrrny/zuraffa/issues/336
 //
@@ -20,7 +21,7 @@
 //     int.parse/double.parse/num.parse when the id type is numeric.
 import 'dart:io';
 
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/core/plugin_system/plan_store.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
@@ -29,12 +30,18 @@ import 'package:zuraffa/src/plugins/route/route_plugin.dart';
 import 'package:zuraffa/src/plugins/view/view_plugin.dart';
 import 'package:zuraffa/src/utils/entity_id_type.dart';
 
+import '../helpers/vpc_test_utils.dart';
+
 void main() {
   late Directory tempDir;
   late String originalCwd;
 
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('zuraffa_issue336_');
+    // Declare a Flutter pubspec so the VPC generators run on their
+    // intended target instead of relying on the no-pubspec
+    // (unknown flavour) fallback — issues #431 / #435.
+    await writeFlutterPubspecAt(tempDir.path);
     // The capabilities resolve the project root from the CWD; run inside
     // the temp project so the entity probe and the persisted-plan
     // fallback read the temp fixtures, not the zuraffa repo itself.

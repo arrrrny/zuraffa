@@ -1,4 +1,5 @@
 @Tags(['regression', 'slow'])
+library;
 // Regression test for issue #328:
 // https://github.com/arrrrny/zuraffa/issues/328
 //
@@ -31,7 +32,9 @@
 import 'dart:io';
 
 import 'package:path/path.dart' as path;
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import '../helpers/vpc_test_utils.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/route/builders/route_builder.dart';
@@ -44,6 +47,10 @@ void main() {
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('zuraffa_issue328_');
     outputDir = Directory('${tempDir.path}/lib/src').path;
+    // Declare a Flutter pubspec so the VPC generators run on their
+    // intended target instead of relying on the no-pubspec
+    // (unknown flavour) fallback — issues #431 / #435.
+    await writeFlutterPubspecAt(tempDir.path);
   });
 
   tearDown(() async {

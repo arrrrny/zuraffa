@@ -1,21 +1,21 @@
 @Tags(['integration', 'slow'])
+library;
 import 'dart:io';
 
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/generator/code_generator.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 
-import '../regression/regression_test_utils.dart';
+import '../helpers/vpc_test_utils.dart';
 
 void main() {
-  late RegressionWorkspace workspace;
+  late VpcWorkspace workspace;
   late String outputDir;
 
   setUp(() async {
     workspace = await createWorkspace('full_entity_workflow');
-    await writePubspec(workspace);
-    await runFlutterPubGet(workspace);
+    await writeFlutterPubspec(workspace);
     await writeEntityStub(workspace, name: 'Product');
     outputDir = workspace.outputDir;
   });
@@ -82,12 +82,24 @@ void main() {
         ).existsSync(),
         isTrue,
       );
-      // The VPC (view/presenter/controller) files are intentionally NOT
-      // asserted here: this workspace is a pure-Dart package and the VPC
-      // generators correctly skip it (Constitution VII — issue #420). The
-      // full-layout assertions live in
-      // zuraffa_flutter/test/vpc/integration/full_entity_workflow_test.dart
-      // (issues #431 / #435).
+      expect(
+        File(
+          '$outputDir/presentation/pages/product/product_view.dart',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(
+        File(
+          '$outputDir/presentation/pages/product/product_controller.dart',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(
+        File(
+          '$outputDir/presentation/pages/product/product_presenter.dart',
+        ).existsSync(),
+        isTrue,
+      );
       expect(
         File(
           '$outputDir/presentation/pages/product/product_state.dart',

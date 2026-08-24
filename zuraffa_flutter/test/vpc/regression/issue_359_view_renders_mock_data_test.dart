@@ -1,4 +1,5 @@
 @Tags(['regression', 'slow'])
+library;
 // https://github.com/arrrrny/zuraffa/issues/359
 //
 // Before this fix, generated views rendered an empty `Container()` body
@@ -17,7 +18,9 @@ import 'dart:io';
 
 import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/diagnostic/diagnostic.dart';
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import '../helpers/vpc_test_utils.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/view/view_plugin.dart';
@@ -29,6 +32,10 @@ void main() {
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('issue_359_view_');
     outputDir = Directory('${tempDir.path}/lib/src').path;
+    // Declare a Flutter pubspec so the VPC generators run on their
+    // intended target instead of relying on the no-pubspec
+    // (unknown flavour) fallback — issues #431 / #435.
+    await writeFlutterPubspecAt(tempDir.path);
   });
 
   tearDown(() async {
@@ -46,12 +53,12 @@ void main() {
     final mockFile = File('${mockDir.path}/${entitySnake}_mock_data.dart');
     final entityCamel = entityName[0].toLowerCase() + entityName.substring(1);
     await mockFile.writeAsString('''
-import '../../domain/entities/$entitySnake/${entitySnake}.dart';
+import '../../domain/entities/$entitySnake/$entitySnake.dart';
 
 class ${entityName}MockData {
-  static final List<${entityName}> ${entityCamel}s = const [];
-  static ${entityName} get sample$entityName => ${entityCamel}s.first;
-  static List<${entityName}> get sampleList => ${entityCamel}s;
+  static final List<$entityName> ${entityCamel}s = const [];
+  static $entityName get sample$entityName => ${entityCamel}s.first;
+  static List<$entityName> get sampleList => ${entityCamel}s;
 }
 ''');
   }

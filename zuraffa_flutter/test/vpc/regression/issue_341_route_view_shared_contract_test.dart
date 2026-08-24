@@ -1,4 +1,5 @@
 @Tags(['regression', 'slow'])
+library;
 // Regression test for issue #341 (4th route/view contract churn after
 // #328 → #331 → #333 → #335):
 // https://github.com/arrrrny/zuraffa/issues/341
@@ -32,7 +33,9 @@
 // passed by a route's view constructor call is accepted by that view.
 import 'dart:io';
 
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import '../helpers/vpc_test_utils.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/route/builders/route_builder.dart';
@@ -45,6 +48,10 @@ void main() {
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('zuraffa_issue341_');
     outputDir = Directory('${tempDir.path}/lib/src').path;
+    // Declare a Flutter pubspec so the VPC generators run on their
+    // intended target instead of relying on the no-pubspec
+    // (unknown flavour) fallback — issues #431 / #435.
+    await writeFlutterPubspecAt(tempDir.path);
   });
 
   tearDown(() async {
@@ -295,7 +302,7 @@ List<GoRoute> productRoutes() {
         ),
       );
 
-      final routesContent = await File(
+      final routesContent = File(
         '$outputDir/routing/feedback_routes.dart',
       ).readAsStringSync();
       expect(
@@ -345,7 +352,7 @@ List<GoRoute> productRoutes() {
         ),
       );
 
-      final routesContent = await File(
+      final routesContent = File(
         '$outputDir/routing/feedback_routes.dart',
       ).readAsStringSync();
       expect(
