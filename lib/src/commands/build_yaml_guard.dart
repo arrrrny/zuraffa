@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../core/dependencies/dependency_wirer.dart';
+import '../core/project/project_root.dart';
 
 /// Outcome of inspecting a project's `build.yaml` from the build command.
 enum BuildYamlStatus {
@@ -36,7 +37,7 @@ class BuildYamlGuard {
   /// Returns the current [BuildYamlStatus] for [projectRoot]
   /// (defaults to [Directory.current]).
   static BuildYamlStatus check({String? projectRoot}) {
-    final root = projectRoot ?? Directory.current.path;
+    final root = projectRoot ?? ProjectRoot.safeCurrentPath();
     final file = File(p.join(root, 'build.yaml'));
     if (!file.existsSync()) {
       return BuildYamlStatus.missing;
@@ -52,7 +53,7 @@ class BuildYamlGuard {
   /// builders. Only call when [check] returned [BuildYamlStatus.missing] —
   /// never overwrite an existing `build.yaml`.
   static Future<void> scaffold({String? projectRoot}) async {
-    final root = projectRoot ?? Directory.current.path;
+    final root = projectRoot ?? ProjectRoot.safeCurrentPath();
     final file = File(p.join(root, 'build.yaml'));
     await file.writeAsString(DependencyWirer.buildYamlContent);
   }

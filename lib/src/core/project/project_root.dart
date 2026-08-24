@@ -17,7 +17,18 @@ class ProjectRoot {
   /// temp dir under `dart test`, or a chdir into a gone path in CI/containers).
   /// In that case we fall back to the `PWD` environment variable and then to
   /// the running script's directory instead of crashing.
-  static String _safeCurrentDir() {
+  /// Resolves the current working directory, tolerating an invalid CWD.
+  ///
+  /// `Directory.current.path` throws [PathNotFoundException] when the process
+  /// CWD is an already-removed or otherwise invalid directory (e.g. a deleted
+  /// temp dir under `dart test`, or a chdir into a gone path in CI/containers).
+  /// In that case we fall back to the `PWD` environment variable and then to
+  /// the running script's directory instead of crashing.
+  ///
+  /// Exposed publicly so every command that previously read `Directory.current`
+  /// directly can route through the same guarded resolver and inherit the same
+  /// fallback ladder. See issue #441.
+  static String safeCurrentPath() {
     try {
       return Directory.current.path;
     } catch (_) {
@@ -30,6 +41,9 @@ class ProjectRoot {
       }
     }
   }
+
+  // Backwards-compatible private alias — internal call sites still use this.
+  static String _safeCurrentDir() => safeCurrentPath();
 
   static String find({String? startPath}) {
     final start = startPath ?? _safeCurrentDir();

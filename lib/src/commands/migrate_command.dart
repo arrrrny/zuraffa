@@ -1,4 +1,3 @@
-import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
@@ -8,6 +7,7 @@ import '../migration/detectors/state_detector.dart';
 import '../migration/detectors/di_detector.dart';
 import '../migration/fixers/state_fixer.dart';
 import '../migration/fixers/gql_fixer.dart';
+import '../core/project/project_root.dart';
 
 /// `zfa migrate [state|gql|di]` -- migrates v5 artifacts to v6 equivalents.
 class MigrateCommand extends Command<void> {
@@ -43,7 +43,7 @@ class MigrateCommand extends Command<void> {
       return;
     }
 
-    final projectDir = Directory.current.path;
+    final projectDir = ProjectRoot.safeCurrentPath();
 
     switch (subcommand) {
       case 'state':

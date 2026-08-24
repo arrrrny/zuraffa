@@ -4,6 +4,7 @@ import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 
 import 'build_yaml_guard.dart';
+import '../core/project/project_root.dart';
 
 class BuildCommand extends Command {
   @override
@@ -360,7 +361,7 @@ class BuildCommand extends Command {
   /// it surface downstream at `dart run` / CI time.
   @visibleForTesting
   Future<bool> verifyAnalyzeOrFail({String? projectRoot}) async {
-    final root = projectRoot ?? Directory.current.path;
+    final root = projectRoot ?? ProjectRoot.safeCurrentPath();
     print('\n🔎 Running dart analyze on lib/...');
     final result = await Process.run('dart', [
       'analyze',
