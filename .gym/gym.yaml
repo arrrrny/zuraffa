@@ -40,3 +40,26 @@ exercises:
       mutates the package source tree.
     verifyCommand: dart run .gym/exercise-generate-feature.dart
     evaluate: exit 0 => pass; exit !=0 => fail
+  - id: detect-non-zuraffa-package
+    brief: |
+      Train the operator (human or agent) to detect a non-Zuraffa Dart
+      package via `zfa doctor` and STOP+REPORT rather than misfiring
+      (running `zfa entity create` / `zfa make` / `zfa build` against a
+      package that has no zuraffa/zorphy_annotation deps). This is the
+      stop-and-report fallback described in issue #478 — the safe
+      behavior to ship before the `zfa`-only rewrite capability lands
+      (paired with #477).
+
+      The exercise sets up a non-Zuraffa fixture, runs `zfa doctor`
+      against it, asserts the doctor output surfaces the recognizable
+      "Zuraffa package not found" + "zorphy_annotation not found"
+      markers, and asserts the sandbox's lib/ tree stays pristine —
+      i.e. the operator did not misfire and run generators against the
+      non-Zuraffa package.
+    setup: |
+      Ensure `dart` is on PATH.
+      Run the warmup reps first (.gym/warmup/*).
+      The exercise writes its sandbox under .gym/.sandbox/ — it never
+      mutates the package source tree.
+    verifyCommand: dart run .gym/exercise-detect-non-zuraffa-package.dart
+    evaluate: exit 0 => pass; exit !=0 => fail
