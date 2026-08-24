@@ -77,81 +77,36 @@ void main() {
 
       expect(result.success, isTrue);
 
+      // This workspace is a *pure-Dart* fixture (the pubspec written by
+      // `writePubspec` declares no `flutter:` SDK), so per Constitution VII
+      // (Engine Purity) the presenter/controller generators correctly SKIP
+      // output for a pure-Dart target (see #420): both artifacts depend on
+      // `zuraffa_flutter`, which is unavailable here. The presenter's
+      // multi-usecase wiring (fields, methods, and imports for
+      // CheckPermission / RequestPermission / OpenAppSettings) and the
+      // controller's methods are verified in the `zuraffa_flutter` package
+      // — see issue #431.
       final presenterPath =
           '$outputDir/presentation/pages/permissions/permissions_presenter.dart';
       final presenterFile = File(presenterPath);
-      expect(presenterFile.existsSync(), isTrue);
-
-      final presenterContent = presenterFile.readAsStringSync();
-
-      // Should NOT contain PermissionsUseCase
-      expect(presenterContent, isNot(contains('PermissionsUseCase')));
-
-      // Should contain the 3 individual usecases
-      expect(presenterContent, contains('CheckPermissionUseCase'));
-      expect(presenterContent, contains('RequestPermissionUseCase'));
-      expect(presenterContent, contains('OpenAppSettingsUseCase'));
-
-      // Should contain fields for each
       expect(
-        presenterContent,
-        contains('late final CheckPermissionUseCase _checkPermission;'),
-      );
-      expect(
-        presenterContent,
-        contains('late final RequestPermissionUseCase _requestPermission;'),
-      );
-      expect(
-        presenterContent,
-        contains('late final OpenAppSettingsUseCase _openAppSettings;'),
-      );
-
-      // Should contain methods for each (assuming custom usecase pattern)
-      expect(
-        presenterContent,
-        contains('Future<Result<void, AppFailure>> checkPermission'),
-      );
-      expect(
-        presenterContent,
-        contains('Future<Result<void, AppFailure>> requestPermission'),
-      );
-      expect(
-        presenterContent,
-        contains('Future<Result<void, AppFailure>> openAppSettings'),
-      );
-
-      // Should contain imports for each
-      expect(
-        presenterContent,
-        contains(
-          'import \'../../../domain/usecases/auth/check_permission_usecase.dart\';',
-        ),
-      );
-      expect(
-        presenterContent,
-        contains(
-          'import \'../../../domain/usecases/permissions/request_permission_usecase.dart\';',
-        ),
-      );
-      // Default domain for OpenAppSettings since it wasn't found
-      expect(
-        presenterContent,
-        contains(
-          'import \'../../../domain/usecases/permissions/open_app_settings_usecase.dart\';',
-        ),
+        presenterFile.existsSync(),
+        isFalse,
+        reason:
+            'pure-Dart target must NOT generate a Flutter presenter '
+            '(Constitution VII: Engine Purity)',
       );
 
       final controllerPath =
           '$outputDir/presentation/pages/permissions/permissions_controller.dart';
       final controllerFile = File(controllerPath);
-      expect(controllerFile.existsSync(), isTrue);
-
-      final controllerContent = controllerFile.readAsStringSync();
-
-      // Controller should also have methods for each
-      expect(controllerContent, contains('Future<void> checkPermission'));
-      expect(controllerContent, contains('Future<void> requestPermission'));
-      expect(controllerContent, contains('Future<void> openAppSettings'));
+      expect(
+        controllerFile.existsSync(),
+        isFalse,
+        reason:
+            'pure-Dart target must NOT generate a Flutter controller '
+            '(Constitution VII: Engine Purity)',
+      );
 
       // Domain usecase file should NOT exist
       expect(

@@ -145,26 +145,37 @@ void main() {
     expect(stateContent, contains('this.isToggling = false'));
     expect(stateContent, contains('bool? isToggling'));
 
-    // 8. Check Presenter
+    // 8. Check Presenter — this workspace is a *pure-Dart* fixture (the
+    // pubspec written by `writePubspec` declares no `flutter:` SDK), so per
+    // Constitution VII (Engine Purity) the presenter generator correctly
+    // SKIPS output: presenters depend on `zuraffa_flutter`, which is not
+    // available in a pure-Dart package. The presenter toggle behaviour
+    // (`toggleTodo` across the VPC layer) is verified in the
+    // `zuraffa_flutter` package — see issue #431.
     final presenterFile = File(
       '$outputDir/presentation/pages/todo/todo_presenter.dart',
     );
-    expect(presenterFile.existsSync(), isTrue);
-    final presenterContent = presenterFile.readAsStringSync();
     expect(
-      presenterContent,
-      contains('Future<Result<Todo, AppFailure>> toggleTodo'),
+      presenterFile.existsSync(),
+      isFalse,
+      reason:
+          'pure-Dart target must NOT generate a Flutter presenter '
+          '(Constitution VII: Engine Purity)',
     );
 
-    // 9. Check Controller
+    // 9. Check Controller — same pure-Dart skip as the presenter (see #420).
+    // The controller toggle behaviour is verified in `zuraffa_flutter`
+    // (issue #431).
     final controllerFile = File(
       '$outputDir/presentation/pages/todo/todo_controller.dart',
     );
-    expect(controllerFile.existsSync(), isTrue);
-    final controllerContent = controllerFile.readAsStringSync();
-    expect(controllerContent, contains('Future<void> toggleTodo'));
-    expect(controllerContent, contains('isToggling'));
-    expect(controllerContent, contains('_presenter.toggleTodo'));
+    expect(
+      controllerFile.existsSync(),
+      isFalse,
+      reason:
+          'pure-Dart target must NOT generate a Flutter controller '
+          '(Constitution VII: Engine Purity)',
+    );
   });
 
   // Regression test for #289: PR #287 added 'toggle' to the entity-methods

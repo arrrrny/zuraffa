@@ -1,20 +1,36 @@
-@Tags(['integration', 'slow'])
+// Transported from the pure-Dart `zuraffa` core package (issue #431).
+//
+// Integration coverage for the presentation-only workflow. The core's
+// `test/integration/presentation_only_workflow_test.dart` runs against a
+// *pure-Dart* fixture, where VPC generation is now correctly skipped
+// (Constitution VII: Engine Purity, see #420) — so the view/presenter/
+// controller assertions were transported into THIS package where the fixture
+// pubspec declares `flutter:` and the VPC generators actually run. The core
+// keeps the pure-Dart behaviour: the state file IS generated, no domain/data
+// layer files leak into a presentation-only request, and VPC output is
+// skipped.
+//
+// Simulates: zfa make Profile view presenter controller state
+// (with mock/di enabled in zfa.json)
+//
+// See: test/integration/presentation_only_workflow_test.dart (core),
+// https://github.com/arrrrny/zuraffa/issues/431.
 import 'dart:io';
-import 'package:test/test.dart';
+
+import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/generator/code_generator.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 
-import '../regression/regression_test_utils.dart';
+import 'vpc_test_utils.dart';
 
 void main() {
-  late RegressionWorkspace workspace;
+  late VpcWorkspace workspace;
   late String outputDir;
 
   setUp(() async {
-    workspace = await createWorkspace('presentation_only_workflow');
-    await writePubspec(workspace);
-    await runFlutterPubGet(workspace);
+    workspace = await createWorkspace('presentation_only_vpc_');
+    await writeFlutterPubspec(workspace);
     outputDir = workspace.outputDir;
   });
 
@@ -23,10 +39,9 @@ void main() {
   });
 
   test(
-    'generates only presentation layer when requested',
-    timeout: Timeout(Duration(minutes: 5)),
+    'generates only presentation layer when requested (Flutter target)',
+    timeout: const Timeout(Duration(minutes: 5)),
     () async {
-      // Simulating: zfa make Profile view presenter controller state (with mock/di enabled in zfa.json)
       final config = GeneratorConfig(
         name: 'Profile',
         methods: const [], // Non-entity based
@@ -59,48 +74,38 @@ void main() {
 
       expect(result.success, isTrue);
 
-      // Check Presentation layer — this workspace is a *pure-Dart* fixture
-      // (the pubspec written by `writePubspec` declares no `flutter:` SDK),
-      // so per Constitution VII (Engine Purity) the view/presenter/controller
-      // generators correctly SKIP output for a pure-Dart target (see #420):
-      // those artifacts depend on `zuraffa_flutter`, which is unavailable
-      // here. The full presentation-only VPC workflow (view + presenter +
-      // controller generated, and ONLY those) is verified in the
-      // `zuraffa_flutter` package — see issue #431.
+      // Check Presentation layer exists — the fixture pubspec declares
+      // `flutter:`, so the VPC generators run (they are skipped only for
+      // pure-Dart targets, see #420).
       expect(
         File(
           '$outputDir/presentation/pages/profile/profile_view.dart',
         ).existsSync(),
-        isFalse,
-        reason:
-            'pure-Dart target must NOT generate a Flutter view '
-            '(Constitution VII: Engine Purity)',
+        isTrue,
+        reason: 'profile_view.dart should be generated for a Flutter target',
       );
       expect(
         File(
           '$outputDir/presentation/pages/profile/profile_presenter.dart',
         ).existsSync(),
-        isFalse,
+        isTrue,
         reason:
-            'pure-Dart target must NOT generate a Flutter presenter '
-            '(Constitution VII: Engine Purity)',
+            'profile_presenter.dart should be generated for a Flutter target',
       );
       expect(
         File(
           '$outputDir/presentation/pages/profile/profile_controller.dart',
         ).existsSync(),
-        isFalse,
+        isTrue,
         reason:
-            'pure-Dart target must NOT generate a Flutter controller '
-            '(Constitution VII: Engine Purity)',
+            'profile_controller.dart should be generated for a Flutter target',
       );
-      // State is pure-Dart-safe (no zuraffa_flutter symbols) and is still
-      // generated for a presentation-only request.
       expect(
         File(
           '$outputDir/presentation/pages/profile/profile_state.dart',
         ).existsSync(),
         isTrue,
+        reason: 'profile_state.dart should be generated',
       );
 
       // Check Domain/Data layer DOES NOT exist
