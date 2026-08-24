@@ -20,6 +20,7 @@ import '../commands/module_command.dart';
 import '../commands/xray_command.dart';
 import '../commands/setup_command.dart';
 import '../commands/app_shell_command.dart';
+import '../commands/package_command.dart';
 import '../core/plugin_system/cli_aware_plugin.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/error/suggestion_engine.dart';
@@ -89,6 +90,7 @@ class CliRunner {
     _runner.addCommand(UpdateCommand());
     _runner.addCommand(SetupCommand());
     _runner.addCommand(AppCommand());
+    _runner.addCommand(PackageCommand());
   }
 
   /// Run CLI with arguments.
