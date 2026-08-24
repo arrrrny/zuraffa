@@ -139,6 +139,7 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
           context.data['use-service'] == true ||
           context.data['useService'] == true,
       enableCache: _resolveEnableCache(context),
+      enableSqlite: _resolveEnableSqlite(context),
       noEntity: context.data['no-entity'] == true,
     );
 
@@ -156,6 +157,20 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       return context.data['enableCache'] == true;
     }
     return context.data['cache'] == true;
+  }
+
+  bool _resolveEnableSqlite(PluginContext context) {
+    final normalizedOptions = context.getShared<Map<String, dynamic>>(
+      'normalizedOptions',
+    );
+    if (normalizedOptions != null &&
+        normalizedOptions.containsKey('sqlite')) {
+      return normalizedOptions['sqlite'] == true;
+    }
+    if (context.data.containsKey('enableSqlite')) {
+      return context.data['enableSqlite'] == true;
+    }
+    return context.data['sqlite'] == true;
   }
 
   @override
@@ -204,6 +219,8 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         } else if (config.enableSync) {
           files.add(await _generateLocalDataSourceDI(config, fs));
           files.add(await _generateRemoteDataSourceDI(config, fs));
+        } else if (config.enableSqlite) {
+          files.add(await _generateSqliteDataSourceDI(config, fs));
         } else if (config.useMockInDi) {
           files.add(await _generateMockDataSourceDI(config, fs));
         } else if (config.generateLocal) {
@@ -415,6 +432,72 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     );
   }
 
+  /// Registers the SQLite-backed data source (#464): opens (or creates)
+  /// the `<entity>.db` file and wires it behind the generated interface.
+  Future<GeneratedFile> _generateSqliteDataSourceDI(
+    GeneratorConfig config,
+    FileSystem fs,
+  ) async {
+    final baseName = config.repo != null
+        ? config.repo!.replaceAll('Repository', '')
+        : config.name;
+    final baseSnake = StringUtils.camelToSnake(baseName);
+    final dataSourceName = '${baseName}SqliteDataSource';
+    final fileName = '${baseSnake}_sqlite_datasource_di.dart';
+    final diPath = path.join(outputDir, 'di', 'datasources', fileName);
+
+    final registrationCall = refer('getIt')
+        .property('registerLazySingleton')
+        .call(
+          [
+            Method(
+              (m) => m
+                ..body = Block(
+                  (b) => b
+                    ..statements.add(
+                      declareFinal('db')
+                          .assign(
+                            refer('sqlite3')
+                                .property('open')
+                                .call([literalString('$baseSnake.db')]),
+                          )
+                          .statement,
+                    )
+                    ..statements.add(
+                      refer(dataSourceName)
+                          .call([refer('db')])
+                          .returned
+                          .statement,
+                    ),
+                ),
+            ).closure,
+          ],
+          {},
+          [refer(dataSourceName)],
+        );
+
+    final content = registrationBuilder.buildRegistrationFile(
+      functionName: 'register$dataSourceName',
+      imports: [
+        'package:zuraffa/zuraffa.dart',
+        'package:sqlite3/sqlite3.dart',
+        '../../data/datasources/$baseSnake/${baseSnake}_sqlite_datasource.dart',
+      ],
+      body: Block((b) => b..statements.add(registrationCall.statement)),
+    );
+
+    return FileUtils.writeFile(
+      diPath,
+      content,
+      'di_datasource',
+      force: true,
+      dryRun: options.dryRun,
+      verbose: options.verbose,
+      revert: config.revert,
+      fileSystem: fs,
+    );
+  }
+
   Future<GeneratedFile> _generateMockDataSourceDI(
     GeneratorConfig config,
     FileSystem fs,
@@ -544,6 +627,10 @@ class DiPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         dataSourceName = '${baseName}MockDataSource';
         dataSourceImport =
             '../../data/datasources/$baseSnake/${baseSnake}_mock_datasource.dart';
+      } else if (config.enableSqlite) {
+        dataSourceName = '${baseName}SqliteDataSource';
+        dataSourceImport =
+            '../../data/datasources/$baseSnake/${baseSnake}_sqlite_datasource.dart';
       } else if (config.generateLocal) {
         dataSourceName = '${baseName}LocalDataSource';
         dataSourceImport =

@@ -177,6 +177,11 @@ class MakeCommand extends Command<void> {
     );
     argParser.addFlag('cache', negatable: false, help: 'Enable caching');
     argParser.addFlag(
+      'sqlite',
+      negatable: false,
+      help: 'Generate a SQLite-backed local data source (package:sqlite3)',
+    );
+    argParser.addFlag(
       'sync',
       negatable: false,
       help: 'Enable offline-first sync',
@@ -243,6 +248,7 @@ class MakeCommand extends Command<void> {
       'data',
       'datasource',
       'cache',
+      'sqlite',
       'sync',
       'bidirectional',
       'sync-batch-size',

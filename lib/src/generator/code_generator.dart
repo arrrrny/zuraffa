@@ -15,6 +15,7 @@ import '../plugins/gym/gym_plugin.dart';
 import '../plugins/mock/mock_plugin.dart';
 import '../plugins/gql/gql_plugin.dart';
 import '../plugins/cache/cache_plugin.dart';
+import '../plugins/sqlite/sqlite_plugin.dart';
 import '../plugins/route/route_plugin.dart';
 import '../plugins/method_append/method_append_plugin.dart';
 import '../plugins/usecase/usecase_plugin.dart';
@@ -99,6 +100,7 @@ class CodeGenerator {
     _registerPlugin(MockPlugin(outputDir: outputDir, options: options));
     _registerPlugin(GqlPlugin(outputDir: outputDir, options: options));
     _registerPlugin(CachePlugin(outputDir: outputDir, options: options));
+    _registerPlugin(SqlitePlugin(outputDir: outputDir, options: options));
     _registerPlugin(RoutePlugin(outputDir: outputDir, options: options));
     _registerPlugin(ShadcnPlugin(outputDir: outputDir, options: options));
     _registerPlugin(StrategyPlugin(outputDir: outputDir, options: options));
