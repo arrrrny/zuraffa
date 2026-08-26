@@ -27,6 +27,11 @@ class JsonMockCapability implements ZuraffaCapability {
         'type': 'string',
         'description': 'Domain folder for grouping JSON files',
       },
+      'outputDir': {
+        'type': 'string',
+        'description': 'Output directory for generated files',
+        'default': 'lib/src',
+      },
       'force': {
         'type': 'boolean',
         'description': 'Force overwrite existing JSON files',
@@ -88,7 +93,7 @@ class JsonMockCapability implements ZuraffaCapability {
     required bool dryRun,
   }) async {
     final name = args['name'];
-    final outputDir = plugin.outputDir;
+    final outputDir = args['outputDir'] ?? plugin.outputDir;
     final domain = args['domain'];
     final force = args['force'] ?? false;
     final verbose = args['verbose'] ?? false;

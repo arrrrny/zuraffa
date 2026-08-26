@@ -191,7 +191,9 @@ class EntityUseCaseGenerator {
         break;
       case 'update':
         className = 'Update${entityName}UseCase';
-        final dataType = '${entityName}Patch';
+        final dataType = config.useZorphy
+            ? '${entityName}Patch'
+            : 'Partial<$entityName>';
         baseClass = TypeReference(
           (t) => t
             ..symbol = 'UseCase'

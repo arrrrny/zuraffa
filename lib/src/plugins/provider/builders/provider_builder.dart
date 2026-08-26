@@ -364,7 +364,9 @@ class ProviderBuilder {
         break;
       case 'update':
         returnType = refer('Future<$entityName>');
-        final providerDataType = '${entityName}Patch';
+        final providerDataType = config.useZorphy
+            ? '${entityName}Patch'
+            : 'Partial<$entityName>';
         parameters.add(
           Parameter(
             (p) => p

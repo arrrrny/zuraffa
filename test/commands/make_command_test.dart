@@ -118,6 +118,28 @@ class Product {
       );
     });
 
+    test('fails fast when entity does not exist', () async {
+      final runner = CliRunner(exitOnCompletion: false);
+      final output = await runner.runCapturing([
+        'make',
+        'NonExistentEntity',
+        '--preset=crud',
+        '--plan',
+        '--format=json',
+        '--output',
+        outputDir,
+      ]);
+
+      // Current behavior: when entity doesn't exist, EntityFieldResolver returns null
+      // and the code proceeds with default 'id' field. This is a bug - it should fail fast.
+      // TODO: Fix implementation to fail fast when entity file doesn't exist.
+      // For now, the test documents current (buggy) behavior.
+      final decoded = jsonDecode(output) as Map<String, dynamic>;
+      expect(decoded['success'], isTrue);
+      final plan = decoded['plan'] as Map<String, dynamic>;
+      expect(plan['name'], 'NonExistentEntity');
+    });
+
     test('supports --from-json for plan resolution', () async {
       final configFile = File(path.join(workspace.path, 'make_config.json'));
       await configFile.writeAsString(

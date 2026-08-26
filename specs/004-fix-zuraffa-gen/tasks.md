@@ -7,10 +7,11 @@
 
 **Organization**: Tasks grouped by user story to enable independent implementation and testing.
 
-## Format: `[ID] [P?] [Story] Description`
+## Format: `[ID] [P?] [Story] [Behavior] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)
 - **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3, US4)
+- **[Behavior]**: Behavior ID from tdd/test-list.md (e.g., [A1], [U3])
 - Exact file paths included in descriptions
 
 ## Phase 1: Setup (Shared Infrastructure)
@@ -18,8 +19,8 @@
 **Purpose**: Establish test infrastructure and understand existing test patterns
 
 - [x] T001 Read existing test files to understand test patterns: `test/plugins/provider/provider_plugin_test.dart`, `test/plugins/usecase/`, `test/plugins/repository/`
-- [x] T002 [P] Create test helper for asserting generated imports are relative (no `package:` for project-local files) in `test/helpers/import_assertion_helper.dart`
-- [x] T003 [P] Create test helper for asserting `UpdateParams` generic type consistency across layers in `test/helpers/generic_type_assertion_helper.dart`
+- [x] T002 [P] [U2] Create test helper for asserting generated imports are relative (no `package:` for project-local files) in `test/helpers/import_assertion_helper.dart`
+- [x] T003 [P] [U3, U4, U5, U6, U7, U8, U9, U10, U11] Create test helper for asserting `UpdateParams` generic type consistency across layers in `test/helpers/generic_type_assertion_helper.dart`
 
 ---
 
@@ -29,11 +30,11 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [x] T004 Refactor `CommonPatterns.entityImports()` in `lib/src/core/builder/patterns/common_patterns.dart` to accept an output file path parameter and compute relative paths using `path.relative()` instead of `PackageUtils.getBaseImport()`
-- [x] T005 Update all callers of `CommonPatterns.entityImports()` to pass the new output file path parameter: `entity_usecase_generator.dart`, `stream_usecase_generator.dart`, `presenter_plugin.dart`, `state_builder.dart`, `controller_plugin_utils.dart`, `interface_generator.dart`, `implementation_generator_append.dart`
-- [x] T006 Remove or deprecate `PackageUtils.getBaseImport()` in `lib/src/utils/package_utils.dart` and update remaining callers in `lib/src/plugins/repository/generators/interface_generator.dart` and `lib/src/plugins/repository/generators/implementation_generator_append.dart`
-- [x] T007 Update existing test in `test/plugins/provider/provider_plugin_test.dart:57` to expect relative imports instead of `package:app/` imports
-- [x] T008 Run full test suite with `dart test` and verify all existing tests pass after foundational changes
+- [x] T004 [U2] Refactor `CommonPatterns.entityImports()` in `lib/src/core/builder/patterns/common_patterns.dart` to accept an output file path parameter and compute relative paths using `path.relative()` instead of `PackageUtils.getBaseImport()`
+- [x] T005 [U2] Update all callers of `CommonPatterns.entityImports()` to pass the new output file path parameter: `entity_usecase_generator.dart`, `stream_usecase_generator.dart`, `presenter_plugin.dart`, `state_builder.dart`, `controller_plugin_utils.dart`, `interface_generator.dart`, `implementation_generator_append.dart`
+- [x] T006 [U2] Remove or deprecate `PackageUtils.getBaseImport()` in `lib/src/utils/package_utils.dart` and update remaining callers in `lib/src/plugins/repository/generators/interface_generator.dart` and `lib/src/plugins/repository/generators/implementation_generator_append.dart`
+- [x] T007 [U2] Update existing test in `test/plugins/provider/provider_plugin_test.dart:57` to expect relative imports instead of `package:app/` imports
+- [x] T008 [U2] Run full test suite with `dart test` and verify all existing tests pass after foundational changes
 
 **Checkpoint**: Foundation ready — `CommonPatterns.entityImports()` now produces relative paths, all callers updated, all tests pass
 
@@ -49,23 +50,23 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [x] T009 [P] [US1] Test that entity use case generator produces relative entity imports in `test/plugins/usecase/entity_usecase_generator_test.dart`
-- [x] T010 [P] [US1] Test that stream use case generator produces relative entity imports in `test/plugins/usecase/stream_usecase_generator_test.dart`
-- [x] T011 [P] [US1] Test that repository interface generator produces relative entity imports in `test/plugins/repository/interface_generator_test.dart`
-- [x] T012 [P] [US1] Test that presenter plugin produces relative entity imports for custom use cases in `test/plugins/presenter/presenter_plugin_test.dart`
-- [x] T013 [P] [US1] Test that state builder produces relative entity imports for custom use cases in `test/plugins/state/state_builder_test.dart`
-- [x] T014 [P] [US1] Test that controller plugin produces relative entity imports in `test/plugins/controller/controller_plugin_test.dart`
+- [x] T009 [P] [US1] [A1] Test that entity use case generator produces relative entity imports in `test/plugins/usecase/entity_usecase_generator_test.dart`
+- [x] T010 [P] [US1] [A1] Test that stream use case generator produces relative entity imports in `test/plugins/usecase/stream_usecase_generator_test.dart`
+- [x] T011 [P] [US1] [A1] Test that repository interface generator produces relative entity imports in `test/plugins/repository/interface_generator_test.dart`
+- [x] T012 [P] [US1] [A1, A3] Test that presenter plugin produces relative entity imports for custom use cases in `test/plugins/presenter/presenter_plugin_test.dart`
+- [x] T013 [P] [US1] [A1] Test that state builder produces relative entity imports for custom use cases in `test/plugins/state/state_builder_test.dart`
+- [x] T014 [P] [US1] [A1] Test that controller plugin produces relative entity imports in `test/plugins/controller/controller_plugin_test.dart`
 
 ### Implementation for User Story 1
 
-- [x] T015 [P] [US1] Verify and fix entity use case generator imports in `lib/src/plugins/usecase/generators/entity_usecase_generator.dart` — entity imports should be relative after T004
-- [x] T016 [P] [US1] Verify and fix stream use case generator imports in `lib/src/plugins/usecase/generators/stream_usecase_generator.dart` — entity imports should be relative after T004
-- [x] T017 [P] [US1] Verify and fix repository interface generator imports in `lib/src/plugins/repository/generators/interface_generator.dart` — both entity imports (line 212, 232) and enum imports
-- [x] T018 [P] [US1] Verify and fix implementation generator append imports in `lib/src/plugins/repository/generators/implementation_generator_append.dart` — entity and repository imports (lines 40, 49, 59)
-- [x] T019 [P] [US1] Verify presenter plugin imports in `lib/src/plugins/presenter/presenter_plugin.dart` — custom use case entity imports use `CommonPatterns.entityImports()` (should be fixed by T004)
-- [x] T020 [P] [US1] Verify state builder imports in `lib/src/plugins/state/builders/state_builder.dart` — custom use case entity imports
-- [x] T021 [P] [US1] Verify controller plugin imports in `lib/src/plugins/controller/controller_plugin_utils.dart` — entity imports use `CommonPatterns.entityImports()`
-- [x] T022 [US1] Run `dart test` and verify all US1 tests pass — zero `package:app/` in any generated output
+- [x] T015 [P] [US1] [U3] Verify and fix entity use case generator imports in `lib/src/plugins/usecase/generators/entity_usecase_generator.dart` — entity imports should be relative after T004
+- [x] T016 [P] [US1] [U3] Verify and fix stream use case generator imports in `lib/src/plugins/usecase/generators/stream_usecase_generator.dart` — entity imports should be relative after T004
+- [x] T017 [P] [US1] [U5] Verify and fix repository interface generator imports in `lib/src/plugins/repository/generators/interface_generator.dart` — both entity imports (line 212, 232) and enum imports
+- [x] T018 [P] [US1] [U6] Verify and fix implementation generator append imports in `lib/src/plugins/repository/generators/implementation_generator_append.dart` — entity and repository imports (lines 40, 49, 59)
+- [x] T019 [P] [US1] [U8] Verify presenter plugin imports in `lib/src/plugins/presenter/presenter_plugin.dart` — custom use case entity imports use `CommonPatterns.entityImports()` (should be fixed by T004)
+- [x] T020 [P] [US1] [U8] Verify state builder imports in `lib/src/plugins/state/builders/state_builder.dart` — custom use case entity imports
+- [x] T021 [P] [US1] [U8] Verify controller plugin imports in `lib/src/plugins/controller/controller_plugin_utils.dart` — entity imports use `CommonPatterns.entityImports()`
+- [x] T022 [US1] [A1] Run `dart test` and verify all US1 tests pass — zero `package:app/` in any generated output
 
 **Checkpoint**: All generated files now use relative imports for project-local references. `package:zuraffa/zuraffa.dart` is the only package-style import remaining.
 
@@ -81,21 +82,21 @@
 
 ### Tests for User Story 3
 
-- [x] T023 [P] [US3] Test that repository interface generator respects `useZorphy` flag for update method in `test/plugins/repository/interface_generator_test.dart`
-- [x] T024 [P] [US3] Test that presenter plugin respects `useZorphy` flag for update method in `test/plugins/presenter/presenter_plugin_test.dart`
-- [x] T025 [P] [US3] Test that service interface builder respects `useZorphy` flag for update method in `test/plugins/service/service_interface_builder_test.dart`
-- [x] T026 [P] [US3] Test that provider builder respects `useZorphy` flag for update method in `test/plugins/provider/provider_builder_test.dart`
-- [x] T027 [P] [US3] Test that mock provider builder respects `useZorphy` flag for update method in `test/plugins/mock/mock_provider_builder_test.dart`
+- [x] T023 [P] [US3] [U5] Test that repository interface generator respects `useZorphy` flag for update method in `test/plugins/repository/interface_generator_test.dart`
+- [x] T024 [P] [US3] [U8] Test that presenter plugin respects `useZorphy` flag for update method in `test/plugins/presenter/presenter_plugin_test.dart`
+- [x] T025 [P] [US3] [U9] Test that service interface builder respects `useZorphy` flag for update method in `test/plugins/service/service_interface_builder_test.dart`
+- [x] T026 [P] [US3] [U10] Test that provider builder respects `useZorphy` flag for update method in `test/plugins/provider/provider_builder_test.dart`
+- [x] T027 [P] [US3] [U11] Test that mock provider builder respects `useZorphy` flag for update method in `test/plugins/mock/mock_provider_builder_test.dart`
 
 ### Implementation for User Story 3
 
-- [x] T028 [P] [US3] Add `useZorphy` conditional to repository interface generator in `lib/src/plugins/repository/generators/interface_generator.dart:342` — change `final dataType = '${config.name}Patch';` to `final dataType = config.useZorphy ? '${config.name}Patch' : 'Partial<${config.name}>';`
-- [x] T029 [P] [US3] Add `useZorphy` conditional to presenter plugin in `lib/src/plugins/presenter/presenter_plugin.dart:610` — change `final dataType = '${entityName}Patch';` to `final dataType = config.useZorphy ? '${entityName}Patch' : 'Partial<$entityName>';`
-- [x] T030 [P] [US3] Add `useZorphy` conditional to service interface builder in `lib/src/plugins/service/builders/service_interface_builder.dart:165`
-- [x] T031 [P] [US3] Add `useZorphy` conditional to provider builder in `lib/src/plugins/provider/builders/provider_builder.dart` at lines 376 and 491
-- [x] T032 [P] [US3] Add `useZorphy` conditional to mock provider builder in `lib/src/plugins/mock/builders/mock_provider_builder.dart:740`
-- [x] T033 [US3] Verify consistency of already-correct generators: `entity_usecase_generator.dart:195`, `implementation_generator_simple.dart:83`, `remote_generator.dart:250`, `local_generator_impl.dart:166`, `datasource/interface_generator.dart:182`, `test_builder_helpers.dart:93`
-- [x] T034 [US3] Run `dart test` and verify all US3 tests pass — `UpdateParams` types are consistent across all layers for both `useZorphy=true` and `useZorphy=false`
+- [x] T028 [P] [US3] [U5] Add `useZorphy` conditional to repository interface generator in `lib/src/plugins/repository/generators/interface_generator.dart:342` — change `final dataType = '${config.name}Patch';` to `final dataType = config.useZorphy ? '${config.name}Patch' : 'Partial<${config.name}>';`
+- [x] T029 [P] [US3] [U8] Add `useZorphy` conditional to presenter plugin in `lib/src/plugins/presenter/presenter_plugin.dart:610` — change `final dataType = '${entityName}Patch';` to `final dataType = config.useZorphy ? '${entityName}Patch' : 'Partial<$entityName>';`
+- [x] T030 [P] [US3] [U9] Add `useZorphy` conditional to service interface builder in `lib/src/plugins/service/builders/service_interface_builder.dart:165`
+- [x] T031 [P] [US3] [U10] Add `useZorphy` conditional to provider builder in `lib/src/plugins/provider/builders/provider_builder.dart` at lines 376 and 491
+- [x] T032 [P] [US3] [U11] Add `useZorphy` conditional to mock provider builder in `lib/src/plugins/mock/builders/mock_provider_builder.dart:740`
+- [x] T033 [US3] [U3, U4, U7] Verify consistency of already-correct generators: `entity_usecase_generator.dart:195`, `implementation_generator_simple.dart:83`, `remote_generator.dart:250`, `local_generator_impl.dart:166`, `datasource/interface_generator.dart:182`, `test_builder_helpers.dart:93`
+- [x] T034 [US3] [A7, A8, A9] Run `dart test` and verify all US3 tests pass — `UpdateParams` types are consistent across all layers for both `useZorphy=true` and `useZorphy=false`
 
 **Checkpoint**: `UpdateParams<IdType, DataType>` is now consistently conditioned on `useZorphy` across all 11 generators
 
@@ -109,18 +110,18 @@
 
 ### Tests for User Story 2
 
-- [x] T035 [P] [US2] Test method name consistency for simple entity (`Product`) across use case, repository interface, and DI in `test/plugins/usecase/entity_usecase_generator_test.dart`
-- [x] T036 [P] [US2] Test method name consistency for compound entity (`ChatSession`) across all layers in `test/plugins/usecase/entity_usecase_generator_test.dart`
-- [x] T037 [P] [US2] Test method name consistency for edge-case entity names (`User2FA`, `A`) in `test/plugins/usecase/entity_usecase_generator_test.dart`
-- [x] T038 [P] [US2] Test custom use case method name via `--method` flag in `test/plugins/usecase/custom_usecase_generator_test.dart`
+- [x] T035 [P] [US2] [A4] Test method name consistency for simple entity (`Product`) across use case, repository interface, and DI in `test/plugins/usecase/entity_usecase_generator_test.dart`
+- [x] T036 [P] [US2] [A4] Test method name consistency for compound entity (`ChatSession`) across all layers in `test/plugins/usecase/entity_usecase_generator_test.dart`
+- [x] T037 [P] [US2] [A4] Test method name consistency for edge-case entity names (`User2FA`, `A`) in `test/plugins/usecase/entity_usecase_generator_test.dart`
+- [x] T038 [P] [US2] [A5, A6] Test custom use case method name via `--method` flag in `test/plugins/usecase/custom_usecase_generator_test.dart`
 
 ### Implementation for User Story 2
 
-- [x] T039 [US2] Audit method name generation in `lib/src/plugins/usecase/generators/entity_usecase_generator.dart:109-348` — verify switch block maps correctly for all methods
-- [x] T040 [US2] Audit method name generation in `lib/src/plugins/di/di_plugin.dart:1062-1098` — verify `_getUseCaseInfo()` mirrors use case generator naming
-- [x] T041 [US2] Audit custom use case method name derivation in `lib/src/models/generator_config.dart:358-374` — verify `getRepoMethodName()` and `getServiceMethodName()`
+- [x] T039 [US2] [A4] Audit method name generation in `lib/src/plugins/usecase/generators/entity_usecase_generator.dart:109-348` — verify switch block maps correctly for all methods
+- [x] T040 [US2] [A6] Audit method name generation in `lib/src/plugins/di/di_plugin.dart:1062-1098` — verify `_getUseCaseInfo()` mirrors use case generator naming
+- [x] T041 [US2] [A5] Audit custom use case method name derivation in `lib/src/models/generator_config.dart:358-374` — verify `getRepoMethodName()` and `getServiceMethodName()`
 - [x] T042 [US2] Fix any inconsistencies found during audit (specific files TBD based on findings)
-- [x] T043 [US2] Run `dart test` and verify all US2 tests pass
+- [x] T043 [US2] [A4, A5, A6] Run `dart test` and verify all US2 tests pass
 
 **Checkpoint**: Method names are consistent across use case, repository, and DI layers for all entity name patterns
 
@@ -134,18 +135,18 @@
 
 ### Tests for User Story 4
 
-- [x] T044 [P] [US4] Regression test: DI datasource imports use relative paths in `test/plugins/di/di_plugin_test.dart`
-- [x] T045 [P] [US4] Regression test: DI repository imports use relative paths in `test/plugins/di/di_plugin_test.dart`
-- [x] T046 [P] [US4] Regression test: DI use case imports use relative paths in `test/plugins/di/di_plugin_test.dart`
-- [x] T047 [P] [US4] Regression test: DI cache imports use relative paths in `test/plugins/di/di_plugin_test.dart`
+- [x] T044 [P] [US4] [A10] Regression test: DI datasource imports use relative paths in `test/plugins/di/di_plugin_test.dart`
+- [x] T045 [P] [US4] [A10] Regression test: DI repository imports use relative paths in `test/plugins/di/di_plugin_test.dart`
+- [x] T046 [P] [US4] [A10, A12] Regression test: DI use case imports use relative paths in `test/plugins/di/di_plugin_test.dart`
+- [x] T047 [P] [US4] [A11] Regression test: DI cache imports use relative paths in `test/plugins/di/di_plugin_test.dart`
 
 ### Implementation for User Story 4
 
-- [x] T048 [US4] Verify DI datasource import paths in `lib/src/plugins/di/di_plugin.dart:264-310` — confirm `../../data/datasources/...` paths are correct
-- [x] T049 [US4] Verify DI repository import paths in `lib/src/plugins/di/di_plugin.dart:440-530` — confirm `../../domain/repositories/...` paths are correct
-- [x] T050 [US4] Verify DI use case import paths in `lib/src/plugins/di/di_plugin.dart:900-1030` — confirm `../../domain/usecases/...` paths are correct
-- [x] T051 [US4] Verify DI cache import paths in `lib/src/plugins/di/di_plugin.dart` — confirm `../../cache/...` paths are correct for all cache policy types
-- [x] T052 [US4] Run `dart test` and verify all US4 tests pass
+- [x] T048 [US4] [U12] Verify DI datasource import paths in `lib/src/plugins/di/di_plugin.dart:264-310` — confirm `../../data/datasources/...` paths are correct
+- [x] T049 [US4] [U12] Verify DI repository import paths in `lib/src/plugins/di/di_plugin.dart:440-530` — confirm `../../domain/repositories/...` paths are correct
+- [x] T050 [US4] [U13] Verify DI use case import paths in `lib/src/plugins/di/di_plugin.dart:900-1030` — confirm `../../domain/usecases/...` paths are correct
+- [x] T051 [US4] [U12] Verify DI cache import paths in `lib/src/plugins/di/di_plugin.dart` — confirm `../../cache/...` paths are correct for all cache policy types
+- [x] T052 [US4] [A10, A11, A12] Run `dart test` and verify all US4 tests pass
 
 **Checkpoint**: DI import paths are verified correct and protected by regression tests
 
@@ -155,9 +156,9 @@
 
 **Purpose**: End-to-end validation and cleanup
 
-- [x] T053 Run full end-to-end generation test: generate `ChatSession` with `--methods=get,getList,create,update,delete --data --with=vpc --state --state --di` and verify zero `package:app/` or `package:zik_zak/` in output
-- [x] T054 Run full end-to-end generation test with `--zorphy` disabled: verify `UpdateParams<..., Partial<...>>` is consistent across all layers
-- [x] T055 Run full end-to-end generation test with `int` ID type: verify `UpdateParams<int, ...>` is consistent across all layers
+- [x] T053 [A1, A7, A10] Run full end-to-end generation test: generate `ChatSession` with `--methods=get,getList,create,update,delete --data --with=vpc --state --state --di` and verify zero `package:app/` or `package:zik_zak/` in output
+- [x] T054 [A8] Run full end-to-end generation test with `--zorphy` disabled: verify `UpdateParams<..., Partial<...>>` is consistent across all layers
+- [x] T055 [A9] Run full end-to-end generation test with `int` ID type: verify `UpdateParams<int, ...>` is consistent across all layers
 - [x] T056 Run `dart test` full suite and verify all tests pass
 - [x] T057 Run `dart analyze` and verify zero warnings
 - [x] T058 Clean up: remove or deprecate `PackageUtils.getBaseImport()` if no longer called anywhere in `lib/src/utils/package_utils.dart`

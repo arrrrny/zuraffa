@@ -618,7 +618,9 @@ class PresenterPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
     ParsedUseCaseInfo info,
     String entityName,
   ) {
-    final dataType = '${entityName}Patch';
+    final dataType = config.useZorphy
+        ? '${entityName}Patch'
+        : 'Partial<$entityName>';
     final updateParams = refer(
       'UpdateParams<${config.idFieldType}, $dataType>',
     ).call([], {'id': refer(config.idField), 'data': refer('data')});

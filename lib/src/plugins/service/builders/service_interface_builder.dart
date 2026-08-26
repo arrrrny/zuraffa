@@ -157,7 +157,9 @@ class ServiceInterfaceBuilder {
         break;
       case 'update':
         returnType = 'Future<$entityName>';
-        final updateDataType = '${entityName}Patch';
+        final updateDataType = config.useZorphy
+            ? '${entityName}Patch'
+            : 'Partial<$entityName>';
         parameters.add(
           Parameter(
             (p) => p

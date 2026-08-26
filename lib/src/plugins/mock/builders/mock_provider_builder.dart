@@ -732,7 +732,9 @@ class MockProviderBuilder {
       case 'update':
         name = 'update';
         returnType = refer('Future<$entityName>');
-        final mockDataType = '${entityName}Patch';
+        final mockDataType = config.useZorphy
+            ? '${entityName}Patch'
+            : 'Partial<$entityName>';
         parameters.add(
           Parameter(
             (p) => p
