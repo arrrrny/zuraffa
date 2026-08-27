@@ -192,7 +192,10 @@ class RepositoryInterfaceGenerator {
               method == 'delete' ||
               method == 'watchList',
         ) ||
-        config.generateInit;
+        config.generateInit ||
+        // FR-007: sync-enabled interfaces declare `syncPending`/`pullRemote`,
+        // which reference `CancelToken` from zuraffa.
+        config.enableSync;
 
     final imports = <String>[];
     if (needsZuraffaImport) {
@@ -422,6 +425,16 @@ class RepositoryInterfaceGenerator {
           break;
       }
     }
+
+    // FR-007: a sync-enabled repository must expose sync operations so the
+    // generated `Sync<Entity>UseCase` can manually trigger a sync. The
+    // signature mirrors the concrete synced repository (`{CancelToken?
+    // cancelToken}`), so the implementing class satisfies the contract.
+    if (config.enableSync) {
+      methods.add(_buildSyncMethod('syncPending'));
+      methods.add(_buildSyncMethod('pullRemote'));
+    }
+
     return methods;
   }
 
@@ -440,6 +453,29 @@ class RepositoryInterfaceGenerator {
             (p) => p
               ..name = paramsName
               ..type = refer(paramsType),
+          ),
+        ),
+    );
+  }
+
+  /// Builds a sync-operation declaration (`syncPending` / `pullRemote`) for the
+  /// sync-enabled repository interface. The signature matches the concrete
+  /// synced repository: `Future<void> name({CancelToken? cancelToken});`.
+  Method _buildSyncMethod(String name) {
+    return Method(
+      (b) => b
+        ..name = name
+        ..returns = refer('Future<void>')
+        ..optionalParameters.add(
+          Parameter(
+            (p) => p
+              ..name = 'cancelToken'
+              ..type = TypeReference(
+                (t) => t
+                  ..symbol = 'CancelToken'
+                  ..isNullable = true,
+              )
+              ..named = true,
           ),
         ),
     );
