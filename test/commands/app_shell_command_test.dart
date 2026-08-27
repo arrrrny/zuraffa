@@ -2,12 +2,15 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
-import 'package:zuraffa/src/cli/cli_runner.dart';
 import 'package:zuraffa/src/commands/app_shell_command.dart';
 
-import '../helpers/project_root.dart';
+import '../helpers/run_zfa_source.dart';
 
 void main() {
+  setUpAll(() async {
+    await initZfaSourceBin();
+  });
+
   group('AppShellCommand', () {
     test('has name "shell"', () {
       expect(AppShellCommand().name, 'shell');
@@ -67,19 +70,27 @@ void main() {
     });
   });
 
-  group('CLI registration', () {
+  group(
+    'CLI registration',
+    timeout: const Timeout(Duration(minutes: 2)),
+    () {
     test('CliRunner exposes the `app` command in the top-level help', () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      final help = await runner.runCapturing(['--help']);
+      final result = await runZfaSource(
+        ['--help'],
+        workingDirectory: zfaProjectRoot,
+      );
       // The args CommandRunner auto-generates the command list from the
       // registered subcommands. We expect `app` to appear (the
       // subcommand `shell` is listed under `zfa app --help`).
-      expect(help, contains(' app '));
+      expect(combinedOutput(result), contains(' app '));
     });
 
     test('CliRunner dispatches `zfa app shell --help`', () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      final help = await runner.runCapturing(['app', 'shell', '--help']);
+      final result = await runZfaSource(
+        ['app', 'shell', '--help'],
+        workingDirectory: zfaProjectRoot,
+      );
+      final help = combinedOutput(result);
       // The args package prints the command description in the help
       // header. Either the description or the usage line is sufficient
       // proof the command is registered.
@@ -91,13 +102,18 @@ void main() {
     });
 
     test('CliRunner lists `shell` under `zfa app --help`', () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      final help = await runner.runCapturing(['app', '--help']);
-      expect(help, contains('shell'));
+      final result = await runZfaSource(
+        ['app', '--help'],
+        workingDirectory: zfaProjectRoot,
+      );
+      expect(combinedOutput(result), contains('shell'));
     });
   });
 
-  group('end-to-end generation', () {
+  group(
+    'end-to-end generation',
+    timeout: const Timeout(Duration(minutes: 2)),
+    () {
     late Directory workspace;
 
     setUp(() async {
@@ -138,13 +154,10 @@ List<GoRoute> getAllRoutes() => [];
     });
 
     test('writes all three glue files when run from a project root', () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      await runner.runCapturing([
-        'app',
-        'shell',
-        '--root',
-        workspace.path,
-      ]);
+      await runZfaSource(
+        ['app', 'shell', '--root', workspace.path],
+        workingDirectory: zfaProjectRoot,
+      );
 
       final mainFile = File(p.join(workspace.path, 'lib', 'main.dart'));
       final myAppFile = File(
@@ -212,15 +225,14 @@ import 'package:go_router/go_router.dart';
 List<GoRoute> getAllRoutes() => [];
 ''');
 
-        final runner = CliRunner(exitOnCompletion: false);
-        await runner.runCapturing([
+        await runZfaSource([
           'app',
           'shell',
           '--root',
           workspace.path,
           '--output',
           'lib/custom',
-        ]);
+        ], workingDirectory: zfaProjectRoot);
 
         // Glue files land under lib/custom, not lib/src.
         expect(
@@ -269,16 +281,16 @@ List<GoRoute> getAllRoutes() => [];
     );
 
     test('rejects --output outside lib/ with an actionable error', () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing([
+      final result = await runZfaSource([
         'app',
         'shell',
         '--root',
         workspace.path,
         '--output',
         'src',
-      ]);
+      ], workingDirectory: zfaProjectRoot);
 
+      final output = combinedOutput(result);
       expect(output, contains('must live under lib/'));
       // Nothing should have been written.
       expect(
@@ -300,15 +312,14 @@ List<GoRoute> getAllRoutes() => [];
     });
 
     test('respects the --title flag', () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      await runner.runCapturing([
+      await runZfaSource([
         'app',
         'shell',
         '--root',
         workspace.path,
         '--title',
         'Hello World',
-      ]);
+      ], workingDirectory: zfaProjectRoot);
 
       final myAppFile = File(
         p.join(workspace.path, 'lib', 'src', 'app', 'my_app.dart'),
@@ -318,14 +329,13 @@ List<GoRoute> getAllRoutes() => [];
     });
 
     test('adds the mock hint when --mock is passed', () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      await runner.runCapturing([
+      await runZfaSource([
         'app',
         'shell',
         '--root',
         workspace.path,
         '--mock',
-      ]);
+      ], workingDirectory: zfaProjectRoot);
 
       final mainFile = File(p.join(workspace.path, 'lib', 'main.dart'));
       expect(mainFile.existsSync(), isTrue);
@@ -334,13 +344,12 @@ List<GoRoute> getAllRoutes() => [];
     });
 
     test('does NOT add the mock hint by default', () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      await runner.runCapturing([
+      await runZfaSource([
         'app',
         'shell',
         '--root',
         workspace.path,
-      ]);
+      ], workingDirectory: zfaProjectRoot);
 
       final mainFile = File(p.join(workspace.path, 'lib', 'main.dart'));
       expect(mainFile.existsSync(), isTrue);
@@ -353,13 +362,12 @@ List<GoRoute> getAllRoutes() => [];
       await mainFile.parent.create(recursive: true);
       await mainFile.writeAsString('void main() {} // user-written\n');
 
-      final runner = CliRunner(exitOnCompletion: false);
-      await runner.runCapturing([
+      await runZfaSource([
         'app',
         'shell',
         '--root',
         workspace.path,
-      ]);
+      ], workingDirectory: zfaProjectRoot);
 
       // The user-written file should be preserved (not overwritten).
       expect(mainFile.readAsStringSync(), contains('user-written'));
@@ -385,14 +393,13 @@ List<GoRoute> getAllRoutes() => [];
         await mainFile.parent.create(recursive: true);
         await mainFile.writeAsString('void main() {} // user-written\n');
 
-        final runner = CliRunner(exitOnCompletion: false);
-        await runner.runCapturing([
+        await runZfaSource([
           'app',
           'shell',
           '--root',
           workspace.path,
           '--force',
-        ]);
+        ], workingDirectory: zfaProjectRoot);
 
         final src = mainFile.readAsStringSync();
         expect(src.contains('user-written'), isFalse);
@@ -401,14 +408,15 @@ List<GoRoute> getAllRoutes() => [];
     );
 
     test('--dry-run writes nothing', () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      await runner.runCapturing([
+      final result = await runZfaSource([
         'app',
         'shell',
         '--root',
         workspace.path,
         '--dry-run',
-      ]);
+      ], workingDirectory: zfaProjectRoot);
+
+      expect(result.exitCode, 0, reason: 'dry-run must exit successfully');
 
       expect(
         File(p.join(workspace.path, 'lib', 'main.dart')).existsSync(),
@@ -436,14 +444,14 @@ List<GoRoute> getAllRoutes() => [];
           p.join(workspace.path, 'lib', 'src', 'di', 'index.dart'),
         ).delete();
 
-        final runner = CliRunner(exitOnCompletion: false);
-        final output = await runner.runCapturing([
+        final result = await runZfaSource([
           'app',
           'shell',
           '--root',
           workspace.path,
-        ]);
+        ], workingDirectory: zfaProjectRoot);
 
+        final output = combinedOutput(result);
         expect(output, contains('setupDependencies'));
         expect(output, contains('zfa di'));
         // main.dart should NOT have been written.
@@ -469,14 +477,14 @@ List<GoRoute> getAllRoutes() => [];
 void unrelated() {}
 ''');
 
-        final runner = CliRunner(exitOnCompletion: false);
-        final output = await runner.runCapturing([
+        final result = await runZfaSource([
           'app',
           'shell',
           '--root',
           workspace.path,
-        ]);
+        ], workingDirectory: zfaProjectRoot);
 
+        final output = combinedOutput(result);
         expect(output, contains('does not declare setupDependencies'));
         expect(
           File(p.join(workspace.path, 'lib', 'main.dart')).existsSync(),
@@ -499,14 +507,13 @@ void unrelated() {}
 void setupDependencies() {}
 ''');
 
-        final runner = CliRunner(exitOnCompletion: false);
-        await runner.runCapturing([
+        await runZfaSource([
           'app',
           'shell',
           '--root',
           workspace.path,
           '--force',
-        ]);
+        ], workingDirectory: zfaProjectRoot);
 
         final src = File(
           p.join(workspace.path, 'lib', 'main.dart'),
@@ -530,14 +537,13 @@ void setupDependencies() {}
       () async {
         // The setUp scaffold already writes the canonical GetIt signature,
         // so just run the shell and assert the generated main.dart.
-        final runner = CliRunner(exitOnCompletion: false);
-        await runner.runCapturing([
+        await runZfaSource([
           'app',
           'shell',
           '--root',
           workspace.path,
           '--force',
-        ]);
+        ], workingDirectory: zfaProjectRoot);
 
         final src = File(
           p.join(workspace.path, 'lib', 'main.dart'),
@@ -563,14 +569,13 @@ import 'package:get_it/get_it.dart';
 Future<void> setupDependencies(GetIt getIt) async {}
 ''');
 
-        final runner = CliRunner(exitOnCompletion: false);
-        await runner.runCapturing([
+        await runZfaSource([
           'app',
           'shell',
           '--root',
           workspace.path,
           '--force',
-        ]);
+        ], workingDirectory: zfaProjectRoot);
 
         final src = File(
           p.join(workspace.path, 'lib', 'main.dart'),
@@ -589,14 +594,14 @@ Future<void> setupDependencies(GetIt getIt) async {}
           p.join(workspace.path, 'lib', 'src', 'routing', 'index.dart'),
         ).delete();
 
-        final runner = CliRunner(exitOnCompletion: false);
-        final output = await runner.runCapturing([
+        final result = await runZfaSource([
           'app',
           'shell',
           '--root',
           workspace.path,
-        ]);
+        ], workingDirectory: zfaProjectRoot);
 
+        final output = combinedOutput(result);
         expect(output, contains('getAllRoutes'));
         expect(output, contains('zfa route'));
         expect(
@@ -614,14 +619,14 @@ Future<void> setupDependencies(GetIt getIt) async {}
           'zfa_app_shell_empty_',
         );
         try {
-          final runner = CliRunner(exitOnCompletion: false);
-          final output = await runner.runCapturing([
+          final result = await runZfaSource([
             'app',
             'shell',
             '--root',
             empty.path,
-          ]);
+          ], workingDirectory: empty.path);
 
+          final output = combinedOutput(result);
           expect(output, contains('pubspec.yaml'));
           expect(
             File(p.join(empty.path, 'lib', 'main.dart')).existsSync(),

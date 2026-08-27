@@ -1,9 +1,10 @@
 import 'dart:io';
 
-import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:zuraffa/src/commands/initialize_command.dart';
+
+import '../helpers/run_zfa_source.dart';
 
 /// The non-dry-run in-place bootstrap test invokes `dart pub add` for the
 /// zuraffa git dependencies, which clones https://github.com/arrrrny/zuraffa
@@ -13,7 +14,14 @@ import 'package:zuraffa/src/commands/initialize_command.dart';
 const _networkTimeout = Timeout(Duration(minutes: 3));
 
 void main() {
-  group('InitializeCommand --dart in-place bootstrap (issue #393)', () {
+  setUpAll(() async {
+    await initZfaSourceBin();
+  });
+
+  group(
+    'InitializeCommand --dart in-place bootstrap (issue #393)',
+    timeout: const Timeout(Duration(minutes: 2)),
+    () {
     late Directory tempDir;
 
     setUp(() {
@@ -42,28 +50,43 @@ void main() {
     });
 
     test('execute() rejects --dart together with --flutter', () async {
-      final cmd = InitializeCommand();
-      expect(
-        () => cmd.execute(['--dart', '--flutter', '--deps-only', '--root', useDir('zuraffa_agent').path]),
-        throwsA(isA<UsageException>()),
-      );
+      final repoDir = useDir('zuraffa_agent');
+      final result = await runZfaSource([
+        'initialize',
+        '--dart',
+        '--flutter',
+        '--deps-only',
+        '--root',
+        repoDir.path,
+      ], workingDirectory: zfaProjectRoot);
+
+      // Mirrors the in-process `throwsA(isA<UsageException>())` contract:
+      // the CLI must exit non-zero and explain the mutual exclusion.
+      expect(result.exitCode, isNot(0));
+      expect(combinedOutput(result), contains('mutually exclusive'));
     });
 
     test('--dart --deps-only --dry-run on repo without pubspec announces '
         'bootstrap and writes nothing', () async {
       final repoDir = useDir('zuraffa_agent');
 
-      final cmd = InitializeCommand();
-      await cmd.execute([
+      final result = await runZfaSource([
+        'initialize',
         '--dart',
         '--deps-only',
         '--dry-run',
         '--root',
         repoDir.path,
-      ]);
+      ], workingDirectory: zfaProjectRoot);
 
       // Regression: the old code threw UsageException (missing pubspec)
       // before any announcement. Now dry-run previews and writes nothing.
+      expect(result.exitCode, 0, reason: 'dry-run must exit successfully');
+      expect(
+        combinedOutput(result),
+        contains('Would create: pubspec.yaml'),
+        reason: 'dry-run must preview the in-place bootstrap',
+      );
       expect(
         File(p.join(repoDir.path, 'pubspec.yaml')).existsSync(),
         isFalse,
@@ -75,16 +98,22 @@ void main() {
         '(CodeRabbit follow-up: must not return early)', () async {
       final repoDir = useDir('zuraffa_agent');
 
-      final cmd = InitializeCommand();
       // Dry-run must complete without throwing and must continue past the
       // dependency-wiring block to the entity scaffolding preview path.
-      await cmd.execute([
+      final result = await runZfaSource([
+        'initialize',
         '--dart',
         '--dry-run',
         '--root',
         repoDir.path,
-      ]);
+      ], workingDirectory: zfaProjectRoot);
 
+      expect(result.exitCode, 0, reason: 'dry-run must exit successfully');
+      expect(
+        combinedOutput(result),
+        contains('Would create: pubspec.yaml'),
+        reason: 'dry-run must preview the in-place bootstrap',
+      );
       expect(
         File(p.join(repoDir.path, 'pubspec.yaml')).existsSync(),
         isFalse,
@@ -114,20 +143,17 @@ void main() {
         'pubspec in-place', () async {
       final repoDir = useDir('zuraffa_agent');
 
-      final cmd = InitializeCommand();
       // Wiring may fail hermetically (git deps need network); the bootstrap
-      // itself is the regression under test — catch ANY wiring error so the
-      // pubspec-existence assertion below still runs.
-      try {
-        await cmd.execute([
-          '--dart',
-          '--deps-only',
-          '--root',
-          repoDir.path,
-        ]);
-      } catch (_) {
-        // Expected when the dependency wire cannot resolve offline.
-      }
+      // itself is the regression under test. The command synthesizes the
+      // minimal pubspec BEFORE any wiring, so it exists regardless of whether
+      // the dependency wire resolves offline.
+      await runZfaSource([
+        'initialize',
+        '--dart',
+        '--deps-only',
+        '--root',
+        repoDir.path,
+      ], workingDirectory: zfaProjectRoot);
 
       final pubspec = File(p.join(repoDir.path, 'pubspec.yaml'));
       expect(
@@ -145,15 +171,16 @@ void main() {
       () async {
         final repoDir = useDir('some_repo');
 
-        final cmd = InitializeCommand();
-        expect(
-          () => cmd.execute([
-            '--deps-only',
-            '--root',
-            repoDir.path,
-          ]),
-          throwsA(isA<UsageException>()),
-        );
+        final result = await runZfaSource([
+          'initialize',
+          '--deps-only',
+          '--root',
+          repoDir.path,
+        ], workingDirectory: zfaProjectRoot);
+
+        // Mirrors the in-process `throwsA(isA<UsageException>())` contract.
+        expect(result.exitCode, isNot(0));
+        expect(combinedOutput(result), contains('pubspec.yaml'));
       },
     );
 
