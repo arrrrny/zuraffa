@@ -667,4 +667,254 @@ class TestEntity {
       },
     );
   });
+
+  // #508: the #307 loud no-id failure over-applies — it runs before plugin
+  // dispatch, so `zfa make <Entity> --test` (test = id-NEUTRAL: it only
+  // regenerates test files from ALREADY-GENERATED usecases) was blocked for
+  // entities that legitimately have no id. The loud failure must fire only
+  // when an id-DEPENDENT plugin (repository/usecase/controller/presenter/
+  // datasource/...) is active.
+  //
+  // These tests use the in-process `runCapturing` pattern (see the comment
+  // at the MakeCommandException throw site): the zone's catch-all records
+  // the diagnostic without killing the test isolate, so we can assert on
+  // both the green path (no error) and the red path (the #307 message).
+  group('MakeCommand #508 id-neutral regeneration', () {
+    late Directory workspace;
+    late String outputDir;
+    late String previousCwd;
+
+    setUp(() async {
+      workspace = await Directory.systemTemp.createTemp('zfa_make_508_');
+      outputDir = path.join(workspace.path, 'lib', 'src');
+      await Directory(outputDir).create(recursive: true);
+      await File(path.join(workspace.path, 'pubspec.yaml')).writeAsString('''
+name: zuraffa_make_508_test
+environment:
+  sdk: ^3.11.0
+dependencies:
+  uuid: ^4.6.0
+''');
+      previousCwd = Directory.current.path;
+      Directory.current = workspace.path;
+    });
+
+    tearDown(() async {
+      try {
+        if (Directory(previousCwd).existsSync()) {
+          Directory.current = previousCwd;
+        } else {
+          Directory.current = Directory.systemTemp.path;
+        }
+      } catch (_) {
+        try {
+          Directory.current = Directory.systemTemp.path;
+        } catch (_) {}
+      }
+      if (workspace.existsSync()) {
+        await workspace.delete(recursive: true);
+      }
+    });
+
+    /// Id-less entity whose FIRST field is an enum (#307's worst case):
+    /// the representative query field must skip `role` and pick the first
+    /// real scalar (`content`: String), never `role`, never a synthetic id.
+    Future<void> writeIdLessEntity() async {
+      final dir = Directory(
+        path.join(outputDir, 'domain', 'entities', 'chat_message'),
+      );
+      await dir.create(recursive: true);
+      await File(path.join(dir.path, 'chat_message.dart')).writeAsString('''
+import 'package:zorphy_annotation/zorphy_annotation.dart';
+
+@Zorphy(generateJson: true, generateCompareTo: true)
+abstract class \$ChatMessage {
+  ChatMessageRole get role;
+  String get content;
+  DateTime get timestamp;
+}
+''');
+    }
+
+    /// Pre-existing usecase sources (the #508 premise: the usecases already
+    /// exist; --test only regenerates their test files). The marker comment
+    /// lets the red-path test prove no file was touched.
+    Future<void> writeExistingUseCases() async {
+      final dir = Directory(
+        path.join(outputDir, 'domain', 'usecases', 'chat_message'),
+      );
+      await dir.create(recursive: true);
+      for (final method in ['get', 'update', 'toggle']) {
+        await File(
+          path.join(dir.path, '${method}_chat_message_usecase.dart'),
+        ).writeAsString('// FIXTURE-STUB $method\n');
+      }
+    }
+
+    test(
+      '#508 — --test only on an id-less entity succeeds and references a '
+      'real field',
+      () async {
+        await writeIdLessEntity();
+        await writeExistingUseCases();
+
+        final runner = CliRunner(exitOnCompletion: false);
+        final output = await runner.runCapturing([
+          'make',
+          'ChatMessage',
+          '--test',
+          '--force',
+          '--output',
+          outputDir,
+        ]);
+
+        expect(
+          output,
+          isNot(contains('has no id field')),
+          reason:
+              '--test is id-neutral; the #307 loud failure must not fire '
+              '(issue #508). Output:\n$output',
+        );
+        expect(output, isNot(contains('❌ Error')));
+
+        final getTest = File(
+          path.join(
+            workspace.path,
+            'test',
+            'domain',
+            'usecases',
+            'chat_message',
+            'get_chat_message_usecase_test.dart',
+          ),
+        );
+        expect(
+          getTest.existsSync(),
+          isTrue,
+          reason: 'the get usecase test must be regenerated\noutput:\n$output',
+        );
+        final content = getTest.readAsStringSync();
+        expect(
+          content,
+          contains('ChatMessageFields.content'),
+          reason: 'the query/filter key must be the representative REAL '
+              'field (first String), not a synthetic id',
+        );
+        expect(content, isNot(contains('ChatMessageFields.id')));
+        expect(
+          content,
+          isNot(contains('ChatMessageFields.role')),
+          reason: 'an enum-typed field must never be the query field (#307)',
+        );
+      },
+    );
+
+    test(
+      '#508 — explicit --query-field is preserved on the id-neutral path',
+      () async {
+        await writeIdLessEntity();
+        await writeExistingUseCases();
+
+        final runner = CliRunner(exitOnCompletion: false);
+        final output = await runner.runCapturing([
+          'make',
+          'ChatMessage',
+          '--test',
+          '--force',
+          '--query-field',
+          'timestamp',
+          '--output',
+          outputDir,
+        ]);
+
+        expect(output, isNot(contains('has no id field')));
+        final getTest = File(
+          path.join(
+            workspace.path,
+            'test',
+            'domain',
+            'usecases',
+            'chat_message',
+            'get_chat_message_usecase_test.dart',
+          ),
+        );
+        expect(getTest.existsSync(), isTrue, reason: 'output:\n$output');
+        final content = getTest.readAsStringSync();
+        expect(
+          content,
+          contains('ChatMessageFields.timestamp'),
+          reason: 'the user-provided query field must win over auto-resolution',
+        );
+        expect(content, isNot(contains('ChatMessageFields.content')));
+      },
+    );
+
+    test(
+      '#508/#307 — an id-dependent plugin on an id-less entity still fails '
+      'loudly',
+      () async {
+        await writeIdLessEntity();
+        await writeExistingUseCases();
+
+        final runner = CliRunner(exitOnCompletion: false);
+        final output = await runner.runCapturing([
+          'make',
+          'ChatMessage',
+          'usecase',
+          '--force',
+          '--output',
+          outputDir,
+        ]);
+
+        // Same #307 diagnostic: message + the three remediation hints.
+        expect(output, contains('has no id field'));
+        expect(output, contains('--auto-id'));
+        expect(output, contains('value_object'));
+        expect(output, contains('add-field'));
+        expect(output, contains('❌ Error: Cannot generate architecture'));
+
+        // The failure precedes plugin dispatch: no test files regenerated,
+        // and the pre-existing usecase stubs are untouched.
+        final testDir = Directory(
+          path.join(workspace.path, 'test', 'domain', 'usecases'),
+        );
+        expect(testDir.existsSync(), isFalse);
+        final stub = File(
+          path.join(
+            outputDir,
+            'domain',
+            'usecases',
+            'chat_message',
+            'get_chat_message_usecase.dart',
+          ),
+        );
+        expect(stub.readAsStringSync(), contains('// FIXTURE-STUB get'));
+      },
+    );
+
+    test(
+      '#508/#307 — a mixed request (--test plus an id-dependent plugin via '
+      '--methods) still fails loudly',
+      () async {
+        await writeIdLessEntity();
+        await writeExistingUseCases();
+
+        // --methods implies the usecase plugin (PlanResolver's
+        // _hasEntityMethods), so the active set is {usecase, test} — the
+        // id-dependent member must keep the loud failure armed.
+        final runner = CliRunner(exitOnCompletion: false);
+        final output = await runner.runCapturing([
+          'make',
+          'ChatMessage',
+          '--test',
+          '--methods=get',
+          '--force',
+          '--output',
+          outputDir,
+        ]);
+
+        expect(output, contains('has no id field'));
+        expect(output, contains('❌ Error: Cannot generate architecture'));
+      },
+    );
+  });
 }

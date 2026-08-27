@@ -227,7 +227,7 @@ Long-running or user-visible commands (e.g. `flutter run`, `zfa build`, `bun run
 <!-- SPECKIT START -->
 
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read specs/014-pure-dart-core-split/spec.md
+shell commands, and other important information, read specs/016-fix-make-test-no-id/plan.md
 
 ## OpenWiki
 
