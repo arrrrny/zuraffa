@@ -266,15 +266,34 @@ class Product {
     late String outputDir;
     late String zfaSourceBin;
 
+    // Handle to the child `dart` process spawned by [runZfaSource], kept so
+    // tearDown can guarantee it is terminated before the workspace is deleted.
+    Process? zfaProcess;
+
     // Runs zfa from SOURCE (never the stale compiled ~/.local/bin/zfa) as a
     // subprocess with an explicit workingDirectory — no process-global
     // `Directory.current` mutation, so this group cannot race with other
     // test files that capture the cwd at load time (see #296 test).
-    Future<ProcessResult> runZfaSource(List<String> args) {
-      return Process.run('dart', [
+    //
+    // Uses [Process.start] (not [Process.run]) so we hold the child's
+    // [Process] handle. If the test times out, the child may still be alive
+    // and holding the workspace; tearDown kills it before cleanup. stdout/
+    // stderr are collected concurrently with the exit code to avoid a
+    // pipe-buffer deadlock (the caller sees the same [ProcessResult] shape
+    // that [Process.run] would have produced).
+    Future<ProcessResult> runZfaSource(List<String> args) async {
+      final process = await Process.start('dart', [
         zfaSourceBin,
         ...args,
       ], workingDirectory: workspace.path);
+      zfaProcess = process;
+
+      final stdoutFuture = process.stdout.transform(utf8.decoder).join();
+      final stderrFuture = process.stderr.transform(utf8.decoder).join();
+      final exitCode = await process.exitCode;
+      final stdout = await stdoutFuture;
+      final stderr = await stderrFuture;
+      return ProcessResult(process.pid, exitCode, stdout, stderr);
     }
 
     setUpAll(() async {
@@ -293,11 +312,33 @@ environment:
 dependencies:
   uuid: ^4.6.0
 ''');
+      zfaProcess = null;
     });
 
     tearDown(() async {
+      // Terminate any still-running subprocess BEFORE deleting its workspace.
+      // If the test timed out, the child `dart` process (and the files it is
+      // still writing/removing) is alive; deleting the directory it holds
+      // races and throws PathNotFoundException. Kill first, then reap.
+      if (zfaProcess != null) {
+        try {
+          zfaProcess!.kill(ProcessSignal.sigkill);
+        } catch (_) {
+          // Already exited — ignore.
+        }
+        await zfaProcess!.exitCode
+            .timeout(const Duration(seconds: 10))
+            .catchError((_) => -1);
+        zfaProcess = null;
+      }
       if (workspace.existsSync()) {
-        await workspace.delete(recursive: true);
+        try {
+          await workspace.delete(recursive: true);
+        } on PathNotFoundException {
+          // A late-exiting child may still be removing files concurrently;
+          // tolerate ENOENT during recursive enumeration instead of failing
+          // the teardown (issue #503).
+        }
       }
     });
 
