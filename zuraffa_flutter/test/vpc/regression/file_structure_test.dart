@@ -14,6 +14,7 @@ import '../helpers/vpc_test_utils.dart';
 void main() {
   test('entity generation produces clean architecture layout', () async {
     final workspace = await createWorkspace('zuraffa_structure_');
+    addTearDown(() => disposeWorkspace(workspace));
     await writeFlutterPubspec(workspace);
     await generateFullFeature(workspace, name: 'Product');
 
@@ -35,6 +36,5 @@ void main() {
       expect(File(path).existsSync(), isTrue, reason: 'missing: $path');
     }
 
-    await disposeWorkspace(workspace);
   });
 }

@@ -14,6 +14,7 @@ import '../helpers/vpc_test_utils.dart';
 void main() {
   test('views use controlled widget builder and view state', () async {
     final workspace = await createWorkspace('zuraffa_view_patterns_');
+    addTearDown(() => disposeWorkspace(workspace));
     await writeFlutterPubspec(workspace);
     await generateFullFeature(workspace, name: 'Product');
 
@@ -23,6 +24,5 @@ void main() {
     expect(viewContent.contains('ControlledWidgetBuilder'), isTrue);
     expect(viewContent.contains('viewState'), isTrue);
 
-    await disposeWorkspace(workspace);
   });
 }
