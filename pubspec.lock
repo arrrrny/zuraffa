@@ -757,17 +757,17 @@ packages:
     dependency: "direct main"
     description:
       name: zorphy
-      sha256: "07ee702caabe9d8511d268610daa32cc230df72a1cab7cd1e6fdc4ebbc185e27"
+      sha256: "512455053a88171d047e51699d7d9c5524f3140823cae9c25f3c4682dc9f6f66"
       url: "https://pub.dev"
     source: hosted
-    version: "2.2.0"
+    version: "2.3.0"
   zorphy_annotation:
     dependency: "direct main"
     description:
       name: zorphy_annotation
-      sha256: f20e9b830538ce58c8b3730cf8c57616124acb3c5abc7b78f69c30c20eec9554
+      sha256: "6cfaa9dd22a61c63945b17acfa8d5451c83bded31e5ee7ba2aee79d4b301ef47"
       url: "https://pub.dev"
     source: hosted
-    version: "2.2.0"
+    version: "2.3.0"
 sdks:
   dart: ">=3.11.0 <4.0.0"
