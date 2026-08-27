@@ -42,6 +42,36 @@ class MakeCommand extends Command<void> {
     'test', // entity tests reference the usecases value objects don't get
   };
 
+  /// Plugins whose generated output embeds the entity's identity in
+  /// signatures (getById/update/delete params, id-typed route params,
+  /// id-keyed queries, ...). Issue #508: the #307 loud no-id failure must
+  /// fire only when at least one of these is active — id-NEUTRAL plugins
+  /// (`test`, `mock`, `gym`, `di`, `cache`, ...) regenerate from
+  /// already-generated artifacts and legitimately work for id-less
+  /// entities.
+  ///
+  /// The named five from the issue plus every other plugin verified to
+  /// emit id-typed members: service and provider (UpdateParams/DeleteParams
+  /// interfaces), route and view (id-typed route params), gql/graphql
+  /// (id-keyed operations), sqlite (id-keyed CRUD), api (bridges id-typed
+  /// usecase params), sync (getByIds keys).
+  static const Set<String> _idDependentPlugins = {
+    'repository',
+    'datasource',
+    'usecase',
+    'controller',
+    'presenter',
+    'service',
+    'provider',
+    'route',
+    'view',
+    'gql',
+    'graphql',
+    'sqlite',
+    'api',
+    'sync',
+  };
+
   static const Set<String> _ignoredJsonOptionKeys = {
     'domainRoot',
     'domain-root',
@@ -443,40 +473,79 @@ class MakeCommand extends Command<void> {
           // Loud failure (issue #307): an entity with no id-like field and
           // no autoId marker would silently produce enum-typed ids /
           // broken signatures if we fell back to the first field.
-          print(
-            '❌ Cannot generate architecture for "$entityName": the entity '
-            'has no id field.',
+          //
+          // Issue #508: that requirement only applies to id-DEPENDENT
+          // plugins — the ones whose generated signatures embed the id.
+          // Id-neutral plugins (test/mock regeneration from
+          // already-generated usecases, di, ...) legitimately work for
+          // id-less entities and must proceed.
+          final hasIdDependentPlugin = activePlugins.any(
+            (plugin) => _idDependentPlugins.contains(plugin.id),
           );
-          print('');
-          print('Entities need a real identity. Choose one of:');
-          print(
-            '  1. Add an id field:    zfa entity add-field -n '
-            '$entityName --field id:String',
-          );
-          print(
-            '  2. Auto-generate one:  recreate with '
-            'zfa entity create -n $entityName --auto-id <fields...>',
-          );
-          print(
-            '  3. Mark it as a value object if it is an immutable '
-            'composition type (no identity, no CRUD surface):',
-          );
-          print(
-            '       zfa entity create -n $entityName --kind=value_object '
-            '<fields...>',
-          );
-          print(
-            '     or add @ZValueObject / kind: ZorphyKind.valueObject '
-            'to its annotation.',
-          );
-          print('');
-          // Thrown (not `exit(1)`) so the CLI runner's catch-all prints the
-          // diagnostic and exits 1 — while `runCapturing` tests can assert
-          // on the message without killing the test isolate.
-          throw MakeCommandException(
-            'Cannot generate architecture for "$entityName": the entity '
-            'has no id field.',
-          );
+          if (hasIdDependentPlugin) {
+            print(
+              '❌ Cannot generate architecture for "$entityName": the entity '
+              'has no id field.',
+            );
+            print('');
+            print('Entities need a real identity. Choose one of:');
+            print(
+              '  1. Add an id field:    zfa entity add-field -n '
+              '$entityName --field id:String',
+            );
+            print(
+              '  2. Auto-generate one:  recreate with '
+              'zfa entity create -n $entityName --auto-id <fields...>',
+            );
+            print(
+              '  3. Mark it as a value object if it is an immutable '
+              'composition type (no identity, no CRUD surface):',
+            );
+            print(
+              '       zfa entity create -n $entityName --kind=value_object '
+              '<fields...>',
+            );
+            print(
+              '     or add @ZValueObject / kind: ZorphyKind.valueObject '
+              'to its annotation.',
+            );
+            print('');
+            // Thrown (not `exit(1)`) so the CLI runner's catch-all prints the
+            // diagnostic and exits 1 — while `runCapturing` tests can assert
+            // on the message without killing the test isolate.
+            throw MakeCommandException(
+              'Cannot generate architecture for "$entityName": the entity '
+              'has no id field.',
+            );
+          }
+
+          // #508 id-neutral path: the generators still need a query/filter
+          // key so the regenerated tests reference a Field constant that
+          // exists (and the seeded mock data matches the get/update/toggle
+          // filters). Resolve a representative REAL field — never an
+          // enum-typed field, never a synthetic id. User-provided
+          // --query-field always wins.
+          if (!argResults!.wasParsed('query-field') &&
+              (context.data['query-field'] == null ||
+                  context.data['query-field'] == 'id')) {
+            final representative = EntityFieldResolver
+                .resolveRepresentativeField(
+                  entityName: entityName,
+                  projectRoot: manager.projectRoot,
+                );
+            if (representative != null) {
+              context.data['query-field'] = representative.name;
+              context.data['query-field-type'] =
+                  representative.nonNullableType;
+              if (context.core.verbose) {
+                print(
+                  '🔍 Resolved query field for "$entityName" (id-less, '
+                  'id-neutral plugins): ${representative.name} '
+                  '(${representative.nonNullableType})',
+                );
+              }
+            }
+          }
         }
       }
     }

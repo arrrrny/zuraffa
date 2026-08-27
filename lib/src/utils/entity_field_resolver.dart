@@ -160,6 +160,58 @@ class EntityFieldResolver {
     return EntityIdResolution(kind: kind, autoId: autoId);
   }
 
+  /// Resolves a representative REAL field of an id-less entity to use as
+  /// the query/filter key on id-NEUTRAL plugin paths (issue #508:
+  /// `zfa make <Entity> --test` regenerates test files from
+  /// already-generated usecases and needs no identity — but its emitted
+  /// tests must still reference a `Field` constant that actually exists on
+  /// the entity).
+  ///
+  /// Selection order (declaration order within each tier):
+  ///   1. first non-nullable `String`
+  ///   2. first non-nullable `int`
+  ///   3. first nullable `String?` / `int?`
+  ///   4. first other scalar (`double`, `num`, `bool`, `DateTime`)
+  /// Never selects an enum-typed (or any custom-class-typed) field — the
+  /// pre-#307 first-field fallback produced enum-typed ids from exactly
+  /// that mistake — and never invents a synthetic `id`. Returns `null`
+  /// when the entity file cannot be located or has no usable scalar field;
+  /// callers then keep their existing defaults.
+  static EntityFieldInfo? resolveRepresentativeField({
+    required String entityName,
+    required String projectRoot,
+    String entityOutputDir = defaultEntityOutputDir,
+  }) {
+    final snake = _toSnake(entityName);
+    final entityFile = File(
+      p.join(projectRoot, entityOutputDir, snake, '$snake.dart'),
+    );
+    if (!entityFile.existsSync()) return null;
+
+    final fields = parseEntityFields(entityFile.readAsStringSync());
+    if (fields.isEmpty) return null;
+
+    EntityFieldInfo? firstNullableStringOrInt;
+    EntityFieldInfo? firstOtherScalar;
+    for (final f in fields) {
+      final type = f.nonNullableType;
+      switch (type) {
+        case 'String':
+          if (!f.type.endsWith('?')) return f;
+          firstNullableStringOrInt ??= f;
+        case 'int':
+          if (!f.type.endsWith('?')) return f;
+          firstNullableStringOrInt ??= f;
+        case 'double':
+        case 'num':
+        case 'bool':
+        case 'DateTime':
+          firstOtherScalar ??= f;
+      }
+    }
+    return firstNullableStringOrInt ?? firstOtherScalar;
+  }
+
   /// Detects `autoId: true` inside a `@Zorphy(...)`/`@Zorphy2(...)`
   /// annotation in [content].
   static bool detectsAutoId(String content) {
