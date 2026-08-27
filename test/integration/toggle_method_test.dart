@@ -145,10 +145,37 @@ void main() {
     expect(stateContent, contains('this.isToggling = false'));
     expect(stateContent, contains('bool? isToggling'));
 
-    // 8/9. The presenter/controller (VPC) checks live in
-    // zuraffa_flutter/test/vpc/regression/issue_302_vpc_output_test.dart —
-    // this pure-Dart workspace correctly skips VPC generation
-    // (Constitution VII; issues #431 / #435).
+    // 8. Check Presenter — this workspace is a *pure-Dart* fixture (the
+    // pubspec written by `writePubspec` declares no `flutter:` SDK), so per
+    // Constitution VII (Engine Purity) the presenter generator correctly
+    // SKIPS output: presenters depend on `zuraffa_flutter`, which is not
+    // available in a pure-Dart package. The presenter toggle behaviour
+    // (`toggleTodo` across the VPC layer) is verified in the
+    // `zuraffa_flutter` package — see issues #431 / #435.
+    final presenterFile = File(
+      '$outputDir/presentation/pages/todo/todo_presenter.dart',
+    );
+    expect(
+      presenterFile.existsSync(),
+      isFalse,
+      reason:
+          'pure-Dart target must NOT generate a Flutter presenter '
+          '(Constitution VII: Engine Purity)',
+    );
+
+    // 9. Check Controller — same pure-Dart skip as the presenter (see #420).
+    // The controller toggle behaviour is verified in `zuraffa_flutter`
+    // (issue #431).
+    final controllerFile = File(
+      '$outputDir/presentation/pages/todo/todo_controller.dart',
+    );
+    expect(
+      controllerFile.existsSync(),
+      isFalse,
+      reason:
+          'pure-Dart target must NOT generate a Flutter controller '
+          '(Constitution VII: Engine Purity)',
+    );
   });
 
   // Regression test for #289: PR #287 added 'toggle' to the entity-methods

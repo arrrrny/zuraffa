@@ -26,7 +26,7 @@
 
 **Purpose**: No project initialization needed — this is a bug fix to an existing codebase.
 
-- [ ] T001 Verify all existing mock tests pass as baseline with `dart test test/plugins/mock/mock_builder_test.dart`
+- [x] T001 [A1-A8] Verify all existing mock tests pass as baseline with `dart test test/plugins/mock/mock_builder_test.dart`
 
 ---
 
@@ -36,9 +36,9 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T002 Implement `_detectSealedSubtypes()` method in `lib/src/utils/entity_analyzer.dart` using regex to find concrete subtypes via `sealed class` + `extends` patterns, excluding abstract/sealed subtypes
-- [ ] T003 Update `getPolymorphicSubtypes()` in `lib/src/utils/entity_analyzer.dart` to call `_detectSealedSubtypes()` after the existing `@Zorphy` check, with deduplication via `Set<String>`
-- [ ] T004 Update `getPolymorphicSubtypes()` in `lib/src/utils/entity_analyzer.dart` to use `DiscoveryEngine.findFileSync()` for file resolution instead of hardcoded path
+- [x] T002 [A1-A3] Implement `_detectSealedSubtypes()` method in `lib/src/utils/entity_analyzer.dart` using regex to find concrete subtypes via `sealed class` + `extends` patterns, excluding abstract/sealed subtypes
+- [x] T003 [A1-A3] Update `getPolymorphicSubtypes()` in `lib/src/utils/entity_analyzer.dart` to call `_detectSealedSubtypes()` after the existing `@Zorphy` check, with deduplication via `Set<String>`
+- [x] T004 [A1-A3] Update `getPolymorphicSubtypes()` in `lib/src/utils/entity_analyzer.dart` to use `DiscoveryEngine.findFileSync()` for file resolution instead of hardcoded path
 
 **Checkpoint**: `getPolymorphicSubtypes()` now detects both `@Zorphy` and `sealed class` subtypes. Existing Zorphy tests must still pass.
 
@@ -54,17 +54,17 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T005 [P] [US1] Add unit test for sealed class with 2 concrete subtypes in `test/plugins/mock/mock_builder_test.dart` — create temp entity file with `sealed class CategoryConfig`, `PrimaryCategory extends CategoryConfig`, `SecondaryCategory extends CategoryConfig`, run `MockBuilder.generate()`, verify 2 mock data files produced
-- [ ] T006 [P] [US1] Add unit test for sealed class with abstract intermediate subtype in `test/plugins/mock/mock_builder_test.dart` — create hierarchy with `sealed class Base`, `abstract class Middle extends Base`, `class Leaf extends Middle`, verify only `Leaf` gets mock data
-- [ ] T007 [P] [US1] Add unit test for sealed class with no concrete subtypes (all abstract) in `test/plugins/mock/mock_builder_test.dart` — verify warning emitted, no mock data files for sealed base
-- [ ] T008 [P] [US1] Create integration test `test/integration/polymorphic_mock_integration_test.dart` — test full `zfa mock data SealedEntity --force` CLI flow with a sealed class entity fixture, verify generated files compile and contain subtype instances
+- [x] T005 [P] [US1] [A1] Add unit test for sealed class with 2 concrete subtypes in `test/plugins/mock/mock_builder_test.dart` — create temp entity file with `sealed class CategoryConfig`, `PrimaryCategory extends CategoryConfig`, `SecondaryCategory extends CategoryConfig`, run `MockBuilder.generate()`, verify 2 mock data files produced
+- [x] T006 [P] [US1] [A2] Add unit test for sealed class with abstract intermediate subtype in `test/plugins/mock/mock_builder_test.dart` — create hierarchy with `sealed class Base`, `abstract class Middle extends Base`, `class Leaf extends Middle`, verify only `Leaf` gets mock data
+- [x] T007 [P] [US1] [A3] Add unit test for sealed class with no concrete subtypes (all abstract) in `test/plugins/mock/mock_builder_test.dart` — verify warning emitted, no mock data files for sealed base
+- [x] T008 [P] [US1] [A4] Create integration test `test/integration/polymorphic_mock_integration_test.dart` — test full `zfa mock data SealedEntity --force` CLI flow with a sealed class entity fixture, verify generated files compile and contain subtype instances
 
 ### Implementation for User Story 1
 
-- [ ] T009 [US1] Verify `mock_builder.dart` line 77-89 handles polymorphic subtypes correctly for sealed classes — ensure subtypes flow into `generateNestedEntityMockFiles()` (should work via existing path if T002-T004 are correct)
-- [ ] T010 [US1] Verify `mock_entity_graph_builder.dart` lines 36-71 handle sealed class subtypes — ensure each concrete subtype generates a mock data file via `generateMockDataFile(subtypeConfig)`
-- [ ] T011 [US1] Verify `mock_value_builder.dart` `_entityValueExpr()` and `_generateListValueExpr()` use polymorphic subtypes for sealed classes — check that `refer('{subtype}MockData')` is used when subtypes exist
-- [ ] T012 [US1] Create sealed class test fixture `test/fixtures/sealed_category_config.dart` — a complete sealed class hierarchy (1 base + 2 concrete subtypes) for use in integration tests
+- [x] T009 [US1] [A1-A3] Verify `mock_builder.dart` line 77-89 handles polymorphic subtypes correctly for sealed classes — ensure subtypes flow into `generateNestedEntityMockFiles()` (should work via existing path if T002-T004 are correct)
+- [x] T010 [US1] [A1-A3] Verify `mock_entity_graph_builder.dart` lines 36-71 handle sealed class subtypes — ensure each concrete subtype generates a mock data file via `generateMockDataFile(subtypeConfig)`
+- [x] T011 [US1] [A1-A3] Verify `mock_value_builder.dart` `_entityValueExpr()` and `_generateListValueExpr()` use polymorphic subtypes for sealed classes — check that `refer('{subtype}MockData')` is used when subtypes exist
+- [x] T012 [US1] [A4] Create sealed class test fixture `test/fixtures/sealed_category_config.dart` — a complete sealed class hierarchy (1 base + 2 concrete subtypes) for use in integration tests
 
 **Checkpoint**: Sealed class mock generation works end-to-end. Integration test passes.
 
@@ -80,13 +80,13 @@
 
 > **NOTE: These tests validate backward compatibility — they must PASS immediately after T002-T004, confirming no regression**
 
-- [ ] T013 [P] [US2] Add unit test for `@Zorphy(explicitSubTypes: [SubA, SubB])` in `test/plugins/mock/mock_builder_test.dart` — verify both subtypes get mock data files
-- [ ] T014 [P] [US2] Add unit test for entity using both `sealed class` and `@Zorphy` (mixed detection) in `test/plugins/mock/mock_builder_test.dart` — verify subtypes from both paths are detected, deduplicated, and mock files generated correctly
-- [ ] T015 [US2] Run all existing mock builder tests: `dart test test/plugins/mock/mock_builder_test.dart` — confirm all 10 existing tests pass without modification
+- [x] T013 [P] [US2] [A5] Add unit test for `@Zorphy(explicitSubTypes: [SubA, SubB])` in `test/plugins/mock/mock_builder_test.dart` — verify both subtypes get mock data files
+- [x] T014 [P] [US2] [A6] Add unit test for entity using both `sealed class` and `@Zorphy` (mixed detection) in `test/plugins/mock/mock_builder_test.dart` — verify subtypes from both paths are detected, deduplicated, and mock files generated correctly
+- [x] T015 [US2] [A5-A6] Run all existing mock builder tests: `dart test test/plugins/mock/mock_builder_test.dart` — confirm all 10 existing tests pass without modification
 
 ### Implementation for User Story 2
 
-- [ ] T016 [US2] Add deduplication logic in `getPolymorphicSubtypes()` in `lib/src/utils/entity_analyzer.dart` — merge Zorphy and sealed subtypes in `Set<String>`, return as `List<String>`
+- [x] T016 [US2] [A5-A6] Add deduplication logic in `getPolymorphicSubtypes()` in `lib/src/utils/entity_analyzer.dart` — merge Zorphy and sealed subtypes in `Set<String>`, return as `List<String>`
 
 **Checkpoint**: Both Zorphy and sealed class patterns work independently and together. All existing tests pass.
 
@@ -102,13 +102,13 @@
 
 > **NOTE: Write these tests FIRST**
 
-- [ ] T017 [P] [US3] Add unit test for missing entity file in `test/plugins/mock/mock_builder_test.dart` — verify `MockBuilder.generate()` with name `NonExistentEntity` exits cleanly with an error state instead of hanging
-- [ ] T018 [P] [US3] Add unit test for unresolvable nested entity type in `test/plugins/mock/mock_builder_test.dart` — create entity A with field referencing entity B that doesn't exist, verify warning is logged and generation continues for entity A
+- [x] T017 [P] [US3] [A7] Add unit test for missing entity file in `test/plugins/mock/mock_builder_test.dart` — verify `MockBuilder.generate()` with name `NonExistentEntity` exits cleanly with an error state instead of hanging
+- [x] T018 [P] [US3] [A8] Add unit test for unresolvable nested entity type in `test/plugins/mock/mock_builder_test.dart` — create entity A with field referencing entity B that doesn't exist, verify warning is logged and generation continues for entity A
 
 ### Implementation for User Story 3
 
-- [ ] T019 [US3] Add try-catch around `analyzeEntity()` and `generateMockDataFile()` calls in `_collectAndGenerateNestedEntities()` in `lib/src/plugins/mock/builders/mock_entity_graph_builder.dart` — catch exceptions, log warning with type name, continue processing
-- [ ] T020 [US3] Add error handling in `mock_builder.dart` `generate()` method — when `getPolymorphicSubtypes()` returns empty and entity file is not found, log clear error message instead of falling through to instantiation path
+- [x] T019 [US3] [A8] Add try-catch around `analyzeEntity()` and `generateMockDataFile()` calls in `_collectAndGenerateNestedEntities()` in `lib/src/plugins/mock/builders/mock_entity_graph_builder.dart` — catch exceptions, log warning with type name, continue processing
+- [x] T020 [US3] [A7] Add error handling in `mock_builder.dart` `generate()` method — when `getPolymorphicSubtypes()` returns empty and entity file is not found, log clear error message instead of falling through to instantiation path
 
 **Checkpoint**: All error paths produce clear messages. No hangs occur for any entity input.
 
@@ -118,11 +118,11 @@
 
 **Purpose**: Validation, cleanup, and documentation
 
-- [ ] T021 [P] Run all mock tests: `dart test test/plugins/mock/mock_builder_test.dart` — confirm all pass
-- [ ] T022 [P] Run new integration test: `dart test test/integration/polymorphic_mock_integration_test.dart` — confirm all pass
-- [ ] T023 Run full test suite: `dart test` — verify no regressions across entire project
-- [ ] T024 [P] Run static analysis on modified files: `dart analyze lib/src/utils/entity_analyzer.dart lib/src/plugins/mock/builders/mock_entity_graph_builder.dart`
-- [ ] T025 Validate quickstart.md scenario end-to-end — create a temp sealed class entity, run `zfa mock data <Entity> --force`, verify generated files compile
+- [x] T021 [P] [A1-A8] Run all mock tests: `dart test test/plugins/mock/mock_builder_test.dart` — confirm all pass
+- [x] T022 [P] [A4] Run new integration test: `dart test test/integration/polymorphic_mock_integration_test.dart` — confirm all pass
+- [x] T023 [A1-A8] Run full test suite: `dart test` — verify no regressions across entire project
+- [x] T024 [P] [A1-A8] Run static analysis on modified files: `dart analyze lib/src/utils/entity_analyzer.dart lib/src/plugins/mock/builders/mock_entity_graph_builder.dart`
+- [x] T025 [A1-A4] Validate quickstart.md scenario end-to-end — create a temp sealed class entity, run `zfa mock data <Entity> --force`, verify generated files compile
 
 ---
 

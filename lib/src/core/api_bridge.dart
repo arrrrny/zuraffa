@@ -196,6 +196,14 @@ class ZuraffaApiBridge {
     );
   }
 
+  /// Public, test-only accessor for [_handleList] (the `ext.zuraffa._list`
+  /// meta-extension handler). Mirrors [handlePollStream]/[handleCancelStream].
+  @visibleForTesting
+  static Future<developer.ServiceExtensionResponse> handleList(
+    String method,
+    Map<String, String> parameters,
+  ) => _handleList(method, parameters);
+
   /// Poll the latest value emitted by a StreamUseCase subscription.
   ///
   /// Exposed as `ext.zuraffa._pollStream`.

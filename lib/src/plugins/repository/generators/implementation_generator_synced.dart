@@ -87,7 +87,9 @@ extension RepositoryImplementationGeneratorSynced
             ..body = _buildSyncedCreateBody(entityCamel),
         );
       case 'update':
-        final dataType = '${config.name}Patch';
+        final dataType = config.useZorphy
+            ? '${config.name}Patch'
+            : 'Partial<${config.name}>';
         final updateParamsType =
             'UpdateParams<${config.idFieldType}, $dataType>';
         return Method(

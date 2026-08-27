@@ -26,7 +26,7 @@
 
 **Purpose**: Configuration and model changes that all other tasks depend on
 
-- [x] T001 [P] Add `generateMockJson` flag and `mockJsonDomain` field to GeneratorConfig in `lib/src/models/generator_config.dart`
+- [x] T001 [P] [U1,U2,U3] Add `generateMockJson` flag and `mockJsonDomain` field to GeneratorConfig in `lib/src/models/generator_config.dart`
 - [x] T002 [P] Add `mockJsonByDefault` config key to ZfaConfig in `lib/src/config/zfa_config.dart`
 - [x] T003 [P] Add `mock-json` option to MockPlugin configSchema in `lib/src/plugins/mock/mock_plugin.dart`
 - [x] T004 [P] Create `JsonMockCapability` class implementing ZuraffaCapability with plan/execute methods in `lib/src/plugins/mock/capabilities/json_mock_capability.dart`
@@ -41,9 +41,9 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [x] T005 Add `generateMockValuesForJson()` method to MockValueBuilder that produces `List<Map<String, dynamic>>` (3 instances, same heuristics as existing `generateMockDataInstances`) in `lib/src/plugins/mock/builders/mock_value_builder.dart`
-- [x] T006 Add `generateNestedEntityJsonNames()` method to MockEntityGraphBuilder that recursively discovers nested entity types and returns their names in `lib/src/plugins/mock/builders/mock_entity_graph_builder.dart`
-- [x] T007 Add JSON path resolution utility methods (domain derivation, output path construction) in `lib/src/plugins/mock/builders/mock_json_builder.dart` (create file, add `domainForEntity()`, `jsonFilePathFor()`, `helperFilePathFor()` instance methods)
+- [x] T005 [U7] Add `generateMockValuesForJson()` method to MockValueBuilder that produces `List<Map<String, dynamic>>` (3 instances, same heuristics as existing `generateMockDataInstances`) in `lib/src/plugins/mock/builders/mock_value_builder.dart`
+- [x] T006 [U9] Add `generateNestedEntityJsonNames()` method to MockEntityGraphBuilder that recursively discovers nested entity types and returns their names in `lib/src/plugins/mock/builders/mock_entity_graph_builder.dart`
+- [x] T007 [U1,U2,U3,U4,U5,U6] Add JSON path resolution utility methods (domain derivation, output path construction) in `lib/src/plugins/mock/builders/mock_json_builder.dart` (create file, add `domainForEntity()`, `jsonFilePathFor()`, `helperFilePathFor()` instance methods)
 
 **Checkpoint**: Foundation ready — value generation can produce JSON data, entity graph walks nested types, path utilities available
 
@@ -57,12 +57,12 @@
 
 ### Implementation for User Story 1
 
-- [x] T008 [US1] Implement `MockJsonBuilder.generate()` method that orchestrates JSON data generation: calls MockValueBuilder for values, serializes to pretty-printed JSON, writes via FileUtils in `lib/src/plugins/mock/builders/mock_json_builder.dart`
-- [x] T009 [P] [US1] Implement `MockJsonHelperBuilder` that generates `{Entity}MockJson` Dart helper class with `load{Entity}s()`, `loadSample{Entity}()`, `loadSampleList()`, `loadEmptyList()` methods using `jsonDecode` and `{Entity}.fromJson()` in `lib/src/plugins/mock/builders/mock_json_helper_builder.dart`
+- [x] T008 [US1] [A1,A2,A4] Implement `MockJsonBuilder.generate()` method that orchestrates JSON data generation: calls MockValueBuilder for values, serializes to pretty-printed JSON, writes via FileUtils in `lib/src/plugins/mock/builders/mock_json_builder.dart`
+- [x] T009 [P] [US1] [A2,A3] Implement `MockJsonHelperBuilder` that generates `{Entity}MockJson` Dart helper class with `load{Entity}s()`, `loadSample{Entity}()`, `loadSampleList()`, `loadEmptyList()` methods using `jsonDecode` and `{Entity}.fromJson()` in `lib/src/plugins/mock/builders/mock_json_helper_builder.dart`
 - [x] T010 [US1] Wire `MockBuilder.generate()` to delegate to `mockJsonBuilder.generate()` when `config.generateMockJson` is true in `lib/src/plugins/mock/builders/mock_builder.dart`
 - [x] T011 [US1] Register `JsonMockCapability` in MockPlugin.capabilities getter in `lib/src/plugins/mock/mock_plugin.dart`
 - [x] T012 [US1] Add `JsonMockCommand` subcommand to MockCommand and handle `--json` flag in main mock command in `lib/src/commands/mock_command.dart`
-- [x] T013 [US1] Handle nested entity recursion: when generating JSON for Order (containing List<OrderItem>), verify OrderItem gets its own JSON file + helper, and Order JSON includes nested object references in `lib/src/plugins/mock/builders/mock_json_builder.dart`
+- [x] T013 [US1] [A4] Handle nested entity recursion: when generating JSON for Order (containing List<OrderItem>), verify OrderItem gets its own JSON file + helper, and Order JSON includes nested object references in `lib/src/plugins/mock/builders/mock_json_builder.dart`
 
 **Checkpoint**: At this point, `zfa mock json Product` generates JSON + helper, `fromJson` deserialization works, nested entities are handled
 
@@ -76,10 +76,10 @@
 
 ### Implementation for User Story 2
 
-- [x] T014 [US2] Implement domain auto-detection: derive domain from entity file path under `lib/src/domain/entities/{domain}/` in `lib/src/plugins/mock/builders/mock_json_builder.dart`
-- [x] T015 [P] [US2] Implement domain resolution priority: `--domain` flag > auto-detected domain > entity name as fallback in `lib/src/plugins/mock/builders/mock_json_builder.dart`
+- [x] T014 [US2] [B1,U4] Implement domain auto-detection: derive domain from entity file path under `lib/src/domain/entities/{domain}/` in `lib/src/plugins/mock/builders/mock_json_builder.dart`
+- [x] T015 [P] [US2] [B2,U5] Implement domain resolution priority: `--domain` flag > auto-detected domain > entity name as fallback in `lib/src/plugins/mock/builders/mock_json_builder.dart`
 - [x] T016 [US2] Create output directories on demand: ensure `data/mock_json/{domain}/` exists before writing files in `lib/src/plugins/mock/builders/mock_json_builder.dart`
-- [x] T017 [US2] Verify naming collision prevention: test that `Config` entities in `catalog` and `checkout` domains produce distinct paths in `lib/src/plugins/mock/builders/mock_json_builder.dart`
+- [x] T017 [US2] [B2,U6] Verify naming collision prevention: test that `Config` entities in `catalog` and `checkout` domains produce distinct paths in `lib/src/plugins/mock/builders/mock_json_builder.dart`
 
 **Checkpoint**: Folder convention is consistent, domain-grouped, and prevents collisions
 
@@ -93,11 +93,11 @@
 
 ### Implementation for User Story 3
 
-- [x] T018 [US3] Implement generation metadata tracking: write `.mock.json.meta` companion file with content hash, timestamp, and field signature on first generation in `lib/src/plugins/mock/builders/mock_json_builder.dart`
-- [x] T019 [US3] Implement non-overwrite safety: before writing JSON file, check if it exists and compute hash comparison; skip overwrite if user-edited unless `--force` is provided in `lib/src/plugins/mock/builders/mock_json_builder.dart`
-- [x] T020 [US3] Implement field mismatch detection: compare current entity fields against stored signature in metadata; warn user if fields changed since last generation in `lib/src/plugins/mock/builders/mock_json_builder.dart`
-- [x] T021 [US3] Implement error handling in Dart helper: catch missing file, malformed JSON, and `fromJson` failures with descriptive error messages including file path in `lib/src/plugins/mock/builders/mock_json_helper_builder.dart`
-- [x] T022 [US3] Handle polymorphic discriminator: include `_type` field for sealed/polymorphic entities and generate switch-based deserialization in helper in `lib/src/plugins/mock/builders/mock_json_builder.dart` and `lib/src/plugins/mock/builders/mock_json_helper_builder.dart`
+- [x] T018 [US3] [E3,U10] Implement generation metadata tracking: write `.mock.json.meta` companion file with content hash, timestamp, and field signature on first generation in `lib/src/plugins/mock/builders/mock_json_builder.dart`
+- [x] T019 [US3] [C1,E2] Implement non-overwrite safety: before writing JSON file, check if it exists and compute hash comparison; skip overwrite if user-edited unless `--force` is provided in `lib/src/plugins/mock/builders/mock_json_builder.dart`
+- [x] T020 [US3] [E3] Implement field mismatch detection: compare current entity fields against stored signature in metadata; warn user if fields changed since last generation in `lib/src/plugins/mock/builders/mock_json_builder.dart`
+- [x] T021 [US3] [C3] Implement error handling in Dart helper: catch missing file, malformed JSON, and `fromJson` failures with descriptive error messages including file path in `lib/src/plugins/mock/builders/mock_json_helper_builder.dart`
+- [x] T022 [US3] [E5,U8] Handle polymorphic discriminator: include `_type` field for sealed/polymorphic entities and generate switch-based deserialization in helper in `lib/src/plugins/mock/builders/mock_json_builder.dart` and `lib/src/plugins/mock/builders/mock_json_helper_builder.dart`
 
 **Checkpoint**: User-edited JSONs survive regeneration, errors are clear, polymorphic types are supported
 
@@ -107,9 +107,9 @@
 
 **Purpose**: Tests, edge cases, verification
 
-- [x] T023 [P] Write unit tests for MockJsonBuilder (value generation, JSON output, path computation, metadata) in `test/plugins/mock/mock_json_builder_test.dart`
-- [x] T024 [P] Write unit tests for MockJsonHelperBuilder (helper code generation, error handling, polymorphic switch) in `test/plugins/mock/mock_json_builder_test.dart`
-- [x] T025 Write integration test: generate JSON mock for entity with all field types (String, int, double, bool, DateTime, enum, List, Map, nested entity), verify round-trip deserialization in `test/plugins/mock/mock_json_integration_test.dart`
+- [x] T023 [P] [U1,U2,U3,U4,U5,U6,U7,U10,U11,U12] Write unit tests for MockJsonBuilder (value generation, JSON output, path computation, metadata) in `test/plugins/mock/mock_json_builder_test.dart`
+- [x] T024 [P] [U8] Write unit tests for MockJsonHelperBuilder (helper code generation, error handling, polymorphic switch) in `test/plugins/mock/mock_json_builder_test.dart`
+- [x] T025 [A1,A2,A3,A4,B1,B2,B3,C1,C2,C3,E1,E4,E5] Write integration test: generate JSON mock for entity with all field types (String, int, double, bool, DateTime, enum, List, Map, nested entity), verify round-trip deserialization in `test/plugins/mock/mock_json_integration_test.dart`
 - [x] T026 [P] Verify quickstart.md examples work end-to-end: run commands from quickstart, confirm output matches documented expectations
 - [x] T027 Run `dart analyze` on all modified files and fix any issues
 - [x] T028 Run existing mock plugin tests to verify no regressions

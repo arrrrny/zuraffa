@@ -1,128 +1,97 @@
-# Feature Specification: [FEATURE NAME]
+# Feature Specification: Add Toggle Method to Entity MethodList
 
-**Feature Branch**: `[###-feature-name]`  
-**Created**: [DATE]  
+**Feature Branch**: `002-add-toggle-method`  
+**Created**: 2026-04-06  
 **Status**: Draft  
-**Input**: User description: "$ARGUMENTS"
+**Input**: User description: "Add a toggle method to the entity methodList that allows toggling a boolean field on an entity"
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing
 
-<!--
-  IMPORTANT: User stories should be PRIORITIZED as user journeys ordered by importance.
-  Each user story/journey must be INDEPENDENTLY TESTABLE - meaning if you implement just ONE of them,
-  you should still have a viable MVP (Minimum Viable Product) that delivers value.
-  
-  Assign priorities (P1, P2, P3, etc.) to each story, where P1 is the most critical.
-  Think of each story as a standalone slice of functionality that can be:
-  - Developed independently
-  - Tested independently
-  - Deployed independently
-  - Demonstrated to users independently
--->
+### User Story 1 - Toggle a boolean field on an entity (Priority: P1)
 
-### User Story 1 - [Brief Title] (Priority: P1)
+As a developer using Zuraffa, I want to generate a `toggle` method for my entities so that I can flip boolean fields (like `isActive`, `isCompleted`, `enabled`) with a single API call.
 
-[Describe this user journey in plain language]
+**Why this priority**: This is a common CRUD pattern that eliminates the need for manual update logic when flipping boolean flags.
 
-**Why this priority**: [Explain the value and why it has this priority level]
-
-**Independent Test**: [Describe how this can be tested independently - e.g., "Can be fully tested by [specific action] and delivers [specific value]"]
+**Independent Test**: Can be fully tested by running `zfa make Entity --methods=get,update,toggle` and verifying the generated code includes toggle methods across all layers (repository, usecase, datasource, presenter, controller, state).
 
 **Acceptance Scenarios**:
-
-1. **Given** [initial state], **When** [action], **Then** [expected outcome]
-2. **Given** [initial state], **When** [action], **Then** [expected outcome]
+1. **Given** an entity with a boolean field, **When** running `zfa make Entity --methods=get,toggle`, **Then** a `toggle` method is generated in the repository interface, usecase, datasources (remote + local), presenter, controller, and state.
+2. **Given** a boolean field name (e.g., `isCompleted`), **When** calling the generated `toggleEntity` method, **Then** the method accepts the entity ID, the field to toggle, and the new boolean value, and returns the updated entity.
 
 ---
 
-### User Story 2 - [Brief Title] (Priority: P2)
+### User Story 2 - Toggle method uses ToggleParams for type-safe parameters (Priority: P1)
 
-[Describe this user journey in plain language]
+As a developer, I want the toggle method to use the `ToggleParams` class so that the parameters (ID, field, value) are type-safe and follow the established parameter patterns in Zuraffa.
 
-**Why this priority**: [Explain the value and why it has this priority level]
+**Why this priority**: Consistency with existing parameter patterns (QueryParams, UpdateParams, DeleteParams) ensures predictable API and enables proper code generation.
 
-**Independent Test**: [Describe how this can be tested independently]
+**Independent Test**: Verify the generated toggle method signature uses `ToggleParams<IdType, Field<Entity, dynamic>>` and the ToggleParams class has `id`, `field`, and `value` fields.
 
 **Acceptance Scenarios**:
-
-1. **Given** [initial state], **When** [action], **Then** [expected outcome]
+1. **Given** an entity with `id: String`, **When** toggle method is generated, **Then** it uses `ToggleParams<String, Field<Entity, dynamic>>`.
+2. **Given** the ToggleParams class, **When** inspecting its fields, **Then** it has `id`, `field`, and `value` (bool) fields.
 
 ---
 
-### User Story 3 - [Brief Title] (Priority: P3)
+### User Story 3 - Toggle parameter naming avoids collision with entity fields (Priority: P2)
 
-[Describe this user journey in plain language]
+As a developer, I want the toggle method's boolean value parameter to be named `toggleValue` instead of `value` to avoid collisions when the entity's ID field is named `value` (e.g., Barcode entity with `String get value` as its first field).
 
-**Why this priority**: [Explain the value and why it has this priority level]
+**Why this priority**: Without this fix, entities like Barcode would have a parameter name collision between the ID parameter (`String value`) and the toggle value parameter (`bool value`), causing compilation errors.
 
-**Independent Test**: [Describe how this can be tested independently]
+**Independent Test**: Generate code for an entity named `Barcode` with idField=`value` and verify the generated method uses `bool toggleValue` parameter and forwards it to `ToggleParams.value`.
 
 **Acceptance Scenarios**:
-
-1. **Given** [initial state], **When** [action], **Then** [expected outcome]
+1. **Given** an entity where the resolved ID field is `value`, **When** toggle method is generated, **Then** the boolean parameter is named `toggleValue`, not `value`.
+2. **Given** the canonical entity with `id` field, **When** toggle method is generated, **Then** the boolean parameter is still named `toggleValue` (consistent behavior).
 
 ---
 
-[Add more user stories as needed, each with an assigned priority]
-
-### Edge Cases
-
-<!--
-  ACTION REQUIRED: The content in this section represents placeholders.
-  Fill them out with the right edge cases.
--->
-
-- What happens when [boundary condition]?
-- How does system handle [error scenario]?
-
-## Requirements *(mandatory)*
-
-<!--
-  ACTION REQUIRED: The content in this section represents placeholders.
-  Fill them out with the right functional requirements.
--->
+## Requirements
 
 ### Functional Requirements
 
-- **FR-001**: System MUST [specific capability, e.g., "allow users to create accounts"]
-- **FR-002**: System MUST [specific capability, e.g., "validate email addresses"]  
-- **FR-003**: Users MUST be able to [key interaction, e.g., "reset their password"]
-- **FR-004**: System MUST [data requirement, e.g., "persist user preferences"]
-- **FR-005**: System MUST [behavior, e.g., "log all security events"]
+- **FR-001**: System MUST generate a `toggle` method in the repository interface with signature `Future<Entity> toggle(ToggleParams<IdType, Field<Entity, dynamic>> params)`.
+- **FR-002**: System MUST generate a `Toggle${Entity}UseCase` that extends `UseCase<Entity, ToggleParams<IdType, Field<Entity, dynamic>>>`.
+- **FR-003**: System MUST generate a `toggle` method in the datasource interface, remote datasource (throwing UnimplementedError), and local datasource (using `copyWithField`).
+- **FR-004**: System MUST generate a `toggleEntity` method in the presenter with parameters `(idField, field, toggleValue)`.
+- **FR-005**: System MUST generate a `toggleEntity` method in the controller with parameters `(idField, field, toggleValue)`.
+- **FR-006**: System MUST add `isToggling` boolean field to the generated state class.
+- **FR-007**: System MUST use `toggleValue` as the parameter name for the boolean value (not `value`) to avoid collision with entity ID field named `value`.
+- **FR-008**: System MUST forward `toggleValue` into `ToggleParams.value` field when constructing the params object.
 
-*Example of marking unclear requirements:*
+### Key Entities
 
-- **FR-006**: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]
-- **FR-007**: System MUST retain user data for [NEEDS CLARIFICATION: retention period not specified]
+- **ToggleParams<I, F>**: Parameter class for toggle operations with generic ID type `I` and field type `F`. Contains `id: I`, `field: F`, `value: bool`.
+- **Entity**: The domain entity for which toggle methods are generated.
 
-### Key Entities *(include if feature involves data)*
+---
 
-- **[Entity 1]**: [What it represents, key attributes without implementation]
-- **[Entity 2]**: [What it represents, relationships to other entities]
-
-## Success Criteria *(mandatory)*
-
-<!--
-  ACTION REQUIRED: Define measurable success criteria.
-  These must be technology-agnostic and measurable.
--->
+## Success Criteria
 
 ### Measurable Outcomes
 
-- **SC-001**: [Measurable metric, e.g., "Users can complete account creation in under 2 minutes"]
-- **SC-002**: [Measurable metric, e.g., "System handles 1000 concurrent users without degradation"]
-- **SC-003**: [User satisfaction metric, e.g., "90% of users successfully complete primary task on first attempt"]
-- **SC-004**: [Business metric, e.g., "Reduce support tickets related to [X] by 50%"]
+- **SC-001**: Running `zfa make Entity --methods=get,toggle` generates toggle methods across all layers without compilation errors.
+- **SC-002**: The generated toggle method correctly toggles a boolean field in the local datasource implementation.
+- **SC-003**: No parameter name collision occurs when entity's ID field is named `value` (verified by test in issue_302_toggle_param_collision_test.dart).
+- **SC-004**: Generated code passes `dart analyze` and existing regression tests.
+
+---
 
 ## Assumptions
 
-<!--
-  ACTION REQUIRED: The content in this section represents placeholders.
-  Fill them out with the right assumptions based on reasonable defaults
-  chosen when the feature description did not specify certain details.
--->
+- The `ToggleParams` class already exists in `lib/src/core/params/toggle_params.dart` and `toggle_params.zorphy.dart`.
+- The entity already has boolean fields that can be toggled.
+- The `zfa make` command accepts `toggle` as a valid method in the `--methods` flag.
+- The feature is scoped to the `crud` preset and entity-based generation.
 
-- [Assumption about target users, e.g., "Users have stable internet connectivity"]
-- [Assumption about scope boundaries, e.g., "Mobile support is out of scope for v1"]
-- [Assumption about data/environment, e.g., "Existing authentication system will be reused"]
-- [Dependency on existing system/service, e.g., "Requires access to the existing user profile API"]
+---
+
+## Edge Cases
+
+- What happens when the entity has no boolean fields? (The toggle method is still generated but operates on any field via `Field<Entity, dynamic>`).
+- How does system handle the remote datasource toggle? (Throws `UnimplementedError` with message 'Implement remote toggle').
+- What happens when the entity's ID field is named `value`? (Parameter renamed to `toggleValue` to avoid collision).
+- What happens with pure-Dart targets? (VPC generation is skipped per Constitution VII, but usecase/repository/datasource layers still generate).

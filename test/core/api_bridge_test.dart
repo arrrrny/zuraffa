@@ -149,6 +149,62 @@ void main() {
     );
   });
 
+  group('discovery (_handleList)', () {
+    test('returns a JSON catalog of all registered endpoints, excluding meta',
+        () async {
+      final endpoints = [
+        const ApiEndpoint(
+          method: 'ext.zuraffa.product.getProduct',
+          domain: 'product',
+          usecase: 'getProduct',
+          params: {'id': 'String'},
+          returns: 'Product',
+          isStream: false,
+        ),
+        const ApiEndpoint(
+          method: 'ext.zuraffa.product.getProductList',
+          domain: 'product',
+          usecase: 'getProductList',
+          params: {},
+          returns: 'List<Product>',
+          isStream: false,
+        ),
+        const ApiEndpoint(
+          method: 'ext.zuraffa.concert.watchConcert',
+          domain: 'concert',
+          usecase: 'watchConcert',
+          params: {},
+          returns: 'Concert',
+          isStream: true,
+        ),
+      ];
+      for (final ep in endpoints) {
+        ZuraffaApiBridge.registerEndpoint(
+          endpoint: ep,
+          handler: (_, _) async => ZuraffaApiBridge.errorResponse('noop', 'noop'),
+        );
+      }
+
+      final response = await ZuraffaApiBridge.handleList('ext.zuraffa._list', {});
+      final body = jsonDecode(response.result!) as List;
+
+      expect(body, hasLength(3));
+      expect(body, containsAll(endpoints.map((e) => e.toJson()).toList()));
+      // Meta-extensions are registered via developer.registerExtension, never
+      // added to _endpoints, so they must never appear in the catalog.
+      expect(
+        body.any((e) => (e['method'] as String).startsWith('ext.zuraffa._')),
+        isFalse,
+      );
+    });
+
+    test('returns [] when no endpoints are registered', () async {
+      final response = await ZuraffaApiBridge.handleList('ext.zuraffa._list', {});
+      final body = jsonDecode(response.result!) as List;
+      expect(body, isEmpty);
+    });
+  });
+
   // ---------------------------------------------------------------------------
   // Stream lifecycle: subscribe → poll → cancel
   // ---------------------------------------------------------------------------

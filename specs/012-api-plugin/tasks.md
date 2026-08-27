@@ -117,17 +117,17 @@
   - Add `ApiPlugin(outputDir: outputDir, options: options),` to the list (after `MockPlugin`)
 
 - [x] T015 [US1 — after T013] Write unit tests for `ApiBridgeBuilder.generate()` in `zuraffa/test/plugins/api/api_bridge_builder_test.dart`:
-  - Generates file at correct path: `lib/src/api/bridges/product_api_bridge.dart`
-  - Generated content contains `registerProductApiBridge()`
-  - Generated content contains `_handle{UseCase}` function for each UseCase
-  - Generated content calls `ZuraffaApiBridge.registerEndpoint(...)` with correct `ApiEndpoint`
-  - Returns empty list with no file written when entity has zero UseCases
-  - Respects `dryRun: true` (no file written but returns preview)
+  - Generates file at correct path: `lib/src/api/bridges/product_api_bridge.dart` [U10]
+  - Generated content contains `registerProductApiBridge()` [U28]
+  - Generated content contains `_handle{UseCase}` function for each UseCase [U25]
+  - Generated content calls `ZuraffaApiBridge.registerEndpoint(...)` with correct `ApiEndpoint` [U25]
+  - Returns empty list with no file written when entity has zero UseCases [AC-04, U11]
+  - Respects `dryRun: true` (no file written but returns preview) [U9]
 
 - [x] T016 [US1 — after T011, T012] Write unit tests for `ApiCommand` and `CreateApiBridgeCapability` in `zuraffa/test/plugins/api/api_plugin_test.dart`:
-  - `zfa api Product` routes to `CreateApiBridgeCapability`
-  - Missing entity name prints usage error
-  - `--dry-run` flag passes through to capability
+  - `zfa api Product` routes to `CreateApiBridgeCapability` [U4]
+  - Missing entity name prints usage error [U3]
+  - `--dry-run` flag passes through to capability [U9]
   - `--force` flag passes through to builder
 
 **Checkpoint**: `zfa api Product` runs end-to-end, generates `lib/src/api/bridges/product_api_bridge.dart`, file compiles. Tests pass.
@@ -141,33 +141,28 @@
 **Independent Test**: Register a bridge in a test app. Connect to VM Service. Call `ext.zuraffa.product.getProduct({"id": "1"})`. Verify `{"status": "success", "data": {...}}`. Call with invalid ID, verify `{"status": "error", ...}`. Build in release mode, verify no extensions registered.
 
 - [x] T017 [P] [US2] Update `ApiBridgeBuilder` to generate correct primitive-param handlers in `zuraffa/lib/src/plugins/api/builders/api_bridge_builder.dart`:
-  - For `String`, `int`, `double`, `bool` param types: generate `final x = args['x'] ?? '';` (with appropriate type coercion)
-  - The handler body calls `ZuraffaApiBridge.serializeResult(result, (p) => p.toJson())`
-  - On exception: calls `ZuraffaApiBridge.errorResponse('unknown', e.toString())` and logs via `developer.log`
+  - For `String`, `int`, `double`, `bool` param types: generate `final x = args['x'] ?? '';` (with appropriate type coercion) [U29]
+  - The handler body calls `ZuraffaApiBridge.serializeResult(result, (p) => p.toJson())` [U33]
+  - On exception: calls `ZuraffaApiBridge.errorResponse('unknown', e.toString())` and logs via `developer.log` [U32]
 
 - [x] T018 [P] [US2] Update `ApiBridgeBuilder` to generate correct complex-param handlers in `zuraffa/lib/src/plugins/api/builders/api_bridge_builder.dart`:
-  - For complex params types: generate `final params = {ParamsType}.fromJson(jsonDecode(args['args'] ?? '{}'));`
-  - Wrap deserialization in its own try-catch that returns `ZuraffaApiBridge.errorResponse('deserialization', e.toString())`
+  - For complex params types: generate `final params = {ParamsType}.fromJson(jsonDecode(args['args'] ?? '{}'));` [U30]
+  - Wrap deserialization in its own try-catch that returns `ZuraffaApiBridge.errorResponse('deserialization', e.toString())` [U21, U42]
 
 - [x] T019 [P] [US2] Update `ApiBridgeBuilder` to generate `NoParams` handlers in `zuraffa/lib/src/plugins/api/builders/api_bridge_builder.dart`:
-  - For `NoParams` param type: generate `final useCase = GetIt.I<{UseCase}>(); final result = await useCase(NoParams());`
+  - For `NoParams` param type: generate `final useCase = GetIt.I<{UseCase}>(); final result = await useCase(NoParams());` [U31, U20]
 
 - [x] T020 [US5 — after T017–T019] Verify the generated `registerProductApiBridge()` function in `ApiBridgeBuilder` has the correct two-line guard at the top:
-
-  ```dart
-  if (kReleaseMode) return;
-  if (kProfileMode && !Zuraffa.enableApiInProfile) return;
-  ```
-
-  This guard was specified in Phase 2 (T003 skeleton) — this task confirms it is correctly emitted in the generated file, not just in the runtime `init()`.
+  - `if (kReleaseMode) return;` [U47, AC-16]
+  - `if (kProfileMode && !Zuraffa.enableApiInProfile) return;` [U48, AC-18]
 
 - [x] T021 [US2, US3, US5 — after T017–T020] Write runtime bridge unit tests in `zuraffa/test/core/api_bridge_test.dart`:
-  - `serializeResult` with `Result.success(x)` → correct JSON with `status: success`
-  - `serializeResult` with `Result.failure(failure)` → correct JSON with `status: error`
-  - `errorResponse('unknown', 'msg')` → correct error JSON
-  - `registerEndpoint` adds to `_endpoints` list
-  - In-process simulation: register a mock handler, call it, verify response
-  - Safety gate: confirm `init()` with mocked `kReleaseMode = true` registers zero extensions
+  - `serializeResult` with `Result.success(x)` → correct JSON with `status: success` [AC-09, U35]
+  - `serializeResult` with `Result.failure(failure)` → correct JSON with `status: error` [AC-10, U35]
+  - `errorResponse('unknown', 'msg')` → correct error JSON [U36]
+  - `registerEndpoint` adds to `_endpoints` list [U25]
+  - In-process simulation: register a mock handler, call it, verify response [U33]
+  - Safety gate: confirm `init()` with mocked `kReleaseMode = true` registers zero extensions [U49, AC-16]
 
 **Checkpoint**: Full runtime bridge works. `Result` serialization is via `fold()`. `serializeResult` and `errorResponse` are the sole serialization entry points. Safety gates verified.
 
@@ -180,12 +175,12 @@
 **Independent Test**: Register bridges for 2 entities, call `ext.zuraffa._list`. Verify the response is a JSON array with all endpoint entries, correct fields.
 
 - [x] T022 [US6 — after Phase 2] Implement `ZuraffaApiBridge._handleList()` in `zuraffa/lib/src/core/api_bridge.dart`:
-  - Returns `ServiceExtensionResponse.result(jsonEncode(_endpoints.map((e) => e.toJson()).toList()))`
+  - Returns `ServiceExtensionResponse.result(jsonEncode(_endpoints.map((e) => e.toJson()).toList()))` [U51]
 
 - [x] T023 [US6 — after T022] Write unit tests for discovery in `zuraffa/test/core/api_bridge_test.dart`:
-  - After registering 3 endpoints, `_handleList` returns JSON array with exactly 3 entries
-  - When no endpoints registered, returns `[]`
-  - Each entry has all required fields: `method`, `domain`, `usecase`, `params`, `returns`, `isStream`
+  - After registering 3 endpoints, `_handleList` returns JSON array with exactly 3 entries [AC-20, U52]
+  - When no endpoints registered, returns `[]` [AC-22]
+  - Each entry has all required fields: `method`, `domain`, `usecase`, `params`, `returns`, `isStream` [U53, AC-21]
 
 **Checkpoint**: Discovery endpoint returns accurate catalog.
 
@@ -198,31 +193,31 @@
 **Independent Test**: Call a `StreamUseCase` bridge extension, verify `{"status": "streaming", "subscriptionId": "..."}`. Call `_pollStream` with that ID, verify latest value returned. Call `_cancelStream`, verify subscription removed.
 
 - [x] T024 [P] [US4] Implement `ZuraffaApiBridge._handlePollStream(String method, Map<String, String> args)` in `zuraffa/lib/src/core/api_bridge.dart`:
-  - Reads `subscriptionId` from `args`
-  - If not found in `_streamSubscriptions`: returns `errorResponse('notFound', 'No active subscription: $subscriptionId')`
-  - If found but no value emitted yet: returns `ServiceExtensionResponse.result(jsonEncode({'status': 'pending'}))`
-  - If found with a value: returns `ServiceExtensionResponse.result(jsonEncode({'status': 'success', 'data': latestValue}))`
+  - Reads `subscriptionId` from `args` [U38]
+  - If not found in `_streamSubscriptions`: returns `errorResponse('notFound', 'No active subscription: $subscriptionId')` [U42, U44]
+  - If found but no value emitted yet: returns `ServiceExtensionResponse.result(jsonEncode({'status': 'pending'}))` [U40, AC-15]
+  - If found with a value: returns `ServiceExtensionResponse.result(jsonEncode({'status': 'success', 'data': latestValue}))` [U41, AC-13]
 
 - [x] T025 [P] [US4] Implement `ZuraffaApiBridge._handleCancelStream(String method, Map<String, String> args)` in `zuraffa/lib/src/core/api_bridge.dart`:
-  - Reads `subscriptionId` from `args`
-  - Calls `_streamSubscriptions[subscriptionId]?.subscription.cancel()`
-  - Removes from `_streamSubscriptions`
-  - Returns `ServiceExtensionResponse.result(jsonEncode({'status': 'cancelled'}))`
+  - Reads `subscriptionId` from `args` [U38]
+  - Calls `_streamSubscriptions[subscriptionId]?.subscription.cancel()` [U42]
+  - Removes from `_streamSubscriptions` [U42]
+  - Returns `ServiceExtensionResponse.result(jsonEncode({'status': 'cancelled'}))` [AC-14, U42]
 
 - [x] T026 [P] [US4] Update `ApiBridgeBuilder` to detect `StreamUseCase` return types in `zuraffa/lib/src/plugins/api/builders/api_bridge_builder.dart`:
   - When UseCase extends `StreamUseCase<T, P>`, generate a handler that:
-    1. Calls `GetIt.I<{StreamUseCase}>().call(params)`
-    2. Generates a UUID via `const Uuid().v4()`
-    3. Subscribes with `.listen()`, caching each emitted value in `ZuraffaApiBridge`'s `_streamSubscriptions` map via a new `registerStreamSubscription(id, subscription, onValue)` method
-    4. Returns immediately with `{'status': 'streaming', 'subscriptionId': uuid}`
-  - Add `ZuraffaApiBridge.registerStreamSubscription(String id, StreamSubscription sub, void Function(dynamic) onValue)` to the runtime class
+    1. Calls `GetIt.I<{StreamUseCase}>().call(params)` [U38]
+    2. Generates a UUID via `const Uuid().v4()` [U45]
+    3. Subscribes with `.listen()`, caching each emitted value in `ZuraffaApiBridge`'s `_streamSubscriptions` map via a new `registerStreamSubscription(id, subscription, onValue)` method [U38, U39]
+    4. Returns immediately with `{'status': 'streaming', 'subscriptionId': uuid}` [AC-12]
+  - Add `ZuraffaApiBridge.registerStreamSubscription(String id, StreamSubscription sub, void Function(dynamic) onValue)` to the runtime class [U38]
 
 - [x] T027 [US4 — after T024–T026] Write stream handling unit tests in `zuraffa/test/core/api_bridge_test.dart`:
-  - Subscription is created and stored when stream handler is invoked
-  - `_pollStream` returns `{'status': 'pending'}` before first emission
-  - `_pollStream` returns latest value after emission
-  - `_cancelStream` cancels subscription and removes it from the map
-  - Two concurrent streams with different IDs are independent
+  - Subscription is created and stored when stream handler is invoked [AC-12, U38]
+  - `_pollStream` returns `{'status': 'pending'}` before first emission [AC-15, U40]
+  - `_pollStream` returns latest value after emission [AC-13, U41]
+  - `_cancelStream` cancels subscription and removes it from the map [AC-14, U42]
+  - Two concurrent streams with different IDs are independent [U43]
 
 **Checkpoint**: Stream UseCases fully supported via subscribe/poll/cancel lifecycle.
 
@@ -456,3 +451,29 @@ Phase 8:  T032 ─── (test file setup — after Phase 6)
 - **Phase 8 uses `delay: Duration.zero`** for mock datasources — avoids 100ms delays in every test assertion. The delay is a constructor parameter on all generated mock datasources.
 - **Phase 8 stream test uses `Stream.value()`** — avoids the 2-second `Stream.periodic` in `ConcertMockDataSource.watch()`. The test datasource returns `Stream.value(sampleConcert)` which emits after the subscription is established, avoiding timing races with `StreamController.broadcast()`. Two `await Future.microtask(() {})` waits allow the async* generator to propagate the value before polling.
 - **`ZuraffaApiBridge._handlePollStream` and `_handleCancelStream` are private** — T035 must either make them package-visible (e.g., `@visibleForTesting`) or test them through a thin public accessor. Decide at implementation time; document the decision in the PR.
+
+---
+
+## Phase 9: TDD Coverage Gaps (added by /speckit.tdd.plan @ 614e648)
+
+**Purpose**: The feature was implemented and its original test tasks (T015–T016, T021, T023, T027, T032–T035) are marked `[x]`, but the test list at `tdd/test-list.md` shows real gaps: `ApiCommand` has **no** test file, discovery `_handleList` catalog shape is untested, and several codegen branches (multi-UseCase, `--domain`, deserialization error, `NoParams`, `dart analyze` of generated file) and the runtime release-gate + `PluginLoader` registration are untested. The `example/` integration test (T032–T035) is marked done but `example/` does not exist. These tasks close those gaps. Each carries the behavior id(s) from `tdd/test-list.md` so `/speckit.tdd.run` can tick it.
+
+**Note**: the suite baseline is RED (pre-existing MCP SSE timeout, unrelated). Clear it before starting the loop.
+
+- [ ] T036 [US1] Create `zuraffa/test/plugins/api/api_command_test.dart`: no-args prints usage and returns; `zfa api Product` dispatches entity name + flags to `CreateApiBridgeCapability`; `--domain`/`-d` passes the override through. [U28,U29,U30]
+- [x] T037 [US1] Add builder test: `--domain billing` produces `ext.zuraffa.billing.<usecase>` method names and `domain: 'billing'` in the `ApiEndpoint`. [U12]
+- [x] T038 [US1] Add builder test: entity with 2+ UseCases generates one file with N handlers and N `registerEndpoint` calls (covers `SC-001` "one file per entity"). [U14]
+- [ ] T039 [US1, SC-006] Add builder test that writes the generated file into a temp project that depends on `package:zuraffa` and assert it passes `dart analyze` with zero errors. [U15]
+- [x] T040 [US2] Add builder test: a non-stream primitive-param UseCase (`UseCase<Product,String>`) generates a handler that reads `args['id']` directly (not a JSON blob). [U4]
+- [x] T041 [US2] Add builder test: a `NoParams` UseCase generates `useCase(NoParams())` with `params: {}`. [U6]
+- [x] T042 [US2, FR-012] Add builder test: the generated complex-params handler returns a body with `{'type':'deserialization'}` when `args['args']` is not valid JSON. [U13]
+- [x] T043 [US6] Add runtime test for `ZuraffaApiBridge._handleList`: exact entry count, each entry matches `ApiEndpoint.toJson()` shape, meta-extensions (`_list`/`_pollStream`/`_cancelStream`) excluded, empty registry → `[]`. [U20,U33]
+- [ ] T044 [US5, SC-003] Add runtime test for `ZuraffaApiBridge.init()`: no-op when `dart.vm.product` is true (release), opt-in when `dart.vm.profile` true and `Zuraffa.enableApiInProfile` true, idempotent, and registers exactly the three meta-extensions. [U23]
+- [x] T045 [US1, FR-013] Add test asserting `ApiPlugin` is present in `PluginLoader._plugins()`. [U26]
+- [ ] T046 [US7] Create the `example/` app and `example/test/api_bridge_integration_test.dart` (success, create, failure, unknown-exception, stream lifecycle) — the acceptance gate. Currently claimed done (T032–T035) but `example/` is absent. [A7]
+- [ ] T047 [US1] Acceptance: run `zfa api Product` end-to-end on a temp project and assert the generated file + `dart analyze` clean. [A1]
+- [ ] T048 [US2] Acceptance: in-process handler invocation for primitive, complex (`fromJson`), and `NoParams` params returns correct serialized success/failure. [A2]
+- [ ] T049 [US3] Acceptance: a handler whose UseCase throws an unexpected exception returns `{'status':'error','failure':{'type':'unknown',...}}` and does not re-throw. [A3]
+- [ ] T050 [US4] Acceptance: stream subscribe → poll → cancel through the bridge leaves zero active subscriptions. [A4]
+- [ ] T051 [US5] Acceptance: a release-mode build registers zero extensions and allocates no bridge state. [A5]
+- [ ] T052 [US6] Acceptance: `ext.zuraffa._list` returns an accurate catalog of all registered endpoints. [A6]

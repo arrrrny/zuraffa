@@ -151,6 +151,9 @@ class CreateCacheAdapterCapability implements ZuraffaCapability {
     final verbose = args['verbose'] ?? false;
 
     final entitySnake = StringUtils.camelToSnake(entityName);
+    final fs = plugin.cacheBuilder.fileSystem;
+
+    // Check if entity file exists - support both regular entities and enums
     final entityFilePath = path.join(
       outputDir,
       'domain',
@@ -159,10 +162,45 @@ class CreateCacheAdapterCapability implements ZuraffaCapability {
       '$entitySnake.dart',
     );
 
-    final fs = plugin.cacheBuilder.fileSystem;
+    // Also check for enum in enums directory
+    final enumIndexPath = path.join(
+      outputDir,
+      'domain',
+      'entities',
+      'enums',
+      'index.dart',
+    );
+    final enumFilePath = path.join(
+      outputDir,
+      'domain',
+      'entities',
+      'enums',
+      '$entitySnake.dart',
+    );
 
-    // Check if entity file exists
-    if (!await fs.exists(entityFilePath)) {
+    bool entityExists = await fs.exists(entityFilePath);
+    bool enumExists = false;
+    String enumImportPath = '../domain/entities/$entitySnake/$entitySnake.dart';
+
+    if (!entityExists) {
+      // Check enums directory
+      if (await fs.exists(enumIndexPath)) {
+        final content = await fs.read(enumIndexPath);
+        if (content.contains('enum $entityName')) {
+          enumExists = true;
+          enumImportPath = '../domain/entities/enums/index.dart';
+        }
+      }
+      if (!enumExists && await fs.exists(enumFilePath)) {
+        final content = await fs.read(enumFilePath);
+        if (content.contains('enum $entityName')) {
+          enumExists = true;
+          enumImportPath = '../domain/entities/enums/$entitySnake.dart';
+        }
+      }
+    }
+
+    if (!entityExists && !enumExists) {
       // List available entities for helpful error message
       final entitiesDir = path.join(outputDir, 'domain', 'entities');
       final available = <String>[];
@@ -174,6 +212,26 @@ class CreateCacheAdapterCapability implements ZuraffaCapability {
             final entityFile = path.join(item, '$dirName.dart');
             if (await fs.exists(entityFile)) {
               available.add(StringUtils.convertToPascalCase(dirName));
+            }
+            // Also check enums directory
+            if (dirName == 'enums') {
+              if (await fs.exists(enumIndexPath)) {
+                final content = await fs.read(enumIndexPath);
+                final enumMatches = RegExp(r'enum\s+(\w+)').allMatches(content);
+                for (final match in enumMatches) {
+                  available.add(match.group(1)!);
+                }
+              }
+              final enumItems = await fs.list(item);
+              for (final enumItem in enumItems) {
+                if (!await fs.isDirectory(enumItem) && enumItem.endsWith('.dart')) {
+                  final content = await fs.read(enumItem);
+                  final enumMatches = RegExp(r'enum\s+(\w+)').allMatches(content);
+                  for (final match in enumMatches) {
+                    available.add(match.group(1)!);
+                  }
+                }
+              }
             }
           }
         }
@@ -192,7 +250,11 @@ class CreateCacheAdapterCapability implements ZuraffaCapability {
 
     // Add the main entity
     adapterEntities.add(entityName);
-    imports.add('../domain/entities/$entitySnake/$entitySnake.dart');
+    if (enumExists) {
+      imports.add(enumImportPath);
+    } else {
+      imports.add('../domain/entities/$entitySnake/$entitySnake.dart');
+    }
 
     // Discover sub-entities using the same pattern as CacheBuilderRegistrar
     await _collectSubtypeAdapters(
@@ -303,8 +365,13 @@ class CreateCacheAdapterCapability implements ZuraffaCapability {
     for (var i = 0; i < adapterEntities.length; i++) {
       final entity = adapterEntities[i];
       final entitySnakeName = StringUtils.camelToSnake(entity);
-      final importPath =
-          '../domain/entities/$entitySnakeName/$entitySnakeName.dart';
+      // Use the correct import path for enums
+      String importPath;
+      if (entity == entityName && enumExists) {
+        importPath = enumImportPath;
+      } else {
+        importPath = '../domain/entities/$entitySnakeName/$entitySnakeName.dart';
+      }
 
       if (!existingEntityEntries.contains(entity)) {
         newLines.add('$importPath|$entity');

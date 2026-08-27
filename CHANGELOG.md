@@ -1,3 +1,9 @@
+## [6.0.1] - 2026-08-24
+
+### Fixed
+- Republish of 6.0.0 with the #481 packaging fix: `lib/src/extensions/future_extensions.dart` was missing from the published 6.0.0 tarball because a non-anchored `extensions/` ignore rule matched `lib/src/extensions/`. PR #482 anchored the rule to the repo root (`/extensions/`); this 6.0.1 release ships the fix so downstream consumers (`zikzak_session`, etc.) can use hosted `zuraffa: ^6.0.1` instead of a path dep.
+
+
 ## [6.0.0] - 2026-08-21
 
 ### Dependencies

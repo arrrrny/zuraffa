@@ -54,6 +54,7 @@ class GeneratorConfig {
   final String cachePolicy;
   final String? cacheStorage;
   final int? ttlMinutes;
+  final bool enableSqlite;
 
   // Strategy fields
   final bool enableStrategy;
@@ -140,6 +141,7 @@ class GeneratorConfig {
     this.cachePolicy = 'daily',
     this.cacheStorage,
     this.ttlMinutes,
+    this.enableSqlite = false,
     this.enableStrategy = false,
     this.strategyNames = const [],
     this.enableSync = false,
@@ -224,6 +226,7 @@ class GeneratorConfig {
       ttlMinutes: json['ttl'] != null
           ? int.tryParse(json['ttl'].toString())
           : null,
+      enableSqlite: json['sqlite'] == true || json['enable_sqlite'] == true,
       generateMock: json['mock'] == true || json['generate_mock'] == true,
       generateMockDataOnly:
           json['mock_data_only'] == true ||
@@ -317,6 +320,7 @@ class GeneratorConfig {
     String? cachePolicy,
     String? cacheStorage,
     int? ttlMinutes,
+    bool? enableSqlite,
     bool? enableStrategy,
     List<String>? strategyNames,
     bool? enableSync,
@@ -390,6 +394,7 @@ class GeneratorConfig {
       cachePolicy: cachePolicy ?? this.cachePolicy,
       cacheStorage: cacheStorage ?? this.cacheStorage,
       ttlMinutes: ttlMinutes ?? this.ttlMinutes,
+      enableSqlite: enableSqlite ?? this.enableSqlite,
       enableStrategy: enableStrategy ?? this.enableStrategy,
       strategyNames: strategyNames ?? this.strategyNames,
       enableSync: enableSync ?? this.enableSync,
@@ -662,6 +667,7 @@ class GeneratorConfig {
     'cache_policy': cachePolicy,
     'cache_storage': cacheStorage,
     'ttl': ttlMinutes,
+    'sqlite': enableSqlite,
     'sync': enableSync,
     'strategy': enableStrategy,
     'strategy_names': strategyNames,

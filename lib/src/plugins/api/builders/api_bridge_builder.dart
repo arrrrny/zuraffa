@@ -264,7 +264,6 @@ class ApiBridgeBuilder {
       "import 'dart:convert';",
       "import 'dart:developer' as developer;",
       '',
-      "import 'package:flutter/foundation.dart' show kProfileMode, kReleaseMode;",
       "import 'package:zuraffa/zuraffa.dart';",
       '',
     ];
@@ -321,8 +320,8 @@ class ApiBridgeBuilder {
     );
     lines.add('/// then call this function before `runApp()`.');
     lines.add('void register${entityName}ApiBridge() {');
-    lines.add('  if (kReleaseMode) return;');
-    lines.add('  if (kProfileMode && !Zuraffa.enableApiInProfile) return;');
+    lines.add('  if (const bool.fromEnvironment(\'dart.vm.product\')) return;');
+    lines.add('  if (const bool.fromEnvironment(\'dart.vm.profile\') && !Zuraffa.enableApiInProfile) return;');
     lines.add('');
 
     for (final uc in useCases) {

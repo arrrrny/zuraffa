@@ -39,3 +39,4 @@ contracts
 .contracts
 apps/
 pubspec_overrides.yaml
+.worktrees/

@@ -402,6 +402,134 @@ abstract class \$Order {
       expect(fields[2].type, 'double');
     });
   });
+
+  // #508: id-neutral plugin paths (test/mock regeneration) still need a
+  // query/filter key. It must be a representative REAL field — never an
+  // enum-typed field (the pre-#307 first-field fallback bug), never a
+  // synthetic id.
+  group('resolveRepresentativeField (#508)', () {
+    test('skips an enum-typed first field and picks the first String', () async {
+      await writeEntity('ChatMessage', '''
+import 'package:zorphy_annotation/zorphy_annotation.dart';
+
+@Zorphy(generateJson: true)
+abstract class \$ChatMessage {
+  ChatMessageRole get role;
+  String get content;
+  DateTime get timestamp;
+}
+''');
+      final field = EntityFieldResolver.resolveRepresentativeField(
+        entityName: 'ChatMessage',
+        projectRoot: tempRoot.path,
+      );
+      expect(field, isNotNull);
+      expect(field!.name, 'content');
+      expect(field.type, 'String');
+    });
+
+    test('falls back to the first non-nullable int when no String exists',
+        () async {
+      await writeEntity('Counter', '''
+abstract class \$Counter {
+  CounterKind get kind;
+  int get count;
+  bool get active;
+}
+''');
+      final field = EntityFieldResolver.resolveRepresentativeField(
+        entityName: 'Counter',
+        projectRoot: tempRoot.path,
+      );
+      expect(field, isNotNull);
+      expect(field!.name, 'count');
+      expect(field.nonNullableType, 'int');
+    });
+
+    test('prefers non-nullable String over nullable String', () async {
+      await writeEntity('Profile', '''
+abstract class \$Profile {
+  String? nickname;
+  String get handle;
+}
+''');
+      final field = EntityFieldResolver.resolveRepresentativeField(
+        entityName: 'Profile',
+        projectRoot: tempRoot.path,
+      );
+      expect(field, isNotNull);
+      expect(field!.name, 'handle');
+    });
+
+    test('accepts a nullable String when only nullables exist', () async {
+      await writeEntity('Lead', '''
+abstract class \$Lead {
+  LeadStatus get status;
+  String? email;
+}
+''');
+      final field = EntityFieldResolver.resolveRepresentativeField(
+        entityName: 'Lead',
+        projectRoot: tempRoot.path,
+      );
+      expect(field, isNotNull);
+      expect(field!.name, 'email');
+      expect(field.nonNullableType, 'String');
+    });
+
+    test('falls back to other scalars (double/bool/DateTime) after String/int',
+        () async {
+      await writeEntity('Reading', '''
+abstract class \$Reading {
+  ReadingKind get kind;
+  Map<String, dynamic> get meta;
+  double get value;
+}
+''');
+      final field = EntityFieldResolver.resolveRepresentativeField(
+        entityName: 'Reading',
+        projectRoot: tempRoot.path,
+      );
+      expect(field, isNotNull);
+      expect(field!.name, 'value');
+    });
+
+    test('never selects a List/Map field', () async {
+      await writeEntity('Bucket', '''
+abstract class \$Bucket {
+  List<String> get items;
+  Map<String, int> get counts;
+}
+''');
+      final field = EntityFieldResolver.resolveRepresentativeField(
+        entityName: 'Bucket',
+        projectRoot: tempRoot.path,
+      );
+      expect(field, isNull);
+    });
+
+    test('returns null when only enum/custom-typed fields exist', () async {
+      await writeEntity('Signal', '''
+abstract class \$Signal {
+  SignalType get type;
+  ChatMessageRole get role;
+}
+''');
+      final field = EntityFieldResolver.resolveRepresentativeField(
+        entityName: 'Signal',
+        projectRoot: tempRoot.path,
+      );
+      expect(field, isNull);
+    });
+
+    test('returns null when the entity file does not exist', () {
+      final field = EntityFieldResolver.resolveRepresentativeField(
+        entityName: 'NoSuchEntity',
+        projectRoot: tempRoot.path,
+      );
+      expect(field, isNull);
+    });
+  });
 }
 
 String _toSnake(String input) {

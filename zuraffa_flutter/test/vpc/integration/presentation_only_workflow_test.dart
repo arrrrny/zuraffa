@@ -59,25 +59,43 @@ void main() {
 
       expect(result.success, isTrue);
 
-      // Check Presentation layer exists
+      // Check Presentation layer — this workspace is a *pure-Dart* fixture
+      // (the pubspec written by `writePubspec` declares no `flutter:` SDK),
+      // so per Constitution VII (Engine Purity) the view/presenter/controller
+      // generators correctly SKIP output for a pure-Dart target (see #420):
+      // those artifacts depend on `zuraffa_flutter`, which is unavailable
+      // here. The full presentation-only VPC workflow (view + presenter +
+      // controller generated, and ONLY those) is verified in the
+      // `zuraffa_flutter` package — see issue #431.
       expect(
         File(
           '$outputDir/presentation/pages/profile/profile_view.dart',
         ).existsSync(),
-        isTrue,
+        isFalse,
+        reason:
+            'pure-Dart target must NOT generate a Flutter view '
+            '(Constitution VII: Engine Purity)',
       );
       expect(
         File(
           '$outputDir/presentation/pages/profile/profile_presenter.dart',
         ).existsSync(),
-        isTrue,
+        isFalse,
+        reason:
+            'pure-Dart target must NOT generate a Flutter presenter '
+            '(Constitution VII: Engine Purity)',
       );
       expect(
         File(
           '$outputDir/presentation/pages/profile/profile_controller.dart',
         ).existsSync(),
-        isTrue,
+        isFalse,
+        reason:
+            'pure-Dart target must NOT generate a Flutter controller '
+            '(Constitution VII: Engine Purity)',
       );
+      // State is pure-Dart-safe (no zuraffa_flutter symbols) and is still
+      // generated for a presentation-only request.
       expect(
         File(
           '$outputDir/presentation/pages/profile/profile_state.dart',

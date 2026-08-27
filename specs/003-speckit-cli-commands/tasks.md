@@ -8,7 +8,7 @@ description: "Task list for implementing ZFA CLI commands in zuraffa-speckit ext
 **Input**: Design documents from `/specs/003-speckit-cli-commands/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: Not requested for this feature - extension tests will be manual integration with CLI
+**Tests**: TDD test list at `/specs/003-speckit-cli-commands/tdd/test-list.md` - behaviors mapped to test IDs (A1-A7, U1-U11)
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -37,10 +37,10 @@ description: "Task list for implementing ZFA CLI commands in zuraffa-speckit ext
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [X] T005 Create command registry schema in .specify/extensions/zuraffa/commands/registry.yaml
-- [X] T006 [P] Create base command template for .specify/extensions/zuraffa/commands/_template.md
-- [X] T007 Update extension.yml to include new commands section (depends on T005)
-- [ ] T008 Create help text cache structure in .specify/extensions/zuraffa/commands/help/
+- [X] T005 [U4,U5] Create command registry schema in .specify/extensions/zuraffa/commands/registry.yaml
+- [X] T006 [P] [U4] Create base command template for .specify/extensions/zuraffa/commands/_template.md
+- [X] T007 [U5] Update extension.yml to include new commands section (depends on T005)
+- [ ] T008 [U11] Create help text cache structure in .specify/extensions/zuraffa/commands/help/
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -54,34 +54,34 @@ description: "Task list for implementing ZFA CLI commands in zuraffa-speckit ext
 
 ### Implementation for User Story 1
 
-- [ ] T009 [P] [US1] Create generate.md command file in .specify/extensions/zuraffa/commands/generation/
-- [ ] T010 [P] [US1] Create make.md command file in .specify/extensions/zuraffa/commands/generation/
-- [ ] T011 [P] [US1] Create initialize.md command file in .specify/extensions/zuraffa/commands/generation/
-- [ ] T012 [US1] Create feature.md command file with subcommands in .specify/extensions/zuraffa/commands/scaffolding/
-- [ ] T013 [P] [US1] Create usecase.md command file in .specify/extensions/zuraffa/commands/domain/
-- [ ] T014 [P] [US1] Create service.md command file in .specify/extensions/zuraffa/commands/domain/
-- [ ] T015 [P] [US1] Create provider.md command file in .specify/extensions/zuraffa/commands/domain/
-- [ ] T016 [US1] Create repository.md command file in .specify/extensions/zuraffa/commands/data/
-- [ ] T017 [US1] Create datasource.md command file in .specify/extensions/zuraffa/commands/data/
-- [ ] T018 [P] [US1] Create view.md command file in .specify/extensions/zuraffa/commands/presentation/
-- [ ] T019 [P] [US1] Create controller.md command file in .specify/extensions/zuraffa/commands/presentation/
-- [ ] T020 [P] [US1] Create presenter.md command file in .specify/extensions/zuraffa/commands/presentation/
-- [ ] T021 [P] [US1] Create state.md command file in .specify/extensions/zuraffa/commands/presentation/
-- [ ] T022 [P] [US1] Create observer.md command file in .specify/extensions/zuraffa/commands/presentation/
-- [ ] T023 [P] [US1] Create route.md command file in .specify/extensions/zuraffa/commands/presentation/
-- [ ] T024 [US1] Create cache.md command file in .specify/extensions/zuraffa/commands/utilities/
-- [ ] T025 [P] [US1] Create manifest.md command file in .specify/extensions/zuraffa/commands/utilities/
-- [ ] T026 [P] [US1] Create validate.md command file in .specify/extensions/zuraffa/commands/utilities/
-- [ ] T027 [P] [US1] Create config.md command file in .specify/extensions/zuraffa/commands/utilities/
-- [ ] T028 [P] [US1] Create test.md command file in .specify/extensions/zuraffa/commands/testing/
-- [ ] T029 [P] [US1] Create mock.md command file in .specify/extensions/zuraffa/commands/testing/
-- [ ] T030 [P] [US1] Create apply.md command file in .specify/extensions/zuraffa/commands/management/
-- [ ] T031 [P] [US1] Create plugin.md command file in .specify/extensions/zuraffa/commands/management/
-- [ ] T032 [P] [US1] Create doctor.md command file in .specify/extensions/zuraffa/commands/management/
-- [ ] T033 [P] [US1] Create shadcn.md command file in .specify/extensions/zuraffa/commands/management/
-- [ ] T034 [P] [US1] Create create.md command file in .specify/extensions/zuraffa/commands/structure/
-- [ ] T035 [P] [US1] Create entity.md command file in .specify/extensions/zuraffa/commands/structure/
-- [ ] T036 [US1] Update extension.yml provides section with all 26 commands (depends on T007, T009-T035)
+- [ ] T009 [P] [US1] [U2,U3] Create generate.md command file in .specify/extensions/zuraffa/commands/generation/
+- [ ] T010 [P] [US1] [U2,U3] Create make.md command file in .specify/extensions/zuraffa/commands/generation/
+- [ ] T011 [P] [US1] [U2,U3] Create initialize.md command file in .specify/extensions/zuraffa/commands/generation/
+- [ ] T012 [US1] [U2,U3] Create feature.md command file with subcommands in .specify/extensions/zuraffa/commands/scaffolding/
+- [ ] T013 [P] [US1] [U2,U3] Create usecase.md command file in .specify/extensions/zuraffa/commands/domain/
+- [ ] T014 [P] [US1] [U2,U3] Create service.md command file in .specify/extensions/zuraffa/commands/domain/
+- [ ] T015 [P] [US1] [U2,U3] Create provider.md command file in .specify/extensions/zuraffa/commands/domain/
+- [ ] T016 [US1] [U2,U3] Create repository.md command file in .specify/extensions/zuraffa/commands/data/
+- [ ] T017 [US1] [U2,U3] Create datasource.md command file in .specify/extensions/zuraffa/commands/data/
+- [ ] T018 [P] [US1] [U2,U3] Create view.md command file in .specify/extensions/zuraffa/commands/presentation/
+- [ ] T019 [P] [US1] [U2,U3] Create controller.md command file in .specify/extensions/zuraffa/commands/presentation/
+- [ ] T020 [P] [US1] [U2,U3] Create presenter.md command file in .specify/extensions/zuraffa/commands/presentation/
+- [ ] T021 [P] [US1] [U2,U3] Create state.md command file in .specify/extensions/zuraffa/commands/presentation/
+- [ ] T022 [P] [US1] [U2,U3] Create observer.md command file in .specify/extensions/zuraffa/commands/presentation/
+- [ ] T023 [P] [US1] [U2,U3] Create route.md command file in .specify/extensions/zuraffa/commands/presentation/
+- [ ] T024 [US1] [U2,U3] Create cache.md command file in .specify/extensions/zuraffa/commands/utilities/
+- [ ] T025 [P] [US1] [U2,U3] Create manifest.md command file in .specify/extensions/zuraffa/commands/utilities/
+- [ ] T026 [P] [US1] [U2,U3] Create validate.md command file in .specify/extensions/zuraffa/commands/utilities/
+- [ ] T027 [P] [US1] [U2,U3] Create config.md command file in .specify/extensions/zuraffa/commands/utilities/
+- [ ] T028 [P] [US1] [U2,U3] Create test.md command file in .specify/extensions/zuraffa/commands/testing/
+- [ ] T029 [P] [US1] [U2,U3] Create mock.md command file in .specify/extensions/zuraffa/commands/testing/
+- [ ] T030 [P] [US1] [U2,U3] Create apply.md command file in .specify/extensions/zuraffa/commands/management/
+- [ ] T031 [P] [US1] [U2,U3] Create plugin.md command file in .specify/extensions/zuraffa/commands/management/
+- [ ] T032 [P] [US1] [U2,U3] Create doctor.md command file in .specify/extensions/zuraffa/commands/management/
+- [ ] T033 [P] [US1] [U2,U3] Create shadcn.md command file in .specify/extensions/zuraffa/commands/management/
+- [ ] T034 [P] [US1] [U2,U3] Create create.md command file in .specify/extensions/zuraffa/commands/structure/
+- [ ] T035 [P] [US1] [U2,U3] Create entity.md command file in .specify/extensions/zuraffa/commands/structure/
+- [ ] T036 [US1] [U5] Update extension.yml provides section with all 26 commands (depends on T007, T009-T035)
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
@@ -95,11 +95,11 @@ description: "Task list for implementing ZFA CLI commands in zuraffa-speckit ext
 
 ### Implementation for User Story 2
 
-- [X] T037 [P] [US2] Create category index files for each category directory
-- [X] T038 [P] [US2] Add category tags to each command file
-- [X] T039 [US2] Create category navigation index in .specify/extensions/zuraffa/commands/index.md
-- [X] T040 [P] [US2] Add aliases for common command patterns (e.g., zfa.generate as alias for generate)
-- [X] T041 [US2] Document categories in quickstart.md update
+- [X] T037 [P] [US2] [U6] Create category index files for each category directory
+- [X] T038 [P] [US2] [U6] Add category tags to each command file
+- [X] T039 [US2] [U7] Create category navigation index in .specify/extensions/zuraffa/commands/index.md
+- [X] T040 [P] [US2] [U5] Add aliases for common command patterns (e.g., zfa.generate as alias for generate)
+- [X] T041 [US2] [U7] Document categories in quickstart.md update
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
 
@@ -113,11 +113,11 @@ description: "Task list for implementing ZFA CLI commands in zuraffa-speckit ext
 
 ### Implementation for User Story 3
 
-- [X] T042 [P] [US3] Create command discovery script to extract all zfa commands
-- [X] T043 [P] [US3] Create flag parser that extracts --help output for each command
-- [X] T044 [US3] Create regenerate script to update extension from ZFA CLI
-- [X] T045 [US3] Add auto-discovery configuration to extension.yml
-- [X] T046 [US3] Document regeneration process in extension README
+- [X] T042 [P] [US3] [U1,U9] Create command discovery script to extract all zfa commands
+- [X] T043 [P] [US3] [U3] Create flag parser that extracts --help output for each command
+- [X] T044 [US3] [U1,U9] Create regenerate script to update extension from ZFA CLI
+- [X] T045 [US3] [U8] Add auto-discovery configuration to extension.yml
+- [X] T046 [US3] [U7] Document regeneration process in extension README
 
 **Checkpoint**: All user stories should now be independently functional
 
@@ -127,11 +127,29 @@ description: "Task list for implementing ZFA CLI commands in zuraffa-speckit ext
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [X] T047 [P] Verify all 26 commands execute correctly via extension interface
-- [X] T048 Validate help output matches CLI --help for each command
-- [X] T049 [P] Update extension README with complete command reference
-- [X] T050 Run full integration test against all commands
+- [X] T047 [P] [A4] Verify all 26 commands execute correctly via extension interface
+- [X] T048 [A4,U11] Validate help output matches CLI --help for each command
+- [X] T049 [P] [A4,U7] Update extension README with complete command reference
+- [X] T050 [A1,A2,A3] Run full integration test against all commands
 - [X] T051 Clean up temporary files and backup files
+
+---
+
+## Phase M: Acceptance Test Implementation (TDD)
+
+**Purpose**: Implement missing acceptance tests from test-list.md
+
+- [ ] T052 [A1] Implement Todo app E2E test - scaffold via extension commands only
+- [ ] T053 [A2] Verify generated Todo app passes `flutter analyze` with zero errors
+- [ ] T054 [A3] Verify generated Todo app runs without runtime errors
+- [ ] T055 [A4] Implement manifest coverage test - all 53 manifest commands have .md files
+- [ ] T056 [A5] Implement regeneration reproducibility test
+- [ ] T057 [A6] Implement zfa missing detection test
+- [ ] T058 [A7] Implement invalid parameters handling test
+- [ ] T059 [U2] Implement frontmatter correctness test for generated commands
+- [ ] T060 [U3] Implement flags from inputSchema test
+- [ ] T061 [U9] Implement regeneration script test
+- [ ] T062 [U11] Implement help text matches CLI test
 
 ---
 

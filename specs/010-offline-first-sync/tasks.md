@@ -8,10 +8,11 @@
 
 **Organization**: Tasks grouped by user story. US1+US2 are combined into a single phase since they share the same repository generator (writes and reads are generated together).
 
-## Format: `[ID] [P?] [Story] Description`
+## Format: `[ID] [P?] [Story] [Behavior IDs] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)
 - **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
+- **[Behavior IDs]**: Corresponding behavior IDs from `tdd/test-list.md` (e.g., A1.1, U3.2)
 - Include exact file paths in descriptions
 
 ---
@@ -20,9 +21,9 @@
 
 **Purpose**: Create the SyncPlugin directory structure and register it in the plugin loader.
 
-- [X] T001 Create plugin directory structure: `lib/src/plugins/sync/` with subdirs `builders/`, `capabilities/`, `generators/`
-- [X] T002 Create `lib/src/commands/sync_command.dart` as a stub extending `PluginCommand` (mirrors `lib/src/commands/cache_command.dart`)
-- [X] T003 Register `SyncPlugin` import and instantiation in `lib/src/cli/plugin_loader.dart` `_plugins()` list (after `CachePlugin`, position ~121)
+- [X] T001 [P] [Setup] Create plugin directory structure: `lib/src/plugins/sync/` with subdirs `builders/`, `capabilities/`, `generators/`
+- [X] T002 [Setup] [U5.2] Create `lib/src/commands/sync_command.dart` as a stub extending `PluginCommand` (mirrors `lib/src/commands/cache_command.dart`)
+- [X] T003 [Setup] [U5.2] Register `SyncPlugin` import and instantiation in `lib/src/cli/plugin_loader.dart` `_plugins()` list (after `CachePlugin`, position ~121)
 
 ---
 
@@ -32,15 +33,15 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [X] T004 [P] Create `SyncStatus` enum in `lib/src/core/sync_status.dart` with values: `pending`, `syncing`, `synced`, `failed`
-- [X] T005 [P] Create `SyncOperation` enum in `lib/src/core/sync_operation.dart` with values: `create`, `update`, `delete`
-- [X] T006 [P] Create `SyncMetadata` Zorphy entity in `lib/src/core/sync_metadata.dart` with fields: `status:SyncStatus`, `retryCount:int`, `lastAttemptAt:DateTime?`, `lastError:String?`, `deletedAt:DateTime?`, `operation:SyncOperation`
-- [X] T007 Create `SyncStrategy<T>` abstract class in `lib/src/core/sync_strategy.dart` with methods: `syncPending({CancelToken?})`, `pullRemote({CancelToken?})`, `getPendingCount()`, `getSyncStatus(String)`, `markPending(String, {SyncOperation})`, `markDeleted(String)` (see `contracts/sync-strategy.md`)
-- [X] T008 [P] Create `SyncConfig` class in `lib/src/core/sync_config.dart` with fields: `batchSize:int` (default 50), `maxRetries:int` (default 5), `backoffBaseMs:int` (default 1000), `backoffMaxMs:int` (default 60000)
-- [X] T009 [P] Create `SyncDirection` enum in `lib/src/core/sync_config.dart` with values: `push`, `bidirectional`
-- [X] T010 Export all new core types in `lib/zuraffa.dart`: `sync_status.dart`, `sync_operation.dart`, `sync_metadata.dart`, `sync_strategy.dart`, `sync_config.dart`
-- [X] T011 Add sync fields to `GeneratorConfig` in `lib/src/models/generator_config.dart`: `enableSync:bool`, `syncDirection:String` (default 'push'), `syncBatchSize:int` (default 50), `syncMaxRetries:int` (default 5), `syncBackoffBaseMs:int` (default 1000), `syncBackoffMaxMs:int` (default 60000). Update `copyWith` and `toJson`.
-- [X] T012 Add `--sync` flag, `--bidirectional` flag, and sync config options to `lib/src/commands/make_command.dart` `_addCoreOptions()` and `_ignoredJsonOptionKeys`
+- [X] T004 [P] [Phase 2] [U1.1] Create `SyncStatus` enum in `lib/src/core/sync_status.dart` with values: `pending`, `syncing`, `synced`, `failed`
+- [X] T005 [P] [Phase 2] [U1.2] Create `SyncOperation` enum in `lib/src/core/sync_operation.dart` with values: `create`, `update`, `delete`
+- [X] T006 [P] [Phase 2] [U1.3, U1.4] Create `SyncMetadata` Zorphy entity in `lib/src/core/sync_metadata.dart` with fields: `status:SyncStatus`, `retryCount:int`, `lastAttemptAt:DateTime?`, `lastError:String?`, `deletedAt:DateTime?`, `operation:SyncOperation`
+- [X] T007 [Phase 2] [U1.7] Create `SyncStrategy<T>` abstract class in `lib/src/core/sync_strategy.dart` with methods: `syncPending({CancelToken?})`, `pullRemote({CancelToken?})`, `getPendingCount()`, `getSyncStatus(String)`, `markPending(String, {SyncOperation})`, `markDeleted(String)` (see `contracts/sync-strategy.md`)
+- [X] T008 [P] [Phase 2] [U1.5, U1.6] Create `SyncConfig` class in `lib/src/core/sync_config.dart` with fields: `batchSize:int` (default 50), `maxRetries:int` (default 5), `backoffBaseMs:int` (default 1000), `backoffMaxMs:int` (default 60000)
+- [X] T009 [P] [Phase 2] [U1.7] Create `SyncDirection` enum in `lib/src/core/sync_config.dart` with values: `push`, `bidirectional`
+- [X] T010 [Phase 2] Export all new core types in `lib/zuraffa.dart`: `sync_status.dart`, `sync_operation.dart`, `sync_metadata.dart`, `sync_strategy.dart`, `sync_config.dart`
+- [X] T011 [Phase 2] [U1.8] Add sync fields to `GeneratorConfig` in `lib/src/models/generator_config.dart`: `enableSync:bool`, `syncDirection:String` (default 'push'), `syncBatchSize:int` (default 50), `syncMaxRetries:int` (default 5), `syncBackoffBaseMs:int` (default 1000), `syncBackoffMaxMs:int` (default 60000). Update `copyWith` and `toJson`.
+- [X] T012 [Phase 2] Add `--sync` flag, `--bidirectional` flag, and sync config options to `lib/src/commands/make_command.dart` `_addCoreOptions()` and `_ignoredJsonOptionKeys`
 
 **Checkpoint**: Core types available. GeneratorConfig supports sync. Ready for user story implementation.
 
@@ -54,14 +55,14 @@
 
 ### Implementation
 
-- [X] T013 [P] [US1] Create `SyncMetadataStore` class in `lib/src/plugins/sync/builders/sync_metadata_store.dart` with methods: `get(String)`, `put(String, SyncMetadata)`, `remove(String)`, `getKeysByStatus(SyncStatus)`, `countByStatus(SyncStatus)`, `clear()`. Uses `Box<SyncMetadata>` (see `contracts/sync-metadata.md`)
-- [X] T014 [US1] Create entity key resolver utility in `lib/src/plugins/sync/builders/sync_key_resolver.dart` — analyzes entity via `EntityAnalyzer` to determine if entity has `id` field; generates `_syncKey(entity)` method returning `entity.id` or `entity.hashCode.toString()`
-- [X] T015 [US1] Create `implementation_generator_synced.dart` as `part of 'implementation_generator.dart'` in `lib/src/plugins/repository/generators/` — extension on `RepositoryImplementationGenerator` with methods: `_generateSyncedMethod()`, `_buildSyncedCreateBody()`, `_buildSyncedUpdateBody()`, `_buildSyncedDeleteBody()`, `_buildSyncedGetBody()`, `_buildSyncedGetListBody()` (mirrors `implementation_generator_cached.dart` structure)
-- [X] T016 [US1] Update `RepositoryImplementationGenerator.generate()` in `lib/src/plugins/repository/generators/implementation_generator.dart` to route to synced methods when `config.enableSync` is true (add `else if (config.enableSync)` branch alongside existing `config.enableCache`)
-- [X] T017 [US1] Update repository constructor/fields generation in `implementation_generator.dart` to add 4 dependencies when `enableSync`: `_localDataSource`, `_remoteDataSource`, `_syncMetadataStore`, `_syncStrategy` (mirrors how cached mode adds `_remoteDataSource`, `_localDataSource`, `_cachePolicy`)
-- [X] T018 [US1] Add mutual exclusivity check: if `config.enableCache && config.enableSync`, throw `ArgumentError('Cannot enable both --cache and --sync')` in `RepositoryImplementationGenerator.generate()`
-- [X] T019 [US2] Verify synced `get()` and `getList()` method bodies delegate to `_localDataSource` only with no network calls (part of T015, verify independently)
-- [X] T020 [US1] Update `RepositoryPlugin.generateWithContext()` in `lib/src/plugins/repository/repository_plugin.dart` to pass `enableSync` and sync config fields from context to `GeneratorConfig`
+- [X] T013 [P] [US1] [U2.1-U2.5] Create `SyncMetadataStore` class in `lib/src/plugins/sync/builders/sync_metadata_store.dart` with methods: `get(String)`, `put(String, SyncMetadata)`, `remove(String)`, `getKeysByStatus(SyncStatus)`, `countByStatus(SyncStatus)`, `clear()`. Uses `Box<SyncMetadata>` (see `contracts/sync-metadata.md`)
+- [X] T014 [US1] [U3.1-U3.8] Create entity key resolver utility in `lib/src/plugins/sync/builders/sync_key_resolver.dart` — analyzes entity via `EntityAnalyzer` to determine if entity has `id` field; generates `_syncKey(entity)` method returning `entity.id` or `entity.hashCode.toString()`
+- [X] T015 [US1] [U3.1-U3.8] Create `implementation_generator_synced.dart` as `part of 'implementation_generator.dart'` in `lib/src/plugins/repository/generators/` — extension on `RepositoryImplementationGenerator` with methods: `_generateSyncedMethod()`, `_buildSyncedCreateBody()`, `_buildSyncedUpdateBody()`, `_buildSyncedDeleteBody()`, `_buildSyncedGetBody()`, `_buildSyncedGetListBody()` (mirrors `implementation_generator_cached.dart` structure)
+- [X] T016 [US1] [U3.1-U3.8] Update `RepositoryImplementationGenerator.generate()` in `lib/src/plugins/repository/generators/implementation_generator.dart` to route to synced methods when `config.enableSync` is true (add `else if (config.enableSync)` branch alongside existing `config.enableCache`)
+- [X] T017 [US1] [U3.1] Update repository constructor/fields generation in `implementation_generator.dart` to add 4 dependencies when `enableSync`: `_localDataSource`, `_remoteDataSource`, `_syncMetadataStore`, `_syncStrategy` (mirrors how cached mode adds `_remoteDataSource`, `_localDataSource`, `_cachePolicy`)
+- [X] T018 [US1] [U3.9] Add mutual exclusivity check: if `config.enableCache && config.enableSync`, throw `ArgumentError('Cannot enable both --cache and --sync')` in `RepositoryImplementationGenerator.generate()`
+- [X] T019 [US2] [U3.5, U3.6] Verify synced `get()` and `getList()` method bodies delegate to `_localDataSource` only with no network calls (part of T015, verify independently)
+- [X] T020 [US1] [U3.1] Update `RepositoryPlugin.generateWithContext()` in `lib/src/plugins/repository/repository_plugin.dart` to pass `enableSync` and sync config fields from context to `GeneratorConfig`
 
 **Checkpoint**: `zfa make <Entity> --sync --data --datasource` generates a sync-enabled repository with local-first writes and local-only reads. Push strategy is not yet functional (US3).
 
@@ -75,17 +76,17 @@
 
 ### Implementation
 
-- [X] T021 [US3] Create `PushOnlySyncStrategy<T>` in `lib/src/plugins/sync/builders/push_only_sync_strategy.dart` implementing `SyncStrategy<T>` with constructor taking `LocalDataSource<T>`, `RemoteDataSource<T>`, `SyncMetadataStore`, `SyncConfig`
-- [X] T022 [US3] Implement `syncPending()` in `PushOnlySyncStrategy`: query metadata store for pending/failed keys, batch-fetch entities from local, transmit to remote via appropriate method based on `SyncOperation`, update status on success/failure, handle tombstones for deletes
-- [X] T023 [US3] Implement retry with exponential backoff in `PushOnlySyncStrategy`: on failure, increment `retryCount`, calculate delay as `min(backoffBaseMs * 2^retryCount, backoffMaxMs)`, set status back to `pending` if retries remaining, `failed` if exhausted
-- [X] T024 [US3] Implement tombstone handling in `PushOnlySyncStrategy.syncPending()`: detect `deletedAt != null` metadata entries, call `remoteDataSource.delete(key)`, remove metadata entry on success
-- [X] T025 [US3] Implement `markPending()` and `markDeleted()` in `PushOnlySyncStrategy`: create/update `SyncMetadata` entries in the metadata store
-- [X] T026 [US3] Implement `getPendingCount()` and `getSyncStatus()` in `PushOnlySyncStrategy`: delegate to metadata store queries
-- [X] T027 [US3] Implement `pullRemote()` in `PushOnlySyncStrategy` to throw `UnimplementedError('PushOnlySyncStrategy does not support pull')`
-- [X] T028 [P] [US3] Add `CancelToken` support to `syncPending()`: check `cancelToken?.throwIfCancelled()` between each batch and between each record within a batch
-- [X] T029 [US3] Add logging to `PushOnlySyncStrategy` via `Loggable` mixin: log sync attempts, successes, failures, retry counts, batch progress
-- [X] T030 [US3] Create `SyncEntityUseCase` generator in `lib/src/plugins/sync/generators/sync_usecase_generator.dart` — generates `Sync<Entity>UseCase extends UseCase<void, NoParams>` that calls `repository.syncPending(cancelToken)` (mirrors existing use case generators)
-- [X] T031 [US3] Wire `Sync<Entity>UseCase` generation into the sync plugin flow so it's generated when `--sync --with=usecase` (or `--sync` with CRUD preset)
+- [X] T021 [US3] [U4.1, U4.2] Create `PushOnlySyncStrategy<T>` in `lib/src/plugins/sync/builders/push_only_sync_strategy.dart` implementing `SyncStrategy<T>` with constructor taking `LocalDataSource<T>`, `RemoteDataSource<T>`, `SyncMetadataStore`, `SyncConfig`
+- [X] T022 [US3] [U4.3, U4.4] Implement `syncPending()` in `PushOnlySyncStrategy`: query metadata store for pending/failed keys, batch-fetch entities from local, transmit to remote via appropriate method based on `SyncOperation`, update status on success/failure, handle tombstones for deletes
+- [X] T023 [US3] [U4.5, U4.6] Implement retry with exponential backoff in `PushOnlySyncStrategy`: on failure, increment `retryCount`, calculate delay as `min(backoffBaseMs * 2^retryCount, backoffMaxMs)`, set status back to `pending` if retries remaining, `failed` if exhausted
+- [X] T024 [US3] [U4.4] Implement tombstone handling in `PushOnlySyncStrategy.syncPending()`: detect `deletedAt != null` metadata entries, call `remoteDataSource.delete(key)`, remove metadata entry on success
+- [X] T025 [US3] [U4.1, U4.2] Implement `markPending()` and `markDeleted()` in `PushOnlySyncStrategy`: create/update `SyncMetadata` entries in the metadata store
+- [X] T026 [US3] [U4.7, U4.8] Implement `getPendingCount()` and `getSyncStatus()` in `PushOnlySyncStrategy`: delegate to metadata store queries
+- [X] T027 [US3] [U4.9] Implement `pullRemote()` in `PushOnlySyncStrategy` to throw `UnimplementedError('PushOnlySyncStrategy does not support pull')`
+- [X] T028 [P] [US3] [U4.11] Add `CancelToken` support to `syncPending()`: check `cancelToken?.throwIfCancelled()` between each batch and between each record within a batch
+- [X] T029 [US3] [U4.12] Add logging to `PushOnlySyncStrategy` via `Loggable` mixin: log sync attempts, successes, failures, retry counts, batch progress
+- [X] T030 [US3] [A3.8] Create `SyncEntityUseCase` generator in `lib/src/plugins/sync/generators/sync_usecase_generator.dart` — generates `Sync<Entity>UseCase extends UseCase<void, NoParams>` that calls `repository.syncPending(cancelToken)` (mirrors existing use case generators)
+- [X] T031 [US3] [A3.8] Wire `Sync<Entity>UseCase` generation into the sync plugin flow so it's generated when `--sync --with=usecase` (or `--sync` with CRUD preset)
 
 **Checkpoint**: Full push sync works. Write locally → trigger sync → records appear on remote.
 
@@ -99,16 +100,16 @@
 
 ### Implementation
 
-- [X] T032 [US4] Create `SyncBuilder` class in `lib/src/plugins/sync/builders/sync_builder.dart` — generates: sync metadata Hive box init file (`{entity}_sync.dart`), `SyncMetadata` Hive adapter registration, sync strategy factory function. Mirrors `CacheBuilder` structure.
-- [X] T033 [US4] Create `SyncPlugin` class in `lib/src/plugins/sync/sync_plugin.dart` extending `FileGeneratorPlugin` implementing `CliAwarePlugin` — with `id='sync'`, `name='Sync Plugin'`, `capabilities`, `configSchema` (sync-direction, sync-batch-size, sync-max-retries). Set `runAfter` to `['datasource', 'repository']`
-- [X] T034 [US4] Create `CreateSyncCapability` in `lib/src/plugins/sync/capabilities/create_sync_capability.dart` — enables sync on entity (like `CreateCacheCapability`). Handles `zfa sync enable <Entity>` and `--sync` flag routing.
-- [X] T035 [US4] Create `CreateSyncStatusCapability` in `lib/src/plugins/sync/capabilities/create_sync_status_capability.dart` — initializes sync metadata store and registers Hive adapter (like `CreateCacheAdapterCapability`). Handles `zfa sync status <Entity>`.
-- [X] T036 [US4] Complete `SyncCommand` in `lib/src/commands/sync_command.dart` — add subcommands `enable` and `status`, add options for `--direction`, `--batch-size`, `--max-retries`. Wire to capabilities.
-- [X] T037 [US4] Update `SyncPlugin.generateWithContext()` to build `GeneratorConfig` with sync fields from context (mirrors `CachePlugin.generateWithContext()`)
-- [X] T038 [US4] Update `_generateRepositoryDI()` in `lib/src/plugins/di/di_plugin.dart` to handle `config.enableSync`: register `_syncMetadataStore` (singleton async, opens Hive box), `_syncStrategy` (lazy singleton, `PushOnlySyncStrategy` or `BidirectionalSyncStrategy`), and repository with 4-dependency constructor (mirrors cached DI in L469-L502)
-- [X] T039 [US4] Update `_generateLocalDataSourceDI()` in `lib/src/plugins/di/di_plugin.dart` to generate local datasource registration when `config.enableSync` (same as `config.enableCache` — opens Hive box)
-- [X] T040 [US4] Update `_generateRemoteDataSourceDI()` in `lib/src/plugins/di/di_plugin.dart` to generate remote datasource registration when `config.enableSync` (same pattern as existing)
-- [X] T041 [US4] Generate `Sync<Entity>UseCase` DI registration in `di_plugin.dart` when `config.enableSync && config.generateDi` — register as factory
+- [X] T032 [US4] [U5.1] Create `SyncBuilder` class in `lib/src/plugins/sync/builders/sync_builder.dart` — generates: sync metadata Hive box init file (`{entity}_sync.dart`), `SyncMetadata` Hive adapter registration, sync strategy factory function. Mirrors `CacheBuilder` structure.
+- [X] T033 [US4] [U5.2] Create `SyncPlugin` class in `lib/src/plugins/sync/sync_plugin.dart` extending `FileGeneratorPlugin` implementing `CliAwarePlugin` — with `id='sync'`, `name='Sync Plugin'`, `capabilities`, `configSchema` (sync-direction, sync-batch-size, sync-max-retries). Set `runAfter` to `['datasource', 'repository']`
+- [X] T034 [US4] [U5.3] Create `CreateSyncCapability` in `lib/src/plugins/sync/capabilities/create_sync_capability.dart` — enables sync on entity (like `CreateCacheCapability`). Handles `zfa sync enable <Entity>` and `--sync` flag routing.
+- [X] T035 [US4] [U5.4] Create `CreateSyncStatusCapability` in `lib/src/plugins/sync/capabilities/create_sync_status_capability.dart` — initializes sync metadata store and registers Hive adapter (like `CreateCacheAdapterCapability`). Handles `zfa sync status <Entity>`.
+- [X] T036 [US4] [U5.5] Complete `SyncCommand` in `lib/src/commands/sync_command.dart` — add subcommands `enable` and `status`, add options for `--direction`, `--batch-size`, `--max-retries`. Wire to capabilities.
+- [X] T037 [US4] [U5.2] Update `SyncPlugin.generateWithContext()` to build `GeneratorConfig` with sync fields from context (mirrors `CachePlugin.generateWithContext()`)
+- [X] T038 [US4] [U5.6] Update `_generateRepositoryDI()` in `lib/src/plugins/di/di_plugin.dart` to handle `config.enableSync`: register `_syncMetadataStore` (singleton async, opens Hive box), `_syncStrategy` (lazy singleton, `PushOnlySyncStrategy` or `BidirectionalSyncStrategy`), and repository with 4-dependency constructor (mirrors cached DI in L469-L502)
+- [X] T039 [US4] [U5.6] Update `_generateLocalDataSourceDI()` in `lib/src/plugins/di/di_plugin.dart` to generate local datasource registration when `config.enableSync` (same as `config.enableCache` — opens Hive box)
+- [X] T040 [US4] [U5.6] Update `_generateRemoteDataSourceDI()` in `lib/src/plugins/di/di_plugin.dart` to generate remote datasource registration when `config.enableSync` (same pattern as existing)
+- [X] T041 [US4] [U5.6] Generate `Sync<Entity>UseCase` DI registration in `di_plugin.dart` when `config.enableSync && config.generateDi` — register as factory
 
 **Checkpoint**: `zfa make <Entity> --sync --di` generates complete, wired, compilable offline-first stack. `zfa sync enable <Entity>` works standalone.
 
@@ -122,11 +123,11 @@
 
 ### Implementation
 
-- [X] T042 [P] [US5] Create `ConflictResolver<T>` abstract interface in `lib/src/core/conflict_resolver.dart` with method: `Future<T> resolve(T? local, T remote)` — default implementation `RemoteWinsConflictResolver` returns `remote`
-- [X] T043 [US5] Create `BidirectionalSyncStrategy<T>` in `lib/src/plugins/sync/builders/bidirectional_sync_strategy.dart` extending `PushOnlySyncStrategy<T>` — adds `pullRemote()` implementation and `ConflictResolver<T>` dependency
-- [X] T044 [US5] Implement `pullRemote()` in `BidirectionalSyncStrategy`: call `remoteDataSource.getList()`, for each remote record check local status, resolve conflicts via `ConflictResolver`, save to local + mark `synced`, delete local records not in remote result set (if they were `synced`)
-- [X] T045 [US5] Update `SyncPlugin.configSchema` to include `bidirectional` as a sync-direction option
-- [X] T046 [US5] Update DI generation to select `BidirectionalSyncStrategy` when `config.syncDirection == 'bidirectional'` (instead of `PushOnlySyncStrategy`)
+- [X] T042 [P] [US5] [U6.1] Create `ConflictResolver<T>` abstract interface in `lib/src/core/conflict_resolver.dart` with method: `Future<T> resolve(T? local, T remote)` — default implementation `RemoteWinsConflictResolver` returns `remote`
+- [X] T043 [US5] [U6.2] Create `BidirectionalSyncStrategy<T>` in `lib/src/plugins/sync/builders/bidirectional_sync_strategy.dart` extending `PushOnlySyncStrategy<T>` — adds `pullRemote()` implementation and `ConflictResolver<T>` dependency
+- [X] T044 [US5] [U6.3, U6.4, U6.5, U6.6] Implement `pullRemote()` in `BidirectionalSyncStrategy`: call `remoteDataSource.getList()`, for each remote record check local status, resolve conflicts via `ConflictResolver`, save to local + mark `synced`, delete local records not in remote result set (if they were `synced`)
+- [X] T045 [US5] [U5.2] Update `SyncPlugin.configSchema` to include `bidirectional` as a sync-direction option
+- [X] T046 [US5] [U5.7] Update DI generation to select `BidirectionalSyncStrategy` when `config.syncDirection == 'bidirectional'` (instead of `PushOnlySyncStrategy`)
 
 **Checkpoint**: Bidirectional sync works. Push local → pull remote → conflicts resolved.
 
@@ -138,17 +139,17 @@
 
 ### Unit Tests
 
-- [X] T047 [P] Create `test/plugins/sync/sync_plugin_test.dart` — test plugin registration, config schema, capability resolution
-- [X] T048 [P] Create `test/plugins/sync/sync_builder_test.dart` — test file generation: metadata store init, strategy factory, Hive adapter registration
-- [X] T049 [P] Create `test/plugins/sync/push_only_sync_strategy_test.dart` — test push sync success, push sync failure with retry, tombstone handling, batch processing, cancel token
-- [X] T050 [P] Create `test/plugins/sync/bidirectional_sync_strategy_test.dart` — test pull sync, conflict resolution (remote-wins), local record deletion when removed from remote
+- [X] T047 [P] [U5.2] Create `test/plugins/sync/sync_plugin_test.dart` — test plugin registration, config schema, capability resolution
+- [X] T048 [P] [U5.1] Create `test/plugins/sync/sync_builder_test.dart` — test file generation: metadata store init, strategy factory, Hive adapter registration
+- [X] T049 [P] [U4.1-U4.10] Create `test/plugins/sync/push_only_sync_strategy_test.dart` — test push sync success, push sync failure with retry, tombstone handling, batch processing, cancel token
+- [X] T050 [P] [U6.3-U6.6] Create `test/plugins/sync/bidirectional_sync_strategy_test.dart` — test pull sync, conflict resolution (remote-wins), local record deletion when removed from remote
 
 ### Integration Tests
 
-- [X] T051 [P] Create `test/integration/sync_workflow_test.dart` — full end-to-end: create workspace, write entity stub, generate with `enableSync: true`, verify all files exist (sync-enabled repository, local datasource, remote datasource, sync metadata store, sync strategy, sync use case), verify repository content has local-first write methods + local-only read methods + sync delegation. Run `dart analyze` on generated output. Follow pattern from `test/integration/full_entity_workflow_test.dart`.
-- [X] T052 [P] Create `test/integration/sync_with_di_test.dart` — generate entity with `enableSync + generateDi`, verify DI files register: local datasource (singleton async with Hive box), remote datasource (lazy singleton), sync metadata store (singleton async), sync strategy (lazy singleton), repository (4-dep constructor), sync use case (factory). Follow pattern from `test/regression/di_registration_test.dart`.
-- [X] T053 [P] Create `test/integration/sync_mutual_exclusivity_test.dart` — verify that generating with both `enableCache + enableSync` produces an error. Follow pattern from `test/integration/cache_adapter_test.dart`.
-- [X] T054 [P] Create `test/regression/sync_repository_test.dart` — verify generated repository method bodies: `create()` writes to local + marks pending, `get()` reads local only (no remote call), `delete()` tombstones, `syncPending()` delegates to strategy. Verify repository constructor takes 4 dependencies (local, remote, metadataStore, syncStrategy).
+- [X] T051 [P] [A1.1, A2.1, A3.1, U3.1-U3.9] Create `test/integration/sync_workflow_test.dart` — full end-to-end: create workspace, write entity stub, generate with `enableSync: true`, verify all files exist (sync-enabled repository, local datasource, remote datasource, sync metadata store, sync strategy, sync use case), verify repository content has local-first write methods + local-only read methods + sync delegation. Run `dart analyze` on generated output. Follow pattern from `test/integration/full_entity_workflow_test.dart`.
+- [X] T052 [P] [A3.1, U5.6] Create `test/integration/sync_with_di_test.dart` — generate entity with `enableSync + generateDi`, verify DI files register: local datasource (singleton async with Hive box), remote datasource (lazy singleton), sync metadata store (singleton async), sync strategy (lazy singleton), repository (4-dep constructor), sync use case (factory). Follow pattern from `test/regression/di_registration_test.dart`.
+- [X] T053 [P] [U3.9] Create `test/integration/sync_mutual_exclusivity_test.dart` — verify that generating with both `enableCache + enableSync` produces an error. Follow pattern from `test/integration/cache_adapter_test.dart`.
+- [X] T054 [P] [U3.2-U3.8] Create `test/regression/sync_repository_test.dart` — verify generated repository method bodies: `create()` writes to local + marks pending, `get()` reads local only (no remote call), `delete()` tombstones, `syncPending()` delegates to strategy. Verify repository constructor takes 4 dependencies (local, remote, metadataStore, syncStrategy).
 
 ---
 

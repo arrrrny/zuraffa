@@ -201,6 +201,9 @@ class PlanResolver {
     if (_isTrue(options['cache'])) {
       selection.add('cache');
     }
+    if (_isTrue(options['sqlite'])) {
+      selection.add('sqlite');
+    }
     if (_isTrue(options['append']) ||
         (_isTrue(options['no-entity']) && _isPresent(options['repo']))) {
       selection.add('method_append');

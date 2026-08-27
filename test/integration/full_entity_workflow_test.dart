@@ -82,12 +82,40 @@ void main() {
         ).existsSync(),
         isTrue,
       );
-      // The VPC (view/presenter/controller) files are intentionally NOT
-      // asserted here: this workspace is a pure-Dart package and the VPC
-      // generators correctly skip it (Constitution VII — issue #420). The
-      // full-layout assertions live in
-      // zuraffa_flutter/test/vpc/integration/full_entity_workflow_test.dart
-      // (issues #431 / #435).
+      // This workspace is a *pure-Dart* fixture (the pubspec written by
+      // `writePubspec` declares no `flutter:` SDK), so per Constitution VII
+      // (Engine Purity) the view/controller/presenter generators correctly
+      // SKIP output for a pure-Dart target (see #420): those artifacts
+      // depend on `zuraffa_flutter`, which is unavailable here. The full
+      // entity workflow's VPC output (view + controller + presenter) is
+      // verified in the `zuraffa_flutter` package — see issues #431 / #435.
+      expect(
+        File(
+          '$outputDir/presentation/pages/product/product_view.dart',
+        ).existsSync(),
+        isFalse,
+        reason:
+            'pure-Dart target must NOT generate a Flutter view '
+            '(Constitution VII: Engine Purity)',
+      );
+      expect(
+        File(
+          '$outputDir/presentation/pages/product/product_controller.dart',
+        ).existsSync(),
+        isFalse,
+        reason:
+            'pure-Dart target must NOT generate a Flutter controller '
+            '(Constitution VII: Engine Purity)',
+      );
+      expect(
+        File(
+          '$outputDir/presentation/pages/product/product_presenter.dart',
+        ).existsSync(),
+        isFalse,
+        reason:
+            'pure-Dart target must NOT generate a Flutter presenter '
+            '(Constitution VII: Engine Purity)',
+      );
       expect(
         File(
           '$outputDir/presentation/pages/product/product_state.dart',

@@ -49,11 +49,11 @@
 
 ### Implementation for User Story 1
 
-- [x] T010 [US1] Add three `HookRegistry.instance.dispatch()` calls to `UseCase.call()` in `zuraffa/lib/src/domain/usecase.dart`: `pre` before `execute()`, `success` after success, `failure` after catching error. Preserve existing try-catch and `FailureReporterRegistry` calls unchanged. Create `HookContext` with shared `metadata` map per invocation.
-- [x] T011 [US1] Add three `HookRegistry.instance.dispatch()` calls to `StreamUseCase.call()` in `zuraffa/lib/src/domain/stream_usecase.dart`: `pre` before stream starts, `success` after stream completes, `failure` if stream emits failure or throws.
+- [x] T010 [US1] [A1,A2,A3,A4,A5,A6,A7,A9] Add three `HookRegistry.instance.dispatch()` calls to `UseCase.call()` in `zuraffa/lib/src/domain/usecase.dart`: `pre` before `execute()`, `success` after success, `failure` after catching error. Preserve existing try-catch and `FailureReporterRegistry` calls unchanged. Create `HookContext` with shared `metadata` map per invocation.
+- [x] T011 [US1] [A10] Add three `HookRegistry.instance.dispatch()` calls to `StreamUseCase.call()` in `zuraffa/lib/src/domain/stream_usecase.dart`: `pre` before stream starts, `success` after stream completes, `failure` if stream emits failure or throws.
 - [x] T012 [P] [US1] Add `registerHook(Hook)`, `unregisterHook(String)`, and `hooksEnabled` setter to `Zuraffa` facade class in `zuraffa/lib/zuraffa.dart`
-- [x] T013 [US1] Write integration test verifying UseCase dispatches to hooks at correct phases with correct context in `zuraffa/test/domain/usecase_hook_test.dart` (depends on T010)
-- [ ] T014 [US1] Write integration test verifying StreamUseCase dispatches to hooks at correct phases in `zuraffa/test/domain/stream_usecase_hook_test.dart` (depends on T011)
+- [x] T013 [US1] [A1,A2,A3,A4,A5,A6] Write integration test verifying UseCase dispatches to hooks at correct phases with correct context in `zuraffa/test/domain/usecase_hook_test.dart` (depends on T010)
+- [x] T014 [US1] [A10] Write integration test verifying StreamUseCase dispatches to hooks at correct phases in `zuraffa/test/domain/stream_usecase_hook_test.dart` (depends on T011)
 
 **Checkpoint**: Generic hook system is fully functional. Any registered hook fires automatically on every UseCase/StreamUseCase execution.
 
@@ -67,11 +67,11 @@
 
 ### Implementation for User Story 2
 
-- [x] T015 [P] [US2] Create `TelemetryHook` class extending `Hook` in `zuraffa/lib/src/core/telemetry_hook.dart` with `onlyUseCases`, `excludeUseCases`, `spanNamePrefix` constructor params. Override `phases` to all three, `id` to `'zuraffa-telemetry'`.
-- [x] T016 [US2] Implement `shouldTrigger()` in `TelemetryHook` with filtering logic: skip if in `excludeUseCases`; if `onlyUseCases` non-empty, skip if not in it. `excludeUseCases` always wins. in `zuraffa/lib/src/core/telemetry_hook.dart` (depends on T015)
-- [x] T017 [US2] Implement `execute()` in `TelemetryHook` with span lifecycle: `pre` phase calls `OtelTracer.instance.startSpan()` and stashes span in `context.metadata['_telemetry_span']`; `success` phase sets duration attribute and calls `endSpan()`; `failure` phase calls `endSpanWithError()` in `zuraffa/lib/src/core/telemetry_hook.dart` (depends on T016)
+- [x] T015 [P] [US2] [B6,B7] Create `TelemetryHook` class extending `Hook` in `zuraffa/lib/src/core/telemetry_hook.dart` with `onlyUseCases`, `excludeUseCases`, `spanNamePrefix` constructor params. Override `phases` to all three, `id` to `'zuraffa-telemetry'`.
+- [x] T016 [US2] [B3,B4,B5] Implement `shouldTrigger()` in `TelemetryHook` with filtering logic: skip if in `excludeUseCases`; if `onlyUseCases` non-empty, skip if not in it. `excludeUseCases` always wins. in `zuraffa/lib/src/core/telemetry_hook.dart` (depends on T015)
+- [x] T017 [US2] [B1,B2] Implement `execute()` in `TelemetryHook` with span lifecycle: `pre` phase calls `OtelTracer.instance.startSpan()` and stashes span in `context.metadata['_telemetry_span']`; `success` phase sets duration attribute and calls `endSpan()`; `failure` phase calls `endSpanWithError()` in `zuraffa/lib/src/core/telemetry_hook.dart` (depends on T016)
 - [x] T018 [US2] Export `TelemetryHook` from `zuraffa/lib/zuraffa.dart`
-- [x] T019 [US2] Write unit tests for `TelemetryHook` covering span creation, span ending on success/failure, `onlyUseCases` whitelist filtering, `excludeUseCases` blacklist filtering, both-filters-precedence in `zuraffa/test/core/telemetry_hook_test.dart` (depends on T017)
+- [x] T019 [US2] [B1,B2,B3,B4,B5,B6,B7] Write unit tests for `TelemetryHook` covering span creation, span ending on success/failure, `onlyUseCases` whitelist filtering, `excludeUseCases` blacklist filtering, both-filters-precedence in `zuraffa/test/core/telemetry_hook_test.dart` (depends on T017)
 
 **Checkpoint**: `TelemetryHook` is shipped and tested. Users can register it with one line for automatic OTel tracing.
 
@@ -85,12 +85,13 @@
 
 ### Implementation for User Story 3
 
-- [x] T020 [P] [US3] Create `EngagementHook` class extending `Hook` in `zik_zak/lib/src/presentation/hooks/engagement_hook.dart` that takes `EngagementEventRepository` as constructor dependency
-- [x] T021 [US3] Implement `useCaseEventMap` mapping 8 UseCase names to `EngagementEventType` enum values (BARCODE_SCAN, LINK_SHARE, DEAL_LIKE, DEAL_SHARE, LISTING_SHARE, ASK_ZIKZAK, VISIT_LINK, SEARCH_TERM) and `shouldTrigger()` checking the map in `zik_zak/lib/src/presentation/hooks/engagement_hook.dart` (depends on T020)
-- [x] T022 [US3] Implement `execute()` calling `_repository.create(EngagementEvent(...))` with extracted payload from `HookContext.params` per UseCase type, `phases` set to `{HookPhase.success}` only in `zik_zak/lib/src/presentation/hooks/engagement_hook.dart` (depends on T021)
-- [x] T023 [US3] Register `EngagementHook(getIt<EngagementEventRepository>())` in ZikZak's `main()` in `zik_zak/lib/main.dart` (depends on T022)
-- [x] T024 [US3] Remove all `CreateTelemetryEventUseCase` calls and `trackXxx()` methods from controllers in `zik_zak/lib/src/presentation/pages/barcode_listing/barcode_listing_controller.dart`, `zik_zak/lib/src/presentation/pages/ask_zikzak/ask_zikzak_controller.dart`, `zik_zak/lib/src/presentation/pages/url_listing/url_listing_controller.dart`, `zik_zak/lib/src/presentation/pages/deal/deal_controller.dart`, and `zik_zak/lib/src/presentation/widgets/share/share_button.dart` (depends on T023)
-- [x] T025 [US3] Verify zero `CreateTelemetryEventUseCase` or `TelemetryEvent` imports remain in any controller by running `grep -r "CreateTelemetryEventUseCase\|TelemetryEvent" zik_zak/lib/src/presentation/` (depends on T024)
+- [x] T020 [P] [US3] [C1,C2,C3] Create `EngagementHook` class extending `Hook` in `zik_zak/lib/src/presentation/hooks/engagement_hook.dart` that takes `EngagementEventRepository` as constructor dependency
+- [x] T021 [US3] [C1,C2,C3] Implement `useCaseEventMap` mapping 8 UseCase names to `EngagementEventType` enum values (BARCODE_SCAN, LINK_SHARE, DEAL_LIKE, DEAL_SHARE, LISTING_SHARE, ASK_ZIKZAK, VISIT_LINK, SEARCH_TERM) and `shouldTrigger()` checking the map in `zik_zak/lib/src/presentation/hooks/engagement_hook.dart` (depends on T020)
+- [x] T022 [US3] [C1,C2,C3] Implement `execute()` calling `_repository.create(EngagementEvent(...))` with extracted payload from `HookContext.params` per UseCase type, `phases` set to `{HookPhase.success}` only in `zik_zak/lib/src/presentation/hooks/engagement_hook.dart` (depends on T021)
+- [x] T023 [US3] [C4] Register `EngagementHook(getIt<EngagementEventRepository>())` in ZikZak's `main()` in `zik_zak/lib/main.dart` (depends on T022)
+- [x] T024 [US3] [C5] Remove all `CreateTelemetryEventUseCase` calls and `trackXxx()` methods from controllers in `zik_zak/lib/src/presentation/pages/barcode_listing/barcode_listing_controller.dart`, `zik_zak/lib/src/presentation/pages/ask_zikzak/ask_zikzak_controller.dart`, `zik_zak/lib/src/presentation/pages/url_listing/url_listing_controller.dart`, `zik_zak/lib/src/presentation/pages/deal/deal_controller.dart`, and `zik_zak/lib/src/presentation/widgets/share/share_button.dart` (depends on T023)
+- [x] T025 [US3] [C5] Verify zero `CreateTelemetryEventUseCase` or `TelemetryEvent` imports remain in any controller by running `grep -r "CreateTelemetryEventUseCase\|TelemetryEvent" zik_zak/lib/src/presentation/` (depends on T024)
+- [ ] T026 [US3] [C1,C2,C3,C4] Write integration tests in `zik_zak/test/presentation/hooks/engagement_hook_test.dart` verifying all 5 acceptance behaviors (depends on T023)
 
 **Checkpoint**: ZikZak engagement tracking is fully automated via hooks. Zero controller boilerplate remains.
 

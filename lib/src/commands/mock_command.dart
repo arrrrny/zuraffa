@@ -193,12 +193,6 @@ class JsonMockCommand extends Command<void> {
 
   JsonMockCommand(this.plugin) {
     argParser.addOption(
-      'output',
-      abbr: 'o',
-      help: 'Output directory for generated files',
-      defaultsTo: 'lib/src',
-    );
-    argParser.addOption(
       'domain',
       abbr: 'd',
       help: 'Domain folder for grouping JSON files',
@@ -245,6 +239,7 @@ class JsonMockCommand extends Command<void> {
     final result = await capability.execute({
       'name': entityName,
       'domain': results['domain'],
+      'outputDir': 'lib/src',
       'dryRun': results['dry-run'] == true,
       'force': results['force'] == true,
       'verbose': results['verbose'] == true,

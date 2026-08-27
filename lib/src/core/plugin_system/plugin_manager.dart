@@ -219,6 +219,7 @@ class PluginManager {
       'data',
       'datasource',
       'cache',
+      'sqlite',
       'route',
       'mock',
       'test',
