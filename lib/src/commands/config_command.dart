@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../config/zfa_config.dart';
+import '../core/project/project_root.dart';
 
 /// Config command - Manage ZFA configuration
 class ConfigCommand {
@@ -70,7 +71,7 @@ class ConfigCommand {
 
     final key = args[0];
     final value = args[1];
-    final projectRoot = Directory.current.path;
+    final projectRoot = ProjectRoot.safeCurrentPath();
     final existing = ZfaConfig.load(projectRoot: projectRoot);
 
     if (existing == null) {

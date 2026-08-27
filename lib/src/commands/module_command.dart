@@ -11,6 +11,7 @@ import 'package:args/command_runner.dart';
 /// - analysis_options.yaml
 /// - lib/src/{datasource,repository,usecase,controller,state,view,plugin}/
 /// - test/
+import '../core/project/project_root.dart';
 class ModuleCommand extends Command<void> {
   static const String defaultOutputDir = '.';
 
@@ -106,7 +107,7 @@ class ModuleCommand extends Command<void> {
   void _writePubspec(String dir, String packageName, bool verbose) {
     // Calculate relative path from generated package to zuraffa package
     final packageDirUri = Uri.directory(dir);
-    final zuraffaDirUri = Uri.directory(Directory.current.path);
+    final zuraffaDirUri = Uri.directory(ProjectRoot.safeCurrentPath());
     final relativePath = packageDirUri.toFilePath().endsWith('/')
         ? zuraffaDirUri.toFilePath().replaceAll(
             packageDirUri.toFilePath(),

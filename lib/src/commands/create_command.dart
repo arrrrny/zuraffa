@@ -4,6 +4,7 @@ import '../utils/file_utils.dart';
 import '../utils/string_utils.dart';
 import '../utils/logger.dart';
 
+import '../core/project/project_root.dart';
 class CreateCommand {
   Future<void> execute(List<String> args) async {
     final createParser = _buildArgParser();
@@ -81,7 +82,7 @@ class CreateCommand {
 
   Future<void> _createDefaultArchitectureFolders() async {
     CliLogger.info('Creating Architecture Folders...');
-    var dir = '${Directory.current.path}/lib/src/';
+    var dir = '${ProjectRoot.safeCurrentPath()}/lib/src/';
 
     try {
       await Future.wait([
@@ -120,7 +121,7 @@ class CreateCommand {
     }
 
     CliLogger.info('Creating page: $name');
-    final dir = '${Directory.current.path}/lib/src/app/pages/$name/$name';
+    final dir = '${ProjectRoot.safeCurrentPath()}/lib/src/app/pages/$name/$name';
 
     try {
       await Future.wait([
@@ -212,7 +213,7 @@ class ${pascalCaseName}Presenter extends clean.Presenter {
   }
 
   Future<bool> _pageExists(String name) {
-    final dir = Directory('${Directory.current.path}/lib/src/app/pages/$name');
+    final dir = Directory('${ProjectRoot.safeCurrentPath()}/lib/src/app/pages/$name');
     return dir.exists();
   }
 

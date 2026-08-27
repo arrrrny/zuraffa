@@ -8,6 +8,7 @@ import '../core/context/file_system.dart';
 import '../models/generated_file.dart';
 import '../plugins/app_shell/builders/app_shell_builder.dart';
 import '../utils/file_utils.dart';
+import '../core/project/project_root.dart';
 
 /// `zfa app shell` — generates the app-shell glue files for a zfa-only
 /// Flutter app.
@@ -121,7 +122,7 @@ class AppShellCommand extends Command<void> {
     }
 
     final projectRoot =
-        (argResults!['root'] as String?) ?? Directory.current.path;
+        (argResults!['root'] as String?) ?? ProjectRoot.safeCurrentPath();
     final config = ZfaConfig.load(projectRoot: projectRoot);
     final xray = xrayFlag || (config?.xrayByDefault ?? false);
     final pubspecPath = p.join(projectRoot, 'pubspec.yaml');

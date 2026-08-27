@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 
 import '../migration/migration.dart';
 import '../version.dart';
+import '../core/project/project_root.dart';
 
 class DoctorCommand extends Command<void> {
   @override
@@ -222,7 +223,7 @@ class DoctorCommand extends Command<void> {
     _print('v5 Migration Readiness');
     _print('=======================');
 
-    final projectDir = Directory.current.path;
+    final projectDir = ProjectRoot.safeCurrentPath();
     final detectors = <MigrationDetector>[
       DependencyOverridesDetector(),
       GqlConstStringDetector(),

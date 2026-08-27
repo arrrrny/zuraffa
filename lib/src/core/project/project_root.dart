@@ -17,7 +17,18 @@ class ProjectRoot {
   /// temp dir under `dart test`, or a chdir into a gone path in CI/containers).
   /// In that case we fall back to the `PWD` environment variable and then to
   /// the running script's directory instead of crashing.
-  static String _safeCurrentDir() {
+  /// Resolves the current working directory, tolerating an invalid CWD.
+  ///
+  /// `Directory.current.path` throws [PathNotFoundException] when the process
+  /// CWD is an already-removed or otherwise invalid directory (e.g. a deleted
+  /// temp dir under `dart test`, or a chdir into a gone path in CI/containers).
+  /// In that case we fall back to the `PWD` environment variable and then to
+  /// the running script's directory instead of crashing.
+  ///
+  /// Exposed publicly so every command that previously read `Directory.current`
+  /// directly can route through the same guarded resolver and inherit the same
+  /// fallback ladder. See issue #441.
+  static String safeCurrentPath() {
     try {
       return Directory.current.path;
     } catch (_) {
@@ -32,7 +43,7 @@ class ProjectRoot {
   }
 
   static String find({String? startPath}) {
-    final start = startPath ?? _safeCurrentDir();
+    final start = startPath ?? safeCurrentPath();
     var current = Directory(p.normalize(p.absolute(start)));
 
     // If the start path doesn't exist, try its parent
@@ -63,7 +74,7 @@ class ProjectRoot {
     final root = find(startPath: startPath);
     if (!Directory(root).existsSync()) {
       throw StateError(
-        'Project root does not exist: $root (resolved from ${startPath ?? _safeCurrentDir()})',
+        'Project root does not exist: $root (resolved from ${startPath ?? safeCurrentPath()})',
       );
     }
     return root;

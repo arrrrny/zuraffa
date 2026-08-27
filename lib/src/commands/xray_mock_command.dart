@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 
 import '../plugins/xray/xray_mock_scaffolder.dart';
+import '../core/project/project_root.dart';
 
 /// `zfa xray mock <Entity>` — scaffold `@XRayMock` annotations onto
 /// generated usecases so the Control Deck has real entries out of the
@@ -73,7 +74,7 @@ class XrayMockCommand extends Command<void> {
     final verbose = argResults?['verbose'] as bool? ?? false;
 
     final projectRoot =
-        (argResults?['root'] as String?) ?? Directory.current.path;
+        (argResults?['root'] as String?) ?? ProjectRoot.safeCurrentPath();
     final usecasesDir = p.join(projectRoot, 'lib', 'src', 'domain', 'usecases');
     if (!Directory(usecasesDir).existsSync()) {
       print(

@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 import 'package:yaml/yaml.dart';
 import 'package:path/path.dart' as p;
 import '../plugins/xray/xray_deck_barrel_writer.dart';
+import '../core/project/project_root.dart';
 
 /// CLI subcommand for generating X-Ray Control Deck code.
 class XrayDeckCommand extends Command<void> {
@@ -67,7 +68,7 @@ class XrayDeckCommand extends Command<void> {
     final force = argResults?["force"] as bool? ?? false;
     final entityName = argResults?["entity"] as String?;
     final projectRoot =
-        (argResults?["root"] as String?) ?? Directory.current.path;
+        (argResults?["root"] as String?) ?? ProjectRoot.safeCurrentPath();
     // Resolve relative source/yaml paths against the project root so the
     // command works hermetically (e.g. from an explicit --root sandbox).
     if (sourcePath != null && !p.isAbsolute(sourcePath)) {
