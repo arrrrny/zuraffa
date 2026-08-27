@@ -38,7 +38,12 @@ void main() {
       server = McpSseServer(registry: registry);
       await server.start(port: 0);
       port = server.boundPort!;
-      client = HttpClient();
+      client = HttpClient()
+        // Bound the TCP connect so a non-reachable non-loopback interface
+        // fails fast with a SocketException instead of hanging until the OS
+        // TCP timeout — which would otherwise exceed the 30s per-test limit
+        // and surface as a spurious "server hang" on unauthenticated 401.
+        ..connectionTimeout = const Duration(seconds: 5);
     });
 
     tearDown(() async {
@@ -269,11 +274,17 @@ void main() {
                 if (authorization != null) {
                   req.headers.set('Authorization', authorization);
                 }
-                return await req.close();
+                // Bound the response read as well: if the chosen non-loopback
+                // interface is unreachable (packet silently dropped), fail fast
+                // rather than block until the 30s per-test timeout.
+                return await req.close().timeout(const Duration(seconds: 5));
               } on SocketException {
                 if (attempt >= 2) rethrow;
                 await Future<void>.delayed(const Duration(milliseconds: 300));
               } on HttpException {
+                if (attempt >= 2) rethrow;
+                await Future<void>.delayed(const Duration(milliseconds: 300));
+              } on TimeoutException {
                 if (attempt >= 2) rethrow;
                 await Future<void>.delayed(const Duration(milliseconds: 300));
               }
@@ -290,6 +301,11 @@ void main() {
             );
             return;
           } on HttpException {
+            markTestSkipped(
+              'Cannot reach the machine\'s own non-loopback interface.',
+            );
+            return;
+          } on TimeoutException {
             markTestSkipped(
               'Cannot reach the machine\'s own non-loopback interface.',
             );
