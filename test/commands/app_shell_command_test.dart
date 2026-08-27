@@ -408,13 +408,15 @@ List<GoRoute> getAllRoutes() => [];
     );
 
     test('--dry-run writes nothing', () async {
-      await runZfaSource([
+      final result = await runZfaSource([
         'app',
         'shell',
         '--root',
         workspace.path,
         '--dry-run',
       ], workingDirectory: zfaProjectRoot);
+
+      expect(result.exitCode, 0, reason: 'dry-run must exit successfully');
 
       expect(
         File(p.join(workspace.path, 'lib', 'main.dart')).existsSync(),

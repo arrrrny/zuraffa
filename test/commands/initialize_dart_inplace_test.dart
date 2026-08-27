@@ -70,7 +70,7 @@ void main() {
         'bootstrap and writes nothing', () async {
       final repoDir = useDir('zuraffa_agent');
 
-      await runZfaSource([
+      final result = await runZfaSource([
         'initialize',
         '--dart',
         '--deps-only',
@@ -81,6 +81,12 @@ void main() {
 
       // Regression: the old code threw UsageException (missing pubspec)
       // before any announcement. Now dry-run previews and writes nothing.
+      expect(result.exitCode, 0, reason: 'dry-run must exit successfully');
+      expect(
+        combinedOutput(result),
+        contains('Would create: pubspec.yaml'),
+        reason: 'dry-run must preview the in-place bootstrap',
+      );
       expect(
         File(p.join(repoDir.path, 'pubspec.yaml')).existsSync(),
         isFalse,
@@ -94,7 +100,7 @@ void main() {
 
       // Dry-run must complete without throwing and must continue past the
       // dependency-wiring block to the entity scaffolding preview path.
-      await runZfaSource([
+      final result = await runZfaSource([
         'initialize',
         '--dart',
         '--dry-run',
@@ -102,6 +108,12 @@ void main() {
         repoDir.path,
       ], workingDirectory: zfaProjectRoot);
 
+      expect(result.exitCode, 0, reason: 'dry-run must exit successfully');
+      expect(
+        combinedOutput(result),
+        contains('Would create: pubspec.yaml'),
+        reason: 'dry-run must preview the in-place bootstrap',
+      );
       expect(
         File(p.join(repoDir.path, 'pubspec.yaml')).existsSync(),
         isFalse,

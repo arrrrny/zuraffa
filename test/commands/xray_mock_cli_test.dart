@@ -123,7 +123,7 @@ class GetProductUseCase extends UseCase<Product, String> {}
 ''';
       usecaseFile.writeAsStringSync(original);
 
-      await runZfaSource([
+      final result = await runZfaSource([
         'xray',
         'mock',
         'Product',
@@ -132,6 +132,7 @@ class GetProductUseCase extends UseCase<Product, String> {}
         '--dry-run',
       ], workingDirectory: zfaProjectRoot);
 
+      expect(result.exitCode, 0, reason: 'dry-run must exit successfully');
       expect(usecaseFile.readAsStringSync(), equals(original));
     });
 
