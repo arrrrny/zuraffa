@@ -38,7 +38,7 @@ void main() {
 
     // The unused import must NOT be present anywhere in the file.
     expect(
-      src.contains(RegExp(r"^[ \t]*import[ \t]+'package:path/path\.dart'",
+      src.contains(RegExp(r'^[ \t]*import[ \t]+["\']package:path/path\.dart["\']',
           multiLine: true)),
       isFalse,
       reason: 'base_detector.dart must not import package:path/path.dart — '
