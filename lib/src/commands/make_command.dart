@@ -388,6 +388,27 @@ class MakeCommand extends Command<void> {
       options: normalizedOptions,
     );
 
+    // #496: fail fast when the entity source file is missing (and --no-entity
+    // is not set). Without this guard `zfa make <NonExistentEntity>` resolves a
+    // plan, prints it, and silently proceeds with a default `id` field,
+    // generating broken code for an entity that was never created. This must
+    // run before the `--plan`/`--explain` early return below so planning also
+    // fails fast. Only the MISSING-FILE case fails here — when the file EXISTS
+    // but has no id field, the no-id handling further down (#307/#508/#514)
+    // still applies unchanged.
+    if (argResults?['no-entity'] != true &&
+        !EntityFieldResolver.entityFileExists(
+          entityName: entityName,
+          projectRoot: manager.projectRoot,
+        )) {
+      throw MakeCommandException(
+        'Cannot run `zfa make` for "$entityName": no entity source file '
+        'was found. Create the entity first with '
+        '`zfa entity create -n $entityName` (or pass --no-entity if you '
+        'intentionally want to generate code without a backing entity).',
+      );
+    }
+
     if (argResults?['plan'] == true || argResults?['explain'] == true) {
       _printPlan(plan);
       return;
