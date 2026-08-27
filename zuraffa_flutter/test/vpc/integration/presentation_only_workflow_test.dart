@@ -1,20 +1,20 @@
 @Tags(['integration', 'slow'])
+library;
 import 'dart:io';
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/generator/code_generator.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 
-import '../regression/regression_test_utils.dart';
+import '../helpers/vpc_test_utils.dart';
 
 void main() {
-  late RegressionWorkspace workspace;
+  late VpcWorkspace workspace;
   late String outputDir;
 
   setUp(() async {
     workspace = await createWorkspace('presentation_only_workflow');
-    await writePubspec(workspace);
-    await runFlutterPubGet(workspace);
+    await writeFlutterPubspec(workspace);
     outputDir = workspace.outputDir;
   });
 

@@ -1,0 +1,9 @@
+# Tag declarations for the transported VPC test tiers (issues #431 / #435).
+#
+# Unlike the pure-Dart core package nothing is excluded here: `flutter test`
+# runs every tier, because the VPC (view/presenter/controller) output tests
+# only exist in this package.
+tags:
+  slow:
+  regression:
+  integration:

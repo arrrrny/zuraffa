@@ -20,16 +20,8 @@ void main() {
     await disposeWorkspace(workspace);
   });
 
-  test('views use controlled widget builder and view state', () async {
-    final workspace = await createWorkspace('zuraffa_view_patterns_');
-    await generateFullFeature(workspace, name: 'Product');
-
-    final viewPath =
-        '${workspace.outputDir}/presentation/pages/product/product_view.dart';
-    final viewContent = File(viewPath).readAsStringSync();
-    expect(viewContent.contains('ControlledWidgetBuilder'), isTrue);
-    expect(viewContent.contains('viewState'), isTrue);
-
-    await disposeWorkspace(workspace);
-  });
+  // The view-pattern compliance check ('views use controlled widget builder
+  // and view state') moved to
+  // zuraffa_flutter/test/vpc/regression/pattern_compliance_test.dart —
+  // pure-Dart targets skip VPC generation (issues #431 / #435).
 }

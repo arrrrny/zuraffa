@@ -17,9 +17,9 @@ void main() {
     outputDir = workspace.outputDir;
   });
 
-  // tearDown(() async {
-  //   await disposeWorkspace(workspace);
-  // });
+  tearDown(() async {
+    await disposeWorkspace(workspace);
+  });
 
   test('toggle method is generated across all layers', () async {
     final generator = CodeGenerator(
@@ -151,7 +151,7 @@ void main() {
     // SKIPS output: presenters depend on `zuraffa_flutter`, which is not
     // available in a pure-Dart package. The presenter toggle behaviour
     // (`toggleTodo` across the VPC layer) is verified in the
-    // `zuraffa_flutter` package — see issue #431.
+    // `zuraffa_flutter` package — see issues #431 / #435.
     final presenterFile = File(
       '$outputDir/presentation/pages/todo/todo_presenter.dart',
     );
