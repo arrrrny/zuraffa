@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
-import 'package:zuraffa/src/cli/cli_runner.dart';
 
 /// CLI integration test for `zfa xray mock <Entity>` (issue #360).
 ///
@@ -10,10 +9,18 @@ import 'package:zuraffa/src/cli/cli_runner.dart';
 /// annotations onto generated usecase files and adds the
 /// `zuraffa_flutter` import.
 ///
-/// The sandbox root is passed via `--root` so the test never mutates the
-/// process working directory (which is shared across concurrently-running
-/// test files under `dart test`).
+/// The command is run as a subprocess with an explicit `workingDirectory`
+/// (mirroring the MakeCommand #307 identity-contract group) so no
+/// process-global `Directory.current` mutation leaks back into the parent
+/// test process. This keeps the test hermetic under parallel `dart test`
+/// (issue #506).
+import '../helpers/run_zfa_source.dart';
+
 void main() {
+  setUpAll(() async {
+    await initZfaSourceBin();
+  });
+
   late Directory tempDir;
 
   setUp(() async {
@@ -26,7 +33,10 @@ void main() {
     }
   });
 
-  group('zfa xray mock CLI integration', () {
+  group(
+    'zfa xray mock CLI integration',
+    timeout: const Timeout(Duration(minutes: 2)),
+    () {
     test('scaffolds @XRayMock onto a usecase file', () async {
       // Create the usecases directory so the command proceeds past
       // the directory-exists check, but leave it empty.
@@ -58,8 +68,10 @@ class GetUserUseCase extends UseCase<User, String> {
 ''');
 
       // Run the CLI command.
-      final runner = CliRunner(exitOnCompletion: false);
-      await runner.runCapturing(['xray', 'mock', 'User', '--root', tempDir.path]);
+      await runZfaSource(
+        ['xray', 'mock', 'User', '--root', tempDir.path],
+        workingDirectory: zfaProjectRoot,
+      );
 
       // Verify the annotation was injected.
       final content = usecaseFile.readAsStringSync();
@@ -78,16 +90,15 @@ class GetUserUseCase extends UseCase<User, String> {
         p.join(tempDir.path, 'lib', 'src', 'domain', 'usecases'),
       ).createSync(recursive: true);
 
-      final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing([
+      final result = await runZfaSource([
         'xray',
         'mock',
         'Nonexistent',
         '--root',
         tempDir.path,
-      ]);
+      ], workingDirectory: zfaProjectRoot);
 
-      expect(output, contains('No usecase files found'));
+      expect(combinedOutput(result), contains('No usecase files found'));
     });
 
     test('dry-run does not modify files', () async {
@@ -112,23 +123,24 @@ class GetProductUseCase extends UseCase<Product, String> {}
 ''';
       usecaseFile.writeAsStringSync(original);
 
-      final runner = CliRunner(exitOnCompletion: false);
-      await runner.runCapturing([
+      await runZfaSource([
         'xray',
         'mock',
         'Product',
         '--root',
         tempDir.path,
         '--dry-run',
-      ]);
+      ], workingDirectory: zfaProjectRoot);
 
       expect(usecaseFile.readAsStringSync(), equals(original));
     });
 
     test('zfa xray --help lists the mock subcommand', () async {
-      final runner = CliRunner(exitOnCompletion: false);
-      final help = await runner.runCapturing(['xray', '--help']);
-      expect(help, contains('mock'));
+      final result = await runZfaSource(
+        ['xray', '--help'],
+        workingDirectory: zfaProjectRoot,
+      );
+      expect(combinedOutput(result), contains('mock'));
     });
 
     test('next-step deck hint includes the required --source', () async {
@@ -150,27 +162,28 @@ class GetProductUseCase extends UseCase<Product, String> {}
 class GetOrderUseCase extends UseCase<Order, String> {}
 ''');
 
-      final runner = CliRunner(exitOnCompletion: false);
-      final output = await runner.runCapturing([
+      final output = await runZfaSource([
         'xray',
         'mock',
         'Order',
         '--root',
         tempDir.path,
-      ]);
+      ], workingDirectory: zfaProjectRoot);
+
+      final outputStr = combinedOutput(output);
 
       // The printed deck command must be runnable as-is: `zfa xray deck`
       // errors out with "provide --source and/or --yaml" when --source is
       // missing (issue #360 review finding).
-      expect(output, contains('zfa xray deck --entity Order --source'));
+      expect(outputStr, contains('zfa xray deck --entity Order --source'));
       expect(
-        output,
+        outputStr,
         contains('lib/src/domain/usecases/order/get_order_usecase.dart'),
       );
 
       // Execute the hinted deck command verbatim — it must generate the
       // deck + barrel without further flags.
-      final deckOutput = await runner.runCapturing([
+      final deckResult = await runZfaSource([
         'xray',
         'deck',
         '--entity',
@@ -179,7 +192,9 @@ class GetOrderUseCase extends UseCase<Order, String> {}
         'lib/src/domain/usecases/order/get_order_usecase.dart',
         '--root',
         tempDir.path,
-      ]);
+      ], workingDirectory: zfaProjectRoot);
+
+      final deckOutput = combinedOutput(deckResult);
       expect(deckOutput, contains('Generated'));
       expect(deckOutput, isNot(contains('provide --source')));
       expect(
