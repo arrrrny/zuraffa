@@ -6,6 +6,7 @@ import 'package:zuraffa/src/core/generator_options.dart';
 import 'package:zuraffa/src/models/generator_config.dart';
 import 'package:zuraffa/src/plugins/controller/controller_plugin.dart';
 import 'package:zuraffa/src/plugins/presenter/presenter_plugin.dart';
+import 'package:zuraffa/src/plugins/state/builders/state_builder.dart';
 import 'package:zuraffa/src/plugins/view/view_plugin.dart';
 
 /// #420 regression: the presentation-layer generators (controller / presenter /
@@ -177,6 +178,55 @@ $deps''');
         expect(files, isNotEmpty);
         final content = files.first.content ?? '';
         expect(content, contains('package:flutter/material.dart'));
+      });
+    });
+
+    // #512: the state generator must follow the target flavor. A pure-Dart
+    // target (no `flutter:` SDK) must import zuraffa *core* (AppFailure lives
+    // there) so generated pure-Dart code compiles; a Flutter target keeps the
+    // historical zuraffa_flutter import.
+    group('state', () {
+      test(
+        'pure-Dart pubspec => imports package:zuraffa (not zuraffa_flutter)',
+        () async {
+          await writePubspec(flutter: false);
+          final builder = StateBuilder(
+            outputDir: outputDir,
+            options: const GeneratorOptions(force: true),
+          );
+          final file = await builder.generate(
+            GeneratorConfig(
+              name: 'Product',
+              methods: const ['get', 'getList', 'update'],
+              generateState: true,
+              outputDir: outputDir,
+            ),
+          );
+          final content = file.content ?? '';
+          expect(content, contains('package:zuraffa/zuraffa.dart'));
+          expect(content, isNot(contains('package:zuraffa_flutter/')));
+        },
+      );
+
+      test('Flutter pubspec => imports package:zuraffa_flutter', () async {
+        await writePubspec(flutter: true);
+        final builder = StateBuilder(
+          outputDir: outputDir,
+          options: const GeneratorOptions(force: true),
+        );
+        final file = await builder.generate(
+          GeneratorConfig(
+            name: 'Product',
+            methods: const ['get', 'getList', 'update'],
+            generateState: true,
+            outputDir: outputDir,
+          ),
+        );
+        final content = file.content ?? '';
+        expect(
+          content,
+          contains('package:zuraffa_flutter/zuraffa_flutter.dart'),
+        );
       });
     });
   });

@@ -9,6 +9,7 @@ import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 
 import '../../../utils/file_utils.dart';
+import '../../../utils/project_flavor.dart';
 import '../../../utils/string_utils.dart';
 
 /// Generates state classes for presentation controllers.
@@ -60,10 +61,19 @@ class StateBuilder {
               ].contains(m),
             ));
 
-    // #281: Presentation-layer state imports 'package:zuraffa_flutter/zuraffa_flutter.dart'
-    // (which re-exports zuraffa core) so generated Flutter apps compile against
-    // the same direct dep setup wires and avoid depend_on_referenced_packages.
-    final imports = <String>['package:zuraffa_flutter/zuraffa_flutter.dart'];
+    // #512: The state import must follow the target project's flavor
+    // (Constitution VII: Engine Purity). A pure-Dart target has no
+    // `flutter:` SDK in its pubspec and therefore does not depend on
+    // zuraffa_flutter — importing it breaks `dart analyze`. In that case the
+    // state must import zuraffa *core*, which exports AppFailure. A Flutter
+    // target (or an unknown flavor, e.g. a temp dir without a pubspec) keeps
+    // the historical zuraffa_flutter import so generated Flutter apps compile
+    // against the same direct dep `setup`/`init` wires.
+    final flavor = await detectProjectFlavor(outputDir, fileSystem);
+    final coreImport = flavor == ProjectFlavor.pureDart
+        ? 'package:zuraffa/zuraffa.dart'
+        : 'package:zuraffa_flutter/zuraffa_flutter.dart';
+    final imports = <String>[coreImport];
 
     if (config.isCustomUseCase || config.isOrchestrator) {
       final types = <String>[if (!config.noEntity) config.name];
