@@ -12,7 +12,15 @@ abstract class PluginCommand extends Command<void> {
 
   final ZuraffaPlugin plugin;
 
-  PluginCommand(this.plugin) {
+  /// When false, capabilities are NOT registered as subcommands. This lets a
+  /// command accept the entity name as a positional argument (e.g.
+  /// `zfa api <Entity>`) instead of requiring it to be a subcommand.
+  final bool registerSubcommands;
+
+  PluginCommand(
+    this.plugin, {
+    this.registerSubcommands = true,
+  }) {
     argParser.addOption(
       'output',
       abbr: 'o',
@@ -44,8 +52,10 @@ abstract class PluginCommand extends Command<void> {
     );
 
     // Auto-register capabilities as subcommands
-    for (final capability in plugin.capabilities) {
-      addSubcommand(CapabilityCommand(capability));
+    if (registerSubcommands) {
+      for (final capability in plugin.capabilities) {
+        addSubcommand(CapabilityCommand(capability));
+      }
     }
   }
 

@@ -13,7 +13,7 @@ class ApiCommand extends PluginCommand {
   @override
   final ApiPlugin plugin;
 
-  ApiCommand(this.plugin) : super(plugin) {
+  ApiCommand(this.plugin) : super(plugin, registerSubcommands: false) {
     argParser.addOption(
       'domain',
       abbr: 'd',
@@ -26,6 +26,9 @@ class ApiCommand extends PluginCommand {
 
   @override
   String get description => 'Generate API bridge for a Zuraffa entity';
+
+  @override
+  String get invocation => 'zfa api <EntityName> [options]';
 
   @override
   Future<void> run() async {
