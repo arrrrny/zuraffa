@@ -16,7 +16,6 @@ void main() {
         expect(names, contains('build_runner'));
         expect(names, contains('json_annotation'));
         expect(names, contains('json_serializable'));
-        expect(names, contains('mocktail'));
         expect(names, contains('flutter_lints'));
         expect(names, contains('analyzer'));
       });
@@ -33,7 +32,6 @@ void main() {
           expect(names, contains('build_runner'));
           expect(names, contains('json_annotation'));
           expect(names, contains('json_serializable'));
-          expect(names, contains('mocktail'));
           expect(names, isNot(contains('flutter_lints')));
           expect(names, contains('analyzer'));
         },
@@ -68,15 +66,12 @@ void main() {
         expect(zorphyAnn.version, '^2.0.0');
       });
 
-      test('build_runner and mocktail are dev dependencies', () {
+      test('build_runner is a dev dependency', () {
         final specs = DependencyWirer.standardSet(isFlutter: true);
         final buildRunner = specs.firstWhere((s) => s.name == 'build_runner');
-        final mocktail = specs.firstWhere((s) => s.name == 'mocktail');
 
         expect(buildRunner.kind, DependencyKind.dev);
         expect(buildRunner.isGit, isFalse);
-        expect(mocktail.kind, DependencyKind.dev);
-        expect(mocktail.isGit, isFalse);
       });
 
       test('flutter project overrides analyzer ^13.1.0 + meta ^1.19.0', () {
@@ -128,7 +123,6 @@ environment:
             'json_annotation',
             'build_runner',
             'json_serializable',
-            'mocktail',
             'flutter_lints',
             'analyzer',
           ]),
@@ -159,7 +153,7 @@ dependencies:
 dev_dependencies:
   build_runner: ^2.15.2
   json_serializable: ^6.13.2
-  mocktail: ^1.0.4
+
   flutter_lints: ^6.0.0
 
 dependency_overrides:
@@ -189,7 +183,7 @@ dependencies:
 dev_dependencies:
   build_runner: ^2.15.2
   json_serializable: ^6.13.2
-  mocktail: ^1.0.4
+
   flutter_lints: ^6.0.0
 
 dependency_overrides:
@@ -223,7 +217,7 @@ dependencies:
 
 dev_dependencies:
   json_serializable: ^6.13.2
-  mocktail: ^1.0.4
+
   flutter_lints: ^6.0.0
 
 dependency_overrides:
@@ -259,7 +253,7 @@ dependencies:
 dev_dependencies:
   build_runner: ^2.15.2
   json_serializable: ^6.13.2
-  mocktail: ^1.0.4
+
   flutter_lints: ^6.0.0
 ''';
         final missing = DependencyWirer.findMissing(pubspec, isFlutter: true);
@@ -288,7 +282,7 @@ dependencies:
 dev_dependencies:
   build_runner: ^2.15.2
   json_serializable: ^6.13.2
-  mocktail: ^1.0.4
+
 ''';
         final missing = DependencyWirer.findMissing(pubspec, isFlutter: false);
 
@@ -316,7 +310,7 @@ dependencies:
 dev_dependencies:
   build_runner: ^2.15.2
   json_serializable: ^6.13.2
-  mocktail: ^1.0.4
+
 
 dependency_overrides:
   analyzer: 14.1.0
@@ -350,7 +344,7 @@ dependencies:
 dev_dependencies:
   build_runner: ^2.15.2
   json_serializable: ^6.13.2
-  mocktail: ^1.0.4
+
   flutter_lints: ^6.0.0
 
 dependency_overrides:

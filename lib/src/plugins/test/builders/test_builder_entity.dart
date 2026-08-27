@@ -121,9 +121,14 @@ extension TestBuilderEntity on TestBuilder {
     // framework + zuraffa core imports resolve. `zfa setup --dart` only
     // wires `test` + `zuraffa` (no `flutter_test`, no `zuraffa_flutter`).
     final isFlutter = await _isFlutterProject(projectRoot);
+    // Always import zuraffa core: every generated test defines a
+    // `Throwing{Entity}DataSource` (mixin `Loggable`/`FailureHandler`, params
+    // types `QueryParams`/`ToggleParams`/`Field`/…) regardless of the use case
+    // method under test, so the zuraffa export is required for all methods —
+    // including `create`, which previously omitted it and failed to load.
     final directives = <Directive>[
       _testFrameworkImport(isFlutter),
-      if (method != 'create') _zuraffaCoreImport(isFlutter),
+      _zuraffaCoreImport(isFlutter),
     ];
 
     String toPackageImport(String filePath) {
