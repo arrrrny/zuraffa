@@ -53,443 +53,140 @@ extension TestBuilderHelpers on TestBuilder {
     return defaultDomain;
   }
 
-  List<Expression> _getFallbackValues(
-    GeneratorConfig config,
-    String method,
-    String mockEntityClass,
-  ) {
-    final entityName = config.name;
-    final idType = config.idFieldType;
-    final idValue = idType == 'NoParams'
-        ? refer('NoParams').constInstance([])
-        : (idType == 'int' ? literalNum(1) : literalString('1'));
+  /// Generates a `Fake{Name}` class that [implements] [interfaceName] and
+  /// returns a sensible default value for every abstract method.
+  ///
+  /// Uses the analyzer to parse [filePath], find the first class declaration,
+  /// and emit `@override` method stubs whose bodies return:
+  /// - `Future.value(<default>)` for async methods
+  /// - `Stream.value(<default>)` for stream methods
+  /// - `<default>` for synchronous methods
+  /// - empty body for void methods
+  ///
+  /// [entityTypes] — entity names in scope, used to construct sample values
+  /// (e.g. `Product()` for an entity-typed return).
+  Future<Class?> _generateFakeClassForDependency({
+    required String className,
+    required String interfaceName,
+    required String filePath,
+    required String packageName,
+    required String projectRoot,
+    required Set<String> entityTypes,
+  }) async {
+    final parser = const FileParser();
+    final result = await parser.parseFile(filePath, fileSystem: fileSystem);
+    final unit = result.unit;
+    if (unit == null) return null;
 
-    final queryType = config.queryFieldType;
-
-    switch (method) {
-      case 'get':
-      case 'watch':
-        if (queryType == 'NoParams') {
-          return [refer('NoParams').constInstance([])];
-        }
-        return [refer('QueryParams<$entityName>').constInstance([])];
-      case 'getList':
-      case 'watchList':
-        if (queryType == 'NoParams') {
-          return [refer('NoParams').constInstance([])];
-        }
-        return [refer('ListQueryParams<$entityName>').constInstance([])];
-      case 'create':
-        return [refer(mockEntityClass).call([])];
-      case 'update':
-        final dataType = '${entityName}Patch';
-        final dataValue = refer('${entityName}Patch').call([]);
-        return [
-          refer(
-            'UpdateParams<$idType, $dataType>',
-          ).call([], {'id': idValue, 'data': dataValue}),
-        ];
-      case 'toggle':
-        // #289: registerFallbackValue needs a concrete ToggleParams instance
-        // matching the usecase generator's signature (ToggleParams<I, F>
-        // with id/field/value). `${entityName}Fields` is the Field-class
-        // re-exported by the entity file; `config.queryField` (default 'id')
-        // resolves to a `Field<Entity, IdType>` constant the same way the
-        // `get` branch below does for its QueryParams filter.
-        return [
-          refer('ToggleParams<$idType, Field<$entityName, dynamic>>').call([], {
-            'id': idValue,
-            'field': refer('${entityName}Fields').property(config.queryField),
-            'value': literalBool(true),
-          }),
-        ];
-      case 'delete':
-        return [
-          refer('DeleteParams<$idType>').constInstance([], {'id': idValue}),
-        ];
-      default:
-        return [];
+    ast.ClassDeclaration? targetClass;
+    for (final node in unit.declarations) {
+      if (node is ast.ClassDeclaration &&
+          node.namePart.typeName.lexeme == interfaceName) {
+        targetClass = node;
+        break;
+      }
     }
+    if (targetClass == null) return null;
+
+    final methodBodies = <String>[];
+    for (final member in targetClass.body.members) {
+      if (member is ast.MethodDeclaration && member.isAbstract) {
+        final methodStr = _generateFakeMethod(member, entityTypes);
+        if (methodStr.isNotEmpty) methodBodies.add(methodStr);
+      }
+    }
+
+    return Class(
+      (c) => c
+        ..name = className
+        ..implements.add(refer(interfaceName))
+        ..methods.add(Method((m) => m
+          ..body = Code(methodBodies.join('\n\n')))),
+    );
   }
 
-  List<Code> _generateFutureTests(
-    GeneratorConfig config,
-    String method,
-    String entityName,
-    String returnConstructor,
-    bool isCompletable,
-    String mockVarName,
+  /// Generates a single `@override` method stub string for [method].
+  /// Returns an empty string for constructors, getters, setters, and
+  /// operators (only normal methods are emitted).
+  String _generateFakeMethod(
+    ast.MethodDeclaration method,
+    Set<String> entityTypes,
   ) {
-    final idType = config.idFieldType;
-    final idValue = idType == 'NoParams'
-        ? refer('NoParams').constInstance([])
-        : (idType == 'int' ? literalNum(1) : literalString('1'));
+    final name = method.name.lexeme;
+    final returnType = method.returnType;
 
-    final queryType = config.queryFieldType;
-    final queryValue = queryType == 'NoParams'
-        ? refer('NoParams').constInstance([])
-        : (queryType == 'int' ? literalNum(1) : literalString('1'));
-
-    Expression paramsExpr;
-    Expression arrangeCall;
-    Expression verifyCall;
-    Expression failureArrangeCall;
-
-    if (method == 'get') {
-      if (queryType == 'NoParams') {
-        paramsExpr = refer('NoParams').call([]);
-        arrangeCall = refer(
-          mockVarName,
-        ).property('get').call([refer('QueryParams').constInstance([])]);
-        verifyCall = refer(
-          mockVarName,
-        ).property('get').call([refer('QueryParams').constInstance([])]);
-      } else {
-        paramsExpr = refer('QueryParams<$entityName>').call([], {
-          'filter': refer('Eq').call([
-            refer('${entityName}Fields').property(config.queryField),
-            queryValue,
-          ]),
-        });
-        arrangeCall = refer(
-          mockVarName,
-        ).property('get').call([refer('any').call([])]);
-        verifyCall = refer(
-          mockVarName,
-        ).property('get').call([refer('any').call([])]);
-      }
-    } else if (method == 'getList') {
-      if (queryType == 'NoParams') {
-        paramsExpr = refer('NoParams').call([]);
-        arrangeCall = refer(mockVarName).property('getList').call([
-          refer('ListQueryParams').constInstance([]),
-        ]);
-        verifyCall = refer(mockVarName).property('getList').call([
-          refer('ListQueryParams').constInstance([]),
-        ]);
-      } else {
-        paramsExpr = refer('ListQueryParams<$entityName>').call([]);
-        arrangeCall = refer(
-          mockVarName,
-        ).property('getList').call([refer('any').call([])]);
-        verifyCall = refer(
-          mockVarName,
-        ).property('getList').call([refer('any').call([])]);
-      }
-    } else if (method == 'create') {
-      paramsExpr = refer('t$entityName');
-      arrangeCall = refer(
-        mockVarName,
-      ).property('create').call([refer('any').call([])]);
-      verifyCall = refer(
-        mockVarName,
-      ).property('create').call([refer('any').call([])]);
-    } else if (method == 'update') {
-      final dataType = '${entityName}Patch';
-      final dataValue = refer('${entityName}Patch').call([]);
-      paramsExpr = refer(
-        'UpdateParams<$idType, $dataType>',
-      ).call([], {'id': idValue, 'data': dataValue});
-      arrangeCall = refer(
-        mockVarName,
-      ).property('update').call([refer('any').call([])]);
-      verifyCall = refer(
-        mockVarName,
-      ).property('update').call([refer('any').call([])]);
-    } else if (method == 'toggle') {
-      // #289: Mirror the usecase generator's toggle shape — ToggleParams<I, F>
-      // with id, field (a Field<Entity, IdType> from ${entityName}Fields), and
-      // a bool value. The mock repository call is `toggle(any())`, identical to
-      // update/create — the per-method test builder only needs the params
-      // expression and the mock call shape to match.
-      paramsExpr = refer('ToggleParams<$idType, Field<$entityName, dynamic>>')
-          .call([], {
-            'id': idValue,
-            'field': refer('${entityName}Fields').property(config.queryField),
-            'value': literalBool(true),
-          });
-      arrangeCall = refer(
-        mockVarName,
-      ).property('toggle').call([refer('any').call([])]);
-      verifyCall = refer(
-        mockVarName,
-      ).property('toggle').call([refer('any').call([])]);
-    } else if (method == 'delete') {
-      paramsExpr = refer('DeleteParams<$idType>').call([], {'id': idValue});
-      arrangeCall = refer(
-        mockVarName,
-      ).property('delete').call([refer('any').call([])]);
-      verifyCall = refer(
-        mockVarName,
-      ).property('delete').call([refer('any').call([])]);
-    } else {
-      return [];
+    // Only emit normal methods (not constructors, getters, setters).
+    if (method.isGetter || method.isSetter) {
+      return '';
     }
 
-    failureArrangeCall = arrangeCall;
+    final returnTypeStr = returnType?.toString() ?? 'dynamic';
 
-    final successTest = Block((t) {
-      t.statements.add(
-        refer(
-          'when',
-        ).call([arrangeCall.toClosure()]).property('thenAnswer').call([
-          Method(
-            (m) => m
-              ..requiredParameters.add(Parameter((p) => p..name = '_'))
-              ..modifier = MethodModifier.async
-              ..lambda = true
-              ..body =
-                  (method == 'delete'
-                          ? literalMap({})
-                          : refer(returnConstructor))
-                      .code,
-          ).closure,
-        ]).statement,
-      );
-      t.statements.add(
-        declareFinal('result')
-            .assign(
-              refer('useCase').property('call').call([paramsExpr]).awaited,
-            )
-            .statement,
-      );
-      t.statements.add(
-        refer('verify').call([verifyCall.toClosure()]).property('called').call([
-          literalNum(1),
-        ]).statement,
-      );
-      t.statements.add(
-        refer('expect').call([
-          refer('result').property('isSuccess'),
-          literalBool(true),
-        ]).statement,
-      );
-      if (!isCompletable) {
-        t.statements.add(
-          refer('expect').call([
-            refer('result').property('getOrElse').call([
-              Method(
-                (m) => m
-                  ..lambda = true
-                  ..body = refer(
-                    'throw',
-                  ).call([refer('Exception').call([])]).code,
-              ).closure,
-            ]),
-            refer('equals').call([refer(returnConstructor)]),
-          ]).statement,
-        );
-      }
-    });
+    if (!method.isAbstract) return ''; // Abstract methods only.
 
-    final failureTest = Block((t) {
-      t.statements.add(
-        declareFinal(
-          'exception',
-        ).assign(refer('Exception').call([literalString('Error')])).statement,
-      );
-      t.statements.add(
-        refer('when')
-            .call([failureArrangeCall.toClosure()])
-            .property('thenThrow')
-            .call([refer('exception')])
-            .statement,
-      );
-      t.statements.add(
-        declareFinal('result')
-            .assign(
-              refer('useCase').property('call').call([paramsExpr]).awaited,
-            )
-            .statement,
-      );
-      t.statements.add(
-        refer('verify').call([verifyCall.toClosure()]).property('called').call([
-          literalNum(1),
-        ]).statement,
-      );
-      t.statements.add(
-        refer('expect').call([
-          refer('result').property('isFailure'),
-          literalBool(true),
-        ]).statement,
-      );
-    });
+    final bodyStr = returnTypeStr == 'void'
+        ? '{}'
+        : '{ return ${_defaultValueForType(returnTypeStr, entityTypes)}; }';
 
-    return [
-      refer('test').call([
-        literalString('should call repository.$method and return result'),
-        successTest.toClosure(asAsync: true),
-      ]).statement,
-      refer('test').call([
-        literalString('should return Failure when repository throws'),
-        failureTest.toClosure(asAsync: true),
-      ]).statement,
-    ];
+    final params = <String>[];
+    for (final p in method.parameters?.parameters ?? []) {
+      params.add('${p.declaredElement?.type} ${p.declaredElement?.name}');
+    }
+
+    return '@override\n$returnTypeStr $name(${params.join(', ')}) $bodyStr';
   }
 
-  List<Code> _generateStreamTests(
-    GeneratorConfig config,
-    String method,
-    String entityName,
-    String returnConstructor,
-    String mockVarName,
-  ) {
-    final queryType = config.queryFieldType;
-    final queryValue = queryType == 'NoParams'
-        ? refer('NoParams').constInstance([])
-        : (queryType == 'int' ? literalNum(1) : literalString('1'));
-
-    Expression paramsExpr;
-    Expression arrangeCall;
-    Expression verifyCall;
-
-    if (method == 'watch') {
-      if (queryType == 'NoParams') {
-        paramsExpr = refer('NoParams').call([]);
-        arrangeCall = refer(
-          mockVarName,
-        ).property('watch').call([refer('QueryParams').constInstance([])]);
-        verifyCall = refer(
-          mockVarName,
-        ).property('watch').call([refer('QueryParams').constInstance([])]);
-      } else {
-        paramsExpr = refer('QueryParams<$entityName>').call([], {
-          'filter': refer('Eq').call([
-            refer('${entityName}Fields').property(config.queryField),
-            queryValue,
-          ]),
-        });
-        arrangeCall = refer(
-          mockVarName,
-        ).property('watch').call([refer('any').call([])]);
-        verifyCall = refer(
-          mockVarName,
-        ).property('watch').call([refer('any').call([])]);
-      }
-    } else if (method == 'watchList') {
-      if (queryType == 'NoParams') {
-        paramsExpr = refer('NoParams').call([]);
-        arrangeCall = refer(mockVarName).property('watchList').call([
-          refer('ListQueryParams').constInstance([]),
-        ]);
-        verifyCall = refer(mockVarName).property('watchList').call([
-          refer('ListQueryParams').constInstance([]),
-        ]);
-      } else {
-        paramsExpr = refer('ListQueryParams<$entityName>').call([]);
-        arrangeCall = refer(
-          mockVarName,
-        ).property('watchList').call([refer('any').call([])]);
-        verifyCall = refer(
-          mockVarName,
-        ).property('watchList').call([refer('any').call([])]);
-      }
-    } else {
-      return [];
+  /// Determines the raw Dart expression string for a default value of
+  /// [returnType] — handles `Future<T>`, `Stream<T>`, nullable types,
+  /// collection types, entity types, and built-in primitives.
+  String _defaultValueForType(String returnType, Set<String> entityTypes) {
+    // Future<T> → Future.value(<innerDefault>)
+    if (returnType.startsWith('Future<') && returnType.endsWith('>')) {
+      final inner = _extractInnerType(returnType);
+      return 'Future.value(${_defaultValueForType(inner, entityTypes)})';
     }
+    // Stream<T> → Stream.value(<innerDefault>)
+    if (returnType.startsWith('Stream<') && returnType.endsWith('>')) {
+      final inner = _extractInnerType(returnType);
+      return 'Stream.value(${_defaultValueForType(inner, entityTypes)})';
+    }
+    // T? → null
+    if (returnType.endsWith('?')) {
+      return 'null';
+    }
+    // List<T> → []
+    if (returnType.startsWith('List<') && returnType.endsWith('>')) {
+      return '[]';
+    }
+    // Map<K,V> → {}
+    if (returnType.startsWith('Map<') && returnType.endsWith('>')) {
+      return '{}';
+    }
+    // Entity types in scope → EntityName()
+    if (entityTypes.contains(returnType)) {
+      return '$returnType()';
+    }
+    // Dart built-in defaults
+    return switch (returnType) {
+      'String' => "'x'",
+      'int' => '0',
+      'double' => '0.0',
+      'bool' => 'false',
+      'dynamic' || 'Object' => 'null',
+      'void' => '',
+      _ => 'null',
+    };
+  }
 
-    final successTest = Block((t) {
-      final arrangeCallExpr = refer('when')
-          .call([arrangeCall.toClosure()])
-          .property('thenAnswer')
-          .call([
-            Method(
-              (m) => m
-                ..requiredParameters.add(Parameter((p) => p..name = '_'))
-                ..lambda = true
-                ..body = refer(
-                  'Stream',
-                ).property('value').call([refer(returnConstructor)]).code,
-            ).closure,
-          ]);
-      t.statements.add(arrangeCallExpr.statement);
-      t.statements.add(
-        declareFinal('result')
-            .assign(refer('useCase').property('call').call([paramsExpr]))
-            .statement,
-      );
-      t.statements.add(
-        refer('expectLater')
-            .call([
-              refer('result'),
-              refer('emits').call([
-                refer(
-                  'isA',
-                ).call([], {}, [refer('Success')]).property('having').call([
-                  Method(
-                    (m) => m
-                      ..requiredParameters.add(Parameter((p) => p..name = 's'))
-                      ..lambda = true
-                      ..body = refer('s').property('value').code,
-                  ).closure,
-                  literalString('value'),
-                  refer('equals').call([refer(returnConstructor)]),
-                ]),
-              ]),
-            ])
-            .awaited
-            .statement,
-      );
-      t.statements.add(
-        refer('verify').call([verifyCall.toClosure()]).property('called').call([
-          literalNum(1),
-        ]).statement,
-      );
-    });
-
-    final failureTest = Block((t) {
-      t.statements.add(
-        declareFinal('exception')
-            .assign(refer('Exception').call([literalString('Stream Error')]))
-            .statement,
-      );
-      final arrangeCallExpr = refer('when')
-          .call([arrangeCall.toClosure()])
-          .property('thenAnswer')
-          .call([
-            Method(
-              (m) => m
-                ..requiredParameters.add(Parameter((p) => p..name = '_'))
-                ..lambda = true
-                ..body = refer(
-                  'Stream',
-                ).property('error').call([refer('exception')]).code,
-            ).closure,
-          ]);
-      t.statements.add(arrangeCallExpr.statement);
-      t.statements.add(
-        declareFinal('result')
-            .assign(refer('useCase').property('call').call([paramsExpr]))
-            .statement,
-      );
-      t.statements.add(
-        refer('expectLater')
-            .call([
-              refer('result'),
-              refer('emits').call([
-                refer('isA').call([], {}, [refer('Failure')]),
-              ]),
-            ])
-            .awaited
-            .statement,
-      );
-      t.statements.add(
-        refer('verify').call([verifyCall.toClosure()]).property('called').call([
-          literalNum(1),
-        ]).statement,
-      );
-    });
-
-    return [
-      refer('test').call([
-        literalString('should emit values from repository stream'),
-        successTest.toClosure(asAsync: true),
-      ]).statement,
-      refer('test').call([
-        literalString('should emit Failure when repository stream errors'),
-        failureTest.toClosure(asAsync: true),
-      ]).statement,
-    ];
+  /// Extracts the first type argument from a generic like
+  /// `Future<List<Product>>` → `List<Product>`.
+  String _extractInnerType(String type) {
+    final firstOpen = type.indexOf('<');
+    final lastClose = type.lastIndexOf('>');
+    if (firstOpen >= 0 && lastClose > firstOpen) {
+      return type.substring(firstOpen + 1, lastClose).trim();
+    }
+    return type;
   }
 
   Expression _generateCustomTestBody(
@@ -571,7 +268,7 @@ extension TestBuilderHelpers on TestBuilder {
   // dependency (`flutter: sdk: flutter`). Pure-Dart apps (`zfa setup --dart`)
   // cannot import `package:flutter_test/flutter_test.dart` or
   // `package:zuraffa_flutter/zuraffa_flutter.dart` — they only wire
-  // `test` + `mocktail` + `zuraffa`. Falls back to false when pubspec.yaml
+  // `test` + `zuraffa`. Falls back to false when pubspec.yaml
   // is missing or unreadable, matching DependencyWirer.isFlutterProject's
   // conservative default. Result is cached per TestBuilder instance.
   Future<bool> _isFlutterProject(String projectRoot) async {
@@ -593,7 +290,7 @@ extension TestBuilderHelpers on TestBuilder {
   }
 
   /// Test framework import: `flutter_test` for Flutter apps, `test` for pure
-  /// Dart apps. `zfa setup --dart` only wires `test` + `mocktail` (no
+  /// Dart apps. `zfa setup --dart` only wires `test` (no
   /// `flutter_test`), so a pure-Dart app cannot resolve `flutter_test`.
   Directive _testFrameworkImport(bool isFlutter) => Directive.import(
     isFlutter

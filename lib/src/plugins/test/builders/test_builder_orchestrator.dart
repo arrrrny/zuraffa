@@ -21,38 +21,11 @@ extension TestBuilderOrchestrator on TestBuilder {
     final isFlutter = await _isFlutterProject(projectRoot);
     final directives = [
       _testFrameworkImport(isFlutter),
-      Directive.import('package:mocktail/mocktail.dart'),
       _zuraffaCoreImport(isFlutter),
       Directive.import(
         'package:$packageName/src/domain/usecases/${config.effectiveDomain}/${config.nameSnake}_usecase.dart',
       ),
     ];
-
-    final mockSpecs = <Class>[];
-    for (final usecase in config.usecases) {
-      mockSpecs.add(
-        Class(
-          (c) => c
-            ..name = 'Mock${usecase}UseCase'
-            ..extend = refer('Mock')
-            ..implements.add(refer('${usecase}UseCase')),
-        ),
-      );
-
-      final usecaseSnake = StringUtils.camelToSnake(
-        usecase.replaceAll('UseCase', ''),
-      );
-      // Find the actual domain for this usecase
-      final usecaseDomain = await _findUseCaseDomain(
-        usecaseSnake,
-        config.effectiveDomain,
-      );
-      directives.add(
-        Directive.import(
-          'package:$packageName/src/domain/usecases/$usecaseDomain/${usecaseSnake}_usecase.dart',
-        ),
-      );
-    }
 
     final entityTypes = <String>[];
     if (config.returnsType != null) {
@@ -71,6 +44,55 @@ extension TestBuilderOrchestrator on TestBuilder {
       );
     }
 
+    final fakeSpecs = <Class>[];
+    for (final usecase in config.usecases) {
+      final usecaseSnake = StringUtils.camelToSnake(
+        usecase.replaceAll('UseCase', ''),
+      );
+      // Find the actual domain for this usecase
+      final usecaseDomain = await _findUseCaseDomain(
+        usecaseSnake,
+        config.effectiveDomain,
+      );
+      final usecaseImportPath =
+          'package:$packageName/src/domain/usecases/$usecaseDomain/${usecaseSnake}_usecase.dart';
+      directives.add(Directive.import(usecaseImportPath));
+
+      // Generate a Fake for this child use case using AST-parsed signatures.
+      final usecaseFile = discovery.findFileSync(
+        '${usecaseSnake}_usecase.dart',
+      );
+      if (usecaseFile != null) {
+        final fakeClass = await _generateFakeClassForDependency(
+          className: 'Fake${usecase}UseCase',
+          interfaceName: '${usecase}UseCase',
+          filePath: usecaseFile.path,
+          packageName: packageName,
+          projectRoot: projectRoot,
+          entityTypes: entityTypes.toSet(),
+        );
+        if (fakeClass != null) {
+          fakeSpecs.add(fakeClass);
+        } else {
+          fakeSpecs.add(
+            Class(
+              (c) => c
+                ..name = 'Fake${usecase}UseCase'
+                ..implements.add(refer('${usecase}UseCase')),
+            ),
+          );
+        }
+      } else {
+        fakeSpecs.add(
+          Class(
+            (c) => c
+              ..name = 'Fake${usecase}UseCase'
+              ..implements.add(refer('${usecase}UseCase')),
+          ),
+        );
+      }
+    }
+
     final mainMethod = Method(
       (m) => m
         ..name = 'main'
@@ -86,8 +108,8 @@ extension TestBuilderOrchestrator on TestBuilder {
           for (final usecase in config.usecases) {
             b.statements.add(
               declareVar(
-                'mock${usecase}UseCase',
-                type: refer('Mock${usecase}UseCase'),
+                'fake${usecase}UseCase',
+                type: refer('Fake${usecase}UseCase'),
                 late: true,
               ).statement,
             );
@@ -97,8 +119,8 @@ extension TestBuilderOrchestrator on TestBuilder {
             for (final usecase in config.usecases) {
               s.statements.add(
                 refer(
-                  'mock${usecase}UseCase',
-                ).assign(refer('Mock${usecase}UseCase').call([])).statement,
+                  'fake${usecase}UseCase',
+                ).assign(refer('Fake${usecase}UseCase').call([])).statement,
               );
             }
             s.statements.add(
@@ -106,7 +128,7 @@ extension TestBuilderOrchestrator on TestBuilder {
                   .assign(
                     refer(useCaseName).call(
                       config.usecases
-                          .map((u) => refer('mock${u}UseCase'))
+                          .map((u) => refer('fake${u}UseCase'))
                           .toList(),
                     ),
                   )
@@ -157,7 +179,7 @@ extension TestBuilderOrchestrator on TestBuilder {
 
     final content = specLibrary.emitLibrary(
       specLibrary.library(
-        specs: [...mockSpecs, mainMethod],
+        specs: [...fakeSpecs, mainMethod],
         directives: directives,
       ),
     );

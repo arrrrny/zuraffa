@@ -26,34 +26,47 @@ extension TestBuilderPolymorphic on TestBuilder {
       final isFlutter = await _isFlutterProject(projectRoot);
       final directives = [
         _testFrameworkImport(isFlutter),
-        Directive.import('package:mocktail/mocktail.dart'),
         _zuraffaCoreImport(isFlutter),
         Directive.import(
           'package:$packageName/src/domain/usecases/${config.effectiveDomain}/${classSnake}_usecase.dart',
         ),
       ];
 
-      final mockSpecs = <Class>[];
+      final fakeSpecs = <Class>[];
       final repoBase = config.repo;
       if (repoBase != null) {
         final repoName = '${repoBase}Repository';
-        mockSpecs.add(
-          Class(
-            (c) => c
-              ..name = 'Mock$repoName'
-              ..extend = refer('Mock')
-              ..implements.add(refer(repoName)),
-          ),
-        );
-
         final repoSnake = StringUtils.camelToSnake(
           repoBase.replaceAll('Repository', ''),
         );
-        directives.add(
-          Directive.import(
-            'package:$packageName/src/domain/repositories/${repoSnake}_repository.dart',
-          ),
+        final repoSourcePath =
+            'package:$packageName/src/domain/repositories/${repoSnake}_repository.dart';
+        directives.add(Directive.import(repoSourcePath));
+
+        // Generate a Fake{repo}Repository using AST-parsed method signatures.
+        final repoFile = discovery.findFileSync(
+          '${repoSnake}_repository.dart',
         );
+        if (repoFile != null) {
+          final fakeClass = await _generateFakeClassForDependency(
+            className: 'Fake$repoName',
+            interfaceName: repoName,
+            filePath: repoFile.path,
+            packageName: packageName,
+            projectRoot: projectRoot,
+            entityTypes: {config.name},
+          );
+          if (fakeClass != null) fakeSpecs.add(fakeClass);
+        } else {
+          // Fallback: empty fake (methods never called if file not found).
+          fakeSpecs.add(
+            Class(
+              (c) => c
+                ..name = 'Fake$repoName'
+                ..implements.add(refer(repoName)),
+            ),
+          );
+        }
       }
 
       final mainMethod = Method(
@@ -71,8 +84,8 @@ extension TestBuilderPolymorphic on TestBuilder {
             if (repoBase != null) {
               b.statements.add(
                 declareVar(
-                  'mock${repoBase}Repository',
-                  type: refer('Mock${repoBase}Repository'),
+                  'fake${repoBase}Repository',
+                  type: refer('Fake${repoBase}Repository'),
                   late: true,
                 ).statement,
               );
@@ -81,13 +94,13 @@ extension TestBuilderPolymorphic on TestBuilder {
             final setUpBody = Block((s) {
               if (repoBase != null) {
                 s.statements.add(
-                  refer('mock${repoBase}Repository')
-                      .assign(refer('Mock${repoBase}Repository').call([]))
+                  refer('fake${repoBase}Repository')
+                      .assign(refer('Fake${repoBase}Repository').call([]))
                       .statement,
                 );
               }
               final setupArgs = repoBase != null
-                  ? [refer('mock${repoBase}Repository')]
+                  ? [refer('fake${repoBase}Repository')]
                   : <Expression>[];
               s.statements.add(
                 refer(
@@ -162,7 +175,7 @@ extension TestBuilderPolymorphic on TestBuilder {
 
       final content = specLibrary.emitLibrary(
         specLibrary.library(
-          specs: [...mockSpecs, mainMethod],
+          specs: [...fakeSpecs, mainMethod],
           directives: directives,
         ),
       );

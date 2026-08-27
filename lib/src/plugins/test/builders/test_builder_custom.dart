@@ -33,7 +33,6 @@ extension TestBuilderCustom on TestBuilder {
     final isFlutter = await _isFlutterProject(projectRoot);
     final directives = [
       _testFrameworkImport(isFlutter),
-      Directive.import('package:mocktail/mocktail.dart'),
       _zuraffaCoreImport(isFlutter),
       Directive.import(
         'package:$packageName/src/domain/usecases/${config.effectiveDomain}/${config.nameSnake}_usecase.dart',
@@ -48,7 +47,9 @@ extension TestBuilderCustom on TestBuilder {
       entityTypes.addAll(EntityUtils.extractEntityTypes(config.paramsType!));
     }
 
-    for (final type in entityTypes.toSet()) {
+    final entityTypeSet = entityTypes.toSet();
+
+    for (final type in entityTypeSet) {
       final snake = StringUtils.camelToSnake(type);
       directives.add(
         Directive.import(
@@ -57,53 +58,104 @@ extension TestBuilderCustom on TestBuilder {
       );
     }
 
-    final mockSpecs = <Class>[];
+    final fakeSpecs = <Class>[];
 
     if (paramsType != 'NoParams' && !KnownTypes.isDartPrimitive(paramsType)) {
-      mockSpecs.add(
+      // Fake paramsType: minimal stub, never stubbed or verified.
+      fakeSpecs.add(
         Class(
           (c) => c
-            ..name = 'Mock$paramsType'
-            ..extend = refer('Mock')
+            ..name = 'Fake$paramsType'
             ..implements.add(refer(paramsType)),
         ),
       );
     }
 
     for (final repo in config.effectiveRepos) {
-      mockSpecs.add(
-        Class(
-          (c) => c
-            ..name = 'Mock$repo'
-            ..extend = refer('Mock')
-            ..implements.add(refer(repo)),
-        ),
-      );
-
       final repoSnake = StringUtils.camelToSnake(
         repo.replaceAll('Repository', ''),
       );
-      directives.add(
-        Directive.import(
-          'package:$packageName/src/domain/repositories/${repoSnake}_repository.dart',
-        ),
+      final repoSourcePath =
+          'package:$packageName/src/domain/repositories/${repoSnake}_repository.dart';
+      directives.add(Directive.import(repoSourcePath));
+
+      // Generate a Fake{repo} using AST-parsed method signatures.
+      final repoFile = discovery.findFileSync(
+        '${repoSnake}_repository.dart',
       );
+      if (repoFile != null) {
+        final fakeClass = await _generateFakeClassForDependency(
+          className: 'Fake$repo',
+          interfaceName: repo,
+          filePath: repoFile.path,
+          packageName: packageName,
+          projectRoot: projectRoot,
+          entityTypes: entityTypeSet,
+        );
+        if (fakeClass != null) {
+          fakeSpecs.add(fakeClass);
+        } else {
+          // Fallback: minimal fake.
+          fakeSpecs.add(
+            Class(
+              (c) => c
+                ..name = 'Fake$repo'
+                ..implements.add(refer(repo)),
+            ),
+          );
+        }
+      } else {
+        fakeSpecs.add(
+          Class(
+            (c) => c
+              ..name = 'Fake$repo'
+              ..implements.add(refer(repo)),
+          ),
+        );
+      }
     }
+
     final serviceName = config.effectiveService;
     final serviceSnake = config.serviceSnake;
     if (serviceName != null && serviceSnake != null) {
-      mockSpecs.add(
-        Class(
-          (c) => c
-            ..name = 'Mock$serviceName'
-            ..extend = refer('Mock')
-            ..implements.add(refer(serviceName)),
-        ),
-      );
       final serviceImport = config.useService
           ? 'package:$packageName/src/domain/services/${config.effectiveDomain}/${serviceSnake}_service.dart'
           : 'package:$packageName/src/domain/services/${serviceSnake}_service.dart';
       directives.add(Directive.import(serviceImport));
+
+      // Generate a Fake{service} using AST-parsed method signatures.
+      final serviceFile = discovery.findFileSync(
+        '${serviceSnake}_service.dart',
+      );
+      if (serviceFile != null) {
+        final fakeClass = await _generateFakeClassForDependency(
+          className: 'Fake$serviceName',
+          interfaceName: serviceName,
+          filePath: serviceFile.path,
+          packageName: packageName,
+          projectRoot: projectRoot,
+          entityTypes: entityTypeSet,
+        );
+        if (fakeClass != null) {
+          fakeSpecs.add(fakeClass);
+        } else {
+          fakeSpecs.add(
+            Class(
+              (c) => c
+                ..name = 'Fake$serviceName'
+                ..implements.add(refer(serviceName)),
+            ),
+          );
+        }
+      } else {
+        fakeSpecs.add(
+          Class(
+            (c) => c
+              ..name = 'Fake$serviceName'
+              ..implements.add(refer(serviceName)),
+          ),
+        );
+      }
     }
 
     final mainMethod = Method(
@@ -121,8 +173,8 @@ extension TestBuilderCustom on TestBuilder {
           for (final repo in config.effectiveRepos) {
             b.statements.add(
               declareVar(
-                'mock$repo',
-                type: refer('Mock$repo'),
+                'fake$repo',
+                type: refer('Fake$repo'),
                 late: true,
               ).statement,
             );
@@ -130,51 +182,34 @@ extension TestBuilderCustom on TestBuilder {
           if (serviceName != null) {
             b.statements.add(
               declareVar(
-                'mock$serviceName',
-                type: refer('Mock$serviceName'),
+                'fake$serviceName',
+                type: refer('Fake$serviceName'),
                 late: true,
               ).statement,
             );
           }
 
           final setUpBody = Block((s) {
-            s.statements.add(
-              refer('registerFallbackValue').call([
-                refer(
-                  'ListQueryParams',
-                ).constInstance(const [], const {}, [refer('dynamic')]),
-              ]).statement,
-            );
-
-            if (paramsType != 'NoParams' &&
-                !KnownTypes.isDartPrimitive(paramsType)) {
-              s.statements.add(
-                refer(
-                  'registerFallbackValue',
-                ).call([refer('Mock$paramsType').call([])]).statement,
-              );
-            }
-
             for (final repo in config.effectiveRepos) {
               s.statements.add(
                 refer(
-                  'mock$repo',
-                ).assign(refer('Mock$repo').call([])).statement,
+                  'fake$repo',
+                ).assign(refer('Fake$repo').call([])).statement,
               );
             }
             if (serviceName != null) {
               s.statements.add(
                 refer(
-                  'mock$serviceName',
-                ).assign(refer('Mock$serviceName').call([])).statement,
+                  'fake$serviceName',
+                ).assign(refer('Fake$serviceName').call([])).statement,
               );
             }
             s.statements.add(
               refer('useCase')
                   .assign(
                     refer(useCaseName).call([
-                      ...config.effectiveRepos.map((r) => refer('mock$r')),
-                      if (serviceName != null) refer('mock$serviceName'),
+                      ...config.effectiveRepos.map((r) => refer('fake$r')),
+                      if (serviceName != null) refer('fake$serviceName'),
                     ]),
                   )
                   .statement,
@@ -191,7 +226,7 @@ extension TestBuilderCustom on TestBuilder {
               g.statements.add(
                 declareFinal(
                   't$paramsType',
-                ).assign(refer('Mock$paramsType').call([])).statement,
+                ).assign(refer('Fake$paramsType').call([])).statement,
               );
             }
 
@@ -214,7 +249,7 @@ extension TestBuilderCustom on TestBuilder {
 
     final content = specLibrary.emitLibrary(
       specLibrary.library(
-        specs: [...mockSpecs, mainMethod],
+        specs: [...fakeSpecs, mainMethod],
         directives: directives,
       ),
     );

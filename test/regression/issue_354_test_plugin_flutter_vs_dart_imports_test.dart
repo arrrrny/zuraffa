@@ -109,7 +109,6 @@ dependencies:
       url: https://github.com/arrrrny/zuraffa
 dev_dependencies:
   test: ^1.25.0
-  mocktail: ^1.0.4
 ''');
 
       final fs = FileSystem.create(root: projectRoot);
@@ -142,8 +141,11 @@ dev_dependencies:
       expect(getFile.content!, isNot(contains('zuraffa_flutter')));
       // Must import package:test/test.dart.
       expect(getFile.content!, contains('package:test/test.dart'));
-      // Must import mocktail.
-      expect(getFile.content!, contains('package:mocktail/mocktail.dart'));
+      // Must NOT import mocktail — entity builder uses native mocks.
+      expect(
+        getFile.content!,
+        isNot(contains('package:mocktail/mocktail.dart')),
+      );
 
       // Generate a test for update (uses zuraffa core import too).
       final updateFile = await builder.generateForMethod(
@@ -186,7 +188,6 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  mocktail: ^1.0.4
 ''');
 
         final fs = FileSystem.create(root: projectRoot);
@@ -214,8 +215,11 @@ dev_dependencies:
           getFile.content!,
           contains('package:flutter_test/flutter_test.dart'),
         );
-        // Must import mocktail.
-        expect(getFile.content!, contains('package:mocktail/mocktail.dart'));
+        // Must NOT import mocktail — entity builder uses native mocks.
+        expect(
+          getFile.content!,
+          isNot(contains('package:mocktail/mocktail.dart')),
+        );
 
         // Generate a test for update (needs zuraffa_flutter core import).
         final updateFile = await builder.generateForMethod(
