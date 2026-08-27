@@ -28,6 +28,10 @@ extension ParamsPropertyHelpers on Params {
   }
 }
 
+enum Params$ { params }
+
+abstract class ParamsPatch extends PatchBase<Params, Params$> {}
+
 /// Field descriptors for [Params] query construction
 abstract final class ParamsFields {
   static const params = Field<Params, Map<String, dynamic>?>(

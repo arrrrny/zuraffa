@@ -15,7 +15,7 @@ ToggleParams<I, F> _$ToggleParamsFromJson<I, F>(
     params: $checkedConvert('params', (v) => v as Map<String, dynamic>?),
     id: $checkedConvert('id', (v) => fromJsonI(v)),
     field: $checkedConvert('field', (v) => fromJsonF(v)),
-    value: $checkedConvert('value', (v) => v as bool),
+    value: $checkedConvert('value', (v) => v),
   );
   return val;
 });
@@ -28,5 +28,5 @@ Map<String, dynamic> _$ToggleParamsToJson<I, F>(
   'params': ?instance.params,
   'id': toJsonI(instance.id),
   'field': toJsonF(instance.field),
-  'value': instance.value,
+  'value': ?instance.value,
 };
