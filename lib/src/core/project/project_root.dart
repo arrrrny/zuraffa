@@ -42,11 +42,8 @@ class ProjectRoot {
     }
   }
 
-  // Backwards-compatible private alias — internal call sites still use this.
-  static String _safeCurrentDir() => safeCurrentPath();
-
   static String find({String? startPath}) {
-    final start = startPath ?? _safeCurrentDir();
+    final start = startPath ?? safeCurrentPath();
     var current = Directory(p.normalize(p.absolute(start)));
 
     // If the start path doesn't exist, try its parent
@@ -77,7 +74,7 @@ class ProjectRoot {
     final root = find(startPath: startPath);
     if (!Directory(root).existsSync()) {
       throw StateError(
-        'Project root does not exist: $root (resolved from ${startPath ?? _safeCurrentDir()})',
+        'Project root does not exist: $root (resolved from ${startPath ?? safeCurrentPath()})',
       );
     }
     return root;
