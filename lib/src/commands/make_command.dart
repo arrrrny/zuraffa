@@ -528,15 +528,14 @@ class MakeCommand extends Command<void> {
           if (!argResults!.wasParsed('query-field') &&
               (context.data['query-field'] == null ||
                   context.data['query-field'] == 'id')) {
-            final representative = EntityFieldResolver
-                .resolveRepresentativeField(
+            final representative =
+                EntityFieldResolver.resolveRepresentativeField(
                   entityName: entityName,
                   projectRoot: manager.projectRoot,
                 );
             if (representative != null) {
               context.data['query-field'] = representative.name;
-              context.data['query-field-type'] =
-                  representative.nonNullableType;
+              context.data['query-field-type'] = representative.nonNullableType;
               if (context.core.verbose) {
                 print(
                   '🔍 Resolved query field for "$entityName" (id-less, '
