@@ -130,14 +130,21 @@ class Product {
         outputDir,
       ]);
 
-      // Current behavior: when entity doesn't exist, EntityFieldResolver returns null
-      // and the code proceeds with default 'id' field. This is a bug - it should fail fast.
-      // TODO: Fix implementation to fail fast when entity file doesn't exist.
-      // For now, the test documents current (buggy) behavior.
-      final decoded = jsonDecode(output) as Map<String, dynamic>;
-      expect(decoded['success'], isTrue);
-      final plan = decoded['plan'] as Map<String, dynamic>;
-      expect(plan['name'], 'NonExistentEntity');
+      // #496: when the entity source file is missing (and --no-entity is not
+      // set) `zfa make` must fail fast with an actionable error instead of
+      // silently proceeding with a default `id` field. The output must NOT
+      // report success or regenerate code.
+      expect(
+        output,
+        contains('no entity source file'),
+        reason: 'expected an entity-not-found diagnostic',
+      );
+      expect(output, contains('zfa entity create -n NonExistentEntity'));
+      expect(
+        output,
+        isNot(contains('"success": true')),
+        reason: 'must NOT report success for a missing entity',
+      );
     });
 
     test('supports --from-json for plan resolution', () async {

@@ -160,6 +160,26 @@ class EntityFieldResolver {
     return EntityIdResolution(kind: kind, autoId: autoId);
   }
 
+  /// Returns true when a source file for [entityName] exists at the
+  /// canonical location `<projectRoot>/<entityOutputDir>/<snake>/<snake>.dart`.
+  ///
+  /// `zfa make` uses this to distinguish the MISSING-FILE case (the entity
+  /// was never created) from an id-less entity whose file EXISTS (issue
+  /// #307/#508/#514) so only the former fails fast. The two cases are
+  /// otherwise indistinguishable from [resolveIdField], which returns null
+  /// for both a missing file and a file with no parseable fields.
+  static bool entityFileExists({
+    required String entityName,
+    required String projectRoot,
+    String entityOutputDir = defaultEntityOutputDir,
+  }) {
+    final snake = _toSnake(entityName);
+    final entityFile = File(
+      p.join(projectRoot, entityOutputDir, snake, '$snake.dart'),
+    );
+    return entityFile.existsSync();
+  }
+
   /// Resolves a representative REAL field of an id-less entity to use as
   /// the query/filter key on id-NEUTRAL plugin paths (issue #508:
   /// `zfa make <Entity> --test` regenerates test files from
