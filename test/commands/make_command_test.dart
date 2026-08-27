@@ -916,5 +916,122 @@ abstract class \$ChatMessage {
         expect(output, contains('❌ Error: Cannot generate architecture'));
       },
     );
+
+    // #514: in apps/zikzak_demo `usecase` is enabled by default in .zfa.json.
+    // `zfa make <NoId> --test` then resolves to {usecase, test} and the #307
+    // gate fired even though the user only wanted id-neutral test
+    // regeneration. The fix drops the implied (config-default) usecase so the
+    // id-neutral path proceeds.
+    test(
+      '#514 — no-id entity with usecase default-enabled: --test regenerates '
+      'id-neutrally (drops the implied usecase)',
+      () async {
+        await File(path.join(workspace.path, '.zfa.json')).writeAsString(
+          jsonEncode({
+            'plugins': {
+              'defaults': {'usecase': true},
+            },
+          }),
+        );
+        await writeIdLessEntity();
+        await writeExistingUseCases();
+
+        final runner = CliRunner(exitOnCompletion: false);
+        final output = await runner.runCapturing([
+          'make',
+          'ChatMessage',
+          '--test',
+          '--force',
+          '--output',
+          outputDir,
+        ]);
+
+        // The implied usecase is dropped (notice printed) and no loud failure
+        // fires — note the drop notice itself contains the words "has no id
+        // field", so we assert on the error path, not the phrase.
+        expect(
+          output,
+          contains('dropping id-dependent plugins implied by config defaults'),
+          reason: 'the config-default usecase must be dropped (issue #514)',
+        );
+        expect(output, isNot(contains('❌ Error')));
+        expect(
+          output,
+          isNot(contains('Cannot generate architecture')),
+          reason: 'id-neutral regeneration must proceed, not fail',
+        );
+
+        final getTest = File(
+          path.join(
+            workspace.path,
+            'test',
+            'domain',
+            'usecases',
+            'chat_message',
+            'get_chat_message_usecase_test.dart',
+          ),
+        );
+        expect(getTest.existsSync(), isTrue, reason: 'output:\n$output');
+        final content = getTest.readAsStringSync();
+        expect(
+          content,
+          contains('ChatMessageFields.content'),
+          reason: 'the query key must be the representative REAL field',
+        );
+        expect(content, isNot(contains('ChatMessageFields.id')));
+
+        // The implied usecase plugin must NOT have run — the pre-existing
+        // usecase stub is untouched.
+        final stub = File(
+          path.join(
+            outputDir,
+            'domain',
+            'usecases',
+            'chat_message',
+            'get_chat_message_usecase.dart',
+          ),
+        );
+        expect(
+          stub.readAsStringSync(),
+          contains('// FIXTURE-STUB get'),
+          reason: 'the dropped usecase plugin should not regenerate usecases',
+        );
+      },
+    );
+
+    // Complement: without an id-neutral flag the implied (config-default)
+    // usecase must keep the #307 loud failure armed.
+    test(
+      '#514 — bare make (no --test/--mock) on a no-id entity with usecase '
+      'default still fails loudly',
+      () async {
+        await File(path.join(workspace.path, '.zfa.json')).writeAsString(
+          jsonEncode({
+            'plugins': {
+              'defaults': {'usecase': true},
+            },
+          }),
+        );
+        await writeIdLessEntity();
+        await writeExistingUseCases();
+
+        final runner = CliRunner(exitOnCompletion: false);
+        final output = await runner.runCapturing([
+          'make',
+          'ChatMessage',
+          '--force',
+          '--output',
+          outputDir,
+        ]);
+
+        expect(
+          output,
+          contains('has no id field'),
+          reason: 'without --test/--mock the implied usecase must keep the '
+              'loud failure armed',
+        );
+        expect(output, contains('❌ Error: Cannot generate architecture'));
+      },
+    );
   });
 }

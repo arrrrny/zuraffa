@@ -39,7 +39,7 @@ class MakeCommand extends Command<void> {
     'api',
     'sync',
     'shadcn',
-    'test', // entity tests reference the usecases value objects don't get
+    'test', // value objects generate no usecases, so there are no usecase tests to emit
   };
 
   /// Plugins whose generated output embeds the entity's identity in
@@ -485,44 +485,80 @@ class MakeCommand extends Command<void> {
           // Id-neutral plugins (test/mock regeneration from
           // already-generated usecases, di, ...) legitimately work for
           // id-less entities and must proceed.
-          final hasIdDependentPlugin = activePlugins.any(
-            (plugin) => _idDependentPlugins.contains(plugin.id),
-          );
-          if (hasIdDependentPlugin) {
-            print(
-              '❌ Cannot generate architecture for "$entityName": the entity '
-              'has no id field.',
+          final activeIdDependent = activePlugins
+              .where((plugin) => _idDependentPlugins.contains(plugin.id))
+              .toList();
+
+          if (activeIdDependent.isNotEmpty) {
+            // #514: an id-dependent plugin may be active only because a config
+            // default enabled it (e.g. `usecase` is on by default in
+            // apps/zikzak_demo) — not because the user asked for it. When the
+            // user's explicit intent is id-neutral (`--test` / `--mock`) and
+            // they did NOT explicitly request any id-dependent plugin
+            // (no --methods / --usecase / --service / --with / positional),
+            // drop the implied id-dependent plugins so the id-neutral
+            // regeneration proceeds — mirroring the value-object drop above.
+            // An id-dependent plugin the user explicitly requested keeps the
+            // loud failure armed (e.g. `--test --methods=get` must still fail).
+            final explicitIdDependent = _explicitIdDependentPluginIds(
+              explicitPluginIds,
+              normalizedOptions,
             );
-            print('');
-            print('Entities need a real identity. Choose one of:');
-            print(
-              '  1. Add an id field:    zfa entity add-field -n '
-              '$entityName --field id:String',
-            );
-            print(
-              '  2. Auto-generate one:  recreate with '
-              'zfa entity create -n $entityName --auto-id <fields...>',
-            );
-            print(
-              '  3. Mark it as a value object if it is an immutable '
-              'composition type (no identity, no CRUD surface):',
-            );
-            print(
-              '       zfa entity create -n $entityName --kind=value_object '
-              '<fields...>',
-            );
-            print(
-              '     or add @ZValueObject / kind: ZorphyKind.valueObject '
-              'to its annotation.',
-            );
-            print('');
-            // Thrown (not `exit(1)`) so the CLI runner's catch-all prints the
-            // diagnostic and exits 1 — while `runCapturing` tests can assert
-            // on the message without killing the test isolate.
-            throw MakeCommandException(
-              'Cannot generate architecture for "$entityName": the entity '
-              'has no id field.',
-            );
+            final impliedIdDependent = activeIdDependent
+                .where((p) => !explicitIdDependent.contains(p.id))
+                .toList();
+            final idNeutralIntent =
+                argResults!['test'] == true || argResults!['mock'] == true;
+
+            if (impliedIdDependent.isNotEmpty &&
+                explicitIdDependent.isEmpty &&
+                idNeutralIntent) {
+              final dropped = impliedIdDependent.map((p) => p.id).toList()
+                ..sort();
+              print(
+                'ℹ️  "$entityName" has no id field — dropping id-dependent '
+                'plugins implied by config defaults (${dropped.join(', ')}) '
+                'so id-neutral (--test/--mock) regeneration can proceed.',
+              );
+              activePlugins.removeWhere(
+                (p) => impliedIdDependent.contains(p),
+              );
+            } else {
+              print(
+                '❌ Cannot generate architecture for "$entityName": the entity '
+                'has no id field.',
+              );
+              print('');
+              print('Entities need a real identity. Choose one of:');
+              print(
+                '  1. Add an id field:    zfa entity add-field -n '
+                '$entityName --field id:String',
+              );
+              print(
+                '  2. Auto-generate one:  recreate with '
+                'zfa entity create -n $entityName --auto-id <fields...>',
+              );
+              print(
+                '  3. Mark it as a value object if it is an immutable '
+                'composition type (no identity, no CRUD surface):',
+              );
+              print(
+                '       zfa entity create -n $entityName --kind=value_object '
+                '<fields...>',
+              );
+              print(
+                '     or add @ZValueObject / kind: ZorphyKind.valueObject '
+                'to its annotation.',
+              );
+              print('');
+              // Thrown (not `exit(1)`) so the CLI runner's catch-all prints the
+              // diagnostic and exits 1 — while `runCapturing` tests can assert
+              // on the message without killing the test isolate.
+              throw MakeCommandException(
+                'Cannot generate architecture for "$entityName": the entity '
+                'has no id field.',
+              );
+            }
           }
 
           // #508 id-neutral path: the generators still need a query/filter
@@ -599,6 +635,82 @@ class MakeCommand extends Command<void> {
       print('❌ Error parsing JSON input: $e');
       exit(1);
     }
+  }
+
+  /// Id-dependent plugin ids the user EXPLICITLY requested — as opposed to
+  /// ones pulled in only by config defaults or presets. Drives the #514 no-id
+  /// decision: an implied id-dependent plugin (e.g. `usecase` on by default in
+  /// `apps/zikzak_demo`) can be dropped for id-neutral (`--test`/`--mock`)
+  /// regeneration, but an explicitly-requested one cannot (it must keep the
+  /// #307 loud failure armed).
+  Set<String> _explicitIdDependentPluginIds(
+    List<String> explicitPluginIds,
+    Map<String, dynamic> normalizedOptions,
+  ) {
+    final explicit = <String>{};
+    final ar = argResults!;
+
+    // Positional plugin args (e.g. `zfa make Foo usecase repository`).
+    for (final id in explicitPluginIds) {
+      if (_idDependentPlugins.contains(id)) explicit.add(id);
+    }
+
+    // `--with` (CLI flag or --from-json config key).
+    final withIds = _splitListOption(
+      ar.options.contains('with') ? ar['with'] : normalizedOptions['with'],
+    );
+    for (final id in withIds) {
+      if (_idDependentPlugins.contains(id)) explicit.add(id);
+    }
+
+    // Plugin flags the user actually passed (`--usecase`, `--repository`, ...).
+    // The argParser defaults every plugin flag to `true`, so we must consult
+    // `wasParsed` — an untouched default must NOT count as explicit.
+    for (final id in _idDependentPlugins) {
+      if (ar.options.contains(id) && ar.wasParsed(id) && ar[id] == true) {
+        explicit.add(id);
+      }
+    }
+
+    // `--methods` implies the usecase plugin (PlanResolver._hasEntityMethods).
+    final methods = _splitListOption(
+      ar.options.contains('methods') ? ar['methods'] : normalizedOptions['methods'],
+    );
+    if (ar.wasParsed('methods') && methods.isNotEmpty) {
+      explicit.add('usecase');
+    }
+
+    // `--service` implies usecase + service + provider.
+    final service =
+        ar.options.contains('service') ? ar['service'] : normalizedOptions['service'];
+    if (ar.wasParsed('service') &&
+        (service == true || (service is String && service.isNotEmpty))) {
+      explicit
+        ..add('usecase')
+        ..add('service')
+        ..add('provider');
+    }
+
+    return explicit;
+  }
+
+  static List<String> _splitListOption(dynamic value) {
+    if (value == null) return const [];
+    if (value is List) {
+      return value
+          .expand((e) => e.toString().split(','))
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList(growable: false);
+    }
+    if (value is String) {
+      return value
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList(growable: false);
+    }
+    return [value.toString()];
   }
 
   Map<String, dynamic> _normalizedOptions(Map<String, dynamic>? jsonConfig) {
