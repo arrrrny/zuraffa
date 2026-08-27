@@ -8,6 +8,7 @@ import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/file_utils.dart';
 import '../../../utils/string_utils.dart';
+import '../generators/sync_usecase_generator.dart';
 
 /// Generates offline-first sync support files.
 ///
@@ -47,6 +48,7 @@ class SyncBuilder {
     files.add(await _generateSyncInitFile(config));
     files.add(await _generateSyncMetadataStoreFile(config));
     files.add(await _generateSyncStrategyFile(config));
+    files.add(await _generateSyncUseCaseFile(config));
     await _regenerateSyncIndex(config);
     return files;
   }
@@ -354,6 +356,21 @@ class SyncBuilder {
       revert: config.revert,
       fileSystem: fileSystem,
     );
+  }
+
+  /// Generates `domain/usecases/{domain}/{entity_snake}_sync_usecase.dart`.
+  ///
+  /// Builds a [SyncEntityUseCaseGenerator] and delegates to it so the
+  /// `Sync<Entity>UseCase` (FR-007, T030) is produced alongside the rest of
+  /// the sync stack.
+  Future<GeneratedFile> _generateSyncUseCaseFile(GeneratorConfig config) async {
+    final generator = SyncEntityUseCaseGenerator(
+      outputDir: outputDir,
+      options: options,
+      specLibrary: specLibrary,
+      fileSystem: fileSystem,
+    );
+    return generator.generate(config);
   }
 
   /// Regenerates `sync/index.dart` that calls all sync init functions.
