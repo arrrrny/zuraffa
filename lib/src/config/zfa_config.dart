@@ -34,6 +34,7 @@ class ZfaConfig {
     'service': false,
     'route': false,
     'cache': false,
+    'sqlite': false,
     'gql': false,
     'graphql': false,
     'shadcn': false,
@@ -107,6 +108,7 @@ class ZfaConfig {
   bool get appendByDefault => isPluginEnabledByDefault('method_append');
   bool get xrayByDefault => isPluginEnabledByDefault('xray');
   bool get cacheByDefault => isPluginEnabledByDefault('cache');
+  bool get sqliteByDefault => isPluginEnabledByDefault('sqlite');
   bool get adaptiveLayoutsByDefault =>
       uiDefaults['adaptiveLayouts'] == true ||
       uiDefaults['adaptive_layouts'] == true;

@@ -99,16 +99,11 @@ class SqliteDataSourceBuilder {
         ..requiredParameters.add(
           Parameter(
             (p) => p
-              ..name = 'db'
-              ..type = refer('Database'),
+              ..name = '_db'
+              ..toThis = true,
           ),
         )
-        ..body = Block(
-          (b) => b.statements.addAll([
-            refer('_db').assign(refer('db')).statement,
-            refer('_ensureSchema').call([]).statement,
-          ]),
-        ),
+        ..body = refer('_ensureSchema').call([]).statement,
     );
 
     // ── methods ────────────────────────────────────────────────────────
@@ -161,13 +156,7 @@ class SqliteDataSourceBuilder {
                 )
                 ..body = Block(
                   (b) => b.statements.addAll([
-                    refer('_selectAll')
-                        .call([])
-                        .property('query')
-                        .call([refer('params')])
-                        .awaited
-                        .returned
-                        .statement,
+                    Code('return (await _selectAll()).query(params);'),
                   ]),
                 ),
             ),
@@ -413,16 +402,18 @@ class SqliteDataSourceBuilder {
                       refer(
                         'Duration',
                       ).constInstance(const [], {'seconds': literalNum(2)}),
+                    ])
+                    .property('asyncMap')
+                    .call([
                       Method(
                         (m) => m
                           ..modifier = MethodModifier.async
-                          ..body = refer('_selectAll')
-                              .call([])
-                              .awaited
-                              .property('query')
-                              .call([refer('params')])
-                              .returned
-                              .code,
+                          ..requiredParameters.add(
+                            Parameter((p) => p..name = '_'),
+                          )
+                          ..body = Code(
+                            'return (await _selectAll()).query(params);',
+                          ),
                       ).closure,
                     ])
                     .returned
@@ -451,9 +442,15 @@ class SqliteDataSourceBuilder {
                       refer(
                         'Duration',
                       ).constInstance(const [], {'seconds': literalNum(2)}),
+                    ])
+                    .property('asyncMap')
+                    .call([
                       Method(
                         (m) => m
                           ..modifier = MethodModifier.async
+                          ..requiredParameters.add(
+                            Parameter((p) => p..name = '_'),
+                          )
                           ..body = refer(
                             '_selectAll',
                           ).call([]).awaited.returned.code,
@@ -571,6 +568,7 @@ class SqliteDataSourceBuilder {
           '/// marker on construction. Reads decode and filter in memory\n'
           '/// (mock-datasource semantics); writes are keyed SQL statements.',
         )
+        ..mixins.addAll([refer('Loggable'), refer('FailureHandler')])
         ..fields.addAll([dbField, schemaVersionField])
         ..constructors.add(constructor)
         ..methods.addAll(methods)
