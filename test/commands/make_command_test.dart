@@ -218,7 +218,7 @@ class Product {
           '--format=json',
           '--output',
           outputDir,
-        ], workingDirectory: previousCwd);
+        ], workingDirectory: workspace.path);
 
         process.stdin.writeln(
           jsonEncode({
