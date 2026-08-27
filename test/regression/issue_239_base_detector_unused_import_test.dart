@@ -62,10 +62,10 @@ void main() {
     final src = baseDetector.readAsStringSync();
 
     // Collect every `import '...';` line.
-    final imports = RegExp(r"^[ \t]*import[ \t]+'[^']+'\s*(?:as\s+\w+)?\s*;",
+    final imports = RegExp(r'^[ \t]*import[ \t]+["\'][^"\']+["\']\s*(?:as\s+\w+)?\s*;',
             multiLine: true)
         .allMatches(src)
-        .map((m) => m.group(0)!.trim())
+        .map((m) => m.group(0)!.trim().replaceAll('"', "'"))
         .toList();
 
     // The current expected set: dart:io, package:meta/meta.dart,
