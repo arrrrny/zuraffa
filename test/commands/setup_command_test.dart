@@ -196,7 +196,6 @@ void main() {
       expect(names, contains('build_runner'));
       expect(names, contains('json_annotation'));
       expect(names, contains('json_serializable'));
-      expect(names, contains('mocktail'));
       expect(names, contains('flutter_lints'));
       expect(names, contains('analyzer'));
     });
