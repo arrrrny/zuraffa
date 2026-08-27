@@ -10,11 +10,11 @@ INSTALL_DIR="${ZURAFFA_BIN:-$HOME/.local/bin}"
 
 echo "🔄 Rebuilding ZFA..."
 
-# Clear .dart_tool build artifacts
-rm -rf .dart_tool/pub/bin
-rm -rf .dart_tool/build_cache
-rm -rf .dart_tool/hooks_runner
-find .dart_tool -type f \( -name "*.dill" -o -name "*.snap" \) -delete 2>/dev/null || true
+# Clear ALL build caches so the installed binary always reflects current source.
+# A partial cleanup (only .dart_tool/build_cache, hooks_runner, pub/bin) left a stale
+# dart build cli artifact in place, causing zfa to run pre-fix code after a source
+# change — see .specify/bugs/rebuild-stale-binary.
+rm -rf build .dart_tool
 
 # Get dependencies
 echo "📥 Getting dependencies..."

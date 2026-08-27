@@ -111,7 +111,7 @@ class MockDataSourceBuilder {
                   refer('logger').property('info').call([
                     literalString('Initializing ${entityName}MockDataSource'),
                   ]).statement,
-                  refer('Future')
+                  refer('Future<void>')
                       .property('delayed')
                       .call([
                         refer(
@@ -305,7 +305,7 @@ class MockDataSourceBuilder {
                     refer('Stream')
                         .property('fromFuture')
                         .call([
-                          refer('Future').property('delayed').call([
+                          refer('Future<void>').property('delayed').call([
                             refer('_delay'),
                             Method(
                               (mm) => mm
@@ -327,7 +327,7 @@ class MockDataSourceBuilder {
                         .returned
                         .statement,
                   ] else ...[
-                    refer('Future')
+                    refer('Future<void>')
                         .property('delayed')
                         .call([refer('_delay')])
                         .awaited
@@ -378,7 +378,7 @@ class MockDataSourceBuilder {
                           'Getting $entityName with params: \$params',
                         ),
                       ]).statement,
-                      refer('Future')
+                      refer('Future<void>')
                           .property('delayed')
                           .call([refer('_delay')])
                           .awaited
@@ -434,7 +434,7 @@ class MockDataSourceBuilder {
                           'Getting $entityName list with params: \$params',
                         ),
                       ]).statement,
-                      refer('Future')
+                      refer('Future<void>')
                           .property('delayed')
                           .call([refer('_delay')])
                           .awaited
@@ -490,7 +490,7 @@ class MockDataSourceBuilder {
                                 'Creating $entityName: \${item.id}',
                               ),
                       ]).statement,
-                      refer('Future')
+                      refer('Future<void>')
                           .property('delayed')
                           .call([refer('_delay')])
                           .awaited
@@ -523,7 +523,7 @@ class MockDataSourceBuilder {
                   : literalString('Updating $entityName: \${params.id}'),
             ]).statement,
             refer(
-              'Future',
+              'Future<void>',
             ).property('delayed').call([refer('_delay')]).awaited.statement,
           ];
 
@@ -614,6 +614,118 @@ class MockDataSourceBuilder {
           );
           break;
 
+        case 'toggle':
+          // #294: the mock datasource must implement `toggle` to match
+          // the datasource interface (which now defaults to including
+          // toggle in its methods list). Without this case the builder
+          // silently dropped toggle, producing a class that failed
+          // `implements` with `non_abstract_class_inherits_abstract_member`.
+          final toggleFieldEnum = 'Field<$entityName, dynamic>';
+          final toggleParamsType =
+              'ToggleParams<${config.idFieldType}, $toggleFieldEnum>';
+          final isNoParamsToggle = config.idFieldType == 'NoParams';
+          final toggleBodyStatements = <Code>[
+            refer('logger').property('info').call([
+              isNoParamsToggle
+                  ? literalString('Toggling $entityName')
+                  : literalString(
+                      'Toggling $entityName: \${params.id} on field \${params.field}',
+                    ),
+            ]).statement,
+            refer(
+              'Future<void>',
+            ).property('delayed').call([refer('_delay')]).awaited.statement,
+          ];
+
+          if (isNoParamsToggle) {
+            toggleBodyStatements.addAll([
+              declareFinal('existing')
+                  .assign(
+                    refer(
+                      '${entityName}MockData',
+                    ).property('sample$entityName'),
+                  )
+                  .statement,
+              refer('logger').property('info').call([
+                literalString('Successfully toggled $entityName'),
+              ]).statement,
+              refer('existing').returned.statement,
+            ]);
+          } else if (hasListMethods) {
+            final orElse = Method(
+              (m) => m
+                ..lambda = true
+                ..body = refer('notFoundFailure')
+                    .call([literalString('$entityName not found in mock data')])
+                    .thrown
+                    .code,
+            ).closure;
+            toggleBodyStatements.addAll([
+              declareFinal('existing')
+                  .assign(
+                    refer('${entityName}MockData')
+                        .property('${entityCamel}s')
+                        .property('firstWhere')
+                        .call(
+                          [
+                            Method(
+                              (m) => m
+                                ..requiredParameters.add(
+                                  Parameter((p) => p..name = 'item'),
+                                )
+                                ..lambda = true
+                                ..body = refer('item')
+                                    .property(config.idField)
+                                    .equalTo(refer('params').property('id'))
+                                    .code,
+                            ).closure,
+                          ],
+                          {'orElse': orElse},
+                        ),
+                  )
+                  .statement,
+              refer('logger').property('info').call([
+                literalString('Successfully toggled $entityName'),
+              ]).statement,
+              refer('existing').returned.statement,
+            ]);
+          } else {
+            toggleBodyStatements.addAll([
+              declareFinal('existing')
+                  .assign(
+                    refer(
+                      '${entityName}MockData',
+                    ).property('sample$entityName'),
+                  )
+                  .statement,
+              refer('logger').property('info').call([
+                literalString('Successfully toggled $entityName'),
+              ]).statement,
+              refer('existing').returned.statement,
+            ]);
+          }
+
+          methods.add(
+            Method(
+              (m) => m
+                ..name = 'toggle'
+                ..annotations.add(refer('override'))
+                ..returns = refer('Future<$entityName>')
+                ..modifier = MethodModifier.async
+                ..requiredParameters.add(
+                  Parameter(
+                    (p) => p
+                      ..name = 'params'
+                      ..type = refer(toggleParamsType),
+                  ),
+                )
+                ..body = Block(
+                  (b) => b..statements.addAll(toggleBodyStatements),
+                ),
+            ),
+          );
+          break;
+
         case 'delete':
           final deleteParamsType = 'DeleteParams<${config.idFieldType}>';
           final isNoParams = config.idFieldType == 'NoParams';
@@ -624,7 +736,7 @@ class MockDataSourceBuilder {
                   : literalString('Deleting $entityName: \${params.id}'),
             ]).statement,
             refer(
-              'Future',
+              'Future<void>',
             ).property('delayed').call([refer('_delay')]).awaited.statement,
           ];
 

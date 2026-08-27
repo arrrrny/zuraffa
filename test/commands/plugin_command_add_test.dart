@@ -30,7 +30,6 @@ void main() {
 
   setUp(() {
     tmpDir = Directory.systemTemp.createTempSync('zfa_plugin_test_');
-    Directory.current = tmpDir.path;
     Directory('${tmpDir.path}/lib').createSync();
   });
 
@@ -39,7 +38,9 @@ void main() {
     try {
       Directory.current = Directory(_zfaRoot);
     } catch (_) {
-      try { Directory.current = Directory.systemTemp; } catch (_) {}
+      try {
+        Directory.current = Directory.systemTemp;
+      } catch (_) {}
     }
     if (tmpDir.existsSync()) {
       tmpDir.deleteSync(recursive: true);
@@ -61,7 +62,7 @@ void main() async {
 """);
 
       final cmd = PluginCommand();
-      await cmd.execute(['add', 'zuraffa_feature_example']);
+      await cmd.execute(['add', 'zuraffa_feature_example', '--root', tmpDir.path]);
 
       final content = mainFile.readAsStringSync();
       expect(
@@ -89,7 +90,7 @@ void main() async {
 """);
 
       final cmd = PluginCommand();
-      await cmd.execute(['add', 'zuraffa_analytics']);
+      await cmd.execute(['add', 'zuraffa_analytics', '--root', tmpDir.path]);
 
       final content = mainFile.readAsStringSync();
       expect(
@@ -112,7 +113,7 @@ void main() async {
 """);
 
       final cmd = PluginCommand();
-      await cmd.execute(['add', 'zuraffa_payments']);
+      await cmd.execute(['add', 'zuraffa_payments', '--root', tmpDir.path]);
 
       final content = mainFile.readAsStringSync();
       // Should only have one import

@@ -145,17 +145,13 @@ class ProviderBuilder {
               ..modifier = (type == 'sync' || type == 'stream')
                   ? null
                   : MethodModifier.async
-              ..requiredParameters.addAll(
-                params == 'NoParams'
-                    ? const []
-                    : [
-                        Parameter(
-                          (p) => p
-                            ..name = 'params'
-                            ..type = refer(params),
-                        ),
-                      ],
-              )
+              ..requiredParameters.addAll([
+                Parameter(
+                  (p) => p
+                    ..name = 'params'
+                    ..type = refer(params),
+                ),
+              ])
               ..body = _buildMethodBody(methodName),
           ),
         );
@@ -174,17 +170,13 @@ class ProviderBuilder {
                 (config.useCaseType == 'sync' || config.useCaseType == 'stream')
                 ? null
                 : MethodModifier.async
-            ..requiredParameters.addAll(
-              paramsType == 'NoParams'
-                  ? const []
-                  : [
-                      Parameter(
-                        (p) => p
-                          ..name = 'params'
-                          ..type = refer(paramsType),
-                      ),
-                    ],
-            )
+            ..requiredParameters.addAll([
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer(paramsType),
+              ),
+            ])
             ..body = _buildMethodBody(methodName),
         ),
       );
@@ -193,7 +185,11 @@ class ProviderBuilder {
     final entityImports = CommonPatterns.entityImports(
       entityTypes.toList(),
       config,
-      depth: 2,
+      // Providers live at lib/src/data/providers/<domain>/, so entity imports
+      // need ../../../ (depth 3) to reach lib/src/domain/entities/... — matching
+      // the service import depth emitted above for the same file. depth: 2
+      // produced ../../ which is one level too shallow (issue #395 Bug A).
+      depth: 3,
       includeDomain: false,
       fileSystem: fileSystem,
     );

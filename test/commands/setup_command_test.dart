@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:test/test.dart';
 import 'package:args/command_runner.dart';
 import 'package:zuraffa/src/commands/initialize_command.dart';
@@ -112,12 +114,71 @@ void main() {
       expect(result['dart'], isTrue);
     });
 
-    test('run() rejects both --flutter and --dart with UsageException', () async {
+    test(
+      'run() rejects both --flutter and --dart with UsageException',
+      () async {
+        final runner = CommandRunner<void>('zfa', 'test')
+          ..addCommand(SetupCommand());
+        await expectLater(
+          runner.run(['setup', 'myapp', '--flutter', '--dart']),
+          throwsA(isA<UsageException>()),
+        );
+      },
+    );
+
+    // #364: a malformed deep-link scheme must be rejected BEFORE any
+    // file is created — writing it raw into AndroidManifest.xml /
+    // Info.plist would corrupt the platform build.
+    test('run() rejects a malformed --deep-link-scheme with '
+        'UsageException before creating anything', () async {
       final runner = CommandRunner<void>('zfa', 'test')
         ..addCommand(SetupCommand());
       await expectLater(
-        runner.run(['setup', 'myapp', '--flutter', '--dart']),
+        runner.run(['setup', 'myapp', '--deep-link-scheme', 'go zuzu']),
         throwsA(isA<UsageException>()),
+      );
+    });
+
+    test(
+      'run() rejects a malformed --deep-link-host with UsageException',
+      () async {
+        final runner = CommandRunner<void>('zfa', 'test')
+          ..addCommand(SetupCommand());
+        await expectLater(
+          runner.run([
+            'setup',
+            'myapp',
+            '--deep-link-scheme',
+            'gozuzu',
+            '--deep-link-host',
+            'go"zuzu.dev',
+          ]),
+          throwsA(isA<UsageException>()),
+        );
+      },
+    );
+
+    test('run() warns when --deep-link-host is passed without '
+        '--deep-link-scheme', () async {
+      final runner = CommandRunner<void>('zfa', 'test')
+        ..addCommand(SetupCommand());
+      final printed = <String>[];
+      await runZoned(
+        () => runner.run([
+          'setup',
+          'myapp',
+          '--deep-link-host',
+          'go.zuzu.dev',
+          '--dry-run',
+        ]),
+        zoneSpecification: ZoneSpecification(
+          print: (self, parent, zone, line) => printed.add(line),
+        ),
+      );
+      expect(
+        printed.any((l) => l.contains('ignored without --deep-link-scheme')),
+        isTrue,
+        reason: 'host is silently dropped without a scheme — warn the user',
       );
     });
   });
@@ -125,11 +186,16 @@ void main() {
   group('DependencyWirer', () {
     test('findMissing detects all missing deps in empty pubspec', () {
       const emptyPubspec = 'name: test\nenvironment:\n  sdk: ^3.11.0\n';
-      final missing = DependencyWirer.findMissing(emptyPubspec, isFlutter: true);
+      final missing = DependencyWirer.findMissing(
+        emptyPubspec,
+        isFlutter: true,
+      );
       final names = missing.map((s) => s.name).toList();
       expect(names, contains('zuraffa_flutter'));
       expect(names, contains('zorphy_annotation'));
       expect(names, contains('build_runner'));
+      expect(names, contains('json_annotation'));
+      expect(names, contains('json_serializable'));
       expect(names, contains('mocktail'));
       expect(names, contains('flutter_lints'));
       expect(names, contains('analyzer'));
@@ -137,7 +203,10 @@ void main() {
 
     test('findMissing detects missing deps for dart project', () {
       const emptyPubspec = 'name: test\nenvironment:\n  sdk: ^3.11.0\n';
-      final missing = DependencyWirer.findMissing(emptyPubspec, isFlutter: false);
+      final missing = DependencyWirer.findMissing(
+        emptyPubspec,
+        isFlutter: false,
+      );
       final names = missing.map((s) => s.name).toList();
       expect(names, contains('zuraffa'));
       expect(names, isNot(contains('zuraffa_flutter')));
@@ -152,8 +221,10 @@ environment:
 dependencies:
   zuraffa_flutter: any
   zorphy_annotation: any
+  json_annotation: ^4.12.0
 dev_dependencies:
   build_runner: ^2.15.2
+  json_serializable: ^6.13.2
   mocktail: ^1.0.4
   flutter_lints: ^6.0.0
 dependency_overrides:
@@ -183,7 +254,11 @@ dependencies:
 
     test('addOverrideToPubspec adds new section when missing', () {
       const pubspec = 'name: test\nenvironment:\n  sdk: ^3.11.0\n';
-      final result = DependencyWirer.addOverrideToPubspec(pubspec, 'analyzer', '14.1.0');
+      final result = DependencyWirer.addOverrideToPubspec(
+        pubspec,
+        'analyzer',
+        '14.1.0',
+      );
       expect(result, contains('dependency_overrides:'));
       expect(result, contains('analyzer: 14.1.0'));
     });
@@ -194,7 +269,11 @@ name: test
 dependency_overrides:
   analyzer: 14.1.0
 ''';
-      final result = DependencyWirer.addOverrideToPubspec(pubspec, 'analyzer', '14.1.0');
+      final result = DependencyWirer.addOverrideToPubspec(
+        pubspec,
+        'analyzer',
+        '14.1.0',
+      );
       expect(result, equals(pubspec));
     });
 
@@ -204,7 +283,11 @@ name: test
 dependency_overrides:
   meta: ^1.19.0
 ''';
-      final result = DependencyWirer.addOverrideToPubspec(pubspec, 'analyzer', '14.1.0');
+      final result = DependencyWirer.addOverrideToPubspec(
+        pubspec,
+        'analyzer',
+        '14.1.0',
+      );
       expect(result, contains('analyzer: 14.1.0'));
       expect(result, contains('meta: ^1.19.0'));
     });

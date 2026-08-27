@@ -505,9 +505,13 @@ extension ControllerPluginBodies on ControllerPlugin {
     String entityCamel,
     bool hasListMethod,
   ) {
+    // #302: forward `toggleValue` (not `value`) — matches the renamed
+    // parameter in `_buildToggleMethod`. When `config.idField == 'value'`
+    // (e.g. Barcode entity), forwarding `value` would resolve to the String
+    // id param instead of the bool toggle-value param.
     final resultCall = refer('_presenter')
         .property('toggle$entityName')
-        .call(_callArgsExpressions('${config.idField}, field, value'))
+        .call(_callArgsExpressions('${config.idField}, field, toggleValue'))
         .awaited;
     final updateArgs = <String, Expression>{
       'isToggling': literalBool(false),
@@ -567,9 +571,11 @@ extension ControllerPluginBodies on ControllerPlugin {
     GeneratorConfig config,
     String entityName,
   ) {
+    // #302: forward `toggleValue` (not `value`) — see
+    // `_buildToggleWithStateBody` for the rationale.
     final resultCall = refer('_presenter')
         .property('toggle$entityName')
-        .call(_callArgsExpressions('${config.idField}, field, value'))
+        .call(_callArgsExpressions('${config.idField}, field, toggleValue'))
         .awaited;
     return Block(
       (b) => b

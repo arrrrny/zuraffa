@@ -4,15 +4,44 @@ import 'dart:async';
 import 'package:args/command_runner.dart';
 import '../config/zfa_config.dart';
 import '../cli/plugin_loader.dart';
+import '../core/project/project_root.dart';
 import '../core/plugin_system/plugin_registry.dart';
 import '../core/plugin_system/plugin_manager.dart';
 import '../models/generated_file.dart';
+import '../utils/entity_field_resolver.dart';
 
 /// Command to run multiple plugins explicitly.
 /// Usage: `zfa make <Name> <plugin1> <plugin2> ... [flags]`
 /// Example: `zfa make User route di --force`
 class MakeCommand extends Command<void> {
   static const String fixedOutputDir = 'lib/src';
+
+  /// Plugins that build a persisted/root CRUD surface around an entity.
+  /// Value objects (zuraffa#307) are immutable composition types — none of
+  /// these apply to them, so `zfa make` drops them with a notice instead of
+  /// generating dead repository/usecase/controller/presenter code.
+  static const Set<String> _valueObjectRootPlugins = {
+    'repository',
+    'datasource',
+    'usecase',
+    'controller',
+    'presenter',
+    'view',
+    'route',
+    'state',
+    'provider',
+    'observer',
+    'cache',
+    'gql',
+    'graphql',
+    'di',
+    'service',
+    'api',
+    'sync',
+    'shadcn',
+    'test', // entity tests reference the usecases value objects don't get
+  };
+
   static const Set<String> _ignoredJsonOptionKeys = {
     'domainRoot',
     'domain-root',
@@ -46,14 +75,11 @@ class MakeCommand extends Command<void> {
   }
 
   String _findProjectRoot() {
-    var dir = Directory.current.path;
-    while (dir != Directory(dir).parent.path) {
-      if (File('$dir/pubspec.yaml').existsSync()) {
-        return dir;
-      }
-      dir = Directory(dir).parent.path;
-    }
-    return Directory.current.path;
+    // Route through ProjectRoot.find, which tolerates an invalid CWD
+    // (deleted temp dir under `dart test`, chdir into a gone path in
+    // CI/containers) instead of throwing PathNotFoundException.
+    // See issue #441.
+    return ProjectRoot.find();
   }
 
   void _addCoreOptions() {
@@ -178,6 +204,11 @@ class MakeCommand extends Command<void> {
       negatable: false,
       help: 'Append to existing repo/service',
     );
+    argParser.addFlag(
+      'xray',
+      negatable: false,
+      help: 'Generate views with X-Ray scope/node decoration (issue #360)',
+    );
   }
 
   void _addPluginOptions() {
@@ -220,6 +251,7 @@ class MakeCommand extends Command<void> {
       'mock',
       'test',
       'append',
+      'xray',
     };
 
     for (final plugin in registry.plugins) {
@@ -339,6 +371,116 @@ class MakeCommand extends Command<void> {
     );
     context.data.addAll(normalizedOptions);
 
+    // #360: honor .zfa.json xray default for the view plugin.
+    // --xray flag always wins; otherwise fall back to config. An explicit
+    // `false` already present in context.data (e.g. set by a plugin or
+    // via --from-json) is preserved — the config fallback only fires when
+    // the key is absent.
+    final xrayFlag = argResults!['xray'] as bool? ?? false;
+    if (xrayFlag || !context.data.containsKey('xray')) {
+      final xrayConfig = ZfaConfig.load(projectRoot: manager.projectRoot);
+      context.data['xray'] = xrayFlag || (xrayConfig?.xrayByDefault ?? false);
+    }
+
+    // #294/#307: auto-resolve the entity's actual id-like field from the
+    // entity source file so the generated presenter/test/datasource
+    // code references a Field constant that exists on the entity's
+    // Fields class. Without this, generators hardcode `EntityFields.id`
+    // and produce broken code for entities whose id is e.g. `depotId`.
+    // User-provided --id-field / --query-field always wins.
+    //
+    // #307: the old resolver fell back to the FIRST field as the id —
+    // for id-less entities whose first field is an enum (ChatMessage.role,
+    // TelemetryEvent.type) that produced enum-typed ids and missing enum
+    // imports. The fallback is gone: id-less entities must opt into
+    // `autoId`, and value objects are treated as embedded types (their
+    // root plugins are dropped below).
+    if (context.data['no-entity'] != true) {
+      final resolution = EntityFieldResolver.resolveIdField(
+        entityName: entityName,
+        projectRoot: manager.projectRoot,
+      );
+      if (resolution != null) {
+        if (resolution.isValueObject) {
+          final dropped =
+              activePlugins
+                  .where((p) => _valueObjectRootPlugins.contains(p.id))
+                  .map((p) => p.id)
+                  .toList()
+                ..sort();
+          if (dropped.isNotEmpty) {
+            print(
+              'ℹ️  "$entityName" is a value object — skipping root plugins '
+              '(no repository/usecase/controller/presenter for embedded '
+              'types): ${dropped.join(', ')}',
+            );
+            activePlugins.removeWhere(
+              (p) => _valueObjectRootPlugins.contains(p.id),
+            );
+          }
+        } else if (resolution.hasId) {
+          if (!argResults!.wasParsed('id-field') &&
+              (context.data['id-field'] == null ||
+                  context.data['id-field'] == 'id')) {
+            context.data['id-field'] = resolution.idField!.name;
+            context.data['id-field-type'] = resolution.idField!.nonNullableType;
+            if (context.core.verbose) {
+              print(
+                '🔍 Resolved id field for "$entityName": '
+                '${resolution.idField!.name} '
+                '(${resolution.idField!.nonNullableType})',
+              );
+            }
+          }
+          if (!argResults!.wasParsed('query-field') &&
+              (context.data['query-field'] == null ||
+                  context.data['query-field'] == 'id')) {
+            context.data['query-field'] = resolution.idField!.name;
+            // query-field-type falls back to id-field-type inside
+            // GeneratorConfig's constructor (see generator_config.dart).
+          }
+        } else {
+          // Loud failure (issue #307): an entity with no id-like field and
+          // no autoId marker would silently produce enum-typed ids /
+          // broken signatures if we fell back to the first field.
+          print(
+            '❌ Cannot generate architecture for "$entityName": the entity '
+            'has no id field.',
+          );
+          print('');
+          print('Entities need a real identity. Choose one of:');
+          print(
+            '  1. Add an id field:    zfa entity add-field -n '
+            '$entityName --field id:String',
+          );
+          print(
+            '  2. Auto-generate one:  recreate with '
+            'zfa entity create -n $entityName --auto-id <fields...>',
+          );
+          print(
+            '  3. Mark it as a value object if it is an immutable '
+            'composition type (no identity, no CRUD surface):',
+          );
+          print(
+            '       zfa entity create -n $entityName --kind=value_object '
+            '<fields...>',
+          );
+          print(
+            '     or add @ZValueObject / kind: ZorphyKind.valueObject '
+            'to its annotation.',
+          );
+          print('');
+          // Thrown (not `exit(1)`) so the CLI runner's catch-all prints the
+          // diagnostic and exits 1 — while `runCapturing` tests can assert
+          // on the message without killing the test isolate.
+          throw MakeCommandException(
+            'Cannot generate architecture for "$entityName": the entity '
+            'has no id field.',
+          );
+        }
+      }
+    }
+
     if (context.core.verbose) {
       print(
         '🚀 Running plugins: ${activePlugins.map((p) => p.id).join(", ")} for $entityName...',
@@ -447,9 +589,13 @@ class MakeCommand extends Command<void> {
     }
 
     final created = files.where((f) => f.action == 'created').length;
-    final overwritten = files.where((f) => f.action == 'overwritten').length;
+    final overwritten = files
+        .where((f) => f.action == 'overwritten' || f.action == 'updated')
+        .length;
     final skipped = files.where((f) => f.action == 'skipped').length;
-    final deleted = files.where((f) => f.action == 'deleted').length;
+    final deleted = files
+        .where((f) => f.action == 'deleted' || f.action == 'reverted')
+        .length;
 
     print('\n✅ Generation complete:');
     if (created > 0) print('  ✨ Created: $created files');
@@ -462,7 +608,9 @@ class MakeCommand extends Command<void> {
         final prefix = switch (file.action) {
           'created' => '  ✨',
           'overwritten' => '  📝',
+          'updated' => '  📝',
           'deleted' => '  🗑',
+          'reverted' => '  🗑',
           _ => '  ⏭',
         };
         if (file.action != 'skipped') {
@@ -471,4 +619,18 @@ class MakeCommand extends Command<void> {
       }
     }
   }
+}
+
+/// Thrown when `zfa make` cannot proceed because of an entity-contract
+/// violation (e.g. an id-less entity without `autoId` — issue #307).
+///
+/// The CLI runner's catch-all prints the message and exits 1; tests using
+/// `runCapturing` catch it without terminating the isolate.
+class MakeCommandException implements Exception {
+  final String message;
+
+  const MakeCommandException(this.message);
+
+  @override
+  String toString() => message;
 }

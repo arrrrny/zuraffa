@@ -22,16 +22,8 @@ dependencies:
   path: ^1.9.1
   yaml: ^3.1.0
   uuid: ^4.6.0
-  zorphy:
-    git:
-      url: https://github.com/arrrrny/zorphy.git
-      path: zorphy
-      ref: "development"
-  zorphy_annotation:
-    git:
-      url: https://github.com/arrrrny/zorphy.git
-      path: zorphy_annotation
-      ref: "development"
+  zorphy: ^2.2.0
+  zorphy_annotation: ^2.2.0
 
   json_annotation: ^4.12.0
 
@@ -52,10 +44,10 @@ dependencies:
 
 dependency_overrides:
   analyzer: 14.1.0
-  zorphy:
-    path: ../zorphy/zorphy
-  zorphy_annotation:
-    path: ../zorphy/zorphy_annotation
+  # No zorphy overrides: zorphy/zorphy_annotation ^2.2.0 on pub.dev carry the
+  # #310/#351/#349 fixes, so the versioned deps above are the contract. Local
+  # `../zorphy` path overrides must never be committed — CI has no sibling
+  # checkout and every branch goes red when they are.
 
 executables:
   zuraffa:

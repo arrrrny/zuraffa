@@ -33,6 +33,11 @@ class EntityUtils {
           'double',
           'bool',
           'DateTime',
+          // `Duration` is a dart:core type (already listed in
+          // KnownTypes.dartTypes). Without it here, a field declared as
+          // `x:Duration` was treated as a custom entity reference and
+          // rejected by EntityTypeValidator (issue #411).
+          'Duration',
           'Object',
           'dynamic',
           'void',

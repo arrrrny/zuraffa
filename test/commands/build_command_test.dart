@@ -25,11 +25,10 @@ void main() {
       if (useCompiledBinary) {
         return Process.start(zfaBin, args, workingDirectory: workingDirectory);
       }
-      return Process.start(
-        'dart',
-        [zfaBin, ...args],
-        workingDirectory: workingDirectory,
-      );
+      return Process.start('dart', [
+        zfaBin,
+        ...args,
+      ], workingDirectory: workingDirectory);
     }
 
     setUpAll(() async {
@@ -73,10 +72,10 @@ void main() {
     });
 
     test('--help still works and documents the build command', () async {
-      final proc = await startZfa(
-        ['build', '--help'],
-        workingDirectory: workspace.path,
-      );
+      final proc = await startZfa([
+        'build',
+        '--help',
+      ], workingDirectory: workspace.path);
       final stdout = await proc.stdout.transform(systemEncoding.decoder).join();
       final stderr = await proc.stderr.transform(systemEncoding.decoder).join();
       final code = await proc.exitCode;
@@ -84,134 +83,145 @@ void main() {
       expect(stdout, contains('Run zuraffa_build'));
       // build.yaml scaffolding is automatic; no flag for it.
       expect(stdout, isNot(contains('--build-yaml')));
-    },
-      timeout: const Timeout(Duration(minutes: 1)),
-    );
+    }, timeout: const Timeout(Duration(minutes: 1)));
 
     test(
-        'dry-run reports it would scaffold build.yaml when missing (#276)',
-        () async {
-      // No build.yaml in workspace.
-      final proc = await startZfa(
-        ['build', '--dry-run'],
-        workingDirectory: workspace.path,
-      );
-      final stdout = await proc.stdout.transform(systemEncoding.decoder).join();
-      final stderr = await proc.stderr.transform(systemEncoding.decoder).join();
-      final code = await proc.exitCode;
-      // dry-run should not invoke build_runner; it prints the pre-flight plan.
-      expect(code, 0, reason: stderr);
-      expect(
-        stdout,
-        contains('Would scaffold'),
-        reason: 'dry-run should announce it would create build.yaml',
-      );
-      // And must NOT actually create one.
-      expect(
-        File(path.join(workspace.path, 'build.yaml')).existsSync(),
-        isFalse,
-      );
-    },
+      'dry-run reports it would scaffold build.yaml when missing (#276)',
+      () async {
+        // No build.yaml in workspace.
+        final proc = await startZfa([
+          'build',
+          '--dry-run',
+        ], workingDirectory: workspace.path);
+        final stdout = await proc.stdout
+            .transform(systemEncoding.decoder)
+            .join();
+        final stderr = await proc.stderr
+            .transform(systemEncoding.decoder)
+            .join();
+        final code = await proc.exitCode;
+        // dry-run should not invoke build_runner; it prints the pre-flight plan.
+        expect(code, 0, reason: stderr);
+        expect(
+          stdout,
+          contains('Would scaffold'),
+          reason: 'dry-run should announce it would create build.yaml',
+        );
+        // And must NOT actually create one.
+        expect(
+          File(path.join(workspace.path, 'build.yaml')).existsSync(),
+          isFalse,
+        );
+      },
       timeout: const Timeout(Duration(minutes: 2)),
     );
 
     test(
-        'dry-run warns when build.yaml exists but omits zorphy builder (#276)',
-        () async {
-      final buildYaml = File(path.join(workspace.path, 'build.yaml'));
-      await buildYaml.writeAsString('''
+      'dry-run warns when build.yaml exists but omits zorphy builder (#276)',
+      () async {
+        final buildYaml = File(path.join(workspace.path, 'build.yaml'));
+        await buildYaml.writeAsString('''
 targets:
   \$default:
     builders:
       json_serializable:
         enabled: true
 ''');
-      final proc = await startZfa(
-        ['build', '--dry-run'],
-        workingDirectory: workspace.path,
-      );
-      final stdout = await proc.stdout.transform(systemEncoding.decoder).join();
-      final stderr = await proc.stderr.transform(systemEncoding.decoder).join();
-      final code = await proc.exitCode;
-      expect(code, 0, reason: stderr);
-      expect(
-        stdout,
-        contains('omits the zorphy builder'),
-        reason: 'dry-run should warn about the missing zorphy registration',
-      );
-      // Should not modify the user's build.yaml.
-      expect(buildYaml.readAsStringSync(), contains('json_serializable'));
-      expect(buildYaml.readAsStringSync(), isNot(contains('zorphy:zorphy')));
-    },
+        final proc = await startZfa([
+          'build',
+          '--dry-run',
+        ], workingDirectory: workspace.path);
+        final stdout = await proc.stdout
+            .transform(systemEncoding.decoder)
+            .join();
+        final stderr = await proc.stderr
+            .transform(systemEncoding.decoder)
+            .join();
+        final code = await proc.exitCode;
+        expect(code, 0, reason: stderr);
+        expect(
+          stdout,
+          contains('omits the zorphy builder'),
+          reason: 'dry-run should warn about the missing zorphy registration',
+        );
+        // Should not modify the user's build.yaml.
+        expect(buildYaml.readAsStringSync(), contains('json_serializable'));
+        expect(buildYaml.readAsStringSync(), isNot(contains('zorphy:zorphy')));
+      },
       timeout: const Timeout(Duration(minutes: 2)),
     );
 
     test(
-        'build scaffolds build.yaml when missing, then proceeds (#276)',
-        () async {
-      // This actually runs build_runner against the scaffolded build.yaml.
-      // We don't need codegen to succeed — we just need to prove:
-      //   (1) build.yaml was missing,
-      //   (2) zfa build created it,
-      //   (3) the message announces the scaffolding.
-      // build_runner may fail (no pubspec etc.) but the pre-flight must run.
-      final proc = await startZfa(
-        ['build'],
-        workingDirectory: workspace.path,
-      );
-      final stdout = await proc.stdout.transform(systemEncoding.decoder).join();
-      final stderr = await proc.stderr.transform(systemEncoding.decoder).join();
-      await proc.exitCode;
-      // Pre-flight scaffolding message must appear regardless of build_runner
-      // outcome.
-      expect(
-        stdout,
-        contains('No build.yaml found'),
-        reason: 'zfa build must announce the missing build.yaml. stderr:\n$stderr',
-      );
-      expect(
-        stdout,
-        contains('scaffolding'),
-        reason: 'zfa build must announce it is scaffolding build.yaml',
-      );
-      // build.yaml must now exist and register zorphy.
-      final created = File(path.join(workspace.path, 'build.yaml'));
-      expect(created.existsSync(), isTrue);
-      expect(created.readAsStringSync(), contains('zorphy:zorphy'));
-    },
+      'build scaffolds build.yaml when missing, then proceeds (#276)',
+      () async {
+        // This actually runs build_runner against the scaffolded build.yaml.
+        // We don't need codegen to succeed — we just need to prove:
+        //   (1) build.yaml was missing,
+        //   (2) zfa build created it,
+        //   (3) the message announces the scaffolding.
+        // build_runner may fail (no pubspec etc.) but the pre-flight must run.
+        final proc = await startZfa([
+          'build',
+        ], workingDirectory: workspace.path);
+        final stdout = await proc.stdout
+            .transform(systemEncoding.decoder)
+            .join();
+        final stderr = await proc.stderr
+            .transform(systemEncoding.decoder)
+            .join();
+        await proc.exitCode;
+        // Pre-flight scaffolding message must appear regardless of build_runner
+        // outcome.
+        expect(
+          stdout,
+          contains('No build.yaml found'),
+          reason:
+              'zfa build must announce the missing build.yaml. stderr:\n$stderr',
+        );
+        expect(
+          stdout,
+          contains('scaffolding'),
+          reason: 'zfa build must announce it is scaffolding build.yaml',
+        );
+        // build.yaml must now exist and register zorphy.
+        final created = File(path.join(workspace.path, 'build.yaml'));
+        expect(created.existsSync(), isTrue);
+        expect(created.readAsStringSync(), contains('zorphy:zorphy'));
+      },
       timeout: const Timeout(Duration(minutes: 5)),
     );
 
     test(
-        'build fails loudly when build.yaml exists but omits zorphy builder (#276)',
-        () async {
-      final buildYaml = File(path.join(workspace.path, 'build.yaml'));
-      await buildYaml.writeAsString('''
+      'build fails loudly when build.yaml exists but omits zorphy builder (#276)',
+      () async {
+        final buildYaml = File(path.join(workspace.path, 'build.yaml'));
+        await buildYaml.writeAsString('''
 targets:
   \$default:
     builders:
       json_serializable:
         enabled: true
 ''');
-      final proc = await startZfa(
-        ['build'],
-        workingDirectory: workspace.path,
-      );
-      final stdout = await proc.stdout.transform(systemEncoding.decoder).join();
-      final code = await proc.exitCode;
-      expect(code, isNot(0),
-          reason: 'misconfigured build.yaml must abort with non-zero exit');
-      expect(
-        stdout,
-        contains('does not register the zorphy builder'),
-      );
-      expect(stdout, contains('zorphy:zorphy'));
-      expect(stdout, contains('zfa setup'));
-      // build_runner must NOT have been invoked.
-      expect(stdout, isNot(contains('Running build_runner build')));
-      // The user's build.yaml must be untouched.
-      expect(buildYaml.readAsStringSync(), isNot(contains('zorphy:zorphy')));
-    },
+        final proc = await startZfa([
+          'build',
+        ], workingDirectory: workspace.path);
+        final stdout = await proc.stdout
+            .transform(systemEncoding.decoder)
+            .join();
+        final code = await proc.exitCode;
+        expect(
+          code,
+          isNot(0),
+          reason: 'misconfigured build.yaml must abort with non-zero exit',
+        );
+        expect(stdout, contains('does not register the zorphy builder'));
+        expect(stdout, contains('zorphy:zorphy'));
+        expect(stdout, contains('zfa setup'));
+        // build_runner must NOT have been invoked.
+        expect(stdout, isNot(contains('Running build_runner build')));
+        // The user's build.yaml must be untouched.
+        expect(buildYaml.readAsStringSync(), isNot(contains('zorphy:zorphy')));
+      },
       timeout: const Timeout(Duration(minutes: 2)),
     );
   });

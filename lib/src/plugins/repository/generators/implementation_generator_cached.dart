@@ -43,6 +43,28 @@ extension RepositoryImplementationGeneratorCached
             )
             ..body = _buildCacheAwareGetListBody(baseCacheKey),
         );
+      // #406: `list` mirrors the interface method set so cache mode stays
+      // analyzable (otherwise DataXRepository is abstract — missing
+      // concrete implementation of XRepository.list).
+      case 'list':
+        return Method(
+          (m) => m
+            ..name = 'list'
+            ..annotations.add(refer('override'))
+            ..returns = refer('Future<List<$entityName>>')
+            ..modifier = MethodModifier.async
+            ..requiredParameters.add(
+              Parameter(
+                (p) => p
+                  ..name = 'params'
+                  ..type = refer('NoParams'),
+              ),
+            )
+            ..body = _buildCacheAwareGetListBody(
+              baseCacheKey,
+              methodName: 'list',
+            ),
+        );
       case 'create':
         return Method(
           (m) => m
@@ -79,7 +101,7 @@ extension RepositoryImplementationGeneratorCached
             ..body = _buildCacheAwareUpdateBody(baseCacheKey),
         );
       case 'toggle':
-        final fieldEnum = '${config.name}Fields';
+        final fieldEnum = 'Field<${config.name}, dynamic>';
         return Method(
           (m) => m
             ..name = 'toggle'
@@ -231,13 +253,18 @@ extension RepositoryImplementationGeneratorCached
     );
   }
 
-  Block _buildCacheAwareGetListBody(String baseCacheKey) {
+  // #406: `methodName` lets `list` reuse the same cache-aware body as
+  // `getList` (the only difference is the data-source method invoked).
+  Block _buildCacheAwareGetListBody(
+    String baseCacheKey, {
+    String methodName = 'getList',
+  }) {
     final localCall = refer(
       '_localDataSource',
-    ).property('getList').call([refer('params')]);
+    ).property(methodName).call([refer('params')]);
     final remoteCall = refer(
       '_remoteDataSource',
-    ).property('getList').call([refer('params')]);
+    ).property(methodName).call([refer('params')]);
     final catchClosure = Method(
       (m) => m
         ..requiredParameters.add(Parameter((p) => p..name = 'e'))

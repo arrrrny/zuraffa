@@ -77,47 +77,58 @@ class InitializationParams extends Params {
     final _patchMap = _patcher.patchMap;
     return InitializationParams(
       params: _patchMap.containsKey(InitializationParams$.params)
-          ? (_patchMap[InitializationParams$.params] is Function)
-                ? _patchMap[InitializationParams$.params](this.params)
-                : (_patchMap[InitializationParams$.params] is Patch)
-                ? _patchMap[InitializationParams$.params].applyTo(this.params)
-                : _patchMap[InitializationParams$.params]
+          ? ((_patchMap[InitializationParams$.params] is Function)
+                    ? _patchMap[InitializationParams$.params](this.params)
+                    : (_patchMap[InitializationParams$.params] is Patch)
+                    ? _patchMap[InitializationParams$.params].applyTo(
+                        this.params,
+                      )
+                    : _patchMap[InitializationParams$.params])
+                as Map<String, dynamic>?
           : this.params,
       timeout: _patchMap.containsKey(InitializationParams$.timeout)
-          ? (_patchMap[InitializationParams$.timeout] is Function)
-                ? _patchMap[InitializationParams$.timeout](this.timeout)
-                : (_patchMap[InitializationParams$.timeout] is Patch)
-                ? _patchMap[InitializationParams$.timeout].applyTo(this.timeout)
-                : _patchMap[InitializationParams$.timeout]
+          ? ((_patchMap[InitializationParams$.timeout] is Function)
+                    ? _patchMap[InitializationParams$.timeout](this.timeout)
+                    : (_patchMap[InitializationParams$.timeout] is Patch)
+                    ? _patchMap[InitializationParams$.timeout].applyTo(
+                        this.timeout,
+                      )
+                    : _patchMap[InitializationParams$.timeout])
+                as Duration
           : this.timeout,
       forceRefresh: _patchMap.containsKey(InitializationParams$.forceRefresh)
-          ? (_patchMap[InitializationParams$.forceRefresh] is Function)
-                ? _patchMap[InitializationParams$.forceRefresh](
-                    this.forceRefresh,
-                  )
-                : (_patchMap[InitializationParams$.forceRefresh] is Patch)
-                ? _patchMap[InitializationParams$.forceRefresh].applyTo(
-                    this.forceRefresh,
-                  )
-                : _patchMap[InitializationParams$.forceRefresh]
+          ? ((_patchMap[InitializationParams$.forceRefresh] is Function)
+                    ? _patchMap[InitializationParams$.forceRefresh](
+                        this.forceRefresh,
+                      )
+                    : (_patchMap[InitializationParams$.forceRefresh] is Patch)
+                    ? _patchMap[InitializationParams$.forceRefresh].applyTo(
+                        this.forceRefresh,
+                      )
+                    : _patchMap[InitializationParams$.forceRefresh])
+                as bool?
           : this.forceRefresh,
       credentials: _patchMap.containsKey(InitializationParams$.credentials)
-          ? (_patchMap[InitializationParams$.credentials] is Function)
-                ? _patchMap[InitializationParams$.credentials](this.credentials)
-                : (_patchMap[InitializationParams$.credentials] is Patch)
-                ? _patchMap[InitializationParams$.credentials].applyTo(
-                    this.credentials,
-                  )
-                : _patchMap[InitializationParams$.credentials]
+          ? ((_patchMap[InitializationParams$.credentials] is Function)
+                    ? _patchMap[InitializationParams$.credentials](
+                        this.credentials,
+                      )
+                    : (_patchMap[InitializationParams$.credentials] is Patch)
+                    ? _patchMap[InitializationParams$.credentials].applyTo(
+                        this.credentials,
+                      )
+                    : _patchMap[InitializationParams$.credentials])
+                as Credentials?
           : this.credentials,
       settings: _patchMap.containsKey(InitializationParams$.settings)
-          ? (_patchMap[InitializationParams$.settings] is Function)
-                ? _patchMap[InitializationParams$.settings](this.settings)
-                : (_patchMap[InitializationParams$.settings] is Patch)
-                ? _patchMap[InitializationParams$.settings].applyTo(
-                    this.settings,
-                  )
-                : _patchMap[InitializationParams$.settings]
+          ? ((_patchMap[InitializationParams$.settings] is Function)
+                    ? _patchMap[InitializationParams$.settings](this.settings)
+                    : (_patchMap[InitializationParams$.settings] is Patch)
+                    ? _patchMap[InitializationParams$.settings].applyTo(
+                        this.settings,
+                      )
+                    : _patchMap[InitializationParams$.settings])
+                as Settings?
           : this.settings,
     );
   }
@@ -160,7 +171,8 @@ class InitializationParams extends Params {
 
   Map<String, dynamic> toJsonLean() {
     final Map<String, dynamic> data = _$InitializationParamsToJson(this);
-    return _sanitizeJson(data);
+    _sanitizeJson(data);
+    return data;
   }
 
   dynamic _sanitizeJson(dynamic json) {
@@ -178,41 +190,42 @@ class InitializationParams extends Params {
 
 extension InitializationParamsPropertyHelpers on InitializationParams {
   bool get hasForceRefresh {
-    return forceRefresh != null;
+    return this.forceRefresh != null;
   }
 
   bool get noForceRefresh {
-    return forceRefresh == null;
+    return this.forceRefresh == null;
   }
 
   bool get forceRefreshRequired {
-    return forceRefresh ??
+    return this.forceRefresh ??
         (throw StateError('forceRefresh is required but was null'));
   }
 
   bool get hasCredentials {
-    return credentials != null;
+    return this.credentials != null;
   }
 
   bool get noCredentials {
-    return credentials == null;
+    return this.credentials == null;
   }
 
   Credentials get credentialsRequired {
-    return credentials ??
+    return this.credentials ??
         (throw StateError('credentials is required but was null'));
   }
 
   bool get hasSettings {
-    return settings != null;
+    return this.settings != null;
   }
 
   bool get noSettings {
-    return settings == null;
+    return this.settings == null;
   }
 
   Settings get settingsRequired {
-    return settings ?? (throw StateError('settings is required but was null'));
+    return this.settings ??
+        (throw StateError('settings is required but was null'));
   }
 }
 

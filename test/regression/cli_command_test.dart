@@ -1,3 +1,4 @@
+@Tags(['regression', 'slow'])
 import 'dart:convert';
 import 'dart:io';
 
@@ -28,7 +29,9 @@ String _findProjectRoot() {
   } catch (_) {
     // Platform.script.toFilePath() may fail if CWD was deleted.
     // Recover CWD to a known-good location and retry.
-    try { Directory.current = Directory.systemTemp.path; } catch (_) {}
+    try {
+      Directory.current = Directory.systemTemp.path;
+    } catch (_) {}
     try {
       var dir = File(Platform.script.toFilePath()).parent;
       for (var i = 0; i < 10; i++) {
@@ -102,9 +105,8 @@ bool _isTempPath(String p) {
   final systemTempLower = Directory.systemTemp.path.toLowerCase();
 
   // Check if path starts with /tmp/, equals /tmp, or contains /tmp/ as a segment
-  final isTmpSegment = lower == '/tmp' ||
-                       lower.startsWith('/tmp/') ||
-                       lower.contains('/tmp/');
+  final isTmpSegment =
+      lower == '/tmp' || lower.startsWith('/tmp/') || lower.contains('/tmp/');
 
   return isTmpSegment ||
       lower.contains('/var/folders/') ||
@@ -162,7 +164,9 @@ class Product {
           Directory.current = Directory.systemTemp.path;
         }
       } catch (_) {
-        try { Directory.current = Directory.systemTemp.path; } catch (_) {}
+        try {
+          Directory.current = Directory.systemTemp.path;
+        } catch (_) {}
       }
       if (workspace.existsSync()) {
         await workspace.delete(recursive: true);
@@ -224,6 +228,33 @@ class Product {
       expect(output, contains('repository'));
       expect(output, contains('usecase'));
     });
+
+    test(
+      'cli plugin mcp --dry-run passes flags through without writing files',
+      () async {
+        final runner = CliRunner(exitOnCompletion: false);
+        final output = await runner.runCapturing([
+          'plugin',
+          'mcp',
+          '--dry-run',
+        ]);
+
+        // The pass-through relies on ArgParser.allowAnything() + .arguments.
+        // If the parser rejected --dry-run, we would see a UsageException here.
+        expect(output, isNot(contains('Could not find an option named')));
+        expect(output, isNot(contains('Usage: zfa plugin')));
+        expect(
+          File(
+            p.join(workspace.path, 'lib', 'src', 'mcp', 'tools.dart'),
+          ).existsSync(),
+          isFalse,
+        );
+        expect(
+          File(p.join(workspace.path, 'bin', 'mcp_server.dart')).existsSync(),
+          isFalse,
+        );
+      },
+    );
 
     test('removed generate command prints migration guidance', () async {
       final runner = CliRunner(exitOnCompletion: false);
@@ -298,8 +329,12 @@ environment:
         ).resolveSymbolicLinks();
         expect(result, equals(resolvedWorkspace));
       } finally {
-        try { Directory.current = savedCwd; } catch (_) {
-          try { Directory.current = Directory.systemTemp; } catch (_) {}
+        try {
+          Directory.current = savedCwd;
+        } catch (_) {
+          try {
+            Directory.current = Directory.systemTemp;
+          } catch (_) {}
         }
         if (workspace.existsSync()) {
           await workspace.delete(recursive: true);
@@ -347,8 +382,12 @@ environment:
         // ProjectRoot.find() accesses Directory.current before it can recover.
         expect(() => ProjectRoot.find(), throwsA(isA<PathNotFoundException>()));
       } finally {
-        try { Directory.current = savedCwd; } catch (_) {
-          try { Directory.current = Directory.systemTemp; } catch (_) {}
+        try {
+          Directory.current = savedCwd;
+        } catch (_) {
+          try {
+            Directory.current = Directory.systemTemp;
+          } catch (_) {}
         }
       }
     });

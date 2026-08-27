@@ -21,7 +21,10 @@ void main() {
 
   group('ViewTemplateGenerator.generatePresenter (Track 2.4)', () {
     test('generates a DualLayerPresenter subclass', () {
-      final path = viewGen.generatePresenter('ProductDetail', useCases: ['product', 'reviews']);
+      final path = viewGen.generatePresenter(
+        'ProductDetail',
+        useCases: ['product', 'reviews'],
+      );
 
       final file = File(path);
       expect(file.existsSync(), true);
@@ -29,6 +32,9 @@ void main() {
       final content = file.readAsStringSync();
       expect(content.contains('class ProductDetailPresenter'), true);
       expect(content.contains('extends DualLayerPresenter'), true);
+      // #281: presenter overrides `view` with a covariant return type so the
+      // generated view's `controller.view.<signal>` resolves concrete signals.
+      expect(content.contains('ProductDetailViewState get view'), true);
       expect(content.contains('ProductDetailDomainState'), true);
       expect(content.contains('ProductDetailViewState'), true);
       expect(content.contains('SlicePresenter'), true);
@@ -51,18 +57,27 @@ void main() {
       viewGen.generatePresenter('Checkout', useCases: ['cart', 'payment']);
 
       final after = file.readAsStringSync();
-      expect(after.contains('custom orchestration here'), true,
-          reason: 'developer edits to presenter must be preserved');
+      expect(
+        after.contains('custom orchestration here'),
+        true,
+        reason: 'developer edits to presenter must be preserved',
+      );
     });
 
     test('presenter file imports domain_state and view_state', () {
       viewGen.generatePresenter('OrderDetail', useCases: ['order']);
 
-      final content = File('${tempDir.path}/order_detail_presenter.dart')
-          .readAsStringSync();
+      final content = File(
+        '${tempDir.path}/order_detail_presenter.dart',
+      ).readAsStringSync();
       expect(content.contains("import 'order_detail_domain_state.dart'"), true);
       expect(content.contains("import 'order_detail_view_state.dart'"), true);
-      expect(content.contains("import 'package:zuraffa/zuraffa.dart'"), true);
+      expect(
+        content.contains(
+          "import 'package:zuraffa_flutter/zuraffa_flutter.dart'",
+        ),
+        true,
+      );
     });
   });
 
@@ -70,13 +85,17 @@ void main() {
     test('generated view imports zuraffa_flutter (not just zuraffa)', () {
       viewGen.generateView('ProductDetail', useCases: ['product', 'reviews']);
 
-      final content = File('${tempDir.path}/product_detail_view.dart')
-          .readAsStringSync();
+      final content = File(
+        '${tempDir.path}/product_detail_view.dart',
+      ).readAsStringSync();
       // ControlledWidget/FragmentBuilder/SignalBuilder live in zuraffa_flutter
       expect(
-        content.contains("import 'package:zuraffa_flutter/zuraffa_flutter.dart'"),
+        content.contains(
+          "import 'package:zuraffa_flutter/zuraffa_flutter.dart'",
+        ),
         true,
-        reason: 'generated view must import zuraffa_flutter to access '
+        reason:
+            'generated view must import zuraffa_flutter to access '
             'ControlledWidget, FragmentBuilder, and SignalBuilder',
       );
     });
@@ -84,10 +103,13 @@ void main() {
     test('generated view extends ControlledWidget', () {
       viewGen.generateView('ProductDetail', useCases: ['product']);
 
-      final content = File('${tempDir.path}/product_detail_view.dart')
-          .readAsStringSync();
-      expect(content.contains('extends ControlledWidget<ProductDetailPresenter>'),
-          true);
+      final content = File(
+        '${tempDir.path}/product_detail_view.dart',
+      ).readAsStringSync();
+      expect(
+        content.contains('extends ControlledWidget<ProductDetailPresenter>'),
+        true,
+      );
     });
 
     test('generated view uses FragmentBuilder and SignalBuilder', () {
@@ -97,8 +119,9 @@ void main() {
         uiSignals: ['isDescriptionExpanded'],
       );
 
-      final content = File('${tempDir.path}/product_detail_view.dart')
-          .readAsStringSync();
+      final content = File(
+        '${tempDir.path}/product_detail_view.dart',
+      ).readAsStringSync();
       expect(content.contains('FragmentBuilder'), true);
       expect(content.contains('SignalBuilder'), true);
       expect(content.contains('onLoading'), true);
@@ -163,70 +186,76 @@ void main() {
       expect(viewContent.contains('FragmentBuilder'), true);
     });
 
-    test('rebuilding preserves ViewState and Presenter, regenerates DomainState', () {
-      // Initial generation
-      stateGen.generateDomainState(
-        'ProductDetail',
-        useCases: [
-          UseCaseBinding(
-            sliceKey: 'product',
-            useCaseFieldName: 'getProductUseCase',
-            paramsConstructor: 'GetProductParams',
-            returnType: 'Product',
-          ),
-        ],
-      );
-      stateGen.generateViewState('ProductDetail');
-      viewGen.generatePresenter('ProductDetail', useCases: ['product']);
-
-      // Developer edits ViewState and Presenter
-      final vsFile = File('${tempDir.path}/product_detail_view_state.dart');
-      vsFile.writeAsStringSync(
-        vsFile.readAsStringSync().replaceFirst(
-              'Signal<bool>(false)',
-              'Signal<bool>(true) // dev edit',
+    test(
+      'rebuilding preserves ViewState and Presenter, regenerates DomainState',
+      () {
+        // Initial generation
+        stateGen.generateDomainState(
+          'ProductDetail',
+          useCases: [
+            UseCaseBinding(
+              sliceKey: 'product',
+              useCaseFieldName: 'getProductUseCase',
+              paramsConstructor: 'GetProductParams',
+              returnType: 'Product',
             ),
-      );
-      final pFile = File('${tempDir.path}/product_detail_presenter.dart');
-      final pOriginal = pFile.readAsStringSync();
-      pFile.writeAsStringSync('$pOriginal\n// dev addition\n');
+          ],
+        );
+        stateGen.generateViewState('ProductDetail');
+        viewGen.generatePresenter('ProductDetail', useCases: ['product']);
 
-      // Rebuild — add a new use case
-      final stateGen2 = StateGenerator(outputDir: tempDir.path);
-      stateGen2.generateDomainState(
-        'ProductDetail',
-        useCases: [
-          UseCaseBinding(
-            sliceKey: 'product',
-            useCaseFieldName: 'getProductUseCase',
-            paramsConstructor: 'GetProductParams',
-            returnType: 'Product',
+        // Developer edits ViewState and Presenter
+        final vsFile = File('${tempDir.path}/product_detail_view_state.dart');
+        vsFile.writeAsStringSync(
+          vsFile.readAsStringSync().replaceFirst(
+            'Signal<bool>(false)',
+            'Signal<bool>(true) // dev edit',
           ),
-          UseCaseBinding(
-            sliceKey: 'reviews',
-            useCaseFieldName: 'getReviewsUseCase',
-            paramsConstructor: 'GetReviewsParams',
-            returnType: 'List<Review>',
-          ),
-        ],
-      );
-      stateGen2.generateViewState('ProductDetail');
-      final viewGen2 = ViewTemplateGenerator(outputDir: tempDir.path);
-      viewGen2.generatePresenter('ProductDetail', useCases: ['product', 'reviews']);
+        );
+        final pFile = File('${tempDir.path}/product_detail_presenter.dart');
+        final pOriginal = pFile.readAsStringSync();
+        pFile.writeAsStringSync('$pOriginal\n// dev addition\n');
 
-      // DomainState has the new slice
-      final domainContent = File(
-        '${tempDir.path}/product_detail_domain_state.dart',
-      ).readAsStringSync();
-      expect(domainContent.contains('reviews'), true);
+        // Rebuild — add a new use case
+        final stateGen2 = StateGenerator(outputDir: tempDir.path);
+        stateGen2.generateDomainState(
+          'ProductDetail',
+          useCases: [
+            UseCaseBinding(
+              sliceKey: 'product',
+              useCaseFieldName: 'getProductUseCase',
+              paramsConstructor: 'GetProductParams',
+              returnType: 'Product',
+            ),
+            UseCaseBinding(
+              sliceKey: 'reviews',
+              useCaseFieldName: 'getReviewsUseCase',
+              paramsConstructor: 'GetReviewsParams',
+              returnType: 'List<Review>',
+            ),
+          ],
+        );
+        stateGen2.generateViewState('ProductDetail');
+        final viewGen2 = ViewTemplateGenerator(outputDir: tempDir.path);
+        viewGen2.generatePresenter(
+          'ProductDetail',
+          useCases: ['product', 'reviews'],
+        );
 
-      // ViewState preserved
-      final vsContent = vsFile.readAsStringSync();
-      expect(vsContent.contains('dev edit'), true);
+        // DomainState has the new slice
+        final domainContent = File(
+          '${tempDir.path}/product_detail_domain_state.dart',
+        ).readAsStringSync();
+        expect(domainContent.contains('reviews'), true);
 
-      // Presenter preserved
-      final pContent = pFile.readAsStringSync();
-      expect(pContent.contains('dev addition'), true);
-    });
+        // ViewState preserved
+        final vsContent = vsFile.readAsStringSync();
+        expect(vsContent.contains('dev edit'), true);
+
+        // Presenter preserved
+        final pContent = pFile.readAsStringSync();
+        expect(pContent.contains('dev addition'), true);
+      },
+    );
   });
 }

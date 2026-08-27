@@ -37,3 +37,5 @@ patches
 contracts
 extensions/
 .contracts
+apps/
+pubspec_overrides.yaml

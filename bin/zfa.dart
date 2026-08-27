@@ -1,4 +1,5 @@
 #!/usr/bin/env dart
+
 // ZFA CLI - Zuraffa Code Generator (Modular)
 //
 // Generates UseCases, Repositories, and VPC (View/Presenter/Controller) layers

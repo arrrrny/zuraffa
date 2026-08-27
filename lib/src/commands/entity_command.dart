@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:zorphy/zorphy.dart';
 import '../config/zfa_config.dart';
+import '../utils/entity_type_validator.dart';
 import '../utils/entity_utils.dart';
 import '../utils/string_utils.dart';
 
@@ -57,6 +58,15 @@ class EntityCommand {
           break;
         case 'from-json':
           await _handleFromJson(subArgs, config);
+          break;
+        case 'build':
+          await _handleBuild(subArgs);
+          break;
+        case 'watch':
+          await _handleWatch();
+          break;
+        case 'validate':
+          await _handleValidate(subArgs);
           break;
         default:
           print('Unknown subcommand: $subCommand');
@@ -146,6 +156,58 @@ ${missing.map((d) => '   • $d').join('\n')}
       ..._asStringList(parsed['field']),
       ..._asStringList(parsed['fields']),
     ]);
+
+    // Issue #303: refuse raw Dart-keyword field names (e.g. `in:String`)
+    // up front — without this guard the CLI emits `String get in;`, which
+    // is invalid Dart and only fails later at `zfa build` with a misleading
+    // analyzer error. The user must remap the wire name with
+    // `:json=<wire>` (e.g. `in_:String:json=in`).
+    final bareKeywords = _findBareKeywordFields(fields);
+    if (bareKeywords.isNotEmpty) {
+      print('❌ Cannot create entity "$name": field name(s) are Dart keywords.');
+      print('');
+      for (final field in bareKeywords) {
+        print(
+          '  • ${field.name} — reserved word; cannot be used as a Dart '
+          'identifier.',
+        );
+        print(
+          '    Remap with the \'name:type:json=<wire>\' syntax, e.g. '
+          "'${field.name}_:${field.type}:json=${field.name}'",
+        );
+      }
+      print('');
+      print('No files were written. See \'zfa entity --help\' for details.');
+      exit(1);
+    }
+
+    // Validate field types BEFORE writing anything (issue #296):
+    // if a referenced type is neither a primitive, an existing entity,
+    // nor an existing enum, abort with a clear error so the entity is
+    // never written with a bogus `$`-prefixed `InvalidType`.
+    // `--allow-forward-refs` opts out for batch generation of cyclic schemas
+    // (issue #308): the referenced entity will exist by build time.
+    final allowForwardRefs = parsed['allow_forward_refs'] == true;
+    final typeErrors = allowForwardRefs
+        ? const <UnresolvedTypeError>[]
+        : EntityTypeValidator.validate(
+            fields: fields,
+            outputDir: outputDir,
+            selfEntityName: name,
+          );
+    if (typeErrors.isNotEmpty) {
+      print(
+        '❌ Cannot create entity "$name": field type(s) could not be resolved.',
+      );
+      print('');
+      for (final err in typeErrors) {
+        print('  • ${err.message}');
+      }
+      print('');
+      print('No files were written. Resolve the above and re-run.');
+      exit(1);
+    }
+
     final useFilter =
         parsed['filter'] == true || (config?.filterByDefault ?? false);
 
@@ -163,6 +225,10 @@ ${missing.map((d) => '   • $d').join('\n')}
       explicitSubtypes: _asStringList(parsed['subtypes']),
       generateSubtypes: parsed['generate_subs'] as bool? ?? false,
       dryRun: parsed['dry_run'] as bool? ?? false,
+      autoId: parsed['auto_id'] == true,
+      kind: _parseKind(parsed['kind'] as String?),
+      typeKey: parsed['type_key'] as String?,
+      subtypeWireValue: parsed['subtype_wire_value'] as String?,
     );
 
     final creator = EntityCreator(baseOutputDir: outputDir);
@@ -170,20 +236,69 @@ ${missing.map((d) => '   • $d').join('\n')}
 
     if (result.isSuccess) {
       await _fixEntityImports(result.filePath, fields, outputDir);
+
+      // Add imports for explicit subtypes so the zorphy builder can resolve
+      // them for polymorphic dispatch (fromJson/toJson with typeKey).
+      if (entityConfig.explicitSubtypes.isNotEmpty) {
+        await _addSubtypeImports(
+          result.filePath,
+          entityConfig.explicitSubtypes,
+          outputDir,
+        );
+      }
+
       print('✓ Created entity: ${result.filePath}');
       print('\n📋 Next steps:');
       print('  1. Run: zfa build');
       print('  2. Import and use your ${entityConfig.className} class');
 
+      if (entityConfig.autoId) {
+        _warnIfUuidMissing();
+      }
+
       if (fields.isNotEmpty) {
         print('\n✨ Generated ${fields.length} fields:');
         for (final field in fields) {
-          print('  - ${field.name}: ${field.fullType}');
+          print('  - ${_formatFieldDisplay(field)}');
         }
       }
     } else {
       print('❌ ${result.error}');
       exit(1);
+    }
+  }
+
+  /// autoId entities reference `package:uuid/uuid.dart` in the generated
+  /// code — warn when the app does not depend on it yet.
+  void _warnIfUuidMissing() {
+    final pubspecFile = File('pubspec.yaml');
+    if (!pubspecFile.existsSync()) return;
+    try {
+      final content = pubspecFile.readAsStringSync();
+      if (content.contains(RegExp(r'^\s*uuid\s*:', multiLine: true))) return;
+      print(
+        '⚠️  Generated id uses package:uuid — add it with: dart pub add uuid',
+      );
+    } catch (_) {
+      // Best-effort hint only.
+    }
+  }
+
+  /// Parses the `--kind` flag: `entity` (default) or
+  /// `value_object` / `valueObject`. Anything else aborts with a clear
+  /// message.
+  ZorphyKind _parseKind(String? kind) {
+    switch (kind) {
+      case null:
+      case 'entity':
+        return ZorphyKind.entity;
+      case 'value_object':
+      case 'valueObject':
+      case 'value-object':
+        return ZorphyKind.valueObject;
+      default:
+        print('❌ Unknown kind "$kind". Expected: entity | value_object.');
+        exit(1);
     }
   }
 
@@ -243,6 +358,56 @@ ${missing.map((d) => '   • $d').join('\n')}
     }
 
     final fields = _parseFields(fieldStrings);
+
+    // Issue #303: same raw-keyword guard as `entity create` — refuse to
+    // add a field whose Dart name is a reserved word without an explicit
+    // `:json=<wire>` remap.
+    final bareKeywords = _findBareKeywordFields(fields);
+    if (bareKeywords.isNotEmpty) {
+      print(
+        '❌ Cannot add field(s) to "$name": field name(s) are Dart keywords.',
+      );
+      print('');
+      for (final field in bareKeywords) {
+        print(
+          '  • ${field.name} — reserved word; cannot be used as a Dart '
+          'identifier.',
+        );
+        print(
+          '    Remap with the \'name:type:json=<wire>\' syntax, e.g. '
+          "'${field.name}_:${field.type}:json=${field.name}'",
+        );
+      }
+      print('');
+      print('No files were modified. See \'zfa entity --help\' for details.');
+      exit(1);
+    }
+
+    // Validate field types BEFORE writing anything (issue #296):
+    // same guard as `entity create` — refuse to add fields whose types
+    // cannot be resolved against the on-disk entity/enum layout.
+    // `--allow-forward-refs` opts out (issue #308), same as `entity create`.
+    final allowForwardRefs = parsed['allow_forward_refs'] == true;
+    final typeErrors = allowForwardRefs
+        ? const <UnresolvedTypeError>[]
+        : EntityTypeValidator.validate(
+            fields: fields,
+            outputDir: fixedEntityOutput,
+            selfEntityName: name,
+          );
+    if (typeErrors.isNotEmpty) {
+      print(
+        '❌ Cannot add field(s) to "$name": field type(s) could not be resolved.',
+      );
+      print('');
+      for (final err in typeErrors) {
+        print('  • ${err.message}');
+      }
+      print('');
+      print('No files were modified. Resolve the above and re-run.');
+      exit(1);
+    }
+
     final creator = EntityCreator(baseOutputDir: fixedEntityOutput);
     final result = await creator.addFields(
       name,
@@ -255,12 +420,39 @@ ${missing.map((d) => '   • $d').join('\n')}
       await _fixEntityImports(result.filePath, fields, fixedEntityOutput);
       print('✓ Added ${fields.length} field(s) to ${result.className}');
       for (final field in fields) {
-        print('  + ${field.name}: ${field.fullType}');
+        print('  + ${_formatFieldDisplay(field)}');
       }
     } else {
       print('❌ ${result.error}');
       exit(1);
     }
+  }
+
+  Future<void> _addSubtypeImports(
+    String entityPath,
+    List<String> explicitSubtypes,
+    String outputDir,
+  ) async {
+    final file = File(entityPath);
+    var content = await file.readAsString();
+
+    for (final subtype in explicitSubtypes) {
+      final stName = subtype.split(':').first.replaceAll(r'$', '').trim();
+      if (stName.isEmpty) continue;
+      final stSnake = StringUtils.camelToSnake(stName);
+      final imp = "import '../$stSnake/$stSnake.dart';";
+      if (!content.contains(imp)) {
+        // Insert after the last import line
+        final lastImportIdx = content.lastIndexOf('import ');
+        final eolIdx = content.indexOf('\n', lastImportIdx);
+        if (eolIdx != -1) {
+          content =
+              '${content.substring(0, eolIdx + 1)}$imp\n${content.substring(eolIdx + 1)}';
+        }
+      }
+    }
+
+    await file.writeAsString(content);
   }
 
   Future<void> _fixEntityImports(
@@ -277,6 +469,14 @@ ${missing.map((d) => '   • $d').join('\n')}
 
     // Process field types
     for (final field in fields) {
+      // External types (issue #349) are never entity/enum - skip import resolution.
+      // External types (marked with ! prefix, e.g. url:!WebUri?) reference types
+      // from external libraries (plugin wrappers, SDK classes, etc). The type name
+      // is kept as-is (no $ prefix), and NO import is automatically emitted because
+      // the CLI doesn't know which library defines the type. The user must manually
+      // add the required import (e.g. import 'package:webview_flutter/webview_flutter.dart';)
+      // to the generated entity file after generation, or include it in a custom template.
+      if (field.isExternal) continue;
       final types = EntityUtils.extractEntityTypes(field.fullType);
       for (final type in types) {
         final typeSnake = StringUtils.camelToSnake(type);
@@ -349,6 +549,10 @@ ${missing.map((d) => '   • $d').join('\n')}
     if (hasEnums) {
       imports.add("import '../enums/index.dart';");
     }
+
+    // Import explicit subtypes so the zorphy builder can resolve them
+    // for polymorphic dispatch (fromJson/toJson with typeKey).
+    // This is handled by the entity creation flow, not here.
 
     if (imports.isEmpty) return;
 
@@ -442,6 +646,12 @@ ${missing.map((d) => '   • $d').join('\n')}
 
     if (result.isSuccess) {
       print('✓ Created entity: ${result.filePath}');
+      if (fields.isNotEmpty) {
+        print('\n✨ Generated ${fields.length} fields:');
+        for (final field in fields) {
+          print('  - ${_formatFieldDisplay(field)}');
+        }
+      }
     } else {
       print('❌ ${result.error}');
       exit(1);
@@ -537,6 +747,81 @@ ${missing.map((d) => '   • $d').join('\n')}
     return fields;
   }
 
+  /// Dart reserved words (contextual + built-in) that cannot be used as a
+  /// field identifier in generated entity source. Issue #303: when a user
+  /// writes `--field in:String` the CLI used to emit `String get in;` —
+  /// invalid Dart — and `zfa build` later failed with
+  /// `'in' can't be used as an identifier because it's a keyword.`
+  ///
+  /// The intended workflow for a Dart-keyword JSON wire name is to pick a
+  /// Dart-safe field name and remap the wire name via `:json=<wire>`
+  /// (e.g. `in_:String:json=in`). [_findBareKeywordFields] refuses the
+  /// bare-keyword form up front with an actionable error.
+  /// Dart hard-reserved words that CANNOT be used as a field identifier.
+  /// Built-in identifiers (dynamic, deferred, external, etc.) and contextual
+  /// keywords/modifiers (base, sealed, when, record, view, etc.) are legal
+  /// field names — only hard reserved words are rejected.
+  /// See: https://dart.dev/language/keywords
+  static const Set<String> _dartKeywords = {
+    // Hard reserved words — cannot be identifiers.
+    'abstract', 'as', 'assert', 'break', 'case', 'catch', 'class', 'const',
+    'continue', 'covariant', 'default', 'do', 'else',
+    'enum', 'export', 'extends', 'false', 'final', 'finally',
+    'for', 'if', 'implements', 'import', 'in', 'interface', 'is', 'late',
+    'library', 'mixin', 'new', 'null', 'part', 'rethrow', 'return', 'static',
+    'super', 'switch', 'this', 'throw', 'true', 'try', 'var', 'void',
+    'while', 'with',
+  };
+
+  bool _isDartKeyword(String name) => _dartKeywords.contains(name);
+
+  /// Maps a raw JSON wire key to a Dart-safe (name, jsonName) pair.
+  ///
+  /// Rules (issue #303):
+  /// - Dart keyword (`in`, `required`, ...): Dart name = `<key>_`, jsonName
+  ///   = `<key>` (preserves the wire contract while keeping the Dart source
+  ///   compilable). Example: `in` -> (`in_`, `in`).
+  /// - Leading underscore (`_and`, `_or`): Dart name = `<key>` without the
+  ///   leading underscore (a leading `_` would mark the member private),
+  ///   jsonName = `<key>`. Example: `_and` -> (`and`, `_and`).
+  /// - Anything else: returned as-is with a null jsonName (no `@JsonKey`
+  ///   needed — the Dart name already matches the wire name).
+  ///
+  /// Used by `zfa entity from-json` (which has no field-string syntax to
+  /// lean on) so that JSON payloads carrying Dart-keyword or `_`-prefixed
+  /// keys produce compilable entities with the correct wire names.
+  ({String dartName, String? jsonName}) _resolveFieldName(String jsonKey) {
+    if (_isDartKeyword(jsonKey)) {
+      return (dartName: '${jsonKey}_', jsonName: jsonKey);
+    }
+    if (jsonKey.startsWith('_') && jsonKey.length > 1) {
+      return (dartName: jsonKey.substring(1), jsonName: jsonKey);
+    }
+    return (dartName: jsonKey, jsonName: null);
+  }
+
+  /// Issue #303 guard: refuses field definitions whose Dart name is a raw
+  /// Dart keyword AND that do not carry an explicit `jsonName`. The user
+  /// must use the `name:type:json=<wire>` syntax (e.g. `in_:String:json=in`)
+  /// so the generated source stays compilable and the wire name is
+  /// preserved. Returns the list of offending field definitions.
+  List<FieldDefinition> _findBareKeywordFields(List<FieldDefinition> fields) {
+    return fields
+        .where((f) => f.jsonName == null && _isDartKeyword(f.name))
+        .toList();
+  }
+
+  /// Pretty-prints a single field for success messages, appending
+  /// `(json: '<wire>')` when the field carries an explicit json wire name
+  /// (issue #303 — makes the remap visible to the caller).
+  String _formatFieldDisplay(FieldDefinition field) {
+    final base = '${field.name}: ${field.fullType}';
+    if (field.jsonName != null && field.jsonName != field.name) {
+      return "$base (json: '${field.jsonName}')";
+    }
+    return base;
+  }
+
   List<String> _asStringList(dynamic value) {
     if (value == null) return [];
     final List<String> result = [];
@@ -586,7 +871,15 @@ ${missing.map((d) => '   • $d').join('\n')}
       final key = entry.key;
       final value = entry.value;
       final isNullable = key.endsWith('?');
-      final fieldName = isNullable ? key.substring(0, key.length - 1) : key;
+      final rawKey = isNullable ? key.substring(0, key.length - 1) : key;
+
+      // Issue #303: a JSON key may be a Dart keyword (`in`, `required`) or
+      // carry a leading underscore (`_and`, `_or`) — neither is a valid
+      // Dart identifier. Resolve to a Dart-safe (name, jsonName) pair so
+      // the generated source compiles AND the wire contract is preserved.
+      final resolved = _resolveFieldName(rawKey);
+      final fieldName = resolved.dartName;
+      final jsonName = resolved.jsonName;
 
       String type;
       if (value is Map<String, dynamic>) {
@@ -604,6 +897,7 @@ ${missing.map((d) => '   • $d').join('\n')}
           name: fieldName,
           type: type,
           nullable: isNullable || value == null,
+          jsonName: jsonName,
         ),
       );
     }
@@ -649,6 +943,75 @@ ${missing.map((d) => '   • $d').join('\n')}
     await process.exitCode;
   }
 
+  Future<void> _handleBuild(List<String> subArgs) async {
+    final args = ['run', 'build_runner', 'build'];
+    if (subArgs.contains('--clean') || subArgs.contains('-c')) {
+      args.insert(2, '--delete-conflicting-outputs');
+    }
+    if (subArgs.contains('--force')) {
+      args.addAll(['--build-filter=**']);
+    }
+    final process = await Process.start(
+      'dart',
+      args,
+      mode: ProcessStartMode.inheritStdio,
+    );
+    final exitCode = await process.exitCode;
+    if (exitCode != 0) {
+      throw Exception('Build failed with exit code $exitCode');
+    }
+  }
+
+  Future<void> _handleWatch() async {
+    final process = await Process.start('dart', [
+      'run',
+      'build_runner',
+      'watch',
+      '--delete-conflicting-outputs',
+    ], mode: ProcessStartMode.inheritStdio);
+    final exitCode = await process.exitCode;
+    if (exitCode != 0) {
+      throw Exception('Watch failed with exit code $exitCode');
+    }
+  }
+
+  Future<void> _handleValidate(List<String> subArgs) async {
+    // Scan entity dirs for missing generated files
+    final dir = Directory(fixedEntityOutput);
+    if (!await dir.exists()) {
+      print('No entities found at $fixedEntityOutput');
+      return;
+    }
+    int issues = 0;
+    await for (final entity in dir.list()) {
+      if (entity is! Directory) continue;
+      final name = p.basename(entity.path);
+      final mainFile = File(p.join(entity.path, '$name.dart'));
+      if (!await mainFile.exists()) continue;
+      final content = await mainFile.readAsString();
+      if (content.contains("part '$name.zorphy.dart'")) {
+        final zorphy = File(p.join(entity.path, '$name.zorphy.dart'));
+        if (!await zorphy.exists()) {
+          print('  MISSING: $name.zorphy.dart');
+          issues++;
+        }
+      }
+      if (content.contains("part '$name.g.dart'")) {
+        final g = File(p.join(entity.path, '$name.g.dart'));
+        if (!await g.exists()) {
+          print('  MISSING: $name.g.dart');
+          issues++;
+        }
+      }
+    }
+    if (issues == 0) {
+      print('✅ All entity files valid');
+    } else {
+      print('❌ $issues issue(s) found — run zfa build');
+      throw Exception('Validation failed with $issues issue(s)');
+    }
+  }
+
   void _printHelp() {
     print('''
 zfa entity - Zorphy Entity Generation Commands
@@ -663,6 +1026,9 @@ SUBCOMMANDS:
   add-field   Add field(s) to an existing entity
   from-json   Create entity from JSON file
   list        List all Zorphy entities
+  build       Run build_runner build (with optional --clean, --force)
+  watch       Run build_runner watch (live rebuild on changes)
+  validate    Check entity dirs for missing generated files
 
 CREATE COMMAND:
   zfa entity create -n <Name> [options]
@@ -675,15 +1041,83 @@ CREATE COMMAND:
     --compare               Enable compareTo (default: true)
     --sealed                Create sealed class
     --non-sealed            Create non-sealed class
+    --type-key <key>        Custom JSON key for polymorphic dispatch (default: __typename)
+    --subtype-wire-value    Custom wire value for this subtype in polymorphic JSON
     --field                 Add field "name:type"
     -F, --fields            Add multiple fields "name:type,name:type"
     --extends               Interface to extend
-    --subtypes              Explicit subtypes
+    --subtypes              Explicit subtypes, e.g. "Admin:1,Guest:2"
+                            Each entry is name:wireValue. Used with
+                            --type-key for polymorphic dispatch.
     --generate-subs         Generate subtype files
+    --auto-id               Auto-generate a String id (uuid v4). The id
+                            field is optional at construction and defaults
+                            to a fresh uuid (adds uuid to your pubspec).
+    --kind=<entity|value_object>
+                            Semantic kind. value_object marks an immutable
+                            composition type: no id required and `zfa make`
+                            generates no repository/usecase/controller/
+                            presenter for it.
+    --allow-forward-refs    Skip on-disk type validation (batch generation of
+                            cyclic schemas — referenced entity is created later).
+                            For types that are NEVER entities (external classes
+                            like plugin wrappers), use the `!Type` prefix
+                            instead (see FIELD SYNTAX below).
+
+ADD-FIELD COMMAND:
+  zfa entity add-field -n <Name> [options]
+  Options:
+    -n, --name              Entity name (required)
+    --field                 Add field "name:type"
+    -F, --fields            Add multiple fields "name:type,name:type"
+    --allow-forward-refs    Skip on-disk type validation (batch generation of
+                            cyclic schemas — referenced entity is created later).
+                            For types that are NEVER entities (external classes
+                            like plugin wrappers), use the `!Type` prefix
+                            instead (see FIELD SYNTAX below).
+
+FIELD SYNTAX:
+  name:type                 Basic field, Dart name = JSON wire name
+                            (e.g. `id:String`, `note:String?`)
+  name:!type                External type - the `!` prefix marks a type as
+                            external (non-entity, non-enum). The type name is
+                            kept as-is (no `\$` prefix), on-disk validation is
+                            skipped, and no entity/enum import is emitted.
+                            Use for types that live outside the entity tree,
+                            e.g. plugin wrappers (`WebUri`), SDK classes, etc.
+                            Example:
+                              url:!WebUri?              # external WebUri type
+  name:type:json=<wire>     Dart name differs from the JSON wire name.
+                            Required when the wire name is a Dart keyword
+                            (`in`, `required`) or starts with `_`
+                            (Vendure `_and` / `_or`). Emits
+                            `@JsonKey(name: '<wire>')` on the getter so
+                            json_serializable serializes with the wire name.
+                            Examples:
+                              in_:String:json=in            # `in` wire key
+                              and:ProductFilterParameter:json=_and
+                              required:ConfigArgDef:json=required
+
+  The same syntax is accepted by `--field` (single) and `-F/--fields`
+  (comma-separated). `zfa entity from-json` resolves Dart-keyword and
+  `_`-prefixed JSON keys automatically (no manual `:json=` needed).
 
 EXAMPLES:
   zfa entity create -n User --field id:String --field name:String
   zfa entity create -n Product --field name:String --field price:double --filter
+  zfa entity create -n ChatMessage --auto-id --field role:ChatMessageRole
+    --field content:String --field timestamp:DateTime
+  zfa entity create -n ParserConfig --kind=value_object
+    --field separator:String --field trimWhitespace:bool
+  # Vendure-style filter parameter with nested _and/_or composition:
+  zfa entity create -n ProductFilterParameter --allow-forward-refs
+    --field and:ProductFilterParameter:json=_and
+    --field or:ProductFilterParameter:json=_or
+  # External (non-entity) type - no \$ prefix, no import, no validation:
+  zfa entity create -n JsAlertRequest --kind=value_object
+    --field url:!WebUri? --field message:String?
+  # IdOperators with `in` (Dart keyword) remapped to `in_`:
+  zfa entity create -n IdOperators --field in_:String:json=in --field eq:String
   zfa entity enum -n Status --value pending,active,completed
   zfa entity add-field -n User --field email:String?
   zfa entity list
@@ -691,6 +1125,8 @@ EXAMPLES:
 NOTES:
   - Entities always live under lib/src/domain/entities in Zuraffa v5.
   - Legacy --output values are accepted for compatibility but ignored.
+  - Raw Dart-keyword field names (e.g. `--field in:String`) are rejected;
+    remap with `:json=<wire>` so the generated source compiles.
 
 For more information, visit: https://github.com/arrrrny/zorphy
 ''');

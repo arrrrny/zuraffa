@@ -150,6 +150,26 @@ class DataSourceInterfaceBuilder {
             ),
           );
           break;
+        // #406: `list` mirrors the repository interface so the generated
+        // `DataXRepository.list(NoParams)` delegation to `_dataSource.list`
+        // resolves against a real abstract member (otherwise
+        // undefined_class / method_not_found on the data source).
+        case 'list':
+          methods.add(
+            Method(
+              (m) => m
+                ..name = 'list'
+                ..returns = refer('Future<List<$entityName>>')
+                ..requiredParameters.add(
+                  Parameter(
+                    (p) => p
+                      ..name = 'params'
+                      ..type = refer('NoParams'),
+                  ),
+                ),
+            ),
+          );
+          break;
         case 'create':
           methods.add(
             Method(
@@ -187,7 +207,7 @@ class DataSourceInterfaceBuilder {
           );
           break;
         case 'toggle':
-          final fieldEnum = '${config.name}Fields';
+          final fieldEnum = 'Field<${config.name}, dynamic>';
           methods.add(
             Method(
               (m) => m
@@ -259,7 +279,16 @@ class DataSourceInterfaceBuilder {
 
     final directives = <Directive>[
       Directive.import('package:zuraffa/zuraffa.dart'),
-      if (config.repo == null)
+      if (config.repo == null &&
+          fileSystem.existsSync(
+            path.join(
+              outputDir,
+              'domain',
+              'entities',
+              entitySnake,
+              '$entitySnake.dart',
+            ),
+          ))
         Directive.import(
           '../../../domain/entities/$entitySnake/$entitySnake.dart',
         ),

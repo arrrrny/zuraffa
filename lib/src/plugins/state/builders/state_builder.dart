@@ -60,7 +60,10 @@ class StateBuilder {
               ].contains(m),
             ));
 
-    final imports = <String>['package:zuraffa/zuraffa.dart'];
+    // #281: Presentation-layer state imports 'package:zuraffa_flutter/zuraffa_flutter.dart'
+    // (which re-exports zuraffa core) so generated Flutter apps compile against
+    // the same direct dep setup wires and avoid depend_on_referenced_packages.
+    final imports = <String>['package:zuraffa_flutter/zuraffa_flutter.dart'];
 
     if (config.isCustomUseCase || config.isOrchestrator) {
       final types = <String>[if (!config.noEntity) config.name];

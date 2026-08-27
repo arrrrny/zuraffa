@@ -40,6 +40,42 @@ zfa build
 - **Do not call `build_runner` directly in normal agent flows.** Use `zfa build`.
 - **Do not invent alternate folder structures.** Zuraffa v5 assumes a fixed domain root.
 
+## STOP-ON-ROADBLOCK RULE (HARD, NON-NEGOTIABLE — HARDCODED)
+
+**The FIRST time a `zfa` command errors, OR succeeds but produces output other than
+expected (non-compiling generated code, missing files the generated code references,
+missing symbols the generated code uses, silent 0-output builds, crashes), the agent
+MUST STOP IMMEDIATELY. This overrides any "keep going" instinct.**
+
+- **Your first instinct to STOP is the correct one. Trust it.** When something is off,
+  stop and report. Do not rationalize it away, do not "just try one more command," do
+  not assume it is a stale cache / wrong flag / your own mistake. Report it as a zuraffa
+  gap first; the maintainer decides if it is real.
+- **Never continue** the generation/build task after a roadblock. Do NOT work around it
+  with different flags, `--force` re-runs, explicit `--methods`, re-making only the
+  "id-having" entities, hand-written patches, or "trying the next entity." **Bounded or
+  partial progress is STILL a violation** — if a gap blocks one entity, it blocks the
+  whole workflow. The smoke-test goal is to build a seamless app *only* via zfa commands
+  so we can **find and fix zuraffa gaps**, not to produce a working mock by skirting them.
+- **Never hand-write code** to route around a zfa misfire. Every Dart file in
+  `apps/zikzak_demo` must come from a `zfa` command; if `zfa` cannot produce it, that
+  *is* the bug to report.
+- **Document** in the tracking file (`apps/zikzak_demo/PROGRESS.md`) exactly:
+  1. the command that was run,
+  2. what was expected,
+  3. what was actually output,
+  4. the root cause (trace it in zuraffa source if possible).
+- **File a GitHub issue** on `arrrrny/zuraffa` with that same detail (repro, expected,
+  actual, root cause, suggested fix).
+- **End the goal / stop the run.** Wait for the issue to be **MERGED** (not just opened
+  or PR'd) before resuming. Resume ONLY when a new goal is invoked that references
+  `apps/zikzak_demo/PROGRESS.md` — the resume marker records the exact stopping step so
+  the next run picks up from there.
+
+This rule takes precedence over any desire to keep making incremental progress. A
+single un-fixed zfa gap invalidates the entire "zfa-only" contract, so one roadblock
+stops the whole workflow until zuraffa itself is repaired.
+
 ## Fixed layout assumptions
 
 Zuraffa v5 public docs assume:
@@ -161,11 +197,15 @@ During the migration period, some internals may still use older storage paths. U
 After editing generation-related docs or workflows, prefer focused validation such as:
 
 ```bash
-flutter test test/regression/docs_command_consistency_test.dart
-flutter test test/core/artifact_publisher_test.dart
+# fast unit checks (default run)
+dart test test/core/artifact_publisher_test.dart
+# slow regression tier (excluded by default — use the preset)
+dart test --preset=regression test/regression/docs_command_consistency_test.dart
 ```
 
-Use `dart analyze` or the editor analyzer on the files you touched.
+`dart test` runs the fast unit suite by default. Use `--preset=all` for the
+full suite, or `--preset=regression` / `integration` / `property` / `benchmark`
+for a single slow tier. See `test/README.md`. Use `dart analyze` on the files you touched.
 
 ## Migration shorthand for older projects
 
@@ -182,7 +222,7 @@ For a user coming from older Zuraffa docs, the shortest correct explanation is:
 
 # Shared terminal (`herdr`)
 
-Long-running or user-visible commands (e.g. `flutter run`, `zfa build`, `bun run watch:dev`) should run in the **`herdr` terminal workspace** so both the human and agents see the same terminal. The human attaches with `herdr`; agents drive it via the `herdr` CLI or the socket API: `herdr agent list`, `herdr agent prompt <id> <text>`, `herdr agent read <id>`, `herdr agent wait <id> --state blocked`, `herdr pane send-keys <pane> <key...>`. See `~/Developer/herdr` + `herdr --help`.
+Long-running or user-visible commands (e.g. `flutter run`, `dart run build_runner build`, `bun run watch:dev`) should run in the **`herdr` terminal workspace** so both the human and agents see the same terminal. The human attaches with `herdr`; agents drive it via the `herdr` CLI or the socket API: `herdr agent list`, `herdr agent prompt <id> <text>`, `herdr agent read <id>`, `herdr agent wait <id> --state blocked`, `herdr pane send-keys <pane> <key...>`. See `~/Developer/herdr` + `herdr --help`.
 
 <!-- SPECKIT START -->
 

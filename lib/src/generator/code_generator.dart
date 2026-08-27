@@ -11,6 +11,7 @@ import '../plugins/provider/provider_plugin.dart';
 import '../plugins/state/state_plugin.dart';
 import '../plugins/observer/observer_plugin.dart';
 import '../plugins/test/test_plugin.dart';
+import '../plugins/gym/gym_plugin.dart';
 import '../plugins/mock/mock_plugin.dart';
 import '../plugins/gql/gql_plugin.dart';
 import '../plugins/cache/cache_plugin.dart';
@@ -94,6 +95,7 @@ class CodeGenerator {
     _registerPlugin(StatePlugin(outputDir: outputDir, options: options));
     _registerPlugin(ObserverPlugin(outputDir: outputDir, options: options));
     _registerPlugin(TestPlugin(outputDir: outputDir, options: options));
+    _registerPlugin(GymPlugin(outputDir: outputDir, options: options));
     _registerPlugin(MockPlugin(outputDir: outputDir, options: options));
     _registerPlugin(GqlPlugin(outputDir: outputDir, options: options));
     _registerPlugin(CachePlugin(outputDir: outputDir, options: options));
@@ -125,7 +127,22 @@ class CodeGenerator {
   Future<GeneratorResult> generate() async {
     try {
       // Resolve the same normalized plan contract used by the CLI.
-      final data = Map<String, dynamic>.from(config.toJson());
+      // #294: GeneratorConfig.toJson() emits snake_case keys (id_field,
+      // query_field, ...) but plugins read kebab-case keys (id-field,
+      // query-field, ...) — exactly what MakeCommand's arg-parser
+      // produces. Mirror MakeCommand._normalizedOptions() here so the
+      // CodeGenerator path (used by tests + programmatic callers) honors
+      // the caller's `GeneratorConfig.idField` / `queryField` instead of
+      // silently falling through to the plugins' hardcoded `'id'`
+      // default.
+      final data = <String, dynamic>{};
+      config.toJson().forEach((key, value) {
+        data[key] = value;
+        final kebab = key.replaceAll('_', '-');
+        if (kebab != key) {
+          data[kebab] = value;
+        }
+      });
       if (data['methods'] is List) {
         data['methods'] = List<String>.from(data['methods'] as List);
       }

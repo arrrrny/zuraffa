@@ -61,18 +61,20 @@ class QueryParams<T> extends Params {
     final _patchMap = _patcher.patchMap;
     return QueryParams(
       params: _patchMap.containsKey(QueryParams$.params)
-          ? (_patchMap[QueryParams$.params] is Function)
-                ? _patchMap[QueryParams$.params](this.params)
-                : (_patchMap[QueryParams$.params] is Patch)
-                ? _patchMap[QueryParams$.params].applyTo(this.params)
-                : _patchMap[QueryParams$.params]
+          ? ((_patchMap[QueryParams$.params] is Function)
+                    ? _patchMap[QueryParams$.params](this.params)
+                    : (_patchMap[QueryParams$.params] is Patch)
+                    ? _patchMap[QueryParams$.params].applyTo(this.params)
+                    : _patchMap[QueryParams$.params])
+                as Map<String, dynamic>?
           : this.params,
       filter: _patchMap.containsKey(QueryParams$.filter)
-          ? (_patchMap[QueryParams$.filter] is Function)
-                ? _patchMap[QueryParams$.filter](this.filter)
-                : (_patchMap[QueryParams$.filter] is Patch)
-                ? _patchMap[QueryParams$.filter].applyTo(this.filter)
-                : _patchMap[QueryParams$.filter]
+          ? ((_patchMap[QueryParams$.filter] is Function)
+                    ? _patchMap[QueryParams$.filter](this.filter)
+                    : (_patchMap[QueryParams$.filter] is Patch)
+                    ? _patchMap[QueryParams$.filter].applyTo(this.filter)
+                    : _patchMap[QueryParams$.filter])
+                as Filter<T>?
           : this.filter,
     );
   }
@@ -98,15 +100,15 @@ class QueryParams<T> extends Params {
 
 extension QueryParamsPropertyHelpers<T> on QueryParams<T> {
   bool get hasFilter {
-    return filter != null;
+    return this.filter != null;
   }
 
   bool get noFilter {
-    return filter == null;
+    return this.filter == null;
   }
 
   Filter<T> get filterRequired {
-    return filter ?? (throw StateError('filter is required but was null'));
+    return this.filter ?? (throw StateError('filter is required but was null'));
   }
 }
 

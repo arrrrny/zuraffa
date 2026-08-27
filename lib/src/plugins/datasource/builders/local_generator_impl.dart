@@ -190,7 +190,7 @@ extension LocalDataSourceBuilderImpl on LocalDataSourceBuilder {
           }
           break;
         case 'toggle':
-          final fieldEnum = '${config.name}Fields';
+          final fieldEnum = 'Field<${config.name}, dynamic>';
           methods.add(
             _buildMethodWithBody(
               name: 'toggle',
@@ -351,7 +351,7 @@ extension LocalDataSourceBuilderImpl on LocalDataSourceBuilder {
           );
           break;
         case 'toggle':
-          final fieldEnum = '${config.name}Fields';
+          final fieldEnum = 'Field<${config.name}, dynamic>';
           methods.add(
             _buildMethodWithBody(
               name: 'toggle',

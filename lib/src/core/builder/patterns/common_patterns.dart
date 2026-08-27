@@ -285,9 +285,15 @@ class CommonPatterns {
     ];
     for (final prefix in possiblePrefixes) {
       if (usecaseSnake.startsWith(prefix)) {
-        final entitySnake = usecaseSnake
-            .replaceFirst(prefix, '')
-            .replaceFirst('_list', '');
+        final entitySnake = usecaseSnake.replaceFirst(prefix, '');
+        // Only strip a TRAILING `_list` suffix (list-style usecases like
+        // `get_product_list` -> `product`). Never strip `_list` as a substring:
+        // it would mangle entity names containing `_list` mid-name
+        // (e.g. `url_listing` -> `urling`, `barcode_listing` -> `barcoding`).
+        // See issue #299.
+        if (entitySnake.endsWith('_list')) {
+          return entitySnake.substring(0, entitySnake.length - '_list'.length);
+        }
         return entitySnake;
       }
     }

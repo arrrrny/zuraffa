@@ -2,6 +2,7 @@ import '../models/generated_file.dart';
 import 'base_plugin_command.dart';
 import '../plugins/view/view_plugin.dart';
 import '../plugins/route/route_plugin.dart';
+import '../config/zfa_config.dart';
 
 class ViewCommand extends PluginCommand {
   @override
@@ -27,13 +28,19 @@ class ViewCommand extends PluginCommand {
     );
     argParser.addFlag(
       'v6-state',
-      help: 'Generate v6 dual-layer state (DomainState + ViewState + '
+      help:
+          'Generate v6 dual-layer state (DomainState + ViewState + '
           'DualLayerPresenter) and ControlledWidget/FragmentBuilder-based view',
       defaultsTo: false,
     );
     argParser.addFlag(
       'route',
       help: 'Generate route definitions for this view',
+      defaultsTo: false,
+    );
+    argParser.addFlag(
+      'xray',
+      help: 'Generate with X-Ray integration',
       defaultsTo: false,
     );
   }
@@ -66,7 +73,10 @@ class ViewCommand extends PluginCommand {
     final generateState = argResults?['state'] as bool? ?? false;
     final generateV6State = argResults?['v6-state'] as bool? ?? false;
     final generateRoute = argResults?['route'] as bool? ?? false;
-    final generateXRay = argResults?['xray'] as bool? ?? false;
+    final config = ZfaConfig.load();
+    final generateXRay = argResults!.wasParsed('xray')
+        ? (argResults?['xray'] as bool? ?? false)
+        : (config?.xrayByDefault ?? false);
 
     final capability = plugin.capabilities.firstWhere(
       (c) => c.name == capabilityName,

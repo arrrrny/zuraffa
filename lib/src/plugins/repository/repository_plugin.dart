@@ -7,6 +7,7 @@ import '../../core/plugin_system/plugin_interface.dart';
 import '../../core/plugin_system/plugin_context.dart';
 import '../../models/generated_file.dart';
 import '../../models/generator_config.dart';
+import '../datasource/builders/interface_generator.dart';
 import '../method_append/builders/method_append_builder.dart';
 import '../method_append/capabilities/method_capability.dart';
 import 'capabilities/create_repository_capability.dart';
@@ -116,6 +117,13 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       syncDirection: context.get<String>('sync-direction') ?? 'push',
       generateLocal: context.get<bool>('local') ?? false,
       noEntity: context.get<bool>('no-entity') ?? false,
+      // #294: read id-field / query-field from the CLI/MakeCommand-resolved
+      // context so generators don't hardcode `EntityFields.id` for
+      // entities whose id field is e.g. `depotId`.
+      idField: context.data['id-field'] ?? 'id',
+      idFieldType: context.data['id-field-type'] ?? 'String',
+      queryField: context.data['query-field'] ?? 'id',
+      queryFieldType: context.data['query-field-type'],
       useService: useService,
       generateRepository: true,
       appendToExisting:
@@ -187,22 +195,56 @@ class RepositoryPlugin extends FileGeneratorPlugin implements CliAwarePlugin {
         (config.appendToExisting && config.repo != null)) {
       files.add(await interfaceGen.generate(targetConfig));
     }
-    // #284: Always emit the data repository implementation alongside the
-    // interface for entity-based configs.  Previously this was gated on
-    // generateData || generateDataSource || appendToExisting, but those flags
-    // are not reliably set when the make invocation activates the datasource
-    // plugin via a preset (the schema default of false wins over the
-    // plugin-activation sync in PluginManager.buildContext).  The DI plugin
-    // unconditionally emits `product_repository_di.dart` referencing
+    // #284 / #348: Always emit the data repository implementation alongside
+    // the interface for entity-based configs.  Historically this was gated
+    // on generateData || generateDataSource || appendToExisting, but those
+    // flags are not reliably set for `--append` runs that don't activate the
+    // datasource plugin (the repository schema property `datasource` defaults
+    // to false and only the active-plugin sync flips it to true).  #347 made
+    // the plugin-activation sync run BEFORE the schema-default merge in
+    // PluginManager.buildContext, so `data['datasource'] == true` now holds
+    // whenever the datasource plugin is active (preset or explicit) and the
+    // DI plugin emits `product_repository_di.dart` referencing
     // `DataProductRepository` whenever generateRepository || generateData
-    // is true, so the impl must be produced for every entity-based config to
-    // keep the generated app compiling.
+    // is true.  The impl is still produced unconditionally for every
+    // entity-based config to keep `--append` and `--repo` flows compiling
+    // even when no datasource plugin is active (custom-usecase scenarios).
     if ((config.isEntityBased ||
             config.generateData ||
             config.generateDataSource ||
             config.appendToExisting) &&
         !config.hasService) {
       files.add(await implementationGen.generate(targetConfig));
+    }
+    // #406: emit the data-source interface the implementation imports when
+    // `--datasource` is requested. Previously `zfa repository create
+    // --datasource` (default true) set `generateDataSource` but the
+    // repository plugin never wrote the file, so the impl's
+    // `import '../datasources/<entity>/<entity>_datasource.dart'` and its
+    // `<Entity>DataSource _dataSource` field were unresolvable
+    // (uri_does_not_exist + undefined_class). The DataSourcePlugin handles
+    // this in the `zfa make` orchestrated flow (PluginManager activates it
+    // and sets `data['datasource'] = true`); this covers the direct
+    // `zfa repository create` path. We SKIP generation when the datasource
+    // plugin is already active to avoid a "Multiple operations" conflict
+    // on the same file. Generating only the interface (not local/remote)
+    // matches exactly what the impl imports in the default (non-cache,
+    // non-sync) branch of `_buildImportPaths`.
+    final datasourcePluginActive =
+        context != null &&
+        (context.data['datasource'] == true ||
+            context.get<bool>('datasource') == true);
+    if (config.generateDataSource &&
+        !config.hasService &&
+        !datasourcePluginActive) {
+      final datasourceInterfaceGen = context != null
+          ? DataSourceInterfaceBuilder(
+              outputDir: outputDir,
+              options: options,
+              fileSystem: context.fileSystem,
+            )
+          : DataSourceInterfaceBuilder(outputDir: outputDir, options: options);
+      files.add(await datasourceInterfaceGen.generate(targetConfig));
     }
     return files;
   }

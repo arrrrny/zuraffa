@@ -56,8 +56,7 @@ class DependencySpec {
           version == other.version;
 
   @override
-  int get hashCode =>
-      Object.hash(name, kind, gitUrl, gitPath, gitRef, version);
+  int get hashCode => Object.hash(name, kind, gitUrl, gitPath, gitRef, version);
 }
 
 /// Result of wiring dependencies into a project.
@@ -90,22 +89,6 @@ class WireResult {
 /// Used by both `zfa setup` (new app bootstrap) and `zfa init` (existing
 /// project dependency wiring) so the two commands stay in sync.
 class DependencyWirer {
-  /// Git source for the zuraffa monorepo (contains both `zuraffa` at the root
-  /// and `zuraffa_flutter` as a sub-package).
-  static const zuraffaGitUrl = 'https://github.com/arrrrny/zuraffa';
-
-  /// Git source for the zorphy monorepo (contains `zorphy` and
-  /// `zorphy_annotation` sub-packages). Must match the exact URL string used
-  /// by the zuraffa root pubspec (https://github.com/arrrrny/zorphy.git):
-  /// pub treats git sources as identical only when the URL string matches
-  /// verbatim, and a `.git`-vs-bare mismatch breaks version solving when
-  /// `zuraffa_flutter` pulls `zuraffa` transitively.
-  static const zorphyGitUrl = 'https://github.com/arrrrny/zorphy.git';
-
-  /// Default git ref — tracks the development branch which is where active
-  /// v6 work lands before merging to master.
-  static const defaultGitRef = 'development';
-
   /// The analyzer version zuraffa pins in pure-Dart packages (see root
   /// pubspec.yaml). Overriding analyzer in downstream apps prevents
   /// version-conflict failures when `dart pub get` resolves the transitive
@@ -133,18 +116,29 @@ class DependencyWirer {
       DependencySpec(
         name: isFlutter ? 'zuraffa_flutter' : 'zuraffa',
         kind: DependencyKind.regular,
-        gitUrl: zuraffaGitUrl,
-        gitPath: isFlutter ? 'zuraffa_flutter' : null,
-        gitRef: defaultGitRef,
+        version: '^6.0.0',
       ),
-      DependencySpec(
+      // Hosted, not git: zuraffa itself depends on zorphy_annotation from
+      // hosted (^2.0.0). A root-level git pin creates a source conflict pub
+      // cannot solve ("zorphy_annotation from hosted is required"), so the
+      // wired declaration must match zuraffa's own hosted source.
+      const DependencySpec(
         name: 'zorphy_annotation',
         kind: DependencyKind.regular,
-        gitUrl: zorphyGitUrl,
-        gitPath: 'zorphy_annotation',
-        gitRef: defaultGitRef,
+        version: '^2.0.0',
+      ),
+      // #281: Wire json_annotation as a direct regular dep so generated entity
+      // files (which use @JsonSerializable / JsonKey) satisfy
+      // depend_on_referenced_packages and json_serializable stops warning.
+      const DependencySpec(
+        name: 'json_annotation',
+        kind: DependencyKind.regular,
       ),
       const DependencySpec(name: 'build_runner', kind: DependencyKind.dev),
+      // #281: json_serializable is registered as a builder in build.yaml; it
+      // must also be a direct dev dep so build_runner resolves the builder and
+      // depend_on_referenced_packages is satisfied.
+      const DependencySpec(name: 'json_serializable', kind: DependencyKind.dev),
       const DependencySpec(name: 'mocktail', kind: DependencyKind.dev),
       if (isFlutter)
         const DependencySpec(name: 'flutter_lints', kind: DependencyKind.dev),
@@ -202,7 +196,8 @@ class DependencyWirer {
           }
           // Key exists: check if the value matches the required version.
           final existing = overrides[spec.name];
-          final existingStr = (existing is String ? existing : existing.toString()).trim();
+          final existingStr =
+              (existing is String ? existing : existing.toString()).trim();
           final requiredStr = (spec.version ?? '').trim();
           return existingStr != requiredStr; // stale if different
       }
@@ -230,11 +225,7 @@ class DependencyWirer {
   ///   in place.
   ///
   /// Pure function — does not perform I/O.
-  static String addOverrideToPubspec(
-    String content,
-    String key,
-    String value,
-  ) {
+  static String addOverrideToPubspec(String content, String key, String value) {
     final lines = content.split('\n');
     final overrideRegex = RegExp(r'^dependency_overrides:\s*$');
     final overrideIdx = lines.indexWhere((l) => overrideRegex.hasMatch(l));
@@ -314,13 +305,17 @@ class DependencyWirer {
       return WireResult(skipped: skippedNames);
     }
 
-    print('🔧 Wiring ${missing.length} missing dependenc${missing.length == 1 ? 'y' : 'ies'}:');
+    print(
+      '🔧 Wiring ${missing.length} missing dependenc${missing.length == 1 ? 'y' : 'ies'}:',
+    );
     for (final spec in missing) {
       print('   • $spec');
     }
 
     if (dryRun) {
-      print('\n🔍 Dry-run: no changes written. Re-run without --dry-run to apply.');
+      print(
+        '\n🔍 Dry-run: no changes written. Re-run without --dry-run to apply.',
+      );
       return WireResult(
         added: missing.map((s) => s.name).toList(),
         dryRun: true,
@@ -372,11 +367,11 @@ class DependencyWirer {
     for (final spec in pubAddSpecs) {
       final args = _buildPubAddArgs(spec);
       try {
-        final result = await Process.run(
-          pubExecutable,
-          ['pub', 'add', ...args],
-          workingDirectory: root,
-        );
+        final result = await Process.run(pubExecutable, [
+          'pub',
+          'add',
+          ...args,
+        ], workingDirectory: root);
         if (result.exitCode == 0) {
           added.add(spec.name);
           print('   ✅ Added $spec');
@@ -395,11 +390,10 @@ class DependencyWirer {
     // --- final re-resolve so the whole graph is consistent ---
     if (overrideSpecs.isNotEmpty) {
       try {
-        final getResult = await Process.run(
-          pubExecutable,
-          ['pub', 'get'],
-          workingDirectory: root,
-        );
+        final getResult = await Process.run(pubExecutable, [
+          'pub',
+          'get',
+        ], workingDirectory: root);
         if (getResult.exitCode != 0) {
           final err = getResult.stderr.toString().trim();
           if (err.isNotEmpty) {

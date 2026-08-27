@@ -106,6 +106,87 @@ zfa entity add-field -n Product --field stock:int
 - The domain root is fixed to `lib/src/domain`.
 - Legacy `--output` values are accepted by some commands for compatibility but are not the public v5 contract.
 
+### Forward references & cyclic entity graphs (`--allow-forward-refs`)
+
+By default, `entity create` and `entity add-field` validate that every
+non-primitive field type resolves to either an existing entity directory or
+an existing enum file on disk (added by #296 — prevents silently writing
+`$InvalidType` placeholders). This guard rejects forward references to
+entities that have not been generated yet.
+
+Real-world GraphQL schemas (Vendure, Shopify, etc.) often contain genuine
+mutual-reference cycles — `Order ↔ Customer`, `Facet ↔ FacetValue`,
+`Fulfillment ↔ FulfillmentLine` — so a schema-driven batch cannot satisfy
+"every referenced entity must already exist" in any ordering.
+
+Pass `--allow-forward-refs` to opt out of the on-disk check for a single
+invocation. The `ImportResolver` already emits correct `$`-prefixed entity
+imports for forward references (e.g. `import '../order/order.dart';` even
+when `order/order.dart` does not exist yet), so the build resolves cleanly
+once every entity in the batch has been generated.
+
+```bash
+# Step 1: Customer references Order (which does not exist yet)
+zfa entity create -n Customer \
+  --field id:String? \
+  --field orders:List<Order> \
+  --allow-forward-refs
+
+# Step 2: Order references Customer back — cycle closed
+zfa entity create -n Order \
+  --field id:String? \
+  --field customer:Customer? \
+  --allow-forward-refs
+```
+
+### Auto-generated ids (`--auto-id`)
+
+`zfa make` requires every entity to have a real identity (issue #307 — the
+old silent first-field fallback produced enum-typed ids for id-less entities
+like `ChatMessage` / `TelemetryEvent`). Pass `--auto-id` to have zfa declare
+a `String id` field that the generated constructor defaults to a fresh
+`Uuid().v4()` — callers construct the entity without supplying an id:
+
+```bash
+zfa entity create -n ChatMessage --auto-id \
+  --field role:ChatMessageRole \
+  --field content:String \
+  --field timestamp:DateTime
+```
+
+The generated entity imports `package:uuid/uuid.dart`; add `uuid` to the
+app's pubspec (`dart pub add uuid`) — zfa warns if it is missing.
+
+### Value objects (`--kind=value_object`)
+
+Entities are aggregate/event roots with identity. Immutable composition
+types (parser options, transformation mappings, embedded value records)
+have no identity of their own — model them as **value objects**:
+
+```bash
+zfa entity create -n ParserConfig --kind=value_object \
+  --field separator:String \
+  --field trimWhitespace:bool
+```
+
+A value object's annotation carries `kind: ZorphyKind.valueObject` (the
+`@ZValueObject` alias is equivalent). Codegen is identical to an entity
+(equality, copyWith, JSON), but `zfa make` treats it as an embedded type:
+repository/usecase/controller/presenter (and the other persisted-root
+plugins) are skipped with a notice — no id is required and the loud
+no-id error never fires for it.
+
+### Id-less entities fail loudly
+
+An entity with no `id` / `*Id` field and no `--auto-id` / value-object
+marker makes `zfa make` fail with a clear diagnostic (instead of silently
+falling back to the first field). The message lists the three fixes: add an
+id field, recreate with `--auto-id`, or model it as a value object.
+
+`--allow-forward-refs` is **opt-in**. The default behaviour (reject unknown
+types) is unchanged — it still guards against typos and genuinely missing
+enums/entities when you are generating a single entity outside a batch.
+
 ---
 
 ## `zfa make`

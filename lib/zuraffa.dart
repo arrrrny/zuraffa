@@ -579,6 +579,21 @@ export 'src/core/module/engine.dart';
 export 'src/core/module/zuraffa_plugin.dart';
 
 // ============================================================
+// MCP Plugin (issue #369) — runtime tool exposure
+// ============================================================
+
+/// Runtime MCP tool contracts: [McpTool], [McpToolResult],
+/// [McpToolRegistry], [McpServerPlugin], [McpStdioServer], and
+/// [McpSseServer].
+/// Together they let a Zuraffa app expose its features as
+/// Model Context Protocol tools callable by AI agents.
+export 'src/core/module/mcp_tool.dart';
+export 'src/core/module/mcp_tool_registry.dart';
+export 'src/core/module/mcp_server_plugin.dart';
+export 'src/core/module/mcp_stdio_server.dart';
+export 'src/mcp/sse_server.dart' show McpSseServer;
+
+// ============================================================
 // Framework Configuration
 // ============================================================
 

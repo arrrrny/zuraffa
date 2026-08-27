@@ -3,38 +3,20 @@ import 'dart:io';
 import 'package:test/test.dart';
 import 'package:zuraffa/src/zfa_cli.dart';
 
-/// Safely set CWD, recovering if the current CWD was deleted by another test.
-void _safeSetCwd(Directory dir) {
-  try {
-    Directory.current = dir;
-  } catch (_) {
-    try { Directory.current = Directory.systemTemp; } catch (_) {}
-    try { Directory.current = dir; } catch (_) {}
-  }
-}
-
+/// Integration tests for `zfa xray deck`.
+///
+/// The sandbox root is passed via `--root` so the tests never mutate the
+/// process working directory (which is shared across concurrently-running
+/// test files under `dart test`). All source/yaml/output paths are absolute,
+/// so the command is fully hermetic.
 void main() {
   late Directory tempDir;
-  late String originalWd;
 
   setUp(() async {
     tempDir = await Directory.systemTemp.createTemp('xray_deck_cli_');
-    originalWd = Directory.current.path;
   });
 
   tearDown(() async {
-    // CRITICAL: Restore CWD BEFORE deleting tempDir.
-    // If CWD points to tempDir and we delete it, any access to
-    // Directory.current / Uri.base crashes the test runner itself.
-    try {
-      if (Directory(originalWd).existsSync()) {
-        Directory.current = originalWd;
-      } else {
-        Directory.current = Directory.systemTemp.path;
-      }
-    } catch (_) {
-      try { Directory.current = Directory.systemTemp.path; } catch (_) {}
-    }
     if (tempDir.existsSync()) {
       await tempDir.delete(recursive: true);
     }
@@ -42,8 +24,6 @@ void main() {
 
   group('zfa xray deck CLI integration', () {
     test('generates registration from YAML source', () async {
-      _safeSetCwd(tempDir);
-
       // Create a YAML file.
       final yamlDir = Directory('${tempDir.path}/assets/mocks');
       yamlDir.createSync(recursive: true);
@@ -62,6 +42,7 @@ void main() {
       final output = await runCapturing([
         'xray',
         'deck',
+        '--root=${tempDir.path}',
         '--yaml=${yamlFile.path}',
         '--output=$outputFile',
         '--usecase-name=ScanBarcode',
@@ -83,14 +64,15 @@ void main() {
       expect(content, contains('XRayMockType.valid'));
       expect(content, contains("name: 'Invalid Barcode'"));
       expect(content, contains('XRayMockType.error'));
-      expect(content, contains("description: 'Triggers validation failure'"));
+      expect(
+        content,
+        contains("description: 'Triggers validation failure'"),
+      );
       expect(content, contains('registerScanBarcodeXRayDeck'));
       expect(content, contains('XRayControlDeckRegistry.registerEntries'));
     });
 
     test('generates registration from annotated source', () async {
-      _safeSetCwd(tempDir);
-
       // Create a source file with annotations.
       final sourceFile = File('${tempDir.path}/scan_barcode_usecase.dart');
       sourceFile.writeAsStringSync(
@@ -105,6 +87,7 @@ class ScanBarcodeUseCase {}
       final output = await runCapturing([
         'xray',
         'deck',
+        '--root=${tempDir.path}',
         '--source=${sourceFile.path}',
         '--output=$outputFile',
         '--usecase-name=ScanBarcode',
@@ -120,8 +103,6 @@ class ScanBarcodeUseCase {}
     });
 
     test('combines annotations and YAML', () async {
-      _safeSetCwd(tempDir);
-
       final sourceFile = File('${tempDir.path}/process_usecase.dart');
       sourceFile.writeAsStringSync(
         '''@XRayMock(name: 'FromAnnotation', payload: 'ann', type: 'valid')
@@ -140,6 +121,7 @@ class ProcessUseCase {}
       final output = await runCapturing([
         'xray',
         'deck',
+        '--root=${tempDir.path}',
         '--source=${sourceFile.path}',
         '--yaml=${yamlFile.path}',
         '--output=$outputFile',
@@ -154,15 +136,15 @@ class ProcessUseCase {}
     });
 
     test('no source and no yaml shows error', () async {
-      _safeSetCwd(tempDir);
-
-      final output = await runCapturing(['xray', 'deck']);
+      final output = await runCapturing([
+        'xray',
+        'deck',
+        '--root=${tempDir.path}',
+      ]);
       expect(output, contains('provide --source and/or --yaml'));
     });
 
     test('re-running with updated YAML reflects changes', () async {
-      _safeSetCwd(tempDir);
-
       final yamlFile = File('${tempDir.path}/scenarios.yaml');
       yamlFile.writeAsStringSync('''- name: V1
   payload: "a"
@@ -175,6 +157,7 @@ class ProcessUseCase {}
       await runCapturing([
         'xray',
         'deck',
+        '--root=${tempDir.path}',
         '--yaml=${yamlFile.path}',
         '--output=$outputFile',
         '--usecase-name=ScenariosTest',
@@ -199,6 +182,7 @@ class ProcessUseCase {}
       await runCapturing([
         'xray',
         'deck',
+        '--root=${tempDir.path}',
         '--yaml=${yamlFile.path}',
         '--output=$outputFile',
         '--usecase-name=ScenariosTest',
@@ -213,8 +197,6 @@ class ProcessUseCase {}
     });
 
     test('auto-detected usecase name preserves UseCase casing', () async {
-      _safeSetCwd(tempDir);
-
       final sourceFile = File('${tempDir.path}/scan_barcode_usecase.dart');
       sourceFile.writeAsStringSync(
         '''@XRayMock(name: 'Test', payload: 'data', type: 'valid')
@@ -228,6 +210,7 @@ class ScanBarcodeUseCase {}
       final output = await runCapturing([
         'xray',
         'deck',
+        '--root=${tempDir.path}',
         '--source=${sourceFile.path}',
         '--output=$outputFile',
         '--force',

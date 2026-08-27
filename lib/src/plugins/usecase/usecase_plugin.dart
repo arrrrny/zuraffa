@@ -10,8 +10,8 @@ import '../../models/generator_config.dart';
 import 'capabilities/create_usecase_capability.dart';
 import 'generators/custom_usecase_generator.dart';
 import 'generators/entity_usecase_generator.dart';
-import 'generators/stream_usecase_generator.dart';
 import 'generators/os_background_task_generator.dart';
+import 'generators/stream_usecase_generator.dart';
 
 /// Manages use case generation for the domain layer.
 class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
@@ -71,7 +71,13 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       },
       'type': {
         'type': 'string',
-        'enum': ['usecase', 'stream', 'background', 'os_background', 'completable'],
+        'enum': [
+          'usecase',
+          'stream',
+          'background',
+          'os_background',
+          'completable',
+        ],
         'default': 'usecase',
       },
       'domain': {'type': 'string', 'description': 'Domain folder name'},
@@ -120,6 +126,13 @@ class UseCasePlugin extends FileGeneratorPlugin implements CliAwarePlugin {
       usecases: context.data['usecases']?.cast<String>().toList() ?? [],
       variants: context.data['variants']?.cast<String>().toList() ?? [],
       noEntity: context.get<bool>('no-entity') ?? false,
+      // #294: read id-field / query-field from the CLI/MakeCommand-resolved
+      // context so generators don't hardcode `EntityFields.id` for
+      // entities whose id field is e.g. `depotId`.
+      idField: context.data['id-field'] ?? 'id',
+      idFieldType: context.data['id-field-type'] ?? 'String',
+      queryField: context.data['query-field'] ?? 'id',
+      queryFieldType: context.data['query-field-type'],
       generateUseCase: true,
       generateData: context.data['data'] == true,
       generateRepository: context.data['repository'] == true,

@@ -1,6 +1,12 @@
 import 'dart:io';
 
+import 'package:args/args.dart';
+import 'package:path/path.dart' as p;
+
 import '../cli/plugin_loader.dart';
+import '../core/plugin_system/plugin_registry.dart';
+import '../models/generated_file.dart';
+import '../plugins/mcp/capabilities/scaffold_mcp_server_capability.dart';
 
 class PluginCommand {
   Future<void> execute(List<String> args) async {
@@ -55,7 +61,30 @@ class PluginCommand {
           _printHelp();
           exit(1);
         }
-        _addPlugin(args[1]);
+        // Extract an optional --root so tests (and advanced users) can target
+        // an explicit project root instead of relying on the process working
+        // directory (issue: non-hermetic CLI tests under `dart test`).
+        String? root;
+        final rest = <String>[];
+        for (var i = 1; i < args.length; i++) {
+          if (args[i] == '--root' && i + 1 < args.length) {
+            root = args[i + 1];
+            i++;
+          } else {
+            rest.add(args[i]);
+          }
+        }
+        if (rest.isEmpty) {
+          print('Missing package name');
+          _printHelp();
+          exit(1);
+        }
+        _addPlugin(rest.first, root: root);
+        return;
+      case 'mcp':
+        // `zfa plugin mcp` is an alias for `zfa mcp scaffold` (issue #369).
+        // Delegates to the McpPlugin's ScaffoldMcpServerCapability.
+        await _scaffoldMcp(args.sublist(1));
         return;
       default:
         print('Unknown plugin command: $action');
@@ -64,9 +93,130 @@ class PluginCommand {
     }
   }
 
+  /// Scaffolds a runtime MCP server into the host app via the
+  /// McpPlugin's ScaffoldMcpServerCapability. Accepts the same flags
+  /// as `zfa mcp scaffold`: --force, --dry-run, --verbose, --revert,
+  /// plus --name.
+  Future<void> _scaffoldMcp(List<String> rest) async {
+    // Parse rest with the same ArgParser convention as the zfa mcp
+    // scaffold entrypoint, so equivalent short/long/boolean-value and
+    // name-value forms are all accepted.
+    final parser = ArgParser()
+      ..addFlag(
+        'force',
+        abbr: 'f',
+        negatable: false,
+        help: 'Overwrite existing files',
+      )
+      ..addFlag(
+        'dry-run',
+        negatable: false,
+        help: 'Preview without writing files',
+      )
+      ..addFlag(
+        'verbose',
+        abbr: 'v',
+        negatable: false,
+        help: 'Enable detailed logging',
+      )
+      ..addFlag('revert', negatable: false, help: 'Delete the scaffolded files')
+      ..addOption('name', help: 'Optional name for the MCP server')
+      ..addOption(
+        'root',
+        help:
+            'Project root to scaffold the MCP server in (default: current '
+            'directory). Lets tests run against an explicit sandbox instead of '
+            'relying on the process working directory.',
+      );
+    ArgResults parsed;
+    try {
+      parsed = parser.parse(rest);
+    } on FormatException catch (e) {
+      print('❌ Invalid mcp scaffold arguments: ${e.message}');
+      exit(1);
+    }
+    final dryRun = parsed['dry-run'] == true;
+    final force = parsed['force'] == true;
+    final verbose = parsed['verbose'] == true;
+    final root = parsed['root'] as String?;
+
+    // Ensure the McpPlugin is registered in the singleton registry.
+    final registry = PluginRegistry.instance;
+    if (!registry.plugins.any((p) => p.id == 'mcp')) {
+      // Bootstrap the registry if it's empty (e.g. when invoked outside
+      // the normal CliRunner._ensureInitialized() path), forwarding the
+      // caller's parsed flags so the registered McpPlugin's
+      // GeneratorOptions and output path match the invocation.
+      final loader = PluginLoader(
+        outputDir: 'lib/src',
+        dryRun: dryRun,
+        force: force,
+        verbose: verbose,
+        config: PluginConfig.load(),
+      );
+      final loaded = loader.buildRegistry();
+      for (final plugin in loaded.plugins) {
+        if (!registry.plugins.any((p) => p.id == plugin.id)) {
+          registry.register(plugin);
+        }
+      }
+    }
+
+    final mcpPlugin = registry.plugins.firstWhere(
+      (p) => p.id == 'mcp',
+      orElse: () {
+        if (PluginConfig.load().disabled.contains('mcp')) {
+          print(
+            '❌ The mcp plugin is disabled. Run `zfa plugin enable mcp` '
+            'to enable it.',
+          );
+          exit(1);
+        }
+        print('❌ McpPlugin is not registered.');
+        exit(1);
+      },
+    );
+    final capability = mcpPlugin.capabilities
+        .whereType<ScaffoldMcpServerCapability>()
+        .first;
+    final result = await capability.execute({
+      if (force) 'force': true,
+      if (dryRun) 'dryRun': true,
+      if (verbose) 'verbose': true,
+      'root': root,
+      if (parsed['revert'] == true) 'revert': true,
+      if (parsed['name'] != null) 'name': parsed['name'] as String,
+    });
+
+    if (result.success) {
+      final files =
+          (result.data?['generatedFiles'] as List<GeneratedFile>?) ??
+          const <GeneratedFile>[];
+      if (files.isNotEmpty) {
+        if (dryRun) {
+          print('✅ MCP server plan (dry run) — would scaffold:');
+        } else {
+          print('✅ MCP server scaffolded:');
+        }
+        for (final f in files) {
+          print('  ✨ ${f.path}');
+        }
+      } else {
+        print('✅ MCP server scaffold complete (no file changes).');
+      }
+    } else {
+      print('❌ MCP scaffold failed: ${result.message}');
+      exit(1);
+    }
+  }
+
   /// Wires a plugin package into main.dart.
-  void _addPlugin(String packageName) {
-    final mainFile = File('lib/main.dart');
+  ///
+  /// [root] is the project root to operate in (defaults to the current
+  /// directory). Tests and advanced users pass it explicitly so the command
+  /// is hermetic and does not depend on the process working directory.
+  void _addPlugin(String packageName, {String? root}) {
+    final mainFile = File(p.join(root ?? Directory.current.path, 'lib', 'main.dart'));
     if (!mainFile.existsSync()) {
       print(
         'Error: lib/main.dart not found. Run from your Flutter project root.',
@@ -151,7 +301,11 @@ class PluginCommand {
           content.substring(bootstrapMatch.start);
     } else {
       // Find the last complete ..register(...) cascade using balanced parenthesis scanner.
-      final absolutePos = _findLastRegisterEnd(content, engineMatch.end, bootstrapMatch.start);
+      final absolutePos = _findLastRegisterEnd(
+        content,
+        engineMatch.end,
+        bootstrapMatch.start,
+      );
       final lineStart = content.lastIndexOf('\n', absolutePos);
       final lineContent = content.substring(lineStart + 1);
       final indentMatch = RegExp(r'^(\s+)\.\.register').firstMatch(lineContent);
@@ -228,5 +382,9 @@ class PluginCommand {
     print('  enable <id>        Enable a plugin');
     print('  disable <id>       Disable a plugin');
     print('  add <package>      Wire a plugin package into main.dart');
+    print(
+      '  mcp [--force]      Scaffold a runtime MCP server into the host app',
+    );
+    print('                     (alias for `zfa mcp scaffold`; issue #369)');
   }
 }

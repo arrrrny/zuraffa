@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:yaml/yaml.dart';
+import 'package:path/path.dart' as p;
+import '../plugins/xray/xray_deck_barrel_writer.dart';
 
 /// CLI subcommand for generating X-Ray Control Deck code.
 class XrayDeckCommand extends Command<void> {
@@ -39,23 +41,92 @@ class XrayDeckCommand extends Command<void> {
       help: 'Overwrite existing output file',
       negatable: false,
     );
+    argParser.addOption(
+      'entity',
+      help:
+          'Entity name (PascalCase). When set, defaults --output '
+          'to lib/src/xray/<entity_snake>_xray_deck.dart, '
+          '--usecase-name to <Entity>, and updates the barrel at '
+          'lib/src/xray/xray_decks.dart (issue #360).',
+    );
+    argParser.addOption(
+      'root',
+      help:
+          'Project root to generate the deck in (default: current directory). '
+          'Lets tests run against an explicit sandbox instead of relying on '
+          'the process working directory.',
+    );
   }
 
   @override
   Future<void> run() async {
-    final sourcePath = argResults?["source"] as String?;
-    final yamlPath = argResults?["yaml"] as String?;
-    final outputPath = argResults?["output"] as String?;
-    final useCaseName = argResults?["usecase-name"] as String?;
+    var sourcePath = argResults?["source"] as String?;
+    var yamlPath = argResults?["yaml"] as String?;
+    var outputPath = argResults?["output"] as String?;
+    var useCaseName = argResults?["usecase-name"] as String?;
     final force = argResults?["force"] as bool? ?? false;
+    final entityName = argResults?["entity"] as String?;
+    final projectRoot =
+        (argResults?["root"] as String?) ?? Directory.current.path;
+    // Resolve relative source/yaml paths against the project root so the
+    // command works hermetically (e.g. from an explicit --root sandbox).
+    if (sourcePath != null && !p.isAbsolute(sourcePath)) {
+      sourcePath = p.join(projectRoot, sourcePath);
+    }
+    if (yamlPath != null && !p.isAbsolute(yamlPath)) {
+      yamlPath = p.join(projectRoot, yamlPath);
+    }
+
+    // #360: --entity adjusts defaults + triggers barrel update.
+    String? entitySnake;
+    if (entityName != null) {
+      entitySnake = _toSnakeCase(entityName);
+      outputPath ??= p.join(
+        "lib",
+        "src",
+        "xray",
+        "${entitySnake}_xray_deck.dart",
+      );
+      useCaseName ??= entityName;
+
+      // When --entity is provided without --source or --yaml, auto-discover
+      // matching usecase files.
+      if (sourcePath == null && yamlPath == null) {
+        final usecasesDir = p.join(
+          projectRoot,
+          'lib',
+          'src',
+          'domain',
+          'usecases',
+        );
+        final dir = Directory(usecasesDir);
+        if (dir.existsSync()) {
+          final matchingFiles = <String>[];
+          for (final subDir in dir.listSync().whereType<Directory>()) {
+            for (final file in subDir.listSync().whereType<File>()) {
+              final fileName = p.basename(file.path);
+              if (fileName.contains('_${entitySnake}_usecase.dart')) {
+                matchingFiles.add(file.path);
+              }
+            }
+          }
+          if (matchingFiles.isNotEmpty) {
+            // Use the first matching file as the default source.
+            sourcePath = matchingFiles.first;
+          }
+        }
+      }
+    }
 
     if (sourcePath == null && yamlPath == null) {
       print('Error: provide --source and/or --yaml');
       return;
     }
 
-    final effectiveOutput =
-        outputPath ?? _defaultOutputPath(sourcePath, yamlPath);
+    final effectiveOutput = p.join(
+      projectRoot,
+      outputPath ?? _defaultOutputPath(sourcePath, yamlPath),
+    );
     final effectiveName = useCaseName ?? _detectUseCaseName(sourcePath);
 
     if (effectiveName == null) {
@@ -92,6 +163,25 @@ class XrayDeckCommand extends Command<void> {
     final suffix = count == 1 ? 'y' : 'ies';
     print('Generated $count mock entr$suffix for $effectiveName');
     print('  Output: $effectiveOutput');
+
+    // #360: update the registration barrel so main.dart's
+    // `registerAllXRayDecks()` call wires this deck.
+    if (entityName != null) {
+      final writer = XRayDeckBarrelWriter(projectRoot: projectRoot);
+      final deckAbsPath = effectiveOutput;
+      final registerFn = 'register${effectiveName}XRayDeck';
+      final result = writer.update(
+        entityName: entityName,
+        deckFilePath: deckAbsPath,
+        registerFunctionName: registerFn,
+      );
+      print('  Barrel: ${result.message}');
+      if (result.created) {
+        print(
+          '    (run `zfa app shell --xray --force` to wire into main.dart)',
+        );
+      }
+    }
   }
 
   String _defaultOutputPath(String? sourcePath, String? yamlPath) {
@@ -257,4 +347,19 @@ class XrayDeckCommand extends Command<void> {
 
     return lines.join('\n');
   }
+}
+
+// Helper: PascalCase -> snake_case.
+String _toSnakeCase(String input) {
+  final buffer = StringBuffer();
+  for (var i = 0; i < input.length; i++) {
+    final char = input[i];
+    if (char.toUpperCase() == char && char.toLowerCase() != char) {
+      if (i > 0) buffer.write('_');
+      buffer.write(char.toLowerCase());
+    } else {
+      buffer.write(char);
+    }
+  }
+  return buffer.toString();
 }

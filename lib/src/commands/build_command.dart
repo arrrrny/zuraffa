@@ -30,6 +30,15 @@ class BuildCommand extends Command {
       negatable: false,
       help: 'Bypass AST merge and regenerate all files from scratch',
     );
+    argParser.addFlag(
+      'analyze',
+      abbr: 'a',
+      help:
+          'Run `dart analyze` after build and fail on errors '
+          '(default: on; use --no-analyze to skip). Catches non-compiling '
+          'generated code immediately (issue #395).',
+      defaultsTo: true,
+    );
   }
 
   @override
@@ -39,6 +48,7 @@ class BuildCommand extends Command {
     final clean = argResults!['clean'] as bool;
     final dryRun = argResults!['dry-run'] as bool;
     final force = argResults!['force'] as bool;
+    final analyze = argResults!['analyze'] as bool;
 
     if (clean) {
       await _cleanBuildCache();
@@ -85,7 +95,10 @@ class BuildCommand extends Command {
       // `generate_for` glob doesn't match the annotated sources still
       // produces 0 outputs — this catches that residual class of misconfig.
       if (!dryRun) {
-        if (!verifyOutputsOrFail()) {
+        if (!verifyOutputsOrFail() || !verifyDeclaredPartsOrFail()) {
+          exit(1);
+        }
+        if (analyze && !await verifyAnalyzeOrFail()) {
           exit(1);
         }
       }
@@ -97,7 +110,10 @@ class BuildCommand extends Command {
       final retryCode = await _runBuild();
       if (retryCode == 0) {
         print('\n✅ Build completed successfully after cache clean');
-        if (!verifyOutputsOrFail()) {
+        if (!verifyOutputsOrFail() || !verifyDeclaredPartsOrFail()) {
+          exit(1);
+        }
+        if (analyze && !await verifyAnalyzeOrFail()) {
           exit(1);
         }
       } else {
@@ -190,6 +206,70 @@ class BuildCommand extends Command {
     return true;
   }
 
+  /// Returns `true` when every generated part declared by a source file under
+  /// `lib/`/`test/` (`.zorphy.dart` / `.g.dart`) actually exists on disk.
+  ///
+  /// This is the residual case zuraffa#379: build_runner (AOT) can exit 0 —
+  /// or its clean-cache retry can — while a single generator (e.g.
+  /// json_serializable failing on a `Function` field) leaves ONE entity's
+  /// part file unwritten. `verifyOutputsOrFail` only catches the total-zero
+  /// case; this catches the per-file partial case so the build fails loudly
+  /// instead of leaving a broken package that references a missing part.
+  ///
+  /// Only sources that declare a `.zorphy.dart` / `.g.dart` part are checked,
+  /// so hand-written multi-part libraries are not inspected.
+  @visibleForTesting
+  bool verifyDeclaredPartsOrFail({String? projectRoot}) {
+    final missing = <String>[];
+    for (final root in ['lib', 'test']) {
+      final rootPath = projectRoot != null ? p.join(projectRoot, root) : root;
+      final dir = Directory(rootPath);
+      if (!dir.existsSync()) continue;
+      for (final entity in dir.listSync(recursive: true)) {
+        if (entity is! File || !entity.path.endsWith('.dart')) continue;
+        final name = p.basename(entity.path);
+        if (name.endsWith('.zorphy.dart') || name.endsWith('.g.dart')) {
+          continue;
+        }
+        String src;
+        try {
+          src = entity.readAsStringSync();
+        } catch (_) {
+          // Ignore unreadable files.
+          continue;
+        }
+        final partRe = RegExp(
+          r"""^\s*part\s+['"]([^'"]+)['"]\s*;""",
+          multiLine: true,
+        );
+        for (final m in partRe.allMatches(src)) {
+          final partName = m.group(1)!;
+          if (!partName.endsWith('.zorphy.dart') &&
+              !partName.endsWith('.g.dart')) {
+            continue;
+          }
+          final resolved = p.join(p.dirname(entity.path), partName);
+          if (!File(resolved).existsSync()) {
+            missing.add('${p.relative(entity.path)} -> $partName');
+          }
+        }
+      }
+    }
+    if (missing.isNotEmpty) {
+      print(
+        '\n❌ Build exited 0 but ${missing.length} declared generated part(s) are '
+        'missing — the build output is incomplete.\n'
+        '   Missing:\n'
+        '${missing.map((m) => '     - $m').join('\n')}\n'
+        '   This usually means a generator (e.g. json_serializable) failed on one\n'
+        '   source while the rest of the build succeeded. Fix the reported source\n'
+        '   and re-run `zfa build`.',
+      );
+      return false;
+    }
+    return true;
+  }
+
   /// True when at least one `.zorphy.dart` or `.g.dart` file exists under
   /// `lib/` or `test/` (the dirs covered by the canonical `generate_for`).
   @visibleForTesting
@@ -270,16 +350,67 @@ class BuildCommand extends Command {
     return line;
   }
 
+  /// Post-build guard (issue #395): runs `dart analyze` and returns `false`
+  /// when it reports any ERROR-severity issue. Only ERRORS fail the build;
+  /// warnings and info-level lints are surfaced but do not cause a non-zero
+  /// exit. Pass `--no-analyze` to skip this check entirely.
+  ///
+  /// This catches non-compiling generated code (e.g. missing imports, wrong
+  /// relative import depth) immediately after `zfa build` instead of letting
+  /// it surface downstream at `dart run` / CI time.
+  @visibleForTesting
+  Future<bool> verifyAnalyzeOrFail({String? projectRoot}) async {
+    final root = projectRoot ?? Directory.current.path;
+    print('\n🔎 Running dart analyze on lib/...');
+    final result = await Process.run('dart', [
+      'analyze',
+      'lib',
+    ], workingDirectory: root);
+    final stdout = result.stdout as String;
+    final stderr = result.stderr as String;
+    if (stdout.trim().isNotEmpty) {
+      print(stdout.trim());
+    }
+    if (stderr.trim().isNotEmpty) {
+      print(stderr.trim());
+    }
+    // `dart analyze` exit 0 = no issues; 1 = issues found; 2 = fatal error.
+    // We only fail on actual errors (lines whose severity is "error").
+    // Info-level lints are non-fatal by default (do NOT pass `--fatal-infos`,
+    // which is a boolean flag that rejects a `=false` value and would make the
+    // analyzer fail at flag-parse — see issue #415). We surface warnings/info
+    // above but only flip the exit code on real "error" severity lines.
+    final hasErrors = analyzeReportsError(stdout);
+    if (hasErrors) {
+      print(
+        '\n❌ dart analyze reported errors — generated code does not compile.\n'
+        '   Fix the generator or run with --no-analyze to skip this check.',
+      );
+      return false;
+    }
+    print('   ✅ dart analyze: no errors');
+    return true;
+  }
+
+  /// Returns true when [analyzeOutput] contains at least one line whose
+  /// severity marker is `error`. `dart analyze` formats lines as:
+  ///   `   error - path:line:col - message - code`
+  /// We look for ` - error - ` at the start of a line (after whitespace).
+  /// Returns true when [analyzeOutput] contains at least one line whose
+  /// severity marker is `error`. Exposed for unit testing so the parser can
+  /// be verified without spawning `dart analyze` (which needs a full package).
+  @visibleForTesting
+  static bool analyzeReportsError(String analyzeOutput) {
+    final errorLine = RegExp(r'^\s*error\s*-\s', multiLine: true);
+    return errorLine.hasMatch(analyzeOutput);
+  }
+
   Future<int> _runBuild() async {
     // `--delete-conflicting-outputs` was removed in build_runner 2.16.0 and
     // emits a "These options have been removed" warning on every invocation.
     // build_runner now resolves conflicting outputs via the build cache, so
     // the flag is no longer needed.
-    final args = <String>[
-      'run',
-      'build_runner',
-      'build',
-    ];
+    final args = <String>['run', 'build_runner', 'build'];
 
     final process = await Process.start(
       'dart',

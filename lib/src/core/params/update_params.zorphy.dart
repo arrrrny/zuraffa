@@ -54,25 +54,28 @@ class UpdateParams<I, P> extends Params {
     final _patchMap = _patcher.patchMap;
     return UpdateParams(
       params: _patchMap.containsKey(UpdateParams$.params)
-          ? (_patchMap[UpdateParams$.params] is Function)
-                ? _patchMap[UpdateParams$.params](this.params)
-                : (_patchMap[UpdateParams$.params] is Patch)
-                ? _patchMap[UpdateParams$.params].applyTo(this.params)
-                : _patchMap[UpdateParams$.params]
+          ? ((_patchMap[UpdateParams$.params] is Function)
+                    ? _patchMap[UpdateParams$.params](this.params)
+                    : (_patchMap[UpdateParams$.params] is Patch)
+                    ? _patchMap[UpdateParams$.params].applyTo(this.params)
+                    : _patchMap[UpdateParams$.params])
+                as Map<String, dynamic>?
           : this.params,
       id: _patchMap.containsKey(UpdateParams$.id)
-          ? (_patchMap[UpdateParams$.id] is Function)
-                ? _patchMap[UpdateParams$.id](this.id)
-                : (_patchMap[UpdateParams$.id] is Patch)
-                ? _patchMap[UpdateParams$.id].applyTo(this.id)
-                : _patchMap[UpdateParams$.id]
+          ? ((_patchMap[UpdateParams$.id] is Function)
+                    ? _patchMap[UpdateParams$.id](this.id)
+                    : (_patchMap[UpdateParams$.id] is Patch)
+                    ? _patchMap[UpdateParams$.id].applyTo(this.id)
+                    : _patchMap[UpdateParams$.id])
+                as I
           : this.id,
       data: _patchMap.containsKey(UpdateParams$.data)
-          ? (_patchMap[UpdateParams$.data] is Function)
-                ? _patchMap[UpdateParams$.data](this.data)
-                : (_patchMap[UpdateParams$.data] is Patch)
-                ? _patchMap[UpdateParams$.data].applyTo(this.data)
-                : _patchMap[UpdateParams$.data]
+          ? ((_patchMap[UpdateParams$.data] is Function)
+                    ? _patchMap[UpdateParams$.data](this.data)
+                    : (_patchMap[UpdateParams$.data] is Patch)
+                    ? _patchMap[UpdateParams$.data].applyTo(this.data)
+                    : _patchMap[UpdateParams$.data])
+                as P
           : this.data,
     );
   }

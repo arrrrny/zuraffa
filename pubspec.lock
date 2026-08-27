@@ -69,10 +69,10 @@ packages:
     dependency: transitive
     description:
       name: build_daemon
-      sha256: "8c0535c3b2f625619f4dd1036ef1127f2e77bfedf89ed2eb2676ef076e0b6712"
+      sha256: "79e05eaf15a48d7230b053a4363b8eaac0cc234bbd0134c3229455481f55cbc6"
       url: "https://pub.dev"
     source: hosted
-    version: "4.1.3"
+    version: "4.1.5"
   build_runner:
     dependency: "direct dev"
     description:
@@ -93,10 +93,10 @@ packages:
     dependency: transitive
     description:
       name: built_value
-      sha256: "34e4067d30ce212937df995f03b69992eea683539ceeac7f679a1f1eba055b56"
+      sha256: "31b24be6615ec7fcf70b3aa5a7469fe35826485e639a16dd7eb83ba30e4cc6a8"
       url: "https://pub.dev"
     source: hosted
-    version: "8.12.6"
+    version: "8.12.7"
   characters:
     dependency: transitive
     description:
@@ -397,10 +397,10 @@ packages:
     dependency: transitive
     description:
       name: matcher
-      sha256: dc0b7dc7651697ea4ff3e69ef44b0407ea32c487a39fff6a4004fa585e901861
+      sha256: "31bd099b47c10cd1aeb55146a2d46ce0277630ecef3f7dae54ad7873f36696cd"
       url: "https://pub.dev"
     source: hosted
-    version: "0.12.19"
+    version: "0.12.20"
   meta:
     dependency: "direct main"
     description:
@@ -565,10 +565,10 @@ packages:
     dependency: transitive
     description:
       name: source_gen
-      sha256: a603f1fb984a7391ae5978d1b92bfaaa08b350dca5c825256f925818f7943bf5
+      sha256: "11b6047da8e4eb6c643ccac3d0fda3f9c9e11651695f7da24a85ade8aff15a44"
       url: "https://pub.dev"
     source: hosted
-    version: "4.2.4"
+    version: "4.3.0"
   source_helper:
     dependency: transitive
     description:
@@ -589,10 +589,10 @@ packages:
     dependency: transitive
     description:
       name: source_maps
-      sha256: "190222579a448b03896e0ca6eca5998fa810fda630c1d65e2f78b3f638f54812"
+      sha256: "14c2945847669b44089bb1222f66873d7ff7103c58911917f2a63c5a62327898"
       url: "https://pub.dev"
     source: hosted
-    version: "0.10.13"
+    version: "0.10.14"
   source_span:
     dependency: transitive
     description:
@@ -693,10 +693,10 @@ packages:
     dependency: transitive
     description:
       name: vm_service
-      sha256: "0016aef94fc66495ac78af5859181e3f3bf2026bd8eecc72b9565601e19ab360"
+      sha256: "5f37239c4851efcef929cea7824e76df7f2f0970aef85d66bbc430afa40e72f0"
       url: "https://pub.dev"
     source: hosted
-    version: "15.2.0"
+    version: "15.3.0"
   watcher:
     dependency: transitive
     description:
@@ -756,16 +756,18 @@ packages:
   zorphy:
     dependency: "direct main"
     description:
-      path: "../zorphy/zorphy"
-      relative: true
-    source: path
-    version: "2.0.0"
+      name: zorphy
+      sha256: "07ee702caabe9d8511d268610daa32cc230df72a1cab7cd1e6fdc4ebbc185e27"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.2.0"
   zorphy_annotation:
     dependency: "direct main"
     description:
-      path: "../zorphy/zorphy_annotation"
-      relative: true
-    source: path
-    version: "2.0.0"
+      name: zorphy_annotation
+      sha256: f20e9b830538ce58c8b3730cf8c57616124acb3c5abc7b78f69c30c20eec9554
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.2.0"
 sdks:
   dart: ">=3.11.0 <4.0.0"

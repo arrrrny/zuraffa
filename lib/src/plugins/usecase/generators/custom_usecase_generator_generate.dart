@@ -37,12 +37,16 @@ extension CustomUseCaseGeneratorGenerate on CustomUseCaseGenerator {
         ? '${baseName}Params'
         : (config.paramsType ?? 'NoParams');
     final returnsType = config.returnsType ?? 'void';
+    // Users may pass an already-Future return type (e.g. `--returns Future<void>`).
+    // The usecase type already wraps the inner type in a Future, so strip a leading
+    // `Future<...>` to avoid `Future<Future<void>>` and bogus entity imports (#419).
+    final innerReturnsType = _stripFutureReturns(returnsType);
 
-    final baseClass = _baseClass(config, paramsType, returnsType);
-    final imports = _buildImports(config, paramsType, returnsType);
+    final baseClass = _baseClass(config, paramsType, innerReturnsType);
+    final imports = _buildImports(config, paramsType, innerReturnsType);
     final fields = _buildDependencyFields(config);
     final constructorParams = _buildDependencyParams(fields);
-    final methods = _buildMethods(config, paramsType, returnsType, fields);
+    final methods = _buildMethods(config, paramsType, innerReturnsType, fields);
 
     final spec = UseCaseClassSpec(
       className: className,
@@ -110,10 +114,26 @@ extension CustomUseCaseGeneratorGenerate on CustomUseCaseGenerator {
       methodSources: _methodSourcesForAppend(
         config,
         paramsType,
-        returnsType,
+        innerReturnsType,
         fields,
       ),
       content: content,
     );
   }
+}
+
+/// Strips a leading `Future<...>` (or bare `Future`) wrapper from a return type
+/// so it can be used as the inner type when the usecase type already wraps it.
+///
+/// Examples: `Future<void>` -> `void`, `Future<List<Item>>` -> `List<Item>`,
+/// `Future` -> `void`, `List<Item>` -> `List<Item>` (unchanged).
+String _stripFutureReturns(String type) {
+  final trimmed = type.trim();
+  if (trimmed.startsWith('Future<') && trimmed.endsWith('>')) {
+    return trimmed.substring('Future<'.length, trimmed.length - 1);
+  }
+  if (trimmed == 'Future' || trimmed == 'Future?') {
+    return 'void';
+  }
+  return trimmed;
 }

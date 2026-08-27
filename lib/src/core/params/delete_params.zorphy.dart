@@ -40,18 +40,20 @@ class DeleteParams<I> extends Params {
     final _patchMap = _patcher.patchMap;
     return DeleteParams(
       params: _patchMap.containsKey(DeleteParams$.params)
-          ? (_patchMap[DeleteParams$.params] is Function)
-                ? _patchMap[DeleteParams$.params](this.params)
-                : (_patchMap[DeleteParams$.params] is Patch)
-                ? _patchMap[DeleteParams$.params].applyTo(this.params)
-                : _patchMap[DeleteParams$.params]
+          ? ((_patchMap[DeleteParams$.params] is Function)
+                    ? _patchMap[DeleteParams$.params](this.params)
+                    : (_patchMap[DeleteParams$.params] is Patch)
+                    ? _patchMap[DeleteParams$.params].applyTo(this.params)
+                    : _patchMap[DeleteParams$.params])
+                as Map<String, dynamic>?
           : this.params,
       id: _patchMap.containsKey(DeleteParams$.id)
-          ? (_patchMap[DeleteParams$.id] is Function)
-                ? _patchMap[DeleteParams$.id](this.id)
-                : (_patchMap[DeleteParams$.id] is Patch)
-                ? _patchMap[DeleteParams$.id].applyTo(this.id)
-                : _patchMap[DeleteParams$.id]
+          ? ((_patchMap[DeleteParams$.id] is Function)
+                    ? _patchMap[DeleteParams$.id](this.id)
+                    : (_patchMap[DeleteParams$.id] is Patch)
+                    ? _patchMap[DeleteParams$.id].applyTo(this.id)
+                    : _patchMap[DeleteParams$.id])
+                as I
           : this.id,
     );
   }

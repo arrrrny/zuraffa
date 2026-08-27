@@ -1,3 +1,29 @@
+## [6.0.0] - 2026-08-21
+
+### Dependencies
+- Bumped `zorphy` to `^2.1.1` and `zorphy_annotation` to `^2.1.1` (hosted).
+- Removed git/path dependency overrides in favor of hosted dependencies; CLI (`zfa setup` / `zfa init`) now wires hosted versions (`zuraffa: ^6.0.0`).
+- `zuraffa_flutter` now depends on hosted `zuraffa: ^6.0.0` (dropped `publish_to: none`).
+
+### Features
+- **v6 architecture**: split into a pure-Dart core + `zuraffa_flutter` UI plugin; plugin system & usecase abstraction layer; micro-frontend baseline (`ZuraffaPlugin` / `ZuraffaEngine`).
+- **GraphQL**: full-stack schema-to-code generation, client runtime + subscriptions, union-to-sealed mapping, `.graphql` file generation, `graphql_core` foundation.
+- **State**: Fragmented Signal Slices, Dual-Layer State Boundary (DomainState vs ViewState), Cache Sync, ControlledWidget templates.
+- **DI**: `@Datasource` & `@Repository` decorators for auto-DI.
+- **Decorator-Driven Architecture**: foundation + `@Cacheable`, `@Route`, `@RequiresAuth`, `@Retry`, `@TrackEvent` decorators.
+- **X-Ray**: deterministic widget ID infrastructure, visual overlay with bounding boxes, MCP bridge for AI inspection, control deck with `@XRayMock` synthetic payload injector.
+- **MCP**: MCP Server 2.0 agentic control plane; expose any zuraffa app features as MCP tools.
+- **CLI**: `zfa setup` + `zfa init` dependency wiring, `zfa graphql introspect`, `zfa self-update`; `zfa entity create` enhancements (`--type-key`, `--subtype-wire-value`, `--allow-forward-refs`), route/app-shell generators, deep-link + bottom-navigation support.
+- **Migration**: v5 → v6 upgrade path tooling.
+
+### Fixes
+- Numerous `zfa` codegen/CLI correctness fixes (entity identity, field naming, route/view contract alignment).
+- Build verification hardening (fail loudly on missing parts / 0 outputs).
+- CWD-contamination test infrastructure hardening.
+- `zfa di create <Entity>` now emits per-method usecase DI (`GetXUseCase` / `UpdateXUseCase`) for entity-based flows instead of referencing the non-existent `<Entity>UseCase` (issue #410).
+- `zfa plugin add` now appends `..register(XPlugin())` to the existing `ZuraffaEngine()` cascade instead of emitting a dangling registration statement (issue #245).
+- Pre-existing failing test suites fixed: `route_golden` (RouteParams uses valid parameter syntax), `cache_golden` (@Cacheable/@CacheInvalidate generator output), `di_container_override` (`registerSingleton` override handling), and `zuraffa_flutter` `xray_control_deck` widget tests (issue #256).
+
 ## [5.7.1] - 2026-07-30
 
 ### Change

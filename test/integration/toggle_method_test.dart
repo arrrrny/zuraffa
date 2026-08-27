@@ -1,3 +1,4 @@
+@Tags(['integration', 'slow'])
 import 'dart:io';
 import 'package:test/test.dart';
 import 'package:zuraffa/src/core/generator_options.dart';
@@ -51,7 +52,7 @@ void main() {
     final repoContent = repoFile.readAsStringSync();
     expect(
       repoContent.contains(
-        'Future<Todo> toggle(ToggleParams<String, TodoFields> params)',
+        'Future<Todo> toggle(ToggleParams<String, Field<Todo, dynamic>> params)',
       ),
       isTrue,
     );
@@ -64,7 +65,7 @@ void main() {
     final useCaseContent = useCaseFile.readAsStringSync();
     expect(
       useCaseContent.contains(
-        'extends UseCase<Todo, ToggleParams<String, TodoFields>>',
+        'extends UseCase<Todo, ToggleParams<String, Field<Todo, dynamic>>>',
       ),
       isTrue,
     );
@@ -77,7 +78,7 @@ void main() {
     final dataRepoContent = dataRepoFile.readAsStringSync();
     expect(
       dataRepoContent.contains(
-        'Future<Todo> toggle(ToggleParams<String, TodoFields> params)',
+        'Future<Todo> toggle(ToggleParams<String, Field<Todo, dynamic>> params)',
       ),
       isTrue,
     );
@@ -91,7 +92,7 @@ void main() {
     final dataSourceContent = dataSourceFile.readAsStringSync();
     expect(
       dataSourceContent.contains(
-        'Future<Todo> toggle(ToggleParams<String, TodoFields> params)',
+        'Future<Todo> toggle(ToggleParams<String, Field<Todo, dynamic>> params)',
       ),
       isTrue,
     );
@@ -104,7 +105,7 @@ void main() {
     final remoteContent = remoteFile.readAsStringSync();
     expect(
       remoteContent.contains(
-        'Future<Todo> toggle(ToggleParams<String, TodoFields> params) async',
+        'Future<Todo> toggle(ToggleParams<String, Field<Todo, dynamic>> params) async',
       ),
       isTrue,
     );
@@ -123,7 +124,7 @@ void main() {
     final localContent = localFile.readAsStringSync();
     expect(
       localContent.contains(
-        'Future<Todo> toggle(ToggleParams<String, TodoFields> params) async',
+        'Future<Todo> toggle(ToggleParams<String, Field<Todo, dynamic>> params) async',
       ),
       isTrue,
     );
@@ -165,4 +166,67 @@ void main() {
     expect(controllerContent, contains('isToggling'));
     expect(controllerContent, contains('_presenter.toggleTodo'));
   });
+
+  // Regression test for #289: PR #287 added 'toggle' to the entity-methods
+  // default used by the di/test plugins (['get', 'update', 'toggle']) so a
+  // canonical `zfa make <Entity> --preset=crud --with=vpc,state,di,test`
+  // routes through the per-method generators. The test builder's method
+  // switch had no `toggle` case, so the test plugin crashed with
+  // `Unknown method: toggle` before emitting any file. This locks in the
+  // fix: with the test plugin on + toggle in the methods list, generation
+  // succeeds AND the per-method toggle usecase test file is emitted with the
+  // expected shape.
+  test(
+    '#289 — toggle test file is generated when test plugin is on (no Unknown method: toggle crash)',
+    () async {
+      final generator = CodeGenerator(
+        config: GeneratorConfig(
+          name: 'Todo',
+          methods: const ['get', 'update', 'toggle'],
+          generateData: true,
+          generateLocal: true,
+          generateUseCase: true,
+          generateVpcs: true,
+          generateState: true,
+          generateDi: true,
+          generateTest: true,
+          outputDir: outputDir,
+        ),
+        outputDir: outputDir,
+        options: const GeneratorOptions(
+          dryRun: false,
+          force: true,
+          verbose: false,
+        ),
+      );
+
+      final result = await generator.generate();
+      expect(
+        result.success,
+        isTrue,
+        reason: 'Generation crashed: ${result.errors.join('; ')}',
+      );
+
+      // The per-method test builder must emit a toggle-specific test file.
+      final toggleTestFile = File(
+        '$outputDir/../../test/domain/usecases/todo/toggle_todo_usecase_test.dart',
+      );
+      expect(
+        toggleTestFile.existsSync(),
+        isTrue,
+        reason: 'toggle_todo_usecase_test.dart should be generated',
+      );
+
+      final content = toggleTestFile.readAsStringSync();
+      // Class name follows the usecase generator's pattern.
+      expect(content, contains('ToggleTodoUseCase'));
+      // The mock repository must be exercised via its toggle method.
+      expect(content, contains('mockRepository.toggle('));
+      // The params constructor must match the usecase generator's signature.
+      expect(content, contains('ToggleParams<String, Field<Todo, dynamic>>'));
+      // The Field constant must come from the entity's Fields class
+      // (config.queryField defaults to 'id').
+      expect(content, contains('TodoFields.id'));
+    },
+  );
 }

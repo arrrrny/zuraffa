@@ -53,7 +53,9 @@ void main() {
       isTrue,
     );
     expect(
-      content1.contains("import '../../domain/entities/listing/listing.dart';"),
+      content1.contains(
+        "import '../../../domain/entities/listing/listing.dart';",
+      ),
       isTrue,
     );
     expect(content1.contains('listing_?'), isFalse);
