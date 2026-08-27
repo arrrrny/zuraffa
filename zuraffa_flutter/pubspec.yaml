@@ -29,7 +29,6 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-  mocktail: ^1.0.4
   # Transported VPC tests (issues #431 / #435) parse generated output with
   # package:analyzer and build fixture paths with package:path. Both are
   # already in the transitive graph but are declared directly here.

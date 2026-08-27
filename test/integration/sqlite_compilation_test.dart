@@ -138,7 +138,6 @@ dependencies:
   get_it: ^9.0.0
   sqlite3: ^2.4.0
 dev_dependencies:
-  mocktail: ^1.0.4
 dependency_overrides:
   meta: ^1.18.0
   analyzer: ^12.0.0

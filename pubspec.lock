@@ -425,14 +425,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.5.8"
-  mocktail:
-    dependency: "direct dev"
-    description:
-      name: mocktail
-      sha256: "5e1bf53cc7baa8062a33b84424deb61513858ea05c601b8509e683815b5914aa"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.5"
   node_preamble:
     dependency: transitive
     description:
@@ -756,16 +748,18 @@ packages:
   zorphy:
     dependency: "direct main"
     description:
-      path: "../zorphy/zorphy"
-      relative: true
-    source: path
+      name: zorphy
+      sha256: "9beabfd2dca4a2217e86151615d2392ed612c34536268b0409c093c6a63bdd41"
+      url: "https://pub.dev"
+    source: hosted
     version: "2.3.1"
   zorphy_annotation:
     dependency: "direct main"
     description:
-      path: "../zorphy/zorphy_annotation"
-      relative: true
-    source: path
+      name: zorphy_annotation
+      sha256: feeb8e944968d35870e2a7d127835a2b5cd468fb997dfc1a81f2e2cd9f1e06c1
+      url: "https://pub.dev"
+    source: hosted
     version: "2.3.1"
 sdks:
   dart: ">=3.11.0 <4.0.0"
