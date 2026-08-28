@@ -39,3 +39,5 @@ contracts
 apps/
 pubspec_overrides.yaml
 .worktrees/
+# Benchmark baseline stores (test pollution; user projects keep their own)
+benchmarks/

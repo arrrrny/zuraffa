@@ -275,6 +275,7 @@ export 'src/core/benchmark/benchmark_runner.dart';
 export 'src/core/benchmark/metric_collector.dart';
 export 'src/core/benchmark/baseline_store.dart';
 export 'src/core/benchmark/standard_metrics.dart';
+export 'src/core/benchmark/isolate_benchmark_runner.dart';
 
 export 'src/core/transaction/file_operation.dart';
 export 'src/core/transaction/generation_transaction.dart';
