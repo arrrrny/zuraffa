@@ -2,6 +2,7 @@ import 'package:nocterm/nocterm.dart' as nocterm;
 
 import '../core/component.dart';
 import '../di/tui_di_resolver.dart';
+import '../edge/tty_guard.dart';
 import '../input/key_bindings.dart';
 import '../theme/theme.dart';
 
@@ -54,6 +55,12 @@ class ZuraffaTui {
     final resolvedDi = di ?? ZuraffaDIContainer();
     final resolvedTheme = theme ?? ZuraffaTuiTheme.defaultTheme();
     final resolvedKeys = keys ?? KeyBindings.defaults();
+
+    // Enforce the FR-009 non-TTY contract promised by this entry point: refuse
+    // to start on piped/redirected stdout instead of hanging or corrupting
+    // output. The guard is defined in [TtyGuard] and unit-tested there; this
+    // wires it into the actual lifecycle.
+    const TtyGuard().requireTty();
 
     // Construct a root component that injects theme + keybindings + DI into
     // the BuildContext via InheritedModel-style wrappers, then hand control
