@@ -40,7 +40,9 @@ Future<List<Map<String, String>>> loadManifest() async {
   // process working directory cannot break the `bin/zfa.dart` resolution
   // (issue #506). The child CWD is pinned to the project root so the CLI's
   // own relative lookups resolve correctly.
-  final result = await runZfaSource(['manifest'], workingDirectory: zfaProjectRoot);
+  final result = await runZfaSource([
+    'manifest',
+  ], workingDirectory: zfaProjectRoot);
   if (result.exitCode != 0) {
     throw StateError(
       'zfa manifest failed (${result.exitCode}):\n${result.stderr}',
