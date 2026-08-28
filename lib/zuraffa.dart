@@ -259,6 +259,23 @@ export 'src/core/builder/shared/spec_library.dart';
 export 'src/core/plugin_system/plugin_interface.dart' hide ZuraffaPlugin;
 export 'src/core/plugin_system/plugin_lifecycle.dart';
 export 'src/core/plugin_system/plugin_registry.dart';
+
+// ============================================================
+// Benchmark Contract Library (feature 015-benchmark-plugin)
+// ============================================================
+
+/// The benchmark contract surface every Zuraffa app/plugin can implement —
+/// interface-only, decoupled from the benchmark plugin implementation
+/// (FR-015): scenarios depend only on these types, never on the runner or
+/// the plugin wiring. Pure-Dart (no Flutter dependency).
+export 'src/core/benchmark/benchmark_contract.dart';
+export 'src/core/benchmark/benchmark_result.dart';
+export 'src/core/benchmark/benchmark_registry.dart';
+export 'src/core/benchmark/benchmark_runner.dart';
+export 'src/core/benchmark/metric_collector.dart';
+export 'src/core/benchmark/baseline_store.dart';
+export 'src/core/benchmark/standard_metrics.dart';
+
 export 'src/core/transaction/file_operation.dart';
 export 'src/core/transaction/generation_transaction.dart';
 export 'src/core/transaction/transaction_result.dart';

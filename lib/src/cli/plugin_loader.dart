@@ -33,6 +33,7 @@ import '../plugins/strategy/strategy_plugin.dart';
 import '../plugins/module/module_plugin.dart';
 import '../plugins/mcp/mcp_plugin.dart';
 import '../plugins/cli/cli_plugin.dart' as cli_gen;
+import '../plugins/benchmark/benchmark_plugin.dart';
 
 class PluginConfig {
   final Set<String> disabled;
@@ -146,6 +147,10 @@ class PluginLoader {
       // Adds the `--with=tui` capability that emits list/detail TUI screens
       // wired to an entity's existing use cases (FR-011, SC-005).
       TuiPlugin(outputDir: outputDir, options: options),
+      // Internal benchmark plugin (specs/015-benchmark-plugin): pure-Dart,
+      // no Flutter. Provides the extensible benchmark contract framework
+      // and the `zfa benchmark` CLI command (FR-011, FR-014, FR-015).
+      BenchmarkPlugin(),
     ];
   }
 }
