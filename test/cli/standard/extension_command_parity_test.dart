@@ -7,8 +7,11 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
+
+import '../../helpers/run_zfa_source.dart';
 
 const String extensionYml = '.specify/extensions/zuraffa/extension.yml';
 const String extensionRoot = '.specify/extensions/zuraffa';
@@ -33,7 +36,13 @@ String expectedAlias(String plugin, String name) {
 }
 
 Future<List<Map<String, String>>> loadManifest() async {
-  final result = await Process.run('dart', ['run', 'bin/zfa.dart', 'manifest']);
+  // Run via the CWD-independent helper so a parallel test that mutates the
+  // process working directory cannot break the `bin/zfa.dart` resolution
+  // (issue #506). The child CWD is pinned to the project root so the CLI's
+  // own relative lookups resolve correctly.
+  final result = await runZfaSource([
+    'manifest',
+  ], workingDirectory: zfaProjectRoot);
   if (result.exitCode != 0) {
     throw StateError(
       'zfa manifest failed (${result.exitCode}):\n${result.stderr}',
@@ -53,7 +62,11 @@ Future<List<Map<String, String>>> loadManifest() async {
 
 ({Map<String, String> aliasesToFile, Set<String> aliases})
 parseExtensionProvides() {
-  final doc = loadYaml(File(extensionYml).readAsStringSync()) as Map;
+  // Anchor to the project root: the test file's Directory.current is unsafe
+  // under parallel dart test (issue #506).
+  final doc =
+      loadYaml(File(p.join(zfaProjectRoot, extensionYml)).readAsStringSync())
+          as Map;
   final commands = (doc['provides'] as Map)['commands'] as List;
   final aliasesToFile = <String, String>{};
   final aliases = <String>{};
@@ -70,6 +83,10 @@ parseExtensionProvides() {
 }
 
 void main() {
+  setUpAll(() async {
+    await initZfaSourceBin();
+  });
+
   test(
     'every zfa manifest command is registered in the speckit extension',
     () async {
@@ -85,7 +102,7 @@ void main() {
           continue;
         }
         final file = aliasesToFile[alias]!;
-        if (!File('$extensionRoot/$file').existsSync()) {
+        if (!File(p.join(zfaProjectRoot, extensionRoot, file)).existsSync()) {
           missingFiles.add('$alias -> $file (file missing)');
         }
       }
@@ -120,7 +137,7 @@ void main() {
     final bad = <String>[];
     for (final alias in aliases) {
       final file = aliasesToFile[alias]!;
-      final path = '$extensionRoot/$file';
+      final path = p.join(zfaProjectRoot, extensionRoot, file);
       if (!File(path).existsSync()) {
         bad.add('$alias -> $file (missing)');
         continue;
