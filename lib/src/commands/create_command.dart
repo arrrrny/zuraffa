@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:args/args.dart';
+import '../core/context/file_system.dart';
 import '../utils/file_utils.dart';
 import '../utils/string_utils.dart';
 import '../utils/logger.dart';
+import '../utils/project_flavor.dart';
 
 import '../core/project/project_root.dart';
 
@@ -108,7 +110,17 @@ class CreateCommand {
     }
   }
 
-  Future<void> _createPage(String name) async {
+  /// Testable entry point for `zfa create --page <name>`.
+  ///
+  /// [root] overrides the project root used for both flavor detection and file
+  /// output (defaults to the current project). Exposed so regression tests can
+  /// drive the page flow against an explicit sandbox.
+  Future<void> createPage(String name, {String? root}) =>
+      _createPage(name, root: root);
+
+  Future<void> _createPage(String name, {String? root}) async {
+    final projectRoot = root ?? ProjectRoot.safeCurrentPath();
+
     if (!_isValidPageName(name)) {
       CliLogger.error(
         'Invalid page name "$name". Use snake_case format (e.g., "user_profile")',
@@ -116,14 +128,30 @@ class CreateCommand {
       exit(1);
     }
 
-    if (await _pageExists(name)) {
+    if (await _pageExists(name, root: projectRoot)) {
       CliLogger.error('Page "$name" already exists.');
       exit(1);
     }
 
+    // #512: a generated page is a Flutter page (CleanView / Controller /
+    // Presenter all extend zuraffa_flutter base classes). In a pure-Dart
+    // target package (pubspec.yaml without a `flutter:` dependency) emitting
+    // these files violates Constitution VII (Engine Purity) and breaks
+    // `dart analyze`. Skip with a clear warning. (No pubspec found => unknown
+    // flavor => preserve historical Flutter generation.)
+    final flavor = await detectProjectFlavor(projectRoot, FileSystem.create());
+    if (flavor == ProjectFlavor.pureDart) {
+      print(
+        '⚠️ Skipping page creation: target project is a pure-Dart package '
+        '(no `flutter:` in pubspec.yaml). Generated pages are Flutter widgets '
+        'that depend on zuraffa_flutter (Constitution VII: Engine Purity). '
+        'Run `zfa create --page <name>` inside a Flutter project.',
+      );
+      return;
+    }
+
     CliLogger.info('Creating page: $name');
-    final dir =
-        '${ProjectRoot.safeCurrentPath()}/lib/src/app/pages/$name/$name';
+    final dir = '$projectRoot/lib/src/app/pages/$name/$name';
 
     try {
       await Future.wait([
@@ -214,10 +242,9 @@ class ${pascalCaseName}Presenter extends clean.Presenter {
     return RegExp(r'^[a-z][a-z0-9_]*[a-z0-9]$').hasMatch(name);
   }
 
-  Future<bool> _pageExists(String name) {
-    final dir = Directory(
-      '${ProjectRoot.safeCurrentPath()}/lib/src/app/pages/$name',
-    );
+  Future<bool> _pageExists(String name, {String? root}) {
+    final base = root ?? ProjectRoot.safeCurrentPath();
+    final dir = Directory('$base/lib/src/app/pages/$name');
     return dir.exists();
   }
 

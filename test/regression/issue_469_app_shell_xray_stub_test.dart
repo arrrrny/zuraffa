@@ -38,6 +38,13 @@ void main() {
 name: stub_app
 environment:
   sdk: ^3.0.0
+dependencies:
+  flutter:
+    sdk: flutter
+  zuraffa_flutter:
+    git:
+      url: https://github.com/arrrrny/zuraffa
+      path: zuraffa_flutter
 ''');
     final diDir = Directory(p.join(tempDir.path, 'lib', 'src', 'di'));
     await diDir.create(recursive: true);

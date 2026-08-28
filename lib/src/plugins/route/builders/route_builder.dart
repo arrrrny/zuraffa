@@ -12,6 +12,7 @@ import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/entity_field_resolver.dart';
 import '../../../utils/file_utils.dart';
+import '../../../utils/project_flavor.dart';
 import '../../../utils/string_utils.dart';
 import 'app_routes_builder.dart';
 import 'entity_routes_builder.dart';
@@ -54,6 +55,22 @@ class RouteBuilder {
     final files = <GeneratedFile>[];
 
     if (!config.generateRoute) {
+      return files;
+    }
+
+    // #512: routes embed `go_router` (a Flutter package) and reference the
+    // generated `<Entity>View` Flutter widgets. In a pure-Dart target package
+    // (pubspec.yaml without a `flutter:` dependency) emitting this code
+    // violates Constitution VII (Engine Purity) and breaks `dart analyze`.
+    // Skip with a clear warning.
+    final flavor = await detectProjectFlavor(outputDir, fileSystem);
+    if (flavor == ProjectFlavor.pureDart) {
+      print(
+        '⚠️ Skipping route generation: target project is a pure-Dart package '
+        '(no `flutter:` in pubspec.yaml). Routes depend on go_router and '
+        'zuraffa_flutter (Constitution VII: Engine Purity). Run '
+        '`zfa route create` inside a Flutter project.',
+      );
       return files;
     }
 

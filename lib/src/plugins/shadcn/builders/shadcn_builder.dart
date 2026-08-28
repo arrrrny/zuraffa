@@ -6,6 +6,7 @@ import '../../../models/generated_file.dart';
 import '../../../models/generator_config.dart';
 import '../../../utils/entity_analyzer.dart';
 import '../../../utils/file_utils.dart';
+import '../../../utils/project_flavor.dart';
 import '../../../utils/string_utils.dart';
 
 class ShadcnBuilder {
@@ -31,6 +32,23 @@ class ShadcnBuilder {
     GeneratorConfig config,
     Map<String, dynamic> shadcnData,
   ) async {
+    // #512: shadcn widgets are Flutter widgets (import
+    // `package:flutter/material.dart` and `package:shadcn_ui/shadcn_ui.dart`)
+    // and depend on zuraffa_flutter. In a pure-Dart target package
+    // (pubspec.yaml without a `flutter:` dependency) emitting this code
+    // violates Constitution VII (Engine Purity) and breaks `dart analyze`.
+    // Skip with a clear warning.
+    final flavor = await detectProjectFlavor(outputDir, fileSystem);
+    if (flavor == ProjectFlavor.pureDart) {
+      print(
+        '⚠️ Skipping shadcn widget generation: target project is a pure-Dart '
+        'package (no `flutter:` in pubspec.yaml). Shadcn widgets are Flutter '
+        'widgets that depend on zuraffa_flutter (Constitution VII: Engine '
+        'Purity). Run `zfa shadcn create` inside a Flutter project.',
+      );
+      return [];
+    }
+
     final layout = shadcnData['layout'] ?? 'list';
     final entityName = config.name;
     final entitySnake = config.nameSnake;
