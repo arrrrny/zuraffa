@@ -75,7 +75,7 @@ class FetchUserUseCase extends UseCase<User, NoParams> {
       expect(result.success, isTrue);
       expect(result.files.length, equals(1));
       final content = result.files.first.content ?? '';
-      expect(content, contains('class MockUserRepository'));
+      expect(content, contains('class FakeUserRepository'));
       expect(content, contains('FetchUserUseCase'));
     });
 
@@ -117,7 +117,7 @@ class WatchOrdersUseCase extends StreamUseCase<Order, NoParams> {
       expect(result.success, isTrue);
       expect(result.files.length, equals(1));
       final content = result.files.first.content ?? '';
-      expect(content, contains('class MockOrderService'));
+      expect(content, contains('class FakeOrderService'));
       expect(content, contains('should emit values from stream'));
     });
 
@@ -163,8 +163,8 @@ class ProcessCheckoutUseCase extends UseCase<Order, CheckoutParams> {
       expect(result.success, isTrue);
       expect(result.files.length, equals(1));
       final content = result.files.first.content ?? '';
-      expect(content, contains('class MockValidateCartUseCase'));
-      expect(content, contains('class MockCreateOrderUseCase'));
+      expect(content, contains('class FakeValidateCartUseCase'));
+      expect(content, contains('class FakeCreateOrderUseCase'));
       expect(content, contains('should orchestrate all usecases'));
     });
   });
