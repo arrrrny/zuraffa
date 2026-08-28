@@ -108,7 +108,15 @@ extension TestBuilderHelpers on TestBuilder {
     );
   }
 
-  /// Returns a parsed dependency fake or fails before invalid Dart is emitted.
+  /// Returns a parsed dependency fake, or a graceful placeholder when the
+  /// dependency's source file is missing or the interface is not declared in it.
+  ///
+  /// Mirrors the sibling entity builder's graceful-degradation contract: it
+  /// never throws. Throwing here made `zfa test` abort the whole generation
+  /// (returning `GeneratorResult(success: false)`) whenever a repository,
+  /// service, or child use case source file was not yet on disk — even though
+  /// the generated test file is still useful. We now emit a `Fake*` stub so
+  /// generation succeeds and the caller can refine the stub's members.
   Future<Class> _requireFakeClassForDependency({
     required String className,
     required String interfaceName,
@@ -118,9 +126,11 @@ extension TestBuilderHelpers on TestBuilder {
     required Set<String> entityTypes,
   }) async {
     if (filePath == null) {
-      throw StateError(
-        'Cannot generate $className: source for $interfaceName was not found.',
+      print(
+        '  ⚠️  Generating placeholder $className for $interfaceName: '
+        'source file not found on disk.',
       );
+      return _placeholderFakeClass(className, interfaceName);
     }
 
     final fakeClass = await _generateFakeClassForDependency(
@@ -132,12 +142,24 @@ extension TestBuilderHelpers on TestBuilder {
       entityTypes: entityTypes,
     );
     if (fakeClass == null) {
-      throw StateError(
-        'Cannot generate $className: $interfaceName was not declared in '
-        '$filePath.',
+      print(
+        '  ⚠️  Generating placeholder $className for $interfaceName: '
+        'interface not declared in $filePath.',
       );
+      return _placeholderFakeClass(className, interfaceName);
     }
     return fakeClass;
+  }
+
+  /// Minimal `Fake{Name} implements {interface}` stub emitted when the
+  /// dependency source cannot be parsed. The generated test still references
+  /// the stub by name; the developer refines its members as needed.
+  Class _placeholderFakeClass(String className, String interfaceName) {
+    return Class(
+      (c) => c
+        ..name = className
+        ..implements.add(refer(interfaceName)),
+    );
   }
 
   /// Generates one concrete override for a declared interface member.
