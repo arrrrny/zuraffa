@@ -70,17 +70,25 @@ class CliRunner {
     final skipPlugins =
         args.isNotEmpty && _noPluginCommands.contains(args.first);
 
-    if (!_coreInitialized) {
-      _coreInitialized = true;
-      _addCoreCommands();
-    }
-
-    // Plugin-backed commands are loaded lazily and tracked separately, so a
-    // prior `xray` invocation (which skips the plugin boot) cannot leave a
-    // later non-xray command without its plugin commands in a reused runner.
+    // Load plugins BEFORE the core commands so that `MakeCommand`'s
+    // `argParser` is built against the fully-populated registry. Otherwise
+    // `_addPluginOptions` iterates an empty `registry.plugins` and never
+    // registers plugin-derived options (e.g. graphql's `--type`, cache's
+    // `--cache-storage`/`--ttl`). `PluginManager.buildContext` later calls
+    // `argResults.wasParsed(key)` for every active plugin's schema property
+    // and throws "Could not find an option named --type" when such an option
+    // is missing.
     if (!_pluginsInitialized && !skipPlugins) {
       _pluginsInitialized = true;
       _loadAndRegisterPlugins();
+    }
+
+    // Plugin-backed commands are tracked separately, so a prior `xray`
+    // invocation (which skips the plugin boot) cannot leave a later non-xray
+    // command without its plugin commands in a reused runner.
+    if (!_coreInitialized) {
+      _coreInitialized = true;
+      _addCoreCommands();
     }
   }
 
