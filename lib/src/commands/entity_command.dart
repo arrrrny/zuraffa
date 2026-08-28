@@ -231,6 +231,43 @@ ${missing.map((d) => '   • $d').join('\n')}
       subtypeWireValue: parsed['subtype_wire_value'] as String?,
     );
 
+    // Issue #416: a `sealed` class and ALL of its direct subtypes must live
+    // in the SAME Dart library. `package:zorphy` (which performs the actual
+    // subtype file emission) currently writes each `--generate-subs` subtype as
+    // an independent library that `implements` the sealed parent. That is
+    // illegal for `sealed` and fails `dart analyze` with one
+    // `invalid_use_of_type_outside_library` per subtype. The upstream fix
+    // (inlining sealed subtypes into the parent library) lives in
+    // `arrrrny/zorphy`; until it lands, reject this combination up front with
+    // actionable guidance instead of emitting code that cannot compile.
+    // See: https://github.com/arrrrny/zuraffa/issues/416
+    if (entityConfig.isSealed && entityConfig.generateSubtypes) {
+      print(
+        '❌ Cannot create sealed entity "$name" with --generate-subs.',
+      );
+      print('');
+      print(
+        '   A `sealed` class and all of its direct subtypes must live in the '
+        'same Dart library. Zuraffa currently delegates subtype generation to '
+        'package:zorphy, which emits each subtype as a separate library that '
+        '`implements` the sealed parent — illegal for `sealed`, and it fails '
+        '`dart analyze` with `invalid_use_of_type_outside_library`.',
+      );
+      print('');
+      print('   Choose one of:');
+      print(
+        '   • Drop `--sealed` (or use `--non-sealed`) so subtypes may be '
+        'external libraries, or',
+      );
+      print(
+        '   • Drop `--generate-subs` and define the subtypes inline in the '
+        'same entity file (zuraffa#416).',
+      );
+      print('');
+      print('No files were written. See \'zfa entity --help\' for details.');
+      exit(1);
+    }
+
     final creator = EntityCreator(baseOutputDir: outputDir);
     final result = await creator.create(entityConfig);
 
