@@ -27,6 +27,11 @@ dependencies:
 
   json_annotation: ^4.12.0
 
+  # 027-agent-policy-shell: tool-gating/budget/trace hooks hash tool-call
+  # arguments by default (FR-008). Already present in the transitive
+  # resolution graph via uuid/minio; declared here as a direct dep.
+  crypto: ^3.0.7
+
   http: ^1.6.0
   minio: ^3.5.8
   opentelemetry: ^0.18.11

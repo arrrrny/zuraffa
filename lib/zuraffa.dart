@@ -666,6 +666,15 @@ export 'src/agent/ui_render/ui_render.dart' hide ValidationResult, ValidationErr
 // Pure-Dart (no package:flutter import anywhere in this subtree).
 export 'src/agent/kernel/agent_kernel.dart' hide CancelToken;
 
+// ── 027-agent-policy-shell — ToolGatingHook, MissionBudgetHook, MissionTraceRecorder ──
+// Framework-default safety/governance layer. Tool permission registry
+// (safe/confirm/admin) evaluated before every tool call; four-dimension
+// mission budgets (calls, wall-clock, tokens, per-tool-class seconds) with
+// typed budget-exceeded events and cancellation; hashed-argument Mission
+// Trace JSON with concurrent-streaming integrity and an oversized-result
+// guard. All hooks composable and individually disableable. Pure-Dart.
+export 'src/agent/policy/policy_shell.dart';
+
 // ============================================================
 // Framework Configuration
 // ============================================================
