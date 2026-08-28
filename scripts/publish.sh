@@ -7,6 +7,11 @@ DESCRIPTION="${2:-Release $VERSION}"
 
 if [ -z "$VERSION" ]; then echo "❌ Version required"; exit 1; fi
 
+# Publish target registry. The team publishes to the private mirror pub.zuzu.dev
+# (which mirrors to pub.dev). The only configured pub token on this machine is for
+# this host, so it MUST be exported or `dart pub publish` will 401 against pub.dev.
+export PUB_HOSTED_URL="${PUB_HOSTED_URL:-https://pub.zuzu.dev}"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PACKAGE_DIR="$(dirname "$SCRIPT_DIR")"
 # zuraffa_flutter split into its own repo (6.1.0+). Default: sibling checkout.
@@ -28,17 +33,13 @@ if grep -qE '^[[:space:]]+path:[[:space:]]+\.\./zorphy' pubspec.yaml; then
     exit 1
 fi
 
-# ---- pub.dev helpers (mirror the zikzak_inappwebview ordered-publish flow) ----
+# ---- registry helpers (mirror the zikzak_inappwebview ordered-publish flow) ----
+# All checks resolve against $PUB_HOSTED_URL (pub.zuzu.dev), which is where the
+# packages are published and where the only configured pub token lives.
 
-# True when <package>@<version> is listed by the pub.dev API.
-pubdev_has_version() {
-    local pkg="$1" ver="$2" body
-    body=$(curl -sf "https://pub.dev/api/packages/$pkg" 2>/dev/null) || return 1
-    printf '%s' "$body" | grep -q "\"version\":\"$ver\""
-}
-
-# True when pub can actually resolve <package>@^<version>. The API lists a
-# version before the archive is resolvable, so this is the real gate.
+# True when pub can actually resolve <package>@^<version>. The registry lists a
+# version before the archive is resolvable, so resolution (not the API) is the
+# real gate — same conclusion the zikzak_inappwebview flow reached for pub.dev.
 pubdev_resolvable() {
     local pkg="$1" ver="$2" tmp code
     tmp=$(mktemp -d)
@@ -56,14 +57,14 @@ EOF
     return $code
 }
 
-# Block until <package>@<version> is both listed and resolvable.
+# Block until <package>@<version> is resolvable from $PUB_HOSTED_URL.
 wait_for_pubdev() {
     local pkg="$1" ver="$2" max_attempts="${3:-30}" interval="${4:-30}" attempt=0
-    echo "⏳ Waiting for $pkg $ver to go live on pub.dev..."
+    echo "⏳ Waiting for $pkg $ver to become resolvable on $PUB_HOSTED_URL..."
     while [ "$attempt" -lt "$max_attempts" ]; do
         attempt=$((attempt + 1))
-        if pubdev_has_version "$pkg" "$ver" && pubdev_resolvable "$pkg" "$ver"; then
-            echo "✅ $pkg $ver is live and resolvable on pub.dev."
+        if pubdev_resolvable "$pkg" "$ver"; then
+            echo "✅ $pkg $ver is live and resolvable on $PUB_HOSTED_URL."
             return 0
         fi
         echo "   not ready yet ($attempt/$max_attempts) — retrying in ${interval}s..."
@@ -184,15 +185,15 @@ git push origin "v$VERSION"
 echo "⚙️  GitHub Actions will now build and upload binaries for all platforms."
 
 # ============================================================
-# Step 4: Publish zuraffa (core, pure-Dart) to pub.dev — first in the
+# Step 4: Publish zuraffa (core, pure-Dart) to $PUB_HOSTED_URL — first in the
 # dependency order, because zuraffa_flutter depends on `zuraffa: ^$VERSION`.
 # ============================================================
-if pubdev_has_version zuraffa "$VERSION"; then
-    echo "ℹ️  zuraffa $VERSION already on pub.dev — skipping."
+if pubdev_resolvable zuraffa "$VERSION"; then
+    echo "ℹ️  zuraffa $VERSION already resolvable on $PUB_HOSTED_URL — skipping."
 else
-    echo "📦 Publishing zuraffa to pub.dev..."
+    echo "📦 Publishing zuraffa to $PUB_HOSTED_URL..."
     dart pub publish --force
-    echo "✅ zuraffa $VERSION published to pub.dev!"
+    echo "✅ zuraffa $VERSION published to $PUB_HOSTED_URL!"
 fi
 
 # ============================================================
@@ -202,8 +203,8 @@ fi
 # ^$VERSION, strip the dev-only dependency_overrides block, publish, then
 # restore the dev pubspec.
 # ============================================================
-if pubdev_has_version zuraffa_flutter "$VERSION"; then
-    echo "ℹ️  zuraffa_flutter $VERSION already on pub.dev — skipping."
+if pubdev_resolvable zuraffa_flutter "$VERSION"; then
+    echo "ℹ️  zuraffa_flutter $VERSION already resolvable on $PUB_HOSTED_URL — skipping."
 else
     if [ ! -d "$ZURAFFA_FLUTTER_DIR" ]; then
         echo "❌ zuraffa_flutter repo not found at $ZURAFFA_FLUTTER_DIR"
@@ -282,8 +283,8 @@ PY
     }
 
     echo "📦 Publishing zuraffa_flutter $VERSION against hosted zuraffa ^$VERSION..."
-    dart pub publish --force
-    echo "✅ zuraffa_flutter $VERSION published to pub.dev!"
+    flutter pub publish --force
+    echo "✅ zuraffa_flutter $VERSION published to $PUB_HOSTED_URL!"
 
     restore_zf_pubspec
     trap - EXIT
