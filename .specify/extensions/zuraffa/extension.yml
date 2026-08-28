@@ -1,0 +1,366 @@
+name: zuraffa
+description: Zuraffa Speckit Extension - All ZFA CLI commands for Clean Architecture Flutter development
+version: 1.0.0
+author: Zuraffa Team
+
+provides:
+  commands:
+    # Setup
+    - name: speckit.zuraffa.init
+      file: commands/init.md
+      description: Set up a fresh Flutter project for Zuraffa code generation
+      aliases: [zfa.init, zuraffa.init]
+      category: setup
+
+    # Generation
+    - name: speckit.zuraffa.generate-commands
+      file: commands/generate-commands.md
+      description: Regenerate all extension command files from zfa manifest
+      aliases: [zfa.generate-commands, zuraffa.regen]
+      category: utilities
+
+    # Entity
+    - name: speckit.zuraffa.entity
+      file: commands/entity.md
+      description: Create Zorphy entities with fields
+      aliases: [zfa.entity, zuraffa.entity]
+      category: domain
+
+    # Data Layer
+    - name: speckit.zuraffa.repository
+      file: commands/data/repository.md
+      description: Generate repository interface and implementation
+      aliases: [zfa.repository, zfa.repo]
+      category: data
+
+    - name: speckit.zuraffa.repository.method
+      file: commands/data/repository_method.md
+      description: Append method to existing repository
+      aliases: [zfa.repository.method]
+      category: data
+
+    - name: speckit.zuraffa.datasource
+      file: commands/data/datasource.md
+      description: Generate data source for entity
+      aliases: [zfa.datasource, zfa.ds]
+      category: data
+
+    - name: speckit.zuraffa.datasource.method
+      file: commands/data/datasource_method.md
+      description: Append method to existing datasource
+      aliases: [zfa.datasource.method]
+      category: data
+
+    - name: speckit.zuraffa.datasource.private-method
+      file: commands/data/datasource_private-method.md
+      description: Append private method to datasource
+      aliases: [zfa.datasource.private]
+      category: data
+
+    - name: speckit.zuraffa.datasource.inject
+      file: commands/data/datasource_inject.md
+      description: Inject dependency into datasource
+      aliases: [zfa.datasource.inject]
+      category: data
+
+    # Domain Layer
+    - name: speckit.zuraffa.usecase
+      file: commands/domain/usecase.md
+      description: Generate Clean Architecture UseCase
+      aliases: [zfa.usecase, zfa.uc]
+      category: domain
+
+    - name: speckit.zuraffa.service
+      file: commands/domain/service.md
+      description: Generate service interface
+      aliases: [zfa.service]
+      category: domain
+
+    - name: speckit.zuraffa.service.method
+      file: commands/domain/service_method.md
+      description: Append method to existing service
+      aliases: [zfa.service.method]
+      category: domain
+
+    - name: speckit.zuraffa.provider
+      file: commands/domain/provider.md
+      description: Generate provider class
+      aliases: [zfa.provider]
+      category: domain
+
+    - name: speckit.zuraffa.provider.method
+      file: commands/domain/provider_method.md
+      description: Append method to existing provider
+      aliases: [zfa.provider.method]
+      category: domain
+
+    - name: speckit.zuraffa.provider.private-method
+      file: commands/domain/provider_private-method.md
+      description: Append private method to provider
+      aliases: [zfa.provider.private]
+      category: domain
+
+    - name: speckit.zuraffa.provider.inject
+      file: commands/domain/provider_inject.md
+      description: Inject dependency into provider
+      aliases: [zfa.provider.inject]
+      category: domain
+
+    # Presentation Layer
+    - name: speckit.zuraffa.view
+      file: commands/presentation/view.md
+      description: Generate Flutter View widget
+      aliases: [zfa.view]
+      category: presentation
+
+    - name: speckit.zuraffa.view.custom
+      file: commands/presentation/view_custom.md
+      description: Generate custom Flutter view
+      aliases: [zfa.view.custom]
+      category: presentation
+
+    - name: speckit.zuraffa.view.register
+      file: commands/presentation/view_register.md
+      description: Register entity parameters in a View
+      aliases: [zfa.view.register]
+      category: presentation
+
+    - name: speckit.zuraffa.controller
+      file: commands/presentation/controller.md
+      description: Generate Controller class
+      aliases: [zfa.controller, zfa.ctrl]
+      category: presentation
+
+    - name: speckit.zuraffa.presenter
+      file: commands/presentation/presenter.md
+      description: Generate Presenter class
+      aliases: [zfa.presenter, zfa.pres]
+      category: presentation
+
+    - name: speckit.zuraffa.state
+      file: commands/presentation/state.md
+      description: Generate State class
+      aliases: [zfa.state]
+      category: presentation
+
+    - name: speckit.zuraffa.observer
+      file: commands/presentation/observer.md
+      description: Generate Observer class
+      aliases: [zfa.observer]
+      category: presentation
+
+    - name: speckit.zuraffa.route
+      file: commands/presentation/route.md
+      description: Generate route definitions
+      aliases: [zfa.route]
+      category: presentation
+
+    - name: speckit.zuraffa.route.custom
+      file: commands/presentation/route_custom.md
+      description: Generate custom route
+      aliases: [zfa.route.custom]
+      category: presentation
+
+    # Scaffolding
+    - name: speckit.zuraffa.feature
+      file: commands/scaffolding/feature_scaffold.md
+      description: Scaffold complete feature with all layers
+      aliases: [zfa.feature, zfa.scaffold]
+      category: scaffolding
+
+    - name: speckit.zuraffa.feature.route
+      file: commands/scaffolding/feature_route.md
+      description: Add routes to existing feature
+      aliases: [zfa.feature.route]
+      category: scaffolding
+
+    - name: speckit.zuraffa.feature.di
+      file: commands/scaffolding/feature_di.md
+      description: Add DI to existing feature
+      aliases: [zfa.feature.di]
+      category: scaffolding
+
+    - name: speckit.zuraffa.feature.mock
+      file: commands/scaffolding/feature_mock.md
+      description: Add mock data to existing feature
+      aliases: [zfa.feature.mock]
+      category: scaffolding
+
+    - name: speckit.zuraffa.feature.test
+      file: commands/scaffolding/feature_test.md
+      description: Add tests to existing feature
+      aliases: [zfa.feature.test]
+      category: scaffolding
+
+    - name: speckit.zuraffa.feature.view
+      file: commands/scaffolding/feature_view.md
+      description: Add view to existing feature
+      aliases: [zfa.feature.view]
+      category: scaffolding
+
+    - name: speckit.zuraffa.feature.presenter
+      file: commands/scaffolding/feature_presenter.md
+      description: Add presenter to existing feature
+      aliases: [zfa.feature.presenter]
+      category: scaffolding
+
+    - name: speckit.zuraffa.feature.controller
+      file: commands/scaffolding/feature_controller.md
+      description: Add controller to existing feature
+      aliases: [zfa.feature.controller]
+      category: scaffolding
+
+    - name: speckit.zuraffa.feature.state
+      file: commands/scaffolding/feature_state.md
+      description: Add state to existing feature
+      aliases: [zfa.feature.state]
+      category: scaffolding
+
+    # Testing
+    - name: speckit.zuraffa.test
+      file: commands/testing/test.md
+      description: Generate unit tests
+      aliases: [zfa.test]
+      category: testing
+
+    - name: speckit.zuraffa.mock
+      file: commands/testing/mock.md
+      description: Generate mock data and mock datasource
+      aliases: [zfa.mock]
+      category: testing
+
+    - name: speckit.zuraffa.mock.method
+      file: commands/testing/mock_method.md
+      description: Append method to mock
+      aliases: [zfa.mock.method]
+      category: testing
+
+    - name: speckit.zuraffa.mock.inject
+      file: commands/testing/mock_inject.md
+      description: Inject dependency into mock
+      aliases: [zfa.mock.inject]
+      category: testing
+
+    # Utilities
+    - name: speckit.zuraffa.di
+      file: commands/utilities/di.md
+      description: Generate dependency injection registrations
+      aliases: [zfa.di]
+      category: utilities
+
+    - name: speckit.zuraffa.di.register
+      file: commands/utilities/di_register.md
+      description: Register existing class in DI
+      aliases: [zfa.di.register]
+      category: utilities
+
+    - name: speckit.zuraffa.cache
+      file: commands/utilities/cache.md
+      description: Generate caching logic
+      aliases: [zfa.cache]
+      category: utilities
+
+    - name: speckit.zuraffa.method-append
+      file: commands/domain/method_append_append.md
+      description: Append method to repository or service
+      aliases: [zfa.method-append]
+      category: domain
+
+    - name: speckit.zuraffa.method
+      file: commands/domain/method_append_method.md
+      description: Append method to any target
+      aliases: [zfa.method]
+      category: domain
+
+    - name: speckit.zuraffa.api.create-api-bridge
+      file: commands/integration/api_create-api-bridge.md
+      description: Generate VM Service extension bridge for a Zuraffa entity
+      aliases: [zfa.api.create-api-bridge]
+      category: integration
+    - name: speckit.zuraffa.cache.adapter
+      file: commands/utilities/cache_adapter.md
+      description: Register Hive adapters for an entity and its sub-entities
+      aliases: [zfa.cache.adapter]
+      category: utilities
+    - name: speckit.zuraffa.gql.generate
+      file: commands/graphql/gql_generate.md
+      description: Generate internal GQL query/mutation strings
+      aliases: [zfa.gql.generate]
+      category: graphql
+    - name: speckit.zuraffa.graphql
+      file: commands/graphql/create.md
+      description: Create GraphQL
+      aliases: [zfa.graphql]
+      category: graphql
+    - name: speckit.zuraffa.gym
+      file: commands/tooling/gym.md
+      description: Create a Gym
+      aliases: [zfa.gym]
+      category: tooling
+    - name: speckit.zuraffa.mcp.scaffold
+      file: commands/integration/mcp_scaffold.md
+      description: Scaffold a runtime MCP server (lib/src/mcp/tools.dart + bin/mcp_server.dart) so the app can expose its features as MCP tools callable by AI agents.
+      aliases: [zfa.mcp.scaffold]
+      category: integration
+    - name: speckit.zuraffa.mock.json
+      file: commands/testing/mock_json.md
+      description: Generate JSON mock data with fromJson-based Dart helpers
+      aliases: [zfa.mock.json]
+      category: testing
+    - name: speckit.zuraffa.module.create_module
+      file: commands/scaffolding/module_create_module.md
+      description: Generate a ZuraffaPlugin orchestrator for a feature package
+      aliases: [zfa.module.create_module]
+      category: scaffolding
+    - name: speckit.zuraffa.route.deep-link
+      file: commands/presentation/route_deep-link.md
+      description: Generate a deep-link GoRoute module and register the URL scheme in AndroidManifest.xml + Info.plist (idempotent)
+      aliases: [zfa.route.deep-link]
+      category: presentation
+    - name: speckit.zuraffa.route.shell
+      file: commands/presentation/route_shell.md
+      description: Generate a StatefulShellRoute.indexedStack shell with one branch per --branch <Label>:<path>, plus an optional bottom navigation bar (Material 3 NavigationBar) or desktop NavigationRail (--adaptive). Registers the shell in getAllRoutes().
+      aliases: [zfa.route.shell]
+      category: presentation
+    - name: speckit.zuraffa.sqlite
+      file: commands/data/sqlite.md
+      description: Create a SQLite data source adapter
+      aliases: [zfa.sqlite]
+      category: data
+    - name: speckit.zuraffa.strategy
+      file: commands/domain/strategy.md
+      description: Generate FetchStrategy abstract base, concrete variants, and StrategySelector
+      aliases: [zfa.strategy]
+      category: domain
+    - name: speckit.zuraffa.sync.enable
+      file: commands/utilities/sync_enable.md
+      description: Enable offline-first sync for an entity
+      aliases: [zfa.sync.enable]
+      category: utilities
+    - name: speckit.zuraffa.tui.create-tui-screens
+      file: commands/presentation/tui_create-tui-screens.md
+      description: Generate list/detail TUI screens for an entity, wired to its existing use cases (FR-011, SC-005). Pure-Dart — no Flutter.
+      aliases: [zfa.tui.create-tui-screens]
+      category: presentation
+categories:
+  setup:
+    name: Setup
+    description: Project initialization and configuration
+  domain:
+    name: Domain
+    description: Business logic layer - entities, use cases, services
+  data:
+    name: Data
+    description: Data layer - repositories, datasources
+  presentation:
+    name: Presentation
+    description: UI layer - views, controllers, presenters
+  scaffolding:
+    name: Scaffolding
+    description: Complete feature generation
+  testing:
+    name: Testing
+    description: Tests and mock data
+  utilities:
+    name: Utilities
+    description: DI, caching, and helpers
