@@ -4,6 +4,7 @@ installed:
 - gh-triage
 - git
 - gym
+- spec-stats
 - tdd
 settings:
   auto_execute_hooks: true
