@@ -51,9 +51,7 @@ abstract class MyService {
       outputDir: outputDir,
       options: const GeneratorOptions(force: true, verbose: false),
     );
-    return plugin.capabilities.firstWhere(
-          (c) => c is MethodCapability,
-        )
+    return plugin.capabilities.firstWhere((c) => c is MethodCapability)
         as MethodCapability;
   }
 
@@ -80,10 +78,7 @@ abstract class MyService {
       );
       // The action must be one the success printer handles, otherwise the
       // command prints nothing (issue #414).
-      expect(
-        serviceFile.action,
-        equals('updated'),
-      );
+      expect(serviceFile.action, equals('updated'));
     },
   );
 
@@ -92,17 +87,21 @@ abstract class MyService {
     () async {
       final capability = serviceMethodCapability();
       final command = CapabilityCommand(capability);
-      final runner =
-          CommandRunner<void>('test', 'test')..addCommand(command);
+      final runner = CommandRunner<void>('test', 'test')..addCommand(command);
 
       await expectLater(
         () => runner.run([
           'method',
-          '--target', 'MyService',
-          '--name', 'doThing',
-          '--returns', 'void',
-          '--params', 'String',
-          '--type', 'sync',
+          '--target',
+          'MyService',
+          '--name',
+          'doThing',
+          '--returns',
+          'void',
+          '--params',
+          'String',
+          '--type',
+          'sync',
         ]),
         prints(
           allOf(

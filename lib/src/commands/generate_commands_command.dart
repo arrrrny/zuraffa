@@ -205,14 +205,17 @@ Supports `--dry-run` to preview without writing files.
   }
 
   String _renderRegistry(List<_CommandEntry> entries) {
-    final commands =
-        entries.map((e) => {
-              'name': e.commandName,
-              'file': '${e.category}/${e.capabilityName}.md',
-              'category': e.category,
-              'plugin': e.pluginId,
-              'capability': e.capabilityName,
-            }).toList();
+    final commands = entries
+        .map(
+          (e) => {
+            'name': e.commandName,
+            'file': '${e.category}/${e.capabilityName}.md',
+            'category': e.category,
+            'plugin': e.pluginId,
+            'capability': e.capabilityName,
+          },
+        )
+        .toList();
     commands.sort(
       (a, b) => (a['name'] as String).compareTo(b['name'] as String),
     );
@@ -220,11 +223,13 @@ Supports `--dry-run` to preview without writing files.
   }
 }
 
-String _titleCase(String name) =>
-    name.split('_').map((part) {
+String _titleCase(String name) => name
+    .split('_')
+    .map((part) {
       if (part.isEmpty) return part;
       return part[0].toUpperCase() + part.substring(1);
-    }).join(' ');
+    })
+    .join(' ');
 
 /// Escapes double quotes so untrusted capability metadata can't break the
 /// double-quoted YAML frontmatter emitted by [_renderMarkdown].

@@ -209,38 +209,38 @@ $deps''');
         );
       });
 
-      test('Flutter pubspec => creates Flutter view/presenter/controller',
-          () async {
-        await writePubspec(flutter: true);
-        // Create only the parent pages dir; createPage itself creates the
-        // per-page subdir, so pre-creating the leaf would trip the
-        // "page already exists" guard.
-        final pagesDir = Directory(
-          p.join(tempDir.path, 'lib', 'src', 'app', 'pages'),
-        );
-        await pagesDir.create(recursive: true);
+      test(
+        'Flutter pubspec => creates Flutter view/presenter/controller',
+        () async {
+          await writePubspec(flutter: true);
+          // Create only the parent pages dir; createPage itself creates the
+          // per-page subdir, so pre-creating the leaf would trip the
+          // "page already exists" guard.
+          final pagesDir = Directory(
+            p.join(tempDir.path, 'lib', 'src', 'app', 'pages'),
+          );
+          await pagesDir.create(recursive: true);
 
-        final command = CreateCommand();
-        await command.createPage('user_profile', root: tempDir.path);
+          final command = CreateCommand();
+          await command.createPage('user_profile', root: tempDir.path);
 
-        final pageDir = p.join(pagesDir.path, 'user_profile');
-        final viewFile = File(
-          p.join(pageDir, 'user_profile_view.dart'),
-        );
-        final controllerFile = File(
-          p.join(pageDir, 'user_profile_controller.dart'),
-        );
-        final presenterFile = File(
-          p.join(pageDir, 'user_profile_presenter.dart'),
-        );
-        expect(viewFile.existsSync(), isTrue);
-        expect(controllerFile.existsSync(), isTrue);
-        expect(presenterFile.existsSync(), isTrue);
+          final pageDir = p.join(pagesDir.path, 'user_profile');
+          final viewFile = File(p.join(pageDir, 'user_profile_view.dart'));
+          final controllerFile = File(
+            p.join(pageDir, 'user_profile_controller.dart'),
+          );
+          final presenterFile = File(
+            p.join(pageDir, 'user_profile_presenter.dart'),
+          );
+          expect(viewFile.existsSync(), isTrue);
+          expect(controllerFile.existsSync(), isTrue);
+          expect(presenterFile.existsSync(), isTrue);
 
-        final viewSrc = viewFile.readAsStringSync();
-        expect(viewSrc, contains('package:flutter/material.dart'));
-        expect(viewSrc, contains('class UserProfileView extends CleanView'));
-      });
+          final viewSrc = viewFile.readAsStringSync();
+          expect(viewSrc, contains('package:flutter/material.dart'));
+          expect(viewSrc, contains('class UserProfileView extends CleanView'));
+        },
+      );
     });
 
     group('app shell command (caller-level guard)', () {
@@ -280,12 +280,7 @@ environment:
   sdk: ^3.11.0
 ''');
         final runner = CliRunner(exitOnCompletion: false);
-        await runner.runCapturing([
-          'app',
-          'shell',
-          '--root',
-          workspace.path,
-        ]);
+        await runner.runCapturing(['app', 'shell', '--root', workspace.path]);
 
         expect(
           File(p.join(workspace.path, 'lib', 'main.dart')).existsSync(),
@@ -314,12 +309,7 @@ dependencies:
       path: zuraffa_flutter
 ''');
         final runner = CliRunner(exitOnCompletion: false);
-        await runner.runCapturing([
-          'app',
-          'shell',
-          '--root',
-          workspace.path,
-        ]);
+        await runner.runCapturing(['app', 'shell', '--root', workspace.path]);
 
         final mainFile = File(p.join(workspace.path, 'lib', 'main.dart'));
         expect(mainFile.existsSync(), isTrue);

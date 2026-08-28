@@ -75,7 +75,8 @@ class SetupCommand extends Command<void> {
     argParser.addFlag(
       'no-git',
       negatable: false,
-      help: 'Skip git initialization of the created project '
+      help:
+          'Skip git initialization of the created project '
           '(useful for CI/automation that manages its own VCS).',
     );
     // #358: pre-seed a URL scheme in the platform manifest files so
@@ -473,8 +474,12 @@ class SetupCommand extends Command<void> {
       print('   Initialize git manually: cd $projectRoot && git init');
       return;
     }
-    await Process.run('git', ['add', '-A'],
-        workingDirectory: projectRoot, runInShell: true);
+    await Process.run(
+      'git',
+      ['add', '-A'],
+      workingDirectory: projectRoot,
+      runInShell: true,
+    );
     final commitResult = await Process.run(
       'git',
       ['commit', '-m', 'Initial commit (zfa setup)'],

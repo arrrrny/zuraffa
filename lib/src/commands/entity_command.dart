@@ -242,9 +242,7 @@ ${missing.map((d) => '   • $d').join('\n')}
     // actionable guidance instead of emitting code that cannot compile.
     // See: https://github.com/arrrrny/zuraffa/issues/416
     if (entityConfig.isSealed && entityConfig.generateSubtypes) {
-      print(
-        '❌ Cannot create sealed entity "$name" with --generate-subs.',
-      );
+      print('❌ Cannot create sealed entity "$name" with --generate-subs.');
       print('');
       print(
         '   A `sealed` class and all of its direct subtypes must live in the '

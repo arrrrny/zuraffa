@@ -18,20 +18,20 @@ class _MockCapability implements ZuraffaCapability {
 
   @override
   Map<String, dynamic> get inputSchema => {
-        'type': 'object',
-        'properties': <String, dynamic>{},
-        'required': <String>[],
-      };
+    'type': 'object',
+    'properties': <String, dynamic>{},
+    'required': <String>[],
+  };
   @override
   Map<String, dynamic> get outputSchema => <String, dynamic>{};
   @override
   Future<EffectReport> plan(Map<String, dynamic> args) async => EffectReport(
-        planId: '1',
-        pluginId: 'p',
-        capabilityName: name,
-        args: args,
-        changes: [],
-      );
+    planId: '1',
+    pluginId: 'p',
+    capabilityName: name,
+    args: args,
+    changes: [],
+  );
   @override
   Future<ExecutionResult> execute(Map<String, dynamic> args) async =>
       ExecutionResult(success: true);
@@ -71,14 +71,13 @@ CommandRunner<void> _runner(PluginRegistry registry) =>
     CommandRunner<void>('zfa', 'test')
       ..addCommand(GenerateCommandsCommand(registry));
 
-int _countMd(Directory dir) =>
-    dir.existsSync()
-        ? dir
-            .listSync(recursive: true)
-            .whereType<File>()
-            .where((f) => f.path.endsWith('.md'))
-            .length
-        : 0;
+int _countMd(Directory dir) => dir.existsSync()
+    ? dir
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.md'))
+          .length
+    : 0;
 
 void main() {
   late Directory tmp;
@@ -101,12 +100,8 @@ void main() {
   test('--dry-run previews files without writing to disk', () async {
     final runner = _runner(_registry());
     await expectLater(
-      () => runner.run([
-        'generate-commands',
-        '--output',
-        tmp.path,
-        '--dry-run',
-      ]),
+      () =>
+          runner.run(['generate-commands', '--output', tmp.path, '--dry-run']),
       prints(
         allOf(
           contains('data/repository.md'),
@@ -118,39 +113,29 @@ void main() {
     );
     // Nothing was actually written to disk (only previewed).
     expect(_countMd(tmp), equals(0));
-    expect(
-      File('${tmp.path}/command_registry.json').existsSync(),
-      isFalse,
-    );
+    expect(File('${tmp.path}/command_registry.json').existsSync(), isFalse);
   });
 
-  test('generates one .md per capability + command_registry.json (SC-002)',
-      () async {
-    final runner = _runner(_registry());
-    await runner.run(['generate-commands', '--output', tmp.path]);
+  test(
+    'generates one .md per capability + command_registry.json (SC-002)',
+    () async {
+      final runner = _runner(_registry());
+      await runner.run(['generate-commands', '--output', tmp.path]);
 
-    expect(_countMd(tmp), equals(3));
-    expect(
-      File('${tmp.path}/data/repository.md').existsSync(),
-      isTrue,
-    );
-    expect(
-      File('${tmp.path}/domain/usecase.md').existsSync(),
-      isTrue,
-    );
-    expect(
-      File('${tmp.path}/domain/usecase_method.md').existsSync(),
-      isTrue,
-    );
-    final registryFile = File('${tmp.path}/command_registry.json');
-    expect(registryFile.existsSync(), isTrue);
+      expect(_countMd(tmp), equals(3));
+      expect(File('${tmp.path}/data/repository.md').existsSync(), isTrue);
+      expect(File('${tmp.path}/domain/usecase.md').existsSync(), isTrue);
+      expect(File('${tmp.path}/domain/usecase_method.md').existsSync(), isTrue);
+      final registryFile = File('${tmp.path}/command_registry.json');
+      expect(registryFile.existsSync(), isTrue);
 
-    final decoded = jsonDecode(registryFile.readAsStringSync()) as Map;
-    final commands = (decoded['commands'] as List).cast<Map>();
-    expect(commands.length, equals(3));
-    // Sorted, stable names.
-    expect(commands.first['name'], equals('speckit.zuraffa.repository'));
-  });
+      final decoded = jsonDecode(registryFile.readAsStringSync()) as Map;
+      final commands = (decoded['commands'] as List).cast<Map>();
+      expect(commands.length, equals(3));
+      // Sorted, stable names.
+      expect(commands.first['name'], equals('speckit.zuraffa.repository'));
+    },
+  );
 
   test('generated .md files carry consistent frontmatter (SC-005)', () async {
     final runner = _runner(_registry());
