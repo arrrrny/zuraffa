@@ -14,6 +14,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../../core/dependencies/dependency_wirer.dart';
+
 /// Result of updating the barrel.
 class BarrelUpdateResult {
   /// The barrel file path.
@@ -63,6 +65,28 @@ class XRayDeckBarrelWriter {
   String get barrelPath =>
       p.join(projectRoot, outputDir, 'xray', barrelFileName);
 
+  /// Whether [projectRoot] points at a pure-Dart target package.
+  ///
+  /// Walks up from [projectRoot] looking for the nearest `pubspec.yaml`. A
+  /// pubspec declaring a `flutter:` dependency is Flutter; a pubspec without
+  /// one is pure-Dart. No pubspec found (unknown) returns `false` so the
+  /// historical Flutter-first behavior is preserved (mirrors
+  /// [detectProjectFlavor]'s conservative `unknown` default).
+  bool _isPureDartTarget() {
+    var dir = p.canonicalize(projectRoot);
+    while (true) {
+      final pubspecPath = p.join(dir, 'pubspec.yaml');
+      final pubspecFile = File(pubspecPath);
+      if (pubspecFile.existsSync()) {
+        final content = pubspecFile.readAsStringSync();
+        return !DependencyWirer.isFlutterProject(content);
+      }
+      final parent = p.dirname(dir);
+      if (parent == dir) return false;
+      dir = parent;
+    }
+  }
+
   /// Updates the barrel to include the registration for [entityName].
   ///
   /// [deckFilePath] is the absolute path to the generated deck file
@@ -82,6 +106,28 @@ class XRayDeckBarrelWriter {
   }) {
     final barrelFile = File(barrelPath);
     final barrelExists = barrelFile.existsSync();
+
+    // #512: the X-Ray barrel imports `package:flutter/foundation.dart` and is
+    // meant for Flutter apps. In a pure-Dart target package (pubspec.yaml
+    // without a `flutter:` dependency) emitting it violates Constitution VII
+    // (Engine Purity) and breaks `dart analyze`. Skip with a clear warning.
+    if (_isPureDartTarget()) {
+      print(
+        '⚠️ Skipping X-Ray deck barrel generation: target project is a '
+        'pure-Dart package (no `flutter:` in pubspec.yaml). The barrel '
+        'imports package:flutter/foundation.dart and depends on '
+        'zuraffa_flutter (Constitution VII: Engine Purity). Run '
+        '`zfa xray deck` inside a Flutter project.',
+      );
+      return BarrelUpdateResult(
+        path: barrelPath,
+        importAdded: false,
+        callAdded: false,
+        created: false,
+        message:
+            'skipped: pure-Dart target (no `flutter:` dependency in pubspec.yaml)',
+      );
+    }
 
     if (!barrelExists) {
       // Create the barrel with the default scaffold + the first entry.

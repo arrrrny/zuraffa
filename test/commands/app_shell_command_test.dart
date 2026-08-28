@@ -117,6 +117,13 @@ name: my_test_app
 description: A test app for the app-shell generator.
 environment:
   sdk: ^3.11.0
+dependencies:
+  flutter:
+    sdk: flutter
+  zuraffa_flutter:
+    git:
+      url: https://github.com/arrrrny/zuraffa
+      path: zuraffa_flutter
 ''');
       // Scaffold the canonical zfa-generated DI barrel — `void
       // setupDependencies(GetIt getIt)` (the signature emitted by

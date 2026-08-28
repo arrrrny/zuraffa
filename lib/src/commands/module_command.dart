@@ -2,6 +2,9 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 
+import '../core/context/file_system.dart';
+import '../utils/project_flavor.dart';
+
 /// CLI command that scaffolds a new Zuraffa feature package.
 ///
 /// Usage: `zfa module <FeatureName> [options]`
@@ -68,6 +71,27 @@ class ModuleCommand extends Command<void> {
 
     final packageName = 'zuraffa_feature_${_toSnake(featureName)}';
     final packageDir = '$outputDir/$packageName';
+
+    // #512: `zfa module` scaffolds a Flutter feature package (its pubspec
+    // declares `flutter:` + `zuraffa_flutter`). In a pure-Dart target project
+    // (pubspec.yaml without a `flutter:` dependency) scaffolding it would
+    // violate Constitution VII (Engine Purity) and produce a package that
+    // cannot resolve Flutter symbols under `dart analyze`. Skip with a clear
+    // warning. (No pubspec found => unknown flavor => preserve historical
+    // Flutter scaffolding.)
+    final flavor = await detectProjectFlavor(
+      ProjectRoot.safeCurrentPath(),
+      FileSystem.create(),
+    );
+    if (flavor == ProjectFlavor.pureDart) {
+      print(
+        '⚠️ Skipping module scaffold: the current project is a pure-Dart '
+        'package (no `flutter:` in pubspec.yaml). `zfa module` scaffolds a '
+        'Flutter feature package (it depends on zuraffa_flutter). Run '
+        '`zfa module` inside a Flutter project.',
+      );
+      return;
+    }
 
     if (verbose) {
       print('Scaffolding feature package: $packageName');

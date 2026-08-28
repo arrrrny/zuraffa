@@ -8,6 +8,7 @@ import '../core/context/file_system.dart';
 import '../models/generated_file.dart';
 import '../plugins/app_shell/builders/app_shell_builder.dart';
 import '../utils/file_utils.dart';
+import '../utils/project_flavor.dart';
 import '../core/project/project_root.dart';
 
 /// `zfa app shell` — generates the app-shell glue files for a zfa-only
@@ -132,6 +133,24 @@ class AppShellCommand extends Command<void> {
         'No pubspec.yaml found at $pubspecPath.\n'
         '   Run `zfa app shell` from the root of a Flutter/Dart project.',
       );
+    }
+
+    // #512: the app shell wires a Flutter `MaterialApp.router` entrypoint and
+    // depends on zuraffa_flutter. In a pure-Dart target package (pubspec.yaml
+    // without a `flutter:` dependency) emitting main.dart/my_app.dart/app_router.dart
+    // breaks `dart analyze` (Constitution VII: Engine Purity). Skip with a clear
+    // warning. (No pubspec found => unknown flavor => preserve historical
+    // Flutter generation.)
+    final flavor = await detectProjectFlavor(projectRoot, _fileSystem);
+    if (flavor == ProjectFlavor.pureDart) {
+      print(
+        '⚠️ Skipping app-shell generation: target project is a pure-Dart '
+        'package (no `flutter:` in pubspec.yaml). The app shell wires a '
+        'Flutter `MaterialApp.router` and depends on zuraffa_flutter '
+        '(Constitution VII: Engine Purity). Run `zfa app shell` inside a '
+        'Flutter project.',
+      );
+      return;
     }
 
     final pubspecContent = await _fileSystem.read(pubspecPath);
