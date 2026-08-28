@@ -6,8 +6,8 @@ extension:
   version: "1.1.2"
   description: "Drives spec-kit implementation with tests: a language-agnostic red-green-refactor loop with a per-feature test list, recorded red and green evidence, and mutation-checked test strength."
   author: d0whc3r
-  repository: https://github.com/d0whc3r/spec-kit-tdd
-  homepage: https://d0whc3r.github.io/spec-kit-tdd/
+  repository: https://github.com/arrrrny/speckit-extensions
+  homepage: https://github.com/arrrrny/speckit-extensions
   license: MIT
 
 requires:
