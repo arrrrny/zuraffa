@@ -80,14 +80,14 @@ wait_for_pubdev() {
 if [[ "$OSTYPE" == "darwin"* ]]; then
     sed -i '' "s/^version: .*/version: $VERSION/" pubspec.yaml
     # zfa_cli.dart may not carry a version const in every layout.
-    sed -i '' "s/^const version = '.*'/const version = '$VERSION'/" lib/src/zfa_cli.dart 2>/dev/null || true
+    sed -i '' "s/^const version = '.*'/const version = '$VERSION'/" lib/src/version.dart 2>/dev/null || true
     # example/ is optional and may not exist in this repo layout.
     if [ -f example/pubspec.yaml ]; then
         sed -i '' "s/^version: .*/version: $VERSION/" example/pubspec.yaml
     fi
 else
     sed -i "s/^version: .*/version: $VERSION/" pubspec.yaml
-    sed -i "s/^const version = '.*'/const version = '$VERSION'/" lib/src/zfa_cli.dart 2>/dev/null || true
+    sed -i "s/^const version = '.*'/const version = '$VERSION'/" lib/src/version.dart 2>/dev/null || true
     if [ -f example/pubspec.yaml ]; then
         sed -i "s/^version: .*/version: $VERSION/" example/pubspec.yaml
     fi
@@ -166,7 +166,7 @@ echo "   zuraffa-zed pinned to: $ZED_NEW_SHA"
 # Step 3: Commit and push main repo (now includes correct submodule pointer)
 # ============================================================
 echo "🔨 Committing and tagging main repo..."
-git add pubspec.yaml CHANGELOG.md lib/src/zfa_cli.dart
+git add pubspec.yaml CHANGELOG.md lib/src/version.dart
 # example/ is optional — only stage it if present (otherwise `git add` aborts under set -e).
 if [ -f example/pubspec.yaml ]; then
     git add example/pubspec.yaml
