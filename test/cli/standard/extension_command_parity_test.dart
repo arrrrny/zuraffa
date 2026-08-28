@@ -39,17 +39,20 @@ Future<List<Map<String, String>>> loadManifest() async {
       'zfa manifest failed (${result.exitCode}):\n${result.stderr}',
     );
   }
-  final List<dynamic> raw = jsonDecode(result.stdout as String) as List<dynamic>;
+  final List<dynamic> raw =
+      jsonDecode(result.stdout as String) as List<dynamic>;
   return raw
-      .map((e) => {
-            'plugin': (e as Map)['plugin'] as String,
-            'name': e['name'] as String,
-          })
+      .map(
+        (e) => {
+          'plugin': (e as Map)['plugin'] as String,
+          'name': e['name'] as String,
+        },
+      )
       .toList();
 }
 
 ({Map<String, String> aliasesToFile, Set<String> aliases})
-    parseExtensionProvides() {
+parseExtensionProvides() {
   final doc = loadYaml(File(extensionYml).readAsStringSync()) as Map;
   final commands = (doc['provides'] as Map)['commands'] as List;
   final aliasesToFile = <String, String>{};
@@ -67,32 +70,43 @@ Future<List<Map<String, String>>> loadManifest() async {
 }
 
 void main() {
-  test('every zfa manifest command is registered in the speckit extension',
-      () async {
-    final manifest = await loadManifest();
-    final (:aliasesToFile, :aliases) = parseExtensionProvides();
+  test(
+    'every zfa manifest command is registered in the speckit extension',
+    () async {
+      final manifest = await loadManifest();
+      final (:aliasesToFile, :aliases) = parseExtensionProvides();
 
-    final missing = <String>[];
-    final missingFiles = <String>[];
-    for (final cmd in manifest) {
-      final alias = expectedAlias(cmd['plugin']!, cmd['name']!);
-      if (!aliases.contains(alias)) {
-        missing.add('${cmd['plugin']}/${cmd['name']} -> $alias');
-        continue;
+      final missing = <String>[];
+      final missingFiles = <String>[];
+      for (final cmd in manifest) {
+        final alias = expectedAlias(cmd['plugin']!, cmd['name']!);
+        if (!aliases.contains(alias)) {
+          missing.add('${cmd['plugin']}/${cmd['name']} -> $alias');
+          continue;
+        }
+        final file = aliasesToFile[alias]!;
+        if (!File('$extensionRoot/$file').existsSync()) {
+          missingFiles.add('$alias -> $file (file missing)');
+        }
       }
-      final file = aliasesToFile[alias]!;
-      if (!File('$extensionRoot/$file').existsSync()) {
-        missingFiles.add('$alias -> $file (file missing)');
-      }
-    }
 
-    expect(missing, isEmpty,
-        reason: 'manifest commands with no extension provides entry:\n'
-            '${missing.join('\n')}');
-    expect(missingFiles, isEmpty,
-        reason: 'provides entries referencing missing files:\n'
-            '${missingFiles.join('\n')}');
-  }, timeout: const Timeout(Duration(seconds: 120)));
+      expect(
+        missing,
+        isEmpty,
+        reason:
+            'manifest commands with no extension provides entry:\n'
+            '${missing.join('\n')}',
+      );
+      expect(
+        missingFiles,
+        isEmpty,
+        reason:
+            'provides entries referencing missing files:\n'
+            '${missingFiles.join('\n')}',
+      );
+    },
+    timeout: const Timeout(Duration(seconds: 120)),
+  );
 
   test('each command .md follows the template shape', () {
     final (:aliasesToFile, :aliases) = parseExtensionProvides();
@@ -116,7 +130,9 @@ void main() {
           !content.contains('name:') ||
           !content.contains('description:') ||
           !content.contains('category:')) {
-        bad.add('$alias -> $file (no frontmatter with name/description/category)');
+        bad.add(
+          '$alias -> $file (no frontmatter with name/description/category)',
+        );
       }
       for (final section in requiredSections) {
         if (!content.contains(section)) {
@@ -124,7 +140,10 @@ void main() {
         }
       }
     }
-    expect(bad, isEmpty,
-        reason: 'command .md files not matching the template:\n${bad.join('\n')}');
+    expect(
+      bad,
+      isEmpty,
+      reason: 'command .md files not matching the template:\n${bad.join('\n')}',
+    );
   });
 }
