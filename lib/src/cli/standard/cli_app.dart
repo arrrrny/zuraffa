@@ -330,8 +330,12 @@ class _ParseResult {
     String? usageError;
     for (var i = 0; i < args.length; i++) {
       final a = args[i];
-      if (a == '--help' || a == '-h') {
-        rest.add(a);
+      if (a == '--help' || a == '-h' || a == '--version' || a == '-v') {
+        // Recognized at the app level by run() when passed as the sole arg.
+        // Per-command help/version is not implemented in v1, so treat these
+        // as no-ops here instead of letting the command parser below swallow
+        // the following token as a (non-existent) flag value.
+        continue;
       } else if (a == '--verbose') {
         verbose = true;
       } else if (a == '--no-color') {

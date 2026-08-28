@@ -118,6 +118,30 @@ void main() {
       });
     });
 
+    group('global flags after a command (regression)', () {
+      test('greet --help World does not swallow the following argument',
+          () async {
+        app.register(sink.command(
+          name: 'greet',
+          arguments: const [CommandArgument(name: 'who')],
+        ));
+        await app.run(['greet', '--help', 'World']);
+        expect(sink.invocations, hasLength(1));
+        expect(sink.invocations.single.arguments, equals(['World']));
+      });
+
+      test('greet --version World does not swallow the following argument',
+          () async {
+        app.register(sink.command(
+          name: 'greet',
+          arguments: const [CommandArgument(name: 'who')],
+        ));
+        await app.run(['greet', '--version', 'World']);
+        expect(sink.invocations, hasLength(1));
+        expect(sink.invocations.single.arguments, equals(['World']));
+      });
+    });
+
     group('JSON output (FR-008)', () {
       test('U20: --output=json emits single-line JSON to stdout', () async {
         app.register(sink.command(name: 'greet'));
