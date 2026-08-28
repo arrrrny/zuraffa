@@ -61,6 +61,7 @@ void main() {
 
       final serviceFile = result.updatedFiles.firstWhere(
         (f) => f.type == 'service',
+        orElse: () => fail('no service file was generated'),
       );
       final serviceContent = await File(serviceFile.path).readAsString();
       expect(
@@ -71,6 +72,7 @@ void main() {
 
       final providerFile = result.updatedFiles.firstWhere(
         (f) => f.type == 'provider',
+        orElse: () => fail('no provider file was generated'),
       );
       final providerContent = await File(providerFile.path).readAsString();
       expect(
@@ -78,8 +80,10 @@ void main() {
         isTrue,
         reason: 'provider override must include the NoParams parameter',
       );
+      // Match a zero-arg *declaration* only: a bare `list()` substring would
+      // also match a delegating call inside the method body.
       expect(
-        providerContent.contains('list()'),
+        RegExp(r'Future<List<Item>>\s+list\(\s*\)').hasMatch(providerContent),
         isFalse,
         reason:
             'a zero-arg override is an invalid_override of the service method',
